@@ -246,6 +246,63 @@ TEST_CASE("walls of different thickness meet in a clean corner", "[core][build]"
     REQUIRE(ringArea(outline) == Approx(4.21 * 0.12 + 0.3 * 3.09).margin(1e-6));
 }
 
+TEST_CASE("a half wall at a corner keeps square ends and the full wall is not mitred", "[core][build]") {
+    Floor f;
+    f.id = "f1";
+    f.points = {{"p1", 0.0, 0.0, 0.0}, {"p2", 4.0, 0.0, 0.0}, {"p3", 4.0, 3.0, 0.0}};
+    Wall a;
+    a.id = "w1";
+    a.from = "p1";
+    a.to = "p2";
+    a.thickness = 0.2;
+    Wall b = a;
+    b.id = "w2";
+    b.from = "p2";
+    b.to = "p3";
+    b.height = 1.1;
+    f.walls = {a, b};
+
+    const std::vector<WallSolid> solids = wallSolids(f);
+    REQUIRE(solids.size() == 2);
+    const WallSolid& full = solids[0];
+    const WallSolid& half = solids[1];
+    REQUIRE(full.height == Approx(3.0).margin(1e-9));
+    REQUIRE(half.height == Approx(1.1).margin(1e-9));
+    REQUIRE(range(full.outline.points, true).second == Approx(4.1).margin(1e-9));
+    REQUIRE(ringArea(full.outline.points) == Approx(4.2 * 0.2).margin(1e-6));
+    REQUIRE(range(half.outline.points, true).second == Approx(4.1).margin(1e-9));
+    REQUIRE(range(half.outline.points, false).second == Approx(-0.1).margin(1e-9));
+    REQUIRE(ringArea(half.outline.points) == Approx(0.2 * 3.0).margin(1e-6));
+}
+
+TEST_CASE("a very short wall at a sharp angle keeps a square end instead of folding", "[core][build]") {
+    Floor f;
+    f.id = "f1";
+    f.points = {{"p1", 0.0, 0.0, 0.0}, {"p2", 0.3, 0.0, 0.0}, {"p3", 4.0, 1.5, 0.0}};
+    Wall a;
+    a.id = "w1";
+    a.from = "p1";
+    a.to = "p2";
+    a.thickness = 0.4;
+    Wall b = a;
+    b.id = "w2";
+    b.from = "p2";
+    b.to = "p3";
+    f.walls = {a, b};
+
+    const std::vector<WallSolid> solids = wallSolids(f);
+    REQUIRE(solids.size() == 1);
+    const std::vector<Vec2>& outline = solids[0].outline.points;
+    double bands = 0.0;
+    for (const Wall& w : f.walls) {
+        for (const std::vector<Vec2>& band : wallBand(f, w)) bands += ringArea(band);
+    }
+    REQUIRE(range(outline, true).first == Approx(-0.2).margin(1e-9));
+    REQUIRE(ringArea(outline) > 0.0);
+    REQUIRE(ringArea(outline) <= bands + 1e-9);
+    REQUIRE(solids[0].holes.empty());
+}
+
 TEST_CASE("a curved wall ends in a clean mitre against a straight wall", "[core][build]") {
     Floor f = squareWithRoom();
     findWall(f, "w1")->bulge = -1.0;

@@ -112,7 +112,7 @@ std::uint64_t fnv1a(std::string_view data)
     return hash;
 }
 
-// The wall, if the id names one of the floor's.
+// The middle point of the wall.
 Vec2 middleOfWall(const Floor& floor, const Wall& wall)
 {
     const WallCurve curve = wallCurve(floor, wall);
@@ -447,6 +447,7 @@ BuildReportRead readBuildReport(const fs::path& projectFolder)
         BuildReport& report = result.report;
         if (!json.contains("ok") || !json["ok"].is_boolean()) throw std::string("/ok");
         if (!json["ok"].get<bool>()) {
+            if (!json.contains("error")) throw std::string("/error");
             const Json& error = json["error"];
             if (!error.is_object()) throw std::string("/error");
             report.status.code = errorCodeFromName(text(error, "code", "/error"));

@@ -255,6 +255,18 @@ TEST_CASE("readBuildReport says not_found and bad_file", "[core][build][run]") {
     REQUIRE(missing.status.code == ErrorCode::BadFile);
 }
 
+TEST_CASE("readBuildReport rejects a failed report with no error", "[core][build][run]") {
+    BuildFixture failed("run-read-noerror", "fail");
+    runBuild(failed.request);
+    const fs::path file = failed.projectFolder / "build" / "build.json";
+    nlohmann::json json = nlohmann::json::parse(plynth::test::readTextFile(file));
+    json.erase("error");
+    std::ofstream(file, std::ios::trunc) << json.dump();
+    const BuildReportRead read = readBuildReport(failed.projectFolder);
+    REQUIRE(read.status.code == ErrorCode::BadFile);
+    REQUIRE(read.status.message.find("/error") != std::string::npos);
+}
+
 TEST_CASE("planFingerprint changes when the plan or settings change", "[core][build]") {
     const Project a = buildProject();
     Project b = buildProject();
