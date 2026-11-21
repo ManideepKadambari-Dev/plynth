@@ -31,12 +31,17 @@
     "pointDot": 9,
     "terminalButton": 44,
     "terminalPanelWidth": 760,
-    "terminalPanelHeight": 420
+    "terminalPanelHeight": 420,
+    "toolButton": 32,
+    "toolStripWidth": 44,
+    "propertiesWidth": 280,
+    "snapRadius": 10
   },
   "effects": {
     "overlayAlpha": 150,
     "readOnlyDim": 150,
-    "terminalSelectionAlpha": 80
+    "terminalSelectionAlpha": 80,
+    "roomFillAlpha": 36
   },
   "terminal": {
     "ansi": [

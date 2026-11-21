@@ -1,13 +1,18 @@
 #include "PlanCanvas.h"
 
 #include "theme/Theme.h"
+#include "tools/Tool.h"
 
+#include <QApplication>
 #include <QGraphicsPixmapItem>
 #include <QGraphicsScene>
+#include <QGuiApplication>
 #include <QKeyEvent>
+#include <QLineEdit>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPixmap>
+#include <QFontMetrics>
 #include <QPolygonF>
 #include <QScrollBar>
 #include <QWheelEvent>
@@ -40,6 +45,8 @@ PlanCanvas::PlanCanvas(QWidget* parent)
     setFrameShape(QFrame::NoFrame);
     setFocusPolicy(Qt::StrongFocus);
     setDragMode(QGraphicsView::NoDrag);
+    setMouseTracking(true);
+    viewport()->setMouseTracking(true);
     setToolTip(tr("Plan sheet. Wheel zooms at the cursor. Middle drag or Space and drag pans."));
     setProperty("tourId", QStringLiteral("canvas-plan"));
     emptyText_ = defaultEmptyText();
@@ -78,12 +85,40 @@ void PlanCanvas::setDimmed(bool dimmed)
     viewport()->update();
 }
 
-// Replaces the walls and points drawn over the plan image. Positions are in scene units.
-void PlanCanvas::setOverlay(const QVector<OverlayWall>& walls, const QVector<QPointF>& points)
+// Replaces what is drawn over the plan image. Positions are in scene units.
+void PlanCanvas::setOverlay(const OverlayData& overlay)
 {
-    overlayWalls_ = walls;
-    overlayPoints_ = points;
+    overlay_ = overlay;
     viewport()->update();
+}
+
+// Says which item is drawn in the selection color.
+void PlanCanvas::setSelection(SelectionKind kind, const QString& id)
+{
+    selectionKind_ = kind;
+    selectionId_ = id;
+    viewport()->update();
+}
+
+// Sets the grid step in scene units. 0 hides the grid.
+void PlanCanvas::setGridStep(double scenePixels)
+{
+    gridStep_ = scenePixels;
+    viewport()->update();
+}
+
+// Gives the mouse, keys and previews to a tool.
+void PlanCanvas::setTool(Tool* tool)
+{
+    tool_ = tool;
+    updateCursor();
+    viewport()->update();
+}
+
+// Where a scene position is in the pixels of the canvas.
+QPointF PlanCanvas::sceneToView(const QPointF& scene) const
+{
+    return mapFromScene(scene);
 }
 
 // Sets the line shown in the middle of the empty sheet. Empty text brings back the hint.
@@ -228,30 +263,7 @@ void PlanCanvas::drawForeground(QPainter* painter, const QRectF& rect)
             painter->fillRect(mapFromScene(imageRect()).boundingRect().adjusted(-pad, -pad, pad, pad), dim);
             painter->restore();
         }
-        QColor blue = t.signalBlue();
-        blue.setAlpha(t.overlayAlpha());
-        painter->save();
-        painter->setRenderHint(QPainter::Antialiasing, true);
-        painter->setPen(Qt::NoPen);
-        painter->setBrush(blue);
-        for (const OverlayWall& wall : overlayWalls_) {
-            const QPointF delta = wall.to - wall.from;
-            const double length = std::hypot(delta.x(), delta.y());
-            if (length <= 0.0)
-                continue;
-            const QPointF dir = delta / length;
-            const QPointF normal(-dir.y(), dir.x());
-            const double half = wall.thickness / 2.0;
-            const QPointF a = wall.from - dir * half;
-            const QPointF b = wall.to + dir * half;
-            painter->drawPolygon(QPolygonF({a + normal * half, b + normal * half, b - normal * half, a - normal * half}));
-        }
-        painter->resetTransform();
-        painter->setBrush(t.signalBlue());
-        const double radius = t.pointDot() / 2.0;
-        for (const QPointF& point : overlayPoints_)
-            painter->drawEllipse(QPointF(mapFromScene(point)), radius, radius);
-        painter->restore();
+        paintOverlay(painter);
         return;
     }
     painter->save();
@@ -261,6 +273,136 @@ void PlanCanvas::drawForeground(QPainter* painter, const QRectF& rect)
     painter->drawText(viewport()->rect(), Qt::AlignCenter,
                       emptyText_);
     painter->restore();
+}
+
+// Paints grid, rooms, walls, points, labels, the selection and the tool previews, in that order.
+void PlanCanvas::paintOverlay(QPainter* painter)
+{
+    const Theme& t = Theme::instance();
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing, true);
+
+    if (gridStep_ > 0.0 && gridStep_ * zoom_ >= 8.0) {
+        const QRectF img = imageRect();
+        painter->setRenderHint(QPainter::Antialiasing, false);
+        QColor gridColor = t.line();
+        gridColor.setAlpha(t.overlayAlpha());
+        painter->setPen(QPen(gridColor, 0));
+        for (double x = 0.0; x <= img.width(); x += gridStep_)
+            painter->drawLine(QPointF(x, 0.0), QPointF(x, img.height()));
+        for (double y = 0.0; y <= img.height(); y += gridStep_)
+            painter->drawLine(QPointF(0.0, y), QPointF(img.width(), y));
+        painter->setRenderHint(QPainter::Antialiasing, true);
+    }
+
+    QColor roomBlue = t.signalBlue();
+    roomBlue.setAlpha(t.roomFillAlpha());
+    painter->setPen(Qt::NoPen);
+    painter->setBrush(roomBlue);
+    for (const OverlayRoom& room : overlay_.rooms)
+        painter->drawPath(room.floor);
+
+    QColor blue = t.signalBlue();
+    blue.setAlpha(t.overlayAlpha());
+    auto drawBand = [painter](const OverlayWall& wall) {
+        const QPointF delta = wall.to - wall.from;
+        const double length = std::hypot(delta.x(), delta.y());
+        if (length <= 0.0)
+            return;
+        const QPointF dir = delta / length;
+        const QPointF normal(-dir.y(), dir.x());
+        const double half = wall.thickness / 2.0;
+        const QPointF a = wall.from - dir * half;
+        const QPointF b = wall.to + dir * half;
+        painter->drawPolygon(QPolygonF({a + normal * half, b + normal * half, b - normal * half, a - normal * half}));
+    };
+    painter->setBrush(blue);
+    for (const OverlayWall& wall : overlay_.walls)
+        drawBand(wall);
+
+    if (selectionKind_ == SelectionKind::Room) {
+        QColor amberFill = t.signalAmber();
+        amberFill.setAlpha(t.roomFillAlpha());
+        QPen outline(t.signalAmber());
+        outline.setCosmetic(true);
+        outline.setWidth(2);
+        for (const OverlayRoom& room : overlay_.rooms) {
+            if (room.id != selectionId_)
+                continue;
+            painter->setPen(Qt::NoPen);
+            painter->setBrush(amberFill);
+            painter->drawPath(room.floor);
+            painter->setPen(outline);
+            painter->setBrush(Qt::NoBrush);
+            painter->drawPath(room.floor);
+        }
+    }
+    if (selectionKind_ == SelectionKind::Wall) {
+        QColor amber = t.signalAmber();
+        amber.setAlpha(230);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(amber);
+        for (const OverlayWall& wall : overlay_.walls)
+            if (wall.id == selectionId_)
+                drawBand(wall);
+    }
+
+    painter->resetTransform();
+    painter->setPen(Qt::NoPen);
+    painter->setBrush(t.signalBlue());
+    const double radius = t.pointDot() / 2.0;
+    for (const OverlayPoint& point : overlay_.points)
+        painter->drawEllipse(QPointF(mapFromScene(point.position)), radius, radius);
+
+    paintLabels(painter);
+
+    if (selectionKind_ == SelectionKind::Point) {
+        for (const OverlayPoint& point : overlay_.points) {
+            if (point.id != selectionId_)
+                continue;
+            const QPointF at = mapFromScene(point.position);
+            painter->setPen(Qt::NoPen);
+            painter->setBrush(t.signalAmber());
+            painter->drawEllipse(at, radius, radius);
+            painter->setPen(QPen(t.signalAmber(), 2));
+            painter->setBrush(Qt::NoBrush);
+            painter->drawEllipse(at, radius + 4, radius + 4);
+        }
+    }
+
+    if (tool_ != nullptr)
+        tool_->paint(*painter);
+    painter->restore();
+}
+
+// Paints each room's name and area at constant screen size, unless the room is too small for them.
+void PlanCanvas::paintLabels(QPainter* painter)
+{
+    const Theme& t = Theme::instance();
+    const QFont nameFont = t.uiFont(t.sizeNormal());
+    const QFont areaFont = t.monoFont(t.sizeSmall());
+    const QFontMetrics nameMetrics(nameFont);
+    const QFontMetrics areaMetrics(areaFont);
+    for (const OverlayRoom& room : overlay_.rooms) {
+        const int nameWidth = nameMetrics.horizontalAdvance(room.name);
+        const int areaWidth = areaMetrics.horizontalAdvance(room.area);
+        const double width = std::max(nameWidth, areaWidth);
+        const QRectF roomBox = mapFromScene(room.floor.boundingRect()).boundingRect();
+        if (width + t.unit() * 2 > roomBox.width())
+            continue;
+        const int height = nameMetrics.height() + areaMetrics.height();
+        if (height > roomBox.height())
+            continue;
+        const QPointF at = mapFromScene(room.label);
+        const QRectF nameBox(at.x() - width / 2.0, at.y() - height / 2.0, width, nameMetrics.height());
+        const QRectF areaBox(at.x() - width / 2.0, nameBox.bottom(), width, areaMetrics.height());
+        painter->setFont(nameFont);
+        painter->setPen(t.text());
+        painter->drawText(nameBox, Qt::AlignCenter, room.name);
+        painter->setFont(areaFont);
+        painter->setPen(t.muted());
+        painter->drawText(areaBox, Qt::AlignCenter, room.area);
+    }
 }
 
 // Zooms at the cursor. One notch is 1.25 times, touchpad deltas count in proportion.
@@ -280,7 +422,24 @@ void PlanCanvas::wheelEvent(QWheelEvent* event)
     event->accept();
 }
 
-// Starts a pan on middle button, or on left button while Space is held.
+namespace {
+
+// Builds the tool event for a mouse event, in scene and canvas coordinates.
+ToolMouse toolMouse(const PlanCanvas& canvas, const QMouseEvent* event)
+{
+    ToolMouse mouse;
+    mouse.view = event->position().toPoint();
+    mouse.scene = canvas.mapToScene(mouse.view);
+    mouse.global = event->globalPosition().toPoint();
+    mouse.button = event->button();
+    mouse.buttons = event->buttons();
+    mouse.modifiers = event->modifiers();
+    return mouse;
+}
+
+}
+
+// Starts a pan on middle button, or on left button while Space is held. Other clicks go to the tool.
 void PlanCanvas::mousePressEvent(QMouseEvent* event)
 {
     const bool middle = event->button() == Qt::MiddleButton;
@@ -293,10 +452,15 @@ void PlanCanvas::mousePressEvent(QMouseEvent* event)
         event->accept();
         return;
     }
+    if (hasImage() && tool_ != nullptr) {
+        tool_->mousePressed(toolMouse(*this, event));
+        event->accept();
+        return;
+    }
     QGraphicsView::mousePressEvent(event);
 }
 
-// Moves the view while a pan is in progress.
+// Moves the view while a pan is in progress, otherwise tells the tool and the status bar.
 void PlanCanvas::mouseMoveEvent(QMouseEvent* event)
 {
     if (panning_) {
@@ -309,10 +473,18 @@ void PlanCanvas::mouseMoveEvent(QMouseEvent* event)
         event->accept();
         return;
     }
+    if (hasImage()) {
+        const ToolMouse mouse = toolMouse(*this, event);
+        emit cursorMoved(mouse.scene);
+        if (tool_ != nullptr)
+            tool_->mouseMoved(mouse);
+        event->accept();
+        return;
+    }
     QGraphicsView::mouseMoveEvent(event);
 }
 
-// Ends a pan.
+// Ends a pan, or tells the tool the button was released.
 void PlanCanvas::mouseReleaseEvent(QMouseEvent* event)
 {
     if (panning_ && event->button() == panButton_) {
@@ -322,7 +494,21 @@ void PlanCanvas::mouseReleaseEvent(QMouseEvent* event)
         event->accept();
         return;
     }
+    if (hasImage() && tool_ != nullptr) {
+        tool_->mouseReleased(toolMouse(*this, event));
+        event->accept();
+        return;
+    }
     QGraphicsView::mouseReleaseEvent(event);
+}
+
+// Tells the tool and the status bar that the cursor left the canvas.
+void PlanCanvas::leaveEvent(QEvent* event)
+{
+    QGraphicsView::leaveEvent(event);
+    emit cursorLeft();
+    if (tool_ != nullptr)
+        tool_->mouseLeft();
 }
 
 // Holding Space turns the left button into a pan button.
@@ -333,6 +519,13 @@ void PlanCanvas::keyPressEvent(QKeyEvent* event)
             spaceHeld_ = true;
             updateCursor();
         }
+        event->accept();
+        return;
+    }
+    if (event->key() == Qt::Key_Shift || event->key() == Qt::Key_Control) {
+        if (tool_ != nullptr)
+            tool_->modifiersChanged();
+    } else if (tool_ != nullptr && tool_->keyPressed(event)) {
         event->accept();
         return;
     }
@@ -350,6 +543,8 @@ void PlanCanvas::keyReleaseEvent(QKeyEvent* event)
         event->accept();
         return;
     }
+    if ((event->key() == Qt::Key_Shift || event->key() == Qt::Key_Control) && tool_ != nullptr)
+        tool_->modifiersChanged();
     QGraphicsView::keyReleaseEvent(event);
 }
 
@@ -367,7 +562,8 @@ void PlanCanvas::focusOutEvent(QFocusEvent* event)
 void PlanCanvas::enterEvent(QEnterEvent* event)
 {
     QGraphicsView::enterEvent(event);
-    setFocus(Qt::MouseFocusReason);
+    if (qobject_cast<QLineEdit*>(QApplication::focusWidget()) == nullptr)
+        setFocus(Qt::MouseFocusReason);
 }
 
 // Keeps the sheet fitted after a resize while the user has not zoomed or panned.
@@ -398,7 +594,7 @@ void PlanCanvas::updateCursor()
     else if (spaceHeld_)
         viewport()->setCursor(Qt::OpenHandCursor);
     else
-        viewport()->setCursor(Qt::ArrowCursor);
+        viewport()->setCursor(tool_ != nullptr ? tool_->cursor() : Qt::ArrowCursor);
 }
 
 }

@@ -42,6 +42,11 @@ public:
     int overlayAlpha() const { return overlayAlpha_; }
     int readOnlyDim() const { return readOnlyDim_; }
     int terminalSelectionAlpha() const { return terminalSelectionAlpha_; }
+    int roomFillAlpha() const { return roomFillAlpha_; }
+    int toolButton() const { return toolButton_; }
+    int toolStripWidth() const { return toolStripWidth_; }
+    int propertiesWidth() const { return propertiesWidth_; }
+    int snapRadius() const { return snapRadius_; }
     int terminalButton() const { return terminalButton_; }
     int terminalPanelWidth() const { return terminalPanelWidth_; }
     int terminalPanelHeight() const { return terminalPanelHeight_; }
@@ -66,6 +71,11 @@ private:
     int overlayAlpha_ = 150;
     int readOnlyDim_ = 150;
     int terminalSelectionAlpha_ = 80;
+    int roomFillAlpha_ = 36;
+    int toolButton_ = 32;
+    int toolStripWidth_ = 44;
+    int propertiesWidth_ = 280;
+    int snapRadius_ = 10;
     int terminalButton_ = 44;
     int terminalPanelWidth_ = 760;
     int terminalPanelHeight_ = 420;

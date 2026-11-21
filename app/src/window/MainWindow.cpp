@@ -5,6 +5,10 @@
 #include "canvas/PlanCanvas.h"
 #include "ReadOnlyBanner.h"
 #include "document/DocumentBridge.h"
+#include "document/Selection.h"
+#include "panels/PropertiesPanel.h"
+#include "panels/ToolStrip.h"
+#include "tools/ToolController.h"
 #include "document/ProjectWatcher.h"
 #include "terminal/TerminalDock.h"
 #include "theme/Theme.h"
@@ -34,9 +38,11 @@
 #include <QMimeData>
 #include <QPixmap>
 #include <QPushButton>
+#include <QHBoxLayout>
 #include <QTimer>
 #include <QVBoxLayout>
 
+#include <array>
 #include <chrono>
 
 #ifdef Q_OS_WIN
@@ -88,12 +94,25 @@ MainWindow::MainWindow(QWidget* parent)
     statusBar_ = new StatusBar(central);
     banner_ = new ReadOnlyBanner(central);
     banner_->hide();
+    selection_ = new Selection(this);
+    tools_ = new ToolController(doc_, canvas_, selection_, this, this);
+    toolStrip_ = new ToolStrip(tools_, central);
+    panel_ = new PropertiesPanel(doc_, *selection_, *tools_, central);
+    auto* work = new QWidget(central);
+    auto* row = new QHBoxLayout(work);
+    row->setContentsMargins(0, 0, 0, 0);
+    row->setSpacing(0);
+    row->addWidget(toolStrip_);
+    canvas_->setParent(work);
+    row->addWidget(canvas_, 1);
+    panel_->setParent(work);
+    row->addWidget(panel_);
     column->addWidget(banner_);
-    column->addWidget(canvas_, 1);
+    column->addWidget(work, 1);
     column->addWidget(statusBar_);
     setCentralWidget(central);
     setAcceptDrops(true);
-    terminal_ = new TerminalDock(central, canvas_, this);
+    terminal_ = new TerminalDock(work, canvas_, this);
 
     connect(canvas_, &PlanCanvas::zoomChanged, this, [this](double zoom) {
         if (canvas_->hasImage())
@@ -101,6 +120,16 @@ MainWindow::MainWindow(QWidget* parent)
         else
             statusBar_->clearZoom();
     });
+
+    connect(canvas_, &PlanCanvas::cursorMoved, this, [this](const QPointF& scene) { updateCursorText(&scene); });
+    connect(canvas_, &PlanCanvas::cursorLeft, this, [this]() { updateCursorText(nullptr); });
+    connect(selection_, &Selection::changed, this, &MainWindow::refreshSelection);
+    connect(tools_, &ToolController::message, statusBar_, &StatusBar::showMessage);
+    connect(tools_, &ToolController::hintTextChanged, statusBar_, &StatusBar::setHint);
+    connect(tools_, &ToolController::gridChanged, this, [this]() { canvas_->setGridStep(tools_->gridStepPixels()); });
+    connect(tools_, &ToolController::activeChanged, this, &MainWindow::updateToolActions);
+    connect(tools_, &ToolController::availabilityChanged, this, &MainWindow::updateToolActions);
+    statusBar_->setHint(tools_->hint());
 
     buildMenus();
 
@@ -195,6 +224,24 @@ void MainWindow::buildMenus()
             showError(tr("Cannot redo"), fromCore(status.message));
     });
 
+    edit->addSeparator();
+    const std::array<ToolId, 4> toolIds{ToolId::Select, ToolId::Scale, ToolId::Wall, ToolId::Room};
+    const std::array<Qt::Key, 4> toolKeys{Qt::Key_V, Qt::Key_S, Qt::Key_W, Qt::Key_R};
+    for (size_t i = 0; i < toolIds.size(); ++i) {
+        const ToolId id = toolIds[i];
+        QAction* action = addMenuAction(edit, tr("%1 tool").arg(ToolStrip::toolName(id)),
+                                        tr("%1 tool (%2)").arg(ToolStrip::toolName(id), ToolStrip::toolKey(id)),
+                                        QStringLiteral("tool-") + ToolStrip::toolName(id).toLower(),
+                                        {QKeySequence(toolKeys[i])});
+        action->setCheckable(true);
+        connect(action, &QAction::triggered, this, [this, id]() {
+            tools_->setActive(id);
+            updateToolActions();
+        });
+        toolActions_[static_cast<size_t>(id)] = action;
+    }
+    updateToolActions();
+
     QList<QKeySequence> zoomOutKeys{QKeySequence(Qt::CTRL | Qt::Key_Minus)};
     for (const QKeySequence& key : QKeySequence::keyBindings(QKeySequence::ZoomOut))
         if (!zoomOutKeys.contains(key))
@@ -211,6 +258,13 @@ void MainWindow::buildMenus()
                   QStringLiteral("view-actual-size"), {QKeySequence(Qt::CTRL | Qt::Key_1)},
                   &PlanCanvas::actualSize);
     updateViewActions();
+    titleBar_->viewMenu()->addSeparator();
+    snapGridAction_ = addMenuAction(titleBar_->viewMenu(), tr("Snap to &grid"),
+                                    tr("Snap new and moved points to the grid (G)"), QStringLiteral("view-snap-grid"),
+                                    {QKeySequence(Qt::Key_G)});
+    snapGridAction_->setCheckable(true);
+    snapGridAction_->setChecked(tools_->snapToGrid());
+    connect(snapGridAction_, &QAction::toggled, this, [this](bool on) { tools_->setSnapToGrid(on); });
     titleBar_->viewMenu()->addSeparator();
     QAction* terminalAction = addMenuAction(titleBar_->viewMenu(), tr("&Terminal"),
                                             tr("Show or hide the terminal (Ctrl+`)"), QStringLiteral("view-terminal"),
@@ -280,11 +334,15 @@ void MainWindow::onDocumentChanged(unsigned changes)
 {
     if (changes & (plynth::Change::FloorImage | plynth::Change::Floors | plynth::Change::Folder))
         refreshImage();
-    if (changes & (plynth::Change::Points | plynth::Change::Walls | plynth::Change::Scale |
+    if (changes & (plynth::Change::Points | plynth::Change::Walls | plynth::Change::Rooms | plynth::Change::Scale |
                    plynth::Change::Floors | plynth::Change::Folder))
         refreshOverlay();
+    validateSelection();
     if (changes & plynth::Change::ReadOnly)
         updateReadOnlyUi();
+    tools_->documentChanged(changes);
+    tools_->refreshAvailability();
+    panel_->refresh();
     if (changes & plynth::Change::Folder) {
         recoveryPending_ = false;
         terminal_->setWorkingFolder(doc_.hasFolder() ? QString::fromStdWString(doc_.folder().wstring()) : QString());
@@ -377,27 +435,136 @@ void MainWindow::refreshImage()
     updateViewActions();
 }
 
-// Gives the canvas the points and walls of the first floor, in image pixels. Nothing without a scale.
+// Gives the canvas the points, walls and rooms of the first floor, in image pixels. Nothing without a scale.
 void MainWindow::refreshOverlay()
 {
-    QVector<OverlayWall> walls;
-    QVector<QPointF> points;
+    OverlayData overlay;
     const plynth::Plan& plan = doc_.plan();
     if (plan.scale.pixelsPerMetre.has_value() && !plan.floors.empty()) {
         const double ppm = *plan.scale.pixelsPerMetre;
         const plynth::Floor& floor = plan.floors.front();
         for (const plynth::Point& point : floor.points)
-            points.append(QPointF(point.x * ppm, point.y * ppm));
+            overlay.points.append({fromCore(point.id), QPointF(point.x * ppm, point.y * ppm)});
         for (const plynth::Wall& wall : floor.walls) {
             const plynth::Point* from = plynth::findPoint(floor, wall.from);
             const plynth::Point* to = plynth::findPoint(floor, wall.to);
             if (from == nullptr || to == nullptr)
                 continue;
-            walls.append({QPointF(from->x * ppm, from->y * ppm), QPointF(to->x * ppm, to->y * ppm),
-                          wall.thickness * ppm});
+            overlay.walls.append({fromCore(wall.id), QPointF(from->x * ppm, from->y * ppm),
+                               QPointF(to->x * ppm, to->y * ppm), wall.thickness * ppm});
         }
     }
-    canvas_->setOverlay(walls, points);
+    canvas_->setOverlay(overlay);
+    canvas_->setGridStep(tools_->gridStepPixels());
+}
+
+// Tells the canvas which item is selected.
+void MainWindow::refreshSelection()
+{
+    canvas_->setSelection(selection_->kind(), selection_->id());
+}
+
+// Clears the selection when its item is gone, for example after undo or a reload.
+void MainWindow::validateSelection()
+{
+    if (selection_->isEmpty())
+        return;
+    const plynth::Floor* floor = doc_.plan().floors.empty() ? nullptr : &doc_.plan().floors.front();
+    const std::string id = selection_->id().toStdString();
+    bool found = false;
+    if (floor != nullptr) {
+        switch (selection_->kind()) {
+        case SelectionKind::Point:
+            found = plynth::findPoint(*floor, id) != nullptr;
+            break;
+        case SelectionKind::Wall:
+            for (const plynth::Wall& wall : floor->walls)
+                found = found || wall.id == id;
+            break;
+        case SelectionKind::Room:
+            for (const plynth::Room& room : floor->rooms)
+                found = found || room.id == id;
+            break;
+        case SelectionKind::None:
+            break;
+        }
+    }
+    if (!found)
+        selection_->clear();
+}
+
+// Checks the active tool in the Edit menu and enables the tools that can be used.
+void MainWindow::updateToolActions()
+{
+    const std::array<ToolId, 4> ids{ToolId::Select, ToolId::Scale, ToolId::Wall, ToolId::Room};
+    for (ToolId id : ids) {
+        QAction* action = toolActions_[static_cast<size_t>(id)];
+        if (action == nullptr)
+            continue;
+        const bool available = tools_->isAvailable(id);
+        action->setEnabled(available);
+        action->setChecked(tools_->active() == id);
+        QString tip = tr("%1 tool (%2)").arg(ToolStrip::toolName(id), ToolStrip::toolKey(id));
+        if (!available)
+            tip += QStringLiteral(". ") + tools_->unavailableReason(id);
+        action->setToolTip(tip);
+    }
+}
+
+// Shows the cursor position in metres, or nothing when it is off the plan or no scale is set.
+void MainWindow::updateCursorText(const QPointF* scene)
+{
+    const std::optional<double> ppm = doc_.plan().scale.pixelsPerMetre;
+    if (scene == nullptr || !ppm.has_value()) {
+        statusBar_->setCursorText(QString());
+        return;
+    }
+    statusBar_->setCursorText(QStringLiteral("x %1 m  y %2 m")
+                                  .arg(scene->x() / *ppm, 0, 'f', 3)
+                                  .arg(scene->y() / *ppm, 0, 'f', 3));
+}
+
+// For checks only: activates a tool by its name.
+bool MainWindow::activateToolByName(const QString& name)
+{
+    const QString key = name.toLower();
+    ToolId id = ToolId::Select;
+    if (key == QStringLiteral("select"))
+        id = ToolId::Select;
+    else if (key == QStringLiteral("scale"))
+        id = ToolId::Scale;
+    else if (key == QStringLiteral("wall"))
+        id = ToolId::Wall;
+    else if (key == QStringLiteral("room"))
+        id = ToolId::Room;
+    else
+        return false;
+    tools_->setActive(id);
+    return true;
+}
+
+// For checks only: selects a point, wall or room of the first floor by its id.
+void MainWindow::selectById(const QString& id)
+{
+    selection_->clear();
+    if (doc_.plan().floors.empty())
+        return;
+    const plynth::Floor& floor = doc_.plan().floors.front();
+    const std::string key = id.toStdString();
+    if (plynth::findPoint(floor, key) != nullptr) {
+        selection_->set(SelectionKind::Point, id);
+        return;
+    }
+    for (const plynth::Wall& wall : floor.walls)
+        if (wall.id == key) {
+            selection_->set(SelectionKind::Wall, id);
+            return;
+        }
+    for (const plynth::Room& room : floor.rooms)
+        if (room.id == key) {
+            selection_->set(SelectionKind::Room, id);
+            return;
+        }
 }
 
 // Opens a project folder with core and makes it the document. A project with an active command
@@ -509,6 +676,8 @@ void MainWindow::updateReadOnlyUi()
     banner_->setVisible(readOnly);
     canvas_->setDimmed(readOnly);
     updateActions();
+    tools_->refreshAvailability();
+    panel_->refresh();
 }
 
 // Ends the command line session after a question.

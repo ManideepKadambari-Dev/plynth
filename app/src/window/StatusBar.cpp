@@ -5,6 +5,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPainter>
+#include <QTimer>
 
 namespace plynth::app {
 
@@ -39,7 +40,37 @@ StatusBar::StatusBar(QWidget* parent)
     sizeLabel_->setToolTip(tr("Size of the plan image in pixels"));
     layout->addWidget(sizeLabel_);
 
+    hintLabel_ = new QLabel(this);
+    hintLabel_->setFont(t.uiFont(t.sizeSmall()));
+    hintLabel_->setStyleSheet(mutedStyle);
+    hintLabel_->setToolTip(tr("What the active tool does with a click"));
+    hintLabel_->setProperty("tourId", QStringLiteral("status-hint"));
+    layout->addSpacing(t.unit() * 4);
+    layout->addWidget(hintLabel_);
+
+    messageLabel_ = new QLabel(this);
+    messageLabel_->setFont(t.uiFont(t.sizeSmall()));
+    messageLabel_->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
+    messageLabel_->setToolTip(tr("The reason the last action was refused"));
+    messageLabel_->hide();
+    layout->addWidget(messageLabel_);
+
     layout->addStretch(1);
+
+    cursorLabel_ = new QLabel(this);
+    cursorLabel_->setFont(t.monoFont(t.sizeSmall()));
+    cursorLabel_->setStyleSheet(mutedStyle);
+    cursorLabel_->setToolTip(tr("Position of the cursor on the plan in metres"));
+    cursorLabel_->setProperty("tourId", QStringLiteral("status-cursor"));
+    layout->addWidget(cursorLabel_);
+
+    messageTimer_ = new QTimer(this);
+    messageTimer_->setSingleShot(true);
+    messageTimer_->setInterval(4000);
+    connect(messageTimer_, &QTimer::timeout, this, [this]() {
+        messageLabel_->hide();
+        hintLabel_->show();
+    });
 
     zoomLabel_ = new QLabel(this);
     zoomLabel_->setFont(t.monoFont(t.sizeSmall()));
@@ -75,6 +106,27 @@ void StatusBar::setZoom(double zoom)
 void StatusBar::clearZoom()
 {
     zoomLabel_->clear();
+}
+
+// Shows the cursor position text.
+void StatusBar::setCursorText(const QString& text)
+{
+    cursorLabel_->setText(text);
+}
+
+// Shows the hint of the active tool.
+void StatusBar::setHint(const QString& text)
+{
+    hintLabel_->setText(text);
+}
+
+// Shows a message in amber over the hint for four seconds.
+void StatusBar::showMessage(const QString& text)
+{
+    messageLabel_->setText(text);
+    messageLabel_->show();
+    hintLabel_->hide();
+    messageTimer_->start();
 }
 
 // Paints the Panel background and the Line border on top.

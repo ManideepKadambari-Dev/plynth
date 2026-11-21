@@ -8,6 +8,7 @@
 #include <QCommandLineParser>
 #include <QImage>
 #include <QRegularExpression>
+#include <QStyleFactory>
 #include <QTimer>
 
 namespace {
@@ -71,6 +72,14 @@ int main(int argc, char* argv[])
     QCommandLineOption terminalOption(QStringLiteral("terminal"),
                                       QStringLiteral("Open the terminal and type this text. For checks only."),
                                       QStringLiteral("text"));
+    QCommandLineOption toolOption(QStringLiteral("tool"),
+                                  QStringLiteral("Activate a tool: select, scale, wall or room. For checks only."),
+                                  QStringLiteral("name"));
+    QCommandLineOption selectOption(QStringLiteral("select"),
+                                    QStringLiteral("Select the point, wall or room with this id. For checks only."),
+                                    QStringLiteral("id"));
+    parser.addOption(toolOption);
+    parser.addOption(selectOption);
     parser.addOption(imageOption);
     parser.addOption(terminalOption);
     parser.addOption(screenshotOption);
@@ -82,10 +91,18 @@ int main(int argc, char* argv[])
     const bool hasSize = parser.isSet(sizeOption);
     if (hasSize && !parseSize(parser.value(sizeOption), size))
         return kExitBadArguments;
+    if (parser.isSet(toolOption)) {
+        const QStringList names{QStringLiteral("select"), QStringLiteral("scale"), QStringLiteral("wall"),
+                                QStringLiteral("room")};
+        if (!names.contains(parser.value(toolOption).toLower()))
+            return kExitBadArguments;
+    }
     const bool wantsScreenshot = parser.isSet(screenshotOption);
     if (wantsScreenshot && parser.value(screenshotOption).isEmpty())
         return kExitBadArguments;
 
+    // Fusion draws every control from the palette, so inputs follow the theme colors.
+    QApplication::setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
     plynth::app::Theme& theme = plynth::app::Theme::instance();
     theme.load(QStringLiteral(":/themes/drafting-dark.json"));
     theme.loadBundledFonts();
@@ -139,6 +156,10 @@ int main(int argc, char* argv[])
             loadTitle = QObject::tr("Cannot open image");
         }
     }
+    if (parser.isSet(toolOption))
+        window.activateToolByName(parser.value(toolOption));
+    if (parser.isSet(selectOption))
+        window.selectById(parser.value(selectOption));
     window.show();
     if (loadFailed && !wantsScreenshot)
         QTimer::singleShot(0, &window, [&window, loadTitle, loadError]() { window.showError(loadTitle, loadError); });

@@ -76,11 +76,16 @@ bool Theme::load(const QString& resourcePath)
     terminalButton_ = spacing["terminalButton"].toInt(terminalButton_);
     terminalPanelWidth_ = spacing["terminalPanelWidth"].toInt(terminalPanelWidth_);
     terminalPanelHeight_ = spacing["terminalPanelHeight"].toInt(terminalPanelHeight_);
+    toolButton_ = spacing["toolButton"].toInt(toolButton_);
+    toolStripWidth_ = spacing["toolStripWidth"].toInt(toolStripWidth_);
+    propertiesWidth_ = spacing["propertiesWidth"].toInt(propertiesWidth_);
+    snapRadius_ = spacing["snapRadius"].toInt(snapRadius_);
 
     const QJsonObject effects = root["effects"].toObject();
     overlayAlpha_ = effects["overlayAlpha"].toInt(overlayAlpha_);
     readOnlyDim_ = effects["readOnlyDim"].toInt(readOnlyDim_);
     terminalSelectionAlpha_ = effects["terminalSelectionAlpha"].toInt(terminalSelectionAlpha_);
+    roomFillAlpha_ = effects["roomFillAlpha"].toInt(roomFillAlpha_);
 
     const QJsonArray ansi = root["terminal"].toObject()["ansi"].toArray();
     for (int i = 0; i < 16 && i < ansi.size(); ++i) {
