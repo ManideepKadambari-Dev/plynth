@@ -6,6 +6,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <process.h>
+
 #include <filesystem>
 #include <string>
 #include <utility>
@@ -156,7 +158,10 @@ class TempDir {
 public:
     explicit TempDir(const std::string& tag)
     {
-        const std::u8string name = u8"plynth-tests-ü-" + std::u8string(tag.begin(), tag.end());
+        // The process id keeps test processes that run at the same time apart.
+        const std::string pid = std::to_string(_getpid());
+        const std::u8string name = u8"plynth-tests-ü-" + std::u8string(pid.begin(), pid.end()) + u8"-" +
+                                   std::u8string(tag.begin(), tag.end());
         path_ = std::filesystem::temp_directory_path() / std::filesystem::path(name);
         std::error_code ec;
         std::filesystem::remove_all(path_, ec);
