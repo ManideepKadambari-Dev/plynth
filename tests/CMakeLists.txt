@@ -3,6 +3,7 @@ find_package(nlohmann_json_schema_validator CONFIG REQUIRED)
 include(Catch)
 
 add_executable(plynth_core_tests
+    core/TestSetup.cpp
     core/VersionTests.cpp
     core/PlanImageTests.cpp
     core/PlanTests.cpp
