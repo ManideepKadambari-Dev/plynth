@@ -140,7 +140,7 @@ TitleBar::TitleBar(QWidget* parent)
     menuBar_->setFont(t.uiFont(t.sizeNormal()));
     fileMenu_ = menuBar_->addMenu(tr("&File"));
     menuBar_->addMenu(tr("&Edit"));
-    menuBar_->addMenu(tr("&View"));
+    viewMenu_ = menuBar_->addMenu(tr("&View"));
     menuBar_->addMenu(tr("&Build"));
     menuBar_->addMenu(tr("&Catalog"));
     helpMenu_ = menuBar_->addMenu(tr("&Help"));

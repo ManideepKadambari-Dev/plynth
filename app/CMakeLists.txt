@@ -11,6 +11,8 @@ add_executable(plynth WIN32
     src/theme/Theme.cpp
     src/window/MainWindow.h
     src/window/MainWindow.cpp
+    src/window/StatusBar.h
+    src/window/StatusBar.cpp
     src/window/TitleBar.h
     src/window/TitleBar.cpp
     resources/app.qrc
