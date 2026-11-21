@@ -236,6 +236,8 @@ Status SplitWallCommand::apply(Project& project)
     middle.id = pointId;
     middle.x = a->x + (b->x - a->x) * t;
     middle.y = a->y + (b->y - a->y) * t;
+    const Id oldFrom = wall->from;
+    const Id oldTo = wall->to;
     Wall second = *wall;
     second.id = secondId;
     second.from = pointId;
@@ -245,7 +247,19 @@ Status SplitWallCommand::apply(Project& project)
 
     for (Room& r : floor->rooms) {
         const auto it = std::find(r.walls.begin(), r.walls.end(), wallId_);
-        if (it != r.walls.end()) r.walls.insert(it + 1, secondId);
+        if (it == r.walls.end()) continue;
+        const auto touches = [&](const Id& otherId, const Id& pointId) {
+            const Wall* o = findWall(*floor, otherId);
+            return o && (o->from == pointId || o->to == pointId);
+        };
+        bool backwards = false;
+        if (it + 1 != r.walls.end()) {
+            backwards = touches(*(it + 1), oldFrom) && !touches(*(it + 1), oldTo);
+        }
+        if (!backwards && it != r.walls.begin()) {
+            backwards = touches(*(it - 1), oldTo) && !touches(*(it - 1), oldFrom);
+        }
+        r.walls.insert(backwards ? it : it + 1, secondId);
     }
     for (Opening& o : floor->openings) {
         if (o.wall == wallId_ && o.offset >= offset_) {

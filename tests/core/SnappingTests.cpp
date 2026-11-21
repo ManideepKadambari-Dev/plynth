@@ -133,6 +133,42 @@ TEST_CASE("snapPosition with orthogonalFrom", "[core][snap]") {
         REQUIRE(r.position.x == Approx(3.5));
         REQUIRE(r.position.y == Approx(1.0));
     }
+    SECTION("a wall is met where the straight line crosses it") {
+        SnapOptions w;
+        w.radius = 0.3;
+        w.orthogonalFrom = Vec2{2.0, 3.0};
+        const SnapResult r = snapPosition(f, {2.05, 0.1}, w);
+        REQUIRE(r.kind == SnapKind::Wall);
+        REQUIRE(r.wallId == "w1");
+        REQUIRE(r.wallOffset == Approx(2.0));
+        REQUIRE(r.position.x == Approx(2.0));
+        REQUIRE(r.position.y == Approx(0.0));
+    }
+    SECTION("a vertical wall is met on the horizontal line, not under the cursor") {
+        Floor g;
+        g.points = {{"a", 4.0, -2.0, 0.0}, {"b", 4.0, 5.0, 0.0}};
+        Wall v;
+        v.id = "v1";
+        v.from = "a";
+        v.to = "b";
+        g.walls = {v};
+        SnapOptions w;
+        w.radius = 0.3;
+        w.orthogonalFrom = Vec2{1.0, 1.0};
+        const SnapResult r = snapPosition(g, {3.97, 1.06}, w);
+        REQUIRE(r.kind == SnapKind::Wall);
+        REQUIRE(r.position.x == Approx(4.0));
+        REQUIRE(r.position.y == Approx(1.0));
+        REQUIRE(r.wallOffset == Approx(3.0));
+    }
+    SECTION("a parallel wall or a crossing too far from the cursor is not snapped to") {
+        SnapOptions w;
+        w.radius = 0.3;
+        w.orthogonalFrom = Vec2{1.0, 1.0};
+        REQUIRE(snapPosition(f, {3.0, 0.2}, w).kind == SnapKind::None);
+        w.orthogonalFrom = Vec2{2.0, 3.0};
+        REQUIRE(snapPosition(f, {2.0, 0.5}, w).kind != SnapKind::Wall);
+    }
     SECTION("a point within the radius beats the orthogonal line") {
         o.radius = 0.3;
         const SnapResult r = snapPosition(f, {2.1, 2.9}, o);

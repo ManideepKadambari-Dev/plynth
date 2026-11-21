@@ -189,8 +189,31 @@ std::vector<ClosedArea> findClosedAreas(const Floor& floor)
             it->second = w.id;
         }
     }
+    // A wall laid exactly over a chain of shorter collinear walls adds nothing and confuses the angle order, so the
+    // long one is left out.
     std::vector<Edge> all;
-    for (const auto& [key, id] : pairs) all.push_back({key.first, key.second, id});
+    for (const auto& [key, id] : pairs) {
+        const Vec2 a = nodes[key.first];
+        const Vec2 b = nodes[key.second];
+        const double length = distance(a, b);
+        std::vector<std::pair<double, std::size_t>> between;
+        for (std::size_t n = 0; n < nodes.size(); ++n) {
+            if (n == key.first || n == key.second) continue;
+            const SegmentProjection projection = projectOntoSegment(nodes[n], a, b);
+            if (projection.distance > 1e-9 || projection.offset <= 1e-9 || projection.offset >= length - 1e-9) continue;
+            between.emplace_back(projection.offset, n);
+        }
+        bool covered = !between.empty();
+        std::sort(between.begin(), between.end());
+        std::size_t previous = key.first;
+        for (std::size_t i = 0; covered && i <= between.size(); ++i) {
+            const std::size_t next = i < between.size() ? between[i].second : key.second;
+            const auto link = std::minmax(previous, next);
+            covered = pairs.count({link.first, link.second}) > 0;
+            previous = next;
+        }
+        if (!covered) all.push_back({key.first, key.second, id});
+    }
 
     const std::vector<bool> bridge = findBridges(nodes.size(), all);
     std::vector<Edge> edges;
@@ -302,8 +325,8 @@ std::vector<ClosedArea> findClosedAreas(const Floor& floor)
         if (!interiorPoint(area.rings, area.inside)) area.inside = area.rings[0][0];
         result.push_back(std::move(area));
     }
-    std::sort(result.begin(), result.end(), [](const ClosedArea& x, const ClosedArea& y) {
-        return idLess(x.walls[0], y.walls[0]);
+    std::stable_sort(result.begin(), result.end(), [](const ClosedArea& x, const ClosedArea& y) {
+        return std::lexicographical_compare(x.walls.begin(), x.walls.end(), y.walls.begin(), y.walls.end(), idLess);
     });
     return result;
 }

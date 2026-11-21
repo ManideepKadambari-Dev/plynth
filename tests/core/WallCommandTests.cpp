@@ -260,6 +260,16 @@ TEST_CASE("SplitWallCommand", "[core][command][wall]") {
         const std::vector<Id> expected{"w1", "w2", "w5", "w3", "w4"};
         REQUIRE(p.plan.floors[0].rooms[0].walls == expected);
     }
+    SECTION("a ring that runs the wall backwards gets the new wall before it") {
+        Project q = rectangleProject();
+        q.plan.floors[0].rooms[0].walls = {"w1", "w2", "w3", "w4"};
+        q.plan.floors[0].walls[2].from = "p4";
+        q.plan.floors[0].walls[2].to = "p3";
+        SplitWallCommand c("w3", 1.0);
+        applyOk(c, q);
+        const std::vector<Id> expected{"w1", "w2", "w5", "w3", "w4"};
+        REQUIRE(q.plan.floors[0].rooms[0].walls == expected);
+    }
     SECTION("openings past the split move with a reduced offset") {
         SplitWallCommand c("w1", 2.0);
         applyOk(c, p);

@@ -296,3 +296,52 @@ TEST_CASE("roomShape area stays exact on coordinates that are not round", "[core
     REQUIRE(roomShape(q.plan.floors[0], roomOf(areas[0])).area == Approx(8.55).epsilon(0).margin(1e-6));
     REQUIRE(roomShape(q.plan.floors[0], roomOf(areas[1])).area == Approx(0.64).epsilon(0).margin(1e-6));
 }
+
+TEST_CASE("findClosedAreas: a corner point in the middle of a straight side", "[core][rooms]") {
+    Project p = makeNewProject();
+    Floor& f = p.plan.floors[0];
+    addRectangle(f, 1, 0, 0, 4, 4, 0.2);
+    addPoint(f, "pm", 2, 0);
+    f.walls[0].to = "pm";
+    addWall(f, "w15", "pm", "p12", 0.2);
+    const auto areas = findClosedAreas(f);
+    REQUIRE(areas.size() == 1);
+    REQUIRE(wallSet(areas[0]) == std::set<Id>{"w11", "w12", "w13", "w14", "w15"});
+    REQUIRE(areas[0].rings[0].size() == 5);
+    REQUIRE(areas[0].centreLineArea == Approx(16.0).epsilon(0).margin(1e-9));
+    const RoomShape shape = roomShape(f, roomOf(areas[0]));
+    REQUIRE(shape.closed);
+    REQUIRE(shape.area == Approx(14.44).epsilon(0).margin(1e-6));
+}
+
+TEST_CASE("findClosedAreas: a wall laid over two collinear walls", "[core][rooms]") {
+    Project p = makeNewProject();
+    Floor& f = p.plan.floors[0];
+    addRectangle(f, 1, 0, 0, 4, 4, 0.2);
+    addPoint(f, "pm", 2, 0);
+    f.walls[0].to = "pm";
+    addWall(f, "w15", "pm", "p12", 0.2);
+    addWall(f, "w20", "p11", "p12", 0.2);
+    const auto areas = findClosedAreas(f);
+    REQUIRE(areas.size() == 1);
+    REQUIRE(areas[0].centreLineArea == Approx(16.0).epsilon(0).margin(1e-9));
+    REQUIRE(signedArea(areas[0].rings[0]) == Approx(16.0).epsilon(0).margin(1e-9));
+    const std::set<Id> viaTwo{"w11", "w12", "w13", "w14", "w15"};
+    const std::set<Id> viaOne{"w20", "w12", "w13", "w14"};
+    const std::set<Id> got = wallSet(areas[0]);
+    REQUIRE((got == viaTwo || got == viaOne));
+    const RoomShape shape = roomShape(f, roomOf(areas[0]));
+    REQUIRE(shape.closed);
+    REQUIRE(shape.area == Approx(14.44).epsilon(0).margin(1e-6));
+}
+
+TEST_CASE("findClosedAreas: collinear walls that overlap without a shared point", "[core][rooms]") {
+    Project p = makeNewProject();
+    Floor& f = p.plan.floors[0];
+    addRectangle(f, 1, 0, 0, 4, 4, 0.2);
+    addPoint(f, "pa", 3, 0);
+    addPoint(f, "pb", 1, 0);
+    f.walls[0].to = "pa";
+    addWall(f, "w15", "pb", "p12", 0.2);
+    REQUIRE(findClosedAreas(f).empty());
+}

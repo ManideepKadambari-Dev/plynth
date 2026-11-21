@@ -61,10 +61,12 @@ SnapResult snapPosition(const Floor& floor, Vec2 position, const SnapOptions& op
         }
     }
 
-    // Curved walls cannot be split yet, so they are not snapped to.
+    // Curved walls cannot be split yet, so they are not snapped to. With orthogonalFrom the place on a wall is where
+    // the horizontal or vertical line crosses it, so Shift keeps the wall straight.
     if (radius > 0.0 && options.toWalls) {
         const Wall* best = nullptr;
-        SegmentProjection bestProjection;
+        Vec2 bestPosition;
+        double bestOffset = 0.0;
         double bestDistance = radius;
         for (const Wall& w : floor.walls) {
             if (w.bulge != 0.0) continue;
@@ -73,19 +75,35 @@ SnapResult snapPosition(const Floor& floor, Vec2 position, const SnapOptions& op
             const Point* b = findPoint(floor, w.to);
             if (!a || !b) continue;
             const double length = distance(positionOf(*a), positionOf(*b));
-            const SegmentProjection projection = projectOntoSegment(position, positionOf(*a), positionOf(*b));
-            if (projection.offset < kMinSplitDistance || projection.offset > length - kMinSplitDistance) continue;
-            if (projection.distance <= bestDistance) {
-                bestDistance = projection.distance;
-                bestProjection = projection;
+            Vec2 place;
+            double offset = 0.0;
+            if (options.orthogonalFrom) {
+                const double along = keepsY ? b->y - a->y : b->x - a->x;
+                if (std::abs(along) <= 1e-12) continue;
+                const double line = keepsY ? options.orthogonalFrom->y : options.orthogonalFrom->x;
+                const double t = (line - (keepsY ? a->y : a->x)) / along;
+                if (t <= 0.0 || t >= 1.0) continue;
+                place = {a->x + (b->x - a->x) * t, a->y + (b->y - a->y) * t};
+                offset = t * length;
+            } else {
+                const SegmentProjection projection = projectOntoSegment(position, positionOf(*a), positionOf(*b));
+                place = projection.position;
+                offset = projection.offset;
+            }
+            if (offset < kMinSplitDistance || offset > length - kMinSplitDistance) continue;
+            const double d = distance(position, place);
+            if (d <= bestDistance) {
+                bestDistance = d;
+                bestPosition = place;
+                bestOffset = offset;
                 best = &w;
             }
         }
         if (best) {
-            result.position = bestProjection.position;
+            result.position = bestPosition;
             result.kind = SnapKind::Wall;
             result.wallId = best->id;
-            result.wallOffset = bestProjection.offset;
+            result.wallOffset = bestOffset;
             return result;
         }
     }
