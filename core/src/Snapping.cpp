@@ -1,6 +1,7 @@
 #include "plynth/core/Snapping.h"
 
 #include "plynth/core/Rooms.h"
+#include "plynth/core/WallGeometry.h"
 #include "plynth/core/commands/WallCommands.h"
 
 #include <algorithm>
@@ -14,6 +15,71 @@ namespace {
 bool listed(const std::vector<Id>& ids, const Id& id)
 {
     return std::find(ids.begin(), ids.end(), id) != ids.end();
+}
+
+// Finds where the horizontal line y = line (keepsY) or the vertical line x = line crosses a wall's true centre
+// line, strictly between its two ends, and takes the crossing nearest to a position. Returns false when there is
+// none.
+bool crossingNear(const WallCurve& curve, bool keepsY, double line, Vec2 position, Vec2& place, double& offset)
+{
+    std::vector<std::pair<Vec2, double>> found;
+    if (!curve.curved) {
+        const double along = keepsY ? curve.to.y - curve.from.y : curve.to.x - curve.from.x;
+        if (std::abs(along) <= 1e-12) return false;
+        const double t = (line - (keepsY ? curve.from.y : curve.from.x)) / along;
+        if (t <= 0.0 || t >= 1.0) return false;
+        found.push_back({{curve.from.x + (curve.to.x - curve.from.x) * t, curve.from.y + (curve.to.y - curve.from.y) * t},
+                         t * curve.length});
+    } else {
+        const double centreAcross = keepsY ? curve.centre.y : curve.centre.x;
+        const double centreAlong = keepsY ? curve.centre.x : curve.centre.y;
+        const double gap = line - centreAcross;
+        const double inside = curve.radius * curve.radius - gap * gap;
+        if (inside < 0.0) return false;
+        const double root = std::sqrt(inside);
+        for (double sign : {-1.0, 1.0}) {
+            const double other = centreAlong + sign * root;
+            const Vec2 candidate = keepsY ? Vec2{other, line} : Vec2{line, other};
+            const CurveProjection projection = projectOntoCurve(candidate, curve);
+            if (projection.distance > 1e-6) continue;
+            found.push_back({candidate, projection.offset});
+        }
+    }
+    bool any = false;
+    double bestDistance = 0.0;
+    for (const auto& [candidate, candidateOffset] : found) {
+        if (candidateOffset < kMinSplitDistance || candidateOffset > curve.length - kMinSplitDistance) continue;
+        const double d = distance(position, candidate);
+        if (!any || d < bestDistance) {
+            any = true;
+            bestDistance = d;
+            place = candidate;
+            offset = candidateOffset;
+        }
+    }
+    return any;
+}
+
+// The shortest distance from a position to a polygon's outline, 0 when the position is inside it.
+double distanceToPolygon(Vec2 position, const std::vector<Vec2>& polygon)
+{
+    if (polygon.size() < 3) return 1e300;
+    if (insidePolygon(position, polygon)) return 0.0;
+    double best = 1e300;
+    for (std::size_t i = 0; i < polygon.size(); ++i) {
+        best = std::min(best, projectOntoSegment(position, polygon[i], polygon[(i + 1) % polygon.size()]).distance);
+    }
+    return best;
+}
+
+// The shortest distance from a position to a polyline.
+double distanceToLine(Vec2 position, const std::vector<Vec2>& line)
+{
+    double best = 1e300;
+    for (std::size_t i = 0; i + 1 < line.size(); ++i) {
+        best = std::min(best, projectOntoSegment(position, line[i], line[i + 1]).distance);
+    }
+    return best;
 }
 
 // Rounds a value to the nearest multiple of step, without a negative zero.
@@ -61,36 +127,28 @@ SnapResult snapPosition(const Floor& floor, Vec2 position, const SnapOptions& op
         }
     }
 
-    // Curved walls cannot be split yet, so they are not snapped to. With orthogonalFrom the place on a wall is where
-    // the horizontal or vertical line crosses it, so Shift keeps the wall straight.
+    // With orthogonalFrom the place on a wall is where the horizontal or vertical line crosses it, so Shift keeps the
+    // wall straight.
     if (radius > 0.0 && options.toWalls) {
         const Wall* best = nullptr;
         Vec2 bestPosition;
         double bestOffset = 0.0;
         double bestDistance = radius;
         for (const Wall& w : floor.walls) {
-            if (w.bulge != 0.0) continue;
             if (listed(options.ignorePoints, w.from) || listed(options.ignorePoints, w.to)) continue;
-            const Point* a = findPoint(floor, w.from);
-            const Point* b = findPoint(floor, w.to);
-            if (!a || !b) continue;
-            const double length = distance(positionOf(*a), positionOf(*b));
+            const WallCurve curve = wallCurve(floor, w);
+            if (!curve.valid) continue;
             Vec2 place;
             double offset = 0.0;
             if (options.orthogonalFrom) {
-                const double along = keepsY ? b->y - a->y : b->x - a->x;
-                if (std::abs(along) <= 1e-12) continue;
                 const double line = keepsY ? options.orthogonalFrom->y : options.orthogonalFrom->x;
-                const double t = (line - (keepsY ? a->y : a->x)) / along;
-                if (t <= 0.0 || t >= 1.0) continue;
-                place = {a->x + (b->x - a->x) * t, a->y + (b->y - a->y) * t};
-                offset = t * length;
+                if (!crossingNear(curve, keepsY, line, position, place, offset)) continue;
             } else {
-                const SegmentProjection projection = projectOntoSegment(position, positionOf(*a), positionOf(*b));
+                const CurveProjection projection = projectOntoCurve(position, curve);
                 place = projection.position;
                 offset = projection.offset;
             }
-            if (offset < kMinSplitDistance || offset > length - kMinSplitDistance) continue;
+            if (offset < kMinSplitDistance || offset > curve.length - kMinSplitDistance) continue;
             const double d = distance(position, place);
             if (d <= bestDistance) {
                 bestDistance = d;
@@ -136,16 +194,18 @@ Pick pickAt(const Floor& floor, Vec2 position, double radius)
     }
     if (bestPoint) return {PickKind::Point, bestPoint->id};
 
+    // A wall is under the position when its band (or a place within radius of it) is. Where bands overlap, the wall
+    // whose centre line is closest wins.
     const Wall* bestWall = nullptr;
     double bestWallDistance = 0.0;
     for (const Wall& w : floor.walls) {
-        const Point* a = findPoint(floor, w.from);
-        const Point* b = findPoint(floor, w.to);
-        if (!a || !b) continue;
-        const double d = projectOntoSegment(position, positionOf(*a), positionOf(*b)).distance;
-        if (d > w.thickness / 2.0 + radius) continue;
-        if (!bestWall || d < bestWallDistance) {
-            bestWallDistance = d;
+        const std::vector<std::vector<Vec2>> band = wallBand(floor, w);
+        double d = 1e300;
+        for (const auto& outline : band) d = std::min(d, distanceToPolygon(position, outline));
+        if (d > radius) continue;
+        const double centreDistance = distanceToLine(position, wallPath(floor, w).centreLine);
+        if (!bestWall || centreDistance < bestWallDistance) {
+            bestWallDistance = centreDistance;
             bestWall = &w;
         }
     }

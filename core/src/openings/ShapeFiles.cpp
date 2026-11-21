@@ -198,11 +198,14 @@ ShapeFile readShapeFile(const std::filesystem::path& file)
     if (minX > edge || maxX < 1.0 - edge || minY > edge || maxY < 1.0 - edge) {
         return refused("The outline must touch all four sides of the unit box.", "/outline");
     }
-    for (std::size_t i = 0; i < points.size(); ++i) {
-        const Vec2 a = points[i];
-        const Vec2 b = points[(i + 1) % points.size()];
-        if (a == b) return refused("The outline repeats a point. Do not repeat the first point at the end.", "/outline");
+    // A point that repeats the one before it, or the first point repeated at the end, adds nothing and is dropped.
+    std::vector<Vec2> distinct;
+    for (const Vec2& p : points) {
+        if (distinct.empty() || !(distinct.back() == p)) distinct.push_back(p);
     }
+    while (distinct.size() > 1 && distinct.front() == distinct.back()) distinct.pop_back();
+    points = std::move(distinct);
+    if (points.size() < 3) return refused("The outline has no area.", "/outline");
     if (hasCrossingEdges(points)) return refused("The outline crosses itself.", "/outline");
     const double area = signedArea(points);
     if (std::fabs(area) < 1e-9) return refused("The outline has no area.", "/outline");

@@ -79,9 +79,14 @@ TEST_CASE("snapPosition: point beats wall beats grid", "[core][snap]") {
         o.toWalls = false;
         REQUIRE(snapPosition(f, {1.3, 0.2}, o).kind == SnapKind::Grid);
     }
-    SECTION("curved walls are not snapped to") {
+    SECTION("a curved wall is snapped to along its arc") {
         f.walls[0].bulge = 0.5;
-        REQUIRE(snapPosition(f, {1.3, 0.2}, o).kind == SnapKind::Grid);
+        const SnapResult r = snapPosition(f, {2.0, 0.55}, o);
+        REQUIRE(r.kind == SnapKind::Wall);
+        REQUIRE(r.wallId == "w1");
+        REQUIRE(r.position.y == Approx(0.5).margin(1e-9));
+        REQUIRE(r.wallOffset > 2.0);
+        REQUIRE(snapPosition(f, {1.3, 0.05}, o).kind == SnapKind::Grid);
     }
 }
 

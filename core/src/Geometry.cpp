@@ -1,5 +1,7 @@
 #include "plynth/core/Geometry.h"
 
+#include "plynth/core/WallGeometry.h"
+
 #include <algorithm>
 #include <cmath>
 
@@ -17,13 +19,14 @@ Vec2 positionOf(const Point& point)
     return {point.x, point.y};
 }
 
-// Length of the straight line between the wall's two points, 0 when one is missing.
+// Length of the wall along its true centre line, 0 when a point is missing.
 double wallLength(const Floor& floor, const Wall& wall)
 {
     const Point* a = findPoint(floor, wall.from);
     const Point* b = findPoint(floor, wall.to);
     if (!a || !b) return 0.0;
-    return distance(positionOf(*a), positionOf(*b));
+    const WallCurve curve = curveBetween(positionOf(*a), positionOf(*b), wall.bulge);
+    return curve.valid ? curve.length : distance(positionOf(*a), positionOf(*b));
 }
 
 // The unit direction a quarter turn to the right.

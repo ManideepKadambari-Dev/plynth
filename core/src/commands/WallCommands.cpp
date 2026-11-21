@@ -1,11 +1,13 @@
 #include "plynth/core/commands/WallCommands.h"
 
 #include "plynth/core/commands/PointCommands.h"
+#include "plynth/core/WallGeometry.h"
 
 #include "CommandSupport.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <utility>
 
 namespace plynth {
@@ -202,11 +204,9 @@ Status SplitWallCommand::apply(Project& project)
     Floor* floor = detail::floorOfWall(project.plan, wallId_);
     if (!floor) return fail(ErrorCode::NotFound, "There is no wall " + wallId_ + ".");
     Wall* wall = findWall(*floor, wallId_);
-    if (wall->bulge != 0.0) return fail(ErrorCode::InvalidValue, "A curved wall cannot be split yet.");
-    const Point* a = findPoint(*floor, wall->from);
-    const Point* b = findPoint(*floor, wall->to);
-    if (!a || !b) return fail(ErrorCode::NotFound, "The wall " + wallId_ + " has a missing point.");
-    const double length = distance(positionOf(*a), positionOf(*b));
+    const WallCurve curve = wallCurve(*floor, *wall);
+    if (!curve.valid) return fail(ErrorCode::NotFound, "The wall " + wallId_ + " has a missing point.");
+    const double length = curve.length;
     if (!std::isfinite(offset_) || offset_ < kMinSplitDistance || offset_ > length - kMinSplitDistance) {
         return fail(ErrorCode::InvalidValue, "The split place must be inside the wall, away from both ends.");
     }
@@ -231,17 +231,28 @@ Status SplitWallCommand::apply(Project& project)
     newPointId_ = pointId;
     newWallId_ = secondId;
 
-    const double t = offset_ / length;
+    const Vec2 splitAt = pointAlong(curve, offset_);
     Point middle;
     middle.id = pointId;
-    middle.x = a->x + (b->x - a->x) * t;
-    middle.y = a->y + (b->y - a->y) * t;
+    middle.x = splitAt.x;
+    middle.y = splitAt.y;
     const Id oldFrom = wall->from;
     const Id oldTo = wall->to;
     Wall second = *wall;
     second.id = secondId;
     second.from = pointId;
     wall->to = pointId;
+    if (curve.curved) {
+        // Each part stays on the same circle: its bulge is the signed sagitta of its own sweep.
+        const double sign = curve.bulge > 0.0 ? 1.0 : -1.0;
+        const auto partBulge = [&](double partLength) {
+            const double sweep = std::fabs(curve.sweep) * partLength / curve.length;
+            const double bulge = sign * curve.radius * (1.0 - std::cos(sweep / 2.0));
+            return std::fabs(bulge) < kMinBulge ? 0.0 : bulge;
+        };
+        wall->bulge = partBulge(offset_);
+        second.bulge = partBulge(length - offset_);
+    }
     floor->points.push_back(middle);
     floor->walls.push_back(second);
 
@@ -385,15 +396,12 @@ Status endPosition(const Floor& floor, const Plan& plan, const WallEnd& end, Vec
             }
             return fail(ErrorCode::NotFound, "There is no wall " + end.id + ".");
         }
-        const Point* a = findPoint(floor, w->from);
-        const Point* b = findPoint(floor, w->to);
-        if (!a || !b) return fail(ErrorCode::NotFound, "The wall " + end.id + " has a missing point.");
-        const double length = distance(positionOf(*a), positionOf(*b));
-        if (!std::isfinite(end.offset) || length <= 0.0) {
+        const WallCurve curve = wallCurve(floor, *w);
+        if (!curve.valid) return fail(ErrorCode::NotFound, "The wall " + end.id + " has a missing point.");
+        if (!std::isfinite(end.offset)) {
             return fail(ErrorCode::InvalidValue, "The place on the wall " + end.id + " is not a number.");
         }
-        const double t = end.offset / length;
-        out = {a->x + (b->x - a->x) * t, a->y + (b->y - a->y) * t};
+        out = pointAlong(curve, end.offset);
         return {};
     }
     case WallEnd::Kind::NewPoint:
@@ -518,6 +526,77 @@ unsigned DrawWallCommand::changes() const
 Id DrawWallCommand::floorId() const
 {
     return floorId_;
+}
+
+}
+
+namespace plynth {
+
+SetWallBulgeCommand::SetWallBulgeCommand(Id wallId, double bulge, int mergeKey)
+    : wallId_(std::move(wallId)), bulge_(bulge), mergeKey_(mergeKey)
+{
+}
+
+std::string SetWallBulgeCommand::name() const
+{
+    return "Bend wall";
+}
+
+// Sets the bulge after checking it gives a real arc, remembering the old one.
+Status SetWallBulgeCommand::apply(Project& project)
+{
+    Floor* floor = detail::floorOfWall(project.plan, wallId_);
+    if (!floor) return fail(ErrorCode::NotFound, "There is no wall " + wallId_ + ".");
+    Wall* wall = findWall(*floor, wallId_);
+    if (!std::isfinite(bulge_)) return fail(ErrorCode::InvalidValue, "The bend must be a finite number.");
+    const WallCurve straight = wallCurve(*floor, *wall);
+    if (!straight.valid) return fail(ErrorCode::NotFound, "The wall " + wallId_ + " has a missing point.");
+    const double size = std::fabs(bulge_);
+    const double stored = size < kMinBulge ? 0.0 : bulge_;
+    if (stored != 0.0) {
+        const double limit = kMaxBulgeRatio * straight.chord;
+        if (size > limit + 1e-9) {
+            char text[32];
+            std::snprintf(text, sizeof text, "%.2f", limit);
+            return fail(ErrorCode::InvalidValue,
+                        std::string("The bend is too large for this wall. The most is a half circle, a bend of ") + text + " m.");
+        }
+        const double radius = (straight.chord * straight.chord / 4.0 + size * size) / (2.0 * size);
+        if (!(radius > wall->thickness / 2.0)) {
+            return fail(ErrorCode::InvalidValue, "The bend is too tight for the thickness of this wall.");
+        }
+    }
+    floorId_ = floor->id;
+    previous_ = wall->bulge;
+    wall->bulge = stored;
+    return {};
+}
+
+// Puts the old bulge back.
+void SetWallBulgeCommand::undo(Project& project)
+{
+    Floor* floor = findFloor(project.plan, floorId_);
+    if (!floor) return;
+    if (Wall* wall = findWall(*floor, wallId_)) wall->bulge = previous_;
+}
+
+unsigned SetWallBulgeCommand::changes() const
+{
+    return Change::Walls;
+}
+
+Id SetWallBulgeCommand::floorId() const
+{
+    return floorId_;
+}
+
+// Takes over the later bulge of the same wall in the same drag.
+bool SetWallBulgeCommand::mergeWith(const Command& next)
+{
+    const auto* other = dynamic_cast<const SetWallBulgeCommand*>(&next);
+    if (!other || mergeKey_ == 0 || other->mergeKey_ != mergeKey_ || other->wallId_ != wallId_) return false;
+    bulge_ = other->bulge_;
+    return true;
 }
 
 }

@@ -163,10 +163,19 @@ TEST_CASE("shape files are refused when they break the format", "[core][shapes][
     SECTION("a bow tie") {
         expectBad(shapeText("[[0,0],[1,1],[1,0],[0,1]]"), "/outline");
     }
-    SECTION("a repeated point and no area") {
-        expectBad(shapeText("[[0,0],[1,0],[1,1],[0,1],[0,0]]"), "/outline");
+    SECTION("no area") {
         expectBad(shapeText("[[0,0],[1,1],[0.5,0.5]]"), "/outline");
+        expectBad(shapeText("[[0,0],[1,1],[1,1]]"), "/outline");
     }
+}
+
+TEST_CASE("repeated points are dropped", "[core][shapes][shapefile]") {
+    const ShapeFile closed = readText(shapeText("[[0,0],[1,0],[1,1],[0,1],[0,0]]"));
+    plynth::test::requireOk(closed.status);
+    REQUIRE(closed.outline.size() == 4);
+    const ShapeFile twice = readText(shapeText("[[0,0],[1,0],[1,0],[1,1],[0,1]]"));
+    plynth::test::requireOk(twice.status);
+    REQUIRE(twice.outline.size() == 4);
 }
 
 TEST_CASE("a clockwise outline is turned anticlockwise", "[core][shapes][shapefile]") {
@@ -207,4 +216,17 @@ TEST_CASE("registerShapeFolder", "[core][shapes][shapefile]") {
         REQUIRE(again.registered.empty());
         REQUIRE(again.refused.size() == 4);
     }
+}
+
+TEST_CASE("the keyhole sample validates and reads", "[core][shapes][shapefile][schema]") {
+    const fs::path file = fs::path(PLYNTH_SAMPLES_DIR) / "shapes" / "keyhole.shape.json";
+    const std::string text = plynth::test::readTextFile(file);
+    REQUIRE_FALSE(text.empty());
+    REQUIRE(plynth::test::schemaProblem("shape.schema.json", nlohmann::json::parse(text)).empty());
+    const ShapeFile r = readShapeFile(file);
+    plynth::test::requireOk(r.status);
+    REQUIRE(r.id == "keyhole");
+    REQUIRE(r.outline.size() <= 80);
+    REQUIRE(signedArea(r.outline) > 0.0);
+    plynth::test::requireCleanOutline(makeOutlineShape(r.id, r.name, r.outline)->outline(0.8, 1.6), 0.8, 1.6);
 }

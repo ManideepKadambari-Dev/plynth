@@ -304,9 +304,6 @@ TEST_CASE("SplitWallCommand", "[core][command][wall]") {
         applyRefused(nan, p, ErrorCode::InvalidValue);
         SplitWallCommand covered("w1", 3.2);
         applyRefused(covered, p, ErrorCode::InUse);
-        p.plan.floors[0].walls[1].bulge = 0.3;
-        SplitWallCommand curved("w2", 1.0);
-        applyRefused(curved, p, ErrorCode::InvalidValue);
     }
 }
 

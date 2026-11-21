@@ -169,3 +169,59 @@ Id RemovePointCommand::floorId() const
 }
 
 }
+
+namespace plynth {
+
+SetCornerRadiusCommand::SetCornerRadiusCommand(Id pointId, double radius, int mergeKey)
+    : pointId_(std::move(pointId)), radius_(radius), mergeKey_(mergeKey)
+{
+}
+
+std::string SetCornerRadiusCommand::name() const
+{
+    return "Set corner radius";
+}
+
+// Sets the corner radius, remembering the old one.
+Status SetCornerRadiusCommand::apply(Project& project)
+{
+    Floor* floor = detail::floorOfPoint(project.plan, pointId_);
+    if (!floor) return fail(ErrorCode::NotFound, "There is no point " + pointId_ + ".");
+    if (!std::isfinite(radius_) || radius_ < 0.0) {
+        return fail(ErrorCode::InvalidValue, "The corner radius must be zero or more.");
+    }
+    Point* p = findPoint(*floor, pointId_);
+    floorId_ = floor->id;
+    previous_ = p->cornerRadius;
+    p->cornerRadius = radius_;
+    return {};
+}
+
+// Puts the old radius back.
+void SetCornerRadiusCommand::undo(Project& project)
+{
+    Floor* floor = findFloor(project.plan, floorId_);
+    if (!floor) return;
+    if (Point* p = findPoint(*floor, pointId_)) p->cornerRadius = previous_;
+}
+
+unsigned SetCornerRadiusCommand::changes() const
+{
+    return Change::Points;
+}
+
+Id SetCornerRadiusCommand::floorId() const
+{
+    return floorId_;
+}
+
+// Takes over the later radius of the same point in the same series of changes.
+bool SetCornerRadiusCommand::mergeWith(const Command& next)
+{
+    const auto* other = dynamic_cast<const SetCornerRadiusCommand*>(&next);
+    if (!other || mergeKey_ == 0 || other->mergeKey_ != mergeKey_ || other->pointId_ != pointId_) return false;
+    radius_ = other->radius_;
+    return true;
+}
+
+}
