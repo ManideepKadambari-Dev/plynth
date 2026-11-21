@@ -5,6 +5,7 @@
 #include "canvas/PlanCanvas.h"
 #include "ReadOnlyBanner.h"
 #include "document/DocumentBridge.h"
+#include "detection/DetectionSession.h"
 #include "document/Selection.h"
 #include "panels/PropertiesPanel.h"
 #include "panels/ToolStrip.h"
@@ -130,7 +131,9 @@ MainWindow::MainWindow(QWidget* parent)
     connect(canvas_, &PlanCanvas::cursorLeft, this, [this]() { updateCursorText(nullptr); });
     connect(selection_, &Selection::changed, this, &MainWindow::refreshSelection);
     connect(panel_, &PropertiesPanel::deleteRequested, this, &MainWindow::deleteSelection);
-    connect(tools_, &ToolController::message, statusBar_, &StatusBar::showMessage);
+    connect(tools_, &ToolController::message, statusBar_, [this](const QString& text) { statusBar_->showMessage(text); });
+    connect(tools_, &ToolController::notice, statusBar_, [this](const QString& text) { statusBar_->showMessage(text, false); });
+    connect(&tools_->detection(), &DetectionSession::changed, this, &MainWindow::updateToolActions);
     connect(tools_, &ToolController::hintTextChanged, statusBar_, &StatusBar::setHint);
     connect(tools_, &ToolController::gridChanged, this, [this]() { canvas_->setGridStep(tools_->gridStepPixels()); });
     connect(tools_, &ToolController::activeChanged, this, &MainWindow::updateToolActions);
@@ -231,8 +234,8 @@ void MainWindow::buildMenus()
     });
 
     edit->addSeparator();
-    const std::array<ToolId, 4> toolIds{ToolId::Select, ToolId::Scale, ToolId::Wall, ToolId::Room};
-    const std::array<Qt::Key, 4> toolKeys{Qt::Key_V, Qt::Key_S, Qt::Key_W, Qt::Key_R};
+    const std::array<ToolId, 5> toolIds{ToolId::Select, ToolId::Scale, ToolId::Wall, ToolId::Room, ToolId::Detect};
+    const std::array<Qt::Key, 5> toolKeys{Qt::Key_V, Qt::Key_S, Qt::Key_W, Qt::Key_R, Qt::Key_D};
     for (size_t i = 0; i < toolIds.size(); ++i) {
         const ToolId id = toolIds[i];
         QAction* action = addMenuAction(edit, tr("%1 tool").arg(ToolStrip::toolName(id)),
@@ -246,6 +249,11 @@ void MainWindow::buildMenus()
         });
         toolActions_[static_cast<size_t>(id)] = action;
     }
+    acceptDetectionAction_ = addMenuAction(edit, tr("Accept detection"),
+                                           tr("Add the detected walls and rooms to the plan (Enter)"),
+                                           QStringLiteral("detect-accept"),
+                                           {QKeySequence(Qt::Key_Return), QKeySequence(Qt::Key_Enter)});
+    connect(acceptDetectionAction_, &QAction::triggered, this, [this]() { tools_->detection().accept(); });
     updateToolActions();
     edit->addSeparator();
     deleteAction_ = addMenuAction(edit, tr("&Delete"),
@@ -553,7 +561,7 @@ void MainWindow::validateSelection()
 // Checks the active tool in the Edit menu and enables the tools that can be used.
 void MainWindow::updateToolActions()
 {
-    const std::array<ToolId, 4> ids{ToolId::Select, ToolId::Scale, ToolId::Wall, ToolId::Room};
+    const std::array<ToolId, 5> ids{ToolId::Select, ToolId::Scale, ToolId::Wall, ToolId::Room, ToolId::Detect};
     for (ToolId id : ids) {
         QAction* action = toolActions_[static_cast<size_t>(id)];
         if (action == nullptr)
@@ -566,6 +574,8 @@ void MainWindow::updateToolActions()
             tip += QStringLiteral(". ") + tools_->unavailableReason(id);
         action->setToolTip(tip);
     }
+    if (acceptDetectionAction_ != nullptr)
+        acceptDetectionAction_->setEnabled(tools_->detection().canAccept() && !doc_.isReadOnly());
 }
 
 // Shows the cursor position in metres, or nothing when it is off the plan or no scale is set.
@@ -594,6 +604,8 @@ bool MainWindow::activateToolByName(const QString& name)
         id = ToolId::Wall;
     else if (key == QStringLiteral("room"))
         id = ToolId::Room;
+    else if (key == QStringLiteral("detect"))
+        id = ToolId::Detect;
     else
         return false;
     tools_->setActive(id);
@@ -854,6 +866,12 @@ void MainWindow::startTerminalCheck(const QString& text)
 bool MainWindow::terminalPictureReady() const
 {
     return terminal_->pictureReady();
+}
+
+// Says whether a picture would show the first detection result, or the Detect tool is not in use.
+bool MainWindow::detectionPictureReady() const
+{
+    return !tools_->detection().active() || tools_->detection().settled();
 }
 
 // Says whether the shell could not be started.

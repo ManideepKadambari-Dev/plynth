@@ -46,7 +46,7 @@ protected:
 
 private:
     ToolController* controller_;
-    std::array<ToolButton*, 4> buttons_{};
+    std::array<ToolButton*, 5> buttons_{};
 };
 
 }

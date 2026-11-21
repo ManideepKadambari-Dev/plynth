@@ -18,6 +18,8 @@ class QWidget;
 
 namespace plynth::app {
 
+class DetectionSession;
+
 // Owns the tools, says which one is active, and gives them the document, the selection and the canvas.
 class ToolController : public QObject {
     Q_OBJECT
@@ -43,6 +45,7 @@ public:
     PlanCanvas& canvas() { return *canvas_; }
     Selection& selection() { return *selection_; }
     QWidget* dialogParent() { return dialogParent_.data(); }
+    DetectionSession& detection() { return *detection_; }
 
     const plynth::Floor* floor() const;
     std::optional<double> pixelsPerMetre() const;
@@ -59,6 +62,8 @@ public:
     // Runs a command on the document. A refusal is shown as a message and returned.
     plynth::Status run(std::unique_ptr<plynth::Command> command);
     void showMessage(const QString& text);
+    // Shows plain news in the status bar, such as what an accept added.
+    void showNotice(const QString& text);
     void requestTool(ToolId id) { setActive(id); }
     // Lets a tool say its hint changed.
     void hintChanged();
@@ -68,6 +73,7 @@ signals:
     void availabilityChanged();
     void hintTextChanged(const QString& text);
     void message(const QString& text);
+    void notice(const QString& text);
     void gridChanged();
     void newWallThicknessChanged(double metres);
 
@@ -78,7 +84,8 @@ private:
     QPointer<PlanCanvas> canvas_;
     QPointer<Selection> selection_;
     QPointer<QWidget> dialogParent_;
-    std::array<std::unique_ptr<Tool>, 4> tools_;
+    std::array<std::unique_ptr<Tool>, 5> tools_;
+    DetectionSession* detection_ = nullptr;
     ToolId active_ = ToolId::Select;
     bool snapToGrid_ = true;
     double newWallThickness_ = 0.2;

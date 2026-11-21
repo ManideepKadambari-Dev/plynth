@@ -6,6 +6,7 @@
 
 #include <QApplication>
 #include <QCommandLineParser>
+#include <QElapsedTimer>
 #include <QImage>
 #include <QRegularExpression>
 #include <QTimer>
@@ -17,6 +18,7 @@ constexpr int kExitSaveFailed = 1;
 constexpr int kExitBadArguments = 2;
 constexpr int kExitImageFailed = 3;
 constexpr int kExitTerminalFailed = 4;
+constexpr qint64 kDetectionWaitMs = 15000;
 
 // Reads "WxH" into a size. Returns false when the text is not two positive numbers.
 bool parseSize(const QString& text, QSize& out)
@@ -72,7 +74,7 @@ int main(int argc, char* argv[])
                                       QStringLiteral("Open the terminal and type this text. For checks only."),
                                       QStringLiteral("text"));
     QCommandLineOption toolOption(QStringLiteral("tool"),
-                                  QStringLiteral("Activate a tool: select, scale, wall or room. For checks only."),
+                                  QStringLiteral("Activate a tool: select, scale, wall, room or detect. For checks only."),
                                   QStringLiteral("name"));
     QCommandLineOption selectOption(QStringLiteral("select"),
                                     QStringLiteral("Select the point, wall or room with this id. For checks only."),
@@ -92,7 +94,7 @@ int main(int argc, char* argv[])
         return kExitBadArguments;
     if (parser.isSet(toolOption)) {
         const QStringList names{QStringLiteral("select"), QStringLiteral("scale"), QStringLiteral("wall"),
-                                QStringLiteral("room")};
+                                QStringLiteral("room"), QStringLiteral("detect")};
         if (!names.contains(parser.value(toolOption).toLower()))
             return kExitBadArguments;
     }
@@ -176,10 +178,14 @@ int main(int argc, char* argv[])
     if (wantsScreenshot) {
         const QString file = parser.value(screenshotOption);
         const QSize target = hasSize ? size : window.size();
+        QElapsedTimer waited;
+        waited.start();
         auto* poll = new QTimer(&app);
         poll->setInterval(wantsTerminal ? 100 : 400);
-        QObject::connect(poll, &QTimer::timeout, &app, [&window, file, target, loadFailed, wantsTerminal, poll]() {
+        QObject::connect(poll, &QTimer::timeout, &app, [&window, file, target, loadFailed, wantsTerminal, poll, waited]() {
             if (wantsTerminal && !window.terminalPictureReady())
+                return;
+            if (!window.detectionPictureReady() && !waited.hasExpired(kDetectionWaitMs))
                 return;
             poll->stop();
             const bool ok = saveScreenshot(window, file, target);

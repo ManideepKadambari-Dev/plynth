@@ -2,7 +2,9 @@
 
 #include "canvas/PlanCanvas.h"
 #include "document/Selection.h"
+#include "detection/DetectionSession.h"
 #include "theme/Theme.h"
+#include "tools/DetectTool.h"
 #include "tools/RoomTool.h"
 #include "tools/ScaleTool.h"
 #include "tools/SelectTool.h"
@@ -29,13 +31,21 @@ ToolController::ToolController(plynth::Document& document, PlanCanvas* canvas, S
     tools_[static_cast<size_t>(ToolId::Scale)] = std::make_unique<ScaleTool>(*this);
     tools_[static_cast<size_t>(ToolId::Wall)] = std::make_unique<WallTool>(*this);
     tools_[static_cast<size_t>(ToolId::Room)] = std::make_unique<RoomTool>(*this);
+    detection_ = new DetectionSession(*this, this);
+    tools_[static_cast<size_t>(ToolId::Detect)] = std::make_unique<DetectTool>(*this);
+    connect(detection_, &DetectionSession::changed, this, [this]() {
+        if (canvas_ != nullptr)
+            canvas_->setProposals(detection_->overlay());
+    });
     canvas_->setTool(tool(active_));
     tool(active_)->activate();
 }
 
-// Takes the tool away from the canvas, if the canvas is still there.
+// Stops detection and takes the tool away from the canvas, if the canvas is still there.
 ToolController::~ToolController()
 {
+    detection_->blockSignals(true);
+    detection_->setActive(false);
     if (canvas_ != nullptr)
         canvas_->setTool(nullptr);
 }
@@ -182,10 +192,16 @@ plynth::Status ToolController::run(std::unique_ptr<plynth::Command> command)
     return status;
 }
 
-// Shows a message in the status bar.
+// Shows a refusal in the status bar.
 void ToolController::showMessage(const QString& text)
 {
     emit message(text);
+}
+
+// Shows plain news in the status bar.
+void ToolController::showNotice(const QString& text)
+{
+    emit notice(text);
 }
 
 }

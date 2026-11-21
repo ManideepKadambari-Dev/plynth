@@ -48,6 +48,9 @@ public:
     int readOnlyDim() const { return readOnlyDim_; }
     int terminalSelectionAlpha() const { return terminalSelectionAlpha_; }
     int roomFillAlpha() const { return roomFillAlpha_; }
+    int proposalFillAlpha() const { return proposalFillAlpha_; }
+    int proposalLineAlpha() const { return proposalLineAlpha_; }
+    int proposalDash() const { return proposalDash_; }
     int toolButton() const { return toolButton_; }
     int toolStripWidth() const { return toolStripWidth_; }
     int propertiesWidth() const { return propertiesWidth_; }
@@ -77,6 +80,9 @@ private:
     int readOnlyDim_ = 150;
     int terminalSelectionAlpha_ = 80;
     int roomFillAlpha_ = 36;
+    int proposalFillAlpha_ = 40;
+    int proposalLineAlpha_ = 220;
+    int proposalDash_ = 4;
     int toolButton_ = 32;
     int toolStripWidth_ = 44;
     int propertiesWidth_ = 280;

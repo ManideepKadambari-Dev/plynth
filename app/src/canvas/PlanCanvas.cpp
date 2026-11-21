@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 
 namespace plynth::app {
 
@@ -89,6 +90,13 @@ void PlanCanvas::setDimmed(bool dimmed)
 void PlanCanvas::setOverlay(const OverlayData& overlay)
 {
     overlay_ = overlay;
+    viewport()->update();
+}
+
+// Replaces the detection preview. Positions are in scene units.
+void PlanCanvas::setProposals(const ProposalOverlay& proposals)
+{
+    proposals_ = proposals;
     viewport()->update();
 }
 
@@ -371,9 +379,84 @@ void PlanCanvas::paintOverlay(QPainter* painter)
         }
     }
 
+    paintProposals(painter);
+
     if (tool_ != nullptr)
         tool_->paint(*painter);
     painter->restore();
+}
+
+// Paints the detection preview in canvas pixels: dashed blue wall bands, room outlines, point rings and
+// opening marks. It is never amber, because amber is for what the user picked.
+void PlanCanvas::paintProposals(QPainter* painter)
+{
+    if (proposals_.isEmpty())
+        return;
+    const Theme& t = Theme::instance();
+    const QTransform view = viewportTransform();
+    QColor line = t.signalBlue();
+    line.setAlpha(t.proposalLineAlpha());
+    QColor fill = t.signalBlue();
+    fill.setAlpha(t.proposalFillAlpha());
+    QPen dashed(line, 1.5);
+    dashed.setDashPattern({double(t.proposalDash()), double(t.proposalDash())});
+    dashed.setCapStyle(Qt::FlatCap);
+    const QPen solid(line, 1.5);
+
+    painter->setBrush(fill);
+    painter->setPen(dashed);
+    for (const ProposalWall& wall : proposals_.walls) {
+        const QPointF delta = wall.to - wall.from;
+        const double length = std::hypot(delta.x(), delta.y());
+        if (length <= 0.0)
+            continue;
+        const QPointF dir = delta / length;
+        const QPointF normal(-dir.y(), dir.x());
+        const double half = wall.thickness / 2.0;
+        const QPointF a = wall.from - dir * half;
+        const QPointF b = wall.to + dir * half;
+        painter->drawPolygon(view.map(QPolygonF({a + normal * half, b + normal * half, b - normal * half,
+                                                     a - normal * half})));
+    }
+
+    painter->setBrush(Qt::NoBrush);
+    painter->setPen(dashed);
+    for (const QVector<QPolygonF>& rings : proposals_.rooms)
+        for (const QPolygonF& ring : rings)
+            painter->drawPolygon(view.map(ring));
+
+    painter->setPen(solid);
+    for (const ProposalOpening& opening : proposals_.openings) {
+        const QPointF dir = opening.direction;
+        const QPointF normal(-dir.y(), dir.x());
+        const double half = opening.thickness / 2.0;
+        const QPointF a = opening.centre - dir * (opening.width / 2.0);
+        const QPointF b = opening.centre + dir * (opening.width / 2.0);
+        const auto tick = [&](const QPointF& at) {
+            painter->drawLine(view.map(at + normal * half), view.map(at - normal * half));
+        };
+        tick(a);
+        tick(b);
+        if (opening.kind == 1) {
+            QPolygonF arc;
+            constexpr int kSteps = 16;
+            for (int i = 0; i <= kSteps; ++i) {
+                const double angle = (std::numbers::pi / 2.0) * i / kSteps;
+                arc << a + (b - a) * std::cos(angle) + normal * (opening.width * std::sin(angle));
+            }
+            painter->drawPolyline(view.map(arc));
+            painter->drawLine(view.map(a), view.map(a + normal * opening.width));
+        } else if (opening.kind == 2) {
+            const QPointF shift = normal * (opening.thickness / 6.0);
+            painter->drawLine(view.map(a + shift), view.map(b + shift));
+            painter->drawLine(view.map(a - shift), view.map(b - shift));
+        }
+    }
+
+    painter->setPen(solid);
+    const double radius = t.pointDot() / 2.0 + 1.0;
+    for (const QPointF& point : proposals_.points)
+        painter->drawEllipse(view.map(point), radius, radius);
 }
 
 // Paints each room's name and area at constant screen size, unless the room is too small for them.

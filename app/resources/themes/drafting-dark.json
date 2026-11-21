@@ -35,13 +35,16 @@
     "toolButton": 32,
     "toolStripWidth": 44,
     "propertiesWidth": 280,
-    "snapRadius": 10
+    "snapRadius": 10,
+    "proposalDash": 4
   },
   "effects": {
     "overlayAlpha": 150,
     "readOnlyDim": 150,
     "terminalSelectionAlpha": 80,
-    "roomFillAlpha": 36
+    "roomFillAlpha": 36,
+    "proposalFillAlpha": 40,
+    "proposalLineAlpha": 220
   },
   "terminal": {
     "ansi": [

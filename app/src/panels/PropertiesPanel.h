@@ -6,11 +6,13 @@
 
 #include <vector>
 
+class QCheckBox;
 class QComboBox;
 class QDoubleSpinBox;
 class QGridLayout;
 class QLabel;
 class QPushButton;
+class QSlider;
 class QStackedWidget;
 
 namespace plynth {
@@ -49,10 +51,15 @@ private:
     void buildPointPage();
     void buildWallPage();
     void buildRoomPage();
+    void buildDetectPage();
+    QSlider* addSliderRow(QGridLayout* grid, const QString& label, int min, int max, const QString& tip,
+                          const QString& tourId, QLabel** valueOut);
+    void detectSettingsEdited(const QObject* from);
     void refreshNothing();
     void refreshPoint();
     void refreshWall();
     void refreshRoom();
+    void refreshDetect();
     void setSpin(QDoubleSpinBox* spin, double value);
 
     plynth::Document& document_;
@@ -92,6 +99,22 @@ private:
     QComboBox* roomType_ = nullptr;
     QLabel* roomArea_ = nullptr;
     QLabel* roomWalls_ = nullptr;
+
+    QSlider* thinSlider_ = nullptr;
+    QLabel* thinValue_ = nullptr;
+    QSlider* thickSlider_ = nullptr;
+    QLabel* thickValue_ = nullptr;
+    QSlider* sensitivitySlider_ = nullptr;
+    QLabel* sensitivityValue_ = nullptr;
+    QDoubleSpinBox* lengthSpin_ = nullptr;
+    QDoubleSpinBox* openingSpin_ = nullptr;
+    QCheckBox* roomsCheck_ = nullptr;
+    QCheckBox* openingsCheck_ = nullptr;
+    QLabel* detectorLabel_ = nullptr;
+    QComboBox* detectorCombo_ = nullptr;
+    QLabel* detectStatus_ = nullptr;
+    QPushButton* acceptButton_ = nullptr;
+    QPushButton* resetButton_ = nullptr;
 };
 
 }
