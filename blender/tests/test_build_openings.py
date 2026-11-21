@@ -1,6 +1,7 @@
 import copy
 import unittest
 
+import bmesh
 import bpy
 from mathutils import Vector
 
@@ -237,3 +238,65 @@ class DetectedApartmentTests(BuildTest):
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
         walls = bpy.data.objects["SM_%s_Walls" % floor["id"]]
         self.assertTrue(meshes.is_manifold(walls))
+
+
+# Returns the signed volume of each connected piece of the object and the number of edges where two faces run
+# the same way round (a flipped face). A closed mesh with no such edge and a positive volume has every normal
+# pointing outward.
+def solid_report(obj):
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    seen = set()
+    volumes = []
+    for start in bm.faces:
+        if start in seen:
+            continue
+        seen.add(start)
+        stack = [start]
+        volume = 0.0
+        while stack:
+            face = stack.pop()
+            volume += face.calc_area() * face.calc_center_median().dot(face.normal) / 3.0
+            for edge in face.edges:
+                for other in edge.link_faces:
+                    if other not in seen:
+                        seen.add(other)
+                        stack.append(other)
+        volumes.append(volume)
+    flipped = 0
+    for edge in bm.edges:
+        loops = edge.link_loops
+        if len(loops) == 2 and loops[0].vert == loops[1].vert:
+            flipped += 1
+    bm.free()
+    return volumes, flipped
+
+
+class WallNormalTests(BuildTest):
+    # Builds the job and returns the walls object of its first floor, with the bevel as the job has it.
+    def walls_of(self, params):
+        result = self.build(params)
+        self.assertTrue(result["ok"], result["error"])
+        bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
+        return bpy.data.objects["SM_%s_Walls" % params["floors"][0]["id"]]
+
+    # Checks that every solid has a positive volume, no face is flipped and no face has more than four corners.
+    def assert_outward(self, walls, name):
+        volumes, flipped = solid_report(walls)
+        self.assertTrue(volumes, name)
+        for volume in volumes:
+            self.assertGreater(volume, 0.0, name)
+        self.assertEqual(flipped, 0, name)
+        for polygon in walls.data.polygons:
+            self.assertLessEqual(len(polygon.vertices), 4, name)
+
+    # The merged apartment walls point outward everywhere.
+    def test_detected_apartment_outward(self):
+        self.assert_outward(self.walls_of(load_params("detected_apartment")), "detected_apartment")
+
+    # A wall with a room on one side only, with a circle cut into it, points outward and is closed.
+    def test_one_sided_wall_outward(self):
+        for name in ("circle_window", "half_wall"):
+            walls = self.walls_of(load_params(name))
+            self.assert_outward(walls, name)
+            self.assertTrue(meshes.is_manifold(walls), name)
