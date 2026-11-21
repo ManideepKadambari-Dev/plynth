@@ -81,7 +81,9 @@ private:
 // Splits a straight wall in two at a new point, offset metres along it from its from point.
 // The wall keeps its id and runs from its from point to the new point; a new wall with a new id runs from
 // the new point to the old to point, copying thickness, height and materials. Rooms that list the wall get
-// the new wall listed right after it. Openings past the split move to the new wall with their offset reduced.
+// the new wall listed next to it so the ring stays in order: right after it when the ring runs along the
+// wall from its from point to its to point, right before it when the ring runs the other way.
+// Openings past the split move to the new wall with their offset reduced.
 // NotFound for an unknown wall. InvalidValue when the offset is not finite or not at least kMinSplitDistance
 // from both ends, or the wall is curved (bulge not 0). InUse when an opening covers the split place.
 class SplitWallCommand : public Command {
