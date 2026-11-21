@@ -98,6 +98,8 @@ int main(int argc, char* argv[])
     QCommandLineOption hoverAssetOption(QStringLiteral("hover-asset"),
                                         QStringLiteral("With --furniture-at, hover the asset with this id. For checks only."),
                                         QStringLiteral("id"));
+    QCommandLineOption homeOption(QStringLiteral("home"), QStringLiteral("Show the home screen. For checks only."));
+    parser.addOption(homeOption);
     parser.addOption(furnitureAtOption);
     parser.addOption(hoverAssetOption);
     parser.addOption(setupOption);
@@ -213,6 +215,8 @@ int main(int argc, char* argv[])
         window.selectAsset(parser.value(selectAssetOption));
         QTimer::singleShot(150, &window, [&window]() { window.showAssetCategories(); });
     }
+    if (parser.isSet(homeOption) || (!wantsScreenshot && !hasProject && !parser.isSet(imageOption)))
+        window.showHome();
     window.show();
     if (parser.isSet(furnitureAtOption)) {
         const QString hover = parser.value(hoverAssetOption);

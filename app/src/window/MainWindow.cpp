@@ -14,6 +14,8 @@
 #include "panels/ImportQueueView.h"
 #include "setup/SetupCheckDialog.h"
 #include "dialogs/RoomTypesDialog.h"
+#include "home/HomeScreen.h"
+#include "home/ProjectThumbnail.h"
 #include "panels/AssetsPanel.h"
 #include "panels/PropertiesPanel.h"
 #include "panels/RightPanel.h"
@@ -67,6 +69,7 @@
 #include <QPolygonF>
 #include <QPushButton>
 #include <QSplitter>
+#include <QStackedWidget>
 #include <QHBoxLayout>
 #include <QTimer>
 #include <QUrl>
@@ -152,8 +155,14 @@ MainWindow::MainWindow(QWidget* parent)
     row->addWidget(splitter_, 1);
     right_ = new RightPanel(panel_, assets_, work);
     row->addWidget(right_);
+    work_ = work;
+    pages_ = new QStackedWidget(central);
+    pages_->addWidget(work);
+    home_ = new HomeScreen(*host_, pages_);
+    pages_->addWidget(home_);
+    pages_->setCurrentWidget(work);
     column->addWidget(banner_);
-    column->addWidget(work, 1);
+    column->addWidget(pages_, 1);
     column->addWidget(statusBar_);
     setCentralWidget(central);
     setAcceptDrops(true);
@@ -161,6 +170,22 @@ MainWindow::MainWindow(QWidget* parent)
     terminal_->setWorkingFolder(host_->projectsFolder());
     lastFolder_ = host_->projectsFolder();
 
+    connect(home_, &HomeScreen::newProjectRequested, this, &MainWindow::newProject);
+    connect(home_, &HomeScreen::newFromImageRequested, this, &MainWindow::newProjectFromImage);
+    connect(home_, &HomeScreen::openProjectRequested, this, &MainWindow::openProjectDialog);
+    connect(home_, &HomeScreen::openRecentRequested, this, &MainWindow::openRecent);
+    connect(home_, &HomeScreen::openSampleRequested, this, [this](const QString& file) {
+        if (!confirmDiscardChanges())
+            return;
+        QString error;
+        if (!newFromImage(file, &error)) {
+            showError(tr("Cannot open image"), error);
+            return;
+        }
+        terminal_->shutdown();
+    });
+    connect(home_, &HomeScreen::setupRequested, this, &MainWindow::openSetupCheck);
+    connect(home_, &HomeScreen::backRequested, this, &MainWindow::showWork);
     connect(canvas_, &PlanCanvas::zoomChanged, this, [this](double zoom) {
         if (canvas_->hasImage())
             statusBar_->setZoom(zoom);
@@ -292,9 +317,15 @@ void MainWindow::buildMenus()
                                         QStringLiteral("file-new-from-image"),
                                         {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N)});
     connect(newFromImageAction_, &QAction::triggered, this, &MainWindow::newProjectFromImage);
+    homeAction_ = addMenuAction(file, tr("&Home"), tr("Show the home screen with the recent projects"),
+                                QStringLiteral("file-home"), {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_H)});
+    connect(homeAction_, &QAction::triggered, this, &MainWindow::showHome);
     openAction_ = addMenuAction(file, tr("&Open project..."), tr("Open a project folder (Ctrl+O)"),
                                 QStringLiteral("file-open-project"), {QKeySequence(Qt::CTRL | Qt::Key_O)});
     connect(openAction_, &QAction::triggered, this, &MainWindow::openProjectDialog);
+    closeAction_ = addMenuAction(file, tr("&Close project"), tr("Close the project and go to the home screen (Ctrl+W)"),
+                                 QStringLiteral("file-close"), {QKeySequence(Qt::CTRL | Qt::Key_W)});
+    connect(closeAction_, &QAction::triggered, this, &MainWindow::closeProject);
     setImageAction_ = addMenuAction(file, tr("Set plan &image..."),
                                     tr("Set the plan image of the floor (Ctrl+Shift+O)"),
                                     QStringLiteral("file-set-image"),
@@ -997,6 +1028,8 @@ bool MainWindow::openProject(const QString& folder, QString* error)
         return false;
     }
     syncWatcher();
+    recordRecent();
+    showWork();
     return true;
 }
 
@@ -1126,6 +1159,68 @@ void MainWindow::unlockNow()
     handleCheck();
 }
 
+// Shows the home screen. The project that is open stays open behind it.
+void MainWindow::showHome()
+{
+    terminal_->close();
+    const bool open = doc_.hasFolder() || canvas_->hasImage() || doc_.isModified();
+    home_->setOpenProject(open ? projectName() : QString());
+    home_->refresh();
+    pages_->setCurrentWidget(home_);
+    statusBar_->setHint(QString());
+}
+
+// Shows the plan, tools and panels.
+void MainWindow::showWork()
+{
+    pages_->setCurrentWidget(work_);
+    statusBar_->setHint(tools_->hint());
+}
+
+// Asks about unsaved changes, starts an empty project and shows the home screen.
+void MainWindow::closeProject()
+{
+    if (!confirmDiscardChanges())
+        return;
+    terminal_->shutdown();
+    doc_.replace(plynth::makeNewProject(), {}, false);
+    showHome();
+}
+
+// Opens a project from the recent list.
+void MainWindow::openRecent(const QString& folder)
+{
+    if (!confirmDiscardChanges())
+        return;
+    QString error;
+    if (!openProject(folder, &error))
+        showError(tr("Cannot open project"), error);
+}
+
+// Puts the open project on the recent list and saves its small picture for the home screen.
+void MainWindow::recordRecent()
+{
+    if (screenshotMode_ || !doc_.hasFolder())
+        return;
+    const plynth::Plan& plan = doc_.plan();
+    host_->recordProject(doc_.folder(), doc_.project().settings.name);
+    if (plan.floors.empty() || !plan.floors.front().image.has_value())
+        return;
+    const QString path = QFileInfo(fromCore(plynth::pathToUtf8(
+        plynth::resolveImagePath(doc_.folder(), *plan.floors.front().image)))).absoluteFilePath();
+    QImage image;
+    if (!decodeImage(path, &image, nullptr))
+        return;
+    const QImage thumb = renderProjectThumbnail(plan, image, 320);
+    if (thumb.isNull())
+        return;
+    const std::filesystem::path file = plynth::recentThumbnailPath(doc_.folder());
+    std::error_code ignored;
+    std::filesystem::create_directories(file.parent_path(), ignored);
+    thumb.save(QString::fromStdWString(file.wstring()), "PNG");
+    home_->refresh();
+}
+
 // Starts an untitled project whose first floor already has the image.
 bool MainWindow::newFromImage(const QString& path, QString* error)
 {
@@ -1136,6 +1231,7 @@ bool MainWindow::newFromImage(const QString& path, QString* error)
     project.plan.floors.front().image = plynth::pathToUtf8(std::filesystem::absolute(toPath(path)));
     cacheImage(path, image);
     doc_.replace(std::move(project), {}, false);
+    showWork();
     return true;
 }
 
@@ -1237,6 +1333,7 @@ void MainWindow::newProject()
         return;
     terminal_->shutdown();
     doc_.replace(plynth::makeNewProject(), {}, false);
+    showWork();
 }
 
 // Asks for an image and starts an untitled project from it.
@@ -1299,6 +1396,7 @@ bool MainWindow::saveDocument()
     }
     watcher_->acknowledge();
     reportMissingImages(report);
+    recordRecent();
     return true;
 }
 
@@ -1316,6 +1414,7 @@ bool MainWindow::saveDocumentAs()
         return false;
     }
     reportMissingImages(report);
+    recordRecent();
     return true;
 }
 

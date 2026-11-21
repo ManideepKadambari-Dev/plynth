@@ -22,6 +22,10 @@ add_executable(plynth WIN32
     src/detection/DetectionRunner.cpp
     src/detection/DetectionSession.h
     src/detection/DetectionSession.cpp
+    src/home/HomeScreen.h
+    src/home/HomeScreen.cpp
+    src/home/ProjectThumbnail.h
+    src/home/ProjectThumbnail.cpp
     src/furniture/AssetPreview.h
     src/furniture/AssetPreview.cpp
     src/furniture/FurniturePicker.h

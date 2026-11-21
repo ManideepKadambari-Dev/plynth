@@ -43,6 +43,11 @@ public:
     void roomTypesEdited();
     // Tells the views that assets were added, changed or removed.
     void assetsEdited();
+    // Puts a project at the top of the recent list and saves the settings. Only the app calls this, when it opens
+    // or saves a project.
+    void recordProject(const std::filesystem::path& folder, const std::string& name);
+    // Takes a project off the recent list and saves the settings. Nothing on disk is deleted.
+    void forgetProject(const std::filesystem::path& folder);
     // Opens the library again, for example after the folder was created or the index rescanned.
     void reopen();
 
@@ -50,6 +55,7 @@ signals:
     void libraryChanged();
     void roomTypesChanged();
     void assetsChanged();
+    void recentChanged();
 
 private:
     plynth::MachineSettings settings_;

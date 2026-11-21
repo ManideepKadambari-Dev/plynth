@@ -21,12 +21,14 @@ class QDragEnterEvent;
 class QDropEvent;
 class QMenu;
 class QSplitter;
+class QStackedWidget;
 class QTimer;
 
 namespace plynth::app {
 
 class AssetsPanel;
 class DocumentBridge;
+class HomeScreen;
 class ImportQueue;
 class ImportQueueView;
 class LibraryHost;
@@ -96,6 +98,13 @@ public:
     // an id is given. False when there is no scale or no library.
     bool showFurniturePicker(double x, double y, const QString& hoverAsset);
 
+    // Shows the home screen over the work area. A project that is open stays open behind it.
+    void showHome();
+    // Shows the work area (plan, panels) again.
+    void showWork();
+    // Closes the project after the save question and shows the home screen.
+    void closeProject();
+
     // For checks only: shows the Assets tab.
     void showAssetsTab();
     // For checks only: selects an asset in the Assets tab. False when it is not listed.
@@ -121,6 +130,8 @@ protected:
 
 private:
     void toggleMaximized();
+    void recordRecent();
+    void openRecent(const QString& folder);
     void showAbout();
     void buildCatalogMenu();
     void openSetupCheck();
@@ -183,6 +194,11 @@ private:
     AssetsPanel* assets_ = nullptr;
     RightPanel* right_ = nullptr;
     LibraryHost* host_ = nullptr;
+    QStackedWidget* pages_ = nullptr;
+    QWidget* work_ = nullptr;
+    HomeScreen* home_ = nullptr;
+    QAction* homeAction_ = nullptr;
+    QAction* closeAction_ = nullptr;
     QAction* importAction_ = nullptr;
     QAction* rescanAction_ = nullptr;
     ImportQueue* queue_ = nullptr;

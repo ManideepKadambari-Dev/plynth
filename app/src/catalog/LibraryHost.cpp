@@ -1,5 +1,6 @@
 #include "LibraryHost.h"
 
+#include <plynth/core/EditSession.h>
 #include <plynth/core/OpeningShapes.h>
 #include <plynth/core/RoomTypes.h>
 
@@ -75,6 +76,23 @@ void LibraryHost::reopen()
     }
     emit libraryChanged();
     emit roomTypesChanged();
+}
+
+// Adds the project to the recent list and writes the settings file.
+void LibraryHost::recordProject(const std::filesystem::path& folder, const std::string& name)
+{
+    plynth::addRecentProject(settings_, folder, name, plynth::sessionNow());
+    plynth::saveSettings(settings_);
+    emit recentChanged();
+}
+
+// Removes the project from the recent list and writes the settings file.
+void LibraryHost::forgetProject(const std::filesystem::path& folder)
+{
+    if (plynth::removeRecentProject(settings_, folder)) {
+        plynth::saveSettings(settings_);
+        emit recentChanged();
+    }
 }
 
 // The projects folder from the settings, or Documents when none is set.
