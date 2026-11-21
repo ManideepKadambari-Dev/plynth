@@ -10,6 +10,8 @@ add_library(plynth_terminal STATIC
     TerminalScreen.cpp
     TerminalSession.h
     TerminalSession.cpp
+    TerminalView.h
+    TerminalView.cpp
 )
 add_library(plynth::terminal ALIAS plynth_terminal)
 target_include_directories(plynth_terminal PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -18,9 +20,11 @@ target_link_libraries(plynth_terminal PUBLIC Qt6::Widgets PRIVATE unofficial::li
 if(PLYNTH_BUILD_TESTS)
     find_package(Catch2 CONFIG REQUIRED)
     include(Catch)
+    enable_testing()
     add_executable(plynth_terminal_tests
         tests/TerminalScreenTests.cpp
         tests/ConPtyTests.cpp
+        tests/TerminalViewTests.cpp
         tests/TestSetup.cpp
     )
     target_link_libraries(plynth_terminal_tests PRIVATE plynth::terminal Qt6::Widgets Catch2::Catch2WithMain
