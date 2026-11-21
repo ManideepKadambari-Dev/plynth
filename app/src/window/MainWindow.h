@@ -27,6 +27,7 @@ class QTimer;
 namespace plynth::app {
 
 class AssetsPanel;
+class BuildBar;
 class DocumentBridge;
 class HomeScreen;
 class ImportQueue;
@@ -39,6 +40,7 @@ class TerminalDock;
 class ReadOnlyBanner;
 class TitleBar;
 class PlanCanvas;
+class PreviewView;
 class PropertiesPanel;
 class RightPanel;
 class Selection;
@@ -84,9 +86,9 @@ public:
     // Picture of the window for screenshots: the setup check, when open, is drawn over a dimmed window.
     QImage grabPicture();
     // For checks only: opens the setup check and keeps it open.
-    void showSetupCheck();
+    void showSetupCheck(const QString& scrollToTitle = QString());
     // For checks only: true when no setup check is open, or its check has finished.
-    bool setupPictureReady() const;
+    bool setupPictureReady();
     // For checks only: queues an import of a file or folder.
     void importFile(const QString& path);
     // For checks only: true when no import was asked for, or its progress row is showing.
@@ -116,6 +118,12 @@ public:
     void startTerminalCheck(const QString& text);
     bool terminalPictureReady() const;
     bool terminalFailed() const;
+    // For checks only: shows the 3D page ("3d") or the plan ("plan").
+    void showView(const QString& name);
+    // For checks only: sets the camera of the 3D page: "three-quarter" or "top".
+    void setPreviewCamera(const QString& name);
+    // For checks only: true when the 3D page has drawn its model, or is not shown, or has none.
+    bool previewPictureReady() const;
     // For checks only: true when the Detect tool is off, or its first detection has finished or failed.
     bool detectionPictureReady() const;
 
@@ -156,6 +164,8 @@ private:
     void updateViewActions();
     void refreshImage();
     void refreshOverlay();
+    void refreshPreview();
+    void showCentreView(bool scene3d);
     void refreshSelection();
     void deleteSelection();
     void updateDeleteAction();
@@ -195,6 +205,11 @@ private:
     RightPanel* right_ = nullptr;
     LibraryHost* host_ = nullptr;
     QStackedWidget* pages_ = nullptr;
+    QStackedWidget* centreStack_ = nullptr;
+    BuildBar* buildBar_ = nullptr;
+    PreviewView* preview_ = nullptr;
+    QAction* view3dAction_ = nullptr;
+    QAction* fitAction_ = nullptr;
     QWidget* work_ = nullptr;
     HomeScreen* home_ = nullptr;
     QAction* homeAction_ = nullptr;
@@ -206,6 +221,7 @@ private:
     LibraryWatcher* libraryWatcher_ = nullptr;
     QPointer<SetupCheckDialog> setupDialog_;
     bool importAsked_ = false;
+    QString setupScrollTo_;
     QSplitter* splitter_ = nullptr;
     WallView* wallView_ = nullptr;
     QAction* wallViewAction_ = nullptr;

@@ -1,5 +1,6 @@
 #include "RightPanel.h"
 
+#include "theme/TabButton.h"
 #include "theme/Theme.h"
 
 #include <QHBoxLayout>
@@ -14,27 +15,11 @@ namespace {
 
 constexpr int kBorderWidth = 1;
 
-// Makes one flat tab button.
+// Makes one flat tab button of the right panel.
 QPushButton* makeTab(const QString& text, const QString& tip, const QString& tourId, QWidget* parent)
 {
     const Theme& t = Theme::instance();
-    auto* button = new QPushButton(text, parent);
-    button->setCheckable(true);
-    button->setFlat(true);
-    button->setFocusPolicy(Qt::NoFocus);
-    button->setFont(t.uiFont(t.sizeNormal(), QFont::DemiBold));
-    button->setToolTip(tip);
-    button->setProperty("tourId", tourId);
-    button->setStyleSheet(
-        QStringLiteral("QPushButton { background: transparent; border: none; border-bottom: 2px solid %1; "
-                       "color: %2; padding: %3px %4px; border-radius: 0px; }"
-                       "QPushButton:hover { color: %5; }"
-                       "QPushButton:checked { color: %5; border-bottom-color: %6; }")
-            .arg(t.line().name(), t.muted().name())
-            .arg(t.unit() * 2)
-            .arg(t.unit() * 4)
-            .arg(t.text().name(), t.signalBlue().name()));
-    return button;
+    return makeTabButton(text, tip, tourId, parent, t.unit() * 2, t.unit() * 4);
 }
 
 }

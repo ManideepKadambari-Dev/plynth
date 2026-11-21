@@ -4,6 +4,7 @@
 #include "furniture/AssetPreview.h"
 #include "home/ProjectThumbnail.h"
 #include "theme/ElideLabel.h"
+#include "preview/GraphicsProbe.h"
 #include "theme/Theme.h"
 
 #include <plynth/core/SetupCheck.h>
@@ -393,7 +394,7 @@ void HomeScreen::fillSide()
     }
     samplesBox_->setVisible(samplesColumn_->count() > 0);
 
-    const plynth::SetupReport quick = plynth::quickSetupCheck(host_.settings(), host_.settingsExisted());
+    const plynth::SetupReport quick = plynth::quickSetupCheck(host_.settings(), host_.settingsExisted(), appGraphics());
     QString problem;
     QString problemPath;
     QString problemDetail;
