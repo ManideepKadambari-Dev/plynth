@@ -1,0 +1,39 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Visual Studio 18 2026",
+      "architecture": { "value": "x64", "strategy": "set" },
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "$env{QTDIR}"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioSettings/CMake/1.0": { "hostOS": [ "Windows" ] }
+      }
+    },
+    {
+      "name": "msvc",
+      "displayName": "MSVC x64",
+      "inherits": "base"
+    }
+  ],
+  "buildPresets": [
+    { "name": "debug", "displayName": "Debug", "configurePreset": "msvc", "configuration": "Debug" },
+    { "name": "release", "displayName": "Release", "configurePreset": "msvc", "configuration": "Release" }
+  ],
+  "testPresets": [
+    {
+      "name": "debug", "displayName": "Debug", "configurePreset": "msvc", "configuration": "Debug",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "release", "displayName": "Release", "configurePreset": "msvc", "configuration": "Release",
+      "output": { "outputOnFailure": true }
+    }
+  ]
+}
