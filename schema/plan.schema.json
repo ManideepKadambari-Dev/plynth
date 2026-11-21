@@ -104,9 +104,13 @@
       "additionalProperties": false,
       "properties": {
         "id": { "$ref": "#/definitions/id" },
-        "type": { "$ref": "#/definitions/optionalName", "default": null },
+        "type": {
+          "description": "A room type id, for example living, bedroom, kitchen, bathroom, hall, dining, office, storage or other. The list is user editable, so readers accept any well formed name. null until the user picks a type.",
+          "$ref": "#/definitions/optionalName",
+          "default": null
+        },
         "walls": {
-          "description": "Walls on the same floor that bound the room.",
+          "description": "Walls on the same floor that bound the room: the outer ring in order, then the ring of each island inside it.",
           "type": "array",
           "items": { "$ref": "#/definitions/id" }
         },

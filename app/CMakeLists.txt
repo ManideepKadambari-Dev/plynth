@@ -7,10 +7,29 @@ add_executable(plynth WIN32
     src/main.cpp
     src/canvas/PlanCanvas.h
     src/canvas/PlanCanvas.cpp
+    src/dialogs/ScaleDialog.h
+    src/dialogs/ScaleDialog.cpp
+    src/document/Selection.h
+    src/document/Selection.cpp
     src/document/DocumentBridge.h
     src/document/DocumentBridge.cpp
     src/document/ProjectWatcher.h
     src/document/ProjectWatcher.cpp
+    src/panels/PropertiesPanel.h
+    src/panels/PropertiesPanel.cpp
+    src/panels/ToolStrip.h
+    src/panels/ToolStrip.cpp
+    src/tools/RoomTool.h
+    src/tools/RoomTool.cpp
+    src/tools/ScaleTool.h
+    src/tools/ScaleTool.cpp
+    src/tools/SelectTool.h
+    src/tools/SelectTool.cpp
+    src/tools/Tool.h
+    src/tools/ToolController.h
+    src/tools/ToolController.cpp
+    src/tools/WallTool.h
+    src/tools/WallTool.cpp
     src/terminal/TerminalDock.h
     src/terminal/TerminalDock.cpp
     src/terminal/TerminalWidgets.h

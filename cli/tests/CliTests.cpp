@@ -66,7 +66,10 @@ TEST_CASE("help lists every command with its options", "[cli]") {
     for (const auto& command : outcome.answer.at("result").at("commands")) {
         CHECK(command.at("description").is_string());
         for (const auto& option : command.at("options")) {
-            CHECK(option.at("name").get<std::string>().starts_with("--"));
+            CHECK(option.at("positional").is_boolean());
+            if (!option.at("positional").get<bool>()) {
+                CHECK(option.at("name").get<std::string>().starts_with("--"));
+            }
             CHECK(option.at("required").is_boolean());
             CHECK(option.at("description").is_string());
         }

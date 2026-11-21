@@ -8,6 +8,7 @@
     "nlohmann-json",
     "cli11",
     "json-schema-validator",
-    "libvterm"
+    "libvterm",
+    "clipper2"
   ]
 }

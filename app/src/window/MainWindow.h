@@ -1,5 +1,7 @@
 #pragma once
 
+#include "tools/Tool.h"
+
 #include <plynth/core/Document.h>
 #include <plynth/core/EditSession.h>
 
@@ -26,7 +28,11 @@ class TerminalDock;
 class ReadOnlyBanner;
 class TitleBar;
 class PlanCanvas;
+class PropertiesPanel;
+class Selection;
 class StatusBar;
+class ToolController;
+class ToolStrip;
 
 // The main application window with its own title bar. It owns the one document of the app and
 // runs every change through it.
@@ -54,6 +60,11 @@ public:
     void offerRecovery();
 
     void showError(const QString& title, const QString& message);
+
+    // For checks only: activates a tool by name (select, scale, wall, room). False for an unknown name.
+    bool activateToolByName(const QString& name);
+    // For checks only: selects the point, wall or room with this id on the first floor. An unknown id selects nothing.
+    void selectById(const QString& id);
 
     // For checks only: opens the terminal and types the text once the shell has printed something.
     void startTerminalCheck(const QString& text);
@@ -85,6 +96,12 @@ private:
     void updateViewActions();
     void refreshImage();
     void refreshOverlay();
+    void refreshSelection();
+    void deleteSelection();
+    void updateDeleteAction();
+    void validateSelection();
+    void updateToolActions();
+    void updateCursorText(const QPointF* scene);
     void syncWatcher();
     void handleCheck();
     bool reloadFromDisk();
@@ -108,6 +125,13 @@ private:
 
     TitleBar* titleBar_ = nullptr;
     PlanCanvas* canvas_ = nullptr;
+    Selection* selection_ = nullptr;
+    ToolController* tools_ = nullptr;
+    ToolStrip* toolStrip_ = nullptr;
+    PropertiesPanel* panel_ = nullptr;
+    QAction* toolActions_[4] = {nullptr, nullptr, nullptr, nullptr};
+    QAction* snapGridAction_ = nullptr;
+    QAction* deleteAction_ = nullptr;
     StatusBar* statusBar_ = nullptr;
     QTimer* autosaveTimer_ = nullptr;
     ReadOnlyBanner* banner_ = nullptr;
