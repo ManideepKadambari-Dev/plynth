@@ -14,6 +14,7 @@ namespace {
 constexpr int kExitSaved = 0;
 constexpr int kExitSaveFailed = 1;
 constexpr int kExitBadArguments = 2;
+constexpr int kExitImageFailed = 3;
 
 // Reads "WxH" into a size. Returns false when the text is not two positive numbers.
 bool parseSize(const QString& text, QSize& out)
@@ -59,6 +60,10 @@ int main(int argc, char* argv[])
     QCommandLineOption sizeOption(QStringLiteral("size"),
                                   QStringLiteral("Window size in pixels, for example 1280x720."),
                                   QStringLiteral("WxH"));
+    QCommandLineOption imageOption(QStringLiteral("image"),
+                                   QStringLiteral("Plan image to open."),
+                                   QStringLiteral("file"));
+    parser.addOption(imageOption);
     parser.addOption(screenshotOption);
     parser.addOption(sizeOption);
     if (!parser.parse(QApplication::arguments()))
@@ -83,14 +88,20 @@ int main(int argc, char* argv[])
         window.resize(size);
     else
         window.resize(1280, 800);
+    QString imageError;
+    bool imageFailed = false;
+    if (parser.isSet(imageOption))
+        imageFailed = !window.loadImage(parser.value(imageOption), &imageError);
     window.show();
+    if (imageFailed && !wantsScreenshot)
+        QTimer::singleShot(0, &window, [&window, imageError]() { window.showImageError(imageError); });
 
     if (wantsScreenshot) {
         const QString file = parser.value(screenshotOption);
         const QSize target = hasSize ? size : window.size();
-        QTimer::singleShot(400, &app, [&window, file, target]() {
+        QTimer::singleShot(400, &app, [&window, file, target, imageFailed]() {
             const bool ok = saveScreenshot(window, file, target);
-            QApplication::exit(ok ? kExitSaved : kExitSaveFailed);
+            QApplication::exit(!ok ? kExitSaveFailed : imageFailed ? kExitImageFailed : kExitSaved);
         });
     }
     return app.exec();

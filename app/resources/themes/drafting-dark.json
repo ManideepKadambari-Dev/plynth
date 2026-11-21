@@ -26,6 +26,7 @@
     "titleButtonWidth": 46,
     "resizeBorder": 6,
     "radius": 4,
-    "logoSize": 20
+    "logoSize": 20,
+    "sheetPadding": 24
   }
 }

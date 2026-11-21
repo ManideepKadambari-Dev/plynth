@@ -1,5 +1,6 @@
 add_library(plynth_core STATIC
     src/Version.cpp
+    src/PlanImage.cpp
 )
 add_library(plynth::core ALIAS plynth_core)
 

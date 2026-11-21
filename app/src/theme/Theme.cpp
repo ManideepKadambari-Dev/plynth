@@ -69,6 +69,7 @@ bool Theme::load(const QString& resourcePath)
     resizeBorder_ = spacing["resizeBorder"].toInt(resizeBorder_);
     radius_ = spacing["radius"].toInt(radius_);
     logoSize_ = spacing["logoSize"].toInt(logoSize_);
+    sheetPadding_ = spacing["sheetPadding"].toInt(sheetPadding_);
     return true;
 }
 

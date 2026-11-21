@@ -45,6 +45,7 @@ public:
     QMenuBar* menuBar() const { return menuBar_; }
     QMenu* fileMenu() const { return fileMenu_; }
     QMenu* helpMenu() const { return helpMenu_; }
+    QMenu* viewMenu() const { return viewMenu_; }
     TitleButton* maximizeButton() const { return maximizeButton_; }
 
     void setProjectName(const QString& name);
@@ -70,6 +71,7 @@ private:
     QMenuBar* menuBar_ = nullptr;
     QMenu* fileMenu_ = nullptr;
     QMenu* helpMenu_ = nullptr;
+    QMenu* viewMenu_ = nullptr;
     TitleButton* minimizeButton_ = nullptr;
     TitleButton* maximizeButton_ = nullptr;
     TitleButton* closeButton_ = nullptr;
