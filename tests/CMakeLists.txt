@@ -4,11 +4,18 @@ include(Catch)
 
 add_executable(plynth_echo_lines tools/echo_lines/main.cpp)
 
+add_executable(plynth_fake_blender tools/fake_blender/main.cpp)
+target_link_libraries(plynth_fake_blender PRIVATE nlohmann_json::nlohmann_json shell32)
+set_target_properties(plynth_fake_blender PROPERTIES OUTPUT_NAME fake_blender)
+
 add_executable(plynth_core_tests
     core/TestSetup.cpp
     core/VersionTests.cpp
     core/SettingsTests.cpp
     core/ProcessTests.cpp
+    core/BlenderTests.cpp
+    core/BlenderJobTests.cpp
+    core/SetupCheckTests.cpp
     core/LibraryTests.cpp
     core/AssetInfoTests.cpp
     core/AssetCatalogTests.cpp
@@ -52,8 +59,9 @@ target_compile_definitions(plynth_core_tests PRIVATE
     PLYNTH_SAMPLES_DIR="${PROJECT_SOURCE_DIR}/samples"
     PLYNTH_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/core/data")
 
-add_dependencies(plynth_core_tests plynth_echo_lines)
+add_dependencies(plynth_core_tests plynth_echo_lines plynth_fake_blender)
 target_compile_definitions(plynth_core_tests PRIVATE
-    PLYNTH_ECHO_LINES="$<TARGET_FILE:plynth_echo_lines>")
+    PLYNTH_ECHO_LINES="$<TARGET_FILE:plynth_echo_lines>"
+    PLYNTH_FAKE_BLENDER="$<TARGET_FILE:plynth_fake_blender>")
 
 catch_discover_tests(plynth_core_tests)

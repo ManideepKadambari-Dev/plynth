@@ -12,29 +12,48 @@
 
 #include <stdlib.h>
 
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+
 namespace plynth::test {
 
-// Sets an environment variable for the life of the object, then puts the old value back.
+// Turns UTF-8 text into UTF-16.
+inline std::wstring widenUtf8(const std::string& text)
+{
+    if (text.empty()) return {};
+    const int size = MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0);
+    std::wstring out(static_cast<std::size_t>(size), L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), out.data(), size);
+    return out;
+}
+
+// Sets an environment variable (names and values in UTF-8) for the life of the object, then puts the old
+// value back. An empty value removes the variable.
 class ScopedEnv {
 public:
-    ScopedEnv(std::string name, const std::string& value) : name_(std::move(name))
+    ScopedEnv(const std::string& name, const std::string& value) : name_(widenUtf8(name))
     {
-        char* old = nullptr;
+        wchar_t* old = nullptr;
         std::size_t size = 0;
-        if (_dupenv_s(&old, &size, name_.c_str()) == 0 && old) {
+        if (_wdupenv_s(&old, &size, name_.c_str()) == 0 && old) {
             had_ = true;
             old_ = old;
         }
         free(old);
-        _putenv_s(name_.c_str(), value.c_str());
+        _wputenv_s(name_.c_str(), widenUtf8(value).c_str());
     }
-    ~ScopedEnv() { _putenv_s(name_.c_str(), had_ ? old_.c_str() : ""); }
+    ~ScopedEnv() { _wputenv_s(name_.c_str(), had_ ? old_.c_str() : L""); }
     ScopedEnv(const ScopedEnv&) = delete;
     ScopedEnv& operator=(const ScopedEnv&) = delete;
 
 private:
-    std::string name_;
-    std::string old_;
+    std::wstring name_;
+    std::wstring old_;
     bool had_ = false;
 };
 

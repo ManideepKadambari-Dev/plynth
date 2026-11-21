@@ -2,7 +2,7 @@
 
 #include "Status.h"
 
-#include <nlohmann/json_fwd.hpp>
+#include <nlohmann/json.hpp>
 
 #include <filesystem>
 #include <optional>

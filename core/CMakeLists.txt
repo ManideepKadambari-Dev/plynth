@@ -6,6 +6,10 @@ add_library(plynth_core STATIC
     src/Status.cpp
     src/Settings.cpp
     src/Library.cpp
+    src/Blender.cpp
+    src/BlenderJob.cpp
+    src/SetupCheck.cpp
+    src/catalog/AssetJobs.cpp
     src/catalog/AssetInfo.cpp
     src/catalog/AssetCatalog.cpp
     src/catalog/BuiltInCatalog.cpp
@@ -42,13 +46,16 @@ add_library(plynth_core STATIC
 )
 if(WIN32)
     target_sources(plynth_core PRIVATE src/Process_win.cpp)
-    target_link_libraries(plynth_core PUBLIC shell32 ole32)
+    target_sources(plynth_core PRIVATE src/BlenderDiscovery_win.cpp)
+    target_link_libraries(plynth_core PUBLIC shell32 ole32 advapi32)
 endif()
 add_library(plynth::core ALIAS plynth_core)
 
 target_include_directories(plynth_core PUBLIC include)
 target_compile_features(plynth_core PUBLIC cxx_std_20)
 target_link_libraries(plynth_core PUBLIC nlohmann_json::nlohmann_json)
+set_source_files_properties(src/Blender.cpp PROPERTIES
+    COMPILE_DEFINITIONS PLYNTH_SOURCE_BLENDER_DIR="${PROJECT_SOURCE_DIR}/blender")
 set_source_files_properties(src/Version.cpp PROPERTIES
     COMPILE_DEFINITIONS PLYNTH_VERSION_STRING="${PROJECT_VERSION}")
 find_package(unofficial-sqlite3 CONFIG REQUIRED)
