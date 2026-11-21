@@ -9,10 +9,14 @@ add_executable(plynth WIN32
     src/canvas/PlanCanvas.cpp
     src/document/DocumentBridge.h
     src/document/DocumentBridge.cpp
+    src/document/ProjectWatcher.h
+    src/document/ProjectWatcher.cpp
     src/theme/Theme.h
     src/theme/Theme.cpp
     src/window/MainWindow.h
     src/window/MainWindow.cpp
+    src/window/ReadOnlyBanner.h
+    src/window/ReadOnlyBanner.cpp
     src/window/StatusBar.h
     src/window/StatusBar.cpp
     src/window/TitleBar.h

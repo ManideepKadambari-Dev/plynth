@@ -71,6 +71,13 @@ QString PlanCanvas::defaultEmptyText()
     return tr("Set a plan image with Ctrl+Shift+O or drop one here");
 }
 
+// Greys the sheet while the project is read only. The overlay stays on top at full strength.
+void PlanCanvas::setDimmed(bool dimmed)
+{
+    dimmed_ = dimmed;
+    viewport()->update();
+}
+
 // Replaces the walls and points drawn over the plan image. Positions are in scene units.
 void PlanCanvas::setOverlay(const QVector<OverlayWall>& walls, const QVector<QPointF>& points)
 {
@@ -212,6 +219,15 @@ void PlanCanvas::drawForeground(QPainter* painter, const QRectF& rect)
     Q_UNUSED(rect);
     const Theme& t = Theme::instance();
     if (pixmapItem_ != nullptr) {
+        if (dimmed_) {
+            QColor dim = t.ground();
+            dim.setAlpha(t.readOnlyDim());
+            const int pad = t.sheetPadding();
+            painter->save();
+            painter->resetTransform();
+            painter->fillRect(mapFromScene(imageRect()).boundingRect().adjusted(-pad, -pad, pad, pad), dim);
+            painter->restore();
+        }
         QColor blue = t.signalBlue();
         blue.setAlpha(t.overlayAlpha());
         painter->save();

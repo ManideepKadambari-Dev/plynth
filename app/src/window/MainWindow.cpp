@@ -3,7 +3,9 @@
 #include "TitleBar.h"
 #include "StatusBar.h"
 #include "canvas/PlanCanvas.h"
+#include "ReadOnlyBanner.h"
 #include "document/DocumentBridge.h"
+#include "document/ProjectWatcher.h"
 #include "theme/Theme.h"
 
 #include <plynth/core/PlanImage.h>
@@ -83,6 +85,9 @@ MainWindow::MainWindow(QWidget* parent)
     canvas_->setAcceptDrops(false);
     canvas_->viewport()->setAcceptDrops(false);
     statusBar_ = new StatusBar(central);
+    banner_ = new ReadOnlyBanner(central);
+    banner_->hide();
+    column->addWidget(banner_);
     column->addWidget(canvas_, 1);
     column->addWidget(statusBar_);
     setCentralWidget(central);
@@ -104,6 +109,10 @@ MainWindow::MainWindow(QWidget* parent)
     bridge_ = std::make_unique<DocumentBridge>(doc_);
     connect(bridge_.get(), &DocumentBridge::changed, this,
             [this](unsigned changes, const QString&) { onDocumentChanged(changes); });
+
+    watcher_ = new ProjectWatcher(this);
+    connect(watcher_, &ProjectWatcher::checkRequested, this, &MainWindow::handleCheck);
+    connect(banner_, &ReadOnlyBanner::unlockRequested, this, &MainWindow::unlockNow);
 
     autosaveTimer_ = new QTimer(this);
     autosaveTimer_->setInterval(plynth::kAutosaveIntervalSeconds * 1000);
@@ -132,8 +141,10 @@ QString MainWindow::projectName() const
 void MainWindow::setScreenshotMode(bool on)
 {
     screenshotMode_ = on;
-    if (on)
+    if (on) {
         autosaveTimer_->stop();
+        watcher_->setActive(false);
+    }
 }
 
 // Builds the File, Edit and View menu actions with their tooltips and tour ids.
@@ -240,8 +251,12 @@ void MainWindow::updateActions()
     const std::string redoName = doc_.redoName();
     undoAction_->setText(undoName.empty() ? tr("&Undo") : tr("&Undo %1").arg(fromCore(undoName)));
     redoAction_->setText(redoName.empty() ? tr("&Redo") : tr("&Redo %1").arg(fromCore(redoName)));
-    undoAction_->setEnabled(doc_.canUndo());
-    redoAction_->setEnabled(doc_.canRedo());
+    const bool editable = !doc_.isReadOnly();
+    undoAction_->setEnabled(editable && doc_.canUndo());
+    redoAction_->setEnabled(editable && doc_.canRedo());
+    saveAction_->setEnabled(editable);
+    saveAsAction_->setEnabled(editable);
+    setImageAction_->setEnabled(editable);
 }
 
 // Shows the project name in the title bar, with a star while there are unsaved changes.
@@ -261,6 +276,10 @@ void MainWindow::onDocumentChanged(unsigned changes)
     if (changes & (plynth::Change::Points | plynth::Change::Walls | plynth::Change::Scale |
                    plynth::Change::Floors | plynth::Change::Folder))
         refreshOverlay();
+    if (changes & plynth::Change::ReadOnly)
+        updateReadOnlyUi();
+    if (changes & plynth::Change::Folder)
+        QTimer::singleShot(0, this, &MainWindow::syncWatcher);
     if (changes & (plynth::Change::History | plynth::Change::Settings | plynth::Change::Folder)) {
         updateTitle();
         updateActions();
@@ -371,7 +390,8 @@ void MainWindow::refreshOverlay()
     canvas_->setOverlay(walls, points);
 }
 
-// Opens a project folder with core and makes it the document.
+// Opens a project folder with core and makes it the document. A project with an active command
+// line session starts read only.
 bool MainWindow::openProject(const QString& folder, QString* error)
 {
     const plynth::Status status = doc_.open(toPath(folder));
@@ -380,7 +400,126 @@ bool MainWindow::openProject(const QString& folder, QString* error)
             *error = fromCore(status.message);
         return false;
     }
+    syncWatcher();
     return true;
+}
+
+// Points the watcher at the document's folder and checks the lock state at once.
+void MainWindow::syncWatcher()
+{
+    watcher_->setFolder(doc_.hasFolder() ? doc_.folder() : std::filesystem::path());
+    watcher_->acknowledge();
+    reloadPending_ = false;
+    handleCheck();
+}
+
+// Reads the project files again after an outside change. Keeps trying while the files cannot be read.
+bool MainWindow::reloadFromDisk()
+{
+    const plynth::Status status = doc_.reload();
+    reloadPending_ = !status.ok();
+    if (status.ok())
+        watcher_->acknowledge();
+    return status.ok();
+}
+
+// Decides what to do about the lock and about outside changes to the project files.
+void MainWindow::handleCheck()
+{
+    if (!doc_.hasFolder()) {
+        watcher_->setAlwaysCheck(false);
+        return;
+    }
+    const plynth::SessionRead session = plynth::readSession(doc_.folder(), plynth::sessionNow());
+    const bool locked = session.state == plynth::SessionState::Active;
+    const bool outside = watcher_->outsideChange();
+
+    if (locked) {
+        banner_->setTool(fromCore(session.lock.tool));
+        if (!doc_.isReadOnly())
+            doc_.setReadOnly(true, "The project is being edited from the command line by " + session.lock.tool + ".");
+        if (outside || reloadPending_)
+            reloadFromDisk();
+        watcher_->setAlwaysCheck(true);
+        return;
+    }
+
+    if (doc_.isReadOnly()) {
+        if (outside || reloadPending_)
+            reloadFromDisk();
+        doc_.setReadOnly(false);
+        watcher_->setAlwaysCheck(reloadPending_);
+        if (recoveryPending_) {
+            recoveryPending_ = false;
+            QTimer::singleShot(0, this, &MainWindow::offerRecovery);
+        }
+        return;
+    }
+
+    watcher_->setAlwaysCheck(reloadPending_);
+    if (!outside && !reloadPending_)
+        return;
+    if (!doc_.isModified()) {
+        reloadFromDisk();
+        return;
+    }
+    if (screenshotMode_ || asking_)
+        return;
+
+    asking_ = true;
+    QMessageBox box(this);
+    box.setIcon(QMessageBox::NoIcon);
+    box.setWindowTitle(tr("Project changed"));
+    box.setText(tr("The plan was changed outside Plynth. Load the new version? Your unsaved changes will be lost."));
+    QPushButton* load = box.addButton(tr("Load"), QMessageBox::AcceptRole);
+    QPushButton* keep = box.addButton(tr("Keep mine"), QMessageBox::RejectRole);
+    load->setToolTip(tr("Load the changed project and drop your unsaved changes"));
+    keep->setToolTip(tr("Keep your version. The next save replaces the outside change."));
+    box.setDefaultButton(keep);
+    box.exec();
+    asking_ = false;
+    if (box.clickedButton() == load) {
+        reloadFromDisk();
+    } else {
+        reloadPending_ = false;
+        watcher_->acknowledge();
+    }
+}
+
+// Shows or hides the banner and the grey sheet, and greys the editing actions.
+void MainWindow::updateReadOnlyUi()
+{
+    const bool readOnly = doc_.isReadOnly();
+    banner_->setVisible(readOnly);
+    canvas_->setDimmed(readOnly);
+    updateActions();
+}
+
+// Ends the command line session after a question.
+void MainWindow::unlockNow()
+{
+    if (!doc_.hasFolder())
+        return;
+    if (!screenshotMode_) {
+        QMessageBox box(this);
+        box.setIcon(QMessageBox::NoIcon);
+        box.setWindowTitle(tr("Unlock now"));
+        box.setText(tr("Unlocking ends the command line session. Its next edit will be refused until it begins a new one."));
+        QPushButton* unlock = box.addButton(tr("Unlock"), QMessageBox::AcceptRole);
+        QPushButton* cancel = box.addButton(tr("Cancel"), QMessageBox::RejectRole);
+        unlock->setToolTip(tr("End the session and make the project editable"));
+        cancel->setToolTip(tr("Keep the project read only"));
+        box.setDefaultButton(cancel);
+        box.exec();
+        if (box.clickedButton() != unlock)
+            return;
+    }
+    const plynth::Status status = plynth::removeSession(doc_.folder());
+    if (!status.ok()) {
+        showError(tr("Cannot unlock"), fromCore(status.message));
+        return;
+    }
+    handleCheck();
 }
 
 // Starts an untitled project whose first floor already has the image.
@@ -399,6 +538,11 @@ bool MainWindow::newFromImage(const QString& path, QString* error)
 // Sets the floor image with a command so it can be undone.
 bool MainWindow::setPlanImage(const QString& path, QString* error)
 {
+    if (doc_.isReadOnly()) {
+        if (error != nullptr)
+            *error = tr("The project is read only while the command line edits it.");
+        return false;
+    }
     QImage image;
     if (!decodeImage(path, &image, error))
         return false;
@@ -505,6 +649,7 @@ bool MainWindow::saveDocument()
         showError(tr("Cannot save"), fromCore(status.message));
         return false;
     }
+    watcher_->acknowledge();
     return true;
 }
 
@@ -528,6 +673,10 @@ void MainWindow::offerRecovery()
 {
     if (screenshotMode_ || !doc_.hasFolder())
         return;
+    if (doc_.isReadOnly()) {
+        recoveryPending_ = true;
+        return;
+    }
     const plynth::AutosaveInfo info = plynth::findAutosave(doc_.folder());
     if (!info.exists)
         return;
@@ -632,7 +781,7 @@ void MainWindow::showError(const QString& title, const QString& message)
 // Accepts a drag only when it carries a local file with a plan image extension.
 void MainWindow::dragEnterEvent(QDragEnterEvent* event)
 {
-    if (event->mimeData()->hasUrls()) {
+    if (event->mimeData()->hasUrls() && !doc_.isReadOnly()) {
         for (const QUrl& url : event->mimeData()->urls()) {
             if (url.isLocalFile() && plynth::hasPlanImageExtension(toPath(url.toLocalFile()))) {
                 event->acceptProposedAction();

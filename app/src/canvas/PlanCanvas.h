@@ -29,6 +29,7 @@ public:
     bool hasImage() const { return pixmapItem_ != nullptr; }
     void setEmptyText(const QString& text);
     static QString defaultEmptyText();
+    void setDimmed(bool dimmed);
     void setOverlay(const QVector<OverlayWall>& walls, const QVector<QPointF>& points);
     double zoom() const { return zoom_; }
 
@@ -64,6 +65,7 @@ private:
     QGraphicsScene* scene_ = nullptr;
     QGraphicsPixmapItem* pixmapItem_ = nullptr;
     QString emptyText_;
+    bool dimmed_ = false;
     QVector<OverlayWall> overlayWalls_;
     QVector<QPointF> overlayPoints_;
     double zoom_ = 1.0;

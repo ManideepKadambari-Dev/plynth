@@ -39,6 +39,7 @@ public:
     int sheetPadding() const { return sheetPadding_; }
     int pointDot() const { return pointDot_; }
     int overlayAlpha() const { return overlayAlpha_; }
+    int readOnlyDim() const { return readOnlyDim_; }
 
     QString styleSheet() const;
     void apply() const;
@@ -56,6 +57,7 @@ private:
     int sheetPadding_ = 24;
     int pointDot_ = 9;
     int overlayAlpha_ = 150;
+    int readOnlyDim_ = 150;
 };
 
 }

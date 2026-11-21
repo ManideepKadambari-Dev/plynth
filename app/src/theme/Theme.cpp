@@ -74,6 +74,7 @@ bool Theme::load(const QString& resourcePath)
 
     const QJsonObject effects = root["effects"].toObject();
     overlayAlpha_ = effects["overlayAlpha"].toInt(overlayAlpha_);
+    readOnlyDim_ = effects["readOnlyDim"].toInt(readOnlyDim_);
     return true;
 }
 

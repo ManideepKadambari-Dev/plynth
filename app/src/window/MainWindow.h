@@ -21,6 +21,8 @@ class QTimer;
 namespace plynth::app {
 
 class DocumentBridge;
+class ProjectWatcher;
+class ReadOnlyBanner;
 class TitleBar;
 class PlanCanvas;
 class StatusBar;
@@ -77,6 +79,11 @@ private:
     void updateViewActions();
     void refreshImage();
     void refreshOverlay();
+    void syncWatcher();
+    void handleCheck();
+    bool reloadFromDisk();
+    void updateReadOnlyUi();
+    void unlockNow();
     bool decodeImage(const QString& path, QImage* image, QString* error);
     void cacheImage(const QString& path, const QImage& image);
     void syncAppState();
@@ -96,6 +103,8 @@ private:
     PlanCanvas* canvas_ = nullptr;
     StatusBar* statusBar_ = nullptr;
     QTimer* autosaveTimer_ = nullptr;
+    ReadOnlyBanner* banner_ = nullptr;
+    ProjectWatcher* watcher_ = nullptr;
     QList<QAction*> viewActions_;
     QAction* newAction_ = nullptr;
     QAction* newFromImageAction_ = nullptr;
@@ -112,6 +121,9 @@ private:
     QImage cachedImage_;
     bool imageFailed_ = false;
     bool screenshotMode_ = false;
+    bool recoveryPending_ = false;
+    bool reloadPending_ = false;
+    bool asking_ = false;
     bool nativeFrameReady_ = false;
 
     std::filesystem::path stateFolder_;

@@ -31,6 +31,7 @@
     "pointDot": 9
   },
   "effects": {
-    "overlayAlpha": 150
+    "overlayAlpha": 150,
+    "readOnlyDim": 150
   }
 }
