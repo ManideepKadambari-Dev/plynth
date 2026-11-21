@@ -407,3 +407,223 @@ TEST_CASE("recovering an autosave gives an unsaved document", "[core][document][
     REQUIRE_FALSE(second.isModified());
     REQUIRE(loadProject(tmp.path() / "p").project.plan.scale.pixelsPerMetre == 10.0);
 }
+
+TEST_CASE("a read only document refuses edits and saves with Locked", "[core][document][readonly]") {
+    plynth::test::TempDir tmp("doc-readonly");
+    Document doc;
+    plynth::test::requireOk(doc.saveAs(tmp.path() / "p"));
+    run(doc, std::make_unique<AddPointCommand>("f1", 1.0, 1.0));
+    doc.undo();
+    run(doc, std::make_unique<AddPointCommand>("f1", 2.0, 2.0));
+    doc.undo();
+    REQUIRE(doc.canRedo());
+
+    Recorder rec;
+    rec.attach(doc);
+    doc.setReadOnly(true, "Being edited elsewhere.");
+    REQUIRE(doc.isReadOnly());
+    REQUIRE(rec.events.size() == 1);
+    REQUIRE(rec.events[0].changes == Change::ReadOnly);
+
+    const Project before = doc.project();
+    Status s = doc.execute(std::make_unique<AddPointCommand>("f1", 3.0, 3.0));
+    REQUIRE(s.code == ErrorCode::Locked);
+    REQUIRE(s.message == "Being edited elsewhere.");
+    s = doc.redo();
+    REQUIRE(s.code == ErrorCode::Locked);
+    REQUIRE(s.message == "Being edited elsewhere.");
+    REQUIRE(doc.save().code == ErrorCode::Locked);
+    REQUIRE(doc.saveAs(tmp.path() / "q").code == ErrorCode::Locked);
+    REQUIRE_FALSE(fs::exists(tmp.path() / "q"));
+    doc.undo();
+    REQUIRE(doc.project() == before);
+    REQUIRE_FALSE(doc.canUndo());
+    REQUIRE_FALSE(doc.canRedo());
+    REQUIRE(rec.events.size() == 1);
+
+    doc.setReadOnly(true, "Another reason.");
+    REQUIRE(rec.events.size() == 1);
+    REQUIRE(doc.execute(std::make_unique<AddPointCommand>("f1", 3.0, 3.0)).message == "Another reason.");
+
+    doc.setReadOnly(false);
+    REQUIRE_FALSE(doc.isReadOnly());
+    REQUIRE(rec.events.size() == 2);
+    REQUIRE(rec.events[1].changes == Change::ReadOnly);
+    doc.setReadOnly(false);
+    REQUIRE(rec.events.size() == 2);
+    REQUIRE(doc.canRedo());
+    run(doc, std::make_unique<AddPointCommand>("f1", 3.0, 3.0));
+}
+
+TEST_CASE("a read only document without a reason still says why", "[core][document][readonly]") {
+    Document doc;
+    doc.setReadOnly(true);
+    const Status s = doc.execute(std::make_unique<AddPointCommand>("f1", 1.0, 1.0));
+    REQUIRE(s.code == ErrorCode::Locked);
+    REQUIRE_FALSE(s.message.empty());
+}
+
+TEST_CASE("autosave writes nothing while read only", "[core][document][readonly]") {
+    plynth::test::TempDir tmp("doc-readonly-autosave");
+    Document doc;
+    plynth::test::requireOk(doc.saveAs(tmp.path() / "p"));
+    run(doc, std::make_unique<SetScaleCommand>(10.0));
+    doc.setReadOnly(true, "locked");
+    plynth::test::requireOk(doc.autosave());
+    REQUIRE_FALSE(findAutosave(tmp.path() / "p").exists);
+
+    doc.setReadOnly(false);
+    plynth::test::requireOk(doc.autosave());
+    REQUIRE(findAutosave(tmp.path() / "p").exists);
+}
+
+TEST_CASE("replace and open make the document editable again", "[core][document][readonly]") {
+    plynth::test::TempDir tmp("doc-readonly-replace");
+    Document seed;
+    plynth::test::requireOk(seed.saveAs(tmp.path() / "p"));
+
+    Document doc;
+    doc.setReadOnly(true, "locked");
+    Recorder rec;
+    rec.attach(doc);
+    doc.replace(makeNewProject(), {});
+    REQUIRE_FALSE(doc.isReadOnly());
+    REQUIRE(rec.events.size() == 1);
+    REQUIRE((rec.events[0].changes & Change::ReadOnly) != 0);
+    run(doc, std::make_unique<SetScaleCommand>(10.0));
+
+    doc.setReadOnly(true, "locked");
+    plynth::test::requireOk(doc.open(tmp.path() / "p"));
+    REQUIRE_FALSE(doc.isReadOnly());
+}
+
+TEST_CASE("reload picks up what another document saved", "[core][document][reload]") {
+    plynth::test::TempDir tmp("doc-reload");
+    const fs::path folder = tmp.path() / "p";
+    Document a;
+    run(a, std::make_unique<AddPointCommand>("f1", 1.0, 1.0));
+    plynth::test::requireOk(a.saveAs(folder));
+    run(a, std::make_unique<SetScaleCommand>(10.0));
+    a.undo();
+    REQUIRE(a.canRedo());
+
+    Document b;
+    plynth::test::requireOk(b.open(folder));
+    run(b, std::make_unique<AddPointCommand>("f1", 2.0, 2.0));
+    plynth::test::requireOk(b.save());
+
+    Recorder rec;
+    rec.attach(a);
+    plynth::test::requireOk(a.reload());
+    REQUIRE(rec.events.size() == 1);
+    REQUIRE(rec.events[0].changes == (Change::Points | Change::History));
+    REQUIRE(rec.events[0].floorId == "f1");
+    REQUIRE(a.project() == b.project());
+    REQUIRE_FALSE(a.isModified());
+    REQUIRE_FALSE(a.canUndo());
+    REQUIRE_FALSE(a.canRedo());
+}
+
+TEST_CASE("reload sends the flags of each part that differs", "[core][document][reload]") {
+    plynth::test::TempDir tmp("doc-reload-flags");
+    const fs::path folder = tmp.path() / "p";
+    Document a;
+    plynth::test::requireOk(a.saveAs(folder));
+
+    Document b;
+    plynth::test::requireOk(b.open(folder));
+    run(b, std::make_unique<SetScaleCommand>(25.0));
+    run(b, std::make_unique<AddPointCommand>("f1", 0.0, 0.0));
+    run(b, std::make_unique<AddPointCommand>("f1", 1.0, 0.0));
+    run(b, std::make_unique<AddWallCommand>("p1", "p2"));
+    plynth::test::requireOk(b.save());
+
+    Recorder rec;
+    rec.attach(a);
+    plynth::test::requireOk(a.reload());
+    REQUIRE(rec.events.size() == 1);
+    REQUIRE(rec.events[0].changes == (Change::Scale | Change::Points | Change::Walls | Change::History));
+    REQUIRE(rec.events[0].floorId == "f1");
+}
+
+TEST_CASE("reload with equal files sends nothing and keeps the history", "[core][document][reload]") {
+    plynth::test::TempDir tmp("doc-reload-equal");
+    Document doc;
+    run(doc, std::make_unique<AddPointCommand>("f1", 1.0, 1.0));
+    plynth::test::requireOk(doc.saveAs(tmp.path() / "p"));
+    run(doc, std::make_unique<AddPointCommand>("f1", 2.0, 2.0));
+    plynth::test::requireOk(doc.save());
+    REQUIRE(doc.canUndo());
+
+    Recorder rec;
+    rec.attach(doc);
+    plynth::test::requireOk(doc.reload());
+    REQUIRE(rec.events.empty());
+    REQUIRE(doc.canUndo());
+    REQUIRE_FALSE(doc.isModified());
+}
+
+TEST_CASE("reload works while read only", "[core][document][reload]") {
+    plynth::test::TempDir tmp("doc-reload-readonly");
+    const fs::path folder = tmp.path() / "p";
+    Document a;
+    plynth::test::requireOk(a.saveAs(folder));
+    Document b;
+    plynth::test::requireOk(b.open(folder));
+    run(b, std::make_unique<SetScaleCommand>(10.0));
+    plynth::test::requireOk(b.save());
+
+    a.setReadOnly(true, "locked");
+    plynth::test::requireOk(a.reload());
+    REQUIRE(a.isReadOnly());
+    REQUIRE(a.plan().scale.pixelsPerMetre == 10.0);
+}
+
+TEST_CASE("reload leaves the document alone when the files cannot be read", "[core][document][reload]") {
+    plynth::test::TempDir tmp("doc-reload-broken");
+    const fs::path folder = tmp.path() / "p";
+    Document doc;
+    plynth::test::requireOk(doc.saveAs(folder));
+    run(doc, std::make_unique<SetScaleCommand>(10.0));
+    const Project before = doc.project();
+
+    writeFile(folder / "plan.json", "{ broken");
+    Recorder rec;
+    rec.attach(doc);
+    REQUIRE(doc.reload().code == ErrorCode::BadFile);
+    REQUIRE(doc.project() == before);
+    REQUIRE(doc.isModified());
+    REQUIRE(doc.canUndo());
+    REQUIRE(rec.events.empty());
+
+    fs::remove(folder / "project.json");
+    REQUIRE(doc.reload().code == ErrorCode::NotAProject);
+    REQUIRE(doc.project() == before);
+}
+
+TEST_CASE("reload needs a folder", "[core][document][reload]") {
+    Document doc;
+    REQUIRE(doc.reload().code == ErrorCode::InvalidValue);
+}
+
+TEST_CASE("reload reports an added floor", "[core][document][reload]") {
+    plynth::test::TempDir tmp("doc-reload-floor");
+    const fs::path folder = tmp.path() / "p";
+    Document a;
+    plynth::test::requireOk(a.saveAs(folder));
+
+    Project more = a.project();
+    Floor upstairs;
+    upstairs.id = "f2";
+    upstairs.name = "Upstairs";
+    more.plan.floors.push_back(upstairs);
+    plynth::test::requireOk(saveProject(more, folder, folder));
+
+    Recorder rec;
+    rec.attach(a);
+    plynth::test::requireOk(a.reload());
+    REQUIRE(rec.events.size() == 1);
+    REQUIRE(rec.events[0].changes == (Change::Floors | Change::History));
+    REQUIRE(rec.events[0].floorId.empty());
+    REQUIRE(a.plan().floors.size() == 2);
+}

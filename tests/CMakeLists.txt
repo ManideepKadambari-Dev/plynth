@@ -12,6 +12,7 @@ add_executable(plynth_core_tests
     core/CommandStackTests.cpp
     core/ProjectFilesTests.cpp
     core/DocumentTests.cpp
+    core/EditSessionTests.cpp
 )
 target_link_libraries(plynth_core_tests PRIVATE
     plynth::core

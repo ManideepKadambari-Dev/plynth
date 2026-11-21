@@ -29,6 +29,8 @@ std::string_view errorCodeName(ErrorCode code)
     case ErrorCode::BadFile: return "bad_file";
     case ErrorCode::UnsupportedVersion: return "unsupported_version";
     case ErrorCode::ImageError: return "image_error";
+    case ErrorCode::Locked: return "locked";
+    case ErrorCode::UnsavedChanges: return "unsaved_changes";
     }
     return "invalid_value";
 }

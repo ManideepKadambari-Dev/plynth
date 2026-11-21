@@ -11,10 +11,14 @@ add_library(plynth_core STATIC
     src/CommandStack.cpp
     src/ProjectFiles.cpp
     src/Document.cpp
+    src/EditSession.cpp
     src/commands/FloorCommands.cpp
     src/commands/PointCommands.cpp
     src/commands/WallCommands.cpp
 )
+if(WIN32)
+    target_sources(plynth_core PRIVATE src/Process_win.cpp)
+endif()
 add_library(plynth::core ALIAS plynth_core)
 
 target_include_directories(plynth_core PUBLIC include)

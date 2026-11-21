@@ -23,6 +23,73 @@ fs::path normalizeFolder(const fs::path& folder)
     return result;
 }
 
+// The refusal sent while the document is read only.
+Status readOnlyStatus(const std::string& reason)
+{
+    return fail(ErrorCode::Locked, reason.empty() ? std::string("The project is read only.") : reason);
+}
+
+// Which content flags say how two versions of one floor differ.
+unsigned floorDifference(const Floor& a, const Floor& b)
+{
+    unsigned flags = 0;
+    if (a.image != b.image) flags |= Change::FloorImage;
+    if (a.points != b.points) flags |= Change::Points;
+    if (a.walls != b.walls) flags |= Change::Walls;
+    if (a.rooms != b.rooms) flags |= Change::Rooms;
+    if (a.openings != b.openings) flags |= Change::Openings;
+    return flags;
+}
+
+// Which parts of the content of a floor exist at all, as content flags. Used for floors that were added or removed.
+unsigned floorContent(const Floor& f)
+{
+    unsigned flags = 0;
+    if (f.image) flags |= Change::FloorImage;
+    if (!f.points.empty()) flags |= Change::Points;
+    if (!f.walls.empty()) flags |= Change::Walls;
+    if (!f.rooms.empty()) flags |= Change::Rooms;
+    if (!f.openings.empty()) flags |= Change::Openings;
+    return flags;
+}
+
+// Compares two projects and returns the Change flags of what differs. onlyFloor receives the id of the one
+// floor that changed, or stays empty when several floors or none changed.
+unsigned projectDifference(const Project& before, const Project& after, Id& onlyFloor)
+{
+    unsigned flags = 0;
+    if (before.settings != after.settings) flags |= Change::Settings;
+    if (before.plan.scale != after.plan.scale) flags |= Change::Scale;
+
+    const auto& a = before.plan.floors;
+    const auto& b = after.plan.floors;
+    bool sameFloors = a.size() == b.size();
+    for (std::size_t i = 0; sameFloors && i < a.size(); ++i) {
+        sameFloors = a[i].id == b[i].id && a[i].name == b[i].name && a[i].ceilingHeight == b[i].ceilingHeight;
+    }
+    if (!sameFloors) flags |= Change::Floors;
+
+    int changedFloors = 0;
+    Id changedId;
+    for (const Floor& old : a) {
+        const Floor* now = findFloor(after.plan, old.id);
+        const unsigned diff = now ? floorDifference(old, *now) : floorContent(old);
+        if (diff != 0 || !now) {
+            flags |= diff;
+            ++changedFloors;
+            changedId = old.id;
+        }
+    }
+    for (const Floor& added : b) {
+        if (findFloor(before.plan, added.id)) continue;
+        flags |= floorContent(added);
+        ++changedFloors;
+        changedId = added.id;
+    }
+    if (changedFloors == 1 && sameFloors) onlyFloor = changedId;
+    return flags;
+}
+
 // The image paths of every floor, in order.
 std::vector<std::optional<std::string>> imagePaths(const Plan& plan)
 {
@@ -65,7 +132,43 @@ void Document::replace(Project project, fs::path folder, bool modified)
     ++editCount_;
     autosavedEditCount_ = editCount_;
     autosaveWritten_ = false;
+    readOnly_ = false;
+    readOnlyReason_.clear();
     notify({Change::Everything, {}});
+}
+
+// Reads the project files again and takes them as the saved state when they differ from memory.
+Status Document::reload()
+{
+    if (!hasFolder()) return fail(ErrorCode::InvalidValue, "This project has no folder yet, so there is nothing to reload.");
+    ProjectLoad loaded = loadProject(folder_);
+    if (!loaded.status.ok()) return loaded.status;
+    if (loaded.project == project_) return {};
+
+    DocumentEvent event;
+    unsigned changes = projectDifference(project_, loaded.project, event.floorId);
+    if (changes == 0) changes = Change::Content;
+    event.changes = changes | Change::History;
+    project_ = std::move(loaded.project);
+    history_.clear();
+    ++editCount_;
+    notify(event);
+    return {};
+}
+
+// Blocks or allows edits, for the edit lock.
+void Document::setReadOnly(bool readOnly, std::string reason)
+{
+    readOnlyReason_ = readOnly ? std::move(reason) : std::string();
+    if (readOnly == readOnly_) return;
+    readOnly_ = readOnly;
+    notify({Change::ReadOnly, {}});
+}
+
+// Says whether edits are blocked.
+bool Document::isReadOnly() const
+{
+    return readOnly_;
 }
 
 // Opens a project folder and replaces the document with it.
@@ -80,6 +183,7 @@ Status Document::open(const fs::path& folder)
 // Runs a command through the undo history and tells listeners.
 Status Document::execute(std::unique_ptr<Command> command)
 {
+    if (readOnly_) return readOnlyStatus(readOnlyReason_);
     if (Status s = history_.push(std::move(command), project_); !s.ok()) return s;
     // After a merge the new command is gone, but the one it merged into is the last one and is on the same thing.
     const Command* last = history_.nextUndo();
@@ -93,12 +197,12 @@ Status Document::execute(std::unique_ptr<Command> command)
 
 bool Document::canUndo() const
 {
-    return history_.canUndo();
+    return !readOnly_ && history_.canUndo();
 }
 
 bool Document::canRedo() const
 {
-    return history_.canRedo();
+    return !readOnly_ && history_.canRedo();
 }
 
 // The name of the command undo would run.
@@ -118,6 +222,7 @@ std::string Document::redoName() const
 // Undoes the last command and tells listeners.
 void Document::undo()
 {
+    if (readOnly_) return;
     const Command* c = history_.nextUndo();
     if (!c) return;
     DocumentEvent event;
@@ -131,6 +236,7 @@ void Document::undo()
 // Applies the next undone command again and tells listeners.
 Status Document::redo()
 {
+    if (readOnly_) return readOnlyStatus(readOnlyReason_);
     const Command* c = history_.nextRedo();
     if (!c) return {};
     DocumentEvent event;
@@ -155,6 +261,7 @@ bool Document::isModified() const
 // Saves to the current folder and removes the autosave.
 Status Document::save()
 {
+    if (readOnly_) return readOnlyStatus(readOnlyReason_);
     if (!hasFolder()) return fail(ErrorCode::InvalidValue, "This project has no folder yet. Use Save as.");
     const auto before = imagePaths(project_.plan);
     if (Status s = saveProject(project_, folder_, folder_); !s.ok()) return s;
@@ -171,6 +278,7 @@ Status Document::save()
 // Saves to another folder and makes it the document's folder.
 Status Document::saveAs(const fs::path& folder)
 {
+    if (readOnly_) return readOnlyStatus(readOnlyReason_);
     const fs::path target = normalizeFolder(folder);
     std::error_code ec;
     if (hasFolder() && fs::equivalent(target, folder_, ec)) return save();
@@ -204,7 +312,7 @@ bool Document::needsAutosave() const
 // Writes the autosave, or removes a stale one when the document is back at its saved state.
 Status Document::autosave()
 {
-    if (!needsAutosave()) return {};
+    if (readOnly_ || !needsAutosave()) return {};
     if (!isModified()) {
         Status s = removeAutosave(folder_);
         if (s.ok()) {
