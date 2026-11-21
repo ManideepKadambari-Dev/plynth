@@ -2,12 +2,16 @@
 
 #include "canvas/PlanCanvas.h"
 #include "document/Selection.h"
+#include "theme/Theme.h"
 #include "tools/ToolController.h"
 
 #include <plynth/core/Snapping.h>
+#include <plynth/core/WallGeometry.h>
 #include <plynth/core/commands/PointCommands.h>
+#include <plynth/core/commands/WallCommands.h>
 
 #include <QKeyEvent>
+#include <QPainter>
 
 #include <cmath>
 
@@ -16,6 +20,7 @@ namespace plynth::app {
 namespace {
 
 constexpr int kDragStartPixels = 3;
+constexpr double kBendRound = 0.01;
 int g_nextDragKey = 1;
 
 }
@@ -23,22 +28,25 @@ int g_nextDragKey = 1;
 // The status bar hint for this tool.
 QString SelectTool::hint() const
 {
-    return QObject::tr("Click to select. Drag a point to move it. Esc clears the selection.");
+    return QObject::tr("Click to select. Drag a point or an opening to move it, or the middle handle of a wall to bend it. Esc clears.");
 }
 
 // Forgets a drag that was in progress.
 void SelectTool::deactivate()
 {
     dragPoint_.clear();
+    bendWall_.clear();
+    handleHover_ = false;
     dragging_ = false;
 }
 
-// Selects what is under the click, or clears the selection. A point may start a drag.
+// Selects what is under the click, or clears the selection. A point may start a drag, and so may the bend handle.
 void SelectTool::mousePressed(const ToolMouse& mouse)
 {
     if (mouse.button != Qt::LeftButton)
         return;
     dragPoint_.clear();
+    bendWall_.clear();
     dragging_ = false;
     const plynth::Floor* floor = host_.floor();
     const std::optional<double> ppm = host_.pixelsPerMetre();
@@ -46,7 +54,15 @@ void SelectTool::mousePressed(const ToolMouse& mouse)
         host_.selection().clear();
         return;
     }
+    if (!host_.document().isReadOnly() && host_.selection().kind() == SelectionKind::Wall &&
+        overBendHandle(mouse.view)) {
+        bendWall_ = host_.selection().id().toStdString();
+        dragKey_ = g_nextDragKey++;
+        host_.canvas().viewport()->update();
+        return;
+    }
     const plynth::Vec2 at{mouse.scene.x() / *ppm, mouse.scene.y() / *ppm};
+    host_.selection().setClickAt(at.x, at.y);
     const plynth::Pick pick = plynth::pickAt(*floor, at, host_.snapRadiusMetres());
     switch (pick.kind) {
     case plynth::PickKind::Point:
@@ -63,17 +79,27 @@ void SelectTool::mousePressed(const ToolMouse& mouse)
     case plynth::PickKind::Room:
         host_.selection().set(SelectionKind::Room, QString::fromStdString(pick.id));
         break;
+    case plynth::PickKind::Opening:
+        host_.selection().set(SelectionKind::Opening, QString::fromStdString(pick.id));
+        break;
     case plynth::PickKind::None:
         host_.selection().clear();
         break;
     }
 }
 
-// Moves the pressed point once the mouse has travelled a few pixels.
+// Moves the pressed point once the mouse has travelled a few pixels, or bends the wall while its handle is held.
 void SelectTool::mouseMoved(const ToolMouse& mouse)
 {
-    if (dragPoint_.empty() || !(mouse.buttons & Qt::LeftButton))
+    if (!bendWall_.empty() && (mouse.buttons & Qt::LeftButton)) {
+        bendTo(mouse);
         return;
+    }
+    if (dragPoint_.empty() || !(mouse.buttons & Qt::LeftButton)) {
+        setHandleHover(!host_.document().isReadOnly() && host_.selection().kind() == SelectionKind::Wall &&
+                       overBendHandle(mouse.view));
+        return;
+    }
     if (!dragging_) {
         const QPoint d = mouse.view - pressView_;
         if (std::abs(d.x()) + std::abs(d.y()) < kDragStartPixels)
@@ -92,7 +118,15 @@ void SelectTool::mouseReleased(const ToolMouse& mouse)
     if (mouse.button != Qt::LeftButton)
         return;
     dragPoint_.clear();
+    bendWall_.clear();
     dragging_ = false;
+    host_.canvas().viewport()->update();
+}
+
+// Hides the hover state of the bend handle when the cursor leaves the plan.
+void SelectTool::mouseLeft()
+{
+    setHandleHover(false);
 }
 
 // Esc clears the selection.
@@ -130,6 +164,85 @@ void SelectTool::dragTo(const ToolMouse& mouse)
     if (snap.position.x == point->x && snap.position.y == point->y)
         return;
     host_.run(std::make_unique<plynth::MovePointCommand>(dragPoint_, snap.position.x, snap.position.y, dragKey_));
+}
+
+// Runs SetWallBulgeCommand for the cursor position. The wall goes straight when the cursor is within the snap
+// radius of the line between its points, and the bend is rounded to 0.01 m unless Ctrl is held.
+void SelectTool::bendTo(const ToolMouse& mouse)
+{
+    const plynth::Floor* floor = host_.floor();
+    const std::optional<double> ppm = host_.pixelsPerMetre();
+    if (floor == nullptr || !ppm.has_value())
+        return;
+    const plynth::Wall* wall = plynth::findWall(*floor, bendWall_);
+    if (wall == nullptr)
+        return;
+    const plynth::WallCurve curve = plynth::wallCurve(*floor, *wall);
+    if (!curve.valid)
+        return;
+    const plynth::Vec2 at{mouse.scene.x() / *ppm, mouse.scene.y() / *ppm};
+    double bulge = plynth::bulgeFromPosition(curve.from, curve.to, at);
+    if (std::abs(bulge) <= host_.snapRadiusMetres())
+        bulge = 0.0;
+    else if (!(mouse.modifiers & Qt::ControlModifier))
+        bulge = std::round(bulge / kBendRound) * kBendRound;
+    if (bulge == wall->bulge)
+        return;
+    host_.run(std::make_unique<plynth::SetWallBulgeCommand>(bendWall_, bulge, dragKey_));
+    host_.canvas().viewport()->update();
+}
+
+// Where the bend handle of the selected wall is in canvas pixels: the middle of its curve.
+std::optional<QPointF> SelectTool::bendHandleView() const
+{
+    const plynth::Floor* floor = host_.floor();
+    const std::optional<double> ppm = host_.pixelsPerMetre();
+    if (floor == nullptr || !ppm.has_value() || host_.selection().kind() != SelectionKind::Wall)
+        return std::nullopt;
+    const plynth::Wall* wall = plynth::findWall(*floor, host_.selection().id().toStdString());
+    if (wall == nullptr)
+        return std::nullopt;
+    const plynth::WallCurve curve = plynth::wallCurve(*floor, *wall);
+    if (!curve.valid)
+        return std::nullopt;
+    const plynth::Vec2 middle = plynth::pointAlong(curve, curve.length / 2.0);
+    return host_.canvas().sceneToView(QPointF(middle.x * *ppm, middle.y * *ppm));
+}
+
+// Says whether a canvas position is on the bend handle of the selected wall.
+bool SelectTool::overBendHandle(const QPoint& view) const
+{
+    const std::optional<QPointF> at = bendHandleView();
+    if (!at.has_value())
+        return false;
+    const double reach = Theme::instance().bendHandle() / 2.0 + 3.0;
+    const QPointF d = QPointF(view) - *at;
+    return std::hypot(d.x(), d.y()) <= reach;
+}
+
+// Remembers whether the cursor is over the bend handle and repaints when that changes.
+void SelectTool::setHandleHover(bool hover)
+{
+    if (handleHover_ == hover)
+        return;
+    handleHover_ = hover;
+    host_.canvas().viewport()->update();
+}
+
+// Draws the bend handle of the selected wall: a blue ring, amber while hovered or dragged.
+void SelectTool::paint(QPainter& painter)
+{
+    if (host_.document().isReadOnly())
+        return;
+    const std::optional<QPointF> at = bendHandleView();
+    if (!at.has_value())
+        return;
+    const Theme& t = Theme::instance();
+    const bool active = handleHover_ || !bendWall_.empty();
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setPen(QPen(active ? t.signalAmber() : t.signalBlue(), 2));
+    painter.setBrush(t.ground());
+    painter.drawEllipse(*at, t.bendHandle() / 2.0, t.bendHandle() / 2.0);
 }
 
 }

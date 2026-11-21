@@ -23,6 +23,7 @@ void Selection::clear()
         return;
     kind_ = SelectionKind::None;
     id_.clear();
+    clickAt_.reset();
     emit changed();
 }
 

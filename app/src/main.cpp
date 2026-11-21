@@ -77,10 +77,14 @@ int main(int argc, char* argv[])
                                   QStringLiteral("Activate a tool: select, scale, wall, room or detect. For checks only."),
                                   QStringLiteral("name"));
     QCommandLineOption selectOption(QStringLiteral("select"),
-                                    QStringLiteral("Select the point, wall or room with this id. For checks only."),
+                                    QStringLiteral("Select the point, wall, opening or room with this id. For checks only."),
                                     QStringLiteral("id"));
+    QCommandLineOption wallSideOption(QStringLiteral("wall-side"),
+                                      QStringLiteral("Side of the wall the wall view is seen from: left or right. For checks only."),
+                                      QStringLiteral("side"));
     parser.addOption(toolOption);
     parser.addOption(selectOption);
+    parser.addOption(wallSideOption);
     parser.addOption(imageOption);
     parser.addOption(terminalOption);
     parser.addOption(screenshotOption);
@@ -96,6 +100,11 @@ int main(int argc, char* argv[])
         const QStringList names{QStringLiteral("select"), QStringLiteral("scale"), QStringLiteral("wall"),
                                 QStringLiteral("room"), QStringLiteral("detect")};
         if (!names.contains(parser.value(toolOption).toLower()))
+            return kExitBadArguments;
+    }
+    if (parser.isSet(wallSideOption)) {
+        const QString side = parser.value(wallSideOption).toLower();
+        if (side != QStringLiteral("left") && side != QStringLiteral("right"))
             return kExitBadArguments;
     }
     const bool wantsScreenshot = parser.isSet(screenshotOption);
@@ -159,6 +168,9 @@ int main(int argc, char* argv[])
         window.activateToolByName(parser.value(toolOption));
     if (parser.isSet(selectOption))
         window.selectById(parser.value(selectOption));
+    if (parser.isSet(wallSideOption))
+        window.setWallViewSide(parser.value(wallSideOption).toLower() == QStringLiteral("left") ? plynth::WallSide::Left
+                                                                                             : plynth::WallSide::Right);
     window.show();
     if (loadFailed && !wantsScreenshot)
         QTimer::singleShot(0, &window, [&window, loadTitle, loadError]() { window.showError(loadTitle, loadError); });

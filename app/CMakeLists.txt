@@ -5,6 +5,10 @@ set(CMAKE_AUTORCC ON)
 
 add_executable(plynth WIN32
     src/main.cpp
+    src/canvas/OpeningPaint.h
+    src/canvas/OpeningPaint.cpp
+    src/canvas/OverlayBuilder.h
+    src/canvas/OverlayBuilder.cpp
     src/canvas/PlanCanvas.h
     src/canvas/PlanCanvas.cpp
     src/detection/DetectionRunner.h
@@ -42,6 +46,12 @@ add_executable(plynth WIN32
     src/terminal/TerminalWidgets.cpp
     src/theme/Theme.h
     src/theme/Theme.cpp
+    src/wallview/WallFaceView.h
+    src/wallview/WallFaceView.cpp
+    src/wallview/WallView.h
+    src/wallview/WallView.cpp
+    src/wallview/WallViewData.h
+    src/wallview/WallViewData.cpp
     src/window/MainWindow.h
     src/window/MainWindow.cpp
     src/window/ReadOnlyBanner.h

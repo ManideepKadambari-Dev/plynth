@@ -18,6 +18,7 @@ class QCloseEvent;
 class QDragEnterEvent;
 class QDropEvent;
 class QMenu;
+class QSplitter;
 class QTimer;
 
 namespace plynth::app {
@@ -33,6 +34,7 @@ class Selection;
 class StatusBar;
 class ToolController;
 class ToolStrip;
+class WallView;
 
 // The main application window with its own title bar. It owns the one document of the app and
 // runs every change through it.
@@ -65,6 +67,8 @@ public:
     bool activateToolByName(const QString& name);
     // For checks only: selects the point, wall or room with this id on the first floor. An unknown id selects nothing.
     void selectById(const QString& id);
+    // For checks only: chooses the side the wall view is seen from.
+    void setWallViewSide(plynth::WallSide side);
 
     // For checks only: opens the terminal and types the text once the shell has printed something.
     void startTerminalCheck(const QString& text);
@@ -101,6 +105,8 @@ private:
     void refreshSelection();
     void deleteSelection();
     void updateDeleteAction();
+    void updateWallView();
+    void sizeWallView();
     void validateSelection();
     void updateToolActions();
     void updateCursorText(const QPointF* scene);
@@ -131,6 +137,11 @@ private:
     ToolController* tools_ = nullptr;
     ToolStrip* toolStrip_ = nullptr;
     PropertiesPanel* panel_ = nullptr;
+    QSplitter* splitter_ = nullptr;
+    WallView* wallView_ = nullptr;
+    QAction* wallViewAction_ = nullptr;
+    QAction* flipWallViewAction_ = nullptr;
+    bool wallViewSized_ = false;
     QAction* toolActions_[5] = {nullptr, nullptr, nullptr, nullptr, nullptr};
     QAction* acceptDetectionAction_ = nullptr;
     QAction* snapGridAction_ = nullptr;

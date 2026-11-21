@@ -1,5 +1,6 @@
 #include "PlanCanvas.h"
 
+#include "canvas/OpeningPaint.h"
 #include "theme/Theme.h"
 #include "tools/Tool.h"
 
@@ -313,21 +314,9 @@ void PlanCanvas::paintOverlay(QPainter* painter)
 
     QColor blue = t.signalBlue();
     blue.setAlpha(t.overlayAlpha());
-    auto drawBand = [painter](const OverlayWall& wall) {
-        const QPointF delta = wall.to - wall.from;
-        const double length = std::hypot(delta.x(), delta.y());
-        if (length <= 0.0)
-            return;
-        const QPointF dir = delta / length;
-        const QPointF normal(-dir.y(), dir.x());
-        const double half = wall.thickness / 2.0;
-        const QPointF a = wall.from - dir * half;
-        const QPointF b = wall.to + dir * half;
-        painter->drawPolygon(QPolygonF({a + normal * half, b + normal * half, b - normal * half, a - normal * half}));
-    };
     painter->setBrush(blue);
     for (const OverlayWall& wall : overlay_.walls)
-        drawBand(wall);
+        painter->drawPath(wall.band);
 
     if (selectionKind_ == SelectionKind::Room) {
         QColor amberFill = t.signalAmber();
@@ -353,10 +342,22 @@ void PlanCanvas::paintOverlay(QPainter* painter)
         painter->setBrush(amber);
         for (const OverlayWall& wall : overlay_.walls)
             if (wall.id == selectionId_)
-                drawBand(wall);
+                painter->drawPath(wall.band);
     }
 
     painter->resetTransform();
+    {
+        const QTransform view = viewportTransform();
+        OpeningPaintStyle style;
+        style.gapColor = t.raised();
+        style.outlineColor = t.signalAmber();
+        for (const OverlayOpening& opening : overlay_.openings) {
+            const bool selected = selectionKind_ == SelectionKind::Opening && opening.id == selectionId_;
+            style.line = selected ? t.signalAmber() : t.signalBlue();
+            style.dashedFootprint = opening.problem;
+            paintOpening(*painter, opening, view, style);
+        }
+    }
     painter->setPen(Qt::NoPen);
     painter->setBrush(t.signalBlue());
     const double radius = t.pointDot() / 2.0;

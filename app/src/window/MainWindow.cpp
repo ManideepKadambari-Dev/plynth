@@ -2,6 +2,7 @@
 
 #include "TitleBar.h"
 #include "StatusBar.h"
+#include "canvas/OverlayBuilder.h"
 #include "canvas/PlanCanvas.h"
 #include "ReadOnlyBanner.h"
 #include "document/DocumentBridge.h"
@@ -12,6 +13,7 @@
 #include "tools/ToolController.h"
 #include "document/ProjectWatcher.h"
 #include "terminal/TerminalDock.h"
+#include "wallview/WallView.h"
 #include "theme/Theme.h"
 
 #include <plynth/core/PlanImage.h>
@@ -44,10 +46,12 @@
 #include <QPainterPath>
 #include <QPolygonF>
 #include <QPushButton>
+#include <QSplitter>
 #include <QHBoxLayout>
 #include <QTimer>
 #include <QVBoxLayout>
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 
@@ -109,8 +113,19 @@ MainWindow::MainWindow(QWidget* parent)
     row->setContentsMargins(0, 0, 0, 0);
     row->setSpacing(0);
     row->addWidget(toolStrip_);
-    canvas_->setParent(work);
-    row->addWidget(canvas_, 1);
+    splitter_ = new QSplitter(Qt::Vertical, work);
+    splitter_->setChildrenCollapsible(false);
+    splitter_->setHandleWidth(Theme::instance().unit());
+    splitter_->setStyleSheet(QStringLiteral("QSplitter::handle { background: %1; }")
+                                 .arg(Theme::instance().line().name()));
+    canvas_->setParent(splitter_);
+    splitter_->addWidget(canvas_);
+    wallView_ = new WallView(doc_, *selection_, *tools_, splitter_);
+    wallView_->hide();
+    splitter_->addWidget(wallView_);
+    splitter_->setStretchFactor(0, 3);
+    splitter_->setStretchFactor(1, 2);
+    row->addWidget(splitter_, 1);
     panel_->setParent(work);
     row->addWidget(panel_);
     column->addWidget(banner_);
@@ -287,6 +302,18 @@ void MainWindow::buildMenus()
     snapGridAction_->setChecked(tools_->snapToGrid());
     connect(snapGridAction_, &QAction::toggled, this, [this](bool on) { tools_->setSnapToGrid(on); });
     titleBar_->viewMenu()->addSeparator();
+    wallViewAction_ = addMenuAction(titleBar_->viewMenu(), tr("&Wall view"),
+                                    tr("Show the face of the selected wall under the plan (E)"),
+                                    QStringLiteral("view-wall-view"), {QKeySequence(Qt::Key_E)});
+    wallViewAction_->setCheckable(true);
+    wallViewAction_->setChecked(true);
+    connect(wallViewAction_, &QAction::toggled, this, &MainWindow::updateWallView);
+    flipWallViewAction_ = addMenuAction(titleBar_->viewMenu(), tr("Fl&ip wall view"),
+                                        tr("See the other side of the wall (F)"),
+                                        QStringLiteral("wall-view-flip"), {QKeySequence(Qt::Key_F)});
+    flipWallViewAction_->setEnabled(false);
+    connect(flipWallViewAction_, &QAction::triggered, wallView_, &WallView::flip);
+    titleBar_->viewMenu()->addSeparator();
     QAction* terminalAction = addMenuAction(titleBar_->viewMenu(), tr("&Terminal"),
                                             tr("Show or hide the terminal (Ctrl+`)"), QStringLiteral("view-terminal"),
                                             {QKeySequence(Qt::CTRL | Qt::Key_QuoteLeft)});
@@ -359,6 +386,8 @@ void MainWindow::onDocumentChanged(unsigned changes)
                    plynth::Change::Floors | plynth::Change::Folder))
         refreshOverlay();
     validateSelection();
+    wallView_->refresh();
+    updateWallView();
     if (changes & plynth::Change::ReadOnly)
         updateReadOnlyUi();
     tools_->documentChanged(changes);
@@ -460,42 +489,7 @@ void MainWindow::refreshImage()
 // Gives the canvas the points, walls and rooms of the first floor, in image pixels. Nothing without a scale.
 void MainWindow::refreshOverlay()
 {
-    OverlayData overlay;
-    const plynth::Plan& plan = doc_.plan();
-    if (plan.scale.pixelsPerMetre.has_value() && !plan.floors.empty()) {
-        const double ppm = *plan.scale.pixelsPerMetre;
-        const plynth::Floor& floor = plan.floors.front();
-        for (const plynth::Point& point : floor.points)
-            overlay.points.append({fromCore(point.id), QPointF(point.x * ppm, point.y * ppm)});
-        for (const plynth::Wall& wall : floor.walls) {
-            const plynth::Point* from = plynth::findPoint(floor, wall.from);
-            const plynth::Point* to = plynth::findPoint(floor, wall.to);
-            if (from == nullptr || to == nullptr)
-                continue;
-            overlay.walls.append({fromCore(wall.id), QPointF(from->x * ppm, from->y * ppm),
-                               QPointF(to->x * ppm, to->y * ppm), wall.thickness * ppm});
-        }
-        for (const plynth::Room& room : floor.rooms) {
-            const plynth::RoomShape shape = plynth::roomShape(floor, room);
-            if (!shape.closed || shape.floorArea.empty())
-                continue;
-            OverlayRoom entry;
-            entry.id = fromCore(room.id);
-            entry.floor.setFillRule(Qt::OddEvenFill);
-            for (const std::vector<plynth::Vec2>& ring : shape.floorArea) {
-                QPolygonF polygon;
-                for (const plynth::Vec2& corner : ring)
-                    polygon << QPointF(corner.x * ppm, corner.y * ppm);
-                entry.floor.addPolygon(polygon);
-                entry.floor.closeSubpath();
-            }
-            entry.label = QPointF(shape.labelPoint.x * ppm, shape.labelPoint.y * ppm);
-            entry.name = fromCore(plynth::roomTypeName(room.type));
-            entry.area = QStringLiteral("%1 m\u00B2").arg(shape.area, 0, 'f', 2);
-            overlay.rooms.append(entry);
-        }
-    }
-    canvas_->setOverlay(overlay);
+    canvas_->setOverlay(buildOverlay(doc_.plan()));
     canvas_->setGridStep(tools_->gridStepPixels());
 }
 
@@ -504,6 +498,31 @@ void MainWindow::refreshSelection()
 {
     canvas_->setSelection(selection_->kind(), selection_->id());
     updateDeleteAction();
+    updateWallView();
+}
+
+// Shows the wall view under the plan while View > Wall view is on and a wall or an opening is selected.
+void MainWindow::updateWallView()
+{
+    const bool show = wallViewAction_ != nullptr && wallViewAction_->isChecked() && wallView_->hasTarget();
+    flipWallViewAction_->setEnabled(show);
+    if (wallView_->isHidden() == !show)
+        return;
+    wallView_->setVisible(show);
+    if (show)
+        QTimer::singleShot(0, this, &MainWindow::sizeWallView);
+}
+
+// Gives the wall view its first height, about two fifths of the area, once the window has a real size. After
+// that the splitter keeps whatever the user drags it to.
+void MainWindow::sizeWallView()
+{
+    if (wallViewSized_ || !isVisible() || wallView_->isHidden() || splitter_->height() <= 0)
+        return;
+    wallViewSized_ = true;
+    const int total = splitter_->height();
+    const int below = std::max(Theme::instance().wallViewMinHeight(), total * 2 / 5);
+    splitter_->setSizes({total - below, below});
 }
 
 // Deletes the selected item with everything that depends on it, as one undo step.
@@ -549,6 +568,9 @@ void MainWindow::validateSelection()
         case SelectionKind::Room:
             for (const plynth::Room& room : floor->rooms)
                 found = found || room.id == id;
+            break;
+        case SelectionKind::Opening:
+            found = plynth::findOpening(*floor, id) != nullptr;
             break;
         case SelectionKind::None:
             break;
@@ -634,6 +656,14 @@ void MainWindow::selectById(const QString& id)
             selection_->set(SelectionKind::Room, id);
             return;
         }
+    if (plynth::findOpening(floor, key) != nullptr)
+        selection_->set(SelectionKind::Opening, id);
+}
+
+// For checks only: chooses the side the wall view is seen from.
+void MainWindow::setWallViewSide(plynth::WallSide side)
+{
+    wallView_->setSide(side);
 }
 
 // Opens a project folder with core and makes it the document. A project with an active command
@@ -1127,6 +1157,7 @@ void MainWindow::changeEvent(QEvent* event)
 void MainWindow::showEvent(QShowEvent* event)
 {
     QMainWindow::showEvent(event);
+    QTimer::singleShot(0, this, &MainWindow::sizeWallView);
 #ifdef Q_OS_WIN
     if (!nativeFrameReady_) {
         nativeFrameReady_ = true;

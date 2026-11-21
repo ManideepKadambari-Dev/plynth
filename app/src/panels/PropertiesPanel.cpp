@@ -9,6 +9,7 @@
 #include <plynth/core/Geometry.h>
 #include <plynth/core/RoomTypes.h>
 #include <plynth/core/Rooms.h>
+#include <plynth/core/WallGeometry.h>
 #include <plynth/core/commands/PointCommands.h>
 #include <plynth/core/commands/RoomCommands.h>
 #include <plynth/core/commands/SettingsCommands.h>
@@ -154,6 +155,31 @@ QDoubleSpinBox* PropertiesPanel::addSpinRow(QGridLayout* grid, const QString& la
     return spin;
 }
 
+// Adds a spin row whose edits merge into one undo step for each visit to the box.
+QDoubleSpinBox* PropertiesPanel::addKeyedSpinRow(QGridLayout* grid, const QString& label, double min, double max,
+                                                 double step, const QString& tip, const QString& tourId)
+{
+    QDoubleSpinBox* spin = addSpinRow(grid, label, min, max, step, tip, tourId);
+    spin->installEventFilter(this);
+    if (auto* edit = spin->findChild<QLineEdit*>())
+        edit->installEventFilter(this);
+    keyedSpins_.push_back(spin);
+    return spin;
+}
+
+// Adds a muted one line note that spans the page. Hidden until it has text.
+QLabel* PropertiesPanel::addNote(QGridLayout* grid)
+{
+    const Theme& t = Theme::instance();
+    auto* note = new QLabel(grid->parentWidget());
+    note->setFont(t.uiFont(t.sizeSmall()));
+    note->setWordWrap(true);
+    note->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
+    note->setVisible(false);
+    grid->addWidget(note, grid->rowCount(), 0, 1, 2);
+    return note;
+}
+
 // The page for nothing selected: scale, grid, counts and the thickness for new walls.
 void PropertiesPanel::buildNothingPage()
 {
@@ -201,6 +227,17 @@ void PropertiesPanel::buildPointPage()
     pointY_ = addSpinRow(grid, tr("Y"), -100000.0, 100000.0, 0.05, tr("Position of the point, from the top edge of the image"),
                          QStringLiteral("panel-point-y"));
     pointWalls_ = addLabelRow(grid, tr("Walls"));
+    cornerRadius_ = addKeyedSpinRow(grid, tr("Corner radius"), 0.0, 100.0, 0.05,
+                                    tr("Rounds the corner with an arc of this radius. It applies where exactly two straight walls meet."),
+                                    QStringLiteral("panel-corner-radius"));
+    cornerNote_ = addNote(grid);
+    connect(cornerRadius_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
+        if (refreshing_ || selection_.kind() != SelectionKind::Point)
+            return;
+        if (!controller_.run(std::make_unique<plynth::SetCornerRadiusCommand>(selection_.id().toStdString(), value,
+                                                                              focusKey_)).ok())
+            refresh();
+    });
     connect(pointX_, &QDoubleSpinBox::valueChanged, this, [this]() { pointXEdited_ = !refreshing_ || pointXEdited_; });
     connect(pointY_, &QDoubleSpinBox::valueChanged, this, [this]() { pointYEdited_ = !refreshing_ || pointYEdited_; });
     // Only a box the user changed counts, so tabbing through a box never rounds the real position.
@@ -222,7 +259,7 @@ void PropertiesPanel::buildPointPage()
     connect(pointY_, &QDoubleSpinBox::editingFinished, this, move);
 }
 
-// The page for a selected wall: id, ends, length and thickness.
+// The page for a selected wall: id, ends, length along the curve, thickness and bend.
 void PropertiesPanel::buildWallPage()
 {
     QGridLayout* grid = nullptr;
@@ -231,15 +268,33 @@ void PropertiesPanel::buildWallPage()
     wallFrom_ = addLabelRow(grid, tr("From"));
     wallTo_ = addLabelRow(grid, tr("To"));
     wallLength_ = addLabelRow(grid, tr("Length"));
-    wallLength_->setToolTip(tr("Length of the wall between its two points"));
-    wallThickness_ = addSpinRow(grid, tr("Thickness"), 0.01, 10.0, 0.01, tr("Thickness of the wall"),
-                                QStringLiteral("panel-wall-thickness"));
-    wallThickness_->installEventFilter(this);
+    wallLength_->setToolTip(tr("Length of the wall along its centre line, along the arc when the wall is bent"));
+    wallThickness_ = addKeyedSpinRow(grid, tr("Thickness"), 0.01, 10.0, 0.01, tr("Thickness of the wall"),
+                                     QStringLiteral("panel-wall-thickness"));
     connect(wallThickness_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
         if (refreshing_ || selection_.kind() != SelectionKind::Wall)
             return;
         controller_.run(std::make_unique<plynth::SetWallThicknessCommand>(selection_.id().toStdString(), value,
-                                                                          thicknessKey_));
+                                                                          focusKey_));
+    });
+
+    wallBend_ = addKeyedSpinRow(grid, tr("Bend"), -1000.0, 1000.0, 0.05,
+                                tr("How far the middle of the wall is from the straight line between its points. Positive bends to the right of the wall's direction. 0 is straight. The most is half the straight length."),
+                                QStringLiteral("panel-wall-bend"));
+    connect(wallBend_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
+        if (refreshing_ || selection_.kind() != SelectionKind::Wall)
+            return;
+        if (!controller_.run(std::make_unique<plynth::SetWallBulgeCommand>(selection_.id().toStdString(), value,
+                                                                           focusKey_)).ok())
+            refresh();
+    });
+    straightenButton_ = new QPushButton(tr("Straighten"), grid->parentWidget());
+    straightenButton_->setToolTip(tr("Make the wall straight again"));
+    straightenButton_->setProperty("tourId", QStringLiteral("panel-wall-straighten"));
+    grid->addWidget(straightenButton_, grid->rowCount(), 1);
+    connect(straightenButton_, &QPushButton::clicked, this, [this]() {
+        if (selection_.kind() == SelectionKind::Wall)
+            controller_.run(std::make_unique<plynth::SetWallBulgeCommand>(selection_.id().toStdString(), 0.0));
     });
 }
 
@@ -520,8 +575,10 @@ void PropertiesPanel::refreshRoom()
 // Gives the thickness box a new merge key each time it gets focus, so one visit is one undo step.
 bool PropertiesPanel::eventFilter(QObject* watched, QEvent* event)
 {
-    if (watched == wallThickness_ && event->type() == QEvent::FocusIn)
-        ++thicknessKey_;
+    if (event->type() == QEvent::FocusIn)
+        for (QDoubleSpinBox* spin : keyedSpins_)
+            if (watched == spin || watched->parent() == spin)
+                ++focusKey_;
     if (event->type() == QEvent::ShortcutOverride) {
         const int key = static_cast<QKeyEvent*>(event)->key();
         const bool inSpin = qobject_cast<QAbstractSpinBox*>(watched) != nullptr ||
@@ -616,6 +673,15 @@ void PropertiesPanel::refreshPoint()
         if (wall.from == point->id || wall.to == point->id)
             walls << fromCore(wall.id);
     pointWalls_->setText(walls.isEmpty() ? tr("None") : walls.join(QStringLiteral(", ")));
+    setSpin(cornerRadius_, point->cornerRadius);
+    const plynth::CornerRounding rounding = plynth::cornerRounding(*floor, *point);
+    QString note;
+    if (point->cornerRadius > 0.0 && !rounding.rounded)
+        note = tr("Not rounded: needs exactly two straight walls");
+    else if (rounding.rounded && std::abs(rounding.radius - point->cornerRadius) > 1e-6)
+        note = tr("Rounded at %1 m").arg(rounding.radius, 0, 'f', 2);
+    cornerNote_->setText(note);
+    cornerNote_->setVisible(!note.isEmpty());
 }
 
 // Fills the page for a selected wall.
@@ -635,6 +701,8 @@ void PropertiesPanel::refreshWall()
     wallTo_->setText(fromCore(wall->to));
     wallLength_->setText(tr("%1 m").arg(plynth::wallLength(*floor, *wall), 0, 'f', 3));
     setSpin(wallThickness_, wall->thickness);
+    setSpin(wallBend_, wall->bulge);
+    straightenButton_->setEnabled(!document_.isReadOnly() && std::abs(wall->bulge) >= plynth::kMinBulge);
 }
 
 // Paints the Panel background and the Line border on the left.

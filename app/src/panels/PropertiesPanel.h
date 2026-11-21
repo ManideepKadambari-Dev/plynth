@@ -61,6 +61,9 @@ private:
     void refreshRoom();
     void refreshDetect();
     void setSpin(QDoubleSpinBox* spin, double value);
+    QDoubleSpinBox* addKeyedSpinRow(QGridLayout* grid, const QString& label, double min, double max, double step,
+                                    const QString& tip, const QString& tourId);
+    QLabel* addNote(QGridLayout* grid);
 
     plynth::Document& document_;
     Selection& selection_;
@@ -87,13 +90,18 @@ private:
     QDoubleSpinBox* pointX_ = nullptr;
     QDoubleSpinBox* pointY_ = nullptr;
     QLabel* pointWalls_ = nullptr;
+    QDoubleSpinBox* cornerRadius_ = nullptr;
+    QLabel* cornerNote_ = nullptr;
 
     QLabel* wallId_ = nullptr;
     QLabel* wallFrom_ = nullptr;
     QLabel* wallTo_ = nullptr;
     QLabel* wallLength_ = nullptr;
     QDoubleSpinBox* wallThickness_ = nullptr;
-    int thicknessKey_ = 1;
+    QDoubleSpinBox* wallBend_ = nullptr;
+    QPushButton* straightenButton_ = nullptr;
+    int focusKey_ = 1;
+    std::vector<QDoubleSpinBox*> keyedSpins_;
 
     QLabel* roomId_ = nullptr;
     QComboBox* roomType_ = nullptr;
