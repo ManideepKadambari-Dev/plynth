@@ -170,20 +170,30 @@ void ImportQueue::startNext()
     const std::stop_token stop = next->stop.get_token();
     const plynth::LibraryPaths paths = host_.paths();
     const plynth::MachineSettings settings = host_.settings();
-    worker_ = std::jthread([this, id, kind, request, entry, assetId, stop, paths, settings]() {
+    if (blenderFor_ != settings)
+        blender_.reset();
+    const std::optional<plynth::BlenderInstall> cached = blender_;
+    worker_ = std::jthread([this, id, kind, request, entry, assetId, stop, paths, settings, cached]() {
         plynth::ImportOutcome outcome;
+        std::optional<plynth::BlenderInstall> chosen = cached;
         plynth::Status opened;
         std::unique_ptr<plynth::AssetCatalog> catalog = plynth::AssetCatalog::open(paths, opened);
         if (!catalog) {
             outcome.status = opened;
         } else {
-            const plynth::BlenderChoice choice = plynth::chooseBlender(std::nullopt, settings, stop);
-            if (!choice.status.ok()) {
-                outcome.status = choice.status;
+            plynth::Status chosenStatus;
+            if (!chosen) {
+                const plynth::BlenderChoice choice = plynth::chooseBlender(std::nullopt, settings, stop);
+                chosenStatus = choice.status;
+                if (choice.status.ok())
+                    chosen = choice.install;
+            }
+            if (!chosenStatus.ok()) {
+                outcome.status = chosenStatus;
             } else {
                 plynth::ImportContext context;
                 context.library = paths;
-                context.blender = choice.install;
+                context.blender = *chosen;
                 context.settings = settings;
                 const auto progress = [this, id](const plynth::ImportProgress& p) {
                     QMetaObject::invokeMethod(this, [this, id, p]() { onProgress(id, p); }, Qt::QueuedConnection);
@@ -196,7 +206,15 @@ void ImportQueue::startNext()
                     outcome = plynth::refreshAsset(*catalog, context, assetId, progress, stop);
             }
         }
-        QMetaObject::invokeMethod(this, [this, id, outcome]() { onDone(id, outcome); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, id, outcome, chosen, settings]() {
+            if (outcome.status.code == plynth::ErrorCode::BlenderNotFound) {
+                blender_.reset();
+            } else if (chosen) {
+                blender_ = chosen;
+                blenderFor_ = settings;
+            }
+            onDone(id, outcome);
+        }, Qt::QueuedConnection);
     });
 }
 
@@ -238,7 +256,8 @@ void ImportQueue::onDone(int id, const plynth::ImportOutcome& outcome)
         return;
     }
     const int kind = static_cast<int>(found->kind);
-    const bool cancelled = outcome.status.code == plynth::ErrorCode::Cancelled;
+    // A stop the user did not ask for, such as a timeout, is a failure and keeps its row with the message.
+    const bool cancelled = outcome.status.code == plynth::ErrorCode::Cancelled && found->stop.stop_requested();
     QString assetId = fromCore(outcome.assetId);
     if (assetId.isEmpty())
         assetId = found->assetId;

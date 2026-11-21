@@ -78,6 +78,8 @@ private:
     std::vector<QueueItem> items_;
     int nextId_ = 1;
     bool running_ = false;
+    std::optional<plynth::BlenderInstall> blender_; // the Blender found for the last job, reused for the batch
+    plynth::MachineSettings blenderFor_;            // the settings it was found with
     std::jthread worker_;
 };
 
