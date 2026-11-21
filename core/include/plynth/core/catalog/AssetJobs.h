@@ -36,7 +36,6 @@ inline constexpr std::array<double, 3> kThumbnailBackground{0.0549, 0.0667, 0.08
 struct ThumbnailSpec {
     bool render = true;
     int size = kThumbnailSize;
-    ThumbnailEngine engine = ThumbnailEngine::Eevee;
     std::array<double, 3> background = kThumbnailBackground;
 };
 

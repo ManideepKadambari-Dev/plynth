@@ -117,13 +117,50 @@ TEST_CASE("a supported Blender with good folders is ready", "[core][setup]") {
     REQUIRE(report.find(kCheckProjects)->state == CheckState::Found);
     const SetupItem* graphics = report.find(kCheckGraphics);
     REQUIRE(graphics->state == CheckState::NotChecked);
-    REQUIRE(graphics->detail == "Checked once the 3D preview is added.");
+    REQUIRE(graphics->detail == "Checked by the app when it starts the 3D preview.");
     REQUIRE_FALSE(graphics->blocks());
     REQUIRE_FALSE(report.probed);
     for (const char* id : {"addon_blenderkit", "addon_archimesh", "addon_bagapie"}) {
         REQUIRE(report.find(id)->state == CheckState::NotChecked);
     }
     requireValidReport(report);
+}
+
+TEST_CASE("the graphics driver item follows the app's probe", "[core][setup][graphics]") {
+    plynth::test::TempDir tmp("setup-graphics");
+    plynth::test::makeFakeBlender(tmp.path() / "b" / "Blender 5.2", "5.2.0");
+    const MachineSettings settings = goodFolders(tmp.path());
+
+    SetupCheckOptions options = optionsFor(tmp.path() / "b");
+    options.graphics = GraphicsProbe{true, "Direct3D 11", "Test Graphics 9000", ""};
+    SetupReport report = runSetupCheck(settings, options);
+    const SetupItem* found = report.find(kCheckGraphics);
+    REQUIRE(found->state == CheckState::Found);
+    REQUIRE(found->version == "Direct3D 11");
+    REQUIRE(found->detail == "Test Graphics 9000");
+    REQUIRE(report.ready);
+    requireValidReport(report);
+
+    options.graphics = GraphicsProbe{false, "", "", "No graphics interface could be started."};
+    report = runSetupCheck(settings, options);
+    const SetupItem* missing = report.find(kCheckGraphics);
+    REQUIRE(missing->state == CheckState::Missing);
+    REQUIRE(missing->blocks());
+    REQUIRE(missing->detail == "No graphics interface could be started.");
+    REQUIRE(missing->action == "Update the graphics driver. See the help page on the 3D preview.");
+    REQUIRE_FALSE(report.ready);
+    requireValidReport(report);
+
+    options.graphics.reset();
+    REQUIRE(runSetupCheck(settings, options).find(kCheckGraphics)->state == CheckState::NotChecked);
+
+    const SetupReport quickOk = quickSetupCheck(settings, true, GraphicsProbe{true, "Vulkan", "Card", ""});
+    REQUIRE(quickOk.find(kCheckGraphics)->state == CheckState::Found);
+    const SetupReport quickBad = quickSetupCheck(settings, true, GraphicsProbe{false, "", "", ""});
+    REQUIRE(quickBad.find(kCheckGraphics)->state == CheckState::Missing);
+    REQUIRE(quickBad.find(kCheckGraphics)->blocks());
+    REQUIRE(setupNeeded(quickBad));
+    REQUIRE(quickSetupCheck(settings, true).find(kCheckGraphics)->state == CheckState::NotChecked);
 }
 
 TEST_CASE("an untested Blender needs attention but does not block", "[core][setup]") {

@@ -91,20 +91,6 @@ bool readText(const fs::path& file, std::string& out)
 
 }
 
-// The name used in files.
-std::string_view thumbnailEngineName(ThumbnailEngine engine)
-{
-    return engine == ThumbnailEngine::Cycles ? "cycles" : "eevee";
-}
-
-// The engine for a name used in files.
-std::optional<ThumbnailEngine> thumbnailEngineFromName(std::string_view name)
-{
-    if (name == "eevee") return ThumbnailEngine::Eevee;
-    if (name == "cycles") return ThumbnailEngine::Cycles;
-    return std::nullopt;
-}
-
 // The folder that holds settings.json.
 fs::path settingsFolder()
 {
@@ -182,7 +168,6 @@ Json settingsToJson(const MachineSettings& settings)
     json["projects"] = settings.projects ? Json(pathToUtf8(*settings.projects)) : Json(nullptr);
     json["blender"] = settings.blender ? Json(pathToUtf8(*settings.blender)) : Json(nullptr);
     json["keep_imported_zips"] = settings.keepImportedZips;
-    json["thumbnail_engine"] = std::string(thumbnailEngineName(settings.thumbnailEngine));
     json["triangle_warning"] = settings.triangleWarning;
     json["setup_checked_version"] =
         settings.setupCheckedVersion.empty() ? Json(nullptr) : Json(settings.setupCheckedVersion);
@@ -222,10 +207,19 @@ Status settingsFromJson(const Json& json, MachineSettings& out)
     }
 
     static const std::set<std::string> known{"format", "version", "library", "projects", "blender",
-                                             "keep_imported_zips", "thumbnail_engine", "triangle_warning",
+                                             "keep_imported_zips", "triangle_warning",
                                              "setup_checked_version", "recent_projects"};
     for (const auto& [key, value] : json.items()) {
-        if (!known.count(key)) return fail(ErrorCode::BadFile, "Unknown field \"" + key + "\".", "/" + key);
+        if (!known.count(key) && !(key == "thumbnail_engine" && fileVersion < 3)) {
+            return fail(ErrorCode::BadFile, "Unknown field \"" + key + "\".", "/" + key);
+        }
+    }
+    // Older files may carry the engine; it is checked and then dropped.
+    if (const auto it = json.find("thumbnail_engine"); it != json.end()) {
+        const bool valid = it->is_string() && (it->get<std::string>() == "eevee" || it->get<std::string>() == "cycles");
+        if (!valid) {
+            return fail(ErrorCode::BadFile, "\"thumbnail_engine\" must be \"eevee\" or \"cycles\".", "/thumbnail_engine");
+        }
     }
 
     MachineSettings result;
@@ -239,13 +233,6 @@ Status settingsFromJson(const Json& json, MachineSettings& out)
             return fail(ErrorCode::BadFile, "\"keep_imported_zips\" must be true or false.", "/keep_imported_zips");
         }
         result.keepImportedZips = it->get<bool>();
-    }
-    if (const auto it = json.find("thumbnail_engine"); it != json.end()) {
-        const auto engine = it->is_string() ? thumbnailEngineFromName(it->get<std::string>()) : std::nullopt;
-        if (!engine) {
-            return fail(ErrorCode::BadFile, "\"thumbnail_engine\" must be \"eevee\" or \"cycles\".", "/thumbnail_engine");
-        }
-        result.thumbnailEngine = *engine;
     }
     if (const auto it = json.find("triangle_warning"); it != json.end()) {
         if (!it->is_number_integer() || it->get<long long>() < 1) {

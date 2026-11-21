@@ -3,6 +3,7 @@
 #include <plynth/core/Settings.h>
 
 #include <catch2/catch_test_macros.hpp>
+#include <nlohmann/json.hpp>
 
 #include <filesystem>
 #include <fstream>
@@ -36,7 +37,7 @@ TEST_CASE("settings show without a file gives the defaults", "[cli][settings]") 
     CHECK(settings.at("library").is_null());
     CHECK(settings.at("projects").is_null());
     CHECK(settings.at("keep_imported_zips") == false);
-    CHECK(settings.at("thumbnail_engine") == "eevee");
+    CHECK_FALSE(settings.contains("thumbnail_engine"));
     CHECK(settings.at("triangle_warning") == 500000);
     CHECK_FALSE(settings.contains("format"));
     CHECK_FALSE(settings.contains("version"));
@@ -46,7 +47,7 @@ TEST_CASE("settings set saves and settings show reads it back", "[cli][settings]
     clearSettings();
     TempFolder temp("settings-projects");
     const auto set = runChecked({"settings", "set", "--projects", utf8(temp.path()), "--keep-zips", "true",
-                                 "--thumbnail-engine", "cycles", "--triangle-warning", "1000"});
+                                 "--triangle-warning", "1000"});
     REQUIRE(set.exitCode == kExitOk);
     CHECK(set.answer.at("result").at("exists") == true);
 
@@ -54,8 +55,11 @@ TEST_CASE("settings set saves and settings show reads it back", "[cli][settings]
     const auto& settings = shown.answer.at("result").at("settings");
     CHECK(settings.at("projects") == utf8(temp.path()));
     CHECK(settings.at("keep_imported_zips") == true);
-    CHECK(settings.at("thumbnail_engine") == "cycles");
+    CHECK_FALSE(settings.contains("thumbnail_engine"));
     CHECK(settings.at("triangle_warning") == 1000);
+    const auto saved = nlohmann::json::parse(readFile(plynth::settingsFile()));
+    CHECK(saved.at("version") == 3);
+    CHECK_FALSE(saved.contains("thumbnail_engine"));
 
     const auto cleared = runChecked({"settings", "set", "--projects", "none"});
     REQUIRE(cleared.exitCode == kExitOk);
@@ -80,7 +84,7 @@ TEST_CASE("settings set refuses bad values", "[cli][settings]") {
     clearSettings();
     const auto zips = runChecked({"settings", "set", "--keep-zips", "maybe"});
     CHECK(errorCode(zips) == "bad_arguments");
-    const auto engine = runChecked({"settings", "set", "--thumbnail-engine", "vray"});
+    const auto engine = runChecked({"settings", "set", "--thumbnail-engine", "eevee"});
     CHECK(errorCode(engine) == "bad_arguments");
     const auto nothing = runChecked({"settings", "set"});
     CHECK(errorCode(nothing) == "bad_arguments");

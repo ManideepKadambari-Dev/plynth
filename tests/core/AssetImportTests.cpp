@@ -109,6 +109,7 @@ TEST_CASE("an import lands in items with asset.blend, thumb.png and info.json", 
     REQUIRE(info.info.triangles == 12);
     REQUIRE(info.info.thumbnail.rendered);
     REQUIRE(info.info.thumbnail.engine == "eevee");
+    REQUIRE(fs::exists(folder / "asset.fbx"));
     REQUIRE(info.info.blendBytes == 9);
     REQUIRE(info.info.blenderVersion == "5.2.0");
 
@@ -116,11 +117,29 @@ TEST_CASE("an import lands in items with asset.blend, thumb.png and info.json", 
     REQUIRE(record);
     REQUIRE(record->state == AssetState::Ready);
     REQUIRE(record->thumbnail == ThumbnailState::Ok);
+    REQUIRE(record->fbxFile == folder / "asset.fbx");
     AssetQuery query;
     query.text = "chair";
     REQUIRE(f.lib.catalog->search(query).size() == 1);
     REQUIRE(f.stagingEntries() == 0);
     REQUIRE(fs::exists(f.request("chair.obj").source.file));
+}
+
+TEST_CASE("an import without an fbx still succeeds with the fbx_failed warning", "[core][import]") {
+    ImportFixture f("import-nofbx", "no_fbx");
+    const ImportOutcome outcome = importAsset(*f.lib.catalog, f.context, f.request("chair.obj"));
+    plynth::test::requireOk(outcome.status);
+    REQUIRE(outcome.assetId == "chair");
+    REQUIRE_FALSE(outcome.thumbnailFailed);
+    REQUIRE(outcome.warnings.size() == 1);
+    REQUIRE(outcome.warnings[0].code == "fbx_failed");
+    const fs::path folder = f.lib.paths.assetItems / "chair";
+    REQUIRE(fs::exists(folder / "asset.blend"));
+    REQUIRE_FALSE(fs::exists(folder / "asset.fbx"));
+    const auto record = f.lib.catalog->asset("chair");
+    REQUIRE(record->state == AssetState::Ready);
+    REQUIRE(record->fbxFile.empty());
+    REQUIRE(infoProblem(folder / "info.json").empty());
 }
 
 TEST_CASE("a second import of the same file gets a new id", "[core][import]") {
@@ -460,6 +479,32 @@ TEST_CASE("refreshAsset measures again and renders the thumbnail", "[core][impor
     REQUIRE(plynth::test::readTextFile(f.lib.paths.assetItems / "lamp" / "asset.blend") == "FAKEBLEND");
     REQUIRE(infoProblem(f.lib.paths.assetItems / "lamp" / "info.json").empty());
     REQUIRE(f.stagingEntries() == 0);
+}
+
+TEST_CASE("refreshAsset writes the missing asset.fbx", "[core][import][refresh]") {
+    ImportFixture f("refresh-fbx");
+    f.lib.add("lamp", "Lamp", {}, {}, true, false);
+    const fs::path fbx = f.lib.paths.assetItems / "lamp" / "asset.fbx";
+    REQUIRE_FALSE(fs::exists(fbx));
+    REQUIRE(f.lib.catalog->asset("lamp")->fbxFile.empty());
+    REQUIRE(f.lib.catalog->rescan().needsRefresh == std::vector<std::string>{"lamp"});
+
+    plynth::test::requireOk(refreshAsset(*f.lib.catalog, f.context, "lamp").status);
+    REQUIRE(fs::exists(fbx));
+    REQUIRE(f.lib.catalog->asset("lamp")->fbxFile == fbx);
+    REQUIRE(plynth::test::readTextFile(f.lib.paths.assetItems / "lamp" / "asset.blend") == "FAKEBLEND");
+    REQUIRE(f.lib.catalog->rescan().needsRefresh.empty());
+}
+
+TEST_CASE("refreshAsset with no_fbx keeps the asset and reports the warning", "[core][import][refresh]") {
+    ImportFixture f("refresh-nofbx", "no_fbx");
+    f.lib.add("lamp", "Lamp", {}, {}, true, false);
+    const ImportOutcome outcome = refreshAsset(*f.lib.catalog, f.context, "lamp");
+    plynth::test::requireOk(outcome.status);
+    REQUIRE(outcome.warnings.size() == 1);
+    REQUIRE(outcome.warnings[0].code == "fbx_failed");
+    REQUIRE_FALSE(fs::exists(f.lib.paths.assetItems / "lamp" / "asset.fbx"));
+    REQUIRE(f.lib.catalog->asset("lamp")->state == AssetState::Ready);
 }
 
 TEST_CASE("refreshAsset picks up a changed asset.blend", "[core][import][refresh]") {

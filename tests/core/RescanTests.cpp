@@ -107,6 +107,25 @@ TEST_CASE("a folder with only asset.blend gets an info.json", "[core][rescan]") 
     REQUIRE(ids(lib.catalog->search({.uncategorizedOnly = true})) == std::vector<std::string>{"red_lamp"});
 }
 
+TEST_CASE("an asset without asset.fbx is listed in needsRefresh and stays Ready", "[core][rescan]") {
+    TestLibrary lib("rescan-nofbx");
+    addThree(lib);
+    lib.add("rug", "Rug", {"rug"}, {}, false, false);
+    REQUIRE(lib.catalog->asset("rug")->fbxFile.empty());
+    REQUIRE(lib.catalog->asset("lamp")->fbxFile == lib.paths.assetItems / "lamp" / "asset.fbx");
+
+    const RescanReport report = lib.catalog->rescan();
+    REQUIRE(report.needsRefresh == std::vector<std::string>{"rug"});
+    REQUIRE(report.updated == 0);
+    REQUIRE(report.unchanged == 4);
+    REQUIRE(lib.catalog->asset("rug")->state == AssetState::Ready);
+    REQUIRE(lib.catalog->rescan().needsRefresh == std::vector<std::string>{"rug"});
+
+    plynth::test::writeBytes(lib.paths.assetItems / "rug" / "asset.fbx", "FAKEFBX");
+    REQUIRE(lib.catalog->rescan().needsRefresh.empty());
+    REQUIRE(lib.catalog->asset("rug")->fbxFile == lib.paths.assetItems / "rug" / "asset.fbx");
+}
+
 TEST_CASE("a changed asset.blend is needs_refresh", "[core][rescan]") {
     TestLibrary lib("rescan-changed");
     addThree(lib);

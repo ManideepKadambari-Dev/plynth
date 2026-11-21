@@ -28,7 +28,6 @@ Json thumbnailJson(const ThumbnailSpec& spec)
     Json json = Json::object();
     json["render"] = spec.render;
     json["size"] = spec.size;
-    json["engine"] = std::string(thumbnailEngineName(spec.engine));
     json["background"] = Json::array({spec.background[0], spec.background[1], spec.background[2]});
     return json;
 }
@@ -78,6 +77,14 @@ void readThumbnailPart(const Json& output, AssetJobOutput& out)
     out.thumbnailError = error.is_string() ? error.get<std::string>() : "";
 }
 
+// Reads the fbx_file field of an output: a name, or null when none was written.
+void readFbxPart(const Json& output, AssetJobOutput& out)
+{
+    const Json& fbx = field(output, "fbx_file", "/output");
+    if (!fbx.is_null() && !fbx.is_string()) throw Problem{"/output/fbx_file", "Must be text or null."};
+    out.fbxFile = fbx.is_string() ? fbx.get<std::string>() : "";
+}
+
 // Reads the measures of an output.
 void readMeasures(const Json& output, AssetJobOutput& out)
 {
@@ -114,6 +121,7 @@ Json makeThumbnailJob(const ThumbnailJob& job, std::string_view jobId, const std
     params["blend_file"] = pathToUtf8(job.blendFile);
     params["output_file"] = pathToUtf8(job.outputFile);
     params["measure"] = job.measure;
+    params["fbx_file"] = job.fbxFile.empty() ? Json(nullptr) : Json(pathToUtf8(job.fbxFile));
     params["thumbnail"] = thumbnailJson(job.thumbnail);
     return makeBlenderJob(kRenderThumbnailTask, jobId, resultFile, std::move(params));
 }
@@ -129,6 +137,7 @@ AssetJobOutput readCleanupResult(const Json& result, std::string_view jobId)
         const Json& blend = field(output, "blend_file", "/output");
         if (!blend.is_string()) throw Problem{"/output/blend_file", "Must be text."};
         out.blendFile = blend.get<std::string>();
+        readFbxPart(output, out);
         const Json& picked = field(output, "picked_file", "/output");
         if (!picked.is_null() && !picked.is_string()) throw Problem{"/output/picked_file", "Must be text or null."};
         out.pickedFile = picked.is_string() ? picked.get<std::string>() : "";
@@ -150,6 +159,7 @@ AssetJobOutput readThumbnailResult(const Json& result, std::string_view jobId)
     if (!out.header.status.ok()) return out;
     try {
         const Json& output = result["output"];
+        readFbxPart(output, out);
         const Json& size = field(output, "size", "/output");
         if (!size.is_null()) {
             readMeasures(output, out);

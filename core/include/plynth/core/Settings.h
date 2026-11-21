@@ -23,21 +23,12 @@ using Json = nlohmann::ordered_json;
 inline constexpr std::string_view kSettingsFileName = "settings.json";
 inline constexpr std::string_view kSettingsFormat = "plynth-settings";
 // Version 2 adds "recent_projects". A version 1 file is read as having none and is written back as version 2.
-inline constexpr int kSettingsFormatVersion = 2;
+// Version 3 drops thumbnail_engine: thumbnails use Eevee only.
+inline constexpr int kSettingsFormatVersion = 3;
 inline constexpr std::string_view kConfigDirVariable = "PLYNTH_CONFIG_DIR";
 
 // An import with more triangles than this gets a warning. Never refused: the target is Nanite.
 inline constexpr long long kDefaultTriangleWarning = 500000;
-
-// How Blender renders thumbnails. Eevee is fast but needs a working graphics driver; when it fails the
-// worker tries Cycles on the processor once, and the result says which engine was used.
-enum class ThumbnailEngine { Eevee, Cycles };
-
-// "eevee" or "cycles".
-std::string_view thumbnailEngineName(ThumbnailEngine engine);
-
-// The engine for a name used in files. Empty when the name is unknown.
-std::optional<ThumbnailEngine> thumbnailEngineFromName(std::string_view name);
 
 // The most recent projects kept in the settings.
 inline constexpr std::size_t kMaxRecentProjects = 30;
@@ -56,7 +47,6 @@ struct MachineSettings {
     std::optional<std::filesystem::path> projects; // where new projects go and where the terminal starts
     std::optional<std::filesystem::path> blender;  // blender.exe picked by the user; empty means the preselected one
     bool keepImportedZips = false;                 // DESIGN.md section 5 rule 4
-    ThumbnailEngine thumbnailEngine = ThumbnailEngine::Eevee;
     long long triangleWarning = kDefaultTriangleWarning;
     // The Plynth version whose setup check last passed. Empty before the first pass. When it differs from
     // version(), the app opens the setup check once ("after an update", DESIGN.md section 7.19b).

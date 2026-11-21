@@ -372,6 +372,8 @@ struct AssetCatalog::Impl {
         }
         r.folder = paths.assetItems / pathFromUtf8(id);
         if (r.thumbnail == ThumbnailState::Ok) r.thumbFile = r.folder / pathFromUtf8(kAssetThumbFileName);
+        std::error_code ec;
+        if (const fs::path fbx = r.folder / pathFromUtf8(kAssetFbxFileName); fs::is_regular_file(fbx, ec)) r.fbxFile = fbx;
         return r;
     }
 
@@ -963,7 +965,8 @@ RescanReport AssetCatalog::rescan()
             } else {
                 ++report.unchanged;
             }
-            if (measured.state == AssetState::NeedsRefresh) report.needsRefresh.push_back(name);
+            const bool lacksFbx = hasBlend && !fs::is_regular_file(folder / pathFromUtf8(kAssetFbxFileName), ec);
+            if (measured.state == AssetState::NeedsRefresh || lacksFbx) report.needsRefresh.push_back(name);
         }
 
         for (const auto& [id, row] : rows) {

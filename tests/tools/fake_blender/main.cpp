@@ -1,7 +1,7 @@
 // A stand-in for blender.exe in tests. It answers --version and runs the Plynth worker protocol without
 // Blender: it reads the job file after "--", acts by the mode in fake_mode.txt next to the program (or the
 // FAKE_BLENDER_MODE variable), and writes a result file that follows schema/blender-result.schema.json.
-// Modes: ok (default), fail, crash, hang, hang_version, bad_result, no_thumbnail.
+// Modes: ok (default), fail, crash, hang, hang_version, bad_result, no_thumbnail, no_fbx.
 // The version comes from fake_version.txt next to the program, else 5.2.0.
 // Probe add-ons come from FAKE_BLENDER_ADDONS (comma separated modules) and FAKE_BLENDER_BLENDERKIT
 // (none, installed, enabled or signed_in).
@@ -300,6 +300,9 @@ int main()
     } else if (task == "cleanup_asset") {
         const fs::path folder = pathFrom(params["output_folder"].get<std::string>());
         writeFile(folder / "asset.blend", "FAKEBLEND");
+        const bool fbxWritten = mode != "no_fbx";
+        if (fbxWritten) writeFile(folder / "asset.fbx", "FAKEFBX");
+        else result["warnings"].push_back(Json{{"code", "fbx_failed"}, {"message", "Fake asset.fbx failure"}});
         const bool wantThumbnail = params["thumbnail"]["render"].get<bool>();
         Json thumbnail = Json{{"file", nullptr}, {"engine", nullptr}, {"error", nullptr}};
         if (wantThumbnail && mode == "no_thumbnail") {
@@ -311,11 +314,12 @@ int main()
         const bool zip = params["source"]["format"].get<std::string>() == "zip";
         Json output = measures(true);
         output["blend_file"] = "asset.blend";
+        output["fbx_file"] = fbxWritten ? Json("asset.fbx") : Json(nullptr);
         output["picked_file"] = zip ? Json("model.obj") : Json(nullptr);
         output["missing_textures"] = Json::array();
         output["thumbnail"] = thumbnail;
         Json ordered = Json::object();
-        for (const char* key : {"blend_file", "picked_file", "size", "triangles", "objects", "materials", "textures", "missing_textures", "thumbnail"}) {
+        for (const char* key : {"blend_file", "fbx_file", "picked_file", "size", "triangles", "objects", "materials", "textures", "missing_textures", "thumbnail"}) {
             ordered[key] = output[key];
         }
         result["output"] = ordered;
@@ -323,6 +327,17 @@ int main()
         const fs::path file = pathFrom(params["output_file"].get<std::string>());
         writeFile(file, tinyPng());
         Json output = measures(params["measure"].get<bool>());
+        Json fbxName = nullptr;
+        if (params["fbx_file"].is_string()) {
+            if (mode == "no_fbx") {
+                result["warnings"].push_back(Json{{"code", "fbx_failed"}, {"message", "Fake asset.fbx failure"}});
+            } else {
+                const fs::path fbx = pathFrom(params["fbx_file"].get<std::string>());
+                writeFile(fbx, "FAKEFBX");
+                fbxName = fbx.filename().string();
+            }
+        }
+        output["fbx_file"] = fbxName;
         output["thumbnail"] = Json{{"file", pathFrom(params["output_file"].get<std::string>()).filename().string()},
                                    {"engine", "eevee"},
                                    {"error", nullptr}};
