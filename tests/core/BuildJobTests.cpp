@@ -21,7 +21,7 @@ namespace {
 // The path of a build test data file.
 fs::path dataFile(const std::string& name)
 {
-    return fs::path(PLYNTH_TEST_DATA_DIR) / "build" / name;
+    return fs::path(PLYNTH_TEST_DATA_DIR) / "buildjob" / name;
 }
 
 // A data file as ordered JSON.

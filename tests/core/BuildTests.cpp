@@ -323,3 +323,90 @@ TEST_CASE("buildAssetSourceFor reports ready, missing and broken assets", "[core
     REQUIRE(broken->broken);
     REQUIRE_FALSE(broken->problem.empty());
 }
+
+namespace {
+
+// A project for the Blender build tests: two rooms side by side with a divider wall, one curved wall, one
+// rounded corner, one opening of each built in shape and a door on the curved wall. No items.
+Project blenderFixtureProject()
+{
+    Project project = makeNewProject();
+    project.settings.name = "Fixture";
+    Floor f;
+    f.id = "f1";
+    f.name = "Floor 1";
+    f.points = {{"p1", 0.0, 0.0, 0.6}, {"p2", 4.0, 0.0, 0.0}, {"p3", 8.0, 0.0, 0.0},
+                {"p4", 8.0, 4.0, 0.0}, {"p5", 4.0, 4.0, 0.0}, {"p6", 0.0, 4.0, 0.0}};
+    const char* ends[7][2] = {{"p1", "p2"}, {"p2", "p3"}, {"p3", "p4"}, {"p4", "p5"}, {"p5", "p6"}, {"p6", "p1"}, {"p2", "p5"}};
+    for (int i = 0; i < 7; ++i) {
+        Wall w;
+        w.id = "w" + std::to_string(i + 1);
+        w.from = ends[i][0];
+        w.to = ends[i][1];
+        w.thickness = 0.2;
+        if (w.id == "w3") w.bulge = -0.5;
+        f.walls.push_back(w);
+    }
+    Room left;
+    left.id = "r1";
+    left.type = "living";
+    left.walls = {"w1", "w7", "w5", "w6"};
+    Room right;
+    right.id = "r2";
+    right.type = "bedroom";
+    right.walls = {"w2", "w3", "w4", "w7"};
+    f.rooms = {left, right};
+
+    const auto opening = [&](const std::string& id, const std::string& wall, double offset, OpeningType type,
+                             const std::string& shape, double width, double height, double sill) {
+        Opening o;
+        o.id = id;
+        o.wall = wall;
+        o.offset = offset;
+        o.type = type;
+        o.shape = shape;
+        o.width = width;
+        o.height = height;
+        o.sill = sill;
+        f.openings.push_back(o);
+    };
+    opening("o1", "w1", 2.0, OpeningType::Door, "rectangle", 0.9, 2.1, 0.0);
+    opening("o2", "w5", 2.0, OpeningType::Window, "round_arch", 1.0, 1.4, 0.9);
+    opening("o3", "w6", 2.0, OpeningType::Window, "flat_arch", 1.2, 1.2, 0.9);
+    opening("o4", "w4", 2.0, OpeningType::Plain, "pointed_arch", 1.0, 2.0, 0.0);
+    opening("o5", "w2", 2.0, OpeningType::Window, "circle", 1.0, 1.0, 1.0);
+    opening("o6", "w3", 2.1, OpeningType::Door, "rectangle", 0.9, 2.1, 0.0);
+    opening("o7", "w7", 2.0, OpeningType::Door, "rectangle", 0.9, 2.1, 0.0);
+    project.plan.floors[0] = f;
+    return project;
+}
+
+// The job of the Blender fixture, with the project folder left as a placeholder the Blender tests fill in.
+Json blenderFixtureJob()
+{
+    const Project project = blenderFixtureProject();
+    const BuildPlan plan = makeBuildPlan(project, {});
+    return makeBuildJob(project, plan, BuildSettings{}, "@PROJECT@", "build-fixture", "@PROJECT@/build/result.json");
+}
+
+}
+
+TEST_CASE("the job made for the Blender tests builds with no problems and matches the saved copy", "[core][build][fixture]") {
+    const BuildPlan plan = makeBuildPlan(blenderFixtureProject(), {});
+    REQUIRE(plan.problems.empty());
+    REQUIRE(plan.floors[0].openings.size() == 7);
+    REQUIRE(plan.floors[0].rooms.size() == 2);
+    REQUIRE(plan.floors[0].wallSolids.size() == 1);
+
+    const Json job = blenderFixtureJob();
+    REQUIRE(plynth::test::schemaProblem("blender-job.schema.json", nlohmann::json::parse(job.dump())).empty());
+    const fs::path saved = fs::path(PLYNTH_TEST_DATA_DIR) / "buildjob" / "from_core.json";
+    INFO("Regenerate with: plynth_core_tests \"[.write-fixture]\"");
+    REQUIRE(plynth::test::readTextFile(saved) == job.dump(2) + "\n");
+}
+
+TEST_CASE("write the job for the Blender tests", "[.write-fixture]") {
+    const fs::path saved = fs::path(PLYNTH_TEST_DATA_DIR) / "buildjob" / "from_core.json";
+    std::ofstream(saved, std::ios::binary | std::ios::trunc) << blenderFixtureJob().dump(2) << "\n";
+    REQUIRE(fs::exists(saved));
+}

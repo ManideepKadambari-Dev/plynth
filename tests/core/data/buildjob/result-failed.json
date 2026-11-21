@@ -1,0 +1,15 @@
+{
+  "format": "plynth-blender-result",
+  "version": 1,
+  "task": "build",
+  "job_id": "build-00000001",
+  "ok": false,
+  "error": {
+    "code": "save_failed",
+    "message": "The blend file could not be saved."
+  },
+  "blender_version": "5.2.0",
+  "warnings": [],
+  "elapsed_ms": 8200,
+  "output": null
+}
