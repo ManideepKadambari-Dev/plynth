@@ -1,6 +1,11 @@
 find_package(CLI11 CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 
+add_library(plynth_cli_words STATIC src/Words.cpp)
+add_library(plynth::cli_words ALIAS plynth_cli_words)
+target_include_directories(plynth_cli_words PUBLIC include)
+target_compile_features(plynth_cli_words PUBLIC cxx_std_20)
+
 add_library(plynth_cli STATIC
     src/Answer.cpp
     src/Cli.cpp
@@ -24,7 +29,7 @@ endif()
 
 target_include_directories(plynth_cli PUBLIC include)
 target_compile_features(plynth_cli PUBLIC cxx_std_20)
-target_link_libraries(plynth_cli PUBLIC plynth::core
+target_link_libraries(plynth_cli PUBLIC plynth::core plynth::cli_words
     PRIVATE CLI11::CLI11 nlohmann_json::nlohmann_json)
 
 if(PLYNTH_BUILD_TESTS)

@@ -5,6 +5,8 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
+#include <set>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -141,4 +143,38 @@ TEST_CASE("every word of the first argument is recognised by isCommandWord", "[c
 TEST_CASE("answers keep non ASCII text intact", "[cli]") {
     const auto outcome = runChecked({"frob\xC3\xBC"});
     CHECK(outcome.answer.at("error").at("message").get<std::string>().find("frob\xC3\xBC") != std::string::npos);
+}
+
+TEST_CASE("the launcher's unknown_command answer is byte for byte the CLI's", "[cli]") {
+    const std::vector<std::vector<std::string>> cases = {
+        {"bogus"},
+        {"--bogus"},
+        {"frob\xC3\xBC", "x"},
+        {"say \"hi\"\there"},
+        {"tab\there"},
+        {"--pretty", "bogus"},
+        {"bogus", "--pretty"},
+        {"--pretty"},
+        {},
+    };
+    for (const auto& args : cases) {
+        std::ostringstream out;
+        const int code = plynth::cli::run(args, out, std::filesystem::current_path());
+        CHECK(code == plynth::cli::kExitBadArguments);
+        CHECK(out.str() == plynth::cli::unknownCommandAnswer(args));
+    }
+}
+
+TEST_CASE("the word list equals the first words of the commands help lists", "[cli]") {
+    const auto outcome = runChecked({"help"});
+    std::set<std::string> listed;
+    for (const auto& command : outcome.answer.at("result").at("commands")) {
+        const std::string text = command.at("command").get<std::string>();
+        listed.insert(text.substr(0, text.find(' ')));
+    }
+    std::set<std::string> words;
+    for (const auto word : plynth::cli::commandWords()) {
+        words.insert(std::string(word));
+    }
+    CHECK(words == listed);
 }

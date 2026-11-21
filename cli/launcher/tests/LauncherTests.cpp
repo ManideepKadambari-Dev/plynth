@@ -142,3 +142,20 @@ TEST_CASE("the launcher answers unknown_command with exit 2 for a mistyped word"
         CHECK(answer.at("error").at("code") == "unknown_command");
     }
 }
+
+TEST_CASE("the launcher prints the exact unknown_command answer without plynth.exe", "[launcher]") {
+    TempFolder temp;
+    fs::copy_file(PLYNTH_LAUNCHER_FILE, temp.path() / "plynth.com");
+
+    const auto word = runLauncher(temp.path() / "plynth.com", L"bogus", temp.path());
+    CHECK(word.exitCode == 2);
+    CHECK(word.output ==
+          "{\"ok\":false,\"command\":\"\",\"error\":{\"code\":\"unknown_command\",\"message\":"
+          "\"Unknown command 'bogus'. Run 'plynth help' to list the commands.\"}}\n");
+    const auto pretty = runLauncher(temp.path() / "plynth.com", L"--pretty --bogus", temp.path());
+    CHECK(pretty.exitCode == 2);
+    CHECK(pretty.output ==
+          "{\n  \"ok\": false,\n  \"command\": \"\",\n  \"error\": {\n    \"code\": \"unknown_command\",\n"
+          "    \"message\": \"Unknown command '--bogus'. Run 'plynth help' to list the commands.\"\n  }\n}\n");
+}
+
