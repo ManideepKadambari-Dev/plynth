@@ -1,0 +1,42 @@
+#pragma once
+
+#include "Answer.h"
+
+#include <CLI/CLI.hpp>
+
+#include <filesystem>
+#include <functional>
+#include <string>
+#include <vector>
+
+namespace plynth::cli {
+
+// What a command handler is given when it runs.
+struct RunContext {
+    std::filesystem::path currentFolder;
+    const CLI::App* root = nullptr; // the whole command tree, for help
+};
+
+using Handler = std::function<Answer(const RunContext&)>;
+
+// One command: its words, a description, and a function that adds its options to a CLI11 subcommand
+// and returns the handler to run once the options are parsed.
+struct CommandSpec {
+    std::vector<std::string> words;
+    std::string description;
+    std::function<Handler(CLI::App&)> setup;
+};
+
+// Each command group lives in its own file and lists its commands here.
+std::vector<CommandSpec> versionCommands();
+std::vector<CommandSpec> helpCommands();
+std::vector<CommandSpec> projectCommands();
+std::vector<CommandSpec> editCommands();
+
+// All commands in the order help lists them.
+const std::vector<CommandSpec>& allCommands();
+
+// The command words joined with spaces, for example "project new".
+std::string joinWords(const std::vector<std::string>& words);
+
+}
