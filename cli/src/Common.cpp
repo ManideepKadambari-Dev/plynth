@@ -177,9 +177,26 @@ Json wallEntry(const Floor& floor, const Wall& wall) {
     return entry;
 }
 
-Answer removeCascade(const std::string& command, const RunContext& context, const std::string& projectOption,
+Answer removeCascade(const std::string& command, const std::string& kind, const RunContext& context,
+                     const std::string& projectOption,
                      const Id& id) {
     return editProject(command, context, projectOption, [&](Document& document) {
+        if (const Floor* floor = findFloorContaining(document.plan(), id)) {
+            std::string actual = "item";
+            if (findPoint(*floor, id) != nullptr) {
+                actual = "point";
+            } else if (findWall(*floor, id) != nullptr) {
+                actual = "wall";
+            } else if (findRoom(*floor, id) != nullptr) {
+                actual = "room";
+            } else if (findOpening(*floor, id) != nullptr) {
+                actual = "opening";
+            }
+            if (actual != kind) {
+                return failure(command, fail(ErrorCode::InvalidValue, id + " is a " + actual + ", not a " + kind +
+                                                                          ". Use " + actual + " remove."));
+            }
+        }
         const std::vector<Id> named = {id};
         DeleteBuild build = makeDeleteCommand(document.plan(), named);
         if (!build.status.ok()) {

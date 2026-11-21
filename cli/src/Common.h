@@ -77,8 +77,9 @@ Json wallEntry(const Floor& floor, const Wall& wall);
 Json roomEntry(const Floor& floor, const Room& room);
 
 // Removes one point or wall together with everything that depends on it, as one step (makeDeleteCommand).
-// The answer lists what was removed.
-Answer removeCascade(const std::string& command, const RunContext& context, const std::string& projectOption,
+// kind is "point" or "wall": an id of another kind is refused with invalid_value. The answer lists what was removed.
+Answer removeCascade(const std::string& command, const std::string& kind, const RunContext& context,
+                     const std::string& projectOption,
                      const Id& id);
 
 // The result of a remove command: the ids of the rooms, walls and points that were removed.

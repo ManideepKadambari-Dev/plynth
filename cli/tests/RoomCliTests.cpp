@@ -225,6 +225,21 @@ TEST_CASE("point remove and wall remove with --cascade work on a plain wall", "[
     CHECK(sample.run({"wall", "list"}).answer.at("result").at("walls").size() == 3);
 }
 
+TEST_CASE("remove --cascade refuses an id of the wrong kind", "[cli][room]") {
+    Sample sample("cascade-kind");
+    sample.drawSquare();
+    const auto before = readFile(sample.folder / "plan.json");
+
+    const auto wallAsPoint = sample.run({"point", "remove", "w1", "--cascade"});
+    CHECK(wallAsPoint.exitCode == kExitFailed);
+    CHECK(errorCode(wallAsPoint) == "invalid_value");
+    CHECK(wallAsPoint.answer.at("error").at("message") == "w1 is a wall, not a point. Use wall remove.");
+    const auto pointAsWall = sample.run({"wall", "remove", "p1", "--cascade"});
+    CHECK(errorCode(pointAsWall) == "invalid_value");
+    CHECK(pointAsWall.answer.at("error").at("message") == "p1 is a point, not a wall. Use point remove.");
+    CHECK(readFile(sample.folder / "plan.json") == before);
+}
+
 TEST_CASE("room types needs no project", "[cli][room]") {
     plynth::cli::testing::TempFolder temp("types");
     const auto outcome = runChecked({"room", "types"}, temp.path());

@@ -62,7 +62,7 @@ Answer pointMove(const RunContext& context, const MoveOptions& options) {
 // Removes a point that no wall uses.
 Answer pointRemove(const RunContext& context, const RemoveOptions& options) {
     if (options.cascade) {
-        return removeCascade("point remove", context, options.project, options.id);
+        return removeCascade("point remove", "point", context, options.project, options.id);
     }
     return edit(
         "point remove", context, options.project,

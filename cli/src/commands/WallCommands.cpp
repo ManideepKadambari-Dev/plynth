@@ -155,7 +155,7 @@ Answer wallSet(const RunContext& context, const SetOptions& options) {
 // Removes a wall that no room or opening uses.
 Answer wallRemove(const RunContext& context, const RemoveOptions& options) {
     if (options.cascade) {
-        return removeCascade("wall remove", context, options.project, options.id);
+        return removeCascade("wall remove", "wall", context, options.project, options.id);
     }
     return edit(
         "wall remove", context, options.project,
