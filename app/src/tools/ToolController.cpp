@@ -1,17 +1,25 @@
 #include "ToolController.h"
 
 #include "canvas/PlanCanvas.h"
+#include "catalog/LibraryHost.h"
 #include "document/Selection.h"
 #include "detection/DetectionSession.h"
 #include "theme/Theme.h"
+#include "furniture/FurniturePicker.h"
 #include "tools/DetectTool.h"
+#include "tools/FurnitureTool.h"
 #include "tools/OpeningTool.h"
 #include "tools/RoomTool.h"
 #include "tools/ScaleTool.h"
 #include "tools/SelectTool.h"
 #include "tools/WallTool.h"
 
+#include <plynth/core/Items.h>
 #include <plynth/core/Openings.h>
+#include <plynth/core/Snapping.h>
+#include <plynth/core/WallGeometry.h>
+#include <plynth/core/catalog/ItemAssets.h>
+#include <plynth/core/commands/ItemCommands.h>
 
 namespace plynth::app {
 
@@ -35,6 +43,7 @@ ToolController::ToolController(plynth::Document& document, PlanCanvas* canvas, S
     tools_[static_cast<size_t>(ToolId::Wall)] = std::make_unique<WallTool>(*this);
     tools_[static_cast<size_t>(ToolId::Opening)] = std::make_unique<OpeningTool>(*this);
     tools_[static_cast<size_t>(ToolId::Room)] = std::make_unique<RoomTool>(*this);
+    tools_[static_cast<size_t>(ToolId::Furniture)] = std::make_unique<FurnitureTool>(*this);
     detection_ = new DetectionSession(*this, this);
     tools_[static_cast<size_t>(ToolId::Detect)] = std::make_unique<DetectTool>(*this);
     connect(detection_, &DetectionSession::changed, this, [this]() {
@@ -96,6 +105,8 @@ QString ToolController::unavailableReason(ToolId id) const
         return tr("Open a plan image first");
     if (id != ToolId::Scale && !pixelsPerMetre().has_value())
         return tr("Set the scale first (S)");
+    if (id == ToolId::Furniture && catalog() == nullptr)
+        return tr("No library folder is set.");
     return QString();
 }
 
@@ -206,6 +217,162 @@ double ToolController::gridStepPixels() const
     if (active_ != ToolId::Wall || !snapToGrid_ || !ppm.has_value())
         return 0.0;
     return document_.project().settings.gridSize * *ppm;
+}
+
+// The open catalog, or null when no library is open.
+plynth::AssetCatalog* ToolController::catalog() const
+{
+    return library_ != nullptr ? library_->catalog() : nullptr;
+}
+
+// The furniture picker, a child of the canvas so it draws over the plan and in screenshots.
+FurniturePicker& ToolController::picker(QWidget* over)
+{
+    QWidget* parent = over != nullptr ? over : static_cast<QWidget*>(canvas_.data());
+    if (picker_ == nullptr)
+        picker_ = new FurniturePicker(*library_, parent);
+    else if (picker_->parentWidget() != parent)
+        picker_->setParent(parent);
+    return *picker_;
+}
+
+// Opens the picker for one choice. The connections end when the choice is made or the picker closes.
+void ToolController::pickAsset(QWidget* over, const QPoint& anchor, const QString& roomType,
+                               std::function<void(const QString&)> chosen)
+{
+    if (library_ == nullptr || catalog() == nullptr)
+        return;
+    FurniturePicker& shown = picker(over);
+    QObject::disconnect(pickChosen_);
+    QObject::disconnect(pickDismissed_);
+    pickChosen_ = connect(&shown, &FurniturePicker::assetChosen, this, [this, chosen](const QString& id) {
+        QObject::disconnect(pickChosen_);
+        QObject::disconnect(pickDismissed_);
+        chosen(id);
+    });
+    pickDismissed_ = connect(&shown, &FurniturePicker::dismissed, this, [this]() {
+        QObject::disconnect(pickChosen_);
+        QObject::disconnect(pickDismissed_);
+    });
+    shown.openAt(anchor, roomType);
+}
+
+// Checks the asset, works out the flush pose on the wall face and runs PlaceItemCommand.
+bool ToolController::placeWallAsset(const QString& assetId, const plynth::Id& wallId, plynth::WallSide side,
+                                    double offset)
+{
+    const plynth::Floor* current = floor();
+    plynth::AssetCatalog* assets = catalog();
+    if (current == nullptr)
+        return false;
+    if (assets == nullptr) {
+        showMessage(tr("No library folder is set."));
+        return false;
+    }
+    const plynth::Wall* wall = plynth::findWall(*current, wallId);
+    if (wall == nullptr)
+        return false;
+    const plynth::ItemAsset asset = plynth::itemAssetFor(*assets, assetId.toStdString());
+    if (!asset.status.ok()) {
+        showMessage(fromCore(asset.status.message));
+        return false;
+    }
+    const plynth::ItemPose pose = plynth::wallItemPose(*current, *wall, side, offset, asset.size);
+    if (!pose.status.ok()) {
+        showMessage(fromCore(pose.status.message));
+        return false;
+    }
+    plynth::Item item;
+    item.asset = assetId.toStdString();
+    item.size = asset.size;
+    item.x = pose.position.x;
+    item.y = pose.position.y;
+    item.rotation = pose.rotation;
+    item.wall = wallId;
+    item.z = plynth::defaultWallItemZ(document_.project().settings.defaults, asset.size.height);
+    auto command = std::make_unique<plynth::PlaceItemCommand>(current->id, item);
+    const plynth::PlaceItemCommand* raw = command.get();
+    if (!run(std::move(command)).ok())
+        return false;
+    selection_->set(SelectionKind::Item, QString::fromStdString(raw->itemId()));
+    return true;
+}
+
+// True while the picker is showing.
+bool ToolController::pickerOpen() const
+{
+    return picker_ != nullptr && picker_->isOpen();
+}
+
+// Rounds the wanted centre to the grid and slides the footprint flush to wall faces near it.
+plynth::Vec2 ToolController::snapItem(const plynth::Item& item, plynth::Vec2 wanted, bool free) const
+{
+    const plynth::Floor* current = floor();
+    if (current == nullptr)
+        return wanted;
+    plynth::ItemSnapOptions options;
+    if (!free) {
+        if (snapToGrid_)
+            options.gridSize = document_.project().settings.gridSize;
+        options.radius = snapRadiusMetres();
+    }
+    return plynth::snapItemPosition(*current, item, wanted, options).position;
+}
+
+// Checks the asset, snaps the place, runs PlaceItemCommand and selects the new item.
+bool ToolController::placeAsset(const QString& assetId, plynth::Vec2 wanted, bool free)
+{
+    const plynth::Floor* current = floor();
+    plynth::AssetCatalog* assets = catalog();
+    if (current == nullptr)
+        return false;
+    if (assets == nullptr) {
+        showMessage(tr("No library folder is set."));
+        return false;
+    }
+    const plynth::ItemAsset asset = plynth::itemAssetFor(*assets, assetId.toStdString());
+    if (!asset.status.ok()) {
+        showMessage(fromCore(asset.status.message));
+        return false;
+    }
+    plynth::Item item;
+    item.asset = assetId.toStdString();
+    item.size = asset.size;
+    const plynth::Vec2 at = snapItem(item, wanted, free);
+    item.x = at.x;
+    item.y = at.y;
+    auto command = std::make_unique<plynth::PlaceItemCommand>(current->id, item);
+    const plynth::PlaceItemCommand* raw = command.get();
+    if (!run(std::move(command)).ok())
+        return false;
+    selection_->set(SelectionKind::Item, QString::fromStdString(raw->itemId()));
+    return true;
+}
+
+// Turns the selected floor item with RotateItemCommand. Each key press is its own undo step.
+bool ToolController::turnSelectedItem(double degrees)
+{
+    const plynth::Floor* current = floor();
+    if (current == nullptr || selection_->kind() != SelectionKind::Item || document_.isReadOnly())
+        return false;
+    const plynth::Item* item = plynth::findItem(*current, selection_->id().toStdString());
+    if (item == nullptr)
+        return false;
+    return run(std::make_unique<plynth::RotateItemCommand>(item->id, plynth::normalizeRotation(item->rotation + degrees))).ok();
+}
+
+// Switches to the Furniture tool and opens its picker at a place, anchored where that place is on screen.
+bool ToolController::showFurniturePicker(double x, double y, const QString& hoverAsset)
+{
+    const std::optional<double> ppm = pixelsPerMetre();
+    if (!ppm.has_value() || !setActive(ToolId::Furniture))
+        return false;
+    auto* furniture = static_cast<FurnitureTool*>(tool(ToolId::Furniture));
+    const QPoint view = canvas_->viewport()->mapTo(canvas_, canvas_->sceneToView(QPointF(x * *ppm, y * *ppm)).toPoint());
+    furniture->openAt(plynth::Vec2{x, y}, view);
+    if (!hoverAsset.isEmpty())
+        furniture->hover(hoverAsset);
+    return true;
 }
 
 // Runs a command and shows its refusal as a message instead of a dialog.

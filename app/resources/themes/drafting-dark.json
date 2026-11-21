@@ -45,7 +45,12 @@
     "wallViewMargin": 24,
     "handleSize": 8,
     "bendHandle": 10,
-    "proposalDash": 4
+    "proposalDash": 4,
+    "pickerColumnWidth": 220,
+    "pickerRowHeight": 28,
+    "previewWidth": 288,
+    "rotationHandle": 10,
+    "itemLabelMinPixels": 48
   },
   "effects": {
     "overlayAlpha": 150,
@@ -53,7 +58,8 @@
     "terminalSelectionAlpha": 80,
     "roomFillAlpha": 36,
     "proposalFillAlpha": 40,
-    "proposalLineAlpha": 220
+    "proposalLineAlpha": 220,
+    "itemFillAlpha": 153
   },
   "terminal": {
     "ansi": [

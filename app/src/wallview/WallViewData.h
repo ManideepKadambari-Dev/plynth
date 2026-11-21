@@ -1,6 +1,7 @@
 #pragma once
 
 #include <plynth/core/Plan.h>
+#include <plynth/core/catalog/AssetCatalog.h>
 
 #include <QPolygonF>
 #include <QString>
@@ -21,12 +22,20 @@ struct WallViewOpening {
     bool problem = false;
 };
 
-// Something mounted on the wall, such as a picture or a light. Nothing fills this until milestone 7; the paint
-// layer between openings and handles is already in place.
+// An item mounted on the wall face: its front box, from the offset minus half its width to the offset plus
+// half, and from its bottom z up by its height. problem marks a warning from itemProblems, missing a gone asset.
 struct WallViewItem {
     QString id;
+    QString name;
     QPolygonF outline;
+    double offset = 0.0;
+    double z = 0.0;
+    double width = 0.0;
+    double height = 0.0;
+    double centreHeight = 0.0;
     bool selected = false;
+    bool problem = false;
+    bool missing = false;
 };
 
 // Everything the wall view draws, in metres on the wall face. The view reads this and nothing else.
@@ -46,9 +55,10 @@ struct WallViewData {
     QVector<WallViewItem> items;
 };
 
-// Builds the data for one wall of a floor, as seen from a side. selectedOpening is the id of the opening to
-// show as selected, or empty.
+// Builds the data for one wall of a floor, as seen from a side. selectedOpening and selectedItem are the ids to
+// show as selected, or empty. With a catalog the items are named and checked against it.
 WallViewData buildWallViewData(const plynth::Floor& floor, const plynth::Wall& wall, plynth::WallSide side,
-                               const QString& selectedOpening);
+                               const QString& selectedOpening, const QString& selectedItem = QString(),
+                               const plynth::AssetCatalog* catalog = nullptr);
 
 }

@@ -24,6 +24,7 @@
 #include "wallview/WallView.h"
 #include "theme/Theme.h"
 
+#include <plynth/core/Items.h>
 #include <plynth/core/PlanImage.h>
 #include <plynth/core/ProjectFiles.h>
 #include <plynth/core/Version.h>
@@ -34,7 +35,14 @@
 #include <plynth/core/catalog/AssetImport.h>
 #include <plynth/core/commands/FloorCommands.h>
 
+#include <QAbstractSpinBox>
 #include <QAction>
+#include <QApplication>
+#include <QComboBox>
+#include <QKeyEvent>
+#include <QLineEdit>
+#include <QPlainTextEdit>
+#include <QTextEdit>
 #include <QCloseEvent>
 #include <QDateTime>
 #include <QDesktopServices>
@@ -121,6 +129,7 @@ MainWindow::MainWindow(QWidget* parent)
     tools_ = new ToolController(doc_, canvas_, selection_, this, this);
     toolStrip_ = new ToolStrip(tools_, central);
     host_ = new LibraryHost(this);
+    tools_->setLibrary(host_);
     panel_ = new PropertiesPanel(doc_, *selection_, *tools_, central);
     assets_ = new AssetsPanel(*host_, central);
     auto* work = new QWidget(central);
@@ -207,6 +216,23 @@ MainWindow::MainWindow(QWidget* parent)
     };
     connect(host_, &LibraryHost::libraryChanged, this, syncImportState);
     syncImportState();
+    connect(host_, &LibraryHost::libraryChanged, this, &MainWindow::refreshOverlay);
+    connect(host_, &LibraryHost::libraryChanged, this, [this]() {
+        tools_->refreshAvailability();
+        updateToolActions();
+    });
+    connect(canvas_, &PlanCanvas::assetDropped, this, [this](const QString& id, const QPointF& scene, bool free) {
+        const std::optional<double> ppm = doc_.plan().scale.pixelsPerMetre;
+        if (!ppm.has_value()) {
+            statusBar_->showMessage(tr("Set the scale first."));
+            return;
+        }
+        tools_->placeAsset(id, plynth::Vec2{scene.x() / *ppm, scene.y() / *ppm}, free);
+    });
+    qApp->installEventFilter(this);
+    connect(host_, &LibraryHost::assetsChanged, this, &MainWindow::refreshOverlay);
+    connect(host_, &LibraryHost::libraryChanged, wallView_, &WallView::refresh);
+    connect(host_, &LibraryHost::assetsChanged, wallView_, &WallView::refresh);
 
     connect(titleBar_, &TitleBar::minimizeRequested, this, &QWidget::showMinimized);
     connect(titleBar_, &TitleBar::maximizeToggleRequested, this, &MainWindow::toggleMaximized);
@@ -302,7 +328,8 @@ void MainWindow::buildMenus()
 
     edit->addSeparator();
     const std::array<ToolId, kAllTools.size()>& toolIds = kAllTools;
-    const std::array<Qt::Key, kAllTools.size()> toolKeys{Qt::Key_V, Qt::Key_S, Qt::Key_W, Qt::Key_O, Qt::Key_R, Qt::Key_D};
+    const std::array<Qt::Key, kAllTools.size()> toolKeys{Qt::Key_V, Qt::Key_S,        Qt::Key_W, Qt::Key_O,
+                                                         Qt::Key_R, Qt::Key_P,        Qt::Key_D};
     for (size_t i = 0; i < toolIds.size(); ++i) {
         const ToolId id = toolIds[i];
         QAction* action = addMenuAction(edit, tr("%1 tool").arg(ToolStrip::toolName(id)),
@@ -316,6 +343,14 @@ void MainWindow::buildMenus()
         });
         toolActions_[static_cast<size_t>(id)] = action;
     }
+    turnLeftAction_ = addMenuAction(edit, tr("Turn item left"),
+                                    tr("Turn the selected item 90 degrees counterclockwise ([)"),
+                                    QStringLiteral("item-turn-left"), {QKeySequence(Qt::Key_BracketLeft)});
+    connect(turnLeftAction_, &QAction::triggered, this, [this]() { tools_->turnSelectedItem(-plynth::kItemQuarterTurn); });
+    turnRightAction_ = addMenuAction(edit, tr("Turn item right"),
+                                     tr("Turn the selected item 90 degrees clockwise (])"),
+                                     QStringLiteral("item-turn-right"), {QKeySequence(Qt::Key_BracketRight)});
+    connect(turnRightAction_, &QAction::triggered, this, [this]() { tools_->turnSelectedItem(plynth::kItemQuarterTurn); });
     acceptDetectionAction_ = addMenuAction(edit, tr("Accept detection"),
                                            tr("Add the detected walls, openings and rooms to the plan (Enter)"),
                                            QStringLiteral("detect-accept"),
@@ -544,6 +579,23 @@ void MainWindow::openLibraryFolder()
     QDesktopServices::openUrl(QUrl::fromLocalFile(QString::fromStdWString(host_->paths().root.wstring())));
 }
 
+// Keeps single letter shortcuts from firing while the user types in a text field or picks in a combo box.
+bool MainWindow::eventFilter(QObject* watched, QEvent* event)
+{
+    if (event->type() == QEvent::ShortcutOverride && watched == QApplication::focusWidget()) {
+        const auto* key = static_cast<QKeyEvent*>(event);
+        const Qt::KeyboardModifiers plain = key->modifiers() & ~(Qt::ShiftModifier | Qt::KeypadModifier);
+        const bool textEntry = qobject_cast<QLineEdit*>(watched) || qobject_cast<QAbstractSpinBox*>(watched) ||
+                               qobject_cast<QComboBox*>(watched) || qobject_cast<QTextEdit*>(watched) ||
+                               qobject_cast<QPlainTextEdit*>(watched);
+        if (textEntry && plain == Qt::NoModifier && !key->text().isEmpty()) {
+            event->accept();
+            return true;
+        }
+    }
+    return QMainWindow::eventFilter(watched, event);
+}
+
 // Redraws the room labels and the pickers after the room type list changed.
 void MainWindow::roomTypesChanged()
 {
@@ -608,7 +660,7 @@ void MainWindow::onDocumentChanged(unsigned changes)
 {
     if (changes & (plynth::Change::FloorImage | plynth::Change::Floors | plynth::Change::Folder))
         refreshImage();
-    if (changes & (plynth::Change::Points | plynth::Change::Walls | plynth::Change::Rooms | plynth::Change::Openings | plynth::Change::Scale |
+    if (changes & (plynth::Change::Points | plynth::Change::Walls | plynth::Change::Rooms | plynth::Change::Openings | plynth::Change::Items | plynth::Change::Scale |
                    plynth::Change::Floors | plynth::Change::Folder))
         refreshOverlay();
     validateSelection();
@@ -716,7 +768,7 @@ void MainWindow::refreshImage()
 // Gives the canvas the points, walls and rooms of the first floor, in image pixels. Nothing without a scale.
 void MainWindow::refreshOverlay()
 {
-    canvas_->setOverlay(buildOverlay(doc_.plan()));
+    canvas_->setOverlay(buildOverlay(doc_.plan(), host_ != nullptr ? host_->catalog() : nullptr));
     canvas_->setGridStep(tools_->gridStepPixels());
 }
 
@@ -724,6 +776,7 @@ void MainWindow::refreshOverlay()
 void MainWindow::refreshSelection()
 {
     canvas_->setSelection(selection_->kind(), selection_->id());
+    updateToolActions();
     updateDeleteAction();
     updateWallView();
 }
@@ -799,6 +852,9 @@ void MainWindow::validateSelection()
         case SelectionKind::Opening:
             found = plynth::findOpening(*floor, id) != nullptr;
             break;
+        case SelectionKind::Item:
+            found = plynth::findItem(*floor, id) != nullptr;
+            break;
         case SelectionKind::None:
             break;
         }
@@ -824,6 +880,11 @@ void MainWindow::updateToolActions()
     }
     if (acceptDetectionAction_ != nullptr)
         acceptDetectionAction_->setEnabled(tools_->detection().canAccept() && !doc_.isReadOnly());
+    const bool itemSelected = selection_ != nullptr && selection_->kind() == SelectionKind::Item && !doc_.isReadOnly();
+    if (turnLeftAction_ != nullptr)
+        turnLeftAction_->setEnabled(itemSelected);
+    if (turnRightAction_ != nullptr)
+        turnRightAction_->setEnabled(itemSelected);
 }
 
 // Shows the cursor position in metres, or nothing when it is off the plan or no scale is set.
@@ -854,6 +915,8 @@ bool MainWindow::activateToolByName(const QString& name)
         id = ToolId::Opening;
     else if (key == QStringLiteral("room"))
         id = ToolId::Room;
+    else if (key == QStringLiteral("furniture"))
+        id = ToolId::Furniture;
     else if (key == QStringLiteral("detect"))
         id = ToolId::Detect;
     else
@@ -884,8 +947,18 @@ void MainWindow::selectById(const QString& id)
             selection_->set(SelectionKind::Room, id);
             return;
         }
-    if (plynth::findOpening(floor, key) != nullptr)
+    if (plynth::findOpening(floor, key) != nullptr) {
         selection_->set(SelectionKind::Opening, id);
+        return;
+    }
+    if (plynth::findItem(floor, key) != nullptr)
+        selection_->set(SelectionKind::Item, id);
+}
+
+// For checks only: opens the furniture picker over the plan and hovers an asset like the mouse would.
+bool MainWindow::showFurniturePicker(double x, double y, const QString& hoverAsset)
+{
+    return tools_->showFurniturePicker(x, y, hoverAsset);
 }
 
 // For checks only: shows the Assets tab.
@@ -899,6 +972,12 @@ bool MainWindow::selectAsset(const QString& id)
 {
     showAssetsTab();
     return assets_->selectAsset(id);
+}
+
+// For checks only: scrolls the asset details to the category list.
+void MainWindow::showAssetCategories()
+{
+    assets_->showCategories();
 }
 
 // For checks only: chooses the side the wall view is seen from.

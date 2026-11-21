@@ -8,7 +8,7 @@
 
 namespace plynth::app {
 
-enum class SelectionKind { None, Point, Wall, Room, Opening };
+enum class SelectionKind { None, Point, Wall, Room, Opening, Item };
 
 // The one item the user has selected on the plan. It is app state, not plan data, and holds an id only.
 class Selection : public QObject {

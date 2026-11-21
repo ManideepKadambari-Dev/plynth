@@ -7,7 +7,11 @@
 #include <QApplication>
 #include <QGraphicsPixmapItem>
 #include <QGraphicsScene>
+#include <QDragEnterEvent>
+#include <QDragMoveEvent>
+#include <QDropEvent>
 #include <QGuiApplication>
+#include <QMimeData>
 #include <QKeyEvent>
 #include <QLineEdit>
 #include <QMouseEvent>
@@ -357,6 +361,7 @@ void PlanCanvas::paintOverlay(QPainter* painter)
     }
 
     painter->resetTransform();
+    paintItems(painter);
     {
         const QTransform view = viewportTransform();
         OpeningPaintStyle style;
@@ -396,6 +401,81 @@ void PlanCanvas::paintOverlay(QPainter* painter)
     if (tool_ != nullptr)
         tool_->paint(*painter);
     painter->restore();
+}
+
+// Paints every placed item as its footprint at true size: Raised fill, Muted outline, a tick on the front
+// edge, a line on the back of a wall item, and the name when it fits. The selected one is amber, one with a
+// problem has a dashed amber outline, and a missing asset reads "Missing asset" with its id in mono.
+void PlanCanvas::paintItems(QPainter* painter)
+{
+    if (overlay_.items.isEmpty())
+        return;
+    const Theme& t = Theme::instance();
+    QColor fill = t.raised();
+    fill.setAlpha(t.itemFillAlpha());
+    const QFont nameFont = t.uiFont(t.sizeSmall());
+    const QFont idFont = t.monoFont(t.sizeSmall());
+    const QFontMetrics nameMetrics(nameFont);
+    const QFontMetrics idMetrics(idFont);
+    for (const OverlayItem& item : overlay_.items) {
+        if (item.footprint.size() != 4)
+            continue;
+        const bool selected = selectionKind_ == SelectionKind::Item && item.id == selectionId_;
+        QPolygonF shape;
+        for (const QPointF& corner : item.footprint)
+            shape << mapFromScene(corner);
+        painter->setBrush(fill);
+        QPen outline(selected ? t.signalAmber() : item.problem ? t.signalAmber() : t.muted(), selected ? 2.0 : 1.5);
+        if (item.problem && !selected)
+            outline.setDashPattern({4.0, 3.0});
+        painter->setPen(outline);
+        painter->drawPolygon(shape);
+
+        const QPointF frontMid = (shape[2] + shape[3]) / 2.0;
+        const QPointF centre = (shape[0] + shape[2]) / 2.0;
+        const QPointF toFront = frontMid - centre;
+        const double reach = std::hypot(toFront.x(), toFront.y());
+        if (reach > 1.0) {
+            const QPointF direction = toFront / reach;
+            const double tick = std::min(reach / 3.0, double(t.unit() * 3));
+            painter->setPen(QPen(selected ? t.signalAmber() : t.muted(), 2.0, Qt::SolidLine, Qt::RoundCap));
+            painter->drawLine(frontMid, frontMid - direction * tick);
+        }
+        if (item.wall) {
+            painter->setPen(QPen(t.text(), 2.0, Qt::SolidLine, Qt::FlatCap));
+            painter->drawLine(shape[0], shape[1]);
+        }
+
+        const QRectF box = shape.boundingRect();
+        if (std::min(box.width(), box.height()) < t.itemLabelMinPixels())
+            continue;
+        const int lineHeight = nameMetrics.height();
+        const int textWidth = std::max(nameMetrics.horizontalAdvance(item.label), item.detail.isEmpty() ? 0 : idMetrics.horizontalAdvance(item.detail));
+        const int textHeight = item.detail.isEmpty() ? lineHeight : lineHeight + idMetrics.height();
+        const QRectF text(centre.x() - textWidth / 2.0, centre.y() - textHeight / 2.0, textWidth, textHeight);
+        const QRectF padded = text.adjusted(-t.unit(), -t.unit() / 2.0, t.unit(), t.unit() / 2.0);
+        const QPolygonF inner = shape;
+        const QPointF corners[4] = {padded.topLeft(), padded.topRight(), padded.bottomRight(), padded.bottomLeft()};
+        bool fits = true;
+        for (const QPointF& corner : corners)
+            fits = fits && inner.containsPoint(corner, Qt::OddEvenFill);
+        if (!fits)
+            continue;
+        QColor backing = t.panel();
+        backing.setAlpha(210);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(backing);
+        painter->drawRoundedRect(padded, t.radius(), t.radius());
+        painter->setFont(nameFont);
+        painter->setPen(item.missing ? t.signalAmber() : t.muted());
+        painter->drawText(QRectF(text.left(), text.top(), text.width(), lineHeight), Qt::AlignCenter, item.label);
+        if (!item.detail.isEmpty()) {
+            painter->setFont(idFont);
+            painter->setPen(t.muted());
+            painter->drawText(QRectF(text.left(), text.top() + lineHeight, text.width(), idMetrics.height()),
+                              Qt::AlignCenter, item.detail);
+        }
+    }
 }
 
 // Paints the detection preview in canvas pixels: dashed blue wall bands, room outlines, point rings and
@@ -690,6 +770,36 @@ void PlanCanvas::showEvent(QShowEvent* event)
     QGraphicsView::showEvent(event);
     if (hasImage() && fitMode_)
         applyFit();
+}
+
+// Accepts an asset tile dragged from the Assets tab.
+void PlanCanvas::dragEnterEvent(QDragEnterEvent* event)
+{
+    if (hasImage() && event->mimeData()->hasFormat(QStringLiteral("application/x-plynth-asset")))
+        event->acceptProposedAction();
+    else
+        event->ignore();
+}
+
+// Keeps accepting the tile while it moves over the plan.
+void PlanCanvas::dragMoveEvent(QDragMoveEvent* event)
+{
+    if (hasImage() && event->mimeData()->hasFormat(QStringLiteral("application/x-plynth-asset")))
+        event->acceptProposedAction();
+    else
+        event->ignore();
+}
+
+// Tells the window where an asset tile was dropped. The window places it with a command.
+void PlanCanvas::dropEvent(QDropEvent* event)
+{
+    if (!hasImage() || !event->mimeData()->hasFormat(QStringLiteral("application/x-plynth-asset"))) {
+        event->ignore();
+        return;
+    }
+    const QString id = QString::fromUtf8(event->mimeData()->data(QStringLiteral("application/x-plynth-asset")));
+    event->acceptProposedAction();
+    emit assetDropped(id, mapToScene(event->position().toPoint()), event->modifiers() & Qt::ControlModifier);
 }
 
 // Shows an open hand while Space is held, otherwise the normal arrow.

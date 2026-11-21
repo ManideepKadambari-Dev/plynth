@@ -75,7 +75,7 @@ int main(int argc, char* argv[])
                                       QStringLiteral("Open the terminal and type this text. For checks only."),
                                       QStringLiteral("text"));
     QCommandLineOption toolOption(QStringLiteral("tool"),
-                                  QStringLiteral("Activate a tool: select, scale, wall, opening, room or detect. For checks only."),
+                                  QStringLiteral("Activate a tool: select, scale, wall, opening, room, furniture or detect. For checks only."),
                                   QStringLiteral("name"));
     QCommandLineOption selectOption(QStringLiteral("select"),
                                     QStringLiteral("Select the point, wall, opening or room with this id. For checks only."),
@@ -92,6 +92,14 @@ int main(int argc, char* argv[])
     QCommandLineOption importOption(QStringLiteral("import"),
                                     QStringLiteral("Queue an import of this file or folder. For checks only."),
                                     QStringLiteral("file"));
+    QCommandLineOption furnitureAtOption(QStringLiteral("furniture-at"),
+                                         QStringLiteral("Open the furniture picker at x,y in metres on the plan. For checks only."),
+                                         QStringLiteral("x,y"));
+    QCommandLineOption hoverAssetOption(QStringLiteral("hover-asset"),
+                                        QStringLiteral("With --furniture-at, hover the asset with this id. For checks only."),
+                                        QStringLiteral("id"));
+    parser.addOption(furnitureAtOption);
+    parser.addOption(hoverAssetOption);
     parser.addOption(setupOption);
     parser.addOption(importOption);
     parser.addOption(catalogOption);
@@ -112,13 +120,27 @@ int main(int argc, char* argv[])
         return kExitBadArguments;
     if (parser.isSet(toolOption)) {
         const QStringList names{QStringLiteral("select"), QStringLiteral("scale"), QStringLiteral("wall"),
-                                QStringLiteral("opening"), QStringLiteral("room"), QStringLiteral("detect")};
+                                QStringLiteral("opening"), QStringLiteral("room"), QStringLiteral("furniture"),
+                                QStringLiteral("detect")};
         if (!names.contains(parser.value(toolOption).toLower()))
             return kExitBadArguments;
     }
     if (parser.isSet(wallSideOption)) {
         const QString side = parser.value(wallSideOption).toLower();
         if (side != QStringLiteral("left") && side != QStringLiteral("right"))
+            return kExitBadArguments;
+    }
+    double furnitureX = 0.0;
+    double furnitureY = 0.0;
+    if (parser.isSet(furnitureAtOption)) {
+        const QStringList parts = parser.value(furnitureAtOption).split(QLatin1Char(','));
+        bool okX = false;
+        bool okY = false;
+        if (parts.size() == 2) {
+            furnitureX = parts[0].toDouble(&okX);
+            furnitureY = parts[1].toDouble(&okY);
+        }
+        if (!okX || !okY)
             return kExitBadArguments;
     }
     const bool wantsScreenshot = parser.isSet(screenshotOption);
@@ -187,9 +209,17 @@ int main(int argc, char* argv[])
                                                                                              : plynth::WallSide::Right);
     if (parser.isSet(catalogOption) || parser.isSet(selectAssetOption))
         window.showAssetsTab();
-    if (parser.isSet(selectAssetOption))
+    if (parser.isSet(selectAssetOption)) {
         window.selectAsset(parser.value(selectAssetOption));
+        QTimer::singleShot(150, &window, [&window]() { window.showAssetCategories(); });
+    }
     window.show();
+    if (parser.isSet(furnitureAtOption)) {
+        const QString hover = parser.value(hoverAssetOption);
+        QTimer::singleShot(250, &window, [&window, furnitureX, furnitureY, hover]() {
+            window.showFurniturePicker(furnitureX, furnitureY, hover);
+        });
+    }
     if (parser.isSet(importOption))
         window.importFile(parser.value(importOption));
     if (parser.isSet(setupOption))

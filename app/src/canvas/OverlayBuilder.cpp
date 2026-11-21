@@ -1,10 +1,14 @@
 #include "OverlayBuilder.h"
 
+#include <plynth/core/Items.h>
 #include <plynth/core/RoomTypes.h>
 #include <plynth/core/Rooms.h>
 #include <plynth/core/WallGeometry.h>
+#include <plynth/core/catalog/ItemAssets.h>
 
+#include <QObject>
 #include <QPolygonF>
+#include <QStringList>
 
 namespace plynth::app {
 
@@ -29,7 +33,7 @@ QPolygonF toPolygon(const std::vector<plynth::Vec2>& ring, double ppm)
 }
 
 // Gives the canvas the points, walls and rooms of the first floor, in image pixels.
-OverlayData buildOverlay(const plynth::Plan& plan)
+OverlayData buildOverlay(const plynth::Plan& plan, const plynth::AssetCatalog* catalog)
 {
     OverlayData overlay;
     if (!plan.scale.pixelsPerMetre.has_value() || plan.floors.empty())
@@ -69,6 +73,38 @@ OverlayData buildOverlay(const plynth::Plan& plan)
         entry.name = fromCore(plynth::roomTypeName(room.type));
         entry.area = QStringLiteral("%1 m²").arg(shape.area, 0, 'f', 2);
         overlay.rooms.append(entry);
+    }
+
+    plynth::AssetLookup lookup;
+    if (catalog != nullptr)
+        lookup = plynth::assetLookupFor(*catalog);
+    const std::vector<plynth::ItemProblem> problems = plynth::itemProblems(floor, lookup);
+    for (const plynth::Item& item : floor.items) {
+        OverlayItem entry;
+        entry.id = fromCore(item.id);
+        const plynth::ItemFootprint footprint = plynth::itemFootprint(item);
+        for (const plynth::Vec2& corner : footprint.corners)
+            entry.footprint << QPointF(corner.x * ppm, corner.y * ppm);
+        entry.front = QPointF(footprint.front.x, footprint.front.y);
+        entry.wall = item.wall.has_value();
+        entry.label = fromCore(item.asset);
+        if (catalog != nullptr)
+            if (const std::optional<plynth::AssetRecord> record = catalog->asset(item.asset))
+                entry.label = fromCore(record->name);
+        QStringList sentences;
+        for (const plynth::ItemProblem& problem : problems) {
+            if (problem.item != item.id)
+                continue;
+            entry.problem = true;
+            sentences << fromCore(problem.message);
+            if (problem.kind == plynth::ItemProblemKind::MissingAsset) {
+                entry.missing = true;
+                entry.label = QObject::tr("Missing asset");
+                entry.detail = fromCore(item.asset);
+            }
+        }
+        entry.tip = sentences.join(QLatin1Char('\n'));
+        overlay.items.append(entry);
     }
     return overlay;
 }

@@ -92,10 +92,16 @@ public:
     // Opens the setup check at start when this is the first run, after an update, or a required item blocks.
     void openSetupCheckIfNeeded();
 
+    // For checks only: opens the furniture picker at a place on the plan (metres) and hovers an asset when
+    // an id is given. False when there is no scale or no library.
+    bool showFurniturePicker(double x, double y, const QString& hoverAsset);
+
     // For checks only: shows the Assets tab.
     void showAssetsTab();
     // For checks only: selects an asset in the Assets tab. False when it is not listed.
     bool selectAsset(const QString& id);
+    // For checks only: scrolls the asset details to the category list.
+    void showAssetCategories();
 
     // For checks only: opens the terminal and types the text once the shell has printed something.
     void startTerminalCheck(const QString& text);
@@ -108,6 +114,7 @@ protected:
     void dragEnterEvent(QDragEnterEvent* event) override;
     void dropEvent(QDropEvent* event) override;
     void changeEvent(QEvent* event) override;
+    bool eventFilter(QObject* watched, QEvent* event) override;
     void closeEvent(QCloseEvent* event) override;
     void showEvent(QShowEvent* event) override;
     bool nativeEvent(const QByteArray& eventType, void* message, qintptr* result) override;
@@ -190,6 +197,8 @@ private:
     bool wallViewSized_ = false;
     QAction* toolActions_[kAllTools.size()] = {};
     QAction* acceptDetectionAction_ = nullptr;
+    QAction* turnLeftAction_ = nullptr;
+    QAction* turnRightAction_ = nullptr;
     QAction* snapGridAction_ = nullptr;
     QAction* deleteAction_ = nullptr;
     StatusBar* statusBar_ = nullptr;

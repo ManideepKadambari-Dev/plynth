@@ -5,13 +5,18 @@
 #include "tools/Tool.h"
 
 #include <plynth/core/Document.h>
+#include <plynth/core/Geometry.h>
 #include <plynth/core/Plan.h>
+#include <plynth/core/catalog/AssetCatalog.h>
 
+#include <QMetaObject>
 #include <QObject>
+#include <QPoint>
 #include <QPointer>
 #include <QString>
 
 #include <array>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -21,6 +26,8 @@ class QWidget;
 namespace plynth::app {
 
 class DetectionSession;
+class FurniturePicker;
+class LibraryHost;
 
 // What the Opening tool places: the type, the shape and, for doors, the hinge and swing. The sizes are the
 // project's default sizes.
@@ -57,6 +64,32 @@ public:
     Selection& selection() { return *selection_; }
     QWidget* dialogParent() { return dialogParent_.data(); }
     DetectionSession& detection() { return *detection_; }
+    // The library of assets, or null before the window gives it. catalog() is null while no library is open.
+    void setLibrary(LibraryHost* library) { library_ = library; }
+    LibraryHost* library() const { return library_; }
+    plynth::AssetCatalog* catalog() const;
+    // The furniture picker, made on first use over the canvas. Needs a library host.
+    // over is the widget it is drawn over: the plan canvas when null, or the wall view.
+    FurniturePicker& picker(QWidget* over = nullptr);
+    bool pickerOpen() const;
+    // Opens the picker over a widget at a point (in that widget) and calls chosen once with the asset the user
+    // picks. Closing the picker without a choice calls nothing.
+    void pickAsset(QWidget* over, const QPoint& anchor, const QString& roomType,
+                   std::function<void(const QString&)> chosen);
+    // Places a catalog asset on a wall of the first floor as a wall item, flush on one face at an offset along
+    // the wall, at the project's wall item centre height, and selects it. Refusals show as messages.
+    bool placeWallAsset(const QString& assetId, const plynth::Id& wallId, plynth::WallSide side, double offset);
+    // Snaps the centre of a floor item wanted at a place: to the grid and to nearby wall faces. Ctrl (free)
+    // turns snapping off. Uses core's snapItemPosition with the project grid and the canvas snap radius.
+    plynth::Vec2 snapItem(const plynth::Item& item, plynth::Vec2 wanted, bool free) const;
+    // Places a catalog asset on the first floor at a wanted place, snapped, and selects the new item. A
+    // missing, broken or unmeasured asset is refused with a message. Returns true when placed.
+    bool placeAsset(const QString& assetId, plynth::Vec2 wanted, bool free);
+    // Turns the selected floor item by degrees (positive is clockwise). Refusals show as messages.
+    bool turnSelectedItem(double degrees);
+    // For checks: switches to the Furniture tool and opens its picker at a place in metres, then hovers an
+    // asset when an id is given. False when the tool is not available.
+    bool showFurniturePicker(double x, double y, const QString& hoverAsset);
 
     const plynth::Floor* floor() const;
     std::optional<double> pixelsPerMetre() const;
@@ -106,7 +139,11 @@ private:
     std::array<std::unique_ptr<Tool>, kAllTools.size()> tools_;
     OpeningToolSettings openingSettings_;
     int mergeKey_ = 0;
+    FurniturePicker* picker_ = nullptr;
+    QMetaObject::Connection pickChosen_;
+    QMetaObject::Connection pickDismissed_;
     DetectionSession* detection_ = nullptr;
+    LibraryHost* library_ = nullptr;
     ToolId active_ = ToolId::Select;
     bool snapToGrid_ = true;
     double newWallThickness_ = 0.2;

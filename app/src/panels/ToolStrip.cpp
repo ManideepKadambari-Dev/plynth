@@ -100,6 +100,13 @@ void ToolButton::paintEvent(QPaintEvent*)
         p.drawLine(c + QPointF(0, 0) * u, c + QPointF(0, 8) * u);
         break;
     }
+    case ToolId::Furniture: {
+        p.drawRoundedRect(QRectF(c + QPointF(-9, -7) * u, QSizeF(18, 9) * u), 2 * u, 2 * u);
+        p.drawRoundedRect(QRectF(c + QPointF(-11, -1) * u, QSizeF(22, 8) * u), 2 * u, 2 * u);
+        p.drawLine(c + QPointF(-7, 7) * u, c + QPointF(-7, 10) * u);
+        p.drawLine(c + QPointF(7, 7) * u, c + QPointF(7, 10) * u);
+        break;
+    }
     case ToolId::Detect: {
         const QPointF lens = c + QPointF(-2.5, -2.5) * u;
         p.drawEllipse(lens, 6.5 * u, 6.5 * u);
@@ -134,7 +141,7 @@ ToolStrip::ToolStrip(ToolController* controller, QWidget* parent)
     const Theme& t = Theme::instance();
     setFixedWidth(t.toolStripWidth());
     setProperty("tourId", QStringLiteral("tool-strip"));
-    setToolTip(tr("Tools: Select, Scale, Wall, Opening, Room and Detect"));
+    setToolTip(tr("Tools: Select, Scale, Wall, Opening, Room, Furniture and Detect"));
 
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins((t.toolStripWidth() - kBorderWidth - t.toolButton()) / 2, t.unit() * 2,
@@ -169,6 +176,7 @@ QString ToolStrip::toolName(ToolId id)
     case ToolId::Wall: return tr("Wall");
     case ToolId::Opening: return tr("Opening");
     case ToolId::Room: return tr("Room");
+    case ToolId::Furniture: return tr("Furniture");
     case ToolId::Detect: return tr("Detect");
     }
     return QString();
@@ -183,6 +191,7 @@ QString ToolStrip::toolKey(ToolId id)
     case ToolId::Wall: return QStringLiteral("W");
     case ToolId::Opening: return QStringLiteral("O");
     case ToolId::Room: return QStringLiteral("R");
+    case ToolId::Furniture: return QStringLiteral("P");
     case ToolId::Detect: return QStringLiteral("D");
     }
     return QString();

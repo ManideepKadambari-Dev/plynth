@@ -64,6 +64,12 @@ public:
     int wallViewMargin() const { return wallViewMargin_; }
     int handleSize() const { return handleSize_; }
     int bendHandle() const { return bendHandle_; }
+    int pickerColumnWidth() const { return pickerColumnWidth_; }
+    int pickerRowHeight() const { return pickerRowHeight_; }
+    int previewWidth() const { return previewWidth_; }
+    int rotationHandle() const { return rotationHandle_; }
+    int itemLabelMinPixels() const { return itemLabelMinPixels_; }
+    int itemFillAlpha() const { return itemFillAlpha_; }
     int terminalButton() const { return terminalButton_; }
     int terminalPanelWidth() const { return terminalPanelWidth_; }
     int terminalPanelHeight() const { return terminalPanelHeight_; }
@@ -71,6 +77,10 @@ public:
     QString monoFamily() const { return monoFamily_; }
 
     QString styleSheet() const;
+    // Style sheet for one scroll bar, from theme colors. Applied to the scroll bars that need it.
+    QString scrollBarStyleSheet() const;
+    // Rich text for a sentence, with every file name and path set in the mono font.
+    QString withMonoPaths(const QString& text) const;
     void apply() const;
 
 private:
@@ -105,6 +115,12 @@ private:
     int wallViewMargin_ = 24;
     int handleSize_ = 8;
     int bendHandle_ = 10;
+    int pickerColumnWidth_ = 220;
+    int pickerRowHeight_ = 28;
+    int previewWidth_ = 288;
+    int rotationHandle_ = 10;
+    int itemLabelMinPixels_ = 48;
+    int itemFillAlpha_ = 153;
     int terminalButton_ = 44;
     int terminalPanelWidth_ = 760;
     int terminalPanelHeight_ = 420;

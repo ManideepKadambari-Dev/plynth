@@ -11,6 +11,7 @@
 #include <QLabel>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QSizePolicy>
 #include <QUrl>
 #include <QVBoxLayout>
 
@@ -53,7 +54,14 @@ void ImportQueueView::rebuild()
         auto* top = new QHBoxLayout();
         top->setSpacing(t.unit() * 2);
         auto* name = new QLabel(item.title, row);
-        name->setFont(t.uiFont(t.sizeNormal(), QFont::DemiBold));
+        if (item.kind == QueueItem::Kind::Refresh) {
+            name->setFont(t.uiFont(t.sizeNormal(), QFont::DemiBold));
+        } else {
+            name->setFont(t.monoFont(t.sizeNormal()));
+            name->setTextFormat(Qt::PlainText);
+            name->setMinimumWidth(0);
+            name->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+        }
         name->setToolTip(item.title);
         top->addWidget(name, 1);
         auto* stage = new QLabel(item.stage, row);
@@ -64,11 +72,17 @@ void ImportQueueView::rebuild()
         box->addLayout(top);
 
         if (failed) {
-            auto* why = new QLabel(item.message, row);
+            // The work folder path is long and the Show log button opens it, so the row names only the folder.
+            QString shown = item.message;
+            const QString folder = QDir::fromNativeSeparators(item.workFolder);
+            if (!folder.isEmpty())
+                shown.replace(folder, QStringLiteral(".staging/") + QFileInfo(folder).fileName());
+            auto* why = new QLabel(t.withMonoPaths(shown), row);
+            why->setToolTip(item.message);
+            why->setTextFormat(Qt::RichText);
             why->setWordWrap(true);
             why->setFont(t.uiFont(t.sizeSmall()));
             why->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
-            why->setToolTip(tr("Why the import failed"));
             box->addWidget(why);
         } else {
             auto* bar = new QProgressBar(row);
