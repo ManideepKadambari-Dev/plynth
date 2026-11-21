@@ -68,6 +68,10 @@ Answer projectNew(const RunContext& context, const NewOptions& options) {
 Answer projectInfo(const RunContext& context, const std::string& projectOption) {
     const std::string command = "project info";
     const std::filesystem::path folder = resolveProjectFolder(context, projectOption);
+    Answer refused;
+    if (!checkLock(command, folder, true, refused)) {
+        return refused;
+    }
     const ProjectLoad loaded = loadProject(folder);
     if (!loaded.status.ok()) {
         return failure(command, loaded.status);

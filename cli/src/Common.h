@@ -16,8 +16,14 @@ void addProjectOption(CLI::App& sub, std::string& value);
 // when printed.
 std::filesystem::path resolveProjectFolder(const RunContext& context, const std::string& projectOption);
 
-// Opens the project in a folder into a document. On error the answer for command is returned in failed.
-bool openProject(const std::string& command, const std::filesystem::path& folder, Document& document, Answer& failed);
+// Checks the edit lock (allowCliCommand) and then opens the project in a folder into a document.
+// readOnly true is for commands that only read. On error the answer for command is returned in failed.
+bool openProject(const std::string& command, const std::filesystem::path& folder, Document& document, Answer& failed,
+                 bool readOnly = false);
+
+// Checks the edit lock for a command that reads the project without a document. Returns false and
+// fills failed when the command is refused.
+bool checkLock(const std::string& command, const std::filesystem::path& folder, bool readOnly, Answer& failed);
 
 // Saves the document's project into its own folder, leaving any autosave alone.
 Status saveInPlace(const Document& document);

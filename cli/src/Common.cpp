@@ -1,5 +1,6 @@
 #include "Common.h"
 
+#include <plynth/core/EditSession.h>
 #include <plynth/core/ProjectFiles.h>
 
 namespace plynth::cli {
@@ -20,7 +21,20 @@ std::filesystem::path resolveProjectFolder(const RunContext& context, const std:
     return folder;
 }
 
-bool openProject(const std::string& command, const std::filesystem::path& folder, Document& document, Answer& failed) {
+bool checkLock(const std::string& command, const std::filesystem::path& folder, bool readOnly, Answer& failed) {
+    const Status allowed = allowCliCommand(folder, sessionNow(), readOnly);
+    if (!allowed.ok()) {
+        failed = failure(command, allowed);
+        return false;
+    }
+    return true;
+}
+
+bool openProject(const std::string& command, const std::filesystem::path& folder, Document& document, Answer& failed,
+                 bool readOnly) {
+    if (!checkLock(command, folder, readOnly, failed)) {
+        return false;
+    }
     const Status status = document.open(folder);
     if (!status.ok()) {
         failed = failure(command, status);

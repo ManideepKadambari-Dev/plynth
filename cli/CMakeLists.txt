@@ -9,6 +9,7 @@ add_library(plynth_cli STATIC
     src/commands/EditCommands.cpp
     src/commands/HelpCommand.cpp
     src/commands/ProjectCommands.cpp
+    src/commands/SessionCommands.cpp
     src/commands/VersionCommand.cpp
 )
 add_library(plynth::cli ALIAS plynth_cli)

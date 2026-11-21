@@ -32,6 +32,7 @@ std::vector<CommandSpec> versionCommands();
 std::vector<CommandSpec> helpCommands();
 std::vector<CommandSpec> projectCommands();
 std::vector<CommandSpec> editCommands();
+std::vector<CommandSpec> sessionCommands();
 
 // All commands in the order help lists them.
 const std::vector<CommandSpec>& allCommands();
