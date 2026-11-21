@@ -727,7 +727,7 @@ TEST_CASE("pickAt finds items before walls", "[core][command][item][snap]") {
     }
 }
 
-TEST_CASE("wall items are refused when they would reach past a wall's end", "[core][command][item][wall]") {
+TEST_CASE("wall items are kept on the wall or refused when too wide", "[core][command][item][wall]") {
     Project p = houseWithRooms();
     addPoint(p.plan.floors[0], "p20", 8, 0);
     addPoint(p.plan.floors[0], "p21", 9, 0);
@@ -742,19 +742,18 @@ TEST_CASE("wall items are refused when they would reach past a wall's end", "[co
         PlaceItemCommand c("f1", onWall);
         applyRefused(c, p, ErrorCode::InvalidValue);
     }
-    SECTION("an item that fits the wall but not at that place is refused on attach") {
+    SECTION("an item that fits the wall is slid inward from an end on attach") {
         const Id sofa = place(p, newItem("sofa", 2.85, 1.0, kSofa));
         SetItemWallCommand attach(sofa, Id("w1"));
-        applyRefused(attach, p, ErrorCode::InvalidValue);
-        const Id inside = place(p, newItem("sofa", 1.5, 1.0, kSofa));
-        SetItemWallCommand ok(inside, Id("w1"));
-        applyOk(ok, p);
+        applyOk(attach, p);
+        REQUIRE(get(p, sofa).x == Approx(2.0));
+        REQUIRE(wallItemSpot(p.plan.floors[0], get(p, sofa)).offset + 1.0 <= 3.0 + 1e-9);
+        REQUIRE(gapOf(p, sofa) == Approx(0.0).margin(1e-9));
     }
-    SECTION("place near an end is refused, and a good place is not") {
-        PlaceItemCommand bad("f1", newTv("w1", 0.2, 1.0));
-        applyRefused(bad, p, ErrorCode::InvalidValue);
-        PlaceItemCommand good("f1", newTv("w1", 0.7, 1.0));
-        applyOk(good, p);
+    SECTION("place near an end slides the item onto the wall") {
+        PlaceItemCommand c("f1", newTv("w1", 0.2, 1.0));
+        applyOk(c, p);
+        REQUIRE(get(p, c.itemId()).x == Approx(0.615));
     }
     SECTION("move on wall refuses an offset past either end") {
         const Id tv = place(p, newTv("w1", 1.4, 1.0));

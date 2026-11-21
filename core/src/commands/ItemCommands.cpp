@@ -51,7 +51,7 @@ Status poseOnWall(const Floor& floor, Item& item, std::optional<double> offset =
     return {};
 }
 
-// Refuses a wall item that would reach past either end of its wall when its centre is at a place along it.
+// Refuses a wall item that would reach past either end of its wall when its centre is at the given offset.
 Status checkWithinWall(const Floor& floor, const Item& item, double offset)
 {
     const Wall* wall = findWall(floor, *item.wall);
@@ -65,14 +65,6 @@ Status checkWithinWall(const Floor& floor, const Item& item, double offset)
         return fail(ErrorCode::InvalidValue, text);
     }
     return {};
-}
-
-// Refuses a wall item whose position, projected onto its wall, would put it past an end of the wall.
-Status checkPositionWithinWall(const Floor& floor, const Item& item)
-{
-    const WallItemSpot spot = wallItemSpot(floor, item);
-    if (!spot.valid) return fail(ErrorCode::InvalidValue, "The wall " + *item.wall + " has no valid shape.");
-    return checkWithinWall(floor, item, spot.offset);
 }
 
 // Sets the room of an item from where it stands.
@@ -121,7 +113,6 @@ Status PlaceItemCommand::apply(Project& project)
     item.rotation = normalizeRotation(item.rotation);
     if (const Status s = checkItemPlacement(*floor, item); !s.ok()) return s;
     if (item.wall) {
-        if (const Status s = checkPositionWithinWall(*floor, item); !s.ok()) return s;
         if (const Status s = poseOnWall(*floor, item); !s.ok()) return s;
     }
     if (!item.room) setRoomFromPosition(*floor, item);
@@ -436,7 +427,6 @@ Status SetItemWallCommand::apply(Project& project)
         changed.wall = wallId_;
         if (!(changed.z > 0.0)) changed.z = defaultWallItemZ(project.settings.defaults, changed.size.height);
         if (const Status s = checkItemPlacement(*found.floor, changed); !s.ok()) return s;
-        if (const Status s = checkPositionWithinWall(*found.floor, changed); !s.ok()) return s;
         if (const Status s = poseOnWall(*found.floor, changed); !s.ok()) return s;
         setRoomFromPosition(*found.floor, changed);
     } else {

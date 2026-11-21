@@ -21,8 +21,8 @@ namespace plynth {
 // Adds an item at the end of the floor's item list. item.id is ignored: the new id comes from newId with
 // kItemIdPrefix on the first apply and is kept for redo. rotation is normalized. When item.room is set it must
 // be a room of the floor and is kept; otherwise it is roomAt the position. A wall item is put flush as above,
-// with z as given, and refused (InvalidValue) when it would reach past either end of its wall at the place along
-// the wall nearest its position. NotFound for an unknown floor, otherwise as checkItemPlacement.
+// with z as given and kept fully on the wall (slid inward from an end when it fits; wider than the wall is refused
+// by checkItemPlacement). NotFound for an unknown floor, otherwise as checkItemPlacement.
 class PlaceItemCommand : public Command {
 public:
     PlaceItemCommand(Id floorId, Item item);
@@ -154,8 +154,8 @@ private:
 };
 
 // Mounts an item on a wall of its floor, or takes it off. Mounting puts it flush on the side of the wall its
-// position is on, at the nearest place along it (refused with InvalidValue when the item would reach past an end
-// of the wall there); z stays when above 0, otherwise it is defaultWallItemZ from
+// position is on, at the nearest place along it , slid inward from an end so it stays fully on the wall when it fits
+// (an item wider than the wall is refused by checkItemPlacement); z stays when above 0, otherwise it is defaultWallItemZ from
 // the project's default sizes. Taking it off clears wall and keeps position, rotation and z. NotFound for an
 // unknown item or wall, InvalidValue for a wall on another floor, otherwise as checkItemPlacement.
 class SetItemWallCommand : public Command {
