@@ -1,6 +1,6 @@
 // plynth.com: a small console program that starts plynth.exe with the same command line. For a CLI
 // command it waits and returns the exit code, so a terminal sees the answer. To open the window it
-// returns at once.
+// returns at once. For anything else it prints the CLI's unknown_command answer.
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -65,16 +65,44 @@ std::string toUtf8(const wchar_t* text) {
     return result;
 }
 
-// Says whether the first argument is a CLI command word. False with no arguments.
-bool firstArgumentIsCommand() {
+// What the first argument asks for.
+enum class Mode {
+    Command, // a CLI command word: run plynth.exe and wait
+    Window,  // nothing, an existing file or folder, or an app option: open the window
+    Unknown, // anything else: answer with the CLI's unknown_command error
+};
+
+// Decides what the first argument asks for.
+Mode modeOf(const std::string& first, bool hasFirst) {
+    if (!hasFirst) {
+        return Mode::Window;
+    }
+    if (plynth::cli::isCommandWord(first)) {
+        return Mode::Command;
+    }
+    for (const char* option : {"--image", "--screenshot", "--size", "--terminal"}) {
+        if (first == option) {
+            return Mode::Window;
+        }
+    }
+    if (first.empty() || first.front() == '-') {
+        return Mode::Unknown;
+    }
+    std::error_code ignored;
+    const bool exists = std::filesystem::exists(std::filesystem::path(std::u8string(first.begin(), first.end())), ignored);
+    return exists ? Mode::Window : Mode::Unknown;
+}
+
+// Reads the first argument and decides what it asks for.
+Mode readMode() {
     int count = 0;
     wchar_t** args = CommandLineToArgvW(GetCommandLineW(), &count);
     if (args == nullptr) {
-        return false;
+        return Mode::Window;
     }
-    const bool isCommand = count > 1 && plynth::cli::isCommandWord(toUtf8(args[1]));
+    const Mode mode = modeOf(count > 1 ? toUtf8(args[1]) : std::string(), count > 1);
     LocalFree(args);
-    return isCommand;
+    return mode;
 }
 
 // The folder this program lives in.
@@ -89,6 +117,10 @@ std::filesystem::path ownFolder() {
 
 // Starts plynth.exe from this folder, waits for it and returns its exit code.
 int main() {
+    const Mode mode = readMode();
+    if (mode == Mode::Unknown) {
+        return plynth::cli::runFromProcess(0, nullptr);
+    }
     const std::filesystem::path child = ownFolder() / L"plynth.exe";
     std::error_code ignored;
     if (!std::filesystem::exists(child, ignored)) {
@@ -107,7 +139,7 @@ int main() {
     startup.cb = sizeof(startup);
 
     // Opening the window: start it on its own and return at once, so the terminal gets its prompt back.
-    if (!firstArgumentIsCommand()) {
+    if (mode == Mode::Window) {
         PROCESS_INFORMATION window{};
         if (!CreateProcessW(child.c_str(), commandLine.data(), nullptr, nullptr, FALSE, DETACHED_PROCESS, nullptr,
                             nullptr, &startup, &window)) {

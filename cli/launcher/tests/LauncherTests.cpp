@@ -113,9 +113,11 @@ TEST_CASE("the launcher returns at once when the window is opened", "[launcher]"
     TempFolder temp;
     fs::copy_file(PLYNTH_LAUNCHER_FILE, temp.path() / "plynth.com");
     fs::copy_file(PLYNTH_FAKE_CHILD, temp.path() / "plynth.exe");
+    const std::wstring existing = temp.path().wstring();
 
-    for (const std::wstring arguments : {std::wstring(L"C:/plans/flat exit=3 sleep=1500"), std::wstring(L"sleep=1500 exit=3"),
-                                         std::wstring()}) {
+    for (const std::wstring& arguments :
+         {existing + L" exit=3 sleep=1500", std::wstring(L"--image plan.png exit=3 sleep=1500"),
+          std::wstring(L"--terminal exit=3 sleep=1500"), std::wstring()}) {
         const auto start = std::chrono::steady_clock::now();
         const auto outcome = runLauncher(temp.path() / "plynth.com", arguments, temp.path());
         const auto elapsed = std::chrono::steady_clock::now() - start;
@@ -124,4 +126,19 @@ TEST_CASE("the launcher returns at once when the window is opened", "[launcher]"
     }
     // Let the stand-in windows end so the folder can be removed.
     Sleep(2000);
+}
+
+TEST_CASE("the launcher answers unknown_command with exit 2 for a mistyped word", "[launcher]") {
+    TempFolder temp;
+    fs::copy_file(PLYNTH_LAUNCHER_FILE, temp.path() / "plynth.com");
+    fs::copy_file(PLYNTH_FAKE_CHILD, temp.path() / "plynth.exe");
+
+    for (const std::wstring& arguments : {std::wstring(L"bogus"), std::wstring(L"--bogus"), std::wstring(L"nothing/here exit=3")}) {
+        const auto outcome = runLauncher(temp.path() / "plynth.com", arguments, temp.path());
+        CHECK(outcome.exitCode == 2);
+        REQUIRE_FALSE(outcome.output.empty());
+        const auto answer = nlohmann::json::parse(outcome.output);
+        CHECK(answer.at("ok") == false);
+        CHECK(answer.at("error").at("code") == "unknown_command");
+    }
 }
