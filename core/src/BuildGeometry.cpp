@@ -379,7 +379,7 @@ std::vector<WallSolid> wallSolids(const Floor& floor)
         info.height = wallHeight(floor, *wall);
         info.half = wall->thickness / 2.0;
         info.line = wallPath(floor, *wall).centreLine;
-        for (const std::vector<Vec2>& band : wallBand(floor, *wall)) {
+        for (const std::vector<Vec2>& band : detail::wallBandWith(floor, *wall, true)) {
             std::vector<Vec2> world;
             for (const Vec2& p : band) world.push_back(flipped(p));
             info.bands.push_back(std::move(world));

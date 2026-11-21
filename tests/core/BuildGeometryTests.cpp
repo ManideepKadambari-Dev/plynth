@@ -218,6 +218,58 @@ TEST_CASE("a bent wall and a rounded corner give the union of the bands", "[core
     REQUIRE(solids[0].outline.points.size() > 8);
 }
 
+TEST_CASE("walls of different thickness meet in a clean corner", "[core][build]") {
+    Floor f;
+    f.id = "f1";
+    f.points = {{"p1", 0.0, 0.0, 0.0}, {"p2", 4.0, 0.0, 0.0}, {"p3", 4.0, 3.0, 0.0}};
+    Wall a;
+    a.id = "w1";
+    a.from = "p1";
+    a.to = "p2";
+    a.thickness = 0.12;
+    Wall b;
+    b.id = "w2";
+    b.from = "p2";
+    b.to = "p3";
+    b.thickness = 0.3;
+    f.walls = {a, b};
+
+    const std::vector<WallSolid> solids = wallSolids(f);
+    REQUIRE(solids.size() == 1);
+    const std::vector<Vec2>& outline = solids[0].outline.points;
+    const auto [minX, maxX] = range(outline, true);
+    const auto [minY, maxY] = range(outline, false);
+    REQUIRE(maxX == Approx(4.15).margin(1e-9));
+    REQUIRE(maxY == Approx(0.06).margin(1e-9));
+    REQUIRE(minX == Approx(-0.06).margin(1e-9));
+    REQUIRE(minY == Approx(-3.15).margin(1e-9));
+    REQUIRE(ringArea(outline) == Approx(4.21 * 0.12 + 0.3 * 3.09).margin(1e-6));
+}
+
+TEST_CASE("a curved wall ends in a clean mitre against a straight wall", "[core][build]") {
+    Floor f = squareWithRoom();
+    findWall(f, "w1")->bulge = -1.0;
+
+    Clipper2Lib::PathD centre;
+    for (const char* id : {"w1", "w2", "w3", "w4"}) {
+        const std::vector<Vec2> line = wallPath(f, *findWall(f, id)).centreLine;
+        const bool join = !centre.empty();
+        for (std::size_t i = join ? 1 : 0; i < line.size(); ++i) centre.emplace_back(line[i].x, line[i].y);
+    }
+    centre.pop_back();
+    const Clipper2Lib::PathsD outer = Clipper2Lib::InflatePaths({centre}, 0.1, Clipper2Lib::JoinType::Miter,
+                                                                Clipper2Lib::EndType::Polygon, 10.0, 8);
+    const Clipper2Lib::PathsD inner = Clipper2Lib::InflatePaths({centre}, -0.1, Clipper2Lib::JoinType::Miter,
+                                                                Clipper2Lib::EndType::Polygon, 10.0, 8);
+    const double expected = std::fabs(Clipper2Lib::Area(outer)) - std::fabs(Clipper2Lib::Area(inner));
+
+    const std::vector<WallSolid> solids = wallSolids(f);
+    REQUIRE(solids.size() == 1);
+    REQUIRE(solids[0].holes.size() == 1);
+    const double area = ringArea(solids[0].outline.points) + ringArea(solids[0].holes[0].points);
+    REQUIRE(area == Approx(expected).margin(3e-3));
+}
+
 TEST_CASE("openingBuild of a door on a straight wall", "[core][build]") {
     const Floor f = squareWithRoom();
     const OpeningBuildResult r = openingBuild(f, door("w1", 2.0), 0.0);
