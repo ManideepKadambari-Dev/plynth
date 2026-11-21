@@ -1,6 +1,8 @@
 #include "theme/Theme.h"
 #include "window/MainWindow.h"
 
+#include <plynth/core/Version.h>
+
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QImage>
@@ -40,11 +42,12 @@ bool saveScreenshot(QWidget& window, const QString& file, const QSize& size)
 
 }
 
+// Parses the options, opens the window and optionally saves a screenshot.
 int main(int argc, char* argv[])
 {
     QApplication app(argc, argv);
     QApplication::setApplicationName(QStringLiteral("Plynth"));
-    QApplication::setApplicationVersion(QStringLiteral("0.0.1"));
+    QApplication::setApplicationVersion(QString::fromUtf8(plynth::version().data(), static_cast<qsizetype>(plynth::version().size())));
 
     QCommandLineParser parser;
     parser.setApplicationDescription(QStringLiteral("Plynth"));

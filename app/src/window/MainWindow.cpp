@@ -24,14 +24,19 @@
 
 namespace plynth::app {
 
+// Builds the window, title bar and the first menu actions.
 MainWindow::MainWindow(const QString& projectFolder, QWidget* parent)
     : QMainWindow(parent, Qt::Window | Qt::FramelessWindowHint)
 {
     setWindowIcon(QIcon(QStringLiteral(":/logo.png")));
     if (projectFolder.isEmpty())
         projectName_ = tr("No project");
-    else
-        projectName_ = QFileInfo(QDir::cleanPath(projectFolder)).fileName();
+    else {
+        const QString clean = QDir::cleanPath(projectFolder);
+        projectName_ = QFileInfo(clean).fileName();
+        if (projectName_.isEmpty())
+            projectName_ = clean;
+    }
     setWindowTitle(QStringLiteral("Plynth - ") + projectName_);
 
     titleBar_ = new TitleBar(this);

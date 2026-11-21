@@ -61,8 +61,10 @@ LRESULT hitTest(MainWindow& window, TitleBar& titleBar, HWND hwnd, LPARAM lParam
             return HTBOTTOM;
     }
 
+    POINT clientPoint = {x, y};
+    ScreenToClient(hwnd, &clientPoint);
     const qreal ratio = window.devicePixelRatioF();
-    const QPoint inWindow(qRound((x - rect.left) / ratio), qRound((y - rect.top) / ratio));
+    const QPoint inWindow(qRound(clientPoint.x / ratio), qRound(clientPoint.y / ratio));
     if (titleBar.geometry().contains(inWindow)) {
         switch (titleBar.hitTest(inWindow - titleBar.pos())) {
         case TitleBar::Hit::Caption:
@@ -138,6 +140,7 @@ bool handleNativeEvent(MainWindow& window, TitleBar& titleBar, void* message, qi
         titleBar.maximizeButton()->setHovered(false);
         titleBar.maximizeButton()->setPressedLook(false);
         return false;
+    case WM_NCLBUTTONDBLCLK:
     case WM_NCLBUTTONDOWN:
         if (msg->wParam == HTMAXBUTTON) {
             titleBar.maximizeButton()->setPressedLook(true);

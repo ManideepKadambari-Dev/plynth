@@ -15,6 +15,7 @@
 
 namespace plynth::app {
 
+// Creates a title bar button of the given kind.
 TitleButton::TitleButton(Kind kind, QWidget* parent)
     : QAbstractButton(parent), kind_(kind)
 {
@@ -47,6 +48,7 @@ void TitleButton::setPressedLook(bool pressed)
     update();
 }
 
+// Gives the button its theme size.
 QSize TitleButton::sizeHint() const
 {
     const Theme& t = Theme::instance();
@@ -101,18 +103,21 @@ void TitleButton::paintEvent(QPaintEvent*)
     }
 }
 
+// Repaints with the hover look when the mouse enters.
 void TitleButton::enterEvent(QEnterEvent* event)
 {
     QAbstractButton::enterEvent(event);
     update();
 }
 
+// Repaints without the hover look when the mouse leaves.
 void TitleButton::leaveEvent(QEvent* event)
 {
     QAbstractButton::leaveEvent(event);
     update();
 }
 
+// Builds the logo, menus and window buttons.
 TitleBar::TitleBar(QWidget* parent)
     : QWidget(parent)
 {
@@ -124,17 +129,10 @@ TitleBar::TitleBar(QWidget* parent)
     layout->setContentsMargins(t.unit() * 3, 0, 0, 0);
     layout->setSpacing(0);
 
-    auto* logo = new QLabel(this);
-    const qreal ratio = devicePixelRatioF();
-    QPixmap logoPixmap = QPixmap(QStringLiteral(":/logo.png"))
-                             .scaled(QSize(t.logoSize(), t.logoSize()) * ratio,
-                                     Qt::KeepAspectRatio, Qt::SmoothTransformation);
-    logoPixmap.setDevicePixelRatio(ratio);
-    logo->setPixmap(logoPixmap);
-    logo->setFixedSize(t.logoSize(), t.logoSize());
-    logo->setToolTip(tr("Plynth"));
-    logo_ = logo;
-    layout->addWidget(logo);
+    logo_ = new QLabel(this);
+    updateLogo();
+    logo_->setToolTip(tr("Plynth"));
+    layout->addWidget(logo_);
     layout->addSpacing(t.unit() * 2);
 
     menuBar_ = new QMenuBar(this);
@@ -170,6 +168,28 @@ TitleBar::TitleBar(QWidget* parent)
     connect(closeButton_, &QAbstractButton::clicked, this, &TitleBar::closeRequested);
 }
 
+// Draws the logo at the current display scale so it stays sharp on any monitor.
+void TitleBar::updateLogo()
+{
+    const Theme& t = Theme::instance();
+    const qreal ratio = devicePixelRatioF();
+    QPixmap pixmap = QPixmap(QStringLiteral(":/logo.png"))
+                         .scaled(QSize(t.logoSize(), t.logoSize()) * ratio,
+                                 Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    pixmap.setDevicePixelRatio(ratio);
+    logo_->setPixmap(pixmap);
+    logo_->setFixedSize(t.logoSize(), t.logoSize());
+}
+
+// Redraws the logo when the window moves to a screen with a different scale.
+bool TitleBar::event(QEvent* event)
+{
+    if (event->type() == QEvent::DevicePixelRatioChange)
+        updateLogo();
+    return QWidget::event(event);
+}
+
+// Sets the name shown in the middle of the bar.
 void TitleBar::setProjectName(const QString& name)
 {
     projectName_ = name;
@@ -223,6 +243,7 @@ void TitleBar::mousePressEvent(QMouseEvent* event)
     QWidget::mousePressEvent(event);
 }
 
+// Maximizes or restores the window on a double click of the empty bar.
 void TitleBar::mouseDoubleClickEvent(QMouseEvent* event)
 {
     if (event->button() == Qt::LeftButton)

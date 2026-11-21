@@ -4,12 +4,13 @@
 #include <QPixmap>
 #include <QWidget>
 
+class QLabel;
 class QMenu;
 class QMenuBar;
 
 namespace plynth::app {
 
-// One of the three round-less buttons at the right of the title bar, drawn with lines.
+// One of the three flat buttons at the right of the title bar, drawn with lines.
 class TitleButton : public QAbstractButton {
     Q_OBJECT
 public:
@@ -57,12 +58,15 @@ signals:
     void closeRequested();
 
 protected:
+    bool event(QEvent* event) override;
     void paintEvent(QPaintEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
     void mouseDoubleClickEvent(QMouseEvent* event) override;
 
 private:
-    QWidget* logo_ = nullptr;
+    void updateLogo();
+
+    QLabel* logo_ = nullptr;
     QMenuBar* menuBar_ = nullptr;
     QMenu* fileMenu_ = nullptr;
     QMenu* helpMenu_ = nullptr;

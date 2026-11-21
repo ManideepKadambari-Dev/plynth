@@ -10,6 +10,7 @@
 
 namespace plynth::app {
 
+// Returns the one shared theme.
 Theme& Theme::instance()
 {
     static Theme theme;
@@ -19,8 +20,8 @@ Theme& Theme::instance()
 // Plain neutral defaults, used only when the theme file cannot be read.
 Theme::Theme()
     : ground_(Qt::black), panel_(Qt::darkGray), raised_(Qt::darkGray), line_(Qt::gray),
-      text_(Qt::white), muted_(Qt::lightGray), signalBlue_(Qt::cyan),
-      signalAmber_(Qt::yellow), onBlue_(Qt::black),
+      text_(Qt::white), muted_(Qt::lightGray), signalBlue_(Qt::lightGray),
+      signalAmber_(Qt::gray), onBlue_(Qt::black),
       uiFamily_("Segoe UI"), monoFamily_("Consolas"),
       fallbackUi_("Segoe UI"), fallbackMono_("Consolas")
 {
