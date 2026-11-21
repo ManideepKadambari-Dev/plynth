@@ -14,6 +14,8 @@ namespace plynth {
 //   plan.json           the plan
 //   plans/              plan images
 //   autosave/           project.json and plan.json with unsaved changes, removed after a save
+//   session.lock        the CLI edit session, see EditSession.h
+//   app-state.json      written by the app while it has the project open, see EditSession.h
 
 // How often the app writes an autosave while there are unsaved changes.
 inline constexpr int kAutosaveIntervalSeconds = 30;

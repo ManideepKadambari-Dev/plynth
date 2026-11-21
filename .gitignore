@@ -67,3 +67,7 @@ desktop.ini
 *.swp
 *.tmp
 *.log
+
+# Edit lock and app state files inside project folders
+samples/*/session.lock
+samples/*/app-state.json

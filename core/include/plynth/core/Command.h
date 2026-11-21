@@ -23,7 +23,8 @@ inline constexpr unsigned Openings = 1u << 7;
 inline constexpr unsigned Content = (1u << 8) - 1; // every part of the project above
 inline constexpr unsigned History = 1u << 8;       // undo, redo or the unsaved changes state
 inline constexpr unsigned Folder = 1u << 9;        // the document now belongs to another folder
-inline constexpr unsigned Everything = Content | History | Folder;
+inline constexpr unsigned ReadOnly = 1u << 10;      // the document became read only or editable again
+inline constexpr unsigned Everything = Content | History | Folder | ReadOnly;
 }
 
 // One change to a project that can be undone. Every edit made by the app or the CLI is a command.

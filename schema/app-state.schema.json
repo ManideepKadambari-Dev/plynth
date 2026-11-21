@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:app-state:1",
+  "title": "Plynth app state, version 1",
+  "description": "The app-state.json file in a project folder, kept up to date by the app while it has the project open and removed when it closes the project. It is ignored when its process is no longer running.",
+  "type": "object",
+  "required": ["format", "version", "pid", "process_start", "modified", "updated"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "plynth-app-state" },
+    "version": { "const": 1 },
+    "pid": {
+      "description": "Id of the app process.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "process_start": {
+      "description": "A number that tells this run of the process apart from a later process with the same id. On Windows the process creation time. 0 when unknown.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "modified": {
+      "description": "The app has unsaved changes to this project.",
+      "type": "boolean"
+    },
+    "updated": {
+      "description": "UTC time of the last write, with whole seconds.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    }
+  }
+}

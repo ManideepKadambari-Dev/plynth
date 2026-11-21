@@ -42,7 +42,21 @@ public:
 
     // Swaps in another project and folder, forgets the undo history and tells listeners Everything changed.
     // modified true marks it as having unsaved changes, as after recovering an autosave.
+    // Also makes the document editable again (see setReadOnly).
     void replace(Project project, std::filesystem::path folder, bool modified = false);
+
+    // Reads project.json and plan.json again from the document's folder, for example after the CLI changed
+    // them. When they equal what the document holds, nothing happens and no listener is called. Otherwise
+    // the document takes them as saved (no unsaved changes, undo history cleared) and listeners get the
+    // flags of the parts that differ, plus History. Works while read only. Unsaved changes are lost, so the
+    // caller asks first. InvalidValue without a folder; load errors leave the document unchanged.
+    Status reload();
+
+    // Blocks or allows edits, for the edit lock (DESIGN.md section 7.19c). While read only, execute, redo,
+    // save and saveAs refuse with Locked and reason as the message, undo does nothing, canUndo and canRedo
+    // are false and autosave writes nothing. Listeners get ReadOnly when the state changes.
+    void setReadOnly(bool readOnly, std::string reason = {});
+    bool isReadOnly() const;
 
     // Opens a project folder with loadProject and replaces the document with it. On error the
     // document is unchanged.
@@ -97,6 +111,8 @@ private:
     unsigned long long editCount_ = 0;
     unsigned long long autosavedEditCount_ = 0;
     bool autosaveWritten_ = false; // an autosave file from this session may exist
+    bool readOnly_ = false;
+    std::string readOnlyReason_;
 };
 
 }

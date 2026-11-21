@@ -19,6 +19,8 @@ enum class ErrorCode {
     BadFile,            // "bad_file": a project file is not valid JSON or breaks the format rules
     UnsupportedVersion, // "unsupported_version": the file was written by a newer Plynth
     ImageError,         // "image_error": the plan image was refused by the image check
+    Locked,             // "locked": the project is read only, or the app has it open and no session is active
+    UnsavedChanges,     // "unsaved_changes": the app has unsaved changes, so a session cannot begin
 };
 
 // The outcome of an operation: ok, or an error code with one plain sentence saying why.
