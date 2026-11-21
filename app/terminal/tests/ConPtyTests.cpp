@@ -77,3 +77,19 @@ TEST_CASE("the shell choice is usable", "[terminal][conpty]") {
     QString shell = TerminalSession::chooseShell();
     CHECK_FALSE(shell.isEmpty());
 }
+
+TEST_CASE("closing during heavy output does not hang", "[terminal][conpty]") {
+    testApp();
+    TerminalSession session;
+    SessionOptions options;
+    options.commandLine = QStringLiteral("cmd.exe /c dir /s C:\\Windows");
+    REQUIRE(session.start(options));
+    CHECK(waitFor([&] { return session.screen().scrollbackLines() > 50; }, 10000));
+
+    // The GUI thread handles no events here, so the reader is busy when close starts.
+    QElapsedTimer timer;
+    timer.start();
+    session.close();
+    CHECK(timer.elapsed() < 5000);
+    CHECK(session.processCount() == 0);
+}

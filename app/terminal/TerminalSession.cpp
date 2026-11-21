@@ -100,9 +100,12 @@ void TerminalSession::feedOutput(const QByteArray& bytes) {
 // Runs on the reader thread. Collects output and hands it to the GUI thread in batches.
 void TerminalSession::readerLoop() {
     char buffer[16384];
-    while (!stopping_) {
+    // Never stops on a flag: ClosePseudoConsole can wait for the output pipe to drain, so reading
+    // goes on until the pipe ends. After close() the data is thrown away.
+    for (;;) {
         std::size_t got = pty_->read(buffer, sizeof(buffer));
         if (got == 0) break;
+        if (stopping_) continue;
         bool post = false;
         {
             std::lock_guard<std::mutex> lock(mutex_);
