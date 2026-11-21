@@ -6,12 +6,30 @@ Every action with a shortcut is also in the menu, where the shortcut is shown ne
 
 | Shortcut | Action |
 |---|---|
-| Ctrl+O | Open a plan image |
+| Ctrl+N | New project |
+| Ctrl+Shift+N | New project from an image |
+| Ctrl+O | Open a project folder |
+| Ctrl+Shift+O | Set the plan image of the current floor |
+| Ctrl+S | Save |
+| Ctrl+Shift+S | Save as, into another folder |
 | Alt+F4 | Exit Plynth |
+
+Ctrl+O used to open a plan image. It now opens a project. Use Ctrl+Shift+O, or drop an image on the window, to set the plan image.
+
+Setting the plan image can be undone. A new project from an image starts with the image already in place.
+
+## Edit
+
+| Shortcut | Action |
+|---|---|
+| Ctrl+Z | Undo the last change |
+| Ctrl+Y or Ctrl+Shift+Z | Redo the change that was undone |
+
+The menu shows the name of the change, for example "Undo Set plan image". The items are greyed when there is nothing to undo or redo, and while the command line is editing the project.
 
 ## View
 
-These actions work once a plan image is loaded.
+The zoom actions work once a plan image is loaded.
 
 | Shortcut | Action |
 |---|---|
@@ -19,8 +37,26 @@ These actions work once a plan image is loaded.
 | Ctrl+- | Zoom out one step |
 | Ctrl+0 | Fit the whole plan in the window |
 | Ctrl+1 | Show the plan at 100 percent |
+| Ctrl+` | Show or hide the terminal |
 
 Each zoom step is a factor of 1.25. The zoom range is 2 percent to 3200 percent.
+
+## Terminal
+
+The terminal is a normal shell in the project folder. It opens from the round button at the bottom right of the plan, or with Ctrl+`. Hiding it keeps the shell running.
+
+While the terminal has focus, almost every key goes to the shell. That includes Ctrl+S, Ctrl+Z and Ctrl+O, which do not save, undo or open anything in Plynth until you click outside the terminal. Ctrl+` always shows or hides the panel.
+
+| Shortcut | Action |
+|---|---|
+| Ctrl+` | Show or hide the terminal |
+| Ctrl+Shift+C | Copy the selected text |
+| Ctrl+C | Copy the selected text. With nothing selected it sends Ctrl+C to the running program, which usually stops it. |
+| Ctrl+V or Ctrl+Shift+V | Paste |
+| Shift+PageUp | Scroll back through the output |
+| Shift+PageDown | Scroll forward |
+
+With the mouse, drag to select text. The wheel scrolls back through the last 5000 lines. If a program has asked for the mouse, the wheel and clicks go to it; hold Shift to select text instead.
 
 ## Mouse
 
@@ -29,7 +65,7 @@ Each zoom step is a factor of 1.25. The zoom range is 2 percent to 3200 percent.
 | Mouse wheel | Zoom in or out. The point under the cursor stays where it is. |
 | Middle button and drag | Pan the plan |
 | Hold Space, then left button and drag | Pan the plan |
-| Drop an image file on the window | Open it |
+| Drop an image file on the window | Set it as the plan image of the current floor |
 
 While Space is held, the cursor becomes an open hand. It closes while you drag.
 
@@ -61,7 +97,10 @@ If an image is refused, a message says why, and the image you had open stays on 
 ## Opening from the command line
 
 ```
-plynth.exe --image plan.png
+plynth plan-folder
+plynth --image plan.png
 ```
 
-This opens the window with the image already loaded. To save a picture of the window, add `--screenshot out.png --size 1280x720`.
+The first opens a project folder. The second starts a new project with the image already loaded. With both, the image is set on the opened project as an unsaved change. To save a picture of the window, add `--screenshot out.png --size 1280x720`.
+
+The command line can also create and edit projects without opening the window. See the command line guide.
