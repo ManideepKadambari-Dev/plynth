@@ -28,7 +28,7 @@ QString RoomTool::hint() const
     return QObject::tr("Click inside a closed area to make a room, or inside a room to change its type.");
 }
 
-// Shows the built in room types and "No type yet", with the current one ticked.
+// Shows the room types in use and "No type yet", with the current one ticked.
 bool RoomTool::pickType(const std::optional<std::string>& current, const QPoint& global,
                         std::optional<std::string>* type)
 {
@@ -45,7 +45,7 @@ bool RoomTool::pickType(const std::optional<std::string>& current, const QPoint&
     const bool known = !current.has_value() || plynth::findRoomType(*current) != nullptr;
     if (!known)
         add(QString::fromStdString(*current), current);
-    for (const plynth::RoomType& roomType : plynth::builtInRoomTypes())
+    for (const plynth::RoomType& roomType : plynth::roomTypes())
         add(fromCore(roomType.name), std::string(roomType.id));
     menu.addSeparator();
     add(QObject::tr("No type yet"), std::nullopt);

@@ -4,11 +4,13 @@
 
 #include <plynth/core/Document.h>
 #include <plynth/core/EditSession.h>
+#include <plynth/core/ProjectFiles.h>
 
 #include <QImage>
 #include <QKeySequence>
 #include <QList>
 #include <QMainWindow>
+#include <QPointer>
 
 #include <memory>
 #include <optional>
@@ -23,13 +25,20 @@ class QTimer;
 
 namespace plynth::app {
 
+class AssetsPanel;
 class DocumentBridge;
+class ImportQueue;
+class ImportQueueView;
+class LibraryHost;
+class LibraryWatcher;
+class SetupCheckDialog;
 class ProjectWatcher;
 class TerminalDock;
 class ReadOnlyBanner;
 class TitleBar;
 class PlanCanvas;
 class PropertiesPanel;
+class RightPanel;
 class Selection;
 class StatusBar;
 class ToolController;
@@ -70,6 +79,24 @@ public:
     // For checks only: chooses the side the wall view is seen from.
     void setWallViewSide(plynth::WallSide side);
 
+    // Picture of the window for screenshots: the setup check, when open, is drawn over a dimmed window.
+    QImage grabPicture();
+    // For checks only: opens the setup check and keeps it open.
+    void showSetupCheck();
+    // For checks only: true when no setup check is open, or its check has finished.
+    bool setupPictureReady() const;
+    // For checks only: queues an import of a file or folder.
+    void importFile(const QString& path);
+    // For checks only: true when no import was asked for, or its progress row is showing.
+    bool importPictureReady() const;
+    // Opens the setup check at start when this is the first run, after an update, or a required item blocks.
+    void openSetupCheckIfNeeded();
+
+    // For checks only: shows the Assets tab.
+    void showAssetsTab();
+    // For checks only: selects an asset in the Assets tab. False when it is not listed.
+    bool selectAsset(const QString& id);
+
     // For checks only: opens the terminal and types the text once the shell has printed something.
     void startTerminalCheck(const QString& text);
     bool terminalPictureReady() const;
@@ -88,6 +115,15 @@ protected:
 private:
     void toggleMaximized();
     void showAbout();
+    void buildCatalogMenu();
+    void openSetupCheck();
+    void importDialog();
+    void importPaths(const QStringList& paths);
+    void queueFinished(int kind, bool ok, const QString& assetId, const QString& message, bool thumbnailFailed);
+    void editRoomTypes();
+    void openLibraryFolder();
+    void roomTypesChanged();
+    void reportMissingImages(const plynth::SaveReport& report);
     void buildMenus();
     void newProject();
     void newProjectFromImage();
@@ -137,6 +173,16 @@ private:
     ToolController* tools_ = nullptr;
     ToolStrip* toolStrip_ = nullptr;
     PropertiesPanel* panel_ = nullptr;
+    AssetsPanel* assets_ = nullptr;
+    RightPanel* right_ = nullptr;
+    LibraryHost* host_ = nullptr;
+    QAction* importAction_ = nullptr;
+    QAction* rescanAction_ = nullptr;
+    ImportQueue* queue_ = nullptr;
+    ImportQueueView* queueView_ = nullptr;
+    LibraryWatcher* libraryWatcher_ = nullptr;
+    QPointer<SetupCheckDialog> setupDialog_;
+    bool importAsked_ = false;
     QSplitter* splitter_ = nullptr;
     WallView* wallView_ = nullptr;
     QAction* wallViewAction_ = nullptr;
@@ -162,6 +208,7 @@ private:
     QAction* redoAction_ = nullptr;
 
     QString lastFolder_;
+    QString lastAssetFolder_;
     QString shownImageKey_;
     QString cachedImageKey_;
     QImage cachedImage_;

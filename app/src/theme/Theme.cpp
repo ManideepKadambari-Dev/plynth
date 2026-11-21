@@ -87,6 +87,11 @@ bool Theme::load(const QString& resourcePath)
     toolButton_ = spacing["toolButton"].toInt(toolButton_);
     toolStripWidth_ = spacing["toolStripWidth"].toInt(toolStripWidth_);
     propertiesWidth_ = spacing["propertiesWidth"].toInt(propertiesWidth_);
+    assetsWidth_ = spacing["assetsWidth"].toInt(assetsWidth_);
+    thumbnailTile_ = spacing["thumbnailTile"].toInt(thumbnailTile_);
+    thumbnailLarge_ = spacing["thumbnailLarge"].toInt(thumbnailLarge_);
+    setupRowGap_ = spacing["setupRowGap"].toInt(setupRowGap_);
+    dialogMargin_ = spacing["dialogMargin"].toInt(dialogMargin_);
     snapRadius_ = spacing["snapRadius"].toInt(snapRadius_);
     wallViewMinHeight_ = spacing["wallViewMinHeight"].toInt(wallViewMinHeight_);
     wallViewMargin_ = spacing["wallViewMargin"].toInt(wallViewMargin_);

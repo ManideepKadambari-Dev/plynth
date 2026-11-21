@@ -19,6 +19,7 @@ constexpr int kExitBadArguments = 2;
 constexpr int kExitImageFailed = 3;
 constexpr int kExitTerminalFailed = 4;
 constexpr qint64 kDetectionWaitMs = 15000;
+constexpr qint64 kSetupWaitMs = 60000;
 
 // Reads "WxH" into a size. Returns false when the text is not two positive numbers.
 bool parseSize(const QString& text, QSize& out)
@@ -36,9 +37,9 @@ bool parseSize(const QString& text, QSize& out)
 }
 
 // Saves a picture of the window at exactly the requested pixel size.
-bool saveScreenshot(QWidget& window, const QString& file, const QSize& size)
+bool saveScreenshot(plynth::app::MainWindow& window, const QString& file, const QSize& size)
 {
-    QImage image = window.grab().toImage();
+    QImage image = window.grabPicture();
     if (image.size() != size)
         image = image.scaled(size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
     image.setDevicePixelRatio(1.0);
@@ -82,6 +83,19 @@ int main(int argc, char* argv[])
     QCommandLineOption wallSideOption(QStringLiteral("wall-side"),
                                       QStringLiteral("Side of the wall the wall view is seen from: left or right. For checks only."),
                                       QStringLiteral("side"));
+    QCommandLineOption catalogOption(QStringLiteral("catalog"),
+                                     QStringLiteral("Show the Assets tab. For checks only."));
+    QCommandLineOption selectAssetOption(QStringLiteral("select-asset"),
+                                         QStringLiteral("Select the asset with this id in the Assets tab. For checks only."),
+                                         QStringLiteral("id"));
+    QCommandLineOption setupOption(QStringLiteral("setup"), QStringLiteral("Open the setup check. For checks only."));
+    QCommandLineOption importOption(QStringLiteral("import"),
+                                    QStringLiteral("Queue an import of this file or folder. For checks only."),
+                                    QStringLiteral("file"));
+    parser.addOption(setupOption);
+    parser.addOption(importOption);
+    parser.addOption(catalogOption);
+    parser.addOption(selectAssetOption);
     parser.addOption(toolOption);
     parser.addOption(selectOption);
     parser.addOption(wallSideOption);
@@ -171,7 +185,17 @@ int main(int argc, char* argv[])
     if (parser.isSet(wallSideOption))
         window.setWallViewSide(parser.value(wallSideOption).toLower() == QStringLiteral("left") ? plynth::WallSide::Left
                                                                                              : plynth::WallSide::Right);
+    if (parser.isSet(catalogOption) || parser.isSet(selectAssetOption))
+        window.showAssetsTab();
+    if (parser.isSet(selectAssetOption))
+        window.selectAsset(parser.value(selectAssetOption));
     window.show();
+    if (parser.isSet(importOption))
+        window.importFile(parser.value(importOption));
+    if (parser.isSet(setupOption))
+        QTimer::singleShot(0, &window, [&window]() { window.showSetupCheck(); });
+    else if (!wantsScreenshot)
+        QTimer::singleShot(0, &window, [&window]() { window.openSetupCheckIfNeeded(); });
     if (loadFailed && !wantsScreenshot)
         QTimer::singleShot(0, &window, [&window, loadTitle, loadError]() { window.showError(loadTitle, loadError); });
     else if (hasProject && !loadFailed && !wantsScreenshot)
@@ -198,6 +222,8 @@ int main(int argc, char* argv[])
             if (wantsTerminal && !window.terminalPictureReady())
                 return;
             if (!window.detectionPictureReady() && !waited.hasExpired(kDetectionWaitMs))
+                return;
+            if ((!window.setupPictureReady() || !window.importPictureReady()) && !waited.hasExpired(kSetupWaitMs))
                 return;
             poll->stop();
             const bool ok = saveScreenshot(window, file, target);
