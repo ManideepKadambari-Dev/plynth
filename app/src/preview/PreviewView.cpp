@@ -201,6 +201,19 @@ void PreviewView::buildingBounds(const plynth::Plan& plan, QVector3D* low, QVect
             }
             top = std::max(top, static_cast<float>(level + wall.height.value_or(floor.ceilingHeight)));
         }
+        for (const plynth::Item& item : floor.items) {
+            const float reach = static_cast<float>(std::hypot(item.size.width, item.size.depth) / 2);
+            const float x0 = static_cast<float>(item.x) - reach;
+            const float x1 = static_cast<float>(item.x) + reach;
+            const float z0 = static_cast<float>(item.y) - reach;
+            const float z1 = static_cast<float>(item.y) + reach;
+            minX = any ? std::min(minX, x0) : x0;
+            maxX = any ? std::max(maxX, x1) : x1;
+            minZ = any ? std::min(minZ, z0) : z0;
+            maxZ = any ? std::max(maxZ, z1) : z1;
+            any = true;
+            top = std::max(top, static_cast<float>(level + item.z + item.size.height));
+        }
     }
     if (!any) {
         *low = QVector3D(-1, 0, -1);

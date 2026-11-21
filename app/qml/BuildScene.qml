@@ -99,6 +99,7 @@ Item {
         }
     }
 
+    // The 3D view is transparent so the Ground colour shows exactly, without the renderer's colour curve.
     Rectangle {
         anchors.fill: parent
         color: Theme.ground
@@ -113,8 +114,7 @@ Item {
         camera: root.topOrtho ? orthoCamera : camera
 
         environment: SceneEnvironment {
-            clearColor: Theme.ground
-            backgroundMode: scene.transparent ? SceneEnvironment.Transparent : SceneEnvironment.Color
+            backgroundMode: SceneEnvironment.Transparent
             antialiasingMode: SceneEnvironment.MSAA
             antialiasingQuality: SceneEnvironment.High
             lightProbe: Texture { textureData: ProceduralSkyTextureData {} }

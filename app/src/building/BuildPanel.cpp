@@ -103,31 +103,6 @@ BuildPanel::BuildPanel(QWidget* parent) : QWidget(parent)
     column_->setSpacing(t.unit() * 2);
     scroll->setWidget(body_);
     outer->addWidget(scroll, 1);
-
-    problemsHost_ = new QWidget(this);
-    auto* problemOuter = new QVBoxLayout(problemsHost_);
-    problemOuter->setContentsMargins(t.unit() * 4, 0, 0, 0);
-    problemOuter->setSpacing(0);
-    problemsHeading_ = new QLabel(problemsHost_);
-    problemsHeading_->setFont(t.uiFont(t.sizeSmall(), QFont::DemiBold));
-    problemsHeading_->setStyleSheet(QStringLiteral("color: %1; padding: %2px 0;").arg(t.muted().name()).arg(t.unit() * 2));
-    problemOuter->addWidget(problemsHeading_);
-    auto* problemScroll = new QScrollArea(problemsHost_);
-    problemScroll->setWidgetResizable(true);
-    problemScroll->setFrameShape(QFrame::NoFrame);
-    problemScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    problemScroll->setMinimumHeight(t.unit() * 36);
-    problemScroll->setStyleSheet(QStringLiteral("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; }") +
-                                 t.scrollBarStyleSheet());
-    problemBody_ = new QWidget();
-    problemColumn_ = new QVBoxLayout(problemBody_);
-    problemColumn_->setContentsMargins(0, 0, 0, t.unit() * 2);
-    problemColumn_->setSpacing(0);
-    problemColumn_->addStretch(1);
-    problemScroll->setWidget(problemBody_);
-    problemOuter->addWidget(problemScroll, 1);
-    outer->addWidget(problemsHost_, 1);
-    outer->setStretch(0, 2);
     setReport(nullptr, false);
 }
 
@@ -174,12 +149,6 @@ void BuildPanel::setReport(const plynth::BuildReport* report, bool stale)
         delete item;
     }
     empty_ = nullptr;
-    while (problemColumn_->count() > 1) {
-        QLayoutItem* item = problemColumn_->takeAt(0);
-        delete item->widget();
-        delete item;
-    }
-    problemsHost_->setVisible(report != nullptr);
     if (report == nullptr) {
         empty_ = new QLabel(tr("No build yet. Press Build (Ctrl+B)."), body_);
         empty_->setWordWrap(true);
@@ -220,6 +189,16 @@ void BuildPanel::setReport(const plynth::BuildReport* report, bool stale)
         addRow(summary, tr("Items"), QString::number(report->counts.items), true);
     }
 
+    auto* problemsHeading = new QLabel(report->problems.empty() ? tr("Problems: none") : tr("Problems"), body_);
+    problemsHeading->setFont(t.uiFont(t.sizeSmall(), QFont::DemiBold));
+    problemsHeading->setStyleSheet(QStringLiteral("color: %1; padding-top: %2px;").arg(t.muted().name()).arg(t.unit() * 2));
+    column_->addWidget(problemsHeading);
+    for (const plynth::BuildProblem& problem : report->problems) {
+        auto* row = new ProblemRow(problem, body_);
+        row->onClick = [this](const QString& object) { emit problemActivated(object); };
+        column_->addWidget(row);
+    }
+
     if (!report->blendFile.empty() || !report->fbxFile.empty()) {
         QWidget* files = addSection(tr("Files"));
         if (!report->blendFile.empty())
@@ -246,18 +225,28 @@ void BuildPanel::setReport(const plynth::BuildReport* report, bool stale)
 
     if (!report->steps.empty()) {
         QWidget* steps = addSection(tr("Steps"));
-        for (const plynth::BuildStepTime& step : report->steps)
-            addRow(steps, fromCore(step.step), tr("%1 ms").arg(step.ms), true);
+        auto* grid = static_cast<QGridLayout*>(steps->layout());
+        grid->setColumnStretch(1, 0);
+        grid->setColumnStretch(3, 0);
+        grid->setColumnStretch(0, 1);
+        grid->setColumnStretch(2, 1);
+        grid->setHorizontalSpacing(t.unit() * 2);
+        int index = 0;
+        for (const plynth::BuildStepTime& step : report->steps) {
+            const int row = index / 2;
+            const int col = (index % 2) * 2;
+            auto* name = new ElideLabel(fromCore(step.step), steps);
+            name->setFont(t.uiFont(t.sizeNormal()));
+            name->setToolTip(fromCore(step.step));
+            auto* time = new QLabel(tr("%1 ms").arg(step.ms), steps);
+            time->setFont(t.monoFont(t.sizeNormal()));
+            time->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
+            grid->addWidget(name, row, col);
+            grid->addWidget(time, row, col + 1);
+            ++index;
+        }
     }
 
-    problemsHeading_->setText(report->problems.empty() ? tr("Problems: none") : tr("Problems"));
-    problemsHost_->findChild<QScrollArea*>()->setVisible(!report->problems.empty());
-    int at = 0;
-    for (const plynth::BuildProblem& problem : report->problems) {
-        auto* row = new ProblemRow(problem, problemBody_);
-        row->onClick = [this](const QString& object) { emit problemActivated(object); };
-        problemColumn_->insertWidget(at++, row);
-    }
     column_->addStretch(1);
 }
 
