@@ -97,6 +97,10 @@ PropertiesPanel::PropertiesPanel(plynth::Document& document, Selection& selectio
     column->addWidget(deleteButton_);
     editors_.push_back(deleteButton_);
 
+    focusKey_ = controller_.nextMergeKey();
+    for (QWidget* editor : editors_)
+        if (qobject_cast<QComboBox*>(editor) != nullptr)
+            editor->installEventFilter(this);
     connect(&selection_, &Selection::changed, this, &PropertiesPanel::refresh);
     connect(&controller_, &ToolController::activeChanged, this, &PropertiesPanel::refresh);
     connect(&controller_.detection(), &DetectionSession::changed, this, &PropertiesPanel::refresh);
@@ -619,12 +623,16 @@ bool PropertiesPanel::eventFilter(QObject* watched, QEvent* event)
     if (event->type() == QEvent::FocusIn)
         for (QDoubleSpinBox* spin : keyedSpins_)
             if (watched == spin || watched->parent() == spin)
-                ++focusKey_;
+                focusKey_ = controller_.nextMergeKey();
     if (event->type() == QEvent::ShortcutOverride) {
         const int key = static_cast<QKeyEvent*>(event)->key();
         const bool inSpin = qobject_cast<QAbstractSpinBox*>(watched) != nullptr ||
                             qobject_cast<QAbstractSpinBox*>(watched->parent()) != nullptr;
         if (inSpin && (key == Qt::Key_Return || key == Qt::Key_Enter))
+            event->accept();
+        // Letters belong to type-ahead in a combo box, not to the tool shortcuts.
+        const QString typed = static_cast<QKeyEvent*>(event)->text();
+        if (qobject_cast<QComboBox*>(watched) != nullptr && !typed.isEmpty() && typed.at(0).isLetterOrNumber())
             event->accept();
     }
     return QWidget::eventFilter(watched, event);

@@ -23,7 +23,6 @@ namespace {
 
 constexpr int kDragStartPixels = 3;
 constexpr double kBendRound = 0.01;
-int g_nextDragKey = 1;
 
 }
 
@@ -61,7 +60,7 @@ void SelectTool::mousePressed(const ToolMouse& mouse)
     if (!host_.document().isReadOnly() && host_.selection().kind() == SelectionKind::Wall &&
         overBendHandle(mouse.view)) {
         bendWall_ = host_.selection().id().toStdString();
-        dragKey_ = g_nextDragKey++;
+        dragKey_ = host_.nextMergeKey();
         host_.canvas().viewport()->update();
         return;
     }
@@ -74,7 +73,7 @@ void SelectTool::mousePressed(const ToolMouse& mouse)
         if (!host_.document().isReadOnly()) {
             dragPoint_ = pick.id;
             pressView_ = mouse.view;
-            dragKey_ = g_nextDragKey++;
+            dragKey_ = host_.nextMergeKey();
         }
         break;
     case plynth::PickKind::Wall:
@@ -91,7 +90,7 @@ void SelectTool::mousePressed(const ToolMouse& mouse)
             if (wall != nullptr) {
                 dragOpening_ = pick.id;
                 pressView_ = mouse.view;
-                dragKey_ = g_nextDragKey++;
+                dragKey_ = host_.nextMergeKey();
                 openingGrab_ = plynth::projectOntoCurve(at, plynth::wallCurve(*floor, *wall)).offset - opening->offset;
             }
         }

@@ -143,7 +143,7 @@ private:
     QDoubleSpinBox* toolSill_ = nullptr;
     QLabel* toolSillLabel_ = nullptr;
     QPushButton* straightenButton_ = nullptr;
-    int focusKey_ = 1;
+    int focusKey_ = 0;
     std::vector<QDoubleSpinBox*> keyedSpins_;
 
     QLabel* roomId_ = nullptr;

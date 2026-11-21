@@ -79,6 +79,9 @@ public:
     void showMessage(const QString& text);
     // Shows plain news in the status bar, such as what an accept added.
     void showNotice(const QString& text);
+    // A new merge key. Every drag and every visit to an edit box takes its key from here, so commands from
+    // different sources never merge into one undo step.
+    int nextMergeKey() { return ++mergeKey_; }
     void requestTool(ToolId id) { setActive(id); }
     // Lets a tool say its hint changed.
     void hintChanged();
@@ -102,6 +105,7 @@ private:
     QPointer<QWidget> dialogParent_;
     std::array<std::unique_ptr<Tool>, kAllTools.size()> tools_;
     OpeningToolSettings openingSettings_;
+    int mergeKey_ = 0;
     DetectionSession* detection_ = nullptr;
     ToolId active_ = ToolId::Select;
     bool snapToGrid_ = true;

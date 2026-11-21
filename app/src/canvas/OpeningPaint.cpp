@@ -19,7 +19,7 @@ void paintOpening(QPainter& painter, const OverlayOpening& opening, const QTrans
         painter.setBrush(style.gapColor);
         painter.drawPolygon(footprint);
     }
-    if (style.tint.alpha() > 0) {
+    if (style.tint.isValid() && style.tint.alpha() > 0) {
         painter.setPen(Qt::NoPen);
         painter.setBrush(style.tint);
         painter.drawPolygon(footprint);

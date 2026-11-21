@@ -87,10 +87,21 @@ void PlanCanvas::setDimmed(bool dimmed)
     viewport()->update();
 }
 
-// Replaces what is drawn over the plan image. Positions are in scene units.
+// Replaces what is drawn over the plan image. Positions are in scene units. Where an opening cuts a wall the
+// band is cut away, so the plan image shows through the gap.
 void PlanCanvas::setOverlay(const OverlayData& overlay)
 {
     overlay_ = overlay;
+    QPainterPath gaps;
+    for (const OverlayOpening& opening : overlay_.openings) {
+        QPainterPath cut;
+        cut.addPolygon(opening.footprint);
+        cut.closeSubpath();
+        gaps.addPath(cut);
+    }
+    if (!gaps.isEmpty())
+        for (OverlayWall& wall : overlay_.walls)
+            wall.band = wall.band.subtracted(gaps);
     viewport()->update();
 }
 
@@ -349,7 +360,7 @@ void PlanCanvas::paintOverlay(QPainter* painter)
     {
         const QTransform view = viewportTransform();
         OpeningPaintStyle style;
-        style.gapColor = t.raised();
+        style.gap = false;
         style.outlineColor = t.signalAmber();
         for (const OverlayOpening& opening : overlay_.openings) {
             const bool selected = selectionKind_ == SelectionKind::Opening && opening.id == selectionId_;

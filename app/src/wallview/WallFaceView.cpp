@@ -493,7 +493,6 @@ void WallFaceView::mousePressEvent(QMouseEvent* event)
     if (event->button() == Qt::LeftButton && data_.valid && host_ != nullptr) {
         const QPoint view = event->pos();
         const QPointF face = toFace(QPointF(view));
-        static int nextKey = 1;
         const int handle = handleAt(view);
         if (handle >= 0) {
             if (const WallViewOpening* opening = selectedOpening()) {
@@ -502,7 +501,7 @@ void WallFaceView::mousePressEvent(QMouseEvent* event)
                 dragId_ = opening->id.toStdString();
                 dragStartBox_ = {opening->offset - opening->width / 2.0, opening->offset + opening->width / 2.0,
                                  opening->sill, opening->sill + opening->height};
-                dragKey_ = nextKey++;
+                dragKey_ = host_->nextMergeKey();
             }
         } else if (editable() && host_->active() == ToolId::Opening) {
             addOpeningAt(face, event->modifiers());
@@ -515,7 +514,7 @@ void WallFaceView::mousePressEvent(QMouseEvent* event)
                                  opening->sill, opening->sill + opening->height};
                 dragStartFace_ = face;
                 dragStartView_ = view;
-                dragKey_ = nextKey++;
+                dragKey_ = host_->nextMergeKey();
             }
         }
         viewport()->update();
