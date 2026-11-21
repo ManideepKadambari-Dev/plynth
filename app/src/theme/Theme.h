@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QColor>
+#include <array>
 #include <QFont>
 #include <QString>
 
@@ -40,6 +41,12 @@ public:
     int pointDot() const { return pointDot_; }
     int overlayAlpha() const { return overlayAlpha_; }
     int readOnlyDim() const { return readOnlyDim_; }
+    int terminalSelectionAlpha() const { return terminalSelectionAlpha_; }
+    int terminalButton() const { return terminalButton_; }
+    int terminalPanelWidth() const { return terminalPanelWidth_; }
+    int terminalPanelHeight() const { return terminalPanelHeight_; }
+    QColor terminalAnsi(int index) const { return ansi_[static_cast<size_t>(index)]; }
+    QString monoFamily() const { return monoFamily_; }
 
     QString styleSheet() const;
     void apply() const;
@@ -58,6 +65,11 @@ private:
     int pointDot_ = 9;
     int overlayAlpha_ = 150;
     int readOnlyDim_ = 150;
+    int terminalSelectionAlpha_ = 80;
+    int terminalButton_ = 44;
+    int terminalPanelWidth_ = 760;
+    int terminalPanelHeight_ = 420;
+    std::array<QColor, 16> ansi_;
 };
 
 }

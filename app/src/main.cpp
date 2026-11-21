@@ -16,6 +16,7 @@ constexpr int kExitSaved = 0;
 constexpr int kExitSaveFailed = 1;
 constexpr int kExitBadArguments = 2;
 constexpr int kExitImageFailed = 3;
+constexpr int kExitTerminalFailed = 4;
 
 // Reads "WxH" into a size. Returns false when the text is not two positive numbers.
 bool parseSize(const QString& text, QSize& out)
@@ -67,7 +68,11 @@ int main(int argc, char* argv[])
     QCommandLineOption imageOption(QStringLiteral("image"),
                                    QStringLiteral("Plan image to open."),
                                    QStringLiteral("file"));
+    QCommandLineOption terminalOption(QStringLiteral("terminal"),
+                                      QStringLiteral("Open the terminal and type this text. For checks only."),
+                                      QStringLiteral("text"));
     parser.addOption(imageOption);
+    parser.addOption(terminalOption);
     parser.addOption(screenshotOption);
     parser.addOption(sizeOption);
     if (!parser.parse(QApplication::arguments()))
@@ -119,14 +124,29 @@ int main(int argc, char* argv[])
     else if (hasProject && !loadFailed && !wantsScreenshot)
         QTimer::singleShot(0, &window, [&window]() { window.offerRecovery(); });
 
+    const bool wantsTerminal = parser.isSet(terminalOption);
+    if (wantsTerminal) {
+        const QString text = parser.value(terminalOption);
+        QTimer::singleShot(0, &window, [&window, text]() { window.startTerminalCheck(text); });
+    }
+
     if (wantsScreenshot) {
         const QString file = parser.value(screenshotOption);
         const QSize target = hasSize ? size : window.size();
-        QTimer::singleShot(400, &app, [&window, file, target, loadFailed]() {
+        auto* poll = new QTimer(&app);
+        poll->setInterval(wantsTerminal ? 100 : 400);
+        QObject::connect(poll, &QTimer::timeout, &app, [&window, file, target, loadFailed, wantsTerminal, poll]() {
+            if (wantsTerminal && !window.terminalPictureReady())
+                return;
+            poll->stop();
             const bool ok = saveScreenshot(window, file, target);
             const bool problem = loadFailed || window.planImageFailed();
-            QApplication::exit(!ok ? kExitSaveFailed : problem ? kExitImageFailed : kExitSaved);
+            QApplication::exit(!ok                    ? kExitSaveFailed
+                               : window.terminalFailed() ? kExitTerminalFailed
+                               : problem                 ? kExitImageFailed
+                                                         : kExitSaved);
         });
+        poll->start();
     }
     return app.exec();
 }

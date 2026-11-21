@@ -22,6 +22,7 @@ namespace plynth::app {
 
 class DocumentBridge;
 class ProjectWatcher;
+class TerminalDock;
 class ReadOnlyBanner;
 class TitleBar;
 class PlanCanvas;
@@ -53,6 +54,11 @@ public:
     void offerRecovery();
 
     void showError(const QString& title, const QString& message);
+
+    // For checks only: opens the terminal and types the text once the shell has printed something.
+    void startTerminalCheck(const QString& text);
+    bool terminalPictureReady() const;
+    bool terminalFailed() const;
 
 protected:
     void dragEnterEvent(QDragEnterEvent* event) override;
@@ -105,6 +111,7 @@ private:
     QTimer* autosaveTimer_ = nullptr;
     ReadOnlyBanner* banner_ = nullptr;
     ProjectWatcher* watcher_ = nullptr;
+    TerminalDock* terminal_ = nullptr;
     QList<QAction*> viewActions_;
     QAction* newAction_ = nullptr;
     QAction* newFromImageAction_ = nullptr;

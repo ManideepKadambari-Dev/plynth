@@ -6,6 +6,7 @@
 #include "ReadOnlyBanner.h"
 #include "document/DocumentBridge.h"
 #include "document/ProjectWatcher.h"
+#include "terminal/TerminalDock.h"
 #include "theme/Theme.h"
 
 #include <plynth/core/PlanImage.h>
@@ -92,6 +93,7 @@ MainWindow::MainWindow(QWidget* parent)
     column->addWidget(statusBar_);
     setCentralWidget(central);
     setAcceptDrops(true);
+    terminal_ = new TerminalDock(central, canvas_, this);
 
     connect(canvas_, &PlanCanvas::zoomChanged, this, [this](double zoom) {
         if (canvas_->hasImage())
@@ -209,6 +211,11 @@ void MainWindow::buildMenus()
                   QStringLiteral("view-actual-size"), {QKeySequence(Qt::CTRL | Qt::Key_1)},
                   &PlanCanvas::actualSize);
     updateViewActions();
+    titleBar_->viewMenu()->addSeparator();
+    QAction* terminalAction = addMenuAction(titleBar_->viewMenu(), tr("&Terminal"),
+                                            tr("Show or hide the terminal (Ctrl+`)"), QStringLiteral("view-terminal"),
+                                            {QKeySequence(Qt::CTRL | Qt::Key_QuoteLeft)});
+    connect(terminalAction, &QAction::triggered, terminal_, &TerminalDock::toggle);
 
     auto* aboutAction = titleBar_->helpMenu()->addAction(tr("&About Plynth"));
     aboutAction->setToolTip(tr("Show the Plynth version"));
@@ -278,8 +285,10 @@ void MainWindow::onDocumentChanged(unsigned changes)
         refreshOverlay();
     if (changes & plynth::Change::ReadOnly)
         updateReadOnlyUi();
-    if (changes & plynth::Change::Folder)
+    if (changes & plynth::Change::Folder) {
+        terminal_->setWorkingFolder(doc_.hasFolder() ? QString::fromStdWString(doc_.folder().wstring()) : QString());
         QTimer::singleShot(0, this, &MainWindow::syncWatcher);
+    }
     if (changes & (plynth::Change::History | plynth::Change::Settings | plynth::Change::Folder)) {
         updateTitle();
         updateActions();
@@ -564,6 +573,20 @@ bool MainWindow::confirmDiscardChanges()
 {
     if (screenshotMode_)
         return true;
+    if (terminal_->hasRunningProgram()) {
+        QMessageBox box(this);
+        box.setIcon(QMessageBox::NoIcon);
+        box.setWindowTitle(tr("Terminal"));
+        box.setText(tr("A program is still running in the terminal. Closing the project will stop it."));
+        QPushButton* stop = box.addButton(tr("Stop it"), QMessageBox::AcceptRole);
+        QPushButton* cancel = box.addButton(tr("Cancel"), QMessageBox::RejectRole);
+        stop->setToolTip(tr("Stop the program and close the project"));
+        cancel->setToolTip(tr("Go back to the project"));
+        box.setDefaultButton(cancel);
+        box.exec();
+        if (box.clickedButton() != stop)
+            return false;
+    }
     if (doc_.isModified()) {
         QMessageBox box(this);
         box.setIcon(QMessageBox::NoIcon);
@@ -585,7 +608,26 @@ bool MainWindow::confirmDiscardChanges()
     }
     if (doc_.hasFolder())
         doc_.discardAutosave();
+    terminal_->shutdown();
     return true;
+}
+
+// Opens the terminal and types the text, for checks of the terminal without a person.
+void MainWindow::startTerminalCheck(const QString& text)
+{
+    terminal_->typeWhenReady(text);
+}
+
+// Says whether a picture of the terminal would show the result of the typed text.
+bool MainWindow::terminalPictureReady() const
+{
+    return terminal_->pictureReady();
+}
+
+// Says whether the shell could not be started.
+bool MainWindow::terminalFailed() const
+{
+    return terminal_->startFailed();
 }
 
 // Starts an empty untitled project after the save question.
