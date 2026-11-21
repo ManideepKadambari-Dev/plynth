@@ -2,7 +2,7 @@
 
 Plynth can be driven from a terminal, a script or a coding assistant. Every command prints one JSON answer, so a program can read the result without parsing text meant for people.
 
-This page covers the commands that exist today: version, help, creating a project, reading it, setting the scale, adding points and walls, and the edit session that keeps the app and the command line from overwriting each other. More commands arrive in later releases.
+This page covers the commands that exist today: version, help, creating and reading a project, setting the scale and grid, points, walls, rooms, and the edit session that keeps the app and the command line from overwriting each other. More commands arrive in later releases.
 
 ## Running a command
 
@@ -17,11 +17,11 @@ Typing `plynth` in a terminal finds `plynth.com` first. The terminal inside Plyn
 
 The first word decides what happens:
 
-- A command word (`version`, `help`, `project`, `scale`, `point`, `wall`, `session`) runs the command and prints the answer. No window opens.
+- A command word (`version`, `help`, `project`, `scale`, `point`, `wall`, `room`, `session`) runs the command and prints the answer. No window opens.
 - A project folder or an app option (`--image`, `--screenshot`, `--size`, `--terminal`), or no argument at all, opens the window. `plynth.com` starts the window and returns at once.
 - Anything else prints an `unknown_command` answer and exits with code 2. For example `plynth bogus`.
 
-To open a folder that is literally named `project`, write `.\project`.
+To open a folder that is literally named after a command word, such as `project` or `room`, write `.\project` or `.\room`. Without the `.\` Plynth runs the command instead.
 
 ### Which project a command works on
 
@@ -41,7 +41,7 @@ One JSON object on one line, then a line break, on standard output. Nothing is w
 Success:
 
 ```json
-{"ok":true,"command":"point add","result":{"id":"p3","floor":"f1","x":1.5,"y":2.0,"corner_radius":0.0}}
+{"ok":true,"command":"point add","result":{"id":"p3","floor":"f1","x":1.5,"y":2.0,"corner_radius":0.0,"walls":[]}}
 ```
 
 Failure:
@@ -77,9 +77,9 @@ The app itself, when you give it `--screenshot`, uses its own codes. 0 means the
 | `bad_arguments` | A required option is missing, a value is not a number, or an option is unknown. Exit 2. |
 | `unknown_command` | The command word is not one of the commands. Exit 2. |
 | `invalid_value` | A number or name is out of range, for example a scale of 0. |
-| `not_found` | A floor, point, wall or file does not exist. |
-| `already_exists` | The thing to create is already there, for example `project new` in a folder that holds a project. |
-| `in_use` | Removing something would leave another item pointing at nothing. |
+| `not_found` | A floor, point, wall, room or file does not exist, or there is no closed area at the position given to `room add`. |
+| `already_exists` | The thing to create is already there, for example `project new` in a folder that holds a project, a wall between two points that already have one, or a room where one already is. |
+| `in_use` | Removing something would leave another item pointing at nothing. Add `--cascade` to remove what depends on it as well (see `point remove`). |
 | `not_a_project` | The folder has no `project.json`. |
 | `cannot_read` | A file or folder could not be opened. |
 | `cannot_write` | A file or folder could not be written. |
@@ -118,6 +118,8 @@ plynth help
 
 The example is shortened. The real answer lists every command.
 
+Each option has `name`, `value` (what to type, such as `metres` or `id`), `positional`, `required` and `description`. `positional` is true for a value you write without a name, such as the id in `point move p3 --x 2 --y 1`. Options with `positional` false are written with their `--name`.
+
 ### project new
 
 Creates a project folder. The folder is made when it does not exist. If the folder already holds a project, nothing is changed and the answer is `already_exists`.
@@ -152,6 +154,20 @@ Shows the settings and contents of a project. It changes nothing. The result is 
 plynth project info
 ```
 
+### project set
+
+Changes a project setting. Today the only one is the grid size.
+
+| Option | Meaning |
+|---|---|
+| `--grid <metres>` | Required. Distance between grid lines. Above zero. |
+
+```
+plynth project set --grid 0.25
+```
+
+The answer is the same as for `project info`, with the new `grid_size`. A grid of 0 or less is refused with `invalid_value`. The grid starts at the top left corner of the image. The app uses it for snapping, and so does `wall draw --grid`.
+
 ### scale set
 
 Sets how many image pixels make one metre.
@@ -159,14 +175,43 @@ Sets how many image pixels make one metre.
 | Option | Meaning |
 |---|---|
 | `--pixels-per-metre <number>` | Required. Above zero. |
+| `--keep image\|metres` | What happens to points and walls that already exist when the scale changes. Default: `image`. |
 
 ```
 plynth scale set --pixels-per-metre 100
 ```
 
 ```json
-{"ok":true,"command":"scale set","result":{"pixels_per_metre":100.0}}
+{"ok":true,"command":"scale set","result":{"pixels_per_metre":100.0,"moved_marks":false}}
 ```
+
+**Keeping marks.** Points and walls are stored in metres. When the scale changes, one of two things can be true.
+
+- `--keep image` (the default) keeps every mark on the same spot of the plan image. Point positions are multiplied by old scale over new scale, and so are curve and opening positions along a wall. Thickness, heights, widths and corner radius are real sizes, so they do not change. Use it when you fix a scale you got wrong.
+- `--keep metres` leaves every number as it is. The marks move on the image. Use it when the metre values are right and only the scale of the picture was wrong.
+
+Setting the first scale, or clearing it, moves nothing in either mode. `moved_marks` is true when marks were moved. Undo in the app brings everything back exactly.
+
+### scale from-points
+
+Works out the scale from two points on the plan image and a distance you know, then sets it. Positions are image pixels, with the origin at the top left corner.
+
+| Option | Meaning |
+|---|---|
+| `--x1 <pixels>` `--y1 <pixels>` | Required. First point. |
+| `--x2 <pixels>` `--y2 <pixels>` | Required. Second point. |
+| `--distance <metres>` | Required. The real distance between the two points. Above zero. |
+| `--keep image\|metres` | Same as for `scale set`. Default: `image`. |
+
+```
+plynth scale from-points --x1 100 --y1 100 --x2 600 --y2 100 --distance 5
+```
+
+```json
+{"ok":true,"command":"scale from-points","result":{"pixels_per_metre":100.0,"pixel_distance":500.0,"distance":5.0,"moved_marks":false}}
+```
+
+Points less than a pixel apart are refused with `invalid_value`.
 
 ### point add
 
@@ -184,10 +229,68 @@ plynth point add --x 1.5 --y 2
 ```
 
 ```json
-{"ok":true,"command":"point add","result":{"id":"p1","floor":"f1","x":1.5,"y":2.0,"corner_radius":0.0}}
+{"ok":true,"command":"point add","result":{"id":"p1","floor":"f1","x":1.5,"y":2.0,"corner_radius":0.0,"walls":[]}}
 ```
 
 Ids are a letter plus a number: `p1`, `p2` and so on. An id never changes once it is given.
+
+Every answer that shows a point has the same shape (the "point entry"). `walls` lists the ids of the walls that end at the point. It is empty for a point with no wall.
+
+### point move
+
+Moves a point. The id is written without a name.
+
+| Option | Meaning |
+|---|---|
+| `<id>` | Required. The point to move. |
+| `--x <metres>` `--y <metres>` | Required. The new position. |
+
+```
+plynth point move p6 --x 9 --y 8
+```
+
+```json
+{"ok":true,"command":"point move","result":{"id":"p6","floor":"f1","x":9.0,"y":8.0,"corner_radius":0.0,"walls":["w3","w6","w7"]}}
+```
+
+The walls that end at the point follow it. An unknown id gives `not_found` and changes nothing.
+
+### point remove
+
+Removes a point.
+
+| Option | Meaning |
+|---|---|
+| `<id>` | Required. The point to remove. |
+| `--cascade` | Also remove what depends on the point. |
+
+```
+plynth point remove p6 --cascade
+```
+
+```json
+{"ok":true,"command":"point remove","result":{"removed":{"rooms":["r1"],"walls":["w3","w6","w7"],"points":["p3","p6"]}}}
+```
+
+Without `--cascade`, a point that a wall uses is refused with `in_use`. With it, everything goes in one step: the walls at the point, the rooms that use those walls, and the end points of removed walls that are left with no wall. A point you placed on its own is only removed when you name it. The `removed` lists show what went. `wall remove` gives the same shape.
+
+### point list
+
+Lists the points of a floor.
+
+| Option | Meaning |
+|---|---|
+| `--floor <id>` | Default: the first floor. |
+
+```
+plynth point list
+```
+
+```json
+{"ok":true,"command":"point list","result":{"floor":"f1","points":[{"id":"p1","floor":"f1","x":1.0,"y":1.0,"corner_radius":0.0,"walls":["w1","w4"]}]}}
+```
+
+The example shows one point. The real answer has all of them.
 
 ### wall add
 
@@ -205,10 +308,216 @@ plynth wall add --from p1 --to p2 --thickness 0.3
 ```
 
 ```json
-{"ok":true,"command":"wall add","result":{"id":"w1","floor":"f1","from":"p1","to":"p2","thickness":0.3,"height":null}}
+{"ok":true,"command":"wall add","result":{"id":"w1","floor":"f1","from":"p1","to":"p2","thickness":0.3,"height":null,"bulge":0.0,"length":6.0,"rooms":[]}}
 ```
 
-A wall that names a point that does not exist is refused with `not_found`, and the project files are not touched.
+A wall that names a point that does not exist is refused with `not_found`, and the project files are not touched. A second wall between the same two points is refused with `already_exists`.
+
+Every answer that shows a wall has the same shape (the "wall entry"). `bulge` is 0 for a straight wall. `length` is in metres. `rooms` lists the ids of the rooms that use the wall.
+
+### wall draw
+
+Draws a wall between two places. A place is an existing point or a position in metres. Positions can snap to points and onto walls, the way clicks do in the app. When an end lands on the body of another wall, that wall is split there so the two walls meet at a shared point (a T junction). Everything is one change that can be undone as one step.
+
+Give each end in one of two forms. Giving both forms, or neither, is `bad_arguments`.
+
+| Option | Meaning |
+|---|---|
+| `--from <id>` or `--from-x <m>` `--from-y <m>` | The start: a point, or a position. |
+| `--to <id>` or `--to-x <m>` `--to-y <m>` | The end: a point, or a position. |
+| `--snap <metres>` | Snap radius. A position within this distance of a point snaps to the point, and one within it of a wall snaps onto the wall. Default: 0, which means the positions are used exactly. |
+| `--grid` | Snap new positions to the project grid. Points and walls within the snap radius still win. |
+| `--thickness <metres>` | Default: 0.2. |
+| `--height <metres>` | Default: the floor's ceiling height. |
+| `--floor <id>` | Default: the first floor. |
+
+```
+plynth wall draw --from-x 4 --from-y 1 --to-x 4 --to-y 5 --snap 0.1 --thickness 0.3
+```
+
+```json
+{"ok":true,"command":"wall draw","result":{"id":"w7","floor":"f1","from":"p5","to":"p6","thickness":0.3,"height":null,"bulge":0.0,"length":4.0,"rooms":[],"new_points":["p5","p6"],"split_walls":["w1","w3"]}}
+```
+
+The answer is a wall entry plus `new_points` (points that were created) and `split_walls` (walls that were cut). In the example the new wall runs across a rectangle, so the top and bottom walls were split and the new wall joins them.
+
+To draw a closed loop, start each wall at the `to` point of the last one with `--from <id>`, and end the last wall on the first point with `--to <id>`.
+
+### wall split
+
+Cuts a wall in two at a distance from its start.
+
+| Option | Meaning |
+|---|---|
+| `<id>` | Required. The wall to cut. |
+| `--offset <metres>` | Required. Distance from the wall's `from` point. It must be inside the wall, not at an end. |
+
+```
+plynth wall split w5 --offset 1
+```
+
+```json
+{"ok":true,"command":"wall split","result":{"point":{"id":"p7","floor":"f1","x":5.0,"y":1.0,"corner_radius":0.0,"walls":["w5","w8"]},"walls":[{"id":"w5","floor":"f1","from":"p5","to":"p7","thickness":0.3,"height":null,"bulge":0.0,"length":1.0,"rooms":[]},{"id":"w8","floor":"f1","from":"p7","to":"p2","thickness":0.3,"height":null,"bulge":0.0,"length":2.0,"rooms":[]}]}}
+```
+
+The old wall keeps its id and runs to the new point. A new wall runs on to the old end. Rooms that used the wall get the new wall too, so they stay closed. A curved wall cannot be split yet.
+
+### wall set
+
+Changes a wall.
+
+| Option | Meaning |
+|---|---|
+| `<id>` | Required. The wall. |
+| `--thickness <metres>` | Required. Above zero. |
+
+```
+plynth wall set w1 --thickness 0.25
+```
+
+The answer is a wall entry.
+
+### wall remove
+
+Removes a wall.
+
+| Option | Meaning |
+|---|---|
+| `<id>` | Required. The wall. |
+| `--cascade` | Also remove what depends on it. |
+
+```
+plynth wall remove w2 --cascade
+```
+
+```json
+{"ok":true,"command":"wall remove","result":{"removed":{"rooms":["r1"],"walls":["w2"],"points":[]}}}
+```
+
+Without `--cascade`, a wall that a room uses is refused with `in_use`. With it, the rooms that use the wall go as well, and so do end points that are left with no wall.
+
+### wall list
+
+Lists the walls of a floor, with `--floor <id>` (default: the first floor).
+
+```
+plynth wall list
+```
+
+```json
+{"ok":true,"command":"wall list","result":{"floor":"f1","walls":[{"id":"w1","floor":"f1","from":"p1","to":"p5","thickness":0.25,"height":null,"bulge":0.0,"length":3.0,"rooms":[]}]}}
+```
+
+### Rooms
+
+A room is a closed area made of walls, with an optional type such as Living room. The room commands work on the walls you already drew.
+
+The script way to make rooms: draw the walls, run `room find` to see the closed areas, then run `room add` with a position inside each area you want.
+
+The `room` word is a command, so a project folder named `room` has to be given as `--project .\room`, and opened from a terminal as `.\room`.
+
+A room entry looks like this:
+
+```json
+{"id":"r1","floor":"f1","type":"living","type_name":"Living room","walls":["w1","w7","w6","w4"],"closed":true,"area":23.0706,"label":{"x":4.15,"y":5.06}}
+```
+
+- `type` is the type id, or `null` when the room has none. `type_name` is its readable name, or "Room" when there is no type.
+- `walls` are the walls of the area the room was made from.
+- `closed` is false if a wall of the room has been removed or its ring no longer closes. `area` is then 0.
+- `area` is the floor inside the walls in square metres, rounded to 4 decimals. It is the centre line area minus the band each wall covers, so a 4 m by 4 m square of 0.2 m walls gives 14.44. It is not the area between the centre lines.
+- `label` is the spot where the app writes the name and area.
+
+### room find
+
+Lists the closed areas on a floor, whether or not a room exists for them. It changes nothing, and it works while the app is editing the project.
+
+| Option | Meaning |
+|---|---|
+| `--floor <id>` | Default: the first floor. |
+
+```
+plynth room find
+```
+
+```json
+{"ok":true,"command":"room find","result":{"floor":"f1","areas":[{"walls":["w1","w7","w6","w4"],"centre_line_area":26.5,"inside":{"x":3.75,"y":4.5},"room":null}]}}
+```
+
+`centre_line_area` is measured between the wall centre lines, because no room exists yet to measure the floor of. `inside` is a position that is surely inside the area, ready to pass to `room add`. `room` is the id of the room that holds the area, or `null`.
+
+Walls that only dangle into an area are not part of it. A wall that crosses another without a shared point does not split an area, so draw walls with `wall draw` and `--snap` to get shared points.
+
+### room add
+
+Makes a room from the closed area around a position.
+
+| Option | Meaning |
+|---|---|
+| `--x <metres>` `--y <metres>` | Required. A position inside the area. |
+| `--type <id>` | Optional. A room type id, see `room types`. |
+| `--floor <id>` | Default: the first floor. |
+
+```
+plynth room add --x 2.5 --y 3 --type living
+```
+
+The answer is a room entry. A position outside every closed area gives `not_found`. A position inside an existing room gives `already_exists`. An unknown type gives `invalid_value` and lists the known ids.
+
+### room set
+
+Changes the type of a room.
+
+| Option | Meaning |
+|---|---|
+| `<id>` | Required. The room. |
+| `--type <id\|none>` | Required. A type id, or `none` to clear the type. |
+
+```
+plynth room set r1 --type none
+```
+
+The answer is a room entry with `type` null and `type_name` "Room".
+
+### room remove
+
+Removes a room. Its walls stay.
+
+```
+plynth room remove r1
+```
+
+```json
+{"ok":true,"command":"room remove","result":{"removed":{"rooms":["r1"],"walls":[],"points":[]}}}
+```
+
+### room list
+
+Lists the rooms of a floor, with `--floor <id>` (default: the first floor).
+
+```
+plynth room list
+```
+
+```json
+{"ok":true,"command":"room list","result":{"floor":"f1","rooms":[]}}
+```
+
+The example is a plan with no rooms yet. Each room in the list is a room entry.
+
+### room types
+
+Lists the built-in room types. It needs no project, so it does not take `--project`.
+
+```
+plynth room types
+```
+
+```json
+{"ok":true,"command":"room types","result":{"room_types":[{"id":"living","name":"Living room"},{"id":"bedroom","name":"Bedroom"},{"id":"kitchen","name":"Kitchen"},{"id":"bathroom","name":"Bathroom"},{"id":"hall","name":"Hall"},{"id":"dining","name":"Dining room"},{"id":"office","name":"Office"},{"id":"storage","name":"Storage"},{"id":"other","name":"Other"}]}}
+```
+
+A plan from another machine can hold a type id that is not in this list. It still loads, and the room shows its id as the name. Only new values typed into `room add` and `room set` are checked.
 
 ### session begin
 
@@ -261,7 +570,7 @@ plynth session status
 Plynth's app and the command line can both work on the same project folder. To keep one from overwriting the other, the command line uses an edit session. The steps for a script or a coding assistant:
 
 1. **Begin.** Run `plynth session begin --tool <name>`. If the app has the project open, it turns read only: a banner appears saying "Being edited from the command line by <name>", the canvas is dimmed, and Undo, Redo, Save, Save as and Set plan image are disabled.
-2. **Edit.** Run commands such as `point add` and `wall add`. Each one saves to the project folder. The app notices the change within a second and shows it live. Zoom and pan stay where they were.
+2. **Edit.** Run commands such as `point add`, `wall draw` and `room add`. Each one saves to the project folder. The app notices the change within a second and shows it live. Zoom and pan stay where they were.
 3. **End.** Run `plynth session end`. The app reloads once and becomes editable again.
 
 A worked example:
@@ -292,7 +601,7 @@ Save or discard in the app, then run `session begin` again.
 
 If the app does not have the project open, editing commands just run. A session is still allowed and harmless, so a script can always begin one.
 
-Read only commands such as `project info` are never refused.
+Read only commands such as `project info`, `point list`, `wall list`, `room list` and `room find` are never refused.
 
 ### Expiry
 

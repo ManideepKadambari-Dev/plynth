@@ -1,6 +1,6 @@
 # User guide
 
-This is the first version. It covers what Plynth does today: opening a project, showing its plan image, undo and redo, saving, working next to the command line, and the built-in terminal. More screens arrive in later releases.
+This covers what Plynth does today: opening a project, showing its plan image, setting the scale, drawing walls, making rooms, undo and redo, saving, working next to the command line, and the built-in terminal. More screens arrive in later releases.
 
 For keys see [Keyboard shortcuts](SHORTCUTS.md). For scripts see the [Command line guide](CLI_GUIDE.md).
 
@@ -39,9 +39,112 @@ An untitled project has no folder yet. Save it to give it one.
 
 Plynth fits the image to the window. Zoom with the mouse wheel, pan with the middle button or with Space and the left button. Ctrl+0 fits again and Ctrl+1 shows 100 percent. The full list is in the shortcuts page.
 
-If the scale of the plan is set, points and walls are drawn over the image: walls as blue bands of their real thickness, points as small blue dots. Today these can be added from the command line. Drawing them in the app comes in a later release.
+Once the scale is set, points and walls are drawn over the image: walls as blue bands of their real thickness, points as small blue dots, rooms as a faint blue fill with a name and an area.
 
 If the image file is missing, the sheet shows "The plan image ... could not be opened."
+
+## The tools
+
+A strip of buttons sits at the left edge of the plan. The active tool is the one in blue. Each button has a tooltip with its name and key.
+
+| Tool | Key | What it is for |
+|---|---|---|
+| Select | V | Pick points, walls and rooms, and drag points |
+| Scale | S | Tell Plynth how long something on the image really is |
+| Wall | W | Draw walls |
+| Room | R | Turn a closed area into a room |
+
+The status bar at the bottom shows the position of the cursor in metres and a short hint for the active tool. If a tool cannot do what you asked, the reason shows there in amber for a few seconds instead of in a dialog.
+
+The Scale tool needs a plan image. The Wall and Room tools also need a scale, because without one a click cannot be turned into metres. Until the scale is set, their buttons are greyed and their tooltips say "Set the scale first (S)". While the command line is editing the project, the Scale, Wall and Room tools are disabled and you can only select. You can still click to look at things.
+
+## Setting the scale
+
+Plynth needs to know how big the drawing is. You tell it by measuring something on the plan whose real size you know, such as a wall length written on the plan or a door.
+
+1. Press S, or click the Scale tool.
+2. Click one end of the known length. Move the mouse: an amber line follows it and shows its length in image pixels. Hold Shift to keep the line horizontal or vertical.
+3. Click the other end.
+4. In the "Set scale" box, type the real distance between the two points in metres, and choose Set scale.
+
+Esc cancels while you measure. Two clicks closer than a pixel are refused. This tool does not snap to anything, because it measures the image itself.
+
+If a scale is already set, the box starts with the distance Plynth measures now. When the plan already has points, a box "Keep marks on the image" appears and is ticked. Ticked means the points and walls stay on the same spot of the picture, so their metre values change to match the new scale. Wall thickness, heights and widths are real sizes and stay as they are. Unticked means every metre value stays and the marks move on the picture. Setting the very first scale moves nothing. You can undo a scale change, and the marks go back exactly.
+
+The scale shows in the properties panel as "100.0 px per m".
+
+## Drawing walls
+
+Press W, or click the Wall tool. While it is active, the grid shows as thin lines when the lines are at least 8 pixels apart on screen.
+
+1. Click where the wall starts.
+2. Click where it ends. The wall is drawn.
+3. Keep clicking. Each click draws the next wall from where the last one ended. This is called a chain.
+4. To close a room, click the first point of the chain again. The wall is drawn and the chain ends by itself.
+5. To stop without closing, press Esc or click the right mouse button. The next click starts a new chain.
+
+An amber band follows the mouse, with the thickness of the wall that would be drawn. The amber mark at its end shows what the click would snap to.
+
+**Snapping.** A click does not land exactly where the mouse is. Plynth looks, in this order:
+
+1. An existing point within about 10 screen pixels. The wall then uses that point. A ring marks it.
+2. The body of an existing wall within the same distance. The wall you draw ends on it, and the old wall is cut in two there, so they meet at a shared point. This is a T junction. A small cross marks it.
+3. The grid, if "Snap to grid" is on. A small plus marks the grid point.
+4. Nothing: the exact spot you clicked.
+
+**Keys while drawing.** Hold Shift while you click to keep the new wall exactly horizontal or vertical from the last point. A point close by still wins over Shift, so you can always close a loop. Hold Ctrl while you click to place the point freely, with no snapping at all. Press G, or use View > Snap to grid, to turn grid snapping on or off. Snapping to points and walls stays on.
+
+**Thickness.** While the Wall tool is active, the properties panel has a "New walls" box. It sets the thickness for the walls you draw next. It starts at 0.2 m and is kept until you close Plynth.
+
+Every wall is one undo step, even when it also made new points or cut another wall. Ctrl+Z removes the wall and puts the cut wall back together. If you undo, redo or reload while a chain is open, the chain ends.
+
+## Selecting and editing
+
+Press V for the Select tool. It is the tool you start with.
+
+- Click a point, a wall or a room to select it. It turns amber, and the properties panel on the right shows it. Click on nothing, or press Esc, to clear the selection.
+- Drag a point to move it. The walls at the point follow. The point snaps to the grid, and Shift keeps its move straight. It never snaps onto other points or walls. A whole drag is one undo step.
+
+**The properties panel.** With nothing selected, it shows the scale, the grid size (change it and press Enter), and the number of points, walls and rooms. With a selection it shows:
+
+| Selected | What you see and can change |
+|---|---|
+| A point | Its id, X and Y in metres (change a number and press Enter), and the walls that end there |
+| A wall | Its id, the two points, its length, and its thickness (change it and press Enter) |
+| A room | Its id, its type, its area, and the number of walls |
+
+A number is only changed when you type in its box. Clicking into a box and leaving it never rounds the real value. Letters you type in a box go into the box and do not switch tools.
+
+## Rooms
+
+A room is a closed area made of walls. It has a type and an area, and it is what Plynth later turns into floors.
+
+1. Draw walls so they close an area. The walls have to share points where they meet. Snapping does that for you.
+2. Press R, or click the Room tool.
+3. Click inside the closed area. A menu offers the room types: Living room, Bedroom, Kitchen, Bathroom, Hall, Dining room, Office, Storage and Other, and "No type yet".
+4. Pick one. The room appears with a faint blue fill, its name and its area.
+
+Click inside an existing room with the Room tool to change its type. You can also change the type in the properties panel when the room is selected, with the Select tool.
+
+If you click where no closed area exists, the status bar says "No closed area here. Close the walls around it first."
+
+**The area.** The number shown is the floor inside the walls, in square metres. It is not the area between the wall centre lines. The thickness of every wall is taken off. A 4 m by 4 m square of 0.2 m walls shows 14.44 m². A wall that sticks into a room from one side, without closing off anything, is not counted as part of the room. A room inside another room, such as a box inside a hall, is cut out of the hall's area.
+
+**Rooms keep their walls.** A room remembers the walls of the area it was made from. If you draw a new wall across a room, the room stays as it was. Delete the room and add the two new ones. Cutting one of its walls with a T junction is fine, because the room takes the new part too.
+
+The same room finding is available to scripts with `room find` and `room add`. See the [Command line guide](CLI_GUIDE.md).
+
+## Deleting
+
+Select something and press Delete or Backspace, use Edit > Delete, or use the Delete button under the selection in the properties panel. One undo brings everything back.
+
+Delete takes with it whatever cannot stay without the thing you deleted:
+
+- Deleting a point deletes the walls that end at it, and the rooms that use those walls.
+- Deleting a wall deletes the rooms that use it.
+- Deleting a room deletes only the room. Its walls stay.
+- A point left with no wall because of a delete goes too, so no stray dots stay behind. A point you placed on its own is only removed when you select it.
+
 
 ## Undo and redo
 
@@ -69,6 +172,7 @@ A script or a coding assistant can edit the project while Plynth has it open. To
 
 - A banner under the title bar says "Being edited from the command line by <name>. Changes appear here as they are saved."
 - The plan is dimmed. Undo, Redo, Save, Save as and Set plan image are disabled. New project and Open project still work.
+- The Scale, Wall and Room tools, Delete, and every box in the properties panel are disabled. You can still click to select and look.
 - Changes appear on screen within a second, with the zoom and position unchanged.
 - When the session ends, or after 5 minutes without a command, the plan reloads once and becomes editable again.
 

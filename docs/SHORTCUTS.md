@@ -25,7 +25,17 @@ Setting the plan image can be undone. A new project from an image starts with th
 | Ctrl+Z | Undo the last change |
 | Ctrl+Y or Ctrl+Shift+Z | Redo the change that was undone |
 
+| V | Select tool |
+| S | Scale tool |
+| W | Wall tool |
+| R | Room tool |
+| Delete or Backspace | Delete the selected point, wall or room, and what depends on it |
+
 The menu shows the name of the change, for example "Undo Set plan image". The items are greyed when there is nothing to undo or redo, and while the command line is editing the project.
+
+The tool keys work when the canvas has focus. While you type in a box in the properties panel, or in the terminal, a letter is typed into it and does not switch tools, and Delete and Backspace edit the text instead of deleting a plan item.
+
+The Scale tool needs a plan image. The Wall and Room tools also need a scale, and the tooltip then says "Set the scale first (S)". While the command line is editing the project, the tools are disabled and the Select tool is used.
 
 ## View
 
@@ -38,8 +48,31 @@ The zoom actions work once a plan image is loaded.
 | Ctrl+0 | Fit the whole plan in the window |
 | Ctrl+1 | Show the plan at 100 percent |
 | Ctrl+` | Show or hide the terminal |
+| G | Snap to grid on or off (on by default) |
 
 Each zoom step is a factor of 1.25. The zoom range is 2 percent to 3200 percent.
+
+## Drawing and selecting
+
+These keys and clicks work with the tools. The Select tool is the default.
+
+| Key or click | Tool | What it does |
+|---|---|---|
+| Left click | Select | Select the point, wall or room under the cursor. Click on nothing to clear the selection. |
+| Left button and drag on a point | Select | Move the point. The whole drag is one undo step. |
+| Esc | Select | Clear the selection |
+| Left click | Wall | Place a point and, after the first one, draw a wall to it. The next wall starts where the last one ended. |
+| Shift | Wall | Keep the wall exactly horizontal or vertical. Hold it while you click. |
+| Ctrl | Wall | Place freely, with no snapping at all. Hold it while you click. |
+| Esc or right click | Wall | End the chain. The next click starts a new one. |
+| Left click | Scale | Mark the first point, then the second one. |
+| Shift | Scale | Keep the two points exactly horizontal or vertical |
+| Esc | Scale | Cancel the measurement |
+| Left click | Room | Make a room inside a closed area, or change the type of the room you click |
+
+Shift has no effect on a wall that starts a chain, because there is no earlier point to keep straight from. Snapping to existing points always wins, so you can still close a loop while Shift is held. Ctrl needs to be held when you click, and Alt is not used because Windows gives it to the menu bar.
+
+Dragging a point snaps it to the grid, and to Shift for straight moves. It never snaps onto another point or wall, so two points do not end up on top of each other by accident.
 
 ## Terminal
 
