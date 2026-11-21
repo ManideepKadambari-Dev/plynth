@@ -24,6 +24,9 @@ add_executable(plynth_core_tests
     core/FakeDetector.cpp
     core/DetectionModelTests.cpp
     core/DetectionCommandTests.cpp
+    core/GrayImageTests.cpp
+    core/OrthogonalDetectorTests.cpp
+    core/DetectionPerfTests.cpp
 )
 target_link_libraries(plynth_core_tests PRIVATE
     plynth::core
@@ -32,6 +35,7 @@ target_link_libraries(plynth_core_tests PRIVATE
 target_compile_definitions(plynth_core_tests PRIVATE
     PLYNTH_EXPECTED_VERSION="${PROJECT_VERSION}"
     PLYNTH_SCHEMA_DIR="${PROJECT_SOURCE_DIR}/schema"
+    PLYNTH_SAMPLES_DIR="${PROJECT_SOURCE_DIR}/samples"
     PLYNTH_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/core/data")
 
 catch_discover_tests(plynth_core_tests)
