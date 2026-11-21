@@ -10,6 +10,8 @@ add_library(plynth_core STATIC
     src/BlenderJob.cpp
     src/SetupCheck.cpp
     src/catalog/AssetJobs.cpp
+    src/catalog/Importer.cpp
+    src/catalog/AssetImport.cpp
     src/catalog/AssetInfo.cpp
     src/catalog/AssetCatalog.cpp
     src/catalog/BuiltInCatalog.cpp
@@ -99,4 +101,14 @@ if(PLYNTH_SHAPE_SOURCES)
     target_compile_features(plynth_opening_shapes PUBLIC cxx_std_20)
     target_link_libraries(plynth_opening_shapes PRIVATE nlohmann_json::nlohmann_json)
     target_sources(plynth_core INTERFACE $<TARGET_OBJECTS:plynth_opening_shapes>)
+endif()
+
+# Importers register themselves the same way, so they are built as an object library too.
+file(GLOB PLYNTH_IMPORTER_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/catalog/importers/*.cpp)
+if(PLYNTH_IMPORTER_SOURCES)
+    add_library(plynth_importers OBJECT ${PLYNTH_IMPORTER_SOURCES})
+    target_include_directories(plynth_importers PRIVATE include src)
+    target_compile_features(plynth_importers PUBLIC cxx_std_20)
+    target_link_libraries(plynth_importers PRIVATE nlohmann_json::nlohmann_json)
+    target_sources(plynth_core INTERFACE $<TARGET_OBJECTS:plynth_importers>)
 endif()
