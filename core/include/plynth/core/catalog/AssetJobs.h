@@ -29,7 +29,7 @@ inline constexpr std::string_view kFormatZip = "zip";
 // The thumbnail look (DESIGN.md section 7.11): three quarter view from the front right (camera 45 degrees
 // round from -Y toward +X, 25 degrees up, 50 mm lens), framed so the bounding sphere fits with an 8 % margin,
 // neutral white key, fill and rim area lights, a plain dark background in the theme's Ground color, the
-// "Standard" view transform so that color is exact, square PNG, 8 bit RGB.
+// "Standard" view transform so that color is exact, square PNG, 8 bit RGB, rendered with Eevee.
 inline constexpr int kThumbnailSize = 512;
 inline constexpr std::array<double, 3> kThumbnailBackground{0.0549, 0.0667, 0.0863}; // #0E1116, sRGB 0 to 1
 
@@ -41,16 +41,20 @@ struct ThumbnailSpec {
 };
 
 // cleanup_asset: read a model, clean it to the conventions in AssetInfo.h, save asset.blend and textures/
-// into outputFolder, measure it, run the import checks and render thumb.png.
+// into outputFolder, export asset.fbx beside it, measure it, run the import checks and render thumb.png.
 // Params: {"source": {"file": "D:/in/chair.obj", "format": "obj"}, "asset_id": "chair",
 //          "output_folder": "D:/Library/assets/.staging/chair-3f9a07c1/item", "scale": 1.0, "rotate_z": 0,
 //          "triangle_warning": 500000,
-//          "thumbnail": {"render": true, "size": 512, "engine": "eevee", "background": [0.0549, 0.0667, 0.0863]}}
-// Output: {"blend_file": "asset.blend", "picked_file": "chair/chair.fbx" or null (the model used from a zip),
+//          "thumbnail": {"render": true, "size": 512, "background": [0.0549, 0.0667, 0.0863]}}
+// Output: {"blend_file": "asset.blend", "fbx_file": "asset.fbx" or null,
+//          "picked_file": "chair/chair.fbx" or null (the model used from a zip),
 //          "size": {"width": 0.45, "depth": 0.5, "height": 0.9}, "triangles": 1200, "objects": 2,
 //          "materials": ["Wood"], "textures": ["textures/wood.png"], "missing_textures": ["oak.png"],
 //          "thumbnail": {"file": "thumb.png", "engine": "eevee", "error": null}}
-// A failed render does not fail the job: thumbnail.file is null and thumbnail.error says why.
+// A failed render does not fail the job: thumbnail.file is null and thumbnail.error says why. A failed
+// asset.fbx does not fail it either: fbx_file is null with the warning fbx_failed.
+// Thumbnails are rendered with Eevee only (DESIGN.md section 7.11). There is no engine choice and no other
+// engine to fall back to: when Eevee cannot render, the render has failed.
 struct CleanupJob {
     std::filesystem::path sourceFile;
     std::string format;
@@ -62,18 +66,22 @@ struct CleanupJob {
     ThumbnailSpec thumbnail;
 };
 
-// render_thumbnail: open an existing asset.blend without changing it, measure it when asked, and render
-// thumb.png. Used for the retry button and when asset.blend changed on disk.
+// render_thumbnail: open an existing asset.blend without changing it, measure it when asked, render
+// thumb.png, and export asset.fbx when fbx_file is given. Used for the retry button, when asset.blend changed
+// on disk, and for assets that have no asset.fbx yet.
 // Params: {"blend_file": "D:/Library/assets/items/chair/asset.blend",
-//          "output_file": "D:/Library/assets/items/chair/thumb.png", "measure": true, "thumbnail": {...}}
+//          "output_file": "D:/Library/assets/items/chair/thumb.png", "measure": true,
+//          "fbx_file": "D:/Library/assets/items/chair/asset.fbx" or null, "thumbnail": {...}}
 // Output: {"size": {...}, "triangles": 1200, "objects": 2, "materials": [...], "textures": [...],
-//          "thumbnail": {"file": "thumb.png", "engine": "cycles", "error": null}}
-// size, triangles, objects, materials and textures are null when measure is false. A failed render fails
-// the job with render_failed.
+//          "fbx_file": "asset.fbx" or null, "thumbnail": {"file": "thumb.png", "engine": "eevee", "error": null}}
+// size, triangles, objects, materials and textures are null when measure is false. fbx_file in the output
+// is the file name written, null when none was asked for or the export failed (warning fbx_failed). A failed
+// render fails the job with render_failed.
 struct ThumbnailJob {
     std::filesystem::path blendFile;
     std::filesystem::path outputFile;
     bool measure = true;
+    std::filesystem::path fbxFile; // empty: no asset.fbx is written
     ThumbnailSpec thumbnail;
 };
 
@@ -85,6 +93,7 @@ Json makeThumbnailJob(const ThumbnailJob& job, std::string_view jobId, const std
 struct AssetJobOutput {
     BlenderResultHeader header;
     std::string blendFile;
+    std::string fbxFile; // "asset.fbx", or empty when none was written
     std::string pickedFile;
     bool measured = false;
     AssetSize size;

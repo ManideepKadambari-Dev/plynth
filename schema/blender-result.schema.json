@@ -20,7 +20,7 @@
           "required": ["code", "message"],
           "additionalProperties": false,
           "properties": {
-            "code": { "enum": ["bad_job", "unknown_task", "unsupported_format", "import_failed", "no_geometry", "several_models", "unpack_failed", "save_failed", "render_failed", "internal"] },
+            "code": { "enum": ["bad_job", "unknown_task", "unsupported_format", "import_failed", "no_geometry", "several_models", "unpack_failed", "save_failed", "render_failed", "export_failed", "internal"] },
             "message": { "type": "string", "minLength": 1 }
           }
         }
@@ -34,7 +34,7 @@
         "required": ["code", "message"],
         "additionalProperties": false,
         "properties": {
-          "code": { "enum": ["high_polycount", "scale_suspicious", "missing_texture", "removed_objects", "unsupported_object", "eevee_failed"] },
+          "code": { "enum": ["high_polycount", "scale_suspicious", "missing_texture", "removed_objects", "unsupported_object", "fbx_failed"] },
           "message": { "type": "string", "minLength": 1 }
         }
       }
@@ -59,6 +59,10 @@
     {
       "if": { "properties": { "ok": { "const": true }, "task": { "const": "render_thumbnail" } } },
       "then": { "properties": { "output": { "$ref": "#/definitions/thumbnailOutput" } } }
+    },
+    {
+      "if": { "properties": { "ok": { "const": true }, "task": { "const": "build" } } },
+      "then": { "properties": { "output": { "$ref": "#/definitions/buildOutput" } } }
     }
   ],
   "definitions": {
@@ -78,7 +82,7 @@
       "additionalProperties": false,
       "properties": {
         "file": { "description": "The file name inside the output folder, or null when the render failed.", "type": ["string", "null"] },
-        "engine": { "enum": ["eevee", "cycles", null] },
+        "engine": { "description": "Thumbnails are rendered with Eevee only.", "enum": ["eevee", null] },
         "error": { "type": ["string", "null"] }
       }
     },
@@ -127,10 +131,11 @@
     },
     "cleanupOutput": {
       "type": "object",
-      "required": ["blend_file", "picked_file", "size", "triangles", "objects", "materials", "textures", "missing_textures", "thumbnail"],
+      "required": ["blend_file", "fbx_file", "picked_file", "size", "triangles", "objects", "materials", "textures", "missing_textures", "thumbnail"],
       "additionalProperties": false,
       "properties": {
         "blend_file": { "const": "asset.blend" },
+        "fbx_file": { "description": "asset.fbx for the live preview, or null when its export failed (warning fbx_failed).", "enum": ["asset.fbx", null] },
         "picked_file": { "description": "The model used from inside a zip, relative to the zip. Null for other sources.", "type": ["string", "null"] },
         "size": { "$ref": "#/definitions/size" },
         "triangles": { "type": "integer", "minimum": 0 },
@@ -143,7 +148,7 @@
     },
     "thumbnailOutput": {
       "type": "object",
-      "required": ["size", "triangles", "objects", "materials", "textures", "thumbnail"],
+      "required": ["size", "triangles", "objects", "materials", "textures", "fbx_file", "thumbnail"],
       "additionalProperties": false,
       "properties": {
         "size": { "oneOf": [{ "$ref": "#/definitions/size" }, { "type": "null" }] },
@@ -151,7 +156,59 @@
         "objects": { "type": ["integer", "null"], "minimum": 0 },
         "materials": { "type": ["array", "null"], "items": { "type": "string" } },
         "textures": { "type": ["array", "null"], "items": { "type": "string" } },
+        "fbx_file": { "description": "The file name written for the job's fbx_file, or null when none was asked for or the export failed.", "type": ["string", "null"] },
         "thumbnail": { "$ref": "#/definitions/thumbnail" }
+      }
+    },
+    "buildProblem": {
+      "description": "Something about one object that the build left out or that should be checked. object is the plan id the app marks.",
+      "type": "object",
+      "required": ["code", "severity", "message", "floor", "object", "step"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string", "pattern": "^[a-z_]+$" },
+        "severity": { "enum": ["error", "warning"] },
+        "message": { "type": "string", "minLength": 1 },
+        "floor": { "type": ["string", "null"] },
+        "object": { "type": ["string", "null"] },
+        "step": { "type": "string", "minLength": 1 }
+      }
+    },
+    "buildOutput": {
+      "type": "object",
+      "required": ["blend_file", "fbx_file", "objects", "triangles", "counts", "steps", "problems"],
+      "additionalProperties": false,
+      "properties": {
+        "blend_file": { "const": "building.blend" },
+        "fbx_file": { "enum": ["building.fbx", null] },
+        "objects": { "type": "integer", "minimum": 0 },
+        "triangles": { "type": "integer", "minimum": 0 },
+        "counts": {
+          "type": "object",
+          "required": ["wall_solids", "openings_cut", "fills", "rooms", "items"],
+          "additionalProperties": false,
+          "properties": {
+            "wall_solids": { "type": "integer", "minimum": 0 },
+            "openings_cut": { "type": "integer", "minimum": 0 },
+            "fills": { "type": "integer", "minimum": 0 },
+            "rooms": { "type": "integer", "minimum": 0 },
+            "items": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "steps": {
+          "description": "Every step that ran, in order, with how long it took.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["step", "ms"],
+            "additionalProperties": false,
+            "properties": {
+              "step": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+              "ms": { "type": "integer", "minimum": 0 }
+            }
+          }
+        },
+        "problems": { "type": "array", "items": { "$ref": "#/definitions/buildProblem" } }
       }
     }
   }

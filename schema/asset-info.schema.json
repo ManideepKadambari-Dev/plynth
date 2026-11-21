@@ -74,7 +74,7 @@
       "properties": {
         "file": { "description": "thumb.png, or null when it is not rendered.", "enum": ["thumb.png", null] },
         "error": { "description": "Why the last render failed, or null.", "type": ["string", "null"] },
-        "engine": { "enum": ["eevee", "cycles", null] },
+        "engine": { "description": "eevee. cycles appears only in files written before milestone 8; such assets are rendered again with Eevee when they are refreshed.", "enum": ["eevee", "cycles", null] },
         "rendered_at": { "oneOf": [{ "$ref": "#/definitions/time" }, { "type": "null" }] }
       }
     },
