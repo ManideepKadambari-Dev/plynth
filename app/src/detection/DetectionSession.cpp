@@ -110,7 +110,10 @@ void DetectionSession::launch()
 {
     const plynth::Floor* floor = host_.floor();
     if (!active_ || floor == nullptr) {
+        clearResult();
         state_ = State::Idle;
+        statusText_.clear();
+        emit changed();
         return;
     }
     plynth::Document& document = host_.document();

@@ -38,8 +38,8 @@ public:
     void setDetectorId(const std::string& id);
 
     State state() const { return state_; }
-    // True once the first detection after switching the tool on has finished or failed.
-    bool settled() const { return state_ == State::Done || state_ == State::Failed; }
+    // True when no detection is running or waiting to start.
+    bool settled() const { return state_ != State::Running; }
     // The status line of the panel, and whether it is a refusal.
     QString statusText() const { return statusText_; }
     bool statusIsRefusal() const { return state_ == State::Failed; }
