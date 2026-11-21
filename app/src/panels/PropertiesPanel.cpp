@@ -59,7 +59,6 @@ constexpr int kDetectPage = 4;
 constexpr int kOpeningPage = 5;
 constexpr int kOpeningToolPage = 6;
 constexpr int kItemPage = 7;
-constexpr double kMountReach = 1.0;
 
 // Turns a core text into Qt text.
 QString fromCore(const std::string& text)

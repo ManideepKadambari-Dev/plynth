@@ -4,6 +4,8 @@
 #include "theme/Theme.h"
 #include "tools/Tool.h"
 
+#include <plynth/core/PlanImage.h>
+
 #include <QApplication>
 #include <QGraphicsPixmapItem>
 #include <QGraphicsScene>
@@ -23,6 +25,7 @@
 #include <QWheelEvent>
 
 #include <algorithm>
+#include <filesystem>
 #include <cmath>
 #include <numbers>
 
@@ -801,6 +804,15 @@ void PlanCanvas::showEvent(QShowEvent* event)
         applyFit();
 }
 
+// Says whether a drag carries a local file with a plan image extension, the same test the window uses.
+static bool hasImageFile(const QMimeData& mime)
+{
+    for (const QUrl& url : mime.urls())
+        if (url.isLocalFile() && plynth::hasPlanImageExtension(std::filesystem::path(url.toLocalFile().toStdWString())))
+            return true;
+    return false;
+}
+
 // Accepts an asset tile dragged from the Assets tab. Plan image files go on to the window, which sets them.
 void PlanCanvas::dragEnterEvent(QDragEnterEvent* event)
 {
@@ -819,7 +831,7 @@ void PlanCanvas::dragMoveEvent(QDragMoveEvent* event)
 {
     if (event->mimeData()->hasFormat(QStringLiteral("application/x-plynth-asset")) && hasImage())
         event->acceptProposedAction();
-    else if (event->mimeData()->hasUrls())
+    else if (event->mimeData()->hasUrls() && hasImageFile(*event->mimeData()))
         event->acceptProposedAction();
     else
         event->ignore();
