@@ -7,7 +7,7 @@
 #include "plynth/core/WallGeometry.h"
 #include "plynth/core/catalog/AssetInfo.h"
 
-#include <clipper2/clipper.h>
+#include "ClipperInclude.h"
 
 #include <algorithm>
 #include <cmath>
