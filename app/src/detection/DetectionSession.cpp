@@ -185,7 +185,8 @@ bool DetectionSession::canAccept() const
     if (!active_ || state_ != State::Done || raw_ == nullptr)
         return false;
     const plynth::ProposalCounts counts = plynth::countProposals(marked_);
-    return counts.newWalls > 0 || (marked_.params.rooms && counts.newRooms > 0);
+    return counts.newWalls > 0 || (marked_.params.rooms && counts.newRooms > 0) ||
+           (marked_.params.openings && counts.newOpenings > 0);
 }
 
 // Runs the accept command and says what it added.
@@ -198,8 +199,9 @@ bool DetectionSession::accept()
     const plynth::ApplyDetectionCommand* raw = command.get();
     if (!host_.run(std::move(command)).ok())
         return false;
-    host_.showNotice(tr("Added %1 and %2")
+    host_.showNotice(tr("Added %1, %2 and %3")
                          .arg(counted(raw->wallIds().size(), tr("wall"), tr("walls")),
+                              counted(raw->openingIds().size(), tr("opening"), tr("openings")),
                               counted(raw->roomIds().size(), tr("room"), tr("rooms"))));
     return true;
 }
@@ -237,7 +239,7 @@ ProposalOverlay DetectionSession::overlay() const
     }
     for (const plynth::ProposedOpening& opening : marked_.openings) {
         const plynth::ProposedWall& wall = marked_.walls[opening.wall];
-        if (wall.state != plynth::ProposalState::New)
+        if (opening.state != plynth::ProposalState::New)
             continue;
         const QPointF from = at(marked_.points[wall.from]);
         const QPointF to = at(marked_.points[wall.to]);
@@ -252,6 +254,8 @@ ProposalOverlay DetectionSession::overlay() const
         mark.thickness = wall.thickness * ppm;
         mark.width = opening.width * ppm;
         mark.kind = opening.type == plynth::OpeningType::Door ? 1 : opening.type == plynth::OpeningType::Window ? 2 : 0;
+        mark.hingeAtEnd = opening.hinge == plynth::HingeEnd::End;
+        mark.swingRight = opening.swing == plynth::WallSide::Right;
         out.openings.append(mark);
     }
     return out;

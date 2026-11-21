@@ -439,14 +439,17 @@ void PlanCanvas::paintProposals(QPainter* painter)
         tick(a);
         tick(b);
         if (opening.kind == 1) {
+            const QPointF hinge = opening.hingeAtEnd ? b : a;
+            const QPointF other = opening.hingeAtEnd ? a : b;
+            const QPointF side = opening.swingRight ? normal : -normal;
             QPolygonF arc;
             constexpr int kSteps = 16;
             for (int i = 0; i <= kSteps; ++i) {
                 const double angle = (std::numbers::pi / 2.0) * i / kSteps;
-                arc << a + (b - a) * std::cos(angle) + normal * (opening.width * std::sin(angle));
+                arc << hinge + (other - hinge) * std::cos(angle) + side * (opening.width * std::sin(angle));
             }
             painter->drawPolyline(view.map(arc));
-            painter->drawLine(view.map(a), view.map(a + normal * opening.width));
+            painter->drawLine(view.map(hinge), view.map(hinge + side * opening.width));
         } else if (opening.kind == 2) {
             const QPointF shift = normal * (opening.thickness / 6.0);
             painter->drawLine(view.map(a + shift), view.map(b + shift));

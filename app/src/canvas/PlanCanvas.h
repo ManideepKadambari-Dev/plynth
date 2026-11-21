@@ -71,13 +71,16 @@ struct ProposalWall {
 };
 
 // One proposed opening: its centre, the direction of its wall, the wall thickness and the gap width.
-// kind is 0 for a plain opening, 1 for a door and 2 for a window.
+// kind is 0 for a plain opening, 1 for a door and 2 for a window. A door hangs at the end of the wall when
+// hingeAtEnd is set, and opens toward the right of the wall's direction when swingRight is set.
 struct ProposalOpening {
     QPointF centre;
     QPointF direction;
     double thickness = 0.0;
     double width = 0.0;
     int kind = 0;
+    bool hingeAtEnd = false;
+    bool swingRight = true;
 };
 
 // Everything the canvas draws for detection proposals: only the new ones, as a dashed blue preview.

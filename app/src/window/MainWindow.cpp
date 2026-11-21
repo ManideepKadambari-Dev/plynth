@@ -265,7 +265,7 @@ void MainWindow::buildMenus()
         toolActions_[static_cast<size_t>(id)] = action;
     }
     acceptDetectionAction_ = addMenuAction(edit, tr("Accept detection"),
-                                           tr("Add the detected walls and rooms to the plan (Enter)"),
+                                           tr("Add the detected walls, openings and rooms to the plan (Enter)"),
                                            QStringLiteral("detect-accept"),
                                            {QKeySequence(Qt::Key_Return), QKeySequence(Qt::Key_Enter)});
     connect(acceptDetectionAction_, &QAction::triggered, this, [this]() { tools_->detection().accept(); });

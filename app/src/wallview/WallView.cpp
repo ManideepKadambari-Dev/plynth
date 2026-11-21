@@ -73,7 +73,7 @@ WallView::WallView(plynth::Document& document, Selection& selection, ToolControl
     row->addWidget(flipButton_);
     column->addWidget(header);
 
-    face_ = new WallFaceView(this);
+    face_ = new WallFaceView(&controller_, this);
     column->addWidget(face_, 1);
 
     connect(flipButton_, &QPushButton::clicked, this, &WallView::flip);

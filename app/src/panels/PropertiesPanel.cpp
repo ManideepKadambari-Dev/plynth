@@ -452,7 +452,7 @@ void PropertiesPanel::buildDetectPage()
     };
     roomsCheck_ = addCheck(tr("Propose rooms"), tr("Also propose a room for every closed area"),
                            QStringLiteral("panel-detect-rooms"));
-    openingsCheck_ = addCheck(tr("Show openings"), tr("Show doors, windows and gaps found in the walls"),
+    openingsCheck_ = addCheck(tr("Find openings"), tr("Find doors, windows and gaps in the walls and add them on Accept"),
                               QStringLiteral("panel-detect-openings"));
 
     detectorLabel_ = new QLabel(tr("Detector"), page);
@@ -486,15 +486,9 @@ void PropertiesPanel::buildDetectPage()
     detectStatus_->setProperty("tourId", QStringLiteral("panel-detect-status"));
     grid->addWidget(detectStatus_, grid->rowCount(), 0, 1, 2);
 
-    auto* note = new QLabel(tr("Openings are shown for checking. They are not added yet."), page);
-    note->setFont(t.uiFont(t.sizeSmall()));
-    note->setWordWrap(true);
-    note->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
-    grid->addWidget(note, grid->rowCount(), 0, 1, 2);
-
     acceptButton_ = new QPushButton(tr("Accept"), page);
     acceptButton_->setDefault(true);
-    acceptButton_->setToolTip(tr("Add the new walls and rooms to the plan (Enter)"));
+    acceptButton_->setToolTip(tr("Add the new walls, openings and rooms to the plan (Enter)"));
     acceptButton_->setProperty("tourId", QStringLiteral("detect-accept"));
     resetButton_ = new QPushButton(tr("Reset settings"), page);
     resetButton_->setToolTip(tr("Put every detection setting back to its default"));

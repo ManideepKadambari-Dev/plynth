@@ -6,14 +6,18 @@
 #include <QPoint>
 #include <QPointF>
 
+#include <plynth/core/Plan.h>
+
 namespace plynth::app {
+
+class ToolController;
 
 // The drawing area of the wall view: one wall face at true scale, the same size across and up. It paints from
 // a WallViewData and keeps its own zoom and pan. Wheel zooms at the cursor, middle drag pans, Home fits.
 class WallFaceView : public QGraphicsView {
     Q_OBJECT
 public:
-    explicit WallFaceView(QWidget* parent = nullptr);
+    explicit WallFaceView(ToolController* host, QWidget* parent = nullptr);
 
     // Replaces what is drawn. The view fits the face again when the wall changed or it is still in fit mode.
     void setData(const WallViewData& data);
@@ -36,6 +40,7 @@ protected:
     void resizeEvent(QResizeEvent* event) override;
     void showEvent(QShowEvent* event) override;
     void enterEvent(QEnterEvent* event) override;
+    void leaveEvent(QEvent* event) override;
 
 private:
     void applyFit();
@@ -43,8 +48,33 @@ private:
     void paintRuler(QPainter& painter);
     void paintOpenings(QPainter& painter);
     void paintNotes(QPainter& painter);
+    void paintHandles(QPainter& painter);
+    void paintMeasures(QPainter& painter);
 
+    // The box of the selected opening in face metres, and the pieces the pointer can grab.
+    struct Box {
+        double u0 = 0.0, u1 = 0.0, v0 = 0.0, v1 = 0.0;
+    };
+    enum class Drag { None, Move, Resize };
+    bool editable() const;
+    const WallViewOpening* selectedOpening() const;
+    const WallViewOpening* openingAt(const QPointF& face) const;
+    int handleAt(const QPoint& view) const;
+    QPointF handlePosition(const Box& box, int handle) const;
+    void updateHover(const QPoint& view);
+    void addOpeningAt(const QPointF& face, Qt::KeyboardModifiers modifiers);
+    void dragTo(const QPoint& view, Qt::KeyboardModifiers modifiers);
+
+    ToolController* host_ = nullptr;
     WallViewData data_;
+    Drag drag_ = Drag::None;
+    plynth::Id dragId_;
+    Box dragStartBox_;
+    QPointF dragStartFace_;
+    QPoint dragStartView_;
+    int dragHandle_ = -1;
+    int dragKey_ = 0;
+    int hoverHandle_ = -1;
     double scale_ = 1.0;   // canvas pixels per metre
     QPointF origin_;       // canvas position of u = 0 (after mirroring), v = 0
     bool fitMode_ = true;
