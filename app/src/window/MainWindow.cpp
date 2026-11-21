@@ -1,6 +1,7 @@
 #include "MainWindow.h"
 
 #include "TitleBar.h"
+#include "canvas/PlanCanvas.h"
 #include "theme/Theme.h"
 
 #include <plynth/core/Version.h>
@@ -43,7 +44,10 @@ MainWindow::MainWindow(const QString& projectFolder, QWidget* parent)
     titleBar_->setProjectName(projectName_);
     setMenuWidget(titleBar_);
 
-    auto* exitAction = titleBar_->fileMenu()->addAction(tr("E&xit"));
+    canvas_ = new PlanCanvas(this);
+    setCentralWidget(canvas_);
+
+    auto* exitAction =titleBar_->fileMenu()->addAction(tr("E&xit"));
     exitAction->setShortcut(QKeySequence(Qt::ALT | Qt::Key_F4));
     exitAction->setToolTip(tr("Exit Plynth (Alt+F4)"));
     exitAction->setProperty("tourId", QStringLiteral("file-exit"));

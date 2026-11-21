@@ -5,6 +5,8 @@ set(CMAKE_AUTORCC ON)
 
 add_executable(plynth WIN32
     src/main.cpp
+    src/canvas/PlanCanvas.h
+    src/canvas/PlanCanvas.cpp
     src/theme/Theme.h
     src/theme/Theme.cpp
     src/window/MainWindow.h

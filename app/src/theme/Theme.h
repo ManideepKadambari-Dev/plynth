@@ -36,6 +36,7 @@ public:
     int resizeBorder() const { return resizeBorder_; }
     int radius() const { return radius_; }
     int logoSize() const { return logoSize_; }
+    int sheetPadding() const { return sheetPadding_; }
 
     QString styleSheet() const;
     void apply() const;
@@ -50,6 +51,7 @@ private:
     int sizeSmall_ = 11, sizeNormal_ = 13, sizeLarge_ = 16;
     int unit_ = 4, titleBarHeight_ = 36, titleButtonWidth_ = 46;
     int resizeBorder_ = 6, radius_ = 4, logoSize_ = 20;
+    int sheetPadding_ = 24;
 };
 
 }

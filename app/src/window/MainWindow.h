@@ -5,6 +5,7 @@
 namespace plynth::app {
 
 class TitleBar;
+class PlanCanvas;
 
 // The main application window with its own title bar.
 class MainWindow : public QMainWindow {
@@ -26,6 +27,7 @@ private:
 
     QString projectName_;
     TitleBar* titleBar_ = nullptr;
+    PlanCanvas* canvas_ = nullptr;
     bool nativeFrameReady_ = false;
 };
 
