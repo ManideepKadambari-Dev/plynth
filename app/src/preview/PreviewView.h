@@ -47,6 +47,7 @@ protected:
 
 private:
     void placeButtons();
+    void showUnavailable(const QString& problem);
     void loadFile(const plynth::Plan& plan);
 
     ModelView* scene_ = nullptr;

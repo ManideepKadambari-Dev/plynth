@@ -83,27 +83,18 @@ PreviewView::PreviewView(QWidget* parent) : QWidget(parent)
 
     const plynth::GraphicsProbe& graphics = appGraphics();
     if (!graphics.ok) {
-        unavailable_ = new QLabel(this);
-        unavailable_->setAlignment(Qt::AlignCenter);
-        unavailable_->setWordWrap(true);
-        unavailable_->setFont(t.uiFont(t.sizeNormal()));
-        unavailable_->setTextFormat(Qt::RichText);
-        unavailable_->setStyleSheet(QStringLiteral("background: %1; color: %2; padding: %3px;")
-                                        .arg(t.ground().name(), t.signalAmber().name())
-                                        .arg(t.unit() * 8));
-        unavailable_->setText(tr("The 3D view cannot start. %1<br><a style=\"color: %2;\" href=\"help\">If the 3D view "
-                                 "stays empty</a>")
-                                  .arg(QString::fromStdString(graphics.problem).toHtmlEscaped(), t.signalBlue().name()));
-        connect(unavailable_, &QLabel::linkActivated, this, []() {
-            const QString folder = helpFolder();
-            if (!folder.isEmpty())
-                QDesktopServices::openUrl(QUrl::fromLocalFile(folder + QStringLiteral("/USER_GUIDE.md")));
-        });
-        column->addWidget(unavailable_);
+        showUnavailable(QString::fromStdString(graphics.problem));
         return;
     }
 
     scene_ = new ModelView(true, true, this);
+    if (scene_->status() == QQuickWidget::Error) {
+        const QString problem = scene_->errorText();
+        delete scene_;
+        scene_ = nullptr;
+        showUnavailable(problem);
+        return;
+    }
     column->addWidget(scene_);
     scene_->clearModel(tr("Build the plan to see it in 3D. (Ctrl+B)"));
 
@@ -136,6 +127,29 @@ PreviewView::PreviewView(QWidget* parent) : QWidget(parent)
     topButton_->raise();
     angleButton_->raise();
     placeButtons();
+}
+
+// Replaces the scene with the reason the 3D view cannot run and a link to the help page.
+void PreviewView::showUnavailable(const QString& problem)
+{
+    const Theme& t = Theme::instance();
+    unavailable_ = new QLabel(this);
+    unavailable_->setAlignment(Qt::AlignCenter);
+    unavailable_->setWordWrap(true);
+    unavailable_->setFont(t.uiFont(t.sizeNormal()));
+    unavailable_->setTextFormat(Qt::RichText);
+    unavailable_->setStyleSheet(QStringLiteral("background: %1; color: %2; padding: %3px;")
+                                    .arg(t.ground().name(), t.signalAmber().name())
+                                    .arg(t.unit() * 8));
+    unavailable_->setText(tr("The 3D view cannot start. %1<br><a style=\"color: %2;\" href=\"help\">If the 3D view "
+                             "stays empty</a>")
+                              .arg(problem.toHtmlEscaped(), t.signalBlue().name()));
+    connect(unavailable_, &QLabel::linkActivated, this, []() {
+        const QString folder = helpFolder();
+        if (!folder.isEmpty())
+            QDesktopServices::openUrl(QUrl::fromLocalFile(folder + QStringLiteral("/USER_GUIDE.md")));
+    });
+    layout()->addWidget(unavailable_);
 }
 
 // Puts the two buttons in the top right corner.

@@ -102,7 +102,32 @@ BuildPanel::BuildPanel(QWidget* parent) : QWidget(parent)
     column_->setContentsMargins(t.unit() * 4, t.unit() * 3, t.unit() * 4, t.unit() * 4);
     column_->setSpacing(t.unit() * 2);
     scroll->setWidget(body_);
-    outer->addWidget(scroll);
+    outer->addWidget(scroll, 1);
+
+    problemsHost_ = new QWidget(this);
+    auto* problemOuter = new QVBoxLayout(problemsHost_);
+    problemOuter->setContentsMargins(t.unit() * 4, 0, 0, 0);
+    problemOuter->setSpacing(0);
+    problemsHeading_ = new QLabel(problemsHost_);
+    problemsHeading_->setFont(t.uiFont(t.sizeSmall(), QFont::DemiBold));
+    problemsHeading_->setStyleSheet(QStringLiteral("color: %1; padding: %2px 0;").arg(t.muted().name()).arg(t.unit() * 2));
+    problemOuter->addWidget(problemsHeading_);
+    auto* problemScroll = new QScrollArea(problemsHost_);
+    problemScroll->setWidgetResizable(true);
+    problemScroll->setFrameShape(QFrame::NoFrame);
+    problemScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    problemScroll->setMinimumHeight(t.unit() * 36);
+    problemScroll->setStyleSheet(QStringLiteral("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; }") +
+                                 t.scrollBarStyleSheet());
+    problemBody_ = new QWidget();
+    problemColumn_ = new QVBoxLayout(problemBody_);
+    problemColumn_->setContentsMargins(0, 0, 0, t.unit() * 2);
+    problemColumn_->setSpacing(0);
+    problemColumn_->addStretch(1);
+    problemScroll->setWidget(problemBody_);
+    problemOuter->addWidget(problemScroll, 1);
+    outer->addWidget(problemsHost_, 1);
+    outer->setStretch(0, 2);
     setReport(nullptr, false);
 }
 
@@ -149,6 +174,12 @@ void BuildPanel::setReport(const plynth::BuildReport* report, bool stale)
         delete item;
     }
     empty_ = nullptr;
+    while (problemColumn_->count() > 1) {
+        QLayoutItem* item = problemColumn_->takeAt(0);
+        delete item->widget();
+        delete item;
+    }
+    problemsHost_->setVisible(report != nullptr);
     if (report == nullptr) {
         empty_ = new QLabel(tr("No build yet. Press Build (Ctrl+B)."), body_);
         empty_->setWordWrap(true);
@@ -219,12 +250,13 @@ void BuildPanel::setReport(const plynth::BuildReport* report, bool stale)
             addRow(steps, fromCore(step.step), tr("%1 ms").arg(step.ms), true);
     }
 
-    QWidget* problemHead = addSection(report->problems.empty() ? tr("Problems: none") : tr("Problems"));
-    Q_UNUSED(problemHead);
+    problemsHeading_->setText(report->problems.empty() ? tr("Problems: none") : tr("Problems"));
+    problemsHost_->findChild<QScrollArea*>()->setVisible(!report->problems.empty());
+    int at = 0;
     for (const plynth::BuildProblem& problem : report->problems) {
-        auto* row = new ProblemRow(problem, body_);
+        auto* row = new ProblemRow(problem, problemBody_);
         row->onClick = [this](const QString& object) { emit problemActivated(object); };
-        column_->addWidget(row);
+        problemColumn_->insertWidget(at++, row);
     }
     column_->addStretch(1);
 }

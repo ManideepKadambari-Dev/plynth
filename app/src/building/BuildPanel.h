@@ -31,6 +31,10 @@ private:
 
     QVBoxLayout* column_ = nullptr;
     QWidget* body_ = nullptr;
+    QWidget* problemsHost_ = nullptr;
+    QLabel* problemsHeading_ = nullptr;
+    QVBoxLayout* problemColumn_ = nullptr;
+    QWidget* problemBody_ = nullptr;
     QLabel* empty_ = nullptr;
 };
 
