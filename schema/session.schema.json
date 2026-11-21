@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:session:1",
+  "title": "Plynth edit session lock, version 1",
+  "description": "The session.lock file in a project folder, written by plynth session begin and removed by plynth session end. While it is active the app is read only. It expires when last_activity is more than 300 seconds old.",
+  "type": "object",
+  "required": ["format", "version", "pid", "tool", "started", "last_activity"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "plynth-session" },
+    "version": { "const": 1 },
+    "pid": {
+      "description": "Id of the process that ran session begin. For display only.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "tool": {
+      "description": "Who is editing, from session begin --tool. Shown in the app banner.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "started": { "$ref": "#/definitions/time" },
+    "last_activity": { "$ref": "#/definitions/time" }
+  },
+  "definitions": {
+    "time": {
+      "description": "UTC time with whole seconds.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    }
+  }
+}

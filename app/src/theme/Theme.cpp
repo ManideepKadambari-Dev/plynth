@@ -5,6 +5,7 @@
 #include <QFile>
 #include <QFontDatabase>
 #include <QJsonDocument>
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QPalette>
 
@@ -25,6 +26,7 @@ Theme::Theme()
       uiFamily_("Segoe UI"), monoFamily_("Consolas"),
       fallbackUi_("Segoe UI"), fallbackMono_("Consolas")
 {
+    ansi_.fill(Qt::gray);
 }
 
 // Reads colors, fonts and spacing from the JSON file in the resources.
@@ -70,6 +72,22 @@ bool Theme::load(const QString& resourcePath)
     radius_ = spacing["radius"].toInt(radius_);
     logoSize_ = spacing["logoSize"].toInt(logoSize_);
     sheetPadding_ = spacing["sheetPadding"].toInt(sheetPadding_);
+    pointDot_ = spacing["pointDot"].toInt(pointDot_);
+    terminalButton_ = spacing["terminalButton"].toInt(terminalButton_);
+    terminalPanelWidth_ = spacing["terminalPanelWidth"].toInt(terminalPanelWidth_);
+    terminalPanelHeight_ = spacing["terminalPanelHeight"].toInt(terminalPanelHeight_);
+
+    const QJsonObject effects = root["effects"].toObject();
+    overlayAlpha_ = effects["overlayAlpha"].toInt(overlayAlpha_);
+    readOnlyDim_ = effects["readOnlyDim"].toInt(readOnlyDim_);
+    terminalSelectionAlpha_ = effects["terminalSelectionAlpha"].toInt(terminalSelectionAlpha_);
+
+    const QJsonArray ansi = root["terminal"].toObject()["ansi"].toArray();
+    for (int i = 0; i < 16 && i < ansi.size(); ++i) {
+        const QColor c(ansi[i].toString());
+        if (c.isValid())
+            ansi_[static_cast<size_t>(i)] = c;
+    }
     return true;
 }
 

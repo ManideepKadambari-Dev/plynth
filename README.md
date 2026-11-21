@@ -40,7 +40,7 @@ Set `VCPKG_ROOT` and `QTDIR` as user variables, then restart any open terminal o
 3. Choose the `msvc` configure preset and the Debug configuration.
 4. Choose `plynth.exe` as the startup item and press F5.
 
-The first configure downloads the vcpkg packages, so it takes a few minutes.
+The first configure downloads and builds the vcpkg packages, so it takes a few minutes. One of them, libvterm (used by the built-in terminal), comes from the overlay port in `ports/`. vcpkg finds it through `vcpkg-configuration.json`, so there is nothing extra to install.
 
 ### Command line
 
@@ -52,7 +52,7 @@ cmake --build --preset debug
 ctest --preset debug
 ```
 
-The app is built to `out/build/msvc/app/Debug/plynth.exe`.
+The app is built to `out/build/msvc/app/Debug/plynth.exe`. Next to it is `plynth.com`, a small console program with the same command line. Use it from a terminal so the answer is printed before the prompt returns. See `docs/CLI_GUIDE.md`.
 
 ### Screenshots
 

@@ -2,11 +2,20 @@
 
 #include <QGraphicsView>
 #include <QImage>
+#include <QPointF>
+#include <QVector>
 
 class QGraphicsPixmapItem;
 class QGraphicsScene;
 
 namespace plynth::app {
+
+// One wall of the overlay, in scene units (image pixels).
+struct OverlayWall {
+    QPointF from;
+    QPointF to;
+    double thickness = 0.0;
+};
 
 // The plan sheet: shows one plan image and lets the user pan and zoom it.
 // In scene coordinates one unit is one image pixel, with the image corner at (0, 0).
@@ -18,6 +27,10 @@ public:
     void setImage(const QImage& image);
     void clearImage();
     bool hasImage() const { return pixmapItem_ != nullptr; }
+    void setEmptyText(const QString& text);
+    static QString defaultEmptyText();
+    void setDimmed(bool dimmed);
+    void setOverlay(const QVector<OverlayWall>& walls, const QVector<QPointF>& points);
     double zoom() const { return zoom_; }
 
     void zoomIn();
@@ -51,6 +64,10 @@ private:
 
     QGraphicsScene* scene_ = nullptr;
     QGraphicsPixmapItem* pixmapItem_ = nullptr;
+    QString emptyText_;
+    bool dimmed_ = false;
+    QVector<OverlayWall> overlayWalls_;
+    QVector<QPointF> overlayPoints_;
     double zoom_ = 1.0;
     bool fitMode_ = true;
     bool spaceHeld_ = false;

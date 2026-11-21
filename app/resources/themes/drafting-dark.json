@@ -27,6 +27,21 @@
     "resizeBorder": 6,
     "radius": 4,
     "logoSize": 20,
-    "sheetPadding": 24
+    "sheetPadding": 24,
+    "pointDot": 9,
+    "terminalButton": 44,
+    "terminalPanelWidth": 760,
+    "terminalPanelHeight": 420
+  },
+  "effects": {
+    "overlayAlpha": 150,
+    "readOnlyDim": 150,
+    "terminalSelectionAlpha": 80
+  },
+  "terminal": {
+    "ansi": [
+      "#1B222C", "#E5737F", "#8FCB9B", "#E3C078", "#6EA8E8", "#C792D6", "#5CC8D6", "#C9D1DB",
+      "#556070", "#FF8E99", "#A8E0B3", "#F2D58F", "#8CC0FF", "#DDA8EA", "#7FE0EC", "#E6EAF0"
+    ]
   }
 }

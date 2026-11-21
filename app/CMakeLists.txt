@@ -7,10 +7,20 @@ add_executable(plynth WIN32
     src/main.cpp
     src/canvas/PlanCanvas.h
     src/canvas/PlanCanvas.cpp
+    src/document/DocumentBridge.h
+    src/document/DocumentBridge.cpp
+    src/document/ProjectWatcher.h
+    src/document/ProjectWatcher.cpp
+    src/terminal/TerminalDock.h
+    src/terminal/TerminalDock.cpp
+    src/terminal/TerminalWidgets.h
+    src/terminal/TerminalWidgets.cpp
     src/theme/Theme.h
     src/theme/Theme.cpp
     src/window/MainWindow.h
     src/window/MainWindow.cpp
+    src/window/ReadOnlyBanner.h
+    src/window/ReadOnlyBanner.cpp
     src/window/StatusBar.h
     src/window/StatusBar.cpp
     src/window/TitleBar.h
@@ -27,7 +37,7 @@ if(WIN32)
 endif()
 
 target_include_directories(plynth PRIVATE src)
-target_link_libraries(plynth PRIVATE plynth::core Qt6::Widgets)
+target_link_libraries(plynth PRIVATE plynth::core plynth::cli plynth::terminal Qt6::Widgets)
 
 # Copy the Qt DLLs and plugins next to plynth.exe so it runs from the build folder.
 get_target_property(PLYNTH_QMAKE Qt6::qmake IMPORTED_LOCATION)

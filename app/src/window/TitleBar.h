@@ -44,6 +44,7 @@ public:
 
     QMenuBar* menuBar() const { return menuBar_; }
     QMenu* fileMenu() const { return fileMenu_; }
+    QMenu* editMenu() const { return editMenu_; }
     QMenu* helpMenu() const { return helpMenu_; }
     QMenu* viewMenu() const { return viewMenu_; }
     TitleButton* maximizeButton() const { return maximizeButton_; }
@@ -70,6 +71,7 @@ private:
     QLabel* logo_ = nullptr;
     QMenuBar* menuBar_ = nullptr;
     QMenu* fileMenu_ = nullptr;
+    QMenu* editMenu_ = nullptr;
     QMenu* helpMenu_ = nullptr;
     QMenu* viewMenu_ = nullptr;
     TitleButton* minimizeButton_ = nullptr;

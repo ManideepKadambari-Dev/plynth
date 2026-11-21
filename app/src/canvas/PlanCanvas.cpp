@@ -8,6 +8,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPixmap>
+#include <QPolygonF>
 #include <QScrollBar>
 #include <QWheelEvent>
 
@@ -41,6 +42,7 @@ PlanCanvas::PlanCanvas(QWidget* parent)
     setDragMode(QGraphicsView::NoDrag);
     setToolTip(tr("Plan sheet. Wheel zooms at the cursor. Middle drag or Space and drag pans."));
     setProperty("tourId", QStringLiteral("canvas-plan"));
+    emptyText_ = defaultEmptyText();
     updateCursor();
 }
 
@@ -61,6 +63,34 @@ void PlanCanvas::setImage(const QImage& image)
     pixmapItem_->setPos(0, 0);
     pixmapItem_->setZValue(1);
     fitToWindow();
+}
+
+// The hint shown on an empty sheet when nothing else needs saying.
+QString PlanCanvas::defaultEmptyText()
+{
+    return tr("Set a plan image with Ctrl+Shift+O or drop one here");
+}
+
+// Greys the sheet while the project is read only. The overlay stays on top at full strength.
+void PlanCanvas::setDimmed(bool dimmed)
+{
+    dimmed_ = dimmed;
+    viewport()->update();
+}
+
+// Replaces the walls and points drawn over the plan image. Positions are in scene units.
+void PlanCanvas::setOverlay(const QVector<OverlayWall>& walls, const QVector<QPointF>& points)
+{
+    overlayWalls_ = walls;
+    overlayPoints_ = points;
+    viewport()->update();
+}
+
+// Sets the line shown in the middle of the empty sheet. Empty text brings back the hint.
+void PlanCanvas::setEmptyText(const QString& text)
+{
+    emptyText_ = text.isEmpty() ? defaultEmptyText() : text;
+    viewport()->update();
 }
 
 // Removes the image and shows the empty state.
@@ -187,15 +217,49 @@ void PlanCanvas::drawBackground(QPainter* painter, const QRectF& rect)
 void PlanCanvas::drawForeground(QPainter* painter, const QRectF& rect)
 {
     Q_UNUSED(rect);
-    if (pixmapItem_ != nullptr)
-        return;
     const Theme& t = Theme::instance();
+    if (pixmapItem_ != nullptr) {
+        if (dimmed_) {
+            QColor dim = t.ground();
+            dim.setAlpha(t.readOnlyDim());
+            const int pad = t.sheetPadding();
+            painter->save();
+            painter->resetTransform();
+            painter->fillRect(mapFromScene(imageRect()).boundingRect().adjusted(-pad, -pad, pad, pad), dim);
+            painter->restore();
+        }
+        QColor blue = t.signalBlue();
+        blue.setAlpha(t.overlayAlpha());
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(blue);
+        for (const OverlayWall& wall : overlayWalls_) {
+            const QPointF delta = wall.to - wall.from;
+            const double length = std::hypot(delta.x(), delta.y());
+            if (length <= 0.0)
+                continue;
+            const QPointF dir = delta / length;
+            const QPointF normal(-dir.y(), dir.x());
+            const double half = wall.thickness / 2.0;
+            const QPointF a = wall.from - dir * half;
+            const QPointF b = wall.to + dir * half;
+            painter->drawPolygon(QPolygonF({a + normal * half, b + normal * half, b - normal * half, a - normal * half}));
+        }
+        painter->resetTransform();
+        painter->setBrush(t.signalBlue());
+        const double radius = t.pointDot() / 2.0;
+        for (const QPointF& point : overlayPoints_)
+            painter->drawEllipse(QPointF(mapFromScene(point)), radius, radius);
+        painter->restore();
+        return;
+    }
     painter->save();
     painter->resetTransform();
     painter->setPen(t.muted());
     painter->setFont(t.uiFont(t.sizeNormal()));
     painter->drawText(viewport()->rect(), Qt::AlignCenter,
-                      tr("Open a plan image with Ctrl+O or drop one here"));
+                      emptyText_);
     painter->restore();
 }
 

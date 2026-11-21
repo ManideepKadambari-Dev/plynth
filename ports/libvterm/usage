@@ -1,0 +1,4 @@
+libvterm provides CMake targets:
+
+    find_package(unofficial-libvterm CONFIG REQUIRED)
+    target_link_libraries(main PRIVATE unofficial::libvterm::libvterm)
