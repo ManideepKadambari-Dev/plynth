@@ -21,7 +21,8 @@ namespace plynth {
 // Adds an item at the end of the floor's item list. item.id is ignored: the new id comes from newId with
 // kItemIdPrefix on the first apply and is kept for redo. rotation is normalized. When item.room is set it must
 // be a room of the floor and is kept; otherwise it is roomAt the position. A wall item is put flush as above,
-// with z as given. NotFound for an unknown floor, otherwise as checkItemPlacement.
+// with z as given, and refused (InvalidValue) when it would reach past either end of its wall at the place along
+// the wall nearest its position. NotFound for an unknown floor, otherwise as checkItemPlacement.
 class PlaceItemCommand : public Command {
 public:
     PlaceItemCommand(Id floorId, Item item);
@@ -64,7 +65,9 @@ private:
 
 // Moves a wall item on its wall face, for the wall view: offset along the wall's true centre line to its
 // centre, and z for its bottom. NotFound for an unknown item, InvalidValue for an item that is not on a wall,
-// otherwise as wallItemPose and checkItemPlacement (for example its top above the wall).
+// InvalidValue also when offset puts the item past either end of the wall (offset below half its width or above
+// the wall's length minus half its width), otherwise as wallItemPose and checkItemPlacement (for example its top
+// above the wall).
 class MoveItemOnWallCommand : public Command {
 public:
     MoveItemOnWallCommand(Id itemId, double offset, double z, int mergeKey = 0);
@@ -151,7 +154,8 @@ private:
 };
 
 // Mounts an item on a wall of its floor, or takes it off. Mounting puts it flush on the side of the wall its
-// position is on, at the nearest place along it; z stays when above 0, otherwise it is defaultWallItemZ from
+// position is on, at the nearest place along it (refused with InvalidValue when the item would reach past an end
+// of the wall there); z stays when above 0, otherwise it is defaultWallItemZ from
 // the project's default sizes. Taking it off clears wall and keeps position, rotation and z. NotFound for an
 // unknown item or wall, InvalidValue for a wall on another floor, otherwise as checkItemPlacement.
 class SetItemWallCommand : public Command {

@@ -726,3 +726,45 @@ TEST_CASE("pickAt finds items before walls", "[core][command][item][snap]") {
         REQUIRE(pickAt(p.plan.floors[0], {1.5, 2.5}, 0.02) == Pick{PickKind::Item, top});
     }
 }
+
+TEST_CASE("wall items are refused when they would reach past a wall's end", "[core][command][item][wall]") {
+    Project p = houseWithRooms();
+    addPoint(p.plan.floors[0], "p20", 8, 0);
+    addPoint(p.plan.floors[0], "p21", 9, 0);
+    addWall(p.plan.floors[0], "w20", "p20", "p21", 0.2);
+
+    SECTION("a sofa wider than the wall is refused on attach and on place") {
+        const Id sofa = place(p, newItem("sofa", 8.5, 1.0, kSofa));
+        SetItemWallCommand attach(sofa, Id("w20"));
+        applyRefused(attach, p, ErrorCode::InvalidValue);
+        Item onWall = newItem("sofa", 8.5, 1.0, kSofa);
+        onWall.wall = "w20";
+        PlaceItemCommand c("f1", onWall);
+        applyRefused(c, p, ErrorCode::InvalidValue);
+    }
+    SECTION("an item that fits the wall but not at that place is refused on attach") {
+        const Id sofa = place(p, newItem("sofa", 2.85, 1.0, kSofa));
+        SetItemWallCommand attach(sofa, Id("w1"));
+        applyRefused(attach, p, ErrorCode::InvalidValue);
+        const Id inside = place(p, newItem("sofa", 1.5, 1.0, kSofa));
+        SetItemWallCommand ok(inside, Id("w1"));
+        applyOk(ok, p);
+    }
+    SECTION("place near an end is refused, and a good place is not") {
+        PlaceItemCommand bad("f1", newTv("w1", 0.2, 1.0));
+        applyRefused(bad, p, ErrorCode::InvalidValue);
+        PlaceItemCommand good("f1", newTv("w1", 0.7, 1.0));
+        applyOk(good, p);
+    }
+    SECTION("move on wall refuses an offset past either end") {
+        const Id tv = place(p, newTv("w1", 1.4, 1.0));
+        MoveItemOnWallCommand low(tv, 0.3, 1.0);
+        applyRefused(low, p, ErrorCode::InvalidValue);
+        MoveItemOnWallCommand high(tv, 2.6, 1.0);
+        applyRefused(high, p, ErrorCode::InvalidValue);
+        MoveItemOnWallCommand edge(tv, 0.7, 1.0);
+        applyOk(edge, p);
+        MoveItemOnWallCommand farEdge(tv, 3.0 - 0.615, 1.0);
+        applyOk(farEdge, p);
+    }
+}

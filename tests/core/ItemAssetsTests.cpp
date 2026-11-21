@@ -114,3 +114,33 @@ TEST_CASE("assetLookupFor gives the library size and nothing for a missing asset
     remeasure(lib, "sofa_01", {2.0, 0.9, 0.85});
     REQUIRE(*lookup("sofa_01") == ItemSize{2.0, 0.9, 0.85});
 }
+
+TEST_CASE("an indexed asset whose files are gone counts as missing without a rescan", "[core][catalog][items]") {
+    plynth::test::TestLibrary lib("item-assets-gone");
+    lib.add("bed", "Bed", {"bed"});
+    lib.add("chair", "Chair", {"chair"});
+    lib.add("lamp", "Lamp", {"lamp"});
+    plynth::test::requireOk(itemAssetFor(*lib.catalog, "bed").status);
+    const AssetLookup lookup = assetLookupFor(*lib.catalog);
+    REQUIRE(lookup("bed"));
+
+    SECTION("a renamed folder") {
+        std::filesystem::rename(lib.paths.assetItems / "bed", lib.paths.assetItems / "bed_gone");
+        REQUIRE(lib.catalog->asset("bed"));
+        const ItemAsset a = itemAssetFor(*lib.catalog, "bed");
+        REQUIRE(a.status.code == ErrorCode::NotFound);
+        REQUIRE_FALSE(lookup("bed"));
+        REQUIRE(lookup("chair"));
+    }
+    SECTION("a deleted info.json") {
+        std::filesystem::remove(lib.paths.assetItems / "chair" / "info.json");
+        REQUIRE(itemAssetFor(*lib.catalog, "chair").status.code == ErrorCode::NotFound);
+        REQUIRE_FALSE(lookup("chair"));
+    }
+    SECTION("an info.json that cannot be read is broken, not missing") {
+        plynth::test::writeBytes(lib.paths.assetItems / "lamp" / "info.json", "{not json");
+        const ItemAsset a = itemAssetFor(*lib.catalog, "lamp");
+        REQUIRE(a.status.code == ErrorCode::InvalidValue);
+        REQUIRE(lookup("lamp"));
+    }
+}

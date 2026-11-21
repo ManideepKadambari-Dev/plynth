@@ -1,9 +1,25 @@
 #include "plynth/core/catalog/ItemAssets.h"
 
+#include <filesystem>
 #include <optional>
 #include <string>
+#include <system_error>
 
 namespace plynth {
+
+namespace {
+
+namespace fs = std::filesystem;
+
+// Says whether an indexed asset's folder and info.json are still on disk. The index can be older than the files
+// (a folder renamed or deleted by hand), and the files are the truth.
+bool filesPresent(const AssetRecord& record)
+{
+    std::error_code ec;
+    return fs::is_directory(record.folder, ec) && fs::is_regular_file(record.folder / std::string(kAssetInfoFileName), ec);
+}
+
+}
 
 // The plan's copy of a catalog size.
 ItemSize itemSizeFrom(const AssetSize& size)
@@ -22,9 +38,17 @@ ItemAsset itemAssetFor(const AssetCatalog& catalog, std::string_view assetId)
         return result;
     }
     result.name = record->name;
+    if (!filesPresent(*record)) {
+        result.status = fail(ErrorCode::NotFound, "There is no asset " + id + " in the library. Its folder or info.json is gone.");
+        return result;
+    }
     if (record->state == AssetState::Broken) {
         const std::string why = record->problem.empty() ? std::string("It is broken.") : record->problem;
         result.status = fail(ErrorCode::InvalidValue, record->name + " cannot be placed: " + why);
+        return result;
+    }
+    if (!readAssetInfo(record->folder / std::string(kAssetInfoFileName), id).status.ok()) {
+        result.status = fail(ErrorCode::InvalidValue, record->name + " cannot be placed: its info.json cannot be read.");
         return result;
     }
     if (!isMeasured(record->size)) {
@@ -51,7 +75,7 @@ AssetLookup assetLookupFor(const AssetCatalog& catalog)
 {
     return [&catalog](std::string_view asset) -> std::optional<ItemSize> {
         const std::optional<AssetRecord> record = catalog.asset(asset);
-        if (!record) return std::nullopt;
+        if (!record || !filesPresent(*record)) return std::nullopt;
         return itemSizeFrom(record->size);
     };
 }
