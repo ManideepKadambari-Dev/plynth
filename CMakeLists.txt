@@ -17,6 +17,10 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/core/CMakeLists.txt")
     add_subdirectory(core)
 endif()
 
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/cli/CMakeLists.txt")
+    add_subdirectory(cli)
+endif()
+
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/app/CMakeLists.txt")
     add_subdirectory(app)
 endif()
