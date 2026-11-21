@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:cli-answer:1",
+  "title": "Plynth command line answer",
+  "description": "Every plynth command prints exactly one of these objects on one line to standard output, success or error. The shape of result depends on the command and is listed in docs/CLI_GUIDE.md.",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": ["ok", "command", "result"],
+      "additionalProperties": false,
+      "properties": {
+        "ok": { "const": true },
+        "command": { "$ref": "#/definitions/command" },
+        "result": { "type": "object" }
+      }
+    },
+    {
+      "type": "object",
+      "required": ["ok", "command", "error"],
+      "additionalProperties": false,
+      "properties": {
+        "ok": { "const": false },
+        "command": { "$ref": "#/definitions/command" },
+        "error": {
+          "type": "object",
+          "required": ["code", "message"],
+          "additionalProperties": false,
+          "properties": {
+            "code": {
+              "description": "Stable lower case code, for example not_found. Scripts branch on this, not on the message.",
+              "type": "string",
+              "pattern": "^[a-z_]+$"
+            },
+            "message": { "type": "string", "minLength": 1 },
+            "where": {
+              "description": "For a bad project file, a JSON pointer to the bad value inside it.",
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "command": {
+      "description": "The command words that were run, for example \"project new\". Empty when no command word was recognised.",
+      "type": "string"
+    }
+  }
+}

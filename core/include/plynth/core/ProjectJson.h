@@ -1,0 +1,75 @@
+#pragma once
+
+#include "Project.h"
+#include "Status.h"
+
+#include <nlohmann/json_fwd.hpp>
+
+#include <functional>
+#include <span>
+#include <string_view>
+
+namespace plynth {
+
+// ordered_json keeps keys in the order they were written, so saved files read top to bottom
+// in the same order as schema/plan.schema.json.
+using Json = nlohmann::ordered_json;
+
+inline constexpr std::string_view kPlanFormatName = "plynth-plan";
+inline constexpr int kPlanFormatVersion = 1;
+inline constexpr std::string_view kProjectFormatName = "plynth-project";
+inline constexpr int kProjectFormatVersion = 1;
+
+// Turns a plan into its plan.json form. Every field is written, absent values as null.
+Json planToJson(const Plan& plan);
+
+// The answer from reading a plan: the plan, or an error saying what is wrong and where.
+struct PlanRead {
+    Status status;
+    Plan plan;
+    int fileVersion = 0;   // the version found in the file, before any upgrade
+    bool migrated = false; // true when upgrade steps ran
+};
+
+// Reads a plan from its plan.json form. Checks "format", upgrades older versions with
+// planMigrations(), refuses newer versions, reads every field (missing optional fields get
+// their defaults, unknown fields are refused) and finally runs checkPlan.
+PlanRead planFromJson(const Json& json);
+
+// Turns project settings into their project.json form.
+Json settingsToJson(const ProjectSettings& settings);
+
+// The answer from reading project settings.
+struct SettingsRead {
+    Status status;
+    ProjectSettings settings;
+    int fileVersion = 0;
+    bool migrated = false;
+};
+
+// Reads project settings from their project.json form, with the same checks as planFromJson.
+SettingsRead settingsFromJson(const Json& json);
+
+// Upgrades a file's JSON from one version to the next, in place.
+// The step does not need to change "version"; migrateJson does that after it succeeds.
+using MigrationStep = std::function<Status(Json& json)>;
+
+// One upgrade step and the version it starts from.
+struct Migration {
+    int fromVersion = 0;
+    MigrationStep step;
+};
+
+// Runs upgrade steps until the JSON reaches currentVersion. Reads "version" from the JSON.
+// BadFile when "version" is missing, not a whole number, below 1 or a step is missing.
+// UnsupportedVersion when it is above currentVersion. A failing step stops and returns its status.
+Status migrateJson(Json& json, int currentVersion, std::span<const Migration> steps);
+
+// The upgrade steps for plan.json, ordered by fromVersion. Empty while only version 1 exists.
+// When the format changes: raise kPlanFormatVersion, add a step here and a new schema file.
+std::span<const Migration> planMigrations();
+
+// The upgrade steps for project.json. Empty while only version 1 exists.
+std::span<const Migration> projectMigrations();
+
+}

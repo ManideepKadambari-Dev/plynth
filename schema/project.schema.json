@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:project:1",
+  "title": "Plynth project settings, version 1",
+  "description": "The project.json file in a project folder. Lengths are in metres.",
+  "type": "object",
+  "required": ["format", "version", "name"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "plynth-project" },
+    "version": { "const": 1 },
+    "name": { "type": "string", "minLength": 1 },
+    "export_mode": {
+      "description": "single gives one FBX for the whole building, grouped gives one FBX per group.",
+      "enum": ["single", "grouped"],
+      "default": "single"
+    },
+    "grid_size": {
+      "description": "Wall snap grid in metres.",
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "default": 0.5
+    }
+  }
+}
