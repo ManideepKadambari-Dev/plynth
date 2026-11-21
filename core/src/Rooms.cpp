@@ -1,0 +1,403 @@
+#include "plynth/core/Rooms.h"
+
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4702)
+#endif
+#include <clipper2/clipper.h>
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
+
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
+#include <map>
+#include <numeric>
+#include <set>
+#include <string>
+
+namespace plynth {
+
+namespace {
+
+constexpr double kTinyLength = 1e-9;
+constexpr double kTinyArea = 1e-12;
+constexpr int kClipperPrecision = 6;
+
+// Orders ids so "w9" comes before "w10".
+bool idLess(const Id& a, const Id& b)
+{
+    if (a.size() != b.size()) return a.size() < b.size();
+    return a < b;
+}
+
+// One usable wall of the graph: two distinct nodes and a length above zero.
+struct Edge {
+    std::size_t a = 0;
+    std::size_t b = 0;
+    Id wallId;
+};
+
+// A walk around one face, as half edges. Half edge 2e runs from edge e's a to its b, 2e + 1 the other way.
+struct Face {
+    std::vector<std::size_t> halfEdges;
+    double area = 0.0;
+    std::size_t component = 0;
+};
+
+// A ring found in the graph, ready to hand out.
+struct Ring {
+    std::vector<Id> walls;
+    std::vector<Vec2> corners;
+};
+
+// Finds a position inside the area made by the rings (even odd rule). Tries several horizontal lines and takes
+// the middle of the longest stretch inside. Returns false when no stretch exists.
+bool interiorPoint(const std::vector<std::vector<Vec2>>& rings, Vec2& out)
+{
+    double minY = 1e300;
+    double maxY = -1e300;
+    for (const auto& ring : rings) {
+        for (const Vec2& p : ring) {
+            minY = std::min(minY, p.y);
+            maxY = std::max(maxY, p.y);
+        }
+    }
+    if (!(maxY > minY)) return false;
+    static const double levels[] = {0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8, 0.1, 0.9};
+    double bestWidth = 0.0;
+    bool found = false;
+    for (double level : levels) {
+        const double y = minY + (maxY - minY) * level;
+        std::vector<double> xs;
+        for (const auto& ring : rings) {
+            const std::size_t n = ring.size();
+            for (std::size_t i = 0, j = n ? n - 1 : 0; i < n; j = i++) {
+                const Vec2 a = ring[i];
+                const Vec2 b = ring[j];
+                if ((a.y > y) != (b.y > y)) xs.push_back((b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x);
+            }
+        }
+        std::sort(xs.begin(), xs.end());
+        for (std::size_t i = 0; i + 1 < xs.size(); i += 2) {
+            const double width = xs[i + 1] - xs[i];
+            if (width > bestWidth) {
+                bestWidth = width;
+                out = {(xs[i] + xs[i + 1]) / 2.0, y};
+                found = true;
+            }
+        }
+    }
+    return found;
+}
+
+// Says whether a position is inside the outer ring and outside every island ring.
+bool insideRings(Vec2 position, const std::vector<std::vector<Vec2>>& rings)
+{
+    if (rings.empty() || !insidePolygon(position, rings[0])) return false;
+    for (std::size_t i = 1; i < rings.size(); ++i) {
+        if (insidePolygon(position, rings[i])) return false;
+    }
+    return true;
+}
+
+// Rotates a ring so it starts at the wall with the smallest id.
+void rotateToSmallestWall(Ring& ring)
+{
+    if (ring.walls.empty()) return;
+    std::size_t best = 0;
+    for (std::size_t i = 1; i < ring.walls.size(); ++i) {
+        if (idLess(ring.walls[i], ring.walls[best])) best = i;
+    }
+    std::rotate(ring.walls.begin(), ring.walls.begin() + static_cast<std::ptrdiff_t>(best), ring.walls.end());
+    std::rotate(ring.corners.begin(), ring.corners.begin() + static_cast<std::ptrdiff_t>(best), ring.corners.end());
+}
+
+// Marks the edges that are bridges (removing one splits its piece in two), by a depth first search that does not
+// recurse so large plans are safe.
+std::vector<bool> findBridges(std::size_t nodeCount, const std::vector<Edge>& edges)
+{
+    std::vector<std::vector<std::size_t>> adjacent(nodeCount);
+    for (std::size_t e = 0; e < edges.size(); ++e) {
+        adjacent[edges[e].a].push_back(e);
+        adjacent[edges[e].b].push_back(e);
+    }
+    std::vector<bool> bridge(edges.size(), false);
+    std::vector<int> tin(nodeCount, -1);
+    std::vector<int> low(nodeCount, 0);
+    int timer = 0;
+    struct Frame {
+        std::size_t node;
+        std::size_t parentEdge;
+        std::size_t next;
+    };
+    constexpr std::size_t kNone = static_cast<std::size_t>(-1);
+    for (std::size_t root = 0; root < nodeCount; ++root) {
+        if (tin[root] >= 0) continue;
+        std::vector<Frame> stack{{root, kNone, 0}};
+        tin[root] = low[root] = timer++;
+        while (!stack.empty()) {
+            Frame& top = stack.back();
+            if (top.next < adjacent[top.node].size()) {
+                const std::size_t e = adjacent[top.node][top.next++];
+                if (e == top.parentEdge) continue;
+                const std::size_t other = edges[e].a == top.node ? edges[e].b : edges[e].a;
+                if (tin[other] >= 0) {
+                    low[top.node] = std::min(low[top.node], tin[other]);
+                } else {
+                    tin[other] = low[other] = timer++;
+                    stack.push_back({other, e, 0});
+                }
+            } else {
+                const Frame done = top;
+                stack.pop_back();
+                if (!stack.empty()) {
+                    const std::size_t parent = stack.back().node;
+                    low[parent] = std::min(low[parent], low[done.node]);
+                    if (low[done.node] > tin[parent]) bridge[done.parentEdge] = true;
+                }
+            }
+        }
+    }
+    return bridge;
+}
+
+}
+
+// Builds the wall graph, drops bridges, walks the faces and gives each separate piece's outer ring to the
+// smallest area around it.
+std::vector<ClosedArea> findClosedAreas(const Floor& floor)
+{
+    std::map<Id, std::size_t> nodeOf;
+    std::vector<Vec2> nodes;
+    for (const Point& p : floor.points) {
+        if (nodeOf.emplace(p.id, nodes.size()).second) nodes.push_back(positionOf(p));
+    }
+
+    std::map<std::pair<std::size_t, std::size_t>, Id> pairs;
+    for (const Wall& w : floor.walls) {
+        const auto a = nodeOf.find(w.from);
+        const auto b = nodeOf.find(w.to);
+        if (a == nodeOf.end() || b == nodeOf.end() || a->second == b->second) continue;
+        if (distance(nodes[a->second], nodes[b->second]) <= kTinyLength) continue;
+        const auto key = std::minmax(a->second, b->second);
+        const auto it = pairs.find({key.first, key.second});
+        if (it == pairs.end()) {
+            pairs.emplace(std::make_pair(key.first, key.second), w.id);
+        } else if (idLess(w.id, it->second)) {
+            it->second = w.id;
+        }
+    }
+    std::vector<Edge> all;
+    for (const auto& [key, id] : pairs) all.push_back({key.first, key.second, id});
+
+    const std::vector<bool> bridge = findBridges(nodes.size(), all);
+    std::vector<Edge> edges;
+    for (std::size_t e = 0; e < all.size(); ++e) {
+        if (!bridge[e]) edges.push_back(all[e]);
+    }
+    if (edges.empty()) return {};
+
+    // Pieces: edges joined through shared nodes.
+    std::vector<std::size_t> parent(nodes.size());
+    std::iota(parent.begin(), parent.end(), 0);
+    const auto root = [&](std::size_t n) {
+        while (parent[n] != n) n = parent[n] = parent[parent[n]];
+        return n;
+    };
+    for (const Edge& e : edges) parent[root(e.a)] = root(e.b);
+
+    // Half edges around each node, ordered by angle.
+    const auto from = [&](std::size_t h) { return (h & 1) ? edges[h >> 1].b : edges[h >> 1].a; };
+    const auto to = [&](std::size_t h) { return (h & 1) ? edges[h >> 1].a : edges[h >> 1].b; };
+    std::vector<std::vector<std::size_t>> outgoing(nodes.size());
+    for (std::size_t h = 0; h < edges.size() * 2; ++h) outgoing[from(h)].push_back(h);
+    std::vector<std::size_t> indexAt(edges.size() * 2, 0);
+    for (std::size_t n = 0; n < nodes.size(); ++n) {
+        auto& list = outgoing[n];
+        const auto angle = [&](std::size_t h) {
+            const Vec2 a = nodes[from(h)];
+            const Vec2 b = nodes[to(h)];
+            return std::atan2(b.y - a.y, b.x - a.x);
+        };
+        std::sort(list.begin(), list.end(), [&](std::size_t x, std::size_t y) {
+            const double ax = angle(x);
+            const double ay = angle(y);
+            if (ax != ay) return ax < ay;
+            return idLess(edges[x >> 1].wallId, edges[y >> 1].wallId);
+        });
+        for (std::size_t i = 0; i < list.size(); ++i) indexAt[list[i]] = i;
+    }
+
+    std::vector<Face> faces;
+    std::vector<bool> seen(edges.size() * 2, false);
+    for (std::size_t start = 0; start < edges.size() * 2; ++start) {
+        if (seen[start]) continue;
+        Face face;
+        std::vector<Vec2> corners;
+        std::size_t h = start;
+        while (!seen[h]) {
+            seen[h] = true;
+            face.halfEdges.push_back(h);
+            corners.push_back(nodes[from(h)]);
+            const std::size_t twin = h ^ 1u;
+            const auto& list = outgoing[from(twin)];
+            h = list[(indexAt[twin] + list.size() - 1) % list.size()];
+        }
+        face.area = signedArea(corners);
+        face.component = root(from(start));
+        faces.push_back(std::move(face));
+    }
+
+    const auto makeRing = [&](const Face& face) {
+        Ring ring;
+        for (std::size_t h : face.halfEdges) {
+            ring.walls.push_back(edges[h >> 1].wallId);
+            ring.corners.push_back(nodes[from(h)]);
+        }
+        rotateToSmallestWall(ring);
+        return ring;
+    };
+
+    struct Area {
+        Ring outer;
+        std::size_t component = 0;
+        double outerArea = 0.0;
+        std::vector<Ring> islands;
+    };
+    std::vector<Area> areas;
+    for (const Face& f : faces) {
+        if (f.area <= kTinyArea) continue;
+        Area a;
+        a.outer = makeRing(f);
+        a.component = f.component;
+        a.outerArea = f.area;
+        areas.push_back(std::move(a));
+    }
+    for (const Face& f : faces) {
+        if (f.area >= -kTinyArea) continue;
+        Ring ring = makeRing(f);
+        Area* best = nullptr;
+        for (Area& a : areas) {
+            if (a.component == f.component) continue;
+            if (!insidePolygon(ring.corners[0], a.outer.corners)) continue;
+            if (!best || a.outerArea < best->outerArea) best = &a;
+        }
+        if (best) best->islands.push_back(std::move(ring));
+    }
+
+    std::vector<ClosedArea> result;
+    for (Area& a : areas) {
+        std::sort(a.islands.begin(), a.islands.end(), [](const Ring& x, const Ring& y) { return idLess(x.walls[0], y.walls[0]); });
+        ClosedArea area;
+        area.walls = a.outer.walls;
+        area.rings.push_back(a.outer.corners);
+        area.centreLineArea = a.outerArea;
+        for (const Ring& island : a.islands) {
+            area.walls.insert(area.walls.end(), island.walls.begin(), island.walls.end());
+            area.rings.push_back(island.corners);
+            area.centreLineArea -= std::abs(signedArea(island.corners));
+        }
+        if (!interiorPoint(area.rings, area.inside)) area.inside = area.rings[0][0];
+        result.push_back(std::move(area));
+    }
+    std::sort(result.begin(), result.end(), [](const ClosedArea& x, const ClosedArea& y) {
+        return idLess(x.walls[0], y.walls[0]);
+    });
+    return result;
+}
+
+// Finds the area whose outer ring holds the position and none of whose islands do.
+std::optional<ClosedArea> findClosedAreaAt(const Floor& floor, Vec2 position)
+{
+    for (ClosedArea& a : findClosedAreas(floor)) {
+        if (insideRings(position, a.rings)) return std::move(a);
+    }
+    return std::nullopt;
+}
+
+// Works out the rings of the room by finding the closed area of exactly its walls, then takes the wall bands off.
+RoomShape roomShape(const Floor& floor, const Room& room)
+{
+    RoomShape shape;
+    if (room.walls.empty()) return shape;
+
+    Floor sub;
+    std::set<Id> wanted(room.walls.begin(), room.walls.end());
+    if (wanted.size() != room.walls.size()) return shape;
+    std::set<Id> pointIds;
+    for (const Id& id : room.walls) {
+        const Wall* w = findWall(floor, id);
+        if (!w) return shape;
+        sub.walls.push_back(*w);
+        pointIds.insert(w->from);
+        pointIds.insert(w->to);
+    }
+    for (const Point& p : floor.points) {
+        if (pointIds.count(p.id)) sub.points.push_back(p);
+    }
+
+    const ClosedArea* match = nullptr;
+    const std::vector<ClosedArea> areas = findClosedAreas(sub);
+    for (const ClosedArea& a : areas) {
+        if (std::set<Id>(a.walls.begin(), a.walls.end()) == wanted && a.walls.size() == wanted.size()) {
+            match = &a;
+            break;
+        }
+    }
+    if (!match) return shape;
+
+    shape.closed = true;
+    shape.rings = match->rings;
+
+    Clipper2Lib::PathsD subject;
+    for (const auto& ring : match->rings) {
+        Clipper2Lib::PathD path;
+        for (const Vec2& p : ring) path.emplace_back(p.x, p.y);
+        subject.push_back(std::move(path));
+    }
+    Clipper2Lib::PathsD bands;
+    for (const Wall& w : sub.walls) {
+        const Point* a = findPoint(sub, w.from);
+        const Point* b = findPoint(sub, w.to);
+        const double length = distance(positionOf(*a), positionOf(*b));
+        if (length <= kTinyLength) continue;
+        const double dx = (b->x - a->x) / length;
+        const double dy = (b->y - a->y) / length;
+        const double h = w.thickness / 2.0;
+        const double nx = -dy * h;
+        const double ny = dx * h;
+        const double x0 = a->x - dx * h;
+        const double y0 = a->y - dy * h;
+        const double x1 = b->x + dx * h;
+        const double y1 = b->y + dy * h;
+        Clipper2Lib::PathD band{{x0 + nx, y0 + ny}, {x1 + nx, y1 + ny}, {x1 - nx, y1 - ny}, {x0 - nx, y0 - ny}};
+        if (Clipper2Lib::Area(band) < 0.0) std::reverse(band.begin(), band.end());
+        bands.push_back(std::move(band));
+    }
+    const Clipper2Lib::PathsD merged = Clipper2Lib::Union(bands, Clipper2Lib::FillRule::NonZero, kClipperPrecision);
+    const Clipper2Lib::PathsD floorPaths =
+        Clipper2Lib::Difference(subject, merged, Clipper2Lib::FillRule::NonZero, kClipperPrecision);
+    for (const Clipper2Lib::PathD& path : floorPaths) {
+        std::vector<Vec2> ring;
+        for (const Clipper2Lib::PointD& p : path) ring.push_back({p.x, p.y});
+        if (ring.size() < 3) continue;
+        shape.area += signedArea(ring);
+        shape.floorArea.push_back(std::move(ring));
+    }
+    if (!interiorPoint(shape.floorArea, shape.labelPoint)) shape.labelPoint = match->inside;
+    return shape;
+}
+
+// The first closed room whose area holds the position.
+Id roomAt(const Floor& floor, Vec2 position)
+{
+    for (const Room& room : floor.rooms) {
+        const RoomShape shape = roomShape(floor, room);
+        if (shape.closed && insideRings(position, shape.rings)) return room.id;
+    }
+    return {};
+}
+
+}

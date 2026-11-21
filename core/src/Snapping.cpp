@@ -1,5 +1,6 @@
 #include "plynth/core/Snapping.h"
 
+#include "plynth/core/Rooms.h"
 #include "plynth/core/commands/WallCommands.h"
 
 #include <algorithm>
@@ -102,7 +103,7 @@ SnapResult snapPosition(const Floor& floor, Vec2 position, const SnapOptions& op
     return result;
 }
 
-// Finds what is under a position: a point, then a wall band.
+// Finds what is under a position: a point, then a wall band, then a room.
 Pick pickAt(const Floor& floor, Vec2 position, double radius)
 {
     radius = std::max(radius, 0.0);
@@ -131,6 +132,7 @@ Pick pickAt(const Floor& floor, Vec2 position, double radius)
         }
     }
     if (bestWall) return {PickKind::Wall, bestWall->id};
+    if (Id room = roomAt(floor, position); !room.empty()) return {PickKind::Room, std::move(room)};
     return {};
 }
 

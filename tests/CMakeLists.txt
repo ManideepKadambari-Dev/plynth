@@ -18,6 +18,9 @@ add_executable(plynth_core_tests
     core/SnappingTests.cpp
     core/RoomTypesTests.cpp
     core/WallCommandTests.cpp
+    core/RoomsTests.cpp
+    core/RoomCommandTests.cpp
+    core/DeleteCommandTests.cpp
 )
 target_link_libraries(plynth_core_tests PRIVATE
     plynth::core
