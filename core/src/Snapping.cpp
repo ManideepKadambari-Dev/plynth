@@ -2,6 +2,7 @@
 
 #include "BandOutline.h"
 
+#include "plynth/core/Items.h"
 #include "plynth/core/Openings.h"
 #include "plynth/core/Rooms.h"
 #include "plynth/core/WallGeometry.h"
@@ -195,6 +196,16 @@ Pick pickAt(const Floor& floor, Vec2 position, double radius)
         }
     }
     if (bestOpening) return {PickKind::Opening, bestOpening->id};
+
+    // An item is under the position when its footprint (or a place within radius of it) is. The last one in the
+    // list is drawn on top, so it wins.
+    const Item* topItem = nullptr;
+    for (const Item& item : floor.items) {
+        const ItemFootprint footprint = itemFootprint(item);
+        const std::vector<Vec2> corners(footprint.corners.begin(), footprint.corners.end());
+        if (insidePolygon(position, corners) || distanceToPolygon(position, corners) <= radius) topItem = &item;
+    }
+    if (topItem) return {PickKind::Item, topItem->id};
 
     // A wall is under the position when its band (or a place within radius of it) is. Where bands overlap, the wall
     // whose centre line is closest wins.

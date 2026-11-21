@@ -43,6 +43,7 @@ add_library(plynth_core STATIC
     src/commands/RoomCommands.cpp
     src/commands/DeleteCommands.cpp
     src/commands/OpeningCommands.cpp
+    src/commands/ItemCommands.cpp
     src/commands/DetectionCommands.cpp
     src/detection/Detection.cpp
     src/detection/Detector.cpp

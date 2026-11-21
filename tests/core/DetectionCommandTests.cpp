@@ -70,7 +70,7 @@ TEST_CASE("ApplyDetectionCommand on an empty floor", "[core][command][detection]
     REQUIRE(c.skippedWalls() == 0);
     REQUIRE(c.skippedRooms() == 0);
     REQUIRE(c.floorId() == "f1");
-    REQUIRE(c.changes() == (Change::Points | Change::Walls | Change::Rooms | Change::Openings));
+    REQUIRE(c.changes() == (Change::Points | Change::Walls | Change::Rooms | Change::Openings | Change::Items));
 
     const Wall* across = findWall(f, "w7");
     REQUIRE(across);

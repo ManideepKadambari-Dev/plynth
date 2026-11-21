@@ -63,6 +63,13 @@ Status AddRoomCommand::apply(Project& project)
     }
     room_.id = r.id;
     floor->rooms.push_back(std::move(r));
+    itemsGiven_.clear();
+    for (Item& item : floor->items) {
+        if (item.room) continue;
+        if (roomAt(*floor, {item.x, item.y}) != room_.id) continue;
+        item.room = room_.id;
+        itemsGiven_.push_back(item.id);
+    }
     return {};
 }
 
@@ -72,11 +79,14 @@ void AddRoomCommand::undo(Project& project)
     Floor* floor = findFloor(project.plan, floorId_);
     if (!floor) return;
     std::erase_if(floor->rooms, [&](const Room& r) { return r.id == room_.id; });
+    for (const Id& id : itemsGiven_) {
+        if (Item* item = findItem(*floor, id)) item->room.reset();
+    }
 }
 
 unsigned AddRoomCommand::changes() const
 {
-    return Change::Rooms;
+    return Change::Rooms | Change::Items;
 }
 
 Id AddRoomCommand::floorId() const
@@ -101,6 +111,12 @@ Status RemoveRoomCommand::apply(Project& project)
     index_ = static_cast<std::size_t>(room - floor->rooms.data());
     removed_ = *room;
     floor->rooms.erase(floor->rooms.begin() + static_cast<std::ptrdiff_t>(index_));
+    itemsCleared_.clear();
+    for (Item& item : floor->items) {
+        if (item.room != roomId_) continue;
+        item.room.reset();
+        itemsCleared_.push_back(item.id);
+    }
     return {};
 }
 
@@ -111,11 +127,14 @@ void RemoveRoomCommand::undo(Project& project)
     if (!floor) return;
     const std::size_t at = std::min(index_, floor->rooms.size());
     floor->rooms.insert(floor->rooms.begin() + static_cast<std::ptrdiff_t>(at), removed_);
+    for (const Id& id : itemsCleared_) {
+        if (Item* item = findItem(*floor, id)) item->room = removed_.id;
+    }
 }
 
 unsigned RemoveRoomCommand::changes() const
 {
-    return Change::Rooms;
+    return Change::Rooms | Change::Items;
 }
 
 Id RemoveRoomCommand::floorId() const
