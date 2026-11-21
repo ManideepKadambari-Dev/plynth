@@ -86,6 +86,19 @@ void setUserVersion(const fs::path& db, int version)
 
 }
 
+TEST_CASE("initLibrary leaves the work folder of a running import alone", "[core][library]") {
+    plynth::test::TempDir tmp("lib-init-live");
+    const fs::path root = tmp.path() / "Lib";
+    plynth::test::requireOk(initLibrary(root));
+    const LibraryPaths p = libraryPaths(root);
+    plynth::test::writeBytes(p.assetStaging / "busy-00000001" / "job.json", "{}");
+    plynth::test::markFolderLive(p.assetStaging / "busy-00000001");
+    plynth::test::writeBytes(p.assetStaging / "left-00000002" / "job.json", "{}");
+    plynth::test::requireOk(initLibrary(root));
+    REQUIRE(fs::exists(p.assetStaging / "busy-00000001" / "job.json"));
+    REQUIRE_FALSE(fs::exists(p.assetStaging / "left-00000002"));
+}
+
 TEST_CASE("the databases carry the schema version", "[core][library]") {
     plynth::test::TempDir tmp("lib-version");
     plynth::test::requireOk(initLibrary(tmp.path() / "Lib"));

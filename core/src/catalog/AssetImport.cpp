@@ -1,5 +1,7 @@
 #include "plynth/core/catalog/AssetImport.h"
 
+#include "Staging.h"
+
 #include "plynth/core/Process.h"
 #include "plynth/core/ProjectFiles.h"
 #include "plynth/core/catalog/AssetJobs.h"
@@ -34,14 +36,19 @@ public:
     explicit WorkFolder(fs::path path) : path_(std::move(path)) {}
     ~WorkFolder()
     {
-        if (!keep_) {
-            std::error_code ec;
-            fs::remove_all(path_, ec);
-        }
+        if (keep_) staging::unmarkLive(path_);
+        else staging::removeTree(path_);
     }
     WorkFolder(const WorkFolder&) = delete;
     WorkFolder& operator=(const WorkFolder&) = delete;
-    void keep() { keep_ = true; }
+    // Marks the folder as in use by this process. Call once it exists.
+    void start() { staging::markLive(path_); }
+    // Keeps the folder for the log, noting which source it was for.
+    void keep(const std::string& source = {})
+    {
+        keep_ = true;
+        if (!source.empty()) staging::keepSource(path_, source);
+    }
     const fs::path& path() const { return path_; }
 
 private:
@@ -264,6 +271,8 @@ ImportOutcome importAsset(AssetCatalog& catalog, const ImportContext& context, c
         outcome.status = fail(ErrorCode::CannotWrite, "The work folder " + pathToUtf8(work.path()) + " could not be created.");
         return outcome;
     }
+    work.start();
+    const std::string sourceText = request.source.file.empty() ? request.source.url : pathToUtf8(request.source.file);
 
     ImportPlan plan;
     if (outcome.status = importer->plan(request.source, work.path(), plan); !outcome.status.ok()) return outcome;
@@ -285,14 +294,14 @@ ImportOutcome importAsset(AssetCatalog& catalog, const ImportContext& context, c
         [&](const BlenderProgress& p) { report(ImportStage::Blender, p); }, stop);
     if (!run.status.ok()) {
         const bool blenderProblem = run.status.code == ErrorCode::BlenderFailed;
-        if (blenderProblem) work.keep();
+        if (blenderProblem) work.keep(sourceText);
         outcome.status = blenderFailure(run, blenderProblem ? work.path() : fs::path());
         if (blenderProblem) outcome.keptWorkFolder = work.path();
         return outcome;
     }
     const AssetJobOutput out = readCleanupResult(run.result, jobId);
     if (!out.header.status.ok()) {
-        work.keep();
+        work.keep(sourceText);
         outcome.keptWorkFolder = work.path();
         outcome.status = fail(ErrorCode::BlenderFailed, out.header.status.message + "\nThe work folder was kept for the log: " + pathToUtf8(work.path()));
         return outcome;
@@ -319,7 +328,7 @@ ImportOutcome importAsset(AssetCatalog& catalog, const ImportContext& context, c
     const fs::path blend = itemFolder / pathFromUtf8(kAssetBlendFileName);
     if (!fs::is_regular_file(blend, ec)) {
         outcome.status = fail(ErrorCode::BlenderFailed, "Blender did not save asset.blend.");
-        work.keep();
+        work.keep(sourceText);
         outcome.keptWorkFolder = work.path();
         return outcome;
     }
@@ -352,6 +361,7 @@ ImportOutcome importAsset(AssetCatalog& catalog, const ImportContext& context, c
         return outcome;
     }
 
+    staging::removeKept(library.assetStaging, sourceText);
     outcome.assetId = id;
     outcome.warnings = info.warnings;
     outcome.thumbnailFailed = !rendered;
@@ -455,6 +465,7 @@ ImportOutcome refreshAsset(AssetCatalog& catalog, const ImportContext& context, 
         outcome.status = fail(ErrorCode::CannotWrite, "The work folder " + pathToUtf8(work.path()) + " could not be created.");
         return outcome;
     }
+    work.start();
 
     ThumbnailJob thumb;
     thumb.blendFile = blend;

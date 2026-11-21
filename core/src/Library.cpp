@@ -3,6 +3,7 @@
 #include "catalog/BuiltIn.h"
 #include "catalog/Database.h"
 #include "catalog/LibrarySetup.h"
+#include "catalog/Staging.h"
 
 #include "PlynthSql.h"
 
@@ -88,11 +89,7 @@ Status initLibrary(const fs::path& root)
     const LibraryPaths p = libraryPaths(root);
     if (Status s = makeLibraryFolders(p); !s.ok()) return s;
 
-    std::error_code ec;
-    for (const auto& entry : fs::directory_iterator(p.assetStaging, ec)) {
-        std::error_code ignore;
-        fs::remove_all(entry.path(), ignore);
-    }
+    staging::clearIdle(p.assetStaging);
     return ensureLibraryDatabases(p);
 }
 

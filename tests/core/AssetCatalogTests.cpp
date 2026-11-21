@@ -297,12 +297,67 @@ TEST_CASE("idTaken sees rows, folders and running imports", "[core][catalog]") {
     lib.add("chair", "Chair");
     plynth::test::writeBytes(lib.paths.assetItems / "folder_only" / "asset.blend", "x");
     plynth::test::writeBytes(lib.paths.assetStaging / "busy-3f9a07c1" / "job.json", "{}");
+    plynth::test::markFolderLive(lib.paths.assetStaging / "busy-3f9a07c1");
+    plynth::test::writeBytes(lib.paths.assetStaging / "left-3f9a07c1" / "job.json", "{}");
     AssetCatalog& c = *lib.catalog;
     REQUIRE(c.idTaken("chair"));
     REQUIRE(c.idTaken("folder_only"));
     REQUIRE(c.idTaken("busy"));
     REQUIRE_FALSE(c.idTaken("lamp"));
     REQUIRE_FALSE(c.idTaken("bus"));
+    REQUIRE_FALSE(c.idTaken("left"));
+}
+
+TEST_CASE("a marker left by a process that is gone does not hold an id", "[core][catalog]") {
+    TestLibrary lib("cat-idtaken-stale");
+    plynth::test::writeBytes(lib.paths.assetStaging / "ghost-00000001" / ".live", "999999 1\n");
+    REQUIRE_FALSE(lib.catalog->idTaken("ghost"));
+}
+
+TEST_CASE("removeAsset refuses ids that are not plain asset ids", "[core][catalog]") {
+    TestLibrary lib("cat-remove-escape");
+    lib.add("chair", "Chair");
+    const fs::path outside = lib.tmp.path() / "outside";
+    plynth::test::writeBytes(outside / "keep.txt", "x");
+    plynth::test::writeBytes(lib.tmp.path() / "Library" / "keep_too.txt", "x");
+
+    const std::string absolute = pathToUtf8(outside);
+    for (const std::string id : {absolute, std::string(".."), std::string("a/../.."), std::string("../outside"),
+                                 std::string("..\\outside"), std::string("chair/.."), std::string(""), std::string(".")}) {
+        INFO(id);
+        REQUIRE(lib.catalog->removeAsset(id).code == ErrorCode::InvalidValue);
+    }
+    REQUIRE(fs::exists(outside / "keep.txt"));
+    REQUIRE(fs::exists(lib.tmp.path() / "Library" / "keep_too.txt"));
+    REQUIRE(fs::exists(lib.paths.assetItems / "chair"));
+    REQUIRE(lib.catalog->asset("chair"));
+}
+
+TEST_CASE("removeAsset of an id that is valid but not indexed", "[core][catalog]") {
+    TestLibrary lib("cat-remove-unknown");
+    REQUIRE(lib.catalog->removeAsset("nothing_here").code == ErrorCode::NotFound);
+    plynth::test::writeBytes(lib.paths.assetItems / "stray" / "asset.blend", "x");
+    plynth::test::requireOk(lib.catalog->removeAsset("stray"));
+    REQUIRE_FALSE(fs::exists(lib.paths.assetItems / "stray"));
+}
+
+TEST_CASE("opening a catalog cleans old work folders nobody uses", "[core][catalog]") {
+    TestLibrary lib("cat-clean-old");
+    const fs::path oldFolder = lib.paths.assetStaging / "old-00000001";
+    const fs::path newFolder = lib.paths.assetStaging / "new-00000002";
+    const fs::path liveFolder = lib.paths.assetStaging / "live-00000003";
+    for (const fs::path& p : {oldFolder, newFolder, liveFolder}) plynth::test::writeBytes(p / "blender.log", "x");
+    plynth::test::markFolderLive(liveFolder);
+    const auto twoDaysAgo = fs::file_time_type::clock::now() - std::chrono::hours(48);
+    fs::last_write_time(oldFolder, twoDaysAgo);
+    fs::last_write_time(liveFolder, twoDaysAgo);
+
+    Status status;
+    auto reopened = AssetCatalog::open(lib.paths, status);
+    plynth::test::requireOk(status);
+    REQUIRE_FALSE(fs::exists(oldFolder));
+    REQUIRE(fs::exists(newFolder));
+    REQUIRE(fs::exists(liveFolder));
 }
 
 TEST_CASE("two catalogs on one library", "[core][catalog]") {

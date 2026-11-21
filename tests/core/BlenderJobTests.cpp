@@ -135,12 +135,12 @@ TEST_CASE("a stop request ends a hanging job as cancelled", "[core][blenderjob]"
     REQUIRE(fs::exists(f.work / "blender.log"));
 }
 
-TEST_CASE("the timeout ends a hanging job as cancelled", "[core][blenderjob]") {
+TEST_CASE("the timeout ends a hanging job as blender_failed", "[core][blenderjob]") {
     JobFixture f("job-timeout", "hang");
     f.options.timeout = std::chrono::seconds(1);
     const BlenderJobRun run = runBlenderJob(f.exe, f.probeJob(), f.work, f.options);
-    REQUIRE(run.status.code == ErrorCode::Cancelled);
-    REQUIRE(run.status.message.find("out of time") != std::string::npos);
+    REQUIRE(run.status.code == ErrorCode::BlenderFailed);
+    REQUIRE(run.status.message.find("timed out") != std::string::npos);
 }
 
 TEST_CASE("a missing scripts folder is not_found", "[core][blenderjob]") {

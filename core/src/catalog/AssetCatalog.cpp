@@ -2,6 +2,7 @@
 
 #include "Database.h"
 #include "LibrarySetup.h"
+#include "Staging.h"
 
 #include "plynth/core/ProjectFiles.h"
 
@@ -423,6 +424,7 @@ std::unique_ptr<AssetCatalog> AssetCatalog::open(const LibraryPaths& library, St
         status = fail(ErrorCode::DatabaseError, std::string("The assets database could not be opened: ") + e.what());
         return nullptr;
     }
+    staging::cleanOld(library.assetStaging, std::chrono::hours(24));
     return std::unique_ptr<AssetCatalog>(new AssetCatalog(std::move(impl)));
 }
 
@@ -774,10 +776,10 @@ bool AssetCatalog::idTaken(std::string_view id) const
     }
     std::error_code ec;
     if (fs::exists(impl_->paths.assetItems / pathFromUtf8(id), ec)) return true;
-    if (fs::exists(impl_->paths.assetStaging / pathFromUtf8(id), ec)) return true;
+    if (staging::isLive(impl_->paths.assetStaging / pathFromUtf8(id))) return true;
     const std::string prefix = std::string(id) + "-";
     for (const auto& entry : fs::directory_iterator(impl_->paths.assetStaging, ec)) {
-        if (pathToUtf8(entry.path().filename()).rfind(prefix, 0) == 0) return true;
+        if (pathToUtf8(entry.path().filename()).rfind(prefix, 0) == 0 && staging::isLive(entry.path())) return true;
     }
     return false;
 }
@@ -855,10 +857,15 @@ Status AssetCatalog::indexAsset(const AssetInfo& info)
 // Deletes an asset folder and its rows.
 Status AssetCatalog::removeAsset(std::string_view id)
 {
+    if (Status s = checkCatalogId(id); !s.ok()) return s;
     return guarded([&] {
         Database& db = *impl_->db;
         const fs::path folder = impl_->paths.assetItems / pathFromUtf8(id);
         std::error_code ec;
+        // A valid id is one plain name, but the folder must also sit directly in items/.
+        if (folder.parent_path() != impl_->paths.assetItems) {
+            return fail(ErrorCode::InvalidValue, "The id is not an asset folder.");
+        }
         const bool indexed = exists(db, "SELECT 1 FROM assets WHERE id = ?", id);
         const bool onDisk = fs::is_directory(folder, ec);
         if (!indexed && !onDisk) return fail(ErrorCode::NotFound, "There is no asset \"" + std::string(id) + "\".");

@@ -3,6 +3,7 @@
 #include "SchemaSupport.h"
 #include "TestSupport.h"
 
+#include <plynth/core/EditSession.h>
 #include <plynth/core/ProjectFiles.h>
 #include <plynth/core/catalog/AssetCatalog.h>
 #include <plynth/core/catalog/AssetInfo.h>
@@ -59,6 +60,13 @@ inline AssetInfo makeAssetOnDisk(const LibraryPaths& paths, const std::string& i
     }
     requireOk(writeAssetInfo(folder / "info.json", info));
     return info;
+}
+
+// Marks a work folder as in use by this test process, the way a running import does.
+inline void markFolderLive(const std::filesystem::path& folder)
+{
+    const ProcessIdentity me = currentProcess();
+    writeBytes(folder / ".live", std::to_string(me.pid) + " " + std::to_string(me.startKey) + "\n");
 }
 
 // A new library in a temporary folder, with the catalog open on it.

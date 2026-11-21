@@ -11,6 +11,7 @@ add_library(plynth_core STATIC
     src/SetupCheck.cpp
     src/catalog/AssetJobs.cpp
     src/catalog/Importer.cpp
+    src/catalog/Staging.cpp
     src/catalog/AssetImport.cpp
     src/catalog/AssetInfo.cpp
     src/catalog/AssetCatalog.cpp

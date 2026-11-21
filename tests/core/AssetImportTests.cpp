@@ -218,6 +218,52 @@ TEST_CASE("a Blender failure leaves nothing and keeps the work folder", "[core][
     REQUIRE(f.stagingEntries() == 0);
 }
 
+TEST_CASE("a failed import does not hold the id, and the next good import cleans up", "[core][import]") {
+    ImportFixture f("import-fail-then-ok", "fail");
+    const ImportRequest request = f.request("chair.obj");
+    const ImportOutcome failed = importAsset(*f.lib.catalog, f.context, request);
+    REQUIRE(failed.status.code == ErrorCode::BlenderFailed);
+    REQUIRE(fs::exists(failed.keptWorkFolder));
+    REQUIRE_FALSE(fs::exists(failed.keptWorkFolder / ".live"));
+    REQUIRE_FALSE(f.lib.catalog->idTaken("chair"));
+
+    plynth::test::makeFakeBlender(f.lib.tmp.path() / "blender", "5.2.0", "ok");
+    const ImportOutcome good = importAsset(*f.lib.catalog, f.context, request);
+    plynth::test::requireOk(good.status);
+    REQUIRE(good.assetId == "chair");
+    REQUIRE_FALSE(fs::exists(failed.keptWorkFolder));
+    REQUIRE(f.stagingEntries() == 0);
+}
+
+TEST_CASE("a kept folder of another source stays after a good import", "[core][import]") {
+    ImportFixture f("import-fail-other", "fail");
+    const ImportOutcome failed = importAsset(*f.lib.catalog, f.context, f.request("table.obj"));
+    REQUIRE(failed.status.code == ErrorCode::BlenderFailed);
+    plynth::test::makeFakeBlender(f.lib.tmp.path() / "blender", "5.2.0", "ok");
+    plynth::test::requireOk(importAsset(*f.lib.catalog, f.context, f.request("chair.obj")).status);
+    REQUIRE(fs::exists(failed.keptWorkFolder));
+}
+
+TEST_CASE("a running import marks its work folder as live", "[core][import]") {
+    ImportFixture f("import-live", "hang");
+    std::stop_source source;
+    bool sawLive = false;
+    std::thread watcher([&] {
+        Status status;
+        auto other = AssetCatalog::open(f.lib.paths, status);
+        for (int i = 0; i < 100 && !sawLive && other; ++i) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            sawLive = other->idTaken("chair");
+        }
+        source.request_stop();
+    });
+    const ImportOutcome outcome = importAsset(*f.lib.catalog, f.context, f.request("chair.obj"), {}, source.get_token());
+    watcher.join();
+    REQUIRE(sawLive);
+    REQUIRE(outcome.status.code == ErrorCode::Cancelled);
+    REQUIRE(f.stagingEntries() == 0);
+}
+
 TEST_CASE("a failed render still imports the asset", "[core][import]") {
     ImportFixture f("import-nothumb", "no_thumbnail");
     const ImportOutcome outcome = importAsset(*f.lib.catalog, f.context, f.request("chair.obj"));

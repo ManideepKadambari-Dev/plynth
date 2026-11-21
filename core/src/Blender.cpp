@@ -454,10 +454,12 @@ BlenderJobRun runBlenderJob(const fs::path& blender, const Json& job, const fs::
     spec.arguments.push_back(pathToUtf8(jobFile));
     spec.timeout = std::chrono::duration_cast<std::chrono::milliseconds>(options.timeout);
 
+    constexpr std::size_t kMaxLogBytes = 1024 * 1024;
     std::string log;
     const auto onLine = [&](std::string_view line) {
         log.append(line);
         log.push_back('\n');
+        if (log.size() > 2 * kMaxLogBytes) log.erase(0, log.size() - kMaxLogBytes);
         if (line.rfind(kProgressPrefix, 0) != 0 || !onProgress) return;
         const Json parsed = Json::parse(line.substr(kProgressPrefix.size()), nullptr, false);
         if (parsed.is_discarded() || !parsed.is_object() || !parsed.contains("progress") || !parsed["progress"].is_object()) return;
@@ -483,8 +485,13 @@ BlenderJobRun runBlenderJob(const fs::path& blender, const Json& job, const fs::
         run.status = fail(ErrorCode::BlenderNotFound, "The Blender " + pathToUtf8(blender) + " does not exist.");
         return run;
     }
+    if (process.timedOut) {
+        run.status = fail(ErrorCode::BlenderFailed, "Blender timed out after " + std::to_string(options.timeout.count()) +
+                                                        " seconds and was stopped.");
+        return run;
+    }
     if (process.status.code == ErrorCode::Cancelled) {
-        run.status = fail(ErrorCode::Cancelled, process.timedOut ? "Blender ran out of time and was stopped." : "The job was cancelled.");
+        run.status = fail(ErrorCode::Cancelled, "The job was cancelled.");
         return run;
     }
     if (!process.status.ok()) {
