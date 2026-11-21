@@ -96,6 +96,7 @@ private:
     int nextListenerId_ = 1;
     unsigned long long editCount_ = 0;
     unsigned long long autosavedEditCount_ = 0;
+    bool autosaveWritten_ = false; // an autosave file from this session may exist
 };
 
 }

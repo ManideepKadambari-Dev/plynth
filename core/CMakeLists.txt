@@ -9,6 +9,8 @@ add_library(plynth_core STATIC
     src/ProjectJson.cpp
     src/Command.cpp
     src/CommandStack.cpp
+    src/ProjectFiles.cpp
+    src/Document.cpp
     src/commands/FloorCommands.cpp
     src/commands/PointCommands.cpp
     src/commands/WallCommands.cpp
