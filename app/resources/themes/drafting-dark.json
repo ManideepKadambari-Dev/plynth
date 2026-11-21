@@ -1,0 +1,31 @@
+{
+  "name": "Drafting dark",
+  "colors": {
+    "ground": "#0E1116",
+    "panel": "#151A21",
+    "raised": "#1B222C",
+    "line": "#27303C",
+    "text": "#E6EAF0",
+    "muted": "#9AA6B5",
+    "signalBlue": "#4CC2FF",
+    "signalAmber": "#FFB454",
+    "onBlue": "#06202E"
+  },
+  "fonts": {
+    "ui": "Inter",
+    "uiFallback": "Segoe UI",
+    "mono": "JetBrains Mono",
+    "monoFallback": "Consolas",
+    "sizeSmall": 11,
+    "sizeNormal": 13,
+    "sizeLarge": 16
+  },
+  "spacing": {
+    "unit": 4,
+    "titleBarHeight": 36,
+    "titleButtonWidth": 46,
+    "resizeBorder": 6,
+    "radius": 4,
+    "logoSize": 20
+  }
+}

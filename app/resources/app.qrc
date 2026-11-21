@@ -1,0 +1,10 @@
+<RCC>
+    <qresource prefix="/">
+        <file>logo.png</file>
+        <file>themes/drafting-dark.json</file>
+        <file>fonts/Inter-Regular.ttf</file>
+        <file>fonts/Inter-Medium.ttf</file>
+        <file>fonts/Inter-SemiBold.ttf</file>
+        <file>fonts/JetBrainsMono-Regular.ttf</file>
+    </qresource>
+</RCC>
