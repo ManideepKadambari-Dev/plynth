@@ -29,6 +29,7 @@ add_library(plynth_core STATIC
     src/FileIo.cpp
     src/Geometry.cpp
     src/Snapping.cpp
+    src/Items.cpp
     src/RoomTypes.cpp
     src/Rooms.cpp
     src/WallGeometry.cpp
