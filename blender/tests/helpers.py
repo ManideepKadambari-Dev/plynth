@@ -1,3 +1,5 @@
+import contextlib
+import io
 import json
 import os
 import shutil
@@ -44,7 +46,10 @@ class TempFolderTest(unittest.TestCase):
     # Runs a job through the worker and returns the result read back from its file.
     def run_task(self, task, task_params, **overrides):
         job_file, result_file = self.write_job(task, task_params, **overrides)
-        run_job_file(job_file)
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            run_job_file(job_file)
+        self.printed = buffer.getvalue()
         return self.read_result(result_file)
 
     # Reads a result file.

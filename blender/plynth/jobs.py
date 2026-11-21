@@ -35,6 +35,7 @@ class Context:
         self.params = job.params
         self.warnings = []
         self.output = {}
+        self.state = {}
         self.work_folder = os.path.dirname(os.path.abspath(job.result_file))
 
     # Adds a warning that does not stop the job.
