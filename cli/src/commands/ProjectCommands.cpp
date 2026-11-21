@@ -1,7 +1,9 @@
+#include "../CatalogCommon.h"
 #include "../Common.h"
 
 #include <plynth/core/PlanImage.h>
 #include <plynth/core/ProjectFiles.h>
+#include <plynth/core/Settings.h>
 #include <plynth/core/commands/FloorCommands.h>
 #include <plynth/core/commands/SettingsCommands.h>
 
@@ -79,6 +81,48 @@ Answer projectInfo(const RunContext& context, const std::string& projectOption) 
         return failure(command, loaded.status);
     }
     return success(command, projectInfoJson(folder, loaded.project));
+}
+
+// One recent project as project recent prints it.
+Json recentEntry(const RecentProject& recent) {
+    std::error_code ignored;
+    Json entry = Json::object();
+    entry["path"] = pathToUtf8(recent.path);
+    entry["name"] = recent.name;
+    entry["last_opened"] = formatSessionTime(recent.lastOpened);
+    entry["exists"] = std::filesystem::is_directory(recent.path, ignored);
+    return entry;
+}
+
+// Lists the projects the app opened or saved lately, newest first, or takes one off the list. The CLI
+// never adds to the list; only the app does. Nothing on disk is touched.
+Answer projectRecent(const RunContext& context, const std::string& removePath) {
+    const std::string command = "project recent";
+    const SettingsLoad loaded = loadSettings();
+    if (!loaded.status.ok()) {
+        return failure(command, loaded.status);
+    }
+    MachineSettings settings = loaded.settings;
+    Json result = Json::object();
+    if (!removePath.empty()) {
+        const std::filesystem::path folder = userPath(context, removePath);
+        if (!removeRecentProject(settings, folder)) {
+            return failure(command, fail(ErrorCode::NotFound, "There is no recent project " + pathToUtf8(folder) + "."));
+        }
+        const Status saved = saveSettings(settings);
+        if (!saved.ok()) {
+            return failure(command, saved);
+        }
+        result["removed"] = pathToUtf8(folder);
+    }
+    Json projects = Json::array();
+    for (const RecentProject& recent : settings.recentProjects) {
+        projects.push_back(recentEntry(recent));
+    }
+    const std::size_t count = projects.size();
+    result["projects"] = std::move(projects);
+    result["count"] = count;
+    return success(command, std::move(result));
 }
 
 struct SetOptions {
@@ -177,7 +221,17 @@ std::vector<CommandSpec> projectCommands() {
         return [options](const RunContext& context) { return projectSet(context, *options); };
     };
 
-    return {create, info, set};
+    CommandSpec recent;
+    recent.words = {"project", "recent"};
+    recent.description = "List the recent projects of the app, or take one off the list with --remove.";
+    recent.setup = [](CLI::App& sub) -> Handler {
+        auto remove = std::make_shared<std::string>();
+        sub.add_option("--remove", *remove, "Take this project folder off the list. The folder itself stays.")
+            ->type_name("folder");
+        return [remove](const RunContext& context) { return projectRecent(context, *remove); };
+    };
+
+    return {create, info, set, recent};
 }
 
 }
