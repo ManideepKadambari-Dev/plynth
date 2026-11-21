@@ -147,8 +147,8 @@ int main(int argc, char* argv[])
 
     const bool wantsTerminal = parser.isSet(terminalOption);
     if (wantsTerminal) {
-        // Extra words after the project folder belong to the text, in case the shell that
-        // started the app split a quoted argument into several.
+        // The words found right after the --terminal value, up to the next option, are the rest of
+        // the text, in case the shell that started the app split a quoted argument into several.
         QString text = parser.value(terminalOption);
         for (const QString& word : terminalWords)
             text += QLatin1Char(' ') + word;
