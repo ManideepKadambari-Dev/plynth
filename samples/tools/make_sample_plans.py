@@ -5,15 +5,16 @@ import sys
 import zlib
 
 W, H = 2400, 1600
-PX_PER_M = 100
 
 
 class Canvas:
+    # Starts a blank white image.
     def __init__(self, w, h):
         self.w = w
         self.h = h
         self.pix = bytearray(b"\xff" * (w * h))
 
+    # Fills a box with one gray value.
     def rect(self, x0, y0, x1, y1, value=0):
         x0, x1 = max(0, x0), min(self.w, x1)
         y0, y1 = max(0, y0), min(self.h, y1)
@@ -23,6 +24,7 @@ class Canvas:
         for y in range(y0, y1):
             self.pix[y * self.w + x0:y * self.w + x1] = row
 
+    # Darkens one pixel by the given coverage, never lightening it.
     def blend(self, x, y, coverage):
         if 0 <= x < self.w and 0 <= y < self.h and coverage > 0:
             v = int(round(255 * (1.0 - min(1.0, coverage))))
@@ -30,6 +32,7 @@ class Canvas:
             if v < self.pix[i]:
                 self.pix[i] = v
 
+    # Draws an antialiased line of the given width.
     def segment(self, x0, y0, x1, y1, width):
         r = width / 2.0
         pad = int(math.ceil(r)) + 1
@@ -42,6 +45,7 @@ class Canvas:
                 d = math.hypot(px - (x0 + t * dx), py - (y0 + t * dy))
                 self.blend(x, y, r + 0.5 - d)
 
+    # Draws a thin curved line along part of a circle.
     def arc(self, cx, cy, radius, a0, a1, width):
         steps = max(8, int(radius * abs(a1 - a0) / 3))
         prev = None
@@ -52,6 +56,7 @@ class Canvas:
                 self.segment(prev[0], prev[1], p[0], p[1], width)
             prev = p
 
+    # Draws a thick curved wall along part of a circle.
     def ring(self, cx, cy, radius, thickness, a0, a1):
         r0, r1 = radius - thickness / 2.0, radius + thickness / 2.0
         lo, hi = int(r0) - 2, int(r1) + 3
@@ -65,11 +70,13 @@ class Canvas:
                 if a0 <= a <= a1:
                     self.blend(x, y, min(r - r0 + 0.5, r1 - r + 0.5))
 
+    # Returns the image encoded as a grayscale PNG file.
     def png_bytes(self):
         raw = bytearray()
         for y in range(self.h):
             raw.append(0)
             raw += self.pix[y * self.w:(y + 1) * self.w]
+        # Wraps data as one PNG chunk with its length and checksum.
         def chunk(tag, data):
             body = tag + data
             return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body) & 0xFFFFFFFF)
@@ -78,6 +85,7 @@ class Canvas:
                 + chunk(b"IDAT", zlib.compress(bytes(raw), 9)) + chunk(b"IEND", b""))
 
 
+# Draws a door leaf and its swing arc from the hinge point.
 def door(c, hx, hy, d, n, w):
     ex, ey = hx + n[0] * w, hy + n[1] * w
     if n[0] == 0:
@@ -90,6 +98,7 @@ def door(c, hx, hy, d, n, w):
     c.arc(hx, hy, w, base, base + diff, 2)
 
 
+# Draws the whole apartment plan.
 def build():
     c = Canvas(W, H)
     x0, y0, x1, y1 = 500, 300, 1900, 1300
@@ -148,6 +157,7 @@ def build():
     return c
 
 
+# Writes the plan image next to the samples folder.
 def main():
     out_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "plans")
     os.makedirs(out_dir, exist_ok=True)
