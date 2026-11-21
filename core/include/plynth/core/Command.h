@@ -20,10 +20,11 @@ inline constexpr unsigned Points = 1u << 4;
 inline constexpr unsigned Walls = 1u << 5;
 inline constexpr unsigned Rooms = 1u << 6;
 inline constexpr unsigned Openings = 1u << 7;
-inline constexpr unsigned Content = (1u << 8) - 1; // every part of the project above
-inline constexpr unsigned History = 1u << 8;       // undo, redo or the unsaved changes state
-inline constexpr unsigned Folder = 1u << 9;        // the document now belongs to another folder
-inline constexpr unsigned ReadOnly = 1u << 10;      // the document became read only or editable again
+inline constexpr unsigned Items = 1u << 8;
+inline constexpr unsigned Content = (1u << 9) - 1; // every part of the project above
+inline constexpr unsigned History = 1u << 9;       // undo, redo or the unsaved changes state
+inline constexpr unsigned Folder = 1u << 10;       // the document now belongs to another folder
+inline constexpr unsigned ReadOnly = 1u << 11;     // the document became read only or editable again
 inline constexpr unsigned Everything = Content | History | Folder | ReadOnly;
 }
 

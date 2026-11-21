@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace plynth {
 
@@ -14,7 +15,8 @@ namespace plynth {
 // apply and is kept for redo. NotFound for an unknown floor, or when no closed area holds the position.
 // AlreadyExists when the position is inside an existing room (the message names it). InvalidValue for a
 // position that is not finite or a type that is not a well formed name. The type is not checked against the
-// room type list; callers use checkRoomType first.
+// room type list; callers use checkRoomType first. Items of the floor with no room whose position is inside the
+// new room get it as their room, and lose it again on undo. Changes Rooms and Items.
 class AddRoomCommand : public Command {
 public:
     AddRoomCommand(Id floorId, Vec2 position, std::optional<std::string> type = {});
@@ -32,9 +34,11 @@ private:
     Id floorId_;
     Vec2 position_;
     Room room_;
+    std::vector<Id> itemsGiven_; // items that got this room on apply
 };
 
-// Removes a room. NotFound for an unknown room. Undo puts it back at the same place in the list.
+// Removes a room. NotFound for an unknown room. Items in it lose their room. Undo puts the room back at the
+// same place in the list and gives those items their room again. Changes Rooms and Items.
 class RemoveRoomCommand : public Command {
 public:
     explicit RemoveRoomCommand(Id roomId);
@@ -50,6 +54,7 @@ private:
     Id floorId_;
     Room removed_;
     std::size_t index_ = 0;
+    std::vector<Id> itemsCleared_; // items that lost this room on apply
 };
 
 // Sets or clears the type of a room. NotFound for an unknown room, InvalidValue for a type that is not a
