@@ -1,0 +1,7 @@
+{
+  "format": "plynth-plan", "version": 2,
+  "floors": [ { "id": "f1",
+    "points": [ { "id": "p1", "x": 0, "y": 0 }, { "id": "p2", "x": 1, "y": 0 } ],
+    "walls": [ { "id": "w1", "from": "p1", "to": "p2" } ],
+    "openings": [ { "id": "o1", "wall": "w1", "offset": 0.5, "type": "door", "width": 0.4, "height": 2, "hinge": "middle" } ] } ]
+}

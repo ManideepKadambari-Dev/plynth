@@ -1,1 +1,1 @@
-{ "format": "plynth-plan", "version": 1, "floors": [ { "id": "f1", "points": [ { "id": "p1", "x": null, "y": 0 } ] } ] }
+{ "format": "plynth-plan", "version": 2, "floors": [ { "id": "f1", "points": [ { "id": "p1", "x": null, "y": 0 } ] } ] }

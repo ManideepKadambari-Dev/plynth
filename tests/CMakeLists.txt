@@ -15,6 +15,8 @@ add_executable(plynth_core_tests
     core/DocumentTests.cpp
     core/EditSessionTests.cpp
     core/GeometryTests.cpp
+    core/OpeningShapeTests.cpp
+    core/ShapeFileTests.cpp
     core/SnappingTests.cpp
     core/RoomTypesTests.cpp
     core/WallCommandTests.cpp

@@ -17,6 +17,9 @@ add_library(plynth_core STATIC
     src/Snapping.cpp
     src/RoomTypes.cpp
     src/Rooms.cpp
+    src/WallGeometry.cpp
+    src/openings/OpeningShapes.cpp
+    src/openings/ShapeFiles.cpp
     src/commands/FloorCommands.cpp
     src/commands/PointCommands.cpp
     src/commands/WallCommands.cpp
@@ -54,4 +57,14 @@ if(PLYNTH_DETECTOR_SOURCES)
     target_link_libraries(plynth_detectors PRIVATE nlohmann_json::nlohmann_json Clipper2::Clipper2 opencv_core opencv_imgproc opencv_imgcodecs)
     target_compile_features(plynth_detectors PUBLIC cxx_std_20)
     target_sources(plynth_core INTERFACE $<TARGET_OBJECTS:plynth_detectors>)
+endif()
+
+# Opening shapes register themselves the same way, so they are built as an object library too.
+file(GLOB PLYNTH_SHAPE_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/openings/shapes/*.cpp)
+if(PLYNTH_SHAPE_SOURCES)
+    add_library(plynth_opening_shapes OBJECT ${PLYNTH_SHAPE_SOURCES})
+    target_include_directories(plynth_opening_shapes PRIVATE include src)
+    target_compile_features(plynth_opening_shapes PUBLIC cxx_std_20)
+    target_link_libraries(plynth_opening_shapes PRIVATE nlohmann_json::nlohmann_json)
+    target_sources(plynth_core INTERFACE $<TARGET_OBJECTS:plynth_opening_shapes>)
 endif()

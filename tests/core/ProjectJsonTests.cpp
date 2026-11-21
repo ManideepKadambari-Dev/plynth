@@ -1,3 +1,4 @@
+#include "SchemaSupport.h"
 #include "TestSupport.h"
 
 #include <plynth/core/ProjectJson.h>
@@ -5,6 +6,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <nlohmann/json.hpp>
 
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -22,7 +24,7 @@ PlanRead readPlanText(const std::string& text)
 // A tiny valid plan file as JSON, ready to be broken by a test.
 Json minimalPlanJson()
 {
-    return Json::parse(R"({"format":"plynth-plan","version":1,"floors":[{"id":"f1"}]})");
+    return Json::parse(R"({"format":"plynth-plan","version":2,"floors":[{"id":"f1"}]})");
 }
 
 // Expects planFromJson to refuse the JSON with a given code and pointer.
@@ -43,7 +45,7 @@ TEST_CASE("plan JSON round trip", "[core][json]") {
     const PlanRead r = planFromJson(planToJson(plan));
     plynth::test::requireOk(r.status);
     REQUIRE(r.plan == plan);
-    REQUIRE(r.fileVersion == 1);
+    REQUIRE(r.fileVersion == 2);
     REQUIRE_FALSE(r.migrated);
 }
 
@@ -77,6 +79,10 @@ TEST_CASE("plan keys are written in schema order", "[core][json]") {
     for (auto it = j["floors"][0].begin(); it != j["floors"][0].end(); ++it) floorKeys.push_back(it.key());
     REQUIRE(floorKeys == std::vector<std::string>{"id", "name", "image", "ceiling_height", "points", "walls", "rooms", "openings"});
 
+    std::vector<std::string> openingKeys;
+    for (auto it = j["floors"][0]["openings"][0].begin(); it != j["floors"][0]["openings"][0].end(); ++it) openingKeys.push_back(it.key());
+    REQUIRE(openingKeys == std::vector<std::string>{"id", "wall", "offset", "type", "shape", "width", "height", "sill", "hinge", "swing", "frame"});
+
     std::vector<std::string> wallKeys;
     for (auto it = j["floors"][0]["walls"][0].begin(); it != j["floors"][0]["walls"][0].end(); ++it) wallKeys.push_back(it.key());
     REQUIRE(wallKeys == std::vector<std::string>{"id", "from", "to", "thickness", "height", "bulge", "material_inside", "material_outside"});
@@ -84,7 +90,7 @@ TEST_CASE("plan keys are written in schema order", "[core][json]") {
 
 TEST_CASE("missing optional fields take their defaults", "[core][json]") {
     const PlanRead r = readPlanText(R"({
-        "format":"plynth-plan","version":1,
+        "format":"plynth-plan","version":2,
         "floors":[{"id":"f1",
           "points":[{"id":"p1","x":0,"y":0},{"id":"p2","x":1,"y":0}],
           "walls":[{"id":"w1","from":"p1","to":"p2"}],
@@ -104,6 +110,8 @@ TEST_CASE("missing optional fields take their defaults", "[core][json]") {
     REQUIRE_FALSE(f.rooms[0].type);
     REQUIRE(f.openings[0].shape == "rectangle");
     REQUIRE(f.openings[0].sill == 0.0);
+    REQUIRE(f.openings[0].hinge == HingeEnd::Start);
+    REQUIRE(f.openings[0].swing == WallSide::Right);
     REQUIRE_FALSE(f.openings[0].frame);
 }
 
@@ -184,15 +192,24 @@ TEST_CASE("the reader refuses what breaks the format", "[core][json]") {
     }
     SECTION("a newer version") {
         Json j = minimalPlanJson();
-        j["version"] = 2;
+        j["version"] = 3;
         const PlanRead r = planFromJson(j);
         REQUIRE(r.status.code == ErrorCode::UnsupportedVersion);
-        REQUIRE(r.fileVersion == 2);
+        REQUIRE(r.fileVersion == 3);
     }
-    SECTION("a bad opening type and a bad export value") {
+    SECTION("a bad opening type, hinge or swing") {
         Json j = planToJson(fullPlan());
         j["floors"][0]["openings"][0]["type"] = "gate";
         expectPlanRefused(j, ErrorCode::BadFile, "/floors/0/openings/0/type");
+        j = planToJson(fullPlan());
+        j["floors"][0]["openings"][0]["hinge"] = "middle";
+        expectPlanRefused(j, ErrorCode::BadFile, "/floors/0/openings/0/hinge");
+        j = planToJson(fullPlan());
+        j["floors"][0]["openings"][0]["swing"] = 1;
+        expectPlanRefused(j, ErrorCode::BadFile, "/floors/0/openings/0/swing");
+        j = planToJson(fullPlan());
+        j["floors"][0]["openings"][0]["swing"] = "up";
+        expectPlanRefused(j, ErrorCode::BadFile, "/floors/0/openings/0/swing");
     }
     SECTION("a failed read gives an empty plan") {
         const PlanRead r = planFromJson(Json::parse("[]"));
@@ -218,12 +235,14 @@ TEST_CASE("settings keys are in schema order and defaults apply", "[core][json]"
     const Json j = settingsToJson(ProjectSettings{});
     std::vector<std::string> keys;
     for (auto it = j.begin(); it != j.end(); ++it) keys.push_back(it.key());
-    REQUIRE(keys == std::vector<std::string>{"format", "version", "name", "export_mode", "grid_size"});
+    REQUIRE(keys == std::vector<std::string>{"format", "version", "name", "export_mode", "grid_size", "defaults"});
 
-    const SettingsRead r = settingsFromJson(Json::parse(R"({"format":"plynth-project","version":1,"name":"A"})"));
+    const SettingsRead r = settingsFromJson(Json::parse(R"({"format":"plynth-project","version":2,"name":"A"})"));
     plynth::test::requireOk(r.status);
     REQUIRE(r.settings.exportMode == ExportMode::Single);
     REQUIRE(r.settings.gridSize == kDefaultGridSize);
+    REQUIRE(r.settings.defaults == DefaultSizes{});
+    REQUIRE_FALSE(r.migrated);
 }
 
 TEST_CASE("settings refuse bad values", "[core][json]") {
@@ -233,16 +252,22 @@ TEST_CASE("settings refuse bad values", "[core][json]") {
         REQUIRE(r.status.code == code);
         REQUIRE(r.status.where == where);
     };
-    refused(R"({"format":"plynth-project","version":1})", ErrorCode::BadFile, "/name");
-    refused(R"({"format":"plynth-project","version":1,"name":""})", ErrorCode::BadFile, "/name");
-    refused(R"({"format":"plynth-project","version":1,"name":5})", ErrorCode::BadFile, "/name");
-    refused(R"({"format":"plynth-project","version":1,"name":"A","export_mode":"double"})", ErrorCode::BadFile, "/export_mode");
-    refused(R"({"format":"plynth-project","version":1,"name":"A","grid_size":0})", ErrorCode::BadFile, "/grid_size");
-    refused(R"({"format":"plynth-project","version":1,"name":"A","grid_size":null})", ErrorCode::BadFile, "/grid_size");
-    refused(R"({"format":"plynth-project","version":1,"name":"A","extra":1})", ErrorCode::BadFile, "/extra");
-    refused(R"({"format":"plynth-plan","version":1,"name":"A"})", ErrorCode::BadFile, "/format");
+    refused(R"({"format":"plynth-project","version":2})", ErrorCode::BadFile, "/name");
+    refused(R"({"format":"plynth-project","version":2,"name":""})", ErrorCode::BadFile, "/name");
+    refused(R"({"format":"plynth-project","version":2,"name":5})", ErrorCode::BadFile, "/name");
+    refused(R"({"format":"plynth-project","version":2,"name":"A","export_mode":"double"})", ErrorCode::BadFile, "/export_mode");
+    refused(R"({"format":"plynth-project","version":2,"name":"A","grid_size":0})", ErrorCode::BadFile, "/grid_size");
+    refused(R"({"format":"plynth-project","version":2,"name":"A","grid_size":null})", ErrorCode::BadFile, "/grid_size");
+    refused(R"({"format":"plynth-project","version":2,"name":"A","extra":1})", ErrorCode::BadFile, "/extra");
+    refused(R"({"format":"plynth-plan","version":2,"name":"A"})", ErrorCode::BadFile, "/format");
     refused(R"({"format":"plynth-project","name":"A"})", ErrorCode::BadFile, "/version");
-    refused(R"({"format":"plynth-project","version":2,"name":"A"})", ErrorCode::UnsupportedVersion, "/version");
+    refused(R"({"format":"plynth-project","version":3,"name":"A"})", ErrorCode::UnsupportedVersion, "/version");
+    refused(R"({"format":"plynth-project","version":2,"name":"A","defaults":{"extra":1}})", ErrorCode::BadFile, "/defaults/extra");
+    refused(R"({"format":"plynth-project","version":2,"name":"A","defaults":{"door_width":0}})", ErrorCode::BadFile, "/defaults");
+    refused(R"({"format":"plynth-project","version":2,"name":"A","defaults":{"door_width":"wide"}})", ErrorCode::BadFile,
+            "/defaults/door_width");
+    refused(R"({"format":"plynth-project","version":2,"name":"A","defaults":{"ceiling_height":2.0}})", ErrorCode::BadFile, "/defaults");
+    refused(R"({"format":"plynth-project","version":2,"name":"A","defaults":[1]})", ErrorCode::BadFile, "/defaults");
 }
 
 TEST_CASE("migrateJson runs steps in order and sets the version", "[core][json][migrate]") {
@@ -310,9 +335,89 @@ TEST_CASE("migrateJson stops at a failing step and reports a missing step", "[co
     REQUIRE(migrateJson(text, 3, steps).code == ErrorCode::BadFile);
 }
 
-TEST_CASE("migration lists are empty while only version 1 exists", "[core][json][migrate]") {
-    REQUIRE(planMigrations().empty());
-    REQUIRE(projectMigrations().empty());
-    REQUIRE(kPlanFormatVersion == 1);
-    REQUIRE(kProjectFormatVersion == 1);
+TEST_CASE("the current format versions are 2", "[core][json][migrate]") {
+    REQUIRE(kPlanFormatVersion == 2);
+    REQUIRE(kProjectFormatVersion == 2);
+    REQUIRE(planMigrations().size() == 1);
+    REQUIRE(planMigrations()[0].fromVersion == 1);
+    REQUIRE(projectMigrations().size() == 1);
+    REQUIRE(projectMigrations()[0].fromVersion == 1);
+}
+
+TEST_CASE("a version 1 plan upgrades with hinge start and swing right", "[core][json][migrate]") {
+    const std::string text = plynth::test::readTextFile(std::filesystem::path(PLYNTH_TEST_DATA_DIR) / "v1-full.json");
+    const PlanRead r = planFromJson(Json::parse(text));
+    plynth::test::requireOk(r.status);
+    REQUIRE(r.fileVersion == 1);
+    REQUIRE(r.migrated);
+    REQUIRE_FALSE(r.plan.floors[0].openings.empty());
+    for (const Opening& o : r.plan.floors[0].openings) {
+        REQUIRE(o.hinge == HingeEnd::Start);
+        REQUIRE(o.swing == WallSide::Right);
+    }
+    const Json written = planToJson(r.plan);
+    REQUIRE(written["version"] == 2);
+    REQUIRE(written["floors"][0]["openings"][0]["hinge"] == "start");
+    REQUIRE(written["floors"][0]["openings"][0]["swing"] == "right");
+}
+
+TEST_CASE("a version 1 file with hinge and swing already present keeps them", "[core][json][migrate]") {
+    Json j = Json::parse(R"({"format":"plynth-plan","version":1,"floors":[{"id":"f1",
+        "points":[{"id":"p1","x":0,"y":0},{"id":"p2","x":4,"y":0}],"walls":[{"id":"w1","from":"p1","to":"p2"}],
+        "openings":[{"id":"o1","wall":"w1","offset":2,"type":"door","width":0.9,"height":2.1,"hinge":"end","swing":"left"}]}]})");
+    const PlanRead r = planFromJson(j);
+    plynth::test::requireOk(r.status);
+    REQUIRE(r.plan.floors[0].openings[0].hinge == HingeEnd::End);
+    REQUIRE(r.plan.floors[0].openings[0].swing == WallSide::Left);
+}
+
+TEST_CASE("a plan with hinge end and swing left round trips", "[core][json]") {
+    Plan plan = fullPlan();
+    plan.floors[0].openings[0].hinge = HingeEnd::End;
+    plan.floors[0].openings[0].swing = WallSide::Left;
+    const PlanRead r = planFromJson(Json::parse(planToJson(plan).dump()));
+    plynth::test::requireOk(r.status);
+    REQUIRE(r.plan == plan);
+    REQUIRE(r.plan.floors[0].openings[0].hinge == HingeEnd::End);
+    REQUIRE(r.plan.floors[0].openings[0].swing == WallSide::Left);
+}
+
+TEST_CASE("a version 1 project gets the built-in defaults", "[core][json][migrate]") {
+    const std::string text = plynth::test::readTextFile(std::filesystem::path(PLYNTH_TEST_DATA_DIR) / "v1-project.json");
+    const SettingsRead r = settingsFromJson(Json::parse(text));
+    plynth::test::requireOk(r.status);
+    REQUIRE(r.fileVersion == 1);
+    REQUIRE(r.migrated);
+    REQUIRE(r.settings.name == "Old flat");
+    REQUIRE(r.settings.gridSize == 0.25);
+    REQUIRE(r.settings.defaults == DefaultSizes{});
+    REQUIRE(settingsToJson(r.settings)["version"] == 2);
+}
+
+TEST_CASE("project defaults round trip", "[core][json]") {
+    ProjectSettings s;
+    s.defaults.ceilingHeight = 2.6;
+    s.defaults.doorWidth = 0.8;
+    s.defaults.doorHeight = 2.0;
+    s.defaults.windowWidth = 1.0;
+    s.defaults.windowHeight = 1.1;
+    s.defaults.windowSill = 0.8;
+    const SettingsRead r = settingsFromJson(Json::parse(settingsToJson(s).dump()));
+    plynth::test::requireOk(r.status);
+    REQUIRE(r.settings == s);
+}
+
+TEST_CASE("the wall side and hinge end names", "[core]") {
+    REQUIRE(wallSideName(WallSide::Left) == "left");
+    REQUIRE(wallSideName(WallSide::Right) == "right");
+    REQUIRE(wallSideFromName("left") == WallSide::Left);
+    REQUIRE_FALSE(wallSideFromName("up"));
+    REQUIRE(otherSide(WallSide::Left) == WallSide::Right);
+    REQUIRE(otherSide(WallSide::Right) == WallSide::Left);
+    REQUIRE(hingeEndName(HingeEnd::Start) == "start");
+    REQUIRE(hingeEndName(HingeEnd::End) == "end");
+    REQUIRE(hingeEndFromName("end") == HingeEnd::End);
+    REQUIRE_FALSE(hingeEndFromName("middle"));
+    REQUIRE(otherEnd(HingeEnd::Start) == HingeEnd::End);
+    REQUIRE(otherEnd(HingeEnd::End) == HingeEnd::Start);
 }

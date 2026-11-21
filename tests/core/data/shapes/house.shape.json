@@ -1,0 +1,7 @@
+{
+  "format": "plynth-shape",
+  "version": 1,
+  "id": "t_house",
+  "name": "House",
+  "outline": [[0, 0], [0, 0.6], [0.5, 1], [1, 0.6], [1, 0]]
+}

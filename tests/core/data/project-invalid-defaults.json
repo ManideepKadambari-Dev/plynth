@@ -1,0 +1,2 @@
+{ "format": "plynth-project", "version": 2, "name": "Flat",
+  "defaults": { "ceiling_height": 2.6, "door_width": 0 } }

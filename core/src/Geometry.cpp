@@ -26,6 +26,34 @@ double wallLength(const Floor& floor, const Wall& wall)
     return distance(positionOf(*a), positionOf(*b));
 }
 
+// The unit direction a quarter turn to the right.
+Vec2 rightOf(Vec2 direction)
+{
+    return {-direction.y, direction.x};
+}
+
+// Works out how many segments an arc is cut into.
+int arcSegmentCount(double radius, double sweep)
+{
+    const double angle = std::fabs(sweep);
+    if (!std::isfinite(radius) || radius <= 0.0 || !std::isfinite(angle) || angle <= 0.0) return kArcMinSegments;
+
+    double needed = std::ceil(angle / kArcMaxSegmentAngle - 1e-9);
+    // Deviation of one segment spanning a is radius * (1 - cos(a / 2)), so it stays within the limit
+    // while a / 2 is at most acos(1 - limit / radius).
+    const double ratio = kArcMaxDeviation / radius;
+    if (ratio < 2.0) {
+        const double half = std::acos(1.0 - ratio);
+        if (half <= 0.0) return kArcMaxSegments;
+        needed = std::max(needed, std::ceil(angle / (2.0 * half) - 1e-9));
+    }
+    if (!(needed < kArcMaxSegments)) return kArcMaxSegments;
+    int count = std::max(kArcMinSegments, static_cast<int>(needed));
+    const auto deviation = [&](int n) { return radius * (1.0 - std::cos(angle / n / 2.0)); };
+    while (count < kArcMaxSegments && deviation(count) > kArcMaxDeviation * (1.0 + 1e-12)) ++count;
+    return count;
+}
+
 // Finds the closest place on the segment to a position.
 SegmentProjection projectOntoSegment(Vec2 position, Vec2 a, Vec2 b)
 {

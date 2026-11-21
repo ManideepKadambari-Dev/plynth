@@ -7,6 +7,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace plynth {
 
@@ -153,7 +154,7 @@ Room readRoom(const Json& j, const std::string& where)
 // Reads one opening.
 Opening readOpening(const Json& j, const std::string& where)
 {
-    expectObject(j, where, {"id", "wall", "offset", "type", "shape", "width", "height", "sill", "frame"});
+    expectObject(j, where, {"id", "wall", "offset", "type", "shape", "width", "height", "sill", "hinge", "swing", "frame"});
     Opening o;
     o.id = getString(j, "id", where);
     o.wall = getString(j, "wall", where);
@@ -165,6 +166,16 @@ Opening readOpening(const Json& j, const std::string& where)
     o.width = getNumber(j, "width", where);
     o.height = getNumber(j, "height", where);
     o.sill = getNumberOr(j, "sill", where, 0.0);
+    if (j.contains("hinge")) {
+        const auto hinge = hingeEndFromName(getString(j, "hinge", where));
+        if (!hinge) refuse("The hinge must be \"start\" or \"end\".", child(where, "hinge"));
+        o.hinge = *hinge;
+    }
+    if (j.contains("swing")) {
+        const auto swing = wallSideFromName(getString(j, "swing", where));
+        if (!swing) refuse("The swing must be \"left\" or \"right\".", child(where, "swing"));
+        o.swing = *swing;
+    }
     o.frame = getOptionalString(j, "frame", where);
     return o;
 }
@@ -291,6 +302,8 @@ Json planToJson(const Plan& plan)
             jo["width"] = o.width;
             jo["height"] = o.height;
             jo["sill"] = o.sill;
+            jo["hinge"] = std::string(hingeEndName(o.hinge));
+            jo["swing"] = std::string(wallSideName(o.swing));
             jo["frame"] = optString(o.frame);
             openings.push_back(std::move(jo));
         }
@@ -334,6 +347,23 @@ PlanRead planFromJson(const Json& json)
     return result;
 }
 
+namespace {
+
+// Turns default sizes into their project.json form.
+Json defaultsToJson(const DefaultSizes& d)
+{
+    Json out = Json::object();
+    out["ceiling_height"] = d.ceilingHeight;
+    out["door_width"] = d.doorWidth;
+    out["door_height"] = d.doorHeight;
+    out["window_width"] = d.windowWidth;
+    out["window_height"] = d.windowHeight;
+    out["window_sill"] = d.windowSill;
+    return out;
+}
+
+}
+
 // Turns project settings into their project.json form.
 Json settingsToJson(const ProjectSettings& settings)
 {
@@ -343,6 +373,7 @@ Json settingsToJson(const ProjectSettings& settings)
     out["name"] = settings.name;
     out["export_mode"] = std::string(exportModeName(settings.exportMode));
     out["grid_size"] = settings.gridSize;
+    out["defaults"] = defaultsToJson(settings.defaults);
     return out;
 }
 
@@ -353,7 +384,7 @@ SettingsRead settingsFromJson(const Json& json)
     try {
         Json copy = json;
         prepare(copy, kProjectFormatName, kProjectFormatVersion, projectMigrations(), result.fileVersion, result.migrated);
-        expectObject(copy, "", {"format", "version", "name", "export_mode", "grid_size"});
+        expectObject(copy, "", {"format", "version", "name", "export_mode", "grid_size", "defaults"});
 
         ProjectSettings settings;
         settings.name = getString(copy, "name", "");
@@ -365,6 +396,18 @@ SettingsRead settingsFromJson(const Json& json)
         }
         settings.gridSize = getNumberOr(copy, "grid_size", "", kDefaultGridSize);
         if (!(settings.gridSize > 0.0)) refuse("The grid size must be a number above zero.", "/grid_size");
+        if (auto dit = copy.find("defaults"); dit != copy.end()) {
+            expectObject(*dit, "/defaults",
+                         {"ceiling_height", "door_width", "door_height", "window_width", "window_height", "window_sill"});
+            DefaultSizes& d = settings.defaults;
+            d.ceilingHeight = getNumberOr(*dit, "ceiling_height", "/defaults", d.ceilingHeight);
+            d.doorWidth = getNumberOr(*dit, "door_width", "/defaults", d.doorWidth);
+            d.doorHeight = getNumberOr(*dit, "door_height", "/defaults", d.doorHeight);
+            d.windowWidth = getNumberOr(*dit, "window_width", "/defaults", d.windowWidth);
+            d.windowHeight = getNumberOr(*dit, "window_height", "/defaults", d.windowHeight);
+            d.windowSill = getNumberOr(*dit, "window_sill", "/defaults", d.windowSill);
+            if (Status s = checkDefaultSizes(d); !s.ok()) refuse(s.message, "/defaults");
+        }
         result.settings = std::move(settings);
     } catch (const ReadError& e) {
         result.status = e.status;
@@ -407,16 +450,48 @@ Status migrateJson(Json& json, int currentVersion, std::span<const Migration> st
     return {};
 }
 
+namespace {
+
+// Version 1 to 2: every opening gets a hinge and a swing.
+Status migratePlan1To2(Json& json)
+{
+    auto floors = json.find("floors");
+    if (floors == json.end() || !floors->is_array()) return {};
+    for (Json& floor : *floors) {
+        if (!floor.is_object()) continue;
+        auto openings = floor.find("openings");
+        if (openings == floor.end() || !openings->is_array()) continue;
+        for (Json& opening : *openings) {
+            if (!opening.is_object()) continue;
+            if (!opening.contains("hinge")) opening["hinge"] = "start";
+            if (!opening.contains("swing")) opening["swing"] = "right";
+        }
+    }
+    return {};
+}
+
+// Version 1 to 2: the project gets the built-in default sizes.
+Status migrateProject1To2(Json& json)
+{
+    if (!json.is_object()) return {};
+    if (!json.contains("defaults")) json["defaults"] = defaultsToJson(DefaultSizes{});
+    return {};
+}
+
+}
+
 // The upgrade steps for plan.json.
 std::span<const Migration> planMigrations()
 {
-    return {};
+    static const std::vector<Migration> steps = {{1, migratePlan1To2}};
+    return steps;
 }
 
 // The upgrade steps for project.json.
 std::span<const Migration> projectMigrations()
 {
-    return {};
+    static const std::vector<Migration> steps = {{1, migrateProject1To2}};
+    return steps;
 }
 
 }
