@@ -7,6 +7,7 @@
 
 #include <cmath>
 #include <memory>
+#include <optional>
 
 namespace plynth::cli {
 
@@ -80,12 +81,42 @@ Answer projectInfo(const RunContext& context, const std::string& projectOption) 
     return success(command, projectInfoJson(folder, loaded.project));
 }
 
-// Changes the project's settings. Only the grid size for now.
-Answer projectSet(const RunContext& context, const std::string& projectOption, double grid) {
+struct SetOptions {
+    std::string project;
+    std::optional<double> grid;
+    std::optional<double> doorWidth;
+    std::optional<double> doorHeight;
+    std::optional<double> windowWidth;
+    std::optional<double> windowHeight;
+    std::optional<double> windowSill;
+    std::optional<double> newFloorHeight;
+};
+
+// Changes the grid size and the default sizes in one step. Nothing changes when any value is refused.
+Answer projectSet(const RunContext& context, const SetOptions& options) {
     const std::string command = "project set";
-    return editProject(command, context, projectOption, [&](Document& document) {
+    const bool anyDefault = options.doorWidth || options.doorHeight || options.windowWidth || options.windowHeight ||
+                            options.windowSill || options.newFloorHeight;
+    if (!options.grid && !anyDefault) {
+        return badArguments(command, "bad_arguments", "Give at least one option to change. Run 'plynth help' to list them.");
+    }
+    return editProject(command, context, options.project, [&](Document& document) {
+        auto group = std::make_unique<CommandGroup>("Change settings");
+        if (options.grid) {
+            group->add(std::make_unique<SetGridSizeCommand>(*options.grid));
+        }
+        if (anyDefault) {
+            DefaultSizes sizes = document.project().settings.defaults;
+            sizes.doorWidth = options.doorWidth.value_or(sizes.doorWidth);
+            sizes.doorHeight = options.doorHeight.value_or(sizes.doorHeight);
+            sizes.windowWidth = options.windowWidth.value_or(sizes.windowWidth);
+            sizes.windowHeight = options.windowHeight.value_or(sizes.windowHeight);
+            sizes.windowSill = options.windowSill.value_or(sizes.windowSill);
+            sizes.ceilingHeight = options.newFloorHeight.value_or(sizes.ceilingHeight);
+            group->add(std::make_unique<SetDefaultSizesCommand>(sizes));
+        }
         Answer failed;
-        if (!runCommand(command, document, std::make_unique<SetGridSizeCommand>(grid), failed)) {
+        if (!runCommand(command, document, std::move(group), failed)) {
             return failed;
         }
         return success(command, projectInfoJson(document.folder(), document.project()));
@@ -122,16 +153,23 @@ std::vector<CommandSpec> projectCommands() {
 
     CommandSpec set;
     set.words = {"project", "set"};
-    set.description = "Change a project setting.";
+    set.description = "Change the grid size or the default sizes of new openings and floors.";
     set.setup = [](CLI::App& sub) -> Handler {
-        struct SetOptions {
-            std::string project;
-            double grid = 0.0;
-        };
         auto options = std::make_shared<SetOptions>();
         addProjectOption(sub, options->project);
-        sub.add_option("--grid", options->grid, "Grid size in metres.")->type_name("metres")->required();
-        return [options](const RunContext& context) { return projectSet(context, options->project, options->grid); };
+        sub.add_option("--grid", options->grid, "Grid size in metres.")->type_name("metres");
+        sub.add_option("--door-width", options->doorWidth, "Default door width in metres.")->type_name("metres");
+        sub.add_option("--door-height", options->doorHeight, "Default door height in metres.")->type_name("metres");
+        sub.add_option("--window-width", options->windowWidth, "Default window width in metres.")
+            ->type_name("metres");
+        sub.add_option("--window-height", options->windowHeight, "Default window height in metres.")
+            ->type_name("metres");
+        sub.add_option("--window-sill", options->windowSill, "Default window sill height in metres.")
+            ->type_name("metres");
+        sub.add_option("--new-floor-height", options->newFloorHeight,
+                       "Ceiling height for floors made later, in metres.")
+            ->type_name("metres");
+        return [options](const RunContext& context) { return projectSet(context, *options); };
     };
 
     return {create, info, set};

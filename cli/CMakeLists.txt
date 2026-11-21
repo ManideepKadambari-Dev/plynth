@@ -11,6 +11,8 @@ add_library(plynth_cli STATIC
     src/Cli.cpp
     src/Common.cpp
     src/Registry.cpp
+    src/commands/FloorCommands.cpp
+    src/commands/OpeningCommands.cpp
     src/commands/PointCommands.cpp
     src/commands/DetectCommands.cpp
     src/commands/HelpCommand.cpp

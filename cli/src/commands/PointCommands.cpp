@@ -29,6 +29,12 @@ struct RemoveOptions {
     std::string id;
 };
 
+struct SetOptions {
+    std::string project;
+    std::string id;
+    double cornerRadius = 0.0;
+};
+
 struct ListOptions {
     std::string project;
     std::string floor;
@@ -67,7 +73,7 @@ Answer pointRemove(const RunContext& context, const RemoveOptions& options) {
     return edit(
         "point remove", context, options.project,
         [&](const Plan&) { return std::make_unique<RemovePointCommand>(options.id); },
-        [&](const Plan&, const RemovePointCommand&) { return removedJson({}, {}, {options.id}); });
+        [&](const Plan&, const RemovePointCommand&) { return removedJson({}, {}, {}, {options.id}); });
 }
 
 // Lists the points of a floor.

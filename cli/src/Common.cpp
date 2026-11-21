@@ -3,6 +3,7 @@
 #include <plynth/core/EditSession.h>
 #include <plynth/core/ProjectFiles.h>
 #include <plynth/core/Geometry.h>
+#include <plynth/core/WallGeometry.h>
 #include <plynth/core/commands/DeleteCommands.h>
 #include <plynth/core/ProjectJson.h>
 
@@ -53,6 +54,22 @@ Status saveInPlace(const Document& document) {
     return saveProject(copy, document.folder(), document.folder());
 }
 
+namespace {
+
+// The default sizes as they appear in project info.
+Json defaultsJson(const DefaultSizes& sizes) {
+    Json defaults = Json::object();
+    defaults["ceiling_height"] = sizes.ceilingHeight;
+    defaults["door_width"] = sizes.doorWidth;
+    defaults["door_height"] = sizes.doorHeight;
+    defaults["window_width"] = sizes.windowWidth;
+    defaults["window_height"] = sizes.windowHeight;
+    defaults["window_sill"] = sizes.windowSill;
+    return defaults;
+}
+
+}
+
 Json projectInfoJson(const std::filesystem::path& folder, const Project& project) {
     Json plan = Json::object();
     plan["version"] = kPlanFormatVersion;
@@ -89,6 +106,7 @@ Json projectInfoJson(const std::filesystem::path& folder, const Project& project
     result["name"] = project.settings.name;
     result["export_mode"] = std::string(exportModeName(project.settings.exportMode));
     result["grid_size"] = project.settings.gridSize;
+    result["defaults"] = defaultsJson(project.settings.defaults);
     result["has_autosave"] = findAutosave(folder).exists;
     result["plan"] = std::move(plan);
     return result;
@@ -160,6 +178,12 @@ Json wallEntry(const Floor& floor, const Wall& wall) {
             rooms.push_back(room.id);
         }
     }
+    Json onWall = Json::array();
+    for (const Opening& opening : floor.openings) {
+        if (opening.wall == wall.id) {
+            onWall.push_back(opening.id);
+        }
+    }
     Json entry = Json::object();
     entry["id"] = wall.id;
     entry["floor"] = floor.id;
@@ -173,7 +197,22 @@ Json wallEntry(const Floor& floor, const Wall& wall) {
     }
     entry["bulge"] = wall.bulge;
     entry["length"] = wallLength(floor, wall);
+    entry["height_used"] = wallHeight(floor, wall);
     entry["rooms"] = std::move(rooms);
+    entry["openings"] = std::move(onWall);
+    return entry;
+}
+
+Json floorEntry(const Floor& floor) {
+    Json entry = Json::object();
+    entry["id"] = floor.id;
+    entry["name"] = floor.name;
+    if (floor.image) {
+        entry["image"] = *floor.image;
+    } else {
+        entry["image"] = nullptr;
+    }
+    entry["ceiling_height"] = floor.ceilingHeight;
     return entry;
 }
 
@@ -206,12 +245,15 @@ Answer removeCascade(const std::string& command, const std::string& kind, const 
         if (!runCommand(command, document, std::move(build.command), failed)) {
             return failed;
         }
-        return success(command, removedJson(build.removes.rooms, build.removes.walls, build.removes.points));
+        return success(command, removedJson(build.removes.openings, build.removes.rooms, build.removes.walls,
+                                            build.removes.points));
     });
 }
 
-Json removedJson(const std::vector<Id>& rooms, const std::vector<Id>& walls, const std::vector<Id>& points) {
+Json removedJson(const std::vector<Id>& openings, const std::vector<Id>& rooms, const std::vector<Id>& walls,
+                 const std::vector<Id>& points) {
     Json removed = Json::object();
+    removed["openings"] = openings;
     removed["rooms"] = rooms;
     removed["walls"] = walls;
     removed["points"] = points;

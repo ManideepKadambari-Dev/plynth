@@ -96,7 +96,7 @@ Answer roomRemove(const RunContext& context, const RemoveOptions& options) {
     return edit(
         "room remove", context, options.project,
         [&](const Plan&) { return std::make_unique<RemoveRoomCommand>(options.id); },
-        [&](const Plan&, const RemoveRoomCommand&) { return removedJson({options.id}, {}, {}); });
+        [&](const Plan&, const RemoveRoomCommand&) { return removedJson({}, {options.id}, {}, {}); });
 }
 
 // Lists the rooms of a floor.

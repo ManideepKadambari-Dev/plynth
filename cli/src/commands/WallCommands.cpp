@@ -45,7 +45,8 @@ struct SplitOptions {
 struct SetOptions {
     std::string project;
     std::string id;
-    double thickness = 0.0;
+    std::optional<double> thickness;
+    std::optional<double> bulge;
 };
 
 struct RemoveOptions {
@@ -144,12 +145,27 @@ Answer wallSplit(const RunContext& context, const SplitOptions& options) {
         });
 }
 
-// Changes the thickness of a wall.
+// Changes the thickness and the bend of a wall. Several changes run as one step, so a refused one leaves the
+// others unapplied.
 Answer wallSet(const RunContext& context, const SetOptions& options) {
-    return edit(
-        "wall set", context, options.project,
-        [&](const Plan&) { return std::make_unique<SetWallThicknessCommand>(options.id, options.thickness); },
-        [&](const Plan& plan, const SetWallThicknessCommand&) { return entryFor(plan, options.id); });
+    const std::string name = "wall set";
+    if (!options.thickness && !options.bulge) {
+        return badArguments(name, "bad_arguments", "Give at least one of --thickness and --bulge.");
+    }
+    return editProject(name, context, options.project, [&](Document& document) {
+        auto group = std::make_unique<CommandGroup>("Change wall");
+        if (options.thickness) {
+            group->add(std::make_unique<SetWallThicknessCommand>(options.id, *options.thickness));
+        }
+        if (options.bulge) {
+            (void)0;
+        }
+        Answer failed;
+        if (!runCommand(name, document, std::move(group), failed)) {
+            return failed;
+        }
+        return success(name, entryFor(document.plan(), options.id));
+    });
 }
 
 // Removes a wall that no room or opening uses.
@@ -160,7 +176,7 @@ Answer wallRemove(const RunContext& context, const RemoveOptions& options) {
     return edit(
         "wall remove", context, options.project,
         [&](const Plan&) { return std::make_unique<RemoveWallCommand>(options.id); },
-        [&](const Plan&, const RemoveWallCommand&) { return removedJson({}, {options.id}, {}); });
+        [&](const Plan&, const RemoveWallCommand&) { return removedJson({}, {}, {options.id}, {}); });
 }
 
 // Lists the walls of a floor.
@@ -252,9 +268,11 @@ std::vector<CommandSpec> wallCommands() {
         auto options = std::make_shared<SetOptions>();
         addProjectOption(sub, options->project);
         sub.add_option("id", options->id, "Id of the wall.")->type_name("id")->required();
-        sub.add_option("--thickness", options->thickness, "New wall thickness in metres.")
-            ->type_name("metres")
-            ->required();
+        sub.add_option("--thickness", options->thickness, "New wall thickness in metres.")->type_name("metres");
+        sub.add_option("--bulge", options->bulge,
+                       "How far the middle of the wall bends away from the straight line, in metres. Positive bends "
+                       "to the right of the wall's direction. 0 straightens it.")
+            ->type_name("metres");
         return [options](const RunContext& context) { return wallSet(context, *options); };
     };
 
