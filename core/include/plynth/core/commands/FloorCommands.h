@@ -4,6 +4,7 @@
 
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace plynth {
 
@@ -26,20 +27,36 @@ private:
     std::optional<std::string> previous_;
 };
 
+// What stays put when the scale changes.
+// ImagePositions: marks stay on the same spot of the plan image, so their metre values change.
+// Metres: metre values stay, so marks move on the image.
+enum class ScaleKeep { ImagePositions, Metres };
+
 // Sets or clears the scale of the plan. InvalidValue unless the value is finite and above zero.
-// Points keep their metre coordinates; whether setting the scale should also move them is decided in milestone 3.
+// When the plan already had a scale, the new one differs and keep is ImagePositions, every point position,
+// wall bulge and opening offset on every floor is multiplied by old / new. Thickness, heights, widths, sills
+// and corner radius are real sizes and never change. Setting the first scale or clearing it moves nothing.
 class SetScaleCommand : public Command {
 public:
+    // Keeps image positions.
     explicit SetScaleCommand(std::optional<double> pixelsPerMetre);
+    SetScaleCommand(std::optional<double> pixelsPerMetre, ScaleKeep keep);
+
+    // True when the last apply moved marks.
+    bool movedMarks() const;
 
     std::string name() const override;
     Status apply(Project& project) override;
     void undo(Project& project) override;
+    // Scale, plus Points, Walls and Openings when apply moved marks.
     unsigned changes() const override;
 
 private:
     std::optional<double> pixelsPerMetre_;
+    ScaleKeep keep_ = ScaleKeep::ImagePositions;
     std::optional<double> previous_;
+    bool moved_ = false;
+    std::vector<Floor> previousFloors_; // the floors before a move, for an exact undo
 };
 
 }
