@@ -23,7 +23,7 @@ namespace {
 
 constexpr double kTinyLength = 1e-9;
 constexpr double kTinyArea = 1e-12;
-constexpr int kClipperPrecision = 6;
+constexpr int kClipperPrecision = 8;
 
 // Orders ids so "w9" comes before "w10".
 bool idLess(const Id& a, const Id& b)

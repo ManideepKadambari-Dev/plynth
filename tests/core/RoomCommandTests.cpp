@@ -117,7 +117,7 @@ TEST_CASE("AddRoomCommand on an island", "[core][command][room]") {
     applyOk(island, p);
     REQUIRE(p.plan.floors[0].rooms[0].walls.size() == 8);
     REQUIRE(p.plan.floors[0].rooms[1].walls.size() == 4);
-    REQUIRE(roomShape(p.plan.floors[0], p.plan.floors[0].rooms[0]).area == Approx(8.55).margin(1e-6));
+    REQUIRE(roomShape(p.plan.floors[0], p.plan.floors[0].rooms[0]).area == Approx(8.55).epsilon(0).margin(1e-6));
 }
 
 TEST_CASE("RemoveRoomCommand", "[core][command][room]") {
@@ -180,6 +180,6 @@ TEST_CASE("splitting a room wall keeps the room closed with the same area", "[co
     REQUIRE(f.rooms[0].walls.size() == 5);
     const RoomShape after = roomShape(f, f.rooms[0]);
     REQUIRE(after.closed);
-    REQUIRE(after.area == Approx(before.area).margin(1e-6));
-    REQUIRE(after.area == Approx(2.7 * 3.7).margin(1e-6));
+    REQUIRE(after.area == Approx(before.area).epsilon(0).margin(1e-6));
+    REQUIRE(after.area == Approx(2.7 * 3.7).epsilon(0).margin(1e-6));
 }

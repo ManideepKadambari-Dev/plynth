@@ -210,7 +210,7 @@ TEST_CASE("roomShape: a square of 0.2 m walls", "[core][rooms]") {
     r.walls = {"w11", "w12", "w13", "w14"};
     const RoomShape shape = roomShape(f, r);
     REQUIRE(shape.closed);
-    REQUIRE(shape.area == Approx(14.44).margin(1e-6));
+    REQUIRE(shape.area == Approx(14.44).epsilon(0).margin(1e-6));
     REQUIRE(shape.rings.size() == 1);
     REQUIRE_FALSE(shape.floorArea.empty());
     REQUIRE(signedArea(shape.floorArea[0]) > 0.0);
@@ -224,7 +224,7 @@ TEST_CASE("roomShape: two areas split by a wall", "[core][rooms]") {
     for (const ClosedArea& a : findClosedAreas(f)) {
         const RoomShape shape = roomShape(f, roomOf(a));
         REQUIRE(shape.closed);
-        REQUIRE(shape.area == Approx(2.7 * 3.7).margin(1e-6));
+        REQUIRE(shape.area == Approx(2.7 * 3.7).epsilon(0).margin(1e-6));
     }
 }
 
@@ -234,12 +234,12 @@ TEST_CASE("roomShape: an island inside a room", "[core][rooms]") {
     const auto areas = findClosedAreas(f);
     const RoomShape outer = roomShape(f, roomOf(areas[0]));
     REQUIRE(outer.closed);
-    REQUIRE(outer.area == Approx(9.99 - 1.44).margin(1e-6));
+    REQUIRE(outer.area == Approx(9.99 - 1.44).epsilon(0).margin(1e-6));
     REQUIRE(outer.rings.size() == 2);
     REQUIRE(insideRings(outer.labelPoint, outer.floorArea));
     const RoomShape island = roomShape(f, roomOf(areas[1]));
     REQUIRE(island.closed);
-    REQUIRE(island.area == Approx(0.64).margin(1e-6));
+    REQUIRE(island.area == Approx(0.64).epsilon(0).margin(1e-6));
 }
 
 TEST_CASE("roomShape: rooms that do not close", "[core][rooms]") {
@@ -275,4 +275,24 @@ TEST_CASE("roomAt and pickAt", "[core][rooms]") {
     REQUIRE(room.id == "r1");
     REQUIRE(pickAt(f, {4.5, 2.0}, 0.1).kind == PickKind::None);
     REQUIRE(pickAt(f, {1.5, 0.0}, 0.1).kind == PickKind::Wall);
+}
+
+TEST_CASE("roomShape area stays exact on coordinates that are not round", "[core][rooms]") {
+    Project p = splitHouseProject();
+    Floor& f = p.plan.floors[0];
+    for (Point& pt : f.points) {
+        pt.x += 0.123456789;
+        pt.y += 0.987654321;
+    }
+    for (const ClosedArea& a : findClosedAreas(f)) {
+        REQUIRE(roomShape(f, roomOf(a)).area == Approx(2.7 * 3.7).epsilon(0).margin(1e-6));
+    }
+    Project q = islandProject();
+    for (Point& pt : q.plan.floors[0].points) {
+        pt.x += 0.1234567891;
+        pt.y += 0.7654321987;
+    }
+    const auto areas = findClosedAreas(q.plan.floors[0]);
+    REQUIRE(roomShape(q.plan.floors[0], roomOf(areas[0])).area == Approx(8.55).epsilon(0).margin(1e-6));
+    REQUIRE(roomShape(q.plan.floors[0], roomOf(areas[1])).area == Approx(0.64).epsilon(0).margin(1e-6));
 }
