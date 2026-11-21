@@ -1,0 +1,18 @@
+{
+  "name": "libvterm",
+  "version": "0.3.3",
+  "description": "Terminal emulator library that parses escape sequences and keeps a screen model",
+  "homepage": "https://www.leonerd.org.uk/code/libvterm/",
+  "license": "MIT",
+  "supports": "!uwp",
+  "dependencies": [
+    {
+      "name": "vcpkg-cmake",
+      "host": true
+    },
+    {
+      "name": "vcpkg-cmake-config",
+      "host": true
+    }
+  ]
+}
