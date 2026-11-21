@@ -17,4 +17,47 @@ Early development. Not ready for use yet.
 
 ## Building from source
 
-Build steps will be added here once the first milestone lands.
+### Prerequisites
+
+- Visual Studio 2026 with the "Desktop development with C++" workload.
+- Git.
+- vcpkg, with the `VCPKG_ROOT` environment variable pointing at its folder.
+- Qt 6.8 with the MSVC 64-bit kit, with the `QTDIR` user environment variable pointing at the kit folder, for example `C:\Qt\6.8.3\msvc2022_64`.
+
+Get Qt from the Qt online installer (free account needed), or with `aqtinstall` if you prefer no login:
+
+```
+pip install aqtinstall
+python -m aqt install-qt windows desktop 6.8.3 win64_msvc2022_64 -O C:\Qt
+```
+
+Set `VCPKG_ROOT` and `QTDIR` as user variables, then restart any open terminal or Visual Studio so they are picked up.
+
+### Visual Studio
+
+1. Start Visual Studio after the variables are set.
+2. File > Open > Folder, and pick the repository folder.
+3. Choose the `msvc` configure preset and the Debug configuration.
+4. Choose `plynth.exe` as the startup item and press F5.
+
+The first configure downloads the vcpkg packages, so it takes a few minutes.
+
+### Command line
+
+Run these from the Developer PowerShell for Visual Studio. CMake ships inside Visual Studio and is on PATH there.
+
+```
+cmake --preset msvc
+cmake --build --preset debug
+ctest --preset debug
+```
+
+The app is built to `out/build/msvc/app/Debug/plynth.exe`.
+
+### Screenshots
+
+`plynth.exe --screenshot <file> --size <WxH>` opens the window, saves a PNG of it at that size and exits. For example:
+
+```
+plynth.exe --screenshot window.png --size 1280x720
+```
