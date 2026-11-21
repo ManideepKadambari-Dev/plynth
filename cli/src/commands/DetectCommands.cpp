@@ -75,6 +75,8 @@ Json countsJson(const ProposalCounts& counts) {
     json["rooms"] = counts.rooms;
     json["new_rooms"] = counts.newRooms;
     json["openings"] = counts.openings;
+    json["new_openings"] = counts.newOpenings;
+    json["existing_openings"] = counts.existingOpenings;
     return json;
 }
 
@@ -115,6 +117,9 @@ void addProposalLists(Json& json, const DetectionResult& result) {
         item["type"] = std::string(openingTypeName(opening.type));
         item["offset"] = rounded(opening.offset, 1e2);
         item["width"] = rounded(opening.width, 1e2);
+        item["hinge"] = std::string(hingeEndName(opening.hinge));
+        item["swing"] = std::string(wallSideName(opening.swing));
+        item["state"] = stateName(opening.state);
         item["x"] = rounded(a.x + (b.x - a.x) * along, 1e2);
         item["y"] = rounded(a.y + (b.y - a.y) * along, 1e2);
         openings.push_back(std::move(item));
@@ -145,8 +150,10 @@ Json appliedJson(const ApplyDetectionCommand* command) {
     applied["walls"] = command ? command->wallIds() : std::vector<Id>();
     applied["points"] = command ? command->pointIds() : std::vector<Id>();
     applied["split_walls"] = command ? command->splitWallIds() : std::vector<Id>();
+    applied["openings"] = command ? command->openingIds() : std::vector<Id>();
     applied["rooms"] = command ? command->roomIds() : std::vector<Id>();
     applied["skipped_walls"] = command ? command->skippedWalls() : std::size_t(0);
+    applied["skipped_openings"] = command ? command->skippedOpenings() : std::size_t(0);
     applied["skipped_rooms"] = command ? command->skippedRooms() : std::size_t(0);
     return applied;
 }
@@ -217,7 +224,7 @@ Answer detect(const RunContext& context, const DetectOptions& given) {
     if (!options.apply) {
         return success(name, std::move(json));
     }
-    if (counts.newWalls == 0 && counts.newRooms == 0) {
+    if (counts.newWalls == 0 && counts.newRooms == 0 && counts.newOpenings == 0) {
         json["applied"] = appliedJson(nullptr);
         return success(name, std::move(json));
     }
@@ -260,8 +267,8 @@ std::vector<CommandSpec> detectCommands() {
                        "Widest gap closed with wall and shown as an opening, in metres. 0 closes none. Default: 2.5.")
             ->type_name("metres");
         sub.add_flag("--no-rooms", options->noRooms, "Do not propose rooms, and add none with --apply.");
-        sub.add_flag("--no-openings", options->noOpenings, "Do not propose openings.");
-        sub.add_flag("--apply", options->apply, "Add the new walls and rooms to the plan and save.");
+        sub.add_flag("--no-openings", options->noOpenings, "Do not propose openings, and add none with --apply.");
+        sub.add_flag("--apply", options->apply, "Add the new walls, rooms and openings to the plan and save.");
         return [options](const RunContext& context) { return detect(context, *options); };
     };
     return {detectSpec};
