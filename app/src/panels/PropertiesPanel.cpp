@@ -122,6 +122,7 @@ QWidget* PropertiesPanel::makePage(QGridLayout** grid)
     (*grid)->setHorizontalSpacing(t.unit() * 3);
     (*grid)->setVerticalSpacing(t.unit() * 2);
     (*grid)->setColumnStretch(1, 1);
+    (*grid)->setAlignment(Qt::AlignTop);
     pages_->addWidget(page);
     return page;
 }
@@ -139,7 +140,7 @@ QLabel* PropertiesPanel::addLabelRow(QGridLayout* grid, const QString& label, bo
     value->setWordWrap(true);
     const int row = grid->rowCount();
     grid->addWidget(name, row, 0, Qt::AlignTop);
-    grid->addWidget(value, row, 1);
+    grid->addWidget(value, row, 1, Qt::AlignTop);
     return value;
 }
 
@@ -1237,24 +1238,10 @@ void PropertiesPanel::buildItemPage()
     });
     connect(itemTurnLeft_, &QPushButton::clicked, this, [this]() { controller_.turnSelectedItem(-plynth::kItemQuarterTurn); });
     connect(itemTurnRight_, &QPushButton::clicked, this, [this]() { controller_.turnSelectedItem(plynth::kItemQuarterTurn); });
-    connect(itemTakeOff_, &QPushButton::clicked, this, [this, currentItem]() {
-        if (const plynth::Item* item = currentItem())
-            runItemCommand(std::make_unique<plynth::SetItemWallCommand>(item->id, std::nullopt));
-    });
+    connect(itemTakeOff_, &QPushButton::clicked, this, &PropertiesPanel::takeOffItem);
     connect(itemMount_, &QPushButton::clicked, this, &PropertiesPanel::mountItem);
     connect(itemSwap_, &QPushButton::clicked, this, &PropertiesPanel::swapItemAsset);
-    connect(itemUpdate_, &QPushButton::clicked, this, [this, currentItem]() {
-        const plynth::Item* item = currentItem();
-        plynth::AssetCatalog* catalog = controller_.catalog();
-        if (item == nullptr || catalog == nullptr)
-            return;
-        const plynth::ItemAsset asset = plynth::itemAssetFor(*catalog, item->asset);
-        if (!asset.status.ok()) {
-            controller_.showMessage(fromCore(asset.status.message));
-            return;
-        }
-        runItemCommand(std::make_unique<plynth::SwapItemAssetCommand>(item->id, item->asset, asset.size));
-    });
+    connect(itemUpdate_, &QPushButton::clicked, this, &PropertiesPanel::updateItemSize);
 }
 
 // Runs an item command. When the plan refuses it the boxes go back to the real values.
@@ -1264,7 +1251,7 @@ void PropertiesPanel::runItemCommand(std::unique_ptr<plynth::Command> command)
         refresh();
 }
 
-// Mounts the selected item on the wall nearest to it, when one is within reach.
+// Mounts the selected item on the wall core picks for its centre, within the snap radius.
 void PropertiesPanel::mountItem()
 {
     const plynth::Floor* floor = controller_.floor();
@@ -1273,23 +1260,41 @@ void PropertiesPanel::mountItem()
     const plynth::Item* item = plynth::findItem(*floor, selection_.id().toStdString());
     if (item == nullptr)
         return;
-    const plynth::Wall* nearest = nullptr;
-    double best = 0.0;
-    for (const plynth::Wall& wall : floor->walls) {
-        const plynth::WallCurve curve = plynth::wallCurve(*floor, wall);
-        if (!curve.valid)
-            continue;
-        const double gap = plynth::projectOntoCurve(plynth::Vec2{item->x, item->y}, curve).distance - wall.thickness / 2.0;
-        if (nearest == nullptr || gap < best) {
-            nearest = &wall;
-            best = gap;
-        }
-    }
-    if (nearest == nullptr || best > kMountReach) {
+    const plynth::Id wall = plynth::nearestWallForMount(*floor, plynth::Vec2{item->x, item->y}, controller_.snapRadiusMetres());
+    if (wall.empty()) {
         controller_.showMessage(tr("No wall is near this item. Move it next to a wall first."));
         return;
     }
-    runItemCommand(std::make_unique<plynth::SetItemWallCommand>(item->id, nearest->id));
+    runItemCommand(std::make_unique<plynth::SetItemWallCommand>(item->id, wall));
+}
+
+// Takes the selected item off its wall.
+void PropertiesPanel::takeOffItem()
+{
+    const plynth::Floor* floor = controller_.floor();
+    const plynth::Item* item = floor && selection_.kind() == SelectionKind::Item
+                                   ? plynth::findItem(*floor, selection_.id().toStdString())
+                                   : nullptr;
+    if (item != nullptr)
+        runItemCommand(std::make_unique<plynth::SetItemWallCommand>(item->id, std::nullopt));
+}
+
+// Gives the selected item the size its asset has in the library now.
+void PropertiesPanel::updateItemSize()
+{
+    const plynth::Floor* floor = controller_.floor();
+    const plynth::Item* item = floor && selection_.kind() == SelectionKind::Item
+                                   ? plynth::findItem(*floor, selection_.id().toStdString())
+                                   : nullptr;
+    plynth::AssetCatalog* catalog = controller_.catalog();
+    if (item == nullptr || catalog == nullptr)
+        return;
+    const plynth::ItemAsset asset = plynth::itemAssetFor(*catalog, item->asset);
+    if (!asset.status.ok()) {
+        controller_.showMessage(fromCore(asset.status.message));
+        return;
+    }
+    runItemCommand(std::make_unique<plynth::SwapItemAssetCommand>(item->id, item->asset, asset.size));
 }
 
 // Opens the picker beside the panel with the room type of the item. Choosing an asset swaps it in.

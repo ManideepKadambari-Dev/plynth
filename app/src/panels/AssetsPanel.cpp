@@ -334,7 +334,7 @@ void AssetsPanel::buildDetails()
     detailsScroll_->setStyleSheet(QStringLiteral("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; }"));
     auto* body = new QWidget();
     auto* box = new QVBoxLayout(body);
-    box->setContentsMargins(0, t.unit() * 2, t.unit() * 2, 0);
+    box->setContentsMargins(0, t.unit() * 2, t.unit() * 4, 0);
     box->setSpacing(t.unit() * 2);
 
     thumb_ = new QLabel(body);
@@ -696,6 +696,9 @@ void AssetsPanel::showDetails()
         const bool on = std::find(record.categories.begin(), record.categories.end(), entry.id) != record.categories.end();
         item->setCheckState(on ? Qt::Checked : Qt::Unchecked);
     }
+    // Ending on half a row tells the user that the list scrolls.
+    if (categories_->count() > 9 && categories_->sizeHintForRow(0) > 0)
+        categories_->setFixedHeight(static_cast<int>(categories_->sizeHintForRow(0) * 9.5) + 4);
     QStringList tags;
     for (const std::string& tag : record.tags)
         tags << fromCore(tag);

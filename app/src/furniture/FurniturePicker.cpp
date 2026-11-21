@@ -201,7 +201,10 @@ void FurniturePicker::dismiss()
     open_ = false;
     qApp->removeEventFilter(this);
     setHovered(QString());
+    const bool hadFocus = hasFocus() || isAncestorOf(QApplication::focusWidget());
     hide();
+    if (hadFocus && parentWidget() != nullptr)
+        parentWidget()->setFocus(Qt::OtherFocusReason);
     emit dismissed();
 }
 

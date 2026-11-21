@@ -1,6 +1,7 @@
 #include "ImportQueueView.h"
 
 #include "catalog/ImportQueue.h"
+#include "theme/ElideLabel.h"
 #include "theme/Theme.h"
 
 #include <QDesktopServices>
@@ -72,18 +73,29 @@ void ImportQueueView::rebuild()
         box->addLayout(top);
 
         if (failed) {
-            // The work folder path is long and the Show log button opens it, so the row names only the folder.
+            // The work folder path is long and the Show log button opens it, so the row keeps it on one mono line.
             QString shown = item.message;
-            const QString folder = QDir::fromNativeSeparators(item.workFolder);
-            if (!folder.isEmpty())
-                shown.replace(folder, QStringLiteral(".staging/") + QFileInfo(folder).fileName());
-            auto* why = new QLabel(t.withMonoPaths(shown), row);
-            why->setToolTip(item.message);
-            why->setTextFormat(Qt::RichText);
+            const QString folder = QDir::toNativeSeparators(item.workFolder);
+            const QString slashed = QDir::fromNativeSeparators(item.workFolder);
+            if (!folder.isEmpty()) {
+                shown.replace(folder, QString());
+                shown.replace(slashed, QString());
+            }
+            shown = shown.trimmed();
+            auto* why = new QLabel(shown, row);
+            why->setTextFormat(Qt::PlainText);
             why->setWordWrap(true);
             why->setFont(t.uiFont(t.sizeSmall()));
             why->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
+            why->setToolTip(tr("Why the import failed"));
             box->addWidget(why);
+            if (!folder.isEmpty()) {
+                auto* path = new ElideLabel(folder, row);
+                path->setFont(t.monoFont(t.sizeSmall()));
+                path->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
+                path->setToolTip(folder);
+                box->addWidget(path);
+            }
         } else {
             auto* bar = new QProgressBar(row);
             bar->setRange(0, 100);

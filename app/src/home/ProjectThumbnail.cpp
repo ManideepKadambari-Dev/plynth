@@ -3,7 +3,11 @@
 #include "canvas/OverlayBuilder.h"
 #include "theme/Theme.h"
 
+#include <QImageReader>
 #include <QPainter>
+
+#include <plynth/core/ProjectFiles.h>
+#include <plynth/core/Settings.h>
 
 namespace plynth::app {
 
@@ -36,6 +40,25 @@ QImage renderProjectThumbnail(const plynth::Plan& plan, const QImage& planImage,
         painter.drawPath(band.band);
     painter.end();
     return out;
+}
+
+// Reads the project and its plan image, draws the picture and saves it as a PNG under the settings folder.
+bool writeRecentThumbnail(const std::filesystem::path& projectFolder)
+{
+    const plynth::ProjectLoad load = plynth::loadProject(projectFolder);
+    if (!load.status.ok() || load.project.plan.floors.empty() || !load.project.plan.floors.front().image.has_value())
+        return false;
+    const std::filesystem::path imageFile = plynth::resolveImagePath(projectFolder, *load.project.plan.floors.front().image);
+    QImageReader reader(QString::fromStdWString(imageFile.wstring()));
+    reader.setAutoTransform(true);
+    const QImage image = reader.read();
+    const QImage thumb = renderProjectThumbnail(load.project.plan, image, 320);
+    if (thumb.isNull())
+        return false;
+    const std::filesystem::path file = plynth::recentThumbnailPath(projectFolder);
+    std::error_code ignored;
+    std::filesystem::create_directories(file.parent_path(), ignored);
+    return thumb.save(QString::fromStdWString(file.wstring()), "PNG");
 }
 
 }

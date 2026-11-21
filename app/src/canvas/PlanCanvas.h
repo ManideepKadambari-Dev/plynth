@@ -169,6 +169,14 @@ private:
     void updateSceneRect();
     void updateCursor();
     void paintOverlay(QPainter* painter);
+    // Where a room's name and area chip is drawn, in canvas pixels.
+    struct RoomChip {
+        const OverlayRoom* room = nullptr;
+        QRectF pill;
+        QRectF nameBox;
+        QRectF areaBox;
+    };
+    QVector<RoomChip> roomChips() const;
     void paintLabels(QPainter* painter);
     void paintItems(QPainter* painter);
     void paintProposals(QPainter* painter);

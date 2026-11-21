@@ -399,7 +399,7 @@ void SelectTool::paint(QPainter& painter)
             painter.setPen(QPen(t.signalAmber(), 1.5));
             painter.drawLine(edge, *turn);
         }
-        painter.setPen(QPen(active ? t.signalAmber() : t.signalBlue(), 2));
+        painter.setPen(QPen(active ? t.signalAmber() : t.muted(), 2));
         painter.setBrush(t.ground());
         painter.drawEllipse(*turn, t.rotationHandle() / 2.0, t.rotationHandle() / 2.0);
     }

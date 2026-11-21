@@ -123,8 +123,8 @@ MainWindow::MainWindow(QWidget* parent)
     column->setContentsMargins(0, 0, 0, 0);
     column->setSpacing(0);
     canvas_ = new PlanCanvas(central);
-    canvas_->setAcceptDrops(false);
-    canvas_->viewport()->setAcceptDrops(false);
+    canvas_->setAcceptDrops(true);
+    canvas_->viewport()->setAcceptDrops(true);
     statusBar_ = new StatusBar(central);
     banner_ = new ReadOnlyBanner(central);
     banner_->hide();
@@ -382,6 +382,18 @@ void MainWindow::buildMenus()
                                      tr("Turn the selected item 90 degrees clockwise (])"),
                                      QStringLiteral("item-turn-right"), {QKeySequence(Qt::Key_BracketRight)});
     connect(turnRightAction_, &QAction::triggered, this, [this]() { tools_->turnSelectedItem(plynth::kItemQuarterTurn); });
+    mountAction_ = addMenuAction(edit, tr("Mount item on wall"), tr("Hang the selected item flat on the nearest wall"),
+                                 QStringLiteral("item-mount"), {});
+    connect(mountAction_, &QAction::triggered, this, [this]() { panel_->mountItem(); });
+    takeOffAction_ = addMenuAction(edit, tr("Take item off wall"), tr("Take the selected item off its wall"),
+                                   QStringLiteral("item-take-off"), {});
+    connect(takeOffAction_, &QAction::triggered, this, [this]() { panel_->takeOffItem(); });
+    swapAction_ = addMenuAction(edit, tr("Swap item asset..."), tr("Pick another asset for the selected item"),
+                                QStringLiteral("item-swap"), {});
+    connect(swapAction_, &QAction::triggered, this, [this]() { panel_->swapItemAsset(); });
+    updateSizeAction_ = addMenuAction(edit, tr("Update item size"), tr("Use the size the library has now for the selected item"),
+                                      QStringLiteral("item-update-size"), {});
+    connect(updateSizeAction_, &QAction::triggered, this, [this]() { panel_->updateItemSize(); });
     acceptDetectionAction_ = addMenuAction(edit, tr("Accept detection"),
                                            tr("Add the detected walls, openings and rooms to the plan (Enter)"),
                                            QStringLiteral("detect-accept"),
@@ -916,6 +928,16 @@ void MainWindow::updateToolActions()
         turnLeftAction_->setEnabled(itemSelected);
     if (turnRightAction_ != nullptr)
         turnRightAction_->setEnabled(itemSelected);
+    const plynth::Floor* floor = doc_.plan().floors.empty() ? nullptr : &doc_.plan().floors.front();
+    const plynth::Item* item = itemSelected && floor ? plynth::findItem(*floor, selection_->id().toStdString()) : nullptr;
+    if (mountAction_ != nullptr)
+        mountAction_->setEnabled(item != nullptr && !item->wall.has_value());
+    if (takeOffAction_ != nullptr)
+        takeOffAction_->setEnabled(item != nullptr && item->wall.has_value());
+    if (swapAction_ != nullptr)
+        swapAction_->setEnabled(item != nullptr && host_ != nullptr && host_->hasLibrary());
+    if (updateSizeAction_ != nullptr)
+        updateSizeAction_->setEnabled(item != nullptr && host_ != nullptr && host_->hasLibrary());
 }
 
 // Shows the cursor position in metres, or nothing when it is off the plan or no scale is set.
@@ -1202,22 +1224,8 @@ void MainWindow::recordRecent()
 {
     if (screenshotMode_ || !doc_.hasFolder())
         return;
-    const plynth::Plan& plan = doc_.plan();
     host_->recordProject(doc_.folder(), doc_.project().settings.name);
-    if (plan.floors.empty() || !plan.floors.front().image.has_value())
-        return;
-    const QString path = QFileInfo(fromCore(plynth::pathToUtf8(
-        plynth::resolveImagePath(doc_.folder(), *plan.floors.front().image)))).absoluteFilePath();
-    QImage image;
-    if (!decodeImage(path, &image, nullptr))
-        return;
-    const QImage thumb = renderProjectThumbnail(plan, image, 320);
-    if (thumb.isNull())
-        return;
-    const std::filesystem::path file = plynth::recentThumbnailPath(doc_.folder());
-    std::error_code ignored;
-    std::filesystem::create_directories(file.parent_path(), ignored);
-    thumb.save(QString::fromStdWString(file.wstring()), "PNG");
+    writeRecentThumbnail(doc_.folder());
     home_->refresh();
 }
 

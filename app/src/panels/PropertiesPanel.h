@@ -38,6 +38,11 @@ public:
 
     // Reads everything shown from the document and the selection.
     void refresh();
+    // The item actions of the Properties page, also run from the Edit menu on the selected item.
+    void swapItemAsset();
+    void mountItem();
+    void takeOffItem();
+    void updateItemSize();
 
 signals:
     void deleteRequested();
@@ -60,8 +65,6 @@ private:
     void buildItemPage();
     void refreshItem();
     void runItemCommand(std::unique_ptr<plynth::Command> command);
-    void swapItemAsset();
-    void mountItem();
     void refreshOpening();
     void refreshOpeningTool();
     QComboBox* addComboRow(QGridLayout* grid, const QString& label, const QString& tip, const QString& tourId,

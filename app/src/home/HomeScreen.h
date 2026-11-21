@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QSet>
 #include <QString>
 #include <QWidget>
 
@@ -55,6 +56,8 @@ private:
     QWidget* samplesBox_ = nullptr;
     QVBoxLayout* samplesColumn_ = nullptr;
     QLabel* setupStatus_ = nullptr;
+    QLabel* setupPath_ = nullptr;
+    QSet<QString> triedThumbs_;
     QPushButton* setupFix_ = nullptr;
     QPushButton* projectsLink_ = nullptr;
     QLabel* versionLabel_ = nullptr;

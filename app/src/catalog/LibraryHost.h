@@ -7,6 +7,7 @@
 #include <QObject>
 #include <QString>
 
+#include <functional>
 #include <memory>
 
 namespace plynth::app {
@@ -58,6 +59,7 @@ signals:
     void recentChanged();
 
 private:
+    bool editRecent(const std::function<bool(plynth::MachineSettings&)>& change);
     plynth::MachineSettings settings_;
     bool settingsExisted_ = false;
     QString settingsProblem_;

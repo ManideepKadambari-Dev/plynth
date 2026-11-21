@@ -3,6 +3,7 @@
 #include "catalog/LibraryHost.h"
 #include "furniture/AssetPreview.h"
 #include "home/ProjectThumbnail.h"
+#include "theme/ElideLabel.h"
 #include "theme/Theme.h"
 
 #include <plynth/core/SetupCheck.h>
@@ -22,6 +23,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPushButton>
+#include <QTimer>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QUrl>
@@ -92,16 +94,19 @@ protected:
             p.drawRoundedRect(rect(), t.radius(), t.radius());
         }
     }
+    // Starts the hover look.
     void enterEvent(QEnterEvent*) override
     {
         hover_ = true;
         update();
     }
+    // Ends the hover look.
     void leaveEvent(QEvent*) override
     {
         hover_ = false;
         update();
     }
+    // A release inside the row counts as a click.
     void mouseReleaseEvent(QMouseEvent* event) override
     {
         if (clickable_ && event->button() == Qt::LeftButton && rect().contains(event->position().toPoint()) && onClick)
@@ -111,24 +116,6 @@ protected:
 private:
     bool clickable_ = true;
     bool hover_ = false;
-};
-
-// A label that cuts the middle out of a long text so it never makes its row wider.
-class ElideLabel : public QLabel {
-public:
-    using QLabel::QLabel;
-
-    QSize minimumSizeHint() const override { return QSize(0, QLabel::minimumSizeHint().height()); }
-
-protected:
-    // Draws the text shortened to the width, in the label's own font and color.
-    void paintEvent(QPaintEvent*) override
-    {
-        QPainter p(this);
-        p.setFont(font());
-        p.setPen(palette().color(foregroundRole()));
-        p.drawText(rect(), Qt::AlignLeft | Qt::AlignVCenter, fontMetrics().elidedText(text(), Qt::ElideMiddle, width()));
-    }
 };
 
 // Makes a small muted label.
@@ -260,6 +247,12 @@ QWidget* HomeScreen::buildSide()
     setupStatus_->setToolTip(tr("Whether Blender, the library folder and the add-ons are ready"));
     setupStatus_->setProperty("tourId", QStringLiteral("home-setup-status"));
     column->addWidget(setupStatus_);
+    setupPath_ = new ElideLabel(side);
+    setupPath_->setFont(t.monoFont(t.sizeSmall()));
+    setupPath_->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
+    setupPath_->setProperty("tourId", QStringLiteral("home-setup-path"));
+    setupPath_->hide();
+    column->addWidget(setupPath_);
     setupFix_ = new QPushButton(tr("Fix"), side);
     setupFix_->setToolTip(tr("Open the setup check"));
     setupFix_->setProperty("tourId", QStringLiteral("home-setup-fix"));
@@ -402,10 +395,14 @@ void HomeScreen::fillSide()
 
     const plynth::SetupReport quick = plynth::quickSetupCheck(host_.settings(), host_.settingsExisted());
     QString problem;
+    QString problemPath;
+    QString problemDetail;
     for (const plynth::SetupItem& item : quick.items) {
         if (item.state == plynth::CheckState::Missing || item.state == plynth::CheckState::TooOld ||
             (item.state == plynth::CheckState::NeedsAttention && item.required)) {
-            problem = fromCore(item.name) + QStringLiteral(": ") + fromCore(item.detail);
+            problem = tr("%1 needs attention.").arg(fromCore(item.name));
+            problemPath = QDir::toNativeSeparators(QString::fromStdWString(item.path.wstring()));
+            problemDetail = fromCore(item.detail);
             break;
         }
     }
@@ -413,6 +410,10 @@ void HomeScreen::fillSide()
     if (problem.isEmpty() && quick.firstRun)
         problem = tr("Setup has not been checked yet.");
     setupStatus_->setText(attention ? problem : tr("Setup is ready."));
+    setupStatus_->setToolTip(problemDetail.isEmpty() ? tr("Whether Blender, the library folder and the add-ons are ready") : problemDetail);
+    setupPath_->setText(problemPath);
+    setupPath_->setToolTip(problemPath);
+    setupPath_->setVisible(!problemPath.isEmpty());
     setupStatus_->setStyleSheet(QStringLiteral("color: %1;").arg((attention ? t.signalAmber() : t.muted()).name()));
     setupFix_->setVisible(attention);
     const QString folder = QDir::toNativeSeparators(host_.projectsFolder());
@@ -431,6 +432,7 @@ void HomeScreen::fillRecent()
     }
     const QString filter = search_->text().trimmed();
     int shown = 0;
+    QStringList missingThumbs;
     for (const plynth::RecentProject& recent : host_.settings().recentProjects) {
         const QString folder = QString::fromStdWString(recent.path.wstring());
         const QString name = fromCore(recent.name);
@@ -454,6 +456,10 @@ void HomeScreen::fillRecent()
         thumb->setFont(t.uiFont(t.sizeSmall()));
         const QPixmap picture = AssetPreview::loadPixmap(
             QString::fromStdWString(plynth::recentThumbnailPath(recent.path).wstring()), kThumbWidth, devicePixelRatioF());
+        if (picture.isNull() && !missing && !triedThumbs_.contains(folder)) {
+            triedThumbs_.insert(folder);
+            missingThumbs << folder;
+        }
         if (!picture.isNull() && !missing) {
             thumb->setStyleSheet(QStringLiteral("background: %1; border-radius: %2px;").arg(t.ground().name()).arg(t.radius()));
             thumb->setPixmap(picture);
@@ -482,7 +488,7 @@ void HomeScreen::fillRecent()
             when->setFont(t.uiFont(t.sizeSmall()));
             when->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
         } else {
-            when = mutedLabel(tr("Opened %1").arg(whenText(recent.lastOpened)), row);
+            when = mutedLabel(tr("Opened %1").arg(whenText(recent.lastOpened)), row, true);
         }
         when->setAttribute(Qt::WA_TransparentForMouseEvents, true);
         texts->addWidget(when);
@@ -508,6 +514,15 @@ void HomeScreen::fillRecent()
         connect(remove, &QPushButton::clicked, this, [this, path2]() { host_.forgetProject(path2); });
         row->onClick = [this, folder]() { emit openRecentRequested(folder); };
         recentColumn_->addWidget(row);
+    }
+    if (!missingThumbs.isEmpty()) {
+        QTimer::singleShot(0, this, [this, missingThumbs]() {
+            bool made = false;
+            for (const QString& folder : missingThumbs)
+                made = writeRecentThumbnail(std::filesystem::path(folder.toStdWString())) || made;
+            if (made)
+                fillRecent();
+        });
     }
     if (shown == 0) {
         auto* note = new QLabel(host_.settings().recentProjects.empty()

@@ -215,6 +215,10 @@ private:
     QAction* acceptDetectionAction_ = nullptr;
     QAction* turnLeftAction_ = nullptr;
     QAction* turnRightAction_ = nullptr;
+    QAction* mountAction_ = nullptr;
+    QAction* takeOffAction_ = nullptr;
+    QAction* swapAction_ = nullptr;
+    QAction* updateSizeAction_ = nullptr;
     QAction* snapGridAction_ = nullptr;
     QAction* deleteAction_ = nullptr;
     StatusBar* statusBar_ = nullptr;
