@@ -491,3 +491,25 @@ TEST_CASE("checkItemPlacement refuses in the order of its header", "[core][items
         plynth::test::requireOk(checkItemPlacement(f, it));
     }
 }
+
+TEST_CASE("a wall item above a lowered wall is too tall", "[core][items][problems]") {
+    Floor f = roomFloor();
+    hangTv(f, "w1", WallSide::Right, 2.0, 1.0);
+    REQUIRE_FALSE(has(checkItem(f, f.items[0]), ItemProblemKind::TooTall));
+    f.walls[0].height = 1.5;
+    const auto problems = checkItem(f, f.items[0]);
+    REQUIRE(has(problems, ItemProblemKind::TooTall, "w1"));
+    REQUIRE(has(itemProblems(f), ItemProblemKind::TooTall, "w1"));
+    f.walls[0].height = 1.71;
+    REQUIRE_FALSE(has(checkItem(f, f.items[0]), ItemProblemKind::TooTall));
+}
+
+TEST_CASE("nearestWallForMount finds the wall within the radius", "[core][items][wall]") {
+    const Floor f = roomFloor();
+    REQUIRE(nearestWallForMount(f, {2.0, 0.5}, 0.5) == "w1");
+    REQUIRE(nearestWallForMount(f, {2.0, 0.5}, 0.2).empty());
+    REQUIRE(nearestWallForMount(f, {0.5, 2.0}, 0.5) == "w4");
+    REQUIRE(nearestWallForMount(f, {3.7, 2.0}, 0.5) == "w2");
+    REQUIRE(nearestWallForMount(f, {2.0, 2.0}, 0.5).empty());
+    REQUIRE(nearestWallForMount(f, {2.0, 0.05}, 0.0) == "w1");
+}

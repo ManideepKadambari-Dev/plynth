@@ -454,6 +454,14 @@ TEST_CASE("SwapItemAssetCommand changes asset and size", "[core][command][item]"
         REQUIRE(gapOf(p, tv) == Approx(0.0).margin(1e-9));
         REQUIRE(it.wall == "w1");
     }
+    SECTION("a wall item gets its room worked out again") {
+        p.plan.floors[0].items[1].room = "r2";
+        SwapItemAssetCommand c(tv, "big_tv", {1.5, 0.2, 0.9});
+        applyOk(c, p);
+        REQUIRE(get(p, tv).room == "r1");
+        c.undo(p);
+        REQUIRE(get(p, tv).room == "r2");
+    }
     SECTION("the same asset with a new size updates the size") {
         SwapItemAssetCommand c(sofa, "sofa", {2.2, 0.9, 0.85});
         applyOk(c, p);

@@ -363,6 +363,7 @@ Status SwapItemAssetCommand::apply(Project& project)
         swapped.z = std::max(0.0, centre - size_.height / 2.0);
         if (const Status s = checkItemPlacement(*found.floor, swapped); !s.ok()) return s;
         if (const Status s = poseOnWall(*found.floor, swapped); !s.ok()) return s;
+        setRoomFromPosition(*found.floor, swapped);
     }
     floorId_ = found.floor->id;
     previous_ = *found.item;

@@ -1,5 +1,7 @@
 #include "plynth/core/Items.h"
 
+#include "BandOutline.h"
+
 #include "plynth/core/Openings.h"
 #include "plynth/core/Rooms.h"
 #include "plynth/core/WallGeometry.h"
@@ -137,6 +139,7 @@ struct FloorContext {
     std::vector<WallInfo> walls;
 };
 
+// Works out the rooms and wall bands of a floor once.
 FloorContext makeContext(const Floor& floor)
 {
     FloorContext context;
@@ -245,6 +248,24 @@ Id wallBehind(const FloorContext& context, const Face& face, Vec2 probe)
     return {};
 }
 
+}
+
+// The wall nearest a point, within radius of its band.
+Id nearestWallForMount(const Floor& floor, Vec2 point, double radius)
+{
+    const Wall* best = nullptr;
+    double bestCentre = 0.0;
+    for (const Wall& wall : floor.walls) {
+        double d = 1e300;
+        for (const auto& outline : wallBand(floor, wall)) d = std::min(d, detail::distanceToPolygon(point, outline));
+        if (d > std::max(radius, 0.0)) continue;
+        const double centre = detail::distanceToLine(point, wallPath(floor, wall).centreLine);
+        if (!best || centre < bestCentre) {
+            best = &wall;
+            bestCentre = centre;
+        }
+    }
+    return best ? best->id : Id{};
 }
 
 // A rotation in degrees brought into the range from 0 up to 360.
@@ -513,6 +534,10 @@ std::vector<ItemProblem> problemsFor(const Floor& floor, const FloorContext& con
             if (std::fabs(spot.gap) > kItemOffWallTolerance) {
                 add(ItemProblemKind::OffWall, spot.wall, label + " is not against wall " + spot.wall + ".");
             }
+        }
+        if (const Wall* wall = findWall(floor, *item.wall);
+            wall && item.z + item.size.height > wallHeight(floor, *wall) + 1e-9) {
+            add(ItemProblemKind::TooTall, wall->id, label + " is taller than wall " + wall->id + ".");
         }
     } else if (item.z + item.size.height > floor.ceilingHeight + 1e-9) {
         add(ItemProblemKind::TooTall, {}, label + " is taller than the ceiling.");

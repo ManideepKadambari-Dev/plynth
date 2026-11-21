@@ -15,8 +15,8 @@
 namespace plynth {
 
 // Placed assets (DESIGN.md sections 7.5 and 7.6). Lengths in metres, rotations in degrees, positions in plan
-// coordinates (x right, y down). The app, the CLI and the Blender build all read items through these functions,
-// so every program sees the same footprint.
+// coordinates (x right, y down). The app and the CLI read items through these functions, so both see the same
+// footprint. Blender reads plan.json, and these functions define the conventions it follows.
 //
 // Turning an item into Blender (milestone 8): Blender x = x, Blender y = -y, Blender z = floor level + z, and
 // rotation about Blender's z axis = -rotation (in radians). With the catalog rule that an asset's front faces
@@ -37,6 +37,10 @@ inline constexpr double kItemOverlapArea = 0.0001;
 
 // A wall item whose back is further than this from its wall face is reported as off its wall.
 inline constexpr double kItemOffWallTolerance = 0.01;
+
+// The wall a "Mount on wall" action should use for a point: the wall whose band is nearest the point and within
+// radius of it (ties go to the nearer centre line). Empty when none is. The app and the CLI both use it.
+Id nearestWallForMount(const Floor& floor, Vec2 point, double radius);
 
 // A rotation in degrees brought into the range from 0 up to 360. Not finite stays as it is.
 double normalizeRotation(double degrees);
@@ -129,7 +133,7 @@ enum class ItemProblemKind {
     OverlapsWall,    // "overlaps_wall": its footprint overlaps a wall band (a wall item's own wall is skipped)
     OverlapsOpening, // "overlaps_opening": a wall item's box on the wall face overlaps an opening on that wall
     OffWall,         // "off_wall": a wall item is further than kItemOffWallTolerance from its wall face
-    TooTall,         // "too_tall": a floor item reaches above the ceiling height
+    TooTall,         // "too_tall": a floor item reaches above the ceiling, or a wall item above its wall
     MissingAsset,    // "missing_asset": the asset is not in the library
     SizeChanged,     // "size_changed": the library's size for the asset differs from the stored one
 };
