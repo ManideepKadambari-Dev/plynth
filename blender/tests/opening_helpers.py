@@ -224,7 +224,7 @@ def fixtures():
     }
 
 
-# Writes the fixtures to tests/data/build.
+# Writes the fixtures to tests/data/buildjob.
 def write_fixtures():
     for name, data in fixtures().items():
         with open(os.path.join(DATA_FOLDER, name + ".json"), "w", encoding="utf-8") as handle:

@@ -92,6 +92,7 @@ def cut(ctx, floor, walls, opening):
         except (AttributeError, TypeError):
             pass
         meshes.apply_modifier(walls, modifier)
+        meshes.heal_t_junctions(walls)
         removed = before - meshes.volume(walls)
         ok = removed >= expected * MINIMUM_SHARE
     except Exception:

@@ -1,6 +1,7 @@
 import bmesh
 import bpy
-from mathutils import Vector
+from mathutils import Vector, kdtree
+KDTree = kdtree.KDTree
 from mathutils.geometry import tessellate_polygon
 
 from . import surfaces
@@ -146,3 +147,50 @@ def add_prism_uv(bm, outline, holes, w0, w1, place, slot):
         face.material_index = slot
     bmesh.ops.recalc_face_normals(bm, faces=faces)
     return faces
+
+
+# Closes the cracks an Exact Boolean can leave where a merged face skips a vertex that its neighbour still has.
+# Each boundary edge with a vertex lying on it is split there and the new vertex is welded to the old one.
+# Returns true when the mesh is closed afterwards.
+def heal_t_junctions(obj, tolerance=1e-5):
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    for _ in range(500):
+        bad = [edge for edge in bm.edges if len(edge.link_faces) == 1]
+        if not bad:
+            break
+        bm.verts.ensure_lookup_table()
+        tree = KDTree(len(bm.verts))
+        for vert in bm.verts:
+            tree.insert(vert.co, vert.index)
+        tree.balance()
+        split = False
+        for edge in bad:
+            a, b = edge.verts[0], edge.verts[1]
+            direction = b.co - a.co
+            length = direction.length
+            if length < 1e-9:
+                continue
+            found = []
+            for _, index, _ in tree.find_range((a.co + b.co) / 2.0, length / 2.0 + tolerance):
+                vert = bm.verts[index]
+                if vert is a or vert is b:
+                    continue
+                t = (vert.co - a.co).dot(direction) / (length * length)
+                if t <= 1e-6 or t >= 1.0 - 1e-6:
+                    continue
+                if (a.co + direction * t - vert.co).length <= tolerance:
+                    found.append((t, vert))
+            if not found:
+                continue
+            t, vert = min(found, key=lambda pair: pair[0])
+            _, fresh = bmesh.utils.edge_split(edge, a, t)
+            bmesh.ops.weld_verts(bm, targetmap={fresh: vert})
+            split = True
+            break
+        if not split:
+            break
+    closed = all(len(edge.link_faces) == 2 for edge in bm.edges)
+    bm.to_mesh(obj.data)
+    bm.free()
+    return closed

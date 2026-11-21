@@ -3,10 +3,10 @@ import os
 
 import helpers
 
-DATA_FOLDER = os.path.join(helpers.BLENDER_FOLDER, "tests", "data", "build")
+DATA_FOLDER = os.path.join(helpers.BLENDER_FOLDER, "tests", "data", "buildjob")
 
 
-# Reads a job fixture from tests/data/build and returns the job params. The output folder is filled in by the test.
+# Reads a job fixture from tests/data/buildjob and returns the job params. The output folder is filled in by the test.
 def load_params(name):
     with open(os.path.join(DATA_FOLDER, name + ".json"), "r", encoding="utf-8") as handle:
         return json.load(handle)["params"]
