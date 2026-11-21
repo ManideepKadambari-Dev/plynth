@@ -355,7 +355,8 @@ TEST_CASE("detect --apply on apartment-01 adds 16 walls and 5 rooms that match r
         CHECK(room.at("area").get<double>() > 0.0);
     }
     std::vector<double> found;
-    for (const auto& area : sample.run({"room", "find"}).answer.at("result").at("areas")) {
+    const auto findAnswer = sample.run({"room", "find"});
+    for (const auto& area : findAnswer.answer.at("result").at("areas")) {
         found.push_back(area.at("centre_line_area").get<double>());
     }
     std::ranges::sort(found);
