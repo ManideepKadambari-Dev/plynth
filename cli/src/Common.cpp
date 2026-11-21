@@ -3,6 +3,7 @@
 #include <plynth/core/EditSession.h>
 #include <plynth/core/ProjectFiles.h>
 #include <plynth/core/Geometry.h>
+#include <plynth/core/commands/DeleteCommands.h>
 #include <plynth/core/ProjectJson.h>
 
 #include <algorithm>
@@ -174,6 +175,22 @@ Json wallEntry(const Floor& floor, const Wall& wall) {
     entry["length"] = wallLength(floor, wall);
     entry["rooms"] = std::move(rooms);
     return entry;
+}
+
+Answer removeCascade(const std::string& command, const RunContext& context, const std::string& projectOption,
+                     const Id& id) {
+    return editProject(command, context, projectOption, [&](Document& document) {
+        const std::vector<Id> named = {id};
+        DeleteBuild build = makeDeleteCommand(document.plan(), named);
+        if (!build.status.ok()) {
+            return failure(command, build.status);
+        }
+        Answer failed;
+        if (!runCommand(command, document, std::move(build.command), failed)) {
+            return failed;
+        }
+        return success(command, removedJson(build.removes.rooms, build.removes.walls, build.removes.points));
+    });
 }
 
 Json removedJson(const std::vector<Id>& rooms, const std::vector<Id>& walls, const std::vector<Id>& points) {

@@ -9,6 +9,7 @@ add_library(plynth_cli STATIC
     src/commands/PointCommands.cpp
     src/commands/HelpCommand.cpp
     src/commands/ProjectCommands.cpp
+    src/commands/RoomCommands.cpp
     src/commands/ScaleCommands.cpp
     src/commands/SessionCommands.cpp
     src/commands/VersionCommand.cpp

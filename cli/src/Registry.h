@@ -34,6 +34,7 @@ std::vector<CommandSpec> projectCommands();
 std::vector<CommandSpec> scaleCommands();
 std::vector<CommandSpec> pointCommands();
 std::vector<CommandSpec> wallCommands();
+std::vector<CommandSpec> roomCommands();
 std::vector<CommandSpec> sessionCommands();
 
 // All commands in the order help lists them.

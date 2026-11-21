@@ -49,6 +49,7 @@ struct SetOptions {
 };
 
 struct RemoveOptions {
+    bool cascade = false;
     std::string project;
     std::string id;
 };
@@ -153,6 +154,9 @@ Answer wallSet(const RunContext& context, const SetOptions& options) {
 
 // Removes a wall that no room or opening uses.
 Answer wallRemove(const RunContext& context, const RemoveOptions& options) {
+    if (options.cascade) {
+        return removeCascade("wall remove", context, options.project, options.id);
+    }
     return edit(
         "wall remove", context, options.project,
         [&](const Plan&) { return std::make_unique<RemoveWallCommand>(options.id); },
@@ -260,6 +264,7 @@ std::vector<CommandSpec> wallCommands() {
     remove.setup = [](CLI::App& sub) -> Handler {
         auto options = std::make_shared<RemoveOptions>();
         addProjectOption(sub, options->project);
+        sub.add_flag("--cascade", options->cascade, "Also remove the rooms that depend on it, and end points left loose.");
         sub.add_option("id", options->id, "Id of the wall.")->type_name("id")->required();
         return [options](const RunContext& context) { return wallRemove(context, *options); };
     };

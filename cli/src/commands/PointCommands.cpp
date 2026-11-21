@@ -24,6 +24,7 @@ struct MoveOptions {
 };
 
 struct RemoveOptions {
+    bool cascade = false;
     std::string project;
     std::string id;
 };
@@ -60,6 +61,9 @@ Answer pointMove(const RunContext& context, const MoveOptions& options) {
 
 // Removes a point that no wall uses.
 Answer pointRemove(const RunContext& context, const RemoveOptions& options) {
+    if (options.cascade) {
+        return removeCascade("point remove", context, options.project, options.id);
+    }
     return edit(
         "point remove", context, options.project,
         [&](const Plan&) { return std::make_unique<RemovePointCommand>(options.id); },
@@ -123,6 +127,7 @@ std::vector<CommandSpec> pointCommands() {
     remove.setup = [](CLI::App& sub) -> Handler {
         auto options = std::make_shared<RemoveOptions>();
         addProjectOption(sub, options->project);
+        sub.add_flag("--cascade", options->cascade, "Also remove the walls and rooms that depend on it.");
         sub.add_option("id", options->id, "Id of the point.")->type_name("id")->required();
         return [options](const RunContext& context) { return pointRemove(context, *options); };
     };
