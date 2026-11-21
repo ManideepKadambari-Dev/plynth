@@ -100,6 +100,25 @@ def door(c, hx, hy, d, n, w):
     c.arc(hx, hy, w, base, base + diff, 2)
 
 
+# Doors of apartment-01: hinge point, direction toward the gap, direction of the open leaf, width.
+DOORS1 = [
+    ((1006, 796), (0, -1), (1, 0), 90), ((1006, 1090), (0, -1), (-1, 0), 90),
+    ((1100, 700), (1, 0), (0, -1), 90), ((1100, 1285), (1, 0), (0, -1), 90),
+]
+
+
+# Returns the hinge and the swing side point of a door, in image pixels.
+def door_marks(hinge, d, n, w):
+    centre = (hinge[0] + d[0] * w / 2.0, hinge[1] + d[1] * w / 2.0)
+    swing = (centre[0] + n[0] * w / 4.0, centre[1] + n[1] * w / 4.0)
+    return {"hinge": [whole(v) for v in hinge], "swing_point": [whole(v) for v in swing]}
+
+
+# Turns a float with no fraction into an int so the JSON stays short.
+def whole(v):
+    return int(v) if float(v).is_integer() else v
+
+
 # Draws the whole apartment plan.
 def build():
     c = Canvas(W, H)
@@ -126,10 +145,8 @@ def build():
     c.rect(1560, 694, 1800, 706, 255)
     c.rect(1100, y1 - t, 1190, y1, 255)
 
-    door(c, 1006, 796, (0, -1), (1, 0), 90)
-    door(c, 1006, 1090, (0, -1), (-1, 0), 90)
-    door(c, 1100, 700, (1, 0), (0, -1), 90)
-    door(c, 1100, y1 - t // 2, (1, 0), (0, -1), 90)
+    for hinge, d, n, w in DOORS1:
+        door(c, hinge[0], hinge[1], d, n, w)
 
     for a, b in ((650, 850), (1500, 1700)):
         c.rect(a, y0, b, y0 + t, 255)
@@ -173,8 +190,11 @@ def expected_01():
     rooms = [((760, 557), 238135), ((760, 1042), 238135), ((1203, 507), 151690),
              ((1642, 507), 186725), ((1300, 900), 514215)]
     openings = [("window", 750, 315, 200), ("window", 1600, 315, 200), ("window", 515, 1050, 200),
-                ("window", 1885, 500, 160), ("door", 1006, 751, 90), ("door", 1006, 1045, 90),
-                ("door", 1145, 700, 90), ("door", 1145, 1285, 90), ("plain", 1680, 700, 240)]
+                ("window", 1885, 500, 160)]
+    for hinge, d, n, w in DOORS1:
+        cx, cy = whole(hinge[0] + d[0] * w / 2), whole(hinge[1] + d[1] * w / 2)
+        openings.append(("door", cx, cy, w, door_marks(hinge, d, n, w)))
+    openings.append(("plain", 1680, 700, 240))
     not_walls = [("dimension_line", (495, 205, 1905, 235)), ("dimension_line", (385, 295, 415, 1305)),
                  ("door_arc", (1014, 708, 1098, 792)), ("door_arc", (914, 1002, 998, 1088)),
                  ("door_arc", (1098, 608, 1192, 692)), ("door_arc", (1098, 1193, 1192, 1268)),
@@ -192,7 +212,8 @@ def expected_dict(image, ppm, points, walls, rooms, openings, not_walls):
         "points": [list(p) for p in points],
         "walls": [{"from": list(a), "to": list(b), "thickness": t} for a, b, t in walls],
         "rooms": [{"inside": list(p), "centre_line_area": a} for p, a in rooms],
-        "openings": [{"type": k, "x": x, "y": y, "width": w} for k, x, y, w in openings],
+        "openings": [dict({"type": o[0], "x": o[1], "y": o[2], "width": o[3]}, **(o[4] if len(o) > 4 else {}))
+                     for o in openings],
         "not_walls": [{"kind": k, "box": list(b)} for k, b in not_walls],
     }
 
@@ -473,10 +494,42 @@ def expected_02(boxes):
              ((1050, 445), (XV2 - XV1) * (YH2 - T2)), ((1565, 445), (R2 - XV2) * (YH2 - T2)),
              ((1100, 900), (R2 - XV1) * (B2 - YH2))]
     openings = []
+    swings = iter(DOORS2)
     for kind, axis, at, a, b, t in GAPS2:
         mid = (a + b) // 2
-        openings.append((kind, mid if axis == "h" else at, at if axis == "h" else mid, b - a))
+        entry = (kind, mid if axis == "h" else at, at if axis == "h" else mid, b - a)
+        if kind == "door":
+            hinge, d, n = next(swings)
+            entry += (door_marks(hinge, d, n, b - a),)
+        openings.append(entry)
     return expected_dict("apartment-02.png", 80, points, walls, rooms, openings, boxes)
+
+
+# Returns the keyhole outline in the unit box: an ellipse on top of a tapered base, anticlockwise.
+def keyhole_outline():
+    cx, cy, rx, ry = 0.5, 0.72, 0.5, 0.28
+    neck = math.acos(0.36)
+    start, end = -neck, math.pi + neck
+    steps = 56
+    ts = {start + (end - start) * i / steps for i in range(steps + 1)}
+    ts |= {0.0, math.pi / 2, math.pi}
+    pts = [(0.2, 0.0), (0.8, 0.0)]
+    for t in sorted(ts):
+        x = min(1.0, max(0.0, round(cx + rx * math.cos(t), 6)))
+        y = min(1.0, max(0.0, round(cy + ry * math.sin(t), 6)))
+        pts.append((x, y))
+    return pts
+
+
+# Returns the keyhole shape file text, one point per line.
+def keyhole_json():
+    pts = keyhole_outline()
+    lines = ["{", '  "format": "plynth-shape",', '  "version": 1,', '  "id": "keyhole",',
+             '  "name": "Keyhole",', '  "outline": [']
+    for i, p in enumerate(pts):
+        lines.append("    " + json.dumps([whole(p[0]), whole(p[1])]) + ("," if i < len(pts) - 1 else ""))
+    lines += ["  ]", "}"]
+    return "\n".join(lines) + "\n"
 
 
 # Writes the plan images and their expected results next to the samples folder.
@@ -490,6 +543,10 @@ def main():
         ("apartment-02.png", c2.png_bytes()),
         ("apartment-02.expected.json", expected_json(expected_02(boxes)).encode("utf-8")),
     ]
+    shape_dir = os.path.normpath(os.path.join(out_dir, "..", "shapes"))
+    os.makedirs(shape_dir, exist_ok=True)
+    with open(os.path.join(shape_dir, "keyhole.shape.json"), "wb") as f:
+        f.write(keyhole_json().encode("utf-8"))
     for name, data in outputs:
         path = os.path.join(out_dir, name)
         with open(path, "wb") as f:

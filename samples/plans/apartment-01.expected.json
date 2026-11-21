@@ -47,10 +47,10 @@
     {"type": "window", "x": 1600, "y": 315, "width": 200},
     {"type": "window", "x": 515, "y": 1050, "width": 200},
     {"type": "window", "x": 1885, "y": 500, "width": 160},
-    {"type": "door", "x": 1006, "y": 751, "width": 90},
-    {"type": "door", "x": 1006, "y": 1045, "width": 90},
-    {"type": "door", "x": 1145, "y": 700, "width": 90},
-    {"type": "door", "x": 1145, "y": 1285, "width": 90},
+    {"type": "door", "x": 1006, "y": 751, "width": 90, "hinge": [1006, 796], "swing_point": [1028.5, 751]},
+    {"type": "door", "x": 1006, "y": 1045, "width": 90, "hinge": [1006, 1090], "swing_point": [983.5, 1045]},
+    {"type": "door", "x": 1145, "y": 700, "width": 90, "hinge": [1100, 700], "swing_point": [1145, 677.5]},
+    {"type": "door", "x": 1145, "y": 1285, "width": 90, "hinge": [1100, 1285], "swing_point": [1145, 1262.5]},
     {"type": "plain", "x": 1680, "y": 700, "width": 240}
   ],
   "not_walls": [

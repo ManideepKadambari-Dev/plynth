@@ -25,7 +25,11 @@ Each plan has an `.expected.json` file next to it: `apartment-01.expected.json` 
 - `points`: every corner and junction
 - `walls`: centre lines split at each junction, with the thickness, and gaps of openings closed
 - `rooms`: one point inside each closed area and its centre line area in px squared
-- `openings`: type (`door`, `window` or `plain`), centre and width
+- `openings`: type (`door`, `window` or `plain`), centre and width. Each door also has `hinge`, the hinge jamb on the wall centre line, and `swing_point`, a point a quarter of the width out from the gap centre on the side the leaf opens toward. Both are `[x, y]` in image pixels and come from the same drawing data as the leaf and arc.
 - `not_walls`: boxes `[x0, y0, x1, y1]` around marks that must give no wall, with a kind (`dimension_line`, `door_arc`, `text`, `furniture`, `filled_block` or `curved_wall`). No box touches an expected wall band.
 
 `pixels_per_metre` in the file turns pixels into metres.
+
+## Sample shape
+
+`samples/shapes/keyhole.shape.json` is a custom opening outline in the format of `schema/shape.schema.json`: an ellipse on top of a tapered base in the unit box, 62 points. The same script writes it (`keyhole_outline`), so `python samples/tools/make_sample_plans.py` regenerates it with the plans.
