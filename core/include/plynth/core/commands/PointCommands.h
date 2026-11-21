@@ -52,6 +52,30 @@ private:
     int mergeKey_;
 };
 
+// Sets the corner radius of a point (DESIGN.md section 7.2). The radius is stored as given; cornerRounding
+// in WallGeometry.h says whether and how much it rounds. NotFound for an unknown point, InvalidValue when the
+// radius is not finite or below zero. Openings near the corner may stop fitting; openingProblems lists them.
+// Changes with the same non zero mergeKey and point merge into one undo step.
+class SetCornerRadiusCommand : public Command {
+public:
+    SetCornerRadiusCommand(Id pointId, double radius, int mergeKey = 0);
+
+    std::string name() const override;
+    Status apply(Project& project) override;
+    void undo(Project& project) override;
+    // Points.
+    unsigned changes() const override;
+    Id floorId() const override;
+    bool mergeWith(const Command& next) override;
+
+private:
+    Id pointId_;
+    double radius_;
+    int mergeKey_;
+    Id floorId_;
+    double previous_ = 0.0;
+};
+
 // Removes a point. NotFound for an unknown point, InUse while a wall uses it.
 // Undo puts it back at the same place in the list.
 class RemovePointCommand : public Command {

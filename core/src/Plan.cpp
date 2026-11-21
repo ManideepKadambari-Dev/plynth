@@ -296,4 +296,44 @@ std::optional<OpeningType> openingTypeFromName(std::string_view name)
     return std::nullopt;
 }
 
+// The name used in files for a wall side.
+std::string_view wallSideName(WallSide side)
+{
+    return side == WallSide::Left ? "left" : "right";
+}
+
+// The wall side for a name used in files.
+std::optional<WallSide> wallSideFromName(std::string_view name)
+{
+    if (name == "left") return WallSide::Left;
+    if (name == "right") return WallSide::Right;
+    return std::nullopt;
+}
+
+// The other side of a wall.
+WallSide otherSide(WallSide side)
+{
+    return side == WallSide::Left ? WallSide::Right : WallSide::Left;
+}
+
+// The name used in files for a hinge end.
+std::string_view hingeEndName(HingeEnd end)
+{
+    return end == HingeEnd::End ? "end" : "start";
+}
+
+// The hinge end for a name used in files.
+std::optional<HingeEnd> hingeEndFromName(std::string_view name)
+{
+    if (name == "start") return HingeEnd::Start;
+    if (name == "end") return HingeEnd::End;
+    return std::nullopt;
+}
+
+// The other end of an opening.
+HingeEnd otherEnd(HingeEnd end)
+{
+    return end == HingeEnd::Start ? HingeEnd::End : HingeEnd::Start;
+}
+
 }

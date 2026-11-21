@@ -34,15 +34,16 @@ struct SnapResult {
 // 1. With orthogonalFrom, the position moves onto the horizontal or the vertical line through it,
 //    whichever is closer.
 // 2. The nearest point within radius wins, even over the orthogonal line, so a loop can always be closed.
-// 3. Otherwise the nearest wall within radius of its centre line, at the closest place strictly between its
-//    two points.
+// 3. Otherwise the nearest wall within radius of its true centre line (the arc for a curved wall, see
+//    projectOntoCurve), at the closest place strictly between its two points. wallOffset is measured along
+//    that line.
 // 4. Otherwise the grid: each coordinate rounded to a multiple of gridSize, the grid starting at the image
 //    corner (0, 0). With orthogonalFrom only the free coordinate is rounded.
 // 5. Otherwise the position from step 1 with kind None.
 SnapResult snapPosition(const Floor& floor, Vec2 position, const SnapOptions& options);
 
 // What is under a position.
-enum class PickKind { None, Point, Wall, Room };
+enum class PickKind { None, Point, Wall, Room, Opening };
 
 struct Pick {
     PickKind kind = PickKind::None;
@@ -51,9 +52,11 @@ struct Pick {
     bool operator==(const Pick&) const = default;
 };
 
-// Finds what a click at a position means: the nearest point within radius, else the nearest wall whose
-// band (half its thickness plus radius) holds the position, else the room whose area holds it (see roomAt
-// in Rooms.h), else nothing. radius is in metres; the app turns its pixel radius into metres.
+// Finds what a click at a position means: the nearest point within radius, else an opening whose
+// footprint (OpeningPlacement::footprint in Openings.h) is within radius of the position, else the nearest
+// wall whose band (wallBand in WallGeometry.h) is within radius of the position, else the room whose area
+// holds it (see roomAt in Rooms.h), else nothing. radius is in metres; the app turns its pixel radius into
+// metres.
 Pick pickAt(const Floor& floor, Vec2 position, double radius);
 
 }

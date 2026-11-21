@@ -23,4 +23,21 @@ private:
     double previous_ = 0.0;
 };
 
+// Sets the project's default sizes for new openings and new floors (DESIGN.md section 7.5). Marks already
+// placed keep their sizes. InvalidValue from checkDefaultSizes.
+class SetDefaultSizesCommand : public Command {
+public:
+    explicit SetDefaultSizesCommand(DefaultSizes sizes);
+
+    std::string name() const override;
+    Status apply(Project& project) override;
+    void undo(Project& project) override;
+    // Settings.
+    unsigned changes() const override;
+
+private:
+    DefaultSizes sizes_;
+    DefaultSizes previous_;
+};
+
 }

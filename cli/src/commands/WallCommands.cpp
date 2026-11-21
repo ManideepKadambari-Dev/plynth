@@ -45,7 +45,9 @@ struct SplitOptions {
 struct SetOptions {
     std::string project;
     std::string id;
-    double thickness = 0.0;
+    std::optional<double> thickness;
+    std::optional<double> bulge;
+    std::string height; // a number in metres, or "none" to use the ceiling height
 };
 
 struct RemoveOptions {
@@ -144,12 +146,53 @@ Answer wallSplit(const RunContext& context, const SplitOptions& options) {
         });
 }
 
-// Changes the thickness of a wall.
+// Reads a --height value: a number, or "none". Returns false when it is neither.
+bool parseHeight(const std::string& text, std::optional<double>& height) {
+    if (text == "none") {
+        height.reset();
+        return true;
+    }
+    try {
+        std::size_t used = 0;
+        const double value = std::stod(text, &used);
+        if (used != text.size()) {
+            return false;
+        }
+        height = value;
+        return true;
+    } catch (const std::exception&) {
+        return false;
+    }
+}
+
+// Changes the thickness and the bend of a wall. Several changes run as one step, so a refused one leaves the
+// others unapplied.
 Answer wallSet(const RunContext& context, const SetOptions& options) {
-    return edit(
-        "wall set", context, options.project,
-        [&](const Plan&) { return std::make_unique<SetWallThicknessCommand>(options.id, options.thickness); },
-        [&](const Plan& plan, const SetWallThicknessCommand&) { return entryFor(plan, options.id); });
+    const std::string name = "wall set";
+    if (!options.thickness && !options.bulge && options.height.empty()) {
+        return badArguments(name, "bad_arguments", "Give at least one of --thickness, --height and --bulge.");
+    }
+    std::optional<double> height;
+    if (!options.height.empty() && !parseHeight(options.height, height)) {
+        return badArguments(name, "bad_arguments", "The height must be a number in metres, or none.");
+    }
+    return editProject(name, context, options.project, [&](Document& document) {
+        auto group = std::make_unique<CommandGroup>("Change wall");
+        if (options.thickness) {
+            group->add(std::make_unique<SetWallThicknessCommand>(options.id, *options.thickness));
+        }
+        if (options.bulge) {
+            group->add(std::make_unique<SetWallBulgeCommand>(options.id, *options.bulge));
+        }
+        if (!options.height.empty()) {
+            group->add(std::make_unique<SetWallHeightCommand>(options.id, height));
+        }
+        Answer failed;
+        if (!runCommand(name, document, std::move(group), failed)) {
+            return failed;
+        }
+        return success(name, entryFor(document.plan(), options.id));
+    });
 }
 
 // Removes a wall that no room or opening uses.
@@ -160,7 +203,7 @@ Answer wallRemove(const RunContext& context, const RemoveOptions& options) {
     return edit(
         "wall remove", context, options.project,
         [&](const Plan&) { return std::make_unique<RemoveWallCommand>(options.id); },
-        [&](const Plan&, const RemoveWallCommand&) { return removedJson({}, {options.id}, {}); });
+        [&](const Plan&, const RemoveWallCommand&) { return removedJson({}, {}, {options.id}, {}); });
 }
 
 // Lists the walls of a floor.
@@ -252,9 +295,13 @@ std::vector<CommandSpec> wallCommands() {
         auto options = std::make_shared<SetOptions>();
         addProjectOption(sub, options->project);
         sub.add_option("id", options->id, "Id of the wall.")->type_name("id")->required();
-        sub.add_option("--thickness", options->thickness, "New wall thickness in metres.")
-            ->type_name("metres")
-            ->required();
+        sub.add_option("--thickness", options->thickness, "New wall thickness in metres.")->type_name("metres");
+        sub.add_option("--bulge", options->bulge,
+                       "How far the middle of the wall bends away from the straight line, in metres. Positive bends "
+                       "to the right of the wall's direction. 0 straightens it.")
+            ->type_name("metres");
+        sub.add_option("--height", options->height, "Own height of the wall in metres, or none to use the ceiling height.")
+            ->type_name("metres|none");
         return [options](const RunContext& context) { return wallSet(context, *options); };
     };
 

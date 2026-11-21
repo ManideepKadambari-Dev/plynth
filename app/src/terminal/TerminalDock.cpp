@@ -242,7 +242,7 @@ void TerminalDock::setPanelSize(const QSize& size)
 void TerminalDock::layoutOverlay()
 {
     const Theme& t = Theme::instance();
-    const QRect area = area_->geometry();
+    const QRect area(area_->mapTo(host_, QPoint(0, 0)), area_->size());
     const int gap = t.unit() * 4;
     const int d = button_->width();
     const int right = area.right() + 1 - gap;

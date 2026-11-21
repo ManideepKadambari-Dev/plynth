@@ -8,14 +8,17 @@
 
 namespace plynth {
 
-// Rooms come from the wall graph of a floor: points are its corners, straight walls its edges.
+// Rooms come from the wall graph of a floor: points are its nodes, walls (straight or curved) its edges.
 // Rules for finding closed areas:
 // - Walls that end loose (dangling) and walls with the same area on both sides (a bridge between two rings)
 //   are not part of any area's rings.
 // - A ring that sits inside an area without touching it (an island, such as a room inside a room) becomes a
 //   hole of the smallest area around it. The island's own inside is a separate area.
 // - Walls that cross without sharing a point do not split an area. Zero length walls are skipped.
-// - Bulge is ignored: walls count as straight lines until curved walls arrive in milestone 5.
+// - At each point the walls are ordered by the direction they leave it: the tangent of a curved wall at that
+//   end (tangentAlong in WallGeometry.h), so a curved wall sorts by where it really heads, not by its chord.
+// - The corners of a ring are the walls' drawn centre lines (WallPath::centreLine) joined in ring order, so
+//   arcs and rounded corners are part of the ring and of every area worked out from it.
 
 // One closed area of the wall graph.
 struct ClosedArea {
@@ -39,9 +42,9 @@ struct RoomShape {
     // close, for example in a file written by another tool.
     bool closed = false;
     std::vector<std::vector<Vec2>> rings; // centre line rings, outer first, as in ClosedArea
-    // The floor inside the walls: the area of the rings minus the band of each of the room's walls (half the
-    // thickness on each side of the centre line, and half the thickness past each end). Rings with a
-    // positive signedArea are outlines, negative ones are holes.
+    // The floor inside the walls: the area of the rings minus the band of each of the room's walls (wallBand
+    // in WallGeometry.h: half the thickness on each side of the drawn centre line, half the thickness past
+    // each plain end). Rings with a positive signedArea are outlines, negative ones are holes.
     std::vector<std::vector<Vec2>> floorArea;
     double area = 0.0; // square metres of floorArea
     Vec2 labelPoint;   // a position well inside floorArea, for the room's name and area

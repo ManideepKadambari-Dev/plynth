@@ -1,6 +1,6 @@
 # User guide
 
-This covers what Plynth does today: opening a project, showing its plan image, setting the scale, drawing walls, finding walls in the image automatically, making rooms, undo and redo, saving, working next to the command line, and the built-in terminal. More screens arrive in later releases.
+This covers what Plynth does today: opening a project, showing its plan image, setting the scale, drawing walls (straight and curved, with rounded corners), placing doors, windows and other openings, setting heights, finding walls and openings in the image automatically, making rooms, undo and redo, saving, working next to the command line, and the built-in terminal. More screens arrive in later releases.
 
 For keys see [Keyboard shortcuts](SHORTCUTS.md). For scripts see the [Command line guide](CLI_GUIDE.md).
 
@@ -39,7 +39,7 @@ An untitled project has no folder yet. Save it to give it one.
 
 Plynth fits the image to the window. Zoom with the mouse wheel, pan with the middle button or with Space and the left button. Ctrl+0 fits again and Ctrl+1 shows 100 percent. The full list is in the shortcuts page.
 
-Once the scale is set, points and walls are drawn over the image: walls as blue bands of their real thickness, points as small blue dots, rooms as a faint blue fill with a name and an area.
+Once the scale is set, points and walls are drawn over the image: walls as blue bands of their real thickness, points as small blue dots, openings as gaps in the bands, rooms as a faint blue fill with a name and an area.
 
 If the image file is missing, the sheet shows "The plan image ... could not be opened."
 
@@ -49,15 +49,16 @@ A strip of buttons sits at the left edge of the plan. The active tool is the one
 
 | Tool | Key | What it is for |
 |---|---|---|
-| Select | V | Pick points, walls and rooms, and drag points |
+| Select | V | Pick points, walls, openings and rooms, drag points and openings, bend walls |
 | Scale | S | Tell Plynth how long something on the image really is |
 | Wall | W | Draw walls |
+| Opening | O | Place doors, windows and other openings on walls |
 | Room | R | Turn a closed area into a room |
-| Detect | D | Find walls and rooms in the plan image for you |
+| Detect | D | Find walls, openings and rooms in the plan image for you |
 
 The status bar at the bottom shows the position of the cursor in metres and a short hint for the active tool. If a tool cannot do what you asked, the reason shows there in amber for a few seconds instead of in a dialog.
 
-The Scale tool needs a plan image. The Wall, Room and Detect tools also need a scale, because without one a click cannot be turned into metres. Until the scale is set, their buttons are greyed and their tooltips say "Set the scale first (S)". While the command line is editing the project, the Scale, Wall, Room and Detect tools are disabled and you can only select. You can still click to look at things.
+The Scale tool needs a plan image. The Wall, Opening, Room and Detect tools also need a scale, because without one a click cannot be turned into metres. Until the scale is set, their buttons are greyed and their tooltips say "Set the scale first (S)". While the command line is editing the project, the Scale, Wall, Opening, Room and Detect tools are disabled and you can only select. You can still click to look at things.
 
 ## Setting the scale
 
@@ -103,15 +104,18 @@ Every wall is one undo step, even when it also made new points or cut another wa
 
 Press V for the Select tool. It is the tool you start with.
 
-- Click a point, a wall or a room to select it. It turns amber, and the properties panel on the right shows it. Click on nothing, or press Esc, to clear the selection.
+- Click a point, a wall, an opening or a room to select it. It turns amber, and the properties panel on the right shows it. Click on nothing, or press Esc, to clear the selection.
 - Drag a point to move it. The walls at the point follow. The point snaps to the grid, and Shift keeps its move straight. It never snaps onto other points or walls. A whole drag is one undo step.
+- Drag an opening along its wall to move it. See "Openings".
+- Drag the blue ring in the middle of a selected wall to bend it. See "Curved walls".
 
-**The properties panel.** With nothing selected, it shows the scale, the grid size (change it and press Enter), and the number of points, walls and rooms. With a selection it shows:
+**The properties panel.** With nothing selected, it shows the scale, the grid size and the ceiling height of the floor (change them and press Enter), and the number of points, walls and rooms. With a selection it shows:
 
 | Selected | What you see and can change |
 |---|---|
-| A point | Its id, X and Y in metres (change a number and press Enter), and the walls that end there |
-| A wall | Its id, the two points, its length, and its thickness (change it and press Enter) |
+| A point | Its id, X and Y in metres (change a number and press Enter), the walls that end there, and its corner radius |
+| A wall | Its id, the two points, its length along the wall, its thickness, its bend with a Straighten button, its own height, and the number of openings on it |
+| An opening | Its id and wall, its type, shape, hinge and swing, its offset and sill, its width and height, and a Delete button |
 | A room | Its id, its type, its area, and the number of walls |
 
 A number is only changed when you type in its box. Clicking into a box and leaving it never rounds the real value. Letters you type in a box go into the box and do not switch tools.
@@ -135,9 +139,118 @@ If you click where no closed area exists, the status bar says "No closed area he
 
 The same room finding is available to scripts with `room find` and `room add`. See the [Command line guide](CLI_GUIDE.md).
 
+## Openings
+
+An opening is a cut through a wall: a door, a window, or a plain opening with nothing in it. It sits on one wall and cuts the wall's band, so the plan image shows through the gap.
+
+### Placing openings
+
+1. Press O, or click the Opening tool. It needs a scale.
+2. The panel on the right shows what the tool will place. Pick the **Type** (Door, Window or Plain opening) and the **Shape** (see below). For a door, pick the **Hinge** and **Swing** as well. Width, height and sill are set here too.
+3. Move the mouse over a wall. An amber outline of the opening follows it along the wall. It moves in steps of 5 cm. Hold Ctrl to place it freely.
+4. Click. The opening is added and selected, so its page opens in the panel.
+
+If the opening would not fit where the outline is, the outline is dashed and the status bar says why, for example "The opening overlaps o1 on wall w2." A click then does nothing. Move along the wall until the outline is solid.
+
+The status bar hint reads "Click a wall to add an opening. Ctrl places freely. The wall view sets the height."
+
+You can also add an opening from the wall view. Press O, then click on the wall face. See "The wall view".
+
+**Type.** A door starts on the floor. A window starts higher up, at its sill height. A plain opening is a cut with no leaf and no glass, such as an archway. It starts on the floor.
+
+**Default sizes.** Width, height and sill in the tool page are the defaults for the type you picked. Change one and it is kept for every opening you place later, and it is saved with the project. The built-in sizes are a door of 0.9 by 2.1 m, a window of 1.2 by 1.2 m starting 0.9 m up, and a plain opening the size of a door. The ceiling height for new floors is 3.0 m. A set of sizes that does not work together, such as a window that would end above the ceiling, is refused. Type, shape, hinge and swing belong to the tool and are not saved. Changing a default does not change openings that are already placed.
+
+**Hinge and swing.** These matter for doors. A wall has a direction, from its first point to its second point. Stand on the first point and look at the second: the side on your right is the wall's right side. The Hinge says which jamb the door hangs on, the one near the wall's first point ("Start of wall") or the one near its second point ("End of wall"). The Swing says which side of the wall the door opens toward, Left or Right. On the plan a door is drawn as a leaf, a line from the hinge jamb square to the wall, and a quarter arc from the end of the leaf to the other jamb. If the door opens the wrong way, change Swing or Hinge in the panel. You do not have to delete the door.
+
+### Shapes
+
+The shape is the outline of the cut. The built-in shapes are:
+
+| Shape | What it looks like | Size it needs |
+|---|---|---|
+| Rectangle | The whole box | Any |
+| Round arch | Straight sides, then a half circle on top | Height at least half the width |
+| Flat arch | A shallow curve on top that rises a sixth of the width | Height at least a sixth of the width |
+| Pointed arch | Two arcs meeting in a point on top | Height at least 0.866 times the width |
+| Circle | An ellipse that touches the four sides of the box, a circle when width equals height | Any |
+
+A shape that cannot take the opening's size is refused, and the status bar or the panel tells you the rule. You can add your own shapes. See [Writing generators](GENERATORS.md).
+
+### Moving and editing an opening
+
+- **Select** it with the Select tool (V) by clicking its gap. It turns amber and its page opens.
+- **Drag it along its wall** in the plan. It moves in steps of 5 cm (hold Ctrl for free movement) and stays inside the free part of the wall. Dragging does not move it onto another wall. A whole drag is one undo step.
+- **The panel** has the id and wall, type, shape, hinge and swing boxes, the offset (distance along the wall from its first point to the middle of the opening), the sill, the width and the height. Change a number and press Enter. A change that does not fit is refused and the old value comes back.
+- **The wall view** sets height and size by dragging. See below.
+- **Delete** with Delete, Backspace, Edit > Delete or the Delete button. One undo brings it back.
+
+When the Shape, Type, Hinge or Swing box has focus, typing a letter jumps to the matching entry, as in any list. It does not switch tools.
+
+### When an opening fits
+
+An opening has to fit its wall. These are the rules, and Plynth checks them when you place, move or resize an opening, or change its type or shape:
+
+- It must be inside the **free part** of the wall. The free part leaves out the rounded corner at each end, and half the thickness of the thickest other wall that meets the wall there. A wall end that is free, or that simply continues in a straight line, needs no clearance.
+- Its top, the sill plus its height, must be at most the wall's height.
+- It must not overlap another opening on the same wall. A window above a door is fine, and so are two openings that only touch.
+- Its shape must be able to take its size.
+
+If an edit you make to a wall breaks a rule afterwards, such as moving a point so the wall gets shorter, bending the wall or rounding a corner, the edit is allowed and the opening is kept. It is then drawn with a **dashed amber outline** on the plan and in the wall view, and its panel shows the reason in amber. Drag it back inside, resize it or delete it. You are never blocked from reshaping walls.
+
+## The wall view
+
+The wall view shows one wall face, front on and at true scale, so you can set heights.
+
+- It appears under the plan when a wall or an opening is selected. Press **E**, or use View > Wall view, to hide or show it.
+- It shows the face of the wall as seen from the side you clicked. The header says which wall, how long, how high, and "seen from the right" or "seen from the left". Press **F**, click **Flip**, or use View > Flip wall view to see the other side. Seen from the right side, the wall's first point is on the left of the picture.
+- One metre looks the same size across and up, so a 0.9 by 2.1 m door has the right proportions.
+- A ruler on the left shows heights every 0.5 m, with a label every metre. The floor is the line at the bottom. When the wall's height is not the ceiling height, a dashed line shows the ceiling.
+- The parts of the wall near its ends that openings cannot use are shaded.
+- Openings are cut out of the face and drawn in their real shape. The selected one is amber. An opening that does not fit is dashed amber.
+- For the selected opening the view writes its width by height, its sill, and its distance from the left end of the free part, in numbers.
+- A bent wall is shown unrolled along its curve. The note "Curved wall, shown unrolled" says so.
+- Zoom with the wheel, pan with the middle button, and press Home to fit the wall again.
+
+**Editing in the wall view.**
+
+- **Move:** drag an opening. Left and right change its place along the wall, up and down change its sill. Hold Shift to move in one direction only, whichever you drag further. Hold Ctrl to move freely. Without Ctrl, moves snap to 5 cm.
+- **Resize:** select an opening and drag one of its eight handles, the four corners and the four edge middles. The opposite edges stay where they are. An opening cannot get smaller than 0.1 m, cannot go past the free part of the wall, and cannot go above the wall's top.
+- **Add:** with the Opening tool active, click on the wall face. The opening is added there at the default sill.
+- Every drag is one undo step. While a command line session is editing the project, the wall view is read only.
+
+The plan sets where an opening is along the floor, the wall view sets how high and how big. Both show the same plan, so a change in one appears at once in the other.
+
+## Heights
+
+- **Ceiling height** belongs to a floor. With nothing selected, the properties panel has a "Ceiling height" box. Walls use it unless they have their own height.
+- **Wall height.** Select a wall and tick "Own height" in the panel, then type a height. A half wall that is 1.1 m high is made this way. Untick it to follow the ceiling again.
+- A height that would leave an opening above the top of a wall is refused, and the message names the opening. Lower or remove the opening first.
+
+## Curved walls
+
+Any wall can be bent into a true circular arc.
+
+1. Select the wall with the Select tool. A blue ring appears in the middle of its curve.
+2. Drag the ring. The wall bends and the room fills follow it. Drag it to the other side of the wall and the bend goes the other way. Near the straight line it snaps back to straight. Otherwise it rounds to 1 cm.
+3. Release. The whole drag is one undo step.
+
+You can also type a number in the **Bend** box in the panel. It is the distance in metres from the middle of the straight line to the middle of the arc. Positive bends the wall to its right side, negative to its left. **Straighten** makes the wall straight again with one click.
+
+Limits: the largest bend is a half circle, a bend of half the straight distance between the wall's points. A wall also cannot be bent so tightly that the radius of its curve is smaller than half its thickness. Such a bend is refused with a message. The same limits are checked when you move a point or change the thickness of a bent wall.
+
+On a bent wall, lengths and the places of openings are measured along the curve. The length shown in the panel is the length along the arc. You can place doors and windows on a bent wall like on any other. You can cut a bent wall in two with a T junction, and both halves stay on the same arc. Rooms can be closed by curved walls, and their area follows the curve.
+
+## Rounded corners
+
+A corner can be rounded with an arc. Select a point and type a **Corner radius** in the panel. 0 means a sharp corner.
+
+A corner is rounded only where exactly two straight walls meet at an angle between 1 and 179 degrees. At a point with one wall, with three or more walls, or with a curved wall, the radius is kept but nothing is rounded. The panel says "Not rounded: needs exactly two straight walls". When the walls are too short for the radius, the arc is made smaller and the panel says for example "Rounded at 0.50 m". The arc takes away at most half of each wall.
+
+The wall bands meet in the middle of the arc, so the corner has no notch. Room fills and areas follow the rounded corner. Openings keep clear of the rounded part of a wall.
+
 ## Detecting walls
 
-Instead of clicking every wall, you can let Plynth look at the plan image and propose the walls and rooms. You check the result, tune it with sliders, and accept it. You can always draw walls by hand instead, or to finish what detection missed.
+Instead of clicking every wall and opening, you can let Plynth look at the plan image and propose the walls, the openings and the rooms. You check the result, tune it with sliders, and accept it. You can always draw walls by hand instead, or to finish what detection missed.
 
 **What you need.** A plan image and a scale. Set the scale first (S).
 
@@ -146,10 +259,10 @@ Instead of clicking every wall, you can let Plynth look at the plan image and pr
 **Using it.**
 
 1. Press D, or click the Detect tool. The panel on the right shows the detection settings, and Plynth starts looking at once.
-2. After a moment the proposals appear over the plan as dashed blue outlines: walls with a faint blue fill, hollow blue rings at corners and junctions, and a dashed blue outline for each room it found. Doors, windows and gaps show as two small blue ticks across the wall, with a quarter arc for a door and two thin lines for a window.
+2. After a moment the proposals appear over the plan as dashed blue outlines: walls with a faint blue fill, hollow blue rings at corners and junctions, and a dashed blue outline for each room it found. Doors, windows and gaps show as two small blue ticks across the wall, with a leaf and a quarter arc for a door and two thin lines for a window. The door arc starts at the hinge side Plynth found and bends toward the side the door opens, so it matches the arc in the plan image. Openings that are already in the plan are not drawn again.
 3. Under the settings, a line says what was found, for example "16 walls, 5 rooms, 9 openings in 85 ms". It also tells you when some walls are already drawn, or when some overlap walls you drew and are left out.
 4. Move the sliders until the blue walls match the real ones. The preview follows about a fifth of a second after you stop. The app stays responsive while it works.
-5. Press Enter, or click Accept. The walls and rooms are added to the plan in the normal style. One Ctrl+Z takes all of them away again, and the proposals come back so you can try other settings.
+5. Press Enter, or click Accept. The walls, the openings and the rooms are added to the plan in the normal style. The status bar says, for example, "Added 16 walls, 9 openings and 5 rooms". One Ctrl+Z takes all of them away again, and the proposals come back so you can try other settings.
 
 Leaving the tool throws the proposals away. Nothing is added to the plan until you accept. Your settings are kept until you close Plynth.
 
@@ -163,13 +276,13 @@ Leaving the tool throws the proposals away. Nothing is added to the plan until y
 | Shortest wall | Wall pieces shorter than this are dropped. Raise it to get rid of small specks. |
 | Widest opening | A gap up to this wide in a wall, such as a door or a window, is closed with wall so rooms stay separate, and shown as an opening. Set it to 0 to close no gaps. |
 | Propose rooms | Also propose a room for every closed area. |
-| Show openings | Show doors, windows and gaps. |
+| Find openings | Find doors, windows and gaps, and add them to the plan when you accept. Untick it to find walls only. |
 
 **Reset settings** puts every setting back to its default.
 
 **Running it again never doubles walls.** Detection compares what it finds with the walls you already have. Walls that are already in the plan, whether you drew them or accepted them earlier, are not shown and are never added a second time. The status line counts them. If a proposed wall runs partly along a wall you drew, it is left out and counted, not trimmed. Draw the missing piece by hand. New walls snap onto the points and walls you already have, so detected walls join hand drawn ones.
 
-**Openings are for checking only.** The doors, windows and gaps are shown so you can see that the walls make sense, but Accept does not add them yet. They are added in a later version. The walls are closed across them, so every room stays a room.
+**Openings are added.** Accept adds every new door, window and gap as an opening on the wall that holds it. A door gets the hinge and swing Plynth found in the image. Its height and sill come from the default sizes (see "Placing openings"), so a door is the default door height and a window the default window size. An opening that hangs a few centimetres over the free part of its wall is moved, and narrowed if needed, so it fits. One that still does not fit is left out. Each added opening is a normal opening, so you can move, resize, change or delete it. While detecting, the walls are closed across the gaps so every room stays a room, and the openings then cut them again. One Ctrl+Z takes the walls, the openings and the rooms away together. Running detection again does not add an opening twice.
 
 If detection cannot run, the panel says why in amber, for example when the plan has no scale or the image could not be read. While a command line session is editing the project, the Detect tool is off.
 
@@ -179,8 +292,9 @@ Select something and press Delete or Backspace, use Edit > Delete, or use the De
 
 Delete takes with it whatever cannot stay without the thing you deleted:
 
-- Deleting a point deletes the walls that end at it, and the rooms that use those walls.
-- Deleting a wall deletes the rooms that use it.
+- Deleting a point deletes the walls that end at it, the openings on those walls, and the rooms that use those walls.
+- Deleting a wall deletes the openings on it and the rooms that use it.
+- Deleting an opening deletes only the opening.
 - Deleting a room deletes only the room. Its walls stay.
 - A point left with no wall because of a delete goes too, so no stray dots stay behind. A point you placed on its own is only removed when you select it.
 
@@ -199,6 +313,10 @@ The title bar shows the project name, with `*` after it when there are unsaved c
 
 A save writes each file to a temporary name first and then renames it, so a crash during a save does not leave a half written file.
 
+### Older projects
+
+Projects made with earlier versions of Plynth open as they are and upgrade by themselves. Nothing is asked and nothing is lost: doors and windows you already had get a hinge on the start of the wall and a swing to the right, and the project gets the default sizes. The files are written in the new format the next time you save. A project saved by this version cannot be opened by an older version of Plynth, so keep a copy if you still need that.
+
 ### Autosave and recovery
 
 Every 30 seconds, if there are unsaved changes, Plynth writes a copy into the project's `autosave/` folder. Saving or choosing Don't save removes it. Untitled projects have no folder, so they are not autosaved.
@@ -211,7 +329,7 @@ A script or a coding assistant can edit the project while Plynth has it open. To
 
 - A banner under the title bar says "Being edited from the command line by <name>. Changes appear here as they are saved."
 - The plan is dimmed. Undo, Redo, Save, Save as and Set plan image are disabled. New project and Open project still work.
-- The Scale, Wall and Room tools, Delete, and every box in the properties panel are disabled. You can still click to select and look.
+- The Scale, Wall, Opening and Room tools, Delete, dragging in the plan and the wall view, and every box in the properties panel are disabled. You can still click to select and look.
 - Changes appear on screen within a second, with the zoom and position unchanged.
 - When the session ends, or after 5 minutes without a command, the plan reloads once and becomes editable again.
 

@@ -2,6 +2,8 @@
 #include "TestImages.h"
 #include "TestSupport.h"
 
+#include <plynth/core/Openings.h>
+#include <plynth/core/commands/DetectionCommands.h>
 #include <plynth/core/detection/Detector.h>
 #include <plynth/core/detection/GrayImage.h>
 
@@ -346,6 +348,66 @@ TEST_CASE("orthogonal detector on apartment-01", "[core][detection][orthogonal][
 #endif
         REQUIRE(took < limit);
     }
+}
+
+TEST_CASE("accepting detection on apartment-01 adds every opening", "[core][detection][orthogonal][sample][command]") {
+    const auto expected = readSampleExpected(std::filesystem::path(PLYNTH_SAMPLES_DIR) / "plans" / "apartment-01.expected.json");
+    const auto image = sampleImage(expected.image);
+    const DetectionResult r = run(*image, {}, expected.pixelsPerMetre);
+    REQUIRE(r.openings.size() == 9);
+
+    Project p = makeNewProject();
+    ApplyDetectionCommand c("f1", r);
+    const Project before = p;
+    requireOk(c.apply(p));
+    requirePlanValid(p.plan);
+    const Floor& f = p.plan.floors[0];
+    REQUIRE(c.openingIds().size() == 9);
+    REQUIRE(c.skippedOpenings() == 0);
+    REQUIRE(f.openings.size() == 9);
+    REQUIRE(openingProblems(f).empty());
+
+    // Doors keep the hinge jamb and the side of the proposal, on the wall they ended up on.
+    int doors = 0;
+    for (const Opening& o : f.openings) {
+        if (o.type == OpeningType::Door) ++doors;
+    }
+    REQUIRE(doors == 4);
+
+    SECTION("a second accept is already_exists") {
+        const Project accepted = p;
+        ApplyDetectionCommand again("f1", run(*image, {}, expected.pixelsPerMetre));
+        REQUIRE(again.apply(p).code == ErrorCode::AlreadyExists);
+        REQUIRE(p == accepted);
+    }
+    SECTION("detecting again marks the openings Existing") {
+        DetectionResult again = run(*image, {}, expected.pixelsPerMetre);
+        markExisting(f, again);
+        const ProposalCounts counts = countProposals(again);
+        REQUIRE(counts.openings == 9);
+        REQUIRE(counts.existingOpenings == 9);
+        REQUIRE(counts.newOpenings == 0);
+    }
+    SECTION("undo gives an equal plan") {
+        c.undo(p);
+        REQUIRE(p == before);
+        requireOk(c.apply(p));
+        REQUIRE(p.plan.floors[0].openings.size() == 9);
+    }
+}
+
+TEST_CASE("accepting detection with openings turned off adds none", "[core][detection][orthogonal][sample][command]") {
+    const auto expected = readSampleExpected(std::filesystem::path(PLYNTH_SAMPLES_DIR) / "plans" / "apartment-01.expected.json");
+    const auto image = sampleImage(expected.image);
+    DetectionParams params;
+    params.openings = false;
+    const DetectionResult r = run(*image, params, expected.pixelsPerMetre);
+    REQUIRE(r.openings.empty());
+    Project p = makeNewProject();
+    ApplyDetectionCommand c("f1", r);
+    requireOk(c.apply(p));
+    REQUIRE(p.plan.floors[0].openings.empty());
+    REQUIRE(c.openingIds().empty());
 }
 
 TEST_CASE("orthogonal detector on apartment-02", "[core][detection][orthogonal][sample]") {

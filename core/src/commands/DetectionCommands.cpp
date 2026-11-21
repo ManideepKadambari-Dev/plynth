@@ -1,10 +1,15 @@
 #include "plynth/core/commands/DetectionCommands.h"
 
+#include "plynth/core/Openings.h"
 #include "plynth/core/Snapping.h"
+#include "plynth/core/WallGeometry.h"
+#include "plynth/core/commands/OpeningCommands.h"
 #include "plynth/core/commands/RoomCommands.h"
 #include "plynth/core/commands/WallCommands.h"
 
 #include <algorithm>
+#include <cmath>
+#include <numbers>
 #include <optional>
 #include <utility>
 
@@ -13,6 +18,53 @@ namespace plynth {
 namespace {
 
 constexpr double kMinSnapRadius = 0.05; // metres
+
+constexpr double kSameWayDegrees = 5.0; // how far two walls may differ in direction to count as the same wall
+
+// The plan wall that holds the centre of a proposed opening: the nearest straight wall whose centre line is within
+// the tolerance of the centre and runs the same way as the proposal's wall. Null when there is none.
+const Wall* wallForOpening(const Floor& floor, Vec2 centre, Vec2 direction, double proposedThickness)
+{
+    const double maxSin = std::sin(kSameWayDegrees * std::numbers::pi / 180.0);
+    const Wall* best = nullptr;
+    double bestDistance = 0.0;
+    for (const Wall& w : floor.walls) {
+        if (std::fabs(w.bulge) >= kMinBulge) continue;
+        const WallCurve curve = wallCurve(floor, w);
+        if (!curve.valid) continue;
+        const Vec2 d = tangentAlong(curve, 0.0);
+        if (std::fabs(direction.x * d.y - direction.y * d.x) > maxSin) continue;
+        const double tolerance = std::max(0.5 * std::max(proposedThickness, w.thickness), kMinSnapRadius);
+        const double gap = projectOntoCurve(centre, curve).distance;
+        if (gap > tolerance) continue;
+        if (!best || gap < bestDistance) {
+            best = &w;
+            bestDistance = gap;
+        }
+    }
+    return best;
+}
+
+// Moves an opening into the free part of its wall when it overhangs by no more than the slack, and narrows it when
+// it is wider than the free part. Returns false when it overhangs by more than the slack.
+bool fitIntoFreePart(const Floor& floor, const Wall& wall, Opening& opening)
+{
+    const WallSpan span = wallSpan(floor, wall);
+    const double left = opening.offset - opening.width / 2.0;
+    const double right = opening.offset + opening.width / 2.0;
+    const double overhang = std::max({span.start - left, right - span.end, 0.0});
+    if (overhang <= 0.0) return true;
+    if (overhang > kDetectedOpeningSlack + 1e-9) return false;
+    const double free = span.end - span.start;
+    if (opening.width > free) {
+        if (!(free > 0.0)) return false;
+        opening.width = free;
+        opening.offset = (span.start + span.end) / 2.0;
+    } else {
+        opening.offset = std::clamp(opening.offset, span.start + opening.width / 2.0, span.end - opening.width / 2.0);
+    }
+    return true;
+}
 
 // Adds an id to a list unless the list already has it.
 void addOnce(std::vector<Id>& list, const Id& id)
@@ -42,6 +94,11 @@ const std::vector<Id>& ApplyDetectionCommand::splitWallIds() const
     return splitWallIds_;
 }
 
+const std::vector<Id>& ApplyDetectionCommand::openingIds() const
+{
+    return openingIds_;
+}
+
 const std::vector<Id>& ApplyDetectionCommand::roomIds() const
 {
     return roomIds_;
@@ -50,6 +107,11 @@ const std::vector<Id>& ApplyDetectionCommand::roomIds() const
 std::size_t ApplyDetectionCommand::skippedWalls() const
 {
     return skippedWalls_;
+}
+
+std::size_t ApplyDetectionCommand::skippedOpenings() const
+{
+    return skippedOpenings_;
 }
 
 std::size_t ApplyDetectionCommand::skippedRooms() const
@@ -91,7 +153,9 @@ Status ApplyDetectionCommand::apply(Project& project)
     std::vector<Id> pointIds;
     std::vector<Id> splitIds;
     std::vector<Id> roomIds;
+    std::vector<Id> openingIds;
     std::size_t skippedWalls = 0;
+    std::size_t skippedOpenings = 0;
     std::size_t skippedRooms = 0;
     std::vector<std::optional<Id>> planPoint(marked.points.size());
 
@@ -120,6 +184,49 @@ Status ApplyDetectionCommand::apply(Project& project)
         steps.push_back(std::move(draw));
     }
 
+    for (const ProposedOpening& proposed : marked.openings) {
+        if (proposed.state != ProposalState::New || proposed.wall >= marked.walls.size()) {
+            ++skippedOpenings;
+            continue;
+        }
+        const ProposedWall& pw = marked.walls[proposed.wall];
+        const Vec2 a = marked.points[pw.from];
+        const Vec2 b = marked.points[pw.to];
+        const double length = distance(a, b);
+        if (length <= 0.0) {
+            ++skippedOpenings;
+            continue;
+        }
+        const Vec2 direction{(b.x - a.x) / length, (b.y - a.y) / length};
+        const Vec2 centre{a.x + direction.x * proposed.offset, a.y + direction.y * proposed.offset};
+        const Wall* wall = wallForOpening(*floor, centre, direction, pw.thickness);
+        if (!wall) {
+            ++skippedOpenings;
+            continue;
+        }
+        const WallCurve curve = wallCurve(*floor, *wall);
+        const Vec2 wallDirection = tangentAlong(curve, 0.0);
+        const bool sameWay = direction.x * wallDirection.x + direction.y * wallDirection.y > 0.0;
+
+        Opening opening = defaultOpening(project.settings.defaults, proposed.type);
+        opening.wall = wall->id;
+        opening.offset = projectOntoCurve(centre, curve).offset;
+        opening.width = proposed.width;
+        opening.hinge = sameWay ? proposed.hinge : otherEnd(proposed.hinge);
+        opening.swing = sameWay ? proposed.swing : otherSide(proposed.swing);
+        if (!fitIntoFreePart(*floor, *wall, opening)) {
+            ++skippedOpenings;
+            continue;
+        }
+        auto add = std::make_unique<AddOpeningCommand>(opening);
+        if (!add->apply(project).ok()) {
+            ++skippedOpenings;
+            continue;
+        }
+        openingIds.push_back(add->openingId());
+        steps.push_back(std::move(add));
+    }
+
     if (addRooms_) {
         for (const ProposedRoom& room : marked.rooms) {
             auto add = std::make_unique<AddRoomCommand>(floorId_, room.inside);
@@ -132,7 +239,9 @@ Status ApplyDetectionCommand::apply(Project& project)
         }
     }
 
-    if (steps.empty()) return fail(ErrorCode::AlreadyExists, "There is nothing new to add. The floor already has these walls and rooms.");
+    if (steps.empty()) {
+        return fail(ErrorCode::AlreadyExists, "There is nothing new to add. The floor already has these walls, openings and rooms.");
+    }
 
     std::erase_if(splitIds, [&](const Id& id) { return std::find(wallIds.begin(), wallIds.end(), id) != wallIds.end(); });
     steps_ = std::move(steps);
@@ -140,6 +249,8 @@ Status ApplyDetectionCommand::apply(Project& project)
     pointIds_ = std::move(pointIds);
     splitWallIds_ = std::move(splitIds);
     roomIds_ = std::move(roomIds);
+    openingIds_ = std::move(openingIds);
+    skippedOpenings_ = skippedOpenings;
     skippedWalls_ = skippedWalls;
     skippedRooms_ = skippedRooms;
     return {};

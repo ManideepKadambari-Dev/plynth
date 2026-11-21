@@ -5,6 +5,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <cmath>
 #include <limits>
 #include <vector>
 
@@ -94,4 +95,52 @@ TEST_CASE("distance, positionOf and wallLength", "[core][geometry]") {
     REQUIRE(wallLength(f, w) == Approx(5.0));
     w.to = "p9";
     REQUIRE(wallLength(f, w) == 0.0);
+}
+
+TEST_CASE("arcSegmentCount", "[core][geometry][arc]") {
+    constexpr double pi = 3.14159265358979323846;
+    SECTION("the listed examples") {
+        REQUIRE(arcSegmentCount(1.0, pi) == 24);
+        REQUIRE(arcSegmentCount(20.0, pi / 6.0) == 12);
+        REQUIRE(arcSegmentCount(1.0, 0.0) == 2);
+    }
+    SECTION("a negative sweep gives the same as its positive") {
+        REQUIRE(arcSegmentCount(1.0, -pi) == arcSegmentCount(1.0, pi));
+        REQUIRE(arcSegmentCount(3.7, -1.1) == arcSegmentCount(3.7, 1.1));
+    }
+    SECTION("the count is kept between 2 and 256") {
+        REQUIRE(arcSegmentCount(1e9, pi) == kArcMaxSegments);
+        REQUIRE(arcSegmentCount(1e300, pi) == kArcMaxSegments);
+        REQUIRE(arcSegmentCount(1.0, 1e-6) == kArcMinSegments);
+        REQUIRE(arcSegmentCount(0.0, pi) == kArcMinSegments);
+        REQUIRE(arcSegmentCount(-1.0, pi) == kArcMinSegments);
+        REQUIRE(arcSegmentCount(std::numeric_limits<double>::quiet_NaN(), pi) == kArcMinSegments);
+        REQUIRE(arcSegmentCount(1.0, std::numeric_limits<double>::infinity()) == kArcMinSegments);
+    }
+    SECTION("no segment breaks the angle or the deviation limit") {
+        for (double radius : {0.05, 0.3, 1.0, 2.0, 7.5, 40.0}) {
+            for (double sweep : {0.2, 1.0, pi / 2.0, pi, 2.0 * pi}) {
+                const int n = arcSegmentCount(radius, sweep);
+                INFO(radius << " " << sweep);
+                REQUIRE(n >= kArcMinSegments);
+                REQUIRE(n <= kArcMaxSegments);
+                if (n < kArcMaxSegments) {
+                    REQUIRE(sweep / n <= kArcMaxSegmentAngle + 1e-12);
+                    REQUIRE(radius * (1.0 - std::cos(sweep / n / 2.0)) <= kArcMaxDeviation + 1e-12);
+                    if (n > kArcMinSegments) {
+                        // One fewer would break a limit, so the count is the smallest.
+                        const int m = n - 1;
+                        const bool breaks = sweep / m > kArcMaxSegmentAngle + 1e-9
+                            || radius * (1.0 - std::cos(sweep / m / 2.0)) > kArcMaxDeviation;
+                        REQUIRE(breaks);
+                    }
+                }
+            }
+        }
+    }
+}
+
+TEST_CASE("rightOf turns a quarter to the right", "[core][geometry]") {
+    REQUIRE(rightOf({1.0, 0.0}) == Vec2{-0.0, 1.0});
+    REQUIRE(rightOf({0.0, 1.0}) == Vec2{-1.0, 0.0});
 }

@@ -67,11 +67,20 @@ Answer edit(const std::string& command, const RunContext& context, const std::st
 const Floor* resolveFloor(const std::string& command, const Plan& plan, const std::string& floorOption,
                           Answer& failed);
 
-// The point entry shared by the point commands: id, floor, x, y, corner_radius and the walls that use it.
+// The point entry shared by the point commands: id, floor, x, y, corner_radius, corner_radius_used and the walls
+// that use it.
 Json pointEntry(const Floor& floor, const Point& point);
 
-// The wall entry shared by the wall commands: ends, thickness, height, bulge, length and the rooms that list it.
+// The wall entry shared by the wall commands: ends, thickness, height, bulge, length along the curve, radius,
+// height used, the rooms that list it and the openings on it.
 Json wallEntry(const Floor& floor, const Wall& wall);
+
+// The floor entry shared by the floor commands: id, name, image and ceiling height.
+Json floorEntry(const Floor& floor);
+
+// The opening entry shared by the opening commands: wall, offset, type, shape, size, sill, hinge, swing, frame,
+// centre on the plan, whether it fits its wall and the reason when it does not.
+Json openingEntry(const Floor& floor, const Opening& opening);
 
 // The room entry shared by the room commands: type, type name, walls, whether it is closed, area and label spot.
 Json roomEntry(const Floor& floor, const Room& room);
@@ -82,7 +91,8 @@ Answer removeCascade(const std::string& command, const std::string& kind, const 
                      const std::string& projectOption,
                      const Id& id);
 
-// The result of a remove command: the ids of the rooms, walls and points that were removed.
-Json removedJson(const std::vector<Id>& rooms, const std::vector<Id>& walls, const std::vector<Id>& points);
+// The result of a remove command: the ids of the openings, rooms, walls and points that were removed.
+Json removedJson(const std::vector<Id>& openings, const std::vector<Id>& rooms, const std::vector<Id>& walls,
+                 const std::vector<Id>& points);
 
 }

@@ -34,3 +34,34 @@ unsigned SetGridSizeCommand::changes() const
 }
 
 }
+
+namespace plynth {
+
+SetDefaultSizesCommand::SetDefaultSizesCommand(DefaultSizes sizes) : sizes_(sizes) {}
+
+std::string SetDefaultSizesCommand::name() const
+{
+    return "Set default sizes";
+}
+
+// Sets the default sizes, remembering the old ones.
+Status SetDefaultSizesCommand::apply(Project& project)
+{
+    if (Status s = checkDefaultSizes(sizes_); !s.ok()) return s;
+    previous_ = project.settings.defaults;
+    project.settings.defaults = sizes_;
+    return {};
+}
+
+// Puts the old default sizes back.
+void SetDefaultSizesCommand::undo(Project& project)
+{
+    project.settings.defaults = previous_;
+}
+
+unsigned SetDefaultSizesCommand::changes() const
+{
+    return Change::Settings;
+}
+
+}

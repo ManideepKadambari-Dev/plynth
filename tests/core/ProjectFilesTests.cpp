@@ -113,9 +113,9 @@ TEST_CASE("written files follow the format and validate against the schemas", "[
     REQUIRE(plynth::test::schemaProblemForText("plan.schema.json", planText).empty());
     REQUIRE(plynth::test::schemaProblemForText("project.schema.json", projectText).empty());
 
-    REQUIRE(planText.rfind("{\n  \"format\": \"plynth-plan\",\n  \"version\": 1,\n  \"scale\": {", 0) == 0);
+    REQUIRE(planText.rfind("{\n  \"format\": \"plynth-plan\",\n  \"version\": 2,\n  \"scale\": {", 0) == 0);
     REQUIRE(planText.back() == '\n');
-    REQUIRE(projectText.rfind("{\n  \"format\": \"plynth-project\",\n  \"version\": 1,\n  \"name\": \"Untitled\"", 0) == 0);
+    REQUIRE(projectText.rfind("{\n  \"format\": \"plynth-project\",\n  \"version\": 2,\n  \"name\": \"Untitled\"", 0) == 0);
     REQUIRE(projectText.back() == '\n');
 }
 
@@ -294,7 +294,32 @@ TEST_CASE("loadProject errors", "[core][files]") {
         plynth::test::requireOk(r.status);
         REQUIRE(r.project.settings.name == "A");
         REQUIRE(r.project.plan.floors[0].name == "f1");
+        REQUIRE(r.migrated);
+        REQUIRE(r.project.settings.defaults == DefaultSizes{});
     }
+}
+
+TEST_CASE("a version 1 project is written back as version 2", "[core][files][migrate]") {
+    plynth::test::TempDir tmp("upgrade");
+    writeFile(tmp.path() / "project.json", R"({"format":"plynth-project","version":1,"name":"Old"})");
+    writeFile(tmp.path() / "plan.json",
+              R"({"format":"plynth-plan","version":1,"floors":[{"id":"f1","points":[{"id":"p1","x":0,"y":0},{"id":"p2","x":4,"y":0}],)"
+              R"("walls":[{"id":"w1","from":"p1","to":"p2"}],)"
+              R"("openings":[{"id":"o1","wall":"w1","offset":2,"type":"door","width":0.9,"height":2.1}]}]})");
+    ProjectLoad r = loadProject(tmp.path());
+    plynth::test::requireOk(r.status);
+    REQUIRE(r.migrated);
+    plynth::test::requireOk(saveProject(r.project, tmp.path(), tmp.path()));
+    const std::string planText = plynth::test::readTextFile(tmp.path() / "plan.json");
+    const std::string projectText = plynth::test::readTextFile(tmp.path() / "project.json");
+    REQUIRE(planText.find("\"version\": 2") != std::string::npos);
+    REQUIRE(planText.find("\"hinge\": \"start\"") != std::string::npos);
+    REQUIRE(planText.find("\"swing\": \"right\"") != std::string::npos);
+    REQUIRE(projectText.find("\"version\": 2") != std::string::npos);
+    REQUIRE(projectText.find("\"defaults\"") != std::string::npos);
+    REQUIRE(plynth::test::schemaProblemForText("plan.schema.json", planText).empty());
+    REQUIRE(plynth::test::schemaProblemForText("project.schema.json", projectText).empty());
+    REQUIRE_FALSE(loadProject(tmp.path()).migrated);
 }
 
 TEST_CASE("autosave write, find, load and remove", "[core][files][autosave]") {

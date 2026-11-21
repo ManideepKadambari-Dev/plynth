@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:shape:1",
+  "title": "Plynth custom opening shape, version 1",
+  "description": "A custom opening outline, saved as Library/shapes/<id>.shape.json. The outline is drawn in a unit box: x from 0 at the left to 1 at the right, y from 0 at the bottom to 1 at the top, as seen from the wall's right side. It is stretched to each opening's width and height. Curves are already cut into straight segments by the author. The outline is a simple closed polygon: the first point is not repeated, no two edges cross, it has an area, and its points reach all four sides of the box.",
+  "type": "object",
+  "required": ["format", "version", "id", "name", "outline"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "plynth-shape" },
+    "version": { "const": 1 },
+    "id": {
+      "description": "The id stored in plan.json openings. Must differ from the built-in ids rectangle, round_arch, flat_arch, pointed_arch and circle.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "maxLength": 64
+    },
+    "name": { "description": "Shown in the app's shape list.", "type": "string", "minLength": 1, "maxLength": 64 },
+    "outline": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 1000,
+      "items": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 2,
+        "items": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    }
+  }
+}

@@ -14,7 +14,7 @@ namespace plynth {
 namespace Change {
 inline constexpr unsigned Settings = 1u << 0;
 inline constexpr unsigned Scale = 1u << 1;
-inline constexpr unsigned Floors = 1u << 2;     // floors added, removed, renamed or reordered
+inline constexpr unsigned Floors = 1u << 2;     // floors added, removed, renamed, reordered or a ceiling height changed
 inline constexpr unsigned FloorImage = 1u << 3;
 inline constexpr unsigned Points = 1u << 4;
 inline constexpr unsigned Walls = 1u << 5;

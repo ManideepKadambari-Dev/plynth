@@ -5,6 +5,7 @@
 #include "tools/Tool.h"
 
 #include <plynth/core/Document.h>
+#include <plynth/core/Plan.h>
 
 #include <QObject>
 #include <QPointer>
@@ -13,12 +14,22 @@
 #include <array>
 #include <memory>
 #include <optional>
+#include <string>
 
 class QWidget;
 
 namespace plynth::app {
 
 class DetectionSession;
+
+// What the Opening tool places: the type, the shape and, for doors, the hinge and swing. The sizes are the
+// project's default sizes.
+struct OpeningToolSettings {
+    plynth::OpeningType type = plynth::OpeningType::Door;
+    std::string shape = "rectangle";
+    plynth::HingeEnd hinge = plynth::HingeEnd::Start;
+    plynth::WallSide swing = plynth::WallSide::Right;
+};
 
 // Owns the tools, says which one is active, and gives them the document, the selection and the canvas.
 class ToolController : public QObject {
@@ -54,6 +65,10 @@ public:
     double snapRadiusMetres() const;
     bool snapToGrid() const { return snapToGrid_; }
     void setSnapToGrid(bool on);
+    const OpeningToolSettings& openingSettings() const { return openingSettings_; }
+    void setOpeningSettings(const OpeningToolSettings& settings);
+    // A new opening on a wall at an offset, with the tool settings and the project's default sizes. No id.
+    plynth::Opening newOpening(const plynth::Id& wall, double offset) const;
     double newWallThickness() const { return newWallThickness_; }
     void setNewWallThickness(double metres);
     // Grid step in image pixels for the canvas, or 0 when no grid should show.
@@ -64,6 +79,9 @@ public:
     void showMessage(const QString& text);
     // Shows plain news in the status bar, such as what an accept added.
     void showNotice(const QString& text);
+    // A new merge key. Every drag and every visit to an edit box takes its key from here, so commands from
+    // different sources never merge into one undo step.
+    int nextMergeKey() { return ++mergeKey_; }
     void requestTool(ToolId id) { setActive(id); }
     // Lets a tool say its hint changed.
     void hintChanged();
@@ -76,6 +94,7 @@ signals:
     void notice(const QString& text);
     void gridChanged();
     void newWallThicknessChanged(double metres);
+    void openingSettingsChanged();
 
 private:
     Tool* tool(ToolId id) const;
@@ -84,7 +103,9 @@ private:
     QPointer<PlanCanvas> canvas_;
     QPointer<Selection> selection_;
     QPointer<QWidget> dialogParent_;
-    std::array<std::unique_ptr<Tool>, 5> tools_;
+    std::array<std::unique_ptr<Tool>, kAllTools.size()> tools_;
+    OpeningToolSettings openingSettings_;
+    int mergeKey_ = 0;
     DetectionSession* detection_ = nullptr;
     ToolId active_ = ToolId::Select;
     bool snapToGrid_ = true;

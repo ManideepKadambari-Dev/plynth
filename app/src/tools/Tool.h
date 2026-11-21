@@ -6,6 +6,8 @@
 #include <QString>
 #include <Qt>
 
+#include <array>
+
 class QKeyEvent;
 class QPainter;
 
@@ -13,7 +15,11 @@ namespace plynth::app {
 
 class ToolController;
 
-enum class ToolId { Select, Scale, Wall, Room, Detect };
+enum class ToolId { Select, Scale, Wall, Opening, Room, Detect };
+
+// Every tool, in the order of the tool strip and the Edit menu.
+inline constexpr std::array<ToolId, 6> kAllTools{ToolId::Select, ToolId::Scale, ToolId::Wall,
+                                                 ToolId::Opening, ToolId::Room, ToolId::Detect};
 
 // A mouse event handed to a tool. scene is in image pixels, view in canvas pixels.
 struct ToolMouse {

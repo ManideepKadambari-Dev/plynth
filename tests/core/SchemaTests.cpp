@@ -38,7 +38,7 @@ nlohmann::json plain(const Json& j)
 }
 
 TEST_CASE("the schema files are valid schemas", "[core][schema]") {
-    for (const char* file : {"plan.schema.json", "project.schema.json"}) {
+    for (const char* file : {"plan.schema.json", "project.schema.json", "plan.v1.schema.json", "project.v1.schema.json"}) {
         INFO(file);
         // An empty object is not a plan or a project, so a working validator complains about it
         // with a message about the instance, not about reading or loading the schema.
@@ -117,4 +117,29 @@ TEST_CASE("invalid project files fail the schema and the reader", "[core][schema
         REQUIRE_FALSE(schemaProblem("project.schema.json", nlohmann::json::parse(text)).empty());
         REQUIRE_FALSE(settingsFromJson(Json::parse(text)).status.ok());
     }
+}
+
+TEST_CASE("version 1 files pass the version 1 schemas and upgrade", "[core][schema][migrate]") {
+    const auto dir = std::filesystem::path(PLYNTH_TEST_DATA_DIR);
+    const nlohmann::json plan = nlohmann::json::parse(plynth::test::readTextFile(dir / "v1-full.json"));
+    REQUIRE(schemaProblem("plan.v1.schema.json", plan).empty());
+    REQUIRE_FALSE(schemaProblem("plan.schema.json", plan).empty());
+    const PlanRead r = planFromJson(Json::parse(plan.dump()));
+    plynth::test::requireOk(r.status);
+    REQUIRE(r.migrated);
+    const nlohmann::json upgraded = plain(planToJson(r.plan));
+    REQUIRE(upgraded["version"] == 2);
+    REQUIRE(schemaProblem("plan.schema.json", upgraded).empty());
+
+    const nlohmann::json project = nlohmann::json::parse(plynth::test::readTextFile(dir / "v1-project.json"));
+    REQUIRE(schemaProblem("project.v1.schema.json", project).empty());
+    REQUIRE_FALSE(schemaProblem("project.schema.json", project).empty());
+    const SettingsRead s = settingsFromJson(Json::parse(project.dump()));
+    plynth::test::requireOk(s.status);
+    REQUIRE(schemaProblem("project.schema.json", plain(settingsToJson(s.settings))).empty());
+}
+
+TEST_CASE("a version 3 plan is unsupported", "[core][schema]") {
+    const std::string text = plynth::test::readTextFile(std::filesystem::path(PLYNTH_TEST_DATA_DIR) / "invalid-version-3.json");
+    REQUIRE(planFromJson(Json::parse(text)).status.code == ErrorCode::UnsupportedVersion);
 }

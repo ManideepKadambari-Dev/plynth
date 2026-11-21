@@ -34,6 +34,8 @@ std::vector<CommandSpec> projectCommands();
 std::vector<CommandSpec> scaleCommands();
 std::vector<CommandSpec> pointCommands();
 std::vector<CommandSpec> wallCommands();
+std::vector<CommandSpec> openingCommands();
+std::vector<CommandSpec> floorCommands();
 std::vector<CommandSpec> roomCommands();
 std::vector<CommandSpec> detectCommands();
 std::vector<CommandSpec> sessionCommands();

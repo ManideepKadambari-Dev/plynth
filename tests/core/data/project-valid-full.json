@@ -1,1 +1,2 @@
-{ "format": "plynth-project", "version": 1, "name": "Flat", "export_mode": "grouped", "grid_size": 0.25 }
+{ "format": "plynth-project", "version": 2, "name": "Flat", "export_mode": "grouped", "grid_size": 0.25,
+  "defaults": { "ceiling_height": 2.6, "door_width": 0.8, "door_height": 2.0, "window_width": 1.0, "window_height": 1.1, "window_sill": 0.8 } }

@@ -85,6 +85,15 @@ Status MovePointCommand::apply(Project& project)
         return fail(ErrorCode::InvalidValue, "The point's x and y must be finite numbers.");
     }
     Point* p = findPoint(*floor, pointId_);
+    for (const Wall& w : floor->walls) {
+        if (w.from != pointId_ && w.to != pointId_) continue;
+        const Point* a = findPoint(*floor, w.from);
+        const Point* b = findPoint(*floor, w.to);
+        if (!a || !b) continue;
+        const Vec2 from = w.from == pointId_ ? Vec2{x_, y_} : positionOf(*a);
+        const Vec2 to = w.to == pointId_ ? Vec2{x_, y_} : positionOf(*b);
+        if (Status s = detail::checkCurveLimits(from, to, w.bulge, w.thickness, w.id); !s.ok()) return s;
+    }
     floorId_ = floor->id;
     oldX_ = p->x;
     oldY_ = p->y;
@@ -166,6 +175,62 @@ unsigned RemovePointCommand::changes() const
 Id RemovePointCommand::floorId() const
 {
     return floorId_;
+}
+
+}
+
+namespace plynth {
+
+SetCornerRadiusCommand::SetCornerRadiusCommand(Id pointId, double radius, int mergeKey)
+    : pointId_(std::move(pointId)), radius_(radius), mergeKey_(mergeKey)
+{
+}
+
+std::string SetCornerRadiusCommand::name() const
+{
+    return "Set corner radius";
+}
+
+// Sets the corner radius, remembering the old one.
+Status SetCornerRadiusCommand::apply(Project& project)
+{
+    Floor* floor = detail::floorOfPoint(project.plan, pointId_);
+    if (!floor) return fail(ErrorCode::NotFound, "There is no point " + pointId_ + ".");
+    if (!std::isfinite(radius_) || radius_ < 0.0) {
+        return fail(ErrorCode::InvalidValue, "The corner radius must be zero or more.");
+    }
+    Point* p = findPoint(*floor, pointId_);
+    floorId_ = floor->id;
+    previous_ = p->cornerRadius;
+    p->cornerRadius = radius_;
+    return {};
+}
+
+// Puts the old radius back.
+void SetCornerRadiusCommand::undo(Project& project)
+{
+    Floor* floor = findFloor(project.plan, floorId_);
+    if (!floor) return;
+    if (Point* p = findPoint(*floor, pointId_)) p->cornerRadius = previous_;
+}
+
+unsigned SetCornerRadiusCommand::changes() const
+{
+    return Change::Points;
+}
+
+Id SetCornerRadiusCommand::floorId() const
+{
+    return floorId_;
+}
+
+// Takes over the later radius of the same point in the same series of changes.
+bool SetCornerRadiusCommand::mergeWith(const Command& next)
+{
+    const auto* other = dynamic_cast<const SetCornerRadiusCommand*>(&next);
+    if (!other || mergeKey_ == 0 || other->mergeKey_ != mergeKey_ || other->pointId_ != pointId_) return false;
+    radius_ = other->radius_;
+    return true;
 }
 
 }

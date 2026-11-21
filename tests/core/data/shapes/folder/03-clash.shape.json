@@ -1,0 +1,7 @@
+{
+  "format": "plynth-shape",
+  "version": 1,
+  "id": "rectangle",
+  "name": "Clash",
+  "outline": [[0.5, 0], [1, 0.5], [0.5, 1], [0, 0.5]]
+}

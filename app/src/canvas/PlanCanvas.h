@@ -2,6 +2,7 @@
 
 #include <QGraphicsView>
 #include <QImage>
+#include <QLineF>
 #include <QPainterPath>
 #include <QPointF>
 #include <QPolygonF>
@@ -17,12 +18,26 @@ namespace plynth::app {
 
 class Tool;
 
-// One wall of the overlay, in scene units (image pixels).
+// One wall of the overlay: its band as drawn, with curves and rounded corners, in scene units (image pixels).
 struct OverlayWall {
     QString id;
-    QPointF from;
-    QPointF to;
-    double thickness = 0.0;
+    QPainterPath band;
+};
+
+// One opening of the overlay, in scene units. The footprint is the cut through the wall band. A door has
+// a leaf and the arc it sweeps, a window has two thin lines along the wall. type is 0 plain, 1 door, 2 window.
+struct OverlayOpening {
+    QString id;
+    int type = 0;
+    QPolygonF footprint;
+    QLineF startJamb;
+    QLineF endJamb;
+    QLineF leaf;
+    QPolygonF arc;
+    QPolygonF glassA;
+    QPolygonF glassB;
+    bool problem = false;
+    bool valid = false;
 };
 
 // One point of the overlay, in scene units.
@@ -43,6 +58,7 @@ struct OverlayRoom {
 // Everything the canvas draws over the plan image.
 struct OverlayData {
     QVector<OverlayWall> walls;
+    QVector<OverlayOpening> openings;
     QVector<OverlayPoint> points;
     QVector<OverlayRoom> rooms;
 };
@@ -55,13 +71,16 @@ struct ProposalWall {
 };
 
 // One proposed opening: its centre, the direction of its wall, the wall thickness and the gap width.
-// kind is 0 for a plain opening, 1 for a door and 2 for a window.
+// kind is 0 for a plain opening, 1 for a door and 2 for a window. A door hangs at the end of the wall when
+// hingeAtEnd is set, and opens toward the right of the wall's direction when swingRight is set.
 struct ProposalOpening {
     QPointF centre;
     QPointF direction;
     double thickness = 0.0;
     double width = 0.0;
     int kind = 0;
+    bool hingeAtEnd = false;
+    bool swingRight = true;
 };
 
 // Everything the canvas draws for detection proposals: only the new ones, as a dashed blue preview.

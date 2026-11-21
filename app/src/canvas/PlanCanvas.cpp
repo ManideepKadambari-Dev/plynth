@@ -1,5 +1,6 @@
 #include "PlanCanvas.h"
 
+#include "canvas/OpeningPaint.h"
 #include "theme/Theme.h"
 #include "tools/Tool.h"
 
@@ -86,10 +87,21 @@ void PlanCanvas::setDimmed(bool dimmed)
     viewport()->update();
 }
 
-// Replaces what is drawn over the plan image. Positions are in scene units.
+// Replaces what is drawn over the plan image. Positions are in scene units. Where an opening cuts a wall the
+// band is cut away, so the plan image shows through the gap.
 void PlanCanvas::setOverlay(const OverlayData& overlay)
 {
     overlay_ = overlay;
+    QPainterPath gaps;
+    for (const OverlayOpening& opening : overlay_.openings) {
+        QPainterPath cut;
+        cut.addPolygon(opening.footprint);
+        cut.closeSubpath();
+        gaps.addPath(cut);
+    }
+    if (!gaps.isEmpty())
+        for (OverlayWall& wall : overlay_.walls)
+            wall.band = wall.band.subtracted(gaps);
     viewport()->update();
 }
 
@@ -313,21 +325,9 @@ void PlanCanvas::paintOverlay(QPainter* painter)
 
     QColor blue = t.signalBlue();
     blue.setAlpha(t.overlayAlpha());
-    auto drawBand = [painter](const OverlayWall& wall) {
-        const QPointF delta = wall.to - wall.from;
-        const double length = std::hypot(delta.x(), delta.y());
-        if (length <= 0.0)
-            return;
-        const QPointF dir = delta / length;
-        const QPointF normal(-dir.y(), dir.x());
-        const double half = wall.thickness / 2.0;
-        const QPointF a = wall.from - dir * half;
-        const QPointF b = wall.to + dir * half;
-        painter->drawPolygon(QPolygonF({a + normal * half, b + normal * half, b - normal * half, a - normal * half}));
-    };
     painter->setBrush(blue);
     for (const OverlayWall& wall : overlay_.walls)
-        drawBand(wall);
+        painter->drawPath(wall.band);
 
     if (selectionKind_ == SelectionKind::Room) {
         QColor amberFill = t.signalAmber();
@@ -353,10 +353,22 @@ void PlanCanvas::paintOverlay(QPainter* painter)
         painter->setBrush(amber);
         for (const OverlayWall& wall : overlay_.walls)
             if (wall.id == selectionId_)
-                drawBand(wall);
+                painter->drawPath(wall.band);
     }
 
     painter->resetTransform();
+    {
+        const QTransform view = viewportTransform();
+        OpeningPaintStyle style;
+        style.gap = false;
+        style.outlineColor = t.signalAmber();
+        for (const OverlayOpening& opening : overlay_.openings) {
+            const bool selected = selectionKind_ == SelectionKind::Opening && opening.id == selectionId_;
+            style.line = selected ? t.signalAmber() : t.signalBlue();
+            style.dashedFootprint = opening.problem;
+            paintOpening(*painter, opening, view, style);
+        }
+    }
     painter->setPen(Qt::NoPen);
     painter->setBrush(t.signalBlue());
     const double radius = t.pointDot() / 2.0;
@@ -438,14 +450,17 @@ void PlanCanvas::paintProposals(QPainter* painter)
         tick(a);
         tick(b);
         if (opening.kind == 1) {
+            const QPointF hinge = opening.hingeAtEnd ? b : a;
+            const QPointF other = opening.hingeAtEnd ? a : b;
+            const QPointF side = opening.swingRight ? normal : -normal;
             QPolygonF arc;
             constexpr int kSteps = 16;
             for (int i = 0; i <= kSteps; ++i) {
                 const double angle = (std::numbers::pi / 2.0) * i / kSteps;
-                arc << a + (b - a) * std::cos(angle) + normal * (opening.width * std::sin(angle));
+                arc << hinge + (other - hinge) * std::cos(angle) + side * (opening.width * std::sin(angle));
             }
             painter->drawPolyline(view.map(arc));
-            painter->drawLine(view.map(a), view.map(a + normal * opening.width));
+            painter->drawLine(view.map(hinge), view.map(hinge + side * opening.width));
         } else if (opening.kind == 2) {
             const QPointF shift = normal * (opening.thickness / 6.0);
             painter->drawLine(view.map(a + shift), view.map(b + shift));

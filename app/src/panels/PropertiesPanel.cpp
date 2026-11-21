@@ -9,6 +9,11 @@
 #include <plynth/core/Geometry.h>
 #include <plynth/core/RoomTypes.h>
 #include <plynth/core/Rooms.h>
+#include <plynth/core/WallGeometry.h>
+#include <plynth/core/OpeningShapes.h>
+#include <plynth/core/Openings.h>
+#include <plynth/core/commands/FloorCommands.h>
+#include <plynth/core/commands/OpeningCommands.h>
 #include <plynth/core/commands/PointCommands.h>
 #include <plynth/core/commands/RoomCommands.h>
 #include <plynth/core/commands/SettingsCommands.h>
@@ -44,6 +49,8 @@ constexpr int kPointPage = 1;
 constexpr int kWallPage = 2;
 constexpr int kRoomPage = 3;
 constexpr int kDetectPage = 4;
+constexpr int kOpeningPage = 5;
+constexpr int kOpeningToolPage = 6;
 
 // Turns a core text into Qt text.
 QString fromCore(const std::string& text)
@@ -78,6 +85,8 @@ PropertiesPanel::PropertiesPanel(plynth::Document& document, Selection& selectio
     buildWallPage();
     buildRoomPage();
     buildDetectPage();
+    buildOpeningPage();
+    buildOpeningToolPage();
     column->addWidget(pages_);
     column->addStretch(1);
 
@@ -88,9 +97,14 @@ PropertiesPanel::PropertiesPanel(plynth::Document& document, Selection& selectio
     column->addWidget(deleteButton_);
     editors_.push_back(deleteButton_);
 
+    focusKey_ = controller_.nextMergeKey();
+    for (QWidget* editor : editors_)
+        if (qobject_cast<QComboBox*>(editor) != nullptr)
+            editor->installEventFilter(this);
     connect(&selection_, &Selection::changed, this, &PropertiesPanel::refresh);
     connect(&controller_, &ToolController::activeChanged, this, &PropertiesPanel::refresh);
     connect(&controller_.detection(), &DetectionSession::changed, this, &PropertiesPanel::refresh);
+    connect(&controller_, &ToolController::openingSettingsChanged, this, &PropertiesPanel::refresh);
     refresh();
 }
 
@@ -154,6 +168,31 @@ QDoubleSpinBox* PropertiesPanel::addSpinRow(QGridLayout* grid, const QString& la
     return spin;
 }
 
+// Adds a spin row whose edits merge into one undo step for each visit to the box.
+QDoubleSpinBox* PropertiesPanel::addKeyedSpinRow(QGridLayout* grid, const QString& label, double min, double max,
+                                                 double step, const QString& tip, const QString& tourId)
+{
+    QDoubleSpinBox* spin = addSpinRow(grid, label, min, max, step, tip, tourId);
+    spin->installEventFilter(this);
+    if (auto* edit = spin->findChild<QLineEdit*>())
+        edit->installEventFilter(this);
+    keyedSpins_.push_back(spin);
+    return spin;
+}
+
+// Adds a muted one line note that spans the page. Hidden until it has text.
+QLabel* PropertiesPanel::addNote(QGridLayout* grid)
+{
+    const Theme& t = Theme::instance();
+    auto* note = new QLabel(grid->parentWidget());
+    note->setFont(t.uiFont(t.sizeSmall()));
+    note->setWordWrap(true);
+    note->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
+    note->setVisible(false);
+    grid->addWidget(note, grid->rowCount(), 0, 1, 2);
+    return note;
+}
+
 // The page for nothing selected: scale, grid, counts and the thickness for new walls.
 void PropertiesPanel::buildNothingPage()
 {
@@ -174,6 +213,17 @@ void PropertiesPanel::buildNothingPage()
             return;
         gridEdited_ = false;
         controller_.run(std::make_unique<plynth::SetGridSizeCommand>(gridSpin_->value()));
+    });
+
+    ceilingSpin_ = addKeyedSpinRow(grid, tr("Ceiling height"), 0.5, 100.0, 0.05,
+                                   tr("Height of the ceiling of this floor. Walls without their own height use it."),
+                                   QStringLiteral("panel-ceiling-height"));
+    connect(ceilingSpin_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
+        const plynth::Floor* floor = controller_.floor();
+        if (refreshing_ || floor == nullptr)
+            return;
+        if (!controller_.run(std::make_unique<plynth::SetCeilingHeightCommand>(floor->id, value, focusKey_)).ok())
+            refresh();
     });
 
     pointCount_ = addLabelRow(grid, tr("Points"));
@@ -201,6 +251,17 @@ void PropertiesPanel::buildPointPage()
     pointY_ = addSpinRow(grid, tr("Y"), -100000.0, 100000.0, 0.05, tr("Position of the point, from the top edge of the image"),
                          QStringLiteral("panel-point-y"));
     pointWalls_ = addLabelRow(grid, tr("Walls"));
+    cornerRadius_ = addKeyedSpinRow(grid, tr("Corner radius"), 0.0, 100.0, 0.05,
+                                    tr("Rounds the corner with an arc of this radius. It applies where exactly two straight walls meet."),
+                                    QStringLiteral("panel-corner-radius"));
+    cornerNote_ = addNote(grid);
+    connect(cornerRadius_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
+        if (refreshing_ || selection_.kind() != SelectionKind::Point)
+            return;
+        if (!controller_.run(std::make_unique<plynth::SetCornerRadiusCommand>(selection_.id().toStdString(), value,
+                                                                              focusKey_)).ok())
+            refresh();
+    });
     connect(pointX_, &QDoubleSpinBox::valueChanged, this, [this]() { pointXEdited_ = !refreshing_ || pointXEdited_; });
     connect(pointY_, &QDoubleSpinBox::valueChanged, this, [this]() { pointYEdited_ = !refreshing_ || pointYEdited_; });
     // Only a box the user changed counts, so tabbing through a box never rounds the real position.
@@ -222,7 +283,7 @@ void PropertiesPanel::buildPointPage()
     connect(pointY_, &QDoubleSpinBox::editingFinished, this, move);
 }
 
-// The page for a selected wall: id, ends, length and thickness.
+// The page for a selected wall: id, ends, length along the curve, thickness and bend.
 void PropertiesPanel::buildWallPage()
 {
     QGridLayout* grid = nullptr;
@@ -231,16 +292,61 @@ void PropertiesPanel::buildWallPage()
     wallFrom_ = addLabelRow(grid, tr("From"));
     wallTo_ = addLabelRow(grid, tr("To"));
     wallLength_ = addLabelRow(grid, tr("Length"));
-    wallLength_->setToolTip(tr("Length of the wall between its two points"));
-    wallThickness_ = addSpinRow(grid, tr("Thickness"), 0.01, 10.0, 0.01, tr("Thickness of the wall"),
-                                QStringLiteral("panel-wall-thickness"));
-    wallThickness_->installEventFilter(this);
+    wallLength_->setToolTip(tr("Length of the wall along its centre line, along the arc when the wall is bent"));
+    wallThickness_ = addKeyedSpinRow(grid, tr("Thickness"), 0.01, 10.0, 0.01, tr("Thickness of the wall"),
+                                     QStringLiteral("panel-wall-thickness"));
     connect(wallThickness_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
         if (refreshing_ || selection_.kind() != SelectionKind::Wall)
             return;
         controller_.run(std::make_unique<plynth::SetWallThicknessCommand>(selection_.id().toStdString(), value,
-                                                                          thicknessKey_));
+                                                                          focusKey_));
     });
+
+    wallBend_ = addKeyedSpinRow(grid, tr("Bend"), -1000.0, 1000.0, 0.05,
+                                tr("How far the middle of the wall is from the straight line between its points. Positive bends to the right of the wall's direction. 0 is straight. The most is half the straight length."),
+                                QStringLiteral("panel-wall-bend"));
+    connect(wallBend_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
+        if (refreshing_ || selection_.kind() != SelectionKind::Wall)
+            return;
+        if (!controller_.run(std::make_unique<plynth::SetWallBulgeCommand>(selection_.id().toStdString(), value,
+                                                                           focusKey_)).ok())
+            refresh();
+    });
+    straightenButton_ = new QPushButton(tr("Straighten"), grid->parentWidget());
+    straightenButton_->setToolTip(tr("Make the wall straight again"));
+    straightenButton_->setProperty("tourId", QStringLiteral("panel-wall-straighten"));
+    grid->addWidget(straightenButton_, grid->rowCount(), 1);
+    connect(straightenButton_, &QPushButton::clicked, this, [this]() {
+        if (selection_.kind() == SelectionKind::Wall)
+            controller_.run(std::make_unique<plynth::SetWallBulgeCommand>(selection_.id().toStdString(), 0.0));
+    });
+    wallOwnHeight_ = new QCheckBox(tr("Own height"), grid->parentWidget());
+    wallOwnHeight_->setFont(Theme::instance().uiFont(Theme::instance().sizeNormal()));
+    wallOwnHeight_->setStyle(Theme::instance().controlStyle());
+    wallOwnHeight_->setToolTip(tr("Give this wall its own height instead of the ceiling height of the floor"));
+    wallOwnHeight_->setProperty("tourId", QStringLiteral("panel-wall-own-height"));
+    grid->addWidget(wallOwnHeight_, grid->rowCount(), 0, 1, 2);
+    editors_.push_back(wallOwnHeight_);
+    wallHeight_ = addKeyedSpinRow(grid, tr("Height"), 0.1, 100.0, 0.05, tr("Height of this wall"),
+                                  QStringLiteral("panel-wall-height"));
+    connect(wallOwnHeight_, &QCheckBox::toggled, this, [this](bool on) {
+        if (refreshing_ || selection_.kind() != SelectionKind::Wall)
+            return;
+        std::optional<double> height;
+        if (on)
+            height = wallHeight_->value();
+        if (!controller_.run(std::make_unique<plynth::SetWallHeightCommand>(selection_.id().toStdString(), height))
+                 .ok())
+            refresh();
+    });
+    connect(wallHeight_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
+        if (refreshing_ || selection_.kind() != SelectionKind::Wall || !wallOwnHeight_->isChecked())
+            return;
+        if (!controller_.run(std::make_unique<plynth::SetWallHeightCommand>(selection_.id().toStdString(), value,
+                                                                            focusKey_)).ok())
+            refresh();
+    });
+    wallOpenings_ = addLabelRow(grid, tr("Openings"));
 }
 
 // The page for a selected room: id, type, floor area and number of walls.
@@ -350,7 +456,7 @@ void PropertiesPanel::buildDetectPage()
     };
     roomsCheck_ = addCheck(tr("Propose rooms"), tr("Also propose a room for every closed area"),
                            QStringLiteral("panel-detect-rooms"));
-    openingsCheck_ = addCheck(tr("Show openings"), tr("Show doors, windows and gaps found in the walls"),
+    openingsCheck_ = addCheck(tr("Find openings"), tr("Find doors, windows and gaps in the walls and add them on Accept"),
                               QStringLiteral("panel-detect-openings"));
 
     detectorLabel_ = new QLabel(tr("Detector"), page);
@@ -384,15 +490,9 @@ void PropertiesPanel::buildDetectPage()
     detectStatus_->setProperty("tourId", QStringLiteral("panel-detect-status"));
     grid->addWidget(detectStatus_, grid->rowCount(), 0, 1, 2);
 
-    auto* note = new QLabel(tr("Openings are shown for checking. They are not added yet."), page);
-    note->setFont(t.uiFont(t.sizeSmall()));
-    note->setWordWrap(true);
-    note->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
-    grid->addWidget(note, grid->rowCount(), 0, 1, 2);
-
     acceptButton_ = new QPushButton(tr("Accept"), page);
     acceptButton_->setDefault(true);
-    acceptButton_->setToolTip(tr("Add the new walls and rooms to the plan (Enter)"));
+    acceptButton_->setToolTip(tr("Add the new walls, openings and rooms to the plan (Enter)"));
     acceptButton_->setProperty("tourId", QStringLiteral("detect-accept"));
     resetButton_ = new QPushButton(tr("Reset settings"), page);
     resetButton_->setToolTip(tr("Put every detection setting back to its default"));
@@ -520,13 +620,19 @@ void PropertiesPanel::refreshRoom()
 // Gives the thickness box a new merge key each time it gets focus, so one visit is one undo step.
 bool PropertiesPanel::eventFilter(QObject* watched, QEvent* event)
 {
-    if (watched == wallThickness_ && event->type() == QEvent::FocusIn)
-        ++thicknessKey_;
+    if (event->type() == QEvent::FocusIn)
+        for (QDoubleSpinBox* spin : keyedSpins_)
+            if (watched == spin || watched->parent() == spin)
+                focusKey_ = controller_.nextMergeKey();
     if (event->type() == QEvent::ShortcutOverride) {
         const int key = static_cast<QKeyEvent*>(event)->key();
         const bool inSpin = qobject_cast<QAbstractSpinBox*>(watched) != nullptr ||
                             qobject_cast<QAbstractSpinBox*>(watched->parent()) != nullptr;
         if (inSpin && (key == Qt::Key_Return || key == Qt::Key_Enter))
+            event->accept();
+        // Letters belong to type-ahead in a combo box, not to the tool shortcuts.
+        const QString typed = static_cast<QKeyEvent*>(event)->text();
+        if (qobject_cast<QComboBox*>(watched) != nullptr && !typed.isEmpty() && typed.at(0).isLetterOrNumber())
             event->accept();
     }
     return QWidget::eventFilter(watched, event);
@@ -553,7 +659,12 @@ void PropertiesPanel::refresh()
         page = kDetectPage;
         refreshDetect();
     }
-    switch (detecting ? SelectionKind::None : selection_.kind()) {
+    const bool placing = controller_.active() == ToolId::Opening;
+    if (placing) {
+        page = kOpeningToolPage;
+        refreshOpeningTool();
+    }
+    switch (detecting || placing ? SelectionKind::None : selection_.kind()) {
     case SelectionKind::Point:
         page = kPointPage;
         refreshPoint();
@@ -566,15 +677,20 @@ void PropertiesPanel::refresh()
         page = kRoomPage;
         refreshRoom();
         break;
+    case SelectionKind::Opening:
+        page = kOpeningPage;
+        refreshOpening();
+        break;
     default:
-        if (!detecting)
+        if (!detecting && !placing)
             refreshNothing();
         break;
     }
     pages_->setCurrentIndex(page);
-    deleteButton_->setVisible(!selection_.isEmpty() && !detecting);
+    deleteButton_->setVisible(!selection_.isEmpty() && !detecting && !placing);
     for (QWidget* editor : editors_)
         editor->setEnabled(!readOnly);
+    wallHeight_->setEnabled(!readOnly && wallOwnHeight_->isChecked());
     refreshing_ = false;
 }
 
@@ -591,6 +707,7 @@ void PropertiesPanel::refreshNothing()
     }
     scaleHint_->setVisible(!scaleHint_->text().isEmpty());
     setSpin(gridSpin_, document_.project().settings.gridSize);
+    setSpin(ceilingSpin_, controller_.floor() ? controller_.floor()->ceilingHeight : 0.0);
     const plynth::Floor* floor = controller_.floor();
     pointCount_->setText(QString::number(floor ? floor->points.size() : 0));
     wallCount_->setText(QString::number(floor ? floor->walls.size() : 0));
@@ -616,6 +733,15 @@ void PropertiesPanel::refreshPoint()
         if (wall.from == point->id || wall.to == point->id)
             walls << fromCore(wall.id);
     pointWalls_->setText(walls.isEmpty() ? tr("None") : walls.join(QStringLiteral(", ")));
+    setSpin(cornerRadius_, point->cornerRadius);
+    const plynth::CornerRounding rounding = plynth::cornerRounding(*floor, *point);
+    QString note;
+    if (point->cornerRadius > 0.0 && !rounding.rounded)
+        note = tr("Not rounded: needs exactly two straight walls");
+    else if (rounding.rounded && std::abs(rounding.radius - point->cornerRadius) > 1e-6)
+        note = tr("Rounded at %1 m").arg(rounding.radius, 0, 'f', 2);
+    cornerNote_->setText(note);
+    cornerNote_->setVisible(!note.isEmpty());
 }
 
 // Fills the page for a selected wall.
@@ -635,6 +761,310 @@ void PropertiesPanel::refreshWall()
     wallTo_->setText(fromCore(wall->to));
     wallLength_->setText(tr("%1 m").arg(plynth::wallLength(*floor, *wall), 0, 'f', 3));
     setSpin(wallThickness_, wall->thickness);
+    setSpin(wallBend_, wall->bulge);
+    {
+        const bool before = wallOwnHeight_->blockSignals(true);
+        wallOwnHeight_->setChecked(wall->height.has_value());
+        wallOwnHeight_->blockSignals(before);
+    }
+    setSpin(wallHeight_, plynth::wallHeight(*floor, *wall));
+    int openings = 0;
+    for (const plynth::Opening& opening : floor->openings)
+        if (opening.wall == wall->id)
+            ++openings;
+    wallOpenings_->setText(QString::number(openings));
+    straightenButton_->setEnabled(!document_.isReadOnly() && std::abs(wall->bulge) >= plynth::kMinBulge);
+}
+
+// Adds a row with a combo box and a muted label.
+QComboBox* PropertiesPanel::addComboRow(QGridLayout* grid, const QString& label, const QString& tip,
+                                        const QString& tourId, QLabel** labelOut)
+{
+    const Theme& t = Theme::instance();
+    auto* name = new QLabel(label, grid->parentWidget());
+    name->setFont(t.uiFont(t.sizeSmall()));
+    name->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
+    name->setToolTip(tip);
+    auto* combo = new QComboBox(grid->parentWidget());
+    combo->setFont(t.uiFont(t.sizeNormal()));
+    combo->setStyle(t.controlStyle());
+    combo->setToolTip(tip);
+    combo->setProperty("tourId", tourId);
+    const int row = grid->rowCount();
+    grid->addWidget(name, row, 0, Qt::AlignVCenter);
+    grid->addWidget(combo, row, 1);
+    editors_.push_back(combo);
+    if (labelOut != nullptr)
+        *labelOut = name;
+    return combo;
+}
+
+// Fills a combo with the registered opening shapes. A shape id that is not registered stays listed so the
+// opening keeps showing it.
+void PropertiesPanel::fillShapeCombo(QComboBox* combo, const std::string& current)
+{
+    combo->clear();
+    bool found = false;
+    for (const plynth::OpeningShape* shape : plynth::allOpeningShapes()) {
+        const std::string id(shape->id());
+        combo->addItem(fromCore(std::string(shape->name())), fromCore(id));
+        found = found || id == current;
+    }
+    if (!found && !current.empty())
+        combo->addItem(fromCore(current), fromCore(current));
+    combo->setCurrentIndex(std::max(0, combo->findData(fromCore(current))));
+}
+
+namespace {
+
+// Adds the three opening types to a combo.
+void fillTypeCombo(QComboBox* combo)
+{
+    combo->addItem(QObject::tr("Door"), static_cast<int>(plynth::OpeningType::Door));
+    combo->addItem(QObject::tr("Window"), static_cast<int>(plynth::OpeningType::Window));
+    combo->addItem(QObject::tr("Plain opening"), static_cast<int>(plynth::OpeningType::Plain));
+}
+
+// Adds the two hinge ends to a combo.
+void fillHingeCombo(QComboBox* combo)
+{
+    combo->addItem(QObject::tr("Start of wall"), static_cast<int>(plynth::HingeEnd::Start));
+    combo->addItem(QObject::tr("End of wall"), static_cast<int>(plynth::HingeEnd::End));
+}
+
+// Adds the two swing sides to a combo.
+void fillSwingCombo(QComboBox* combo)
+{
+    combo->addItem(QObject::tr("Left"), static_cast<int>(plynth::WallSide::Left));
+    combo->addItem(QObject::tr("Right"), static_cast<int>(plynth::WallSide::Right));
+}
+
+QString hingeTip()
+{
+    return QObject::tr("Which end of the wall the door hangs from, between the first and second point of the wall");
+}
+
+QString swingTip()
+{
+    return QObject::tr("Which side of the wall the door opens toward, looking from the first point of the wall to its second");
+}
+
+}
+
+// The page for a selected opening: id, wall, type, shape, door hinge and swing, place, size and fit.
+void PropertiesPanel::buildOpeningPage()
+{
+    const Theme& t = Theme::instance();
+    QGridLayout* grid = nullptr;
+    makePage(&grid);
+    openingId_ = addLabelRow(grid, tr("Opening"));
+    openingWall_ = addLabelRow(grid, tr("Wall"));
+    openingType_ = addComboRow(grid, tr("Type"), tr("Door, window or plain opening"), QStringLiteral("panel-opening-type"));
+    fillTypeCombo(openingType_);
+    openingShape_ = addComboRow(grid, tr("Shape"), tr("The shape of the cutout in the wall"),
+                                QStringLiteral("panel-opening-shape"));
+    openingHinge_ = addComboRow(grid, tr("Hinge"), hingeTip(), QStringLiteral("panel-opening-hinge"), &openingHingeLabel_);
+    fillHingeCombo(openingHinge_);
+    openingSwing_ = addComboRow(grid, tr("Swing"), swingTip(), QStringLiteral("panel-opening-swing"), &openingSwingLabel_);
+    fillSwingCombo(openingSwing_);
+    openingOffset_ = addKeyedSpinRow(grid, tr("Offset"), 0.0, 1000.0, 0.05,
+                                     tr("Distance along the wall from its first point to the middle of the opening"),
+                                     QStringLiteral("panel-opening-offset"));
+    openingSill_ = addKeyedSpinRow(grid, tr("Sill"), 0.0, 100.0, 0.05, tr("Height of the bottom of the opening above the floor"),
+                                   QStringLiteral("panel-opening-sill"));
+    openingWidth_ = addKeyedSpinRow(grid, tr("Width"), 0.01, 100.0, 0.05, tr("Width of the opening along the wall"),
+                                    QStringLiteral("panel-opening-width"));
+    openingHeight_ = addKeyedSpinRow(grid, tr("Height"), 0.01, 100.0, 0.05, tr("Height of the opening"),
+                                     QStringLiteral("panel-opening-height"));
+    openingProblem_ = new QLabel(grid->parentWidget());
+    openingProblem_->setFont(t.uiFont(t.sizeSmall()));
+    openingProblem_->setWordWrap(true);
+    openingProblem_->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
+    openingProblem_->setToolTip(tr("Why the opening does not fit its wall now"));
+    grid->addWidget(openingProblem_, grid->rowCount(), 0, 1, 2);
+
+    connect(openingType_, &QComboBox::activated, this, [this](int index) { editOpeningStyle(0, index); });
+    connect(openingShape_, &QComboBox::activated, this, [this](int index) { editOpeningStyle(1, index); });
+    connect(openingHinge_, &QComboBox::activated, this, [this](int index) { editOpeningStyle(2, index); });
+    connect(openingSwing_, &QComboBox::activated, this, [this](int index) { editOpeningStyle(3, index); });
+
+    const auto move = [this]() {
+        if (refreshing_ || selection_.kind() != SelectionKind::Opening)
+            return;
+        const plynth::Floor* floor = controller_.floor();
+        const plynth::Opening* opening = floor ? plynth::findOpening(*floor, selection_.id().toStdString()) : nullptr;
+        if (opening == nullptr)
+            return;
+        runOpeningCommand(std::make_unique<plynth::MoveOpeningCommand>(opening->id, opening->wall,
+                                                                       openingOffset_->value(), openingSill_->value(),
+                                                                       focusKey_));
+    };
+    connect(openingOffset_, &QDoubleSpinBox::valueChanged, this, move);
+    connect(openingSill_, &QDoubleSpinBox::valueChanged, this, move);
+
+    // The centre and the sill stay where they are when the size changes.
+    const auto resize = [this]() {
+        if (refreshing_ || selection_.kind() != SelectionKind::Opening)
+            return;
+        const plynth::Floor* floor = controller_.floor();
+        const plynth::Opening* opening = floor ? plynth::findOpening(*floor, selection_.id().toStdString()) : nullptr;
+        if (opening == nullptr)
+            return;
+        runOpeningCommand(std::make_unique<plynth::ResizeOpeningCommand>(opening->id, opening->offset,
+                                                                         openingWidth_->value(), opening->sill,
+                                                                         openingHeight_->value(), focusKey_));
+    };
+    connect(openingWidth_, &QDoubleSpinBox::valueChanged, this, resize);
+    connect(openingHeight_, &QDoubleSpinBox::valueChanged, this, resize);
+}
+
+// Runs an opening command. When the plan refuses it the boxes go back to the real values.
+void PropertiesPanel::runOpeningCommand(std::unique_ptr<plynth::Command> command)
+{
+    if (!controller_.run(std::move(command)).ok())
+        refresh();
+}
+
+// Changes one field of the selected opening style: 0 type, 1 shape, 2 hinge, 3 swing.
+void PropertiesPanel::editOpeningStyle(int field, int index)
+{
+    if (refreshing_ || selection_.kind() != SelectionKind::Opening)
+        return;
+    const plynth::Floor* floor = controller_.floor();
+    const plynth::Opening* opening = floor ? plynth::findOpening(*floor, selection_.id().toStdString()) : nullptr;
+    if (opening == nullptr)
+        return;
+    const plynth::OpeningStyle before{opening->type, opening->shape, opening->hinge, opening->swing};
+    plynth::OpeningStyle style = before;
+    switch (field) {
+    case 0: style.type = static_cast<plynth::OpeningType>(openingType_->itemData(index).toInt()); break;
+    case 1: style.shape = openingShape_->itemData(index).toString().toStdString(); break;
+    case 2: style.hinge = static_cast<plynth::HingeEnd>(openingHinge_->itemData(index).toInt()); break;
+    default: style.swing = static_cast<plynth::WallSide>(openingSwing_->itemData(index).toInt()); break;
+    }
+    if (style == before)
+        return;
+    runOpeningCommand(std::make_unique<plynth::SetOpeningStyleCommand>(opening->id, style));
+}
+
+// The page for the Opening tool: what it places, and the default sizes of that type.
+void PropertiesPanel::buildOpeningToolPage()
+{
+    const Theme& t = Theme::instance();
+    QGridLayout* grid = nullptr;
+    QWidget* page = makePage(&grid);
+    page->setProperty("tourId", QStringLiteral("panel-opening-tool"));
+    page->setToolTip(tr("What the Opening tool places"));
+    toolType_ = addComboRow(grid, tr("Type"), tr("Door, window or plain opening"), QStringLiteral("panel-tool-opening-type"));
+    fillTypeCombo(toolType_);
+    toolShape_ = addComboRow(grid, tr("Shape"), tr("The shape of the cutout in the wall"),
+                             QStringLiteral("panel-tool-opening-shape"));
+    toolWidth_ = addSpinRow(grid, tr("Width"), 0.1, 100.0, 0.05,
+                            tr("Width of new openings of this type. It is saved with the project."),
+                            QStringLiteral("panel-tool-opening-width"));
+    toolHeight_ = addSpinRow(grid, tr("Height"), 0.1, 100.0, 0.05,
+                             tr("Height of new openings of this type. It is saved with the project."),
+                             QStringLiteral("panel-tool-opening-height"));
+    toolSill_ = addSpinRow(grid, tr("Sill"), 0.0, 100.0, 0.05,
+                           tr("Height of the bottom of new windows above the floor. It is saved with the project."),
+                           QStringLiteral("panel-tool-opening-sill"), &toolSillLabel_);
+    toolHinge_ = addComboRow(grid, tr("Hinge"), hingeTip(), QStringLiteral("panel-tool-opening-hinge"), &toolHingeLabel_);
+    fillHingeCombo(toolHinge_);
+    toolSwing_ = addComboRow(grid, tr("Swing"), swingTip(), QStringLiteral("panel-tool-opening-swing"), &toolSwingLabel_);
+    fillSwingCombo(toolSwing_);
+    auto* note = new QLabel(tr("Click a wall to add an opening. Ctrl places freely. The wall view sets the height."), page);
+    note->setFont(t.uiFont(t.sizeSmall()));
+    note->setWordWrap(true);
+    note->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
+    grid->addWidget(note, grid->rowCount(), 0, 1, 2);
+
+    fillShapeCombo(toolShape_, std::string(plynth::kRectangleShapeId));
+    connect(toolType_, &QComboBox::activated, this, [this](int index) { editToolSetting(0, index); });
+    connect(toolShape_, &QComboBox::activated, this, [this](int index) { editToolSetting(1, index); });
+    connect(toolHinge_, &QComboBox::activated, this, [this](int index) { editToolSetting(2, index); });
+    connect(toolSwing_, &QComboBox::activated, this, [this](int index) { editToolSetting(3, index); });
+    connect(toolWidth_, &QDoubleSpinBox::valueChanged, this, [this](double value) { editDefaultSize(0, value); });
+    connect(toolHeight_, &QDoubleSpinBox::valueChanged, this, [this](double value) { editDefaultSize(1, value); });
+    connect(toolSill_, &QDoubleSpinBox::valueChanged, this, [this](double value) { editDefaultSize(2, value); });
+}
+
+// Changes one Opening tool setting: 0 type, 1 shape, 2 hinge, 3 swing.
+void PropertiesPanel::editToolSetting(int field, int index)
+{
+    if (refreshing_)
+        return;
+    OpeningToolSettings settings = controller_.openingSettings();
+    switch (field) {
+    case 0: settings.type = static_cast<plynth::OpeningType>(toolType_->itemData(index).toInt()); break;
+    case 1: settings.shape = toolShape_->itemData(index).toString().toStdString(); break;
+    case 2: settings.hinge = static_cast<plynth::HingeEnd>(toolHinge_->itemData(index).toInt()); break;
+    default: settings.swing = static_cast<plynth::WallSide>(toolSwing_->itemData(index).toInt()); break;
+    }
+    controller_.setOpeningSettings(settings);
+}
+
+// Changes a default size of the type the tool places: 0 width, 1 height, 2 sill (windows only).
+void PropertiesPanel::editDefaultSize(int field, double value)
+{
+    if (refreshing_)
+        return;
+    plynth::DefaultSizes sizes = document_.project().settings.defaults;
+    const bool window = controller_.openingSettings().type == plynth::OpeningType::Window;
+    if (field == 0)
+        (window ? sizes.windowWidth : sizes.doorWidth) = value;
+    else if (field == 1)
+        (window ? sizes.windowHeight : sizes.doorHeight) = value;
+    else
+        sizes.windowSill = value;
+    if (!controller_.run(std::make_unique<plynth::SetDefaultSizesCommand>(sizes)).ok())
+        refresh();
+}
+
+// Fills the Opening tool page from the tool settings and the default sizes of the project.
+void PropertiesPanel::refreshOpeningTool()
+{
+    const OpeningToolSettings& settings = controller_.openingSettings();
+    toolType_->setCurrentIndex(std::max(0, toolType_->findData(static_cast<int>(settings.type))));
+    fillShapeCombo(toolShape_, settings.shape);
+    toolHinge_->setCurrentIndex(std::max(0, toolHinge_->findData(static_cast<int>(settings.hinge))));
+    toolSwing_->setCurrentIndex(std::max(0, toolSwing_->findData(static_cast<int>(settings.swing))));
+    const plynth::DefaultSizes& sizes = document_.project().settings.defaults;
+    const bool window = settings.type == plynth::OpeningType::Window;
+    const bool door = settings.type == plynth::OpeningType::Door;
+    setSpin(toolWidth_, window ? sizes.windowWidth : sizes.doorWidth);
+    setSpin(toolHeight_, window ? sizes.windowHeight : sizes.doorHeight);
+    setSpin(toolSill_, sizes.windowSill);
+    toolSill_->setVisible(window);
+    toolSillLabel_->setVisible(window);
+    for (QWidget* widget : {static_cast<QWidget*>(toolHinge_), static_cast<QWidget*>(toolHingeLabel_),
+                            static_cast<QWidget*>(toolSwing_), static_cast<QWidget*>(toolSwingLabel_)})
+        widget->setVisible(door);
+}
+
+// Fills the page for a selected opening.
+void PropertiesPanel::refreshOpening()
+{
+    const plynth::Floor* floor = controller_.floor();
+    const plynth::Opening* opening = floor ? plynth::findOpening(*floor, selection_.id().toStdString()) : nullptr;
+    if (opening == nullptr)
+        return;
+    openingId_->setText(fromCore(opening->id));
+    openingWall_->setText(fromCore(opening->wall));
+    openingType_->setCurrentIndex(std::max(0, openingType_->findData(static_cast<int>(opening->type))));
+    fillShapeCombo(openingShape_, opening->shape);
+    openingHinge_->setCurrentIndex(std::max(0, openingHinge_->findData(static_cast<int>(opening->hinge))));
+    openingSwing_->setCurrentIndex(std::max(0, openingSwing_->findData(static_cast<int>(opening->swing))));
+    const bool door = opening->type == plynth::OpeningType::Door;
+    for (QWidget* widget : {static_cast<QWidget*>(openingHinge_), static_cast<QWidget*>(openingHingeLabel_),
+                            static_cast<QWidget*>(openingSwing_), static_cast<QWidget*>(openingSwingLabel_)})
+        widget->setVisible(door);
+    setSpin(openingOffset_, opening->offset);
+    setSpin(openingSill_, opening->sill);
+    setSpin(openingWidth_, opening->width);
+    setSpin(openingHeight_, opening->height);
+    const plynth::Status fit = plynth::checkOpeningFit(*floor, *opening);
+    openingProblem_->setText(fit.ok() ? QString() : fromCore(fit.message));
+    openingProblem_->setVisible(!fit.ok());
 }
 
 // Paints the Panel background and the Line border on the left.

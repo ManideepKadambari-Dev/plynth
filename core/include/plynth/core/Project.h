@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Plan.h"
+#include "Status.h"
 
 #include <optional>
 #include <string>
@@ -15,14 +16,39 @@ inline constexpr std::string_view kAutosaveFolderName = "autosave";
 
 inline constexpr double kDefaultGridSize = 0.5;
 
+// The built-in default sizes (DESIGN.md section 7.5). A new project starts with these.
+inline constexpr double kDefaultDoorWidth = 0.9;
+inline constexpr double kDefaultDoorHeight = 2.1;
+inline constexpr double kDefaultWindowWidth = 1.2;
+inline constexpr double kDefaultWindowHeight = 1.2;
+inline constexpr double kDefaultWindowSill = 0.9;
+
 // Single gives one FBX for the whole building, Grouped gives one FBX per group.
 enum class ExportMode { Single, Grouped };
+
+// The sizes new marks get, per project. Plain openings use the door width and height with no sill.
+// ceilingHeight is for floors made later (milestone 12); existing floors keep their own ceiling height.
+struct DefaultSizes {
+    double ceilingHeight = kDefaultCeilingHeight;
+    double doorWidth = kDefaultDoorWidth;
+    double doorHeight = kDefaultDoorHeight;
+    double windowWidth = kDefaultWindowWidth;
+    double windowHeight = kDefaultWindowHeight;
+    double windowSill = kDefaultWindowSill;
+
+    bool operator==(const DefaultSizes&) const = default;
+};
+
+// Checks default sizes. InvalidValue when a number is not finite, a size is not above zero, the sill is
+// below zero, or a door or a window (sill plus height) would be taller than the ceiling height.
+Status checkDefaultSizes(const DefaultSizes& sizes);
 
 // Project wide settings. Saved as project.json.
 struct ProjectSettings {
     std::string name = "Untitled";
     ExportMode exportMode = ExportMode::Single;
     double gridSize = kDefaultGridSize;
+    DefaultSizes defaults;
 
     bool operator==(const ProjectSettings&) const = default;
 };

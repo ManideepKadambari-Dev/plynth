@@ -55,6 +55,10 @@ public:
     int toolStripWidth() const { return toolStripWidth_; }
     int propertiesWidth() const { return propertiesWidth_; }
     int snapRadius() const { return snapRadius_; }
+    int wallViewMinHeight() const { return wallViewMinHeight_; }
+    int wallViewMargin() const { return wallViewMargin_; }
+    int handleSize() const { return handleSize_; }
+    int bendHandle() const { return bendHandle_; }
     int terminalButton() const { return terminalButton_; }
     int terminalPanelWidth() const { return terminalPanelWidth_; }
     int terminalPanelHeight() const { return terminalPanelHeight_; }
@@ -87,6 +91,10 @@ private:
     int toolStripWidth_ = 44;
     int propertiesWidth_ = 280;
     int snapRadius_ = 10;
+    int wallViewMinHeight_ = 160;
+    int wallViewMargin_ = 24;
+    int handleSize_ = 8;
+    int bendHandle_ = 10;
     int terminalButton_ = 44;
     int terminalPanelWidth_ = 760;
     int terminalPanelHeight_ = 420;

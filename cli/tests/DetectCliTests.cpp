@@ -103,6 +103,8 @@ TEST_CASE("detect lists the proposals with the documented fields", "[cli][detect
     CHECK(counts.at("rooms") == 2);
     CHECK(counts.at("new_rooms") == 2);
     CHECK(counts.at("openings") == 1);
+    CHECK(counts.at("new_openings") == 1);
+    CHECK(counts.at("existing_openings") == 0);
 
     REQUIRE(result.at("points").size() == 6);
     CHECK(result.at("points").at(1).at("x") == 4.0);
@@ -117,6 +119,9 @@ TEST_CASE("detect lists the proposals with the documented fields", "[cli][detect
     const auto& opening = result.at("openings").at(0);
     CHECK(opening.at("type") == "window");
     CHECK(opening.at("wall") == 0);
+    CHECK(opening.at("hinge") == "start");
+    CHECK(opening.at("swing") == "right");
+    CHECK(opening.at("state") == "new");
     CHECK_THAT(opening.at("x").get<double>(), WithinAbs(2.5, 1e-9));
     CHECK_THAT(opening.at("y").get<double>(), WithinAbs(1.0, 1e-9));
     REQUIRE(result.at("rooms").size() == 2);
@@ -141,11 +146,21 @@ TEST_CASE("detect --apply adds the walls and rooms and a second apply changes no
     CHECK(list.at("points").size() == 6);
     CHECK(list.at("split_walls").empty());
     CHECK(list.at("rooms").size() == 2);
+    CHECK(list.at("openings").size() == 1);
+    CHECK(list.at("skipped_openings") == 0);
     CHECK(list.at("skipped_walls") == 0);
     CHECK(list.at("skipped_rooms") == 0);
     CHECK(applied.answer.at("result").at("walls").at(0).at("state") == "new");
 
     CHECK(sample.run({"wall", "list"}).answer.at("result").at("walls").size() == 7);
+    const auto openings = sample.run({"opening", "list"});
+    REQUIRE(openings.exitCode == kExitOk);
+    REQUIRE(openings.answer.at("result").at("openings").size() == 1);
+    const auto& added = openings.answer.at("result").at("openings").at(0);
+    CHECK(added.at("type") == "window");
+    CHECK(added.at("sill") == 0.9);
+    CHECK(added.at("height") == 1.2);
+    CHECK(openings.answer.at("result").at("problems") == 0);
     const auto rooms = sample.run({"room", "list"}).answer.at("result").at("rooms");
     CHECK(rooms.size() == 2);
     const auto found = sample.run({"room", "find"}).answer.at("result").at("areas");
@@ -161,6 +176,10 @@ TEST_CASE("detect --apply adds the walls and rooms and a second apply changes no
     CHECK(empty.at("walls").empty());
     CHECK(empty.at("points").empty());
     CHECK(empty.at("rooms").empty());
+    CHECK(empty.at("openings").empty());
+    CHECK(again.answer.at("result").at("counts").at("new_openings") == 0);
+    CHECK(again.answer.at("result").at("counts").at("existing_openings") == 1);
+    CHECK(again.answer.at("result").at("openings").at(0).at("state") == "existing");
     CHECK(again.answer.at("result").at("counts").at("new_walls") == 0);
     CHECK(again.answer.at("result").at("counts").at("new_rooms") == 0);
     CHECK(again.answer.at("result").at("counts").at("existing_walls") == 7);
@@ -315,6 +334,13 @@ TEST_CASE("detect finds the walls, rooms and openings of apartment-01", "[cli][d
     CHECK(counts.at("walls") == 16);
     CHECK(counts.at("rooms") == 5);
     CHECK(counts.at("openings") == 9);
+    CHECK(counts.at("new_openings") == 9);
+    CHECK(counts.at("existing_openings") == 0);
+    for (const auto& opening : outcome.answer.at("result").at("openings")) {
+        CHECK((opening.at("hinge") == "start" || opening.at("hinge") == "end"));
+        CHECK((opening.at("swing") == "left" || opening.at("swing") == "right"));
+        CHECK(opening.at("state") == "new");
+    }
 }
 
 TEST_CASE("detect --apply on apartment-01 adds 16 walls and 5 rooms that match room find", "[cli][detect][sample]") {
@@ -328,6 +354,15 @@ TEST_CASE("detect --apply on apartment-01 adds 16 walls and 5 rooms that match r
     const auto& result = applied.answer.at("result");
     CHECK(result.at("applied").at("walls").size() == 16);
     CHECK(result.at("applied").at("rooms").size() == 5);
+    CHECK(result.at("applied").at("openings").size() == 9);
+    CHECK(result.at("applied").at("skipped_openings") == 0);
+
+    const auto openings = sample.run({"opening", "list"});
+    CHECK(openings.answer.at("result").at("openings").size() == 9);
+    CHECK(openings.answer.at("result").at("problems") == 0);
+    const auto second = sample.run({"detect"});
+    CHECK(second.answer.at("result").at("counts").at("existing_openings") == 9);
+    CHECK(second.answer.at("result").at("counts").at("new_openings") == 0);
 
     std::vector<double> proposed;
     for (const auto& room : result.at("rooms")) {
@@ -352,4 +387,17 @@ TEST_CASE("detect --apply on apartment-01 adds 16 walls and 5 rooms that match r
     for (std::size_t i = 0; i < found.size(); ++i) {
         CHECK_THAT(found[i], WithinAbs(proposed[i], 1e-3));
     }
+}
+
+TEST_CASE("detect --no-openings --apply adds no openings", "[cli][detect][sample]") {
+    REQUIRE(plynth::findDetector("orthogonal") != nullptr);
+    REQUIRE(loaderWorks());
+    Sample sample("detect-no-openings");
+    setScale(sample);
+
+    const auto applied = sample.run({"detect", "--no-openings", "--apply"});
+    REQUIRE(applied.exitCode == kExitOk);
+    CHECK(applied.answer.at("result").at("applied").at("walls").size() == 16);
+    CHECK(applied.answer.at("result").at("applied").at("openings").empty());
+    CHECK(sample.run({"opening", "list"}).answer.at("result").at("openings").empty());
 }

@@ -1,0 +1,145 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:plan:1",
+  "title": "Plynth plan, version 1",
+  "description": "Everything marked on a floor plan, as written by Plynth before version 2. Plynth still reads these files and upgrades them. All lengths are in metres. x points right and y points down, as in the plan image, with the image's top left corner at (0, 0). Ids are unique across the whole file and never change. Plynth writes every field; other tools may leave out the fields that are not required, which then take the default shown.",
+  "type": "object",
+  "required": ["format", "version", "floors"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "plynth-plan" },
+    "version": { "const": 1 },
+    "scale": { "$ref": "#/definitions/scale" },
+    "floors": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/floor" }
+    }
+  },
+  "definitions": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]*$",
+      "maxLength": 64
+    },
+    "name": {
+      "description": "A catalog or registry name such as a material, room type, asset or opening shape.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]+$",
+      "maxLength": 128
+    },
+    "optionalName": {
+      "oneOf": [ { "$ref": "#/definitions/name" }, { "type": "null" } ]
+    },
+    "metres": { "type": "number" },
+    "positiveMetres": { "type": "number", "exclusiveMinimum": 0 },
+    "nonNegativeMetres": { "type": "number", "minimum": 0 },
+    "scale": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "pixels_per_metre": {
+          "description": "Plan image pixels per metre. null until the scale is set.",
+          "oneOf": [ { "type": "number", "exclusiveMinimum": 0 }, { "type": "null" } ],
+          "default": null
+        }
+      }
+    },
+    "floor": {
+      "type": "object",
+      "required": ["id"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/definitions/id" },
+        "name": { "type": "string", "description": "Shown on the floor tab. Defaults to the id." },
+        "image": {
+          "description": "Plan image path relative to the project folder, with forward slashes, for example plans/floor1.png. null when the floor has no image.",
+          "oneOf": [ { "type": "string", "minLength": 1 }, { "type": "null" } ],
+          "default": null
+        },
+        "ceiling_height": { "$ref": "#/definitions/positiveMetres", "default": 3.0 },
+        "points": { "type": "array", "items": { "$ref": "#/definitions/point" }, "default": [] },
+        "walls": { "type": "array", "items": { "$ref": "#/definitions/wall" }, "default": [] },
+        "rooms": { "type": "array", "items": { "$ref": "#/definitions/room" }, "default": [] },
+        "openings": { "type": "array", "items": { "$ref": "#/definitions/opening" }, "default": [] }
+      }
+    },
+    "point": {
+      "type": "object",
+      "required": ["id", "x", "y"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/definitions/id" },
+        "x": { "$ref": "#/definitions/metres" },
+        "y": { "$ref": "#/definitions/metres" },
+        "corner_radius": { "$ref": "#/definitions/nonNegativeMetres", "default": 0.0 }
+      }
+    },
+    "wall": {
+      "type": "object",
+      "required": ["id", "from", "to"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/definitions/id" },
+        "from": { "$ref": "#/definitions/id", "description": "A point on the same floor." },
+        "to": { "$ref": "#/definitions/id", "description": "Another point on the same floor." },
+        "thickness": { "$ref": "#/definitions/positiveMetres", "default": 0.2 },
+        "height": {
+          "description": "Overrides the floor's ceiling height, for half walls. null uses the ceiling height.",
+          "oneOf": [ { "type": "number", "exclusiveMinimum": 0 }, { "type": "null" } ],
+          "default": null
+        },
+        "bulge": {
+          "description": "Bends the wall into an arc: signed distance from the middle of the straight line to the middle of the arc. Positive moves along (-dy, dx), where (dx, dy) runs from the from point to the to point. 0 is straight.",
+          "type": "number",
+          "default": 0.0
+        },
+        "material_inside": { "$ref": "#/definitions/optionalName", "default": null },
+        "material_outside": { "$ref": "#/definitions/optionalName", "default": null }
+      }
+    },
+    "room": {
+      "type": "object",
+      "required": ["id", "walls"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/definitions/id" },
+        "type": {
+          "description": "A room type id, for example living, bedroom, kitchen, bathroom, hall, dining, office, storage or other. The list is user editable, so readers accept any well formed name. null until the user picks a type.",
+          "$ref": "#/definitions/optionalName",
+          "default": null
+        },
+        "walls": {
+          "description": "Walls on the same floor that bound the room: the outer ring in order, then the ring of each island inside it.",
+          "type": "array",
+          "items": { "$ref": "#/definitions/id" }
+        },
+        "floor_material": { "$ref": "#/definitions/optionalName", "default": null },
+        "ceiling_material": { "$ref": "#/definitions/optionalName", "default": null }
+      }
+    },
+    "opening": {
+      "type": "object",
+      "required": ["id", "wall", "offset", "type", "width", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/definitions/id" },
+        "wall": { "$ref": "#/definitions/id", "description": "A wall on the same floor." },
+        "offset": {
+          "description": "Distance along the wall from its from point to the centre of the opening.",
+          "$ref": "#/definitions/nonNegativeMetres"
+        },
+        "type": { "enum": ["door", "window", "plain"] },
+        "shape": { "$ref": "#/definitions/name", "default": "rectangle" },
+        "width": { "$ref": "#/definitions/positiveMetres" },
+        "height": { "$ref": "#/definitions/positiveMetres" },
+        "sill": {
+          "description": "Height of the bottom of the opening above the floor.",
+          "$ref": "#/definitions/nonNegativeMetres",
+          "default": 0.0
+        },
+        "frame": { "$ref": "#/definitions/optionalName", "default": null }
+      }
+    }
+  }
+}

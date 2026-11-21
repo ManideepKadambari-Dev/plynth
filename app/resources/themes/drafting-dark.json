@@ -36,6 +36,10 @@
     "toolStripWidth": 44,
     "propertiesWidth": 280,
     "snapRadius": 10,
+    "wallViewMinHeight": 160,
+    "wallViewMargin": 24,
+    "handleSize": 8,
+    "bendHandle": 10,
     "proposalDash": 4
   },
   "effects": {

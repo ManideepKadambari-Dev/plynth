@@ -15,10 +15,13 @@ namespace plynth {
 // in the same order as schema/plan.schema.json.
 using Json = nlohmann::ordered_json;
 
+// Version 2 of plan.json adds "hinge" and "swing" to openings. Version 2 of project.json adds "defaults".
+// The schema for the current version is schema/plan.schema.json and schema/project.schema.json; older
+// versions stay as schema/plan.v1.schema.json and schema/project.v1.schema.json.
 inline constexpr std::string_view kPlanFormatName = "plynth-plan";
-inline constexpr int kPlanFormatVersion = 1;
+inline constexpr int kPlanFormatVersion = 2;
 inline constexpr std::string_view kProjectFormatName = "plynth-project";
-inline constexpr int kProjectFormatVersion = 1;
+inline constexpr int kProjectFormatVersion = 2;
 
 // Turns a plan into its plan.json form. Every field is written, absent values as null.
 Json planToJson(const Plan& plan);
@@ -65,11 +68,14 @@ struct Migration {
 // UnsupportedVersion when it is above currentVersion. A failing step stops and returns its status.
 Status migrateJson(Json& json, int currentVersion, std::span<const Migration> steps);
 
-// The upgrade steps for plan.json, ordered by fromVersion. Empty while only version 1 exists.
-// When the format changes: raise kPlanFormatVersion, add a step here and a new schema file.
+// The upgrade steps for plan.json, ordered by fromVersion.
+// 1 to 2: every opening gets "hinge": "start" and "swing": "right" unless it already has them.
+// When the format changes: raise kPlanFormatVersion, add a step here, keep the old schema as
+// plan.vN.schema.json and update plan.schema.json.
 std::span<const Migration> planMigrations();
 
-// The upgrade steps for project.json. Empty while only version 1 exists.
+// The upgrade steps for project.json.
+// 1 to 2: adds "defaults" with the built-in sizes unless it is already there.
 std::span<const Migration> projectMigrations();
 
 }

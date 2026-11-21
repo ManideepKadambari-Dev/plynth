@@ -3,6 +3,7 @@
 #include <plynth/core/Command.h>
 #include <plynth/core/commands/FloorCommands.h>
 #include <plynth/core/commands/PointCommands.h>
+#include <plynth/core/commands/SettingsCommands.h>
 #include <plynth/core/commands/WallCommands.h>
 
 #include <catch2/catch_test_macros.hpp>
@@ -428,4 +429,65 @@ TEST_CASE("a long chain of commands undoes back to the start", "[core][command]"
     REQUIRE(p == start);
     for (auto& c : done) applyOk(*c, p);
     REQUIRE(p == end);
+}
+
+TEST_CASE("checkDefaultSizes", "[core][settings]") {
+    REQUIRE(checkDefaultSizes(DefaultSizes{}).ok());
+
+    const auto refused = [](DefaultSizes d) {
+        const Status s = checkDefaultSizes(d);
+        INFO(s.message);
+        REQUIRE(s.code == ErrorCode::InvalidValue);
+        REQUIRE_FALSE(s.message.empty());
+    };
+    DefaultSizes d;
+    d.ceilingHeight = 0.0;
+    refused(d);
+    d = {};
+    d.doorWidth = -1.0;
+    refused(d);
+    d = {};
+    d.doorHeight = kNaN;
+    refused(d);
+    d = {};
+    d.windowWidth = 0.0;
+    refused(d);
+    d = {};
+    d.windowHeight = std::numeric_limits<double>::infinity();
+    refused(d);
+    d = {};
+    d.windowSill = -0.1;
+    refused(d);
+    d = {};
+    d.ceilingHeight = 2.0; // the 2.1 m door no longer fits
+    refused(d);
+    d = {};
+    d.ceilingHeight = 2.0;
+    d.doorHeight = 1.9;    // the window sill 0.9 plus height 1.2 is 2.1
+    refused(d);
+    d = {};
+    d.windowSill = 0.0;
+    d.windowHeight = 3.0;  // exactly the ceiling height is fine
+    REQUIRE(checkDefaultSizes(d).ok());
+}
+
+TEST_CASE("SetDefaultSizesCommand", "[core][command][settings]") {
+    Project p = makeNewProject();
+    SECTION("sets, undoes and redoes") {
+        DefaultSizes sizes;
+        sizes.doorHeight = 2.0;
+        sizes.windowSill = 1.0;
+        SetDefaultSizesCommand c(sizes);
+        roundTrip(c, p);
+        REQUIRE(p.settings.defaults == sizes);
+        REQUIRE(c.changes() == Change::Settings);
+        REQUIRE(c.floorId().empty());
+    }
+    SECTION("refuses sizes that break the rules and changes nothing") {
+        DefaultSizes sizes;
+        sizes.ceilingHeight = 2.0;
+        SetDefaultSizesCommand c(sizes);
+        applyRefused(c, p, ErrorCode::InvalidValue);
+        REQUIRE(p.settings.defaults == DefaultSizes{});
+    }
 }

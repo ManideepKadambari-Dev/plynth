@@ -1,6 +1,10 @@
 #include "plynth/core/commands/FloorCommands.h"
 
+#include "plynth/core/Openings.h"
+
 #include "CommandSupport.h"
+
+#include <cstdio>
 
 #include <utility>
 
@@ -104,6 +108,68 @@ void SetScaleCommand::undo(Project& project)
 unsigned SetScaleCommand::changes() const
 {
     return moved_ ? (Change::Scale | Change::Points | Change::Walls | Change::Openings) : Change::Scale;
+}
+
+}
+
+namespace plynth {
+
+SetCeilingHeightCommand::SetCeilingHeightCommand(Id floorId, double height, int mergeKey)
+    : floorId_(std::move(floorId)), height_(height), mergeKey_(mergeKey)
+{
+}
+
+std::string SetCeilingHeightCommand::name() const
+{
+    return "Set ceiling height";
+}
+
+// Sets the ceiling height unless an opening on a wall that follows it would end up above the wall.
+Status SetCeilingHeightCommand::apply(Project& project)
+{
+    Floor* floor = findFloor(project.plan, floorId_);
+    if (!floor) return fail(ErrorCode::NotFound, "There is no floor " + floorId_ + ".");
+    if (!detail::isPositive(height_)) {
+        return fail(ErrorCode::InvalidValue, "The ceiling height must be a number above zero.");
+    }
+    for (const Opening& o : floor->openings) {
+        const Wall* wall = findWall(*floor, o.wall);
+        if (!wall || wall->height) continue;
+        if (o.sill + o.height > height_ + kOpeningTouchTolerance) {
+            char text[48];
+            std::snprintf(text, sizeof text, "%.2f m", height_);
+            return fail(ErrorCode::InvalidValue,
+                        "The opening " + o.id + " would reach above the wall " + wall->id + ", which would be " + text + " high.");
+        }
+    }
+    previous_ = floor->ceilingHeight;
+    floor->ceilingHeight = height_;
+    return {};
+}
+
+// Puts the old ceiling height back.
+void SetCeilingHeightCommand::undo(Project& project)
+{
+    if (Floor* floor = findFloor(project.plan, floorId_)) floor->ceilingHeight = previous_;
+}
+
+unsigned SetCeilingHeightCommand::changes() const
+{
+    return Change::Floors;
+}
+
+Id SetCeilingHeightCommand::floorId() const
+{
+    return floorId_;
+}
+
+// Takes over the later height of the same floor in the same series of changes.
+bool SetCeilingHeightCommand::mergeWith(const Command& next)
+{
+    const auto* other = dynamic_cast<const SetCeilingHeightCommand*>(&next);
+    if (!other || mergeKey_ == 0 || other->mergeKey_ != mergeKey_ || other->floorId_ != floorId_) return false;
+    height_ = other->height_;
+    return true;
 }
 
 }

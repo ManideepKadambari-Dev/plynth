@@ -375,6 +375,15 @@ Vec2 crossing(const Piece& h, const Piece& v)
     return {x, h.c0 + sh * (x - h.a0)};
 }
 
+// What a closed gap is. For a door, hingeAtLow says the swing arc starts at the end of the gap with the smaller
+// coordinate along the wall (g0), and side is +1 when the arc lies toward larger cross coordinates, -1 toward
+// smaller ones.
+struct GapClass {
+    OpeningType type = OpeningType::Plain;
+    bool hingeAtLow = true;
+    double side = 1.0;
+};
+
 // Tells whether thin ink forms a quarter circle of the given radius around a hinge.
 bool hasArc(const cv::Mat& thin, const Piece& wall, double hingeAlong, double direction, double side, double radius)
 {
@@ -403,8 +412,8 @@ bool hasArc(const cv::Mat& thin, const Piece& wall, double hingeAlong, double di
 }
 
 // Decides whether a closed gap is a window (two or more thin lines inside the wall), a door (a quarter arc
-// starting at one end) or a plain opening.
-OpeningType classifyGap(const cv::Mat& thin, const Piece& wall, double g0, double g1)
+// starting at one end, which end and which side are reported) or a plain opening.
+GapClass classifyGap(const cv::Mat& thin, const Piece& wall, double g0, double g1)
 {
     const double width = g1 - g0;
     const double from = g0 + 0.15 * width;
@@ -425,17 +434,16 @@ OpeningType classifyGap(const cv::Mat& thin, const Piece& wall, double g0, doubl
         if (line && !inLine) ++groups;
         inLine = line;
     }
-    if (groups >= 2) return OpeningType::Window;
+    if (groups >= 2) return {OpeningType::Window, true, 1.0};
 
     for (double scale : {1.0, 0.96, 1.04}) {
         const double radius = width * scale;
         for (double side : {1.0, -1.0}) {
-            if (hasArc(thin, wall, g0, 1.0, side, radius) || hasArc(thin, wall, g1, -1.0, side, radius)) {
-                return OpeningType::Door;
-            }
+            if (hasArc(thin, wall, g0, 1.0, side, radius)) return {OpeningType::Door, true, side};
+            if (hasArc(thin, wall, g1, -1.0, side, radius)) return {OpeningType::Door, false, side};
         }
     }
-    return OpeningType::Plain;
+    return {OpeningType::Plain, true, 1.0};
 }
 
 // Rounds a length in metres to a whole centimetre, at least one.
@@ -656,7 +664,19 @@ DetectionResult detectOrthogonal(const GrayImage& image, double pixelsPerMetre, 
                         : 0.0;
                     ProposedOpening o;
                     o.wall = s.index;
-                    o.type = classifyGap(thin, walls[w], g0, g1);
+                    const GapClass gap = classifyGap(thin, walls[w], g0, g1);
+                    o.type = gap.type;
+                    if (gap.type == OpeningType::Door) {
+                        // Which way the proposed wall runs along the piece, and which way its right side faces.
+                        const Vec2 along = walls[w].axis == 0 ? Vec2{1.0, 0.0} : Vec2{0.0, 1.0};
+                        const Vec2 across = walls[w].axis == 0 ? Vec2{0.0, 1.0} : Vec2{1.0, 0.0};
+                        const Vec2 direction{(to.x - from.x) / length, (to.y - from.y) / length};
+                        const bool sameWay = direction.x * along.x + direction.y * along.y > 0.0;
+                        o.hinge = gap.hingeAtLow == sameWay ? HingeEnd::Start : HingeEnd::End;
+                        const Vec2 right = rightOf(direction);
+                        const double toward = gap.side * (across.x * right.x + across.y * right.y);
+                        o.swing = toward > 0.0 ? WallSide::Right : WallSide::Left;
+                    }
                     o.offset = offset / ppm;
                     o.width = (g1 - g0) / ppm;
                     result.openings.push_back(o);

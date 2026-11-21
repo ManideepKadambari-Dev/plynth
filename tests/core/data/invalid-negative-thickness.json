@@ -1,5 +1,5 @@
 {
-  "format": "plynth-plan", "version": 1,
+  "format": "plynth-plan", "version": 2,
   "floors": [ { "id": "f1",
     "points": [ { "id": "p1", "x": 0, "y": 0 }, { "id": "p2", "x": 1, "y": 0 } ],
     "walls": [ { "id": "w1", "from": "p1", "to": "p2", "thickness": -0.2 } ] } ]

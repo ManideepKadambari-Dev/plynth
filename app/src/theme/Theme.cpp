@@ -88,6 +88,10 @@ bool Theme::load(const QString& resourcePath)
     toolStripWidth_ = spacing["toolStripWidth"].toInt(toolStripWidth_);
     propertiesWidth_ = spacing["propertiesWidth"].toInt(propertiesWidth_);
     snapRadius_ = spacing["snapRadius"].toInt(snapRadius_);
+    wallViewMinHeight_ = spacing["wallViewMinHeight"].toInt(wallViewMinHeight_);
+    wallViewMargin_ = spacing["wallViewMargin"].toInt(wallViewMargin_);
+    handleSize_ = spacing["handleSize"].toInt(handleSize_);
+    bendHandle_ = spacing["bendHandle"].toInt(bendHandle_);
     proposalDash_ = spacing["proposalDash"].toInt(proposalDash_);
 
     const QJsonObject effects = root["effects"].toObject();

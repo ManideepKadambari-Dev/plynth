@@ -319,6 +319,61 @@ TEST_CASE("markExisting", "[core][detection]") {
         REQUIRE(r.rooms[0].state == ProposalState::Existing);
         REQUIRE(r.rooms[1].state == ProposalState::New);
     }
+    SECTION("an opening is New on an empty floor and Existing when an opening of the floor covers its centre") {
+        Floor empty;
+        empty.id = "f1";
+        markExisting(empty, r);
+        REQUIRE(r.openings[0].state == ProposalState::New);
+
+        Floor f = floorFrom(r, {0});
+        Opening o;
+        o.id = "o1";
+        o.wall = "w1";
+        o.offset = 1.45;
+        o.width = 0.9;
+        f.openings = {o};
+        markExisting(f, r);
+        REQUIRE(r.openings[0].state == ProposalState::Existing);
+
+        // A neighbour that does not cover the centre leaves it New.
+        f.openings[0].offset = 0.5;
+        markExisting(f, r);
+        REQUIRE(r.openings[0].state == ProposalState::New);
+
+        // A covering opening on a wall far away leaves it New.
+        f = floorFrom(r, {0, 4});
+        f.openings = {o};
+        f.openings[0].wall = "w5";
+        markExisting(f, r);
+        REQUIRE(r.openings[0].state == ProposalState::New);
+    }
+    SECTION("an opening on a wall with a tiny bulge counts as on a straight wall") {
+        Floor f = floorFrom(r, {0});
+        f.walls[0].bulge = 0.0004;
+        Opening o;
+        o.id = "o1";
+        o.wall = "w1";
+        o.offset = 1.5;
+        o.width = 0.9;
+        f.openings = {o};
+        markExisting(f, r);
+        REQUIRE(r.openings[0].state == ProposalState::Existing);
+    }
+    SECTION("states of openings are reset on every run") {
+        Floor f = floorFrom(r, {0});
+        Opening o;
+        o.id = "o1";
+        o.wall = "w1";
+        o.offset = 1.5;
+        o.width = 0.9;
+        f.openings = {o};
+        markExisting(f, r);
+        REQUIRE(r.openings[0].state == ProposalState::Existing);
+        Floor empty;
+        empty.id = "f1";
+        markExisting(empty, r);
+        REQUIRE(r.openings[0].state == ProposalState::New);
+    }
     SECTION("a short wall is checked at its middle") {
         DetectionResult s;
         s.points = {{0, 0}, {0.08, 0}};
@@ -344,6 +399,14 @@ TEST_CASE("countProposals", "[core][detection]") {
     REQUIRE(c.rooms == 2);
     REQUIRE(c.newRooms == 1);
     REQUIRE(c.openings == 1);
+    REQUIRE(c.newOpenings == 1);
+    REQUIRE(c.existingOpenings == 0);
+    r.openings.push_back(r.openings[0]);
+    r.openings[0].state = ProposalState::Existing;
+    const ProposalCounts again = countProposals(r);
+    REQUIRE(again.openings == 2);
+    REQUIRE(again.newOpenings == 1);
+    REQUIRE(again.existingOpenings == 1);
     REQUIRE(countProposals(DetectionResult{}) == ProposalCounts{});
 }
 

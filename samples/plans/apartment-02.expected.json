@@ -53,12 +53,12 @@
     {"type": "window", "x": 1828, "y": 930, "width": 160},
     {"type": "window", "x": 252, "y": 980, "width": 160},
     {"type": "window", "x": 1300, "y": 1228, "width": 160},
-    {"type": "door", "x": 556, "y": 720, "width": 72},
-    {"type": "door", "x": 800, "y": 1036, "width": 72},
-    {"type": "door", "x": 800, "y": 416, "width": 72},
-    {"type": "door", "x": 1096, "y": 640, "width": 72},
-    {"type": "door", "x": 1676, "y": 640, "width": 72},
-    {"type": "door", "x": 1300, "y": 476, "width": 72},
+    {"type": "door", "x": 556, "y": 720, "width": 72, "hinge": [592, 720], "swing_point": [556, 738]},
+    {"type": "door", "x": 800, "y": 1036, "width": 72, "hinge": [800, 1072], "swing_point": [818, 1036]},
+    {"type": "door", "x": 800, "y": 416, "width": 72, "hinge": [800, 452], "swing_point": [818, 416]},
+    {"type": "door", "x": 1096, "y": 640, "width": 72, "hinge": [1060, 640], "swing_point": [1096, 658]},
+    {"type": "door", "x": 1676, "y": 640, "width": 72, "hinge": [1712, 640], "swing_point": [1676, 658]},
+    {"type": "door", "x": 1300, "y": 476, "width": 72, "hinge": [1300, 512], "swing_point": [1318, 476]},
     {"type": "plain", "x": 800, "y": 860, "width": 120}
   ],
   "not_walls": [
