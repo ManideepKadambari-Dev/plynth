@@ -1,0 +1,90 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:blender-job:1",
+  "title": "Plynth Blender job, version 1",
+  "description": "Written by Plynth as job.json in a work folder and passed to Blender with: blender --background [--factory-startup] -noaudio --python-exit-code 3 --python <scripts>/plynth_worker.py -- --job <work>/job.json. The worker runs the task and writes the result file named by result_file (schema blender-result). While it runs it prints progress lines of the form PLYNTH:{\"progress\": {\"step\": \"...\", \"index\": 1, \"count\": 9, \"message\": \"...\"}}. Paths are absolute with forward slashes. Lengths are metres.",
+  "type": "object",
+  "required": ["format", "version", "task", "job_id", "result_file", "params"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "plynth-blender-job" },
+    "version": { "const": 1 },
+    "task": { "description": "A task of the worker's task registry (blender/plynth/tasks/).", "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+    "job_id": { "type": "string", "pattern": "^[a-z0-9_-]+$", "minLength": 1 },
+    "result_file": { "type": "string", "minLength": 1 },
+    "params": { "type": "object" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "task": { "const": "probe" } } },
+      "then": { "properties": { "params": { "type": "object", "additionalProperties": false, "properties": {} } } }
+    },
+    {
+      "if": { "properties": { "task": { "const": "cleanup_asset" } } },
+      "then": {
+        "properties": {
+          "params": {
+            "type": "object",
+            "required": ["source", "asset_id", "output_folder", "scale", "rotate_z", "triangle_warning", "thumbnail"],
+            "additionalProperties": false,
+            "properties": {
+              "source": {
+                "type": "object",
+                "required": ["file", "format"],
+                "additionalProperties": false,
+                "properties": {
+                  "file": { "type": "string", "minLength": 1 },
+                  "format": { "description": "An importer of the worker's importer registry (blender/plynth/importers/).", "enum": ["blend", "fbx", "obj", "gltf", "zip"] }
+                }
+              },
+              "asset_id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 64 },
+              "output_folder": { "description": "An empty folder. The worker writes asset.blend, textures/ and thumb.png into it.", "type": "string", "minLength": 1 },
+              "scale": { "type": "number", "exclusiveMinimum": 0 },
+              "rotate_z": { "enum": [0, 90, 180, 270] },
+              "triangle_warning": { "type": "integer", "minimum": 1 },
+              "thumbnail": { "$ref": "#/definitions/thumbnail" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "task": { "const": "render_thumbnail" } } },
+      "then": {
+        "properties": {
+          "params": {
+            "type": "object",
+            "required": ["blend_file", "output_file", "measure", "thumbnail"],
+            "additionalProperties": false,
+            "properties": {
+              "blend_file": { "description": "Opened and never saved.", "type": "string", "minLength": 1 },
+              "output_file": { "type": "string", "minLength": 1 },
+              "measure": { "type": "boolean" },
+              "thumbnail": { "$ref": "#/definitions/thumbnail" }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "thumbnail": {
+      "description": "Three quarter view from the front right, 25 degrees up, 50 mm lens, framed with an 8 percent margin, neutral studio lights, a plain background of this color, Standard view transform, square 8 bit RGB PNG.",
+      "type": "object",
+      "required": ["render", "size", "engine", "background"],
+      "additionalProperties": false,
+      "properties": {
+        "render": { "type": "boolean" },
+        "size": { "type": "integer", "minimum": 64, "maximum": 2048 },
+        "engine": { "enum": ["eevee", "cycles"] },
+        "background": {
+          "description": "sRGB, 0 to 1.",
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "type": "number", "minimum": 0, "maximum": 1 }
+        }
+      }
+    }
+  }
+}
