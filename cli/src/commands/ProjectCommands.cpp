@@ -3,6 +3,7 @@
 #include <plynth/core/PlanImage.h>
 #include <plynth/core/ProjectFiles.h>
 #include <plynth/core/commands/FloorCommands.h>
+#include <plynth/core/commands/SettingsCommands.h>
 
 #include <cmath>
 #include <memory>
@@ -79,6 +80,18 @@ Answer projectInfo(const RunContext& context, const std::string& projectOption) 
     return success(command, projectInfoJson(folder, loaded.project));
 }
 
+// Changes the project's settings. Only the grid size for now.
+Answer projectSet(const RunContext& context, const std::string& projectOption, double grid) {
+    const std::string command = "project set";
+    return editProject(command, context, projectOption, [&](Document& document) {
+        Answer failed;
+        if (!runCommand(command, document, std::make_unique<SetGridSizeCommand>(grid), failed)) {
+            return failed;
+        }
+        return success(command, projectInfoJson(document.folder(), document.project()));
+    });
+}
+
 }
 
 std::vector<CommandSpec> projectCommands() {
@@ -107,7 +120,21 @@ std::vector<CommandSpec> projectCommands() {
         return [project](const RunContext& context) { return projectInfo(context, *project); };
     };
 
-    return {create, info};
+    CommandSpec set;
+    set.words = {"project", "set"};
+    set.description = "Change a project setting.";
+    set.setup = [](CLI::App& sub) -> Handler {
+        struct SetOptions {
+            std::string project;
+            double grid = 0.0;
+        };
+        auto options = std::make_shared<SetOptions>();
+        addProjectOption(sub, options->project);
+        sub.add_option("--grid", options->grid, "Grid size in metres.")->type_name("metres")->required();
+        return [options](const RunContext& context) { return projectSet(context, options->project, options->grid); };
+    };
+
+    return {create, info, set};
 }
 
 }

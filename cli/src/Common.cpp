@@ -2,7 +2,10 @@
 
 #include <plynth/core/EditSession.h>
 #include <plynth/core/ProjectFiles.h>
+#include <plynth/core/Geometry.h>
 #include <plynth/core/ProjectJson.h>
+
+#include <algorithm>
 
 namespace plynth::cli {
 
@@ -92,6 +95,95 @@ Json projectInfoJson(const std::filesystem::path& folder, const Project& project
 
 std::string defaultFloorId(const Plan& plan) {
     return plan.floors.empty() ? std::string() : plan.floors.front().id;
+}
+
+Answer editProject(const std::string& command, const RunContext& context, const std::string& projectOption,
+                   const std::function<Answer(Document&)>& body) {
+    const std::filesystem::path folder = resolveProjectFolder(context, projectOption);
+    Document document;
+    Answer failed;
+    if (!openProject(command, folder, document, failed)) {
+        return failed;
+    }
+    Answer answer = body(document);
+    if (!answer.ok) {
+        return answer;
+    }
+    const Status saved = saveInPlace(document);
+    if (!saved.ok()) {
+        return failure(command, saved);
+    }
+    return answer;
+}
+
+bool runCommand(const std::string& command, Document& document, std::unique_ptr<Command> toRun, Answer& failed) {
+    const Status run = document.execute(std::move(toRun));
+    if (!run.ok()) {
+        failed = failure(command, run);
+        return false;
+    }
+    return true;
+}
+
+const Floor* resolveFloor(const std::string& command, const Plan& plan, const std::string& floorOption,
+                          Answer& failed) {
+    const std::string id = floorOption.empty() ? defaultFloorId(plan) : floorOption;
+    const Floor* floor = findFloor(plan, id);
+    if (floor == nullptr) {
+        failed = failure(command, fail(ErrorCode::NotFound, "There is no floor " + id + "."));
+    }
+    return floor;
+}
+
+Json pointEntry(const Floor& floor, const Point& point) {
+    Json walls = Json::array();
+    for (const Wall& wall : floor.walls) {
+        if (wall.from == point.id || wall.to == point.id) {
+            walls.push_back(wall.id);
+        }
+    }
+    Json entry = Json::object();
+    entry["id"] = point.id;
+    entry["floor"] = floor.id;
+    entry["x"] = point.x;
+    entry["y"] = point.y;
+    entry["corner_radius"] = point.cornerRadius;
+    entry["walls"] = std::move(walls);
+    return entry;
+}
+
+Json wallEntry(const Floor& floor, const Wall& wall) {
+    Json rooms = Json::array();
+    for (const Room& room : floor.rooms) {
+        if (std::ranges::find(room.walls, wall.id) != room.walls.end()) {
+            rooms.push_back(room.id);
+        }
+    }
+    Json entry = Json::object();
+    entry["id"] = wall.id;
+    entry["floor"] = floor.id;
+    entry["from"] = wall.from;
+    entry["to"] = wall.to;
+    entry["thickness"] = wall.thickness;
+    if (wall.height) {
+        entry["height"] = *wall.height;
+    } else {
+        entry["height"] = nullptr;
+    }
+    entry["bulge"] = wall.bulge;
+    entry["length"] = wallLength(floor, wall);
+    entry["rooms"] = std::move(rooms);
+    return entry;
+}
+
+Json removedJson(const std::vector<Id>& rooms, const std::vector<Id>& walls, const std::vector<Id>& points) {
+    Json removed = Json::object();
+    removed["rooms"] = rooms;
+    removed["walls"] = walls;
+    removed["points"] = points;
+    Json result = Json::object();
+    result["removed"] = std::move(removed);
+    return result;
 }
 
 }

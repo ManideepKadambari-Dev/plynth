@@ -6,11 +6,13 @@ add_library(plynth_cli STATIC
     src/Cli.cpp
     src/Common.cpp
     src/Registry.cpp
-    src/commands/EditCommands.cpp
+    src/commands/PointCommands.cpp
     src/commands/HelpCommand.cpp
     src/commands/ProjectCommands.cpp
+    src/commands/ScaleCommands.cpp
     src/commands/SessionCommands.cpp
     src/commands/VersionCommand.cpp
+    src/commands/WallCommands.cpp
 )
 add_library(plynth::cli ALIAS plynth_cli)
 

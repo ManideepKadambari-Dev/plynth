@@ -7,7 +7,8 @@ namespace plynth::cli {
 const std::vector<CommandSpec>& allCommands() {
     static const std::vector<CommandSpec> commands = [] {
         std::vector<CommandSpec> all;
-        for (auto* group : {&versionCommands, &helpCommands, &projectCommands, &editCommands, &sessionCommands}) {
+        for (auto* group : {&versionCommands, &helpCommands, &projectCommands, &scaleCommands, &pointCommands,
+                             &wallCommands, &sessionCommands}) {
             for (auto& spec : group()) {
                 all.push_back(std::move(spec));
             }

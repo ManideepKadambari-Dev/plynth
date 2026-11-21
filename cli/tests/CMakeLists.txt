@@ -6,6 +6,7 @@ add_executable(plynth_cli_tests
     CliTests.cpp
     ProjectCliTests.cpp
     SessionCliTests.cpp
+    WallCliTests.cpp
     TestSetup.cpp
     TestSupport.cpp
 )

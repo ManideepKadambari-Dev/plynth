@@ -15,6 +15,7 @@ Json optionJson(const CLI::Option& option) {
     } else {
         json["value"] = option.get_type_name();
     }
+    json["positional"] = option.get_positional();
     json["required"] = option.get_required();
     json["description"] = option.get_description();
     return json;
