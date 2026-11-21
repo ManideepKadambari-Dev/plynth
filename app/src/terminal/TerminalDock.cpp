@@ -134,6 +134,7 @@ void TerminalDock::typeWhenReady(const QString& text)
 {
     pendingText_ = text;
     typed_ = false;
+    outputSinceTyped_ = false;
     waitingFirstOutput_ = true;
     sinceStart_.start();
     sinceOutput_.start();
@@ -147,7 +148,7 @@ bool TerminalDock::pictureReady() const
         return true;
     if (sinceStart_.isValid() && sinceStart_.elapsed() >= kPictureLimitMs)
         return true;
-    return typed_ && sinceOutput_.isValid() && sinceOutput_.elapsed() >= kQuietMs;
+    return typed_ && outputSinceTyped_ && sinceOutput_.isValid() && sinceOutput_.elapsed() >= kQuietMs;
 }
 
 // Builds the panel, the view and the session the first time the terminal is needed.
@@ -182,6 +183,8 @@ void TerminalDock::ensureCreated()
     connect(session_, &plynth::terminal::TerminalSession::finished, this, [this](int) { onFinished(); });
     connect(session_, &plynth::terminal::TerminalSession::outputReceived, this, [this]() {
         sinceOutput_.restart();
+        if (typed_)
+            outputSinceTyped_ = true;
         if (!waitingFirstOutput_)
             return;
         waitingFirstOutput_ = false;
@@ -189,6 +192,7 @@ void TerminalDock::ensureCreated()
             if (!pendingText_.isNull() && session_->isRunning()) {
                 session_->write((pendingText_ + QLatin1Char('\r')).toUtf8());
                 sinceOutput_.restart();
+                outputSinceTyped_ = false;
             }
             typed_ = true;
         });

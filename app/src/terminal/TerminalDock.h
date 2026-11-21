@@ -75,6 +75,7 @@ private:
 
     QString pendingText_;
     bool typed_ = false;
+    bool outputSinceTyped_ = false;
     bool waitingFirstOutput_ = false;
     QElapsedTimer sinceOutput_;
     QElapsedTimer sinceStart_;

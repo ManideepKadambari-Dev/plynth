@@ -126,7 +126,11 @@ int main(int argc, char* argv[])
 
     const bool wantsTerminal = parser.isSet(terminalOption);
     if (wantsTerminal) {
-        const QString text = parser.value(terminalOption);
+        // Extra words after the project folder belong to the text, in case the shell that
+        // started the app split a quoted argument into several.
+        QString text = parser.value(terminalOption);
+        for (qsizetype i = 1; i < positional.size(); ++i)
+            text += QLatin1Char(' ') + positional.at(i);
         QTimer::singleShot(0, &window, [&window, text]() { window.startTerminalCheck(text); });
     }
 
