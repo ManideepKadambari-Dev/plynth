@@ -48,7 +48,7 @@ public:
 
 const plynth::DetectorRegistrar fixedRegistrar(std::make_unique<FixedDetector>());
 
-// True when the image loader is the real one. Tests that run a detector need it to read the sample.
+// True when the image loader can read the sample. Tests that run a detector need it.
 bool loaderWorks() {
     return plynth::loadGrayImage(PLYNTH_SAMPLE_PLAN).status.ok();
 }
@@ -68,9 +68,7 @@ plynth::cli::testing::Outcome detectFixed(const Sample& sample, std::vector<std:
 }
 
 TEST_CASE("detect lists the proposals with the documented fields", "[cli][detect]") {
-    if (!loaderWorks()) {
-        SKIP("The image loader is not available yet.");
-    }
+    REQUIRE(loaderWorks());
     Sample sample("detect-shape");
     setScale(sample);
     const auto before = readFile(sample.folder / "plan.json");
@@ -132,9 +130,7 @@ TEST_CASE("detect lists the proposals with the documented fields", "[cli][detect
 }
 
 TEST_CASE("detect --apply adds the walls and rooms and a second apply changes nothing", "[cli][detect]") {
-    if (!loaderWorks()) {
-        SKIP("The image loader is not available yet.");
-    }
+    REQUIRE(loaderWorks());
     Sample sample("detect-apply");
     setScale(sample);
 
@@ -176,9 +172,7 @@ TEST_CASE("detect --apply adds the walls and rooms and a second apply changes no
 }
 
 TEST_CASE("a wall drawn by hand comes back existing and is not added twice", "[cli][detect]") {
-    if (!loaderWorks()) {
-        SKIP("The image loader is not available yet.");
-    }
+    REQUIRE(loaderWorks());
     Sample sample("detect-existing");
     setScale(sample);
     REQUIRE(sample.draw({"--from-x", "1", "--from-y", "1", "--to-x", "4", "--to-y", "1", "--thickness", "0.3"})
@@ -199,9 +193,7 @@ TEST_CASE("a wall drawn by hand comes back existing and is not added twice", "[c
 }
 
 TEST_CASE("detect --no-rooms and --no-openings leave them out", "[cli][detect]") {
-    if (!loaderWorks()) {
-        SKIP("The image loader is not available yet.");
-    }
+    REQUIRE(loaderWorks());
     Sample sample("detect-flags");
     setScale(sample);
 
@@ -282,9 +274,7 @@ TEST_CASE("detect refuses bad option values", "[cli][detect]") {
 }
 
 TEST_CASE("detect --apply is refused with locked while the app has the project open", "[cli][detect]") {
-    if (!loaderWorks()) {
-        SKIP("The image loader is not available yet.");
-    }
+    REQUIRE(loaderWorks());
     Sample sample("detect-locked");
     setScale(sample);
 
@@ -313,9 +303,8 @@ TEST_CASE("the detect command is listed by help", "[cli][help]") {
 }
 
 TEST_CASE("detect finds the walls, rooms and openings of apartment-01", "[cli][detect][sample]") {
-    if (plynth::findDetector("orthogonal") == nullptr) {
-        SKIP("The orthogonal detector is not built yet.");
-    }
+    REQUIRE(plynth::findDetector("orthogonal") != nullptr);
+    REQUIRE(loaderWorks());
     Sample sample("detect-sample");
     setScale(sample);
 
@@ -329,9 +318,8 @@ TEST_CASE("detect finds the walls, rooms and openings of apartment-01", "[cli][d
 }
 
 TEST_CASE("detect --apply on apartment-01 adds 16 walls and 5 rooms that match room find", "[cli][detect][sample]") {
-    if (plynth::findDetector("orthogonal") == nullptr) {
-        SKIP("The orthogonal detector is not built yet.");
-    }
+    REQUIRE(plynth::findDetector("orthogonal") != nullptr);
+    REQUIRE(loaderWorks());
     Sample sample("detect-sample-apply");
     setScale(sample);
 
