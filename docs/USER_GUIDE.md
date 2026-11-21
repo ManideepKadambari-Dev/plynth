@@ -1,8 +1,32 @@
 # User guide
 
-This covers what Plynth does today: opening a project, showing its plan image, setting the scale, drawing walls (straight and curved, with rounded corners), placing doors, windows and other openings, setting heights, finding walls and openings in the image automatically, making rooms, undo and redo, saving, the setup check, the library and assets catalog, working next to the command line, and the built-in terminal. More screens arrive in later releases.
+This covers what Plynth does today: the home screen, opening a project, showing its plan image, setting the scale, drawing walls (straight and curved, with rounded corners), placing doors, windows and other openings, setting heights, finding walls and openings in the image automatically, making rooms, placing furniture from the library, undo and redo, saving, the setup check, the library and assets catalog, working next to the command line, and the built-in terminal. More screens arrive in later releases.
 
-For keys see [Keyboard shortcuts](SHORTCUTS.md). For scripts see the [Command line guide](CLI_GUIDE.md). For Blender, the library folder and the first run see [Setting up Plynth](SETUP.md).
+New here? Start with [Getting started](GETTING_STARTED.md). For keys see [Keyboard shortcuts](SHORTCUTS.md). For scripts see the [Command line guide](CLI_GUIDE.md). For Blender, the library folder and the first run see [Setting up Plynth](SETUP.md).
+
+## The home screen
+
+The home screen is the first thing you see when Plynth starts without a project. It also shows when you close a project, and when you choose **File > Home** (Ctrl+Shift+H). On the very first run the setup check opens on top of it.
+
+**Recent projects** fill the right side. Each row shows a small picture of the plan, the project name, its folder and when you last opened it.
+
+- Click a row to open that project. If you have unsaved changes in the project that is open now, Plynth asks about them first.
+- **Show folder** opens the project folder in Explorer.
+- **Remove** takes the project off the list. Nothing on disk is deleted.
+- Type in **Search projects** to filter the list by name or folder.
+- A project whose folder is gone shows as **Missing**, in amber, with "Folder not found". It cannot be opened. Press **Remove** to clear it, or put the folder back and it opens again.
+
+Projects join the list when you open or save them in the app. The list keeps the last 30. It belongs to this computer and is kept in the settings file, not in the project. `plynth project recent` prints the same list for scripts.
+
+**The left side** has:
+
+- **New project**, **New project from plan image** and **Open project**, the same as the File menu.
+- **Help**: Getting started, User guide, Keyboard shortcuts and Command line guide. Each opens its page.
+- **Sample plans**: the sample plan images that come with Plynth. Click one to start a new project from it, a quick way to try the tools.
+- **Setup status**: "Setup is ready.", or in amber what needs attention, with a **Fix** button that opens the setup check. See [Setting up Plynth](SETUP.md).
+- **Projects folder**: the folder where new projects go. Click it to open it.
+
+When a project is open and you came here with File > Home, a **Back to** button returns to it. The project stays open behind the home screen and nothing is saved or closed.
 
 ## Projects
 
@@ -27,7 +51,9 @@ Two small files, `session.lock` and `app-state.json`, may also appear. They are 
 
 - **File > New project** (Ctrl+N) starts an empty, untitled project.
 - **File > New project from image** (Ctrl+Shift+N) starts an untitled project with a plan image already in place.
-- **File > Open project** (Ctrl+O) asks for a project folder.
+- **File > Open project** (Ctrl+O) asks for a project folder. You can also pick one from the recent list on the home screen.
+- **File > Close project** (Ctrl+W) closes the project and goes to the home screen. If there are unsaved changes it asks "Save changes to <name>?" first, with Save, Don't save and Cancel.
+- **File > Home** (Ctrl+Shift+H) goes to the home screen and keeps the project open behind it.
 
 You can also open a folder from a terminal: `plynth MyApartment`.
 
@@ -49,16 +75,17 @@ A strip of buttons sits at the left edge of the plan. The active tool is the one
 
 | Tool | Key | What it is for |
 |---|---|---|
-| Select | V | Pick points, walls, openings and rooms, drag points and openings, bend walls |
+| Select | V | Pick points, walls, openings, furniture and rooms, drag points, openings and furniture, bend walls |
 | Scale | S | Tell Plynth how long something on the image really is |
 | Wall | W | Draw walls |
 | Opening | O | Place doors, windows and other openings on walls |
 | Room | R | Turn a closed area into a room |
+| Furniture | P | Place furniture from the library |
 | Detect | D | Find walls, openings and rooms in the plan image for you |
 
 The status bar at the bottom shows the position of the cursor in metres and a short hint for the active tool. If a tool cannot do what you asked, the reason shows there in amber for a few seconds instead of in a dialog.
 
-The Scale tool needs a plan image. The Wall, Opening, Room and Detect tools also need a scale, because without one a click cannot be turned into metres. Until the scale is set, their buttons are greyed and their tooltips say "Set the scale first (S)". While the command line is editing the project, the Scale, Wall, Opening, Room and Detect tools are disabled and you can only select. You can still click to look at things.
+The Scale tool needs a plan image. The Wall, Opening, Room, Furniture and Detect tools also need a scale, because without one a click cannot be turned into metres. Until the scale is set, their buttons are greyed and their tooltips say "Set the scale first (S)". The Furniture tool also needs a library folder, and says "No library folder is set." without one. While the command line is editing the project, the Scale, Wall, Opening, Room, Furniture and Detect tools are disabled and you can only select. You can still click to look at things.
 
 ## Setting the scale
 
@@ -104,12 +131,13 @@ Every wall is one undo step, even when it also made new points or cut another wa
 
 Press V for the Select tool. It is the tool you start with.
 
-- Click a point, a wall, an opening or a room to select it. It turns amber, and the properties panel on the right shows it. Click on nothing, or press Esc, to clear the selection.
+- Click a point, a wall, an opening, a piece of furniture or a room to select it. It turns amber, and the properties panel on the right shows it. Click on nothing, or press Esc, to clear the selection.
 - Drag a point to move it. The walls at the point follow. The point snaps to the grid, and Shift keeps its move straight. It never snaps onto other points or walls. A whole drag is one undo step.
 - Drag an opening along its wall to move it. See "Openings".
+- Drag a piece of furniture to move it, or the round handle beyond its front edge to turn it. See "Editing furniture".
 - Drag the blue ring in the middle of a selected wall to bend it. See "Curved walls".
 
-**The properties panel.** With nothing selected, it shows the scale, the grid size and the ceiling height of the floor (change them and press Enter), and the number of points, walls and rooms. With a selection it shows:
+**The properties panel.** With nothing selected, it shows the scale, the grid size, the ceiling height of the floor and the wall item centre (change them and press Enter), and the number of points, walls and rooms. With a selection it shows:
 
 | Selected | What you see and can change |
 |---|---|
@@ -117,6 +145,7 @@ Press V for the Select tool. It is the tool you start with.
 | A wall | Its id, the two points, its length along the wall, its thickness, its bend with a Straighten button, its own height, and the number of openings on it |
 | An opening | Its id and wall, its type, shape, hinge and swing, its offset and sill, its width and height, and a Delete button |
 | A room | Its id, its type, its area, and the number of walls |
+| A piece of furniture | Its thumbnail, name and size, its position, turn and heights, the room or wall it is on, and buttons to swap or mount it. See "Editing furniture". |
 
 A number is only changed when you type in its box. Clicking into a box and leaving it never rounds the real value. Letters you type in a box go into the box and do not switch tools.
 
@@ -208,6 +237,7 @@ The wall view shows one wall face, front on and at true scale, so you can set he
 - The parts of the wall near its ends that openings cannot use are shaded.
 - Openings are cut out of the face and drawn in their real shape. The selected one is amber. An opening that does not fit is dashed amber.
 - For the selected opening the view writes its width by height, its sill, and its distance from the left end of the free part, in numbers.
+- Furniture that hangs on the face is drawn as its front box, with its name. See "Wall-mounted items".
 - A bent wall is shown unrolled along its curve. The note "Curved wall, shown unrolled" says so.
 - Zoom with the wheel, pan with the middle button, and press Home to fit the wall again.
 
@@ -219,6 +249,110 @@ The wall view shows one wall face, front on and at true scale, so you can set he
 - Every drag is one undo step. While a command line session is editing the project, the wall view is read only.
 
 The plan sets where an opening is along the floor, the wall view sets how high and how big. Both show the same plan, so a change in one appears at once in the other.
+
+## Placing furniture
+
+Furniture comes from the library, so import some models first. See "The assets catalog". You need a library folder, a plan image and a scale.
+
+1. Press **P**, or click the Furniture tool. The hint reads "Click to place furniture. Hover an asset to see it."
+2. Click on the plan where you want the item. A small amber cross marks the spot, and the picker opens next to it.
+3. In the picker, pick from the lists, left to right. Each list opens to the right of the one before, or to the left when the window edge is near.
+4. Click an asset. It is placed at the cross, selected, and the picker closes.
+
+Esc, or a click outside the picker, closes it and places nothing.
+
+**The picker** has three lists and a preview:
+
+- **Room types.** If you clicked inside a room that has a type, the picker starts at that room's categories, because a bedroom needs beds and not baths. A row at the top, **All room types**, goes back to the list of all types. If you clicked outside every room, or in a room with no type, it starts with the list of room types.
+- **Categories.** Each shows how many assets it holds. A category with none is greyed.
+- **Assets.** Each shows its name and its size in metres, for example `2.00 x 0.90 x 0.85 m`. An asset that is broken, or that has not been measured, is greyed and its tooltip says why. Use **Retry render** in the Assets tab to measure an asset that says "not measured".
+
+**The hover preview.** Point at an asset without clicking. A panel beside the list shows its thumbnail, its name, its real size, its categories and its license. At the same time the item's footprint is drawn on the plan at the cross, at its true size. The footprint is drawn in amber when the item would have a problem there. See "Furniture warnings". The thumbnail is always a real picture. While one is still being drawn, the panel says "Rendering", and when it failed, "Render failed".
+
+**Dragging from the Assets tab.** You can skip the picker. Drag a tile from the Assets tab and drop it on the plan. The item is placed where you drop it, snapped like a drag. Hold Ctrl while you drop to place it freely. Drop it on the wall view to hang it on the wall face. An asset that is broken or not measured cannot be dragged. It works with any tool active.
+
+You can place the same asset as many times as you like. Each item has its own id, `i1`, `i2` and so on. One undo removes the last item.
+
+## Editing furniture
+
+On the plan, an item is drawn as its footprint: a rectangle at true size and true turn, filled softly, with a short tick on its **front** edge. The name is written inside when it fits at the zoom you have. Click an item with the Select tool to select it. It turns amber and shows a round handle beyond its front edge.
+
+**Moving.** Drag the item. The whole drag is one undo step. The item is snapped as you drag:
+
+1. Its centre goes to the grid, when Snap to grid (G) is on.
+2. Then each side of its footprint that runs along a wall, and is close to the wall face, slides flush against it. Near a corner it touches both walls, so a sofa slides into the corner.
+
+Hold **Ctrl** to move freely with no snapping. The snap distance is about 10 screen pixels, the same as for walls.
+
+**Turning.** Drag the round handle. The item turns about its centre in steps of 15 degrees. Hold **Shift** to turn freely. The keys **]** and **[** turn the selected item 90 degrees clockwise and counterclockwise, and so do the **Turn right** and **Turn left** buttons in the Properties panel and the Edit menu. Turning is clockwise on the plan. At 0 degrees the front faces down the plan. Each drag, and each key press, is one undo step. A wall item cannot be turned, because it faces away from its wall. Take it off the wall first.
+
+**The Properties panel** for an item shows:
+
+| What | Meaning |
+|---|---|
+| Thumbnail, name | The asset, with its id in mono type below. |
+| Size | Width, depth and height from the asset. |
+| X and Y | The centre of the item on the plan, in metres. Floor items only. |
+| Rotation | In degrees. Floor items only, with the Turn left and Turn right buttons. |
+| Bottom height | How far the bottom is above the floor. 0 for something on the floor. |
+| Centre height | How far the middle is above the floor. It edits the same value as the bottom height. |
+| Room | The room it stands in. Read only. It follows the item when you move it. |
+| Wall | For a wall item, its wall, and **Take off wall**. For a floor item, **Mount on wall**. |
+| Swap asset... | Pick another asset, see below. |
+| Delete | Remove the item. |
+
+Change a number and press Enter. Each box is one undo step per visit.
+
+**Swapping.** Press **Swap asset...** (or Edit > Swap item asset...). The picker opens at the item, starting at its room's categories. Pick another asset. The new one takes the item's place, turn, id and room. Its size is the new asset's size. A wall item stays flat on its wall and keeps the height of its centre. Esc cancels. Swapping works for a missing asset too, and is how you fix one.
+
+**Deleting.** Select the item and press Delete or Backspace, or use Edit > Delete or the Delete button. One undo brings it back. Deleting a room does not delete the furniture in it. The items stay and show no room. Adding a room gives it the items that stand inside it and have none, so rooms found by detection pick up their furniture. Deleting a wall does not delete the wall items on it either. They stay where they were, as floor items. See "Deleting".
+
+## Wall-mounted items
+
+Some things hang on a wall: a TV, a picture, a shelf. A wall item stands flat against the face of its wall, facing away from it. On the plan it is a thin rectangle on the wall face, with a line on its back edge.
+
+**Putting one on a wall.**
+
+- In the **wall view**, press P and click on the wall face. The picker opens. Pick an asset and it is hung at the place you clicked, with its centre at the **wall item centre**.
+- Or drag an asset tile from the Assets tab onto the wall view.
+- Or place it as any item, drag it close to a wall, select it and press **Mount on wall** in the Properties panel (or Edit > Mount item on wall). It goes on the nearest wall within about 30 cm. If no wall is near, the status bar says "No wall is near this item. Move it next to a wall first." The face is the side the item is on.
+- **Take off wall** reverses it. The item keeps its place, turn and height, and becomes a floor item.
+
+Nothing is mounted by itself. A TV can stand on a cabinet as a floor item, with its bottom height set to the cabinet's height.
+
+**The wall item centre.** A new wall item is hung with the middle of the item at 1.2 m above the floor, so a TV is at a natural height. The number is in the Properties panel when nothing is selected, as **Wall item centre**. It is saved with the project. Changing it does not move items already placed. A value at or above the ceiling height is refused.
+
+**Plan view sets the place, wall view sets the height.** In the plan, dragging a wall item slides it along its wall and keeps it flat. In the wall view the item is drawn as its front box on the wall face. Drag it up and down and along the wall. It snaps to 5 cm, and Ctrl moves it freely. While you drag, a dashed line shows the wall item centre height. Centre height in the Properties panel follows as you drag.
+
+A wall item has to fit its wall. It is refused when its top would be above the wall or when it is wider than the wall. A wall item is also checked against openings: hanging a TV across a window is a warning.
+
+**When walls move.** Wall items do not follow when you move a wall point. A wall item that is no longer on its wall face shows the warning "off wall". Drag it once, or press Mount on wall again, and it is put flat against the wall. Cutting a wall in two with a T junction moves the items past the cut to the new part.
+
+## Furniture warnings
+
+Plynth tells you about problems with furniture, but does not stop you. Real rooms have a rug under a table and a sofa against a radiator, and a drag that kept refusing would feel stuck. A problem draws the item's outline dashed in amber, and the Properties panel lists it in a sentence.
+
+| Warning | What it means |
+|---|---|
+| Not in any room | The middle of the item is outside every room. |
+| Outside its room | Part of the footprint sticks out of its room. |
+| Overlaps another item | Two items occupy the same space. Items stacked at different heights, like a TV above a cabinet, are fine. |
+| Overlaps a wall | A floor item is inside a wall. Move it out. |
+| Overlaps an opening | A wall item hangs across a door or window. |
+| Off its wall | A wall item is no longer flat against its wall. |
+| Too tall | The item reaches above the ceiling, or a wall item above its wall. |
+| Missing asset | The asset is not in the library. See below. |
+| Size in library differs | The asset's size in the library is not the size stored in the item. See below. |
+
+What is **refused**, with a message in the status bar, is a change that cannot be right: an asset that is broken or not measured, a wall item that would reach past its wall, a turn of a wall item. Nothing changes then. A script can choose to be stopped by warnings too, with `--strict`. See the [Command line guide](CLI_GUIDE.md).
+
+## Missing assets
+
+An item remembers its asset's id and its size. If you remove the asset from the library, or open the project on a computer with another library, the item is not lost. It keeps everything and is saved unchanged. It is drawn with a dashed amber outline, at its stored size, with the words "Missing asset" and its id. You can still move it, turn it, swap it and delete it.
+
+To fix it, put the asset back in the library, or select the item and use **Swap asset...** to pick another one. Without a library open, Plynth cannot tell which assets are missing, so it does not show the state.
+
+**Size in library differs.** Items store the size their asset had when you placed them. If you measure the asset again and it comes out different, for example after changing the model in Blender, the item keeps its old size and says "Size in library differs". Press **Update size** in the Properties panel (or Edit > Update item size) to take the new size. Nothing changes silently.
 
 ## Heights
 
@@ -292,10 +426,11 @@ Select something and press Delete or Backspace, use Edit > Delete, or use the De
 
 Delete takes with it whatever cannot stay without the thing you deleted:
 
-- Deleting a point deletes the walls that end at it, the openings on those walls, and the rooms that use those walls.
-- Deleting a wall deletes the openings on it and the rooms that use it.
+- Deleting a point deletes the walls that end at it, the openings on those walls, and the rooms that use those walls. Wall items on those walls stay where they are.
+- Deleting a wall deletes the openings on it and the rooms that use it. Wall items on it are taken off the wall and stay where they are.
 - Deleting an opening deletes only the opening.
-- Deleting a room deletes only the room. Its walls stay.
+- Deleting a room deletes only the room. Its walls stay, and so does the furniture in it.
+- Deleting a piece of furniture deletes only that item.
 - A point left with no wall because of a delete goes too, so no stray dots stay behind. A point you placed on its own is only removed when you select it.
 
 
@@ -315,7 +450,7 @@ A save writes each file to a temporary name first and then renames it, so a cras
 
 ### Older projects
 
-Projects made with earlier versions of Plynth open as they are and upgrade by themselves. Nothing is asked and nothing is lost: doors and windows you already had get a hinge on the start of the wall and a swing to the right, and the project gets the default sizes. The files are written in the new format the next time you save. A project saved by this version cannot be opened by an older version of Plynth, so keep a copy if you still need that.
+Projects made with earlier versions of Plynth open as they are and upgrade by themselves. Nothing is asked and nothing is lost: doors and windows you already had get a hinge on the start of the wall and a swing to the right, the project gets the default sizes, every floor starts with no furniture, and the wall item centre is 1.2 m. The files are written in the new format the next time you save. A project saved by this version cannot be opened by an older version of Plynth, so keep a copy if you still need that.
 
 ### Autosave and recovery
 
@@ -343,7 +478,9 @@ At the top of the Assets tab:
 - **Room.** "All rooms", or one kind of room. Only assets in categories that belong in that room are shown. A living room shows sofas and lamps, a bathroom shows baths and mirrors.
 - **Category.** "All categories", "Uncategorized" (assets you have not sorted yet), or one category. After you pick a room, the list holds only that room's categories.
 
-Under the controls, a count says how many assets match. Each tile shows the thumbnail, the name, and the size in metres as width x depth x height, for example `0.45 x 0.50 x 0.90 m`.
+Under the controls, a count says how many assets match. Each tile shows the thumbnail, the name, and the size in metres as width x depth x height, for example `0.45 x 0.50 x 0.90 m`. An asset that has not been measured yet reads "not measured" instead of a size. It cannot be placed until you press **Retry render**, which measures it.
+
+**Drag a tile onto the plan, or onto the wall view, to place the asset.** See "Placing furniture".
 
 A tile can say something other than a picture:
 
@@ -450,7 +587,7 @@ A script or a coding assistant can edit the project while Plynth has it open. To
 
 - A banner under the title bar says "Being edited from the command line by <name>. Changes appear here as they are saved."
 - The plan is dimmed. Undo, Redo, Save, Save as and Set plan image are disabled. New project and Open project still work.
-- The Scale, Wall, Opening and Room tools, Delete, dragging in the plan and the wall view, and every box in the properties panel are disabled. You can still click to select and look.
+- The Scale, Wall, Opening, Room and Furniture tools, Delete, dragging in the plan and the wall view, and every box in the properties panel are disabled. You can still click to select and look.
 - Changes appear on screen within a second, with the zoom and position unchanged.
 - When the session ends, or after 5 minutes without a command, the plan reloads once and becomes editable again.
 

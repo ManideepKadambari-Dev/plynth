@@ -8,13 +8,17 @@ Every action with a shortcut is also in the menu, where the shortcut is shown ne
 |---|---|
 | Ctrl+N | New project |
 | Ctrl+Shift+N | New project from an image |
+| Ctrl+Shift+H | Home: show the home screen. The open project stays open behind it |
 | Ctrl+O | Open a project folder |
+| Ctrl+W | Close the project and go to the home screen |
 | Ctrl+Shift+O | Set the plan image of the current floor |
 | Ctrl+S | Save |
 | Ctrl+Shift+S | Save as, into another folder |
 | Alt+F4 | Exit Plynth |
 
 Ctrl+O used to open a plan image. It now opens a project. Use Ctrl+Shift+O, or drop an image on the window, to set the plan image.
+
+Ctrl+W asks "Save changes to <name>?" when there are unsaved changes. The home screen lists your recent projects, and Ctrl+N, Ctrl+Shift+N and Ctrl+O work there too.
 
 Setting the plan image can be undone. A new project from an image starts with the image already in place.
 
@@ -32,15 +36,28 @@ Setting the plan image can be undone. A new project from an image starts with th
 | W | Wall tool |
 | O | Opening tool |
 | R | Room tool |
+| P | Furniture tool, to place furniture |
 | D | Detect tool |
+| ] | Turn the selected item 90 degrees clockwise |
+| [ | Turn the selected item 90 degrees counterclockwise |
 | Enter | Accept the proposed walls, openings and rooms, while the Detect tool is active |
-| Delete or Backspace | Delete the selected point, wall, opening or room, and what depends on it |
+| Delete or Backspace | Delete the selected point, wall, opening, item or room, and what depends on it |
+
+These Edit menu items have no key. They work on the selected item, and are greyed when they do not apply:
+
+| Menu item | What it does |
+|---|---|
+| Turn item left, Turn item right | The same as `[` and `]` |
+| Mount item on wall | Hang a floor item flat on the nearest wall |
+| Take item off wall | Make a wall item a floor item again. It stays where it is |
+| Swap item asset... | Pick another asset for the item |
+| Update item size | Take the size the library has now for the item's asset |
 
 The menu shows the name of the change, for example "Undo Set plan image". The items are greyed when there is nothing to undo or redo, and while the command line is editing the project.
 
 The tool keys work when the canvas has focus. While you type in a box in the properties panel, or in the terminal, a letter is typed into it and does not switch tools, and Delete and Backspace edit the text instead of deleting a plan item.
 
-The Scale tool needs a plan image. The Wall, Opening, Room and Detect tools also need a scale, and the tooltip then says "Set the scale first (S)". While the command line is editing the project, the tools are disabled and the Select tool is used.
+The Scale tool needs a plan image. The Wall, Opening, Room, Furniture and Detect tools also need a scale, and the tooltip then says "Set the scale first (S)". The Furniture tool needs a library folder too. While the command line is editing the project, the tools are disabled and the Select tool is used.
 
 ## View
 
@@ -80,9 +97,11 @@ These keys and clicks work with the tools. The Select tool is the default.
 
 | Key or click | Tool | What it does |
 |---|---|---|
-| Left click | Select | Select the point, wall or room under the cursor. Click on nothing to clear the selection. |
+| Left click | Select | Select the point, opening, item, wall or room under the cursor. Click on nothing to clear the selection. |
 | Left button and drag on a point | Select | Move the point. The whole drag is one undo step. |
 | Left button and drag on an opening | Select | Move the opening along its wall. It snaps to 5 cm. Ctrl moves it freely. |
+| Left button and drag on an item | Select | Move the item. It snaps to the grid and flush against wall faces. Ctrl moves it freely. On a wall item it slides along its wall. The whole drag is one undo step. |
+| Left button and drag on the round handle of a selected item | Select | Turn the item in steps of 15 degrees. Shift turns it freely. |
 | Left button and drag on the blue ring of a selected wall | Select | Bend the wall. It snaps to straight near the middle and rounds to 1 cm. |
 | Esc | Select | Clear the selection |
 | Left click | Wall | Place a point and, after the first one, draw a wall to it. The next wall starts where the last one ended. |
@@ -95,6 +114,8 @@ These keys and clicks work with the tools. The Select tool is the default.
 | Left click | Room | Make a room inside a closed area, or change the type of the room you click |
 | Left click on a wall | Opening | Add an opening where the amber outline is. |
 | Ctrl | Opening | Place freely instead of in steps of 5 cm. Hold it while you move and click. |
+| Left click | Furniture | Mark a place and open the picker there. Pick an asset to place it. |
+| Esc or click outside the picker | Furniture | Close the picker and place nothing |
 | Enter | Detect | Accept the proposals as one undo step. Ctrl+Z takes them away again. |
 
 Shift has no effect on a wall that starts a chain, because there is no earlier point to keep straight from. Snapping to existing points always wins, so you can still close a loop while Shift is held. Ctrl needs to be held when you click, and Alt is not used because Windows gives it to the menu bar.
@@ -112,8 +133,11 @@ The wall view appears under the plan when a wall or an opening is selected. It h
 | Left button and drag on an opening | Move it along the wall and up or down. It snaps to 5 cm. |
 | Shift while dragging an opening | Keep the move in one direction only, along or up, whichever you drag further. |
 | Ctrl while dragging | Move or resize freely, with no snapping. |
+| Left button and drag on an item | Move a wall item up and down and along the wall. It snaps to 5 cm. Ctrl moves it freely. |
 | Left button and drag on a handle | Resize the selected opening. There are eight handles. The opposite edges stay put. |
 | Left click on the wall face, with the Opening tool | Add an opening at that place, at the default sill. |
+| Left click on the wall face, with the Furniture tool | Open the picker. The asset you pick hangs there, with its centre at the wall item centre. |
+| Drop an asset tile from the Assets tab | Hang that asset at the place you drop it |
 | Mouse wheel | Zoom at the cursor |
 | Middle button and drag | Pan |
 | Home | Fit the wall in the view again |
@@ -146,6 +170,7 @@ With the mouse, drag to select text. The wheel scrolls back through the last 500
 | Middle button and drag | Pan the plan |
 | Hold Space, then left button and drag | Pan the plan |
 | Drop an image file on the window | Set it as the plan image of the current floor |
+| Drag an asset tile from the Assets tab and drop it on the plan | Place the asset there. Ctrl places it freely. |
 
 While Space is held, the cursor becomes an open hand. It closes while you drag.
 
