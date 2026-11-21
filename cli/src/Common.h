@@ -78,6 +78,10 @@ Json wallEntry(const Floor& floor, const Wall& wall);
 // The floor entry shared by the floor commands: id, name, image and ceiling height.
 Json floorEntry(const Floor& floor);
 
+// The opening entry shared by the opening commands: wall, offset, type, shape, size, sill, hinge, swing, frame,
+// centre on the plan, whether it fits its wall and the reason when it does not.
+Json openingEntry(const Floor& floor, const Opening& opening);
+
 // The room entry shared by the room commands: type, type name, walls, whether it is closed, area and label spot.
 Json roomEntry(const Floor& floor, const Room& room);
 

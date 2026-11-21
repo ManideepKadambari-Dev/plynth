@@ -11,17 +11,11 @@ using Catch::Matchers::WithinAbs;
 
 namespace {
 
-// Draws the 4 m by 4 m square p1 (1, 3), p2 (5, 3), p3 (5, 7), p4 (1, 7) with walls w1 to w4 and a living room
-// in it, on a project with the scale set to 100 pixels per metre.
+// Draws the room square and checks its area.
 void drawRoomSquare(const Sample& sample) {
-    REQUIRE(sample.run({"scale", "set", "--pixels-per-metre", "100"}).exitCode == kExitOk);
-    REQUIRE(sample.draw({"--from-x", "1", "--from-y", "3", "--to-x", "5", "--to-y", "3"}).exitCode == kExitOk);
-    REQUIRE(sample.draw({"--from", "p2", "--to-x", "5", "--to-y", "7"}).exitCode == kExitOk);
-    REQUIRE(sample.draw({"--from", "p3", "--to-x", "1", "--to-y", "7"}).exitCode == kExitOk);
-    REQUIRE(sample.draw({"--from", "p4", "--to", "p1"}).exitCode == kExitOk);
-    const auto room = sample.run({"room", "add", "--x", "3", "--y", "5", "--type", "living"});
-    REQUIRE(room.exitCode == kExitOk);
-    CHECK_THAT(room.answer.at("result").at("area").get<double>(), WithinAbs(14.44, 1e-3));
+    sample.drawRoomSquare();
+    const auto rooms = sample.run({"room", "list"});
+    CHECK_THAT(rooms.answer.at("result").at("rooms").at(0).at("area").get<double>(), WithinAbs(14.44, 1e-3));
 }
 
 }

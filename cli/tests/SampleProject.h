@@ -67,6 +67,17 @@ struct Sample {
         REQUIRE(draw({"--from", "p4", "--to", "p1"}).exitCode == kExitOk);
     }
 
+    // Sets the scale to 100 pixels per metre and draws the square p1 (1, 3), p2 (5, 3), p3 (5, 7), p4 (1, 7)
+    // with walls w1 to w4, plus a living room in it of area 14.44.
+    void drawRoomSquare() const {
+        REQUIRE(run({"scale", "set", "--pixels-per-metre", "100"}).exitCode == kExitOk);
+        REQUIRE(draw({"--from-x", "1", "--from-y", "3", "--to-x", "5", "--to-y", "3"}).exitCode == kExitOk);
+        REQUIRE(draw({"--from", "p2", "--to-x", "5", "--to-y", "7"}).exitCode == kExitOk);
+        REQUIRE(draw({"--from", "p3", "--to-x", "1", "--to-y", "7"}).exitCode == kExitOk);
+        REQUIRE(draw({"--from", "p4", "--to", "p1"}).exitCode == kExitOk);
+        REQUIRE(run({"room", "add", "--x", "3", "--y", "5", "--type", "living"}).exitCode == kExitOk);
+    }
+
     TempFolder temp;
     std::filesystem::path folder;
     std::string project;

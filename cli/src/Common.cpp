@@ -4,6 +4,7 @@
 #include <plynth/core/ProjectFiles.h>
 #include <plynth/core/Geometry.h>
 #include <plynth/core/WallGeometry.h>
+#include <plynth/core/Openings.h>
 #include <plynth/core/commands/DeleteCommands.h>
 #include <plynth/core/ProjectJson.h>
 
@@ -207,6 +208,39 @@ Json wallEntry(const Floor& floor, const Wall& wall) {
     entry["height_used"] = wallHeight(floor, wall);
     entry["rooms"] = std::move(rooms);
     entry["openings"] = std::move(onWall);
+    return entry;
+}
+
+Json openingEntry(const Floor& floor, const Opening& opening) {
+    const Status fit = checkOpeningFit(floor, opening);
+    const OpeningPlacement placement = openingPlacement(floor, opening);
+    Json centre = Json::object();
+    centre["x"] = placement.centre.x;
+    centre["y"] = placement.centre.y;
+    Json entry = Json::object();
+    entry["id"] = opening.id;
+    entry["floor"] = floor.id;
+    entry["wall"] = opening.wall;
+    entry["offset"] = opening.offset;
+    entry["type"] = std::string(openingTypeName(opening.type));
+    entry["shape"] = opening.shape;
+    entry["width"] = opening.width;
+    entry["height"] = opening.height;
+    entry["sill"] = opening.sill;
+    entry["hinge"] = std::string(hingeEndName(opening.hinge));
+    entry["swing"] = std::string(wallSideName(opening.swing));
+    if (opening.frame) {
+        entry["frame"] = *opening.frame;
+    } else {
+        entry["frame"] = nullptr;
+    }
+    entry["centre"] = std::move(centre);
+    entry["fits"] = fit.ok();
+    if (fit.ok()) {
+        entry["problem"] = nullptr;
+    } else {
+        entry["problem"] = fit.message;
+    }
     return entry;
 }
 
