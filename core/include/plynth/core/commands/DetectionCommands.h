@@ -53,7 +53,7 @@ public:
     std::string name() const override;
     Status apply(Project& project) override;
     void undo(Project& project) override;
-    // Points, Walls, Rooms and Openings.
+    // Points, Walls, Rooms, Openings and Items (new rooms are given to the items inside them).
     unsigned changes() const override;
     Id floorId() const override;
 

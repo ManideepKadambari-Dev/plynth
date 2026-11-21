@@ -43,7 +43,7 @@ struct SnapResult {
 SnapResult snapPosition(const Floor& floor, Vec2 position, const SnapOptions& options);
 
 // What is under a position.
-enum class PickKind { None, Point, Wall, Room, Opening };
+enum class PickKind { None, Point, Wall, Room, Opening, Item };
 
 struct Pick {
     PickKind kind = PickKind::None;
@@ -53,8 +53,9 @@ struct Pick {
 };
 
 // Finds what a click at a position means: the nearest point within radius, else an opening whose
-// footprint (OpeningPlacement::footprint in Openings.h) is within radius of the position, else the nearest
-// wall whose band (wallBand in WallGeometry.h) is within radius of the position, else the room whose area
+// footprint (OpeningPlacement::footprint in Openings.h) is within radius of the position, else an item whose
+// footprint (itemFootprint in Items.h) holds the position or is within radius of it (the one drawn on top,
+// that is the last in the floor's list, when several do), else the nearest wall whose band (wallBand in WallGeometry.h) is within radius of the position, else the room whose area
 // holds it (see roomAt in Rooms.h), else nothing. radius is in metres; the app turns its pixel radius into
 // metres.
 Pick pickAt(const Floor& floor, Vec2 position, double radius);

@@ -35,7 +35,8 @@ private:
     Wall wall_;
 };
 
-// Removes a wall. NotFound for an unknown wall, InUse while a room lists it or an opening sits on it.
+// Removes a wall. NotFound for an unknown wall, InUse while a room lists it, an opening sits on it or an item
+// is mounted on it.
 // Undo puts it back at the same place in the list.
 class RemoveWallCommand : public Command {
 public:
@@ -85,7 +86,8 @@ private:
 // signed sagitta of its own sweep, radius * (1 - cos(sweep / 2)). Rooms that list the wall get
 // the new wall listed next to it so the ring stays in order: right after it when the ring runs along the
 // wall from its from point to its to point, right before it when the ring runs the other way.
-// Openings past the split move to the new wall with their offset reduced.
+// Openings past the split move to the new wall with their offset reduced. Wall items whose centre is past the
+// split (wallItemSpot offset) move to the new wall; their position does not change.
 // NotFound for an unknown wall. InvalidValue when the offset is not finite or not at least kMinSplitDistance
 // from both ends. InUse when an opening covers the split place.
 class SplitWallCommand : public Command {
@@ -99,7 +101,7 @@ public:
     std::string name() const override;
     Status apply(Project& project) override;
     void undo(Project& project) override;
-    // Points, Walls, Rooms and Openings.
+    // Points, Walls, Rooms, Openings and Items.
     unsigned changes() const override;
     Id floorId() const override;
 
@@ -202,7 +204,7 @@ public:
     std::string name() const override;
     Status apply(Project& project) override;
     void undo(Project& project) override;
-    // Points, Walls, Rooms and Openings.
+    // Points, Walls, Rooms, Openings and Items.
     unsigned changes() const override;
     Id floorId() const override;
 

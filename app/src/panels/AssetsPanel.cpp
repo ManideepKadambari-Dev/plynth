@@ -1,6 +1,7 @@
 #include "AssetsPanel.h"
 
 #include "catalog/LibraryHost.h"
+#include "furniture/AssetPreview.h"
 #include "theme/Theme.h"
 
 #include <plynth/core/RoomTypes.h>
@@ -8,6 +9,7 @@
 
 #include <QComboBox>
 #include <QDesktopServices>
+#include <QDrag>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QFileInfo>
@@ -23,6 +25,7 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QStandardItemModel>
@@ -56,14 +59,27 @@ std::string toCore(const QString& text)
     return text.toStdString();
 }
 
-// The size of an asset as "0.45 x 0.50 x 0.90 m".
-QString sizeText(const plynth::AssetSize& size)
-{
-    return QStringLiteral("%1 x %2 x %3 m")
-        .arg(size.width, 0, 'f', 2)
-        .arg(size.depth, 0, 'f', 2)
-        .arg(size.height, 0, 'f', 2);
-}
+// The MIME type of a dragged asset tile. It holds the asset id as plain bytes.
+const QString kAssetMime = QStringLiteral("application/x-plynth-asset");
+
+// A model that hands the asset id to a drag, so the plan and the wall view can place it.
+class AssetModel : public QStandardItemModel {
+public:
+    using QStandardItemModel::QStandardItemModel;
+
+    // The one type a tile drag carries.
+    QStringList mimeTypes() const override { return {kAssetMime}; }
+
+    // Packs the id of the first dragged tile.
+    QMimeData* mimeData(const QModelIndexList& indexes) const override
+    {
+        if (indexes.isEmpty())
+            return nullptr;
+        auto* data = new QMimeData();
+        data->setData(kAssetMime, indexes.first().data(kIdRole).toString().toUtf8());
+        return data;
+    }
+};
 
 // Loads an image file scaled to fit a square, keeping its shape. Null when the file cannot be read.
 QPixmap loadScaled(const QString& file, int side, qreal ratio)
@@ -195,7 +211,7 @@ AssetsPanel::AssetsPanel(LibraryHost& host, QWidget* parent) : QWidget(parent), 
     countLabel_->setToolTip(tr("How many assets match the search and the filters"));
     topLayout_->addWidget(countLabel_);
 
-    model_ = new QStandardItemModel(this);
+    model_ = new AssetModel(this);
     grid_ = new QListView(top_);
     grid_->setModel(model_);
     grid_->setViewMode(QListView::IconMode);
@@ -205,6 +221,9 @@ AssetsPanel::AssetsPanel(LibraryHost& host, QWidget* parent) : QWidget(parent), 
     grid_->setWrapping(true);
     grid_->setSpacing(t.unit());
     grid_->setSelectionMode(QAbstractItemView::SingleSelection);
+    grid_->setDragEnabled(true);
+    grid_->setDragDropMode(QAbstractItemView::DragOnly);
+    grid_->setDefaultDropAction(Qt::CopyAction);
     grid_->setEditTriggers(QAbstractItemView::NoEditTriggers);
     grid_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     grid_->setFrameShape(QFrame::NoFrame);
@@ -315,7 +334,7 @@ void AssetsPanel::buildDetails()
     detailsScroll_->setStyleSheet(QStringLiteral("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; }"));
     auto* body = new QWidget();
     auto* box = new QVBoxLayout(body);
-    box->setContentsMargins(0, t.unit() * 2, t.unit() * 2, 0);
+    box->setContentsMargins(0, t.unit() * 2, t.unit() * 4, 0);
     box->setSpacing(t.unit() * 2);
 
     thumb_ = new QLabel(body);
@@ -375,6 +394,7 @@ void AssetsPanel::buildDetails()
     categories_->setFont(t.uiFont(t.sizeNormal()));
     categories_->setStyle(t.controlStyle());
     categories_->setFixedHeight(t.unit() * 40);
+    categories_->setStyleSheet(t.scrollBarStyleSheet());
     categories_->setToolTip(tr("Tick every category the asset belongs to"));
     categories_->setProperty("tourId", QStringLiteral("catalog-categories"));
     box->addWidget(categories_);
@@ -552,7 +572,7 @@ void AssetsPanel::fillGrid()
     for (const plynth::AssetRecord& record : found) {
         auto* item = new QStandardItem(fromCore(record.name));
         item->setData(fromCore(record.id), kIdRole);
-        item->setData(sizeText(record.size), kSizeRole);
+        item->setData(AssetPreview::sizeText(record.size), kSizeRole);
         item->setToolTip(tr("%1. Click to see and edit its details").arg(fromCore(record.name)));
         QString state;
         QColor color = t.muted();
@@ -575,7 +595,17 @@ void AssetsPanel::fillGrid()
         }
         item->setData(state, kStateRole);
         item->setData(color, kStateColorRole);
-        item->setFlags(item->flags() & ~Qt::ItemIsDragEnabled);
+        const bool placeable = record.state != plynth::AssetState::Broken && plynth::isMeasured(record.size);
+        if (placeable) {
+            item->setFlags(item->flags() | Qt::ItemIsDragEnabled);
+            item->setToolTip(tr("%1. Click to see and edit its details. Drag it onto the plan to place it")
+                                 .arg(fromCore(record.name)));
+        } else {
+            item->setFlags(item->flags() & ~Qt::ItemIsDragEnabled);
+            if (record.state != plynth::AssetState::Broken)
+                item->setToolTip(tr("%1 is not measured yet, so it cannot be placed. Use Retry render in the details")
+                                     .arg(fromCore(record.name)));
+        }
         model_->appendRow(item);
     }
     countLabel_->setText(found.size() == 1 ? tr("1 asset") : tr("%1 assets").arg(found.size()));
@@ -648,7 +678,7 @@ void AssetsPanel::showDetails()
     }
     name_->setText(fromCore(record.name));
     idLabel_->setText(fromCore(record.id));
-    sizeLabel_->setText(sizeText(record.size));
+    sizeLabel_->setText(AssetPreview::sizeText(record.size));
     trianglesLabel_->setText(tr("%1 triangles").arg(record.triangles));
     sourceLabel_->setText(fromCore(record.sourceKind) +
                           (record.sourceReference.empty() ? QString() : QStringLiteral(": ") + fromCore(record.sourceReference)));
@@ -666,6 +696,9 @@ void AssetsPanel::showDetails()
         const bool on = std::find(record.categories.begin(), record.categories.end(), entry.id) != record.categories.end();
         item->setCheckState(on ? Qt::Checked : Qt::Unchecked);
     }
+    // Ending on half a row tells the user that the list scrolls.
+    if (categories_->count() > 9 && categories_->sizeHintForRow(0) > 0)
+        categories_->setFixedHeight(static_cast<int>(categories_->sizeHintForRow(0) * 9.5) + 4);
     QStringList tags;
     for (const std::string& tag : record.tags)
         tags << fromCore(tag);

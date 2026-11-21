@@ -65,7 +65,7 @@ TEST_CASE("AddRoomCommand", "[core][command][room]") {
         const auto area = findClosedAreaAt(p.plan.floors[0], {1.5, 2.0});
         REQUIRE(area);
         REQUIRE(r->walls == area->walls);
-        REQUIRE(c.changes() == Change::Rooms);
+        REQUIRE(c.changes() == (Change::Rooms | Change::Items));
         REQUIRE(c.floorId() == "f1");
     }
     SECTION("works without a type") {
@@ -133,7 +133,7 @@ TEST_CASE("RemoveRoomCommand", "[core][command][room]") {
         c.undo(p);
         REQUIRE(p.plan.floors[0].rooms[0].id == "r1");
         REQUIRE(p.plan.floors[0].rooms[1].id == "r2");
-        REQUIRE(c.changes() == Change::Rooms);
+        REQUIRE(c.changes() == (Change::Rooms | Change::Items));
         REQUIRE(c.floorId() == "f1");
     }
     SECTION("unknown room") {

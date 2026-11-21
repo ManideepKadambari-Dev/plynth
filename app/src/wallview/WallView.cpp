@@ -7,6 +7,7 @@
 #include "wallview/WallViewData.h"
 
 #include <plynth/core/Document.h>
+#include <plynth/core/Items.h>
 #include <plynth/core/WallGeometry.h>
 
 #include <QHBoxLayout>
@@ -108,6 +109,7 @@ void WallView::refresh()
     const plynth::Floor* floor = controller_.floor();
     const plynth::Wall* wall = nullptr;
     QString selectedOpening;
+    QString selectedItem;
     if (floor != nullptr) {
         const std::string id = selection_.id().toStdString();
         if (selection_.kind() == SelectionKind::Wall) {
@@ -116,6 +118,19 @@ void WallView::refresh()
             if (const plynth::Opening* opening = plynth::findOpening(*floor, id)) {
                 wall = plynth::findWall(*floor, opening->wall);
                 selectedOpening = selection_.id();
+            }
+        } else if (selection_.kind() == SelectionKind::Item) {
+            if (const plynth::Item* item = plynth::findItem(*floor, id)) {
+                if (item->wall)
+                    wall = plynth::findWall(*floor, *item->wall);
+                selectedItem = selection_.id();
+                if (wall != nullptr && wall->id != sideWall_) {
+                    const plynth::WallItemSpot spot = plynth::wallItemSpot(*floor, *item);
+                    if (spot.valid) {
+                        sideWall_ = wall->id;
+                        side_ = spot.side;
+                    }
+                }
             }
         }
     }
@@ -137,7 +152,8 @@ void WallView::refresh()
                                        plynth::Vec2{selection_.clickAt()->x(), selection_.clickAt()->y()});
     }
 
-    const WallViewData view = buildWallViewData(*floor, *wall, side_, selectedOpening);
+    const WallViewData view = buildWallViewData(*floor, *wall, side_, selectedOpening, selectedItem,
+                                                controller_.catalog());
     face_->setData(view);
     title_->setText(tr("Wall %1").arg(view.wallId));
     length_->setText(measured(QString::number(view.length, 'f', 2) + QStringLiteral(" m"), tr("long")));

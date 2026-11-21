@@ -1,14 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "urn:plynth:schema:plan:2",
-  "title": "Plynth plan, version 2",
-  "description": "Everything marked on a floor plan. All lengths are in metres. x points right and y points down, as in the plan image, with the image's top left corner at (0, 0). Ids are unique across the whole file and never change. Plynth writes every field; other tools may leave out the fields that are not required, which then take the default shown. The left and right side of a wall are as seen on the plan looking from its from point toward its to point; right is the direction (-dy, dx), where (dx, dy) runs from the from point to the to point. Version 1 files (plan.v1.schema.json) are upgraded when read: openings get hinge start and swing right. Curved walls and rounded corners are true circular arcs; readers that need straight segments cut an arc of radius r and sweep a (radians) into the smallest count n of equal angle segments with a / n at most 7.5 degrees and r * (1 - cos(a / (2n))) at most 0.005 m, with n from 2 to 256.",
+  "$id": "urn:plynth:schema:plan:3",
+  "title": "Plynth plan, version 3",
+  "description": "Everything marked on a floor plan, including the furniture placed on it. All lengths are in metres. x points right and y points down, as in the plan image, with the image's top left corner at (0, 0). Ids are unique across the whole file and never change. Plynth writes every field; other tools may leave out the fields that are not required, which then take the default shown. The left and right side of a wall are as seen on the plan looking from its from point toward its to point; right is the direction (-dy, dx), where (dx, dy) runs from the from point to the to point. Older files are upgraded when read: version 1 (plan.v1.schema.json) openings get hinge start and swing right, and version 2 (plan.v2.schema.json) floors get an empty items list. Curved walls and rounded corners are true circular arcs; readers that need straight segments cut an arc of radius r and sweep a (radians) into the smallest count n of equal angle segments with a / n at most 7.5 degrees and r * (1 - cos(a / (2n))) at most 0.005 m, with n from 2 to 256.",
   "type": "object",
   "required": ["format", "version", "floors"],
   "additionalProperties": false,
   "properties": {
     "format": { "const": "plynth-plan" },
-    "version": { "const": 2 },
+    "version": { "const": 3 },
     "scale": { "$ref": "#/definitions/scale" },
     "floors": {
       "type": "array",
@@ -61,7 +61,8 @@
         "points": { "type": "array", "items": { "$ref": "#/definitions/point" }, "default": [] },
         "walls": { "type": "array", "items": { "$ref": "#/definitions/wall" }, "default": [] },
         "rooms": { "type": "array", "items": { "$ref": "#/definitions/room" }, "default": [] },
-        "openings": { "type": "array", "items": { "$ref": "#/definitions/opening" }, "default": [] }
+        "openings": { "type": "array", "items": { "$ref": "#/definitions/opening" }, "default": [] },
+        "items": { "type": "array", "items": { "$ref": "#/definitions/item" }, "default": [] }
       }
     },
     "point": {
@@ -163,6 +164,54 @@
           "description": "A catalog asset fitted to the opening. null for none.",
           "$ref": "#/definitions/optionalName",
           "default": null
+        }
+      }
+    },
+    "item": {
+      "description": "A catalog asset placed on the floor. Its footprint is the rectangle of width by depth centred at (x, y) and turned by rotation. Whether it fits its room or overlaps other things is not a format rule; Plynth reports it as a warning.",
+      "type": "object",
+      "required": ["id", "asset", "x", "y", "size"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/definitions/id" },
+        "asset": {
+          "description": "The asset id in the assets catalog. Kept even when the library on this machine does not have it.",
+          "$ref": "#/definitions/name"
+        },
+        "room": {
+          "description": "The room on the same floor the item stands in. null when it stands in no room.",
+          "oneOf": [ { "$ref": "#/definitions/id" }, { "type": "null" } ],
+          "default": null
+        },
+        "x": { "$ref": "#/definitions/metres", "description": "Centre of the footprint, where the asset's bottom centre goes." },
+        "y": { "$ref": "#/definitions/metres" },
+        "z": {
+          "description": "Height of the asset's bottom above the floor.",
+          "$ref": "#/definitions/nonNegativeMetres",
+          "default": 0.0
+        },
+        "rotation": {
+          "description": "Degrees, clockwise as seen on the plan. At 0 the asset's front faces +y (down the plan image). In Blender (x, -y, z axes) this is a turn of -rotation about z.",
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMaximum": 360,
+          "default": 0
+        },
+        "wall": {
+          "description": "For a wall-mounted item, the wall on the same floor it hangs on. Its back lies flush against the face of that wall on the side its centre is on, facing away from the wall. null for an item standing on the floor.",
+          "oneOf": [ { "$ref": "#/definitions/id" }, { "type": "null" } ],
+          "default": null
+        },
+        "size": {
+          "description": "The asset's measured size when it was placed or last swapped: width along its own x, depth along its own y (back to front), height up.",
+          "type": "object",
+          "required": ["width", "depth", "height"],
+          "additionalProperties": false,
+          "properties": {
+            "width": { "$ref": "#/definitions/positiveMetres" },
+            "depth": { "$ref": "#/definitions/positiveMetres" },
+            "height": { "$ref": "#/definitions/positiveMetres" }
+          }
         }
       }
     }

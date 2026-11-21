@@ -264,7 +264,7 @@ void ApplyDetectionCommand::undo(Project& project)
 
 unsigned ApplyDetectionCommand::changes() const
 {
-    return Change::Points | Change::Walls | Change::Rooms | Change::Openings;
+    return Change::Points | Change::Walls | Change::Rooms | Change::Openings | Change::Items;
 }
 
 Id ApplyDetectionCommand::floorId() const

@@ -1,18 +1,25 @@
 #include "PropertiesPanel.h"
 
+#include "canvas/PlanCanvas.h"
+#include "catalog/LibraryHost.h"
 #include "detection/DetectionSession.h"
+#include "furniture/AssetPreview.h"
+#include "furniture/FurniturePicker.h"
 #include "document/Selection.h"
 #include "theme/Theme.h"
 #include "tools/ToolController.h"
 
 #include <plynth/core/Document.h>
 #include <plynth/core/Geometry.h>
+#include <plynth/core/Items.h>
 #include <plynth/core/RoomTypes.h>
 #include <plynth/core/Rooms.h>
 #include <plynth/core/WallGeometry.h>
 #include <plynth/core/OpeningShapes.h>
 #include <plynth/core/Openings.h>
+#include <plynth/core/catalog/ItemAssets.h>
 #include <plynth/core/commands/FloorCommands.h>
+#include <plynth/core/commands/ItemCommands.h>
 #include <plynth/core/commands/OpeningCommands.h>
 #include <plynth/core/commands/PointCommands.h>
 #include <plynth/core/commands/RoomCommands.h>
@@ -51,6 +58,7 @@ constexpr int kRoomPage = 3;
 constexpr int kDetectPage = 4;
 constexpr int kOpeningPage = 5;
 constexpr int kOpeningToolPage = 6;
+constexpr int kItemPage = 7;
 
 // Turns a core text into Qt text.
 QString fromCore(const std::string& text)
@@ -81,6 +89,7 @@ PropertiesPanel::PropertiesPanel(plynth::Document& document, Selection& selectio
     buildDetectPage();
     buildOpeningPage();
     buildOpeningToolPage();
+    buildItemPage();
     column->addWidget(pages_);
     column->addStretch(1);
 
@@ -112,6 +121,7 @@ QWidget* PropertiesPanel::makePage(QGridLayout** grid)
     (*grid)->setHorizontalSpacing(t.unit() * 3);
     (*grid)->setVerticalSpacing(t.unit() * 2);
     (*grid)->setColumnStretch(1, 1);
+    (*grid)->setAlignment(Qt::AlignTop);
     pages_->addWidget(page);
     return page;
 }
@@ -129,7 +139,7 @@ QLabel* PropertiesPanel::addLabelRow(QGridLayout* grid, const QString& label, bo
     value->setWordWrap(true);
     const int row = grid->rowCount();
     grid->addWidget(name, row, 0, Qt::AlignTop);
-    grid->addWidget(value, row, 1);
+    grid->addWidget(value, row, 1, Qt::AlignTop);
     return value;
 }
 
@@ -217,6 +227,18 @@ void PropertiesPanel::buildNothingPage()
         if (refreshing_ || floor == nullptr)
             return;
         if (!controller_.run(std::make_unique<plynth::SetCeilingHeightCommand>(floor->id, value, focusKey_)).ok())
+            refresh();
+    });
+
+    wallCentreSpin_ = addKeyedSpinRow(grid, tr("Wall item centre"), 0.05, 100.0, 0.05,
+                                      tr("Height of the middle of a newly mounted wall item, such as a TV. It is saved with the project."),
+                                      QStringLiteral("panel-wall-item-centre"));
+    connect(wallCentreSpin_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
+        if (refreshing_)
+            return;
+        plynth::DefaultSizes sizes = document_.project().settings.defaults;
+        sizes.wallItemCentre = value;
+        if (!controller_.run(std::make_unique<plynth::SetDefaultSizesCommand>(sizes)).ok())
             refresh();
     });
 
@@ -675,6 +697,10 @@ void PropertiesPanel::refresh()
         page = kOpeningPage;
         refreshOpening();
         break;
+    case SelectionKind::Item:
+        page = kItemPage;
+        refreshItem();
+        break;
     default:
         if (!detecting && !placing)
             refreshNothing();
@@ -691,6 +717,7 @@ void PropertiesPanel::refresh()
 // Fills the page for nothing selected.
 void PropertiesPanel::refreshNothing()
 {
+    setSpin(wallCentreSpin_, document_.project().settings.defaults.wallItemCentre);
     const plynth::Plan& plan = document_.plan();
     if (plan.scale.pixelsPerMetre.has_value()) {
         scaleValue_->setText(tr("%1 px per m").arg(*plan.scale.pixelsPerMetre, 0, 'f', 1));
@@ -1059,6 +1086,355 @@ void PropertiesPanel::refreshOpening()
     const plynth::Status fit = plynth::checkOpeningFit(*floor, *opening);
     openingProblem_->setText(fit.ok() ? QString() : fromCore(fit.message));
     openingProblem_->setVisible(!fit.ok());
+}
+
+// The page for a selected item: picture, name, state, size, place, rotation, heights, room and wall.
+void PropertiesPanel::buildItemPage()
+{
+    const Theme& t = Theme::instance();
+    QGridLayout* grid = nullptr;
+    QWidget* page = makePage(&grid);
+    page->setProperty("tourId", QStringLiteral("item-properties"));
+    page->setToolTip(tr("The selected piece of furniture"));
+
+    itemThumb_ = new QLabel(page);
+    itemThumb_->setFixedSize(128, 128);
+    itemThumb_->setAlignment(Qt::AlignCenter);
+    itemThumb_->setFont(t.uiFont(t.sizeSmall()));
+    itemThumb_->setToolTip(tr("The thumbnail of the asset"));
+    itemThumb_->setProperty("tourId", QStringLiteral("item-thumbnail"));
+    grid->addWidget(itemThumb_, grid->rowCount(), 0, 1, 2, Qt::AlignLeft);
+
+    itemName_ = new QLabel(page);
+    itemName_->setFont(t.uiFont(t.sizeLarge(), QFont::DemiBold));
+    itemName_->setToolTip(tr("The name of the asset"));
+    grid->addWidget(itemName_, grid->rowCount(), 0, 1, 2);
+
+    itemAsset_ = addLabelRow(grid, tr("Asset"));
+    itemAsset_->setToolTip(tr("The id of the asset in the library"));
+    itemSize_ = addLabelRow(grid, tr("Size"));
+    itemSize_->setFont(t.monoFont(t.sizeSmall()));
+    itemSize_->setToolTip(tr("Width, depth and height of the item"));
+
+    itemState_ = new QLabel(page);
+    itemState_->setFont(t.uiFont(t.sizeSmall()));
+    itemState_->setWordWrap(true);
+    itemState_->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
+    itemState_->setToolTip(tr("What is wrong with the asset of this item"));
+    grid->addWidget(itemState_, grid->rowCount(), 0, 1, 2);
+    itemUpdate_ = new QPushButton(tr("Update size"), page);
+    itemUpdate_->setToolTip(tr("Use the size the library has now for this asset"));
+    itemUpdate_->setProperty("tourId", QStringLiteral("item-update-size"));
+    grid->addWidget(itemUpdate_, grid->rowCount(), 0, 1, 2);
+    editors_.push_back(itemUpdate_);
+
+    itemX_ = addKeyedSpinRow(grid, tr("X"), -100000.0, 100000.0, 0.05, tr("Position of the centre of the item on the plan"),
+                             QStringLiteral("item-x"));
+    itemY_ = addKeyedSpinRow(grid, tr("Y"), -100000.0, 100000.0, 0.05, tr("Position of the centre of the item on the plan"),
+                             QStringLiteral("item-y"));
+    itemRotation_ = addKeyedSpinRow(grid, tr("Rotation"), 0.0, 359.99, 15.0,
+                                    tr("Turn of the item on the plan in degrees, clockwise. 0 faces down the plan."),
+                                    QStringLiteral("item-rotation"));
+    itemRotation_->setSuffix(tr(" deg"));
+    itemRotation_->setWrapping(true);
+    itemRotation_->setDecimals(1);
+    {
+        const int row = grid->rowCount();
+        auto* turns = new QWidget(page);
+        auto* box = new QHBoxLayout(turns);
+        box->setContentsMargins(0, 0, 0, 0);
+        box->setSpacing(t.unit() * 2);
+        itemTurnLeft_ = new QPushButton(tr("Turn left"), turns);
+        itemTurnLeft_->setToolTip(tr("Turn the item 90 degrees counterclockwise ([)"));
+        itemTurnLeft_->setProperty("tourId", QStringLiteral("item-turn-left"));
+        itemTurnRight_ = new QPushButton(tr("Turn right"), turns);
+        itemTurnRight_->setToolTip(tr("Turn the item 90 degrees clockwise (])"));
+        itemTurnRight_->setProperty("tourId", QStringLiteral("item-turn-right"));
+        box->addWidget(itemTurnLeft_);
+        box->addWidget(itemTurnRight_);
+        grid->addWidget(turns, row, 0, 1, 2);
+        editors_.push_back(itemTurnLeft_);
+        editors_.push_back(itemTurnRight_);
+        floorOnly_.push_back(turns);
+    }
+    itemZ_ = addKeyedSpinRow(grid, tr("Bottom height"), 0.0, 100.0, 0.05, tr("Height of the bottom of the item above the floor"),
+                             QStringLiteral("item-bottom-height"));
+    itemCentre_ = addKeyedSpinRow(grid, tr("Centre height"), 0.0, 100.0, 0.05,
+                                  tr("Height of the middle of the item above the floor"), QStringLiteral("item-centre-height"));
+    itemRoom_ = addLabelRow(grid, tr("Room"), false);
+    itemRoom_->setToolTip(tr("The room the item stands in"));
+    itemWall_ = addLabelRow(grid, tr("Wall"));
+    itemWall_->setToolTip(tr("The wall the item hangs on"));
+
+    auto* wallButtons = new QWidget(page);
+    auto* wallBox = new QHBoxLayout(wallButtons);
+    wallBox->setContentsMargins(0, 0, 0, 0);
+    wallBox->setSpacing(t.unit() * 2);
+    itemMount_ = new QPushButton(tr("Mount on wall"), wallButtons);
+    itemMount_->setToolTip(tr("Hang the item flat on the nearest wall"));
+    itemMount_->setProperty("tourId", QStringLiteral("item-mount"));
+    itemTakeOff_ = new QPushButton(tr("Take off wall"), wallButtons);
+    itemTakeOff_->setToolTip(tr("Take the item off its wall. It stays where it is"));
+    itemTakeOff_->setProperty("tourId", QStringLiteral("item-take-off"));
+    wallBox->addWidget(itemMount_);
+    wallBox->addWidget(itemTakeOff_);
+    grid->addWidget(wallButtons, grid->rowCount(), 0, 1, 2);
+    editors_.push_back(itemMount_);
+    editors_.push_back(itemTakeOff_);
+
+    itemSwap_ = new QPushButton(tr("Swap asset..."), page);
+    itemSwap_->setToolTip(tr("Pick another asset for this item. It keeps its place"));
+    itemSwap_->setProperty("tourId", QStringLiteral("item-swap"));
+    grid->addWidget(itemSwap_, grid->rowCount(), 0, 1, 2);
+    editors_.push_back(itemSwap_);
+
+    itemProblems_ = new QLabel(page);
+    itemProblems_->setFont(t.uiFont(t.sizeSmall()));
+    itemProblems_->setWordWrap(true);
+    itemProblems_->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
+    itemProblems_->setToolTip(tr("Warnings about this item"));
+    grid->addWidget(itemProblems_, grid->rowCount(), 0, 1, 2);
+
+    floorOnly_.push_back(itemX_);
+    floorOnly_.push_back(itemY_);
+    floorOnly_.push_back(itemRotation_);
+    wallOnly_.push_back(itemTakeOff_);
+    wallOnly_.push_back(itemWall_);
+
+    const auto currentItem = [this]() -> const plynth::Item* {
+        const plynth::Floor* floor = controller_.floor();
+        if (selection_.kind() != SelectionKind::Item || floor == nullptr)
+            return nullptr;
+        return plynth::findItem(*floor, selection_.id().toStdString());
+    };
+    const auto place = [this, currentItem]() {
+        const plynth::Item* item = currentItem();
+        if (refreshing_ || item == nullptr || item->wall.has_value())
+            return;
+        runItemCommand(std::make_unique<plynth::MoveItemCommand>(item->id, plynth::Vec2{itemX_->value(), itemY_->value()},
+                                                                 focusKey_));
+    };
+    connect(itemX_, &QDoubleSpinBox::valueChanged, this, place);
+    connect(itemY_, &QDoubleSpinBox::valueChanged, this, place);
+    connect(itemRotation_, &QDoubleSpinBox::valueChanged, this, [this, currentItem](double value) {
+        const plynth::Item* item = currentItem();
+        if (refreshing_ || item == nullptr || item->wall.has_value())
+            return;
+        runItemCommand(std::make_unique<plynth::RotateItemCommand>(item->id, plynth::normalizeRotation(value), focusKey_));
+    });
+    connect(itemZ_, &QDoubleSpinBox::valueChanged, this, [this, currentItem](double value) {
+        const plynth::Item* item = currentItem();
+        if (refreshing_ || item == nullptr)
+            return;
+        runItemCommand(std::make_unique<plynth::SetItemHeightCommand>(item->id, value, focusKey_));
+    });
+    connect(itemCentre_, &QDoubleSpinBox::valueChanged, this, [this, currentItem](double value) {
+        const plynth::Item* item = currentItem();
+        if (refreshing_ || item == nullptr)
+            return;
+        runItemCommand(std::make_unique<plynth::SetItemHeightCommand>(
+            item->id, std::max(0.0, value - item->size.height / 2.0), focusKey_));
+    });
+    connect(itemTurnLeft_, &QPushButton::clicked, this, [this]() { controller_.turnSelectedItem(-plynth::kItemQuarterTurn); });
+    connect(itemTurnRight_, &QPushButton::clicked, this, [this]() { controller_.turnSelectedItem(plynth::kItemQuarterTurn); });
+    connect(itemTakeOff_, &QPushButton::clicked, this, &PropertiesPanel::takeOffItem);
+    connect(itemMount_, &QPushButton::clicked, this, &PropertiesPanel::mountItem);
+    connect(itemSwap_, &QPushButton::clicked, this, &PropertiesPanel::swapItemAsset);
+    connect(itemUpdate_, &QPushButton::clicked, this, &PropertiesPanel::updateItemSize);
+}
+
+// Runs an item command. When the plan refuses it the boxes go back to the real values.
+void PropertiesPanel::runItemCommand(std::unique_ptr<plynth::Command> command)
+{
+    if (!controller_.run(std::move(command)).ok())
+        refresh();
+}
+
+// Mounts the selected item on the wall core picks for its centre, within the snap radius.
+void PropertiesPanel::mountItem()
+{
+    const plynth::Floor* floor = controller_.floor();
+    if (floor == nullptr || selection_.kind() != SelectionKind::Item)
+        return;
+    const plynth::Item* item = plynth::findItem(*floor, selection_.id().toStdString());
+    if (item == nullptr)
+        return;
+    const plynth::Id wall = plynth::nearestWallForMount(*floor, plynth::Vec2{item->x, item->y}, controller_.snapRadiusMetres());
+    if (wall.empty()) {
+        controller_.showMessage(tr("No wall is near this item. Move it next to a wall first."));
+        return;
+    }
+    runItemCommand(std::make_unique<plynth::SetItemWallCommand>(item->id, wall));
+}
+
+// Takes the selected item off its wall.
+void PropertiesPanel::takeOffItem()
+{
+    const plynth::Floor* floor = controller_.floor();
+    const plynth::Item* item = floor && selection_.kind() == SelectionKind::Item
+                                   ? plynth::findItem(*floor, selection_.id().toStdString())
+                                   : nullptr;
+    if (item != nullptr)
+        runItemCommand(std::make_unique<plynth::SetItemWallCommand>(item->id, std::nullopt));
+}
+
+// Gives the selected item the size its asset has in the library now.
+void PropertiesPanel::updateItemSize()
+{
+    const plynth::Floor* floor = controller_.floor();
+    const plynth::Item* item = floor && selection_.kind() == SelectionKind::Item
+                                   ? plynth::findItem(*floor, selection_.id().toStdString())
+                                   : nullptr;
+    plynth::AssetCatalog* catalog = controller_.catalog();
+    if (item == nullptr || catalog == nullptr)
+        return;
+    const plynth::ItemAsset asset = plynth::itemAssetFor(*catalog, item->asset);
+    if (!asset.status.ok()) {
+        controller_.showMessage(fromCore(asset.status.message));
+        return;
+    }
+    runItemCommand(std::make_unique<plynth::SwapItemAssetCommand>(item->id, item->asset, asset.size));
+}
+
+// Opens the picker beside the panel with the room type of the item. Choosing an asset swaps it in.
+void PropertiesPanel::swapItemAsset()
+{
+    const plynth::Floor* floor = controller_.floor();
+    if (floor == nullptr || selection_.kind() != SelectionKind::Item || controller_.catalog() == nullptr)
+        return;
+    const plynth::Item* item = plynth::findItem(*floor, selection_.id().toStdString());
+    if (item == nullptr)
+        return;
+    QString roomType;
+    if (item->room.has_value())
+        for (const plynth::Room& room : floor->rooms)
+            if (room.id == *item->room && room.type.has_value())
+                roomType = QString::fromStdString(*room.type);
+    PlanCanvas& canvas = controller_.canvas();
+    const QPoint button = canvas.mapFromGlobal(itemSwap_->mapToGlobal(QPoint(0, itemSwap_->height() / 2)));
+    const plynth::Id itemId = item->id;
+    controller_.pickAsset(&canvas, QPoint(canvas.width() - 4, button.y()), roomType, [this, itemId](const QString& assetId) {
+        plynth::AssetCatalog* catalog = controller_.catalog();
+        if (catalog == nullptr)
+            return;
+        const plynth::ItemAsset asset = plynth::itemAssetFor(*catalog, assetId.toStdString());
+        if (!asset.status.ok()) {
+            controller_.showMessage(fromCore(asset.status.message));
+            return;
+        }
+        runItemCommand(std::make_unique<plynth::SwapItemAssetCommand>(itemId, assetId.toStdString(), asset.size));
+    });
+}
+
+// Fills the page for a selected item.
+void PropertiesPanel::refreshItem()
+{
+    const Theme& t = Theme::instance();
+    const plynth::Floor* floor = controller_.floor();
+    const plynth::Item* item = floor ? plynth::findItem(*floor, selection_.id().toStdString()) : nullptr;
+    if (item == nullptr)
+        return;
+    plynth::AssetCatalog* catalog = controller_.catalog();
+    std::optional<plynth::AssetRecord> record;
+    if (catalog != nullptr)
+        record = catalog->asset(item->asset);
+
+    QString name = fromCore(item->asset);
+    if (record)
+        name = fromCore(record->name);
+    itemName_->setText(item->wall.has_value() ? tr("%1 on a wall").arg(name) : name);
+    itemAsset_->setText(fromCore(item->asset));
+    itemSize_->setText(AssetPreview::sizeText(plynth::AssetSize{item->size.width, item->size.depth, item->size.height}));
+
+    QPixmap pixmap;
+    if (record && record->state != plynth::AssetState::Broken && record->thumbnail == plynth::ThumbnailState::Ok)
+        pixmap = AssetPreview::loadPixmap(QString::fromStdWString(record->thumbFile.wstring()), 128, devicePixelRatioF());
+    if (!pixmap.isNull()) {
+        itemThumb_->setText(QString());
+        itemThumb_->setStyleSheet(QStringLiteral("background: %1;").arg(t.ground().name()));
+        itemThumb_->setPixmap(pixmap);
+    } else {
+        QString text = tr("No thumbnail");
+        QColor color = t.muted();
+        if (catalog != nullptr && !record) {
+            text = tr("Missing asset");
+            color = t.signalAmber();
+        } else if (record && record->state == plynth::AssetState::Broken) {
+            text = tr("Broken");
+            color = t.signalAmber();
+        } else if (record && record->thumbnail == plynth::ThumbnailState::Failed) {
+            text = tr("Render failed");
+            color = t.signalAmber();
+        } else if (record) {
+            text = tr("Rendering");
+        }
+        itemThumb_->setPixmap(QPixmap());
+        itemThumb_->setText(text);
+        itemThumb_->setStyleSheet(QStringLiteral("background: %1; color: %2; border-radius: %3px;")
+                                      .arg(t.raised().name(), color.name())
+                                      .arg(t.radius()));
+    }
+
+    QStringList state;
+    bool sizeChanged = false;
+    QStringList others;
+    const plynth::AssetLookup lookup = catalog != nullptr ? plynth::assetLookupFor(*catalog) : plynth::AssetLookup();
+    for (const plynth::ItemProblem& problem : plynth::checkItem(*floor, *item, lookup)) {
+        if (problem.kind == plynth::ItemProblemKind::MissingAsset)
+            state << tr("Missing asset");
+        else if (problem.kind == plynth::ItemProblemKind::SizeChanged) {
+            state << tr("Size in library differs");
+            sizeChanged = true;
+        } else
+            others << fromCore(problem.message);
+    }
+    itemState_->setText(state.join(QStringLiteral(". ")));
+    itemState_->setVisible(!state.isEmpty());
+    itemUpdate_->setVisible(sizeChanged);
+    itemProblems_->setText(others.join(QLatin1Char('\n')));
+    itemProblems_->setVisible(!others.isEmpty());
+
+    setSpin(itemX_, item->x);
+    setSpin(itemY_, item->y);
+    setSpin(itemRotation_, item->rotation);
+    setSpin(itemZ_, item->z);
+    itemCentre_->setMinimum(item->size.height / 2.0);
+    setSpin(itemCentre_, plynth::itemCentreHeight(*item));
+
+    QString roomText = tr("None");
+    if (item->room.has_value()) {
+        roomText = fromCore(*item->room);
+        for (const plynth::Room& room : floor->rooms)
+            if (room.id == *item->room)
+                roomText = fromCore(plynth::roomTypeName(room.type)) + QStringLiteral(" ") + fromCore(room.id);
+    }
+    itemRoom_->setText(roomText);
+    const bool onWall = item->wall.has_value();
+    itemWall_->setText(onWall ? fromCore(*item->wall) : QString());
+    for (QWidget* widget : floorOnly_)
+        widget->setVisible(!onWall);
+    for (QWidget* widget : wallOnly_)
+        widget->setVisible(onWall);
+    itemMount_->setVisible(!onWall);
+    // The rows of a wall item and the labels of the hidden rows follow their editors.
+    for (QWidget* widget : {static_cast<QWidget*>(itemX_), static_cast<QWidget*>(itemY_), static_cast<QWidget*>(itemRotation_)})
+        if (auto* grid = qobject_cast<QGridLayout*>(widget->parentWidget()->layout())) {
+            const int index = grid->indexOf(widget);
+            int row = 0, column = 0, rowSpan = 0, columnSpan = 0;
+            grid->getItemPosition(index, &row, &column, &rowSpan, &columnSpan);
+            if (QLayoutItem* label = grid->itemAtPosition(row, 0))
+                if (label->widget() != nullptr)
+                    label->widget()->setVisible(!onWall);
+        }
+    for (QWidget* widget : {static_cast<QWidget*>(itemWall_)})
+        if (auto* grid = qobject_cast<QGridLayout*>(widget->parentWidget()->layout())) {
+            const int index = grid->indexOf(widget);
+            int row = 0, column = 0, rowSpan = 0, columnSpan = 0;
+            grid->getItemPosition(index, &row, &column, &rowSpan, &columnSpan);
+            if (QLayoutItem* label = grid->itemAtPosition(row, 0))
+                if (label->widget() != nullptr)
+                    label->widget()->setVisible(onWall);
+        }
 }
 
 }

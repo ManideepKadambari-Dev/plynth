@@ -29,7 +29,7 @@ StatusBar::StatusBar(QWidget* parent)
     const QString mutedStyle = QStringLiteral("color: %1;").arg(t.muted().name());
 
     nameLabel_ = new QLabel(this);
-    nameLabel_->setFont(t.uiFont(t.sizeSmall()));
+    nameLabel_->setFont(t.monoFont(t.sizeSmall()));
     nameLabel_->setStyleSheet(mutedStyle);
     nameLabel_->setToolTip(tr("Name of the plan image that is open"));
     layout->addWidget(nameLabel_);
@@ -125,7 +125,8 @@ void StatusBar::showMessage(const QString& text, bool refusal)
 {
     const Theme& t = Theme::instance();
     messageLabel_->setStyleSheet(QStringLiteral("color: %1;").arg((refusal ? t.signalAmber() : t.text()).name()));
-    messageLabel_->setText(text);
+    messageLabel_->setTextFormat(Qt::RichText);
+    messageLabel_->setText(t.withMonoPaths(text));
     messageLabel_->show();
     hintLabel_->hide();
     messageTimer_->start();

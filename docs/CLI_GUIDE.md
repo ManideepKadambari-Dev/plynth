@@ -2,9 +2,9 @@
 
 Plynth can be driven from a terminal, a script or a coding assistant. Every command prints one JSON answer, so a program can read the result without parsing text meant for people.
 
-This page covers the commands that exist today: version, help, creating and reading a project, setting the scale, grid and default sizes, floors, points, walls (straight and curved), rounded corners, doors, windows and other openings, rooms, finding walls and openings in the plan image with `detect`, the edit session that keeps the app and the command line from overwriting each other, and the machine commands: `doctor`, `settings`, `library` and `assets`. More commands arrive in later releases.
+This page covers the commands that exist today: version, help, creating and reading a project, setting the scale, grid and default sizes, floors, points, walls (straight and curved), rounded corners, doors, windows and other openings, rooms, placing furniture with `place` and `item`, finding walls and openings in the plan image with `detect`, the edit session that keeps the app and the command line from overwriting each other, and the machine commands: `doctor`, `settings`, `library` and `assets`. More commands arrive in later releases.
 
-The plan and project files are now at format version 2. Older projects open and upgrade by themselves. See "File format version 2" below.
+The plan and project files are now at format version 3. Older projects open and upgrade by themselves. See "File format version 3" below.
 
 ## Running a command
 
@@ -19,15 +19,15 @@ Typing `plynth` in a terminal finds `plynth.com` first. The terminal inside Plyn
 
 The first word decides what happens:
 
-- A command word (`version`, `help`, `project`, `scale`, `point`, `wall`, `opening`, `floor`, `room`, `detect`, `session`, `doctor`, `settings`, `library`, `assets`) runs the command and prints the answer. No window opens.
+- A command word (`version`, `help`, `project`, `scale`, `point`, `wall`, `opening`, `floor`, `room`, `place`, `item`, `detect`, `session`, `doctor`, `settings`, `library`, `assets`) runs the command and prints the answer. No window opens.
 - A project folder or an app option (`--image`, `--screenshot`, `--size`, `--terminal`), or no argument at all, opens the window. `plynth.com` starts the window and returns at once.
 - Anything else prints an `unknown_command` answer and exits with code 2. For example `plynth bogus`.
 
-To open a folder that is literally named after a command word, such as `project`, `room`, `opening`, `floor` or `detect`, write `.\project`, `.\room`, `.\opening`, `.\floor` or `.\detect`. Without the `.\` Plynth runs the command instead. `doctor`, `settings`, `library` and `assets` are new command words, so a project folder with one of those names that worked before now needs the `.\` too. The same goes for `--project`: write `--project .\opening`.
+To open a folder that is literally named after a command word, such as `project`, `room`, `opening`, `floor`, `place`, `item` or `detect`, write `.\project`, `.\room`, `.\opening`, `.\floor`, `.\place`, `.\item` or `.\detect`. Without the `.\` Plynth runs the command instead. `doctor`, `settings`, `library` and `assets` are new command words, so a project folder with one of those names that worked before now needs the `.\` too. The same goes for `--project`: write `--project .\opening`.
 
 ### Which project a command works on
 
-Like git, a command works on the project in the current folder. Add `--project <folder>` to use another one. It works on every command except `version`, `help`, `doctor`, `settings`, `library` and `assets`, which are about the machine and never open a project.
+Like git, a command works on the project in the current folder. Add `--project <folder>` to use another one. It works on every command except `version`, `help`, `doctor`, `settings`, `library`, `assets` and `project recent`, which are about the machine and never open a project.
 
 ```
 cd D:\Plans\MyApartment
@@ -155,8 +155,8 @@ Without `--image` the floor has no image and `image` is `null`. `defaults` holds
 
 Shows the settings and contents of a project. It changes nothing. The result is the same as for `project new`.
 
-- `defaults` are the default sizes of new openings and of the ceiling of new floors, in metres.
-- `plan.version` is the format version of the plan file as it will be saved, always 2 here.
+- `defaults` are the default sizes of new openings, of the ceiling of new floors, and the height of the centre of a new wall item such as a TV (`wall_item_centre`), in metres.
+- `plan.version` is the format version of the plan file as it will be saved, always 3 here.
 - `pixels_per_metre` is `null` until the scale is set.
 - `image_found` says whether the image file the plan points at exists.
 - `has_autosave` says whether the app left a recovery copy in the project. The command line never reads, writes or removes it.
@@ -178,6 +178,7 @@ Changes the grid size or the default sizes. Give at least one option. Options yo
 | `--window-height <metres>` | Height of a new window. Default: 1.2. |
 | `--window-sill <metres>` | How far above the floor a new window starts. Default: 0.9. |
 | `--new-floor-height <metres>` | Ceiling height of floors made from now on. Default: 3.0. It does not change floors that exist. Use `floor set` for those. |
+| `--wall-item-centre <metres>` | Height of the middle of a wall item, such as a TV, when it is mounted without a height of its own. Default: 1.2. Above zero and below the ceiling height. |
 
 ```
 plynth project set --door-height 2.0 --window-sill 0.8
@@ -200,6 +201,48 @@ plynth project set --window-sill 2.5
 ```
 
 A grid of 0 or less is refused with `invalid_value`. The grid starts at the top left corner of the image. The app uses it for snapping, and so does `wall draw --grid`.
+
+The wall item centre is checked against the ceiling height in the same way:
+
+```
+plynth project set --wall-item-centre 1.4
+plynth project set --wall-item-centre 3.5
+```
+
+```json
+{"ok":true,"command":"project set","result":{"folder":"D:/Plans/MyApartment","name":"MyApartment","export_mode":"single","grid_size":0.5,"defaults":{"ceiling_height":3.0,"door_width":0.9,"door_height":2.1,"window_width":1.2,"window_height":1.2,"window_sill":0.9,"wall_item_centre":1.4},"has_autosave":false,"plan":{"version":3,"pixels_per_metre":100.0,"floors":[{"id":"f1","name":"Floor 1","image":"plans/apartment-01.png","image_found":true,"ceiling_height":3.0,"points":12,"walls":15,"rooms":4,"openings":8}]}}}
+{"ok":false,"command":"project set","error":{"code":"invalid_value","message":"The wall item centre 3.50 m must be below the ceiling height 3.00 m."}}
+```
+
+### project recent
+
+Lists the projects the app opened or saved lately. These are the same projects the home screen shows. The list lives in the machine settings, so this command needs no project and takes no `--project`.
+
+| Option | Meaning |
+|---|---|
+| `--remove <folder>` | Take this project folder off the list. The folder and its files are not touched. |
+
+```
+plynth project recent
+```
+
+```json
+{"ok":true,"command":"project recent","result":{"projects":[{"path":"D:/Plans/MyApartment","name":"MyApartment","last_opened":"2026-11-20T18:30:00Z","exists":true}],"count":1}}
+```
+
+- Most recent first, at most 30.
+- `exists` is false when the folder is gone. The entry stays until you remove it. Nothing is pruned by itself.
+- Only the app adds to the list, when it opens or saves a project. Opening or saving through the command line does not add anything.
+
+```
+plynth project recent --remove D:/Plans/OldFlat
+```
+
+```json
+{"ok":true,"command":"project recent","result":{"removed":"D:/Plans/OldFlat","projects":[{"path":"D:/Plans/MyApartment","name":"MyApartment","last_opened":"2026-11-20T18:30:00Z","exists":true}],"count":1}}
+```
+
+A folder that is not on the list is refused with `not_found`.
 
 ### scale set
 
@@ -331,10 +374,13 @@ plynth point remove p6 --cascade
 ```
 
 ```json
-{"ok":true,"command":"point remove","result":{"removed":{"openings":["o1"],"rooms":["r1"],"walls":["w3","w6","w7"],"points":["p3","p6"]}}}
+{"ok":true,"command":"point remove","result":{"removed":{"items":[],"detached":[],"openings":["o1"],"rooms":["r1"],"walls":["w3","w6","w7"],"points":["p3","p6"]}}}
 ```
 
-Without `--cascade`, a point that a wall uses is refused with `in_use`. With it, everything goes in one step: the openings on those walls, the walls at the point, the rooms that use those walls, and the end points of removed walls that are left with no wall. A point you placed on its own is only removed when you name it. The `removed` lists show what went. `wall remove` and `opening remove` give the same shape.
+Without `--cascade`, a point that a wall uses is refused with `in_use`. With it, everything goes in one step: the openings on those walls, the walls at the point, the rooms that use those walls, and the end points of removed walls that are left with no wall. A point you placed on its own is only removed when you name it. The `removed` lists show what went. Every remove answer (`point remove`, `wall remove`, `opening remove`, `room remove` and `item remove`) has the same six lists, in this order: `items`, `detached`, `openings`, `rooms`, `walls`, `points`.
+
+- `items` are furniture items that were removed.
+- `detached` are wall items that were taken off a removed wall. They are not removed. They stay where they were, as floor items, with their height.
 
 ### point list
 
@@ -484,14 +530,14 @@ Removes a wall.
 | `--cascade` | Also remove what depends on it. |
 
 ```
-plynth wall remove w2 --cascade
+plynth wall remove w6 --cascade
 ```
 
 ```json
-{"ok":true,"command":"wall remove","result":{"removed":{"openings":["o1"],"rooms":["r1"],"walls":["w2"],"points":[]}}}
+{"ok":true,"command":"wall remove","result":{"removed":{"items":[],"detached":["i4"],"openings":["o3"],"rooms":["r5"],"walls":["w6"],"points":[]}}}
 ```
 
-Without `--cascade`, a wall that a room or an opening uses is refused with `in_use`. With it, the openings on the wall go as well, then the rooms that use the wall, and so do end points that are left with no wall.
+Without `--cascade`, a wall that a room, an opening or a wall item uses is refused with `in_use`. With it, the openings on the wall go as well, then the rooms that use the wall, and so do end points that are left with no wall. Items hanging on the wall are not removed. They are listed in `detached` and stay in place.
 
 ### wall list
 
@@ -709,7 +755,7 @@ plynth opening remove o4
 ```
 
 ```json
-{"ok":true,"command":"opening remove","result":{"removed":{"openings":["o4"],"rooms":[],"walls":[],"points":[]}}}
+{"ok":true,"command":"opening remove","result":{"removed":{"items":[],"detached":[],"openings":["o4"],"rooms":[],"walls":[],"points":[]}}}
 ```
 
 ### opening list
@@ -825,7 +871,7 @@ plynth room remove r1
 ```
 
 ```json
-{"ok":true,"command":"room remove","result":{"removed":{"rooms":["r1"],"walls":[],"points":[]}}}
+{"ok":true,"command":"room remove","result":{"removed":{"items":[],"detached":[],"openings":[],"rooms":["r1"],"walls":[],"points":[]}}}
 ```
 
 ### room list
@@ -855,6 +901,255 @@ plynth room types
 ```
 
 A plan from another machine can hold a type id that is not in this list. It still loads, and the room shows its id as the name. Only new values typed into `room add` and `room set` are checked.
+
+### Furniture items
+
+An item is an asset from the library placed on a floor. `place` makes one, and the `item` commands list and change them. Everything is in metres and degrees, with positions on the plan (x to the right, y down), not relative to a room.
+
+An item has:
+
+- `x` and `y`: the middle of its footprint, the point where the asset's bottom centre stands.
+- `z`: the height of its bottom above the floor. 0 for something on the floor.
+- `rotation`: degrees from 0 up to 360, clockwise on the plan. At 0 the front of the asset faces +y, down the plan. 90 turns the front toward the left of the plan.
+- `size`: width (the asset's own x), depth (its own y) and height. It is copied from the library when you `place` or `item swap`. The footprint, the fit and the overlap checks then work with no library, so a project opened on another machine, or a script run without `--library`, still gets the same answers.
+- `room`: the room the item's position is in, worked out on every change. It is empty when the position is in no room.
+- `wall`: the wall a wall item hangs on, otherwise empty. A wall item is always put flat on the face of its wall, facing away from it.
+
+Only `place` and `item swap` need a library, because they read the asset's size. Every other item command works without one. An item whose asset is gone from the library is kept exactly as it is, and you can still move, turn, swap and remove it.
+
+Place and swap refuse an asset that is not in the library (`not_found`), is broken, or is not measured (`invalid_value`). Check `measured` in the asset entry.
+
+#### Warnings and refusals
+
+A command refuses a change that cannot be right: a number that is not finite, a size that is not above zero, `z` below zero, an unknown floor, room or wall, a wall item whose top is above its wall or that is wider than its wall, and turning a wall item. The plan is then not changed.
+
+Problems with fit and overlap never refuse. The command works and the answer has them under `warnings` and in the item's `problems`. A rug under a table, or a sofa against a radiator, is normal in a real room, so these are for you to look at.
+
+| Code | Meaning |
+|---|---|
+| `no_room` | The centre of the item is in no room. |
+| `outside_room` | Part of the footprint is outside its room. |
+| `overlaps_item` | Its box overlaps another item's box. Footprints must share more than 1 cm by 1 cm, and the heights must overlap too, so a TV above a cabinet is fine. `other` is the item. |
+| `overlaps_wall` | The footprint overlaps a wall. A wall item's own wall is not counted. `other` is the wall. |
+| `overlaps_opening` | A wall item overlaps a door or window on its wall. `other` is the opening. |
+| `off_wall` | A wall item is more than 1 cm from the face of its wall, for example after you moved a wall point. Move it along the wall, or attach it again, to put it flat again. |
+| `too_tall` | A floor item reaches above the ceiling, or a wall item above its wall. |
+| `missing_asset` | The asset is not in the library. |
+| `size_changed` | The library's size for the asset is different from the size stored in the item. `item swap <id> <same asset>` updates it. |
+
+Add `--strict` to `place`, `item move`, `item rotate`, `item swap` and `item attach` when a script wants to be stopped by any problem. The command is then refused with `invalid_value`, the message names the first problem and counts them, and nothing is changed or saved.
+
+#### The item entry
+
+Every command that shows an item uses this entry:
+
+| Field | Meaning |
+|---|---|
+| `id`, `floor` | The item (`i1`...) and its floor. |
+| `asset`, `asset_name` | The asset id, and its name in the library. `null` when the asset is missing or no library could be opened. |
+| `asset_state` | `ok`, `missing`, `size_changed`, or `unknown` when there is no library to ask. |
+| `room` | The room id, or `null`. |
+| `x`, `y`, `z`, `rotation` | As above. |
+| `wall`, `wall_side`, `wall_offset` | For a wall item: the wall, the face it hangs on (`left` or `right`, see "Left and right") and the distance along the wall to its centre. `null` for a floor item. |
+| `centre_height` | The height of the middle of the item above the floor: `z` plus half its height. |
+| `size` | `width`, `depth`, `height`. |
+| `footprint` | The four corners on the plan, going back right, back left, front left, front right, as seen from behind the item looking toward its front. |
+| `problems` | A list of `code`, `message` and `other` (the other item, wall or opening, or `null`). Same codes as the table above. |
+
+### place
+
+Puts an asset on the floor or on a wall.
+
+| Option | Meaning |
+|---|---|
+| `<asset>` | Required. The asset id in the library. |
+| `--x <metres>` `--y <metres>` | The centre on the plan. Give both. |
+| `--room <id or type>` | A room id such as `r5`, or a room type such as `living` when exactly one room on the floor has it. Alone it places the item at the room's label point. With `--x` and `--y` it checks that the position is inside that room. |
+| `--wall <id>` | Hang the item on this wall. |
+| `--rot <degrees>` | Rotation, clockwise. Default 0. Not with `--wall`. |
+| `--z <metres>` or `--centre <metres>` | Height of the bottom, or of the centre, above the floor. Not both. Default: 0 on the floor, and the project's wall item centre for a wall item. |
+| `--offset <metres>` | With `--wall`: the distance along the wall to the centre. Default: the middle of the wall. |
+| `--side left\|right` | With `--wall`: the face to hang on. Default: the side facing `--room` when given, else the side `--x` and `--y` are on, else right. |
+| `--snap <metres>` | Floor items only. Snap the centre to the grid, and slide the footprint flush against walls within this distance, as the app does. Default: no snapping. |
+| `--floor <id>` | Default: the first floor. |
+| `--strict` | Refuse when the item would have any problem. |
+| `--library <folder>` | Default: the library in the settings. |
+
+One place is needed: `--x` with `--y`, `--room` or `--wall`.
+
+```
+plynth place sofa --room living --rot 180
+```
+
+```json
+{"ok":true,"command":"place","result":{"item":{"id":"i1","floor":"f1","asset":"sofa","asset_name":"Sofa","asset_state":"ok","room":"r5","x":14.41,"y":9.88,"z":0.0,"rotation":180.0,"wall":null,"wall_side":null,"wall_offset":null,"centre_height":0.425,"size":{"width":2.0,"depth":0.9,"height":0.85},"footprint":[{"x":15.41,"y":10.33},{"x":13.41,"y":10.33},{"x":13.41,"y":9.43},{"x":15.41,"y":9.43}],"problems":[]}}}
+```
+
+The values are shortened here. `living` was the type of room `r5`, and with no position the sofa went to the room's label point.
+
+A second item that overlaps the first still works. The answer carries the warning twice, in the item and at the top level:
+
+```
+plynth place table --room living --snap 0.3
+```
+
+```json
+{"ok":true,"command":"place","result":{"item":{"id":"i2","floor":"f1","asset":"table","asset_name":"Table","asset_state":"ok","room":"r5","x":14.5,"y":10.0,"z":0.0,"rotation":0.0,"wall":null,"wall_side":null,"wall_offset":null,"centre_height":0.375,"size":{"width":1.2,"depth":0.8,"height":0.75},"footprint":[{"x":13.9,"y":9.6},{"x":15.1,"y":9.6},{"x":15.1,"y":10.4},{"x":13.9,"y":10.4}],"problems":[{"code":"overlaps_item","message":"Table i2 overlaps Sofa i1.","other":"i1"}]}},"warnings":[{"code":"overlaps_item","message":"Table i2 overlaps Sofa i1."}]}
+```
+
+With `--strict` the same command is refused and the plan is not changed:
+
+```
+plynth place table --room living --x 14.5 --y 10 --strict
+```
+
+```json
+{"ok":false,"command":"place","error":{"code":"invalid_value","message":"Table i5 overlaps Sofa i1. 2 problems in all."}}
+```
+
+A TV on a wall. Its centre is at the project's wall item centre, 1.2 m unless you changed it. It faces into the room:
+
+```
+plynth place tv --wall w6 --room living
+```
+
+```json
+{"ok":true,"command":"place","result":{"item":{"id":"i4","floor":"f1","asset":"tv","asset_name":"Tv","asset_state":"ok","room":"r5","x":14.455,"y":12.67,"z":0.845,"rotation":180.0,"wall":"w6","wall_side":"left","wall_offset":4.395,"centre_height":1.2,"size":{"width":1.23,"depth":0.06,"height":0.71},"footprint":[{"x":15.07,"y":12.7},{"x":13.84,"y":12.7},{"x":13.84,"y":12.64},{"x":15.07,"y":12.64}],"problems":[]}}}
+```
+
+Refusals:
+
+```json
+{"ok":false,"command":"place","error":{"code":"not_found","message":"There is no asset sofa_01 in the library."}}
+{"ok":false,"command":"place","error":{"code":"invalid_value","message":"The place (14, 10) is not inside room r1."}}
+{"ok":false,"command":"place","error":{"code":"bad_arguments","message":"--rot cannot be used with --wall. A wall item faces away from its wall."}}
+{"ok":false,"command":"place","error":{"code":"invalid_value","message":"The item would reach 3.25 m, but the wall is 3.00 m high."}}
+```
+
+`bad_arguments` (exit 2) also covers `--x` without `--y`, `--z` with `--centre`, `--offset` or `--side` without `--wall`, `--snap` with `--wall`, and no place at all. `--room hall` when two rooms are halls is `invalid_value` and the message lists their ids, so name one by its id.
+
+### item list
+
+Lists the items of a floor with their problems.
+
+| Option | Meaning |
+|---|---|
+| `--floor <id>` | Default: the first floor. |
+| `--room <id>` | Only the items in this room. |
+| `--wall <id>` | Only the items mounted on this wall. |
+| `--library <folder>` | Used to fill `asset_name`, `asset_state`, `missing_asset` and `size_changed`. Without a library the state is `unknown` and those two problems are not checked. |
+
+```
+plynth item list --room r1
+```
+
+```json
+{"ok":true,"command":"item list","result":{"items":[{"id":"i3","floor":"f1","asset":"bed","asset_name":null,"asset_state":"missing","room":"r1","x":7.8,"y":5.6,"z":0.0,"rotation":0.0,"wall":null,"wall_side":null,"wall_offset":null,"centre_height":0.5,"size":{"width":1.6,"depth":2.1,"height":1.0},"footprint":[{"x":7.0,"y":4.55},{"x":8.6,"y":4.55},{"x":8.6,"y":6.65},{"x":7.0,"y":6.65}],"problems":[{"code":"missing_asset","message":"Bed i3 uses asset bed, which is not in the library.","other":null}]}],"count":1}}
+```
+
+The bed's asset folder had been taken out of the library. The item is still listed with its stored size.
+
+### item move
+
+Moves an item. What you leave out stays as it was.
+
+| Option | Meaning |
+|---|---|
+| `<id>` | Required. The item. |
+| `--x <metres>` `--y <metres>` | The new centre on the plan. Give both. A wall item slides to the nearest place along its wall and stays flat on it. |
+| `--offset <metres>` | Wall items only: the new distance along the wall to the centre. |
+| `--z <metres>` or `--centre <metres>` | The new height of the bottom, or of the centre. Not both. |
+| `--snap <metres>` | With `--x` and `--y`, floor items only: snap as `place --snap` does. |
+| `--strict`, `--library` | As for `place`. |
+
+Give at least one of `--x` and `--y`, `--offset`, `--z` and `--centre`. `--x` and `--y` cannot be combined with `--offset`.
+
+```
+plynth item move i2 --x 11 --y 10 --snap 0.3
+```
+
+The table was wanted at x 11, and it stopped at x 10.72 because that puts its side flat against a wall face within 0.3 m. The answer is `{"item": ...}` as for `place`, with `problems` empty now. Raising a TV:
+
+```
+plynth item move i4 --offset 2 --centre 1.5
+```
+
+This answer's `problems` holds `overlaps_opening`, because the opening o3 is on the same wall at that place, and `warnings` repeats it.
+
+### item rotate
+
+Turns a floor item about its centre.
+
+| Option | Meaning |
+|---|---|
+| `<id>` | Required. |
+| `--to <degrees>` or `--by <degrees>` | Exactly one. The rotation is kept between 0 and 360, so `--by -90` on a rotation of 0 gives 270. |
+| `--strict`, `--library` | As for `place`. |
+
+```
+plynth item rotate i1 --by 90
+```
+
+The sofa was at 180, and the answer has `"rotation":270.0`. A wall item cannot be turned, because it faces away from its wall:
+
+```json
+{"ok":false,"command":"item rotate","error":{"code":"invalid_value","message":"The item i4 hangs on a wall and faces away from it. Take it off the wall first."}}
+```
+
+### item swap
+
+Puts another asset in an item's place. The position, rotation, id and room stay. A wall item stays flat on its wall and keeps its centre height.
+
+| Option | Meaning |
+|---|---|
+| `<id>` | Required. The item. |
+| `<asset>` | Required. The asset id in the library. |
+| `--strict`, `--library` | As for `place`. |
+
+```
+plynth item swap i2 sofa
+```
+
+Swapping to the same asset the item already has copies the library's size again. That is the fix for `size_changed`. Swapping to an asset that is not in the library is refused with `not_found` and the item stays as it is.
+
+### item attach
+
+Hangs an item flat on a wall. Its height stays when it already has one, and when its bottom is on the floor the height of the project's wall item centre is used.
+
+| Option | Meaning |
+|---|---|
+| `<id>` | Required. The item. |
+| `--wall <id>` | The wall. Left out: the nearest wall within `--snap` of the item. |
+| `--snap <metres>` | Without `--wall`: how far a wall may be from the item. Default 0.3. |
+| `--strict`, `--library` | As for `place`. |
+
+```
+plynth item attach i4 --wall w6
+```
+
+The item goes on the face of the wall that its position is on. With no wall near, and no `--wall`, the command is refused with `not_found` and says "There is no wall within 0.3 m of i4. Give --wall."
+
+### item detach
+
+Takes an item off its wall. It keeps its place, rotation and height, and becomes a floor item.
+
+```
+plynth item detach i4
+```
+
+### item remove
+
+Removes an item. The answer is the extended `removed` shape described under `point remove`.
+
+```
+plynth item remove i2
+```
+
+```json
+{"ok":true,"command":"item remove","result":{"removed":{"items":["i2"],"detached":[],"openings":[],"rooms":[],"walls":[],"points":[]}}}
+```
+
+Removing a room does not remove the items in it. They stay and lose their room. Adding a room gives it the items that stand in it and have none.
 
 ### detect
 
@@ -1035,10 +1330,10 @@ plynth settings show
 ```
 
 ```json
-{"ok":true,"command":"settings show","result":{"file":"D:/Demo/config/settings.json","exists":true,"settings":{"library":"D:/Demo/Library","projects":"D:/Demo/Projects","blender":null,"keep_imported_zips":false,"thumbnail_engine":"eevee","triangle_warning":500000,"setup_checked_version":null}}}
+{"ok":true,"command":"settings show","result":{"file":"D:/Demo/config/settings.json","exists":true,"settings":{"library":"D:/Demo/Library","projects":"D:/Demo/Projects","blender":null,"keep_imported_zips":false,"thumbnail_engine":"eevee","triangle_warning":500000,"setup_checked_version":null,"recent_projects":[]}}}
 ```
 
-`exists` is false until something has been saved, and the settings then show their defaults. `library`, `projects` and `blender` are `null` when not set. `blender` null means Plynth uses the newest supported Blender it finds.
+`recent_projects` is the list `project recent` prints, with its own `path`, `name` and `last_opened`. `exists` is false until something has been saved, and the settings then show their defaults. `library`, `projects` and `blender` are `null` when not set. `blender` null means Plynth uses the newest supported Blender it finds.
 
 ### settings set
 
@@ -1204,6 +1499,7 @@ Every asset in an answer has these fields:
 | `license` | A license id. |
 | `source` | `kind` (`local_file`), `reference` (the original file name) and `imported_at` (UTC). |
 | `size` | `width` (X), `depth` (Y) and `height` (Z) in metres. |
+| `measured` | True when the size is a real measurement. False for an asset that has not been measured yet, whose size is 0. Such an asset cannot be placed. `assets thumbnail` measures it again. |
 | `triangles` | Triangle count. |
 | `state` | `ready`, `needs_refresh` (the `.blend` changed and has not been measured again) or `broken` (see `problem`). |
 | `problem` | Why the asset is broken, otherwise `null`. |
@@ -1433,6 +1729,7 @@ Codes in use:
 
 - `image_missing`: a plan image of the project could not be found. Edits are still saved and the image path is kept. Put the file back, or set another image.
 - The cleanup codes listed under `assets import`: `high_polycount`, `scale_suspicious`, `missing_texture`, `removed_objects`, `unsupported_object`, `eevee_failed`.
+- The furniture codes listed under "Furniture items": `no_room`, `outside_room`, `overlaps_item`, `overlaps_wall`, `overlaps_opening`, `off_wall`, `too_tall`, `missing_asset`, `size_changed`. `place` and the `item` commands that change an item give the problems of that item. With `--strict` they are refused instead.
 
 A project whose plan image was deleted, after `scale set`:
 
@@ -1452,25 +1749,28 @@ For a script on a new machine:
 4. `plynth assets import <file>` for each model. Add `--category` and `--tag` so you do not have to edit afterwards.
 5. `plynth assets search <words>` to find the ids you need.
 
-## File format version 2
+## File format version 3
 
-`plan.json` and `project.json` are now at format version 2. What changed:
+`plan.json` and `project.json` are now at format version 3. What changed:
 
-- Every opening in `plan.json` has `hinge` (`start` or `end`) and `swing` (`left` or `right`).
-- `project.json` has `defaults`, the default sizes (see `project set`).
+- Every floor in `plan.json` has `items`, the furniture placed on it. Each item has `id`, `asset`, `room`, `x`, `y`, `z`, `rotation`, `wall` and `size`. See "Furniture items".
+- `project.json` has `wall_item_centre` in `defaults`, the height of the middle of a newly mounted wall item (see `project set`).
+- Version 2 added `hinge` and `swing` to every opening, and `defaults` to `project.json`.
 
-**Older projects upgrade by themselves.** A version 1 file is read and upgraded in memory. Openings get `"hinge": "start"` and `"swing": "right"`, and the project gets the built-in default sizes. Nothing is written when you only read. The next command that edits and saves writes both files as version 2:
+**Older projects upgrade by themselves.** A version 1 or 2 file is read and upgraded in memory. A version 2 plan gets `"items": []` on every floor and a version 2 project gets `"wall_item_centre": 1.2`. A version 1 file also gets the hinge, swing and default sizes of version 2: openings get `"hinge": "start"` and `"swing": "right"`. Nothing is written when you only read. The next command that edits and saves writes both files as version 3:
 
 ```
 plynth project info --project D:\Plans\OldFlat
 plynth wall set w1 --thickness 0.25 --project D:\Plans\OldFlat
 ```
 
-After the second command, `plan.json` and `project.json` both say `"version": 2`, and every opening has `hinge` and `swing`. `project info` reports `"version":2` under `plan` straight away, because that is the version it would save. The app does the same when it opens and saves an old project.
+After the second command, `plan.json` and `project.json` both say `"version": 3`. `project info` reports `"version":3` under `plan` straight away, because that is the version it would save. The app does the same when it opens and saves an old project.
 
-**Older programs refuse the new files.** A version of Plynth from before this change reads only version 1. Given a version 2 file it answers `unsupported_version`. Keep a copy of a project folder if you still need to open it with the old program.
+**Older programs refuse the new files.** A version of Plynth from before this change reads only versions 1 and 2. Given a version 3 file it answers `unsupported_version`. Keep a copy of a project folder if you still need to open it with the old program.
 
-**Files from a newer Plynth** than the one you run are refused with `unsupported_version`, and nothing is changed. The version is in the file's `version` field. The shape of each version is in `schema/plan.schema.json` and `schema/project.schema.json` (version 2) and `schema/plan.v1.schema.json` and `schema/project.v1.schema.json` (version 1, kept for reference).
+**Files from a newer Plynth** than the one you run are refused with `unsupported_version`, and nothing is changed. The version is in the file's `version` field. The shape of each version is in `schema/plan.schema.json` and `schema/project.schema.json` (version 3), `schema/plan.v2.schema.json` and `schema/project.v2.schema.json` (version 2) and `schema/plan.v1.schema.json` and `schema/project.v1.schema.json` (version 1, kept for reference).
+
+The machine settings file has its own version. Version 2 added `recent_projects`, and a version 1 file is read as having none and written back as version 2.
 
 ## The script order
 
@@ -1481,7 +1781,9 @@ A script builds a plan in this order, because each step needs the one before it:
 3. Walls: `wall draw` (or `point add` and `wall add`), then `wall set --bulge` for curved walls and `point set --corner-radius` for rounded corners. Heights of walls and floors can be set now or later: `floor set`, `wall set --height`.
 4. Rooms: `room find`, `room add`.
 5. Openings: `opening add`, then `opening set` for shape, hinge and swing.
-6. Check: `opening list` and read `problems`, `room list` and read the areas.
+6. Room types: `room set <id> --type living`, so `place --room living` can find the room.
+7. Furniture: `place`, then `item move`, `item rotate`, `item attach`. Mount wall items after the openings, so the overlap with a window is checked.
+8. Check: `opening list` and read `problems`, `room list` and read the areas, `item list` and read `problems` and `asset_state`.
 
 Bend and round before you place openings. Curves change a wall's length and corners change its free part, so an opening placed first may stop fitting. Set the ceiling height before placing tall openings, and lower a wall only after you have checked what stands on it.
 

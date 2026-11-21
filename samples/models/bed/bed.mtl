@@ -1,0 +1,6 @@
+# Materials of the sample bed
+newmtl Wood
+Kd 0.400000 0.270000 0.170000
+
+newmtl Linen
+Kd 0.850000 0.840000 0.800000

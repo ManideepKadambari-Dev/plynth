@@ -8,6 +8,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QPalette>
+#include <QRegularExpression>
 #include <QStyleFactory>
 
 namespace plynth::app {
@@ -98,6 +99,11 @@ bool Theme::load(const QString& resourcePath)
     handleSize_ = spacing["handleSize"].toInt(handleSize_);
     bendHandle_ = spacing["bendHandle"].toInt(bendHandle_);
     proposalDash_ = spacing["proposalDash"].toInt(proposalDash_);
+    pickerColumnWidth_ = spacing["pickerColumnWidth"].toInt(pickerColumnWidth_);
+    pickerRowHeight_ = spacing["pickerRowHeight"].toInt(pickerRowHeight_);
+    previewWidth_ = spacing["previewWidth"].toInt(previewWidth_);
+    rotationHandle_ = spacing["rotationHandle"].toInt(rotationHandle_);
+    itemLabelMinPixels_ = spacing["itemLabelMinPixels"].toInt(itemLabelMinPixels_);
 
     const QJsonObject effects = root["effects"].toObject();
     overlayAlpha_ = effects["overlayAlpha"].toInt(overlayAlpha_);
@@ -106,6 +112,7 @@ bool Theme::load(const QString& resourcePath)
     roomFillAlpha_ = effects["roomFillAlpha"].toInt(roomFillAlpha_);
     proposalFillAlpha_ = effects["proposalFillAlpha"].toInt(proposalFillAlpha_);
     proposalLineAlpha_ = effects["proposalLineAlpha"].toInt(proposalLineAlpha_);
+    itemFillAlpha_ = effects["itemFillAlpha"].toInt(itemFillAlpha_);
 
     const QJsonArray ansi = root["terminal"].toObject()["ansi"].toArray();
     for (int i = 0; i < 16 && i < ansi.size(); ++i) {
@@ -176,6 +183,48 @@ QString Theme::styleSheet() const
         .arg(unit_ * 3)
         .arg(radius_)
         .arg(unit_ * 4);
+}
+
+// Style sheet for a vertical or horizontal scroll bar: a thin track with a Line colored handle.
+QString Theme::scrollBarStyleSheet() const
+{
+    const QString sheet = QStringLiteral(R"(
+        QScrollBar:vertical { background: %1; width: %4px; margin: 0px; border: none; }
+        QScrollBar:horizontal { background: %1; height: %4px; margin: 0px; border: none; }
+        QScrollBar::handle { background: %2; border-radius: %5px; min-height: %6px; min-width: %6px; }
+        QScrollBar::handle:hover { background: %3; }
+        QScrollBar::add-line, QScrollBar::sub-line { width: 0px; height: 0px; background: none; border: none; }
+        QScrollBar::add-page, QScrollBar::sub-page { background: none; }
+    )");
+    return sheet.arg(ground_.name(), line_.name(), muted_.name()).arg(unit_ * 2).arg(unit_).arg(unit_ * 6);
+}
+
+// Escapes the sentence and wraps every path or file name in a span that uses the mono font.
+QString Theme::withMonoPaths(const QString& text) const
+{
+    static const QRegularExpression pathPattern(
+        QStringLiteral(R"re((?:\.[A-Za-z0-9_-]+[\\/][^\s"'<>|]+|[A-Za-z]:[\\/][^\s"'<>|]+|\\\\[^\s"'<>|]+|[^\s"'<>|\\/]+(?:[\\/][^\s"'<>|\\/]+)*\.(?:png|jpe?g|bmp|tif|tiff|blend|fbx|obj|gltf|glb|zip|json|log|db)))re"),
+        QRegularExpression::CaseInsensitiveOption);
+    const QString open = QStringLiteral("<span style=\"font-family:'%1';\">").arg(monoFamily_);
+    QString out;
+    qsizetype last = 0;
+    QRegularExpressionMatchIterator it = pathPattern.globalMatch(text);
+    while (it.hasNext()) {
+        const QRegularExpressionMatch m = it.next();
+        qsizetype end = m.capturedEnd();
+        QString found = m.captured();
+        while (!found.isEmpty() && QStringLiteral(".,;:)").contains(found.back())) {
+            found.chop(1);
+            --end;
+        }
+        if (found.isEmpty())
+            continue;
+        out += text.mid(last, m.capturedStart() - last).toHtmlEscaped();
+        out += open + found.toHtmlEscaped() + QStringLiteral("</span>");
+        last = end;
+    }
+    out += text.mid(last).toHtmlEscaped();
+    return out;
 }
 
 // Sets the palette, default font and style sheet on the running application.

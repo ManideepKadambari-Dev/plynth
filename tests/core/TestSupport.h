@@ -98,6 +98,24 @@ inline Plan fullPlan()
     o2.wall = "w3";
     o2.type = OpeningType::Plain;
     f1.openings = {o1, o2};
+    Item i1;
+    i1.id = "i1";
+    i1.asset = "sofa_01";
+    i1.room = "r1";
+    i1.x = 1.5;
+    i1.y = 1.0;
+    i1.rotation = 90.0;
+    i1.size = {2.0, 0.9, 0.85};
+    Item i2;
+    i2.id = "i2";
+    i2.asset = "tv";
+    i2.x = 2.0;
+    i2.y = 2.87;
+    i2.z = 0.8;
+    i2.rotation = 180.0;
+    i2.wall = "w3";
+    i2.size = {1.23, 0.06, 0.71};
+    f1.items = {i1, i2};
 
     Floor f2;
     f2.id = "f2";

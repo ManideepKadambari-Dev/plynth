@@ -107,8 +107,12 @@ TEST_CASE("lookups", "[core][plan]") {
     REQUIRE(findWall(*f, "w2")->thickness == 0.3);
     REQUIRE(findRoom(*f, "r1")->walls.size() == 2);
     REQUIRE(findOpening(*f, "o1")->shape == "round_arch");
+    REQUIRE(findItem(*f, "i2")->wall == "w3");
+    REQUIRE(findItem(*f, "o1") == nullptr);
+    REQUIRE(findFloorContaining(plan, "i1") == f);
     const Plan& cp = plan;
     REQUIRE(findFloorContaining(cp, "o2") != nullptr);
+    REQUIRE(findItem(*findFloor(cp, "f1"), "i1") != nullptr);
     REQUIRE(findPoint(*findFloor(cp, "f1"), "p1") != nullptr);
 }
 
@@ -203,4 +207,58 @@ TEST_CASE("checkPlan refuses each broken rule", "[core][plan][check]") {
         expectRefused([](Plan& p) { p.floors[0].openings[0].sill = -1.0; }, ErrorCode::InvalidValue, "/floors/0/openings/0/sill");
         expectRefused([](Plan& p) { p.floors[0].openings[0].frame = "x y"; }, ErrorCode::InvalidValue, "/floors/0/openings/0/frame");
     }
+    SECTION("items") {
+        expectRefused([](Plan& p) { p.floors[0].items[1].id = "i1"; }, ErrorCode::AlreadyExists, "/floors/0/items/1/id");
+        expectRefused([](Plan& p) { p.floors[0].items[0].id = "o1"; }, ErrorCode::AlreadyExists, "/floors/0/items/0/id");
+        expectRefused([](Plan& p) { p.floors[0].items[0].asset = "sofa 1"; }, ErrorCode::InvalidValue, "/floors/0/items/0/asset");
+        expectRefused([](Plan& p) { p.floors[0].items[0].asset = ""; }, ErrorCode::InvalidValue, "/floors/0/items/0/asset");
+        expectRefused([](Plan& p) { p.floors[0].items[0].room = "r9"; }, ErrorCode::NotFound, "/floors/0/items/0/room");
+        expectRefused([](Plan& p) { p.floors[0].items[1].wall = "w9"; }, ErrorCode::NotFound, "/floors/0/items/1/wall");
+        expectRefused(
+            [](Plan& p) {
+                Wall w;
+                w.id = "w9";
+                w.from = "p1";
+                w.to = "p2";
+                p.floors[1].points = {{"p9", 0, 0, 0}, {"p8", 1, 0, 0}};
+                w.from = "p9";
+                w.to = "p8";
+                p.floors[1].walls = {w};
+                p.floors[0].items[1].wall = "w9";
+            },
+            ErrorCode::NotFound, "/floors/0/items/1/wall");
+        expectRefused([](Plan& p) { p.floors[0].items[0].x = kNaN; }, ErrorCode::InvalidValue, "/floors/0/items/0/x");
+        expectRefused([](Plan& p) { p.floors[0].items[0].y = kInf; }, ErrorCode::InvalidValue, "/floors/0/items/0/y");
+        expectRefused([](Plan& p) { p.floors[0].items[0].z = -0.1; }, ErrorCode::InvalidValue, "/floors/0/items/0/z");
+        expectRefused([](Plan& p) { p.floors[0].items[0].rotation = 360.0; }, ErrorCode::InvalidValue, "/floors/0/items/0/rotation");
+        expectRefused([](Plan& p) { p.floors[0].items[0].rotation = -1.0; }, ErrorCode::InvalidValue, "/floors/0/items/0/rotation");
+        expectRefused([](Plan& p) { p.floors[0].items[0].size.width = 0.0; }, ErrorCode::InvalidValue,
+                      "/floors/0/items/0/size/width");
+        expectRefused([](Plan& p) { p.floors[0].items[0].size.depth = -1.0; }, ErrorCode::InvalidValue,
+                      "/floors/0/items/0/size/depth");
+        expectRefused([](Plan& p) { p.floors[0].items[1].size.height = kNaN; }, ErrorCode::InvalidValue,
+                      "/floors/0/items/1/size/height");
+    }
+    SECTION("fit and overlap are not format rules") {
+        Plan plan = fullPlan();
+        plan.floors[0].items[0].x = 500.0;
+        plan.floors[0].items[1] = plan.floors[0].items[0];
+        plan.floors[0].items[1].id = "i2";
+        plan.floors[0].items[1].room = std::nullopt;
+        REQUIRE(checkPlan(plan).ok());
+    }
+}
+
+TEST_CASE("items count in ids and lookups", "[core][plan][id]") {
+    const Plan plan = fullPlan();
+    REQUIRE(idInUse(plan, "i1"));
+    REQUIRE(idInUse(plan, "i2"));
+    REQUIRE_FALSE(idInUse(plan, "i3"));
+    REQUIRE(newId(plan, kItemIdPrefix) == "i3");
+    Plan p = makeEmptyPlan();
+    REQUIRE(newId(p, kItemIdPrefix) == "i1");
+    Item it;
+    it.id = "i7";
+    p.floors[0].items.push_back(it);
+    REQUIRE(newId(p, kItemIdPrefix) == "i8");
 }

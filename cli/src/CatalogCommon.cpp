@@ -174,6 +174,7 @@ Json assetEntry(const AssetRecord& record) {
     entry["license"] = record.license;
     entry["source"] = std::move(source);
     entry["size"] = std::move(size);
+    entry["measured"] = isMeasured(record.size);
     entry["triangles"] = record.triangles;
     entry["state"] = std::string(assetStateName(record.state));
     if (record.problem.empty()) {

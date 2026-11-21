@@ -251,7 +251,7 @@ TEST_CASE("SplitWallCommand", "[core][command][wall]") {
         REQUIRE(mid);
         REQUIRE(mid->x == Approx(0.0));
         REQUIRE(mid->y == Approx(2.0));
-        REQUIRE(c.changes() == (Change::Points | Change::Walls | Change::Rooms | Change::Openings));
+        REQUIRE(c.changes() == (Change::Points | Change::Walls | Change::Rooms | Change::Openings | Change::Items));
         REQUIRE(c.floorId() == "f1");
     }
     SECTION("rooms list the new wall right after the old one") {
@@ -352,7 +352,7 @@ TEST_CASE("DrawWallCommand with each pair of ends", "[core][command][wall]") {
         REQUIRE(w->height == 2.4);
         REQUIRE(c.name() == "Draw wall");
         REQUIRE(c.floorId() == "f1");
-        REQUIRE(c.changes() == (Change::Points | Change::Walls | Change::Rooms | Change::Openings));
+        REQUIRE(c.changes() == (Change::Points | Change::Walls | Change::Rooms | Change::Openings | Change::Items));
     }
     SECTION("point to new point") {
         DrawWallCommand c("f1", WallEnd::atPoint("p1"), WallEnd::newPoint({-2.0, 0.0}));

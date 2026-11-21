@@ -23,8 +23,8 @@ private:
     double previous_ = 0.0;
 };
 
-// Sets the project's default sizes for new openings and new floors (DESIGN.md section 7.5). Marks already
-// placed keep their sizes. InvalidValue from checkDefaultSizes.
+// Sets the project's default sizes for new openings, new floors and newly mounted wall items (DESIGN.md
+// section 7.5). Marks already placed keep their sizes and heights. InvalidValue from checkDefaultSizes.
 class SetDefaultSizesCommand : public Command {
 public:
     explicit SetDefaultSizesCommand(DefaultSizes sizes);

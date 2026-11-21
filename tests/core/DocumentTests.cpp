@@ -557,6 +557,38 @@ TEST_CASE("reload sends the flags of each part that differs", "[core][document][
     REQUIRE(rec.events[0].floorId == "f1");
 }
 
+TEST_CASE("reload reports Items when an item changed on disk", "[core][document][reload]") {
+    plynth::test::TempDir tmp("doc-reload-items");
+    const fs::path folder = tmp.path() / "p";
+    Document a;
+    plynth::test::requireOk(a.saveAs(folder));
+
+    Project edited = a.project();
+    Item it;
+    it.id = "i1";
+    it.asset = "sofa";
+    it.x = 1.0;
+    it.y = 2.0;
+    it.size = {2.0, 0.9, 0.85};
+    edited.plan.floors[0].items.push_back(it);
+    plynth::test::requireOk(saveProject(edited, folder, folder));
+
+    Recorder rec;
+    rec.attach(a);
+    plynth::test::requireOk(a.reload());
+    REQUIRE(rec.events.size() == 1);
+    REQUIRE(rec.events[0].changes == (Change::Items | Change::History));
+    REQUIRE(rec.events[0].floorId == "f1");
+    REQUIRE(a.plan().floors[0].items.size() == 1);
+
+    edited.plan.floors[0].items[0].x = 3.0;
+    plynth::test::requireOk(saveProject(edited, folder, folder));
+    rec.events.clear();
+    plynth::test::requireOk(a.reload());
+    REQUIRE(rec.events.size() == 1);
+    REQUIRE(rec.events[0].changes == (Change::Items | Change::History));
+}
+
 TEST_CASE("reload with equal files sends nothing and keeps the history", "[core][document][reload]") {
     plynth::test::TempDir tmp("doc-reload-equal");
     Document doc;

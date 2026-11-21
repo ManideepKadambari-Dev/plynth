@@ -4,10 +4,16 @@
 #include "theme/Theme.h"
 #include "tools/Tool.h"
 
+#include <plynth/core/PlanImage.h>
+
 #include <QApplication>
 #include <QGraphicsPixmapItem>
 #include <QGraphicsScene>
+#include <QDragEnterEvent>
+#include <QDragMoveEvent>
+#include <QDropEvent>
 #include <QGuiApplication>
+#include <QMimeData>
 #include <QKeyEvent>
 #include <QLineEdit>
 #include <QMouseEvent>
@@ -19,6 +25,7 @@
 #include <QWheelEvent>
 
 #include <algorithm>
+#include <filesystem>
 #include <cmath>
 #include <numbers>
 
@@ -357,6 +364,7 @@ void PlanCanvas::paintOverlay(QPainter* painter)
     }
 
     painter->resetTransform();
+    paintItems(painter);
     {
         const QTransform view = viewportTransform();
         OpeningPaintStyle style;
@@ -396,6 +404,97 @@ void PlanCanvas::paintOverlay(QPainter* painter)
     if (tool_ != nullptr)
         tool_->paint(*painter);
     painter->restore();
+}
+
+// Paints every placed item as its footprint at true size: Raised fill, Muted outline, a tick on the front
+// edge, a line on the back of a wall item, and the name when it fits. The selected one is amber, one with a
+// problem has a dashed amber outline, and a missing asset reads "Missing asset" with its id in mono.
+void PlanCanvas::paintItems(QPainter* painter)
+{
+    if (overlay_.items.isEmpty())
+        return;
+    const Theme& t = Theme::instance();
+    QColor fill = t.raised();
+    fill.setAlpha(t.itemFillAlpha());
+    const QFont nameFont = t.uiFont(t.sizeNormal());
+    const QFont idFont = t.monoFont(t.sizeSmall());
+    const QVector<RoomChip> chips = roomChips();
+    const QFontMetrics nameMetrics(nameFont);
+    const QFontMetrics idMetrics(idFont);
+    for (const OverlayItem& item : overlay_.items) {
+        if (item.footprint.size() != 4)
+            continue;
+        const bool selected = selectionKind_ == SelectionKind::Item && item.id == selectionId_;
+        QPolygonF shape;
+        for (const QPointF& corner : item.footprint)
+            shape << mapFromScene(corner);
+        painter->setBrush(fill);
+        QPen outline(selected ? t.signalAmber() : item.problem ? t.signalAmber() : t.muted(), selected ? 2.0 : 1.5);
+        if (item.problem && !selected)
+            outline.setDashPattern({4.0, 3.0});
+        painter->setPen(outline);
+        painter->drawPolygon(shape);
+
+        const QPointF frontMid = (shape[2] + shape[3]) / 2.0;
+        const QPointF centre = (shape[0] + shape[2]) / 2.0;
+        const QPointF toFront = frontMid - centre;
+        const double reach = std::hypot(toFront.x(), toFront.y());
+        if (reach > 1.0) {
+            const QPointF direction = toFront / reach;
+            const double tick = std::min(reach / 3.0, double(t.unit() * 3));
+            painter->setPen(QPen(selected ? t.signalAmber() : t.muted(), 2.0, Qt::SolidLine, Qt::RoundCap));
+            painter->drawLine(frontMid, frontMid - direction * tick);
+        }
+        if (item.wall) {
+            painter->setPen(QPen(t.text(), 2.0, Qt::SolidLine, Qt::FlatCap));
+            painter->drawLine(shape[0], shape[1]);
+        }
+
+        const QRectF box = shape.boundingRect();
+        if (std::min(box.width(), box.height()) < t.itemLabelMinPixels())
+            continue;
+        const int lineHeight = nameMetrics.height();
+        const int textWidth = std::max(nameMetrics.horizontalAdvance(item.label),
+                                       item.detail.isEmpty() ? 0 : idMetrics.horizontalAdvance(item.detail));
+        const int textHeight = item.detail.isEmpty() ? lineHeight : lineHeight + idMetrics.height();
+        // The label goes in the middle, or just above or below it when a room chip is there. It is hidden
+        // when it fits nowhere inside the footprint, like a room label in a small room.
+        const double steps[] = {0.0, -1.0, 1.0, -2.0, 2.0};
+        bool placed = false;
+        QRectF text;
+        QRectF padded;
+        for (const double step : steps) {
+            text = QRectF(centre.x() - textWidth / 2.0, centre.y() - textHeight / 2.0 + step * (textHeight + t.unit() * 2),
+                          textWidth, textHeight);
+            padded = text.adjusted(-t.unit(), -t.unit() / 2.0, t.unit(), t.unit() / 2.0);
+            const QPointF corners[4] = {padded.topLeft(), padded.topRight(), padded.bottomRight(), padded.bottomLeft()};
+            bool fits = true;
+            for (const QPointF& corner : corners)
+                fits = fits && shape.containsPoint(corner, Qt::OddEvenFill);
+            for (const RoomChip& chip : chips)
+                fits = fits && !chip.pill.intersects(padded);
+            if (fits) {
+                placed = true;
+                break;
+            }
+        }
+        if (!placed)
+            continue;
+        QColor backing = t.panel();
+        backing.setAlpha(230);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(backing);
+        painter->drawRoundedRect(padded, t.radius(), t.radius());
+        painter->setFont(nameFont);
+        painter->setPen(item.missing ? t.signalAmber() : t.text());
+        painter->drawText(QRectF(text.left(), text.top(), text.width(), lineHeight), Qt::AlignCenter, item.label);
+        if (!item.detail.isEmpty()) {
+            painter->setFont(idFont);
+            painter->setPen(t.muted());
+            painter->drawText(QRectF(text.left(), text.top() + lineHeight, text.width(), idMetrics.height()),
+                              Qt::AlignCenter, item.detail);
+        }
+    }
 }
 
 // Paints the detection preview in canvas pixels: dashed blue wall bands, room outlines, point rings and
@@ -474,14 +573,13 @@ void PlanCanvas::paintProposals(QPainter* painter)
         painter->drawEllipse(view.map(point), radius, radius);
 }
 
-// Paints each room's name and area at constant screen size, unless the room is too small for them.
-void PlanCanvas::paintLabels(QPainter* painter)
+// Works out where each room's name and area chip goes at the current zoom. Rooms too small for it get none.
+QVector<PlanCanvas::RoomChip> PlanCanvas::roomChips() const
 {
     const Theme& t = Theme::instance();
-    const QFont nameFont = t.uiFont(t.sizeNormal());
-    const QFont areaFont = t.monoFont(t.sizeSmall());
-    const QFontMetrics nameMetrics(nameFont);
-    const QFontMetrics areaMetrics(areaFont);
+    const QFontMetrics nameMetrics(t.uiFont(t.sizeNormal()));
+    const QFontMetrics areaMetrics(t.monoFont(t.sizeSmall()));
+    QVector<RoomChip> chips;
     for (const OverlayRoom& room : overlay_.rooms) {
         const int nameWidth = nameMetrics.horizontalAdvance(room.name);
         const int areaWidth = areaMetrics.horizontalAdvance(room.area);
@@ -493,21 +591,35 @@ void PlanCanvas::paintLabels(QPainter* painter)
         if (height > roomBox.height())
             continue;
         const QPointF at = mapFromScene(room.label);
-        const QRectF nameBox(at.x() - width / 2.0, at.y() - height / 2.0, width, nameMetrics.height());
-        const QRectF areaBox(at.x() - width / 2.0, nameBox.bottom(), width, areaMetrics.height());
-        const QRectF pill = QRectF(at.x() - width / 2.0, at.y() - height / 2.0, width, height)
-                                .adjusted(-t.unit(), -t.unit() / 2.0, t.unit(), t.unit() / 2.0);
+        RoomChip chip;
+        chip.room = &room;
+        chip.nameBox = QRectF(at.x() - width / 2.0, at.y() - height / 2.0, width, nameMetrics.height());
+        chip.areaBox = QRectF(at.x() - width / 2.0, chip.nameBox.bottom(), width, areaMetrics.height());
+        chip.pill = QRectF(at.x() - width / 2.0, at.y() - height / 2.0, width, height)
+                        .adjusted(-t.unit(), -t.unit() / 2.0, t.unit(), t.unit() / 2.0);
+        chips.append(chip);
+    }
+    return chips;
+}
+
+// Paints each room's name and area at constant screen size, unless the room is too small for them.
+void PlanCanvas::paintLabels(QPainter* painter)
+{
+    const Theme& t = Theme::instance();
+    const QFont nameFont = t.uiFont(t.sizeNormal());
+    const QFont areaFont = t.monoFont(t.sizeSmall());
+    for (const RoomChip& chip : roomChips()) {
         QColor backing = t.panel();
         backing.setAlpha(230);
         painter->setPen(Qt::NoPen);
         painter->setBrush(backing);
-        painter->drawRoundedRect(pill, t.radius(), t.radius());
+        painter->drawRoundedRect(chip.pill, t.radius(), t.radius());
         painter->setFont(nameFont);
         painter->setPen(t.text());
-        painter->drawText(nameBox, Qt::AlignCenter, room.name);
+        painter->drawText(chip.nameBox, Qt::AlignCenter, chip.room->name);
         painter->setFont(areaFont);
         painter->setPen(t.muted());
-        painter->drawText(areaBox, Qt::AlignCenter, room.area);
+        painter->drawText(chip.areaBox, Qt::AlignCenter, chip.room->area);
     }
 }
 
@@ -690,6 +802,55 @@ void PlanCanvas::showEvent(QShowEvent* event)
     QGraphicsView::showEvent(event);
     if (hasImage() && fitMode_)
         applyFit();
+}
+
+// Says whether a drag carries a local file with a plan image extension, the same test the window uses.
+static bool hasImageFile(const QMimeData& mime)
+{
+    for (const QUrl& url : mime.urls())
+        if (url.isLocalFile() && plynth::hasPlanImageExtension(std::filesystem::path(url.toLocalFile().toStdWString())))
+            return true;
+    return false;
+}
+
+// Accepts an asset tile dragged from the Assets tab. Plan image files go on to the window, which sets them.
+void PlanCanvas::dragEnterEvent(QDragEnterEvent* event)
+{
+    if (event->mimeData()->hasFormat(QStringLiteral("application/x-plynth-asset"))) {
+        if (hasImage())
+            event->acceptProposedAction();
+        else
+            event->ignore();
+        return;
+    }
+    QApplication::sendEvent(window(), event);
+}
+
+// Keeps accepting the tile, or the image file, while it moves over the plan.
+void PlanCanvas::dragMoveEvent(QDragMoveEvent* event)
+{
+    if (event->mimeData()->hasFormat(QStringLiteral("application/x-plynth-asset")) && hasImage())
+        event->acceptProposedAction();
+    else if (event->mimeData()->hasUrls() && hasImageFile(*event->mimeData()))
+        event->acceptProposedAction();
+    else
+        event->ignore();
+}
+
+// Tells the window where an asset tile was dropped. The window places it with a command.
+void PlanCanvas::dropEvent(QDropEvent* event)
+{
+    if (event->mimeData()->hasFormat(QStringLiteral("application/x-plynth-asset"))) {
+        if (!hasImage()) {
+            event->ignore();
+            return;
+        }
+        const QString id = QString::fromUtf8(event->mimeData()->data(QStringLiteral("application/x-plynth-asset")));
+        event->acceptProposedAction();
+        emit assetDropped(id, mapToScene(event->position().toPoint()), event->modifiers() & Qt::ControlModifier);
+        return;
+    }
+    QApplication::sendEvent(window(), event);
 }
 
 // Shows an open hand while Space is held, otherwise the normal arrow.

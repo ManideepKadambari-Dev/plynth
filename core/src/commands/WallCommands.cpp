@@ -1,6 +1,7 @@
 #include "plynth/core/commands/WallCommands.h"
 
 #include "plynth/core/commands/PointCommands.h"
+#include "plynth/core/Items.h"
 #include "plynth/core/WallGeometry.h"
 #include "plynth/core/Openings.h"
 
@@ -100,6 +101,9 @@ Status RemoveWallCommand::apply(Project& project)
     }
     for (const Opening& o : floor->openings) {
         if (o.wall == wallId_) return fail(ErrorCode::InUse, "The wall " + wallId_ + " has the opening " + o.id + " on it.");
+    }
+    for (const Item& i : floor->items) {
+        if (i.wall == wallId_) return fail(ErrorCode::InUse, "The wall " + wallId_ + " has the item " + i.id + " mounted on it.");
     }
     const auto it = std::find_if(floor->walls.begin(), floor->walls.end(), [&](const Wall& w) { return w.id == wallId_; });
     floorId_ = floor->id;
@@ -284,6 +288,11 @@ Status SplitWallCommand::apply(Project& project)
             o.offset -= offset_;
         }
     }
+    for (Item& item : floor->items) {
+        if (item.wall != wallId_) continue;
+        const WallItemSpot spot = wallItemSpot(previous_, item);
+        if (spot.valid && spot.offset >= offset_) item.wall = secondId;
+    }
     return {};
 }
 
@@ -295,7 +304,7 @@ void SplitWallCommand::undo(Project& project)
 
 unsigned SplitWallCommand::changes() const
 {
-    return Change::Points | Change::Walls | Change::Rooms | Change::Openings;
+    return Change::Points | Change::Walls | Change::Rooms | Change::Openings | Change::Items;
 }
 
 Id SplitWallCommand::floorId() const
@@ -526,7 +535,7 @@ void DrawWallCommand::undo(Project& project)
 
 unsigned DrawWallCommand::changes() const
 {
-    return Change::Points | Change::Walls | Change::Rooms | Change::Openings;
+    return Change::Points | Change::Walls | Change::Rooms | Change::Openings | Change::Items;
 }
 
 Id DrawWallCommand::floorId() const

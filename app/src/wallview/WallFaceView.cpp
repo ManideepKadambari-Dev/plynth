@@ -2,16 +2,25 @@
 
 #include "document/Selection.h"
 #include "theme/Theme.h"
+#include "furniture/FurniturePicker.h"
 #include "tools/ToolController.h"
 
 #include <QApplication>
 #include <QFontMetrics>
 #include <QGraphicsScene>
 
+#include <plynth/core/Items.h>
 #include <plynth/core/Openings.h>
+#include <plynth/core/Rooms.h>
+#include <plynth/core/WallGeometry.h>
+#include <plynth/core/commands/ItemCommands.h>
 #include <plynth/core/commands/OpeningCommands.h>
 
+#include <QDragEnterEvent>
+#include <QDragMoveEvent>
+#include <QDropEvent>
 #include <QKeyEvent>
+#include <QMimeData>
 #include <QLineEdit>
 #include <QMouseEvent>
 #include <QPainter>
@@ -45,6 +54,7 @@ WallFaceView::WallFaceView(ToolController* host, QWidget* parent)
     setFocusPolicy(Qt::ClickFocus);
     setMouseTracking(true);
     viewport()->setMouseTracking(true);
+    setAcceptDrops(true);
     setToolTip(tr("Wall face at true scale. Wheel zooms at the cursor. Middle drag pans. Home fits the wall."));
 }
 
@@ -111,6 +121,8 @@ void WallFaceView::paintEvent(QPaintEvent*)
     painter.setRenderHint(QPainter::Antialiasing, true);
     paintFace(painter);
     paintOpenings(painter);
+    paintItems(painter);
+    paintCentreLine(painter);
     paintRuler(painter);
     paintMeasures(painter);
     paintHandles(painter);
@@ -181,14 +193,67 @@ void WallFaceView::paintOpenings(QPainter& painter)
         painter.setBrush(t.ground());
         painter.drawPolygon(shape);
     }
+}
+
+// Paints the items mounted on the face: a Panel box with a Muted outline and the name when it fits. The
+// selected one is amber and shows its centre height in mono, one with a problem has a dashed amber outline.
+void WallFaceView::paintItems(QPainter& painter)
+{
+    const Theme& t = Theme::instance();
+    QColor fill = t.panel();
+    fill.setAlpha(t.itemFillAlpha());
     for (const WallViewItem& item : data_.items) {
         QPolygonF shape;
         for (const QPointF& corner : item.outline)
             shape << toView(corner.x(), corner.y());
-        painter.setPen(QPen(item.selected ? t.signalAmber() : t.signalBlue(), 1.5));
-        painter.setBrush(Qt::NoBrush);
+        QPen pen(item.selected || item.problem ? t.signalAmber() : t.muted(), item.selected ? 2.0 : 1.5);
+        if (item.problem && !item.selected)
+            pen.setDashPattern({4.0, 3.0});
+        painter.setPen(pen);
+        painter.setBrush(fill);
         painter.drawPolygon(shape);
+        const QRectF box = shape.boundingRect();
+        const QString name = item.missing ? tr("Missing asset") : item.name;
+        const QFont nameFont = t.uiFont(t.sizeSmall());
+        const QFont monoFont = t.monoFont(t.sizeSmall());
+        const QFontMetrics names(nameFont);
+        const QFontMetrics monos(monoFont);
+        const QString centre = tr("centre %1 m").arg(item.centreHeight, 0, 'f', 2);
+        const bool withCentre = item.selected && box.height() > names.height() + monos.height() + t.unit() * 2 &&
+                                box.width() > monos.horizontalAdvance(centre) + t.unit() * 2;
+        if (box.width() > names.horizontalAdvance(name) + t.unit() * 2 && box.height() > names.height() + t.unit()) {
+            const double blockHeight = withCentre ? names.height() + monos.height() : names.height();
+            const QPointF middle = box.center();
+            painter.setFont(nameFont);
+            painter.setPen(item.missing ? t.signalAmber() : t.muted());
+            painter.drawText(QRectF(box.left(), middle.y() - blockHeight / 2.0, box.width(), names.height()),
+                             Qt::AlignCenter, name);
+            if (withCentre) {
+                painter.setFont(monoFont);
+                painter.setPen(t.muted());
+                painter.drawText(QRectF(box.left(), middle.y() - blockHeight / 2.0 + names.height(), box.width(),
+                                        monos.height()),
+                                 Qt::AlignCenter, centre);
+            }
+        }
     }
+}
+
+// Paints the dashed line at the project's wall item centre while an item is dragged, so heights line up.
+void WallFaceView::paintCentreLine(QPainter& painter)
+{
+    if (drag_ != Drag::Item || host_ == nullptr)
+        return;
+    const Theme& t = Theme::instance();
+    const double centre = host_->document().project().settings.defaults.wallItemCentre;
+    QPen dashed(t.muted(), 1.0);
+    dashed.setDashPattern({4.0, 4.0});
+    painter.setPen(dashed);
+    const QPointF left = toView(0.0, centre);
+    const QPointF right = toView(data_.length, centre);
+    painter.drawLine(QPointF(std::min(left.x(), right.x()), left.y()), QPointF(std::max(left.x(), right.x()), left.y()));
+    painter.setFont(t.monoFont(t.sizeSmall()));
+    painter.drawText(QPointF(std::min(left.x(), right.x()) + 4.0, left.y() - 4.0), tr("centre %1 m").arg(centre, 0, 'f', 2));
 }
 
 // Paints the height ruler at the left of the face: a tick every 0.5 m, a label every 1 m.
@@ -267,6 +332,86 @@ const WallViewOpening* WallFaceView::openingAt(const QPointF& face) const
     return nullptr;
 }
 
+// The item whose box holds a place on the face, the later ones first. Null when there is none.
+const WallViewItem* WallFaceView::itemAt(const QPointF& face) const
+{
+    for (qsizetype i = data_.items.size(); i-- > 0;)
+        if (data_.items[i].outline.containsPoint(face, Qt::OddEvenFill))
+            return &data_.items[i];
+    return nullptr;
+}
+
+// The side of the wall the face is seen from.
+plynth::WallSide WallFaceView::shownSide() const
+{
+    return data_.seenFromRight ? plynth::WallSide::Right : plynth::WallSide::Left;
+}
+
+// Opens the furniture picker at a click on the face. It is filtered by the room on this side of the wall.
+// Choosing an asset hangs it on the wall there, at the project's wall item centre.
+void WallFaceView::openPickerAt(const QPoint& view, const QPointF& face)
+{
+    const plynth::Floor* floor = host_->floor();
+    if (floor == nullptr || host_->catalog() == nullptr || face.x() < 0.0 || face.x() > data_.length)
+        return;
+    const plynth::Wall* wall = plynth::findWall(*floor, data_.wallId.toStdString());
+    if (wall == nullptr)
+        return;
+    QString roomType;
+    const plynth::WallCurve curve = plynth::wallCurve(*floor, *wall);
+    if (curve.valid) {
+        const plynth::Vec2 at = plynth::pointAlong(curve, face.x());
+        const plynth::Vec2 tangent = plynth::tangentAlong(curve, face.x());
+        const double sign = data_.seenFromRight ? 1.0 : -1.0;
+        const double reach = wall->thickness / 2.0 + 0.3;
+        const plynth::Id roomId =
+            plynth::roomAt(*floor, plynth::Vec2{at.x - tangent.y * sign * reach, at.y + tangent.x * sign * reach});
+        for (const plynth::Room& room : floor->rooms)
+            if (!roomId.empty() && room.id == roomId && room.type.has_value())
+                roomType = QString::fromStdString(*room.type);
+    }
+    double offset = face.x();
+    offset = std::round(offset / plynth::kOpeningSnapStep) * plynth::kOpeningSnapStep;
+    const plynth::Id wallId = wall->id;
+    const plynth::WallSide side = shownSide();
+    host_->pickAsset(this, view, roomType, [this, wallId, side, offset](const QString& assetId) {
+        host_->placeWallAsset(assetId, wallId, side, offset);
+    });
+}
+
+// Accepts an asset tile dragged from the Assets tab.
+void WallFaceView::dragEnterEvent(QDragEnterEvent* event)
+{
+    if (data_.valid && editable() && event->mimeData()->hasFormat(QStringLiteral("application/x-plynth-asset")))
+        event->acceptProposedAction();
+    else
+        event->ignore();
+}
+
+// Keeps accepting the tile while it moves over the face.
+void WallFaceView::dragMoveEvent(QDragMoveEvent* event)
+{
+    if (data_.valid && editable() && event->mimeData()->hasFormat(QStringLiteral("application/x-plynth-asset")))
+        event->acceptProposedAction();
+    else
+        event->ignore();
+}
+
+// Hangs the dropped asset on the wall at the drop place, in 5 cm steps unless Ctrl is held.
+void WallFaceView::dropEvent(QDropEvent* event)
+{
+    if (!data_.valid || !editable() || !event->mimeData()->hasFormat(QStringLiteral("application/x-plynth-asset"))) {
+        event->ignore();
+        return;
+    }
+    const QString id = QString::fromUtf8(event->mimeData()->data(QStringLiteral("application/x-plynth-asset")));
+    event->acceptProposedAction();
+    double offset = std::clamp(toFace(event->position()).x(), 0.0, data_.length);
+    if (!(event->modifiers() & Qt::ControlModifier))
+        offset = std::round(offset / plynth::kOpeningSnapStep) * plynth::kOpeningSnapStep;
+    host_->placeWallAsset(id, data_.wallId.toStdString(), shownSide(), offset);
+}
+
 // Where a handle is, in canvas pixels. Handles run around the box as seen: 0 top left, 1 top, 2 top right,
 // 3 right, 4 bottom right, 5 bottom, 6 bottom left, 7 left.
 QPointF WallFaceView::handlePosition(const Box& box, int handle) const
@@ -324,7 +469,9 @@ void WallFaceView::updateHover(const QPoint& view)
         shape = shapes[handle];
     } else if (editable() && host_->active() == ToolId::Opening) {
         shape = Qt::CrossCursor;
-    } else if (editable() && openingAt(toFace(view)) != nullptr) {
+    } else if (editable() && host_->active() == ToolId::Furniture) {
+        shape = Qt::CrossCursor;
+    } else if (editable() && (openingAt(toFace(view)) != nullptr || itemAt(toFace(view)) != nullptr)) {
         shape = Qt::SizeAllCursor;
     }
     viewport()->setCursor(shape);
@@ -352,6 +499,33 @@ void WallFaceView::addOpeningAt(const QPointF& face, Qt::KeyboardModifiers modif
 void WallFaceView::dragTo(const QPoint& view, Qt::KeyboardModifiers modifiers)
 {
     const plynth::Floor* floor = host_->floor();
+    if (drag_ == Drag::Item) {
+        const plynth::Item* item = floor ? plynth::findItem(*floor, dragId_) : nullptr;
+        if (item == nullptr)
+            return;
+        const bool freeItem = modifiers & Qt::ControlModifier;
+        const auto snapItem = [freeItem](double value) {
+            return freeItem ? value : std::round(value / plynth::kOpeningSnapStep) * plynth::kOpeningSnapStep;
+        };
+        const QPointF at = toFace(QPointF(view));
+        double offset = at.x() - itemGrabU_;
+        double z = at.y() - itemGrabV_;
+        if (modifiers & Qt::ShiftModifier) {
+            const QPoint moved = view - dragStartView_;
+            if (std::abs(moved.x()) >= std::abs(moved.y()))
+                z = dragStartFace_.y() - itemGrabV_;
+            else
+                offset = dragStartFace_.x() - itemGrabU_;
+        }
+        const double half = item->size.width / 2.0;
+        offset = std::clamp(snapItem(offset), std::min(half, data_.length / 2.0), std::max(data_.length - half, data_.length / 2.0));
+        z = std::clamp(snapItem(z), 0.0, std::max(0.0, data_.height - item->size.height));
+        const plynth::WallItemSpot spot = plynth::wallItemSpot(*floor, *item);
+        if (spot.valid && std::abs(spot.offset - offset) < 1e-9 && std::abs(item->z - z) < 1e-9)
+            return;
+        host_->run(std::make_unique<plynth::MoveItemOnWallCommand>(dragId_, offset, z, dragKey_));
+        return;
+    }
     const plynth::Opening* current = floor ? plynth::findOpening(*floor, dragId_) : nullptr;
     if (current == nullptr)
         return;
@@ -505,6 +679,19 @@ void WallFaceView::mousePressEvent(QMouseEvent* event)
             }
         } else if (editable() && host_->active() == ToolId::Opening) {
             addOpeningAt(face, event->modifiers());
+        } else if (editable() && host_->active() == ToolId::Furniture) {
+            openPickerAt(view, face);
+        } else if (const WallViewItem* item = itemAt(face)) {
+            host_->selection().set(SelectionKind::Item, item->id);
+            if (editable()) {
+                drag_ = Drag::Item;
+                dragId_ = item->id.toStdString();
+                itemGrabU_ = face.x() - item->offset;
+                itemGrabV_ = face.y() - item->z;
+                dragStartFace_ = face;
+                dragStartView_ = view;
+                dragKey_ = host_->nextMergeKey();
+            }
         } else if (const WallViewOpening* opening = openingAt(face)) {
             host_->selection().set(SelectionKind::Opening, opening->id);
             if (editable()) {

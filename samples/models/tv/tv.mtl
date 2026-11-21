@@ -1,0 +1,6 @@
+# Materials of the sample tv
+newmtl Plastic
+Kd 0.050000 0.050000 0.060000
+
+newmtl Screen
+Kd 0.020000 0.030000 0.050000

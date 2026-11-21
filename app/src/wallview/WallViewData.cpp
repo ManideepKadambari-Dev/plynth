@@ -1,14 +1,17 @@
 #include "WallViewData.h"
 
+#include <plynth/core/Items.h>
 #include <plynth/core/OpeningShapes.h>
 #include <plynth/core/Openings.h>
 #include <plynth/core/WallGeometry.h>
+#include <plynth/core/catalog/ItemAssets.h>
 
 namespace plynth::app {
 
 // Builds the data for one wall of a floor, as seen from a side.
 WallViewData buildWallViewData(const plynth::Floor& floor, const plynth::Wall& wall, plynth::WallSide side,
-                               const QString& selectedOpening)
+                               const QString& selectedOpening, const QString& selectedItem,
+                               const plynth::AssetCatalog* catalog)
 {
     WallViewData data;
     const plynth::WallCurve curve = plynth::wallCurve(floor, wall);
@@ -52,6 +55,42 @@ WallViewData buildWallViewData(const plynth::Floor& floor, const plynth::Wall& w
             if (id == opening.id)
                 entry.problem = true;
         data.openings.append(entry);
+    }
+
+    plynth::AssetLookup lookup;
+    if (catalog != nullptr)
+        lookup = plynth::assetLookupFor(*catalog);
+    const std::vector<plynth::ItemProblem> itemIssues = plynth::itemProblems(floor, lookup);
+    for (const plynth::Item& item : floor.items) {
+        if (!item.wall || *item.wall != wall.id)
+            continue;
+        const plynth::WallItemSpot spot = plynth::wallItemSpot(floor, item);
+        if (!spot.valid || spot.side != side)
+            continue;
+        WallViewItem entry;
+        entry.id = QString::fromStdString(item.id);
+        entry.name = QString::fromStdString(item.asset);
+        if (catalog != nullptr)
+            if (const std::optional<plynth::AssetRecord> record = catalog->asset(item.asset))
+                entry.name = QString::fromStdString(record->name);
+        entry.offset = spot.offset;
+        entry.z = item.z;
+        entry.width = item.size.width;
+        entry.height = item.size.height;
+        entry.centreHeight = plynth::itemCentreHeight(item);
+        entry.selected = entry.id == selectedItem;
+        for (const plynth::ItemProblem& issue : itemIssues) {
+            if (issue.item != item.id)
+                continue;
+            entry.problem = true;
+            if (issue.kind == plynth::ItemProblemKind::MissingAsset)
+                entry.missing = true;
+        }
+        entry.outline << QPointF(entry.offset - entry.width / 2.0, entry.z)
+                      << QPointF(entry.offset + entry.width / 2.0, entry.z)
+                      << QPointF(entry.offset + entry.width / 2.0, entry.z + entry.height)
+                      << QPointF(entry.offset - entry.width / 2.0, entry.z + entry.height);
+        data.items.append(entry);
     }
     return data;
 }

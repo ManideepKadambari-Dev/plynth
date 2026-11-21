@@ -310,8 +310,9 @@ TEST_CASE("AddWallCommand", "[core][command][wall]") {
 TEST_CASE("RemoveWallCommand", "[core][command][wall]") {
     SECTION("removes a free wall and undo puts it back in place") {
         Project p = richProject();
-        // w3 has opening o2, so take it off first to make the wall free.
+        // w3 has opening o2 and wall item i2, so take them off first to make the wall free.
         p.plan.floors[0].openings.pop_back();
+        p.plan.floors[0].items.pop_back();
         const Project before = p;
         RemoveWallCommand c("w3");
         roundTrip(c, p);

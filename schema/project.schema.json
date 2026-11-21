@@ -1,14 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "urn:plynth:schema:project:2",
-  "title": "Plynth project settings, version 2",
-  "description": "The project.json file in a project folder. Lengths are in metres. Version 1 files (project.v1.schema.json) are upgraded when read: they get defaults with the built-in sizes.",
+  "$id": "urn:plynth:schema:project:3",
+  "title": "Plynth project settings, version 3",
+  "description": "The project.json file in a project folder. Lengths are in metres. Older files are upgraded when read: version 1 (project.v1.schema.json) gets defaults with the built-in sizes, version 2 (project.v2.schema.json) gets wall_item_centre 1.2.",
   "type": "object",
   "required": ["format", "version", "name"],
   "additionalProperties": false,
   "properties": {
     "format": { "const": "plynth-project" },
-    "version": { "const": 2 },
+    "version": { "const": 3 },
     "name": { "type": "string", "minLength": 1 },
     "export_mode": {
       "description": "single gives one FBX for the whole building, grouped gives one FBX per group.",
@@ -22,7 +22,7 @@
       "default": 0.5
     },
     "defaults": {
-      "description": "Sizes new marks get. Marks already placed keep their own sizes. A door or a window (sill plus height) is never taller than ceiling_height.",
+      "description": "Sizes new marks get. Marks already placed keep their own sizes. A door or a window (sill plus height) is never taller than ceiling_height, and wall_item_centre is below it.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -43,6 +43,10 @@
         "window_sill": {
           "description": "Height of the bottom of new windows above the floor.",
           "type": "number", "minimum": 0, "default": 0.9
+        },
+        "wall_item_centre": {
+          "description": "Height above the floor of the centre of an item when it is first mounted on a wall, for example a TV.",
+          "type": "number", "exclusiveMinimum": 0, "default": 1.2
         }
       },
       "default": {}

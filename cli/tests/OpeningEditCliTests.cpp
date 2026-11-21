@@ -95,7 +95,7 @@ TEST_CASE("the m5b script gives the listed answers", "[cli][opening]") {
     const auto removed = sample.run({"opening", "remove", "o4"});
     REQUIRE(removed.exitCode == kExitOk);
     CHECK(removed.answer.at("result").at("removed") ==
-          nlohmann::json::parse(R"({"openings":["o4"],"rooms":[],"walls":[],"points":[]})"));
+          nlohmann::json::parse(R"({"items":[],"detached":[],"openings":["o4"],"rooms":[],"walls":[],"points":[]})"));
 
     const auto byWall = sample.run({"opening", "add", "--wall", "w4", "--offset", "2", "--type", "window"});
     REQUIRE(byWall.exitCode == kExitOk);

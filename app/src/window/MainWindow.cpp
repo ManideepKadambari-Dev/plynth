@@ -14,6 +14,8 @@
 #include "panels/ImportQueueView.h"
 #include "setup/SetupCheckDialog.h"
 #include "dialogs/RoomTypesDialog.h"
+#include "home/HomeScreen.h"
+#include "home/ProjectThumbnail.h"
 #include "panels/AssetsPanel.h"
 #include "panels/PropertiesPanel.h"
 #include "panels/RightPanel.h"
@@ -24,6 +26,7 @@
 #include "wallview/WallView.h"
 #include "theme/Theme.h"
 
+#include <plynth/core/Items.h>
 #include <plynth/core/PlanImage.h>
 #include <plynth/core/ProjectFiles.h>
 #include <plynth/core/Version.h>
@@ -34,7 +37,14 @@
 #include <plynth/core/catalog/AssetImport.h>
 #include <plynth/core/commands/FloorCommands.h>
 
+#include <QAbstractSpinBox>
 #include <QAction>
+#include <QApplication>
+#include <QComboBox>
+#include <QKeyEvent>
+#include <QLineEdit>
+#include <QPlainTextEdit>
+#include <QTextEdit>
 #include <QCloseEvent>
 #include <QDateTime>
 #include <QDesktopServices>
@@ -59,6 +69,7 @@
 #include <QPolygonF>
 #include <QPushButton>
 #include <QSplitter>
+#include <QStackedWidget>
 #include <QHBoxLayout>
 #include <QTimer>
 #include <QUrl>
@@ -112,8 +123,8 @@ MainWindow::MainWindow(QWidget* parent)
     column->setContentsMargins(0, 0, 0, 0);
     column->setSpacing(0);
     canvas_ = new PlanCanvas(central);
-    canvas_->setAcceptDrops(false);
-    canvas_->viewport()->setAcceptDrops(false);
+    canvas_->setAcceptDrops(true);
+    canvas_->viewport()->setAcceptDrops(true);
     statusBar_ = new StatusBar(central);
     banner_ = new ReadOnlyBanner(central);
     banner_->hide();
@@ -121,6 +132,7 @@ MainWindow::MainWindow(QWidget* parent)
     tools_ = new ToolController(doc_, canvas_, selection_, this, this);
     toolStrip_ = new ToolStrip(tools_, central);
     host_ = new LibraryHost(this);
+    tools_->setLibrary(host_);
     panel_ = new PropertiesPanel(doc_, *selection_, *tools_, central);
     assets_ = new AssetsPanel(*host_, central);
     auto* work = new QWidget(central);
@@ -143,8 +155,14 @@ MainWindow::MainWindow(QWidget* parent)
     row->addWidget(splitter_, 1);
     right_ = new RightPanel(panel_, assets_, work);
     row->addWidget(right_);
+    work_ = work;
+    pages_ = new QStackedWidget(central);
+    pages_->addWidget(work);
+    home_ = new HomeScreen(*host_, pages_);
+    pages_->addWidget(home_);
+    pages_->setCurrentWidget(work);
     column->addWidget(banner_);
-    column->addWidget(work, 1);
+    column->addWidget(pages_, 1);
     column->addWidget(statusBar_);
     setCentralWidget(central);
     setAcceptDrops(true);
@@ -152,6 +170,22 @@ MainWindow::MainWindow(QWidget* parent)
     terminal_->setWorkingFolder(host_->projectsFolder());
     lastFolder_ = host_->projectsFolder();
 
+    connect(home_, &HomeScreen::newProjectRequested, this, &MainWindow::newProject);
+    connect(home_, &HomeScreen::newFromImageRequested, this, &MainWindow::newProjectFromImage);
+    connect(home_, &HomeScreen::openProjectRequested, this, &MainWindow::openProjectDialog);
+    connect(home_, &HomeScreen::openRecentRequested, this, &MainWindow::openRecent);
+    connect(home_, &HomeScreen::openSampleRequested, this, [this](const QString& file) {
+        if (!confirmDiscardChanges())
+            return;
+        QString error;
+        if (!newFromImage(file, &error)) {
+            showError(tr("Cannot open image"), error);
+            return;
+        }
+        terminal_->shutdown();
+    });
+    connect(home_, &HomeScreen::setupRequested, this, &MainWindow::openSetupCheck);
+    connect(home_, &HomeScreen::backRequested, this, &MainWindow::showWork);
     connect(canvas_, &PlanCanvas::zoomChanged, this, [this](double zoom) {
         if (canvas_->hasImage())
             statusBar_->setZoom(zoom);
@@ -207,6 +241,23 @@ MainWindow::MainWindow(QWidget* parent)
     };
     connect(host_, &LibraryHost::libraryChanged, this, syncImportState);
     syncImportState();
+    connect(host_, &LibraryHost::libraryChanged, this, &MainWindow::refreshOverlay);
+    connect(host_, &LibraryHost::libraryChanged, this, [this]() {
+        tools_->refreshAvailability();
+        updateToolActions();
+    });
+    connect(canvas_, &PlanCanvas::assetDropped, this, [this](const QString& id, const QPointF& scene, bool free) {
+        const std::optional<double> ppm = doc_.plan().scale.pixelsPerMetre;
+        if (!ppm.has_value()) {
+            statusBar_->showMessage(tr("Set the scale first."));
+            return;
+        }
+        tools_->placeAsset(id, plynth::Vec2{scene.x() / *ppm, scene.y() / *ppm}, free);
+    });
+    qApp->installEventFilter(this);
+    connect(host_, &LibraryHost::assetsChanged, this, &MainWindow::refreshOverlay);
+    connect(host_, &LibraryHost::libraryChanged, wallView_, &WallView::refresh);
+    connect(host_, &LibraryHost::assetsChanged, wallView_, &WallView::refresh);
 
     connect(titleBar_, &TitleBar::minimizeRequested, this, &QWidget::showMinimized);
     connect(titleBar_, &TitleBar::maximizeToggleRequested, this, &MainWindow::toggleMaximized);
@@ -266,9 +317,15 @@ void MainWindow::buildMenus()
                                         QStringLiteral("file-new-from-image"),
                                         {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N)});
     connect(newFromImageAction_, &QAction::triggered, this, &MainWindow::newProjectFromImage);
+    homeAction_ = addMenuAction(file, tr("&Home"), tr("Show the home screen with the recent projects"),
+                                QStringLiteral("file-home"), {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_H)});
+    connect(homeAction_, &QAction::triggered, this, &MainWindow::showHome);
     openAction_ = addMenuAction(file, tr("&Open project..."), tr("Open a project folder (Ctrl+O)"),
                                 QStringLiteral("file-open-project"), {QKeySequence(Qt::CTRL | Qt::Key_O)});
     connect(openAction_, &QAction::triggered, this, &MainWindow::openProjectDialog);
+    closeAction_ = addMenuAction(file, tr("&Close project"), tr("Close the project and go to the home screen (Ctrl+W)"),
+                                 QStringLiteral("file-close"), {QKeySequence(Qt::CTRL | Qt::Key_W)});
+    connect(closeAction_, &QAction::triggered, this, &MainWindow::closeProject);
     setImageAction_ = addMenuAction(file, tr("Set plan &image..."),
                                     tr("Set the plan image of the floor (Ctrl+Shift+O)"),
                                     QStringLiteral("file-set-image"),
@@ -302,7 +359,8 @@ void MainWindow::buildMenus()
 
     edit->addSeparator();
     const std::array<ToolId, kAllTools.size()>& toolIds = kAllTools;
-    const std::array<Qt::Key, kAllTools.size()> toolKeys{Qt::Key_V, Qt::Key_S, Qt::Key_W, Qt::Key_O, Qt::Key_R, Qt::Key_D};
+    const std::array<Qt::Key, kAllTools.size()> toolKeys{Qt::Key_V, Qt::Key_S,        Qt::Key_W, Qt::Key_O,
+                                                         Qt::Key_R, Qt::Key_P,        Qt::Key_D};
     for (size_t i = 0; i < toolIds.size(); ++i) {
         const ToolId id = toolIds[i];
         QAction* action = addMenuAction(edit, tr("%1 tool").arg(ToolStrip::toolName(id)),
@@ -316,6 +374,26 @@ void MainWindow::buildMenus()
         });
         toolActions_[static_cast<size_t>(id)] = action;
     }
+    turnLeftAction_ = addMenuAction(edit, tr("Turn item left"),
+                                    tr("Turn the selected item 90 degrees counterclockwise ([)"),
+                                    QStringLiteral("item-turn-left"), {QKeySequence(Qt::Key_BracketLeft)});
+    connect(turnLeftAction_, &QAction::triggered, this, [this]() { tools_->turnSelectedItem(-plynth::kItemQuarterTurn); });
+    turnRightAction_ = addMenuAction(edit, tr("Turn item right"),
+                                     tr("Turn the selected item 90 degrees clockwise (])"),
+                                     QStringLiteral("item-turn-right"), {QKeySequence(Qt::Key_BracketRight)});
+    connect(turnRightAction_, &QAction::triggered, this, [this]() { tools_->turnSelectedItem(plynth::kItemQuarterTurn); });
+    mountAction_ = addMenuAction(edit, tr("Mount item on wall"), tr("Hang the selected item flat on the nearest wall"),
+                                 QStringLiteral("item-mount"), {});
+    connect(mountAction_, &QAction::triggered, this, [this]() { panel_->mountItem(); });
+    takeOffAction_ = addMenuAction(edit, tr("Take item off wall"), tr("Take the selected item off its wall"),
+                                   QStringLiteral("item-take-off"), {});
+    connect(takeOffAction_, &QAction::triggered, this, [this]() { panel_->takeOffItem(); });
+    swapAction_ = addMenuAction(edit, tr("Swap item asset..."), tr("Pick another asset for the selected item"),
+                                QStringLiteral("item-swap"), {});
+    connect(swapAction_, &QAction::triggered, this, [this]() { panel_->swapItemAsset(); });
+    updateSizeAction_ = addMenuAction(edit, tr("Update item size"), tr("Use the size the library has now for the selected item"),
+                                      QStringLiteral("item-update-size"), {});
+    connect(updateSizeAction_, &QAction::triggered, this, [this]() { panel_->updateItemSize(); });
     acceptDetectionAction_ = addMenuAction(edit, tr("Accept detection"),
                                            tr("Add the detected walls, openings and rooms to the plan (Enter)"),
                                            QStringLiteral("detect-accept"),
@@ -544,6 +622,23 @@ void MainWindow::openLibraryFolder()
     QDesktopServices::openUrl(QUrl::fromLocalFile(QString::fromStdWString(host_->paths().root.wstring())));
 }
 
+// Keeps single letter shortcuts from firing while the user types in a text field or picks in a combo box.
+bool MainWindow::eventFilter(QObject* watched, QEvent* event)
+{
+    if (event->type() == QEvent::ShortcutOverride && watched == QApplication::focusWidget()) {
+        const auto* key = static_cast<QKeyEvent*>(event);
+        const Qt::KeyboardModifiers plain = key->modifiers() & ~(Qt::ShiftModifier | Qt::KeypadModifier);
+        const bool textEntry = qobject_cast<QLineEdit*>(watched) || qobject_cast<QAbstractSpinBox*>(watched) ||
+                               qobject_cast<QComboBox*>(watched) || qobject_cast<QTextEdit*>(watched) ||
+                               qobject_cast<QPlainTextEdit*>(watched);
+        if (textEntry && plain == Qt::NoModifier && !key->text().isEmpty()) {
+            event->accept();
+            return true;
+        }
+    }
+    return QMainWindow::eventFilter(watched, event);
+}
+
 // Redraws the room labels and the pickers after the room type list changed.
 void MainWindow::roomTypesChanged()
 {
@@ -608,7 +703,7 @@ void MainWindow::onDocumentChanged(unsigned changes)
 {
     if (changes & (plynth::Change::FloorImage | plynth::Change::Floors | plynth::Change::Folder))
         refreshImage();
-    if (changes & (plynth::Change::Points | plynth::Change::Walls | plynth::Change::Rooms | plynth::Change::Openings | plynth::Change::Scale |
+    if (changes & (plynth::Change::Points | plynth::Change::Walls | plynth::Change::Rooms | plynth::Change::Openings | plynth::Change::Items | plynth::Change::Scale |
                    plynth::Change::Floors | plynth::Change::Folder))
         refreshOverlay();
     validateSelection();
@@ -716,7 +811,7 @@ void MainWindow::refreshImage()
 // Gives the canvas the points, walls and rooms of the first floor, in image pixels. Nothing without a scale.
 void MainWindow::refreshOverlay()
 {
-    canvas_->setOverlay(buildOverlay(doc_.plan()));
+    canvas_->setOverlay(buildOverlay(doc_.plan(), host_ != nullptr ? host_->catalog() : nullptr));
     canvas_->setGridStep(tools_->gridStepPixels());
 }
 
@@ -724,6 +819,7 @@ void MainWindow::refreshOverlay()
 void MainWindow::refreshSelection()
 {
     canvas_->setSelection(selection_->kind(), selection_->id());
+    updateToolActions();
     updateDeleteAction();
     updateWallView();
 }
@@ -799,6 +895,9 @@ void MainWindow::validateSelection()
         case SelectionKind::Opening:
             found = plynth::findOpening(*floor, id) != nullptr;
             break;
+        case SelectionKind::Item:
+            found = plynth::findItem(*floor, id) != nullptr;
+            break;
         case SelectionKind::None:
             break;
         }
@@ -824,6 +923,21 @@ void MainWindow::updateToolActions()
     }
     if (acceptDetectionAction_ != nullptr)
         acceptDetectionAction_->setEnabled(tools_->detection().canAccept() && !doc_.isReadOnly());
+    const bool itemSelected = selection_ != nullptr && selection_->kind() == SelectionKind::Item && !doc_.isReadOnly();
+    if (turnLeftAction_ != nullptr)
+        turnLeftAction_->setEnabled(itemSelected);
+    if (turnRightAction_ != nullptr)
+        turnRightAction_->setEnabled(itemSelected);
+    const plynth::Floor* floor = doc_.plan().floors.empty() ? nullptr : &doc_.plan().floors.front();
+    const plynth::Item* item = itemSelected && floor ? plynth::findItem(*floor, selection_->id().toStdString()) : nullptr;
+    if (mountAction_ != nullptr)
+        mountAction_->setEnabled(item != nullptr && !item->wall.has_value());
+    if (takeOffAction_ != nullptr)
+        takeOffAction_->setEnabled(item != nullptr && item->wall.has_value());
+    if (swapAction_ != nullptr)
+        swapAction_->setEnabled(item != nullptr && host_ != nullptr && host_->hasLibrary());
+    if (updateSizeAction_ != nullptr)
+        updateSizeAction_->setEnabled(item != nullptr && host_ != nullptr && host_->hasLibrary());
 }
 
 // Shows the cursor position in metres, or nothing when it is off the plan or no scale is set.
@@ -854,6 +968,8 @@ bool MainWindow::activateToolByName(const QString& name)
         id = ToolId::Opening;
     else if (key == QStringLiteral("room"))
         id = ToolId::Room;
+    else if (key == QStringLiteral("furniture"))
+        id = ToolId::Furniture;
     else if (key == QStringLiteral("detect"))
         id = ToolId::Detect;
     else
@@ -884,8 +1000,18 @@ void MainWindow::selectById(const QString& id)
             selection_->set(SelectionKind::Room, id);
             return;
         }
-    if (plynth::findOpening(floor, key) != nullptr)
+    if (plynth::findOpening(floor, key) != nullptr) {
         selection_->set(SelectionKind::Opening, id);
+        return;
+    }
+    if (plynth::findItem(floor, key) != nullptr)
+        selection_->set(SelectionKind::Item, id);
+}
+
+// For checks only: opens the furniture picker over the plan and hovers an asset like the mouse would.
+bool MainWindow::showFurniturePicker(double x, double y, const QString& hoverAsset)
+{
+    return tools_->showFurniturePicker(x, y, hoverAsset);
 }
 
 // For checks only: shows the Assets tab.
@@ -899,6 +1025,12 @@ bool MainWindow::selectAsset(const QString& id)
 {
     showAssetsTab();
     return assets_->selectAsset(id);
+}
+
+// For checks only: scrolls the asset details to the category list.
+void MainWindow::showAssetCategories()
+{
+    assets_->showCategories();
 }
 
 // For checks only: chooses the side the wall view is seen from.
@@ -918,6 +1050,8 @@ bool MainWindow::openProject(const QString& folder, QString* error)
         return false;
     }
     syncWatcher();
+    recordRecent();
+    showWork();
     return true;
 }
 
@@ -1047,6 +1181,54 @@ void MainWindow::unlockNow()
     handleCheck();
 }
 
+// Shows the home screen. The project that is open stays open behind it.
+void MainWindow::showHome()
+{
+    terminal_->close();
+    const bool open = doc_.hasFolder() || canvas_->hasImage() || doc_.isModified();
+    home_->setOpenProject(open ? projectName() : QString());
+    home_->refresh();
+    pages_->setCurrentWidget(home_);
+    statusBar_->setHint(QString());
+}
+
+// Shows the plan, tools and panels.
+void MainWindow::showWork()
+{
+    pages_->setCurrentWidget(work_);
+    statusBar_->setHint(tools_->hint());
+}
+
+// Asks about unsaved changes, starts an empty project and shows the home screen.
+void MainWindow::closeProject()
+{
+    if (!confirmDiscardChanges())
+        return;
+    terminal_->shutdown();
+    doc_.replace(plynth::makeNewProject(), {}, false);
+    showHome();
+}
+
+// Opens a project from the recent list.
+void MainWindow::openRecent(const QString& folder)
+{
+    if (!confirmDiscardChanges())
+        return;
+    QString error;
+    if (!openProject(folder, &error))
+        showError(tr("Cannot open project"), error);
+}
+
+// Puts the open project on the recent list and saves its small picture for the home screen.
+void MainWindow::recordRecent()
+{
+    if (screenshotMode_ || !doc_.hasFolder())
+        return;
+    host_->recordProject(doc_.folder(), doc_.project().settings.name);
+    writeRecentThumbnail(doc_.folder());
+    home_->refresh();
+}
+
 // Starts an untitled project whose first floor already has the image.
 bool MainWindow::newFromImage(const QString& path, QString* error)
 {
@@ -1057,6 +1239,7 @@ bool MainWindow::newFromImage(const QString& path, QString* error)
     project.plan.floors.front().image = plynth::pathToUtf8(std::filesystem::absolute(toPath(path)));
     cacheImage(path, image);
     doc_.replace(std::move(project), {}, false);
+    showWork();
     return true;
 }
 
@@ -1158,6 +1341,7 @@ void MainWindow::newProject()
         return;
     terminal_->shutdown();
     doc_.replace(plynth::makeNewProject(), {}, false);
+    showWork();
 }
 
 // Asks for an image and starts an untitled project from it.
@@ -1220,6 +1404,7 @@ bool MainWindow::saveDocument()
     }
     watcher_->acknowledge();
     reportMissingImages(report);
+    recordRecent();
     return true;
 }
 
@@ -1237,6 +1422,7 @@ bool MainWindow::saveDocumentAs()
         return false;
     }
     reportMissingImages(report);
+    recordRecent();
     return true;
 }
 

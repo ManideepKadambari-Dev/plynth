@@ -5,9 +5,11 @@
 #include "theme/Theme.h"
 #include "tools/ToolController.h"
 
+#include <plynth/core/Items.h>
 #include <plynth/core/Openings.h>
 #include <plynth/core/Snapping.h>
 #include <plynth/core/WallGeometry.h>
+#include <plynth/core/commands/ItemCommands.h>
 #include <plynth/core/commands/OpeningCommands.h>
 #include <plynth/core/commands/PointCommands.h>
 #include <plynth/core/commands/WallCommands.h>
@@ -16,6 +18,7 @@
 #include <QPainter>
 
 #include <cmath>
+#include <numbers>
 
 namespace plynth::app {
 
@@ -29,7 +32,7 @@ constexpr double kBendRound = 0.01;
 // The status bar hint for this tool.
 QString SelectTool::hint() const
 {
-    return QObject::tr("Click to select. Drag a point or an opening to move it, or the middle handle of a wall to bend it. Esc clears.");
+    return QObject::tr("Click to select. Drag a point, opening or item to move it, the round handle of an item to turn it, or the middle handle of a wall to bend it. Esc clears.");
 }
 
 // Forgets a drag that was in progress.
@@ -37,6 +40,8 @@ void SelectTool::deactivate()
 {
     dragPoint_.clear();
     dragOpening_.clear();
+    dragItem_.clear();
+    rotateItem_.clear();
     bendWall_.clear();
     handleHover_ = false;
     dragging_ = false;
@@ -49,6 +54,8 @@ void SelectTool::mousePressed(const ToolMouse& mouse)
         return;
     dragPoint_.clear();
     dragOpening_.clear();
+    dragItem_.clear();
+    rotateItem_.clear();
     bendWall_.clear();
     dragging_ = false;
     const plynth::Floor* floor = host_.floor();
@@ -60,6 +67,12 @@ void SelectTool::mousePressed(const ToolMouse& mouse)
     if (!host_.document().isReadOnly() && host_.selection().kind() == SelectionKind::Wall &&
         overBendHandle(mouse.view)) {
         bendWall_ = host_.selection().id().toStdString();
+        dragKey_ = host_.nextMergeKey();
+        host_.canvas().viewport()->update();
+        return;
+    }
+    if (!host_.document().isReadOnly() && overRotateHandle(mouse.view)) {
+        rotateItem_ = host_.selection().id().toStdString();
         dragKey_ = host_.nextMergeKey();
         host_.canvas().viewport()->update();
         return;
@@ -95,6 +108,17 @@ void SelectTool::mousePressed(const ToolMouse& mouse)
             }
         }
         break;
+    case plynth::PickKind::Item:
+        host_.selection().set(SelectionKind::Item, QString::fromStdString(pick.id));
+        if (!host_.document().isReadOnly()) {
+            if (const plynth::Item* item = plynth::findItem(*floor, pick.id)) {
+                dragItem_ = pick.id;
+                pressView_ = mouse.view;
+                dragKey_ = host_.nextMergeKey();
+                itemGrab_ = QPointF(item->x - at.x, item->y - at.y);
+            }
+        }
+        break;
     case plynth::PickKind::None:
         host_.selection().clear();
         break;
@@ -108,9 +132,14 @@ void SelectTool::mouseMoved(const ToolMouse& mouse)
         bendTo(mouse);
         return;
     }
-    if ((dragPoint_.empty() && dragOpening_.empty()) || !(mouse.buttons & Qt::LeftButton)) {
-        setHandleHover(!host_.document().isReadOnly() && host_.selection().kind() == SelectionKind::Wall &&
-                       overBendHandle(mouse.view));
+    if (!rotateItem_.empty() && (mouse.buttons & Qt::LeftButton)) {
+        rotateItemTo(mouse);
+        return;
+    }
+    if ((dragPoint_.empty() && dragOpening_.empty() && dragItem_.empty()) || !(mouse.buttons & Qt::LeftButton)) {
+        setHandleHover(!host_.document().isReadOnly() &&
+                       ((host_.selection().kind() == SelectionKind::Wall && overBendHandle(mouse.view)) ||
+                        overRotateHandle(mouse.view)));
         return;
     }
     if (!dragging_) {
@@ -122,7 +151,9 @@ void SelectTool::mouseMoved(const ToolMouse& mouse)
             if (const plynth::Point* point = plynth::findPoint(*floor, dragPoint_))
                 startMetres_ = QPointF(point->x, point->y);
     }
-    if (!dragOpening_.empty())
+    if (!dragItem_.empty())
+        moveItemTo(mouse);
+    else if (!dragOpening_.empty())
         moveOpeningTo(mouse);
     else
         dragTo(mouse);
@@ -135,6 +166,8 @@ void SelectTool::mouseReleased(const ToolMouse& mouse)
         return;
     dragPoint_.clear();
     dragOpening_.clear();
+    dragItem_.clear();
+    rotateItem_.clear();
     bendWall_.clear();
     dragging_ = false;
     host_.canvas().viewport()->update();
@@ -208,6 +241,81 @@ void SelectTool::moveOpeningTo(const ToolMouse& mouse)
                                                            dragKey_));
 }
 
+// Runs MoveItemCommand for the cursor position. A floor item is snapped to the grid and to wall faces, Ctrl
+// moves it freely. A wall item is given the plain position, and core slides it along its wall.
+void SelectTool::moveItemTo(const ToolMouse& mouse)
+{
+    const plynth::Floor* floor = host_.floor();
+    const std::optional<double> ppm = host_.pixelsPerMetre();
+    if (floor == nullptr || !ppm.has_value())
+        return;
+    const plynth::Item* item = plynth::findItem(*floor, dragItem_);
+    if (item == nullptr)
+        return;
+    plynth::Vec2 wanted{mouse.scene.x() / *ppm + itemGrab_.x(), mouse.scene.y() / *ppm + itemGrab_.y()};
+    if (!item->wall.has_value())
+        wanted = host_.snapItem(*item, wanted, mouse.modifiers & Qt::ControlModifier);
+    if (wanted.x == item->x && wanted.y == item->y)
+        return;
+    host_.run(std::make_unique<plynth::MoveItemCommand>(dragItem_, wanted, dragKey_));
+}
+
+// Runs RotateItemCommand so the item's front points at the cursor, in 15 degree steps unless Shift is held.
+void SelectTool::rotateItemTo(const ToolMouse& mouse)
+{
+    const plynth::Floor* floor = host_.floor();
+    const std::optional<double> ppm = host_.pixelsPerMetre();
+    if (floor == nullptr || !ppm.has_value())
+        return;
+    const plynth::Item* item = plynth::findItem(*floor, rotateItem_);
+    if (item == nullptr)
+        return;
+    const double dx = mouse.scene.x() / *ppm - item->x;
+    const double dy = mouse.scene.y() / *ppm - item->y;
+    if (std::hypot(dx, dy) < 1e-6)
+        return;
+    double degrees = std::atan2(-dx, dy) * 180.0 / std::numbers::pi;
+    if (!(mouse.modifiers & Qt::ShiftModifier))
+        degrees = std::round(degrees / plynth::kItemRotationStep) * plynth::kItemRotationStep;
+    degrees = plynth::normalizeRotation(degrees);
+    if (degrees == item->rotation)
+        return;
+    host_.run(std::make_unique<plynth::RotateItemCommand>(rotateItem_, degrees, dragKey_));
+    host_.canvas().viewport()->update();
+}
+
+// Where the rotation handle of the selected floor item is in canvas pixels: beyond the middle of its front edge.
+std::optional<QPointF> SelectTool::rotateHandleView() const
+{
+    const plynth::Floor* floor = host_.floor();
+    const std::optional<double> ppm = host_.pixelsPerMetre();
+    if (floor == nullptr || !ppm.has_value() || host_.selection().kind() != SelectionKind::Item)
+        return std::nullopt;
+    const plynth::Item* item = plynth::findItem(*floor, host_.selection().id().toStdString());
+    if (item == nullptr || item->wall.has_value())
+        return std::nullopt;
+    const plynth::ItemFootprint footprint = plynth::itemFootprint(*item);
+    const plynth::Vec2 mid{(footprint.corners[2].x + footprint.corners[3].x) / 2.0,
+                           (footprint.corners[2].y + footprint.corners[3].y) / 2.0};
+    const QPointF edge = host_.canvas().sceneToView(QPointF(mid.x * *ppm, mid.y * *ppm));
+    const QPointF centre = host_.canvas().sceneToView(QPointF(item->x * *ppm, item->y * *ppm));
+    const QPointF away = edge - centre;
+    const double length = std::hypot(away.x(), away.y());
+    if (length < 1.0)
+        return std::nullopt;
+    return edge + away / length * (Theme::instance().rotationHandle() * 2.0);
+}
+
+// Says whether a canvas position is on the rotation handle of the selected item.
+bool SelectTool::overRotateHandle(const QPoint& view) const
+{
+    const std::optional<QPointF> at = rotateHandleView();
+    if (!at.has_value())
+        return false;
+    const QPointF d = QPointF(view) - *at;
+    return std::hypot(d.x(), d.y()) <= Theme::instance().rotationHandle() / 2.0 + 3.0;
+}
+
 // Runs SetWallBulgeCommand for the cursor position. The wall goes straight when the cursor is within the snap
 // radius of the line between its points, and the bend is rounded to 0.01 m unless Ctrl is held.
 void SelectTool::bendTo(const ToolMouse& mouse)
@@ -276,6 +384,25 @@ void SelectTool::paint(QPainter& painter)
 {
     if (host_.document().isReadOnly())
         return;
+    if (const std::optional<QPointF> turn = rotateHandleView()) {
+        const Theme& t = Theme::instance();
+        const bool active = handleHover_ || !rotateItem_.empty();
+        const plynth::Floor* floor = host_.floor();
+        const plynth::Item* item = floor ? plynth::findItem(*floor, host_.selection().id().toStdString()) : nullptr;
+        const std::optional<double> ppm = host_.pixelsPerMetre();
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        if (item != nullptr && ppm.has_value()) {
+            const plynth::ItemFootprint footprint = plynth::itemFootprint(*item);
+            const QPointF edge = host_.canvas().sceneToView(
+                QPointF((footprint.corners[2].x + footprint.corners[3].x) / 2.0 * *ppm,
+                        (footprint.corners[2].y + footprint.corners[3].y) / 2.0 * *ppm));
+            painter.setPen(QPen(t.signalAmber(), 1.5));
+            painter.drawLine(edge, *turn);
+        }
+        painter.setPen(QPen(active ? t.signalAmber() : t.muted(), 2));
+        painter.setBrush(t.ground());
+        painter.drawEllipse(*turn, t.rotationHandle() / 2.0, t.rotationHandle() / 2.0);
+    }
     const std::optional<QPointF> at = bendHandleView();
     if (!at.has_value())
         return;

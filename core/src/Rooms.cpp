@@ -2,14 +2,7 @@
 
 #include "plynth/core/WallGeometry.h"
 
-#ifdef _MSC_VER
-#pragma warning(push)
-#pragma warning(disable : 4702)
-#endif
-#include <clipper2/clipper.h>
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
+#include "ClipperInclude.h"
 
 #include <algorithm>
 #include <cmath>

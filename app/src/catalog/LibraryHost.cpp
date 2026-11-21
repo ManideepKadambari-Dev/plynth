@@ -1,5 +1,6 @@
 #include "LibraryHost.h"
 
+#include <plynth/core/EditSession.h>
 #include <plynth/core/OpeningShapes.h>
 #include <plynth/core/RoomTypes.h>
 
@@ -75,6 +76,40 @@ void LibraryHost::reopen()
     }
     emit libraryChanged();
     emit roomTypesChanged();
+}
+
+// Reads the settings file again, changes only the recent list with the given function, saves, and copies the
+// recent list back. Nothing happens when the file could not be read at start, so it is never overwritten with
+// defaults. Settings changed by the command line since the start are kept.
+bool LibraryHost::editRecent(const std::function<bool(plynth::MachineSettings&)>& change)
+{
+    if (!settingsProblem_.isEmpty())
+        return false;
+    plynth::SettingsLoad load = plynth::loadSettings();
+    if (!load.status.ok() || !load.exists)
+        return false;
+    if (!change(load.settings))
+        return false;
+    if (!plynth::saveSettings(load.settings).ok())
+        return false;
+    settings_.recentProjects = load.settings.recentProjects;
+    emit recentChanged();
+    return true;
+}
+
+// Adds the project to the recent list and writes the settings file.
+void LibraryHost::recordProject(const std::filesystem::path& folder, const std::string& name)
+{
+    editRecent([&](plynth::MachineSettings& settings) {
+        plynth::addRecentProject(settings, folder, name, plynth::sessionNow());
+        return true;
+    });
+}
+
+// Removes the project from the recent list and writes the settings file.
+void LibraryHost::forgetProject(const std::filesystem::path& folder)
+{
+    editRecent([&](plynth::MachineSettings& settings) { return plynth::removeRecentProject(settings, folder); });
 }
 
 // The projects folder from the settings, or Documents when none is set.

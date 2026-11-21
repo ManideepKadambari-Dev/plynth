@@ -172,6 +172,45 @@ Status checkOpenings(const Floor& floor, const std::string& floorPath, IdSet& se
     return {};
 }
 
+// Checks the items of one floor.
+Status checkItems(const Floor& floor, const std::string& floorPath, IdSet& seen)
+{
+    for (std::size_t i = 0; i < floor.items.size(); ++i) {
+        const Item& it = floor.items[i];
+        const std::string base = floorPath + "/items/" + std::to_string(i);
+        if (auto s = checkId(it.id, seen, base + "/id"); !s.ok()) return s;
+        if (!isValidName(it.asset)) {
+            return fail(ErrorCode::InvalidValue, "The item asset \"" + it.asset + "\" is not a valid name.", base + "/asset");
+        }
+        if (it.room && !findRoom(floor, *it.room)) {
+            return fail(ErrorCode::NotFound,
+                        "The item " + it.id + " stands in " + *it.room + ", which is not a room of this floor.", base + "/room");
+        }
+        if (!std::isfinite(it.x)) return fail(ErrorCode::InvalidValue, "The item x coordinate must be a finite number.", base + "/x");
+        if (!std::isfinite(it.y)) return fail(ErrorCode::InvalidValue, "The item y coordinate must be a finite number.", base + "/y");
+        if (!nonNegative(it.z)) {
+            return fail(ErrorCode::InvalidValue, "The item height above the floor must be zero or more.", base + "/z");
+        }
+        if (!std::isfinite(it.rotation) || it.rotation < 0.0 || it.rotation >= 360.0) {
+            return fail(ErrorCode::InvalidValue, "The item rotation must be from 0 up to 360 degrees.", base + "/rotation");
+        }
+        if (it.wall && !findWall(floor, *it.wall)) {
+            return fail(ErrorCode::NotFound,
+                        "The item " + it.id + " hangs on " + *it.wall + ", which is not a wall of this floor.", base + "/wall");
+        }
+        if (!positive(it.size.width)) {
+            return fail(ErrorCode::InvalidValue, "The item width must be a number above zero.", base + "/size/width");
+        }
+        if (!positive(it.size.depth)) {
+            return fail(ErrorCode::InvalidValue, "The item depth must be a number above zero.", base + "/size/depth");
+        }
+        if (!positive(it.size.height)) {
+            return fail(ErrorCode::InvalidValue, "The item height must be a number above zero.", base + "/size/height");
+        }
+    }
+    return {};
+}
+
 // Checks one floor and everything on it.
 Status checkFloor(const Floor& floor, std::size_t index, IdSet& seen)
 {
@@ -186,7 +225,8 @@ Status checkFloor(const Floor& floor, std::size_t index, IdSet& seen)
     if (auto s = checkPoints(floor, base, seen); !s.ok()) return s;
     if (auto s = checkWalls(floor, base, seen); !s.ok()) return s;
     if (auto s = checkRooms(floor, base, seen); !s.ok()) return s;
-    return checkOpenings(floor, base, seen);
+    if (auto s = checkOpenings(floor, base, seen); !s.ok()) return s;
+    return checkItems(floor, base, seen);
 }
 
 }
@@ -210,7 +250,7 @@ const Floor* findFloor(const Plan& plan, std::string_view floorId) { return find
 Floor* findFloorContaining(Plan& plan, std::string_view objectId)
 {
     for (auto& f : plan.floors) {
-        if (findPoint(f, objectId) || findWall(f, objectId) || findRoom(f, objectId) || findOpening(f, objectId)) return &f;
+        if (findPoint(f, objectId) || findWall(f, objectId) || findRoom(f, objectId) || findOpening(f, objectId) || findItem(f, objectId)) return &f;
     }
     return nullptr;
 }
@@ -228,6 +268,8 @@ Room* findRoom(Floor& floor, std::string_view id) { return findById(floor.rooms,
 const Room* findRoom(const Floor& floor, std::string_view id) { return findById(floor.rooms, id); }
 Opening* findOpening(Floor& floor, std::string_view id) { return findById(floor.openings, id); }
 const Opening* findOpening(const Floor& floor, std::string_view id) { return findById(floor.openings, id); }
+Item* findItem(Floor& floor, std::string_view id) { return findById(floor.items, id); }
+const Item* findItem(const Floor& floor, std::string_view id) { return findById(floor.items, id); }
 
 // Says whether any floor or object already uses this id.
 bool idInUse(const Plan& plan, std::string_view id)
@@ -246,6 +288,7 @@ Id newId(const Plan& plan, std::string_view prefix)
         for (const auto& w : f.walls) consider(w.id);
         for (const auto& r : f.rooms) consider(r.id);
         for (const auto& o : f.openings) consider(o.id);
+        for (const auto& it : f.items) consider(it.id);
     }
     return std::string(prefix) + std::to_string(highest + 1);
 }

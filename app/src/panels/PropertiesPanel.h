@@ -2,6 +2,7 @@
 
 #include "tools/Tool.h"
 
+#include <QMetaObject>
 #include <QWidget>
 
 #include <memory>
@@ -37,6 +38,11 @@ public:
 
     // Reads everything shown from the document and the selection.
     void refresh();
+    // The item actions of the Properties page, also run from the Edit menu on the selected item.
+    void swapItemAsset();
+    void mountItem();
+    void takeOffItem();
+    void updateItemSize();
 
 signals:
     void deleteRequested();
@@ -56,6 +62,9 @@ private:
     void buildDetectPage();
     void buildOpeningPage();
     void buildOpeningToolPage();
+    void buildItemPage();
+    void refreshItem();
+    void runItemCommand(std::unique_ptr<plynth::Command> command);
     void refreshOpening();
     void refreshOpeningTool();
     QComboBox* addComboRow(QGridLayout* grid, const QString& label, const QString& tip, const QString& tourId,
@@ -130,6 +139,29 @@ private:
     QDoubleSpinBox* openingSill_ = nullptr;
     QDoubleSpinBox* openingWidth_ = nullptr;
     QDoubleSpinBox* openingHeight_ = nullptr;
+
+    QLabel* itemThumb_ = nullptr;
+    QLabel* itemName_ = nullptr;
+    QLabel* itemAsset_ = nullptr;
+    QLabel* itemSize_ = nullptr;
+    QLabel* itemRoom_ = nullptr;
+    QLabel* itemWall_ = nullptr;
+    QLabel* itemState_ = nullptr;
+    QLabel* itemProblems_ = nullptr;
+    QPushButton* itemUpdate_ = nullptr;
+    QPushButton* itemSwap_ = nullptr;
+    QPushButton* itemMount_ = nullptr;
+    QPushButton* itemTakeOff_ = nullptr;
+    QPushButton* itemTurnLeft_ = nullptr;
+    QPushButton* itemTurnRight_ = nullptr;
+    QDoubleSpinBox* itemX_ = nullptr;
+    QDoubleSpinBox* itemY_ = nullptr;
+    QDoubleSpinBox* itemRotation_ = nullptr;
+    QDoubleSpinBox* itemZ_ = nullptr;
+    QDoubleSpinBox* itemCentre_ = nullptr;
+    std::vector<QWidget*> floorOnly_;
+    std::vector<QWidget*> wallOnly_;
+    QDoubleSpinBox* wallCentreSpin_ = nullptr;
 
     QComboBox* toolType_ = nullptr;
     QComboBox* toolShape_ = nullptr;

@@ -44,6 +44,7 @@ std::vector<CommandSpec> libraryCommands();
 std::vector<CommandSpec> assetCommands();
 std::vector<CommandSpec> doctorCommands();
 std::vector<CommandSpec> importCommands();
+std::vector<CommandSpec> itemCommands();
 
 // All commands in the order help lists them.
 const std::vector<CommandSpec>& allCommands();

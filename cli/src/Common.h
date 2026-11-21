@@ -96,8 +96,9 @@ Answer removeCascade(const std::string& command, const std::string& kind, const 
                      const std::string& projectOption,
                      const Id& id);
 
-// The result of a remove command: the ids of the openings, rooms, walls and points that were removed.
-Json removedJson(const std::vector<Id>& openings, const std::vector<Id>& rooms, const std::vector<Id>& walls,
-                 const std::vector<Id>& points);
+// The result of a remove command: the ids of the items, detached items, openings, rooms, walls and points that
+// were removed. A detached item stays on the plan but is no longer on its removed wall.
+Json removedJson(const std::vector<Id>& items, const std::vector<Id>& detached, const std::vector<Id>& openings,
+                 const std::vector<Id>& rooms, const std::vector<Id>& walls, const std::vector<Id>& points);
 
 }

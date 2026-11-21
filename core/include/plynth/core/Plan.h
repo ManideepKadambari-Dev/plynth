@@ -22,6 +22,7 @@ inline constexpr std::string_view kPointIdPrefix = "p";
 inline constexpr std::string_view kWallIdPrefix = "w";
 inline constexpr std::string_view kRoomIdPrefix = "r";
 inline constexpr std::string_view kOpeningIdPrefix = "o";
+inline constexpr std::string_view kItemIdPrefix = "i";
 
 inline constexpr double kDefaultCeilingHeight = 3.0;
 inline constexpr double kDefaultWallThickness = 0.2;
@@ -108,6 +109,42 @@ struct Opening {
     bool operator==(const Opening&) const = default;
 };
 
+// The size of a placed asset in metres, copied from the catalog when it is placed or swapped, so the
+// footprint, fit and overlap work without the library (a project moved to another machine). width runs along
+// the asset's own x, depth along its own y (back to front), height up. All above zero.
+struct ItemSize {
+    double width = 0.0;
+    double depth = 0.0;
+    double height = 0.0;
+
+    bool operator==(const ItemSize&) const = default;
+};
+
+// A catalog asset placed on a floor (DESIGN.md section 7.6).
+// x and y are the centre of the footprint on the plan, which is where the asset's pivot (the bottom centre
+// of its bounding box) goes. z is the height of the asset's bottom above the floor.
+// rotation is in degrees from 0 up to 360, clockwise as seen on the plan. At 0 the asset's front faces +y
+// (down the plan image); the Blender build turns it into Blender's axes as Items.h says.
+// room is the room the item stands in, kept up to date by the item and room commands. Empty when it stands
+// in no room.
+// wall is set for a wall-mounted item (a TV, shelf or picture). Its back then lies flush against one face of
+// that wall: the plan view moves it along the wall and the wall view sets its height (z). x, y and rotation
+// are still stored, and the item commands keep them flush; a wall that is moved later can leave it off its
+// wall, which itemProblems reports (Items.h).
+struct Item {
+    Id id;
+    std::string asset;
+    std::optional<Id> room;
+    double x = 0.0;
+    double y = 0.0;
+    double z = 0.0;
+    double rotation = 0.0;
+    std::optional<Id> wall;
+    ItemSize size;
+
+    bool operator==(const Item&) const = default;
+};
+
 // One storey. image is a path in UTF-8 with forward slashes, relative to the project folder
 // (for example "plans/floor1.png"). It may be absolute only in memory, before the project is first saved.
 struct Floor {
@@ -119,6 +156,7 @@ struct Floor {
     std::vector<Wall> walls;
     std::vector<Room> rooms;
     std::vector<Opening> openings;
+    std::vector<Item> items;
 
     bool operator==(const Floor&) const = default;
 };
@@ -138,7 +176,7 @@ Plan makeEmptyPlan();
 Floor* findFloor(Plan& plan, std::string_view floorId);
 const Floor* findFloor(const Plan& plan, std::string_view floorId);
 
-// Finds the floor that holds the point, wall, room or opening with this id. Null when there is none.
+// Finds the floor that holds the point, wall, room, opening or item with this id. Null when there is none.
 Floor* findFloorContaining(Plan& plan, std::string_view objectId);
 const Floor* findFloorContaining(const Plan& plan, std::string_view objectId);
 
@@ -151,6 +189,8 @@ Room* findRoom(Floor& floor, std::string_view id);
 const Room* findRoom(const Floor& floor, std::string_view id);
 Opening* findOpening(Floor& floor, std::string_view id);
 const Opening* findOpening(const Floor& floor, std::string_view id);
+Item* findItem(Floor& floor, std::string_view id);
+const Item* findItem(const Floor& floor, std::string_view id);
 
 // Says whether any floor or object in the plan already uses this id.
 bool idInUse(const Plan& plan, std::string_view id);
@@ -167,6 +207,9 @@ bool isValidId(std::string_view id);
 // plan, walls join two different points of their own floor, rooms list walls of their own floor,
 // openings sit on a wall of their own floor, all numbers finite, thickness, width, height, ceiling height
 // and pixels per metre above zero, corner radius, offset and sill zero or more, wall height above zero when set.
+// Items: asset a well formed name, room and wall (when set) a room and a wall of their own floor, z zero or
+// more, rotation from 0 up to 360, every size above zero. Whether an item fits its room or overlaps anything
+// is not part of the format; itemProblems in Items.h reports that.
 // Whether an opening fits its wall, and whether its shape is registered, is not part of the format: commands
 // refuse openings that do not fit (checkOpeningFit in Openings.h), and openingProblems lists the ones that
 // stopped fitting after a wall changed. So a file from another machine with a custom shape still loads.

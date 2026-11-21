@@ -11,6 +11,9 @@
 
 #include "document/Selection.h"
 
+class QDragEnterEvent;
+class QDragMoveEvent;
+class QDropEvent;
 class QGraphicsPixmapItem;
 class QGraphicsScene;
 
@@ -55,8 +58,23 @@ struct OverlayRoom {
     QString area;
 };
 
+// One placed item of the overlay, in scene units. The footprint corners are in itemFootprint order: back
+// right, back left, front left, front right. front is the unit direction the item faces.
+struct OverlayItem {
+    QString id;
+    QPolygonF footprint;
+    QPointF front;
+    QString label;   // the asset name, or "Missing asset"
+    QString detail;  // the asset id of a missing asset, drawn in mono
+    QString tip;     // the problem sentences, one per line
+    bool wall = false;
+    bool problem = false;
+    bool missing = false;
+};
+
 // Everything the canvas draws over the plan image.
 struct OverlayData {
+    QVector<OverlayItem> items;
     QVector<OverlayWall> walls;
     QVector<OverlayOpening> openings;
     QVector<OverlayPoint> points;
@@ -125,6 +143,8 @@ signals:
     void zoomChanged(double zoom);
     void cursorMoved(const QPointF& scene);
     void cursorLeft();
+    // An asset tile was dropped on the plan. scene is where, in image pixels. Ctrl was held when it dropped.
+    void assetDropped(const QString& assetId, const QPointF& scene, bool free);
 
 protected:
     void drawBackground(QPainter* painter, const QRectF& rect) override;
@@ -140,13 +160,25 @@ protected:
     void enterEvent(QEnterEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
     void showEvent(QShowEvent* event) override;
+    void dragEnterEvent(QDragEnterEvent* event) override;
+    void dragMoveEvent(QDragMoveEvent* event) override;
+    void dropEvent(QDropEvent* event) override;
 
 private:
     void setZoomAt(double zoom, const QPoint& viewportAnchor);
     void updateSceneRect();
     void updateCursor();
     void paintOverlay(QPainter* painter);
+    // Where a room's name and area chip is drawn, in canvas pixels.
+    struct RoomChip {
+        const OverlayRoom* room = nullptr;
+        QRectF pill;
+        QRectF nameBox;
+        QRectF areaBox;
+    };
+    QVector<RoomChip> roomChips() const;
     void paintLabels(QPainter* painter);
+    void paintItems(QPainter* painter);
     void paintProposals(QPainter* painter);
     void applyFit();
     QRectF imageRect() const;

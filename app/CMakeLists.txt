@@ -22,6 +22,14 @@ add_executable(plynth WIN32
     src/detection/DetectionRunner.cpp
     src/detection/DetectionSession.h
     src/detection/DetectionSession.cpp
+    src/home/HomeScreen.h
+    src/home/HomeScreen.cpp
+    src/home/ProjectThumbnail.h
+    src/home/ProjectThumbnail.cpp
+    src/furniture/AssetPreview.h
+    src/furniture/AssetPreview.cpp
+    src/furniture/FurniturePicker.h
+    src/furniture/FurniturePicker.cpp
     src/dialogs/RoomTypesDialog.h
     src/dialogs/RoomTypesDialog.cpp
     src/dialogs/ScaleDialog.h
@@ -42,6 +50,8 @@ add_executable(plynth WIN32
     src/panels/RightPanel.cpp
     src/panels/ToolStrip.h
     src/panels/ToolStrip.cpp
+    src/tools/FurnitureTool.h
+    src/tools/FurnitureTool.cpp
     src/tools/DetectTool.h
     src/tools/DetectTool.cpp
     src/tools/OpeningTool.h

@@ -1,6 +1,7 @@
 #include "ImportQueueView.h"
 
 #include "catalog/ImportQueue.h"
+#include "theme/ElideLabel.h"
 #include "theme/Theme.h"
 
 #include <QDesktopServices>
@@ -11,6 +12,7 @@
 #include <QLabel>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QSizePolicy>
 #include <QUrl>
 #include <QVBoxLayout>
 
@@ -53,7 +55,14 @@ void ImportQueueView::rebuild()
         auto* top = new QHBoxLayout();
         top->setSpacing(t.unit() * 2);
         auto* name = new QLabel(item.title, row);
-        name->setFont(t.uiFont(t.sizeNormal(), QFont::DemiBold));
+        if (item.kind == QueueItem::Kind::Refresh) {
+            name->setFont(t.uiFont(t.sizeNormal(), QFont::DemiBold));
+        } else {
+            name->setFont(t.monoFont(t.sizeNormal()));
+            name->setTextFormat(Qt::PlainText);
+            name->setMinimumWidth(0);
+            name->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+        }
         name->setToolTip(item.title);
         top->addWidget(name, 1);
         auto* stage = new QLabel(item.stage, row);
@@ -64,12 +73,29 @@ void ImportQueueView::rebuild()
         box->addLayout(top);
 
         if (failed) {
-            auto* why = new QLabel(item.message, row);
+            // The work folder path is long and the Show log button opens it, so the row keeps it on one mono line.
+            QString shown = item.message;
+            const QString folder = QDir::toNativeSeparators(item.workFolder);
+            const QString slashed = QDir::fromNativeSeparators(item.workFolder);
+            if (!folder.isEmpty()) {
+                shown.replace(folder, QString());
+                shown.replace(slashed, QString());
+            }
+            shown = shown.trimmed();
+            auto* why = new QLabel(shown, row);
+            why->setTextFormat(Qt::PlainText);
             why->setWordWrap(true);
             why->setFont(t.uiFont(t.sizeSmall()));
             why->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
             why->setToolTip(tr("Why the import failed"));
             box->addWidget(why);
+            if (!folder.isEmpty()) {
+                auto* path = new ElideLabel(folder, row);
+                path->setFont(t.monoFont(t.sizeSmall()));
+                path->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
+                path->setToolTip(folder);
+                box->addWidget(path);
+            }
         } else {
             auto* bar = new QProgressBar(row);
             bar->setRange(0, 100);

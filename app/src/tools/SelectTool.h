@@ -10,8 +10,8 @@
 
 namespace plynth::app {
 
-// Picks points, walls, openings and rooms by clicking. Drags points, drags the bend handle of the selected
-// wall, and drags openings along their wall.
+// Picks points, walls, openings, items and rooms by clicking. Drags points, items and openings, drags the bend
+// handle of the selected wall, and turns the selected item with its rotation handle.
 class SelectTool : public Tool {
 public:
     explicit SelectTool(ToolController& host) : Tool(host) {}
@@ -32,6 +32,10 @@ private:
     void dragTo(const ToolMouse& mouse);
     void bendTo(const ToolMouse& mouse);
     void moveOpeningTo(const ToolMouse& mouse);
+    void moveItemTo(const ToolMouse& mouse);
+    void rotateItemTo(const ToolMouse& mouse);
+    std::optional<QPointF> rotateHandleView() const;
+    bool overRotateHandle(const QPoint& view) const;
     std::optional<QPointF> bendHandleView() const;
     bool overBendHandle(const QPoint& view) const;
     void setHandleHover(bool hover);
@@ -45,6 +49,9 @@ private:
     plynth::Id dragOpening_;
     double openingGrab_ = 0.0;
     plynth::Id bendWall_;
+    plynth::Id dragItem_;
+    plynth::Id rotateItem_;
+    QPointF itemGrab_;
     bool handleHover_ = false;
 };
 

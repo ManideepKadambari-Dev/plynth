@@ -21,6 +21,9 @@ add_executable(plynth_core_tests
     core/LibraryTests.cpp
     core/AssetInfoTests.cpp
     core/AssetCatalogTests.cpp
+    core/ItemAssetsTests.cpp
+    core/ItemsTests.cpp
+    core/ItemCommandTests.cpp
     core/SearchTests.cpp
     core/RescanTests.cpp
     core/PlanImageTests.cpp

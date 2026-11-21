@@ -57,6 +57,10 @@ struct AssetSize {
     bool operator==(const AssetSize&) const = default;
 };
 
+// Says whether Blender has measured an asset: every side above zero. An unmeasured asset shows "not measured"
+// instead of a size and cannot be placed.
+bool isMeasured(const AssetSize& size);
+
 struct AssetSource {
     std::string kind;      // kSourceLocalFile and so on
     std::string reference; // the original file name (no folder), or the address it came from

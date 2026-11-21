@@ -6,6 +6,10 @@
 #include <QPoint>
 #include <QPointF>
 
+class QDragEnterEvent;
+class QDragMoveEvent;
+class QDropEvent;
+
 #include <plynth/core/Plan.h>
 
 namespace plynth::app {
@@ -39,6 +43,9 @@ protected:
     void keyPressEvent(QKeyEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
     void showEvent(QShowEvent* event) override;
+    void dragEnterEvent(QDragEnterEvent* event) override;
+    void dragMoveEvent(QDragMoveEvent* event) override;
+    void dropEvent(QDropEvent* event) override;
     void enterEvent(QEnterEvent* event) override;
     void leaveEvent(QEvent* event) override;
 
@@ -47,6 +54,8 @@ private:
     void paintFace(QPainter& painter);
     void paintRuler(QPainter& painter);
     void paintOpenings(QPainter& painter);
+    void paintItems(QPainter& painter);
+    void paintCentreLine(QPainter& painter);
     void paintNotes(QPainter& painter);
     void paintHandles(QPainter& painter);
     void paintMeasures(QPainter& painter);
@@ -55,10 +64,13 @@ private:
     struct Box {
         double u0 = 0.0, u1 = 0.0, v0 = 0.0, v1 = 0.0;
     };
-    enum class Drag { None, Move, Resize };
+    enum class Drag { None, Move, Resize, Item };
     bool editable() const;
     const WallViewOpening* selectedOpening() const;
     const WallViewOpening* openingAt(const QPointF& face) const;
+    const WallViewItem* itemAt(const QPointF& face) const;
+    void openPickerAt(const QPoint& view, const QPointF& face);
+    plynth::WallSide shownSide() const;
     int handleAt(const QPoint& view) const;
     QPointF handlePosition(const Box& box, int handle) const;
     void updateHover(const QPoint& view);
@@ -74,6 +86,8 @@ private:
     QPoint dragStartView_;
     int dragHandle_ = -1;
     int dragKey_ = 0;
+    double itemGrabU_ = 0.0;
+    double itemGrabV_ = 0.0;
     int hoverHandle_ = -1;
     double scale_ = 1.0;   // canvas pixels per metre
     QPointF origin_;       // canvas position of u = 0 (after mirroring), v = 0

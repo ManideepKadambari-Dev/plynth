@@ -1,5 +1,6 @@
 #include "plynth/core/commands/DeleteCommands.h"
 
+#include "plynth/core/commands/ItemCommands.h"
 #include "plynth/core/commands/OpeningCommands.h"
 #include "plynth/core/commands/PointCommands.h"
 #include "plynth/core/commands/RoomCommands.h"
@@ -30,13 +31,14 @@ DeleteBuild makeDeleteCommand(const Plan& plan, std::span<const Id> ids)
     if (ids.empty()) return refuse(ErrorCode::InvalidValue, "Nothing was named to delete.");
 
     const Floor* floor = nullptr;
+    std::set<Id> items;
     std::set<Id> openings;
     std::set<Id> points;
     std::set<Id> walls;
     std::set<Id> rooms;
     for (const Id& id : ids) {
         const Floor* found = findFloorContaining(plan, id);
-        if (!found) return refuse(ErrorCode::NotFound, "There is no point, wall, room or opening " + id + ".");
+        if (!found) return refuse(ErrorCode::NotFound, "There is no point, wall, room, opening or item " + id + ".");
         if (floor && floor != found) return refuse(ErrorCode::InvalidValue, "The items are on different floors.");
         floor = found;
         if (findPoint(*found, id)) {
@@ -47,8 +49,10 @@ DeleteBuild makeDeleteCommand(const Plan& plan, std::span<const Id> ids)
             rooms.insert(id);
         } else if (findOpening(*found, id)) {
             openings.insert(id);
+        } else if (findItem(*found, id)) {
+            items.insert(id);
         } else {
-            return refuse(ErrorCode::NotFound, "The id " + id + " is not a point, wall, room or opening.");
+            return refuse(ErrorCode::NotFound, "The id " + id + " is not a point, wall, room, opening or item.");
         }
     }
 
@@ -78,6 +82,16 @@ DeleteBuild makeDeleteCommand(const Plan& plan, std::span<const Id> ids)
 
     DeleteBuild build;
     auto group = std::make_unique<CommandGroup>("Delete");
+    for (const Item& i : floor->items) {
+        if (!items.count(i.id)) continue;
+        build.removes.items.push_back(i.id);
+        group->add(std::make_unique<RemoveItemCommand>(i.id));
+    }
+    for (const Item& i : floor->items) {
+        if (items.count(i.id) || !i.wall || !walls.count(*i.wall)) continue;
+        build.removes.detached.push_back(i.id);
+        group->add(std::make_unique<SetItemWallCommand>(i.id, std::nullopt));
+    }
     for (const Opening& o : floor->openings) {
         if (!openings.count(o.id)) continue;
         build.removes.openings.push_back(o.id);

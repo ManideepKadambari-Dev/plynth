@@ -1,7 +1,9 @@
+#include "../CatalogCommon.h"
 #include "../Common.h"
 
 #include <plynth/core/PlanImage.h>
 #include <plynth/core/ProjectFiles.h>
+#include <plynth/core/Settings.h>
 #include <plynth/core/commands/FloorCommands.h>
 #include <plynth/core/commands/SettingsCommands.h>
 
@@ -81,6 +83,48 @@ Answer projectInfo(const RunContext& context, const std::string& projectOption) 
     return success(command, projectInfoJson(folder, loaded.project));
 }
 
+// One recent project as project recent prints it.
+Json recentEntry(const RecentProject& recent) {
+    std::error_code ignored;
+    Json entry = Json::object();
+    entry["path"] = pathToUtf8(recent.path);
+    entry["name"] = recent.name;
+    entry["last_opened"] = formatSessionTime(recent.lastOpened);
+    entry["exists"] = std::filesystem::is_directory(recent.path, ignored);
+    return entry;
+}
+
+// Lists the projects the app opened or saved lately, newest first, or takes one off the list. The CLI
+// never adds to the list; only the app does. Nothing on disk is touched.
+Answer projectRecent(const RunContext& context, const std::string& removePath) {
+    const std::string command = "project recent";
+    const SettingsLoad loaded = loadSettings();
+    if (!loaded.status.ok()) {
+        return failure(command, loaded.status);
+    }
+    MachineSettings settings = loaded.settings;
+    Json result = Json::object();
+    if (!removePath.empty()) {
+        const std::filesystem::path folder = userPath(context, removePath);
+        if (!removeRecentProject(settings, folder)) {
+            return failure(command, fail(ErrorCode::NotFound, "There is no recent project " + pathToUtf8(folder) + "."));
+        }
+        const Status saved = saveSettings(settings);
+        if (!saved.ok()) {
+            return failure(command, saved);
+        }
+        result["removed"] = pathToUtf8(folder);
+    }
+    Json projects = Json::array();
+    for (const RecentProject& recent : settings.recentProjects) {
+        projects.push_back(recentEntry(recent));
+    }
+    const std::size_t count = projects.size();
+    result["projects"] = std::move(projects);
+    result["count"] = count;
+    return success(command, std::move(result));
+}
+
 struct SetOptions {
     std::string project;
     std::optional<double> grid;
@@ -90,13 +134,14 @@ struct SetOptions {
     std::optional<double> windowHeight;
     std::optional<double> windowSill;
     std::optional<double> newFloorHeight;
+    std::optional<double> wallItemCentre;
 };
 
 // Changes the grid size and the default sizes in one step. Nothing changes when any value is refused.
 Answer projectSet(const RunContext& context, const SetOptions& options) {
     const std::string command = "project set";
     const bool anyDefault = options.doorWidth || options.doorHeight || options.windowWidth || options.windowHeight ||
-                            options.windowSill || options.newFloorHeight;
+                            options.windowSill || options.newFloorHeight || options.wallItemCentre;
     if (!options.grid && !anyDefault) {
         return badArguments(command, "bad_arguments", "Give at least one option to change. Run 'plynth help' to list them.");
     }
@@ -113,6 +158,7 @@ Answer projectSet(const RunContext& context, const SetOptions& options) {
             sizes.windowHeight = options.windowHeight.value_or(sizes.windowHeight);
             sizes.windowSill = options.windowSill.value_or(sizes.windowSill);
             sizes.ceilingHeight = options.newFloorHeight.value_or(sizes.ceilingHeight);
+            sizes.wallItemCentre = options.wallItemCentre.value_or(sizes.wallItemCentre);
             group->add(std::make_unique<SetDefaultSizesCommand>(sizes));
         }
         Answer failed;
@@ -153,7 +199,7 @@ std::vector<CommandSpec> projectCommands() {
 
     CommandSpec set;
     set.words = {"project", "set"};
-    set.description = "Change the grid size or the default sizes of new openings and floors.";
+    set.description = "Change the grid size or the default sizes of new openings, floors and wall items.";
     set.setup = [](CLI::App& sub) -> Handler {
         auto options = std::make_shared<SetOptions>();
         addProjectOption(sub, options->project);
@@ -169,10 +215,23 @@ std::vector<CommandSpec> projectCommands() {
         sub.add_option("--new-floor-height", options->newFloorHeight,
                        "Ceiling height for floors made later, in metres.")
             ->type_name("metres");
+        sub.add_option("--wall-item-centre", options->wallItemCentre,
+                       "How high the centre of a newly mounted wall item goes, in metres.")
+            ->type_name("metres");
         return [options](const RunContext& context) { return projectSet(context, *options); };
     };
 
-    return {create, info, set};
+    CommandSpec recent;
+    recent.words = {"project", "recent"};
+    recent.description = "List the recent projects of the app, or take one off the list with --remove.";
+    recent.setup = [](CLI::App& sub) -> Handler {
+        auto remove = std::make_shared<std::string>();
+        sub.add_option("--remove", *remove, "Take this project folder off the list. The folder itself stays.")
+            ->type_name("folder");
+        return [remove](const RunContext& context) { return projectRecent(context, *remove); };
+    };
+
+    return {create, info, set, recent};
 }
 
 }

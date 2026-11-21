@@ -15,6 +15,7 @@ add_library(plynth_core STATIC
     src/catalog/AssetImport.cpp
     src/catalog/AssetInfo.cpp
     src/catalog/AssetCatalog.cpp
+    src/catalog/ItemAssets.cpp
     src/catalog/BuiltInCatalog.cpp
     src/catalog/Database.cpp
     src/Plan.cpp
@@ -28,6 +29,7 @@ add_library(plynth_core STATIC
     src/FileIo.cpp
     src/Geometry.cpp
     src/Snapping.cpp
+    src/Items.cpp
     src/RoomTypes.cpp
     src/Rooms.cpp
     src/WallGeometry.cpp
@@ -41,6 +43,7 @@ add_library(plynth_core STATIC
     src/commands/RoomCommands.cpp
     src/commands/DeleteCommands.cpp
     src/commands/OpeningCommands.cpp
+    src/commands/ItemCommands.cpp
     src/commands/DetectionCommands.cpp
     src/detection/Detection.cpp
     src/detection/Detector.cpp
