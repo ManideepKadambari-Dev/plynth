@@ -266,12 +266,15 @@ ImportOutcome importAsset(AssetCatalog& catalog, const ImportContext& context, c
     WorkFolder work(library.assetStaging / pathFromUtf8(jobId));
     const fs::path itemFolder = work.path() / "item";
     std::error_code ec;
-    fs::create_directories(itemFolder, ec);
+    // The folder is marked as in use before anything else is put in it, so a library init in another process
+    // never sees it unmarked for longer than it takes to write the marker.
+    fs::create_directories(work.path(), ec);
+    if (!ec) work.start();
+    if (!ec) fs::create_directories(itemFolder, ec);
     if (ec) {
         outcome.status = fail(ErrorCode::CannotWrite, "The work folder " + pathToUtf8(work.path()) + " could not be created.");
         return outcome;
     }
-    work.start();
     const std::string sourceText = request.source.file.empty() ? request.source.url : pathToUtf8(request.source.file);
 
     ImportPlan plan;
