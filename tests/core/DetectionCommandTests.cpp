@@ -3,9 +3,11 @@
 #include "TestSupport.h"
 
 #include <plynth/core/Command.h>
+#include <plynth/core/Openings.h>
 #include <plynth/core/Rooms.h>
 #include <plynth/core/commands/DetectionCommands.h>
 
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <string>
@@ -13,6 +15,7 @@
 
 using namespace plynth;
 using namespace plynth::test;
+using Catch::Approx;
 
 namespace {
 
@@ -57,7 +60,9 @@ TEST_CASE("ApplyDetectionCommand on an empty floor", "[core][command][detection]
     REQUIRE(f.points.size() == 6);
     REQUIRE(f.walls.size() == 7);
     REQUIRE(f.rooms.size() == 2);
-    REQUIRE(f.openings.empty());
+    REQUIRE(f.openings.size() == 1);
+    REQUIRE(c.openingIds() == std::vector<Id>{"o1"});
+    REQUIRE(c.skippedOpenings() == 0);
     REQUIRE(c.wallIds() == std::vector<Id>{"w1", "w2", "w3", "w4", "w5", "w6", "w7"});
     REQUIRE(c.pointIds() == std::vector<Id>{"p1", "p2", "p3", "p4", "p5", "p6"});
     REQUIRE(c.roomIds() == std::vector<Id>{"r1", "r2"});
@@ -83,6 +88,180 @@ TEST_CASE("ApplyDetectionCommand on an empty floor", "[core][command][detection]
     SECTION("applying twice in a row: the second is already_exists") {
         ApplyDetectionCommand again("f1", proposalsWithRooms());
         applyRefused(again, p, ErrorCode::AlreadyExists);
+    }
+}
+
+TEST_CASE("ApplyDetectionCommand adds openings", "[core][command][detection][opening]") {
+    SECTION("the fake detector door gets its sizes from the project defaults") {
+        Project p = makeNewProject();
+        p.settings.defaults.doorHeight = 2.0;
+        ApplyDetectionCommand c("f1", proposalsWithRooms());
+        const Project before = p;
+        applyOk(c, p);
+        const Floor& f = p.plan.floors[0];
+        REQUIRE(f.openings.size() == 1);
+        const Opening& o = f.openings[0];
+        REQUIRE(o.id == "o1");
+        REQUIRE(o.wall == c.wallIds()[0]);
+        REQUIRE(o.offset == 1.5);
+        REQUIRE(o.type == OpeningType::Door);
+        REQUIRE(o.shape == "rectangle");
+        REQUIRE(o.width == 0.9);
+        REQUIRE(o.height == 2.0);
+        REQUIRE(o.sill == 0.0);
+        REQUIRE(o.hinge == HingeEnd::Start);
+        REQUIRE(o.swing == WallSide::Right);
+        REQUIRE(openingProblems(f).empty());
+        const Project after = p;
+        c.undo(p);
+        REQUIRE(p == before);
+        applyOk(c, p);
+        REQUIRE(p == after);
+        REQUIRE(c.openingIds() == std::vector<Id>{"o1"});
+    }
+    SECTION("windows and plain openings use their own default sizes") {
+        DetectionResult r = proposalsWithRooms();
+        ProposedOpening window = r.openings[0];
+        window.type = OpeningType::Window;
+        window.offset = 2.4;
+        window.width = 0.6;
+        ProposedOpening plain = r.openings[0];
+        plain.type = OpeningType::Plain;
+        plain.wall = 4;
+        plain.offset = 1.5;
+        r.openings.push_back(window);
+        r.openings.push_back(plain);
+        Project p = makeNewProject();
+        ApplyDetectionCommand c("f1", r);
+        applyOk(c, p);
+        const Floor& f = p.plan.floors[0];
+        REQUIRE(f.openings.size() == 3);
+        REQUIRE(f.openings[1].type == OpeningType::Window);
+        REQUIRE(f.openings[1].height == 1.2);
+        REQUIRE(f.openings[1].sill == 0.9);
+        REQUIRE(f.openings[1].width == 0.6);
+        REQUIRE(f.openings[2].type == OpeningType::Plain);
+        REQUIRE(f.openings[2].height == 2.1);
+        REQUIRE(f.openings[2].sill == 0.0);
+    }
+    SECTION("an opening on a wall drawn the other way gets hinge and swing turned round") {
+        DetectionResult r = proposalsWithRooms();
+        r.openings[0].offset = 1.0;
+        r.openings[0].hinge = HingeEnd::End;
+        r.openings[0].swing = WallSide::Left;
+        Project p = makeNewProject();
+        Floor& f = p.plan.floors[0];
+        // The same wall as proposal wall 0, but running from (3, 0) to (0, 0).
+        addPoint(f, "p1", 3.0, 0.0);
+        addPoint(f, "p2", 0.0, 0.0);
+        addWall(f, "w1", "p1", "p2", 0.3);
+        ApplyDetectionCommand c("f1", r);
+        applyOk(c, p);
+        REQUIRE(c.openingIds().size() == 1);
+        const Opening& o = f.openings[0];
+        REQUIRE(o.wall == "w1");
+        REQUIRE(o.offset == 2.0);
+        REQUIRE(o.hinge == HingeEnd::Start);
+        REQUIRE(o.swing == WallSide::Right);
+
+        // On a wall running the same way they stay as they are.
+        Project q = makeNewProject();
+        addPoint(q.plan.floors[0], "p1", 0.0, 0.0);
+        addPoint(q.plan.floors[0], "p2", 3.0, 0.0);
+        addWall(q.plan.floors[0], "w1", "p1", "p2", 0.3);
+        ApplyDetectionCommand same("f1", r);
+        applyOk(same, q);
+        const Opening& s = q.plan.floors[0].openings[0];
+        REQUIRE(s.offset == 1.0);
+        REQUIRE(s.hinge == HingeEnd::End);
+        REQUIRE(s.swing == WallSide::Left);
+    }
+    SECTION("an opening already there is Existing and skipped, a new one beside it is added") {
+        Project p = makeNewProject();
+        DetectionResult r = proposalsWithRooms();
+        ApplyDetectionCommand walls("f1", r);
+        applyOk(walls, p);
+        DetectionResult again = r;
+        ProposedOpening window = again.openings[0];
+        window.type = OpeningType::Window;
+        window.offset = 2.5;
+        window.width = 0.5;
+        again.openings.push_back(window);
+        ApplyDetectionCommand c("f1", again);
+        applyOk(c, p);
+        REQUIRE(c.skippedOpenings() == 1);
+        REQUIRE(c.openingIds().size() == 1);
+        REQUIRE(p.plan.floors[0].openings.size() == 2);
+        REQUIRE(p.plan.floors[0].openings[1].type == OpeningType::Window);
+    }
+    SECTION("a door overhanging a junction by 0.02 m is moved into the free part") {
+        DetectionResult r;
+        r.points = {{0, 0}, {4, 0}, {0, 3}};
+        r.walls = {{0, 1, 0.3, ProposalState::New}, {0, 2, 0.3, ProposalState::New}};
+        ProposedOpening o;
+        o.wall = 0;
+        o.type = OpeningType::Door;
+        o.offset = 0.45 + 0.15 - 0.02; // the left jamb is 0.02 m inside the wall at the corner
+        o.width = 0.9;
+        r.openings.push_back(o);
+        Project p = makeNewProject();
+        ApplyDetectionCommand c("f1", r);
+        applyOk(c, p);
+        REQUIRE(c.openingIds().size() == 1);
+        REQUIRE(c.skippedOpenings() == 0);
+        const Opening& placed = p.plan.floors[0].openings[0];
+        REQUIRE(placed.width == 0.9);
+        REQUIRE(placed.offset == Approx(0.6));
+        REQUIRE(openingProblems(p.plan.floors[0]).empty());
+    }
+    SECTION("an opening wider than the free part is narrowed to it") {
+        DetectionResult r;
+        r.points = {{0, 0}, {1, 0}, {0, 3}, {1, 3}};
+        r.walls = {{0, 1, 0.3, ProposalState::New}, {0, 2, 0.3, ProposalState::New}, {1, 3, 0.3, ProposalState::New}};
+        ProposedOpening o;
+        o.wall = 0;
+        o.type = OpeningType::Plain;
+        o.offset = 0.5;
+        o.width = 0.72; // the free part is 1.0 - 0.3 = 0.7
+        r.openings.push_back(o);
+        Project p = makeNewProject();
+        ApplyDetectionCommand c("f1", r);
+        applyOk(c, p);
+        REQUIRE(c.openingIds().size() == 1);
+        const Opening& placed = p.plan.floors[0].openings[0];
+        REQUIRE(placed.width == Approx(0.7));
+        REQUIRE(placed.offset == Approx(0.5));
+        REQUIRE(openingProblems(p.plan.floors[0]).empty());
+    }
+    SECTION("an opening that overhangs by more than the slack is skipped and counted") {
+        DetectionResult r;
+        r.points = {{0, 0}, {4, 0}, {0, 3}};
+        r.walls = {{0, 1, 0.3, ProposalState::New}, {0, 2, 0.3, ProposalState::New}};
+        ProposedOpening o;
+        o.wall = 0;
+        o.type = OpeningType::Door;
+        o.offset = 0.5; // the left jamb is 0.05 m left of the centre line, 0.2 m inside the wall
+        o.width = 0.9;
+        r.openings.push_back(o);
+        Project p = makeNewProject();
+        ApplyDetectionCommand c("f1", r);
+        applyOk(c, p);
+        REQUIRE(c.openingIds().empty());
+        REQUIRE(c.skippedOpenings() == 1);
+        REQUIRE(p.plan.floors[0].openings.empty());
+    }
+    SECTION("without opening proposals none are added") {
+        DetectionResult r = proposalsWithRooms();
+        r.openings.clear();
+        Project p = makeNewProject();
+        ApplyDetectionCommand c("f1", r);
+        applyOk(c, p);
+        REQUIRE(p.plan.floors[0].openings.empty());
+        REQUIRE(c.openingIds().empty());
+        REQUIRE(c.skippedOpenings() == 0);
+    }
+    SECTION("kDetectedOpeningSlack is 0.05 m") {
+        REQUIRE(kDetectedOpeningSlack == 0.05);
     }
 }
 

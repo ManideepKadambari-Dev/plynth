@@ -33,6 +33,9 @@ struct SampleExpected {
         OpeningType type = OpeningType::Plain;
         Vec2 at;
         double width = 0.0;
+        bool hasHinge = false; // doors only
+        Vec2 hinge;            // the hinge jamb on the wall centre line
+        Vec2 swingPoint;       // a point on the side the leaf opens toward
     };
     struct Box {
         std::string kind;
@@ -69,7 +72,13 @@ inline SampleExpected readSampleExpected(const std::filesystem::path& file)
     for (const auto& o : j.at("openings")) {
         const auto type = openingTypeFromName(o.at("type").get<std::string>());
         REQUIRE(type.has_value());
-        e.openings.push_back({*type, {o.at("x").get<double>(), o.at("y").get<double>()}, o.at("width").get<double>()});
+        SampleExpected::Opening opening{*type, {o.at("x").get<double>(), o.at("y").get<double>()}, o.at("width").get<double>()};
+        if (o.contains("hinge")) {
+            opening.hasHinge = true;
+            opening.hinge = vec(o.at("hinge"));
+            opening.swingPoint = vec(o.at("swing_point"));
+        }
+        e.openings.push_back(opening);
     }
     for (const auto& b : j.at("not_walls")) {
         e.notWalls.push_back({b.at("kind").get<std::string>(), b.at("box").at(0).get<double>(), b.at("box").at(1).get<double>(),
@@ -105,7 +114,8 @@ inline bool segmentTouchesBox(Vec2 a, Vec2 b, const SampleExpected::Box& box)
 
 // Checks a detection result against an expected file: the same walls (ends within positionTol metres,
 // thickness within 0.02 m), rooms (centre line area within 0.1 square metres), openings (same type, centre and
-// width within 0.1 m), the same number of points, and no wall through a not_walls box.
+// width within 0.1 m, and for doors the hinge jamb within 0.1 m of the expected hinge and the swing side holding
+// the expected swing point), the same number of points, and no wall through a not_walls box.
 inline void checkAgainstExpected(const DetectionResult& r, const SampleExpected& e, double positionTol)
 {
     const double ppm = e.pixelsPerMetre;
@@ -162,7 +172,18 @@ inline void checkAgainstExpected(const DetectionResult& r, const SampleExpected&
             const Vec2 b = r.points[w.to];
             const double len = distance(a, b);
             const Vec2 at{a.x + (b.x - a.x) * p.offset / len, a.y + (b.y - a.y) * p.offset / len};
-            if (p.type == o.type && distance(at, centre) <= 0.1 && std::abs(p.width - o.width / ppm) <= 0.1) {
+            bool doorOk = true;
+            if (o.hasHinge) {
+                const Vec2 direction{(b.x - a.x) / len, (b.y - a.y) / len};
+                const double jambOffset = p.hinge == HingeEnd::Start ? p.offset - p.width / 2.0 : p.offset + p.width / 2.0;
+                const Vec2 jamb{a.x + direction.x * jambOffset, a.y + direction.y * jambOffset};
+                const Vec2 swing = metres(o.swingPoint);
+                const Vec2 right = rightOf(direction);
+                const double toward = (swing.x - at.x) * right.x + (swing.y - at.y) * right.y;
+                const WallSide expectedSide = toward > 0.0 ? WallSide::Right : WallSide::Left;
+                doorOk = distance(jamb, metres(o.hinge)) <= 0.1 && p.swing == expectedSide;
+            }
+            if (p.type == o.type && distance(at, centre) <= 0.1 && std::abs(p.width - o.width / ppm) <= 0.1 && doorOk) {
                 ++found;
                 ++used[i];
             }

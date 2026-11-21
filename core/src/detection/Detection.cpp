@@ -2,6 +2,7 @@
 
 #include "plynth/core/ProjectFiles.h"
 #include "plynth/core/Rooms.h"
+#include "plynth/core/WallGeometry.h"
 
 #include <algorithm>
 #include <cmath>
@@ -294,6 +295,29 @@ void markExisting(const Floor& floor, DetectionResult& result)
     for (ProposedRoom& room : result.rooms) {
         room.state = roomAt(floor, room.inside).empty() ? ProposalState::New : ProposalState::Existing;
     }
+    for (ProposedOpening& o : result.openings) {
+        o.state = ProposalState::New;
+        if (o.wall >= result.walls.size()) continue;
+        const ProposedWall& pw = result.walls[o.wall];
+        if (pw.from >= result.points.size() || pw.to >= result.points.size()) continue;
+        const Vec2 a = result.points[pw.from];
+        const Vec2 b = result.points[pw.to];
+        const double length = distance(a, b);
+        if (length <= 0.0) continue;
+        const Vec2 centre{a.x + (b.x - a.x) * o.offset / length, a.y + (b.y - a.y) * o.offset / length};
+        for (const Opening& existingOpening : floor.openings) {
+            const Wall* wall = findWall(floor, existingOpening.wall);
+            if (!wall) continue;
+            const WallCurve curve = wallCurve(floor, *wall);
+            if (!curve.valid) continue;
+            const CurveProjection projection = projectOntoCurve(centre, curve);
+            const double tolerance = std::max(0.5 * std::max(pw.thickness, wall->thickness), kMinTolerance);
+            if (projection.distance <= tolerance && std::abs(projection.offset - existingOpening.offset) <= existingOpening.width / 2.0) {
+                o.state = ProposalState::Existing;
+                break;
+            }
+        }
+    }
 }
 
 // Counts the proposals by kind and state.
@@ -312,6 +336,10 @@ ProposalCounts countProposals(const DetectionResult& result)
         if (r.state == ProposalState::New) ++c.newRooms;
     }
     c.openings = result.openings.size();
+    for (const ProposedOpening& o : result.openings) {
+        if (o.state == ProposalState::New) ++c.newOpenings;
+        else if (o.state == ProposalState::Existing) ++c.existingOpenings;
+    }
     return c;
 }
 

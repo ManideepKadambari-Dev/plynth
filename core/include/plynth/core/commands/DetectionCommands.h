@@ -10,6 +10,10 @@
 
 namespace plynth {
 
+// How far a detected opening may overhang the free part of its wall and still be moved (and narrowed when needed)
+// to fit, in metres. A pixel or two of drawing error at a junction should not lose a door.
+inline constexpr double kDetectedOpeningSlack = 0.05;
+
 // Accepts detection proposals: turns them into ordinary points, walls, openings and rooms of a floor, as one
 // undo step named "Accept detection".
 // On the first apply it runs markExisting on its own copy of the proposals against the floor as it is then,
