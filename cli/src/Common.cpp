@@ -50,9 +50,15 @@ bool openProject(const std::string& command, const std::filesystem::path& folder
     return true;
 }
 
-Status saveInPlace(const Document& document) {
+Status saveInPlace(const Document& document, SaveReport* report) {
     Project copy = document.project();
-    return saveProject(copy, document.folder(), document.folder());
+    return saveProject(copy, document.folder(), document.folder(), report);
+}
+
+void addSaveWarnings(Answer& answer, const SaveReport& report) {
+    for (const std::string& image : report.missingImages) {
+        answer.warnings.push_back({"image_missing", "The plan image " + image + " is missing. Its path was kept."});
+    }
 }
 
 namespace {
@@ -129,10 +135,12 @@ Answer editProject(const std::string& command, const RunContext& context, const 
     if (!answer.ok) {
         return answer;
     }
-    const Status saved = saveInPlace(document);
+    SaveReport report;
+    const Status saved = saveInPlace(document, &report);
     if (!saved.ok()) {
         return failure(command, saved);
     }
+    addSaveWarnings(answer, report);
     return answer;
 }
 

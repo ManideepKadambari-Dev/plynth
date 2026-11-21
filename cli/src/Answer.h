@@ -5,10 +5,17 @@
 #include <nlohmann/json.hpp>
 
 #include <string>
+#include <vector>
 
 namespace plynth::cli {
 
 using Json = nlohmann::ordered_json;
+
+// Something a command noticed without refusing.
+struct AnswerWarning {
+    std::string code;
+    std::string message;
+};
 
 // One command's outcome, before it is written out as JSON.
 struct Answer {
@@ -19,6 +26,7 @@ struct Answer {
     std::string message;
     std::string where;
     int exitCode = 0;
+    std::vector<AnswerWarning> warnings; // only written for a successful answer
 };
 
 // Makes a successful answer.

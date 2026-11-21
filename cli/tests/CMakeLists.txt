@@ -12,6 +12,8 @@ add_executable(plynth_cli_tests
     OpeningCliTests.cpp
     CurvedCliTests.cpp
     OpeningEditCliTests.cpp
+    SettingsCliTests.cpp
+    AssetCliTests.cpp
     TestSetup.cpp
     TestSupport.cpp
 )
