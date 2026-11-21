@@ -112,8 +112,9 @@ void ScaleTool::finish(QPointF second)
         return;
     }
     const std::optional<double> current = host_.pixelsPerMetre();
-    const plynth::Floor* floor = host_.floor();
-    const bool hasMarks = floor != nullptr && !floor->points.empty();
+    bool hasMarks = false;
+    for (const plynth::Floor& floor : host_.document().plan().floors)
+        hasMarks = hasMarks || !floor.points.empty();
     std::optional<double> preset;
     if (current.has_value())
         preset = pixels / *current;

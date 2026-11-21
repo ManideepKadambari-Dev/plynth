@@ -8,6 +8,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QPalette>
+#include <QStyleFactory>
 
 namespace plynth::app {
 
@@ -16,6 +17,13 @@ Theme& Theme::instance()
 {
     static Theme theme;
     return theme;
+}
+
+// One shared Fusion style for inputs. Other widgets keep the menu look from milestone 2.
+QStyle* Theme::controlStyle() const
+{
+    static QStyle* style = QStyleFactory::create(QStringLiteral("Fusion"));
+    return style;
 }
 
 // Plain neutral defaults, used only when the theme file cannot be read.
@@ -146,6 +154,8 @@ QString Theme::styleSheet() const
         QPushButton:hover { border-color: %6; }
         QPushButton:default { background: %7; color: %8; border-color: %7; }
         QLabel { background: transparent; }
+        QPushButton:disabled, QAbstractSpinBox:disabled, QComboBox:disabled, QCheckBox:disabled { color: %6; }
+        QPushButton:disabled { border-color: %5; background: %3; }
     )");
     return sheet
         .arg(text_.name(), ground_.name(), panel_.name(), raised_.name(), line_.name(),

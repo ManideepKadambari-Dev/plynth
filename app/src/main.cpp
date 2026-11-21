@@ -8,7 +8,6 @@
 #include <QCommandLineParser>
 #include <QImage>
 #include <QRegularExpression>
-#include <QStyleFactory>
 #include <QTimer>
 
 namespace {
@@ -101,8 +100,6 @@ int main(int argc, char* argv[])
     if (wantsScreenshot && parser.value(screenshotOption).isEmpty())
         return kExitBadArguments;
 
-    // Fusion draws every control from the palette, so inputs follow the theme colors.
-    QApplication::setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
     plynth::app::Theme& theme = plynth::app::Theme::instance();
     theme.load(QStringLiteral(":/themes/drafting-dark.json"));
     theme.loadBundledFonts();

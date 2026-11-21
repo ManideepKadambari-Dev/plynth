@@ -5,11 +5,16 @@
 #include <QFont>
 #include <QString>
 
+class QStyle;
+
 namespace plynth::app {
 
 // Every color, font and spacing value the UI uses, read from one JSON file.
 class Theme {
 public:
+    // The style for inputs (spin boxes, combo boxes, check boxes). It draws from the palette, so they follow the theme.
+    QStyle* controlStyle() const;
+
     static Theme& instance();
 
     bool load(const QString& resourcePath);

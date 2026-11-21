@@ -59,6 +59,9 @@ private:
     Selection& selection_;
     ToolController& controller_;
     bool refreshing_ = false;
+    bool gridEdited_ = false;
+    bool pointXEdited_ = false;
+    bool pointYEdited_ = false;
 
     QStackedWidget* pages_ = nullptr;
     QPushButton* deleteButton_ = nullptr;

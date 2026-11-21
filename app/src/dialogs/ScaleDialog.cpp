@@ -36,6 +36,7 @@ ScaleDialog::ScaleDialog(double pixelDistance, std::optional<double> presetMetre
     distance_->setSingleStep(0.1);
     distance_->setSuffix(tr(" m"));
     distance_->setFont(t.monoFont(t.sizeNormal()));
+    distance_->setStyle(t.controlStyle());
     distance_->setValue(presetMetres.has_value() ? std::clamp(*presetMetres, 0.01, 1000.0) : 1.0);
     distance_->setToolTip(tr("The real length between the two points you clicked, in metres"));
     distance_->setProperty("tourId", QStringLiteral("scale-distance"));
@@ -48,6 +49,7 @@ ScaleDialog::ScaleDialog(double pixelDistance, std::optional<double> presetMetre
     layout->addWidget(pixels);
 
     keep_ = new QCheckBox(tr("Keep marks on the image"), this);
+    keep_->setStyle(t.controlStyle());
     keep_->setChecked(true);
     keep_->setVisible(showKeep);
     keep_->setToolTip(tr("On: points and walls stay on the same spot of the image. Off: they keep their real sizes in metres and move on the image."));

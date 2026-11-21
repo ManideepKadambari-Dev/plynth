@@ -129,6 +129,7 @@ QDoubleSpinBox* PropertiesPanel::addSpinRow(QGridLayout* grid, const QString& la
     spin->setSuffix(tr(" m"));
     spin->setFont(t.monoFont(t.sizeNormal()));
     spin->setKeyboardTracking(false);
+    spin->setStyle(Theme::instance().controlStyle());
     spin->setToolTip(tip);
     spin->setProperty("tourId", tourId);
     name->setToolTip(tip);
@@ -155,11 +156,11 @@ void PropertiesPanel::buildNothingPage()
 
     gridSpin_ = addSpinRow(grid, tr("Grid size"), 0.01, 100.0, 0.05,
                            tr("Distance between grid lines. Walls snap to the grid."), QStringLiteral("panel-grid-size"));
+    connect(gridSpin_, &QDoubleSpinBox::valueChanged, this, [this]() { gridEdited_ = !refreshing_ || gridEdited_; });
     connect(gridSpin_, &QDoubleSpinBox::editingFinished, this, [this]() {
-        if (refreshing_)
+        if (refreshing_ || !gridEdited_)
             return;
-        if (std::abs(gridSpin_->value() - document_.project().settings.gridSize) < 1e-9)
-            return;
+        gridEdited_ = false;
         controller_.run(std::make_unique<plynth::SetGridSizeCommand>(gridSpin_->value()));
     });
 
@@ -188,16 +189,22 @@ void PropertiesPanel::buildPointPage()
     pointY_ = addSpinRow(grid, tr("Y"), -100000.0, 100000.0, 0.05, tr("Position of the point, from the top edge of the image"),
                          QStringLiteral("panel-point-y"));
     pointWalls_ = addLabelRow(grid, tr("Walls"));
+    connect(pointX_, &QDoubleSpinBox::valueChanged, this, [this]() { pointXEdited_ = !refreshing_ || pointXEdited_; });
+    connect(pointY_, &QDoubleSpinBox::valueChanged, this, [this]() { pointYEdited_ = !refreshing_ || pointYEdited_; });
+    // Only a box the user changed counts, so tabbing through a box never rounds the real position.
     auto move = [this]() {
-        if (refreshing_ || selection_.kind() != SelectionKind::Point)
+        const bool xEdited = pointXEdited_;
+        const bool yEdited = pointYEdited_;
+        pointXEdited_ = false;
+        pointYEdited_ = false;
+        if (refreshing_ || (!xEdited && !yEdited) || selection_.kind() != SelectionKind::Point)
             return;
         const plynth::Floor* floor = controller_.floor();
         const plynth::Point* point = floor ? plynth::findPoint(*floor, selection_.id().toStdString()) : nullptr;
         if (point == nullptr)
             return;
-        if (std::abs(point->x - pointX_->value()) < 1e-9 && std::abs(point->y - pointY_->value()) < 1e-9)
-            return;
-        controller_.run(std::make_unique<plynth::MovePointCommand>(point->id, pointX_->value(), pointY_->value()));
+        controller_.run(std::make_unique<plynth::MovePointCommand>(point->id, xEdited ? pointX_->value() : point->x,
+                                                                   yEdited ? pointY_->value() : point->y));
     };
     connect(pointX_, &QDoubleSpinBox::editingFinished, this, move);
     connect(pointY_, &QDoubleSpinBox::editingFinished, this, move);
@@ -237,6 +244,7 @@ void PropertiesPanel::buildRoomPage()
     name->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
     roomType_ = new QComboBox(grid->parentWidget());
     roomType_->setFont(t.uiFont(t.sizeNormal()));
+    roomType_->setStyle(t.controlStyle());
     roomType_->setToolTip(tr("What kind of room this is"));
     roomType_->setProperty("tourId", QStringLiteral("panel-room-type"));
     name->setToolTip(roomType_->toolTip());
