@@ -43,9 +43,6 @@ void addLockFields(Json& result, const SessionRead& read) {
 Answer sessionBegin(const RunContext& context, const BeginOptions& options) {
     const std::string command = "session begin";
     const std::filesystem::path folder = resolveProjectFolder(context, options.project);
-    if (options.tool.empty() || options.tool.size() > 64) {
-        return failure(command, fail(ErrorCode::InvalidValue, "The tool name must be 1 to 64 characters."));
-    }
 
     SessionLock lock;
     bool already = false;

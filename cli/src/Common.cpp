@@ -2,6 +2,7 @@
 
 #include <plynth/core/EditSession.h>
 #include <plynth/core/ProjectFiles.h>
+#include <plynth/core/ProjectJson.h>
 
 namespace plynth::cli {
 
@@ -50,7 +51,7 @@ Status saveInPlace(const Document& document) {
 
 Json projectInfoJson(const std::filesystem::path& folder, const Project& project) {
     Json plan = Json::object();
-    plan["version"] = 1;
+    plan["version"] = kPlanFormatVersion;
     if (project.plan.scale.pixelsPerMetre) {
         plan["pixels_per_metre"] = *project.plan.scale.pixelsPerMetre;
     } else {

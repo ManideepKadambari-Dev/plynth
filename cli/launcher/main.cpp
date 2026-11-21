@@ -105,6 +105,12 @@ Mode readMode() {
     return mode;
 }
 
+// Swallows Ctrl+C and Ctrl+Break so they only reach plynth.exe, and plynth.com keeps waiting for it.
+// A handler function is used, not the "ignore" setting, because that setting would pass to the child.
+BOOL WINAPI ignoreInterrupt(DWORD type) {
+    return type == CTRL_C_EVENT || type == CTRL_BREAK_EVENT;
+}
+
 // The folder this program lives in.
 std::filesystem::path ownFolder() {
     std::wstring path(32768, L'\0');
@@ -160,9 +166,19 @@ int main() {
     makeInheritable(startup.hStdOutput);
     makeInheritable(startup.hStdError);
 
+    // Show non ASCII text correctly in the console while the child writes, then put the old page back.
+    const UINT oldCodePage = GetConsoleOutputCP();
+    if (oldCodePage != 0) {
+        SetConsoleOutputCP(CP_UTF8);
+    }
+    SetConsoleCtrlHandler(ignoreInterrupt, TRUE);
+
     PROCESS_INFORMATION process{};
     if (!CreateProcessW(child.c_str(), commandLine.data(), nullptr, nullptr, TRUE, 0, nullptr, nullptr, &startup,
                         &process)) {
+        if (oldCodePage != 0) {
+            SetConsoleOutputCP(oldCodePage);
+        }
         writeOut("{\"ok\":false,\"command\":\"\",\"error\":{\"code\":\"cannot_read\","
                  "\"message\":\"plynth.exe could not be started.\"}}\n");
         return kExitFailed;
@@ -173,5 +189,8 @@ int main() {
     GetExitCodeProcess(process.hProcess, &code);
     CloseHandle(process.hThread);
     CloseHandle(process.hProcess);
+    if (oldCodePage != 0) {
+        SetConsoleOutputCP(oldCodePage);
+    }
     return static_cast<int>(code);
 }

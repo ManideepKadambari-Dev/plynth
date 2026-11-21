@@ -272,3 +272,22 @@ TEST_CASE("help lists the session commands", "[cli][session]") {
     }
     CHECK(plynth::cli::isCommandWord("session"));
 }
+
+TEST_CASE("session begin counts the tool name in characters and maps empty to the default", "[cli][session]") {
+    TempFolder temp("tool");
+    const auto folder = makeProject(temp);
+    const std::string project = utf8(folder);
+
+    std::string accented;
+    for (int i = 0; i < 40; ++i) {
+        accented += "\xC3\xBC"; // 40 characters, 80 bytes
+    }
+    const auto accentedBegin = runChecked({"session", "begin", "--tool", accented, "--project", project});
+    CHECK(accentedBegin.exitCode == kExitOk);
+    CHECK(accentedBegin.answer.at("result").at("tool") == accented);
+
+    runChecked({"session", "end", "--project", project});
+    const auto emptyBegin = runChecked({"session", "begin", "--tool", "", "--project", project});
+    CHECK(emptyBegin.exitCode == kExitOk);
+    CHECK(emptyBegin.answer.at("result").at("tool") == "plynth");
+}
