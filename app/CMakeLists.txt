@@ -7,6 +7,10 @@ add_executable(plynth WIN32
     src/main.cpp
     src/canvas/PlanCanvas.h
     src/canvas/PlanCanvas.cpp
+    src/detection/DetectionRunner.h
+    src/detection/DetectionRunner.cpp
+    src/detection/DetectionSession.h
+    src/detection/DetectionSession.cpp
     src/dialogs/ScaleDialog.h
     src/dialogs/ScaleDialog.cpp
     src/document/Selection.h
@@ -19,6 +23,8 @@ add_executable(plynth WIN32
     src/panels/PropertiesPanel.cpp
     src/panels/ToolStrip.h
     src/panels/ToolStrip.cpp
+    src/tools/DetectTool.h
+    src/tools/DetectTool.cpp
     src/tools/RoomTool.h
     src/tools/RoomTool.cpp
     src/tools/ScaleTool.h

@@ -29,13 +29,15 @@ Setting the plan image can be undone. A new project from an image starts with th
 | S | Scale tool |
 | W | Wall tool |
 | R | Room tool |
+| D | Detect tool |
+| Enter | Accept the proposed walls and rooms, while the Detect tool is active |
 | Delete or Backspace | Delete the selected point, wall or room, and what depends on it |
 
 The menu shows the name of the change, for example "Undo Set plan image". The items are greyed when there is nothing to undo or redo, and while the command line is editing the project.
 
 The tool keys work when the canvas has focus. While you type in a box in the properties panel, or in the terminal, a letter is typed into it and does not switch tools, and Delete and Backspace edit the text instead of deleting a plan item.
 
-The Scale tool needs a plan image. The Wall and Room tools also need a scale, and the tooltip then says "Set the scale first (S)". While the command line is editing the project, the tools are disabled and the Select tool is used.
+The Scale tool needs a plan image. The Wall, Room and Detect tools also need a scale, and the tooltip then says "Set the scale first (S)". While the command line is editing the project, the tools are disabled and the Select tool is used.
 
 ## View
 
@@ -69,6 +71,7 @@ These keys and clicks work with the tools. The Select tool is the default.
 | Shift | Scale | Keep the two points exactly horizontal or vertical |
 | Esc | Scale | Cancel the measurement |
 | Left click | Room | Make a room inside a closed area, or change the type of the room you click |
+| Enter | Detect | Accept the proposals as one undo step. Ctrl+Z takes them away again. |
 
 Shift has no effect on a wall that starts a chain, because there is no earlier point to keep straight from. Snapping to existing points always wins, so you can still close a loop while Shift is held. Ctrl needs to be held when you click, and Alt is not used because Windows gives it to the menu bar.
 

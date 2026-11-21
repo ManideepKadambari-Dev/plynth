@@ -1,0 +1,65 @@
+{
+  "format": "plynth-sample-expected",
+  "version": 1,
+  "image": "apartment-01.png",
+  "pixels_per_metre": 100,
+  "points": [
+    [515, 315],
+    [1006, 315],
+    [1400, 315],
+    [1885, 315],
+    [1885, 700],
+    [1885, 1285],
+    [1006, 1285],
+    [515, 1285],
+    [515, 800],
+    [1006, 800],
+    [1006, 700],
+    [1400, 700]
+  ],
+  "walls": [
+    {"from": [515, 315], "to": [1006, 315], "thickness": 30},
+    {"from": [1006, 315], "to": [1400, 315], "thickness": 30},
+    {"from": [1400, 315], "to": [1885, 315], "thickness": 30},
+    {"from": [1885, 315], "to": [1885, 700], "thickness": 30},
+    {"from": [1885, 700], "to": [1885, 1285], "thickness": 30},
+    {"from": [515, 1285], "to": [1006, 1285], "thickness": 30},
+    {"from": [1006, 1285], "to": [1885, 1285], "thickness": 30},
+    {"from": [515, 315], "to": [515, 800], "thickness": 30},
+    {"from": [515, 800], "to": [515, 1285], "thickness": 30},
+    {"from": [1006, 315], "to": [1006, 700], "thickness": 12},
+    {"from": [1006, 700], "to": [1006, 800], "thickness": 12},
+    {"from": [1006, 800], "to": [1006, 1285], "thickness": 12},
+    {"from": [515, 800], "to": [1006, 800], "thickness": 12},
+    {"from": [1006, 700], "to": [1400, 700], "thickness": 12},
+    {"from": [1400, 700], "to": [1885, 700], "thickness": 12},
+    {"from": [1400, 315], "to": [1400, 700], "thickness": 12}
+  ],
+  "rooms": [
+    {"inside": [760, 557], "centre_line_area": 238135},
+    {"inside": [760, 1042], "centre_line_area": 238135},
+    {"inside": [1203, 507], "centre_line_area": 151690},
+    {"inside": [1642, 507], "centre_line_area": 186725},
+    {"inside": [1300, 900], "centre_line_area": 514215}
+  ],
+  "openings": [
+    {"type": "window", "x": 750, "y": 315, "width": 200},
+    {"type": "window", "x": 1600, "y": 315, "width": 200},
+    {"type": "window", "x": 515, "y": 1050, "width": 200},
+    {"type": "window", "x": 1885, "y": 500, "width": 160},
+    {"type": "door", "x": 1006, "y": 751, "width": 90},
+    {"type": "door", "x": 1006, "y": 1045, "width": 90},
+    {"type": "door", "x": 1145, "y": 700, "width": 90},
+    {"type": "door", "x": 1145, "y": 1285, "width": 90},
+    {"type": "plain", "x": 1680, "y": 700, "width": 240}
+  ],
+  "not_walls": [
+    {"kind": "dimension_line", "box": [495, 205, 1905, 235]},
+    {"kind": "dimension_line", "box": [385, 295, 415, 1305]},
+    {"kind": "door_arc", "box": [1014, 708, 1098, 792]},
+    {"kind": "door_arc", "box": [914, 1002, 998, 1088]},
+    {"kind": "door_arc", "box": [1098, 608, 1192, 692]},
+    {"kind": "door_arc", "box": [1098, 1193, 1192, 1268]},
+    {"kind": "curved_wall", "box": [1584, 984, 1868, 1268]}
+  ]
+}

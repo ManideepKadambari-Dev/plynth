@@ -1,6 +1,6 @@
 // plynth.com: a small console program that starts plynth.exe with the same command line. For a CLI
 // command it waits and returns the exit code, so a terminal sees the answer. To open the window it
-// returns at once. For anything else it prints the CLI's unknown_command answer.
+// returns at once. For anything else it prints the CLI's unknown_command answer without loading core.
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -11,14 +11,16 @@
 #include <windows.h>
 #include <shellapi.h>
 
-#include <plynth/cli/Cli.h>
+#include <plynth/cli/Words.h>
 
 #include <filesystem>
 #include <string>
+#include <vector>
 
 namespace {
 
 constexpr int kExitFailed = 1;
+constexpr int kExitBadArguments = 2;
 
 // Writes a short text to standard output when there is somewhere to write it.
 void writeOut(const std::string& text) {
@@ -72,10 +74,23 @@ enum class Mode {
     Unknown, // anything else: answer with the CLI's unknown_command error
 };
 
-// Decides what the first argument asks for.
-Mode modeOf(const std::string& first, bool hasFirst) {
-    if (!hasFirst) {
+// Decides what the arguments ask for. --pretty does not count as the first word, and --help or -h anywhere
+// goes to plynth.exe, which answers with the help list.
+Mode modeOf(const std::vector<std::string>& args) {
+    if (args.empty()) {
         return Mode::Window;
+    }
+    std::string first;
+    bool hasFirst = false;
+    for (const std::string& arg : args) {
+        if (arg != "--pretty") {
+            first = arg;
+            hasFirst = true;
+            break;
+        }
+    }
+    if (!hasFirst) {
+        return Mode::Unknown;
     }
     if (plynth::cli::isCommandWord(first)) {
         return Mode::Command;
@@ -83,6 +98,11 @@ Mode modeOf(const std::string& first, bool hasFirst) {
     for (const char* option : {"--image", "--screenshot", "--size", "--terminal"}) {
         if (first == option) {
             return Mode::Window;
+        }
+    }
+    for (const std::string& arg : args) {
+        if (arg == "--help" || arg == "-h") {
+            return Mode::Command;
         }
     }
     if (first.empty() || first.front() == '-') {
@@ -93,16 +113,19 @@ Mode modeOf(const std::string& first, bool hasFirst) {
     return exists ? Mode::Window : Mode::Unknown;
 }
 
-// Reads the first argument and decides what it asks for.
-Mode readMode() {
+// The arguments after the program name, as UTF-8.
+std::vector<std::string> readArguments() {
+    std::vector<std::string> result;
     int count = 0;
     wchar_t** args = CommandLineToArgvW(GetCommandLineW(), &count);
     if (args == nullptr) {
-        return Mode::Window;
+        return result;
     }
-    const Mode mode = modeOf(count > 1 ? toUtf8(args[1]) : std::string(), count > 1);
+    for (int i = 1; i < count; ++i) {
+        result.push_back(toUtf8(args[i]));
+    }
     LocalFree(args);
-    return mode;
+    return result;
 }
 
 // Swallows Ctrl+C and Ctrl+Break so they only reach plynth.exe, and plynth.com keeps waiting for it.
@@ -123,9 +146,11 @@ std::filesystem::path ownFolder() {
 
 // Starts plynth.exe from this folder, waits for it and returns its exit code.
 int main() {
-    const Mode mode = readMode();
+    const std::vector<std::string> arguments = readArguments();
+    const Mode mode = modeOf(arguments);
     if (mode == Mode::Unknown) {
-        return plynth::cli::runFromProcess(0, nullptr);
+        writeOut(plynth::cli::unknownCommandAnswer(arguments));
+        return kExitBadArguments;
     }
     const std::filesystem::path child = ownFolder() / L"plynth.exe";
     std::error_code ignored;
@@ -136,9 +161,9 @@ int main() {
     }
 
     std::wstring commandLine = L"\"" + child.wstring() + L"\"";
-    const std::wstring arguments = argumentsOf(GetCommandLineW());
-    if (!arguments.empty()) {
-        commandLine += L" " + arguments;
+    const std::wstring tail = argumentsOf(GetCommandLineW());
+    if (!tail.empty()) {
+        commandLine += L" " + tail;
     }
 
     STARTUPINFOW startup{};

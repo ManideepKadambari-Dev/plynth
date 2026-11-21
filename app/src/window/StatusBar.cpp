@@ -120,9 +120,11 @@ void StatusBar::setHint(const QString& text)
     hintLabel_->setText(text);
 }
 
-// Shows a message in amber over the hint for four seconds.
-void StatusBar::showMessage(const QString& text)
+// Shows a message over the hint for four seconds, in amber when it is a refusal.
+void StatusBar::showMessage(const QString& text, bool refusal)
 {
+    const Theme& t = Theme::instance();
+    messageLabel_->setStyleSheet(QStringLiteral("color: %1;").arg((refusal ? t.signalAmber() : t.text()).name()));
     messageLabel_->setText(text);
     messageLabel_->show();
     hintLabel_->hide();

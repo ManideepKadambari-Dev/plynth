@@ -4,6 +4,7 @@
 #include <QImage>
 #include <QPainterPath>
 #include <QPointF>
+#include <QPolygonF>
 #include <QString>
 #include <QVector>
 
@@ -46,6 +47,33 @@ struct OverlayData {
     QVector<OverlayRoom> rooms;
 };
 
+// One proposed wall, in scene units.
+struct ProposalWall {
+    QPointF from;
+    QPointF to;
+    double thickness = 0.0;
+};
+
+// One proposed opening: its centre, the direction of its wall, the wall thickness and the gap width.
+// kind is 0 for a plain opening, 1 for a door and 2 for a window.
+struct ProposalOpening {
+    QPointF centre;
+    QPointF direction;
+    double thickness = 0.0;
+    double width = 0.0;
+    int kind = 0;
+};
+
+// Everything the canvas draws for detection proposals: only the new ones, as a dashed blue preview.
+struct ProposalOverlay {
+    QVector<ProposalWall> walls;
+    QVector<QPointF> points;
+    QVector<QVector<QPolygonF>> rooms;
+    QVector<ProposalOpening> openings;
+
+    bool isEmpty() const { return walls.isEmpty() && rooms.isEmpty() && openings.isEmpty(); }
+};
+
 // The plan sheet: shows one plan image and lets the user pan and zoom it.
 // In scene coordinates one unit is one image pixel, with the image corner at (0, 0).
 class PlanCanvas : public QGraphicsView {
@@ -60,6 +88,7 @@ public:
     static QString defaultEmptyText();
     void setDimmed(bool dimmed);
     void setOverlay(const OverlayData& overlay);
+    void setProposals(const ProposalOverlay& proposals);
     void setSelection(SelectionKind kind, const QString& id);
     // Grid step in scene units, or 0 for no grid. The grid shows only when a step is wide enough on screen.
     void setGridStep(double scenePixels);
@@ -99,6 +128,7 @@ private:
     void updateCursor();
     void paintOverlay(QPainter* painter);
     void paintLabels(QPainter* painter);
+    void paintProposals(QPainter* painter);
     void applyFit();
     QRectF imageRect() const;
 
@@ -107,6 +137,7 @@ private:
     QString emptyText_;
     bool dimmed_ = false;
     OverlayData overlay_;
+    ProposalOverlay proposals_;
     SelectionKind selectionKind_ = SelectionKind::None;
     QString selectionId_;
     double gridStep_ = 0.0;

@@ -23,6 +23,11 @@ add_library(plynth_core STATIC
     src/commands/SettingsCommands.cpp
     src/commands/RoomCommands.cpp
     src/commands/DeleteCommands.cpp
+    src/commands/DetectionCommands.cpp
+    src/detection/Detection.cpp
+    src/detection/Detector.cpp
+    src/detection/GrayImage.cpp
+    src/detection/OrthogonalDetection.cpp
 )
 if(WIN32)
     target_sources(plynth_core PRIVATE src/Process_win.cpp)
@@ -36,3 +41,17 @@ set_source_files_properties(src/Version.cpp PROPERTIES
     COMPILE_DEFINITIONS PLYNTH_VERSION_STRING="${PROJECT_VERSION}")
 find_package(Clipper2 CONFIG REQUIRED)
 target_link_libraries(plynth_core PRIVATE Clipper2::Clipper2)
+find_package(OpenCV CONFIG REQUIRED COMPONENTS opencv_core opencv_imgproc opencv_imgcodecs)
+target_link_libraries(plynth_core PRIVATE opencv_core opencv_imgproc opencv_imgcodecs)
+
+# Detectors register themselves from namespace scope objects. A static library drops object files nobody
+# references, so detector files are built as an object library and their objects are added to every program
+# that links core.
+file(GLOB PLYNTH_DETECTOR_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/detection/detectors/*.cpp)
+if(PLYNTH_DETECTOR_SOURCES)
+    add_library(plynth_detectors OBJECT ${PLYNTH_DETECTOR_SOURCES})
+    target_include_directories(plynth_detectors PRIVATE include src src/detection)
+    target_link_libraries(plynth_detectors PRIVATE nlohmann_json::nlohmann_json Clipper2::Clipper2 opencv_core opencv_imgproc opencv_imgcodecs)
+    target_compile_features(plynth_detectors PUBLIC cxx_std_20)
+    target_sources(plynth_core INTERFACE $<TARGET_OBJECTS:plynth_detectors>)
+endif()

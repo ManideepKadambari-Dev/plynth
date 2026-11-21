@@ -61,7 +61,7 @@ public:
 
     void showError(const QString& title, const QString& message);
 
-    // For checks only: activates a tool by name (select, scale, wall, room). False for an unknown name.
+    // For checks only: activates a tool by name (select, scale, wall, room, detect). False for an unknown name.
     bool activateToolByName(const QString& name);
     // For checks only: selects the point, wall or room with this id on the first floor. An unknown id selects nothing.
     void selectById(const QString& id);
@@ -70,6 +70,8 @@ public:
     void startTerminalCheck(const QString& text);
     bool terminalPictureReady() const;
     bool terminalFailed() const;
+    // For checks only: true when the Detect tool is off, or its first detection has finished or failed.
+    bool detectionPictureReady() const;
 
 protected:
     void dragEnterEvent(QDragEnterEvent* event) override;
@@ -129,7 +131,8 @@ private:
     ToolController* tools_ = nullptr;
     ToolStrip* toolStrip_ = nullptr;
     PropertiesPanel* panel_ = nullptr;
-    QAction* toolActions_[4] = {nullptr, nullptr, nullptr, nullptr};
+    QAction* toolActions_[5] = {nullptr, nullptr, nullptr, nullptr, nullptr};
+    QAction* acceptDetectionAction_ = nullptr;
     QAction* snapGridAction_ = nullptr;
     QAction* deleteAction_ = nullptr;
     StatusBar* statusBar_ = nullptr;

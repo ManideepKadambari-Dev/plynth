@@ -8,7 +8,7 @@ const std::vector<CommandSpec>& allCommands() {
     static const std::vector<CommandSpec> commands = [] {
         std::vector<CommandSpec> all;
         for (auto* group : {&versionCommands, &helpCommands, &projectCommands, &scaleCommands, &pointCommands,
-                             &wallCommands, &roomCommands, &sessionCommands}) {
+                             &wallCommands, &roomCommands, &detectCommands, &sessionCommands}) {
             for (auto& spec : group()) {
                 all.push_back(std::move(spec));
             }

@@ -1,5 +1,6 @@
 #include "PropertiesPanel.h"
 
+#include "detection/DetectionSession.h"
 #include "document/Selection.h"
 #include "theme/Theme.h"
 #include "tools/ToolController.h"
@@ -12,17 +13,25 @@
 #include <plynth/core/commands/RoomCommands.h>
 #include <plynth/core/commands/SettingsCommands.h>
 #include <plynth/core/commands/WallCommands.h>
+#include <plynth/core/detection/Detector.h>
 
+#include <QAbstractSpinBox>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDoubleSpinBox>
 #include <QEvent>
 #include <QGridLayout>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QPainter>
+#include <QKeyEvent>
+#include <QLineEdit>
 #include <QPushButton>
+#include <QSlider>
 #include <QStackedWidget>
 #include <QVBoxLayout>
 
+#include <algorithm>
 #include <cmath>
 
 namespace plynth::app {
@@ -34,6 +43,7 @@ constexpr int kNothingPage = 0;
 constexpr int kPointPage = 1;
 constexpr int kWallPage = 2;
 constexpr int kRoomPage = 3;
+constexpr int kDetectPage = 4;
 
 // Turns a core text into Qt text.
 QString fromCore(const std::string& text)
@@ -67,6 +77,7 @@ PropertiesPanel::PropertiesPanel(plynth::Document& document, Selection& selectio
     buildPointPage();
     buildWallPage();
     buildRoomPage();
+    buildDetectPage();
     column->addWidget(pages_);
     column->addStretch(1);
 
@@ -79,6 +90,7 @@ PropertiesPanel::PropertiesPanel(plynth::Document& document, Selection& selectio
 
     connect(&selection_, &Selection::changed, this, &PropertiesPanel::refresh);
     connect(&controller_, &ToolController::activeChanged, this, &PropertiesPanel::refresh);
+    connect(&controller_.detection(), &DetectionSession::changed, this, &PropertiesPanel::refresh);
     refresh();
 }
 
@@ -273,6 +285,207 @@ void PropertiesPanel::buildRoomPage()
     roomWalls_ = addLabelRow(grid, tr("Walls"));
 }
 
+// Adds a row with a slider: its name and value on one line, the slider under them.
+QSlider* PropertiesPanel::addSliderRow(QGridLayout* grid, const QString& label, int min, int max, const QString& tip,
+                                       const QString& tourId, QLabel** valueOut)
+{
+    const Theme& t = Theme::instance();
+    auto* name = new QLabel(label, grid->parentWidget());
+    name->setFont(t.uiFont(t.sizeSmall()));
+    name->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
+    name->setToolTip(tip);
+    auto* value = new QLabel(grid->parentWidget());
+    value->setFont(t.monoFont(t.sizeNormal()));
+    value->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    value->setToolTip(tip);
+    auto* slider = new QSlider(Qt::Horizontal, grid->parentWidget());
+    slider->setRange(min, max);
+    slider->setStyle(t.controlStyle());
+    slider->setToolTip(tip);
+    slider->setProperty("tourId", tourId);
+    const int row = grid->rowCount();
+    grid->addWidget(name, row, 0, Qt::AlignVCenter);
+    grid->addWidget(value, row, 1);
+    grid->addWidget(slider, row + 1, 0, 1, 2);
+    editors_.push_back(slider);
+    *valueOut = value;
+    return slider;
+}
+
+// The page for the Detect tool: the settings, the status line, Accept and Reset settings.
+void PropertiesPanel::buildDetectPage()
+{
+    const Theme& t = Theme::instance();
+    QGridLayout* grid = nullptr;
+    QWidget* page = makePage(&grid);
+    page->setProperty("tourId", QStringLiteral("panel-detect"));
+    page->setToolTip(tr("Settings for finding walls in the plan image"));
+
+    thinSlider_ = addSliderRow(grid, tr("Thinnest wall"), 2, 40,
+                               tr("Dark lines thinner than this are not walls. Raise it to drop thin inner walls."),
+                               QStringLiteral("panel-detect-thinnest"), &thinValue_);
+    thickSlider_ = addSliderRow(grid, tr("Thickest wall"), 10, 100,
+                                tr("Dark areas thicker than this are not walls, for example filled blocks."),
+                                QStringLiteral("panel-detect-thickest"), &thickValue_);
+    sensitivitySlider_ = addSliderRow(grid, tr("Sensitivity"), 0, 100,
+                                      tr("Higher counts lighter grey as ink. Lower it for a plan with grey paper."),
+                                      QStringLiteral("panel-detect-sensitivity"), &sensitivityValue_);
+    lengthSpin_ = addSpinRow(grid, tr("Shortest wall"), 0.05, 5.0, 0.05,
+                             tr("Wall pieces shorter than this are dropped."), QStringLiteral("panel-detect-length"));
+    lengthSpin_->setDecimals(2);
+    openingSpin_ = addSpinRow(grid, tr("Widest opening"), 0.0, 5.0, 0.05,
+                              tr("A gap up to this wide is closed with wall and shown as an opening. 0 closes none."),
+                              QStringLiteral("panel-detect-opening"));
+    openingSpin_->setDecimals(2);
+
+    const auto addCheck = [&](const QString& text, const QString& tip, const QString& tourId) {
+        auto* box = new QCheckBox(text, page);
+        box->setFont(t.uiFont(t.sizeNormal()));
+        box->setStyle(t.controlStyle());
+        box->setToolTip(tip);
+        box->setProperty("tourId", tourId);
+        grid->addWidget(box, grid->rowCount(), 0, 1, 2);
+        editors_.push_back(box);
+        return box;
+    };
+    roomsCheck_ = addCheck(tr("Propose rooms"), tr("Also propose a room for every closed area"),
+                           QStringLiteral("panel-detect-rooms"));
+    openingsCheck_ = addCheck(tr("Show openings"), tr("Show doors, windows and gaps found in the walls"),
+                              QStringLiteral("panel-detect-openings"));
+
+    detectorLabel_ = new QLabel(tr("Detector"), page);
+    detectorLabel_->setFont(t.uiFont(t.sizeSmall()));
+    detectorLabel_->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
+    detectorCombo_ = new QComboBox(page);
+    detectorCombo_->setFont(t.uiFont(t.sizeNormal()));
+    detectorCombo_->setStyle(t.controlStyle());
+    detectorCombo_->setToolTip(tr("The way walls are found"));
+    detectorCombo_->setProperty("tourId", QStringLiteral("panel-detect-detector"));
+    for (const plynth::Detector* detector : plynth::allDetectors()) {
+        const QString id = QString::fromUtf8(detector->id().data(), static_cast<qsizetype>(detector->id().size()));
+        const QString text = QString::fromUtf8(detector->name().data(), static_cast<qsizetype>(detector->name().size()));
+        detectorCombo_->addItem(text, id);
+        detectorCombo_->setItemData(detectorCombo_->count() - 1,
+                                    QString::fromUtf8(detector->description().data(),
+                                                      static_cast<qsizetype>(detector->description().size())),
+                                    Qt::ToolTipRole);
+    }
+    const int detectorRow = grid->rowCount();
+    grid->addWidget(detectorLabel_, detectorRow, 0, Qt::AlignVCenter);
+    grid->addWidget(detectorCombo_, detectorRow, 1);
+    detectorLabel_->setVisible(detectorCombo_->count() > 1);
+    detectorCombo_->setVisible(detectorCombo_->count() > 1);
+    editors_.push_back(detectorCombo_);
+
+    detectStatus_ = new QLabel(page);
+    detectStatus_->setFont(t.uiFont(t.sizeSmall()));
+    detectStatus_->setWordWrap(true);
+    detectStatus_->setToolTip(tr("What detection found, or why it could not run"));
+    detectStatus_->setProperty("tourId", QStringLiteral("panel-detect-status"));
+    grid->addWidget(detectStatus_, grid->rowCount(), 0, 1, 2);
+
+    auto* note = new QLabel(tr("Openings are shown for checking. They are not added yet."), page);
+    note->setFont(t.uiFont(t.sizeSmall()));
+    note->setWordWrap(true);
+    note->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
+    grid->addWidget(note, grid->rowCount(), 0, 1, 2);
+
+    acceptButton_ = new QPushButton(tr("Accept"), page);
+    acceptButton_->setDefault(true);
+    acceptButton_->setToolTip(tr("Add the new walls and rooms to the plan (Enter)"));
+    acceptButton_->setProperty("tourId", QStringLiteral("detect-accept"));
+    resetButton_ = new QPushButton(tr("Reset settings"), page);
+    resetButton_->setToolTip(tr("Put every detection setting back to its default"));
+    resetButton_->setProperty("tourId", QStringLiteral("panel-detect-reset"));
+    editors_.push_back(resetButton_);
+    auto* buttons = new QHBoxLayout();
+    buttons->setSpacing(t.unit() * 2);
+    buttons->addWidget(acceptButton_);
+    buttons->addWidget(resetButton_);
+    grid->addLayout(buttons, grid->rowCount(), 0, 1, 2);
+
+    connect(thinSlider_, &QSlider::valueChanged, this, [this]() { detectSettingsEdited(thinSlider_); });
+    connect(thickSlider_, &QSlider::valueChanged, this, [this]() { detectSettingsEdited(thickSlider_); });
+    connect(sensitivitySlider_, &QSlider::valueChanged, this, [this]() { detectSettingsEdited(sensitivitySlider_); });
+    connect(lengthSpin_, &QDoubleSpinBox::valueChanged, this, [this]() { detectSettingsEdited(lengthSpin_); });
+    connect(openingSpin_, &QDoubleSpinBox::valueChanged, this, [this]() { detectSettingsEdited(openingSpin_); });
+    connect(roomsCheck_, &QCheckBox::toggled, this, [this]() { detectSettingsEdited(roomsCheck_); });
+    connect(openingsCheck_, &QCheckBox::toggled, this, [this]() { detectSettingsEdited(openingsCheck_); });
+    connect(detectorCombo_, &QComboBox::activated, this, [this](int index) {
+        if (!refreshing_)
+            controller_.detection().setDetectorId(detectorCombo_->itemData(index).toString().toStdString());
+    });
+    connect(acceptButton_, &QPushButton::clicked, this, [this]() { controller_.detection().accept(); });
+    connect(resetButton_, &QPushButton::clicked, this, [this]() { controller_.detection().resetParams(); });
+    for (QDoubleSpinBox* spin : {lengthSpin_, openingSpin_}) {
+        spin->installEventFilter(this);
+        if (auto* edit = spin->findChild<QLineEdit*>())
+            edit->installEventFilter(this);
+    }
+}
+
+// Reads the widgets into settings and gives them to the session. Keeps the thinnest wall below the thickest.
+void PropertiesPanel::detectSettingsEdited(const QObject* from)
+{
+    if (refreshing_)
+        return;
+    int thin = thinSlider_->value();
+    int thick = thickSlider_->value();
+    if (from == thinSlider_ && thin >= thick)
+        thick = std::min(thickSlider_->maximum(), thin + 1);
+    else if (from == thickSlider_ && thick <= thin)
+        thin = std::max(thinSlider_->minimum(), thick - 1);
+    plynth::DetectionParams params = controller_.detection().params();
+    params.minThickness = thin / 100.0;
+    params.maxThickness = thick / 100.0;
+    params.sensitivity = sensitivitySlider_->value() / 100.0;
+    params.minLength = lengthSpin_->value();
+    params.maxOpeningWidth = openingSpin_->value();
+    params.rooms = roomsCheck_->isChecked();
+    params.openings = openingsCheck_->isChecked();
+    controller_.detection().setParams(params);
+}
+
+// Fills the Detect page from the session.
+void PropertiesPanel::refreshDetect()
+{
+    const Theme& t = Theme::instance();
+    const DetectionSession& session = controller_.detection();
+    const plynth::DetectionParams& params = session.params();
+    const auto setSlider = [](QSlider* slider, int value) {
+        if (slider->value() == value)
+            return;
+        const bool before = slider->blockSignals(true);
+        slider->setValue(value);
+        slider->blockSignals(before);
+    };
+    const auto setCheck = [](QCheckBox* box, bool on) {
+        if (box->isChecked() == on)
+            return;
+        const bool before = box->blockSignals(true);
+        box->setChecked(on);
+        box->blockSignals(before);
+    };
+    setSlider(thinSlider_, qRound(params.minThickness * 100.0));
+    setSlider(thickSlider_, qRound(params.maxThickness * 100.0));
+    setSlider(sensitivitySlider_, qRound(params.sensitivity * 100.0));
+    thinValue_->setText(QStringLiteral("%1 m").arg(params.minThickness, 0, 'f', 2));
+    thickValue_->setText(QStringLiteral("%1 m").arg(params.maxThickness, 0, 'f', 2));
+    sensitivityValue_->setText(QStringLiteral("%1 %").arg(qRound(params.sensitivity * 100.0)));
+    setSpin(lengthSpin_, params.minLength);
+    setSpin(openingSpin_, params.maxOpeningWidth);
+    setCheck(roomsCheck_, params.rooms);
+    setCheck(openingsCheck_, params.openings);
+    const int detector = detectorCombo_->findData(fromCore(session.detectorId()));
+    if (detector >= 0)
+        detectorCombo_->setCurrentIndex(detector);
+
+    detectStatus_->setText(session.statusText());
+    detectStatus_->setStyleSheet(QStringLiteral("color: %1;")
+                                     .arg((session.statusIsRefusal() ? t.signalAmber() : t.text()).name()));
+    acceptButton_->setEnabled(session.canAccept() && !document_.isReadOnly());
+}
+
 // Fills the page for a selected room.
 void PropertiesPanel::refreshRoom()
 {
@@ -309,6 +522,13 @@ bool PropertiesPanel::eventFilter(QObject* watched, QEvent* event)
 {
     if (watched == wallThickness_ && event->type() == QEvent::FocusIn)
         ++thicknessKey_;
+    if (event->type() == QEvent::ShortcutOverride) {
+        const int key = static_cast<QKeyEvent*>(event)->key();
+        const bool inSpin = qobject_cast<QAbstractSpinBox*>(watched) != nullptr ||
+                            qobject_cast<QAbstractSpinBox*>(watched->parent()) != nullptr;
+        if (inSpin && (key == Qt::Key_Return || key == Qt::Key_Enter))
+            event->accept();
+    }
     return QWidget::eventFilter(watched, event);
 }
 
@@ -328,7 +548,12 @@ void PropertiesPanel::refresh()
     refreshing_ = true;
     const bool readOnly = document_.isReadOnly();
     int page = kNothingPage;
-    switch (selection_.kind()) {
+    const bool detecting = controller_.active() == ToolId::Detect;
+    if (detecting) {
+        page = kDetectPage;
+        refreshDetect();
+    }
+    switch (detecting ? SelectionKind::None : selection_.kind()) {
     case SelectionKind::Point:
         page = kPointPage;
         refreshPoint();
@@ -342,11 +567,12 @@ void PropertiesPanel::refresh()
         refreshRoom();
         break;
     default:
-        refreshNothing();
+        if (!detecting)
+            refreshNothing();
         break;
     }
     pages_->setCurrentIndex(page);
-    deleteButton_->setVisible(!selection_.isEmpty());
+    deleteButton_->setVisible(!selection_.isEmpty() && !detecting);
     for (QWidget* editor : editors_)
         editor->setEnabled(!readOnly);
     refreshing_ = false;

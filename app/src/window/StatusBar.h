@@ -22,7 +22,8 @@ public:
     // The one line hint for the active tool.
     void setHint(const QString& text);
     // A refused command, shown in amber for a few seconds in place of the hint.
-    void showMessage(const QString& text);
+    // A refusal is amber. Pass false for plain news, such as what an action added.
+    void showMessage(const QString& text, bool refusal = true);
 
 protected:
     void paintEvent(QPaintEvent* event) override;

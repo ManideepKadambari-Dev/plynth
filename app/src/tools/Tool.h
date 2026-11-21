@@ -13,7 +13,7 @@ namespace plynth::app {
 
 class ToolController;
 
-enum class ToolId { Select, Scale, Wall, Room };
+enum class ToolId { Select, Scale, Wall, Room, Detect };
 
 // A mouse event handed to a tool. scene is in image pixels, view in canvas pixels.
 struct ToolMouse {

@@ -75,14 +75,13 @@ Answer runCommand(std::vector<std::string> args, const std::filesystem::path& cu
     const CommandSpec* spec = matchCommand(args, groupOnly);
     if (spec == nullptr) {
         if (args.empty()) {
-            return badArguments("", "unknown_command", "No command was given. Run 'plynth help' to list the commands.");
+            return badArguments("", "unknown_command", unknownCommandMessage(args));
         }
         if (groupOnly) {
             return badArguments(args.front(), "unknown_command",
                                 "Unknown or missing command after '" + args.front() + "'. Run 'plynth help' to list the commands.");
         }
-        return badArguments("", "unknown_command",
-                            "Unknown command '" + args.front() + "'. Run 'plynth help' to list the commands.");
+        return badArguments("", "unknown_command", unknownCommandMessage(args));
     }
 
     CLI::App root{"plynth", "plynth"};
@@ -111,10 +110,6 @@ void writeAnswer(const Answer& answer, bool pretty, std::ostream& out) {
     out.flush();
 }
 
-}
-
-bool isCommandWord(std::string_view word) {
-    return std::ranges::any_of(allCommands(), [&](const CommandSpec& spec) { return spec.words.front() == word; });
 }
 
 int run(std::span<const std::string> args, std::ostream& out, const std::filesystem::path& currentFolder) {
