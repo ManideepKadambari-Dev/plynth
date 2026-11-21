@@ -9,6 +9,8 @@
 #include <QMenuBar>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPolygonF>
+#include <QtMath>
 #include <QWindow>
 
 namespace plynth::app {
@@ -56,40 +58,45 @@ void TitleButton::paintEvent(QPaintEvent*)
 {
     const Theme& t = Theme::instance();
     QPainter p(this);
-    p.setRenderHint(QPainter::Antialiasing, false);
+    p.setRenderHint(QPainter::Antialiasing, true);
 
     const bool lit = hovered_ || underMouse() || pressedLook_ || isDown();
     if (lit)
         p.fillRect(rect(), kind_ == Kind::Close ? t.line() : t.raised());
 
+    const qreal ratio = devicePixelRatioF();
     QPen pen(t.text());
-    pen.setWidth(1);
+    pen.setWidthF(1.0);
     pen.setCapStyle(Qt::FlatCap);
+    pen.setJoinStyle(Qt::MiterJoin);
     p.setPen(pen);
 
+    // Puts a coordinate on the middle of a physical pixel so straight lines stay sharp.
+    auto snap = [ratio](qreal v) { return (qFloor(v * ratio) + 0.5) / ratio; };
+
     const int size = t.unit() * 3;
-    const int x = (width() - size) / 2;
-    const int y = (height() - size) / 2;
+    const qreal x = snap((width() - size) / 2.0);
+    const qreal y = snap((height() - size) / 2.0);
+    const qreal s = size;
     switch (kind_) {
     case Kind::Minimize:
-        p.drawLine(x, y + size / 2, x + size, y + size / 2);
+        p.drawLine(QPointF(x, snap(y + s / 2)), QPointF(x + s, snap(y + s / 2)));
         break;
     case Kind::Maximize:
-        p.drawRect(x, y, size, size);
+        p.drawRect(QRectF(x, y, s, s));
         break;
     case Kind::Restore: {
-        const int off = t.unit() / 2 + 1;
-        p.drawRect(x, y + off, size - off, size - off);
-        p.drawLine(x + off, y, x + size, y);
-        p.drawLine(x + size, y, x + size, y + size - off);
-        p.drawLine(x + off, y, x + off, y + off);
-        p.drawLine(x + size - off, y + size - off, x + size, y + size - off);
+        const qreal off = snap(t.unit() / 2.0 + 1) - snap(0);
+        p.drawRect(QRectF(x, y + off, s - off, s - off));
+        QPolygonF back;
+        back << QPointF(x + off, y + off) << QPointF(x + off, y) << QPointF(x + s, y)
+             << QPointF(x + s, y + s - off) << QPointF(x + s - off, y + s - off);
+        p.drawPolyline(back);
         break;
     }
     case Kind::Close:
-        p.setRenderHint(QPainter::Antialiasing, true);
-        p.drawLine(x, y, x + size, y + size);
-        p.drawLine(x + size, y, x, y + size);
+        p.drawLine(QPointF(x, y), QPointF(x + s, y + s));
+        p.drawLine(QPointF(x + s, y), QPointF(x, y + s));
         break;
     }
 }
