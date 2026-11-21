@@ -111,3 +111,54 @@ TEST_CASE("loadGrayImage works with a path of non ASCII letters", "[core][detect
     REQUIRE(load.image->height == 2);
     REQUIRE(load.image->pixels[7] == 70);
 }
+
+TEST_CASE("loadGrayImage handles other PNG kinds", "[core][detection][image]") {
+    TempDir dir("grayimage-kinds");
+    const auto load = [&](const std::string& name, const std::vector<std::uint8_t>& bytes) {
+        const auto file = dir.path() / name;
+        writeFile(file, bytes);
+        return loadGrayImage(file);
+    };
+    SECTION("16 bit grey") {
+        const GrayImageLoad l = load("g16.png", makePngRaw(3, 1, 16, 0, {0x00, 0x00, 0x80, 0x00, 0xFF, 0xFF}));
+        requireOk(l.status);
+        REQUIRE(l.image->pixels[0] == 0);
+        REQUIRE(l.image->pixels[1] >= 126);
+        REQUIRE(l.image->pixels[1] <= 129);
+        REQUIRE(l.image->pixels[2] == 255);
+    }
+    SECTION("1 bit grey") {
+        const GrayImageLoad l = load("g1.png", makePngRaw(4, 1, 1, 0, {0x50})); // 0101
+        requireOk(l.status);
+        REQUIRE(l.image->pixels == std::vector<std::uint8_t>{0, 255, 0, 255});
+    }
+    SECTION("palette with a transparent entry") {
+        const GrayImageLoad l = load("pal.png", makePngRaw(2, 1, 8, 3, {0, 1}, {0, 0, 0, 255, 0, 0}, {255, 0}));
+        requireOk(l.status);
+        REQUIRE(l.image->pixels[0] == 0);
+        REQUIRE(l.image->pixels[1] == 255);
+    }
+    SECTION("grey with alpha") {
+        const GrayImageLoad l = load("ga.png", makePngRaw(3, 1, 8, 4, {0, 255, 0, 0, 100, 255}));
+        requireOk(l.status);
+        REQUIRE(l.image->pixels[0] == 0);
+        REQUIRE(l.image->pixels[1] == 255);
+        REQUIRE(l.image->pixels[2] == 100);
+    }
+    SECTION("16 bit colour with alpha") {
+        const GrayImageLoad l = load("rgba16.png", makePngRaw(1, 1, 16, 6, {0, 0, 0, 0, 0, 0, 0xFF, 0xFF}));
+        requireOk(l.status);
+        REQUIRE(l.image->pixels[0] == 0);
+    }
+}
+
+TEST_CASE("loadGrayImage applies the orientation of a JPEG", "[core][detection][image]") {
+    // 32 by 16 pixels stored, left half black, with the orientation tag 6 (turn 90 degrees clockwise).
+    // Shown upright it is 16 wide and 32 tall with the black half on top.
+    const GrayImageLoad l = loadGrayImage(std::filesystem::path(PLYNTH_TEST_DATA_DIR) / "orientation6.jpg");
+    requireOk(l.status);
+    REQUIRE(l.image->width == 16);
+    REQUIRE(l.image->height == 32);
+    REQUIRE(l.image->pixels[static_cast<std::size_t>(4) * 16 + 8] < 40);
+    REQUIRE(l.image->pixels[static_cast<std::size_t>(28) * 16 + 8] > 215);
+}

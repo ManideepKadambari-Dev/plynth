@@ -3,7 +3,9 @@
 #include <chrono>
 #include <cmath>
 #include <map>
+#include <exception>
 #include <mutex>
+#include <new>
 #include <string>
 #include <utility>
 
@@ -130,7 +132,16 @@ DetectionResult runDetection(std::string_view detectorId, const GrayImage& image
     }
     if (stop.stop_requested()) return cancelled();
 
-    DetectionResult found = detector->detect(image, pixelsPerMetre, params, stop);
+    DetectionResult found;
+    try {
+        found = detector->detect(image, pixelsPerMetre, params, stop);
+    } catch (const std::bad_alloc&) {
+        result.status = fail(ErrorCode::ImageError, "The image is too large to detect walls in.");
+        return finish(std::move(result));
+    } catch (const std::exception&) {
+        result.status = fail(ErrorCode::ImageError, "The image could not be processed to detect walls.");
+        return finish(std::move(result));
+    }
     if (found.cancelled || stop.stop_requested()) return cancelled();
     if (!found.status.ok()) {
         result.status = found.status;

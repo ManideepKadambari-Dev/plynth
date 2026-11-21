@@ -125,25 +125,25 @@ cv::Mat verticalRuns(const cv::Mat& wall, int minRun)
     const int w = wall.cols;
     const int h = wall.rows;
     cv::Mat out = cv::Mat::zeros(wall.size(), CV_8U);
-    std::vector<std::uint16_t> above(static_cast<std::size_t>(w) * static_cast<std::size_t>(h));
-    std::vector<std::uint16_t> count(static_cast<std::size_t>(w), 0);
+    std::vector<std::uint32_t> above(static_cast<std::size_t>(w) * static_cast<std::size_t>(h));
+    std::vector<std::uint32_t> count(static_cast<std::size_t>(w), 0);
     for (int y = 0; y < h; ++y) {
         const std::uint8_t* row = wall.ptr<std::uint8_t>(y);
-        std::uint16_t* dst = above.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(w);
+        std::uint32_t* dst = above.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(w);
         for (int x = 0; x < w; ++x) {
-            count[static_cast<std::size_t>(x)] = row[x] ? static_cast<std::uint16_t>(count[static_cast<std::size_t>(x)] + 1) : std::uint16_t{0};
+            count[static_cast<std::size_t>(x)] = row[x] ? count[static_cast<std::size_t>(x)] + 1 : 0u;
             dst[x] = count[static_cast<std::size_t>(x)];
         }
     }
-    std::fill(count.begin(), count.end(), std::uint16_t{0});
+    std::fill(count.begin(), count.end(), 0u);
     for (int y = h - 1; y >= 0; --y) {
         const std::uint8_t* row = wall.ptr<std::uint8_t>(y);
         std::uint8_t* o = out.ptr<std::uint8_t>(y);
-        const std::uint16_t* up = above.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(w);
+        const std::uint32_t* up = above.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(w);
         for (int x = 0; x < w; ++x) {
-            std::uint16_t& c = count[static_cast<std::size_t>(x)];
-            c = row[x] ? static_cast<std::uint16_t>(c + 1) : std::uint16_t{0};
-            if (row[x] && up[x] + c - 1 >= minRun) o[x] = 255;
+            std::uint32_t& c = count[static_cast<std::size_t>(x)];
+            c = row[x] ? c + 1 : 0u;
+            if (row[x] && up[x] + c - 1 >= static_cast<std::uint32_t>(minRun)) o[x] = 255;
         }
     }
     return out;
@@ -564,7 +564,8 @@ DetectionResult detectOrthogonal(const GrayImage& image, double pixelsPerMetre, 
         }
     }
 
-    // Points that land within a few pixels of each other become one point.
+    // Points within a few pixels of each other become one point. The radius is at least 1.5 mm so merged
+    // points always stay the 1 mm apart that a valid result needs.
     const double radius = std::max(3.0, 0.0015 * ppm);
     std::vector<std::size_t> parent(raw.size());
     for (std::size_t i = 0; i < raw.size(); ++i) parent[i] = i;

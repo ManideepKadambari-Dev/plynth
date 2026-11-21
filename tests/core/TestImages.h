@@ -55,9 +55,14 @@ inline void fillBar(GrayImage& img, double x0, double y0, double x1, double y1, 
     }
 }
 
-// The bytes of a PNG file with the given size, channel count (1, 3 or 4) and 8 bit samples, row after row.
-// Uses uncompressed deflate blocks so the test needs no compression library.
-inline std::vector<std::uint8_t> makePngBytes(int width, int height, int channels, const std::vector<std::uint8_t>& samples)
+// The bytes of a PNG file. colorType is the PNG color type (0 grey, 2 colour, 3 palette, 4 grey with alpha,
+// 6 colour with alpha), rows holds each scanline's bytes without the filter byte, palette is the PLTE data and
+// transparency the tRNS data (both left out when empty). Uses uncompressed deflate blocks so the test needs no
+// compression library.
+inline std::vector<std::uint8_t> makePngRaw(int width, int height, int bitDepth, int colorType,
+                                            const std::vector<std::uint8_t>& rows,
+                                            const std::vector<std::uint8_t>& palette = {},
+                                            const std::vector<std::uint8_t>& transparency = {})
 {
     std::vector<std::uint8_t> out = {0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A};
     const auto be32 = [](std::vector<std::uint8_t>& v, std::uint32_t x) {
@@ -85,19 +90,21 @@ inline std::vector<std::uint8_t> makePngBytes(int width, int height, int channel
     std::vector<std::uint8_t> header;
     be32(header, static_cast<std::uint32_t>(width));
     be32(header, static_cast<std::uint32_t>(height));
-    header.push_back(8);
-    header.push_back(channels == 1 ? 0 : (channels == 3 ? 2 : 6));
+    header.push_back(static_cast<std::uint8_t>(bitDepth));
+    header.push_back(static_cast<std::uint8_t>(colorType));
     header.push_back(0);
     header.push_back(0);
     header.push_back(0);
     chunk("IHDR", header);
+    if (!palette.empty()) chunk("PLTE", palette);
+    if (!transparency.empty()) chunk("tRNS", transparency);
 
+    const std::size_t rowBytes = rows.size() / static_cast<std::size_t>(height);
     std::vector<std::uint8_t> raw;
-    const std::size_t rowBytes = static_cast<std::size_t>(width) * static_cast<std::size_t>(channels);
     for (int y = 0; y < height; ++y) {
         raw.push_back(0);
-        raw.insert(raw.end(), samples.begin() + static_cast<std::ptrdiff_t>(static_cast<std::size_t>(y) * rowBytes),
-                   samples.begin() + static_cast<std::ptrdiff_t>((static_cast<std::size_t>(y) + 1) * rowBytes));
+        raw.insert(raw.end(), rows.begin() + static_cast<std::ptrdiff_t>(static_cast<std::size_t>(y) * rowBytes),
+                   rows.begin() + static_cast<std::ptrdiff_t>((static_cast<std::size_t>(y) + 1) * rowBytes));
     }
     std::vector<std::uint8_t> z = {0x78, 0x01};
     std::size_t at = 0;
@@ -122,6 +129,12 @@ inline std::vector<std::uint8_t> makePngBytes(int width, int height, int channel
     chunk("IDAT", z);
     chunk("IEND", {});
     return out;
+}
+
+// The bytes of an 8 bit PNG with 1 (grey), 3 (colour) or 4 (colour with alpha) channels, row after row.
+inline std::vector<std::uint8_t> makePngBytes(int width, int height, int channels, const std::vector<std::uint8_t>& samples)
+{
+    return makePngRaw(width, height, 8, channels == 1 ? 0 : (channels == 3 ? 2 : 6), samples);
 }
 
 }

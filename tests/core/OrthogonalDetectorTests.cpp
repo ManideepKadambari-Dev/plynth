@@ -8,6 +8,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <filesystem>
@@ -255,8 +256,25 @@ TEST_CASE("orthogonal detector on apartment-01", "[core][detection][orthogonal][
         p.maxThickness = 0.2;
         const DetectionResult r = run(*image, p, expected.pixelsPerMetre);
         requireOk(r.status);
-        REQUIRE_FALSE(r.walls.empty());
-        for (const ProposedWall& w : r.walls) REQUIRE(w.thickness <= 0.2);
+        // The seven inner walls remain. Their ends that met an outer wall stay at the outer wall's edge,
+        // up to 0.15 m from the old junction, because there is no wall left to join.
+        REQUIRE(r.walls.size() == 7);
+        std::vector<int> matched(r.walls.size(), 0);
+        int inner = 0;
+        for (const SampleExpected::Wall& w : expected.walls) {
+            if (w.thickness != 12.0) continue;
+            ++inner;
+            const Vec2 a{w.from.x / 100.0, w.from.y / 100.0};
+            const Vec2 b{w.to.x / 100.0, w.to.y / 100.0};
+            for (std::size_t i = 0; i < r.walls.size(); ++i) {
+                const Vec2 from = r.points[r.walls[i].from];
+                const Vec2 to = r.points[r.walls[i].to];
+                const bool same = (distance(from, a) <= 0.16 && distance(to, b) <= 0.16) || (distance(from, b) <= 0.16 && distance(to, a) <= 0.16);
+                if (same && r.walls[i].thickness == Approx(0.12)) ++matched[i];
+            }
+        }
+        REQUIRE(inner == 7);
+        for (int m : matched) REQUIRE(m == 1);
     }
     SECTION("sensitivity 0 and 1 still give a valid result") {
         for (double s : {0.0, 1.0}) {
@@ -294,26 +312,39 @@ TEST_CASE("orthogonal detector on apartment-01", "[core][detection][orthogonal][
         REQUIRE(sameFindings(a, run(*image, {}, expected.pixelsPerMetre)));
     }
     SECTION("a stop asked from another thread cancels the run quickly") {
-        std::stop_source source;
-        DetectionResult r;
-        std::chrono::steady_clock::time_point returned;
-        std::thread worker([&] {
-            r = runDetection("orthogonal", *image, expected.pixelsPerMetre, {}, source.get_token());
-            returned = std::chrono::steady_clock::now();
-        });
-        std::this_thread::sleep_for(std::chrono::milliseconds(3));
-        const auto asked = std::chrono::steady_clock::now();
-        source.request_stop();
-        worker.join();
-        requireOk(r.status);
-        REQUIRE(r.cancelled);
-        REQUIRE(r.walls.empty());
+        // Tries shorter and shorter waits so a slow thread start cannot let the run finish first.
+        bool cancelled = false;
+        std::chrono::steady_clock::duration took{};
+        for (int waitMs : {4, 2, 1, 0, 0}) {
+            std::stop_source source;
+            DetectionResult r;
+            std::chrono::steady_clock::time_point returned;
+            std::atomic<bool> started{false};
+            std::thread worker([&] {
+                started = true;
+                r = runDetection("orthogonal", *image, expected.pixelsPerMetre, {}, source.get_token());
+                returned = std::chrono::steady_clock::now();
+            });
+            while (!started) std::this_thread::yield();
+            std::this_thread::sleep_for(std::chrono::milliseconds(waitMs));
+            const auto asked = std::chrono::steady_clock::now();
+            source.request_stop();
+            worker.join();
+            requireOk(r.status);
+            if (r.cancelled) {
+                REQUIRE(r.walls.empty());
+                cancelled = true;
+                took = returned - asked;
+                break;
+            }
+        }
+        REQUIRE(cancelled);
 #ifdef NDEBUG
         const auto limit = std::chrono::milliseconds(100);
 #else
         const auto limit = std::chrono::milliseconds(2000);
 #endif
-        REQUIRE(returned - asked < limit);
+        REQUIRE(took < limit);
     }
 }
 
