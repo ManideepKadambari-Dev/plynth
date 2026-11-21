@@ -7,6 +7,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <nlohmann/json.hpp>
 
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -76,8 +77,8 @@ TEST_CASE("settings data files", "[core][settings]") {
         REQUIRE(l.status.where == "/colour");
         REQUIRE(l.exists);
     }
-    SECTION("version 2 is unsupported_version") {
-        const SettingsLoad l = loadSettings(dataFile("settings-version-2.json"));
+    SECTION("version 3 is unsupported_version") {
+        const SettingsLoad l = loadSettings(dataFile("settings-version-3.json"));
         REQUIRE(l.status.code == ErrorCode::UnsupportedVersion);
     }
     SECTION("a bad value points at its field") {
@@ -96,14 +97,14 @@ TEST_CASE("bad settings files", "[core][settings]") {
     };
     REQUIRE(writeAndLoad("{not json").status.code == ErrorCode::BadFile);
     REQUIRE(writeAndLoad("[]").status.code == ErrorCode::BadFile);
-    REQUIRE(writeAndLoad(R"({"format":"other","version":1})").status.where == "/format");
+    REQUIRE(writeAndLoad(R"({"format":"other","version":2})").status.where == "/format");
     REQUIRE(writeAndLoad(R"({"format":"plynth-settings"})").status.where == "/version");
-    REQUIRE(writeAndLoad(R"({"format":"plynth-settings","version":1,"library":""})").status.where == "/library");
-    REQUIRE(writeAndLoad(R"({"format":"plynth-settings","version":1,"triangle_warning":0})").status.where ==
+    REQUIRE(writeAndLoad(R"({"format":"plynth-settings","version":2,"library":""})").status.where == "/library");
+    REQUIRE(writeAndLoad(R"({"format":"plynth-settings","version":2,"triangle_warning":0})").status.where ==
             "/triangle_warning");
-    REQUIRE(writeAndLoad(R"({"format":"plynth-settings","version":1,"keep_imported_zips":"yes"})").status.where ==
+    REQUIRE(writeAndLoad(R"({"format":"plynth-settings","version":2,"keep_imported_zips":"yes"})").status.where ==
             "/keep_imported_zips");
-    REQUIRE(writeAndLoad(R"({"format":"plynth-settings","version":1,"setup_checked_version":3})").status.where ==
+    REQUIRE(writeAndLoad(R"({"format":"plynth-settings","version":2,"setup_checked_version":3})").status.where ==
             "/setup_checked_version");
 }
 
@@ -125,11 +126,115 @@ TEST_CASE("settingsToJson validates against the schema", "[core][settings][schem
         const auto json = nlohmann::json::parse(plynth::test::readTextFile(dataFile(name)));
         REQUIRE(plynth::test::schemaProblem("settings.schema.json", json).empty());
     }
-    for (const char* name : {"settings-unknown-field.json", "settings-version-2.json", "settings-bad-engine.json"}) {
+    for (const char* name : {"settings-unknown-field.json", "settings-version-3.json", "settings-bad-engine.json"}) {
         INFO(name);
         const auto json = nlohmann::json::parse(plynth::test::readTextFile(dataFile(name)));
         REQUIRE_FALSE(plynth::test::schemaProblem("settings.schema.json", json).empty());
     }
+}
+
+TEST_CASE("a version 1 settings file is read and written back as version 2", "[core][settings][migrate]") {
+    plynth::test::TempDir tmp("settings-v1");
+    const SettingsLoad l = loadSettings(dataFile("settings-v1.json"));
+    plynth::test::requireOk(l.status);
+    REQUIRE(l.settings.library == fs::path("D:/Lib"));
+    REQUIRE(l.settings.triangleWarning == 1000);
+    REQUIRE(l.settings.recentProjects.empty());
+
+    const auto plain = [](const Json& j) { return nlohmann::json::parse(j.dump()); };
+    const auto v1 = nlohmann::json::parse(plynth::test::readTextFile(dataFile("settings-v1.json")));
+    REQUIRE(plynth::test::schemaProblem("settings.v1.schema.json", v1).empty());
+    REQUIRE_FALSE(plynth::test::schemaProblem("settings.schema.json", v1).empty());
+
+    const fs::path file = tmp.path() / "settings.json";
+    plynth::test::requireOk(saveSettings(l.settings, file));
+    const std::string text = plynth::test::readTextFile(file);
+    REQUIRE(text.find("\"version\": 2") != std::string::npos);
+    REQUIRE(text.find("\"recent_projects\": []") != std::string::npos);
+    REQUIRE(plynth::test::schemaProblem("settings.schema.json", plain(settingsToJson(l.settings))).empty());
+
+    const SettingsLoad bad = [&] {
+        std::ofstream(file, std::ios::binary) << R"({"format":"plynth-settings","version":1,"recent_projects":[]})";
+        return loadSettings(file);
+    }();
+    REQUIRE(bad.status.code == ErrorCode::BadFile);
+}
+
+TEST_CASE("recent projects are listed newest first without repeats", "[core][settings][recent]") {
+    MachineSettings s;
+    const SessionTime t0 = sessionNow();
+    addRecentProject(s, "D:/Projects/A", "A", t0);
+    addRecentProject(s, "D:/Projects/B", "B", t0 + std::chrono::seconds(10));
+    REQUIRE(s.recentProjects.size() == 2);
+    REQUIRE(s.recentProjects[0].name == "B");
+
+    addRecentProject(s, "d:/projects/a/", "A renamed", t0 + std::chrono::seconds(20));
+    REQUIRE(s.recentProjects.size() == 2);
+    REQUIRE(s.recentProjects[0].name == "A renamed");
+    REQUIRE(s.recentProjects[0].lastOpened == t0 + std::chrono::seconds(20));
+    REQUIRE(s.recentProjects[1].name == "B");
+
+    REQUIRE_FALSE(removeRecentProject(s, "D:/Projects/Z"));
+    REQUIRE(removeRecentProject(s, "D:/PROJECTS/B"));
+    REQUIRE(s.recentProjects.size() == 1);
+}
+
+TEST_CASE("the recent list is capped at 30", "[core][settings][recent]") {
+    MachineSettings s;
+    const SessionTime t0 = sessionNow();
+    for (int i = 0; i < 35; ++i) {
+        addRecentProject(s, "D:/Projects/P" + std::to_string(i), "P" + std::to_string(i), t0 + std::chrono::seconds(i));
+    }
+    REQUIRE(s.recentProjects.size() == kMaxRecentProjects);
+    REQUIRE(s.recentProjects.front().name == "P34");
+    REQUIRE(s.recentProjects.back().name == "P5");
+}
+
+TEST_CASE("prune takes off only entries whose folder is gone", "[core][settings][recent]") {
+    plynth::test::TempDir tmp("settings-prune");
+    fs::create_directories(tmp.path() / "here");
+    MachineSettings s;
+    addRecentProject(s, tmp.path() / "gone", "Gone", sessionNow());
+    addRecentProject(s, tmp.path() / "here", "Here", sessionNow());
+    REQUIRE(s.recentProjects.size() == 2);
+    REQUIRE(pruneRecentProjects(s) == 1);
+    REQUIRE(s.recentProjects.size() == 1);
+    REQUIRE(s.recentProjects[0].name == "Here");
+    REQUIRE(pruneRecentProjects(s) == 0);
+}
+
+TEST_CASE("recent projects round trip and validate", "[core][settings][recent][schema]") {
+    plynth::test::TempDir tmp("settings-recent");
+    MachineSettings s;
+    addRecentProject(s, "D:/Projects/Flat ü", "Flat ü", sessionNow());
+    addRecentProject(s, "D:/Projects/House", "House", sessionNow());
+    const fs::path file = tmp.path() / "settings.json";
+    plynth::test::requireOk(saveSettings(s, file));
+    const SettingsLoad loaded = loadSettings(file);
+    plynth::test::requireOk(loaded.status);
+    REQUIRE(loaded.settings == s);
+    const auto json = nlohmann::json::parse(settingsToJson(s).dump());
+    REQUIRE(plynth::test::schemaProblem("settings.schema.json", json).empty());
+
+    const auto bad = [&](const std::string& entry) {
+        std::ofstream(file, std::ios::binary) << R"({"format":"plynth-settings","version":2,"recent_projects":[)" + entry + "]}";
+        return loadSettings(file).status;
+    };
+    REQUIRE(bad(R"({"path":"","name":"A","last_opened":"2026-01-01T00:00:00Z"})").where == "/recent_projects/0/path");
+    REQUIRE(bad(R"({"path":"D:/A","name":5,"last_opened":"2026-01-01T00:00:00Z"})").where == "/recent_projects/0/name");
+    REQUIRE(bad(R"({"path":"D:/A","name":"A","last_opened":"yesterday"})").where == "/recent_projects/0/last_opened");
+    REQUIRE(bad(R"({"path":"D:/A","name":"A","last_opened":"2026-01-01T00:00:00Z","x":1})").where == "/recent_projects/0/x");
+}
+
+TEST_CASE("the thumbnail path is stable, per folder and under the settings folder", "[core][settings][recent]") {
+    plynth::test::TempDir tmp("settings-thumb");
+    plynth::test::ScopedEnv env("PLYNTH_CONFIG_DIR", plynth::pathToUtf8(tmp.path() / "config"));
+    const fs::path a = recentThumbnailPath("D:/Projects/Flat");
+    REQUIRE(a == recentThumbnailPath("d:/projects/flat/"));
+    REQUIRE(a != recentThumbnailPath("D:/Projects/House"));
+    REQUIRE(a.parent_path() == tmp.path() / "config" / "thumbnails");
+    REQUIRE(a.extension() == ".png");
+    REQUIRE(a.stem().string().size() == 16);
 }
 
 TEST_CASE("PLYNTH_CONFIG_DIR changes the settings file", "[core][settings]") {

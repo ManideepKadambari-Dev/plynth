@@ -12,6 +12,9 @@
 #include <knownfolders.h>
 #include <shlobj.h>
 
+#include <algorithm>
+#include <cstdint>
+#include <cstdio>
 #include <fstream>
 #include <set>
 #include <sstream>
@@ -58,6 +61,21 @@ bool readOptionalPath(const Json& json, const char* key, std::optional<fs::path>
     }
     out = pathFromUtf8(it->get<std::string>());
     return true;
+}
+
+// The key that says two paths name the same project folder: absolute, tidy, no trailing separator, lower case.
+std::string folderKey(const fs::path& folder)
+{
+    std::error_code ec;
+    fs::path result = fs::absolute(folder, ec);
+    if (ec) result = folder;
+    result = result.lexically_normal();
+    if (!result.has_filename() && result.has_parent_path() && result != result.root_path()) result = result.parent_path();
+    std::string text = pathToUtf8(result);
+    for (char& c : text) {
+        if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
+    }
+    return text;
 }
 
 // Reads the whole text of a file. False when it cannot be opened.
@@ -116,6 +134,44 @@ fs::path defaultProjectsFolder()
     return defaultLibraryFolder().parent_path() / "Projects";
 }
 
+// Puts a project at the top of the recent list.
+void addRecentProject(MachineSettings& settings, const fs::path& folder, const std::string& name, SessionTime when)
+{
+    const std::string key = folderKey(folder);
+    std::erase_if(settings.recentProjects, [&](const RecentProject& r) { return folderKey(r.path) == key; });
+    settings.recentProjects.insert(settings.recentProjects.begin(), RecentProject{folder, name, when});
+    if (settings.recentProjects.size() > kMaxRecentProjects) settings.recentProjects.resize(kMaxRecentProjects);
+}
+
+// Takes a project off the recent list.
+bool removeRecentProject(MachineSettings& settings, const fs::path& folder)
+{
+    const std::string key = folderKey(folder);
+    return std::erase_if(settings.recentProjects, [&](const RecentProject& r) { return folderKey(r.path) == key; }) > 0;
+}
+
+// Takes off the entries whose folder is gone.
+std::size_t pruneRecentProjects(MachineSettings& settings)
+{
+    return std::erase_if(settings.recentProjects, [](const RecentProject& r) {
+        std::error_code ec;
+        return !fs::is_directory(r.path, ec);
+    });
+}
+
+// The path of the home screen picture of a project.
+fs::path recentThumbnailPath(const fs::path& projectFolder)
+{
+    std::uint64_t hash = 1469598103934665603ull;
+    for (const char c : folderKey(projectFolder)) {
+        hash ^= static_cast<unsigned char>(c);
+        hash *= 1099511628211ull;
+    }
+    char name[24];
+    std::snprintf(name, sizeof name, "%016llx.png", static_cast<unsigned long long>(hash));
+    return settingsFolder() / "thumbnails" / name;
+}
+
 // The file form of the settings.
 Json settingsToJson(const MachineSettings& settings)
 {
@@ -130,6 +186,15 @@ Json settingsToJson(const MachineSettings& settings)
     json["triangle_warning"] = settings.triangleWarning;
     json["setup_checked_version"] =
         settings.setupCheckedVersion.empty() ? Json(nullptr) : Json(settings.setupCheckedVersion);
+    Json recent = Json::array();
+    for (const RecentProject& r : settings.recentProjects) {
+        Json entry = Json::object();
+        entry["path"] = pathToUtf8(r.path);
+        entry["name"] = r.name;
+        entry["last_opened"] = formatSessionTime(r.lastOpened);
+        recent.push_back(std::move(entry));
+    }
+    json["recent_projects"] = std::move(recent);
     return json;
 }
 
@@ -152,13 +217,13 @@ Status settingsFromJson(const Json& json, MachineSettings& out)
                     "The settings file was written by a newer Plynth (version " + std::to_string(fileVersion) + ").",
                     "/version");
     }
-    if (fileVersion < kSettingsFormatVersion) {
+    if (fileVersion < 1) {
         return fail(ErrorCode::BadFile, "The settings file version is not valid.", "/version");
     }
 
     static const std::set<std::string> known{"format", "version", "library", "projects", "blender",
                                              "keep_imported_zips", "thumbnail_engine", "triangle_warning",
-                                             "setup_checked_version"};
+                                             "setup_checked_version", "recent_projects"};
     for (const auto& [key, value] : json.items()) {
         if (!known.count(key)) return fail(ErrorCode::BadFile, "Unknown field \"" + key + "\".", "/" + key);
     }
@@ -194,6 +259,32 @@ Status settingsFromJson(const Json& json, MachineSettings& out)
             return fail(ErrorCode::BadFile, "\"setup_checked_version\" must be text or null.", "/setup_checked_version");
         }
         result.setupCheckedVersion = it->get<std::string>();
+    }
+    if (const auto it = json.find("recent_projects"); it != json.end()) {
+        if (fileVersion < 2) return fail(ErrorCode::BadFile, "Unknown field \"recent_projects\".", "/recent_projects");
+        if (!it->is_array() || it->size() > kMaxRecentProjects) {
+            return fail(ErrorCode::BadFile, "\"recent_projects\" must be a list of at most 30 projects.", "/recent_projects");
+        }
+        for (std::size_t i = 0; i < it->size(); ++i) {
+            const Json& entry = (*it)[i];
+            const std::string at = "/recent_projects/" + std::to_string(i);
+            if (!entry.is_object()) return fail(ErrorCode::BadFile, "A recent project must be an object.", at);
+            for (const auto& [key, value] : entry.items()) {
+                if (key != "path" && key != "name" && key != "last_opened") {
+                    return fail(ErrorCode::BadFile, "Unknown field \"" + key + "\".", at + "/" + key);
+                }
+            }
+            const auto path = entry.find("path");
+            if (path == entry.end() || !path->is_string() || path->get<std::string>().empty()) {
+                return fail(ErrorCode::BadFile, "\"path\" must be a folder path.", at + "/path");
+            }
+            const auto name = entry.find("name");
+            if (name == entry.end() || !name->is_string()) return fail(ErrorCode::BadFile, "\"name\" must be text.", at + "/name");
+            const auto opened = entry.find("last_opened");
+            const auto time = opened != entry.end() && opened->is_string() ? parseSessionTime(opened->get<std::string>()) : std::nullopt;
+            if (!time) return fail(ErrorCode::BadFile, "\"last_opened\" must be a time like 2026-01-31T12:00:00Z.", at + "/last_opened");
+            result.recentProjects.push_back({pathFromUtf8(path->get<std::string>()), name->get<std::string>(), *time});
+        }
     }
     out = std::move(result);
     return {};
