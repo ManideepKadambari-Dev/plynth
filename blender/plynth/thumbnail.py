@@ -8,6 +8,8 @@ from mathutils import Vector
 from . import scene as scene_tools
 from .jobs import WorkerError
 
+# "Front right" is between Blender's Front view (from -Y) and Right view (from +X): the camera stands at +X, -Y.
+# The picture shows the asset's front (it faces -Y) and the side at +X, which is the asset's own left side.
 FRONT_AZIMUTH = 45.0
 ELEVATION = 25.0
 LENS_MM = 50.0

@@ -43,13 +43,13 @@ def box_corners(x, y, z):
     return corners
 
 
-# Builds the text of chair.obj.
-def chair_obj():
-    lines = ["# Sample chair for Plynth, made by make_sample_models.py", "mtllib chair.mtl"]
+# Builds the text of an OBJ file for a list of boxes.
+def boxes_obj(label, mtl_name, boxes):
+    lines = ["# Sample %s for Plynth, made by make_sample_models.py" % label, "mtllib " + mtl_name]
     for u, v in UVS:
         lines.append("vt %.4f %.4f" % (u, v))
     base = 0
-    for name, x, y, z, material in BOXES:
+    for name, x, y, z, material in boxes:
         lines.append("o " + name)
         for px, py, pz in box_corners(x, y, z):
             lines.append("v %.6f %.6f %.6f" % (px, pz, -py))
@@ -60,6 +60,11 @@ def chair_obj():
             lines.append("f " + corners)
         base += 8
     return "\n".join(lines) + "\n"
+
+
+# Builds the text of chair.obj.
+def chair_obj():
+    return boxes_obj("chair", "chair.mtl", BOXES)
 
 
 # Builds the text of chair.mtl.
@@ -74,6 +79,55 @@ def chair_mtl():
         "Kd 0.450000 0.120000 0.100000",
         "",
     ]
+    return "\n".join(lines)
+
+
+# Front is -Y and the back is +Y in every model below. Sizes in metres:
+# sofa 2.00 x 0.90 x 0.85, bed 1.60 x 2.10 x 1.00, table 1.20 x 0.80 x 0.75, tv 1.23 x 0.06 x 0.71.
+SOFA_BOXES = [
+    ("Foot_FL", (0.05, 0.11), (0.05, 0.11), (0.00, 0.08), "Legs"),
+    ("Foot_FR", (1.89, 1.95), (0.05, 0.11), (0.00, 0.08), "Legs"),
+    ("Foot_BL", (0.05, 0.11), (0.79, 0.85), (0.00, 0.08), "Legs"),
+    ("Foot_BR", (1.89, 1.95), (0.79, 0.85), (0.00, 0.08), "Legs"),
+    ("Seat", (0.00, 2.00), (0.00, 0.70), (0.08, 0.42), "Fabric"),
+    ("Back", (0.00, 2.00), (0.70, 0.90), (0.08, 0.85), "Fabric"),
+    ("Arm_L", (0.00, 0.15), (0.00, 0.70), (0.08, 0.62), "Fabric"),
+    ("Arm_R", (1.85, 2.00), (0.00, 0.70), (0.08, 0.62), "Fabric"),
+]
+
+BED_BOXES = [
+    ("Frame", (0.00, 1.60), (0.00, 2.10), (0.00, 0.30), "Wood"),
+    ("Mattress", (0.05, 1.55), (0.05, 2.05), (0.30, 0.55), "Linen"),
+    ("Headboard", (0.00, 1.60), (2.02, 2.10), (0.00, 1.00), "Wood"),
+]
+
+TABLE_BOXES = [
+    ("Top", (0.00, 1.20), (0.00, 0.80), (0.71, 0.75), "Wood"),
+    ("Leg_BL", (0.04, 0.10), (0.70, 0.76), (0.00, 0.71), "Wood"),
+    ("Leg_BR", (1.10, 1.16), (0.70, 0.76), (0.00, 0.71), "Wood"),
+    ("Leg_FL", (0.04, 0.10), (0.04, 0.10), (0.00, 0.71), "Wood"),
+    ("Leg_FR", (1.10, 1.16), (0.04, 0.10), (0.00, 0.71), "Wood"),
+]
+
+TV_BOXES = [
+    ("Body", (0.00, 1.23), (0.005, 0.06), (0.00, 0.71), "Plastic"),
+    ("Screen", (0.03, 1.20), (0.00, 0.005), (0.03, 0.68), "Screen"),
+]
+
+# Folder name, label, boxes, and the material colors (Kd) in the order they first appear.
+MODELS = [
+    ("sofa", SOFA_BOXES, [("Fabric", (0.25, 0.32, 0.42)), ("Legs", (0.12, 0.09, 0.07))]),
+    ("bed", BED_BOXES, [("Wood", (0.40, 0.27, 0.17)), ("Linen", (0.85, 0.84, 0.80))]),
+    ("table", TABLE_BOXES, [("Wood", (0.55, 0.38, 0.24))]),
+    ("tv", TV_BOXES, [("Plastic", (0.05, 0.05, 0.06)), ("Screen", (0.02, 0.03, 0.05))]),
+]
+
+
+# Builds the text of a color only .mtl file.
+def colors_mtl(label, materials):
+    lines = ["# Materials of the sample " + label]
+    for name, color in materials:
+        lines += ["newmtl " + name, "Kd %.6f %.6f %.6f" % color, ""]
     return "\n".join(lines)
 
 
@@ -109,14 +163,18 @@ def write_file(path, data):
         handle.write(data)
 
 
-# Writes the sample chair files next to this script.
+# Writes the sample model files next to this script.
 def main():
     here = os.path.dirname(os.path.abspath(__file__))
     folder = os.path.join(here, "chair")
     write_file(os.path.join(folder, "chair.obj"), chair_obj().encode("ascii"))
     write_file(os.path.join(folder, "chair.mtl"), chair_mtl().encode("ascii"))
     write_file(os.path.join(folder, "chair_wood.png"), wood_png())
-    print("Wrote the sample chair to " + folder)
+    for name, boxes, materials in MODELS:
+        folder = os.path.join(here, name)
+        write_file(os.path.join(folder, name + ".obj"), boxes_obj(name, name + ".mtl", boxes).encode("ascii"))
+        write_file(os.path.join(folder, name + ".mtl"), colors_mtl(name, materials).encode("ascii"))
+    print("Wrote the sample models to " + here)
 
 
 if __name__ == "__main__":

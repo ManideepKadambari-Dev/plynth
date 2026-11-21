@@ -1,0 +1,6 @@
+# Materials of the sample sofa
+newmtl Fabric
+Kd 0.250000 0.320000 0.420000
+
+newmtl Legs
+Kd 0.120000 0.090000 0.070000
