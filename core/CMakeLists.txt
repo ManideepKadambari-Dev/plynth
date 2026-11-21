@@ -18,6 +18,7 @@ add_library(plynth_core STATIC
     src/RoomTypes.cpp
     src/Rooms.cpp
     src/WallGeometry.cpp
+    src/Openings.cpp
     src/openings/OpeningShapes.cpp
     src/openings/ShapeFiles.cpp
     src/commands/FloorCommands.cpp
@@ -26,6 +27,7 @@ add_library(plynth_core STATIC
     src/commands/SettingsCommands.cpp
     src/commands/RoomCommands.cpp
     src/commands/DeleteCommands.cpp
+    src/commands/OpeningCommands.cpp
     src/commands/DetectionCommands.cpp
     src/detection/Detection.cpp
     src/detection/Detector.cpp

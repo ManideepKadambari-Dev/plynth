@@ -1,5 +1,7 @@
 #include "plynth/core/WallGeometry.h"
 
+#include "BandOutline.h"
+
 #ifdef _MSC_VER
 #pragma warning(push)
 #pragma warning(disable : 4702)
@@ -14,31 +16,17 @@
 
 namespace plynth {
 
+using detail::BandEnd;
+using detail::bandAround;
+using detail::dot;
+using detail::plus;
+using detail::unit;
+
 namespace {
 
 constexpr double kPi = 3.14159265358979323846;
 constexpr double kTiny = 1e-9;
 constexpr int kClipperPrecision = 8;
-
-// A point plus a vector times a factor.
-Vec2 plus(Vec2 p, Vec2 v, double k)
-{
-    return {p.x + v.x * k, p.y + v.y * k};
-}
-
-// Dot product.
-double dot(Vec2 a, Vec2 b)
-{
-    return a.x * b.x + a.y * b.y;
-}
-
-// The vector made one unit long. A zero vector stays zero.
-Vec2 unit(Vec2 v)
-{
-    const double n = std::hypot(v.x, v.y);
-    if (n <= 0.0) return {0.0, 0.0};
-    return {v.x / n, v.y / n};
-}
 
 // Says whether two positions are the same place for practical purposes.
 bool samePlace(Vec2 a, Vec2 b)
@@ -106,53 +94,6 @@ std::vector<const Wall*> wallsAt(const Floor& floor, const Point& point)
     for (const Wall& w : floor.walls) {
         if (w.from == point.id || w.to == point.id) out.push_back(&w);
     }
-    return out;
-}
-
-// One end of a wall band: where it ends and the unit direction of the wall there, pointing along the wall.
-struct BandEnd {
-    Vec2 position;
-    Vec2 along;
-};
-
-// The outline of a band around a centre line. start and end say where the band stops and the direction of the
-// wall there (the cut is square to that direction). Inner corners use mitres.
-std::vector<Vec2> bandAround(const std::vector<Vec2>& line, double half, const BandEnd& start, const BandEnd& end)
-{
-    const std::size_t n = line.size();
-    std::vector<Vec2> pts(line);
-    pts.front() = start.position;
-    pts.back() = end.position;
-
-    // The unit vector to the right of the wall at every point.
-    std::vector<Vec2> normals(n);
-    std::vector<double> scale(n, 1.0);
-    normals.front() = rightOf(start.along);
-    normals.back() = rightOf(end.along);
-    for (std::size_t i = 1; i + 1 < n; ++i) {
-        const Vec2 d1 = unit({pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y});
-        const Vec2 d2 = unit({pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y});
-        const Vec2 n1 = rightOf(d1);
-        const Vec2 n2 = rightOf(d2);
-        Vec2 mean = unit({n1.x + n2.x, n1.y + n2.y});
-        double c = dot(mean, n1);
-        if (c < 0.2) {
-            mean = n1;
-            c = 1.0;
-        }
-        normals[i] = mean;
-        scale[i] = 1.0 / c;
-    }
-
-    std::vector<Vec2> left;
-    std::vector<Vec2> right;
-    for (std::size_t i = 0; i < n; ++i) {
-        left.push_back(plus(pts[i], normals[i], -half * scale[i]));
-        right.push_back(plus(pts[i], normals[i], half * scale[i]));
-    }
-    std::vector<Vec2> out = left;
-    out.insert(out.end(), right.rbegin(), right.rend());
-    if (signedArea(out) < 0.0) std::reverse(out.begin(), out.end());
     return out;
 }
 
@@ -446,6 +387,47 @@ std::vector<std::vector<Vec2>> wallBand(const Floor& floor, const Wall& wall)
     }
     if (result.empty()) result.push_back(outline);
     return result;
+}
+
+
+// The outline of a band around a centre line.
+std::vector<Vec2> detail::bandAround(const std::vector<Vec2>& line, double half, const BandEnd& start, const BandEnd& end)
+{
+    const std::size_t n = line.size();
+    std::vector<Vec2> pts(line);
+    pts.front() = start.position;
+    pts.back() = end.position;
+
+    // The unit vector to the right of the wall at every point.
+    std::vector<Vec2> normals(n);
+    std::vector<double> scale(n, 1.0);
+    normals.front() = rightOf(start.along);
+    normals.back() = rightOf(end.along);
+    for (std::size_t i = 1; i + 1 < n; ++i) {
+        const Vec2 d1 = unit({pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y});
+        const Vec2 d2 = unit({pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y});
+        const Vec2 n1 = rightOf(d1);
+        const Vec2 n2 = rightOf(d2);
+        Vec2 mean = unit({n1.x + n2.x, n1.y + n2.y});
+        double c = dot(mean, n1);
+        if (c < 0.2) {
+            mean = n1;
+            c = 1.0;
+        }
+        normals[i] = mean;
+        scale[i] = 1.0 / c;
+    }
+
+    std::vector<Vec2> left;
+    std::vector<Vec2> right;
+    for (std::size_t i = 0; i < n; ++i) {
+        left.push_back(plus(pts[i], normals[i], -half * scale[i]));
+        right.push_back(plus(pts[i], normals[i], half * scale[i]));
+    }
+    std::vector<Vec2> out = left;
+    out.insert(out.end(), right.rbegin(), right.rend());
+    if (signedArea(out) < 0.0) std::reverse(out.begin(), out.end());
+    return out;
 }
 
 }

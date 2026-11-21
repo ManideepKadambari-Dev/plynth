@@ -4,6 +4,7 @@
 #include <plynth/core/Command.h>
 #include <plynth/core/commands/DeleteCommands.h>
 #include <plynth/core/commands/RoomCommands.h>
+#include <plynth/core/commands/WallCommands.h>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -111,24 +112,65 @@ TEST_CASE("delete several items and repeated ids", "[core][command][delete]") {
     REQUIRE(gone.points == std::vector<Id>{"p20", "p21"});
 }
 
+TEST_CASE("delete a wall with openings removes the openings first", "[core][command][delete]") {
+    Project p = houseWithRooms();
+    Floor& f = p.plan.floors[0];
+    Opening a;
+    a.id = "o1";
+    a.wall = "w7";
+    a.offset = 1.0;
+    a.width = 0.8;
+    Opening b = a;
+    b.id = "o2";
+    b.offset = 3.0;
+    Opening c = a;
+    c.id = "o3";
+    c.wall = "w3";
+    c.offset = 2.0;
+    f.openings = {a, b, c};
+    requirePlanValid(p.plan);
+
+    SECTION("by wall") {
+        const DeleteSet gone = runDelete(p, {"w7"});
+        REQUIRE(gone.openings == std::vector<Id>{"o1", "o2"});
+        REQUIRE(gone.walls == std::vector<Id>{"w7"});
+        REQUIRE(p.plan.floors[0].openings.size() == 1);
+        REQUIRE(p.plan.floors[0].openings[0].id == "o3");
+    }
+    SECTION("by point") {
+        const DeleteSet gone = runDelete(p, {"p5"});
+        REQUIRE(gone.openings == std::vector<Id>{"o1", "o2"});
+        REQUIRE(std::find(gone.walls.begin(), gone.walls.end(), "w7") != gone.walls.end());
+    }
+    SECTION("by room, which keeps the walls and their openings") {
+        const DeleteSet gone = runDelete(p, {"r1"});
+        REQUIRE(gone.openings.empty());
+        REQUIRE(p.plan.floors[0].openings.size() == 3);
+    }
+    SECTION("an opening alone") {
+        const DeleteSet gone = runDelete(p, {"o2"});
+        REQUIRE(gone.openings == std::vector<Id>{"o2"});
+        REQUIRE(gone.walls.empty());
+        REQUIRE(gone.points.empty());
+        REQUIRE(gone.rooms.empty());
+        REQUIRE(p.plan.floors[0].openings.size() == 2);
+    }
+    SECTION("an opening and its wall named together are removed once") {
+        const DeleteSet gone = runDelete(p, {"o1", "w7", "o1"});
+        REQUIRE(gone.openings == std::vector<Id>{"o1", "o2"});
+    }
+    SECTION("RemoveWallCommand alone still refuses a wall with openings") {
+        RemoveWallCommand c1("w7");
+        const Project before = p;
+        REQUIRE(c1.apply(p).code == ErrorCode::InUse);
+        REQUIRE(p == before);
+    }
+}
+
 TEST_CASE("delete refusals", "[core][command][delete]") {
     Project p = houseWithRooms();
     const Project before = p;
-    SECTION("an opening on a doomed wall") {
-        Opening o;
-        o.id = "o1";
-        o.wall = "w7";
-        o.offset = 2.0;
-        p.plan.floors[0].openings = {o};
-        const DeleteBuild viaPoint = makeDeleteCommand(p.plan, std::vector<Id>{"p5"});
-        REQUIRE(viaPoint.status.code == ErrorCode::InUse);
-        REQUIRE_FALSE(viaPoint.command);
-        const DeleteBuild viaWall = makeDeleteCommand(p.plan, std::vector<Id>{"w7"});
-        REQUIRE(viaWall.status.code == ErrorCode::InUse);
-        const DeleteBuild viaRoom = makeDeleteCommand(p.plan, std::vector<Id>{"r1"});
-        REQUIRE(viaRoom.status.ok());
-    }
-    SECTION("unknown ids and ids that are not points, walls or rooms") {
+    SECTION("unknown ids and ids that are not points, walls, rooms or openings") {
         REQUIRE(makeDeleteCommand(p.plan, std::vector<Id>{"p99"}).status.code == ErrorCode::NotFound);
         REQUIRE(makeDeleteCommand(p.plan, std::vector<Id>{"f1"}).status.code == ErrorCode::NotFound);
         REQUIRE(makeDeleteCommand(p.plan, std::vector<Id>{"w1", "nope"}).status.code == ErrorCode::NotFound);

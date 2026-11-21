@@ -1,5 +1,6 @@
 #include "plynth/core/commands/DeleteCommands.h"
 
+#include "plynth/core/commands/OpeningCommands.h"
 #include "plynth/core/commands/PointCommands.h"
 #include "plynth/core/commands/RoomCommands.h"
 #include "plynth/core/commands/WallCommands.h"
@@ -29,12 +30,13 @@ DeleteBuild makeDeleteCommand(const Plan& plan, std::span<const Id> ids)
     if (ids.empty()) return refuse(ErrorCode::InvalidValue, "Nothing was named to delete.");
 
     const Floor* floor = nullptr;
+    std::set<Id> openings;
     std::set<Id> points;
     std::set<Id> walls;
     std::set<Id> rooms;
     for (const Id& id : ids) {
         const Floor* found = findFloorContaining(plan, id);
-        if (!found) return refuse(ErrorCode::NotFound, "There is no point, wall or room " + id + ".");
+        if (!found) return refuse(ErrorCode::NotFound, "There is no point, wall, room or opening " + id + ".");
         if (floor && floor != found) return refuse(ErrorCode::InvalidValue, "The items are on different floors.");
         floor = found;
         if (findPoint(*found, id)) {
@@ -43,8 +45,10 @@ DeleteBuild makeDeleteCommand(const Plan& plan, std::span<const Id> ids)
             walls.insert(id);
         } else if (findRoom(*found, id)) {
             rooms.insert(id);
+        } else if (findOpening(*found, id)) {
+            openings.insert(id);
         } else {
-            return refuse(ErrorCode::NotFound, "The id " + id + " is not a point, wall or room.");
+            return refuse(ErrorCode::NotFound, "The id " + id + " is not a point, wall, room or opening.");
         }
     }
 
@@ -52,9 +56,7 @@ DeleteBuild makeDeleteCommand(const Plan& plan, std::span<const Id> ids)
         if (points.count(w.from) || points.count(w.to)) walls.insert(w.id);
     }
     for (const Opening& o : floor->openings) {
-        if (walls.count(o.wall)) {
-            return refuse(ErrorCode::InUse, "The wall " + o.wall + " has the opening " + o.id + " on it.");
-        }
+        if (walls.count(o.wall)) openings.insert(o.id);
     }
     for (const Room& r : floor->rooms) {
         for (const Id& w : r.walls) {
@@ -76,6 +78,11 @@ DeleteBuild makeDeleteCommand(const Plan& plan, std::span<const Id> ids)
 
     DeleteBuild build;
     auto group = std::make_unique<CommandGroup>("Delete");
+    for (const Opening& o : floor->openings) {
+        if (!openings.count(o.id)) continue;
+        build.removes.openings.push_back(o.id);
+        group->add(std::make_unique<RemoveOpeningCommand>(o.id));
+    }
     for (const Room& r : floor->rooms) {
         if (!rooms.count(r.id)) continue;
         build.removes.rooms.push_back(r.id);

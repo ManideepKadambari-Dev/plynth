@@ -1,5 +1,8 @@
 #include "plynth/core/Snapping.h"
 
+#include "BandOutline.h"
+
+#include "plynth/core/Openings.h"
 #include "plynth/core/Rooms.h"
 #include "plynth/core/WallGeometry.h"
 #include "plynth/core/commands/WallCommands.h"
@@ -8,6 +11,9 @@
 #include <cmath>
 
 namespace plynth {
+
+using detail::distanceToLine;
+using detail::distanceToPolygon;
 
 namespace {
 
@@ -58,28 +64,6 @@ bool crossingNear(const WallCurve& curve, bool keepsY, double line, Vec2 positio
         }
     }
     return any;
-}
-
-// The shortest distance from a position to a polygon's outline, 0 when the position is inside it.
-double distanceToPolygon(Vec2 position, const std::vector<Vec2>& polygon)
-{
-    if (polygon.size() < 3) return 1e300;
-    if (insidePolygon(position, polygon)) return 0.0;
-    double best = 1e300;
-    for (std::size_t i = 0; i < polygon.size(); ++i) {
-        best = std::min(best, projectOntoSegment(position, polygon[i], polygon[(i + 1) % polygon.size()]).distance);
-    }
-    return best;
-}
-
-// The shortest distance from a position to a polyline.
-double distanceToLine(Vec2 position, const std::vector<Vec2>& line)
-{
-    double best = 1e300;
-    for (std::size_t i = 0; i + 1 < line.size(); ++i) {
-        best = std::min(best, projectOntoSegment(position, line[i], line[i + 1]).distance);
-    }
-    return best;
 }
 
 // Rounds a value to the nearest multiple of step, without a negative zero.
@@ -193,6 +177,24 @@ Pick pickAt(const Floor& floor, Vec2 position, double radius)
         }
     }
     if (bestPoint) return {PickKind::Point, bestPoint->id};
+
+    // An opening is under the position when its footprint (or a place within radius of it) is.
+    const Opening* bestOpening = nullptr;
+    double bestOpeningDistance = 0.0;
+    double bestOpeningCentre = 0.0;
+    for (const Opening& o : floor.openings) {
+        const OpeningPlacement placement = openingPlacement(floor, o);
+        if (!placement.valid || placement.footprint.empty()) continue;
+        const double d = distanceToPolygon(position, placement.footprint);
+        if (d > radius) continue;
+        const double centre = distance(position, placement.centre);
+        if (!bestOpening || d < bestOpeningDistance - 1e-12 || (std::fabs(d - bestOpeningDistance) <= 1e-12 && centre < bestOpeningCentre)) {
+            bestOpening = &o;
+            bestOpeningDistance = d;
+            bestOpeningCentre = centre;
+        }
+    }
+    if (bestOpening) return {PickKind::Opening, bestOpening->id};
 
     // A wall is under the position when its band (or a place within radius of it) is. Where bands overlap, the wall
     // whose centre line is closest wins.

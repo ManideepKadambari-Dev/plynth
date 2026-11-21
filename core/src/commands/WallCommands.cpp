@@ -2,6 +2,7 @@
 
 #include "plynth/core/commands/PointCommands.h"
 #include "plynth/core/WallGeometry.h"
+#include "plynth/core/Openings.h"
 
 #include "CommandSupport.h"
 
@@ -596,6 +597,72 @@ bool SetWallBulgeCommand::mergeWith(const Command& next)
     const auto* other = dynamic_cast<const SetWallBulgeCommand*>(&next);
     if (!other || mergeKey_ == 0 || other->mergeKey_ != mergeKey_ || other->wallId_ != wallId_) return false;
     bulge_ = other->bulge_;
+    return true;
+}
+
+}
+
+namespace plynth {
+
+SetWallHeightCommand::SetWallHeightCommand(Id wallId, std::optional<double> height, int mergeKey)
+    : wallId_(std::move(wallId)), height_(height), mergeKey_(mergeKey)
+{
+}
+
+std::string SetWallHeightCommand::name() const
+{
+    return height_ ? "Set wall height" : "Clear wall height";
+}
+
+// Sets or clears the wall's own height unless an opening on the wall would end up above it.
+Status SetWallHeightCommand::apply(Project& project)
+{
+    Floor* floor = detail::floorOfWall(project.plan, wallId_);
+    if (!floor) return fail(ErrorCode::NotFound, "There is no wall " + wallId_ + ".");
+    if (height_ && !detail::isPositive(*height_)) {
+        return fail(ErrorCode::InvalidValue, "The wall height must be a number above zero.");
+    }
+    Wall* wall = findWall(*floor, wallId_);
+    const double top = height_ ? *height_ : floor->ceilingHeight;
+    for (const Opening& o : floor->openings) {
+        if (o.wall != wallId_) continue;
+        if (o.sill + o.height > top + kOpeningTouchTolerance) {
+            char text[48];
+            std::snprintf(text, sizeof text, "%.2f m", top);
+            return fail(ErrorCode::InvalidValue,
+                        "The opening " + o.id + " would reach above the wall, which would be " + text + " high.");
+        }
+    }
+    floorId_ = floor->id;
+    previous_ = wall->height;
+    wall->height = height_;
+    return {};
+}
+
+// Puts the old height back.
+void SetWallHeightCommand::undo(Project& project)
+{
+    Floor* floor = findFloor(project.plan, floorId_);
+    if (!floor) return;
+    if (Wall* wall = findWall(*floor, wallId_)) wall->height = previous_;
+}
+
+unsigned SetWallHeightCommand::changes() const
+{
+    return Change::Walls;
+}
+
+Id SetWallHeightCommand::floorId() const
+{
+    return floorId_;
+}
+
+// Takes over the later height of the same wall in the same series of changes.
+bool SetWallHeightCommand::mergeWith(const Command& next)
+{
+    const auto* other = dynamic_cast<const SetWallHeightCommand*>(&next);
+    if (!other || mergeKey_ == 0 || other->mergeKey_ != mergeKey_ || other->wallId_ != wallId_) return false;
+    height_ = other->height_;
     return true;
 }
 

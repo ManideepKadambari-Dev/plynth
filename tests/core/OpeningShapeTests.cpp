@@ -25,7 +25,7 @@ public:
     std::string_view id() const override { return id_; }
     std::string_view name() const override { return "Dummy"; }
     std::string_view sizeRule() const override { return {}; }
-    int sortKey() const override { return 5; }
+    int sortKey() const override { return 2000; }
     bool builtIn() const override { return false; }
     bool fits(double, double) const override { return true; }
     std::vector<Vec2> outline(double w, double h) const override { return {{-w / 2, 0}, {w / 2, 0}, {0, h}}; }
