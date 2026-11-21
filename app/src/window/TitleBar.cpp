@@ -115,7 +115,7 @@ TitleBar::TitleBar(QWidget* parent)
 
     auto* layout = new QHBoxLayout(this);
     layout->setContentsMargins(t.unit() * 3, 0, 0, 0);
-    layout->setSpacing(t.unit() * 2);
+    layout->setSpacing(0);
 
     auto* logo = new QLabel(this);
     const qreal ratio = devicePixelRatioF();
@@ -128,6 +128,7 @@ TitleBar::TitleBar(QWidget* parent)
     logo->setToolTip(tr("Plynth"));
     logo_ = logo;
     layout->addWidget(logo);
+    layout->addSpacing(t.unit() * 2);
 
     menuBar_ = new QMenuBar(this);
     menuBar_->setNativeMenuBar(false);

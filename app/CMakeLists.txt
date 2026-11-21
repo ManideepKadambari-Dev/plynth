@@ -12,7 +12,15 @@ add_executable(plynth WIN32
     src/window/TitleBar.h
     src/window/TitleBar.cpp
     resources/app.qrc
+    resources/plynth.rc
 )
+
+if(WIN32)
+    target_sources(plynth PRIVATE
+        src/window/FramelessWindow_win.h
+        src/window/FramelessWindow_win.cpp)
+    target_link_libraries(plynth PRIVATE dwmapi user32)
+endif()
 
 target_include_directories(plynth PRIVATE src)
 target_link_libraries(plynth PRIVATE plynth::core Qt6::Widgets)

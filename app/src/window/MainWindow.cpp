@@ -18,6 +18,10 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 
+#ifdef Q_OS_WIN
+#include "FramelessWindow_win.h"
+#endif
+
 namespace plynth::app {
 
 MainWindow::MainWindow(const QString& projectFolder, QWidget* parent)
@@ -65,6 +69,28 @@ void MainWindow::changeEvent(QEvent* event)
     QMainWindow::changeEvent(event);
     if (event->type() == QEvent::WindowStateChange && titleBar_ != nullptr)
         titleBar_->setMaximized(isMaximized());
+}
+
+// Gives the frameless window its Windows snap, shadow and resize behavior once it has a handle.
+void MainWindow::showEvent(QShowEvent* event)
+{
+    QMainWindow::showEvent(event);
+#ifdef Q_OS_WIN
+    if (!nativeFrameReady_) {
+        nativeFrameReady_ = true;
+        win::enableNativeFrame(*this);
+    }
+#endif
+}
+
+// Passes window messages to the Windows code for hit testing and frame handling.
+bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, qintptr* result)
+{
+#ifdef Q_OS_WIN
+    if (nativeFrameReady_ && titleBar_ != nullptr && win::handleNativeEvent(*this, *titleBar_, message, result))
+        return true;
+#endif
+    return QMainWindow::nativeEvent(eventType, message, result);
 }
 
 // Shows a small dialog with the app name and version from core.

@@ -17,6 +17,8 @@ public:
 
 protected:
     void changeEvent(QEvent* event) override;
+    void showEvent(QShowEvent* event) override;
+    bool nativeEvent(const QByteArray& eventType, void* message, qintptr* result) override;
 
 private:
     void toggleMaximized();
@@ -24,6 +26,7 @@ private:
 
     QString projectName_;
     TitleBar* titleBar_ = nullptr;
+    bool nativeFrameReady_ = false;
 };
 
 }
