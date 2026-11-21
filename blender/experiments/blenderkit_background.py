@@ -128,19 +128,11 @@ class Experiment:
         self.step("find_addon", True, name)
         return True
 
-    # Makes sure the add-on is enabled in this run, using Blender's own add-on switch.
+    # Checks that the add-on is enabled in the user's settings. It is never switched on here, so saved
+    # preferences stay as they are.
     def enable_addon(self):
-        name = self.report["addon_module"]
-        if name in bpy.context.preferences.addons:
-            self.step("addon_enabled", True, "already enabled")
-            return True
-        try:
-            import addon_utils
-            addon_utils.enable(name, default_set=True, persistent=False)
-        except Exception as error:
-            self.error("Enabling the add-on failed: %s" % error)
-        enabled = name in bpy.context.preferences.addons
-        self.step("addon_enabled", enabled, "enabled now" if enabled else "could not be enabled")
+        enabled = self.report["addon_module"] in bpy.context.preferences.addons
+        self.step("addon_enabled", enabled, "enabled" if enabled else "not enabled, enable it in Preferences first")
         return enabled
 
     # Says only whether an API key is stored. The key itself is never kept or printed.

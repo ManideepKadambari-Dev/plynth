@@ -159,6 +159,18 @@ class ZipTests(CleanupTest):
         self.assertFalse(os.path.exists(self.path("work", "unpacked", "chair", "ok.obj")))
         self.assert_result_valid(result)
 
+    # Each unsafe name gives unpack_failed and writes nothing outside the work folder.
+    def test_unsafe_names_in_zip(self):
+        os.makedirs(self.path("in"))
+        for index, name in enumerate(("foo/E:x.obj", "C:/x.obj", "../x.obj", "a/../../x.obj", "x.obj:stream")):
+            archive = self.path("in", "bad%d.zip" % index)
+            with zipfile.ZipFile(archive, "w") as handle:
+                handle.writestr(name, "o a\n")
+            result = self.cleanup(archive, "zip")
+            self.assertEqual(result["error"]["code"], "unpack_failed", name)
+        self.assertFalse(os.path.exists(self.path("x.obj")))
+        self.assertFalse(os.path.exists(self.path("work", "x.obj")))
+
     # Absolute names and a zip that is not a zip are refused too.
     def test_other_unpack_failures(self):
         from plynth.importers import zip as zip_importer

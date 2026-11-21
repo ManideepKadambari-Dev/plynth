@@ -10,11 +10,19 @@ MAX_UNPACKED_BYTES = 4 * 1024 * 1024 * 1024
 PREFERENCE = [".blend", ".fbx", ".glb", ".gltf", ".obj"]
 
 
-# Says whether a name inside a zip would leave the target folder.
+# Says whether a name inside a zip could leave the target folder: an absolute name, a ".." part, or any
+# part with a colon (a drive letter or an alternate data stream).
 def is_unsafe(name):
-    if name.startswith("/") or name.startswith("\\") or re.match(r"^[A-Za-z]:", name):
+    if name.startswith("/") or name.startswith("\\"):
         return True
-    return ".." in re.split(r"[\\/]", name)
+    return any(part == ".." or ":" in part for part in re.split(r"[\\/]", name))
+
+
+# Says whether a path is inside a folder, after resolving links.
+def is_inside(path, folder):
+    root = os.path.realpath(folder)
+    real = os.path.realpath(path)
+    return os.path.commonpath([root, real]) == root
 
 
 # Returns the file entries of a zip after checking that every name and the total size are safe.
@@ -43,6 +51,8 @@ def unpack(path, folder):
         members = checked_members(archive)
         for info in members:
             target = os.path.join(folder, *re.split(r"[\\/]", info.filename))
+            if not is_inside(target, folder):
+                raise WorkerError("unpack_failed", "The zip holds an unsafe path: %s" % info.filename)
             os.makedirs(os.path.dirname(target), exist_ok=True)
             try:
                 with archive.open(info) as source, open(target, "wb") as out:

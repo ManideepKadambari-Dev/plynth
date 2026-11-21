@@ -8,6 +8,7 @@ from ..registry import CLEANUP_STEPS
 
 ORDER = 70
 SKIPPED_SOURCES = {"GENERATED", "VIEWER"}
+IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".tga", ".tif", ".tiff", ".exr", ".hdr", ".webp", ".dds"}
 EXTENSIONS = {"PNG": ".png", "JPEG": ".jpg", "BMP": ".bmp", "TARGA": ".tga", "TIFF": ".tif", "OPEN_EXR": ".exr",
               "HDR": ".hdr", "WEBP": ".webp"}
 
@@ -67,9 +68,11 @@ def run(ctx):
             image.filepath = "//textures/" + name
         else:
             original = bpy.path.abspath(image.filepath) if image.filepath else ""
-            if not os.path.isfile(original):
+            loadable = os.path.isfile(original) and image.size[0] > 0
+            if not loadable:
                 original = find_by_name(os.path.basename(original or image.filepath), ctx.state["search_folders"])
-            if original is None or not os.path.isfile(original):
+            if (original is None or not os.path.isfile(original)
+                    or os.path.splitext(original)[1].lower() not in IMAGE_SUFFIXES):
                 missing.append(os.path.basename(image.filepath) or image.name)
                 continue
             key = os.path.normcase(os.path.abspath(original))
@@ -81,6 +84,15 @@ def run(ctx):
                 shutil.copyfile(original, os.path.join(textures, name))
                 copied[key] = name
             image.filepath = "//textures/" + name
+            if not loadable:
+                image.filepath = os.path.join(textures, name)
+                image.reload()
+                if image.size[0] == 0:
+                    os.remove(os.path.join(textures, name))
+                    copied.pop(key, None)
+                    missing.append(os.path.basename(original))
+                    continue
+                image.filepath = "//textures/" + name
         used.add(name.lower())
         if "textures/" + name not in names:
             names.append("textures/" + name)

@@ -37,4 +37,4 @@ Do not add `--factory-startup`: the add-on and your sign in live in your normal 
 
 Send both `report.json` files, and the text Blender printed in the console for the no window run. The `result` field in the report says what happened: `downloaded`, `timeout`, `failed`, `not_signed_in`, `addon_not_installed`, `addon_not_enabled`, `download_not_started` or `script_error`.
 
-If the add-on is not enabled in your normal Blender, the script switches it on for that run and leaves your saved settings alone in background mode. In a window Blender may remember the change.
+The script never switches the add-on on. If it is not enabled in your normal Blender the report says `addon_not_enabled`; enable it in Preferences and run again.
