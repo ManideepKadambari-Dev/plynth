@@ -144,7 +144,7 @@ class CleanupOptionTests(CleanupTest):
         steps = [json.loads(line[7:])["progress"]["step"] for line in lines]
         self.assertEqual(steps[:7], ["import_source", "remove_extras", "user_transform", "apply_transforms",
                                      "set_pivot", "name_objects", "collect_textures"])
-        self.assertEqual(steps[-1], "save_blend")
+        self.assertEqual(steps[-2:], ["save_blend", "render_thumbnail"])
 
     # Bad params are bad_job and a format that is not registered is unsupported_format.
     def test_bad_params(self):

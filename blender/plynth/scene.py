@@ -119,3 +119,24 @@ def convert_to_meshes(objects):
             collection.objects.link(replacement)
         bpy.data.objects.remove(obj, do_unlink=True)
     return failed
+
+
+# Returns the names of the materials the given mesh objects use, sorted.
+def material_names(objects):
+    names = set()
+    for obj in objects:
+        for slot in obj.material_slots:
+            if slot.material is not None:
+                names.add(slot.material.name)
+    return sorted(names)
+
+
+# Measures the mesh objects: size, triangles, object count and materials.
+def describe(objects):
+    width, depth, height = world_size(objects)
+    return {
+        "size": {"width": round(width, 6), "depth": round(depth, 6), "height": round(height, 6)},
+        "triangles": triangle_count(objects),
+        "objects": len(objects),
+        "materials": material_names(objects),
+    }
