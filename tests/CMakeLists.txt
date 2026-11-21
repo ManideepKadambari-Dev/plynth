@@ -2,9 +2,13 @@ find_package(Catch2 CONFIG REQUIRED)
 find_package(nlohmann_json_schema_validator CONFIG REQUIRED)
 include(Catch)
 
+add_executable(plynth_echo_lines tools/echo_lines/main.cpp)
+
 add_executable(plynth_core_tests
     core/TestSetup.cpp
     core/VersionTests.cpp
+    core/SettingsTests.cpp
+    core/ProcessTests.cpp
     core/PlanImageTests.cpp
     core/PlanTests.cpp
     core/ProjectJsonTests.cpp
@@ -42,5 +46,9 @@ target_compile_definitions(plynth_core_tests PRIVATE
     PLYNTH_SCHEMA_DIR="${PROJECT_SOURCE_DIR}/schema"
     PLYNTH_SAMPLES_DIR="${PROJECT_SOURCE_DIR}/samples"
     PLYNTH_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/core/data")
+
+add_dependencies(plynth_core_tests plynth_echo_lines)
+target_compile_definitions(plynth_core_tests PRIVATE
+    PLYNTH_ECHO_LINES="$<TARGET_FILE:plynth_echo_lines>")
 
 catch_discover_tests(plynth_core_tests)

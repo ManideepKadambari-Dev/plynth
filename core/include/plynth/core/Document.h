@@ -3,6 +3,7 @@
 #include "Command.h"
 #include "CommandStack.h"
 #include "Project.h"
+#include "ProjectFiles.h"
 #include "Status.h"
 
 #include <filesystem>
@@ -81,11 +82,13 @@ public:
 
     // Saves to the current folder with saveProject, then removes the autosave.
     // InvalidValue when the document has no folder yet: use saveAs.
-    Status save();
+    // A floor image that cannot be found does not stop the save; it is listed in report, when given.
+    Status save(SaveReport* report = nullptr);
 
     // Saves to another folder and makes it the document's folder. AlreadyExists when that folder holds
     // a different project. Images are copied from the old folder into the new one.
-    Status saveAs(const std::filesystem::path& folder);
+    // Unlike save, a floor image that cannot be found is NotFound, as for a new project.
+    Status saveAs(const std::filesystem::path& folder, SaveReport* report = nullptr);
 
     // Says whether there are changes that the last autosave does not have. False without a folder.
     bool needsAutosave() const;

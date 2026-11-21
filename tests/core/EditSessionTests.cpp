@@ -109,6 +109,11 @@ TEST_CASE("state names are stable", "[core][session]") {
     REQUIRE(sessionStateName(SessionState::Expired) == "expired");
     REQUIRE(errorCodeName(ErrorCode::Locked) == "locked");
     REQUIRE(errorCodeName(ErrorCode::UnsavedChanges) == "unsaved_changes");
+    REQUIRE(errorCodeName(ErrorCode::NoLibrary) == "no_library");
+    REQUIRE(errorCodeName(ErrorCode::BlenderNotFound) == "blender_not_found");
+    REQUIRE(errorCodeName(ErrorCode::BlenderFailed) == "blender_failed");
+    REQUIRE(errorCodeName(ErrorCode::Cancelled) == "cancelled");
+    REQUIRE(errorCodeName(ErrorCode::DatabaseError) == "database_error");
 }
 
 TEST_CASE("readSession gives none when there is no lock", "[core][session]") {

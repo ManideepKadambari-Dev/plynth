@@ -11,6 +11,7 @@
 #include <fstream>
 #include <string>
 #include <thread>
+#include <vector>
 
 using namespace plynth;
 namespace fs = std::filesystem;
@@ -209,16 +210,63 @@ TEST_CASE("createProject refuses a folder that holds a project", "[core][files]"
     REQUIRE(loadProject(tmp.path() / "p").project.settings.name == "Untitled");
 }
 
-TEST_CASE("a missing image gives NotFound and writes nothing", "[core][files]") {
+TEST_CASE("createProject with a missing image gives NotFound and writes nothing", "[core][files]") {
     plynth::test::TempDir tmp("missing");
     const fs::path folder = tmp.path() / "p";
     Project project = projectWithImage(pathToUtf8(tmp.path() / "nope.png"));
     const Project before = project;
-    const Status s = saveProject(project, folder, {});
+    const Status s = createProject(project, folder, {});
     REQUIRE(s.code == ErrorCode::NotFound);
     REQUIRE(project == before);
     REQUIRE_FALSE(fs::exists(folder / "plan.json"));
     REQUIRE_FALSE(fs::exists(folder / "project.json"));
+}
+
+TEST_CASE("saveProject in place with a missing image succeeds and reports it", "[core][files]") {
+    plynth::test::TempDir tmp("missing-save");
+    const fs::path folder = tmp.path() / "p";
+    writeFile(tmp.path() / "src" / "kept.png", "kept bytes");
+    Project project = makeNewProject();
+    Floor second = project.plan.floors[0];
+    second.id = "f2";
+    second.name = "Upstairs";
+    project.plan.floors[0].image = pathToUtf8(tmp.path() / "src" / "kept.png");
+    project.plan.floors.push_back(second);
+    project.plan.floors[1].image = "plans/floor2.png";
+    plynth::test::requireOk(saveProject(project, folder, {}));
+    REQUIRE(project.plan.floors[0].image == "plans/kept.png");
+    // The second image was missing at that save: it was reported and its path stayed.
+    REQUIRE(project.plan.floors[1].image == "plans/floor2.png");
+
+    SaveReport report;
+    project.settings.name = "Renamed";
+    plynth::test::requireOk(saveProject(project, folder, folder, &report));
+    REQUIRE(report.missingImages == std::vector<std::string>{"plans/floor2.png"});
+    REQUIRE(fs::exists(folder / "plans" / "kept.png"));
+    const ProjectLoad loaded = loadProject(folder);
+    plynth::test::requireOk(loaded.status);
+    REQUIRE(loaded.project.plan.floors[1].image == "plans/floor2.png");
+    REQUIRE(loaded.project.settings.name == "Renamed");
+}
+
+TEST_CASE("a missing image does not stop other images from being copied", "[core][files]") {
+    plynth::test::TempDir tmp("missing-others");
+    const fs::path folder = tmp.path() / "p";
+    writeFile(tmp.path() / "src" / "good.png", "good");
+    Project project = makeNewProject();
+    Floor second = project.plan.floors[0];
+    second.id = "f2";
+    project.plan.floors.push_back(second);
+    project.plan.floors[0].image = pathToUtf8(tmp.path() / "src" / "gone.png");
+    project.plan.floors[1].image = pathToUtf8(tmp.path() / "src" / "good.png");
+    SaveReport report;
+    plynth::test::requireOk(saveProject(project, folder, {}, &report));
+    REQUIRE(report.missingImages.size() == 1);
+    REQUIRE(report.missingImages[0] == pathToUtf8(tmp.path() / "src" / "gone.png"));
+    REQUIRE(fs::exists(folder / "plans" / "good.png"));
+    REQUIRE(project.plan.floors[0].image == pathToUtf8(tmp.path() / "src" / "gone.png"));
+    REQUIRE(project.plan.floors[1].image == "plans/good.png");
+    REQUIRE(loadProject(folder).project.plan.floors[0].image == pathToUtf8(tmp.path() / "src" / "gone.png"));
 }
 
 TEST_CASE("a failed save leaves the old files as they were", "[core][files]") {
@@ -227,10 +275,6 @@ TEST_CASE("a failed save leaves the old files as they were", "[core][files]") {
     Project project = makeNewProject();
     plynth::test::requireOk(createProject(project, folder, {}));
     const std::string planBefore = plynth::test::readTextFile(folder / "plan.json");
-
-    project.plan.floors[0].image = pathToUtf8(tmp.path() / "gone.png");
-    REQUIRE(saveProject(project, folder, folder).code == ErrorCode::NotFound);
-    REQUIRE(plynth::test::readTextFile(folder / "plan.json") == planBefore);
 
     Project invalid = makeNewProject();
     invalid.plan.floors.clear();

@@ -262,6 +262,17 @@ TEST_CASE("a failed save keeps the document as it was", "[core][document]") {
     REQUIRE(rec.events.empty());
 }
 
+TEST_CASE("save in place with a missing image succeeds and reports it", "[core][document]") {
+    plynth::test::TempDir tmp("doc-missing-image");
+    Document doc;
+    plynth::test::requireOk(doc.saveAs(tmp.path() / "p"));
+    run(doc, std::make_unique<SetFloorImageCommand>("f1", std::string("plans/gone.png")));
+    SaveReport report;
+    plynth::test::requireOk(doc.save(&report));
+    REQUIRE(report.missingImages == std::vector<std::string>{"plans/gone.png"});
+    REQUIRE_FALSE(doc.isModified());
+}
+
 TEST_CASE("save as onto another project refuses", "[core][document]") {
     plynth::test::TempDir tmp("doc-clash");
     Project other = makeNewProject();

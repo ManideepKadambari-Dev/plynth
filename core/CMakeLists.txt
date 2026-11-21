@@ -4,6 +4,7 @@ add_library(plynth_core STATIC
     src/Version.cpp
     src/PlanImage.cpp
     src/Status.cpp
+    src/Settings.cpp
     src/Plan.cpp
     src/Project.cpp
     src/ProjectJson.cpp
@@ -36,6 +37,7 @@ add_library(plynth_core STATIC
 )
 if(WIN32)
     target_sources(plynth_core PRIVATE src/Process_win.cpp)
+    target_link_libraries(plynth_core PUBLIC shell32 ole32)
 endif()
 add_library(plynth::core ALIAS plynth_core)
 

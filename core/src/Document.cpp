@@ -259,12 +259,12 @@ bool Document::isModified() const
 }
 
 // Saves to the current folder and removes the autosave.
-Status Document::save()
+Status Document::save(SaveReport* report)
 {
     if (readOnly_) return readOnlyStatus(readOnlyReason_);
     if (!hasFolder()) return fail(ErrorCode::InvalidValue, "This project has no folder yet. Use Save as.");
     const auto before = imagePaths(project_.plan);
-    if (Status s = saveProject(project_, folder_, folder_); !s.ok()) return s;
+    if (Status s = saveProject(project_, folder_, folder_, report); !s.ok()) return s;
     history_.markSaved();
     removeAutosave(folder_);
     autosaveWritten_ = false;
@@ -276,17 +276,17 @@ Status Document::save()
 }
 
 // Saves to another folder and makes it the document's folder.
-Status Document::saveAs(const fs::path& folder)
+Status Document::saveAs(const fs::path& folder, SaveReport* report)
 {
     if (readOnly_) return readOnlyStatus(readOnlyReason_);
     const fs::path target = normalizeFolder(folder);
     std::error_code ec;
-    if (hasFolder() && fs::equivalent(target, folder_, ec)) return save();
+    if (hasFolder() && fs::equivalent(target, folder_, ec)) return save(report);
     if (isProjectFolder(target)) {
         return fail(ErrorCode::AlreadyExists, "The folder " + pathToUtf8(target) + " already holds a project.");
     }
     Project copy = project_;
-    if (Status s = saveProject(copy, target, folder_); !s.ok()) return s;
+    if (Status s = createProject(copy, target, folder_); !s.ok()) return s;
 
     DocumentEvent event;
     event.changes = Change::History | Change::Folder;

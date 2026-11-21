@@ -8,8 +8,35 @@
 
 #include <filesystem>
 #include <string>
+#include <utility>
+
+#include <stdlib.h>
 
 namespace plynth::test {
+
+// Sets an environment variable for the life of the object, then puts the old value back.
+class ScopedEnv {
+public:
+    ScopedEnv(std::string name, const std::string& value) : name_(std::move(name))
+    {
+        char* old = nullptr;
+        std::size_t size = 0;
+        if (_dupenv_s(&old, &size, name_.c_str()) == 0 && old) {
+            had_ = true;
+            old_ = old;
+        }
+        free(old);
+        _putenv_s(name_.c_str(), value.c_str());
+    }
+    ~ScopedEnv() { _putenv_s(name_.c_str(), had_ ? old_.c_str() : ""); }
+    ScopedEnv(const ScopedEnv&) = delete;
+    ScopedEnv& operator=(const ScopedEnv&) = delete;
+
+private:
+    std::string name_;
+    std::string old_;
+    bool had_ = false;
+};
 
 // A plan that sets every field, with two floors, so round trips cover each value.
 inline Plan fullPlan()

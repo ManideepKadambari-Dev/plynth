@@ -1,0 +1,5 @@
+{
+  "format": "plynth-settings",
+  "version": 1,
+  "thumbnail_engine": "luxrender"
+}
