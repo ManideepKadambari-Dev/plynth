@@ -1,0 +1,69 @@
+# Local working files. These never go to GitHub.
+CLAUDE.md
+DESIGN.md
+WORKFLOW.md
+AGENTS.md
+notes/
+.claude/
+claude-setup/
+.cursor/
+.aider*
+.continue/
+.codex/
+
+# Build output
+build/
+out/
+cmake-build-*/
+vcpkg_installed/
+CMakeUserPresets.json
+CMakeCache.txt
+CMakeFiles/
+*.obj
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.dll
+*.exe
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.sln.docstates
+*.VC.db
+*.VC.opendb
+
+# Qt
+*.qmlc
+*.jsc
+moc_*.cpp
+ui_*.h
+qrc_*.cpp
+*.autosave
+
+# Python (Blender scripts)
+__pycache__/
+*.pyc
+.venv/
+
+# Plynth project output inside sample projects
+samples/*/build/
+samples/*/export/
+samples/*/renders/
+
+# Asset library and store downloads never belong in the repo
+Library/
+*.blend1
+
+# Installer output
+installer/output/
+
+# OS and editor noise
+Thumbs.db
+desktop.ini
+.DS_Store
+*.swp
+*.tmp
+*.log
