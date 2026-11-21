@@ -4,6 +4,7 @@ include(Catch)
 
 add_executable(plynth_cli_tests
     CliTests.cpp
+    ProjectCliTests.cpp
     TestSupport.cpp
 )
 target_link_libraries(plynth_cli_tests PRIVATE plynth::cli Catch2::Catch2WithMain

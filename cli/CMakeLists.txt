@@ -4,6 +4,7 @@ find_package(nlohmann_json CONFIG REQUIRED)
 add_library(plynth_cli STATIC
     src/Answer.cpp
     src/Cli.cpp
+    src/Common.cpp
     src/Registry.cpp
     src/commands/EditCommands.cpp
     src/commands/HelpCommand.cpp
