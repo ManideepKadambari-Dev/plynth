@@ -1,6 +1,6 @@
 # User guide
 
-This covers what Plynth does today: opening a project, showing its plan image, setting the scale, drawing walls, making rooms, undo and redo, saving, working next to the command line, and the built-in terminal. More screens arrive in later releases.
+This covers what Plynth does today: opening a project, showing its plan image, setting the scale, drawing walls, finding walls in the image automatically, making rooms, undo and redo, saving, working next to the command line, and the built-in terminal. More screens arrive in later releases.
 
 For keys see [Keyboard shortcuts](SHORTCUTS.md). For scripts see the [Command line guide](CLI_GUIDE.md).
 
@@ -53,10 +53,11 @@ A strip of buttons sits at the left edge of the plan. The active tool is the one
 | Scale | S | Tell Plynth how long something on the image really is |
 | Wall | W | Draw walls |
 | Room | R | Turn a closed area into a room |
+| Detect | D | Find walls and rooms in the plan image for you |
 
 The status bar at the bottom shows the position of the cursor in metres and a short hint for the active tool. If a tool cannot do what you asked, the reason shows there in amber for a few seconds instead of in a dialog.
 
-The Scale tool needs a plan image. The Wall and Room tools also need a scale, because without one a click cannot be turned into metres. Until the scale is set, their buttons are greyed and their tooltips say "Set the scale first (S)". While the command line is editing the project, the Scale, Wall and Room tools are disabled and you can only select. You can still click to look at things.
+The Scale tool needs a plan image. The Wall, Room and Detect tools also need a scale, because without one a click cannot be turned into metres. Until the scale is set, their buttons are greyed and their tooltips say "Set the scale first (S)". While the command line is editing the project, the Scale, Wall, Room and Detect tools are disabled and you can only select. You can still click to look at things.
 
 ## Setting the scale
 
@@ -133,6 +134,44 @@ If you click where no closed area exists, the status bar says "No closed area he
 **Rooms keep their walls.** A room remembers the walls of the area it was made from. If you draw a new wall across a room, the room stays as it was. Delete the room and add the two new ones. Cutting one of its walls with a T junction is fine, because the room takes the new part too.
 
 The same room finding is available to scripts with `room find` and `room add`. See the [Command line guide](CLI_GUIDE.md).
+
+## Detecting walls
+
+Instead of clicking every wall, you can let Plynth look at the plan image and propose the walls and rooms. You check the result, tune it with sliders, and accept it. You can always draw walls by hand instead, or to finish what detection missed.
+
+**What you need.** A plan image and a scale. Set the scale first (S).
+
+**Which plans work best.** Clean plans where the walls are dark and solid, on light paper. Right now Plynth finds horizontal and vertical walls only. A scan that is a few degrees crooked is fine. Diagonal walls and curved walls are not found, so draw those by hand. Plans where walls are drawn as two thin outlines with nothing between them, or very noisy or textured scans, give poor results. Thin marks such as text, dimension lines, door arcs, window lines and furniture outlines are ignored on purpose.
+
+**Using it.**
+
+1. Press D, or click the Detect tool. The panel on the right shows the detection settings, and Plynth starts looking at once.
+2. After a moment the proposals appear over the plan as dashed blue outlines: walls with a faint blue fill, hollow blue rings at corners and junctions, and a dashed blue outline for each room it found. Doors, windows and gaps show as two small blue ticks across the wall, with a quarter arc for a door and two thin lines for a window.
+3. Under the settings, a line says what was found, for example "16 walls, 5 rooms, 9 openings in 85 ms". It also tells you when some walls are already drawn, or when some overlap walls you drew and are left out.
+4. Move the sliders until the blue walls match the real ones. The preview follows about a fifth of a second after you stop. The app stays responsive while it works.
+5. Press Enter, or click Accept. The walls and rooms are added to the plan in the normal style. One Ctrl+Z takes all of them away again, and the proposals come back so you can try other settings.
+
+Leaving the tool throws the proposals away. Nothing is added to the plan until you accept. Your settings are kept until you close Plynth.
+
+**The settings.**
+
+| Setting | What it does |
+|---|---|
+| Thinnest wall | Dark lines thinner than this are not walls. Raise it to drop thin inner walls, or lower it if real thin walls are missing. |
+| Thickest wall | Dark areas thicker than this are not walls. This keeps filled blocks, such as a legend box, out. It stays above the thinnest wall. |
+| Sensitivity | How dark a pixel has to be to count as ink. Raise it for faint plans so lighter grey counts. Lower it when grey paper or shading is being taken for walls. |
+| Shortest wall | Wall pieces shorter than this are dropped. Raise it to get rid of small specks. |
+| Widest opening | A gap up to this wide in a wall, such as a door or a window, is closed with wall so rooms stay separate, and shown as an opening. Set it to 0 to close no gaps. |
+| Propose rooms | Also propose a room for every closed area. |
+| Show openings | Show doors, windows and gaps. |
+
+**Reset settings** puts every setting back to its default.
+
+**Running it again never doubles walls.** Detection compares what it finds with the walls you already have. Walls that are already in the plan, whether you drew them or accepted them earlier, are not shown and are never added a second time. The status line counts them. If a proposed wall runs partly along a wall you drew, it is left out and counted, not trimmed. Draw the missing piece by hand. New walls snap onto the points and walls you already have, so detected walls join hand drawn ones.
+
+**Openings are for checking only.** The doors, windows and gaps are shown so you can see that the walls make sense, but Accept does not add them yet. They are added in a later version. The walls are closed across them, so every room stays a room.
+
+If detection cannot run, the panel says why in amber, for example when the plan has no scale or the image could not be read. While a command line session is editing the project, the Detect tool is off.
 
 ## Deleting
 

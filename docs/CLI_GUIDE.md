@@ -2,7 +2,7 @@
 
 Plynth can be driven from a terminal, a script or a coding assistant. Every command prints one JSON answer, so a program can read the result without parsing text meant for people.
 
-This page covers the commands that exist today: version, help, creating and reading a project, setting the scale and grid, points, walls, rooms, and the edit session that keeps the app and the command line from overwriting each other. More commands arrive in later releases.
+This page covers the commands that exist today: version, help, creating and reading a project, setting the scale and grid, points, walls, rooms, finding walls in the plan image with `detect`, and the edit session that keeps the app and the command line from overwriting each other. More commands arrive in later releases.
 
 ## Running a command
 
@@ -17,11 +17,11 @@ Typing `plynth` in a terminal finds `plynth.com` first. The terminal inside Plyn
 
 The first word decides what happens:
 
-- A command word (`version`, `help`, `project`, `scale`, `point`, `wall`, `room`, `session`) runs the command and prints the answer. No window opens.
+- A command word (`version`, `help`, `project`, `scale`, `point`, `wall`, `room`, `detect`, `session`) runs the command and prints the answer. No window opens.
 - A project folder or an app option (`--image`, `--screenshot`, `--size`, `--terminal`), or no argument at all, opens the window. `plynth.com` starts the window and returns at once.
 - Anything else prints an `unknown_command` answer and exits with code 2. For example `plynth bogus`.
 
-To open a folder that is literally named after a command word, such as `project` or `room`, write `.\project` or `.\room`. Without the `.\` Plynth runs the command instead.
+To open a folder that is literally named after a command word, such as `project`, `room` or `detect`, write `.\project`, `.\room` or `.\detect`. Without the `.\` Plynth runs the command instead.
 
 ### Which project a command works on
 
@@ -85,7 +85,7 @@ The app itself, when you give it `--screenshot`, uses its own codes. 0 means the
 | `cannot_write` | A file or folder could not be written. |
 | `bad_file` | A project file is not valid or breaks the format rules. `error.where` says where. |
 | `unsupported_version` | The file was written by a newer version of Plynth. |
-| `image_error` | The plan image was refused: missing, empty, damaged, too large or not PNG, JPEG or BMP. |
+| `image_error` | The plan image was refused: missing, empty, damaged, too large or not PNG, JPEG or BMP. `detect` also uses it when the image cannot be decoded or processed. |
 | `locked` | The project is open in the app and no edit session is active, or the session ended. See "Working while the app is open". |
 | `unsaved_changes` | The app has unsaved changes, so an edit session cannot begin. |
 | `internal_error` | Something unexpected went wrong inside Plynth. Exit 1. The message says what. |
@@ -519,6 +519,79 @@ plynth room types
 
 A plan from another machine can hold a type id that is not in this list. It still loads, and the room shows its id as the name. Only new values typed into `room add` and `room set` are checked.
 
+### detect
+
+Looks at the plan image of a floor and proposes walls, rooms, and doors, windows and gaps. It needs a plan image and a scale. Without `--apply` it only reads: nothing in the project changes, and it works while the app is editing the project. With `--apply` it adds the new walls and rooms to the plan and saves.
+
+The built-in detector (`orthogonal`, "Straight walls") finds horizontal and vertical walls. Walls a few degrees off, such as a slightly crooked scan, are found and drawn straight. Diagonal and curved walls are not found. Draw those with `wall draw`. It works best on a clean plan with dark, solid walls. Thin lines (text, dimension lines, door arcs, window lines, furniture) are ignored.
+
+The `detect` word is a command, so a project folder named `detect` has to be given as `--project .\detect`.
+
+| Option | Meaning |
+|---|---|
+| `--floor <id>` | Default: the first floor. |
+| `--detector <id>` | Which detector to use. Default: `orthogonal`. An unknown id is `invalid_value`, and the message lists the ids. |
+| `--min-thickness <metres>` | Dark strokes thinner than this are not walls. Default: 0.08. |
+| `--max-thickness <metres>` | Dark areas thicker than this are not walls, for example a filled block. Default: 0.5. Must be above `--min-thickness`. |
+| `--sensitivity <0..1>` | Higher counts lighter grey as ink. Default: 0.5. |
+| `--min-length <metres>` | Wall pieces shorter than this are dropped. Default: 0.3. |
+| `--max-opening-width <metres>` | A gap up to this wide in a wall is closed with wall and listed as an opening. Default: 2.5. 0 closes no gaps. |
+| `--no-rooms` | Propose no rooms, and add none with `--apply`. |
+| `--no-openings` | Propose no openings. |
+| `--apply` | Add the new walls and rooms to the plan, as one undoable step, and save. |
+
+```
+plynth detect --project D:\Plans\MyApartment
+```
+
+This is a real answer for `samples\plans\apartment-01.png` at 100 pixels per metre. The lists are cut short: the real answer has all 12 points, 16 walls, 9 openings and 5 rooms.
+
+```json
+{"ok":true,"command":"detect","result":{"floor":"f1","detector":"orthogonal","detectors":["orthogonal"],"pixels_per_metre":100.0,"image":{"width":2400,"height":1600},"params":{"min_thickness":0.08,"max_thickness":0.5,"sensitivity":0.5,"min_length":0.3,"max_opening_width":2.5,"rooms":true,"openings":true},"elapsed_ms":20.9,"counts":{"points":12,"walls":16,"new_walls":16,"existing_walls":0,"overlapping_walls":0,"rooms":5,"new_rooms":5,"openings":9},"points":[{"index":0,"x":5.15,"y":3.15},{"index":1,"x":10.06,"y":3.15}],"walls":[{"index":0,"from":0,"to":1,"thickness":0.3,"length":4.91,"state":"new"}],"openings":[{"index":0,"wall":0,"type":"window","offset":2.35,"width":2.0,"x":7.5,"y":3.15}],"rooms":[{"index":0,"walls":[0,10,11,3,8],"inside":{"x":7.605,"y":5.5751},"centre_line_area":23.8147,"state":"new"}]}}
+```
+
+The answer has these fields.
+
+- `floor`, `detector`, `detectors` (every detector that is installed), `pixels_per_metre`, `image` (width and height in pixels) and `params` (the settings that were used, including `rooms` and `openings`).
+- `elapsed_ms` is the time spent finding walls, in milliseconds. Loading the image is not counted.
+- `counts` says how many proposals there are. `walls` is the total. `new_walls` are the ones `--apply` would add. `existing_walls` are already in the plan. `overlapping_walls` run partly along a wall that is already there. `new_rooms` are rooms not yet in the plan.
+- `points` are the proposed corners and junctions, in metres, numbered by `index`.
+- `walls` join two points by their `index` (`from` and `to`). `thickness` and `length` are in metres. `state` is `new`, `existing` or `overlaps`.
+- `openings` sit on a wall (`wall` is a wall `index`). `type` is `door`, `window` or `plain`. `offset` is the distance from the wall's `from` point to the centre of the opening, `width` is its width, and `x` and `y` are its centre in metres.
+- `rooms` are the closed areas of the proposed walls. `walls` lists wall `index` numbers. `inside` is a position surely inside the area. `centre_line_area` is measured between the wall centre lines, in square metres, rounded to 4 decimals. `state` is `new` or `existing`.
+- `applied` appears only with `--apply`. See below.
+
+**States and running it twice.** Detection compares what it found with the walls and rooms the floor already has. A proposed wall that lies on a wall that is already there is `existing`. One that lies partly along an existing wall is `overlaps`. A proposed room is `existing` when a room already holds its `inside` position. Only `new` proposals are added. So running `detect --apply` again does not double anything, and walls you drew by hand are not drawn twice. A proposal that is `overlaps` is left out and counted, never trimmed. Draw the missing piece yourself.
+
+**`--apply`.** The new walls and rooms are added as one undoable step. Ends of new walls snap to points and walls that are already in the plan, so detected walls join hand drawn ones, and a wall that a new one ends on is split there. The answer then also has:
+
+```json
+"applied":{"walls":["w1","w2"],"points":["p1","p2"],"split_walls":[],"rooms":["r1"],"skipped_walls":0,"skipped_rooms":0}
+```
+
+The ids are the ones that were created. `split_walls` lists existing walls that were cut at a T junction. `skipped_walls` and `skipped_rooms` count proposals the plan refused. The `points`, `walls` and `rooms` lists above it show the states from before applying. When nothing is new, `--apply` changes and saves nothing, and answers ok with empty `applied` lists.
+
+**Openings are listed, not added.** The doors, windows and gaps are in the answer so you can check them, but `--apply` does not add them to the plan. A later version will. The gap in the wall is closed with wall, so rooms stay separate.
+
+The script order for a new project:
+
+```
+plynth project new --image plan.png --project D:\Plans\MyApartment
+plynth scale set --pixels-per-metre 100 --project D:\Plans\MyApartment
+plynth detect --project D:\Plans\MyApartment
+plynth detect --apply --project D:\Plans\MyApartment
+plynth room set r1 --type living --project D:\Plans\MyApartment
+```
+
+Errors:
+
+| Code | When |
+|---|---|
+| `not_found` | The floor does not exist, or has no plan image, or the image file is missing. |
+| `invalid_value` | The plan has no scale ("Set the scale first. Run 'scale from-points' or 'scale set'."), the detector id is unknown, or a setting is out of range: a number that is not finite, a thickness or length of 0 or less, a negative opening width, `--min-thickness` not below `--max-thickness`, or `--sensitivity` outside 0 to 1. |
+| `image_error` | The image cannot be decoded, or is too large to process. |
+| `locked` | With `--apply` only: the project is open in the app and no edit session is active. Plain `detect` is never refused. |
+
 ### session begin
 
 Starts an edit session. See the next section.
@@ -601,7 +674,7 @@ Save or discard in the app, then run `session begin` again.
 
 If the app does not have the project open, editing commands just run. A session is still allowed and harmless, so a script can always begin one.
 
-Read only commands such as `project info`, `point list`, `wall list`, `room list` and `room find` are never refused.
+Read only commands such as `project info`, `point list`, `wall list`, `room list`, `room find` and `detect` without `--apply` are never refused.
 
 ### Expiry
 
