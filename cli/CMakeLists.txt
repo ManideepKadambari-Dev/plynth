@@ -21,6 +21,7 @@ add_library(plynth_cli STATIC
     src/commands/DoctorCommands.cpp
     src/commands/HelpCommand.cpp
     src/commands/ImportCommands.cpp
+    src/commands/ItemCommands.cpp
     src/commands/ProjectCommands.cpp
     src/commands/RoomCommands.cpp
     src/commands/ScaleCommands.cpp

@@ -16,6 +16,7 @@ add_executable(plynth_cli_tests
     AssetCliTests.cpp
     DoctorCliTests.cpp
     ImportCliTests.cpp
+    ItemCliTests.cpp
     TestSetup.cpp
     TestSupport.cpp
 )
