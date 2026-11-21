@@ -228,3 +228,28 @@ TEST_CASE("a shape file in Library/shapes appears in opening shapes", "[cli][ass
     REQUIRE(shapes.exitCode == kExitOk);
     CHECK(shapes.text.find("pentagon_t9") != std::string::npos);
 }
+
+TEST_CASE("asset commands refuse ids that are paths", "[cli][assets]") {
+    SettingsReset reset;
+    TempFolder temp("assets-bad-ids");
+    makeLibrary(temp);
+    const auto items = temp.path() / "Library" / "assets" / "items";
+    const std::vector<std::string> bad = {"..", "../chair", R"(..\chair)","chair/..", "a/b", "C:/Windows", "Chair"};
+    for (const std::string& id : bad) {
+        INFO("id " << id);
+        CHECK(errorCode(runChecked({"assets", "remove", id, "--yes"})) == "invalid_value");
+        CHECK(errorCode(runChecked({"assets", "info", id})) == "invalid_value");
+        CHECK(errorCode(runChecked({"assets", "set", id, "--name", "X"})) == "invalid_value");
+        CHECK(errorCode(runChecked({"assets", "thumbnail", id})) == "invalid_value");
+        CHECK(errorCode(runChecked({"assets", "room", "set", id, "--name", "X"})) == "invalid_value");
+        CHECK(errorCode(runChecked({"assets", "room", "remove", id})) == "invalid_value");
+        CHECK(errorCode(runChecked({"assets", "category", "set", id, "--name", "X"})) == "invalid_value");
+        CHECK(errorCode(runChecked({"assets", "category", "remove", id})) == "invalid_value");
+    }
+    CHECK(errorCode(runChecked({"assets", "room", "add", "../x", "--name", "X"})) == "invalid_value");
+    CHECK(errorCode(runChecked({"assets", "category", "add", "a/b", "--name", "X"})) == "invalid_value");
+    CHECK(errorCode(runChecked({"assets", "import", "x.obj", "--id", "../evil"})) == "invalid_value");
+    CHECK(std::filesystem::exists(items / "chair"));
+    CHECK(std::filesystem::exists(items / "sofa"));
+    CHECK(errorCode(runChecked({"assets", "remove", "nothing_here", "--yes"})) == "not_found");
+}

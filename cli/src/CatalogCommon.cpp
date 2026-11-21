@@ -6,6 +6,7 @@
 #include <plynth/core/OpeningShapes.h>
 #include <plynth/core/ProjectFiles.h>
 #include <plynth/core/RoomTypes.h>
+#include <plynth/core/catalog/AssetInfo.h>
 
 #include <algorithm>
 #include <set>
@@ -35,6 +36,15 @@ void registerShapes(const LibraryPaths& paths) {
 
 void addLibraryOption(CLI::App& sub, std::string& value) {
     sub.add_option("--library", value, "Library folder. Default: the one in the settings.")->type_name("folder");
+}
+
+bool checkIdArgument(const std::string& command, const std::string& id, Answer& failed) {
+    const Status status = checkCatalogId(id);
+    if (!status.ok()) {
+        failed = failure(command, status);
+        return false;
+    }
+    return true;
 }
 
 void addBlenderOption(CLI::App& sub, std::string& value) {

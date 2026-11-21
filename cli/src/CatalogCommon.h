@@ -52,6 +52,10 @@ bool makeImportContext(const std::string& command, const RunContext& context, co
 Json rescanAndRefresh(const std::string& command, const RunContext& context, OpenedCatalog& opened,
                       const std::string& blenderOption, bool noBlender);
 
+// Checks that an id typed by the user is a plain catalog id (checkCatalogId): no folders, no "..", no
+// absolute paths. Fills failed with invalid_value when it is not.
+bool checkIdArgument(const std::string& command, const std::string& id, Answer& failed);
+
 // The asset entry shared by the asset commands.
 Json assetEntry(const AssetRecord& record);
 

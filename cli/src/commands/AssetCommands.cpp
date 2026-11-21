@@ -135,6 +135,10 @@ Answer assetsSearch(const std::string& command, const RunContext& context, const
 // One asset in full: its entry plus what its info.json says about the model.
 Answer assetsInfo(const RunContext& context, const IdOptions& options) {
     const std::string command = "assets info";
+    Answer badId;
+    if (!checkIdArgument(command, options.id, badId)) {
+        return badId;
+    }
     OpenedCatalog opened;
     Answer failed;
     if (!openCatalog(command, context, options.library, opened, failed)) {
@@ -186,6 +190,10 @@ std::vector<std::string> changedList(std::vector<std::string> current, const std
 // Changes the name, categories, tags and license of an asset.
 Answer assetsSet(const RunContext& context, const SetAssetOptions& options) {
     const std::string command = "assets set";
+    Answer badId;
+    if (!checkIdArgument(command, options.id, badId)) {
+        return badId;
+    }
     const bool categoryChange = options.categories || !options.addCategories.empty() || !options.removeCategories.empty();
     const bool tagChange = options.tags || !options.addTags.empty() || !options.removeTags.empty();
     if (!options.name && !categoryChange && !tagChange && !options.license) {
@@ -220,6 +228,10 @@ Answer assetsSet(const RunContext& context, const SetAssetOptions& options) {
 // Deletes an asset's folder and index row. Needs --yes.
 Answer assetsRemove(const RunContext& context, const RemoveAssetOptions& options) {
     const std::string command = "assets remove";
+    Answer badId;
+    if (!checkIdArgument(command, options.id, badId)) {
+        return badId;
+    }
     if (!options.yes) {
         return badArguments(command, "bad_arguments",
                             "Removing an asset deletes its folder and cannot be undone. Add --yes to confirm.");
@@ -268,6 +280,10 @@ Answer roomEntryAnswer(const std::string& command, const AssetCatalog& catalog, 
 // Adds a room type.
 Answer roomAdd(const RunContext& context, const RoomAddOptions& options) {
     const std::string command = "assets room add";
+    Answer badId;
+    if (!checkIdArgument(command, options.id, badId)) {
+        return badId;
+    }
     OpenedCatalog opened;
     Answer failed;
     if (!openCatalog(command, context, options.library, opened, failed)) {
@@ -283,6 +299,10 @@ Answer roomAdd(const RunContext& context, const RoomAddOptions& options) {
 // Renames a room type, replaces its categories or moves it in the list.
 Answer roomSet(const RunContext& context, const RoomSetOptions& options) {
     const std::string command = "assets room set";
+    Answer badId;
+    if (!checkIdArgument(command, options.id, badId)) {
+        return badId;
+    }
     if (!options.name && !options.categories && !options.position) {
         return badArguments(command, "bad_arguments", "Give at least one option to change. Run 'plynth help'.");
     }
@@ -319,6 +339,10 @@ Answer roomSet(const RunContext& context, const RoomSetOptions& options) {
 // Removes a room type.
 Answer roomRemove(const RunContext& context, const IdOptions& options) {
     const std::string command = "assets room remove";
+    Answer badId;
+    if (!checkIdArgument(command, options.id, badId)) {
+        return badId;
+    }
     OpenedCatalog opened;
     Answer failed;
     if (!openCatalog(command, context, options.library, opened, failed)) {
@@ -363,6 +387,10 @@ Answer categoryEntryAnswer(const std::string& command, const AssetCatalog& catal
 // Adds a category.
 Answer categoryAdd(const RunContext& context, const CategoryOptions& options) {
     const std::string command = "assets category add";
+    Answer badId;
+    if (!checkIdArgument(command, options.id, badId)) {
+        return badId;
+    }
     OpenedCatalog opened;
     Answer failed;
     if (!openCatalog(command, context, options.library, opened, failed)) {
@@ -378,6 +406,10 @@ Answer categoryAdd(const RunContext& context, const CategoryOptions& options) {
 // Renames a category.
 Answer categorySet(const RunContext& context, const CategoryOptions& options) {
     const std::string command = "assets category set";
+    Answer badId;
+    if (!checkIdArgument(command, options.id, badId)) {
+        return badId;
+    }
     OpenedCatalog opened;
     Answer failed;
     if (!openCatalog(command, context, options.library, opened, failed)) {
@@ -393,6 +425,10 @@ Answer categorySet(const RunContext& context, const CategoryOptions& options) {
 // Removes a category and says which assets lost it.
 Answer categoryRemove(const RunContext& context, const IdOptions& options) {
     const std::string command = "assets category remove";
+    Answer badId;
+    if (!checkIdArgument(command, options.id, badId)) {
+        return badId;
+    }
     OpenedCatalog opened;
     Answer failed;
     if (!openCatalog(command, context, options.library, opened, failed)) {

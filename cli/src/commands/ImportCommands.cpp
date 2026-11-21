@@ -57,6 +57,12 @@ Json warningsJson(const std::vector<BlenderWarning>& warnings) {
 // Imports one file, folder or zip.
 Answer assetsImport(const RunContext& context, const ImportOptions& options) {
     const std::string command = "assets import";
+    if (!options.id.empty()) {
+        Answer badId;
+        if (!checkIdArgument(command, options.id, badId)) {
+            return badId;
+        }
+    }
     if (options.scale <= 0.0 || options.scale != options.scale) {
         return failure(command, fail(ErrorCode::InvalidValue, "The scale must be above 0."));
     }
@@ -160,6 +166,10 @@ Answer assetsRescan(const RunContext& context, const RescanOptions& options) {
 // Measures an asset again and renders a new thumbnail.
 Answer assetsThumbnail(const RunContext& context, const ThumbnailOptions& options) {
     const std::string command = "assets thumbnail";
+    Answer badId;
+    if (!checkIdArgument(command, options.id, badId)) {
+        return badId;
+    }
     OpenedCatalog opened;
     Answer failed;
     if (!openCatalog(command, context, options.library, opened, failed)) {
