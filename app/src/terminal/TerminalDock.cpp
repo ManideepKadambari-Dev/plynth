@@ -22,7 +22,7 @@ namespace {
 
 constexpr int kMinPanelWidth = 320;
 constexpr int kMinPanelHeight = 160;
-constexpr int kFirstOutputDelayMs = 400;
+constexpr int kQuietBeforeTypingMs = 600;
 constexpr qint64 kQuietMs = 1500;
 constexpr qint64 kPictureLimitMs = 15000;
 
@@ -185,17 +185,19 @@ void TerminalDock::ensureCreated()
         sinceOutput_.restart();
         if (typed_)
             outputSinceTyped_ = true;
-        if (!waitingFirstOutput_)
-            return;
+        if (waitingFirstOutput_)
+            typeTimer_.start();
+    });
+    typeTimer_.setSingleShot(true);
+    typeTimer_.setInterval(kQuietBeforeTypingMs);
+    connect(&typeTimer_, &QTimer::timeout, this, [this]() {
         waitingFirstOutput_ = false;
-        QTimer::singleShot(kFirstOutputDelayMs, this, [this]() {
-            if (!pendingText_.isNull() && session_->isRunning()) {
-                session_->write((pendingText_ + QLatin1Char('\r')).toUtf8());
-                sinceOutput_.restart();
-                outputSinceTyped_ = false;
-            }
-            typed_ = true;
-        });
+        if (!pendingText_.isNull() && session_->isRunning()) {
+            session_->write((pendingText_ + QLatin1Char('\r')).toUtf8());
+            sinceOutput_.restart();
+            outputSinceTyped_ = false;
+        }
+        typed_ = true;
     });
 }
 

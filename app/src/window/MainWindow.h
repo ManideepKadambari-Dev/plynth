@@ -88,6 +88,7 @@ private:
     void syncWatcher();
     void handleCheck();
     bool reloadFromDisk();
+    void reloadOrAsk();
     void updateReadOnlyUi();
     void unlockNow();
     bool decodeImage(const QString& path, QImage* image, QString* error);

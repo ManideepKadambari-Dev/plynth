@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QSize>
 #include <QString>
+#include <QTimer>
 
 #include <memory>
 
@@ -78,6 +79,7 @@ private:
     bool outputSinceTyped_ = false;
     bool waitingFirstOutput_ = false;
     QElapsedTimer sinceOutput_;
+    QTimer typeTimer_;
     QElapsedTimer sinceStart_;
 };
 

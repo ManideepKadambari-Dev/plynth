@@ -286,6 +286,7 @@ void MainWindow::onDocumentChanged(unsigned changes)
     if (changes & plynth::Change::ReadOnly)
         updateReadOnlyUi();
     if (changes & plynth::Change::Folder) {
+        recoveryPending_ = false;
         terminal_->setWorkingFolder(doc_.hasFolder() ? QString::fromStdWString(doc_.folder().wstring()) : QString());
         QTimer::singleShot(0, this, &MainWindow::syncWatcher);
     }
@@ -448,14 +449,14 @@ void MainWindow::handleCheck()
         if (!doc_.isReadOnly())
             doc_.setReadOnly(true, "The project is being edited from the command line by " + session.lock.tool + ".");
         if (outside || reloadPending_)
-            reloadFromDisk();
+            reloadOrAsk();
         watcher_->setAlwaysCheck(true);
         return;
     }
 
     if (doc_.isReadOnly()) {
         if (outside || reloadPending_)
-            reloadFromDisk();
+            reloadOrAsk();
         doc_.setReadOnly(false);
         watcher_->setAlwaysCheck(reloadPending_);
         if (recoveryPending_) {
@@ -468,6 +469,12 @@ void MainWindow::handleCheck()
     watcher_->setAlwaysCheck(reloadPending_);
     if (!outside && !reloadPending_)
         return;
+    reloadOrAsk();
+}
+
+// Reloads after an outside change. When there are unsaved changes, asks first: Load or Keep mine.
+void MainWindow::reloadOrAsk()
+{
     if (!doc_.isModified()) {
         reloadFromDisk();
         return;
@@ -606,9 +613,8 @@ bool MainWindow::confirmDiscardChanges()
         if (box.clickedButton() == save && !saveDocument())
             return false;
     }
-    if (doc_.hasFolder())
+    if (doc_.hasFolder() && !recoveryPending_)
         doc_.discardAutosave();
-    terminal_->shutdown();
     return true;
 }
 
@@ -635,6 +641,7 @@ void MainWindow::newProject()
 {
     if (!confirmDiscardChanges())
         return;
+    terminal_->shutdown();
     doc_.replace(plynth::makeNewProject(), {}, false);
 }
 
@@ -648,8 +655,11 @@ void MainWindow::newProjectFromImage()
     if (!confirmDiscardChanges())
         return;
     QString error;
-    if (!newFromImage(file, &error))
+    if (!newFromImage(file, &error)) {
         showError(tr("Cannot open image"), error);
+        return;
+    }
+    terminal_->shutdown();
 }
 
 // Asks for a project folder and opens it after the save question.
@@ -666,6 +676,7 @@ void MainWindow::openProjectDialog()
         showError(tr("Cannot open project"), error);
         return;
     }
+    terminal_->shutdown();
     offerRecovery();
 }
 
@@ -804,6 +815,7 @@ void MainWindow::closeEvent(QCloseEvent* event)
         event->ignore();
         return;
     }
+    terminal_->shutdown();
     removeAppState();
     event->accept();
 }

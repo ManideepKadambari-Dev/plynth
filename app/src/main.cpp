@@ -91,7 +91,28 @@ int main(int argc, char* argv[])
     theme.loadBundledFonts();
     theme.apply();
 
-    const QStringList positional = parser.positionalArguments();
+    QStringList positional = parser.positionalArguments();
+
+    // Words right after the value of --terminal, up to the next option, belong to the text. They are
+    // left over when a shell splits a quoted argument. They are never taken as the project folder.
+    QStringList terminalWords;
+    {
+        const QStringList raw = QApplication::arguments();
+        for (qsizetype i = 1; i < raw.size(); ++i) {
+            const bool inline_ = raw.at(i).startsWith(QStringLiteral("--terminal="));
+            if (raw.at(i) != QStringLiteral("--terminal") && !inline_)
+                continue;
+            qsizetype next = inline_ ? i + 1 : i + 2;
+            for (; next < raw.size() && !raw.at(next).startsWith(QLatin1Char('-')); ++next)
+                terminalWords.append(raw.at(next));
+            break;
+        }
+        if (terminalWords.size() <= positional.size() &&
+            positional.mid(positional.size() - terminalWords.size()) == terminalWords)
+            positional = positional.mid(0, positional.size() - terminalWords.size());
+        else
+            terminalWords.clear();
+    }
     plynth::app::MainWindow window;
     window.setScreenshotMode(wantsScreenshot);
     if (hasSize)
@@ -129,8 +150,8 @@ int main(int argc, char* argv[])
         // Extra words after the project folder belong to the text, in case the shell that
         // started the app split a quoted argument into several.
         QString text = parser.value(terminalOption);
-        for (qsizetype i = 1; i < positional.size(); ++i)
-            text += QLatin1Char(' ') + positional.at(i);
+        for (const QString& word : terminalWords)
+            text += QLatin1Char(' ') + word;
         QTimer::singleShot(0, &window, [&window, text]() { window.startTerminalCheck(text); });
     }
 
