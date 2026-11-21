@@ -2,7 +2,7 @@
 
 Plynth can be driven from a terminal, a script or a coding assistant. Every command prints one JSON answer, so a program can read the result without parsing text meant for people.
 
-This page covers the commands that exist today: version, help, creating and reading a project, setting the scale, grid and default sizes, floors, points, walls (straight and curved), rounded corners, doors, windows and other openings, rooms, finding walls and openings in the plan image with `detect`, and the edit session that keeps the app and the command line from overwriting each other. More commands arrive in later releases.
+This page covers the commands that exist today: version, help, creating and reading a project, setting the scale, grid and default sizes, floors, points, walls (straight and curved), rounded corners, doors, windows and other openings, rooms, finding walls and openings in the plan image with `detect`, the edit session that keeps the app and the command line from overwriting each other, and the machine commands: `doctor`, `settings`, `library` and `assets`. More commands arrive in later releases.
 
 The plan and project files are now at format version 2. Older projects open and upgrade by themselves. See "File format version 2" below.
 
@@ -19,15 +19,15 @@ Typing `plynth` in a terminal finds `plynth.com` first. The terminal inside Plyn
 
 The first word decides what happens:
 
-- A command word (`version`, `help`, `project`, `scale`, `point`, `wall`, `opening`, `floor`, `room`, `detect`, `session`) runs the command and prints the answer. No window opens.
+- A command word (`version`, `help`, `project`, `scale`, `point`, `wall`, `opening`, `floor`, `room`, `detect`, `session`, `doctor`, `settings`, `library`, `assets`) runs the command and prints the answer. No window opens.
 - A project folder or an app option (`--image`, `--screenshot`, `--size`, `--terminal`), or no argument at all, opens the window. `plynth.com` starts the window and returns at once.
 - Anything else prints an `unknown_command` answer and exits with code 2. For example `plynth bogus`.
 
-To open a folder that is literally named after a command word, such as `project`, `room`, `opening`, `floor` or `detect`, write `.\project`, `.\room`, `.\opening`, `.\floor` or `.\detect`. Without the `.\` Plynth runs the command instead. `opening` and `floor` are new command words, so a folder with one of those names that worked before now needs the `.\` too. The same goes for `--project`: write `--project .\opening`.
+To open a folder that is literally named after a command word, such as `project`, `room`, `opening`, `floor` or `detect`, write `.\project`, `.\room`, `.\opening`, `.\floor` or `.\detect`. Without the `.\` Plynth runs the command instead. `doctor`, `settings`, `library` and `assets` are new command words, so a project folder with one of those names that worked before now needs the `.\` too. The same goes for `--project`: write `--project .\opening`.
 
 ### Which project a command works on
 
-Like git, a command works on the project in the current folder. Add `--project <folder>` to use another one. It works on every command except `version` and `help`.
+Like git, a command works on the project in the current folder. Add `--project <folder>` to use another one. It works on every command except `version`, `help`, `doctor`, `settings`, `library` and `assets`, which are about the machine and never open a project.
 
 ```
 cd D:\Plans\MyApartment
@@ -58,7 +58,7 @@ Failure:
 - `error.code` is a short name a program can test. `error.message` is one plain sentence for a person.
 - `error.where` is added only when a project file is damaged. It is a JSON pointer to the bad value, such as `/floors/0/walls/2/to`.
 
-Paths in answers are absolute and use forward slashes. Lengths are in metres. The shape is described by `schema/cli-answer.schema.json`.
+An answer can also have a top level `warnings` list next to `result`. See "Warnings" below. Paths in answers are absolute and use forward slashes. Lengths are in metres. The shape is described by `schema/cli-answer.schema.json`.
 
 Help text from the command parser is never printed. `--help` or `-h` on any command gives the same answer as `help`.
 
@@ -90,6 +90,11 @@ The app itself, when you give it `--screenshot`, uses its own codes. 0 means the
 | `image_error` | The plan image was refused: missing, empty, damaged, too large or not PNG, JPEG or BMP. `detect` also uses it when the image cannot be decoded or processed. |
 | `locked` | The project is open in the app and no edit session is active, or the session ended. See "Working while the app is open". |
 | `unsaved_changes` | The app has unsaved changes, so an edit session cannot begin. |
+| `no_library` | No library folder is set, or the folder given is not a library. The message names `plynth library init`. |
+| `blender_not_found` | No usable Blender: none is installed, the one asked for is missing, or it is older than 4.2. Install Blender from blender.org yourself and run `plynth doctor`. |
+| `blender_failed` | Blender ran but the job failed, crashed or gave no result. The message says why, with the end of Blender's log when there is one. |
+| `cancelled` | The job was stopped before it finished. Nothing is kept. |
+| `database_error` | The catalog database could not be opened or written. `assets rescan` rebuilds it from the folders. |
 | `internal_error` | Something unexpected went wrong inside Plynth. Exit 1. The message says what. |
 
 ## Commands
@@ -839,7 +844,7 @@ The example is a plan with no rooms yet. Each room in the list is a room entry.
 
 ### room types
 
-Lists the built-in room types. It needs no project, so it does not take `--project`.
+Lists the room types. With a library set, this is the library's list, including room types you added (see `assets room add`). Without one, it is the built-in list. It needs no project, so it does not take `--project`.
 
 ```
 plynth room types
@@ -972,6 +977,480 @@ plynth session status
 ```
 
 `state` is `none`, `active` or `expired`. The other fields are filled in when a session exists.
+
+## Machine settings, the library and the assets catalog
+
+These commands are about your computer, not about one project. They never open a project, so they do not take `--project` and the edit lock never refuses them. They work while the app has a project open.
+
+All of them read the machine settings file. `settings show` tells you where it is. By default it is `%APPDATA%\Plynth\settings.json`. Set the environment variable `PLYNTH_CONFIG_DIR` to a folder to use another settings file, which is how scripts and tests keep away from the real one. `PLYNTH_BLENDER` names a `blender.exe` to use when none is chosen in the settings.
+
+Commands that use the library take `--library <folder>` to use another library than the one in the settings. Commands that run Blender (`assets import`, `assets inbox`, `assets rescan`, `assets thumbnail`, `library rescan`) take `--blender <exe>` to use another Blender than the one the setup check chooses. Ids (`chair`, `living`) use lower case letters, digits and `_`, start with a letter, and are at most 64 characters. Tags use lower case letters, digits, `_` and `-`.
+
+The examples below ran against a fresh library in `D:\Demo`, with the sample chair from `samples\models\chair`.
+
+### doctor
+
+Checks the machine: Blender, the library and projects folders, the graphics driver and the optional add-ons. It only looks. It installs nothing, downloads nothing and changes no setting. The same check is the Setup check screen in the app, and [Setting up Plynth](SETUP.md) explains each item.
+
+```
+plynth doctor
+plynth doctor --no-addons
+plynth doctor --blender "C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
+```
+
+Options:
+
+- `--no-addons`: do not start Blender to ask about add-ons. The add-on items then say `not_checked`, and `probed` is false. This is faster.
+- `--blender <file>`: check this `blender.exe` as if it were the chosen one. Nothing is saved.
+
+Without `--no-addons`, doctor starts Blender once in the background, which takes a few seconds. The answer always has `ok` true and exit code 0, even when something is missing. A script reads `ready`, which is true when no required item is missing or too old.
+
+```json
+{"ok":true,"command":"doctor","result":{"ready":true,"first_run":false,"updated":true,"probed":false,"items":[{"id":"blender","name":"Blender","required":true,"state":"found","version":"5.2.0","path":"C:/Program Files/Blender Foundation/Blender 5.2/blender.exe","detail":"Blender 5.2.0 LTS (hash fbe6228777e7 built 2026-07-14 01:35:40) found.","action":"","link":"","affects":[]},{"id":"library_folder","name":"Library folder","required":true,"state":"found","version":null,"path":"D:/Demo/Library","detail":"The library is ready.","action":"","link":"","affects":[]},{"id":"graphics_driver","name":"Graphics driver","required":true,"state":"not_checked","version":null,"path":null,"detail":"Checked once the 3D preview is added.","action":"","link":"","affects":[]},{"id":"addon_blenderkit","name":"BlenderKit add-on","required":false,"state":"not_checked","version":null,"path":null,"detail":"Add-ons were not checked this time.","action":"","link":"https://www.blenderkit.com/","affects":["importing assets from BlenderKit"]}],"blender_installs":[{"path":"C:/Program Files/Blender Foundation/Blender 5.2/blender.exe","version":"5.2.0","version_text":"Blender 5.2.0 LTS (hash fbe6228777e7 built 2026-07-14 01:35:40)","support":"supported","sources":["program_folder","registry"],"selected":true,"problem":null}]}}
+```
+
+The example is shortened. The real answer lists every item, in this order: `blender`, `blender_version`, `library_folder`, `projects_folder`, `graphics_driver`, then the add-ons `addon_blenderkit`, `addon_archimesh`, `addon_home_builder`, `addon_bool_tool`, `addon_asset_optimizer`, `addon_bagapie`.
+
+Each item has:
+
+| Field | Meaning |
+|---|---|
+| `id`, `name` | Which item it is. |
+| `required` | True when the item blocks importing now and Build and Export later. The add-ons are never required. |
+| `state` | `found`, `missing`, `too_old`, `needs_attention` or `not_checked`. |
+| `version`, `path` | What was found. `null` when unknown. |
+| `detail` | One sentence on what was found. |
+| `action` | One sentence on what to do. Empty when nothing is needed. |
+| `link` | An official page, or an empty string. |
+| `affects` | For add-ons, what stays switched off without it. |
+
+`first_run` is true when no settings file exists yet. `updated` is true when the last passing setup check was made by another Plynth version. `blender_installs` lists every Blender found, newest first, with `support` (`supported`, `too_old` or `untested`) and where it was found. The shape is in `schema/setup-report.schema.json`.
+
+### settings show
+
+Shows the machine settings and where the file is.
+
+```
+plynth settings show
+```
+
+```json
+{"ok":true,"command":"settings show","result":{"file":"D:/Demo/config/settings.json","exists":true,"settings":{"library":"D:/Demo/Library","projects":"D:/Demo/Projects","blender":null,"keep_imported_zips":false,"thumbnail_engine":"eevee","triangle_warning":500000,"setup_checked_version":null}}}
+```
+
+`exists` is false until something has been saved, and the settings then show their defaults. `library`, `projects` and `blender` are `null` when not set. `blender` null means Plynth uses the newest supported Blender it finds.
+
+### settings set
+
+Changes one or more settings. Each option is checked before anything is saved. If one is refused, nothing is saved.
+
+```
+plynth settings set --projects D:\Demo\Projects
+plynth settings set --keep-zips true --thumbnail-engine cycles
+plynth settings set --blender none
+```
+
+Options (give at least one):
+
+- `--library <folder|none>`: the library folder. It must already be a library, so run `library init` first. `none` clears it.
+- `--projects <folder|none>`: where new projects go and where the built-in terminal starts. The folder must exist.
+- `--blender <file|none>`: the `blender.exe` to use. It must run and be version 4.2 or newer. `none` goes back to the newest one found.
+- `--keep-zips <true|false>`: keep a zip after its asset was imported instead of moving it to the Recycle Bin.
+- `--thumbnail-engine <eevee|cycles>`: how thumbnails are rendered.
+- `--triangle-warning <n>`: imports with more triangles than this get the `high_polycount` warning.
+
+The answer is the same as `settings show`. A library folder that is not a library gives `no_library`. A projects folder that does not exist gives `not_found`. A Blender that is missing or too old gives `blender_not_found`.
+
+```json
+{"ok":false,"command":"settings set","error":{"code":"blender_not_found","message":"There is no program at C:/nope/blender.exe."}}
+```
+
+### library init
+
+Makes a folder into a library: it creates the folders and the two catalog databases, and fills the lists of room types, categories and licenses. It never removes or changes anything already there, so it is safe to run on an existing library.
+
+```
+plynth library init D:\Demo\Library --use
+```
+
+Option: `--use` also saves the folder as the library in the settings.
+
+```json
+{"ok":true,"command":"library init","result":{"root":"D:/Demo/Library","free_bytes":440542654464,"assets":{"db":"D:/Demo/Library/assets/assets.db","items":0,"uncategorized":0,"inbox_waiting":0},"materials":{"db":"D:/Demo/Library/materials/materials.db","items":0},"shapes":[]}}
+```
+
+### library info
+
+Describes the library: its folder, free space, how many assets it holds, and the custom opening shapes found in `shapes/`.
+
+```
+plynth library info
+```
+
+The answer has the same shape as `library init`. `uncategorized` counts assets with no category. `inbox_waiting` counts files waiting in the inbox. `shapes` lists the ids of custom opening shapes loaded from `Library\shapes\`.
+
+Option: `--library <folder>`.
+
+### library rescan
+
+Rebuilds the asset index from the folders in `assets\items\`, then measures again every asset whose `asset.blend` changed. It is the same as `assets rescan` with the answer wrapped in `assets`. Add `--no-blender` to list the changed assets without starting Blender.
+
+```
+plynth library rescan --no-blender
+```
+
+```json
+{"ok":true,"command":"library rescan","result":{"assets":{"added":4,"updated":0,"removed":0,"unchanged":0,"needs_refresh":[],"refreshed":[],"refresh_failed":[],"broken":[],"inbox_waiting":0}}}
+```
+
+That answer is from a library whose `assets.db` was deleted by hand: all four assets came back from their folders. The room types you added and the categories you made yourself are kept only in `assets.db`, so they went back to the built-in lists (plus any category an `info.json` names).
+
+### assets import
+
+Imports a model file, a zip or a folder into the library. Blender runs in the background, cleans the model, saves it as `asset.blend`, measures it and renders a thumbnail. This takes a few seconds.
+
+```
+plynth assets import D:\Demo\in\chair.obj --category chair --tag oak
+plynth assets import D:\Demo\in\chair.zip --name "Zip chair" --keep-original
+plynth assets import D:\Demo\in\chair.obj --scale 0.01
+```
+
+Options:
+
+- `<path>`: the file, zip or folder. Files ending `.blend`, `.fbx`, `.glb`, `.gltf`, `.obj` and `.zip` are read. A folder must hold one model. `assets importers` lists the endings.
+- `--id <id>`: the asset id. Default: made from the file name (`Red Chair (2).obj` becomes `red_chair_2`). A taken default gets `_2`, `_3` and so on. An id you give that is taken is `already_exists`.
+- `--name <text>`: the name. Default: made from the file name.
+- `--category <id>`: a category. Repeat for several. An unknown one is `not_found`, and nothing is imported.
+- `--tag <tag>`: a tag. Repeat for several.
+- `--license <id>`: a license from `assets licenses`. Default `unknown`.
+- `--scale <number>`: multiply the size of the model. Use it when the file has other units, for example `--scale 0.01` for a model drawn in centimetres.
+- `--rotate <0|90|180|270>`: turn the model about the vertical axis. Use it when the front of the model does not face the way Plynth expects (see the user guide).
+- `--keep-original`: keep a zip after the import. Without it, an imported zip goes to the Windows Recycle Bin. Files and folders you point at are never touched, only zips.
+
+```json
+{"ok":true,"command":"assets import","result":{"asset":{"id":"chair","name":"Chair","categories":["chair"],"tags":["oak"],"license":"unknown","source":{"kind":"local_file","reference":"chair.obj","imported_at":"2026-11-21T16:40:56Z"},"size":{"width":0.45,"depth":0.5,"height":0.9},"triangles":72,"state":"ready","problem":null,"thumbnail":{"state":"ok","file":"D:/Demo/Library/assets/items/chair/thumb.png","error":null},"folder":"D:/Demo/Library/assets/items/chair"},"importer":"local_file","thumbnail_failed":false,"original_removed":false}}
+```
+
+The `asset` is an asset entry (below). `importer` is the importer that was used. `thumbnail_failed` is true when the render failed: the asset is still imported, with `thumbnail.state` `failed` and the reason in `thumbnail.error`. `original_removed` is true when a zip was moved to the Recycle Bin.
+
+Problems with the model are warnings in the top level `warnings` list. The import still works. This one is from `--scale 0.01`:
+
+```json
+"warnings":[{"code":"scale_suspicious","message":"The largest side is 0.0090 m, which is very small. The file may use other units. Import with a scale (for example --scale 100)."}]
+```
+
+Cleanup warning codes: `high_polycount` (more triangles than the limit in the settings), `scale_suspicious` (largest side above 30 m or below 0.02 m), `missing_texture` (a texture file could not be found), `removed_objects` (cameras, lights or empties were removed), `unsupported_object`, `eevee_failed` (the thumbnail was rendered by Cycles instead).
+
+Refusals: an ending no importer reads is `invalid_value` and names the endings. A rotation that is not 0, 90, 180 or 270 is `invalid_value`. A file that Blender cannot turn into a model is `blender_failed` with the reason. No Blender is `blender_not_found`. No library is `no_library`. Nothing is left in the library after a failed import.
+
+```json
+{"ok":false,"command":"assets import","error":{"code":"invalid_value","message":"The rotation must be 0, 90, 180 or 270 degrees."}}
+```
+
+### assets inbox
+
+Imports everything waiting in the library's `assets\inbox\` folder. The app does this by itself while it runs. Use the command when the app is closed.
+
+```
+plynth assets inbox
+```
+
+```json
+{"ok":true,"command":"assets inbox","result":{"imported":["office_chair"],"failed":[{"entry":"broken.obj","code":"blender_failed","message":"The file holds no model with geometry.\nThe work folder was kept for the log: D:/Demo/Library/assets/.staging/broken-2ce374cb"}],"remaining":0}}
+```
+
+The answer is ok even when some entries failed. An imported zip goes to the Recycle Bin, or to `inbox\done\` when `keep_imported_zips` is on (as it was for this run). Other imported files and folders move to `inbox\done\`. A failed entry moves to `inbox\failed\` together with a `<name>.error.txt` that holds the reason. An entry never stays in the inbox, so it is never imported twice. `remaining` counts entries still waiting.
+
+### assets search
+
+Searches the assets by words and filters. Every word must match the start of a name, id, tag or category, so `cha` finds "Chair" and "Armchair". Accents are ignored.
+
+```
+plynth assets search cha
+plynth assets search --room gaming
+plynth assets search --tag oak --tag wood --license cc0
+plynth assets search --uncategorized --limit 20
+```
+
+Options:
+
+- `<text>`: words to find. Optional.
+- `--room <id>`: only assets in a category of this room type.
+- `--category <id>`: only assets in this category.
+- `--tag <tag>`: only assets with this tag. Repeat to require several.
+- `--license <id>`: only assets with this license.
+- `--uncategorized`: only assets with no category.
+- `--limit <n>`: at most this many.
+
+```json
+{"ok":true,"command":"assets search","result":{"assets":[{"id":"chair","name":"Chair","categories":["chair"],"tags":["oak"],"license":"unknown","source":{"kind":"local_file","reference":"chair.obj","imported_at":"2026-11-21T16:40:56Z"},"size":{"width":0.45,"depth":0.5,"height":0.9},"triangles":72,"state":"ready","problem":null,"thumbnail":{"state":"ok","file":"D:/Demo/Library/assets/items/chair/thumb.png","error":null},"folder":"D:/Demo/Library/assets/items/chair"}],"count":1}}
+```
+
+An unknown `--room` is `not_found`.
+
+```json
+{"ok":false,"command":"assets search","error":{"code":"not_found","message":"There is no room type nope."}}
+```
+
+#### The asset entry
+
+Every asset in an answer has these fields:
+
+| Field | Meaning |
+|---|---|
+| `id`, `name` | The id used by commands, and the name shown to people. |
+| `categories` | Category ids. Empty means uncategorized. |
+| `tags` | Sorted tags. |
+| `license` | A license id. |
+| `source` | `kind` (`local_file`), `reference` (the original file name) and `imported_at` (UTC). |
+| `size` | `width` (X), `depth` (Y) and `height` (Z) in metres. |
+| `triangles` | Triangle count. |
+| `state` | `ready`, `needs_refresh` (the `.blend` changed and has not been measured again) or `broken` (see `problem`). |
+| `problem` | Why the asset is broken, otherwise `null`. |
+| `thumbnail` | `state` (`ok`, `failed` or `missing`), `file` (the picture, when `ok`) and `error`. |
+| `folder` | The asset's folder. |
+
+### assets list
+
+The same as `assets search` without the words. It takes the same filters.
+
+```
+plynth assets list --category chair
+```
+
+### assets info
+
+Shows one asset with more detail: the entry above plus the number of objects, the materials, the textures, the warnings from the last cleanup and the Blender version that cleaned it.
+
+```
+plynth assets info chair_2
+```
+
+```json
+{"ok":true,"command":"assets info","result":{"id":"chair_2","name":"Tiny chair","categories":[],"tags":["small"],"license":"own_work","source":{"kind":"local_file","reference":"chair.obj","imported_at":"2026-11-21T16:40:58Z"},"size":{"width":0.0045,"depth":0.005,"height":0.009},"triangles":72,"state":"ready","problem":null,"thumbnail":{"state":"ok","file":"D:/Demo/Library/assets/items/chair_2/thumb.png","error":null},"folder":"D:/Demo/Library/assets/items/chair_2","objects":6,"materials":["Fabric","Wood"],"textures":["textures/chair_wood.png"],"warnings":[{"code":"scale_suspicious","message":"The largest side is 0.0090 m, which is very small. The file may use other units. Import with a scale (for example --scale 100)."}],"blender_version":"5.2.0"}}
+```
+
+An unknown id is `not_found`.
+
+### assets set
+
+Changes the name, categories, tags or license of an asset. Give at least one option. The change is written to the asset's `info.json` first and then to the index.
+
+```
+plynth assets set chair_2 --name "Tiny chair" --license own_work --add-tag small
+plynth assets set chair --categories chair,desk --tags ""
+```
+
+Options:
+
+- `--name <text>`: a new name.
+- `--categories <a,b>`: replace the categories. An empty string clears them.
+- `--add-category <id>`, `--remove-category <id>`: change one category. Repeatable.
+- `--tags <a,b>`: replace the tags. An empty string clears them.
+- `--add-tag <tag>`, `--remove-tag <tag>`: change one tag. Repeatable.
+- `--license <id>`: a license id.
+
+The answer is the asset entry. An unknown category or license is `not_found` and nothing changes.
+
+### assets remove
+
+Deletes an asset and its whole folder. It cannot be undone, so `--yes` is required.
+
+```
+plynth assets remove chair_2 --yes
+```
+
+```json
+{"ok":true,"command":"assets remove","result":{"removed":"chair_2"}}
+```
+
+Without `--yes` the answer is `bad_arguments` and nothing is deleted:
+
+```json
+{"ok":false,"command":"assets remove","error":{"code":"bad_arguments","message":"Removing an asset deletes its folder and cannot be undone. Add --yes to confirm."}}
+```
+
+### assets rescan
+
+Rebuilds the asset index from the folders in `items\`, then measures again each asset whose `asset.blend` changed and renders its thumbnail. A folder with only an `asset.blend` gets a new `info.json` and is uncategorized. A folder with a damaged `info.json` is listed in `broken` and the others still load. Folders whose name starts with a dot are skipped.
+
+```
+plynth assets rescan
+plynth assets rescan --no-blender
+```
+
+With `--no-blender` nothing is measured: changed assets are only listed in `needs_refresh`.
+
+```json
+{"ok":true,"command":"assets rescan","result":{"added":0,"updated":1,"removed":0,"unchanged":3,"needs_refresh":["chair"],"refreshed":[],"refresh_failed":[],"broken":[],"inbox_waiting":0}}
+```
+
+`added`, `updated`, `removed` and `unchanged` count asset rows. `needs_refresh` lists the assets whose `asset.blend` changed. `refreshed` lists the ones measured again. `refresh_failed` lists the ones that could not be, each with `id`, `code` and `message`. `broken` lists the folders that could not be read, each with `folder`, `code` and `message`. `inbox_waiting` counts entries in the inbox.
+
+### assets thumbnail
+
+Measures an asset again and renders a new thumbnail. Use it when a render failed or after you changed `asset.blend` in Blender.
+
+```
+plynth assets thumbnail chair
+```
+
+The answer is the asset entry after the refresh.
+
+### assets rooms
+
+Lists the room types of the library, with the categories that belong in each.
+
+```
+plynth assets rooms
+```
+
+```json
+{"ok":true,"command":"assets rooms","result":{"room_types":[{"id":"living","name":"Living room","built_in":true,"categories":["sofa","armchair","table","shelf","tv","lamp","carpet","curtain","plant","decor"]},{"id":"other","name":"Other","built_in":true,"categories":[]}]}}
+```
+
+The example is shortened. There are nine built-in room types: `living`, `bedroom`, `kitchen`, `bathroom`, `hall`, `dining`, `office`, `storage` and `other`. This list is also the one `room types`, `room add --type` and `room set --type` use once a library is set.
+
+### assets room add
+
+Adds a room type. `--name` is required.
+
+```
+plynth assets room add gaming --name "Gaming room"
+```
+
+```json
+{"ok":true,"command":"assets room add","result":{"id":"gaming","name":"Gaming room","built_in":false,"categories":[]}}
+```
+
+### assets room set
+
+Renames a room type, replaces its categories, or moves it in the list. Give at least one option.
+
+```
+plynth assets room set gaming --categories desk,chair,tv,lamp
+```
+
+Options: `--name <text>`, `--categories <a,b>` (replaces the list), `--position <n>` (from 0).
+
+```json
+{"ok":true,"command":"assets room set","result":{"id":"gaming","name":"Gaming room","built_in":false,"categories":["chair","desk","tv","lamp"]}}
+```
+
+An unknown category is `not_found`.
+
+### assets room remove
+
+Removes a room type from the list. Plans that already use it keep its id, show the id as the label, and `room set` refuses it from then on.
+
+```
+plynth assets room remove gaming
+```
+
+```json
+{"ok":true,"command":"assets room remove","result":{"removed":"gaming"}}
+```
+
+### assets categories
+
+Lists every category with how many assets hold it. There are 24 built-in categories, from `sofa` to `window`. `door` and `window` belong to no room type, because they are for opening frames in a later release.
+
+```
+plynth assets categories
+```
+
+```json
+{"ok":true,"command":"assets categories","result":{"categories":[{"id":"sofa","name":"Sofa","built_in":true,"assets":0},{"id":"chair","name":"Chair","built_in":true,"assets":1}]}}
+```
+
+The example is shortened.
+
+### assets category add
+
+Adds a category. `--name` is required.
+
+```
+plynth assets category add rug --name "Rug"
+```
+
+```json
+{"ok":true,"command":"assets category add","result":{"id":"rug","name":"Rug","built_in":false,"assets":0}}
+```
+
+### assets category set
+
+Renames a category. The id does not change, so assets keep it.
+
+```
+plynth assets category set rug --name "Floor rug"
+```
+
+```json
+{"ok":true,"command":"assets category set","result":{"id":"rug","name":"Floor rug","built_in":false,"assets":0}}
+```
+
+### assets category remove
+
+Removes a category from the list, from every room type, and from every asset that has it. It lists the assets it changed.
+
+```
+plynth assets category remove rug
+```
+
+```json
+{"ok":true,"command":"assets category remove","result":{"removed":"rug","assets_changed":[]}}
+```
+
+### assets licenses
+
+Lists the licenses an asset can have. `redistributable` says whether a model with that license may be shared with a project.
+
+```
+plynth assets licenses
+```
+
+```json
+{"ok":true,"command":"assets licenses","result":{"licenses":[{"id":"unknown","name":"Unknown","url":"","redistributable":false},{"id":"cc0","name":"CC0 (public domain)","url":"https://creativecommons.org/publicdomain/zero/1.0/","redistributable":true},{"id":"cc_by_4","name":"CC BY 4.0","url":"https://creativecommons.org/licenses/by/4.0/","redistributable":true},{"id":"royalty_free","name":"Royalty free","url":"","redistributable":false},{"id":"personal_use","name":"Personal use only","url":"","redistributable":false},{"id":"own_work","name":"Own work","url":"","redistributable":true}]}}
+```
+
+### assets importers
+
+Lists the ways an asset can be imported. Today there is one, for your own files.
+
+```
+plynth assets importers
+```
+
+```json
+{"ok":true,"command":"assets importers","result":{"importers":[{"id":"local_file","name":"Own files","description":"Model files (.blend, .fbx, .obj, .gltf, .glb), zip files and folders that hold a model.","suffixes":[".blend",".fbx",".glb",".gltf",".obj",".zip"]}]}}
+```
+
+## Warnings
+
+An answer can have a top level `warnings` list next to `result`. It appears only when there is something to say, and it never changes `ok`. Each warning has a `code` and a `message`. Check for it in scripts: the command worked, and the warning says what to look at.
+
+Codes in use:
+
+- `image_missing`: a plan image of the project could not be found. Edits are still saved and the image path is kept. Put the file back, or set another image.
+- The cleanup codes listed under `assets import`: `high_polycount`, `scale_suspicious`, `missing_texture`, `removed_objects`, `unsupported_object`, `eevee_failed`.
+
+A project whose plan image was deleted, after `scale set`:
+
+```json
+{"ok":true,"command":"scale set","result":{"pixels_per_metre":100.0,"moved_marks":false},"warnings":[{"code":"image_missing","message":"The plan image plans/apartment-01.png is missing. Its path was kept."}]}
+```
+
+`project new` with an image that is missing is still refused with `not_found`, because there is nothing yet to keep.
+
+## The setup order
+
+For a script on a new machine:
+
+1. `plynth doctor`. Read `ready` and the items. Install Blender yourself from blender.org if it is missing. Plynth never installs anything.
+2. `plynth library init <folder> --use`, then `plynth settings set --projects <folder>`.
+3. `plynth doctor` again. `ready` should now be true.
+4. `plynth assets import <file>` for each model. Add `--category` and `--tag` so you do not have to edit afterwards.
+5. `plynth assets search <words>` to find the ids you need.
 
 ## File format version 2
 

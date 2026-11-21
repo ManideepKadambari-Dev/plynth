@@ -13,7 +13,7 @@ Early development. Not ready for use yet.
 ## Requirements
 
 - Windows 10 or 11
-- Blender (installed separately)
+- Blender 4.2 or newer (installed separately; Plynth never installs it). The setup check in the app and `plynth doctor` tell you what is missing. See `docs/SETUP.md`.
 
 ## Building from source
 

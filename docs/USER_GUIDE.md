@@ -1,8 +1,8 @@
 # User guide
 
-This covers what Plynth does today: opening a project, showing its plan image, setting the scale, drawing walls (straight and curved, with rounded corners), placing doors, windows and other openings, setting heights, finding walls and openings in the image automatically, making rooms, undo and redo, saving, working next to the command line, and the built-in terminal. More screens arrive in later releases.
+This covers what Plynth does today: opening a project, showing its plan image, setting the scale, drawing walls (straight and curved, with rounded corners), placing doors, windows and other openings, setting heights, finding walls and openings in the image automatically, making rooms, undo and redo, saving, the setup check, the library and assets catalog, working next to the command line, and the built-in terminal. More screens arrive in later releases.
 
-For keys see [Keyboard shortcuts](SHORTCUTS.md). For scripts see the [Command line guide](CLI_GUIDE.md).
+For keys see [Keyboard shortcuts](SHORTCUTS.md). For scripts see the [Command line guide](CLI_GUIDE.md). For Blender, the library folder and the first run see [Setting up Plynth](SETUP.md).
 
 ## Projects
 
@@ -41,7 +41,7 @@ Plynth fits the image to the window. Zoom with the mouse wheel, pan with the mid
 
 Once the scale is set, points and walls are drawn over the image: walls as blue bands of their real thickness, points as small blue dots, openings as gaps in the bands, rooms as a faint blue fill with a name and an area.
 
-If the image file is missing, the sheet shows "The plan image ... could not be opened."
+If the image file is missing, the sheet shows "The plan image ... could not be opened." You can still edit and save. See "When a plan image is missing" below.
 
 ## The tools
 
@@ -323,6 +323,127 @@ Every 30 seconds, if there are unsaved changes, Plynth writes a copy into the pr
 
 If Plynth was closed unexpectedly, the next time you open that project it asks: "This project has unsaved changes from <date and time>. Recover them?" If the saved plan is newer than the copy, the question tells you. Recover loads the copy as unsaved changes, so you still decide whether to save. Discard removes it.
 
+## Setup check and the library
+
+Before you import models, Plynth needs Blender, a library folder and a projects folder. **Help > Setup check** shows what is ready and what is not, and it opens by itself on the first run. Plynth never installs anything: if Blender is missing, you install it from blender.org yourself. Every item is explained in [Setting up Plynth](SETUP.md).
+
+The **library** is one folder on your computer that holds your assets catalog. It is shared by all projects. Choose or create it in the setup check. **Catalog > Open library folder** opens it in Explorer.
+
+## The assets catalog
+
+The catalog is the list of 3D models you can use in your plans, such as chairs, tables and lamps. You bring your own model files. Plynth cleans each one up so they all behave the same way, draws a thumbnail, and keeps them in the library.
+
+Open it with **Catalog > Assets catalog** (Ctrl+Shift+A), or click the **Assets** tab at the top of the right panel. The other tab, **Properties**, is the panel you already know. With no library set, the Assets tab says "No library folder is set." and has an **Open setup check** button.
+
+### Finding assets
+
+At the top of the Assets tab:
+
+- **Search assets.** Type part of a name, tag or category. The grid filters as you type, after a short pause. Typing `cha` finds "Chair" and "Armchair". Several words must all match. Accents are ignored.
+- **Room.** "All rooms", or one kind of room. Only assets in categories that belong in that room are shown. A living room shows sofas and lamps, a bathroom shows baths and mirrors.
+- **Category.** "All categories", "Uncategorized" (assets you have not sorted yet), or one category. After you pick a room, the list holds only that room's categories.
+
+Under the controls, a count says how many assets match. Each tile shows the thumbnail, the name, and the size in metres as width x depth x height, for example `0.45 x 0.50 x 0.90 m`.
+
+A tile can say something other than a picture:
+
+- **Rendering** (grey): the thumbnail is being drawn.
+- **Render failed** (amber): Blender could not draw the thumbnail. The model is fine and can still be used. Select it and press **Retry render**.
+- **Broken** (amber): the asset's folder cannot be read. Select it to see why.
+
+Plynth never shows a stand-in picture. A thumbnail is always a real picture of the model.
+
+### Importing
+
+You can bring in models three ways.
+
+1. **The Import button** (or **Catalog > Import asset...**, Ctrl+I). A file dialog opens. You can pick several files at once.
+2. **Drag and drop.** Drop files, zips or folders on the Assets tab. This is also the way to import a folder.
+3. **The inbox folder.** Copy files into `Library\assets\inbox\`. Plynth notices within a few seconds and imports them, while it is running. If Plynth is closed, `plynth assets inbox` imports what is waiting.
+
+Plynth reads `.blend`, `.fbx`, `.obj`, `.gltf` and `.glb` files, zips that hold one model, and folders that hold one model. A zip with more than one model is refused, and the message lists them.
+
+Each import joins a list under the grid. A row shows the name, what Blender is doing, a progress bar and a **Cancel** button. Imports run one after another. When one finishes, the new asset is selected, and the status bar says "Imported Chair. Pick its categories." Tick its categories so it shows up in the right rooms.
+
+If an import fails, its row stays in the list with the reason. **Show log** opens the folder with Blender's log when there is one, and **Dismiss** removes the row. Nothing is left in the library after a failed import.
+
+**What happens to the original.** Files and folders you pick are never touched. A zip that was imported goes to the Windows Recycle Bin, so you can get it back, unless you turned on "keep imported zips" (`plynth settings set --keep-zips true`). Files in the inbox leave it once they are handled: imported ones move to `inbox\done`, failed ones move to `inbox\failed` with a text file that says why.
+
+### What the cleanup does to a model
+
+Models from different places differ in size, orientation and where their middle is. So Blender cleans each model the same way before it is saved in the library:
+
+- **Metres.** Sizes are in metres. If a file used other units, Plynth warns you (see below) and you can import again with a scale.
+- **The pivot is at the bottom centre.** The point a model is placed by is the middle of its footprint, on the floor. A chair then stands on the floor where you put it.
+- **The front faces -Y.** That is Blender's front view. Plynth cannot see which side of a model is its front, so it assumes the file's front. If a model faces the wrong way in its thumbnail, import it again with `plynth assets import <file> --rotate 90` (or 180 or 270).
+- **Transforms are applied.** Every object has its scale and rotation baked in, so nothing is hidden.
+- **One collection, tidy names.** All objects sit in one collection named after the asset id, named in order, such as `chair_01`, `chair_02`.
+- **Cameras, lights and empties are removed.** Objects that hang from them stay where they were.
+- **Textures are copied.** Every picture a model uses is copied into the asset's own `textures` folder and linked by a relative path, so the asset folder is complete on its own. Pictures packed inside a `.blend` are unpacked there. A texture that cannot be found is a warning.
+
+Your original file is not changed. The cleaned model is saved as `asset.blend` in `Library\assets\items\<id>\`, with `thumb.png` and an `info.json` that holds the name, categories, tags and license.
+
+### Warnings
+
+Problems with a model never stop an import. They show in amber under the asset's details and in the `warnings` list of the command line:
+
+- **Very high triangle count.** More than 500 000 triangles. Large models slow everything down. You can change the limit with `plynth settings set --triangle-warning`.
+- **Suspicious size.** The largest side is above 30 m or below 0.02 m, which usually means the file used other units. Import again with `--scale` (for example `--scale 0.01` for a model drawn in centimetres).
+- **Missing texture.** A picture the model asked for was not found, so that part has a plain color.
+- **Removed objects.** Cameras, lights or empties were left out.
+- **Eevee failed.** The thumbnail was drawn with the slower Cycles engine, because your graphics driver could not run the fast one.
+
+### Thumbnails
+
+A thumbnail is a 512 pixel render made by Blender: the model seen from the front right and a little above, on a dark background, with soft lights. It is drawn once, when the model is imported.
+
+If it fails, the tile says "Render failed". Select the asset and press **Retry render** in its details. This also measures the model again. **Retry render** is also what to use after you change `asset.blend` in Blender yourself.
+
+### Details, and editing an asset
+
+Click a tile to see the asset's details under the grid: a larger thumbnail, the name, the id and size in metres, the triangle count, where it came from, and the warnings. Every edit is saved at once.
+
+- **Name.** Type a new name and press Enter.
+- **License.** Pick one from the list: Unknown, CC0, CC BY 4.0, Royalty free, Personal use only or Own work. Plynth does not check it, so set it from the terms you got the model under.
+- **Categories.** Tick each category the asset belongs to. This decides which rooms show it.
+- **Tags.** Words that help search, separated by commas. Lower case letters, digits, `_` and `-`.
+
+Buttons at the bottom of the details:
+
+- **Retry render**: measure the asset again and draw a new thumbnail.
+- **Open folder**: open the asset's folder in Explorer.
+- **Remove**: delete the asset and its folder from the library. Plynth asks first. This cannot be undone.
+
+Catalog edits are not plan changes, so Undo does not undo them.
+
+### Rescan
+
+**Catalog > Rescan library**, or the **Rescan** button, reads the library folder again and updates the index. Use it after you add, remove or change asset folders by hand. Plynth also watches the library while it runs and rescans by itself a couple of seconds after the folders change.
+
+A rescan:
+
+- adds folders that are new and drops rows whose folder is gone;
+- makes an `info.json` for a folder that has only an `asset.blend`, as an uncategorized asset;
+- measures and redraws again any asset whose `asset.blend` changed;
+- lists folders it cannot read as Broken, and still loads the rest.
+
+The files in `items` are the real catalog. If the index is lost, a rescan builds it again.
+
+### Room types and categories
+
+**Catalog > Room types and categories...** opens a window where you shape the lists.
+
+- **Room types** (left): Add, Rename, Remove, and Up and Down to change the order the room picker shows. Select one and tick the categories that belong in it, on the right of the window.
+- **Categories**: Add, Rename and Remove.
+
+Changes are saved as you make them. A new room type shows up in the room picker of the Properties panel at once, so you can give it to a room in your plan.
+
+Removing a category takes it off every asset that has it. Removing a room type leaves plans that use it alone: they keep its id and show the id as the label. There are nine room types and 24 categories to start with, and you can change all of them. Room types and categories live in the library's index, so they are shared by all projects.
+
+## When a plan image is missing
+
+If the file of a plan image has been moved or deleted, Plynth still opens the project and still lets you edit and save it. The image path stays in the plan. After a save, the status bar shows in amber: "The plan image plans/floor1.png is missing. Its path was kept." Put the file back in the project's `plans` folder, or set another image, and the warning goes away. The plan view shows "The plan image ... could not be opened." until then.
+
 ## When the command line is editing
 
 A script or a coding assistant can edit the project while Plynth has it open. To keep your work and its work apart, it first begins an edit session. While one is active:
@@ -348,7 +469,7 @@ The commands and the exact rules are in the [Command line guide](CLI_GUIDE.md).
 Plynth has a terminal built in, so you can run commands without leaving the window.
 
 - Open it with the round `>_` button at the bottom right of the plan, or with **View > Terminal** (Ctrl+`). The same key hides it. Hiding keeps the shell running with its history.
-- It starts your shell in the project folder. For an untitled project it starts in your Documents folder. It uses PowerShell 7 if installed, else Windows PowerShell, else the Command Prompt.
+- It starts your shell in the project folder. With no project open it starts in your projects folder from the setup check, or in your Documents folder when none is set. It uses PowerShell 7 if installed, else Windows PowerShell, else the Command Prompt.
 - `plynth` works there without a path, so you can run `plynth project info` or `plynth session begin` straight away.
 - Drag the top left corner of the panel to resize it.
 - Closing or switching the project ends the shell. If a program is still running, Plynth asks first: "A program is still running in the terminal. Closing the project will stop it."
