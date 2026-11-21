@@ -32,8 +32,8 @@ ModelView::ModelView(bool interactive, bool shadows, QWidget* parent)
     rootContext()->setContextProperty(QStringLiteral("Theme"), sharedTheme());
     rootContext()->setContextProperty(QStringLiteral("scene"), this);
     connect(quickWindow(), &QQuickWindow::afterRendering, this, [this]() {
-        if (state_ == State::Ready && framesSinceLoad_ < kFramesAfterLoad)
-            ++framesSinceLoad_;
+        if (state_ == State::Ready && framesSinceLoad_ < kFramesAfterLoad && ++framesSinceLoad_ == kFramesAfterLoad)
+            emit pictureDrawn();
     });
     setSource(QUrl(QStringLiteral("qrc:/qml/BuildScene.qml")));
     if (status() == QQuickWidget::Error) {

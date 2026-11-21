@@ -65,6 +65,8 @@ signals:
     void presetChanged();
     void emptyTextChanged();
     void stateChanged();
+    // The loaded model has been drawn.
+    void pictureDrawn();
     void fitRequested();
     void reloadRequested();
 

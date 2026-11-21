@@ -60,8 +60,8 @@
   },
   "preview": {
     "lightColor": "#FFFFFF",
-    "keyLightBrightness": 1.0,
-    "probeExposure": 1.0,
+    "keyLightBrightness": 2.2,
+    "probeExposure": 1.5,
     "aoStrength": 60
   },
   "effects": {

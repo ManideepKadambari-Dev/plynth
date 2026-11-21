@@ -40,6 +40,8 @@ add_executable(plynth WIN32
     src/document/DocumentBridge.cpp
     src/document/ProjectWatcher.h
     src/document/ProjectWatcher.cpp
+    src/preview/AssetStage.h
+    src/preview/AssetStage.cpp
     src/preview/GraphicsProbe.h
     src/preview/GraphicsProbe.cpp
     src/preview/ModelView.h

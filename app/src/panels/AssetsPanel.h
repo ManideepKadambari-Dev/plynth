@@ -24,6 +24,7 @@ class QVBoxLayout;
 
 namespace plynth::app {
 
+class AssetStage;
 class LibraryHost;
 
 // The Assets tab: search, room and category filters, the thumbnail grid and the details of the selected
@@ -37,6 +38,8 @@ public:
     void refresh();
     // Selects an asset by id. Returns false when it is not in the grid.
     bool selectAsset(const QString& id);
+    // For checks only: true when the details show no 3D model, or it has been drawn.
+    bool pictureReady() const;
     QString selectedId() const;
     // Scrolls the details to the category list and puts the focus on it.
     void showCategories();
@@ -95,6 +98,7 @@ private:
     QStandardItemModel* model_ = nullptr;
     QScrollArea* detailsScroll_ = nullptr;
 
+    AssetStage* stage_ = nullptr;
     QLabel* thumb_ = nullptr;
     QLineEdit* name_ = nullptr;
     QLabel* idLabel_ = nullptr;

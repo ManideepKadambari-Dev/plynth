@@ -361,6 +361,12 @@ bool ToolController::turnSelectedItem(double degrees)
     return run(std::make_unique<plynth::RotateItemCommand>(item->id, plynth::normalizeRotation(item->rotation + degrees))).ok();
 }
 
+// True when the picker is not open or its preview has no model waiting.
+bool ToolController::pickerPreviewReady() const
+{
+    return picker_ == nullptr || !picker_->isVisible() || picker_->previewReady();
+}
+
 // Switches to the Furniture tool and opens its picker at a place, anchored where that place is on screen.
 bool ToolController::showFurniturePicker(double x, double y, const QString& hoverAsset)
 {

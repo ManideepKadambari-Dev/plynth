@@ -2,6 +2,7 @@
 
 #include "catalog/LibraryHost.h"
 #include "furniture/AssetPreview.h"
+#include "preview/AssetStage.h"
 #include "theme/Theme.h"
 
 #include <plynth/core/RoomTypes.h>
@@ -337,12 +338,11 @@ void AssetsPanel::buildDetails()
     box->setContentsMargins(0, t.unit() * 2, t.unit() * 4, 0);
     box->setSpacing(t.unit() * 2);
 
-    thumb_ = new QLabel(body);
-    thumb_->setFixedSize(t.thumbnailLarge(), t.thumbnailLarge());
-    thumb_->setAlignment(Qt::AlignCenter);
-    thumb_->setToolTip(tr("The thumbnail of the asset, drawn by Blender"));
-    thumb_->setProperty("tourId", QStringLiteral("catalog-thumbnail"));
-    box->addWidget(thumb_, 0, Qt::AlignHCenter);
+    stage_ = new AssetStage(true, t.thumbnailLarge(), body);
+    stage_->setToolTip(tr("The asset in 3D. Drag to orbit, wheel to zoom. Until it is drawn, the thumbnail from Blender shows"));
+    stage_->setProperty("tourId", QStringLiteral("catalog-thumbnail"));
+    thumb_ = stage_->thumbnail();
+    box->addWidget(stage_, 0, Qt::AlignHCenter);
 
     name_ = new QLineEdit(body);
     name_->setFont(t.uiFont(t.sizeNormal(), QFont::DemiBold));
@@ -639,6 +639,12 @@ bool AssetsPanel::selectAsset(const QString& id)
     return false;
 }
 
+// True when the details hold no model or the model is drawn.
+bool AssetsPanel::pictureReady() const
+{
+    return detailsScroll_ == nullptr || detailsScroll_->isHidden() || stage_->pictureReady();
+}
+
 // The id of the selected asset, empty when none is.
 QString AssetsPanel::selectedId() const
 {
@@ -649,6 +655,7 @@ QString AssetsPanel::selectedId() const
 void AssetsPanel::showDetails()
 {
     if (!current_ || !host_.catalog()) {
+        stage_->clearModel();
         detailsScroll_->hide();
         return;
     }
@@ -676,6 +683,7 @@ void AssetsPanel::showDetails()
                                   .arg(t.raised().name(), color.name())
                                   .arg(t.radius()));
     }
+    stage_->showModel(record);
     name_->setText(fromCore(record.name));
     idLabel_->setText(fromCore(record.id));
     sizeLabel_->setText(AssetPreview::sizeText(record.size));

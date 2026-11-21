@@ -89,6 +89,8 @@ int main(int argc, char* argv[])
     QCommandLineOption selectAssetOption(QStringLiteral("select-asset"),
                                          QStringLiteral("Select the asset with this id in the Assets tab. For checks only."),
                                          QStringLiteral("id"));
+    QCommandLineOption assetCategoriesOption(QStringLiteral("asset-categories"),
+                                             QStringLiteral("With --select-asset, scroll the details to the categories. For checks only."));
     QCommandLineOption setupOption(QStringLiteral("setup"), QStringLiteral("Open the setup check. For checks only."));
     QCommandLineOption setupItemOption(QStringLiteral("setup-item"),
                                        QStringLiteral("Open the setup check scrolled to the item with this title. For checks only."),
@@ -114,6 +116,7 @@ int main(int argc, char* argv[])
     parser.addOption(homeOption);
     parser.addOption(furnitureAtOption);
     parser.addOption(hoverAssetOption);
+    parser.addOption(assetCategoriesOption);
     parser.addOption(setupOption);
     parser.addOption(setupItemOption);
     parser.addOption(importOption);
@@ -240,7 +243,8 @@ int main(int argc, char* argv[])
         window.showAssetsTab();
     if (parser.isSet(selectAssetOption)) {
         window.selectAsset(parser.value(selectAssetOption));
-        QTimer::singleShot(150, &window, [&window]() { window.showAssetCategories(); });
+        if (parser.isSet(assetCategoriesOption))
+            QTimer::singleShot(150, &window, [&window]() { window.showAssetCategories(); });
     }
     if (parser.isSet(homeOption) || (!wantsScreenshot && !hasProject && !parser.isSet(imageOption)))
         window.showHome();

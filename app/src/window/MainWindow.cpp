@@ -734,10 +734,11 @@ void MainWindow::setPreviewCamera(const QString& name)
                                                                 : ModelView::Preset::ThreeQuarter);
 }
 
-// For checks only: true when the 3D page has drawn its model, or is not shown, or has none.
+// For checks only: true when the 3D page and the asset previews have drawn their models, or have none.
 bool MainWindow::previewPictureReady() const
 {
-    return centreStack_->currentWidget() != preview_ || preview_->pictureReady();
+    return (centreStack_->currentWidget() != preview_ || preview_->pictureReady()) && assets_->pictureReady() &&
+           tools_->pickerPreviewReady();
 }
 
 // Loads the building of the open project into the 3D page, or shows its empty state.

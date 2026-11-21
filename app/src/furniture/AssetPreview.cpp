@@ -1,5 +1,6 @@
 #include "AssetPreview.h"
 
+#include "preview/AssetStage.h"
 #include "theme/Theme.h"
 
 #include <QImageReader>
@@ -41,11 +42,10 @@ AssetPreview::AssetPreview(QWidget* parent) : QWidget(parent)
     box->setContentsMargins(0, 0, 0, 0);
     box->setSpacing(t.unit() * 2);
 
-    thumb_ = new QLabel(body_);
-    thumb_->setFixedSize(t.thumbnailLarge(), t.thumbnailLarge());
-    thumb_->setAlignment(Qt::AlignCenter);
+    stage_ = new AssetStage(false, t.thumbnailLarge(), body_);
+    thumb_ = stage_->thumbnail();
     thumb_->setFont(t.uiFont(t.sizeNormal()));
-    box->addWidget(thumb_, 0, Qt::AlignHCenter);
+    box->addWidget(stage_, 0, Qt::AlignHCenter);
 
     name_ = new QLabel(body_);
     name_->setFont(t.uiFont(t.sizeLarge(), QFont::DemiBold));
@@ -101,15 +101,23 @@ void AssetPreview::showAsset(const plynth::AssetRecord& record, const QStringLis
                                   .arg(t.raised().name(), color.name())
                                   .arg(t.radius()));
     }
+    stage_->showModel(record);
     name_->setText(fromCore(record.name));
     size_->setText(sizeText(record.size));
     categories_->setText(categoryNames.isEmpty() ? tr("Uncategorized") : categoryNames.join(QStringLiteral(", ")));
     license_->setText(licenseName);
 }
 
+// True when the model is drawn or none is wanted.
+bool AssetPreview::pictureReady() const
+{
+    return stage_->pictureReady();
+}
+
 // Hides the details and shows the hint.
 void AssetPreview::clear()
 {
+    stage_->clearModel();
     body_->hide();
     hint_->show();
 }

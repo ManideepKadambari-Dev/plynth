@@ -572,3 +572,13 @@ void FurniturePicker::selectRow(int column, const QString& key)
 }
 
 }
+
+namespace plynth::app {
+
+// True when the preview panel has its model drawn or none is wanted.
+bool FurniturePicker::previewReady() const
+{
+    return preview_ == nullptr || preview_->isHidden() || preview_->pictureReady();
+}
+
+}
