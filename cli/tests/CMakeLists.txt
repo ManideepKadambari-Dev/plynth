@@ -10,6 +10,7 @@ add_executable(plynth_cli_tests
     RoomCliTests.cpp
     DetectCliTests.cpp
     OpeningCliTests.cpp
+    CurvedCliTests.cpp
     TestSetup.cpp
     TestSupport.cpp
 )

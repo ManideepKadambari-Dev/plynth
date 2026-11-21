@@ -158,7 +158,7 @@ Answer wallSet(const RunContext& context, const SetOptions& options) {
             group->add(std::make_unique<SetWallThicknessCommand>(options.id, *options.thickness));
         }
         if (options.bulge) {
-            (void)0;
+            group->add(std::make_unique<SetWallBulgeCommand>(options.id, *options.bulge));
         }
         Answer failed;
         if (!runCommand(name, document, std::move(group), failed)) {

@@ -167,6 +167,7 @@ Json pointEntry(const Floor& floor, const Point& point) {
     entry["x"] = point.x;
     entry["y"] = point.y;
     entry["corner_radius"] = point.cornerRadius;
+    entry["corner_radius_used"] = cornerRounding(floor, point).radius;
     entry["walls"] = std::move(walls);
     return entry;
 }
@@ -184,6 +185,7 @@ Json wallEntry(const Floor& floor, const Wall& wall) {
             onWall.push_back(opening.id);
         }
     }
+    const WallCurve curve = wallCurve(floor, wall);
     Json entry = Json::object();
     entry["id"] = wall.id;
     entry["floor"] = floor.id;
@@ -197,6 +199,11 @@ Json wallEntry(const Floor& floor, const Wall& wall) {
     }
     entry["bulge"] = wall.bulge;
     entry["length"] = wallLength(floor, wall);
+    if (curve.curved) {
+        entry["radius"] = curve.radius;
+    } else {
+        entry["radius"] = nullptr;
+    }
     entry["height_used"] = wallHeight(floor, wall);
     entry["rooms"] = std::move(rooms);
     entry["openings"] = std::move(onWall);

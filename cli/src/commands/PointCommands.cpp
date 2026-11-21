@@ -65,6 +65,14 @@ Answer pointMove(const RunContext& context, const MoveOptions& options) {
         [&](const Plan& plan, const MovePointCommand&) { return entryFor(plan, options.id); });
 }
 
+// Rounds the corner at a point.
+Answer pointSet(const RunContext& context, const SetOptions& options) {
+    return edit(
+        "point set", context, options.project,
+        [&](const Plan&) { return std::make_unique<SetCornerRadiusCommand>(options.id, options.cornerRadius); },
+        [&](const Plan& plan, const SetCornerRadiusCommand&) { return entryFor(plan, options.id); });
+}
+
 // Removes a point that no wall uses.
 Answer pointRemove(const RunContext& context, const RemoveOptions& options) {
     if (options.cascade) {
@@ -127,6 +135,20 @@ std::vector<CommandSpec> pointCommands() {
         return [options](const RunContext& context) { return pointMove(context, *options); };
     };
 
+    CommandSpec set;
+    set.words = {"point", "set"};
+    set.description = "Change a point.";
+    set.setup = [](CLI::App& sub) -> Handler {
+        auto options = std::make_shared<SetOptions>();
+        addProjectOption(sub, options->project);
+        sub.add_option("id", options->id, "Id of the point.")->type_name("id")->required();
+        sub.add_option("--corner-radius", options->cornerRadius,
+                       "Round the corner with this radius in metres. 0 makes it sharp.")
+            ->type_name("metres")
+            ->required();
+        return [options](const RunContext& context) { return pointSet(context, *options); };
+    };
+
     CommandSpec remove;
     remove.words = {"point", "remove"};
     remove.description = "Remove a point that no wall uses.";
@@ -148,7 +170,7 @@ std::vector<CommandSpec> pointCommands() {
         return [options](const RunContext& context) { return pointList(context, *options); };
     };
 
-    return {add, move, remove, list};
+    return {add, move, set, remove, list};
 }
 
 }
