@@ -25,9 +25,27 @@ double distance(Vec2 a, Vec2 b);
 // Where a point sits.
 Vec2 positionOf(const Point& point);
 
-// Length of the straight line between a wall's two points. 0 when a point is missing.
-// Bulge is ignored until curved walls arrive in milestone 5.
+// Length of a wall along its true centre line: the straight distance, or the arc length for a curved wall
+// (see wallCurve in WallGeometry.h). Rounded corners do not change it. 0 when a point is missing.
 double wallLength(const Floor& floor, const Wall& wall);
+
+// The unit direction a quarter turn to the right of a direction on the plan: (-d.y, d.x). See WallSide.
+Vec2 rightOf(Vec2 direction);
+
+// The rule for cutting a true circular arc into straight segments. Walls, rounded corners and opening shapes
+// all use it, in the app, the CLI and later the Blender build, so every part shows the same corners.
+// Points are spread evenly by angle, the first and last points are exactly the arc's ends.
+inline constexpr double kArcMaxSegmentAngle = 0.130899693899574718; // 7.5 degrees in radians
+inline constexpr double kArcMaxDeviation = 0.005;                    // metres between a segment and the arc
+inline constexpr int kArcMinSegments = 2;
+inline constexpr int kArcMaxSegments = 256;
+
+// How many segments an arc of this radius (metres) and sweep (radians, either sign) is cut into: the
+// smallest count where no segment spans more than kArcMaxSegmentAngle and no segment strays more than
+// kArcMaxDeviation from the arc, kept between kArcMinSegments and kArcMaxSegments. The deviation of a segment
+// spanning angle a is radius * (1 - cos(a / 2)). kArcMinSegments for a sweep of 0 or a radius that is not
+// finite and above zero.
+int arcSegmentCount(double radius, double sweep);
 
 // The closest place on the segment from a to b to a position.
 struct SegmentProjection {

@@ -14,9 +14,8 @@ namespace plynth {
 
 // Detection finds walls, rooms and openings in a plan image and returns them as proposals. Proposals are
 // not part of the plan: they are shown, listed and then accepted with ApplyDetectionCommand, which turns
-// them into ordinary points, walls and rooms. Opening proposals are shown and listed only; they are not
-// added to the plan. All lengths are in metres and positions in plan coordinates (see Plan.h), so image
-// pixel (px, py) is at (px / pixelsPerMetre, py / pixelsPerMetre).
+// them into ordinary points, walls, openings and rooms. All lengths are in metres and positions in plan
+// coordinates (see Plan.h), so image pixel (px, py) is at (px / pixelsPerMetre, py / pixelsPerMetre).
 
 inline constexpr double kDefaultMinWallThickness = 0.08;
 inline constexpr double kDefaultMaxWallThickness = 0.5;
@@ -67,11 +66,17 @@ struct ProposedWall {
 };
 
 // A proposed door, window or plain opening on a proposed wall.
+// For a door, hinge is the jamb the swing arc starts from and swing the side of the wall the arc lies on,
+// both relative to the proposed wall's from and to points (see HingeEnd and WallSide in Plan.h). Other types
+// keep Start and Right.
 struct ProposedOpening {
     std::size_t wall = 0;   // index into DetectionResult::walls
     OpeningType type = OpeningType::Plain;
     double offset = 0.0;    // along the wall from its from point to the centre of the opening
     double width = 0.0;
+    HingeEnd hinge = HingeEnd::Start;
+    WallSide swing = WallSide::Right;
+    ProposalState state = ProposalState::New; // Existing when the floor already has an opening there
 
     bool operator==(const ProposedOpening&) const = default;
 };
@@ -113,11 +118,13 @@ Status checkDetectionResult(const DetectionResult& result);
 // made of the proposals, in its stable order. States are New until markExisting runs.
 void proposeRooms(DetectionResult& result);
 
-// Sets the state of every proposed wall and room against the walls and rooms the floor has now.
+// Sets the state of every proposed wall, opening and room against what the floor has now.
 // A wall is checked at places every 0.05 m along it, leaving out one tolerance at each end, or at its middle
 // when it is shorter. A place is covered when it lies within the tolerance of an existing straight wall
 // running the same way (within 5 degrees). The tolerance is half the larger of the two thicknesses, and at
 // least 0.05 m. Every place covered: Existing. Some covered: Overlaps. None: New.
+// An opening is Existing when an opening of the floor covers its centre: the centre is within the tolerance
+// of that opening's wall centre line and between its two jambs. Otherwise New. Overlaps is not used.
 // A room is Existing when roomAt finds a room at its inside position, otherwise New.
 void markExisting(const Floor& floor, DetectionResult& result);
 
@@ -131,6 +138,8 @@ struct ProposalCounts {
     std::size_t rooms = 0;
     std::size_t newRooms = 0;
     std::size_t openings = 0;
+    std::size_t newOpenings = 0;
+    std::size_t existingOpenings = 0;
 
     bool operator==(const ProposalCounts&) const = default;
 };

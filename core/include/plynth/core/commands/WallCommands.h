@@ -78,14 +78,16 @@ private:
     int mergeKey_;
 };
 
-// Splits a straight wall in two at a new point, offset metres along it from its from point.
+// Splits a wall in two at a new point, offset metres along its true centre line from its from point.
 // The wall keeps its id and runs from its from point to the new point; a new wall with a new id runs from
-// the new point to the old to point, copying thickness, height and materials. Rooms that list the wall get
+// the new point to the old to point, copying thickness, height and materials. A curved wall is split on its
+// own circle: the new point is on the arc and each part gets the bulge that keeps it on that circle, the
+// signed sagitta of its own sweep, radius * (1 - cos(sweep / 2)). Rooms that list the wall get
 // the new wall listed next to it so the ring stays in order: right after it when the ring runs along the
 // wall from its from point to its to point, right before it when the ring runs the other way.
 // Openings past the split move to the new wall with their offset reduced.
 // NotFound for an unknown wall. InvalidValue when the offset is not finite or not at least kMinSplitDistance
-// from both ends, or the wall is curved (bulge not 0). InUse when an opening covers the split place.
+// from both ends. InUse when an opening covers the split place.
 class SplitWallCommand : public Command {
 public:
     SplitWallCommand(Id wallId, double offset);
@@ -108,6 +110,56 @@ private:
     Id newPointId_;
     Id newWallId_;
     Floor previous_; // the floor before the split, for an exact undo
+};
+
+// Sets or clears a wall's own height, for half walls. Empty uses the floor's ceiling height.
+// NotFound for an unknown wall. InvalidValue when a height is not finite and above zero, or when an opening
+// on the wall would then reach above it (sill plus height above the new height; the message names it).
+// Changes with the same non zero mergeKey and wall merge into one undo step.
+class SetWallHeightCommand : public Command {
+public:
+    SetWallHeightCommand(Id wallId, std::optional<double> height, int mergeKey = 0);
+
+    std::string name() const override;
+    Status apply(Project& project) override;
+    void undo(Project& project) override;
+    // Walls.
+    unsigned changes() const override;
+    Id floorId() const override;
+    bool mergeWith(const Command& next) override;
+
+private:
+    Id wallId_;
+    std::optional<double> height_;
+    int mergeKey_;
+    Id floorId_;
+    std::optional<double> previous_;
+};
+
+// Bends a wall into an arc or straightens it (DESIGN.md section 7.2). bulge as in Plan.h; a bulge smaller
+// than kMinBulge either way is stored as 0. NotFound for an unknown wall. InvalidValue when bulge is not
+// finite, is larger either way than kMaxBulgeRatio times the straight distance between the wall's points,
+// or would give an arc with a radius not above half the wall's thickness. Openings keep their offsets and
+// may stop fitting; openingProblems lists them. Changes with the same non zero mergeKey and wall merge into
+// one undo step, so dragging the wall's middle is one step.
+class SetWallBulgeCommand : public Command {
+public:
+    SetWallBulgeCommand(Id wallId, double bulge, int mergeKey = 0);
+
+    std::string name() const override;
+    Status apply(Project& project) override;
+    void undo(Project& project) override;
+    // Walls.
+    unsigned changes() const override;
+    Id floorId() const override;
+    bool mergeWith(const Command& next) override;
+
+private:
+    Id wallId_;
+    double bulge_;
+    int mergeKey_;
+    Id floorId_;
+    double previous_ = 0.0;
 };
 
 // One end of a wall being drawn: an existing point, a place on an existing wall (which gets split there),

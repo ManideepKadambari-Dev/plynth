@@ -27,6 +27,29 @@ private:
     std::optional<std::string> previous_;
 };
 
+// Sets the ceiling height of a floor, which is also the height of every wall without its own height.
+// NotFound for an unknown floor. InvalidValue when the height is not finite and above zero, or when an opening
+// on a wall without its own height would then reach above it (the message names it). Changes with the same
+// non zero mergeKey and floor merge into one undo step.
+class SetCeilingHeightCommand : public Command {
+public:
+    SetCeilingHeightCommand(Id floorId, double height, int mergeKey = 0);
+
+    std::string name() const override;
+    Status apply(Project& project) override;
+    void undo(Project& project) override;
+    // Floors.
+    unsigned changes() const override;
+    Id floorId() const override;
+    bool mergeWith(const Command& next) override;
+
+private:
+    Id floorId_;
+    double height_;
+    int mergeKey_;
+    double previous_ = 0.0;
+};
+
 // What stays put when the scale changes.
 // ImagePositions: marks stay on the same spot of the plan image, so their metre values change.
 // Metres: metre values stay, so marks move on the image.

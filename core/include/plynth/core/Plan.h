@@ -35,7 +35,8 @@ struct Scale {
     bool operator==(const Scale&) const = default;
 };
 
-// A corner where walls meet.
+// A corner where walls meet. cornerRadius rounds the corner with an arc of that radius when the point joins
+// exactly two straight walls (see cornerRounding in WallGeometry.h); elsewhere it has no effect.
 struct Point {
     Id id;
     double x = 0.0;
@@ -45,9 +46,14 @@ struct Point {
     bool operator==(const Point&) const = default;
 };
 
+// The two sides of a wall, as seen on the plan looking from its from point toward its to point. Right is the
+// direction (-dy, dx), where (dx, dy) runs from "from" to "to"; with y pointing down that is the right hand side
+// on screen.
+enum class WallSide { Left, Right };
+
 // A wall between two points of the same floor.
-// bulge bends the wall into an arc: the signed distance in metres from the middle of the straight line
-// to the middle of the arc. Positive moves it along (-dy, dx), where (dx, dy) runs from "from" to "to".
+// bulge bends the wall into a circular arc: the signed distance in metres from the middle of the straight
+// line to the middle of the arc. Positive bends it to the right side (see WallSide). 0 is straight.
 // height empty means the floor's ceiling height.
 struct Wall {
     Id id;
@@ -75,10 +81,17 @@ struct Room {
 
 enum class OpeningType { Door, Window, Plain };
 
+// Which jamb of an opening a door hangs on. Start is the jamb nearer the wall's from point, End the one
+// nearer its to point.
+enum class HingeEnd { Start, End };
+
 // A door, window or plain cutout in a wall.
-// offset is measured along the wall from its "from" point to the centre of the opening.
-// sill is the height of the bottom of the opening above the floor. shape names an entry in the
-// opening shape registry, for example "rectangle" or "round_arch".
+// offset is measured along the wall's true centre line (along the arc for a curved wall) from its "from"
+// point to the centre of the opening, and width along the same line. sill is the height of the bottom of
+// the opening above the floor. shape names an entry in the opening shape registry (OpeningShapes.h), for
+// example "rectangle" or "round_arch". hinge and swing say where a door hangs and which side of the wall
+// it opens toward; they are kept for every type but only doors use them now. frame is a catalog asset id,
+// set from milestone 6 on.
 struct Opening {
     Id id;
     Id wall;
@@ -88,6 +101,8 @@ struct Opening {
     double width = kDefaultOpeningWidth;
     double height = kDefaultOpeningHeight;
     double sill = 0.0;
+    HingeEnd hinge = HingeEnd::Start;
+    WallSide swing = WallSide::Right;
     std::optional<std::string> frame;
 
     bool operator==(const Opening&) const = default;
@@ -152,6 +167,9 @@ bool isValidId(std::string_view id);
 // plan, walls join two different points of their own floor, rooms list walls of their own floor,
 // openings sit on a wall of their own floor, all numbers finite, thickness, width, height, ceiling height
 // and pixels per metre above zero, corner radius, offset and sill zero or more, wall height above zero when set.
+// Whether an opening fits its wall, and whether its shape is registered, is not part of the format: commands
+// refuse openings that do not fit (checkOpeningFit in Openings.h), and openingProblems lists the ones that
+// stopped fitting after a wall changed. So a file from another machine with a custom shape still loads.
 Status checkPlan(const Plan& plan);
 
 // The name used in files for an opening type: "door", "window" or "plain".
@@ -159,5 +177,23 @@ std::string_view openingTypeName(OpeningType type);
 
 // The opening type for a name used in files. Empty when the name is unknown.
 std::optional<OpeningType> openingTypeFromName(std::string_view name);
+
+// The name used in files for a wall side: "left" or "right".
+std::string_view wallSideName(WallSide side);
+
+// The wall side for a name used in files. Empty when the name is unknown.
+std::optional<WallSide> wallSideFromName(std::string_view name);
+
+// The other side of a wall.
+WallSide otherSide(WallSide side);
+
+// The name used in files for a hinge end: "start" or "end".
+std::string_view hingeEndName(HingeEnd end);
+
+// The hinge end for a name used in files. Empty when the name is unknown.
+std::optional<HingeEnd> hingeEndFromName(std::string_view name);
+
+// The other end of an opening.
+HingeEnd otherEnd(HingeEnd end);
 
 }

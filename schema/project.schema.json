@@ -1,14 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "urn:plynth:schema:project:1",
-  "title": "Plynth project settings, version 1",
-  "description": "The project.json file in a project folder. Lengths are in metres.",
+  "$id": "urn:plynth:schema:project:2",
+  "title": "Plynth project settings, version 2",
+  "description": "The project.json file in a project folder. Lengths are in metres. Version 1 files (project.v1.schema.json) are upgraded when read: they get defaults with the built-in sizes.",
   "type": "object",
   "required": ["format", "version", "name"],
   "additionalProperties": false,
   "properties": {
     "format": { "const": "plynth-project" },
-    "version": { "const": 1 },
+    "version": { "const": 2 },
     "name": { "type": "string", "minLength": 1 },
     "export_mode": {
       "description": "single gives one FBX for the whole building, grouped gives one FBX per group.",
@@ -20,6 +20,32 @@
       "type": "number",
       "exclusiveMinimum": 0,
       "default": 0.5
+    },
+    "defaults": {
+      "description": "Sizes new marks get. Marks already placed keep their own sizes. A door or a window (sill plus height) is never taller than ceiling_height.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ceiling_height": {
+          "description": "Ceiling height for floors made later. Each floor keeps its own ceiling_height in plan.json.",
+          "type": "number", "exclusiveMinimum": 0, "default": 3.0
+        },
+        "door_width": {
+          "description": "Width of new doors and plain openings.",
+          "type": "number", "exclusiveMinimum": 0, "default": 0.9
+        },
+        "door_height": {
+          "description": "Height of new doors and plain openings, from the floor.",
+          "type": "number", "exclusiveMinimum": 0, "default": 2.1
+        },
+        "window_width": { "type": "number", "exclusiveMinimum": 0, "default": 1.2 },
+        "window_height": { "type": "number", "exclusiveMinimum": 0, "default": 1.2 },
+        "window_sill": {
+          "description": "Height of the bottom of new windows above the floor.",
+          "type": "number", "minimum": 0, "default": 0.9
+        }
+      },
+      "default": {}
     }
   }
 }
