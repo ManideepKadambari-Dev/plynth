@@ -85,6 +85,15 @@ Status MovePointCommand::apply(Project& project)
         return fail(ErrorCode::InvalidValue, "The point's x and y must be finite numbers.");
     }
     Point* p = findPoint(*floor, pointId_);
+    for (const Wall& w : floor->walls) {
+        if (w.from != pointId_ && w.to != pointId_) continue;
+        const Point* a = findPoint(*floor, w.from);
+        const Point* b = findPoint(*floor, w.to);
+        if (!a || !b) continue;
+        const Vec2 from = w.from == pointId_ ? Vec2{x_, y_} : positionOf(*a);
+        const Vec2 to = w.to == pointId_ ? Vec2{x_, y_} : positionOf(*b);
+        if (Status s = detail::checkCurveLimits(from, to, w.bulge, w.thickness, w.id); !s.ok()) return s;
+    }
     floorId_ = floor->id;
     oldX_ = p->x;
     oldY_ = p->y;

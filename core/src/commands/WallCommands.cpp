@@ -147,6 +147,11 @@ Status SetWallThicknessCommand::apply(Project& project)
         return fail(ErrorCode::InvalidValue, "The wall thickness must be a number above zero.");
     }
     Wall* wall = findWall(*floor, wallId_);
+    const Point* a = findPoint(*floor, wall->from);
+    const Point* b = findPoint(*floor, wall->to);
+    if (a && b) {
+        if (Status s = detail::checkCurveLimits(positionOf(*a), positionOf(*b), wall->bulge, thickness_, wall->id); !s.ok()) return s;
+    }
     floorId_ = floor->id;
     previous_ = wall->thickness;
     wall->thickness = thickness_;

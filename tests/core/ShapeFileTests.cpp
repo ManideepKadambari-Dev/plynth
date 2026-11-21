@@ -230,3 +230,16 @@ TEST_CASE("the keyhole sample validates and reads", "[core][shapes][shapefile][s
     REQUIRE(signedArea(r.outline) > 0.0);
     plynth::test::requireCleanOutline(makeOutlineShape(r.id, r.name, r.outline)->outline(0.8, 1.6), 0.8, 1.6);
 }
+
+TEST_CASE("the shape name length counts characters, not bytes", "[core][shapes][shapefile]") {
+    std::string name;
+    for (int i = 0; i < 40; ++i) name += "\xC3\xA9"; // 40 characters, 80 bytes
+    const std::string text = R"({"format":"plynth-shape","version":1,"id":"t_long","name":")" + name
+        + R"(","outline":[[0,0],[1,0],[1,1],[0,1]]})";
+    plynth::test::requireOk(readText(text).status);
+    std::string tooLong;
+    for (int i = 0; i < 65; ++i) tooLong += "\xC3\xA9";
+    const std::string bad = R"({"format":"plynth-shape","version":1,"id":"t_long","name":")" + tooLong
+        + R"(","outline":[[0,0],[1,0],[1,1],[0,1]]})";
+    expectBad(bad, "/name");
+}

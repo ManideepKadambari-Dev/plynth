@@ -1,6 +1,7 @@
 #include "plynth/core/OpeningShapes.h"
 
 #include <algorithm>
+#include <cmath>
 #include <mutex>
 
 namespace plynth {

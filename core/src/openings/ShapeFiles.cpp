@@ -105,6 +105,16 @@ bool hasCrossingEdges(const std::vector<Vec2>& p)
     return false;
 }
 
+// Counts the characters of UTF-8 text, not its bytes.
+std::size_t characterCount(const std::string& text)
+{
+    std::size_t count = 0;
+    for (unsigned char c : text) {
+        if ((c & 0xC0) != 0x80) ++count;
+    }
+    return count;
+}
+
 // Says whether text is a well formed shape id.
 bool wellFormedId(const std::string& id)
 {
@@ -161,7 +171,7 @@ ShapeFile readShapeFile(const std::filesystem::path& file)
     }
     auto name = json.find("name");
     if (name == json.end() || !name->is_string()) return refused("The field \"name\" is missing or not text.", "/name");
-    if (name->get<std::string>().empty() || name->get<std::string>().size() > 64) {
+    if (name->get<std::string>().empty() || characterCount(name->get<std::string>()) > 64) {
         return refused("The shape name must be 1 to 64 characters.", "/name");
     }
     auto outline = json.find("outline");

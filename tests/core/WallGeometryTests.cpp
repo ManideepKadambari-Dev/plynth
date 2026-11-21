@@ -843,3 +843,56 @@ TEST_CASE("the plan stays valid after every command on curved walls", "[core][wa
     for (std::size_t i = commands.size(); i-- > 0;) commands[i]->undo(p);
     REQUIRE(p == before);
 }
+
+TEST_CASE("thickness and point moves cannot push a curved wall past its limits", "[core][wallgeometry][command]") {
+    Project p = squareProject();
+    SetWallBulgeCommand bend("w1", 2.0);
+    applyOk(bend, p);
+
+    SECTION("a thickness that would swallow the arc is refused") {
+        SetWallThicknessCommand tooThick("w1", 4.5);
+        applyRefused(tooThick, p, ErrorCode::InvalidValue);
+        SetWallThicknessCommand fine("w1", 3.9);
+        applyOk(fine, p);
+    }
+    SECTION("moving a point so the bulge passes a half circle is refused") {
+        MovePointCommand shorter("p2", 2.0, 0.0);
+        applyRefused(shorter, p, ErrorCode::InvalidValue);
+        MovePointCommand longer("p2", 5.0, 0.0);
+        applyOk(longer, p);
+    }
+    SECTION("moving a point so the radius gets too small for the thickness is refused") {
+        findWall(p.plan.floors[0], "w1")->thickness = 3.0;
+        MovePointCommand closer("p2", 3.2, 0.0);
+        applyRefused(closer, p, ErrorCode::InvalidValue);
+    }
+    SECTION("straight walls and other walls are not affected") {
+        MovePointCommand other("p3", 4.0, 6.0);
+        applyOk(other, p);
+        SetWallThicknessCommand thick("w2", 5.0);
+        applyOk(thick, p);
+    }
+}
+
+TEST_CASE("a thick wall on a tight arc has a clean band", "[core][wallgeometry]") {
+    Floor f = squareFloor();
+    f.walls[0].bulge = 2.0;
+    f.walls[0].thickness = 3.8;
+    const auto band = wallBand(f, f.walls[0]);
+    REQUIRE_FALSE(band.empty());
+    for (const auto& ring : band) {
+        REQUIRE(ring.size() >= 3);
+        REQUIRE(signedArea(ring) > 0.0);
+        // No two edges that are not neighbours cross.
+        const std::size_t n = ring.size();
+        for (std::size_t i = 0; i < n; ++i) {
+            for (std::size_t j = i + 2; j < n; ++j) {
+                if (i == 0 && j == n - 1) continue;
+                const Vec2 a = ring[i], b = ring[(i + 1) % n], c = ring[j], d = ring[(j + 1) % n];
+                const auto cr = [](Vec2 p, Vec2 q, Vec2 r) { return (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x); };
+                const bool crossing = cr(a, b, c) * cr(a, b, d) < -1e-12 && cr(c, d, a) * cr(c, d, b) < -1e-12;
+                REQUIRE_FALSE(crossing);
+            }
+        }
+    }
+}

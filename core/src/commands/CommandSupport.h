@@ -1,6 +1,7 @@
 #pragma once
 
 #include "plynth/core/Plan.h"
+#include "plynth/core/WallGeometry.h"
 
 #include <cmath>
 
@@ -22,6 +23,25 @@ inline Floor* floorOfWall(Plan& plan, std::string_view wallId)
         if (findWall(f, wallId)) return &f;
     }
     return nullptr;
+}
+
+// Checks that a wall with these end positions, bulge and thickness is still a real arc: not bent past a half
+// circle and with a radius above half the thickness. A straight wall always passes.
+inline Status checkCurveLimits(Vec2 from, Vec2 to, double bulge, double thickness, std::string_view wallId)
+{
+    if (std::fabs(bulge) < kMinBulge) return {};
+    const double chord = distance(from, to);
+    if (!(chord >= 1e-9)) return {};
+    const double size = std::fabs(bulge);
+    if (size > kMaxBulgeRatio * chord + 1e-9) {
+        return fail(ErrorCode::InvalidValue, "The wall " + std::string(wallId)
+                        + " is curved too much for this length. The most is a half circle.");
+    }
+    const double radius = (chord * chord / 4.0 + size * size) / (2.0 * size);
+    if (!(radius > thickness / 2.0)) {
+        return fail(ErrorCode::InvalidValue, "The wall " + std::string(wallId) + " is bent too tightly for its thickness.");
+    }
+    return {};
 }
 
 // Says whether a number is finite and above zero.
