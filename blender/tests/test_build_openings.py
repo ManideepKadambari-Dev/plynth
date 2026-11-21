@@ -221,3 +221,19 @@ class OpeningTests(BuildTest):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DetectedApartmentTests(BuildTest):
+    # Walls merged from a detected plan, with nine openings, cut every opening and stay one closed solid.
+    def test_all_openings_cut_in_merged_walls(self):
+        self.assert_job_valid("detected_apartment")
+        params = load_params("detected_apartment")
+        result = self.build(params)
+        self.assertTrue(result["ok"], result["error"])
+        output = result["output"]
+        self.assertEqual(output["problems"], [])
+        floor = params["floors"][0]
+        self.assertEqual(output["counts"]["openings_cut"], len(floor["openings"]))
+        bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
+        walls = bpy.data.objects["SM_%s_Walls" % floor["id"]]
+        self.assertTrue(meshes.is_manifold(walls))

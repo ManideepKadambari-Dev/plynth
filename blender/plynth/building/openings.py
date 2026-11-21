@@ -9,6 +9,8 @@ from ..registry import BUILD_STEPS
 ORDER = 20
 REVEAL_SIDE = 2
 MINIMUM_SHARE = 0.5
+MAXIMUM_SHARE = 2.0
+SOLVERS = ("MANIFOLD", "EXACT")
 
 
 # Cuts every opening out of its floor walls, one Boolean cutter at a time, and lays a threshold through every
@@ -75,39 +77,57 @@ def remove_cutter(cutter):
     bpy.data.meshes.remove(mesh)
 
 
-# Cuts one opening. Returns true when the walls lost at least half the volume the outline should remove;
-# otherwise the walls are put back as they were and cut_failed is reported.
+# Runs one Boolean difference of the cutter from the walls with the given solver. Returns true when the walls are
+# still a closed solid afterwards.
+def boolean_cut(walls, cutter, solver):
+    modifier = walls.modifiers.new("plynth_cut", "BOOLEAN")
+    modifier.operation = "DIFFERENCE"
+    modifier.solver = solver
+    modifier.object = cutter
+    try:
+        modifier.material_mode = "TRANSFER"
+    except (AttributeError, TypeError):
+        pass
+    meshes.apply_modifier(walls, modifier)
+    return meshes.heal_t_junctions(walls)
+
+
+# Puts the walls mesh back to the saved copy.
+def restore(walls, backup):
+    stale = walls.data
+    name = stale.name
+    walls.data = backup.copy()
+    bpy.data.meshes.remove(stale)
+    walls.data.name = name
+
+
+# Cuts one opening. The Manifold solver goes first because it keeps merged wall solids closed; the Exact solver
+# is the fallback. A cut counts when the walls stay closed and lost at least half the volume the outline should
+# remove; otherwise the walls are put back as they were and cut_failed is reported.
 def cut(ctx, floor, walls, opening):
     backup = walls.data.copy()
     before = meshes.volume(walls)
     expected = abs(meshes.polygon_area(opening["outline"])) * opening["thickness"]
     cutter = make_cutter(opening, walls)
-    try:
-        modifier = walls.modifiers.new("plynth_cut", "BOOLEAN")
-        modifier.operation = "DIFFERENCE"
-        modifier.solver = "EXACT"
-        modifier.object = cutter
+    ok = False
+    for solver in SOLVERS:
         try:
-            modifier.material_mode = "TRANSFER"
-        except (AttributeError, TypeError):
-            pass
-        meshes.apply_modifier(walls, modifier)
-        meshes.heal_t_junctions(walls)
-        removed = before - meshes.volume(walls)
-        ok = removed >= expected * MINIMUM_SHARE
-    except Exception:
-        ok = False
+            closed = boolean_cut(walls, cutter, solver)
+            removed = before - meshes.volume(walls)
+            ok = closed and expected * MINIMUM_SHARE <= removed <= expected * MAXIMUM_SHARE
+        except Exception:
+            ok = False
+            for modifier in list(walls.modifiers):
+                walls.modifiers.remove(modifier)
+        if ok:
+            break
+        restore(walls, backup)
     remove_cutter(cutter)
+    bpy.data.meshes.remove(backup)
     if not ok:
-        stale = walls.data
-        name = stale.name
-        walls.data = backup
-        bpy.data.meshes.remove(stale)
-        backup.name = name
         report(ctx, "cut_failed", "error", "The opening could not be cut into its wall.", floor["id"],
                opening["id"])
         return False
-    bpy.data.meshes.remove(backup)
     count(ctx, "openings_cut")
     return True
 
