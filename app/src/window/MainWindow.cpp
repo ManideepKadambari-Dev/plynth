@@ -16,6 +16,9 @@
 #include <plynth/core/PlanImage.h>
 #include <plynth/core/ProjectFiles.h>
 #include <plynth/core/Version.h>
+#include <plynth/core/RoomTypes.h>
+#include <plynth/core/Rooms.h>
+#include <plynth/core/commands/DeleteCommands.h>
 #include <plynth/core/commands/FloorCommands.h>
 
 #include <QAction>
@@ -37,6 +40,8 @@
 #include <QMessageBox>
 #include <QMimeData>
 #include <QPixmap>
+#include <QPainterPath>
+#include <QPolygonF>
 #include <QPushButton>
 #include <QHBoxLayout>
 #include <QTimer>
@@ -124,6 +129,7 @@ MainWindow::MainWindow(QWidget* parent)
     connect(canvas_, &PlanCanvas::cursorMoved, this, [this](const QPointF& scene) { updateCursorText(&scene); });
     connect(canvas_, &PlanCanvas::cursorLeft, this, [this]() { updateCursorText(nullptr); });
     connect(selection_, &Selection::changed, this, &MainWindow::refreshSelection);
+    connect(panel_, &PropertiesPanel::deleteRequested, this, &MainWindow::deleteSelection);
     connect(tools_, &ToolController::message, statusBar_, &StatusBar::showMessage);
     connect(tools_, &ToolController::hintTextChanged, statusBar_, &StatusBar::setHint);
     connect(tools_, &ToolController::gridChanged, this, [this]() { canvas_->setGridStep(tools_->gridStepPixels()); });
@@ -241,6 +247,13 @@ void MainWindow::buildMenus()
         toolActions_[static_cast<size_t>(id)] = action;
     }
     updateToolActions();
+    edit->addSeparator();
+    deleteAction_ = addMenuAction(edit, tr("&Delete"),
+                                  tr("Delete the selected item and what depends on it (Delete)"),
+                                  QStringLiteral("edit-delete"),
+                                  {QKeySequence(Qt::Key_Delete), QKeySequence(Qt::Key_Backspace)});
+    connect(deleteAction_, &QAction::triggered, this, &MainWindow::deleteSelection);
+    updateDeleteAction();
 
     QList<QKeySequence> zoomOutKeys{QKeySequence(Qt::CTRL | Qt::Key_Minus)};
     for (const QKeySequence& key : QKeySequence::keyBindings(QKeySequence::ZoomOut))
@@ -341,6 +354,7 @@ void MainWindow::onDocumentChanged(unsigned changes)
     if (changes & plynth::Change::ReadOnly)
         updateReadOnlyUi();
     tools_->documentChanged(changes);
+    updateDeleteAction();
     tools_->refreshAvailability();
     panel_->refresh();
     if (changes & plynth::Change::Folder) {
@@ -453,6 +467,25 @@ void MainWindow::refreshOverlay()
             overlay.walls.append({fromCore(wall.id), QPointF(from->x * ppm, from->y * ppm),
                                QPointF(to->x * ppm, to->y * ppm), wall.thickness * ppm});
         }
+        for (const plynth::Room& room : floor.rooms) {
+            const plynth::RoomShape shape = plynth::roomShape(floor, room);
+            if (!shape.closed || shape.floorArea.empty())
+                continue;
+            OverlayRoom entry;
+            entry.id = fromCore(room.id);
+            entry.floor.setFillRule(Qt::OddEvenFill);
+            for (const std::vector<plynth::Vec2>& ring : shape.floorArea) {
+                QPolygonF polygon;
+                for (const plynth::Vec2& corner : ring)
+                    polygon << QPointF(corner.x * ppm, corner.y * ppm);
+                entry.floor.addPolygon(polygon);
+                entry.floor.closeSubpath();
+            }
+            entry.label = QPointF(shape.labelPoint.x * ppm, shape.labelPoint.y * ppm);
+            entry.name = fromCore(plynth::roomTypeName(room.type));
+            entry.area = QStringLiteral("%1 m\u00B2").arg(shape.area, 0, 'f', 2);
+            overlay.rooms.append(entry);
+        }
     }
     canvas_->setOverlay(overlay);
     canvas_->setGridStep(tools_->gridStepPixels());
@@ -462,6 +495,30 @@ void MainWindow::refreshOverlay()
 void MainWindow::refreshSelection()
 {
     canvas_->setSelection(selection_->kind(), selection_->id());
+    updateDeleteAction();
+}
+
+// Deletes the selected item with everything that depends on it, as one undo step.
+void MainWindow::deleteSelection()
+{
+    if (selection_->isEmpty() || doc_.isReadOnly())
+        return;
+    const std::string id = selection_->id().toStdString();
+    plynth::DeleteBuild build = plynth::makeDeleteCommand(doc_.plan(), std::span<const plynth::Id>(&id, 1));
+    if (!build.status.ok()) {
+        statusBar_->showMessage(fromCore(build.status.message));
+        return;
+    }
+    const plynth::Status status = doc_.execute(std::move(build.command));
+    if (!status.ok())
+        statusBar_->showMessage(fromCore(status.message));
+}
+
+// Enables Delete only with a selection on an editable project.
+void MainWindow::updateDeleteAction()
+{
+    if (deleteAction_ != nullptr)
+        deleteAction_->setEnabled(!selection_->isEmpty() && !doc_.isReadOnly());
 }
 
 // Clears the selection when its item is gone, for example after undo or a reload.

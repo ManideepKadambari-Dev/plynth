@@ -3,6 +3,7 @@
 #include "canvas/PlanCanvas.h"
 #include "document/Selection.h"
 #include "theme/Theme.h"
+#include "tools/RoomTool.h"
 #include "tools/ScaleTool.h"
 #include "tools/SelectTool.h"
 #include "tools/WallTool.h"
@@ -27,6 +28,7 @@ ToolController::ToolController(plynth::Document& document, PlanCanvas* canvas, S
     tools_[static_cast<size_t>(ToolId::Select)] = std::make_unique<SelectTool>(*this);
     tools_[static_cast<size_t>(ToolId::Scale)] = std::make_unique<ScaleTool>(*this);
     tools_[static_cast<size_t>(ToolId::Wall)] = std::make_unique<WallTool>(*this);
+    tools_[static_cast<size_t>(ToolId::Room)] = std::make_unique<RoomTool>(*this);
     canvas_->setTool(tool(active_));
     tool(active_)->activate();
 }

@@ -300,7 +300,8 @@ void PlanCanvas::paintOverlay(QPainter* painter)
     painter->setPen(Qt::NoPen);
     painter->setBrush(roomBlue);
     for (const OverlayRoom& room : overlay_.rooms)
-        painter->drawPath(room.floor);
+        if (!(selectionKind_ == SelectionKind::Room && room.id == selectionId_))
+            painter->drawPath(room.floor);
 
     QColor blue = t.signalBlue();
     blue.setAlpha(t.overlayAlpha());
@@ -396,6 +397,13 @@ void PlanCanvas::paintLabels(QPainter* painter)
         const QPointF at = mapFromScene(room.label);
         const QRectF nameBox(at.x() - width / 2.0, at.y() - height / 2.0, width, nameMetrics.height());
         const QRectF areaBox(at.x() - width / 2.0, nameBox.bottom(), width, areaMetrics.height());
+        const QRectF pill = QRectF(at.x() - width / 2.0, at.y() - height / 2.0, width, height)
+                                .adjusted(-t.unit(), -t.unit() / 2.0, t.unit(), t.unit() / 2.0);
+        QColor backing = t.panel();
+        backing.setAlpha(230);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(backing);
+        painter->drawRoundedRect(pill, t.radius(), t.radius());
         painter->setFont(nameFont);
         painter->setPen(t.text());
         painter->drawText(nameBox, Qt::AlignCenter, room.name);

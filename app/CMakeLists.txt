@@ -19,6 +19,8 @@ add_executable(plynth WIN32
     src/panels/PropertiesPanel.cpp
     src/panels/ToolStrip.h
     src/panels/ToolStrip.cpp
+    src/tools/RoomTool.h
+    src/tools/RoomTool.cpp
     src/tools/ScaleTool.h
     src/tools/ScaleTool.cpp
     src/tools/SelectTool.h

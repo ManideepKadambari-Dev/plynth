@@ -97,6 +97,8 @@ private:
     void refreshImage();
     void refreshOverlay();
     void refreshSelection();
+    void deleteSelection();
+    void updateDeleteAction();
     void validateSelection();
     void updateToolActions();
     void updateCursorText(const QPointF* scene);
@@ -129,6 +131,7 @@ private:
     PropertiesPanel* panel_ = nullptr;
     QAction* toolActions_[4] = {nullptr, nullptr, nullptr, nullptr};
     QAction* snapGridAction_ = nullptr;
+    QAction* deleteAction_ = nullptr;
     StatusBar* statusBar_ = nullptr;
     QTimer* autosaveTimer_ = nullptr;
     ReadOnlyBanner* banner_ = nullptr;

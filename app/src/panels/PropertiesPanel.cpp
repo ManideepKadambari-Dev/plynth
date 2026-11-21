@@ -6,10 +6,14 @@
 
 #include <plynth/core/Document.h>
 #include <plynth/core/Geometry.h>
+#include <plynth/core/RoomTypes.h>
+#include <plynth/core/Rooms.h>
 #include <plynth/core/commands/PointCommands.h>
+#include <plynth/core/commands/RoomCommands.h>
 #include <plynth/core/commands/SettingsCommands.h>
 #include <plynth/core/commands/WallCommands.h>
 
+#include <QComboBox>
 #include <QDoubleSpinBox>
 #include <QEvent>
 #include <QGridLayout>
@@ -29,6 +33,7 @@ constexpr int kBorderWidth = 1;
 constexpr int kNothingPage = 0;
 constexpr int kPointPage = 1;
 constexpr int kWallPage = 2;
+constexpr int kRoomPage = 3;
 
 // Turns a core text into Qt text.
 QString fromCore(const std::string& text)
@@ -61,6 +66,7 @@ PropertiesPanel::PropertiesPanel(plynth::Document& document, Selection& selectio
     buildNothingPage();
     buildPointPage();
     buildWallPage();
+    buildRoomPage();
     column->addWidget(pages_);
     column->addStretch(1);
 
@@ -218,6 +224,78 @@ void PropertiesPanel::buildWallPage()
     });
 }
 
+// The page for a selected room: id, type, floor area and number of walls.
+void PropertiesPanel::buildRoomPage()
+{
+    const Theme& t = Theme::instance();
+    QGridLayout* grid = nullptr;
+    makePage(&grid);
+    roomId_ = addLabelRow(grid, tr("Room"));
+
+    auto* name = new QLabel(tr("Type"), grid->parentWidget());
+    name->setFont(t.uiFont(t.sizeSmall()));
+    name->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
+    roomType_ = new QComboBox(grid->parentWidget());
+    roomType_->setFont(t.uiFont(t.sizeNormal()));
+    roomType_->setToolTip(tr("What kind of room this is"));
+    roomType_->setProperty("tourId", QStringLiteral("panel-room-type"));
+    name->setToolTip(roomType_->toolTip());
+    const int row = grid->rowCount();
+    grid->addWidget(name, row, 0, Qt::AlignVCenter);
+    grid->addWidget(roomType_, row, 1);
+    editors_.push_back(roomType_);
+    connect(roomType_, &QComboBox::activated, this, [this](int index) {
+        if (refreshing_ || selection_.kind() != SelectionKind::Room)
+            return;
+        const QVariant data = roomType_->itemData(index);
+        std::optional<std::string> type;
+        if (data.isValid() && !data.isNull())
+            type = data.toString().toStdString();
+        const plynth::Floor* floor = controller_.floor();
+        const std::string id = selection_.id().toStdString();
+        if (floor != nullptr)
+            for (const plynth::Room& room : floor->rooms)
+                if (room.id == id && room.type == type)
+                    return;
+        controller_.run(std::make_unique<plynth::SetRoomTypeCommand>(id, type));
+    });
+
+    roomArea_ = addLabelRow(grid, tr("Area"));
+    roomArea_->setToolTip(tr("Floor area inside the walls"));
+    roomWalls_ = addLabelRow(grid, tr("Walls"));
+}
+
+// Fills the page for a selected room.
+void PropertiesPanel::refreshRoom()
+{
+    const plynth::Floor* floor = controller_.floor();
+    const std::string id = selection_.id().toStdString();
+    const plynth::Room* room = nullptr;
+    if (floor != nullptr)
+        for (const plynth::Room& candidate : floor->rooms)
+            if (candidate.id == id)
+                room = &candidate;
+    if (room == nullptr)
+        return;
+    roomId_->setText(fromCore(room->id));
+
+    roomType_->clear();
+    if (room->type.has_value() && plynth::findRoomType(*room->type) == nullptr)
+        roomType_->addItem(fromCore(*room->type), fromCore(*room->type));
+    for (const plynth::RoomType& type : plynth::builtInRoomTypes())
+        roomType_->addItem(QString::fromUtf8(type.name.data(), static_cast<qsizetype>(type.name.size())),
+                           QString::fromUtf8(type.id.data(), static_cast<qsizetype>(type.id.size())));
+    roomType_->addItem(tr("No type yet"), QVariant());
+    int current = roomType_->count() - 1;
+    if (room->type.has_value())
+        current = roomType_->findData(fromCore(*room->type));
+    roomType_->setCurrentIndex(current);
+
+    const plynth::RoomShape shape = plynth::roomShape(*floor, *room);
+    roomArea_->setText(QStringLiteral("%1 m\u00B2").arg(shape.area, 0, 'f', 2));
+    roomWalls_->setText(QString::number(room->walls.size()));
+}
+
 // Gives the thickness box a new merge key each time it gets focus, so one visit is one undo step.
 bool PropertiesPanel::eventFilter(QObject* watched, QEvent* event)
 {
@@ -250,6 +328,10 @@ void PropertiesPanel::refresh()
     case SelectionKind::Wall:
         page = kWallPage;
         refreshWall();
+        break;
+    case SelectionKind::Room:
+        page = kRoomPage;
+        refreshRoom();
         break;
     default:
         refreshNothing();
