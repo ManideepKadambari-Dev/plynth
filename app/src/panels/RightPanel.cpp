@@ -25,7 +25,7 @@ QPushButton* makeTab(const QString& text, const QString& tip, const QString& tou
 }
 
 // Builds the two tabs over a stack holding the two pages.
-RightPanel::RightPanel(QWidget* properties, QWidget* assets, QWidget* parent) : QWidget(parent)
+RightPanel::RightPanel(QWidget* properties, QWidget* assets, QWidget* build, QWidget* parent) : QWidget(parent)
 {
     const Theme& t = Theme::instance();
     setProperty("tourId", QStringLiteral("panel-right"));
@@ -39,19 +39,25 @@ RightPanel::RightPanel(QWidget* properties, QWidget* assets, QWidget* parent) : 
     propertiesButton_ = makeTab(tr("Properties"), tr("Properties of the selected item, or of the plan"),
                                 QStringLiteral("tab-properties"), this);
     assetsButton_ = makeTab(tr("Assets"), tr("The assets catalog (Ctrl+Shift+A)"), QStringLiteral("tab-assets"), this);
+    buildButton_ = makeTab(tr("Build"), tr("The last build: summary, files, steps and problems"),
+                           QStringLiteral("tab-build"), this);
     tabs->addWidget(propertiesButton_, 1);
     tabs->addWidget(assetsButton_, 1);
+    tabs->addWidget(buildButton_, 1);
     column->addLayout(tabs);
 
     pages_ = new QStackedWidget(this);
     properties->setParent(pages_);
     assets->setParent(pages_);
+    build->setParent(pages_);
     pages_->addWidget(properties);
     pages_->addWidget(assets);
+    pages_->addWidget(build);
     column->addWidget(pages_, 1);
 
     connect(propertiesButton_, &QPushButton::clicked, this, [this]() { showTab(Tab::Properties); });
     connect(assetsButton_, &QPushButton::clicked, this, [this]() { showTab(Tab::Assets); });
+    connect(buildButton_, &QPushButton::clicked, this, [this]() { showTab(Tab::Build); });
     showTab(Tab::Properties);
 }
 
@@ -62,7 +68,8 @@ void RightPanel::showTab(Tab tab)
     tab_ = tab;
     propertiesButton_->setChecked(tab == Tab::Properties);
     assetsButton_->setChecked(tab == Tab::Assets);
-    pages_->setCurrentIndex(tab == Tab::Properties ? 0 : 1);
+    buildButton_->setChecked(tab == Tab::Build);
+    pages_->setCurrentIndex(static_cast<int>(tab));
     setFixedWidth(tab == Tab::Properties ? t.propertiesWidth() : t.assetsWidth());
 }
 

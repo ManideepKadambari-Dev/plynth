@@ -1,6 +1,8 @@
 #include "MainWindow.h"
 
 #include "BuildBar.h"
+#include "building/BuildController.h"
+#include "building/BuildPanel.h"
 #include "TitleBar.h"
 #include "StatusBar.h"
 #include "canvas/OverlayBuilder.h"
@@ -167,7 +169,8 @@ MainWindow::MainWindow(QWidget* parent)
     centreStack_->addWidget(preview_);
     centreColumn->addWidget(centreStack_, 1);
     row->addWidget(centre, 1);
-    right_ = new RightPanel(panel_, assets_, work);
+    buildPanel_ = new BuildPanel(work);
+    right_ = new RightPanel(panel_, assets_, buildPanel_, work);
     row->addWidget(right_);
     work_ = work;
     pages_ = new QStackedWidget(central);
@@ -184,6 +187,23 @@ MainWindow::MainWindow(QWidget* parent)
     terminal_->setWorkingFolder(host_->projectsFolder());
     lastFolder_ = host_->projectsFolder();
 
+    builder_ = new BuildController(this);
+    buildUiTimer_ = new QTimer(this);
+    buildUiTimer_->setSingleShot(true);
+    buildUiTimer_->setInterval(300);
+    connect(buildUiTimer_, &QTimer::timeout, this, &MainWindow::updateBuildUi);
+    connect(builder_, &BuildController::progress, this, [this](const QString& text, int percent) {
+        buildProgressText_ = text;
+        buildProgressPercent_ = percent;
+        updateBuildUi();
+    });
+    connect(builder_, &BuildController::finished, this, &MainWindow::buildFinished);
+    connect(buildBar_, &BuildBar::buildRequested, this, &MainWindow::startBuild);
+    connect(buildBar_, &BuildBar::cancelRequested, builder_, &BuildController::cancel);
+    connect(buildBar_, &BuildBar::problemsRequested, this, [this]() { right_->showTab(RightPanel::Tab::Build); });
+    connect(buildPanel_, &BuildPanel::problemActivated, this, &MainWindow::showProblem);
+    connect(buildPanel_, &BuildPanel::openFolderRequested, this, &MainWindow::openBuildFolder);
+    connect(buildPanel_, &BuildPanel::openBlenderRequested, this, &MainWindow::openInBlender);
     connect(buildBar_, &BuildBar::viewRequested, this,
             [this](BuildBar::View view) { showCentreView(view == BuildBar::View::Scene3d); });
     connect(home_, &HomeScreen::newProjectRequested, this, &MainWindow::newProject);
@@ -224,6 +244,7 @@ MainWindow::MainWindow(QWidget* parent)
 
     buildMenus();
     buildCatalogMenu();
+    updateBuildUi();
     connect(host_, &LibraryHost::roomTypesChanged, this, &MainWindow::roomTypesChanged);
     connect(assets_, &AssetsPanel::message, statusBar_, [this](const QString& text) { statusBar_->showMessage(text); });
     if (!host_->shapeNotice().isEmpty())
@@ -477,6 +498,25 @@ void MainWindow::buildMenus()
                                             tr("Show or hide the terminal (Ctrl+`)"), QStringLiteral("view-terminal"),
                                             {QKeySequence(Qt::CTRL | Qt::Key_QuoteLeft)});
     connect(terminalAction, &QAction::triggered, terminal_, &TerminalDock::toggle);
+
+    QMenu* build = titleBar_->buildMenu();
+    buildAction_ = addMenuAction(build, tr("&Build"), tr("Build the building in Blender (Ctrl+B)"),
+                                 QStringLiteral("build-run"), {QKeySequence(Qt::CTRL | Qt::Key_B)});
+    connect(buildAction_, &QAction::triggered, this, &MainWindow::startBuild);
+    cancelBuildAction_ = addMenuAction(build, tr("&Cancel build"), tr("Stop the running build"),
+                                       QStringLiteral("build-cancel-action"), {});
+    connect(cancelBuildAction_, &QAction::triggered, builder_, &BuildController::cancel);
+    build->addSeparator();
+    reportAction_ = addMenuAction(build, tr("Show build &report"), tr("Show the last build in the Build tab"),
+                                  QStringLiteral("build-report"), {});
+    connect(reportAction_, &QAction::triggered, this, [this]() { right_->showTab(RightPanel::Tab::Build); });
+    buildFolderAction_ = addMenuAction(build, tr("&Open build folder"), tr("Open the build folder of the project in Explorer"),
+                                       QStringLiteral("build-open-folder-action"), {});
+    connect(buildFolderAction_, &QAction::triggered, this, &MainWindow::openBuildFolder);
+    openBlenderAction_ = addMenuAction(build, tr("Open building.&blend in Blender"),
+                                       tr("Open the built Blender file in Blender"),
+                                       QStringLiteral("build-open-blender-action"), {});
+    connect(openBlenderAction_, &QAction::triggered, this, &MainWindow::openInBlender);
 
     QAction* setupAction = addMenuAction(titleBar_->helpMenu(), tr("&Setup check"),
                                          tr("Check that Blender, the library and the projects folder are ready"),
@@ -737,13 +777,15 @@ void MainWindow::setPreviewCamera(const QString& name)
 // For checks only: true when the 3D page and the asset previews have drawn their models, or have none.
 bool MainWindow::previewPictureReady() const
 {
-    return (centreStack_->currentWidget() != preview_ || preview_->pictureReady()) && assets_->pictureReady() &&
+    return !builder_->running() && (centreStack_->currentWidget() != preview_ || preview_->pictureReady()) &&
+           assets_->pictureReady() &&
            tools_->pickerPreviewReady();
 }
 
 // Loads the building of the open project into the 3D page, or shows its empty state.
 void MainWindow::refreshPreview()
 {
+    loadBuildReport();
     preview_->setProject(doc_.hasFolder() ? doc_.folder() : std::filesystem::path(), doc_.plan());
     updateViewActions();
 }
@@ -780,6 +822,8 @@ void MainWindow::onDocumentChanged(unsigned changes)
     if (changes & (plynth::Change::Points | plynth::Change::Walls | plynth::Change::Rooms | plynth::Change::Openings | plynth::Change::Items | plynth::Change::Scale |
                    plynth::Change::Floors | plynth::Change::Folder))
         refreshOverlay();
+    if (report_.has_value())
+        buildUiTimer_->start();
     validateSelection();
     wallView_->refresh();
     updateWallView();

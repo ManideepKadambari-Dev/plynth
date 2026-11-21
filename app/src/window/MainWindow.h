@@ -2,6 +2,7 @@
 
 #include "tools/Tool.h"
 
+#include <plynth/core/Build.h>
 #include <plynth/core/Document.h>
 #include <plynth/core/EditSession.h>
 #include <plynth/core/ProjectFiles.h>
@@ -28,6 +29,8 @@ namespace plynth::app {
 
 class AssetsPanel;
 class BuildBar;
+class BuildController;
+class BuildPanel;
 class DocumentBridge;
 class HomeScreen;
 class ImportQueue;
@@ -118,6 +121,10 @@ public:
     void startTerminalCheck(const QString& text);
     bool terminalPictureReady() const;
     bool terminalFailed() const;
+    // Starts a build of the project in memory. Asks to save a project that was never saved.
+    void startBuild();
+    // For checks only: shows the Build tab.
+    void showBuildTab();
     // For checks only: shows the 3D page ("3d") or the plan ("plan").
     void showView(const QString& name);
     // For checks only: sets the camera of the 3D page: "three-quarter" or "top".
@@ -165,6 +172,13 @@ private:
     void refreshImage();
     void refreshOverlay();
     void refreshPreview();
+    void buildFinished(const plynth::BuildReport& report);
+    void updateBuildUi();
+    void loadBuildReport();
+    void showProblem(const QString& objectId);
+    void openBuildFolder();
+    void openInBlender();
+    bool buildBlocked(QString* reason) const;
     void showCentreView(bool scene3d);
     void refreshSelection();
     void deleteSelection();
@@ -209,6 +223,17 @@ private:
     BuildBar* buildBar_ = nullptr;
     PreviewView* preview_ = nullptr;
     QAction* view3dAction_ = nullptr;
+    BuildController* builder_ = nullptr;
+    BuildPanel* buildPanel_ = nullptr;
+    QAction* buildAction_ = nullptr;
+    QAction* cancelBuildAction_ = nullptr;
+    QAction* reportAction_ = nullptr;
+    QAction* buildFolderAction_ = nullptr;
+    QAction* openBlenderAction_ = nullptr;
+    std::optional<plynth::BuildReport> report_;
+    QTimer* buildUiTimer_ = nullptr;
+    QString buildProgressText_;
+    int buildProgressPercent_ = 0;
     QAction* fitAction_ = nullptr;
     QWidget* work_ = nullptr;
     HomeScreen* home_ = nullptr;

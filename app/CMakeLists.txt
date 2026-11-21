@@ -5,6 +5,11 @@ set(CMAKE_AUTORCC ON)
 
 add_executable(plynth WIN32
     src/main.cpp
+    src/building/BuildController.h
+    src/building/BuildController.cpp
+    src/building/BuildPanel.h
+    src/building/BuildPanel.cpp
+    src/building/ProblemMark.h
     src/catalog/ImportQueue.h
     src/catalog/ImportQueue.cpp
     src/catalog/LibraryHost.h
@@ -95,6 +100,7 @@ add_executable(plynth WIN32
     src/window/BuildBar.cpp
     src/window/MainWindow.h
     src/window/MainWindow.cpp
+    src/window/MainWindowBuild.cpp
     src/window/ReadOnlyBanner.h
     src/window/ReadOnlyBanner.cpp
     src/window/StatusBar.h

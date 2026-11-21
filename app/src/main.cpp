@@ -21,6 +21,7 @@ constexpr int kExitTerminalFailed = 4;
 constexpr qint64 kDetectionWaitMs = 15000;
 constexpr qint64 kSetupWaitMs = 60000;
 constexpr qint64 kPreviewWaitMs = 30000;
+constexpr qint64 kBuildWaitMs = 1800000;
 
 // Reads "WxH" into a size. Returns false when the text is not two positive numbers.
 bool parseSize(const QString& text, QSize& out)
@@ -110,7 +111,12 @@ int main(int argc, char* argv[])
     QCommandLineOption cameraOption(QStringLiteral("camera"),
                                     QStringLiteral("Camera of the 3D page: three-quarter or top. For checks only."),
                                     QStringLiteral("name"));
+    QCommandLineOption buildOption(QStringLiteral("build"),
+                                   QStringLiteral("Build the project after opening it and wait for the end. For checks only."));
+    QCommandLineOption buildTabOption(QStringLiteral("build-tab"), QStringLiteral("Show the Build tab. For checks only."));
     QCommandLineOption homeOption(QStringLiteral("home"), QStringLiteral("Show the home screen. For checks only."));
+    parser.addOption(buildOption);
+    parser.addOption(buildTabOption);
     parser.addOption(viewOption);
     parser.addOption(cameraOption);
     parser.addOption(homeOption);
@@ -249,6 +255,10 @@ int main(int argc, char* argv[])
     if (parser.isSet(homeOption) || (!wantsScreenshot && !hasProject && !parser.isSet(imageOption)))
         window.showHome();
     window.show();
+    if (parser.isSet(buildTabOption))
+        window.showBuildTab();
+    if (parser.isSet(buildOption))
+        QTimer::singleShot(0, &window, [&window]() { window.startBuild(); });
     if (parser.isSet(furnitureAtOption)) {
         const QString hover = parser.value(hoverAssetOption);
         QTimer::singleShot(250, &window, [&window, furnitureX, furnitureY, hover]() {
@@ -278,6 +288,7 @@ int main(int argc, char* argv[])
         QTimer::singleShot(0, &window, [&window, text]() { window.startTerminalCheck(text); });
     }
 
+    const bool wantsBuild = parser.isSet(buildOption);
     if (wantsScreenshot) {
         const QString file = parser.value(screenshotOption);
         const QSize target = hasSize ? size : window.size();
@@ -285,12 +296,12 @@ int main(int argc, char* argv[])
         waited.start();
         auto* poll = new QTimer(&app);
         poll->setInterval(wantsTerminal ? 100 : 400);
-        QObject::connect(poll, &QTimer::timeout, &app, [&window, file, target, loadFailed, wantsTerminal, poll, waited]() {
+        QObject::connect(poll, &QTimer::timeout, &app, [&window, file, target, loadFailed, wantsTerminal, wantsBuild, poll, waited]() {
             if (wantsTerminal && !window.terminalPictureReady())
                 return;
             if (!window.detectionPictureReady() && !waited.hasExpired(kDetectionWaitMs))
                 return;
-            if (!window.previewPictureReady() && !waited.hasExpired(kPreviewWaitMs))
+            if (!window.previewPictureReady() && !waited.hasExpired(wantsBuild ? kBuildWaitMs : kPreviewWaitMs))
                 return;
             if ((!window.setupPictureReady() || !window.importPictureReady()) && !waited.hasExpired(kSetupWaitMs))
                 return;
