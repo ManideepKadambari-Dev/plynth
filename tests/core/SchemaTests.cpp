@@ -38,7 +38,8 @@ nlohmann::json plain(const Json& j)
 }
 
 TEST_CASE("the schema files are valid schemas", "[core][schema]") {
-    for (const char* file : {"plan.schema.json", "project.schema.json", "plan.v1.schema.json", "project.v1.schema.json"}) {
+    for (const char* file : {"plan.schema.json", "project.schema.json", "plan.v1.schema.json", "project.v1.schema.json", "plan.v2.schema.json",
+                             "project.v2.schema.json"}) {
         INFO(file);
         // An empty object is not a plan or a project, so a working validator complains about it
         // with a message about the instance, not about reading or loading the schema.
@@ -128,7 +129,7 @@ TEST_CASE("version 1 files pass the version 1 schemas and upgrade", "[core][sche
     plynth::test::requireOk(r.status);
     REQUIRE(r.migrated);
     const nlohmann::json upgraded = plain(planToJson(r.plan));
-    REQUIRE(upgraded["version"] == 2);
+    REQUIRE(upgraded["version"] == 3);
     REQUIRE(schemaProblem("plan.schema.json", upgraded).empty());
 
     const nlohmann::json project = nlohmann::json::parse(plynth::test::readTextFile(dir / "v1-project.json"));
@@ -139,7 +140,38 @@ TEST_CASE("version 1 files pass the version 1 schemas and upgrade", "[core][sche
     REQUIRE(schemaProblem("project.schema.json", plain(settingsToJson(s.settings))).empty());
 }
 
-TEST_CASE("a version 3 plan is unsupported", "[core][schema]") {
-    const std::string text = plynth::test::readTextFile(std::filesystem::path(PLYNTH_TEST_DATA_DIR) / "invalid-version-3.json");
+TEST_CASE("version 2 files pass the version 2 schemas and upgrade", "[core][schema][migrate]") {
+    const auto dir = std::filesystem::path(PLYNTH_TEST_DATA_DIR);
+    for (const char* name : {"v2-full.json", "v2-minimal.json"}) {
+        INFO(name);
+        const nlohmann::json plan = nlohmann::json::parse(plynth::test::readTextFile(dir / name));
+        REQUIRE(schemaProblem("plan.v2.schema.json", plan).empty());
+        REQUIRE_FALSE(schemaProblem("plan.schema.json", plan).empty());
+        const PlanRead r = planFromJson(Json::parse(plan.dump()));
+        plynth::test::requireOk(r.status);
+        REQUIRE(r.migrated);
+        REQUIRE(schemaProblem("plan.schema.json", plain(planToJson(r.plan))).empty());
+    }
+
+    const nlohmann::json project = nlohmann::json::parse(plynth::test::readTextFile(dir / "v2-project.json"));
+    REQUIRE(schemaProblem("project.v2.schema.json", project).empty());
+    REQUIRE_FALSE(schemaProblem("project.schema.json", project).empty());
+    const SettingsRead s = settingsFromJson(Json::parse(project.dump()));
+    plynth::test::requireOk(s.status);
+    REQUIRE(s.migrated);
+    REQUIRE(schemaProblem("project.schema.json", plain(settingsToJson(s.settings))).empty());
+}
+
+TEST_CASE("a version 4 plan is unsupported", "[core][schema]") {
+    const std::string text = plynth::test::readTextFile(std::filesystem::path(PLYNTH_TEST_DATA_DIR) / "invalid-version-4.json");
     REQUIRE(planFromJson(Json::parse(text)).status.code == ErrorCode::UnsupportedVersion);
+}
+
+TEST_CASE("a plan with items and a wall item centre validate", "[core][schema]") {
+    ProjectSettings s;
+    s.defaults.wallItemCentre = 1.5;
+    REQUIRE(schemaProblem("project.schema.json", plain(settingsToJson(s))).empty());
+    const nlohmann::json plan = plain(planToJson(fullPlan()));
+    REQUIRE(plan["floors"][0]["items"].size() == 2);
+    REQUIRE(schemaProblem("plan.schema.json", plan).empty());
 }

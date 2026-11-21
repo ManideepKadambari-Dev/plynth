@@ -242,6 +242,13 @@ AssetInfoRead readAssetInfo(const fs::path& file, std::string_view folderName)
     return result;
 }
 
+// Says whether every side of a size is above zero.
+bool isMeasured(const AssetSize& size)
+{
+    return std::isfinite(size.width) && std::isfinite(size.depth) && std::isfinite(size.height) && size.width > 0.0
+        && size.depth > 0.0 && size.height > 0.0;
+}
+
 // Writes info.json through a temporary file and a rename.
 Status writeAssetInfo(const fs::path& file, const AssetInfo& info)
 {

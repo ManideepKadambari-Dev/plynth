@@ -35,6 +35,12 @@ Status checkDefaultSizes(const DefaultSizes& sizes)
     if (!above0(sizes.windowWidth)) return bad("window width", "a number above zero");
     if (!above0(sizes.windowHeight)) return bad("window height", "a number above zero");
     if (!std::isfinite(sizes.windowSill) || sizes.windowSill < 0.0) return bad("window sill", "zero or more");
+    if (!above0(sizes.wallItemCentre)) return bad("wall item centre", "a number above zero");
+    if (sizes.wallItemCentre >= sizes.ceilingHeight) {
+        return fail(ErrorCode::InvalidValue,
+                    "The wall item centre " + metres(sizes.wallItemCentre) + " must be below the ceiling height "
+                        + metres(sizes.ceilingHeight) + ".");
+    }
     if (sizes.doorHeight > sizes.ceilingHeight) {
         return fail(ErrorCode::InvalidValue,
                     "The door height " + metres(sizes.doorHeight) + " is more than the ceiling height "

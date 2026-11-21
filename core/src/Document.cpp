@@ -38,6 +38,7 @@ unsigned floorDifference(const Floor& a, const Floor& b)
     if (a.walls != b.walls) flags |= Change::Walls;
     if (a.rooms != b.rooms) flags |= Change::Rooms;
     if (a.openings != b.openings) flags |= Change::Openings;
+    if (a.items != b.items) flags |= Change::Items;
     return flags;
 }
 
@@ -50,6 +51,7 @@ unsigned floorContent(const Floor& f)
     if (!f.walls.empty()) flags |= Change::Walls;
     if (!f.rooms.empty()) flags |= Change::Rooms;
     if (!f.openings.empty()) flags |= Change::Openings;
+    if (!f.items.empty()) flags |= Change::Items;
     return flags;
 }
 

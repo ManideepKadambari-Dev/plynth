@@ -180,6 +180,29 @@ Opening readOpening(const Json& j, const std::string& where)
     return o;
 }
 
+// Reads one placed item.
+Item readItem(const Json& j, const std::string& where)
+{
+    expectObject(j, where, {"id", "asset", "room", "x", "y", "z", "rotation", "wall", "size"});
+    Item it;
+    it.id = getString(j, "id", where);
+    it.asset = getString(j, "asset", where);
+    it.room = getOptionalString(j, "room", where);
+    it.x = getNumber(j, "x", where);
+    it.y = getNumber(j, "y", where);
+    it.z = getNumberOr(j, "z", where, 0.0);
+    it.rotation = getNumberOr(j, "rotation", where, 0.0);
+    it.wall = getOptionalString(j, "wall", where);
+    auto sit = j.find("size");
+    if (sit == j.end()) refuse("The field \"size\" is missing.", child(where, "size"));
+    const std::string at = child(where, "size");
+    expectObject(*sit, at, {"width", "depth", "height"});
+    it.size.width = getNumber(*sit, "width", at);
+    it.size.depth = getNumber(*sit, "depth", at);
+    it.size.height = getNumber(*sit, "height", at);
+    return it;
+}
+
 // Reads every item of an optional array with a reader function.
 template <typename Item, typename Reader>
 std::vector<Item> readList(const Json& obj, const char* key, const std::string& where, Reader reader)
@@ -196,7 +219,7 @@ std::vector<Item> readList(const Json& obj, const char* key, const std::string& 
 // Reads one floor.
 Floor readFloor(const Json& j, const std::string& where)
 {
-    expectObject(j, where, {"id", "name", "image", "ceiling_height", "points", "walls", "rooms", "openings"});
+    expectObject(j, where, {"id", "name", "image", "ceiling_height", "points", "walls", "rooms", "openings", "items"});
     Floor f;
     f.id = getString(j, "id", where);
     f.name = j.contains("name") ? getString(j, "name", where) : f.id;
@@ -206,6 +229,7 @@ Floor readFloor(const Json& j, const std::string& where)
     f.walls = readList<Wall>(j, "walls", where, readWall);
     f.rooms = readList<Room>(j, "rooms", where, readRoom);
     f.openings = readList<Opening>(j, "openings", where, readOpening);
+    f.items = readList<Item>(j, "items", where, readItem);
     return f;
 }
 
@@ -308,6 +332,26 @@ Json planToJson(const Plan& plan)
             openings.push_back(std::move(jo));
         }
         jf["openings"] = std::move(openings);
+
+        Json items = Json::array();
+        for (const Item& it : f.items) {
+            Json ji = Json::object();
+            ji["id"] = it.id;
+            ji["asset"] = it.asset;
+            ji["room"] = optString(it.room);
+            ji["x"] = it.x;
+            ji["y"] = it.y;
+            ji["z"] = it.z;
+            ji["rotation"] = it.rotation;
+            ji["wall"] = optString(it.wall);
+            Json size = Json::object();
+            size["width"] = it.size.width;
+            size["depth"] = it.size.depth;
+            size["height"] = it.size.height;
+            ji["size"] = std::move(size);
+            items.push_back(std::move(ji));
+        }
+        jf["items"] = std::move(items);
         floors.push_back(std::move(jf));
     }
     out["floors"] = std::move(floors);
@@ -359,6 +403,7 @@ Json defaultsToJson(const DefaultSizes& d)
     out["window_width"] = d.windowWidth;
     out["window_height"] = d.windowHeight;
     out["window_sill"] = d.windowSill;
+    out["wall_item_centre"] = d.wallItemCentre;
     return out;
 }
 
@@ -398,7 +443,7 @@ SettingsRead settingsFromJson(const Json& json)
         if (!(settings.gridSize > 0.0)) refuse("The grid size must be a number above zero.", "/grid_size");
         if (auto dit = copy.find("defaults"); dit != copy.end()) {
             expectObject(*dit, "/defaults",
-                         {"ceiling_height", "door_width", "door_height", "window_width", "window_height", "window_sill"});
+                         {"ceiling_height", "door_width", "door_height", "window_width", "window_height", "window_sill", "wall_item_centre"});
             DefaultSizes& d = settings.defaults;
             d.ceilingHeight = getNumberOr(*dit, "ceiling_height", "/defaults", d.ceilingHeight);
             d.doorWidth = getNumberOr(*dit, "door_width", "/defaults", d.doorWidth);
@@ -406,6 +451,7 @@ SettingsRead settingsFromJson(const Json& json)
             d.windowWidth = getNumberOr(*dit, "window_width", "/defaults", d.windowWidth);
             d.windowHeight = getNumberOr(*dit, "window_height", "/defaults", d.windowHeight);
             d.windowSill = getNumberOr(*dit, "window_sill", "/defaults", d.windowSill);
+            d.wallItemCentre = getNumberOr(*dit, "wall_item_centre", "/defaults", d.wallItemCentre);
             if (Status s = checkDefaultSizes(d); !s.ok()) refuse(s.message, "/defaults");
         }
         result.settings = std::move(settings);
@@ -478,19 +524,40 @@ Status migrateProject1To2(Json& json)
     return {};
 }
 
+// Version 2 to 3: every floor gets an empty list of items.
+Status migratePlan2To3(Json& json)
+{
+    auto floors = json.find("floors");
+    if (floors == json.end() || !floors->is_array()) return {};
+    for (Json& floor : *floors) {
+        if (floor.is_object() && !floor.contains("items")) floor["items"] = Json::array();
+    }
+    return {};
+}
+
+// Version 2 to 3: the defaults get the wall item centre.
+Status migrateProject2To3(Json& json)
+{
+    if (!json.is_object()) return {};
+    auto defaults = json.find("defaults");
+    if (defaults == json.end() || !defaults->is_object()) return {};
+    if (!defaults->contains("wall_item_centre")) (*defaults)["wall_item_centre"] = kDefaultWallItemCentre;
+    return {};
+}
+
 }
 
 // The upgrade steps for plan.json.
 std::span<const Migration> planMigrations()
 {
-    static const std::vector<Migration> steps = {{1, migratePlan1To2}};
+    static const std::vector<Migration> steps = {{1, migratePlan1To2}, {2, migratePlan2To3}};
     return steps;
 }
 
 // The upgrade steps for project.json.
 std::span<const Migration> projectMigrations()
 {
-    static const std::vector<Migration> steps = {{1, migrateProject1To2}};
+    static const std::vector<Migration> steps = {{1, migrateProject1To2}, {2, migrateProject2To3}};
     return steps;
 }
 
