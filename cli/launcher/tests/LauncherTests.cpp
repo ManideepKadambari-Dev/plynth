@@ -108,3 +108,20 @@ TEST_CASE("the launcher answers in JSON and exits 1 when plynth.exe is missing",
     CHECK(answer.at("error").at("code") == "not_found");
     CHECK_FALSE(answer.at("error").at("message").get<std::string>().empty());
 }
+
+TEST_CASE("the launcher returns at once when the window is opened", "[launcher]") {
+    TempFolder temp;
+    fs::copy_file(PLYNTH_LAUNCHER_FILE, temp.path() / "plynth.com");
+    fs::copy_file(PLYNTH_FAKE_CHILD, temp.path() / "plynth.exe");
+
+    for (const std::wstring arguments : {std::wstring(L"C:/plans/flat exit=3 sleep=1500"), std::wstring(L"sleep=1500 exit=3"),
+                                         std::wstring()}) {
+        const auto start = std::chrono::steady_clock::now();
+        const auto outcome = runLauncher(temp.path() / "plynth.com", arguments, temp.path());
+        const auto elapsed = std::chrono::steady_clock::now() - start;
+        CHECK(outcome.exitCode == 0);
+        CHECK(elapsed < std::chrono::milliseconds(1000));
+    }
+    // Let the stand-in windows end so the folder can be removed.
+    Sleep(2000);
+}

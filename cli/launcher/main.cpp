@@ -1,5 +1,6 @@
-// plynth.com: a small console program that starts plynth.exe with the same command line, so a
-// terminal waits for the answer and sees the exit code.
+// plynth.com: a small console program that starts plynth.exe with the same command line. For a CLI
+// command it waits and returns the exit code, so a terminal sees the answer. To open the window it
+// returns at once.
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -8,6 +9,9 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include <shellapi.h>
+
+#include <plynth/cli/Cli.h>
 
 #include <filesystem>
 #include <string>
@@ -50,6 +54,29 @@ void makeInheritable(HANDLE handle) {
     }
 }
 
+// Turns UTF-16 text into UTF-8.
+std::string toUtf8(const wchar_t* text) {
+    const int size = WideCharToMultiByte(CP_UTF8, 0, text, -1, nullptr, 0, nullptr, nullptr);
+    if (size <= 1) {
+        return {};
+    }
+    std::string result(static_cast<std::size_t>(size - 1), '\0');
+    WideCharToMultiByte(CP_UTF8, 0, text, -1, result.data(), size, nullptr, nullptr);
+    return result;
+}
+
+// Says whether the first argument is a CLI command word. False with no arguments.
+bool firstArgumentIsCommand() {
+    int count = 0;
+    wchar_t** args = CommandLineToArgvW(GetCommandLineW(), &count);
+    if (args == nullptr) {
+        return false;
+    }
+    const bool isCommand = count > 1 && plynth::cli::isCommandWord(toUtf8(args[1]));
+    LocalFree(args);
+    return isCommand;
+}
+
 // The folder this program lives in.
 std::filesystem::path ownFolder() {
     std::wstring path(32768, L'\0');
@@ -78,6 +105,21 @@ int main() {
 
     STARTUPINFOW startup{};
     startup.cb = sizeof(startup);
+
+    // Opening the window: start it on its own and return at once, so the terminal gets its prompt back.
+    if (!firstArgumentIsCommand()) {
+        PROCESS_INFORMATION window{};
+        if (!CreateProcessW(child.c_str(), commandLine.data(), nullptr, nullptr, FALSE, DETACHED_PROCESS, nullptr,
+                            nullptr, &startup, &window)) {
+            writeOut("{\"ok\":false,\"command\":\"\",\"error\":{\"code\":\"cannot_read\","
+                     "\"message\":\"plynth.exe could not be started.\"}}\n");
+            return kExitFailed;
+        }
+        CloseHandle(window.hThread);
+        CloseHandle(window.hProcess);
+        return 0;
+    }
+
     startup.dwFlags = STARTF_USESTDHANDLES;
     startup.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
     startup.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);

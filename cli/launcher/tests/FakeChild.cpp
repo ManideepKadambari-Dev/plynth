@@ -1,5 +1,5 @@
 // A stand-in for plynth.exe in the launcher tests. Prints each argument on its own line and
-// exits with the number in an argument of the form exit=N.
+// exits with the number in an argument of the form exit=N. An argument sleep=N waits N milliseconds first.
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -28,6 +28,9 @@ int main() {
         const std::wstring arg = args[i];
         if (arg.rfind(L"exit=", 0) == 0) {
             code = std::stoi(arg.substr(5));
+        }
+        if (arg.rfind(L"sleep=", 0) == 0) {
+            Sleep(static_cast<DWORD>(std::stoi(arg.substr(6))));
         }
         text += toUtf8(args[i]) + "\n";
     }
