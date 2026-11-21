@@ -31,6 +31,7 @@ public:
 private:
     void dragTo(const ToolMouse& mouse);
     void bendTo(const ToolMouse& mouse);
+    void moveOpeningTo(const ToolMouse& mouse);
     std::optional<QPointF> bendHandleView() const;
     bool overBendHandle(const QPoint& view) const;
     void setHandleHover(bool hover);
@@ -41,6 +42,8 @@ private:
     int dragKey_ = 0;
     bool dragging_ = false;
 
+    plynth::Id dragOpening_;
+    double openingGrab_ = 0.0;
     plynth::Id bendWall_;
     bool handleHover_ = false;
 };

@@ -142,7 +142,7 @@ private:
     QAction* wallViewAction_ = nullptr;
     QAction* flipWallViewAction_ = nullptr;
     bool wallViewSized_ = false;
-    QAction* toolActions_[5] = {nullptr, nullptr, nullptr, nullptr, nullptr};
+    QAction* toolActions_[kAllTools.size()] = {};
     QAction* acceptDetectionAction_ = nullptr;
     QAction* snapGridAction_ = nullptr;
     QAction* deleteAction_ = nullptr;

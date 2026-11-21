@@ -83,6 +83,17 @@ void ToolButton::paintEvent(QPaintEvent*)
         p.drawEllipse(c + QPointF(9, 0) * u, 3.2 * u, 3.2 * u);
         break;
     }
+    case ToolId::Opening: {
+        p.setPen(Qt::NoPen);
+        p.setBrush(ink);
+        p.drawRect(QRectF(c + QPointF(-11, 4) * u, QSizeF(7, 4) * u));
+        p.drawRect(QRectF(c + QPointF(6, 4) * u, QSizeF(5, 4) * u));
+        p.setPen(pen);
+        p.setBrush(Qt::NoBrush);
+        p.drawLine(c + QPointF(-4, 6) * u, c + QPointF(-4, -4) * u);
+        p.drawArc(QRectF(c + QPointF(-14, -4) * u, QSizeF(20, 20) * u), 0, 90 * 16);
+        break;
+    }
     case ToolId::Room: {
         p.drawRect(QRectF(c + QPointF(-8, -8) * u, QSizeF(16, 16) * u));
         p.drawLine(c + QPointF(-8, 0) * u, c + QPointF(0, 0) * u);
@@ -123,14 +134,14 @@ ToolStrip::ToolStrip(ToolController* controller, QWidget* parent)
     const Theme& t = Theme::instance();
     setFixedWidth(t.toolStripWidth());
     setProperty("tourId", QStringLiteral("tool-strip"));
-    setToolTip(tr("Tools: Select, Scale, Wall, Room and Detect"));
+    setToolTip(tr("Tools: Select, Scale, Wall, Opening, Room and Detect"));
 
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins((t.toolStripWidth() - kBorderWidth - t.toolButton()) / 2, t.unit() * 2,
                                (t.toolStripWidth() - kBorderWidth - t.toolButton()) / 2 + kBorderWidth, t.unit() * 2);
     layout->setSpacing(t.unit());
 
-    const std::array<ToolId, 5> ids{ToolId::Select, ToolId::Scale, ToolId::Wall, ToolId::Room, ToolId::Detect};
+    const std::array<ToolId, kAllTools.size()>& ids = kAllTools;
     for (size_t i = 0; i < ids.size(); ++i) {
         auto* button = new ToolButton(ids[i], this);
         button->setFixedSize(button->sizeHint());
@@ -156,6 +167,7 @@ QString ToolStrip::toolName(ToolId id)
     case ToolId::Select: return tr("Select");
     case ToolId::Scale: return tr("Scale");
     case ToolId::Wall: return tr("Wall");
+    case ToolId::Opening: return tr("Opening");
     case ToolId::Room: return tr("Room");
     case ToolId::Detect: return tr("Detect");
     }
@@ -169,6 +181,7 @@ QString ToolStrip::toolKey(ToolId id)
     case ToolId::Select: return QStringLiteral("V");
     case ToolId::Scale: return QStringLiteral("S");
     case ToolId::Wall: return QStringLiteral("W");
+    case ToolId::Opening: return QStringLiteral("O");
     case ToolId::Room: return QStringLiteral("R");
     case ToolId::Detect: return QStringLiteral("D");
     }
@@ -178,8 +191,7 @@ QString ToolStrip::toolKey(ToolId id)
 // Checks the active button, disables tools that cannot be used and updates tooltips.
 void ToolStrip::refresh()
 {
-    const std::array<ToolId, 5> ids{ToolId::Select, ToolId::Scale, ToolId::Wall, ToolId::Room, ToolId::Detect};
-    for (ToolId id : ids) {
+    for (ToolId id : kAllTools) {
         ToolButton* button = buttons_[static_cast<size_t>(id)];
         const bool available = controller_->isAvailable(id);
         button->setEnabled(available);

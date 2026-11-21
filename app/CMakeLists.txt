@@ -9,6 +9,7 @@ add_executable(plynth WIN32
     src/canvas/OpeningPaint.cpp
     src/canvas/OverlayBuilder.h
     src/canvas/OverlayBuilder.cpp
+    src/canvas/OverlayOpenings.cpp
     src/canvas/PlanCanvas.h
     src/canvas/PlanCanvas.cpp
     src/detection/DetectionRunner.h
@@ -29,6 +30,8 @@ add_executable(plynth WIN32
     src/panels/ToolStrip.cpp
     src/tools/DetectTool.h
     src/tools/DetectTool.cpp
+    src/tools/OpeningTool.h
+    src/tools/OpeningTool.cpp
     src/tools/RoomTool.h
     src/tools/RoomTool.cpp
     src/tools/ScaleTool.h

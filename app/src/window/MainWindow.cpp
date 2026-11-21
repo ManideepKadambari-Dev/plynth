@@ -249,8 +249,8 @@ void MainWindow::buildMenus()
     });
 
     edit->addSeparator();
-    const std::array<ToolId, 5> toolIds{ToolId::Select, ToolId::Scale, ToolId::Wall, ToolId::Room, ToolId::Detect};
-    const std::array<Qt::Key, 5> toolKeys{Qt::Key_V, Qt::Key_S, Qt::Key_W, Qt::Key_R, Qt::Key_D};
+    const std::array<ToolId, kAllTools.size()>& toolIds = kAllTools;
+    const std::array<Qt::Key, kAllTools.size()> toolKeys{Qt::Key_V, Qt::Key_S, Qt::Key_W, Qt::Key_O, Qt::Key_R, Qt::Key_D};
     for (size_t i = 0; i < toolIds.size(); ++i) {
         const ToolId id = toolIds[i];
         QAction* action = addMenuAction(edit, tr("%1 tool").arg(ToolStrip::toolName(id)),
@@ -382,7 +382,7 @@ void MainWindow::onDocumentChanged(unsigned changes)
 {
     if (changes & (plynth::Change::FloorImage | plynth::Change::Floors | plynth::Change::Folder))
         refreshImage();
-    if (changes & (plynth::Change::Points | plynth::Change::Walls | plynth::Change::Rooms | plynth::Change::Scale |
+    if (changes & (plynth::Change::Points | plynth::Change::Walls | plynth::Change::Rooms | plynth::Change::Openings | plynth::Change::Scale |
                    plynth::Change::Floors | plynth::Change::Folder))
         refreshOverlay();
     validateSelection();
@@ -583,8 +583,7 @@ void MainWindow::validateSelection()
 // Checks the active tool in the Edit menu and enables the tools that can be used.
 void MainWindow::updateToolActions()
 {
-    const std::array<ToolId, 5> ids{ToolId::Select, ToolId::Scale, ToolId::Wall, ToolId::Room, ToolId::Detect};
-    for (ToolId id : ids) {
+    for (ToolId id : kAllTools) {
         QAction* action = toolActions_[static_cast<size_t>(id)];
         if (action == nullptr)
             continue;
@@ -624,6 +623,8 @@ bool MainWindow::activateToolByName(const QString& name)
         id = ToolId::Scale;
     else if (key == QStringLiteral("wall"))
         id = ToolId::Wall;
+    else if (key == QStringLiteral("opening"))
+        id = ToolId::Opening;
     else if (key == QStringLiteral("room"))
         id = ToolId::Room;
     else if (key == QStringLiteral("detect"))

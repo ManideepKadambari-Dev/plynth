@@ -74,7 +74,7 @@ int main(int argc, char* argv[])
                                       QStringLiteral("Open the terminal and type this text. For checks only."),
                                       QStringLiteral("text"));
     QCommandLineOption toolOption(QStringLiteral("tool"),
-                                  QStringLiteral("Activate a tool: select, scale, wall, room or detect. For checks only."),
+                                  QStringLiteral("Activate a tool: select, scale, wall, opening, room or detect. For checks only."),
                                   QStringLiteral("name"));
     QCommandLineOption selectOption(QStringLiteral("select"),
                                     QStringLiteral("Select the point, wall, opening or room with this id. For checks only."),
@@ -98,7 +98,7 @@ int main(int argc, char* argv[])
         return kExitBadArguments;
     if (parser.isSet(toolOption)) {
         const QStringList names{QStringLiteral("select"), QStringLiteral("scale"), QStringLiteral("wall"),
-                                QStringLiteral("room"), QStringLiteral("detect")};
+                                QStringLiteral("opening"), QStringLiteral("room"), QStringLiteral("detect")};
         if (!names.contains(parser.value(toolOption).toLower()))
             return kExitBadArguments;
     }

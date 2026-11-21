@@ -52,6 +52,8 @@ OverlayData buildOverlay(const plynth::Plan& plan)
             overlay.walls.append(entry);
     }
 
+    addOverlayOpenings(overlay, floor, ppm);
+
     for (const plynth::Room& room : floor.rooms) {
         const plynth::RoomShape shape = plynth::roomShape(floor, room);
         if (!shape.closed || shape.floorArea.empty())

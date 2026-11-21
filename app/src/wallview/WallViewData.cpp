@@ -1,6 +1,7 @@
 #include "WallViewData.h"
 
 #include <plynth/core/OpeningShapes.h>
+#include <plynth/core/Openings.h>
 #include <plynth/core/WallGeometry.h>
 
 namespace plynth::app {
@@ -21,6 +22,13 @@ WallViewData buildWallViewData(const plynth::Floor& floor, const plynth::Wall& w
     data.curved = curve.curved;
     data.seenFromRight = side == plynth::WallSide::Right;
     data.selectedOpening = selectedOpening;
+    const plynth::WallSpan span = plynth::wallSpan(floor, wall);
+    data.hasSpan = true;
+    data.spanStart = span.start;
+    data.spanEnd = span.end;
+    std::vector<plynth::Id> problems;
+    for (const plynth::OpeningProblem& problem : plynth::openingProblems(floor))
+        problems.push_back(problem.opening);
 
     for (const plynth::Opening& opening : floor.openings) {
         if (opening.wall != wall.id)
@@ -40,6 +48,9 @@ WallViewData buildWallViewData(const plynth::Floor& floor, const plynth::Wall& w
                           << QPointF(opening.offset + opening.width / 2.0, opening.sill + opening.height)
                           << QPointF(opening.offset - opening.width / 2.0, opening.sill + opening.height);
         }
+        for (const plynth::Id& id : problems)
+            if (id == opening.id)
+                entry.problem = true;
         data.openings.append(entry);
     }
     return data;

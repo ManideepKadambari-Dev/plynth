@@ -5,10 +5,13 @@
 #include "detection/DetectionSession.h"
 #include "theme/Theme.h"
 #include "tools/DetectTool.h"
+#include "tools/OpeningTool.h"
 #include "tools/RoomTool.h"
 #include "tools/ScaleTool.h"
 #include "tools/SelectTool.h"
 #include "tools/WallTool.h"
+
+#include <plynth/core/Openings.h>
 
 namespace plynth::app {
 
@@ -30,6 +33,7 @@ ToolController::ToolController(plynth::Document& document, PlanCanvas* canvas, S
     tools_[static_cast<size_t>(ToolId::Select)] = std::make_unique<SelectTool>(*this);
     tools_[static_cast<size_t>(ToolId::Scale)] = std::make_unique<ScaleTool>(*this);
     tools_[static_cast<size_t>(ToolId::Wall)] = std::make_unique<WallTool>(*this);
+    tools_[static_cast<size_t>(ToolId::Opening)] = std::make_unique<OpeningTool>(*this);
     tools_[static_cast<size_t>(ToolId::Room)] = std::make_unique<RoomTool>(*this);
     detection_ = new DetectionSession(*this, this);
     tools_[static_cast<size_t>(ToolId::Detect)] = std::make_unique<DetectTool>(*this);
@@ -163,6 +167,27 @@ void ToolController::setSnapToGrid(bool on)
         return;
     snapToGrid_ = on;
     emit gridChanged();
+}
+
+// Keeps new tool settings and tells the panel and the tool.
+void ToolController::setOpeningSettings(const OpeningToolSettings& settings)
+{
+    openingSettings_ = settings;
+    emit openingSettingsChanged();
+    if (active_ == ToolId::Opening)
+        tool(ToolId::Opening)->documentChanged(0);
+}
+
+// Builds an opening from the tool settings and the project's default sizes for its type.
+plynth::Opening ToolController::newOpening(const plynth::Id& wall, double offset) const
+{
+    plynth::Opening opening = plynth::defaultOpening(document_.project().settings.defaults, openingSettings_.type);
+    opening.wall = wall;
+    opening.offset = offset;
+    opening.shape = openingSettings_.shape;
+    opening.hinge = openingSettings_.hinge;
+    opening.swing = openingSettings_.swing;
+    return opening;
 }
 
 // Sets the thickness used for new walls.

@@ -4,6 +4,8 @@
 
 #include <QWidget>
 
+#include <memory>
+#include <string>
 #include <vector>
 
 class QCheckBox;
@@ -16,6 +18,7 @@ class QSlider;
 class QStackedWidget;
 
 namespace plynth {
+class Command;
 class Document;
 }
 
@@ -52,6 +55,17 @@ private:
     void buildWallPage();
     void buildRoomPage();
     void buildDetectPage();
+    void buildOpeningPage();
+    void buildOpeningToolPage();
+    void refreshOpening();
+    void refreshOpeningTool();
+    QComboBox* addComboRow(QGridLayout* grid, const QString& label, const QString& tip, const QString& tourId,
+                           QLabel** labelOut = nullptr);
+    void fillShapeCombo(QComboBox* combo, const std::string& current);
+    void runOpeningCommand(std::unique_ptr<plynth::Command> command);
+    void editOpeningStyle(int field, int index);
+    void editToolSetting(int field, int index);
+    void editDefaultSize(int field, double value);
     QSlider* addSliderRow(QGridLayout* grid, const QString& label, int min, int max, const QString& tip,
                           const QString& tourId, QLabel** valueOut);
     void detectSettingsEdited(const QObject* from);
@@ -99,6 +113,35 @@ private:
     QLabel* wallLength_ = nullptr;
     QDoubleSpinBox* wallThickness_ = nullptr;
     QDoubleSpinBox* wallBend_ = nullptr;
+    QLabel* wallOpenings_ = nullptr;
+    QCheckBox* wallOwnHeight_ = nullptr;
+    QDoubleSpinBox* wallHeight_ = nullptr;
+    QDoubleSpinBox* ceilingSpin_ = nullptr;
+
+    QLabel* openingId_ = nullptr;
+    QLabel* openingWall_ = nullptr;
+    QLabel* openingProblem_ = nullptr;
+    QComboBox* openingType_ = nullptr;
+    QComboBox* openingShape_ = nullptr;
+    QComboBox* openingHinge_ = nullptr;
+    QComboBox* openingSwing_ = nullptr;
+    QLabel* openingHingeLabel_ = nullptr;
+    QLabel* openingSwingLabel_ = nullptr;
+    QDoubleSpinBox* openingOffset_ = nullptr;
+    QDoubleSpinBox* openingSill_ = nullptr;
+    QDoubleSpinBox* openingWidth_ = nullptr;
+    QDoubleSpinBox* openingHeight_ = nullptr;
+
+    QComboBox* toolType_ = nullptr;
+    QComboBox* toolShape_ = nullptr;
+    QComboBox* toolHinge_ = nullptr;
+    QComboBox* toolSwing_ = nullptr;
+    QLabel* toolHingeLabel_ = nullptr;
+    QLabel* toolSwingLabel_ = nullptr;
+    QDoubleSpinBox* toolWidth_ = nullptr;
+    QDoubleSpinBox* toolHeight_ = nullptr;
+    QDoubleSpinBox* toolSill_ = nullptr;
+    QLabel* toolSillLabel_ = nullptr;
     QPushButton* straightenButton_ = nullptr;
     int focusKey_ = 1;
     std::vector<QDoubleSpinBox*> keyedSpins_;

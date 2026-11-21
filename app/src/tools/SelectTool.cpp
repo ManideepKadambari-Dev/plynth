@@ -5,8 +5,10 @@
 #include "theme/Theme.h"
 #include "tools/ToolController.h"
 
+#include <plynth/core/Openings.h>
 #include <plynth/core/Snapping.h>
 #include <plynth/core/WallGeometry.h>
+#include <plynth/core/commands/OpeningCommands.h>
 #include <plynth/core/commands/PointCommands.h>
 #include <plynth/core/commands/WallCommands.h>
 
@@ -35,6 +37,7 @@ QString SelectTool::hint() const
 void SelectTool::deactivate()
 {
     dragPoint_.clear();
+    dragOpening_.clear();
     bendWall_.clear();
     handleHover_ = false;
     dragging_ = false;
@@ -46,6 +49,7 @@ void SelectTool::mousePressed(const ToolMouse& mouse)
     if (mouse.button != Qt::LeftButton)
         return;
     dragPoint_.clear();
+    dragOpening_.clear();
     bendWall_.clear();
     dragging_ = false;
     const plynth::Floor* floor = host_.floor();
@@ -81,6 +85,16 @@ void SelectTool::mousePressed(const ToolMouse& mouse)
         break;
     case plynth::PickKind::Opening:
         host_.selection().set(SelectionKind::Opening, QString::fromStdString(pick.id));
+        if (!host_.document().isReadOnly()) {
+            const plynth::Opening* opening = plynth::findOpening(*floor, pick.id);
+            const plynth::Wall* wall = opening ? plynth::findWall(*floor, opening->wall) : nullptr;
+            if (wall != nullptr) {
+                dragOpening_ = pick.id;
+                pressView_ = mouse.view;
+                dragKey_ = g_nextDragKey++;
+                openingGrab_ = plynth::projectOntoCurve(at, plynth::wallCurve(*floor, *wall)).offset - opening->offset;
+            }
+        }
         break;
     case plynth::PickKind::None:
         host_.selection().clear();
@@ -95,7 +109,7 @@ void SelectTool::mouseMoved(const ToolMouse& mouse)
         bendTo(mouse);
         return;
     }
-    if (dragPoint_.empty() || !(mouse.buttons & Qt::LeftButton)) {
+    if ((dragPoint_.empty() && dragOpening_.empty()) || !(mouse.buttons & Qt::LeftButton)) {
         setHandleHover(!host_.document().isReadOnly() && host_.selection().kind() == SelectionKind::Wall &&
                        overBendHandle(mouse.view));
         return;
@@ -109,7 +123,10 @@ void SelectTool::mouseMoved(const ToolMouse& mouse)
             if (const plynth::Point* point = plynth::findPoint(*floor, dragPoint_))
                 startMetres_ = QPointF(point->x, point->y);
     }
-    dragTo(mouse);
+    if (!dragOpening_.empty())
+        moveOpeningTo(mouse);
+    else
+        dragTo(mouse);
 }
 
 // Ends the drag. The merge key already made it one undo step.
@@ -118,6 +135,7 @@ void SelectTool::mouseReleased(const ToolMouse& mouse)
     if (mouse.button != Qt::LeftButton)
         return;
     dragPoint_.clear();
+    dragOpening_.clear();
     bendWall_.clear();
     dragging_ = false;
     host_.canvas().viewport()->update();
@@ -164,6 +182,31 @@ void SelectTool::dragTo(const ToolMouse& mouse)
     if (snap.position.x == point->x && snap.position.y == point->y)
         return;
     host_.run(std::make_unique<plynth::MovePointCommand>(dragPoint_, snap.position.x, snap.position.y, dragKey_));
+}
+
+// Runs MoveOpeningCommand to slide the pressed opening along its wall to the cursor, in 5 cm steps unless
+// Ctrl is held, kept inside the wall. The sill stays.
+void SelectTool::moveOpeningTo(const ToolMouse& mouse)
+{
+    const plynth::Floor* floor = host_.floor();
+    const std::optional<double> ppm = host_.pixelsPerMetre();
+    if (floor == nullptr || !ppm.has_value())
+        return;
+    const plynth::Opening* opening = plynth::findOpening(*floor, dragOpening_);
+    const plynth::Wall* wall = opening ? plynth::findWall(*floor, opening->wall) : nullptr;
+    if (wall == nullptr)
+        return;
+    const plynth::Vec2 at{mouse.scene.x() / *ppm, mouse.scene.y() / *ppm};
+    double offset = plynth::projectOntoCurve(at, plynth::wallCurve(*floor, *wall)).offset - openingGrab_;
+    if (!(mouse.modifiers & Qt::ControlModifier))
+        offset = std::round(offset / plynth::kOpeningSnapStep) * plynth::kOpeningSnapStep;
+    plynth::Opening moved = *opening;
+    moved.offset = offset;
+    moved = plynth::fitOpeningBox(*floor, moved);
+    if (moved.offset == opening->offset)
+        return;
+    host_.run(std::make_unique<plynth::MoveOpeningCommand>(dragOpening_, opening->wall, moved.offset, opening->sill,
+                                                           dragKey_));
 }
 
 // Runs SetWallBulgeCommand for the cursor position. The wall goes straight when the cursor is within the snap
