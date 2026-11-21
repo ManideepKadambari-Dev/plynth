@@ -7,6 +7,7 @@
 #include <plynth/core/ProjectFiles.h>
 #include <plynth/core/RoomTypes.h>
 
+#include <algorithm>
 #include <set>
 
 namespace plynth::cli {
@@ -34,6 +35,11 @@ void registerShapes(const LibraryPaths& paths) {
 
 void addLibraryOption(CLI::App& sub, std::string& value) {
     sub.add_option("--library", value, "Library folder. Default: the one in the settings.")->type_name("folder");
+}
+
+void addBlenderOption(CLI::App& sub, std::string& value) {
+    sub.add_option("--blender", value, "The blender.exe to use. Default: the setup check's choice.")
+        ->type_name("file");
 }
 
 std::filesystem::path userPath(const RunContext& context, const std::string& text) {
@@ -67,6 +73,51 @@ bool openCatalog(const std::string& command, const RunContext& context, const st
     registerShapes(opened.paths);
     useRoomTypes(opened.catalog->roomTypeList());
     return true;
+}
+
+bool makeImportContext(const std::string& command, const RunContext& context, const OpenedCatalog& opened,
+                       const std::string& blenderOption, ImportContext& importContext, Answer& failed) {
+    std::optional<std::filesystem::path> option;
+    if (!blenderOption.empty()) {
+        option = userPath(context, blenderOption);
+    }
+    const BlenderChoice choice = chooseBlender(option, opened.settings);
+    if (!choice.status.ok()) {
+        failed = failure(command, choice.status);
+        return false;
+    }
+    importContext.library = opened.paths;
+    importContext.blender = choice.install;
+    importContext.settings = opened.settings;
+    return true;
+}
+
+Json rescanAndRefresh(const std::string& command, const RunContext& context, OpenedCatalog& opened,
+                      const std::string& blenderOption, bool noBlender) {
+    const RescanReport report = opened.catalog->rescan();
+    std::vector<std::string> refreshed;
+    Json refreshFailed = Json::array();
+    if (!noBlender && !report.needsRefresh.empty()) {
+        ImportContext importContext;
+        Answer failed;
+        const bool haveBlender = makeImportContext(command, context, opened, blenderOption, importContext, failed);
+        for (const std::string& id : report.needsRefresh) {
+            Status status = haveBlender ? Status{} : fail(ErrorCode::BlenderNotFound, failed.message);
+            if (haveBlender) {
+                status = refreshAsset(*opened.catalog, importContext, id).status;
+            }
+            if (status.ok()) {
+                refreshed.push_back(id);
+            } else {
+                Json item = Json::object();
+                item["id"] = id;
+                item["code"] = std::string(errorCodeName(status.code));
+                item["message"] = status.message;
+                refreshFailed.push_back(std::move(item));
+            }
+        }
+    }
+    return rescanEntry(report, refreshed, refreshFailed);
 }
 
 void registerLibraryShapes() {
@@ -167,6 +218,13 @@ Json rescanEntry(const RescanReport& report, const std::vector<std::string>& ref
     entry["updated"] = report.updated;
     entry["removed"] = report.removed;
     entry["unchanged"] = report.unchanged;
+    Json waiting = Json::array();
+    for (const std::string& id : report.needsRefresh) {
+        if (std::ranges::find(refreshed, id) == refreshed.end()) {
+            waiting.push_back(id);
+        }
+    }
+    entry["needs_refresh"] = std::move(waiting);
     entry["refreshed"] = refreshed;
     entry["refresh_failed"] = refreshFailed.is_array() ? refreshFailed : Json::array();
     entry["broken"] = std::move(broken);

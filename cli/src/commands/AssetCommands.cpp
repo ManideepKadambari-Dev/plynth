@@ -603,20 +603,9 @@ std::vector<CommandSpec> assetCommands() {
         return [library](const RunContext& context) { return assetsLicenses(context, *library); };
     };
 
-    CommandSpec importers;
-    importers.words = {"assets", "importers"};
-    importers.description = "List the ways an asset can be imported.";
-    importers.setup = [](CLI::App&) -> Handler {
-        return [](const RunContext&) {
-            Json result = Json::object();
-            result["importers"] = Json::array();
-            return success("assets importers", std::move(result));
-        };
-    };
-
     return {search,         list,           info,           set,           remove,
             rooms,          roomAddSpec,    roomSetSpec,    roomRemoveSpec, categories,
-            categoryAddSpec, categorySetSpec, categoryRemoveSpec, licenses,  importers};
+            categoryAddSpec, categorySetSpec, categoryRemoveSpec, licenses};
 }
 
 }

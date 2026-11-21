@@ -21,19 +21,17 @@ struct InfoOptions {
 
 struct RescanOptions {
     std::string library;
+    std::string blender;
     bool noBlender = false;
 };
 
 // How many folders and files a folder holds directly. Zero when it does not exist.
-int countEntries(const std::filesystem::path& folder, bool skipWork) {
+int countEntries(const std::filesystem::path& folder) {
     std::error_code ignored;
     int count = 0;
     for (const auto& entry : std::filesystem::directory_iterator(folder, ignored)) {
         const std::string name = pathToUtf8(entry.path().filename());
         if (name.empty() || name.front() == '.' || name.front() == '~') {
-            continue;
-        }
-        if (skipWork && entry.is_directory(ignored) && (name == "done" || name == "failed")) {
             continue;
         }
         ++count;
@@ -52,10 +50,10 @@ Answer libraryInfoAnswer(const std::string& command, const OpenedCatalog& opened
     assets["db"] = pathToUtf8(opened.paths.assetsDb);
     assets["items"] = opened.catalog->assetCount();
     assets["uncategorized"] = opened.catalog->search(uncategorized).size();
-    assets["inbox_waiting"] = countEntries(opened.paths.assetInbox, true);
+    assets["inbox_waiting"] = inboxEntries(opened.paths).size();
     Json materials = Json::object();
     materials["db"] = pathToUtf8(opened.paths.materialsDb);
-    materials["items"] = countEntries(opened.paths.materialItems, false);
+    materials["items"] = countEntries(opened.paths.materialItems);
     Json shapes = Json::array();
     for (const OpeningShape* shape : allOpeningShapes()) {
         if (!shape->builtIn()) {
@@ -120,9 +118,8 @@ Answer libraryRescan(const RunContext& context, const RescanOptions& options) {
     if (!openCatalog(command, context, options.library, opened, failed)) {
         return failed;
     }
-    const RescanReport report = opened.catalog->rescan();
     Json result = Json::object();
-    result["assets"] = rescanEntry(report, {}, Json::array());
+    result["assets"] = rescanAndRefresh(command, context, opened, options.blender, options.noBlender);
     return success(command, std::move(result));
 }
 
@@ -154,6 +151,7 @@ std::vector<CommandSpec> libraryCommands() {
     rescan.setup = [](CLI::App& sub) -> Handler {
         auto options = std::make_shared<RescanOptions>();
         addLibraryOption(sub, options->library);
+        addBlenderOption(sub, options->blender);
         sub.add_flag("--no-blender", options->noBlender, "List changed assets without measuring them again.");
         return [options](const RunContext& context) { return libraryRescan(context, *options); };
     };

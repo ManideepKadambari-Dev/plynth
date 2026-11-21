@@ -14,6 +14,8 @@ add_executable(plynth_cli_tests
     OpeningEditCliTests.cpp
     SettingsCliTests.cpp
     AssetCliTests.cpp
+    DoctorCliTests.cpp
+    ImportCliTests.cpp
     TestSetup.cpp
     TestSupport.cpp
 )
@@ -22,6 +24,9 @@ target_link_libraries(plynth_cli_tests PRIVATE plynth::cli Catch2::Catch2WithMai
 target_compile_definitions(plynth_cli_tests PRIVATE
     PLYNTH_EXPECTED_VERSION="${PROJECT_VERSION}"
     PLYNTH_SCHEMA_DIR="${PROJECT_SOURCE_DIR}/schema"
-    PLYNTH_SAMPLE_PLAN="${PROJECT_SOURCE_DIR}/samples/plans/apartment-01.png")
+    PLYNTH_SAMPLE_PLAN="${PROJECT_SOURCE_DIR}/samples/plans/apartment-01.png"
+    PLYNTH_SAMPLE_CHAIR_FOLDER="${PROJECT_SOURCE_DIR}/samples/models/chair"
+    PLYNTH_FAKE_BLENDER="$<TARGET_FILE:plynth_fake_blender>")
+add_dependencies(plynth_cli_tests plynth_fake_blender)
 
 catch_discover_tests(plynth_cli_tests)

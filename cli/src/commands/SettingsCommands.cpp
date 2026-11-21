@@ -1,5 +1,6 @@
 #include "../Common.h"
 
+#include <plynth/core/Blender.h>
 #include <plynth/core/Library.h>
 #include <plynth/core/Settings.h>
 
@@ -100,6 +101,13 @@ Answer settingsSet(const RunContext& context, const SetOptions& options) {
             if (!std::filesystem::is_regular_file(file, ignored)) {
                 return failure(command, fail(ErrorCode::BlenderNotFound,
                                              "There is no program at " + pathToUtf8(file) + "."));
+            }
+            const BlenderInstall install = inspectBlender(file);
+            if (!install.usable()) {
+                std::string why = install.status.ok() ? "it is older than Blender " +
+                                                            formatBlenderVersion(kMinBlenderVersion)
+                                                      : install.status.message;
+                return failure(command, fail(ErrorCode::BlenderNotFound, pathToUtf8(file) + " cannot be used: " + why));
             }
             settings.blender = file;
         }

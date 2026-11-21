@@ -10,7 +10,7 @@ const std::vector<CommandSpec>& allCommands() {
         for (auto* group : {&versionCommands, &helpCommands, &projectCommands, &scaleCommands, &pointCommands,
                              &wallCommands, &openingCommands, &floorCommands,
                              &roomCommands, &detectCommands, &sessionCommands, &settingsCommands,
-                             &libraryCommands, &assetCommands}) {
+                             &libraryCommands, &assetCommands, &doctorCommands, &importCommands}) {
             for (auto& spec : group()) {
                 all.push_back(std::move(spec));
             }
