@@ -80,6 +80,7 @@ struct AttachOptions {
     std::string library;
     std::string id;
     std::string wall;
+    double snap = 0.3;
     bool strict = false;
 };
 
@@ -593,20 +594,33 @@ Answer itemSwap(const RunContext& context, const SwapOptions& options) {
     });
 }
 
-// Mounts an item on a wall.
+// Mounts an item on a wall: the one named by --wall, or the nearest wall within --snap of the item.
 Answer itemAttach(const RunContext& context, const AttachOptions& options) {
     const std::string command = "item attach";
+    if (!std::isfinite(options.snap) || options.snap < 0.0) {
+        return failure(command, fail(ErrorCode::InvalidValue, "--snap must be zero or more."));
+    }
     return editProject(command, context, options.project, [&](Document& document) {
         Answer failed;
-        if (resolveItem(command, document.plan(), options.id, failed) == nullptr) {
+        const Item* item = resolveItem(command, document.plan(), options.id, failed);
+        if (item == nullptr) {
             return failed;
+        }
+        Id wall = options.wall;
+        if (wall.empty()) {
+            const Floor* floor = findFloorContaining(document.plan(), options.id);
+            wall = nearestWallForMount(*floor, {item->x, item->y}, options.snap);
+            if (wall.empty()) {
+                return failure(command, fail(ErrorCode::NotFound, "There is no wall within " + num(options.snap) +
+                                                                      " m of " + options.id + ". Give --wall."));
+            }
         }
         OpenedCatalog opened;
         bool have = false;
         if (!openOptionalCatalog(command, context, options.library, opened, have, failed)) {
             return failed;
         }
-        if (!runCommand(command, document, std::make_unique<SetItemWallCommand>(options.id, options.wall), failed)) {
+        if (!runCommand(command, document, std::make_unique<SetItemWallCommand>(options.id, wall), failed)) {
             return failed;
         }
         return itemAnswer(command, document, options.id, have ? opened.catalog.get() : nullptr, options.strict);
@@ -753,7 +767,10 @@ std::vector<CommandSpec> itemCommands() {
         addProjectOption(sub, options->project);
         addLibraryOption(sub, options->library);
         sub.add_option("id", options->id, "Id of the item.")->type_name("id")->required();
-        sub.add_option("--wall", options->wall, "Id of the wall.")->type_name("id")->required();
+        sub.add_option("--wall", options->wall, "Id of the wall. Default: the nearest wall within --snap.")
+            ->type_name("id");
+        sub.add_option("--snap", options->snap, "Without --wall: how far a wall may be from the item, in metres. Default: 0.3.")
+            ->type_name("metres");
         addStrictOption(sub, options->strict);
         return [options](const RunContext& context) { return itemAttach(context, *options); };
     };

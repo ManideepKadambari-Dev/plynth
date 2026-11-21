@@ -353,6 +353,16 @@ TEST_CASE("item swap, attach and detach change one item", "[cli][item]") {
     CHECK_THAT(detached.answer.at("result").at("item").at("z").get<double>(), WithinAbs(z, 1e-12));
 
     CHECK(errorCode(sample.run({"item", "attach", "i1", "--wall", "w99"})) == "not_found");
+
+    REQUIRE(sample.run({"item", "move", "i1", "--x", "3", "--y", "4.7"}).exitCode == kExitOk);
+    const auto nearest = sample.run({"item", "attach", "i1"});
+    REQUIRE(nearest.exitCode == kExitOk);
+    CHECK(nearest.answer.at("result").at("item").at("wall") == "w3");
+    REQUIRE(sample.run({"item", "detach", "i1"}).exitCode == kExitOk);
+    REQUIRE(sample.run({"item", "move", "i1", "--x", "3", "--y", "3"}).exitCode == kExitOk);
+    const auto far = sample.run({"item", "attach", "i1"});
+    CHECK(far.exitCode == kExitFailed);
+    CHECK(errorCode(far) == "not_found");
     CHECK(errorCode(sample.run({"item", "attach", "i9", "--wall", "w3"})) == "not_found");
 }
 
