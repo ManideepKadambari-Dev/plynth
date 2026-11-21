@@ -43,6 +43,7 @@ class TerminalDock;
 class ReadOnlyBanner;
 class TitleBar;
 class PlanCanvas;
+class OverlayRenderer;
 class PreviewView;
 class PropertiesPanel;
 class RightPanel;
@@ -123,6 +124,10 @@ public:
     bool terminalFailed() const;
     // Starts a build of the project in memory. Asks to save a project that was never saved.
     void startBuild();
+    // For checks only: shows the plan at 100 percent.
+    void setActualSize();
+    // For checks only: turns the 3D overlay on the plan on or off.
+    void setOverlay3d(bool on);
     // For checks only: shows the Build tab.
     void showBuildTab();
     // For checks only: shows the 3D page ("3d") or the plan ("plan").
@@ -172,6 +177,8 @@ private:
     void refreshImage();
     void refreshOverlay();
     void refreshPreview();
+    void refreshProblemMarkers();
+    void refreshBuilding3d();
     void buildFinished(const plynth::BuildReport& report);
     void updateBuildUi();
     void loadBuildReport();
@@ -224,6 +231,9 @@ private:
     PreviewView* preview_ = nullptr;
     QAction* view3dAction_ = nullptr;
     BuildController* builder_ = nullptr;
+    OverlayRenderer* overlayRenderer_ = nullptr;
+    QAction* overlay3dAction_ = nullptr;
+    QAction* problemsOnPlanAction_ = nullptr;
     BuildPanel* buildPanel_ = nullptr;
     QAction* buildAction_ = nullptr;
     QAction* cancelBuildAction_ = nullptr;

@@ -111,10 +111,17 @@ int main(int argc, char* argv[])
     QCommandLineOption cameraOption(QStringLiteral("camera"),
                                     QStringLiteral("Camera of the 3D page: three-quarter or top. For checks only."),
                                     QStringLiteral("name"));
+    QCommandLineOption zoomOption(QStringLiteral("zoom"),
+                                  QStringLiteral("Zoom of the plan: fit or actual (100 percent). For checks only."),
+                                  QStringLiteral("mode"));
+    QCommandLineOption overlayOption(QStringLiteral("overlay-3d"),
+                                     QStringLiteral("Show the 3D overlay on the plan. For checks only."));
     QCommandLineOption buildOption(QStringLiteral("build"),
                                    QStringLiteral("Build the project after opening it and wait for the end. For checks only."));
     QCommandLineOption buildTabOption(QStringLiteral("build-tab"), QStringLiteral("Show the Build tab. For checks only."));
     QCommandLineOption homeOption(QStringLiteral("home"), QStringLiteral("Show the home screen. For checks only."));
+    parser.addOption(zoomOption);
+    parser.addOption(overlayOption);
     parser.addOption(buildOption);
     parser.addOption(buildTabOption);
     parser.addOption(viewOption);
@@ -257,6 +264,10 @@ int main(int argc, char* argv[])
     window.show();
     if (parser.isSet(buildTabOption))
         window.showBuildTab();
+    if (parser.isSet(overlayOption))
+        window.setOverlay3d(true);
+    if (parser.isSet(zoomOption) && parser.value(zoomOption).toLower() == QStringLiteral("actual"))
+        QTimer::singleShot(100, &window, [&window]() { window.setActualSize(); });
     if (parser.isSet(buildOption))
         QTimer::singleShot(0, &window, [&window]() { window.startBuild(); });
     if (parser.isSet(furnitureAtOption)) {

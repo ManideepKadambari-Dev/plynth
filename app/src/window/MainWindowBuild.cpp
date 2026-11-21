@@ -7,6 +7,7 @@
 #include "canvas/PlanCanvas.h"
 #include "catalog/LibraryHost.h"
 #include "panels/RightPanel.h"
+#include "preview/OverlayRenderer.h"
 #include "preview/GraphicsProbe.h"
 #include "preview/PreviewView.h"
 
@@ -144,6 +145,57 @@ void MainWindow::updateBuildUi()
     buildFolderAction_->setEnabled(doc_.hasFolder());
     openBlenderAction_->setEnabled(files);
     buildPanel_->setReport(report_ ? &*report_ : nullptr, stale);
+    refreshProblemMarkers();
+}
+
+// Gives the plan one marker for each problem of the last build that has a place on the first floor.
+void MainWindow::refreshProblemMarkers()
+{
+    QVector<ProblemMarker> markers;
+    const std::optional<double> ppm = doc_.plan().scale.pixelsPerMetre;
+    if (report_ && ppm.has_value() && !doc_.plan().floors.empty()) {
+        const plynth::Floor& first = doc_.plan().floors.front();
+        for (const plynth::BuildProblem& problem : report_->problems) {
+            if (!problem.floor.empty() && problem.floor != first.id)
+                continue;
+            const std::optional<plynth::Vec2> at = plynth::problemPosition(doc_.plan(), problem);
+            if (!at.has_value())
+                continue;
+            ProblemMarker marker;
+            marker.position = QPointF(at->x * *ppm, at->y * *ppm);
+            marker.error = problem.severity == plynth::BuildSeverity::Error;
+            marker.tip = fromCore(problem.message);
+            markers.append(marker);
+        }
+    }
+    canvas_->setProblems(markers);
+}
+
+// Draws the building from above for the plan overlay, when the overlay is on and there is a built FBX.
+void MainWindow::refreshBuilding3d()
+{
+    if (!overlay3dAction_->isChecked())
+        return;
+    std::error_code ignored;
+    const std::filesystem::path fbx = preview_->fbxPath();
+    const std::optional<double> ppm = doc_.plan().scale.pixelsPerMetre;
+    if (fbx.empty() || !std::filesystem::exists(fbx, ignored) || !ppm.has_value()) {
+        canvas_->setBuilding3d(QImage(), QRectF());
+        return;
+    }
+    overlayRenderer_->render(QUrl::fromLocalFile(QString::fromStdWString(fbx.wstring())), doc_.plan(), *ppm);
+}
+
+// For checks only: shows the plan at 100 percent.
+void MainWindow::setActualSize()
+{
+    canvas_->actualSize();
+}
+
+// For checks only: turns the overlay on or off.
+void MainWindow::setOverlay3d(bool on)
+{
+    overlay3dAction_->setChecked(on);
 }
 
 // Opens the Plan page, selects the object of a problem and centres the plan on it.

@@ -23,8 +23,16 @@ Item {
     readonly property real fbxUnit: 0.01
     readonly property real shadowBias: 5
 
-    // Puts the camera on its orbit around the target.
+    readonly property bool topOrtho: scene.orthoScale > 0
+
+    // Puts the camera on its orbit around the target. The flat top view of the plan overlay has its own camera.
     function updateCamera() {
+        if (root.topOrtho) {
+            var lo = scene.boundsMin
+            var hi = scene.boundsMax
+            orthoCamera.position = Qt.vector3d((lo.x + hi.x) / 2, hi.y + 20, (lo.z + hi.z) / 2)
+            return
+        }
         var p = root.pitch * Math.PI / 180
         var y = root.yaw * Math.PI / 180
         var cp = Math.cos(p)
@@ -38,6 +46,10 @@ Item {
     function fit() {
         if (root.width <= 0 || root.height <= 0)
             return
+        if (root.topOrtho) {
+            updateCamera()
+            return
+        }
         var lo = scene.boundsMin
         var hi = scene.boundsMax
         var centre = Qt.vector3d((lo.x + hi.x) / 2, (lo.y + hi.y) / 2, (lo.z + hi.z) / 2)
@@ -90,6 +102,7 @@ Item {
     Rectangle {
         anchors.fill: parent
         color: Theme.ground
+        visible: !scene.transparent
     }
 
     View3D {
@@ -97,9 +110,11 @@ Item {
         anchors.fill: parent
         visible: scene.modelFile !== ""
 
+        camera: root.topOrtho ? orthoCamera : camera
+
         environment: SceneEnvironment {
             clearColor: Theme.ground
-            backgroundMode: SceneEnvironment.Color
+            backgroundMode: scene.transparent ? SceneEnvironment.Transparent : SceneEnvironment.Color
             antialiasingMode: SceneEnvironment.MSAA
             antialiasingQuality: SceneEnvironment.High
             lightProbe: Texture { textureData: ProceduralSkyTextureData {} }
@@ -117,6 +132,15 @@ Item {
             fieldOfView: root.fieldOfView
             clipNear: Math.max(0.05, root.distance * 0.02)
             clipFar: root.distance * 4 + 10
+        }
+
+        OrthographicCamera {
+            id: orthoCamera
+            eulerRotation: Qt.vector3d(-90, 0, 0)
+            horizontalMagnification: Math.max(0.0001, scene.orthoScale)
+            verticalMagnification: Math.max(0.0001, scene.orthoScale)
+            clipNear: 1
+            clipFar: 200
         }
 
         DirectionalLight {

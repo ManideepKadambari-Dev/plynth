@@ -23,12 +23,22 @@ ThemeQml* sharedTheme()
 
 }
 
+// A view for the plan overlay.
+ModelView::ModelView(double orthoScale, QWidget* parent) : ModelView(false, false, parent, orthoScale)
+{
+}
+
 // Makes the scene, gives it the theme and itself as "scene", and starts the QML.
-ModelView::ModelView(bool interactive, bool shadows, QWidget* parent)
-    : QQuickWidget(parent), interactive_(interactive), shadows_(shadows)
+ModelView::ModelView(bool interactive, bool shadows, QWidget* parent, double orthoScale)
+    : QQuickWidget(parent), interactive_(interactive), orthoScale_(orthoScale), shadows_(shadows)
 {
     setResizeMode(QQuickWidget::SizeRootObjectToView);
-    setClearColor(Theme::instance().ground());
+    if (orthoScale > 0) {
+        setAttribute(Qt::WA_TranslucentBackground);
+        setClearColor(Qt::transparent);
+    } else {
+        setClearColor(Theme::instance().ground());
+    }
     rootContext()->setContextProperty(QStringLiteral("Theme"), sharedTheme());
     rootContext()->setContextProperty(QStringLiteral("scene"), this);
     connect(quickWindow(), &QQuickWindow::afterRendering, this, [this]() {

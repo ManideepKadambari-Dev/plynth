@@ -24,6 +24,7 @@
 #include "panels/RightPanel.h"
 #include "panels/ToolStrip.h"
 #include "preview/GraphicsProbe.h"
+#include "preview/OverlayRenderer.h"
 #include "preview/PreviewView.h"
 #include "tools/ToolController.h"
 #include "document/ProjectWatcher.h"
@@ -187,6 +188,11 @@ MainWindow::MainWindow(QWidget* parent)
     terminal_->setWorkingFolder(host_->projectsFolder());
     lastFolder_ = host_->projectsFolder();
 
+    overlayRenderer_ = new OverlayRenderer(this);
+    connect(overlayRenderer_, &OverlayRenderer::ready, this, [this](const QImage& image, const QRectF& rect) {
+        canvas_->setBuilding3d(image, rect);
+        canvas_->setBuilding3dShown(overlay3dAction_->isChecked());
+    });
     builder_ = new BuildController(this);
     buildUiTimer_ = new QTimer(this);
     buildUiTimer_->setSingleShot(true);
@@ -474,6 +480,21 @@ void MainWindow::buildMenus()
                                   QStringLiteral("view-3d"), {QKeySequence(Qt::Key_3)});
     view3dAction_->setCheckable(true);
     connect(view3dAction_, &QAction::triggered, this, [this](bool on) { showCentreView(on); });
+    overlay3dAction_ = addMenuAction(titleBar_->viewMenu(), tr("3D &overlay on plan"),
+                                     tr("Show the top view of the built building over the plan (Alt+3)"),
+                                     QStringLiteral("view-overlay-3d"), {QKeySequence(Qt::ALT | Qt::Key_3)});
+    overlay3dAction_->setCheckable(true);
+    connect(overlay3dAction_, &QAction::toggled, this, [this](bool on) {
+        canvas_->setBuilding3dShown(on);
+        if (on)
+            refreshBuilding3d();
+    });
+    problemsOnPlanAction_ = addMenuAction(titleBar_->viewMenu(), tr("Build &problems on plan"),
+                                          tr("Show the problems of the last build as amber triangles on the plan"),
+                                          QStringLiteral("view-build-problems"), {});
+    problemsOnPlanAction_->setCheckable(true);
+    problemsOnPlanAction_->setChecked(true);
+    connect(problemsOnPlanAction_, &QAction::toggled, canvas_, &PlanCanvas::setProblemsShown);
     titleBar_->viewMenu()->addSeparator();
     snapGridAction_ = addMenuAction(titleBar_->viewMenu(), tr("Snap to &grid"),
                                     tr("Snap new and moved points to the grid (G)"), QStringLiteral("view-snap-grid"),
@@ -777,7 +798,7 @@ void MainWindow::setPreviewCamera(const QString& name)
 // For checks only: true when the 3D page and the asset previews have drawn their models, or have none.
 bool MainWindow::previewPictureReady() const
 {
-    return !builder_->running() && (centreStack_->currentWidget() != preview_ || preview_->pictureReady()) &&
+    return !builder_->running() && !overlayRenderer_->busy() && (centreStack_->currentWidget() != preview_ || preview_->pictureReady()) &&
            assets_->pictureReady() &&
            tools_->pickerPreviewReady();
 }
@@ -788,6 +809,8 @@ void MainWindow::refreshPreview()
     loadBuildReport();
     preview_->setProject(doc_.hasFolder() ? doc_.folder() : std::filesystem::path(), doc_.plan());
     updateViewActions();
+    canvas_->setBuilding3d(QImage(), QRectF());
+    refreshBuilding3d();
 }
 
 // Sets the Undo and Redo texts and the enabled state of the actions from the document.

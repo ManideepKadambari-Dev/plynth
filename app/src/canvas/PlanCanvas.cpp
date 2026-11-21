@@ -1,6 +1,7 @@
 #include "PlanCanvas.h"
 
 #include "canvas/OpeningPaint.h"
+#include "building/ProblemMark.h"
 #include "theme/Theme.h"
 #include "tools/Tool.h"
 
@@ -17,7 +18,9 @@
 #include <QKeyEvent>
 #include <QLineEdit>
 #include <QMouseEvent>
+#include <QHelpEvent>
 #include <QPainter>
+#include <QToolTip>
 #include <QPixmap>
 #include <QFontMetrics>
 #include <QPolygonF>
@@ -116,6 +119,35 @@ void PlanCanvas::setOverlay(const OverlayData& overlay)
 void PlanCanvas::setProposals(const ProposalOverlay& proposals)
 {
     proposals_ = proposals;
+    viewport()->update();
+}
+
+// Replaces the build problem markers.
+void PlanCanvas::setProblems(const QVector<ProblemMarker>& markers)
+{
+    problems_ = markers;
+    viewport()->update();
+}
+
+// Shows or hides the build problem markers.
+void PlanCanvas::setProblemsShown(bool shown)
+{
+    problemsShown_ = shown;
+    viewport()->update();
+}
+
+// Keeps the top view of the building and where it goes on the plan.
+void PlanCanvas::setBuilding3d(const QImage& image, const QRectF& sceneRect)
+{
+    building3d_ = image;
+    building3dRect_ = sceneRect;
+    viewport()->update();
+}
+
+// Shows or hides the top view of the building.
+void PlanCanvas::setBuilding3dShown(bool shown)
+{
+    building3dShown_ = shown;
     viewport()->update();
 }
 
@@ -309,6 +341,14 @@ void PlanCanvas::paintOverlay(QPainter* painter)
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
 
+    if (building3dShown_ && !building3d_.isNull()) {
+        painter->save();
+        painter->setRenderHint(QPainter::SmoothPixmapTransform, true);
+        painter->setOpacity(t.overlay3dOpacity());
+        painter->drawImage(building3dRect_, building3d_);
+        painter->restore();
+    }
+
     if (gridStep_ > 0.0 && gridStep_ * zoom_ >= 8.0) {
         const QRectF img = imageRect();
         painter->setRenderHint(QPainter::Antialiasing, false);
@@ -400,10 +440,44 @@ void PlanCanvas::paintOverlay(QPainter* painter)
     }
 
     paintProposals(painter);
+    paintProblems(painter);
 
     if (tool_ != nullptr)
         tool_->paint(*painter);
     painter->restore();
+}
+
+// The box of a problem marker in canvas pixels: the triangle stands on the object's position.
+static QRectF markerBox(const QPointF& at, int side)
+{
+    return QRectF(at.x() - side / 2.0, at.y() - side - 2.0, side, side);
+}
+
+// Paints one amber triangle on every problem of the last build: filled for an error, an outline for a warning.
+void PlanCanvas::paintProblems(QPainter* painter)
+{
+    if (!problemsShown_)
+        return;
+    const Theme& t = Theme::instance();
+    for (const ProblemMarker& marker : problems_)
+        paintProblemMark(*painter, markerBox(mapFromScene(marker.position), t.problemMarker()), marker.error,
+                         t.signalAmber(), 1.6);
+}
+
+// Shows the sentence of the problem marker under the cursor as a tooltip.
+bool PlanCanvas::event(QEvent* event)
+{
+    if (event->type() == QEvent::ToolTip && problemsShown_) {
+        const auto* help = static_cast<QHelpEvent*>(event);
+        const QPoint at = viewport()->mapFrom(this, help->pos());
+        const int side = Theme::instance().problemMarker();
+        for (const ProblemMarker& marker : problems_)
+            if (markerBox(mapFromScene(marker.position), side).adjusted(-2, -2, 2, 2).contains(at)) {
+                QToolTip::showText(help->globalPos(), marker.tip, this);
+                return true;
+            }
+    }
+    return QGraphicsView::event(event);
 }
 
 // Paints every placed item as its footprint at true size: Raised fill, Muted outline, a tick on the front

@@ -72,6 +72,13 @@ struct OverlayItem {
     bool missing = false;
 };
 
+// One problem of the last build, drawn as an amber triangle over its object. position is in scene units.
+struct ProblemMarker {
+    QPointF position;
+    bool error = false;
+    QString tip;
+};
+
 // Everything the canvas draws over the plan image.
 struct OverlayData {
     QVector<OverlayItem> items;
@@ -127,6 +134,13 @@ public:
     void setOverlay(const OverlayData& overlay);
     void setProposals(const ProposalOverlay& proposals);
     void setSelection(SelectionKind kind, const QString& id);
+    // The problems of the last build, and whether they are drawn.
+    void setProblems(const QVector<ProblemMarker>& markers);
+    void setProblemsShown(bool shown);
+    // The top view of the built building, drawn over the plan image in the given place (scene units), and
+    // whether it is drawn. An empty image draws nothing.
+    void setBuilding3d(const QImage& image, const QRectF& sceneRect);
+    void setBuilding3dShown(bool shown);
     // Grid step in scene units, or 0 for no grid. The grid shows only when a step is wide enough on screen.
     void setGridStep(double scenePixels);
     // The tool that gets the mouse and keys and draws its previews.
@@ -147,6 +161,7 @@ signals:
     void assetDropped(const QString& assetId, const QPointF& scene, bool free);
 
 protected:
+    bool event(QEvent* event) override;
     void drawBackground(QPainter* painter, const QRectF& rect) override;
     void drawForeground(QPainter* painter, const QRectF& rect) override;
     void wheelEvent(QWheelEvent* event) override;
@@ -180,6 +195,7 @@ private:
     void paintLabels(QPainter* painter);
     void paintItems(QPainter* painter);
     void paintProposals(QPainter* painter);
+    void paintProblems(QPainter* painter);
     void applyFit();
     QRectF imageRect() const;
 
@@ -189,6 +205,11 @@ private:
     bool dimmed_ = false;
     OverlayData overlay_;
     ProposalOverlay proposals_;
+    QVector<ProblemMarker> problems_;
+    bool problemsShown_ = true;
+    QImage building3d_;
+    QRectF building3dRect_;
+    bool building3dShown_ = false;
     SelectionKind selectionKind_ = SelectionKind::None;
     QString selectionId_;
     double gridStep_ = 0.0;
