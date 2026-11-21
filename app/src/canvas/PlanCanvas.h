@@ -37,6 +37,7 @@ protected:
     void mouseReleaseEvent(QMouseEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
     void keyReleaseEvent(QKeyEvent* event) override;
+    void focusOutEvent(QFocusEvent* event) override;
     void enterEvent(QEnterEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
     void showEvent(QShowEvent* event) override;
@@ -55,6 +56,7 @@ private:
     bool spaceHeld_ = false;
     bool panning_ = false;
     QPoint lastPanPos_;
+    Qt::MouseButton panButton_ = Qt::NoButton;
 };
 
 }

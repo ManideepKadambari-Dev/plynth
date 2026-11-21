@@ -65,7 +65,12 @@ MainWindow::MainWindow(const QString& projectFolder, QWidget* parent)
     setCentralWidget(central);
     setAcceptDrops(true);
 
-    connect(canvas_, &PlanCanvas::zoomChanged, statusBar_, &StatusBar::setZoom);
+    connect(canvas_, &PlanCanvas::zoomChanged, this, [this](double zoom) {
+        if (canvas_->hasImage())
+            statusBar_->setZoom(zoom);
+        else
+            statusBar_->clearZoom();
+    });
 
     auto* openAction = titleBar_->fileMenu()->addAction(tr("&Open plan image..."));
     openAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_O));
@@ -74,11 +79,15 @@ MainWindow::MainWindow(const QString& projectFolder, QWidget* parent)
     connect(openAction, &QAction::triggered, this, &MainWindow::openImageDialog);
     titleBar_->fileMenu()->addSeparator();
 
+    QList<QKeySequence> zoomOutKeys{QKeySequence(Qt::CTRL | Qt::Key_Minus)};
+    for (const QKeySequence& key : QKeySequence::keyBindings(QKeySequence::ZoomOut))
+        if (!zoomOutKeys.contains(key))
+            zoomOutKeys.append(key);
     addViewAction(tr("Zoom &in"), tr("Zoom in (Ctrl+=)"), QStringLiteral("view-zoom-in"),
                   {QKeySequence(Qt::CTRL | Qt::Key_Equal), QKeySequence(Qt::CTRL | Qt::Key_Plus)},
                   &PlanCanvas::zoomIn);
     addViewAction(tr("Zoom &out"), tr("Zoom out (Ctrl+-)"), QStringLiteral("view-zoom-out"),
-                  {QKeySequence(Qt::CTRL | Qt::Key_Minus)}, &PlanCanvas::zoomOut);
+                  zoomOutKeys, &PlanCanvas::zoomOut);
     addViewAction(tr("&Fit to window"), tr("Fit the whole plan in the window (Ctrl+0)"),
                   QStringLiteral("view-fit"), {QKeySequence(Qt::CTRL | Qt::Key_0)},
                   &PlanCanvas::fitToWindow);

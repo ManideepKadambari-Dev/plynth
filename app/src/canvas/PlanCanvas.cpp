@@ -223,6 +223,7 @@ void PlanCanvas::mousePressEvent(QMouseEvent* event)
     const bool spaceLeft = event->button() == Qt::LeftButton && spaceHeld_;
     if (hasImage() && (middle || spaceLeft)) {
         panning_ = true;
+        panButton_ = event->button();
         lastPanPos_ = event->pos();
         viewport()->setCursor(Qt::ClosedHandCursor);
         event->accept();
@@ -250,8 +251,9 @@ void PlanCanvas::mouseMoveEvent(QMouseEvent* event)
 // Ends a pan.
 void PlanCanvas::mouseReleaseEvent(QMouseEvent* event)
 {
-    if (panning_ && (event->button() == Qt::MiddleButton || event->button() == Qt::LeftButton)) {
+    if (panning_ && event->button() == panButton_) {
         panning_ = false;
+        panButton_ = Qt::NoButton;
         updateCursor();
         event->accept();
         return;
@@ -285,6 +287,16 @@ void PlanCanvas::keyReleaseEvent(QKeyEvent* event)
         return;
     }
     QGraphicsView::keyReleaseEvent(event);
+}
+
+// Drops Space and pan state when focus leaves, since the release would go elsewhere.
+void PlanCanvas::focusOutEvent(QFocusEvent* event)
+{
+    QGraphicsView::focusOutEvent(event);
+    spaceHeld_ = false;
+    panning_ = false;
+    panButton_ = Qt::NoButton;
+    updateCursor();
 }
 
 // Takes keyboard focus when the mouse comes in, so Space works without a click.

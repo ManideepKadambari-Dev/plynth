@@ -8,6 +8,12 @@
 
 namespace plynth::app {
 
+namespace {
+
+constexpr int kBorderWidth = 1;
+
+}
+
 // Builds the labels with theme fonts and the Muted color.
 StatusBar::StatusBar(QWidget* parent)
     : QWidget(parent)
@@ -16,7 +22,7 @@ StatusBar::StatusBar(QWidget* parent)
     setFixedHeight(t.unit() * 7);
 
     auto* layout = new QHBoxLayout(this);
-    layout->setContentsMargins(t.unit() * 3, 1, t.unit() * 3, 0);
+    layout->setContentsMargins(t.unit() * 3, kBorderWidth, t.unit() * 3, 0);
     layout->setSpacing(t.unit() * 2);
 
     const QString mutedStyle = QStringLiteral("color: %1;").arg(t.muted().name());
@@ -77,7 +83,7 @@ void StatusBar::paintEvent(QPaintEvent*)
     const Theme& t = Theme::instance();
     QPainter p(this);
     p.fillRect(rect(), t.panel());
-    p.fillRect(QRect(0, 0, width(), 1), t.line());
+    p.fillRect(QRect(0, 0, width(), kBorderWidth), t.line());
 }
 
 }
