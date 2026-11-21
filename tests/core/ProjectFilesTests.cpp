@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <thread>
 
 using namespace plynth;
 namespace fs = std::filesystem;
@@ -351,4 +352,52 @@ TEST_CASE("autosave refuses an invalid project", "[core][files][autosave]") {
     p.plan.floors.clear();
     REQUIRE(writeAutosave(p, tmp.path()).code == ErrorCode::InvalidValue);
     REQUIRE_FALSE(fs::exists(tmp.path() / "autosave"));
+}
+
+TEST_CASE("a save waits for a reader that holds the file open for a moment", "[core][files]") {
+    plynth::test::TempDir tmp("files-reader");
+    const fs::path folder = tmp.path() / "p";
+    Project project = makeNewProject();
+    plynth::test::requireOk(saveProject(project, folder, {}));
+
+    project.settings.name = "Changed";
+    std::ifstream reader(folder / "plan.json", std::ios::binary);
+    REQUIRE(reader.is_open());
+    std::thread release([&reader] {
+        std::this_thread::sleep_for(std::chrono::milliseconds(150));
+        reader.close();
+    });
+    const Status s = saveProject(project, folder, folder);
+    release.join();
+    plynth::test::requireOk(s);
+    REQUIRE(loadProject(folder).project.settings.name == "Changed");
+    REQUIRE(countTmpFiles(folder) == 0);
+}
+
+TEST_CASE("a failed save leaves the old files, no copied images and no temporary files", "[core][files]") {
+    plynth::test::TempDir tmp("files-rollback");
+    const fs::path folder = tmp.path() / "p";
+    Project project = makeNewProject();
+    plynth::test::requireOk(saveProject(project, folder, {}));
+    const std::string oldPlan = plynth::test::readTextFile(folder / "plan.json");
+
+    writeFile(tmp.path() / "src" / "a.png", "a");
+    writeFile(tmp.path() / "src" / "b.png", "b");
+    Project changed = project;
+    changed.plan.floors[0].image = pathToUtf8(tmp.path() / "src" / "a.png");
+    Floor second;
+    second.id = "f2";
+    second.name = "Two";
+    second.image = pathToUtf8(tmp.path() / "src" / "b.png");
+    changed.plan.floors.push_back(second);
+
+    // A folder named project.json makes the second rename fail after the first one worked.
+    fs::remove(folder / "project.json");
+    fs::create_directory(folder / "project.json");
+    const Status s = saveProject(changed, folder, {});
+    REQUIRE(s.code == ErrorCode::CannotWrite);
+    REQUIRE(plynth::test::readTextFile(folder / "plan.json") == oldPlan);
+    REQUIRE(fs::is_empty(folder / "plans"));
+    REQUIRE(countTmpFiles(folder) == 0);
+    REQUIRE_FALSE(changed.plan.floors[0].image.value().starts_with("plans/"));
 }

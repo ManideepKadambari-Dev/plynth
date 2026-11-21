@@ -1,5 +1,7 @@
 #include "plynth/core/EditSession.h"
 
+#include "FileIo.h"
+
 #include "plynth/core/ProjectFiles.h"
 #include "plynth/core/ProjectJson.h"
 
@@ -12,7 +14,6 @@
 #include <limits>
 #include <sstream>
 #include <system_error>
-#include <thread>
 #include <utility>
 
 namespace plynth {
@@ -33,36 +34,6 @@ Status readText(const fs::path& path, std::string& out)
     if (in.bad()) return fail(ErrorCode::CannotRead, pathToUtf8(path.filename()) + " could not be read.");
     out = buffer.str();
     return {};
-}
-
-// Writes text to a temporary file next to the target and renames it over the target.
-// The rename is tried a few times because the app may be reading the file at that moment.
-Status writeTextAtomic(const fs::path& path, const std::string& text)
-{
-    const std::string name = pathToUtf8(path.filename());
-    fs::path tmp = path;
-    tmp += ".tmp";
-    {
-        std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-        if (!out) return fail(ErrorCode::CannotWrite, name + " could not be written.");
-        out.write(text.data(), static_cast<std::streamsize>(text.size()));
-        out.flush();
-        if (!out) {
-            out.close();
-            std::error_code ignore;
-            fs::remove(tmp, ignore);
-            return fail(ErrorCode::CannotWrite, name + " could not be written.");
-        }
-    }
-    std::error_code ec;
-    for (int attempt = 0; attempt < 5; ++attempt) {
-        fs::rename(tmp, path, ec);
-        if (!ec) return {};
-        std::this_thread::sleep_for(std::chrono::milliseconds(20));
-    }
-    std::error_code ignore;
-    fs::remove(tmp, ignore);
-    return fail(ErrorCode::CannotWrite, name + " could not be replaced.");
 }
 
 // The text of a JSON file: 2 space indent and a final line break.
@@ -298,7 +269,7 @@ Status writeSession(const fs::path& folder, const SessionLock& lock)
     json["tool"] = lock.tool;
     json["started"] = formatSessionTime(lock.started);
     json["last_activity"] = formatSessionTime(lock.lastActivity);
-    return writeTextAtomic(folder / pathFromUtf8(kSessionFileName), dumpJson(json));
+    return fileio::writeAtomic(folder / pathFromUtf8(kSessionFileName), dumpJson(json));
 }
 
 // Deletes folder/session.lock.
@@ -337,7 +308,7 @@ Status writeAppState(const fs::path& folder, const AppState& state)
     json["process_start"] = state.process.startKey;
     json["modified"] = state.modified;
     json["updated"] = formatSessionTime(state.updated);
-    return writeTextAtomic(folder / pathFromUtf8(kAppStateFileName), dumpJson(json));
+    return fileio::writeAtomic(folder / pathFromUtf8(kAppStateFileName), dumpJson(json));
 }
 
 // Deletes folder/app-state.json when it belongs to the given process.

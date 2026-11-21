@@ -12,6 +12,7 @@ add_library(plynth_core STATIC
     src/ProjectFiles.cpp
     src/Document.cpp
     src/EditSession.cpp
+    src/FileIo.cpp
     src/commands/FloorCommands.cpp
     src/commands/PointCommands.cpp
     src/commands/WallCommands.cpp

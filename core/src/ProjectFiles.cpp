@@ -1,5 +1,7 @@
 #include "plynth/core/ProjectFiles.h"
 
+#include "FileIo.h"
+
 #include "plynth/core/ProjectJson.h"
 
 #include <nlohmann/json.hpp>
@@ -28,33 +30,6 @@ Status readText(const fs::path& path, std::string& out)
     buffer << in.rdbuf();
     if (in.bad()) return fail(ErrorCode::CannotRead, "The file " + pathToUtf8(path) + " could not be read.");
     out = buffer.str();
-    return {};
-}
-
-// Writes text to a temporary file next to the target and renames it over the target.
-Status writeTextAtomic(const fs::path& path, const std::string& text)
-{
-    fs::path tmp = path;
-    tmp += ".tmp";
-    {
-        std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-        if (!out) return fail(ErrorCode::CannotWrite, "The file " + pathToUtf8(path) + " could not be written.");
-        out.write(text.data(), static_cast<std::streamsize>(text.size()));
-        out.flush();
-        if (!out) {
-            out.close();
-            std::error_code ignore;
-            fs::remove(tmp, ignore);
-            return fail(ErrorCode::CannotWrite, "The file " + pathToUtf8(path) + " could not be written.");
-        }
-    }
-    std::error_code ec;
-    fs::rename(tmp, path, ec);
-    if (ec) {
-        std::error_code ignore;
-        fs::remove(tmp, ignore);
-        return fail(ErrorCode::CannotWrite, "The file " + pathToUtf8(path) + " could not be replaced.");
-    }
     return {};
 }
 
@@ -138,13 +113,39 @@ Status checkSettings(const ProjectSettings& settings)
     return {};
 }
 
-// Writes plan.json and project.json into a folder, each through a temporary file.
+// Writes plan.json and project.json into a folder. Both temporary files are written first, so a full disk
+// fails before anything is replaced. If the second rename then fails, the first file is put back, so the
+// folder is left as it was whenever an error is reported.
 Status writeJsonFiles(const Project& project, const fs::path& folder)
 {
-    const std::string planText = dumpJson(planToJson(project.plan));
-    const std::string projectText = dumpJson(settingsToJson(project.settings));
-    if (Status s = writeTextAtomic(folder / pathFromUtf8(kPlanFileName), planText); !s.ok()) return s;
-    return writeTextAtomic(folder / pathFromUtf8(kProjectFileName), projectText);
+    const fs::path planPath = folder / pathFromUtf8(kPlanFileName);
+    const fs::path projectPath = folder / pathFromUtf8(kProjectFileName);
+    fs::path planTmp;
+    fs::path projectTmp;
+    if (Status s = fileio::writeTemp(planPath, dumpJson(planToJson(project.plan)), planTmp); !s.ok()) return s;
+    if (Status s = fileio::writeTemp(projectPath, dumpJson(settingsToJson(project.settings)), projectTmp); !s.ok()) {
+        std::error_code ignore;
+        fs::remove(planTmp, ignore);
+        return s;
+    }
+
+    std::string oldPlan;
+    const bool hadPlan = readText(planPath, oldPlan).ok();
+    if (Status s = fileio::renameOver(planTmp, planPath); !s.ok()) {
+        std::error_code ignore;
+        fs::remove(projectTmp, ignore);
+        return s;
+    }
+    if (Status s = fileio::renameOver(projectTmp, projectPath); !s.ok()) {
+        if (hadPlan) {
+            fileio::writeAtomic(planPath, oldPlan);
+        } else {
+            std::error_code ignore;
+            fs::remove(planPath, ignore);
+        }
+        return s;
+    }
+    return {};
 }
 
 // Finds a file name that is free in a folder, adding -2, -3 and so on before the extension.
@@ -227,6 +228,11 @@ Status saveProject(Project& project, const fs::path& folder, const fs::path& sou
 
     Project result = project;
     std::map<fs::path, std::string> copied;
+    std::vector<fs::path> created;
+    const auto removeCreated = [&created]() {
+        std::error_code ignore;
+        for (const fs::path& file : created) fs::remove(file, ignore);
+    };
     for (const Job& job : jobs) {
         std::string relative;
         if (fs::equivalent(job.source.parent_path(), plansDir, ec)) {
@@ -242,8 +248,10 @@ Status saveProject(Project& project, const fs::path& folder, const fs::path& sou
                 if (ec) {
                     std::error_code ignore;
                     fs::remove(plansDir / name, ignore);
+                    removeCreated();
                     return fail(ErrorCode::CannotWrite, "The plan image could not be copied to " + pathToUtf8(plansDir / name) + ".");
                 }
+                created.push_back(plansDir / name);
                 relative = std::string(kPlansFolderName) + "/" + pathToUtf8(name);
                 copied[key] = relative;
             }
@@ -252,7 +260,10 @@ Status saveProject(Project& project, const fs::path& folder, const fs::path& sou
         target->image = relative;
     }
 
-    if (Status s = writeJsonFiles(result, folder); !s.ok()) return s;
+    if (Status s = writeJsonFiles(result, folder); !s.ok()) {
+        removeCreated();
+        return s;
+    }
     project = std::move(result);
     return {};
 }
