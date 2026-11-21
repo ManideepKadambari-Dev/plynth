@@ -61,3 +61,7 @@ The app is built to `out/build/msvc/app/Debug/plynth.exe`. Next to it is `plynth
 ```
 plynth.exe --screenshot window.png --size 1280x720
 ```
+
+## License
+
+Plynth is free software under the GNU General Public License version 3 or later. See LICENSE.

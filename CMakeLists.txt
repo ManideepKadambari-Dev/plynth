@@ -21,6 +21,10 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/cli/CMakeLists.txt")
     add_subdirectory(cli)
 endif()
 
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/blender/CMakeLists.txt")
+    add_subdirectory(blender)
+endif()
+
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/app/terminal/CMakeLists.txt")
     add_subdirectory(app/terminal)
 endif()
