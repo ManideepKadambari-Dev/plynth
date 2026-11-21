@@ -43,6 +43,7 @@ def run(ctx):
 
     ctx.output = {
         "blend_file": "asset.blend",
+        "fbx_file": ctx.state.get("fbx_file"),
         "picked_file": ctx.state.get("picked_file"),
         "size": ctx.state["size"],
         "triangles": ctx.state["triangles"],

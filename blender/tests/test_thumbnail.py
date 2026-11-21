@@ -57,9 +57,9 @@ def read_png(path):
 
 class ThumbnailTests(CleanupTest):
     # Cleans the chair with a thumbnail and returns the result.
-    def chair_with_thumbnail(self, engine, size=128):
+    def chair_with_thumbnail(self, size=128):
         chair = self.copy_chair()
-        spec = {"render": True, "size": size, "engine": engine, "background": BACKGROUND}
+        spec = {"render": True, "size": size, "background": BACKGROUND}
         return self.cleanup(os.path.join(chair, "chair.obj"), "obj", thumbnail=spec)
 
     # Checks the picture: square, corners equal the background, centre is something else.
@@ -73,29 +73,21 @@ class ThumbnailTests(CleanupTest):
         centre = rows[height // 2][width // 2]
         self.assertGreater(sum(abs(centre[c] - wanted[c]) for c in range(3)), 40)
 
-    # A Cycles thumbnail of the cleaned chair has the right size, background and content.
-    def test_cycles_thumbnail(self):
-        result = self.chair_with_thumbnail("cycles")
+    # An Eevee thumbnail of the cleaned chair has the right size, background and content.
+    def test_eevee_thumbnail(self):
+        result = self.chair_with_thumbnail()
         self.assertTrue(result["ok"], result["error"])
         self.assert_result_valid(result)
         thumb = result["output"]["thumbnail"]
-        self.assertEqual(thumb, {"file": "thumb.png", "engine": "cycles", "error": None})
+        self.assertEqual(thumb, {"file": "thumb.png", "engine": "eevee", "error": None})
         self.assertEqual(result["warnings"], [])
         self.assert_picture(self.path("item", "thumb.png"), 128)
-
-    # An Eevee thumbnail does the same, or the test is skipped when Eevee cannot start here.
-    def test_eevee_thumbnail(self):
-        result = self.chair_with_thumbnail("eevee")
-        self.assertTrue(result["ok"], result["error"])
-        if "eevee_failed" in [w["code"] for w in result["warnings"]]:
-            self.skipTest("Eevee cannot render in background mode on this machine: %s" % result["warnings"])
-        self.assertEqual(result["output"]["thumbnail"]["engine"], "eevee")
-        self.assert_picture(self.path("item", "thumb.png"), 128)
+        print("EEVEE_TIMING", [line for line in self.printed.splitlines() if "Thumbnail rendered" in line])
 
     # The thumbnail is rendered after asset.blend is saved, and no half written file is left.
     def test_no_leftovers(self):
-        self.chair_with_thumbnail("cycles")
-        self.assertEqual(sorted(os.listdir(self.path("item"))), ["asset.blend", "textures", "thumb.png"])
+        self.chair_with_thumbnail()
+        self.assertEqual(sorted(os.listdir(self.path("item"))), ["asset.blend", "asset.fbx", "textures", "thumb.png"])
 
     # Not asking for a thumbnail renders nothing and reports no error.
     def test_render_off(self):
@@ -104,25 +96,15 @@ class ThumbnailTests(CleanupTest):
         self.assertEqual(result["output"]["thumbnail"], {"file": None, "engine": None, "error": None})
         self.assertFalse(os.path.exists(self.path("item", "thumb.png")))
 
-    # An engine name that is not known fails the thumbnail but not the cleanup.
-    def test_broken_engine_in_cleanup(self):
-        result = self.chair_with_thumbnail("bogus")
-        self.assertTrue(result["ok"], result["error"])
-        thumb = result["output"]["thumbnail"]
-        self.assertIsNone(thumb["file"])
-        self.assertIn("bogus", thumb["error"])
-        self.assertTrue(os.path.isfile(self.path("item", "asset.blend")))
-        self.assert_result_valid(result)
-
     # The retry task measures the chair, writes the picture and leaves asset.blend byte for byte unchanged.
     def test_render_thumbnail_task(self):
-        self.chair_with_thumbnail("cycles", 64)
+        self.chair_with_thumbnail(64)
         blend = self.path("item", "asset.blend")
         before = hashlib.sha256(open(blend, "rb").read()).hexdigest()
         target = self.path("out", "again.png")
         os.makedirs(self.path("out"))
-        spec = {"render": True, "size": 128, "engine": "cycles", "background": BACKGROUND}
-        result = self.run_task("render_thumbnail", {"blend_file": blend, "output_file": target, "measure": True,
+        spec = {"render": True, "size": 128, "background": BACKGROUND}
+        result = self.run_task("render_thumbnail", {"blend_file": blend, "output_file": target, "measure": True, "fbx_file": None,
                                                    "thumbnail": spec}, job_id="retry-1")
         self.assertTrue(result["ok"], result["error"])
         self.assert_result_valid(result)
@@ -134,40 +116,28 @@ class ThumbnailTests(CleanupTest):
         self.assertEqual(output["objects"], 6)
         self.assertEqual(output["materials"], ["Fabric", "Wood"])
         self.assertEqual(output["textures"], ["textures/chair_wood.png"])
-        self.assertEqual(output["thumbnail"], {"file": "again.png", "engine": "cycles", "error": None})
+        self.assertEqual(output["thumbnail"], {"file": "again.png", "engine": "eevee", "error": None})
         self.assert_picture(target, 128)
         self.assertEqual(hashlib.sha256(open(blend, "rb").read()).hexdigest(), before)
-        self.assertEqual(sorted(os.listdir(self.path("item"))), ["asset.blend", "textures", "thumb.png"])
+        self.assertEqual(sorted(os.listdir(self.path("item"))), ["asset.blend", "asset.fbx", "textures", "thumb.png"])
 
     # Without measure the measures are null.
     def test_render_thumbnail_no_measure(self):
-        self.chair_with_thumbnail("cycles", 64)
-        spec = {"render": True, "size": 64, "engine": "cycles", "background": BACKGROUND}
+        self.chair_with_thumbnail(64)
+        spec = {"render": True, "size": 64, "background": BACKGROUND}
         result = self.run_task("render_thumbnail", {"blend_file": self.path("item", "asset.blend"),
-                                                   "output_file": self.path("again.png"), "measure": False,
+                                                   "output_file": self.path("again.png"), "measure": False, "fbx_file": None,
                                                    "thumbnail": spec})
         self.assertTrue(result["ok"], result["error"])
         self.assertIsNone(result["output"]["size"])
         self.assertIsNone(result["output"]["triangles"])
         self.assert_result_valid(result)
 
-    # A broken engine name fails the retry task with render_failed.
-    def test_render_thumbnail_broken_engine(self):
-        self.chair_with_thumbnail("cycles", 64)
-        spec = {"render": True, "size": 64, "engine": "bogus", "background": BACKGROUND}
-        result = self.run_task("render_thumbnail", {"blend_file": self.path("item", "asset.blend"),
-                                                   "output_file": self.path("again.png"), "measure": True,
-                                                   "thumbnail": spec})
-        self.assertFalse(result["ok"])
-        self.assertEqual(result["error"]["code"], "render_failed")
-        self.assertFalse(os.path.exists(self.path("again.png")))
-        self.assert_result_valid(result)
-
     # A blend file that is not there fails the retry task with import_failed.
     def test_render_thumbnail_missing_file(self):
-        spec = {"render": True, "size": 64, "engine": "cycles", "background": BACKGROUND}
+        spec = {"render": True, "size": 64, "background": BACKGROUND}
         result = self.run_task("render_thumbnail", {"blend_file": self.path("none.blend"),
-                                                   "output_file": self.path("again.png"), "measure": False,
+                                                   "output_file": self.path("again.png"), "measure": False, "fbx_file": None,
                                                    "thumbnail": spec})
         self.assertEqual(result["error"]["code"], "import_failed")
 

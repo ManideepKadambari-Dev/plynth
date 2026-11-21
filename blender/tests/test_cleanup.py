@@ -22,6 +22,7 @@ class ChairCleanupTests(CleanupTest):
         self.assert_result_valid(self.result)
         output = self.result["output"]
         self.assertEqual(output["blend_file"], "asset.blend")
+        self.assertEqual(output["fbx_file"], "asset.fbx")
         self.assertIsNone(output["picked_file"])
         self.assertAlmostEqual(output["size"]["width"], 0.45, delta=1e-4)
         self.assertAlmostEqual(output["size"]["depth"], 0.50, delta=1e-4)
@@ -73,7 +74,7 @@ class ChairCleanupTests(CleanupTest):
 
     # The output folder holds only asset.blend and textures, and the original files are untouched.
     def test_output_folder(self):
-        self.assertEqual(sorted(os.listdir(self.path("item"))), ["asset.blend", "textures"])
+        self.assertEqual(sorted(os.listdir(self.path("item"))), ["asset.blend", "asset.fbx", "textures"])
         self.assertEqual(sorted(os.listdir(self.chair)), ["chair.mtl", "chair.obj", "chair_wood.png"])
 
 
@@ -144,7 +145,7 @@ class CleanupOptionTests(CleanupTest):
         steps = [json.loads(line[7:])["progress"]["step"] for line in lines]
         self.assertEqual(steps[:7], ["import_source", "remove_extras", "user_transform", "apply_transforms",
                                      "set_pivot", "name_objects", "collect_textures"])
-        self.assertEqual(steps[-2:], ["save_blend", "render_thumbnail"])
+        self.assertEqual(steps[-3:], ["save_blend", "export_fbx", "render_thumbnail"])
 
     # Bad params are bad_job and a format that is not registered is unsupported_format.
     def test_bad_params(self):

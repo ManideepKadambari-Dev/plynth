@@ -15,7 +15,7 @@ def run(ctx):
         return
     target = os.path.join(ctx.params["output_folder"], "thumb.png")
     try:
-        engine = thumbnail.render_thumbnail(target, spec, ctx.warn)
+        engine = thumbnail.render_thumbnail(target, spec)
         ctx.state["thumbnail"] = {"file": "thumb.png", "engine": engine, "error": None}
     except WorkerError as error:
         ctx.state["thumbnail"] = {"file": None, "engine": None, "error": error.message}

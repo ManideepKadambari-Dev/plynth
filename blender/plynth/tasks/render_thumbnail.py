@@ -2,8 +2,10 @@ import os
 
 import bpy
 
+from .. import exporters
 from .. import scene
 from .. import thumbnail
+from ..exporters import fbx  # noqa: F401
 from ..jobs import WorkerError
 from ..registry import TASKS
 
@@ -25,13 +27,15 @@ def check_params(params):
     for key in ("blend_file", "output_file"):
         if not isinstance(params.get(key), str) or not params[key]:
             raise WorkerError("bad_job", "The job has no %s." % key)
+    if params.get("fbx_file") is not None and (not isinstance(params["fbx_file"], str) or not params["fbx_file"]):
+        raise WorkerError("bad_job", "The fbx_file must be a path or null.")
     if not isinstance(params.get("measure"), bool):
         raise WorkerError("bad_job", "The job does not say whether to measure.")
     if not isinstance(params.get("thumbnail"), dict):
         raise WorkerError("bad_job", "The job has no thumbnail settings.")
 
 
-# Opens an asset.blend without saving it, measures it when asked, and renders its thumbnail.
+# Opens an asset.blend without saving it, measures it when asked, writes the FBX when asked and renders its thumbnail.
 def run(ctx):
     check_params(ctx.params)
     blend_file = ctx.params["blend_file"]
@@ -51,9 +55,18 @@ def run(ctx):
         output.update(scene.describe(objects))
         output["textures"] = texture_paths(blend_file)
 
+    fbx_file = ctx.params.get("fbx_file")
+    output["fbx_file"] = None
+    if fbx_file:
+        try:
+            exporters.write_file("fbx", None, fbx_file, "RELATIVE")
+            output["fbx_file"] = os.path.basename(fbx_file)
+        except Exception as error:
+            ctx.warn("fbx_failed", "%s could not be written: %s" % (os.path.basename(fbx_file), error))
+
     spec = ctx.params["thumbnail"]
     if spec.get("render", True):
-        engine = thumbnail.render_thumbnail(output_file, spec, ctx.warn)
+        engine = thumbnail.render_thumbnail(output_file, spec)
         output["thumbnail"] = {"file": os.path.basename(output_file), "engine": engine, "error": None}
     else:
         output["thumbnail"] = {"file": None, "engine": None, "error": None}
