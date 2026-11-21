@@ -1,0 +1,127 @@
+#include "SampleProject.h"
+
+#include <plynth/core/Settings.h>
+
+#include <catch2/catch_test_macros.hpp>
+
+#include <filesystem>
+#include <fstream>
+
+using plynth::cli::kExitOk;
+using plynth::cli::testing::errorCode;
+using plynth::cli::testing::readFile;
+using plynth::cli::testing::runChecked;
+using plynth::cli::testing::Sample;
+using plynth::cli::testing::TempFolder;
+using plynth::cli::testing::utf8;
+
+namespace {
+
+// Removes the settings file so a test starts from a first run.
+void clearSettings() {
+    std::error_code ignored;
+    std::filesystem::remove(plynth::settingsFile(), ignored);
+}
+
+}
+
+TEST_CASE("settings show without a file gives the defaults", "[cli][settings]") {
+    clearSettings();
+    const auto outcome = runChecked({"settings", "show"});
+    REQUIRE(outcome.exitCode == kExitOk);
+    const auto& result = outcome.answer.at("result");
+    CHECK(result.at("exists") == false);
+    CHECK(result.at("file").get<std::string>().find("settings.json") != std::string::npos);
+    const auto& settings = result.at("settings");
+    CHECK(settings.at("library").is_null());
+    CHECK(settings.at("projects").is_null());
+    CHECK(settings.at("keep_imported_zips") == false);
+    CHECK(settings.at("thumbnail_engine") == "eevee");
+    CHECK(settings.at("triangle_warning") == 500000);
+    CHECK_FALSE(settings.contains("format"));
+    CHECK_FALSE(settings.contains("version"));
+}
+
+TEST_CASE("settings set saves and settings show reads it back", "[cli][settings]") {
+    clearSettings();
+    TempFolder temp("settings-projects");
+    const auto set = runChecked({"settings", "set", "--projects", utf8(temp.path()), "--keep-zips", "true",
+                                 "--thumbnail-engine", "cycles", "--triangle-warning", "1000"});
+    REQUIRE(set.exitCode == kExitOk);
+    CHECK(set.answer.at("result").at("exists") == true);
+
+    const auto shown = runChecked({"settings", "show"});
+    const auto& settings = shown.answer.at("result").at("settings");
+    CHECK(settings.at("projects") == utf8(temp.path()));
+    CHECK(settings.at("keep_imported_zips") == true);
+    CHECK(settings.at("thumbnail_engine") == "cycles");
+    CHECK(settings.at("triangle_warning") == 1000);
+
+    const auto cleared = runChecked({"settings", "set", "--projects", "none"});
+    REQUIRE(cleared.exitCode == kExitOk);
+    CHECK(cleared.answer.at("result").at("settings").at("projects").is_null());
+    clearSettings();
+}
+
+TEST_CASE("settings set with a missing folder is refused and the file stays as it was", "[cli][settings]") {
+    clearSettings();
+    TempFolder temp("settings-missing");
+    REQUIRE(runChecked({"settings", "set", "--keep-zips", "true"}).exitCode == kExitOk);
+    const std::string before = readFile(plynth::settingsFile());
+
+    const auto missing = runChecked({"settings", "set", "--projects", utf8(temp.path() / "nope"), "--keep-zips", "false"});
+    CHECK(missing.exitCode != kExitOk);
+    CHECK(errorCode(missing) == "not_found");
+    CHECK(readFile(plynth::settingsFile()) == before);
+    clearSettings();
+}
+
+TEST_CASE("settings set refuses bad values", "[cli][settings]") {
+    clearSettings();
+    const auto zips = runChecked({"settings", "set", "--keep-zips", "maybe"});
+    CHECK(errorCode(zips) == "bad_arguments");
+    const auto engine = runChecked({"settings", "set", "--thumbnail-engine", "vray"});
+    CHECK(errorCode(engine) == "bad_arguments");
+    const auto nothing = runChecked({"settings", "set"});
+    CHECK(errorCode(nothing) == "bad_arguments");
+    const auto triangles = runChecked({"settings", "set", "--triangle-warning", "0"});
+    CHECK(errorCode(triangles) == "invalid_value");
+    const auto program = runChecked({"settings", "set", "--blender", "C:/does/not/exist/blender.exe"});
+    CHECK(errorCode(program) == "blender_not_found");
+    CHECK_FALSE(std::filesystem::exists(plynth::settingsFile()));
+}
+
+TEST_CASE("an edit on a project whose plan image is gone succeeds with a warning", "[cli][settings]") {
+    Sample sample("image-missing");
+    REQUIRE(sample.run({"scale", "set", "--pixels-per-metre", "100"}).exitCode == kExitOk);
+    const std::filesystem::path images = sample.folder / "plans";
+    std::string imagePath;
+    for (const auto& entry : std::filesystem::directory_iterator(images)) {
+        imagePath = "plans/" + utf8(entry.path().filename());
+        std::filesystem::remove(entry.path());
+    }
+    REQUIRE_FALSE(imagePath.empty());
+
+    const auto drawn = sample.draw({"--from-x", "1", "--from-y", "1", "--to-x", "5", "--to-y", "1"});
+    REQUIRE(drawn.exitCode == kExitOk);
+    REQUIRE(drawn.answer.contains("warnings"));
+    const auto& warnings = drawn.answer.at("warnings");
+    REQUIRE(warnings.size() == 1);
+    CHECK(warnings[0].at("code") == "image_missing");
+    CHECK(warnings[0].at("message").get<std::string>().find(imagePath) != std::string::npos);
+
+    const std::string plan = readFile(sample.folder / "plan.json");
+    CHECK(plan.find(imagePath) != std::string::npos);
+
+    const auto listed = sample.run({"wall", "list"});
+    CHECK_FALSE(listed.answer.contains("warnings"));
+}
+
+TEST_CASE("project new with a missing image is still refused", "[cli][settings]") {
+    TempFolder temp("new-missing");
+    const auto outcome = runChecked({"project", "new", "--image", utf8(temp.path() / "none.png"), "--project",
+                                     utf8(temp.path() / "p")});
+    CHECK(outcome.exitCode != kExitOk);
+    CHECK(errorCode(outcome) == "image_error");
+    CHECK_FALSE(std::filesystem::exists(temp.path() / "p"));
+}

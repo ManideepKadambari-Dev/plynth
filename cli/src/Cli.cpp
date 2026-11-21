@@ -28,10 +28,8 @@ const CommandSpec* matchCommand(const std::vector<std::string>& args, bool& grou
             continue;
         }
         groupKnown = true;
-        if (spec.words.size() == 1) {
-            return &spec;
-        }
-        if (args.size() > 1 && spec.words[1] == args[1]) {
+        if (spec.words.size() <= args.size() &&
+            std::equal(spec.words.begin(), spec.words.end(), args.begin())) {
             return &spec;
         }
     }
@@ -44,12 +42,14 @@ void buildTree(CLI::App& root, std::map<std::string, Handler>& handlers) {
     std::map<std::string, CLI::App*> groups;
     for (const CommandSpec& spec : allCommands()) {
         CLI::App* parent = &root;
-        if (spec.words.size() > 1) {
-            auto found = groups.find(spec.words.front());
+        std::string prefix;
+        for (std::size_t i = 0; i + 1 < spec.words.size(); ++i) {
+            prefix += (prefix.empty() ? "" : " ") + spec.words[i];
+            auto found = groups.find(prefix);
             if (found == groups.end()) {
-                CLI::App* group = root.add_subcommand(spec.words.front());
+                CLI::App* group = parent->add_subcommand(spec.words[i]);
                 group->require_subcommand(1);
-                found = groups.emplace(spec.words.front(), group).first;
+                found = groups.emplace(prefix, group).first;
             }
             parent = found->second;
         }

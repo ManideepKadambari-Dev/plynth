@@ -234,11 +234,14 @@ Answer detect(const RunContext& context, const DetectOptions& given) {
         return failed;
     }
     json["applied"] = appliedJson(raw);
-    const Status saved = saveInPlace(document);
+    SaveReport report;
+    const Status saved = saveInPlace(document, &report);
     if (!saved.ok()) {
         return failure(name, saved);
     }
-    return success(name, std::move(json));
+    Answer applied = success(name, std::move(json));
+    addSaveWarnings(applied, report);
+    return applied;
 }
 
 }

@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace plynth {
 
@@ -45,17 +46,26 @@ struct ProjectLoad {
 // the file name at the start of the message. Never writes anything, even after an upgrade.
 ProjectLoad loadProject(const std::filesystem::path& folder);
 
+// What a save noticed without refusing it.
+struct SaveReport {
+    // Image paths, as written in plan.json, of floors whose image file could not be found. They were not
+    // copied and their paths were kept as they were, so the image shows again once the file is put back.
+    std::vector<std::string> missingImages;
+};
+
 // Saves a project into a folder, creating the folder and plans/ when needed.
 // First every floor image is resolved against sourceFolder (empty for a project that was never saved).
 // Images that are not already inside folder/plans/ are copied there, keeping their file name and adding
 // "-2", "-3" and so on when another file has that name. The image paths in project are then rewritten
 // to "plans/<name>". Then plan.json and project.json are each written to a temporary file and renamed over
 // the old one, so a failed save never leaves half a file. Images are copied before any JSON is written:
-// a failed copy returns CannotWrite and leaves both JSON files as they were. A missing image gives NotFound.
+// a failed copy returns CannotWrite and leaves both JSON files as they were. An image that cannot be found
+// does not stop the save: it is skipped, its path is kept unchanged and it is listed in report, when given.
 Status saveProject(Project& project, const std::filesystem::path& folder,
-                   const std::filesystem::path& sourceFolder);
+                   const std::filesystem::path& sourceFolder, SaveReport* report = nullptr);
 
-// Same as saveProject, but refuses with AlreadyExists when the folder already holds a project.
+// Same as saveProject, but refuses with AlreadyExists when the folder already holds a project, and with
+// NotFound when a floor image cannot be found, since a new project must start from a real image.
 Status createProject(Project& project, const std::filesystem::path& folder,
                      const std::filesystem::path& sourceFolder);
 

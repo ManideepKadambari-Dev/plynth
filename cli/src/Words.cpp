@@ -10,8 +10,9 @@ namespace plynth::cli {
 
 namespace {
 
-constexpr std::array<std::string_view, 11> kWords = {"version", "help",   "project", "scale",   "point", "wall",
-                                                     "opening", "floor",  "room",    "detect",  "session"};
+constexpr std::array<std::string_view, 15> kWords = {"version", "help",  "project", "scale",  "point",   "wall",
+                                                     "opening", "floor", "room",    "detect", "session", "settings",
+                                                     "library", "assets",   "doctor"};
 
 // Writes text as a JSON string the way the CLI's JSON writer does: quotes and control characters escaped,
 // everything else as it is.

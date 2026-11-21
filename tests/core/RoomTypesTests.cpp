@@ -39,3 +39,40 @@ TEST_CASE("checkRoomType", "[core][roomtypes]") {
         REQUIRE(s.message.find(std::string(t.id)) != std::string::npos);
     }
 }
+
+namespace {
+
+// Puts the built-in list back when a test ends, however it ends.
+struct RestoreRoomTypes {
+    ~RestoreRoomTypes() { useRoomTypes({}); }
+};
+
+}
+
+TEST_CASE("room types before useRoomTypes are the built-in ones", "[core][roomtypes]") {
+    REQUIRE(roomTypes().size() == builtInRoomTypes().size());
+    for (std::size_t i = 0; i < roomTypes().size(); ++i) REQUIRE(roomTypes()[i] == builtInRoomTypes()[i]);
+}
+
+TEST_CASE("useRoomTypes replaces the list in use", "[core][roomtypes]") {
+    RestoreRoomTypes restore;
+    useRoomTypes({{"gaming", "Gaming room"}});
+    REQUIRE(roomTypes().size() == 1);
+    REQUIRE(checkRoomType("gaming").ok());
+    REQUIRE(checkRoomType("living").code == ErrorCode::InvalidValue);
+    REQUIRE(findRoomType("gaming")->name == "Gaming room");
+    REQUIRE(findRoomType("living") == nullptr);
+    REQUIRE(roomTypeName(std::string("gaming")) == "Gaming room");
+    REQUIRE(roomTypeName(std::string("living")) == "living");
+    REQUIRE(checkRoomType("living").message.find("gaming") != std::string::npos);
+    REQUIRE(builtInRoomTypes().size() == 9);
+}
+
+TEST_CASE("an empty list goes back to the built-in one", "[core][roomtypes]") {
+    RestoreRoomTypes restore;
+    useRoomTypes({{"gaming", "Gaming room"}});
+    useRoomTypes({});
+    REQUIRE(roomTypes().size() == 9);
+    REQUIRE(checkRoomType("living").ok());
+    REQUIRE(checkRoomType("gaming").code == ErrorCode::InvalidValue);
+}

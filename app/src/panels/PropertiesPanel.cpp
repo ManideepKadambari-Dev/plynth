@@ -66,18 +66,12 @@ PropertiesPanel::PropertiesPanel(plynth::Document& document, Selection& selectio
     : QWidget(parent), document_(document), selection_(selection), controller_(controller)
 {
     const Theme& t = Theme::instance();
-    setFixedWidth(t.propertiesWidth());
     setProperty("tourId", QStringLiteral("panel-properties"));
     setToolTip(tr("Properties of the selected item, or of the plan when nothing is selected"));
 
     auto* column = new QVBoxLayout(this);
     column->setContentsMargins(t.unit() * 4, t.unit() * 3, t.unit() * 4 + kBorderWidth, t.unit() * 3);
     column->setSpacing(t.unit() * 3);
-
-    auto* title = new QLabel(tr("Properties"), this);
-    title->setFont(t.uiFont(t.sizeNormal(), QFont::DemiBold));
-    title->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
-    column->addWidget(title);
 
     pages_ = new QStackedWidget(this);
     buildNothingPage();
@@ -603,7 +597,7 @@ void PropertiesPanel::refreshRoom()
     roomType_->clear();
     if (room->type.has_value() && plynth::findRoomType(*room->type) == nullptr)
         roomType_->addItem(fromCore(*room->type), fromCore(*room->type));
-    for (const plynth::RoomType& type : plynth::builtInRoomTypes())
+    for (const plynth::RoomType& type : plynth::roomTypes())
         roomType_->addItem(QString::fromUtf8(type.name.data(), static_cast<qsizetype>(type.name.size())),
                            QString::fromUtf8(type.id.data(), static_cast<qsizetype>(type.id.size())));
     roomType_->addItem(tr("No type yet"), QVariant());
@@ -1065,15 +1059,6 @@ void PropertiesPanel::refreshOpening()
     const plynth::Status fit = plynth::checkOpeningFit(*floor, *opening);
     openingProblem_->setText(fit.ok() ? QString() : fromCore(fit.message));
     openingProblem_->setVisible(!fit.ok());
-}
-
-// Paints the Panel background and the Line border on the left.
-void PropertiesPanel::paintEvent(QPaintEvent*)
-{
-    const Theme& t = Theme::instance();
-    QPainter p(this);
-    p.fillRect(rect(), t.panel());
-    p.fillRect(QRect(0, 0, kBorderWidth, height()), t.line());
 }
 
 }

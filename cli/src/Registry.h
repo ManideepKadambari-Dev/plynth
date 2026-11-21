@@ -39,6 +39,11 @@ std::vector<CommandSpec> floorCommands();
 std::vector<CommandSpec> roomCommands();
 std::vector<CommandSpec> detectCommands();
 std::vector<CommandSpec> sessionCommands();
+std::vector<CommandSpec> settingsCommands();
+std::vector<CommandSpec> libraryCommands();
+std::vector<CommandSpec> assetCommands();
+std::vector<CommandSpec> doctorCommands();
+std::vector<CommandSpec> importCommands();
 
 // All commands in the order help lists them.
 const std::vector<CommandSpec>& allCommands();

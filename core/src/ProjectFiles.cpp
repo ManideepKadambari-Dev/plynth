@@ -200,8 +200,9 @@ ProjectLoad loadProject(const fs::path& folder)
 }
 
 // Copies images into plans/, then writes both JSON files.
-Status saveProject(Project& project, const fs::path& folder, const fs::path& sourceFolder)
+Status saveProject(Project& project, const fs::path& folder, const fs::path& sourceFolder, SaveReport* report)
 {
+    if (report) report->missingImages.clear();
     if (Status s = checkPlan(project.plan); !s.ok()) return s;
     if (Status s = checkSettings(project.settings); !s.ok()) return s;
 
@@ -215,7 +216,8 @@ Status saveProject(Project& project, const fs::path& folder, const fs::path& sou
         if (!floor.image) continue;
         const fs::path source = resolveImagePath(sourceFolder, *floor.image);
         if (!fs::is_regular_file(source, ec)) {
-            return fail(ErrorCode::NotFound, "The plan image " + pathToUtf8(source) + " could not be found.");
+            if (report) report->missingImages.push_back(*floor.image);
+            continue;
         }
         jobs.push_back({&floor, source});
     }
@@ -273,6 +275,14 @@ Status createProject(Project& project, const fs::path& folder, const fs::path& s
 {
     if (isProjectFolder(folder)) {
         return fail(ErrorCode::AlreadyExists, "The folder " + pathToUtf8(folder) + " already holds a project.");
+    }
+    std::error_code ec;
+    for (const Floor& floor : project.plan.floors) {
+        if (!floor.image) continue;
+        const fs::path source = resolveImagePath(sourceFolder, *floor.image);
+        if (!fs::is_regular_file(source, ec)) {
+            return fail(ErrorCode::NotFound, "The plan image " + pathToUtf8(source) + " could not be found.");
+        }
     }
     return saveProject(project, folder, sourceFolder);
 }

@@ -61,6 +61,19 @@ Each zoom step is a factor of 1.25. The zoom range is 2 percent to 3200 percent.
 
 E and F work when the canvas or the wall view has focus. F does something only while the wall view is showing.
 
+## Catalog
+
+| Shortcut | Action |
+|---|---|
+| Ctrl+Shift+A | Show the Assets tab |
+| Ctrl+I | Import model files into the library |
+
+Rescan library, Room types and categories, Open library folder and Help, Setup check have no shortcut. They are in the Catalog menu and the Help menu.
+
+While you type in the search box or edit a name or the tags of an asset, letters go into the box and do not switch tools. Press Enter to save a name or the tags.
+
+You can also import by dropping model files, zips or folders on the Assets tab, or by copying them into the `inbox` folder of the library. See the [user guide](USER_GUIDE.md).
+
 ## Drawing and selecting
 
 These keys and clicks work with the tools. The Select tool is the default.

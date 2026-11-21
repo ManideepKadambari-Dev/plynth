@@ -1,0 +1,158 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:blender-result:1",
+  "title": "Plynth Blender result, version 1",
+  "description": "Written by the Blender worker to the result_file of its job, through a temporary file and a rename, as the last thing it does. Task and job_id repeat the job's. With ok false, error says why and output is null. Lengths are metres.",
+  "type": "object",
+  "required": ["format", "version", "task", "job_id", "ok", "error", "blender_version", "warnings", "elapsed_ms", "output"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "plynth-blender-result" },
+    "version": { "const": 1 },
+    "task": { "type": "string" },
+    "job_id": { "type": "string" },
+    "ok": { "type": "boolean" },
+    "error": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["code", "message"],
+          "additionalProperties": false,
+          "properties": {
+            "code": { "enum": ["bad_job", "unknown_task", "unsupported_format", "import_failed", "no_geometry", "several_models", "unpack_failed", "save_failed", "render_failed", "internal"] },
+            "message": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
+    },
+    "blender_version": { "description": "For example 5.2.0.", "type": "string" },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "message"],
+        "additionalProperties": false,
+        "properties": {
+          "code": { "enum": ["high_polycount", "scale_suspicious", "missing_texture", "removed_objects", "unsupported_object", "eevee_failed"] },
+          "message": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "elapsed_ms": { "type": "integer", "minimum": 0 },
+    "output": { "type": ["object", "null"] }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "ok": { "const": true } } },
+      "then": { "properties": { "error": { "type": "null" }, "output": { "type": "object" } } },
+      "else": { "properties": { "error": { "type": "object" }, "output": { "type": "null" } } }
+    },
+    {
+      "if": { "properties": { "ok": { "const": true }, "task": { "const": "probe" } } },
+      "then": { "properties": { "output": { "$ref": "#/definitions/probeOutput" } } }
+    },
+    {
+      "if": { "properties": { "ok": { "const": true }, "task": { "const": "cleanup_asset" } } },
+      "then": { "properties": { "output": { "$ref": "#/definitions/cleanupOutput" } } }
+    },
+    {
+      "if": { "properties": { "ok": { "const": true }, "task": { "const": "render_thumbnail" } } },
+      "then": { "properties": { "output": { "$ref": "#/definitions/thumbnailOutput" } } }
+    }
+  ],
+  "definitions": {
+    "size": {
+      "type": "object",
+      "required": ["width", "depth", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "width": { "type": "number", "minimum": 0 },
+        "depth": { "type": "number", "minimum": 0 },
+        "height": { "type": "number", "minimum": 0 }
+      }
+    },
+    "thumbnail": {
+      "type": "object",
+      "required": ["file", "engine", "error"],
+      "additionalProperties": false,
+      "properties": {
+        "file": { "description": "The file name inside the output folder, or null when the render failed.", "type": ["string", "null"] },
+        "engine": { "enum": ["eevee", "cycles", null] },
+        "error": { "type": ["string", "null"] }
+      }
+    },
+    "probeOutput": {
+      "type": "object",
+      "required": ["blender", "addons", "blenderkit"],
+      "additionalProperties": false,
+      "properties": {
+        "blender": {
+          "type": "object",
+          "required": ["version", "version_text", "python", "build_date"],
+          "additionalProperties": false,
+          "properties": {
+            "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+            "version_text": { "type": "string" },
+            "python": { "type": "string" },
+            "build_date": { "type": "string" }
+          }
+        },
+        "addons": {
+          "description": "Enabled add-ons and extensions only.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["module", "name", "version"],
+            "additionalProperties": false,
+            "properties": {
+              "module": { "type": "string", "minLength": 1 },
+              "name": { "type": "string" },
+              "version": { "type": "string" }
+            }
+          }
+        },
+        "blenderkit": {
+          "description": "signed_in only says whether an API key is stored. The key is never read out.",
+          "type": "object",
+          "required": ["installed", "enabled", "signed_in"],
+          "additionalProperties": false,
+          "properties": {
+            "installed": { "type": "boolean" },
+            "enabled": { "type": "boolean" },
+            "signed_in": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "cleanupOutput": {
+      "type": "object",
+      "required": ["blend_file", "picked_file", "size", "triangles", "objects", "materials", "textures", "missing_textures", "thumbnail"],
+      "additionalProperties": false,
+      "properties": {
+        "blend_file": { "const": "asset.blend" },
+        "picked_file": { "description": "The model used from inside a zip, relative to the zip. Null for other sources.", "type": ["string", "null"] },
+        "size": { "$ref": "#/definitions/size" },
+        "triangles": { "type": "integer", "minimum": 0 },
+        "objects": { "type": "integer", "minimum": 1 },
+        "materials": { "type": "array", "items": { "type": "string" } },
+        "textures": { "type": "array", "items": { "type": "string" } },
+        "missing_textures": { "description": "Image files the model names that were not found.", "type": "array", "items": { "type": "string" } },
+        "thumbnail": { "$ref": "#/definitions/thumbnail" }
+      }
+    },
+    "thumbnailOutput": {
+      "type": "object",
+      "required": ["size", "triangles", "objects", "materials", "textures", "thumbnail"],
+      "additionalProperties": false,
+      "properties": {
+        "size": { "oneOf": [{ "$ref": "#/definitions/size" }, { "type": "null" }] },
+        "triangles": { "type": ["integer", "null"], "minimum": 0 },
+        "objects": { "type": ["integer", "null"], "minimum": 0 },
+        "materials": { "type": ["array", "null"], "items": { "type": "string" } },
+        "textures": { "type": ["array", "null"], "items": { "type": "string" } },
+        "thumbnail": { "$ref": "#/definitions/thumbnail" }
+      }
+    }
+  }
+}

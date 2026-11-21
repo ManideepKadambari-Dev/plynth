@@ -5,6 +5,12 @@ set(CMAKE_AUTORCC ON)
 
 add_executable(plynth WIN32
     src/main.cpp
+    src/catalog/ImportQueue.h
+    src/catalog/ImportQueue.cpp
+    src/catalog/LibraryHost.h
+    src/catalog/LibraryHost.cpp
+    src/catalog/LibraryWatcher.h
+    src/catalog/LibraryWatcher.cpp
     src/canvas/OpeningPaint.h
     src/canvas/OpeningPaint.cpp
     src/canvas/OverlayBuilder.h
@@ -16,6 +22,8 @@ add_executable(plynth WIN32
     src/detection/DetectionRunner.cpp
     src/detection/DetectionSession.h
     src/detection/DetectionSession.cpp
+    src/dialogs/RoomTypesDialog.h
+    src/dialogs/RoomTypesDialog.cpp
     src/dialogs/ScaleDialog.h
     src/dialogs/ScaleDialog.cpp
     src/document/Selection.h
@@ -24,8 +32,14 @@ add_executable(plynth WIN32
     src/document/DocumentBridge.cpp
     src/document/ProjectWatcher.h
     src/document/ProjectWatcher.cpp
+    src/panels/AssetsPanel.h
+    src/panels/AssetsPanel.cpp
+    src/panels/ImportQueueView.h
+    src/panels/ImportQueueView.cpp
     src/panels/PropertiesPanel.h
     src/panels/PropertiesPanel.cpp
+    src/panels/RightPanel.h
+    src/panels/RightPanel.cpp
     src/panels/ToolStrip.h
     src/panels/ToolStrip.cpp
     src/tools/DetectTool.h
@@ -43,6 +57,8 @@ add_executable(plynth WIN32
     src/tools/ToolController.cpp
     src/tools/WallTool.h
     src/tools/WallTool.cpp
+    src/setup/SetupCheckDialog.h
+    src/setup/SetupCheckDialog.cpp
     src/terminal/TerminalDock.h
     src/terminal/TerminalDock.cpp
     src/terminal/TerminalWidgets.h

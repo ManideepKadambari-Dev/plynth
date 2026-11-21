@@ -7,7 +7,9 @@
 #include <windows.h>
 #include <crtdbg.h>
 #include <cstdlib>
+#include <filesystem>
 #include <initializer_list>
+#include <string>
 
 namespace {
 
@@ -24,5 +26,19 @@ struct NoDialogs {
 #endif
     }
 } noDialogs;
+
+// Points the machine settings at a temporary folder, so no test touches the real settings file.
+struct TestConfigFolder {
+    TestConfigFolder() {
+        path = std::filesystem::temp_directory_path() / ("plynth-cli-config-" + std::to_string(GetCurrentProcessId()));
+        std::filesystem::create_directories(path);
+        SetEnvironmentVariableW(L"PLYNTH_CONFIG_DIR", path.wstring().c_str());
+    }
+    ~TestConfigFolder() {
+        std::error_code ignored;
+        std::filesystem::remove_all(path, ignored);
+    }
+    std::filesystem::path path;
+} testConfigFolder;
 
 }  // namespace

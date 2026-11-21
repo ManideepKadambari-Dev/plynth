@@ -8,18 +8,24 @@ target_compile_features(plynth_cli_words PUBLIC cxx_std_20)
 
 add_library(plynth_cli STATIC
     src/Answer.cpp
+    src/CatalogCommon.cpp
     src/Cli.cpp
     src/Common.cpp
     src/Registry.cpp
+    src/commands/AssetCommands.cpp
     src/commands/FloorCommands.cpp
+    src/commands/LibraryCommands.cpp
     src/commands/OpeningCommands.cpp
     src/commands/PointCommands.cpp
     src/commands/DetectCommands.cpp
+    src/commands/DoctorCommands.cpp
     src/commands/HelpCommand.cpp
+    src/commands/ImportCommands.cpp
     src/commands/ProjectCommands.cpp
     src/commands/RoomCommands.cpp
     src/commands/ScaleCommands.cpp
     src/commands/SessionCommands.cpp
+    src/commands/SettingsCommands.cpp
     src/commands/VersionCommand.cpp
     src/commands/WallCommands.cpp
 )

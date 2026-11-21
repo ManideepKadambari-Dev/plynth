@@ -1,3 +1,4 @@
+#include "../CatalogCommon.h"
 #include "../Common.h"
 
 #include <plynth/core/RoomTypes.h>
@@ -50,6 +51,7 @@ Json entryFor(const Plan& plan, const Id& id) {
 // Adds a room for the closed area around a position.
 Answer roomAdd(const RunContext& context, const AddOptions& options) {
     const std::string name = "room add";
+    useSettingsRoomTypes();
     return editProject(name, context, options.project, [&](Document& document) {
         if (options.type) {
             const Status known = checkRoomType(*options.type);
@@ -74,6 +76,7 @@ Answer roomAdd(const RunContext& context, const AddOptions& options) {
 // Sets or clears the type of a room.
 Answer roomSet(const RunContext& context, const SetOptions& options) {
     const std::string name = "room set";
+    useSettingsRoomTypes();
     return editProject(name, context, options.project, [&](Document& document) {
         std::optional<std::string> type;
         if (options.type != "none") {
@@ -156,10 +159,11 @@ Answer roomFind(const RunContext& context, const ListOptions& options) {
     return success(name, std::move(result));
 }
 
-// Lists the built-in room types. Needs no project.
-Answer roomTypes() {
+// Lists the room types in use: the library's list when one is set, else the built-in list. Needs no project.
+Answer roomTypesAnswer() {
+    useSettingsRoomTypes();
     Json types = Json::array();
-    for (const RoomType& type : builtInRoomTypes()) {
+    for (const RoomType& type : roomTypes()) {
         Json item = Json::object();
         item["id"] = std::string(type.id);
         item["name"] = std::string(type.name);
@@ -256,7 +260,7 @@ std::vector<CommandSpec> roomCommands() {
     types.words = {"room", "types"};
     types.description = "List the room types.";
     types.setup = [](CLI::App&) -> Handler {
-        return [](const RunContext&) { return roomTypes(); };
+        return [](const RunContext&) { return roomTypesAnswer(); };
     };
 
     return {add, set, remove, list, find, types};

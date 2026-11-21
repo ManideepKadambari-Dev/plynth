@@ -1,0 +1,110 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:asset-info:1",
+  "title": "Plynth asset info, version 1",
+  "description": "Library/assets/items/<id>/info.json. Describes one cleaned asset: asset.blend in metres with Z up, the front facing -Y, transforms applied and the pivot at the bottom centre of its bounding box at the world origin. width is along X, depth along Y, height along Z. Written by Plynth only; the files in items/ are the truth and assets.db is rebuilt from them.",
+  "type": "object",
+  "required": ["format", "version", "id", "name", "categories", "tags", "license", "source", "size", "triangles", "objects", "materials", "textures", "blend", "thumbnail", "cleanup"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "plynth-asset" },
+    "version": { "const": 1 },
+    "id": {
+      "description": "Equal to the folder name. Plans point to assets by this id.",
+      "$ref": "#/definitions/catalogId"
+    },
+    "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "categories": {
+      "description": "Category ids. Empty means uncategorized.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/definitions/catalogId" }
+    },
+    "tags": {
+      "description": "Sorted, no repeats.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$", "maxLength": 40 }
+    },
+    "license": { "description": "A license id from the catalog, for example unknown or cc0.", "$ref": "#/definitions/catalogId" },
+    "source": {
+      "type": "object",
+      "required": ["kind", "reference", "imported_at"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "description": "local_file, later blenderkit or fab_zip.", "$ref": "#/definitions/catalogId" },
+        "reference": { "description": "The original file name without its folder, or the address it came from.", "type": "string" },
+        "imported_at": { "$ref": "#/definitions/time" }
+      }
+    },
+    "size": {
+      "description": "Metres.",
+      "type": "object",
+      "required": ["width", "depth", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "width": { "type": "number", "minimum": 0 },
+        "depth": { "type": "number", "minimum": 0 },
+        "height": { "type": "number", "minimum": 0 }
+      }
+    },
+    "triangles": { "type": "integer", "minimum": 0 },
+    "objects": { "type": "integer", "minimum": 0 },
+    "materials": { "type": "array", "items": { "type": "string" } },
+    "textures": {
+      "description": "Paths relative to the item folder, for example textures/wood.png.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "blend": {
+      "description": "asset.blend as it was last measured. A different size or write time on disk means it changed and is measured and rendered again.",
+      "type": "object",
+      "required": ["file", "bytes", "modified"],
+      "additionalProperties": false,
+      "properties": {
+        "file": { "const": "asset.blend" },
+        "bytes": { "type": "integer", "minimum": 0 },
+        "modified": { "$ref": "#/definitions/time" }
+      }
+    },
+    "thumbnail": {
+      "type": "object",
+      "required": ["file", "error", "engine", "rendered_at"],
+      "additionalProperties": false,
+      "properties": {
+        "file": { "description": "thumb.png, or null when it is not rendered.", "enum": ["thumb.png", null] },
+        "error": { "description": "Why the last render failed, or null.", "type": ["string", "null"] },
+        "engine": { "enum": ["eevee", "cycles", null] },
+        "rendered_at": { "oneOf": [{ "$ref": "#/definitions/time" }, { "type": "null" }] }
+      }
+    },
+    "cleanup": {
+      "type": "object",
+      "required": ["blender_version", "warnings"],
+      "additionalProperties": false,
+      "properties": {
+        "blender_version": { "type": "string" },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["code", "message"],
+            "additionalProperties": false,
+            "properties": {
+              "code": { "type": "string", "pattern": "^[a-z_]+$" },
+              "message": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "catalogId": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 64 },
+    "time": {
+      "description": "UTC, ISO 8601 with whole seconds, for example 2026-11-21T10:00:00Z.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    }
+  }
+}

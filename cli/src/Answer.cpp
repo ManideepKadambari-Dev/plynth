@@ -38,6 +38,16 @@ Json toJson(const Answer& answer) {
     json["command"] = answer.command;
     if (answer.ok) {
         json["result"] = answer.result;
+        if (!answer.warnings.empty()) {
+            Json warnings = Json::array();
+            for (const AnswerWarning& warning : answer.warnings) {
+                Json entry = Json::object();
+                entry["code"] = warning.code;
+                entry["message"] = warning.message;
+                warnings.push_back(std::move(entry));
+            }
+            json["warnings"] = std::move(warnings);
+        }
         return json;
     }
     Json error = Json::object();

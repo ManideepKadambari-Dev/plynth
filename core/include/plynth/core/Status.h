@@ -21,6 +21,11 @@ enum class ErrorCode {
     ImageError,         // "image_error": the plan image was refused by the image check
     Locked,             // "locked": the project is read only, or the app has it open and no session is active
     UnsavedChanges,     // "unsaved_changes": the app has unsaved changes, so a session cannot begin
+    NoLibrary,          // "no_library": no library folder is set, or the folder is not a library
+    BlenderNotFound,    // "blender_not_found": no Blender is set or found, or the one set is too old
+    BlenderFailed,      // "blender_failed": Blender ran but the job failed, crashed or ran out of time
+    Cancelled,          // "cancelled": the user or the caller stopped the work
+    DatabaseError,      // "database_error": a catalog index could not be read or written
 };
 
 // The outcome of an operation: ok, or an error code with one plain sentence saying why.

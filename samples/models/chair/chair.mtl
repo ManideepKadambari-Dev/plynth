@@ -1,0 +1,7 @@
+# Materials of the sample chair
+newmtl Wood
+Kd 0.800000 0.800000 0.800000
+map_Kd chair_wood.png
+
+newmtl Fabric
+Kd 0.450000 0.120000 0.100000

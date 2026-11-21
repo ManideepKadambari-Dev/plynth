@@ -54,6 +54,11 @@ public:
     int toolButton() const { return toolButton_; }
     int toolStripWidth() const { return toolStripWidth_; }
     int propertiesWidth() const { return propertiesWidth_; }
+    int assetsWidth() const { return assetsWidth_; }
+    int thumbnailTile() const { return thumbnailTile_; }
+    int thumbnailLarge() const { return thumbnailLarge_; }
+    int setupRowGap() const { return setupRowGap_; }
+    int dialogMargin() const { return dialogMargin_; }
     int snapRadius() const { return snapRadius_; }
     int wallViewMinHeight() const { return wallViewMinHeight_; }
     int wallViewMargin() const { return wallViewMargin_; }
@@ -90,6 +95,11 @@ private:
     int toolButton_ = 32;
     int toolStripWidth_ = 44;
     int propertiesWidth_ = 280;
+    int assetsWidth_ = 372;
+    int thumbnailTile_ = 128;
+    int thumbnailLarge_ = 256;
+    int setupRowGap_ = 12;
+    int dialogMargin_ = 20;
     int snapRadius_ = 10;
     int wallViewMinHeight_ = 160;
     int wallViewMargin_ = 24;

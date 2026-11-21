@@ -8,7 +8,15 @@
 #include "document/DocumentBridge.h"
 #include "detection/DetectionSession.h"
 #include "document/Selection.h"
+#include "catalog/ImportQueue.h"
+#include "catalog/LibraryHost.h"
+#include "catalog/LibraryWatcher.h"
+#include "panels/ImportQueueView.h"
+#include "setup/SetupCheckDialog.h"
+#include "dialogs/RoomTypesDialog.h"
+#include "panels/AssetsPanel.h"
 #include "panels/PropertiesPanel.h"
+#include "panels/RightPanel.h"
 #include "panels/ToolStrip.h"
 #include "tools/ToolController.h"
 #include "document/ProjectWatcher.h"
@@ -22,11 +30,14 @@
 #include <plynth/core/RoomTypes.h>
 #include <plynth/core/Rooms.h>
 #include <plynth/core/commands/DeleteCommands.h>
+#include <plynth/core/SetupCheck.h>
+#include <plynth/core/catalog/AssetImport.h>
 #include <plynth/core/commands/FloorCommands.h>
 
 #include <QAction>
 #include <QCloseEvent>
 #include <QDateTime>
+#include <QDesktopServices>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -42,6 +53,7 @@
 #include <QMenu>
 #include <QMessageBox>
 #include <QMimeData>
+#include <QPainter>
 #include <QPixmap>
 #include <QPainterPath>
 #include <QPolygonF>
@@ -49,6 +61,7 @@
 #include <QSplitter>
 #include <QHBoxLayout>
 #include <QTimer>
+#include <QUrl>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -107,7 +120,9 @@ MainWindow::MainWindow(QWidget* parent)
     selection_ = new Selection(this);
     tools_ = new ToolController(doc_, canvas_, selection_, this, this);
     toolStrip_ = new ToolStrip(tools_, central);
+    host_ = new LibraryHost(this);
     panel_ = new PropertiesPanel(doc_, *selection_, *tools_, central);
+    assets_ = new AssetsPanel(*host_, central);
     auto* work = new QWidget(central);
     auto* row = new QHBoxLayout(work);
     row->setContentsMargins(0, 0, 0, 0);
@@ -126,14 +141,16 @@ MainWindow::MainWindow(QWidget* parent)
     splitter_->setStretchFactor(0, 3);
     splitter_->setStretchFactor(1, 2);
     row->addWidget(splitter_, 1);
-    panel_->setParent(work);
-    row->addWidget(panel_);
+    right_ = new RightPanel(panel_, assets_, work);
+    row->addWidget(right_);
     column->addWidget(banner_);
     column->addWidget(work, 1);
     column->addWidget(statusBar_);
     setCentralWidget(central);
     setAcceptDrops(true);
     terminal_ = new TerminalDock(work, canvas_, this);
+    terminal_->setWorkingFolder(host_->projectsFolder());
+    lastFolder_ = host_->projectsFolder();
 
     connect(canvas_, &PlanCanvas::zoomChanged, this, [this](double zoom) {
         if (canvas_->hasImage())
@@ -156,6 +173,40 @@ MainWindow::MainWindow(QWidget* parent)
     statusBar_->setHint(tools_->hint());
 
     buildMenus();
+    buildCatalogMenu();
+    connect(host_, &LibraryHost::roomTypesChanged, this, &MainWindow::roomTypesChanged);
+    connect(assets_, &AssetsPanel::message, statusBar_, [this](const QString& text) { statusBar_->showMessage(text); });
+    if (!host_->shapeNotice().isEmpty())
+        statusBar_->showMessage(host_->shapeNotice());
+
+    queue_ = new ImportQueue(*host_, this);
+    queueView_ = new ImportQueueView(*queue_, assets_);
+    assets_->setQueueView(queueView_);
+    libraryWatcher_ = new LibraryWatcher(*host_, *queue_, this);
+    connect(queue_, &ImportQueue::finished, this, &MainWindow::queueFinished);
+    connect(queue_, &ImportQueue::itemsChanged, this, [this]() { assets_->setBusyAssets(queue_->refreshingAssets()); });
+    connect(libraryWatcher_, &LibraryWatcher::message, statusBar_,
+            [this](const QString& text) { statusBar_->showMessage(text, false); });
+    connect(assets_, &AssetsPanel::importRequested, this, &MainWindow::importDialog);
+    connect(assets_, &AssetsPanel::rescanRequested, libraryWatcher_, &LibraryWatcher::rescanNow);
+    connect(assets_, &AssetsPanel::setupRequested, this, &MainWindow::openSetupCheck);
+    connect(assets_, &AssetsPanel::filesDropped, this, &MainWindow::importPaths);
+    connect(assets_, &AssetsPanel::retryRequested, this, [this](const QString& id) {
+        const std::optional<plynth::AssetRecord> record =
+            host_->catalog() ? host_->catalog()->asset(id.toStdString()) : std::nullopt;
+        queue_->enqueueRefresh(id, record ? fromCore(record->name) : id);
+    });
+    connect(importAction_, &QAction::triggered, this, &MainWindow::importDialog);
+    connect(rescanAction_, &QAction::triggered, libraryWatcher_, &LibraryWatcher::rescanNow);
+    const auto syncImportState = [this]() {
+        const bool open = host_->hasLibrary();
+        assets_->setImportEnabled(open, open ? tr("Import model files into the library (Ctrl+I)")
+                                             : tr("Set a library folder first"));
+        importAction_->setEnabled(open);
+        rescanAction_->setEnabled(open);
+    };
+    connect(host_, &LibraryHost::libraryChanged, this, syncImportState);
+    syncImportState();
 
     connect(titleBar_, &TitleBar::minimizeRequested, this, &QWidget::showMinimized);
     connect(titleBar_, &TitleBar::maximizeToggleRequested, this, &MainWindow::toggleMaximized);
@@ -199,6 +250,7 @@ void MainWindow::setScreenshotMode(bool on)
     if (on) {
         autosaveTimer_->stop();
         watcher_->setActive(false);
+        libraryWatcher_->setActive(false);
     }
 }
 
@@ -319,10 +371,184 @@ void MainWindow::buildMenus()
                                             {QKeySequence(Qt::CTRL | Qt::Key_QuoteLeft)});
     connect(terminalAction, &QAction::triggered, terminal_, &TerminalDock::toggle);
 
+    QAction* setupAction = addMenuAction(titleBar_->helpMenu(), tr("&Setup check"),
+                                         tr("Check that Blender, the library and the projects folder are ready"),
+                                         QStringLiteral("help-setup-check"), {});
+    connect(setupAction, &QAction::triggered, this, &MainWindow::openSetupCheck);
     auto* aboutAction = titleBar_->helpMenu()->addAction(tr("&About Plynth"));
     aboutAction->setToolTip(tr("Show the Plynth version"));
     aboutAction->setProperty("tourId", QStringLiteral("help-about"));
     connect(aboutAction, &QAction::triggered, this, &MainWindow::showAbout);
+}
+
+// Builds the Catalog menu. Import and Rescan are connected where the import queue is made.
+void MainWindow::buildCatalogMenu()
+{
+    QMenu* menu = titleBar_->catalogMenu();
+    QAction* show = addMenuAction(menu, tr("&Assets catalog"), tr("Show the Assets tab (Ctrl+Shift+A)"),
+                                  QStringLiteral("catalog-show"), {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_A)});
+    connect(show, &QAction::triggered, this, [this]() { right_->showTab(RightPanel::Tab::Assets); });
+    importAction_ = addMenuAction(menu, tr("&Import asset..."), tr("Import model files into the library (Ctrl+I)"),
+                                  QStringLiteral("catalog-import-action"), {QKeySequence(Qt::CTRL | Qt::Key_I)});
+    rescanAction_ = addMenuAction(menu, tr("&Rescan library"), tr("Read the library folder again and update the index"),
+                                  QStringLiteral("catalog-rescan-action"), {});
+    menu->addSeparator();
+    QAction* rooms = addMenuAction(menu, tr("Room &types and categories..."),
+                                   tr("Edit the room types and the categories of the catalog"),
+                                   QStringLiteral("catalog-room-types"), {});
+    connect(rooms, &QAction::triggered, this, &MainWindow::editRoomTypes);
+    QAction* folder = addMenuAction(menu, tr("&Open library folder"), tr("Open the library folder in Explorer"),
+                                    QStringLiteral("catalog-open-folder-action"), {});
+    connect(folder, &QAction::triggered, this, &MainWindow::openLibraryFolder);
+}
+
+// Opens the setup check over the window and keeps it until the user closes it.
+void MainWindow::openSetupCheck()
+{
+    if (setupDialog_) {
+        setupDialog_->raise();
+        return;
+    }
+    setupDialog_ = new SetupCheckDialog(*host_, this);
+    setupDialog_->setAttribute(Qt::WA_DeleteOnClose);
+    setupDialog_->open();
+}
+
+// For checks only: opens the setup check.
+void MainWindow::showSetupCheck()
+{
+    openSetupCheck();
+}
+
+// True when no setup check is open, or the one that is open has its result.
+bool MainWindow::setupPictureReady() const
+{
+    return !setupDialog_ || setupDialog_->checkFinished();
+}
+
+// Opens the setup check when the quick check says it is needed.
+void MainWindow::openSetupCheckIfNeeded()
+{
+    const plynth::SetupReport quick = plynth::quickSetupCheck(host_->settings(), host_->settingsExisted());
+    if (plynth::setupNeeded(quick))
+        openSetupCheck();
+}
+
+// Picture of the window. An open setup check is drawn in the middle over a dimmed window.
+QImage MainWindow::grabPicture()
+{
+    QImage image = grab().toImage();
+    if (setupDialog_ && setupDialog_->isVisible()) {
+        const Theme& t = Theme::instance();
+        const QImage dialog = setupDialog_->grab().toImage();
+        const QSizeF shown = QSizeF(dialog.size()) / dialog.devicePixelRatio();
+        const QSizeF whole = QSizeF(image.size()) / image.devicePixelRatio();
+        QPainter p(&image);
+        QColor dim = t.ground();
+        dim.setAlpha(t.readOnlyDim());
+        p.fillRect(QRectF(QPointF(0, 0), whole), dim);
+        p.drawImage(QRectF(QPointF((whole.width() - shown.width()) / 2, (whole.height() - shown.height()) / 2), shown),
+                    dialog);
+    }
+    return image;
+}
+
+// Asks for model files and queues each one.
+void MainWindow::importDialog()
+{
+    if (!host_->hasLibrary())
+        return;
+    QStringList patterns;
+    for (const std::string& suffix : plynth::importableSuffixes())
+        patterns << QStringLiteral("*") + fromCore(suffix);
+    const QStringList files = QFileDialog::getOpenFileNames(this, tr("Import asset"), lastAssetFolder_,
+                                                            tr("Models (%1)").arg(patterns.join(QLatin1Char(' '))));
+    if (files.isEmpty())
+        return;
+    lastAssetFolder_ = QFileInfo(files.first()).absolutePath();
+    importPaths(files);
+}
+
+// Queues files and folders for import and shows the Assets tab.
+void MainWindow::importPaths(const QStringList& paths)
+{
+    if (!host_->hasLibrary())
+        return;
+    right_->showTab(RightPanel::Tab::Assets);
+    for (const QString& path : paths)
+        queue_->enqueueImport(path);
+}
+
+// For checks only: queues an import of a file or folder.
+void MainWindow::importFile(const QString& path)
+{
+    importAsked_ = true;
+    importPaths({path});
+}
+
+// For checks only: true when the progress row of the asked import is showing.
+bool MainWindow::importPictureReady() const
+{
+    if (!importAsked_)
+        return true;
+    for (const QueueItem& item : queue_->items())
+        if (item.state == QueueItem::State::Failed || (item.state == QueueItem::State::Running && item.percent > 0))
+            return true;
+    return false;
+}
+
+// Selects a new asset and offers its categories, or reports why an item failed.
+void MainWindow::queueFinished(int kind, bool ok, const QString& assetId, const QString& message, bool thumbnailFailed)
+{
+    const bool isRefresh = kind == static_cast<int>(QueueItem::Kind::Refresh);
+    host_->assetsEdited();
+    if (!ok) {
+        statusBar_->showMessage(isRefresh ? tr("The render failed. %1").arg(message) : tr("Import failed. %1").arg(message));
+        return;
+    }
+    const std::optional<plynth::AssetRecord> record =
+        host_->catalog() ? host_->catalog()->asset(assetId.toStdString()) : std::nullopt;
+    if (isRefresh || !record)
+        return;
+    right_->showTab(RightPanel::Tab::Assets);
+    assets_->selectAsset(assetId);
+    const QString name = fromCore(record->name);
+    if (record->categories.empty()) {
+        statusBar_->showMessage(tr("Imported %1. Pick its categories.").arg(name), false);
+        assets_->showCategories();
+    } else {
+        statusBar_->showMessage(thumbnailFailed ? tr("Imported %1. The thumbnail render failed.").arg(name)
+                                                : tr("Imported %1.").arg(name),
+                                thumbnailFailed);
+    }
+}
+
+// Opens the room types and categories dialog.
+void MainWindow::editRoomTypes()
+{
+    if (!host_->hasLibrary()) {
+        showError(tr("Room types and categories"), tr("No library folder is set."));
+        return;
+    }
+    RoomTypesDialog dialog(*host_, this);
+    dialog.exec();
+}
+
+// Opens the library folder in Explorer.
+void MainWindow::openLibraryFolder()
+{
+    if (!host_->hasLibrary()) {
+        showError(tr("Open library folder"), tr("No library folder is set."));
+        return;
+    }
+    QDesktopServices::openUrl(QUrl::fromLocalFile(QString::fromStdWString(host_->paths().root.wstring())));
+}
+
+// Redraws the room labels and the pickers after the room type list changed.
+void MainWindow::roomTypesChanged()
+{
+    refreshOverlay();
+    panel_->refresh();
 }
 
 // Adds one menu action with its tooltip, tour id and shortcuts.
@@ -396,7 +622,8 @@ void MainWindow::onDocumentChanged(unsigned changes)
     panel_->refresh();
     if (changes & plynth::Change::Folder) {
         recoveryPending_ = false;
-        terminal_->setWorkingFolder(doc_.hasFolder() ? QString::fromStdWString(doc_.folder().wstring()) : QString());
+        terminal_->setWorkingFolder(doc_.hasFolder() ? QString::fromStdWString(doc_.folder().wstring())
+                                                     : host_->projectsFolder());
         QTimer::singleShot(0, this, &MainWindow::syncWatcher);
     }
     if (changes & (plynth::Change::History | plynth::Change::Settings | plynth::Change::Folder)) {
@@ -659,6 +886,19 @@ void MainWindow::selectById(const QString& id)
         }
     if (plynth::findOpening(floor, key) != nullptr)
         selection_->set(SelectionKind::Opening, id);
+}
+
+// For checks only: shows the Assets tab.
+void MainWindow::showAssetsTab()
+{
+    right_->showTab(RightPanel::Tab::Assets);
+}
+
+// For checks only: selects an asset in the Assets tab.
+bool MainWindow::selectAsset(const QString& id)
+{
+    showAssetsTab();
+    return assets_->selectAsset(id);
 }
 
 // For checks only: chooses the side the wall view is seen from.
@@ -972,12 +1212,14 @@ bool MainWindow::saveDocument()
 {
     if (!doc_.hasFolder())
         return saveDocumentAs();
-    const plynth::Status status = doc_.save();
+    plynth::SaveReport report;
+    const plynth::Status status = doc_.save(&report);
     if (!status.ok()) {
         showError(tr("Cannot save"), fromCore(status.message));
         return false;
     }
     watcher_->acknowledge();
+    reportMissingImages(report);
     return true;
 }
 
@@ -988,12 +1230,21 @@ bool MainWindow::saveDocumentAs()
     if (folder.isEmpty())
         return false;
     lastFolder_ = QFileInfo(folder).absolutePath();
-    const plynth::Status status = doc_.saveAs(toPath(folder));
+    plynth::SaveReport report;
+    const plynth::Status status = doc_.saveAs(toPath(folder), &report);
     if (!status.ok()) {
         showError(tr("Cannot save"), fromCore(status.message));
         return false;
     }
+    reportMissingImages(report);
     return true;
+}
+
+// Says in the status bar when a save kept the path of a plan image that cannot be found.
+void MainWindow::reportMissingImages(const plynth::SaveReport& report)
+{
+    if (!report.missingImages.empty())
+        statusBar_->showMessage(tr("The plan image %1 is missing. Its path was kept.").arg(fromCore(report.missingImages.front())));
 }
 
 // Offers to bring back the unsaved changes that an earlier session left in the autosave.

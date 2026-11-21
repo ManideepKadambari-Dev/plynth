@@ -142,7 +142,7 @@ TitleBar::TitleBar(QWidget* parent)
     editMenu_ = menuBar_->addMenu(tr("&Edit"));
     viewMenu_ = menuBar_->addMenu(tr("&View"));
     menuBar_->addMenu(tr("&Build"));
-    menuBar_->addMenu(tr("&Catalog"));
+    catalogMenu_ = menuBar_->addMenu(tr("&Catalog"));
     helpMenu_ = menuBar_->addMenu(tr("&Help"));
     menuBar_->setToolTip(tr("Menu"));
     menuBar_->setProperty("tourId", QStringLiteral("menu"));

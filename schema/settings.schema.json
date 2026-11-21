@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:settings:1",
+  "title": "Plynth machine settings, version 1",
+  "description": "Settings that belong to one computer rather than to one project. Saved as %APPDATA%/Plynth/settings.json, or in the folder named by the PLYNTH_CONFIG_DIR environment variable. Paths are absolute, UTF-8, with forward slashes. A missing field takes its default; an unknown field is refused.",
+  "type": "object",
+  "required": ["format", "version"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "plynth-settings" },
+    "version": { "const": 1 },
+    "library": {
+      "description": "The Library folder (assets, materials, generators, shapes). Null until chosen.",
+      "type": ["string", "null"],
+      "minLength": 1
+    },
+    "projects": {
+      "description": "Where new projects are made and where the built-in terminal starts when no project is open. Null until chosen.",
+      "type": ["string", "null"],
+      "minLength": 1
+    },
+    "blender": {
+      "description": "The blender.exe picked by the user. Null means the newest supported install found is used.",
+      "type": ["string", "null"],
+      "minLength": 1
+    },
+    "keep_imported_zips": {
+      "description": "Keep a zip after its asset was imported. When false the zip is moved to the Recycle Bin.",
+      "type": "boolean",
+      "default": false
+    },
+    "thumbnail_engine": {
+      "description": "The render engine for thumbnails. Eevee falls back to Cycles once when it fails.",
+      "enum": ["eevee", "cycles"],
+      "default": "eevee"
+    },
+    "triangle_warning": {
+      "description": "Imports with more triangles than this get a warning. Never refused.",
+      "type": "integer",
+      "minimum": 1,
+      "default": 500000
+    },
+    "setup_checked_version": {
+      "description": "The Plynth version whose setup check last passed. When it differs from the running version the setup check opens once.",
+      "type": ["string", "null"]
+    }
+  }
+}

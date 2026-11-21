@@ -4,6 +4,7 @@
 
 #include <plynth/core/Command.h>
 #include <plynth/core/Document.h>
+#include <plynth/core/ProjectFiles.h>
 
 #include <filesystem>
 #include <functional>
@@ -29,8 +30,12 @@ bool openProject(const std::string& command, const std::filesystem::path& folder
 // fills failed when the command is refused.
 bool checkLock(const std::string& command, const std::filesystem::path& folder, bool readOnly, Answer& failed);
 
-// Saves the document's project into its own folder, leaving any autosave alone.
-Status saveInPlace(const Document& document);
+// Saves the document's project into its own folder, leaving any autosave alone. Floor images that could
+// not be found are listed in report when it is given.
+Status saveInPlace(const Document& document, SaveReport* report = nullptr);
+
+// Adds an image_missing warning to the answer for each plan image the save could not find.
+void addSaveWarnings(Answer& answer, const SaveReport& report);
 
 // Describes a project for project info and project new.
 Json projectInfoJson(const std::filesystem::path& folder, const Project& project);

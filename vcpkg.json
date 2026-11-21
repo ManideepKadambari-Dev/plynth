@@ -11,6 +11,12 @@
     "libvterm",
     "clipper2",
     {
+      "name": "sqlite3",
+      "features": [
+        "fts5"
+      ]
+    },
+    {
       "name": "opencv4",
       "default-features": false,
       "features": [

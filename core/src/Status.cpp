@@ -31,6 +31,11 @@ std::string_view errorCodeName(ErrorCode code)
     case ErrorCode::ImageError: return "image_error";
     case ErrorCode::Locked: return "locked";
     case ErrorCode::UnsavedChanges: return "unsaved_changes";
+    case ErrorCode::NoLibrary: return "no_library";
+    case ErrorCode::BlenderNotFound: return "blender_not_found";
+    case ErrorCode::BlenderFailed: return "blender_failed";
+    case ErrorCode::Cancelled: return "cancelled";
+    case ErrorCode::DatabaseError: return "database_error";
     }
     return "invalid_value";
 }

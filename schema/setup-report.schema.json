@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:setup-report:1",
+  "title": "Plynth setup check report",
+  "description": "The result of plynth doctor, the same checks the app's setup check screen shows. ready is false while any required item is missing or too old. Plynth never installs anything: each item says what to do and may link an official page.",
+  "type": "object",
+  "required": ["ready", "first_run", "updated", "probed", "items", "blender_installs"],
+  "additionalProperties": false,
+  "properties": {
+    "ready": { "type": "boolean" },
+    "first_run": { "description": "There was no settings file.", "type": "boolean" },
+    "updated": { "description": "The settings name another Plynth version as the last whose check passed.", "type": "boolean" },
+    "probed": { "description": "The selected Blender was asked which add-ons are enabled.", "type": "boolean" },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "required", "state", "version", "path", "detail", "action", "link", "affects"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "enum": ["blender", "blender_version", "library_folder", "projects_folder", "graphics_driver", "addon_blenderkit", "addon_archimesh", "addon_home_builder", "addon_bool_tool", "addon_asset_optimizer", "addon_bagapie"] },
+          "name": { "type": "string", "minLength": 1 },
+          "required": { "type": "boolean" },
+          "state": { "enum": ["found", "missing", "too_old", "needs_attention", "not_checked"] },
+          "version": { "type": ["string", "null"] },
+          "path": { "type": ["string", "null"] },
+          "detail": { "type": "string" },
+          "action": { "description": "What to do. Empty when nothing is needed.", "type": "string" },
+          "link": { "description": "An official page. Empty when there is none.", "type": "string" },
+          "affects": { "description": "What stays switched off without it.", "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "blender_installs": {
+      "description": "Newest first.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "version", "version_text", "support", "sources", "selected", "problem"],
+        "additionalProperties": false,
+        "properties": {
+          "path": { "type": "string" },
+          "version": { "type": ["string", "null"] },
+          "version_text": { "type": "string" },
+          "support": { "enum": ["supported", "too_old", "untested"] },
+          "sources": {
+            "type": "array",
+            "items": { "enum": ["settings", "environment", "program_folder", "registry", "store", "steam", "path", "extra"] }
+          },
+          "selected": { "type": "boolean" },
+          "problem": { "description": "Why the version could not be read, or null.", "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

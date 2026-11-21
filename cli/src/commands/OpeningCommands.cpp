@@ -1,3 +1,4 @@
+#include "../CatalogCommon.h"
 #include "../Common.h"
 
 #include <plynth/core/OpeningShapes.h>
@@ -389,6 +390,18 @@ std::vector<CommandSpec> openingCommands() {
     shapes.words = {"opening", "shapes"};
     shapes.description = "List the opening shapes.";
     shapes.setup = [](CLI::App&) -> Handler { return openingShapes; };
+
+    // Commands that read shapes see the custom shapes of the library first.
+    for (CommandSpec* spec : {&add, &set, &list, &shapes}) {
+        const auto inner = spec->setup;
+        spec->setup = [inner](CLI::App& sub) -> Handler {
+            const Handler handler = inner(sub);
+            return [handler](const RunContext& context) {
+                registerLibraryShapes();
+                return handler(context);
+            };
+        };
+    }
 
     return {add, move, resize, set, remove, list, shapes};
 }
