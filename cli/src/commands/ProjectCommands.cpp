@@ -90,13 +90,14 @@ struct SetOptions {
     std::optional<double> windowHeight;
     std::optional<double> windowSill;
     std::optional<double> newFloorHeight;
+    std::optional<double> wallItemCentre;
 };
 
 // Changes the grid size and the default sizes in one step. Nothing changes when any value is refused.
 Answer projectSet(const RunContext& context, const SetOptions& options) {
     const std::string command = "project set";
     const bool anyDefault = options.doorWidth || options.doorHeight || options.windowWidth || options.windowHeight ||
-                            options.windowSill || options.newFloorHeight;
+                            options.windowSill || options.newFloorHeight || options.wallItemCentre;
     if (!options.grid && !anyDefault) {
         return badArguments(command, "bad_arguments", "Give at least one option to change. Run 'plynth help' to list them.");
     }
@@ -113,6 +114,7 @@ Answer projectSet(const RunContext& context, const SetOptions& options) {
             sizes.windowHeight = options.windowHeight.value_or(sizes.windowHeight);
             sizes.windowSill = options.windowSill.value_or(sizes.windowSill);
             sizes.ceilingHeight = options.newFloorHeight.value_or(sizes.ceilingHeight);
+            sizes.wallItemCentre = options.wallItemCentre.value_or(sizes.wallItemCentre);
             group->add(std::make_unique<SetDefaultSizesCommand>(sizes));
         }
         Answer failed;
@@ -153,7 +155,7 @@ std::vector<CommandSpec> projectCommands() {
 
     CommandSpec set;
     set.words = {"project", "set"};
-    set.description = "Change the grid size or the default sizes of new openings and floors.";
+    set.description = "Change the grid size or the default sizes of new openings, floors and wall items.";
     set.setup = [](CLI::App& sub) -> Handler {
         auto options = std::make_shared<SetOptions>();
         addProjectOption(sub, options->project);
@@ -168,6 +170,9 @@ std::vector<CommandSpec> projectCommands() {
             ->type_name("metres");
         sub.add_option("--new-floor-height", options->newFloorHeight,
                        "Ceiling height for floors made later, in metres.")
+            ->type_name("metres");
+        sub.add_option("--wall-item-centre", options->wallItemCentre,
+                       "How high the centre of a newly mounted wall item goes, in metres.")
             ->type_name("metres");
         return [options](const RunContext& context) { return projectSet(context, *options); };
     };

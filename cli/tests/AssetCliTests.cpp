@@ -33,7 +33,8 @@ struct SettingsReset {
 
 // Writes one asset folder by hand and indexes it.
 void makeAsset(const std::filesystem::path& library, const std::string& id, const std::string& name,
-               const std::vector<std::string>& categories, const std::vector<std::string>& tags) {
+               const std::vector<std::string>& categories, const std::vector<std::string>& tags,
+               plynth::AssetSize size = {0.5, 0.5, 0.9}) {
     plynth::Status status;
     auto catalog = plynth::AssetCatalog::open(plynth::libraryPaths(library), status);
     REQUIRE(status.ok());
@@ -48,7 +49,7 @@ void makeAsset(const std::filesystem::path& library, const std::string& id, cons
     info.source.kind = "local_file";
     info.source.reference = id + ".obj";
     info.source.importedAt = plynth::sessionNow();
-    info.size = {0.5, 0.5, 0.9};
+    info.size = size;
     info.triangles = 12;
     info.blendBytes = 1;
     info.blenderVersion = "5.2.0";
@@ -124,6 +125,20 @@ TEST_CASE("assets search finds by words, room, category and tags", "[cli][assets
 
     const auto badRoom = runChecked({"assets", "search", "--room", "nowhere"});
     CHECK(errorCode(badRoom) == "not_found");
+}
+
+TEST_CASE("an asset entry says whether it is measured", "[cli][assets]") {
+    SettingsReset reset;
+    TempFolder temp("assets-measured");
+    makeLibrary(temp);
+    makeAsset(temp.path() / "Library", "blank", "Blank", {"table"}, {}, {0.0, 0.0, 0.0});
+
+    const auto chair = runChecked({"assets", "info", "chair"});
+    REQUIRE(chair.exitCode == kExitOk);
+    CHECK(chair.answer.at("result").at("measured") == true);
+    const auto blank = runChecked({"assets", "info", "blank"});
+    REQUIRE(blank.exitCode == kExitOk);
+    CHECK(blank.answer.at("result").at("measured") == false);
 }
 
 TEST_CASE("assets set changes info.json and assets remove needs --yes", "[cli][assets]") {

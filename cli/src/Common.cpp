@@ -72,6 +72,7 @@ Json defaultsJson(const DefaultSizes& sizes) {
     defaults["window_width"] = sizes.windowWidth;
     defaults["window_height"] = sizes.windowHeight;
     defaults["window_sill"] = sizes.windowSill;
+    defaults["wall_item_centre"] = sizes.wallItemCentre;
     return defaults;
 }
 
@@ -271,7 +272,9 @@ Answer removeCascade(const std::string& command, const std::string& kind, const 
     return editProject(command, context, projectOption, [&](Document& document) {
         if (const Floor* floor = findFloorContaining(document.plan(), id)) {
             std::string actual = "item";
-            if (findPoint(*floor, id) != nullptr) {
+            if (findItem(*floor, id) != nullptr) {
+                actual = "item";
+            } else if (findPoint(*floor, id) != nullptr) {
                 actual = "point";
             } else if (findWall(*floor, id) != nullptr) {
                 actual = "wall";
@@ -281,8 +284,10 @@ Answer removeCascade(const std::string& command, const std::string& kind, const 
                 actual = "opening";
             }
             if (actual != kind) {
-                return failure(command, fail(ErrorCode::InvalidValue, id + " is a " + actual + ", not a " + kind +
-                                                                          ". Use " + actual + " remove."));
+                const auto article = [](const std::string& word) { return word == "item" || word == "opening" ? "an " : "a "; };
+                return failure(command, fail(ErrorCode::InvalidValue, id + " is " + article(actual) + actual + ", not " +
+                                                                          article(kind) + kind + ". Use " + actual +
+                                                                          " remove."));
             }
         }
         const std::vector<Id> named = {id};
@@ -294,14 +299,16 @@ Answer removeCascade(const std::string& command, const std::string& kind, const 
         if (!runCommand(command, document, std::move(build.command), failed)) {
             return failed;
         }
-        return success(command, removedJson(build.removes.openings, build.removes.rooms, build.removes.walls,
-                                            build.removes.points));
+        return success(command, removedJson(build.removes.items, build.removes.detached, build.removes.openings,
+                                            build.removes.rooms, build.removes.walls, build.removes.points));
     });
 }
 
-Json removedJson(const std::vector<Id>& openings, const std::vector<Id>& rooms, const std::vector<Id>& walls,
-                 const std::vector<Id>& points) {
+Json removedJson(const std::vector<Id>& items, const std::vector<Id>& detached, const std::vector<Id>& openings,
+                 const std::vector<Id>& rooms, const std::vector<Id>& walls, const std::vector<Id>& points) {
     Json removed = Json::object();
+    removed["items"] = items;
+    removed["detached"] = detached;
     removed["openings"] = openings;
     removed["rooms"] = rooms;
     removed["walls"] = walls;

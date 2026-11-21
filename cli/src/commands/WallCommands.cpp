@@ -203,7 +203,7 @@ Answer wallRemove(const RunContext& context, const RemoveOptions& options) {
     return edit(
         "wall remove", context, options.project,
         [&](const Plan&) { return std::make_unique<RemoveWallCommand>(options.id); },
-        [&](const Plan&, const RemoveWallCommand&) { return removedJson({}, {}, {options.id}, {}); });
+        [&](const Plan&, const RemoveWallCommand&) { return removedJson({}, {}, {}, {}, {options.id}, {}); });
 }
 
 // Lists the walls of a floor.
