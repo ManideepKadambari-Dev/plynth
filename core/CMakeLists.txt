@@ -7,6 +7,11 @@ add_library(plynth_core STATIC
     src/Plan.cpp
     src/Project.cpp
     src/ProjectJson.cpp
+    src/Command.cpp
+    src/CommandStack.cpp
+    src/commands/FloorCommands.cpp
+    src/commands/PointCommands.cpp
+    src/commands/WallCommands.cpp
 )
 add_library(plynth::core ALIAS plynth_core)
 

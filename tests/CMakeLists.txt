@@ -8,6 +8,8 @@ add_executable(plynth_core_tests
     core/PlanTests.cpp
     core/ProjectJsonTests.cpp
     core/SchemaTests.cpp
+    core/CommandTests.cpp
+    core/CommandStackTests.cpp
 )
 target_link_libraries(plynth_core_tests PRIVATE
     plynth::core
