@@ -13,9 +13,13 @@ add_library(plynth_core STATIC
     src/Document.cpp
     src/EditSession.cpp
     src/FileIo.cpp
+    src/Geometry.cpp
+    src/Snapping.cpp
+    src/RoomTypes.cpp
     src/commands/FloorCommands.cpp
     src/commands/PointCommands.cpp
     src/commands/WallCommands.cpp
+    src/commands/SettingsCommands.cpp
 )
 if(WIN32)
     target_sources(plynth_core PRIVATE src/Process_win.cpp)

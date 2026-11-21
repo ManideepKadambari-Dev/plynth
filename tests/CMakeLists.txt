@@ -14,6 +14,10 @@ add_executable(plynth_core_tests
     core/ProjectFilesTests.cpp
     core/DocumentTests.cpp
     core/EditSessionTests.cpp
+    core/GeometryTests.cpp
+    core/SnappingTests.cpp
+    core/RoomTypesTests.cpp
+    core/WallCommandTests.cpp
 )
 target_link_libraries(plynth_core_tests PRIVATE
     plynth::core
