@@ -1,3 +1,4 @@
+import copy
 import os
 import unittest
 
@@ -11,6 +12,13 @@ from plynth import meshes, registry, scene
 SQUARE_VOLUME = (4.2 * 4.2 - 3.8 * 3.8) * 3.0
 
 
+# Returns a copy of fixture params with the bevel off, so volumes are exact.
+def sharp(name):
+    params = copy.deepcopy(load_params(name))
+    params["settings"]["bevel_width"] = 0.0
+    return params
+
+
 # Returns the face attribute values of an object as lists, by attribute name.
 def face_values(obj, name):
     return [item.value for item in obj.data.attributes[name].data]
@@ -20,7 +28,7 @@ class SquareRoomTests(BuildTest):
     # Builds the square room once for the checks.
     def setUp(self):
         super().setUp()
-        self.params = load_params("square_room")
+        self.params = sharp("square_room")
         self.result = self.build(self.params)
         self.assertTrue(self.result["ok"], self.result["error"])
 
@@ -29,7 +37,8 @@ class SquareRoomTests(BuildTest):
         self.assert_job_valid("square_room")
         self.assert_result_valid(self.result)
         steps = [s["step"] for s in self.result["output"]["steps"]]
-        self.assertEqual(steps, ["prepare_scene", "walls", "floors", "materials", "save_blend", "export_fbx"])
+        self.assertEqual(steps, ["prepare_scene", "walls", "openings", "bevel", "opening_fills", "floors", "materials",
+                         "save_blend", "export_fbx"])
         counts = self.result["output"]["counts"]
         self.assertEqual((counts["wall_solids"], counts["rooms"]), (1, 1))
 
@@ -146,7 +155,7 @@ class FloorsTests(BuildTest):
 
     # A half wall is its own lower solid in the same walls object, and every solid is closed.
     def test_half_wall(self):
-        result = self.build(load_params("half_wall"))
+        result = self.build(sharp("half_wall"))
         self.assertTrue(result["ok"], result["error"])
         self.assertEqual(result["output"]["counts"]["wall_solids"], 2)
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
