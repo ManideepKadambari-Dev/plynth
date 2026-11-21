@@ -16,7 +16,9 @@ inline constexpr int kExitBadArguments = 2; // unknown command or bad options, t
 
 // Runs one command. args are the words after the program name, in UTF-8. Writes exactly one JSON answer
 // and a line break to out, using currentFolder where the user gave no --project. Returns the exit code.
-int run(std::span<const std::string> args, std::ostream& out, const std::filesystem::path& currentFolder);
+// A command that takes long writes one JSON progress line at a time to progress when it is not null.
+int run(std::span<const std::string> args, std::ostream& out, const std::filesystem::path& currentFolder,
+        std::ostream* progress = nullptr);
 
 // Entry point for main: connects to the console or pipe it was started from, reads the arguments as
 // UTF-8 from the Windows command line and runs the command in the process's current folder.

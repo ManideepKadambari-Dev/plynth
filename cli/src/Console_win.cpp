@@ -10,7 +10,9 @@
 #include <shellapi.h>
 
 #include <filesystem>
+#include <ostream>
 #include <sstream>
+#include <streambuf>
 #include <string>
 #include <vector>
 
@@ -83,12 +85,38 @@ void writeAll(HANDLE handle, const std::string& text) {
     }
 }
 
+// Writes what it is given straight to a handle, so progress lines appear while the command runs.
+class HandleBuffer : public std::streambuf {
+public:
+    explicit HandleBuffer(HANDLE handle) : handle_(handle) {}
+
+protected:
+    std::streamsize xsputn(const char* text, std::streamsize size) override {
+        writeAll(handle_, std::string(text, static_cast<std::size_t>(size)));
+        return size;
+    }
+    int_type overflow(int_type c) override {
+        if (c != traits_type::eof()) {
+            const char byte = static_cast<char>(c);
+            writeAll(handle_, std::string(1, byte));
+        }
+        return traits_type::not_eof(c);
+    }
+
+private:
+    HANDLE handle_;
+};
+
 }
 
 int runFromProcess(int, char*[]) {
     const std::vector<std::string> args = readArguments();
     std::ostringstream buffer;
-    const int code = run(args, buffer, std::filesystem::current_path());
+    HANDLE errorHandle = GetStdHandle(STD_ERROR_HANDLE);
+    HandleBuffer errorBuffer(errorHandle);
+    std::ostream progress(&errorBuffer);
+    const int code =
+        run(args, buffer, std::filesystem::current_path(), isUsable(errorHandle) ? &progress : nullptr);
 
     bool ownsHandle = false;
     HANDLE output = openOutput(ownsHandle);

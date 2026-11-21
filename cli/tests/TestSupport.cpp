@@ -30,8 +30,10 @@ nlohmann::json_schema::json_validator& answerValidator() {
 Outcome runChecked(const std::vector<std::string>& args, const std::filesystem::path& currentFolder) {
     Outcome outcome;
     std::ostringstream out;
-    outcome.exitCode = run(args, out, currentFolder);
+    std::ostringstream progress;
+    outcome.exitCode = run(args, out, currentFolder, &progress);
     outcome.text = out.str();
+    outcome.progress = progress.str();
 
     REQUIRE(!outcome.text.empty());
     REQUIRE(outcome.text.back() == '\n');

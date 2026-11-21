@@ -66,7 +66,8 @@ bool takePretty(std::vector<std::string>& args) {
 }
 
 // Parses and runs one command and returns its answer.
-Answer runCommand(std::vector<std::string> args, const std::filesystem::path& currentFolder) {
+Answer runCommand(std::vector<std::string> args, const std::filesystem::path& currentFolder,
+                  std::ostream* progress) {
     const bool wantsHelp = std::ranges::any_of(args, [](const std::string& arg) { return arg == "--help" || arg == "-h"; });
     if (wantsHelp) {
         args = {"help"};
@@ -92,6 +93,7 @@ Answer runCommand(std::vector<std::string> args, const std::filesystem::path& cu
     RunContext context;
     context.currentFolder = currentFolder;
     context.root = &root;
+    context.progress = progress;
 
     const std::string words = joinWords(spec->words);
     try {
@@ -112,12 +114,13 @@ void writeAnswer(const Answer& answer, bool pretty, std::ostream& out) {
 
 }
 
-int run(std::span<const std::string> args, std::ostream& out, const std::filesystem::path& currentFolder) {
+int run(std::span<const std::string> args, std::ostream& out, const std::filesystem::path& currentFolder,
+        std::ostream* progress) {
     std::vector<std::string> words(args.begin(), args.end());
     const bool pretty = takePretty(words);
     Answer answer;
     try {
-        answer = runCommand(std::move(words), currentFolder);
+        answer = runCommand(std::move(words), currentFolder, progress);
     } catch (const std::exception& error) {
         answer = badArguments("", "internal_error", error.what());
         answer.exitCode = kExitFailed;
