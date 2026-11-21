@@ -18,6 +18,8 @@ public:
     void setImage(const QImage& image);
     void clearImage();
     bool hasImage() const { return pixmapItem_ != nullptr; }
+    void setEmptyText(const QString& text);
+    static QString defaultEmptyText();
     double zoom() const { return zoom_; }
 
     void zoomIn();
@@ -51,6 +53,7 @@ private:
 
     QGraphicsScene* scene_ = nullptr;
     QGraphicsPixmapItem* pixmapItem_ = nullptr;
+    QString emptyText_;
     double zoom_ = 1.0;
     bool fitMode_ = true;
     bool spaceHeld_ = false;

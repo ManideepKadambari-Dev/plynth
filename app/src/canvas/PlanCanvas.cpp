@@ -41,6 +41,7 @@ PlanCanvas::PlanCanvas(QWidget* parent)
     setDragMode(QGraphicsView::NoDrag);
     setToolTip(tr("Plan sheet. Wheel zooms at the cursor. Middle drag or Space and drag pans."));
     setProperty("tourId", QStringLiteral("canvas-plan"));
+    emptyText_ = defaultEmptyText();
     updateCursor();
 }
 
@@ -61,6 +62,19 @@ void PlanCanvas::setImage(const QImage& image)
     pixmapItem_->setPos(0, 0);
     pixmapItem_->setZValue(1);
     fitToWindow();
+}
+
+// The hint shown on an empty sheet when nothing else needs saying.
+QString PlanCanvas::defaultEmptyText()
+{
+    return tr("Set a plan image with Ctrl+Shift+O or drop one here");
+}
+
+// Sets the line shown in the middle of the empty sheet. Empty text brings back the hint.
+void PlanCanvas::setEmptyText(const QString& text)
+{
+    emptyText_ = text.isEmpty() ? defaultEmptyText() : text;
+    viewport()->update();
 }
 
 // Removes the image and shows the empty state.
@@ -195,7 +209,7 @@ void PlanCanvas::drawForeground(QPainter* painter, const QRectF& rect)
     painter->setPen(t.muted());
     painter->setFont(t.uiFont(t.sizeNormal()));
     painter->drawText(viewport()->rect(), Qt::AlignCenter,
-                      tr("Open a plan image with Ctrl+O or drop one here"));
+                      emptyText_);
     painter->restore();
 }
 

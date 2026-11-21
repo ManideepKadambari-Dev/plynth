@@ -7,6 +7,8 @@ add_executable(plynth WIN32
     src/main.cpp
     src/canvas/PlanCanvas.h
     src/canvas/PlanCanvas.cpp
+    src/document/DocumentBridge.h
+    src/document/DocumentBridge.cpp
     src/theme/Theme.h
     src/theme/Theme.cpp
     src/window/MainWindow.h
@@ -27,7 +29,7 @@ if(WIN32)
 endif()
 
 target_include_directories(plynth PRIVATE src)
-target_link_libraries(plynth PRIVATE plynth::core Qt6::Widgets)
+target_link_libraries(plynth PRIVATE plynth::core plynth::cli Qt6::Widgets)
 
 # Copy the Qt DLLs and plugins next to plynth.exe so it runs from the build folder.
 get_target_property(PLYNTH_QMAKE Qt6::qmake IMPORTED_LOCATION)
