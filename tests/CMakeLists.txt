@@ -21,6 +21,9 @@ add_executable(plynth_core_tests
     core/RoomsTests.cpp
     core/RoomCommandTests.cpp
     core/DeleteCommandTests.cpp
+    core/FakeDetector.cpp
+    core/DetectionModelTests.cpp
+    core/DetectionCommandTests.cpp
 )
 target_link_libraries(plynth_core_tests PRIVATE
     plynth::core
