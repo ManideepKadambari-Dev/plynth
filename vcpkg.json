@@ -9,6 +9,16 @@
     "cli11",
     "json-schema-validator",
     "libvterm",
-    "clipper2"
+    "clipper2",
+    {
+      "name": "opencv4",
+      "default-features": false,
+      "features": [
+        "png",
+        "jpeg",
+        "intrinsics",
+        "thread"
+      ]
+    }
   ]
 }
