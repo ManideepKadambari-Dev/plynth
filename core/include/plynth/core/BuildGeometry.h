@@ -17,8 +17,9 @@ namespace plynth {
 //
 // World coordinates are Blender's, in metres: X = plan x, Y = -plan y, Z up from the first floor's level.
 // Rings are seen from above (+Z): outer rings anticlockwise, holes clockwise, the first point not repeated,
-// no two points in a row closer than 1e-6. A plan polygon with a positive signedArea keeps its point order
-// when turned into world coordinates and is then an anticlockwise outer ring.
+// no two points in a row closer than 1e-6. Turning y into -y reverses the direction of a polygon, so a plan
+// polygon with a positive signedArea has its points reversed to become an anticlockwise outer ring, and every
+// ring here has a positive signedArea (outer) or a negative one (hole) when measured on its world points.
 // Curves are cut with arcSegmentCount, like everywhere else.
 
 struct Vec3 {

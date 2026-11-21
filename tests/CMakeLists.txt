@@ -43,6 +43,8 @@ add_executable(plynth_core_tests
     core/OpeningTests.cpp
     core/OpeningCommandTests.cpp
     core/BuildGeometryTests.cpp
+    core/BuildJobTests.cpp
+    core/BuildTests.cpp
     core/SnappingTests.cpp
     core/RoomTypesTests.cpp
     core/WallCommandTests.cpp

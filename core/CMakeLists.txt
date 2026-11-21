@@ -35,6 +35,8 @@ add_library(plynth_core STATIC
     src/WallGeometry.cpp
     src/Openings.cpp
     src/BuildGeometry.cpp
+    src/BuildJob.cpp
+    src/Build.cpp
     src/openings/OpeningShapes.cpp
     src/openings/ShapeFiles.cpp
     src/commands/FloorCommands.cpp
