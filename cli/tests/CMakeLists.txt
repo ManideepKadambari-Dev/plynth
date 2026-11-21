@@ -8,6 +8,7 @@ add_executable(plynth_cli_tests
     SessionCliTests.cpp
     WallCliTests.cpp
     RoomCliTests.cpp
+    DetectCliTests.cpp
     TestSetup.cpp
     TestSupport.cpp
 )
