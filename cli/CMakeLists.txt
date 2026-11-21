@@ -26,3 +26,7 @@ if(PLYNTH_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()
+
+if(WIN32)
+    add_subdirectory(launcher)
+endif()
