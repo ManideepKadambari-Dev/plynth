@@ -76,6 +76,7 @@ private:
     void updateActions();
     void updateViewActions();
     void refreshImage();
+    void refreshOverlay();
     bool decodeImage(const QString& path, QImage* image, QString* error);
     void cacheImage(const QString& path, const QImage& image);
     void syncAppState();

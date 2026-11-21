@@ -27,6 +27,10 @@
     "resizeBorder": 6,
     "radius": 4,
     "logoSize": 20,
-    "sheetPadding": 24
+    "sheetPadding": 24,
+    "pointDot": 9
+  },
+  "effects": {
+    "overlayAlpha": 150
   }
 }

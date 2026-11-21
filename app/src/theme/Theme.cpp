@@ -70,6 +70,10 @@ bool Theme::load(const QString& resourcePath)
     radius_ = spacing["radius"].toInt(radius_);
     logoSize_ = spacing["logoSize"].toInt(logoSize_);
     sheetPadding_ = spacing["sheetPadding"].toInt(sheetPadding_);
+    pointDot_ = spacing["pointDot"].toInt(pointDot_);
+
+    const QJsonObject effects = root["effects"].toObject();
+    overlayAlpha_ = effects["overlayAlpha"].toInt(overlayAlpha_);
     return true;
 }
 

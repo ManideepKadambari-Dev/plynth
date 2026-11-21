@@ -111,6 +111,7 @@ MainWindow::MainWindow(QWidget* parent)
     autosaveTimer_->start();
 
     refreshImage();
+    refreshOverlay();
     updateTitle();
     updateActions();
 }
@@ -257,6 +258,9 @@ void MainWindow::onDocumentChanged(unsigned changes)
 {
     if (changes & (plynth::Change::FloorImage | plynth::Change::Floors | plynth::Change::Folder))
         refreshImage();
+    if (changes & (plynth::Change::Points | plynth::Change::Walls | plynth::Change::Scale |
+                   plynth::Change::Floors | plynth::Change::Folder))
+        refreshOverlay();
     if (changes & (plynth::Change::History | plynth::Change::Settings | plynth::Change::Folder)) {
         updateTitle();
         updateActions();
@@ -342,6 +346,29 @@ void MainWindow::refreshImage()
     canvas_->setImage(image);
     statusBar_->setImageInfo(QFileInfo(path).fileName(), image.width(), image.height());
     updateViewActions();
+}
+
+// Gives the canvas the points and walls of the first floor, in image pixels. Nothing without a scale.
+void MainWindow::refreshOverlay()
+{
+    QVector<OverlayWall> walls;
+    QVector<QPointF> points;
+    const plynth::Plan& plan = doc_.plan();
+    if (plan.scale.pixelsPerMetre.has_value() && !plan.floors.empty()) {
+        const double ppm = *plan.scale.pixelsPerMetre;
+        const plynth::Floor& floor = plan.floors.front();
+        for (const plynth::Point& point : floor.points)
+            points.append(QPointF(point.x * ppm, point.y * ppm));
+        for (const plynth::Wall& wall : floor.walls) {
+            const plynth::Point* from = plynth::findPoint(floor, wall.from);
+            const plynth::Point* to = plynth::findPoint(floor, wall.to);
+            if (from == nullptr || to == nullptr)
+                continue;
+            walls.append({QPointF(from->x * ppm, from->y * ppm), QPointF(to->x * ppm, to->y * ppm),
+                          wall.thickness * ppm});
+        }
+    }
+    canvas_->setOverlay(walls, points);
 }
 
 // Opens a project folder with core and makes it the document.
