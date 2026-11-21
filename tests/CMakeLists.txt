@@ -9,6 +9,11 @@ add_executable(plynth_core_tests
     core/VersionTests.cpp
     core/SettingsTests.cpp
     core/ProcessTests.cpp
+    core/LibraryTests.cpp
+    core/AssetInfoTests.cpp
+    core/AssetCatalogTests.cpp
+    core/SearchTests.cpp
+    core/RescanTests.cpp
     core/PlanImageTests.cpp
     core/PlanTests.cpp
     core/ProjectJsonTests.cpp

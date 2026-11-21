@@ -1,0 +1,53 @@
+{
+  "format": "plynth-asset",
+  "version": 1,
+  "id": "chair",
+  "name": "Chair",
+  "categories": [
+    "chair"
+  ],
+  "tags": [
+    "oak",
+    "wood"
+  ],
+  "license": "cc0",
+  "source": {
+    "kind": "local_file",
+    "reference": "chair.obj",
+    "imported_at": "2026-11-21T10:00:00Z"
+  },
+  "size": {
+    "width": -1,
+    "depth": 0.5,
+    "height": 0.9
+  },
+  "triangles": 72,
+  "objects": 6,
+  "materials": [
+    "Fabric",
+    "Wood"
+  ],
+  "textures": [
+    "textures/chair_wood.png"
+  ],
+  "blend": {
+    "file": "asset.blend",
+    "bytes": 123456,
+    "modified": "2026-11-21T10:00:05Z"
+  },
+  "thumbnail": {
+    "file": "thumb.png",
+    "error": null,
+    "engine": "eevee",
+    "rendered_at": "2026-11-21T10:00:07Z"
+  },
+  "cleanup": {
+    "blender_version": "5.2.0",
+    "warnings": [
+      {
+        "code": "scale_suspicious",
+        "message": "The model is very small."
+      }
+    ]
+  }
+}
