@@ -80,27 +80,6 @@ Json countsJson(const ProposalCounts& counts) {
     return json;
 }
 
-// Moves the proposed points and rooms from image coordinates to plan positions through the floor's image offset.
-void shiftToPlan(const Floor& floor, double pixelsPerMetre, DetectionResult& result) {
-    if (floor.imageOffset == ImageOffset{}) {
-        return;
-    }
-    const auto move = [&](Vec2& p) {
-        p = imageToPlan(floor, pixelsPerMetre, {p.x * pixelsPerMetre, p.y * pixelsPerMetre});
-    };
-    for (Vec2& p : result.points) {
-        move(p);
-    }
-    for (ProposedRoom& room : result.rooms) {
-        move(room.inside);
-        for (std::vector<Vec2>& ring : room.rings) {
-            for (Vec2& p : ring) {
-                move(p);
-            }
-        }
-    }
-}
-
 // The proposal lists of a result: points, walls, openings and rooms.
 void addProposalLists(Json& json, const DetectionResult& result) {
     Json points = Json::array();
@@ -225,10 +204,9 @@ Answer detect(const RunContext& context, const DetectOptions& given) {
     if (!result.status.ok()) {
         return failure(name, result.status);
     }
-    // Proposals are measured from the image corner; the floor's image may sit at an offset, so the listed
-    // positions and the comparison with existing walls use plan positions. Accepting takes the unshifted result.
-    DetectionResult shown = result;
-    shiftToPlan(*floor, source.pixelsPerMetre, shown);
+    // The listed positions and the comparison with existing walls use plan positions. Accepting takes the
+    // detected result, which the command moves itself.
+    DetectionResult shown = proposalsOnPlan(*floor, result);
     markExisting(*floor, shown);
     const ProposalCounts counts = countProposals(shown);
 

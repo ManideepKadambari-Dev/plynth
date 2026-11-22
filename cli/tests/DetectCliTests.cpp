@@ -420,3 +420,35 @@ TEST_CASE("detect on a floor with an image offset lists and applies positions sh
     const auto again = detectFixed(sample);
     CHECK(again.answer.at("result").at("counts").at("new_walls") == 0);
 }
+
+TEST_CASE("detect with an image offset counts like core, with and without moved marks", "[cli][detect]") {
+    REQUIRE(loaderWorks());
+    for (const double offsetX : {0.2, 1.0}) {
+        for (const bool marksMoved : {true, false}) {
+            INFO("offset " << offsetX << ", marks moved " << marksMoved);
+            Sample sample("detect-offset-marks");
+            setScale(sample);
+            REQUIRE(sample.run({"floor", "set", "--image-offset", std::to_string(offsetX) + ",0"}).exitCode ==
+                    kExitOk);
+            const std::string x = std::to_string(1.0 + (marksMoved ? offsetX : 0.0));
+            REQUIRE(sample.run({"wall", "draw", "--from-x", x, "--from-y", "1", "--to-x", x, "--to-y", "5",
+                                "--thickness", "0.3"})
+                        .exitCode == kExitOk);
+
+            const auto listed = detectFixed(sample);
+            REQUIRE(listed.exitCode == kExitOk);
+            const auto& counts = listed.answer.at("result").at("counts");
+            CHECK(counts.at("walls") == 7);
+            CHECK(counts.at("existing_walls") == (marksMoved ? 1 : 0));
+            CHECK(counts.at("overlapping_walls") == 0);
+            CHECK(counts.at("new_walls") == (marksMoved ? 6 : 7));
+
+            const auto applied = detectFixed(sample, {"--apply"});
+            REQUIRE(applied.exitCode == kExitOk);
+            CHECK(applied.answer.at("result").at("applied").at("walls").size() == counts.at("new_walls"));
+            CHECK(applied.answer.at("result").at("applied").at("skipped_walls") == counts.at("existing_walls"));
+            CHECK(sample.run({"wall", "list"}).answer.at("result").at("walls").size() ==
+                  1u + counts.at("new_walls").get<std::size_t>());
+        }
+    }
+}
