@@ -393,6 +393,44 @@ std::vector<WorldPolygon> keepHalf(const std::vector<WorldPolygon>& polygons, Ve
     return run(Clipper2Lib::ClipType::Intersection, toPaths(polygons), half);
 }
 
+RoofFace planeFace(const WorldPolygon& polygon, const Plane& plane, double drop, bool up, RoofPart part)
+{
+    return liftedFace(polygon, plane, drop, up, part);
+}
+
+RoofFace wallFace(Vec2 p, Vec2 q, double pBottom, double qBottom, double pTop, double qTop, RoofPart part)
+{
+    return wallQuad(p, q, pBottom, qBottom, pTop, qTop, part);
+}
+
+std::optional<RoofFace> gableFill(Vec2 a, Vec2 b, double base, double ga, double gb)
+{
+    constexpr double kEps = 1e-9;
+    if (ga <= kEps && gb <= kEps) return std::nullopt;
+    Vec2 from = a;
+    Vec2 to = b;
+    double gFrom = ga;
+    double gTo = gb;
+    if (ga < 0.0) {
+        const double t = ga / (ga - gb);
+        from = along(a, b, t);
+        gFrom = 0.0;
+    }
+    if (gb < 0.0) {
+        const double t = ga / (ga - gb);
+        to = along(a, b, t);
+        gTo = 0.0;
+    }
+    RoofFace face;
+    face.part = RoofPart::Gable;
+    face.outline.push_back({from.x, from.y, base});
+    face.outline.push_back({to.x, to.y, base});
+    if (gTo > kEps) face.outline.push_back({to.x, to.y, base + gTo});
+    if (gFrom > kEps) face.outline.push_back({from.x, from.y, base + gFrom});
+    if (face.outline.size() < 3) return std::nullopt;
+    return face;
+}
+
 std::vector<WorldPolygon> inset(const std::vector<WorldPolygon>& polygons, double distance)
 {
     return offsetBy(polygons, -distance);

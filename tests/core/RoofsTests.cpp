@@ -115,6 +115,23 @@ Vec3 newell(const std::vector<Vec3>& pts)
     return n;
 }
 
+// The number of points of a face where its outline really turns.
+int cornerCount(const RoofFace& f)
+{
+    int corners = 0;
+    const std::size_t n = f.outline.size();
+    for (std::size_t i = 0; i < n; ++i) {
+        const Vec3& a = f.outline[(i + n - 1) % n];
+        const Vec3& b = f.outline[i];
+        const Vec3& c = f.outline[(i + 1) % n];
+        const double x = (b.y - a.y) * (c.z - b.z) - (b.z - a.z) * (c.y - b.y);
+        const double y = (b.z - a.z) * (c.x - b.x) - (b.x - a.x) * (c.z - b.z);
+        const double z = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
+        if (std::sqrt(x * x + y * y + z * z) > 1e-9) ++corners;
+    }
+    return corners;
+}
+
 // Checks that every face is planar and looks the way its part says: coverings up, undersides down.
 void checkFaces(const RoofBuild& build)
 {
@@ -511,4 +528,127 @@ TEST_CASE("roof settings are checked", "[roofs]")
     CHECK(checkRoofSettings(s).ok());
     s.direction = std::nan("");
     CHECK(checkRoofSettings(s).code == ErrorCode::InvalidValue);
+}
+
+TEST_CASE("a hip roof on a rectangle has two trapezoids and two triangles", "[roofs]")
+{
+    Plan plan = oneFloor();
+    plan.roof.type = "hip";
+    plan.roof.pitch = 30.0;
+    plan.roof.overhang = 0.0;
+    const FloorRoofs r = floorRoofs(plan, 0, kOneLevel);
+    CHECK(r.problems.empty());
+    const RoofBuild& b = r.roofs[0];
+    CHECK(b.type == "hip");
+    checkFaces(b);
+    const std::vector<RoofFace> covering = facesOf(b, RoofPart::Covering);
+    REQUIRE(covering.size() == 4);
+    int trapezoids = 0;
+    int triangles = 0;
+    for (const RoofFace& f : covering) {
+        const int corners = cornerCount(f);
+        if (corners == 4) ++trapezoids;
+        if (corners == 3) ++triangles;
+    }
+    CHECK(trapezoids == 2);
+    CHECK(triangles == 2);
+    const double ridge = 3.2 + 2.0 * kTan30;
+    CHECK(boxOf(covering).z1 == Approx(ridge).margin(1e-6));
+    double lowX = 1e9;
+    double highX = -1e9;
+    for (const RoofFace& f : covering) {
+        for (const Vec3& p : f.outline) {
+            if (std::fabs(p.z - ridge) < 1e-6) {
+                lowX = std::min(lowX, p.x);
+                highX = std::max(highX, p.x);
+                CHECK(p.y == Approx(-2.0).margin(1e-6));
+            }
+        }
+    }
+    CHECK(highX - lowX == Approx(2.0).margin(1e-6));
+    CHECK(facesOf(b, RoofPart::Gable).empty());
+}
+
+TEST_CASE("a hip roof with an overhang still rises to the same ridge", "[roofs]")
+{
+    Plan plan = oneFloor();
+    plan.roof.type = "hip";
+    plan.roof.overhang = 0.3;
+    const RoofBuild b = floorRoofs(plan, 0, kOneLevel).roofs[0];
+    checkFaces(b);
+    const std::vector<RoofFace> covering = facesOf(b, RoofPart::Covering);
+    CHECK(covering.size() == 4);
+    CHECK(boxOf(covering).z1 == Approx(3.2 + 2.0 * kTan30).margin(1e-6));
+    CHECK(boxOf(covering).z0 == Approx(3.2 - 0.3 * kTan30).margin(1e-6));
+}
+
+TEST_CASE("a hip roof on an L shaped section falls back to a gable", "[roofs]")
+{
+    Plan plan = makeNewProject().plan;
+    Floor& f = plan.floors[0];
+    addPoint(f, "p1", 0.1, 0.1);
+    addPoint(f, "p2", 5.9, 0.1);
+    addPoint(f, "p3", 5.9, 1.9);
+    addPoint(f, "p4", 2.9, 1.9);
+    addPoint(f, "p5", 2.9, 3.9);
+    addPoint(f, "p6", 0.1, 3.9);
+    const char* ends[6][2] = {{"p1", "p2"}, {"p2", "p3"}, {"p3", "p4"}, {"p4", "p5"}, {"p5", "p6"}, {"p6", "p1"}};
+    Room room;
+    room.id = "r1";
+    for (int i = 0; i < 6; ++i) {
+        const std::string id = "w" + std::to_string(i + 1);
+        addWall(f, id, ends[i][0], ends[i][1], 0.2);
+        room.walls.push_back(id);
+    }
+    f.rooms.push_back(room);
+    plan.roof.type = "hip";
+    const FloorRoofs r = floorRoofs(plan, 0, kOneLevel);
+    REQUIRE(r.roofs.size() == 1);
+    CHECK(r.roofs[0].type == "gable");
+    REQUIRE(r.problems.size() == 1);
+    CHECK(r.problems[0].code == "roof_type_fallback");
+    CHECK_FALSE(r.problems[0].message.empty());
+    checkFaces(r.roofs[0]);
+}
+
+TEST_CASE("a sawtooth roof has a bay of 3 m and a bay of 1 m with glazing each", "[roofs]")
+{
+    Plan plan = oneFloor();
+    plan.roof.type = "sawtooth";
+    plan.roof.pitch = 30.0;
+    plan.roof.overhang = 0.3;
+    plan.roof.direction = 0.0;
+    const FloorRoofs r = floorRoofs(plan, 0, kOneLevel);
+    CHECK(r.problems.empty());
+    const RoofBuild& b = r.roofs[0];
+    CHECK(b.type == "sawtooth");
+    checkFaces(b);
+
+    const std::vector<RoofFace> covering = facesOf(b, RoofPart::Covering);
+    REQUIRE(covering.size() == 2);
+    std::vector<double> tops;
+    for (const RoofFace& f : covering) tops.push_back(boxOf({f}).z1);
+    std::sort(tops.begin(), tops.end());
+    CHECK(tops[0] == Approx(3.2 + 1.0 * kTan30).margin(1e-6));
+    CHECK(tops[1] == Approx(3.2 + 3.0 * kTan30).margin(1e-6));
+
+    const std::vector<RoofFace> glazing = facesOf(b, RoofPart::Glazing);
+    REQUIRE(glazing.size() == 2);
+    std::vector<std::pair<double, double>> at; // world y and top height
+    for (const RoofFace& f : glazing) {
+        const Box fb = boxOf({f});
+        CHECK(fb.y0 == Approx(fb.y1).margin(1e-9));
+        CHECK(fb.z0 == Approx(3.2).margin(1e-9));
+        CHECK(fb.x0 == Approx(-0.3).margin(1e-6));
+        CHECK(fb.x1 == Approx(6.3).margin(1e-6));
+        const Vec3 n = newell(f.outline);
+        CHECK(n.y > 0.0);
+        at.emplace_back(fb.y0, fb.z1);
+    }
+    std::sort(at.begin(), at.end());
+    CHECK(at[0].first == Approx(-1.0).margin(1e-9));
+    CHECK(at[0].second == Approx(3.2 + 3.0 * kTan30).margin(1e-6));
+    CHECK(at[1].first == Approx(0.0).margin(1e-9));
+    CHECK(at[1].second == Approx(3.2 + 1.0 * kTan30).margin(1e-6));
+    CHECK_FALSE(facesOf(b, RoofPart::Gable).empty());
 }

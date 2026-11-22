@@ -3,6 +3,7 @@
 #include "plynth/core/Roofs.h"
 
 #include <functional>
+#include <optional>
 #include <vector>
 
 // Shared building blocks for roof types. They are written in Roofs.cpp, so a roof type file needs no polygon
@@ -44,6 +45,17 @@ std::vector<RoofFace> flatFaces(const std::vector<WorldPolygon>& polygons, doubl
 
 // Vertical faces on every ring of the polygons from bottom to top, looking away from the polygons' material.
 std::vector<RoofFace> ringWalls(const std::vector<WorldPolygon>& polygons, double bottom, double top, RoofPart part);
+
+// One face from a polygon with every point lifted to a plane and lowered by drop. A down face turns every ring.
+RoofFace planeFace(const WorldPolygon& polygon, const Plane& plane, double drop, bool up, RoofPart part);
+
+// A vertical face on the edge from p to q with a bottom and a top height at each end, looking to the right of
+// the direction p to q.
+RoofFace wallFace(Vec2 p, Vec2 q, double pBottom, double qBottom, double pTop, double qTop, RoofPart part);
+
+// The vertical gable fill on the edge from a to b, where the underside stands ga and gb above base at the two
+// ends (linear between). Empty when it nowhere stands above base.
+std::optional<RoofFace> gableFill(Vec2 a, Vec2 b, double base, double ga, double gb);
 
 // Covering, underside, edge and gable faces of a roof made of planes. height gives the top surface at a plan
 // position; the roof is kRoofThickness thick below it. The pieces cover input.eaves, the gable fills stand on
