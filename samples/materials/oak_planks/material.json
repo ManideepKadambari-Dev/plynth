@@ -1,0 +1,19 @@
+{
+  "format": "plynth-material-source",
+  "version": 1,
+  "id": "oak_planks",
+  "name": "Oak planks",
+  "groups": [
+    "floor"
+  ],
+  "tags": [
+    "boards",
+    "oak",
+    "wood"
+  ],
+  "tile_size": {
+    "width": 2.0,
+    "height": 2.0
+  },
+  "license": "own_work"
+}

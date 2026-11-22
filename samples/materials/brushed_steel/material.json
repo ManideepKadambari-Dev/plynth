@@ -1,0 +1,21 @@
+{
+  "format": "plynth-material-source",
+  "version": 1,
+  "id": "brushed_steel",
+  "name": "Brushed steel",
+  "groups": [
+    "metal"
+  ],
+  "tags": [
+    "metal",
+    "steel"
+  ],
+  "tile_size": {
+    "width": 0.5,
+    "height": 0.5
+  },
+  "values": {
+    "metallic": 1.0
+  },
+  "license": "own_work"
+}
