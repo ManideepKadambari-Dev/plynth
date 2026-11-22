@@ -1438,7 +1438,7 @@ plynth export report
 
 - `exported` is true when the files were written. `checked_only` is true for `--check`. `forced` is true when `--force` was used, and `overridden` lists the ids of the failed checks it went past.
 - `quality.checks` has one entry for each check, in the order they ran. `status` is `pass`, `warning`, `fail` or `skipped`. `findings` holds at most 50 entries, and each one may name a plan id in `plan_id`.
-- The thirteen checks are `build_current`, `build_complete`, `scale`, `transforms`, `naming`, `uvs`, `texel_density`, `triangles`, `materials`, `groups`, `collision`, `fbx_scale` and `kit_file`. They are explained in "The quality gate" in the [User guide](USER_GUIDE.md).
+- The thirteen checks are `build_current`, `build_complete`, `scale`, `transforms`, `naming`, `uvs`, `texel_density`, `triangles`, `materials`, `collision`, `groups`, `fbx_scale` and `kit_file`. They are explained in "The quality gate" in the [User guide](USER_GUIDE.md).
 - With `--check`, a failed check does not make the command fail. The answer is ok, and the top level `warnings` list has one entry with the code `quality_failed` for each failed check, for example "The check 'naming' failed." A script can read it to know what to fix.
 - A blocked export replaces nothing. The files of the last good export stay, and the report says `exported` is false.
 - `outputs.files` has one entry for each FBX file, with the `group` id, the group's `name` as people see it, the `file`, and its `objects` and `triangles`. A single project has one entry, with the group `building`. The kit file is not in this list. It is under `kit`.
@@ -1450,7 +1450,7 @@ plynth export report
 |---|---|
 | `not_a_project` | The folder has no `project.json`. |
 | `not_found` | There is no `build\building.blend`. The message is "Build the project first." |
-| `bad_file` | `export-options.json` is there but cannot be read, or holds a group name that is not allowed (for example one written by an older Plynth). Nothing runs. `plynth export groups reset` repairs it. |
+| `bad_file` | `export-options.json` is there but cannot be read, or holds a group name that is not allowed (for example one edited by hand). Nothing runs. `plynth export groups reset` repairs it. |
 | `in_use` | A build or another export of the project is running. |
 | `blender_not_found` | No usable Blender. |
 | `blender_failed` | The worker failed. The message names the log file. |
@@ -1485,7 +1485,7 @@ The example is shortened and written by hand from the code and the tests. It was
 
 The automatic groups are `structure` ("Walls"), `surfaces` ("Floors") and one `furniture_<room id>` for each room that holds items ("Furniture Living"), with `furniture` for items that are in no room. A group with no members is listed, but its file is not written by an export.
 
-The group edits below all take the same options as `export groups`, plus their own. They write `export-options.json` in the project folder. They never write `plan.json` or `project.json`, never change the build's fingerprint, and answer with the new list, in the same shape. They follow the rules of the edit commands: they are refused with `locked` while the app has the project open without a session. They also need the export mode to be grouped. On a single project every one of them is `invalid_value`: "Groups can only be edited in grouped export mode. Run plynth project set --export grouped first."
+The group edits below all take the same options as `export groups`, plus their own. They write `export-options.json` in the project folder. They never write `plan.json` or `project.json`, never change the build's fingerprint, and answer with the new list, in the same shape. They follow the rules of the edit commands: they are refused with `locked` while the app has the project open without a session. They also need the export mode to be grouped. On a single project every edit except `reset` is `invalid_value`: "Groups can only be edited in grouped export mode. Run plynth project set --export grouped first."
 
 ### export groups rename
 
@@ -1534,7 +1534,7 @@ plynth export groups new --name Hero
 
 ### export groups reset
 
-Removes every group edit, so the automatic groups come back. The kit switch stays as it is. It takes no other option. It also repairs a bad `export-options.json`, whether the file is not JSON or breaks a rule such as a group name. The old file is copied to `export-options.json.bad`, and its path is in `result.repaired.backup`. All group edits are dropped, and the kit switch is kept when the old file still has a readable one. A file written by a newer Plynth is not touched: `reset` answers `unsupported_version` and leaves it as it is.
+Removes every group edit, so the automatic groups come back. On a single project it only repairs a bad options file (the answer has `repaired.backup`); with a good file it is refused with `invalid_value` and nothing changes. The kit switch stays as it is. It takes no other option. It also repairs a bad `export-options.json`, whether the file is not JSON or breaks a rule such as a group name. The old file is copied to `export-options.json.bad`, and its path is in `result.repaired.backup`. All group edits are dropped, and the kit switch is kept when the old file still has a readable one. A file written by a newer Plynth is not touched: `reset` answers `unsupported_version` and leaves it as it is.
 
 ```
 plynth export groups reset
@@ -1545,9 +1545,9 @@ plynth export groups reset
 | Code | When |
 |---|---|
 | `not_found` | The group or the member is not in the list, or the group named by `--to` or `--into` is not. |
-| `invalid_value` | A bad name, a merge of a group into itself, a member not written `kind:id` (the message shows the form), or a single project. |
+| `invalid_value` | A bad name, a merge of a group into itself, a member not written `kind:id` (the message shows the form), or a single project (for `reset`, only when the options file is good). |
 | `already_exists` | Another group already has that name. |
-| `bad_file` | `export-options.json` is there but cannot be read, or holds a group name the rules above refuse. The file is left as it is. `export groups reset` is the one command that repairs it (see above). |
+| `bad_file` | `export-options.json` is there but cannot be read, or holds a group name the rules above refuse. The file is left as it is. `export groups reset` is the one command that repairs it (see above), also on a single project. |
 | `unsupported_version` | `export-options.json` was written by a newer Plynth. It is left as it is, and `reset` does not touch it either. |
 | `bad_arguments` | A missing or an extra option, such as `rename` with no `--name`, or `--name` given to `merge`. |
 | `locked` | The project is open in the app and no edit session is active. |
@@ -1566,7 +1566,7 @@ plynth export kit off
 {"ok":true,"command":"export kit on","result":{"enabled":true}}
 ```
 
-`export kit` only reads the switch and is never refused by the lock. `on` and `off` write it, with the rules of the other edit commands. `export kit maybe` is `bad_arguments`. When the switch is on, `export` also writes the kit (see "export"). The kit needs a library with a materials catalog: `export` takes `--library` or the library in the settings. Without one it carries on without the kit and says why in the answer (`kit.skipped`). A configured library that is broken still exports, and `kit.skipped` says "The library materials could not be opened, so the kit was left out." An explicit `--library` that is not a usable library is refused instead.
+`export kit` only reads the switch and is never refused by the lock. `on` and `off` write it, with the rules of the other edit commands. `export kit maybe` is `bad_arguments`. When the switch is on, `export` also writes the kit (see "export"). The kit needs a library with a materials catalog: `export` takes `--library` or the library in the settings. Without one it carries on without the kit and says why in the answer (`kit.skipped`). A configured library that is broken still exports, and `kit.skipped` says "The library materials could not be opened, so the kit was left out." An explicit `--library` that is not a usable library is refused instead. The kit uses the custom opening shapes of its library. When an opening cannot be built, the kit is left out with a reason in `kit.skipped` (for example "The kit was left out because opening o3 cannot be built.") and the export still succeeds.
 
 ### export-options.json
 

@@ -938,7 +938,7 @@ A group with nothing in it is not written. A collision shape always goes into th
 
 **The groups come from the last build.** The list is made from the plan as it was when you last built, because that is what is in `building.blend`. After you change the plan and build again, the groups are made again from the new plan.
 
-**Reviewing the groups.** Open the **Export** tab. For a grouped project it has a **Groups** section above the Export button:
+**Reviewing the groups.** Open the **Export** tab. For a grouped project it has a **Groups** section below the Export and Check buttons, followed by the modular kit tick box:
 
 - One row for each group, with its name, its file name and how many members it holds. Open a row to see its members, such as "Floor of Living r1" or "Window o3".
 - The group that takes anything left over (Walls, at first) says "Also takes anything added by hand".
@@ -958,7 +958,7 @@ A refused edit shows its reason in amber under the list. Group edits are export 
 
 **What happens to edits when the plan changes.** Plynth keeps an edit as what you did (move this item to that group, merge these two groups), not as a finished list. After a new build it makes the automatic groups again and applies your edits in this order: new groups, merges, moves, renames. An edit that no longer fits, for example a move of a sofa you have since deleted, is skipped. A line in amber above the list says which one and why, for example "Group furniture_r9 is gone, so its new name was not used." Nothing else breaks.
 
-**File names.** A file is called `<Project>_<Group name>.fbx`, with anything other than letters, digits and `_` turned into `_`. A project "My Flat" with a group "Lounge props" gives `My_Flat_Lounge_props.fbx`. If two names would give the same file, the second gets `_2`.
+**File names.** A file is called `<Project>_<Group name>.fbx`, with anything other than letters, digits, `_` and `-` turned into `_`. A project "My Flat" with a group "Lounge props" gives `My_Flat_Lounge_props.fbx`. If two names would give the same file, the second gets `_2`.
 
 **The checks run over all the files together.** The new **Groups** check fails when an object of the building belongs to no group, so nothing is left out in silence, and warns about a group that gets no object. The FBX scale check reads every file back and compares the walls' size over all of them.
 
@@ -966,7 +966,7 @@ A refused edit shows its reason in amber under the list. Group edits are export 
 
 The modular kit is an optional extra of either export mode. Instead of one large mesh of walls, it gives you the few unique wall pieces the building is made of, each once, and a layout file that says where each copy goes. In Unreal you can place the pieces yourself, reuse them in other levels or build new walls from them.
 
-To switch it on, tick **Also write the modular kit** in the Export tab. From the command line it is `plynth export kit on`. The kit needs the library, because its pieces use the same material slot names as the building. Without one the export goes on without the kit and the Export tab says "No library is set, so the kit was left out." in amber. A plan with no walls gives no kit. After an export with the kit, the tab shows the kit file and the layout file, how many pieces there are and how many placements.
+To switch it on, tick **Also write the modular kit** in the Export tab. From the command line it is `plynth export kit on`. The kit needs the library, because its pieces use the same material slot names as the building. Without one the export goes on without the kit and the Export tab says "No library is set, so the kit was left out." in amber. A plan with no walls gives no kit. The kit uses the custom opening shapes of its library. If an opening cannot be built, the kit is left out and the tab says why, in amber; the rest of the export still goes ahead. After an export with the kit, the tab shows the kit file and the layout file, how many pieces there are and how many placements.
 
 **What a piece is.** A piece is a short stretch of wall, cut so it can be used again. There are four kinds:
 
