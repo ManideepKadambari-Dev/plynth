@@ -45,7 +45,7 @@ RightPanel::RightPanel(QWidget* properties, QWidget* assets, QWidget* materials,
     tabs->addWidget(propertiesButton_, 1);
     tabs->addWidget(assetsButton_, 1);
     tabs->addWidget(materialsButton_, 1);
-    exportButton_ = makeTab(tr("Export"), tr("Export for Unreal: the last export and the quality checks (Ctrl+E)"),
+    exportButton_ = makeTab(tr("Export"), tr("Export for Unreal. Ctrl+E exports, Ctrl+Shift+E checks."),
                             QStringLiteral("tab-export"), this);
     tabs->addWidget(buildButton_, 1);
     tabs->addWidget(exportButton_, 1);

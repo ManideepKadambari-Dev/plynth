@@ -42,18 +42,19 @@ void paintQualityMark(QPainter& p, const QRectF& box, plynth::QualityStatus stat
 {
     const Theme& t = Theme::instance();
     if (status == plynth::QualityStatus::Warning || status == plynth::QualityStatus::Fail) {
-        paintProblemMark(p, box, status == plynth::QualityStatus::Fail, t.signalAmber(), 1.4);
+        paintProblemMark(p, box, status == plynth::QualityStatus::Fail, t.signalAmber(), t.markStroke());
         return;
     }
     const bool pass = status == plynth::QualityStatus::Pass;
     const QColor color = pass ? t.signalBlue() : t.muted();
-    const QRectF r = box.adjusted(1.4, 1.4, -1.4, -1.4);
+    const double w = t.markStroke();
+    const QRectF r = box.adjusted(w, w, -w, -w);
     p.save();
     p.setRenderHint(QPainter::Antialiasing);
-    p.setPen(QPen(color, 1.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    p.setPen(QPen(color, w,Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
     p.setBrush(pass ? QBrush(color) : QBrush(Qt::NoBrush));
     p.drawEllipse(r);
-    p.setPen(QPen(pass ? t.onBlue() : color, 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    p.setPen(QPen(pass ? t.onBlue() : color, w,Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
     if (pass) {
         p.drawPolyline(QPolygonF() << QPointF(r.left() + r.width() * 0.27, r.top() + r.height() * 0.52)
                                    << QPointF(r.left() + r.width() * 0.44, r.top() + r.height() * 0.69)
