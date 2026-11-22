@@ -191,6 +191,130 @@ bool leavesEntryInInbox(ErrorCode code)
            code == ErrorCode::DatabaseError || code == ErrorCode::CannotWrite;
 }
 
+// Puts the files of a fresh clean in an item folder in place of the old ones. The old ones wait in oldFolder
+// and are put back when a move fails.
+Status swapItemFiles(const fs::path& item, const fs::path& fresh, const fs::path& oldFolder)
+{
+    const std::string names[] = {std::string(kAssetBlendFileName), std::string(kAssetFbxFileName),
+                                 std::string(kAssetThumbFileName), std::string(kAssetTexturesFolder)};
+    std::error_code ec;
+    fs::create_directories(oldFolder, ec);
+    std::vector<std::string> parked;
+    std::vector<std::string> placed;
+    bool failed = static_cast<bool>(ec);
+    for (const std::string& name : names) {
+        if (failed) break;
+        if (!fs::exists(item / pathFromUtf8(name), ec)) continue;
+        fs::rename(item / pathFromUtf8(name), oldFolder / pathFromUtf8(name), ec);
+        if (ec) failed = true;
+        else parked.push_back(name);
+    }
+    for (const std::string& name : names) {
+        if (failed) break;
+        if (!fs::exists(fresh / pathFromUtf8(name), ec)) continue;
+        fs::rename(fresh / pathFromUtf8(name), item / pathFromUtf8(name), ec);
+        if (ec) failed = true;
+        else placed.push_back(name);
+    }
+    if (!failed) return {};
+    for (const std::string& name : placed) fs::rename(item / pathFromUtf8(name), fresh / pathFromUtf8(name), ec);
+    for (const std::string& name : parked) fs::rename(oldFolder / pathFromUtf8(name), item / pathFromUtf8(name), ec);
+    return fail(ErrorCode::CannotWrite, "The new files of the asset could not be moved into " + pathToUtf8(item) + ".");
+}
+
+// Cleans an asset that has no material maps again, from its own asset.blend, and puts the result in its folder.
+// Name, categories, tags, license and source stay.
+ImportOutcome recleanAsset(AssetCatalog& catalog, const ImportContext& context, AssetInfo info,
+                           const std::function<void(const ImportProgress&)>& onProgress, std::stop_token stop)
+{
+    ImportOutcome outcome;
+    outcome.assetId = info.id;
+    const auto report = [&](ImportStage stage, const BlenderProgress& blender = {}) {
+        if (!onProgress) return;
+        ImportProgress p;
+        p.stage = stage;
+        p.blender = blender;
+        onProgress(p);
+    };
+    const fs::path folder = catalog.paths().assetItems / pathFromUtf8(info.id);
+    const fs::path blend = folder / pathFromUtf8(kAssetBlendFileName);
+    const std::string jobId = newJobId(info.id);
+    WorkFolder work(catalog.paths().assetStaging / pathFromUtf8(jobId));
+    const fs::path fresh = work.path() / "item";
+    std::error_code ec;
+    fs::create_directories(fresh, ec);
+    if (ec) {
+        outcome.status = fail(ErrorCode::CannotWrite, "The work folder " + pathToUtf8(work.path()) + " could not be created.");
+        return outcome;
+    }
+    work.start();
+
+    CleanupJob cleanup;
+    cleanup.sourceFile = blend;
+    cleanup.format = std::string(kFormatBlend);
+    cleanup.assetId = info.id;
+    cleanup.outputFolder = fresh;
+    cleanup.triangleWarning = context.settings.triangleWarning;
+    const Json job = makeCleanupJob(cleanup, jobId, work.path() / pathFromUtf8(kResultFileName));
+
+    report(ImportStage::Blender);
+    const BlenderJobRun run = runBlenderJob(
+        context.blender.executable, job, work.path(), assetRunOptions(context),
+        [&](const BlenderProgress& p) { report(ImportStage::Blender, p); }, stop);
+    if (!run.status.ok()) {
+        const bool blenderProblem = run.status.code == ErrorCode::BlenderFailed;
+        if (blenderProblem) {
+            work.keep();
+            outcome.keptWorkFolder = work.path();
+        }
+        outcome.status = blenderFailure(run, blenderProblem ? work.path() : fs::path());
+        return outcome;
+    }
+    const AssetJobOutput out = readCleanupResult(run.result, jobId);
+    if (!out.header.status.ok()) {
+        work.keep();
+        outcome.keptWorkFolder = work.path();
+        outcome.status = fail(ErrorCode::BlenderFailed, out.header.status.message + "\nThe work folder was kept for the log: " + pathToUtf8(work.path()));
+        return outcome;
+    }
+    if (!fs::is_regular_file(fresh / pathFromUtf8(kAssetBlendFileName), ec)) {
+        work.keep();
+        outcome.keptWorkFolder = work.path();
+        outcome.status = fail(ErrorCode::BlenderFailed, "Blender did not save asset.blend.");
+        return outcome;
+    }
+    if (stop.stop_requested()) {
+        outcome.status = fail(ErrorCode::Cancelled, "The refresh was cancelled.");
+        return outcome;
+    }
+
+    report(ImportStage::Saving);
+    const bool rendered = out.thumbnailRendered && fs::is_regular_file(fresh / pathFromUtf8(kAssetThumbFileName), ec);
+    if (out.fbxFile.empty()) fs::remove(fresh / pathFromUtf8(kAssetFbxFileName), ec);
+    if (outcome.status = swapItemFiles(folder, fresh, work.path() / "old"); !outcome.status.ok()) return outcome;
+
+    info.size = out.size;
+    info.triangles = out.triangles;
+    info.objects = out.objects;
+    info.materials = out.materials;
+    info.textures = out.textures;
+    info.materialMaps = out.materialMaps;
+    info.blendBytes = static_cast<long long>(fs::file_size(blend, ec));
+    info.blendModified = fileTime(blend);
+    info.thumbnail.rendered = rendered;
+    info.thumbnail.engine = rendered ? out.thumbnailEngine : "";
+    info.thumbnail.renderedAt = rendered ? sessionNow() : SessionTime{};
+    info.thumbnail.error = rendered ? "" : out.thumbnailError.empty() ? "The thumbnail was not rendered." : out.thumbnailError;
+    info.blenderVersion = out.header.blenderVersion;
+    info.warnings = out.header.warnings;
+    if (outcome.status = writeAssetInfo(folder / pathFromUtf8(kAssetInfoFileName), info); !outcome.status.ok()) return outcome;
+    if (outcome.status = catalog.indexAsset(info); !outcome.status.ok()) return outcome;
+    outcome.warnings = info.warnings;
+    outcome.thumbnailFailed = !rendered;
+    report(ImportStage::Done);
+    return outcome;
+}
+
 }
 
 // The name used in progress lines.
@@ -320,6 +444,7 @@ ImportOutcome importAsset(AssetCatalog& catalog, const ImportContext& context, c
     info.objects = out.objects;
     info.materials = out.materials;
     info.textures = out.textures;
+    info.materialMaps = out.materialMaps;
     const fs::path blend = itemFolder / pathFromUtf8(kAssetBlendFileName);
     if (!fs::is_regular_file(blend, ec)) {
         outcome.status = fail(ErrorCode::BlenderFailed, "Blender did not save asset.blend.");
@@ -452,6 +577,7 @@ ImportOutcome refreshAsset(AssetCatalog& catalog, const ImportContext& context, 
         return outcome;
     }
     AssetInfo info = std::move(read.info);
+    if (!hasMaterialMaps(info)) return recleanAsset(catalog, context, std::move(info), onProgress, stop);
 
     const std::string jobId = newJobId(std::string(assetId));
     WorkFolder work(catalog.paths().assetStaging / pathFromUtf8(jobId));

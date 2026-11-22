@@ -60,7 +60,7 @@ std::vector<const Detector*> allDetectors();
 // InvalidValue for an unknown detector (the message lists the known ids), bad params or scale, or a detector
 // that broke the result rules. ImageError for an empty image. A stop asked for at any point gives an ok
 // status with cancelled set. Safe to call from several threads at once. Never changes a plan: run
-// markExisting on the result afterwards, on the thread that owns the plan.
+// proposalsOnPlan and then markExisting on the copy afterwards, on the thread that owns the plan.
 DetectionResult runDetection(std::string_view detectorId, const GrayImage& image, double pixelsPerMetre,
                              const DetectionParams& params, std::stop_token stop = {});
 

@@ -24,6 +24,7 @@ public:
 
     void activate() override;
     void deactivate() override;
+    void floorChanged() override;
     void mousePressed(const ToolMouse& mouse) override;
     void modifiersChanged() override;
     void paint(QPainter& painter) override;

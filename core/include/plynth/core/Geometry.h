@@ -72,6 +72,12 @@ struct ScaleMeasure {
     double pixelDistance = 0.0;
 };
 
+// Turns a pixel of a floor's plan image into plan metres and back, with the floor's image offset
+// (ImageOffset in Plan.h). pixelsPerMetre must be above zero. Every place that turns image pixels into metres
+// uses these, so each floor's image can sit somewhere else.
+Vec2 imageToPlan(const Floor& floor, double pixelsPerMetre, Vec2 pixel);
+Vec2 planToImage(const Floor& floor, double pixelsPerMetre, Vec2 position);
+
 // Works out pixels per metre from two image pixel points and the real distance between them in metres.
 // InvalidValue when a number is not finite, the distance is not above zero, or the points are closer than
 // kMinScalePixelDistance.

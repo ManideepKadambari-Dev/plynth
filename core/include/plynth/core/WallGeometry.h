@@ -117,4 +117,12 @@ WallPath wallPath(const Floor& floor, const Wall& wall);
 // a positive signedArea. Usually one outline; empty when the wall's curve is not valid.
 std::vector<std::vector<Vec2>> wallBand(const Floor& floor, const Wall& wall);
 
+// The outline of a wall's band as the build makes it (owner, milestone 10: the plan view draws this, so plan
+// and building agree): like wallBand, but where exactly two walls of the same height meet, both ends are cut
+// on the mitre line, as wallSolids does (BuildGeometry.h). Ends where a mitre would fold the band, T
+// junctions, rounded corners and walls of different heights stay as wallBand has them. Floor footprints
+// (Storeys.h) use this outline. Picking, snapping and room floor areas keep using wallBand. Plan coordinates,
+// each outline with a positive signedArea.
+std::vector<std::vector<Vec2>> wallOutline(const Floor& floor, const Wall& wall);
+
 }

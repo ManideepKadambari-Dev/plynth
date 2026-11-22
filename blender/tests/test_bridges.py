@@ -1,12 +1,14 @@
 import os
+import tempfile
 import unittest
+from unittest import mock
 
 import bmesh
 import bpy
 
 import helpers  # noqa: F401
 from plynth import bridges, extensions, registry
-from plynth.generating import AddonUnavailable
+from plynth.generating import AddonUnavailable, addons
 
 TOLERANCE = 0.01
 
@@ -285,14 +287,17 @@ class RegistryTests(unittest.TestCase):
 
 
 class SharedFolderTest(unittest.TestCase):
-    # Enables every add-on a bridge uses and checks the shared extension libraries do not lose files.
+    # Enables every add-on a bridge uses and checks the folder they were copied from loses no library files.
     def test_shared_libraries_untouched(self):
         if not extensions.is_private():
-            self.skipTest("this run does not use a private extensions folder")
-        before = extensions.shared_library_count()
+            self.skipTest("this run does not use a prepared extensions folder")
+        source = os.environ.get(extensions.SOURCE_ENV_NAME)
+        if not source:
+            self.skipTest("%s names no folder of add-ons" % extensions.SOURCE_ENV_NAME)
+        before = extensions.shared_library_count(source)
         for short_names in (("archimesh",), ("asset_optimizer",), ("bagapie",), ("bool_tool",), ("home_builder_5",)):
             bridges.enable_addon(short_names)
-        after = extensions.shared_library_count()
+        after = extensions.shared_library_count(source)
         print("Shared extension library files: %d before, %d after." % (before, after))
         self.assertGreaterEqual(after, before)
 
@@ -304,6 +309,71 @@ class SharedFolderTest(unittest.TestCase):
         finally:
             if saved is not None:
                 os.environ[extensions.ENV_NAME] = saved
+
+    # A private folder that was not prepared, as every job has, does not let an add-on be enabled.
+    def test_refuses_private_but_unprepared(self):
+        with tempfile.TemporaryDirectory() as folder, mock.patch.dict(os.environ, {extensions.ENV_NAME: folder}):
+            self.assertFalse(extensions.is_private())
+            self.assertFalse(bridges.enable_addon(("bool_tool",)))
+            self.assertFalse(addons.enable("bool_tool"))
+
+
+class PrepareTest(unittest.TestCase):
+    # Makes a scratch folder with an add-on to copy and a pretend APPDATA.
+    def setUp(self):
+        scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
+        self.source = os.path.join(scratch.name, "source")
+        self.target = os.path.join(scratch.name, "target")
+        self.root = scratch.name
+        addon = os.path.join(self.source, "some_repo", "bool_tool")
+        os.makedirs(addon)
+        with open(os.path.join(addon, "blender_manifest.toml"), "w", encoding="utf-8") as handle:
+            handle.write('id = "bool_tool"\n')
+        appdata = os.path.join(scratch.name, "appdata")
+        self.own = os.path.join(appdata, "Blender Foundation", "Blender", "5.2", "extensions")
+        patcher = mock.patch.dict(os.environ, {"APPDATA": appdata})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    # The given folder's add-ons are copied and the result counts as prepared.
+    def test_copies_from_given_source(self):
+        self.assertEqual(extensions.prepare(self.target, self.source), ["bool_tool"])
+        manifest = os.path.join(self.target, "user_default", "bool_tool", "blender_manifest.toml")
+        self.assertTrue(os.path.isfile(manifest))
+        with mock.patch.dict(os.environ, {extensions.ENV_NAME: self.target}):
+            self.assertTrue(extensions.is_private())
+
+    # Without a source nothing is copied and the folder still counts as prepared.
+    def test_no_default_source(self):
+        self.assertEqual(extensions.prepare(self.target), [])
+        self.assertEqual(os.listdir(os.path.join(self.target, "user_default")), [])
+        self.assertTrue(os.path.isfile(os.path.join(self.target, extensions.MARKER)))
+
+    # The folders this run uses, a prepared folder and the user's own folder are never copied from.
+    def test_refuses_sources(self):
+        prepared = os.path.join(self.root, "prepared")
+        extensions.prepare(prepared)
+        for source in [self.own, prepared] + [f for f in extensions.running_folders() if f]:
+            with self.assertRaises(ValueError):
+                extensions.prepare(self.target, source)
+        self.assertFalse(os.path.exists(self.target))
+
+    # The user's own folder and the folders this run uses are never prepared.
+    def test_refuses_targets(self):
+        for target in [self.own] + [f for f in extensions.running_folders() if f]:
+            with self.assertRaises(ValueError):
+                extensions.prepare(target, self.source)
+        self.assertFalse(os.path.exists(self.own))
+
+    # A child Blender gets all five user folders inside its own root, and they exist.
+    def test_environment(self):
+        root = os.path.join(self.root, "child")
+        env = extensions.environment(root)
+        for name in ("RESOURCES", "CONFIG", "SCRIPTS", "EXTENSIONS", "DATAFILES"):
+            value = env["BLENDER_USER_" + name]
+            self.assertTrue(extensions.is_inside(value, [root]), name)
+            self.assertTrue(os.path.isdir(value), name)
 
 
 if __name__ == "__main__":

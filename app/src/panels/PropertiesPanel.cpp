@@ -17,6 +17,8 @@
 #include <plynth/core/Items.h>
 #include <plynth/core/RoomTypes.h>
 #include <plynth/core/Rooms.h>
+#include <plynth/core/Roofs.h>
+#include <plynth/core/Stairs.h>
 #include <plynth/core/WallGeometry.h>
 #include <plynth/core/OpeningShapes.h>
 #include <plynth/core/Openings.h>
@@ -28,7 +30,9 @@
 #include <plynth/core/commands/MaterialCommands.h>
 #include <plynth/core/commands/OpeningCommands.h>
 #include <plynth/core/commands/PointCommands.h>
+#include <plynth/core/commands/RoofCommands.h>
 #include <plynth/core/commands/RoomCommands.h>
+#include <plynth/core/commands/StairCommands.h>
 #include <plynth/core/commands/SettingsCommands.h>
 #include <plynth/core/commands/WallCommands.h>
 #include <plynth/core/detection/Detector.h>
@@ -44,7 +48,10 @@
 #include <QPainter>
 #include <QKeyEvent>
 #include <QLineEdit>
+#include <QApplication>
 #include <QPushButton>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QSlider>
 #include <QSpinBox>
 #include <QStackedWidget>
@@ -57,6 +64,33 @@ namespace plynth::app {
 
 namespace {
 
+// A stack that is as big as the page it shows, not as the biggest page, so a short page leaves nothing to scroll.
+class CurrentPageStack : public QStackedWidget {
+public:
+    using QStackedWidget::QStackedWidget;
+
+    QSize sizeHint() const override
+    {
+        const QWidget* page = currentWidget();
+        return page != nullptr ? page->sizeHint() : QStackedWidget::sizeHint();
+    }
+    QSize minimumSizeHint() const override
+    {
+        const QWidget* page = currentWidget();
+        return page != nullptr ? page->minimumSizeHint() : QStackedWidget::minimumSizeHint();
+    }
+    bool hasHeightForWidth() const override
+    {
+        const QWidget* page = currentWidget();
+        return page != nullptr && page->hasHeightForWidth();
+    }
+    int heightForWidth(int width) const override
+    {
+        const QWidget* page = currentWidget();
+        return page != nullptr ? page->heightForWidth(width) : -1;
+    }
+};
+
 constexpr int kBorderWidth = 1;
 constexpr int kNothingPage = 0;
 constexpr int kPointPage = 1;
@@ -66,6 +100,8 @@ constexpr int kDetectPage = 4;
 constexpr int kOpeningPage = 5;
 constexpr int kOpeningToolPage = 6;
 constexpr int kItemPage = 7;
+constexpr int kStairPage = 8;
+constexpr int kRoofPage = 9;
 
 // Turns a core text into Qt text.
 QString fromCore(const std::string& text)
@@ -88,7 +124,7 @@ PropertiesPanel::PropertiesPanel(plynth::Document& document, Selection& selectio
     column->setContentsMargins(t.unit() * 4, t.unit() * 3, t.unit() * 4 + kBorderWidth, t.unit() * 3);
     column->setSpacing(t.unit() * 3);
 
-    pages_ = new QStackedWidget(this);
+    pages_ = new CurrentPageStack(this);
     buildNothingPage();
     buildPointPage();
     buildWallPage();
@@ -97,8 +133,17 @@ PropertiesPanel::PropertiesPanel(plynth::Document& document, Selection& selectio
     buildOpeningPage();
     buildOpeningToolPage();
     buildItemPage();
-    column->addWidget(pages_);
-    column->addStretch(1);
+    buildStairPage();
+    buildRoofPage();
+    // Only the shown page scrolls. The Delete button stays below it, always in view.
+    scroll_ = new QScrollArea(this);
+    scroll_->setWidgetResizable(true);
+    scroll_->setFrameShape(QFrame::NoFrame);
+    scroll_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scroll_->setStyleSheet(QStringLiteral("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; }") +
+                           t.scrollBarStyleSheet());
+    scroll_->setWidget(pages_);
+    column->addWidget(scroll_, 1);
 
     deleteButton_ = new QPushButton(tr("Delete"), this);
     deleteButton_->setToolTip(tr("Delete the selected item and what depends on it (Delete)"));
@@ -111,6 +156,13 @@ PropertiesPanel::PropertiesPanel(plynth::Document& document, Selection& selectio
     for (QWidget* editor : editors_)
         if (qobject_cast<QComboBox*>(editor) != nullptr)
             editor->installEventFilter(this);
+    // The wheel scrolls the page unless the box has focus, so passing over a box never edits the plan.
+    for (QWidget* box : findChildren<QWidget*>())
+        if (qobject_cast<QAbstractSpinBox*>(box) != nullptr || qobject_cast<QComboBox*>(box) != nullptr ||
+            qobject_cast<QSlider*>(box) != nullptr) {
+            box->setFocusPolicy(Qt::StrongFocus);
+            box->installEventFilter(this);
+        }
     connect(&selection_, &Selection::changed, this, &PropertiesPanel::refresh);
     connect(&controller_, &ToolController::activeChanged, this, &PropertiesPanel::refresh);
     connect(&controller_.detection(), &DetectionSession::changed, this, &PropertiesPanel::refresh);
@@ -231,17 +283,6 @@ void PropertiesPanel::buildNothingPage()
         controller_.run(std::make_unique<plynth::SetGridSizeCommand>(gridSpin_->value()));
     });
 
-    ceilingSpin_ = addKeyedSpinRow(grid, tr("Ceiling height"), 0.5, 100.0, 0.05,
-                                   tr("Height of the ceiling of this floor. Walls without their own height use it."),
-                                   QStringLiteral("panel-ceiling-height"));
-    connect(ceilingSpin_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
-        const plynth::Floor* floor = controller_.floor();
-        if (refreshing_ || floor == nullptr)
-            return;
-        if (!controller_.run(std::make_unique<plynth::SetCeilingHeightCommand>(floor->id, value, focusKey_)).ok())
-            refresh();
-    });
-
     wallCentreSpin_ = addKeyedSpinRow(grid, tr("Wall item centre"), 0.05, 100.0, 0.05,
                                       tr("Height of the middle of a newly mounted wall item, such as a TV. It is saved with the project."),
                                       QStringLiteral("panel-wall-item-centre"));
@@ -254,10 +295,6 @@ void PropertiesPanel::buildNothingPage()
             refresh();
     });
 
-    pointCount_ = addLabelRow(grid, tr("Points"));
-    wallCount_ = addLabelRow(grid, tr("Walls"));
-    roomCount_ = addLabelRow(grid, tr("Rooms"));
-
     newWallSpin_ = addSpinRow(grid, tr("New walls"), 0.01, 10.0, 0.01,
                               tr("Thickness of the walls the Wall tool draws"), QStringLiteral("panel-new-wall-thickness"),
                               &newWallLabel_);
@@ -266,6 +303,16 @@ void PropertiesPanel::buildNothingPage()
         if (!refreshing_)
             controller_.setNewWallThickness(value);
     });
+
+    buildFloorSection(grid);
+
+    addMaterialSection(grid, tr("Roof default"));
+    buildRoofEditor(grid, roofDefault_, false);
+    unusedRoofBox_ = new QWidget(grid->parentWidget());
+    auto* unusedLayout = new QVBoxLayout(unusedRoofBox_);
+    unusedLayout->setContentsMargins(0, 0, 0, 0);
+    unusedLayout->setSpacing(Theme::instance().unit() * 2);
+    grid->addWidget(unusedRoofBox_, grid->rowCount(), 0, 1, 2);
 
     addMaterialSection(grid, tr("Default materials"));
     struct DefaultRow {
@@ -283,6 +330,9 @@ void PropertiesPanel::buildNothingPage()
         {plynth::Surface::Frame, "Frames", "The material of door and window frames"},
         {plynth::Surface::Glass, "Glass", "The material of window panes"},
         {plynth::Surface::Handle, "Handles", "The material of door handles"},
+        {plynth::Surface::Roof, "Roofs", "The material of the covering of pitched roofs, when the roof section names none"},
+        {plynth::Surface::FlatRoof, "Flat roofs", "The material of the covering of flat roofs, when the roof section names none"},
+        {plynth::Surface::Stair, "Stairs", "The material of steps and landings, when the stair names none"},
     };
     for (const DefaultRow& row : defaults) {
         plynth::MaterialTarget target;
@@ -293,6 +343,448 @@ void PropertiesPanel::buildNothingPage()
                        QStringLiteral("material-picker-default-%1").arg(QString::fromUtf8(surface.data(), static_cast<qsizetype>(surface.size()))),
                        target);
     }
+}
+
+// The Floor group of the page for nothing selected: name, ceiling, slab, plan image, where the image sits and
+// the counts of the shown floor.
+void PropertiesPanel::buildFloorSection(QGridLayout* grid)
+{
+    const Theme& t = Theme::instance();
+    addMaterialSection(grid, tr("Floor"));
+
+    auto* nameLabel = new QLabel(tr("Name"), grid->parentWidget());
+    nameLabel->setFont(t.uiFont(t.sizeSmall()));
+    nameLabel->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
+    floorName_ = new QLineEdit(grid->parentWidget());
+    floorName_->setFont(t.uiFont(t.sizeNormal()));
+    floorName_->setStyle(t.controlStyle());
+    floorName_->setToolTip(tr("The name of this floor, shown on its tab"));
+    floorName_->setProperty("tourId", QStringLiteral("panel-floor-name"));
+    nameLabel->setToolTip(floorName_->toolTip());
+    const int nameRow = grid->rowCount();
+    grid->addWidget(nameLabel, nameRow, 0, Qt::AlignVCenter);
+    grid->addWidget(floorName_, nameRow, 1);
+    editors_.push_back(floorName_);
+    connect(floorName_, &QLineEdit::editingFinished, this, [this]() {
+        const plynth::Floor* floor = controller_.floor();
+        if (refreshing_ || floor == nullptr)
+            return;
+        const std::string name = floorName_->text().trimmed().toStdString();
+        if (name == floor->name)
+            return;
+        if (name.empty() || !controller_.run(std::make_unique<plynth::SetFloorNameCommand>(floor->id, name)).ok())
+            refresh();
+    });
+
+    ceilingSpin_ = addKeyedSpinRow(grid, tr("Ceiling height"), 0.5, 100.0, 0.05,
+                                   tr("Height of the ceiling of this floor. Walls without their own height use it."),
+                                   QStringLiteral("panel-ceiling-height"));
+    connect(ceilingSpin_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
+        const plynth::Floor* floor = controller_.floor();
+        if (refreshing_ || floor == nullptr)
+            return;
+        if (!controller_.run(std::make_unique<plynth::SetCeilingHeightCommand>(floor->id, value, focusKey_)).ok())
+            refresh();
+    });
+
+    slabSpin_ = addKeyedSpinRow(grid, tr("Slab thickness"), plynth::kMinSlabThickness, plynth::kMaxSlabThickness, 0.01,
+                                tr("Thickness of the slab between this floor and the next one up, or under the roof. It adds to the height between the two floor levels."),
+                                QStringLiteral("panel-slab-thickness"));
+    connect(slabSpin_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
+        const plynth::Floor* floor = controller_.floor();
+        if (refreshing_ || floor == nullptr)
+            return;
+        if (!controller_.run(std::make_unique<plynth::SetSlabThicknessCommand>(floor->id, value, focusKey_)).ok())
+            refresh();
+    });
+
+    floorImage_ = addLabelRow(grid, tr("Plan image"));
+    floorImage_->setToolTip(tr("The plan image of this floor"));
+    auto* choose = new QPushButton(tr("Choose image..."), grid->parentWidget());
+    choose->setToolTip(tr("Pick another plan image for this floor (Ctrl+Shift+O)"));
+    choose->setProperty("tourId", QStringLiteral("panel-floor-image"));
+    grid->addWidget(choose, grid->rowCount(), 1);
+    editors_.push_back(choose);
+    connect(choose, &QPushButton::clicked, this, &PropertiesPanel::planImageRequested);
+
+    const QString offsetTip = tr("Where the plan image of this floor sits on the plan. Line it up with the floor below, by hand here or with View > Align plan image");
+    offsetX_ = addKeyedSpinRow(grid, tr("Image offset X"), -100000.0, 100000.0, 0.01, offsetTip,
+                               QStringLiteral("panel-image-offset-x"));
+    offsetY_ = addKeyedSpinRow(grid, tr("Image offset Y"), -100000.0, 100000.0, 0.01, offsetTip,
+                               QStringLiteral("panel-image-offset-y"));
+    moveMarks_ = new QCheckBox(tr("Move marks with the image"), grid->parentWidget());
+    moveMarks_->setFont(t.uiFont(t.sizeNormal()));
+    moveMarks_->setStyle(t.controlStyle());
+    moveMarks_->setChecked(true);
+    moveMarks_->setToolTip(tr("When on, the walls, rooms, openings, items and stairs of this floor move with the image. When off, only the image moves."));
+    moveMarks_->setProperty("tourId", QStringLiteral("panel-move-marks"));
+    grid->addWidget(moveMarks_, grid->rowCount(), 0, 1, 2);
+    editors_.push_back(moveMarks_);
+    connect(offsetX_, &QDoubleSpinBox::valueChanged, this, [this]() { editImageOffset(true); });
+    connect(offsetY_, &QDoubleSpinBox::valueChanged, this, [this]() { editImageOffset(false); });
+
+    pointCount_ = addLabelRow(grid, tr("Points"));
+    wallCount_ = addLabelRow(grid, tr("Walls"));
+    roomCount_ = addLabelRow(grid, tr("Rooms"));
+}
+
+// Moves the image of the shown floor to the offset in the two boxes.
+void PropertiesPanel::editImageOffset(bool xChanged)
+{
+    Q_UNUSED(xChanged);
+    const plynth::Floor* floor = controller_.floor();
+    if (refreshing_ || floor == nullptr)
+        return;
+    const plynth::ImageOffset offset{offsetX_->value(), offsetY_->value()};
+    if (!controller_.run(std::make_unique<plynth::SetFloorImageOffsetCommand>(floor->id, offset, moveMarks_->isChecked(),
+                                                                              focusKey_)).ok())
+        refresh();
+}
+
+// The page for a selected stair: type, width, turn, the numbers worked out for it, its problems and its material.
+void PropertiesPanel::buildStairPage()
+{
+    const Theme& t = Theme::instance();
+    QGridLayout* grid = nullptr;
+    makePage(&grid);
+    stairId_ = addLabelRow(grid, tr("Stair"));
+    stairFloors_ = addLabelRow(grid, tr("Goes"));
+    stairFloors_->setToolTip(tr("The floor the stair starts on and the floor it reaches"));
+    stairType_ = addComboRow(grid, tr("Type"), tr("The shape of the stair: straight, L, U or spiral"),
+                             QStringLiteral("panel-stair-type"));
+    for (const plynth::StairType* type : plynth::allStairTypes())
+        stairType_->addItem(fromCore(std::string(type->name())), fromCore(std::string(type->id())));
+    stairWidth_ = addSpinRow(grid, tr("Width"), plynth::kMinStairWidth, plynth::kMaxStairWidth, 0.05,
+                             tr("Width of the stair across the steps"), QStringLiteral("panel-stair-width"));
+    stairTurn_ = addComboRow(grid, tr("Turn"), tr("Which way an L or U stair turns, or a spiral winds, seen while climbing"),
+                             QStringLiteral("panel-stair-turn"), &stairTurnLabel_);
+    stairTurn_->addItem(tr("Left"), QStringLiteral("left"));
+    stairTurn_->addItem(tr("Right"), QStringLiteral("right"));
+
+    stairRise_ = addLabelRow(grid, tr("Rise"));
+    stairRise_->setToolTip(tr("The height the stair climbs, from the floor to the floor above"));
+    stairRisers_ = addLabelRow(grid, tr("Risers"));
+    stairRisers_->setToolTip(tr("How many steps up, counting the last one onto the upper floor"));
+    stairRiser_ = addLabelRow(grid, tr("Riser height"));
+    stairRiser_->setToolTip(tr("The height of one step"));
+    stairGoing_ = addLabelRow(grid, tr("Going"));
+    stairGoing_->setToolTip(tr("The depth of one tread"));
+    stairLength_ = addLabelRow(grid, tr("Length"));
+    stairLength_->setToolTip(tr("The length of the walk line from the bottom step to the upper floor"));
+    stairProblems_ = new QLabel(grid->parentWidget());
+    stairProblems_->setFont(t.uiFont(t.sizeSmall()));
+    stairProblems_->setWordWrap(true);
+    stairProblems_->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
+    stairProblems_->setToolTip(tr("What is wrong with this stair now"));
+    grid->addWidget(stairProblems_, grid->rowCount(), 0, 1, 2);
+
+    addMaterialSection(grid, tr("Materials"));
+    plynth::MaterialTarget steps;
+    steps.kind = plynth::MaterialTarget::Kind::Stair;
+    addMaterialRow(grid, tr("Steps"), tr("The material of the steps and landings of this stair. Without one, the project default for stairs shows"),
+                   QStringLiteral("material-picker-stair"), steps);
+
+    connect(stairType_, &QComboBox::activated, this, [this](int index) {
+        const std::string type = stairType_->itemData(index).toString().toStdString();
+        editStair([type](plynth::Stair& stair) { stair.type = type; });
+    });
+    connect(stairTurn_, &QComboBox::activated, this, [this](int index) {
+        const bool left = stairTurn_->itemData(index).toString() == QStringLiteral("left");
+        editStair([left](plynth::Stair& stair) { stair.turn = left ? plynth::StairTurn::Left : plynth::StairTurn::Right; });
+    });
+    connect(stairWidth_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
+        editStair([value](plynth::Stair& stair) { stair.width = value; });
+    });
+}
+
+// Runs SetStairCommand with the selected stair after a change. The boxes go back to the real values on a refusal.
+void PropertiesPanel::editStair(const std::function<void(plynth::Stair&)>& change)
+{
+    if (refreshing_ || selection_.kind() != SelectionKind::Stair)
+        return;
+    const plynth::Floor* floor = controller_.floor();
+    if (floor == nullptr)
+        return;
+    const std::string id = selection_.id().toStdString();
+    for (const plynth::Stair& stair : floor->stairs) {
+        if (stair.id != id)
+            continue;
+        plynth::Stair values = stair;
+        change(values);
+        if (values == stair)
+            return;
+        if (!controller_.run(std::make_unique<plynth::SetStairCommand>(id, values)).ok())
+            refresh();
+        return;
+    }
+}
+
+// Fills the page for a selected stair.
+void PropertiesPanel::refreshStair()
+{
+    const plynth::Floor* floor = controller_.floor();
+    if (floor == nullptr)
+        return;
+    const std::string id = selection_.id().toStdString();
+    const plynth::Stair* stair = nullptr;
+    for (const plynth::Stair& candidate : floor->stairs)
+        if (candidate.id == id)
+            stair = &candidate;
+    if (stair == nullptr)
+        return;
+    stairId_->setText(fromCore(stair->id));
+    const plynth::StairLayout layout = plynth::stairLayout(document_.plan(), *floor, *stair);
+    const plynth::Floor* upper = nullptr;
+    for (std::size_t i = 0; i + 1 < document_.plan().floors.size(); ++i)
+        if (document_.plan().floors[i].id == floor->id)
+            upper = &document_.plan().floors[i + 1];
+    const auto floorName = [](const plynth::Floor& f) { return f.name.empty() ? fromCore(f.id) : fromCore(f.name); };
+    stairFloors_->setText(upper != nullptr ? tr("%1 to %2").arg(floorName(*floor), floorName(*upper))
+                                           : tr("%1, no floor above").arg(floorName(*floor)));
+    const int typeIndex = stairType_->findData(fromCore(stair->type));
+    if (typeIndex < 0) {
+        stairType_->addItem(fromCore(stair->type), fromCore(stair->type));
+        stairType_->setCurrentIndex(stairType_->count() - 1);
+    } else {
+        stairType_->setCurrentIndex(typeIndex);
+    }
+    setSpin(stairWidth_, stair->width);
+    const plynth::StairType* type = plynth::findStairType(stair->type);
+    const bool usesTurn = type != nullptr && type->usesTurn();
+    stairTurn_->setVisible(usesTurn);
+    stairTurnLabel_->setVisible(usesTurn);
+    stairTurn_->setCurrentIndex(stair->turn == plynth::StairTurn::Left ? 0 : 1);
+
+    QStringList problems;
+    if (layout.status.ok()) {
+        stairRise_->setText(tr("%1 m").arg(layout.rise, 0, 'f', 3));
+        stairRisers_->setText(QString::number(layout.riserCount));
+        stairRiser_->setText(tr("%1 m").arg(layout.riser, 0, 'f', 3));
+        stairGoing_->setText(tr("%1 m").arg(layout.going, 0, 'f', 3));
+        stairLength_->setText(tr("%1 m").arg(layout.length, 0, 'f', 2));
+    } else {
+        for (QLabel* label : {stairRise_, stairRisers_, stairRiser_, stairGoing_, stairLength_})
+            label->setText(tr("none"));
+        problems << fromCore(layout.status.message);
+    }
+    for (const plynth::StairProblem& problem : plynth::stairProblems(document_.plan(), *floor))
+        if (problem.stair == stair->id)
+            problems << fromCore(problem.message);
+    stairProblems_->setText(problems.join(QLatin1Char('\n')));
+    stairProblems_->setVisible(!problems.isEmpty());
+    refreshMaterialRows(kStairPage);
+}
+
+// Adds the rows of one roof settings group: type, then the fields the type uses (shown by fillRoofEditor).
+void PropertiesPanel::buildRoofEditor(QGridLayout* grid, RoofEditor& editor, bool section)
+{
+    const Theme& t = Theme::instance();
+    const QString who = section ? tr("this roof section") : tr("every roof section that has no settings of its own");
+    const QString prefix = section ? QStringLiteral("panel-roof-") : QStringLiteral("panel-roof-default-");
+    editor.type = addComboRow(grid, tr("Type"), tr("The shape of the roof of %1").arg(who), prefix + QStringLiteral("type"));
+    for (const plynth::RoofType* type : plynth::allRoofTypes())
+        editor.type->addItem(fromCore(std::string(type->name())), fromCore(std::string(type->id())));
+    editor.pitch = addSpinRow(grid, tr("Pitch"), plynth::kMinPitchedRoofPitch, plynth::kMaxRoofPitch, 1.0,
+                              tr("How steep the roof slopes, in degrees from level"), prefix + QStringLiteral("pitch"),
+                              &editor.pitchLabel);
+    editor.pitch->setDecimals(1);
+    editor.pitch->setSuffix(QStringLiteral("°"));
+    editor.autoDirection = new QCheckBox(tr("Automatic direction"), grid->parentWidget());
+    editor.autoDirection->setFont(t.uiFont(t.sizeNormal()));
+    editor.autoDirection->setStyle(t.controlStyle());
+    editor.autoDirection->setToolTip(tr("When on, the ridge runs along the longer side of the section. Turn it off to set the direction."));
+    editor.autoDirection->setProperty("tourId", prefix + QStringLiteral("auto-direction"));
+    grid->addWidget(editor.autoDirection, grid->rowCount(), 0, 1, 2);
+    editors_.push_back(editor.autoDirection);
+    editor.direction = addSpinRow(grid, tr("Direction"), 0.0, 359.9, 5.0,
+                                  tr("The way the ridge runs, or the way a shed roof falls, in degrees clockwise on the plan from the right"),
+                                  prefix + QStringLiteral("direction"), &editor.directionLabel);
+    editor.direction->setDecimals(1);
+    editor.direction->setSuffix(QStringLiteral("°"));
+    editor.overhang = addSpinRow(grid, tr("Overhang"), 0.0, plynth::kMaxRoofOverhang, 0.05,
+                                 tr("How far the roof reaches past the outer walls. A flat roof with a parapet has none."),
+                                 prefix + QStringLiteral("overhang"), &editor.overhangLabel);
+    editor.parapet = addSpinRow(grid, tr("Parapet"), 0.0, plynth::kMaxParapet, 0.05,
+                                tr("Height of the low wall around a flat roof. Zero for none."),
+                                prefix + QStringLiteral("parapet"), &editor.parapetLabel);
+
+    RoofEditor* self = &editor;
+    const auto edited = [this, self, section]() {
+        if (refreshing_)
+            return;
+        if (!section) {
+            editRoofDefault();
+            return;
+        }
+        const plynth::RoofSettings values = readRoofEditor(*self);
+        editRoofSection([values](plynth::RoofSettings& settings, std::optional<std::string>&) { settings = values; });
+    };
+    connect(editor.type, &QComboBox::activated, this, [edited](int) { edited(); });
+    connect(editor.pitch, &QDoubleSpinBox::valueChanged, this, [edited](double) { edited(); });
+    connect(editor.direction, &QDoubleSpinBox::valueChanged, this, [edited](double) { edited(); });
+    connect(editor.overhang, &QDoubleSpinBox::valueChanged, this, [edited](double) { edited(); });
+    connect(editor.parapet, &QDoubleSpinBox::valueChanged, this, [edited](double) { edited(); });
+    connect(editor.autoDirection, &QCheckBox::clicked, this, [edited](bool) { edited(); });
+}
+
+// The settings the boxes of a group show. A direction is empty while Auto is on.
+plynth::RoofSettings PropertiesPanel::readRoofEditor(const RoofEditor& editor) const
+{
+    plynth::RoofSettings settings;
+    settings.type = editor.type->currentData().toString().toStdString();
+    settings.pitch = editor.pitch->value();
+    settings.overhang = editor.overhang->value();
+    settings.parapet = editor.parapet->value();
+    if (!editor.autoDirection->isChecked())
+        settings.direction = editor.direction->value();
+    return settings;
+}
+
+// Shows settings in a group and hides the fields the type does not use.
+void PropertiesPanel::fillRoofEditor(const RoofEditor& editor, const plynth::RoofSettings& settings)
+{
+    int index = editor.type->findData(fromCore(settings.type));
+    if (index < 0) {
+        editor.type->addItem(fromCore(settings.type), fromCore(settings.type));
+        index = editor.type->count() - 1;
+    }
+    editor.type->setCurrentIndex(index);
+    setSpin(editor.pitch, settings.pitch);
+    setSpin(editor.overhang, settings.overhang);
+    setSpin(editor.parapet, settings.parapet);
+    setSpin(editor.direction, settings.direction.value_or(editor.direction->value()));
+    const bool before = editor.autoDirection->blockSignals(true);
+    editor.autoDirection->setChecked(!settings.direction.has_value());
+    editor.autoDirection->blockSignals(before);
+    const plynth::RoofType* type = plynth::findRoofType(settings.type);
+    const bool pitch = type != nullptr && type->usesPitch();
+    const bool direction = type != nullptr && type->usesDirection();
+    const bool parapet = type != nullptr && type->usesParapet();
+    const bool overhang = type != nullptr && type->usesOverhang() && !(parapet && settings.parapet > 0.0);
+    editor.pitch->setVisible(pitch);
+    editor.pitchLabel->setVisible(pitch);
+    editor.autoDirection->setVisible(direction);
+    editor.direction->setVisible(direction && settings.direction.has_value());
+    editor.directionLabel->setVisible(direction && settings.direction.has_value());
+    editor.overhang->setVisible(overhang);
+    editor.overhangLabel->setVisible(overhang);
+    editor.parapet->setVisible(parapet);
+    editor.parapetLabel->setVisible(parapet);
+}
+
+// Runs SetRoofDefaultCommand with what the Roof default group shows. The boxes go back on a refusal.
+void PropertiesPanel::editRoofDefault()
+{
+    if (refreshing_)
+        return;
+    const plynth::RoofSettings values = readRoofEditor(roofDefault_);
+    if (values == document_.plan().roof)
+        return;
+    if (!controller_.run(std::make_unique<plynth::SetRoofDefaultCommand>(values)).ok())
+        refresh();
+}
+
+// The selected roof section, from its "<floor>:<index>" id. Empty when it is no longer there.
+std::optional<plynth::RoofArea> PropertiesPanel::selectedRoof() const
+{
+    if (selection_.kind() != SelectionKind::RoofSection)
+        return std::nullopt;
+    const QString id = selection_.id();
+    const qsizetype colon = id.lastIndexOf(QLatin1Char(':'));
+    if (colon <= 0)
+        return std::nullopt;
+    bool ok = false;
+    const int index = id.mid(colon + 1).toInt(&ok);
+    if (!ok || index < 0)
+        return std::nullopt;
+    const std::vector<plynth::RoofArea> areas = plynth::roofAreasOf(document_.plan(), id.left(colon).toStdString());
+    if (static_cast<std::size_t>(index) >= areas.size())
+        return std::nullopt;
+    return areas[static_cast<std::size_t>(index)];
+}
+
+// Changes the selected roof section. A section that follows the default gets an entry at its label point.
+void PropertiesPanel::editRoofSection(const std::function<void(plynth::RoofSettings&, std::optional<std::string>&)>& change)
+{
+    if (refreshing_)
+        return;
+    const std::optional<plynth::RoofArea> area = selectedRoof();
+    if (!area)
+        return;
+    plynth::RoofSettings settings = area->settings;
+    std::optional<std::string> material = area->material;
+    change(settings, material);
+    if (settings == area->settings && material == area->material)
+        return;
+    std::unique_ptr<plynth::Command> command;
+    if (area->section.empty())
+        command = std::make_unique<plynth::AddRoofSectionCommand>(area->floor, area->labelPoint.x, area->labelPoint.y,
+                                                                 settings, material);
+    else
+        command = std::make_unique<plynth::SetRoofSectionCommand>(area->section, settings, material);
+    if (!controller_.run(std::move(command)).ok())
+        refresh();
+}
+
+// The page for a selected roof section: its floor and area, the settings its type uses, the covering and
+// the button that gives it back to the default.
+void PropertiesPanel::buildRoofPage()
+{
+    QGridLayout* grid = nullptr;
+    makePage(&grid);
+    roofFloor_ = addLabelRow(grid, tr("Floor"));
+    roofFloor_->setToolTip(tr("The floor this roof section sits on"));
+    roofArea_ = addLabelRow(grid, tr("Area"));
+    roofArea_->setToolTip(tr("The plan area this roof section covers"));
+    roofEntry_ = addLabelRow(grid, tr("Settings"));
+    roofEntry_->setToolTip(tr("Whether this section has settings of its own or follows the roof default"));
+    buildRoofEditor(grid, roofSection_, true);
+
+    addMaterialSection(grid, tr("Materials"));
+    plynth::MaterialTarget covering;
+    covering.kind = plynth::MaterialTarget::Kind::Roof;
+    addMaterialRow(grid, tr("Covering"),
+                   tr("The material of the covering of this roof section. Without one, the project default for this kind of roof shows"),
+                   QStringLiteral("material-picker-roof"), covering);
+
+    roofUseDefault_ = new QPushButton(tr("Use the default"), grid->parentWidget());
+    roofUseDefault_->setToolTip(tr("Remove the settings of this section so it follows the roof default again"));
+    roofUseDefault_->setProperty("tourId", QStringLiteral("panel-roof-use-default"));
+    grid->addWidget(roofUseDefault_, grid->rowCount(), 0, 1, 2);
+    editors_.push_back(roofUseDefault_);
+    connect(roofUseDefault_, &QPushButton::clicked, this, [this]() {
+        const std::optional<plynth::RoofArea> area = selectedRoof();
+        if (refreshing_ || !area || area->section.empty())
+            return;
+        controller_.run(std::make_unique<plynth::RemoveRoofSectionCommand>(area->section));
+    });
+}
+
+// Fills the page for a selected roof section.
+void PropertiesPanel::refreshRoof()
+{
+    const std::optional<plynth::RoofArea> area = selectedRoof();
+    if (!area)
+        return;
+    const plynth::Floor* floor = plynth::findFloor(document_.plan(), area->floor);
+    roofFloor_->setText(floor == nullptr ? fromCore(area->floor)
+                                         : fromCore(floor->name.empty() ? floor->id : floor->name));
+    roofArea_->setText(QStringLiteral("%1 m²").arg(plynth::planAreaSize(area->area), 0, 'f', 2));
+    roofEntry_->setText(area->section.empty() ? tr("Roof default") : fromCore(area->section));
+    fillRoofEditor(roofSection_, area->settings);
+    roofUseDefault_->setEnabled(!area->section.empty() && !document_.isReadOnly());
+    refreshMaterialRows(kRoofPage);
+}
+
+// The material a target shows now. A roof target means the selected roof section, which may follow the default.
+plynth::ResolvedMaterial PropertiesPanel::resolveMaterial(const plynth::MaterialTarget& target) const
+{
+    if (target.kind == plynth::MaterialTarget::Kind::Roof) {
+        const std::optional<plynth::RoofArea> area = selectedRoof();
+        return area ? plynth::roofPartMaterial(document_.project(), *area, plynth::RoofPart::Covering)
+                    : plynth::ResolvedMaterial{};
+    }
+    return plynth::materialAt(document_.project(), target);
 }
 
 // The page for a selected point: id, position and the walls that use it.
@@ -760,7 +1252,7 @@ void PropertiesPanel::refreshMaterialRows(int page)
         if (slot.page != page)
             continue;
         const plynth::MaterialTarget target = targetFor(slot.target, selection_.id());
-        const plynth::ResolvedMaterial resolved = plynth::materialAt(document_.project(), target);
+        const plynth::ResolvedMaterial resolved = resolveMaterial(target);
         QString note;
         switch (resolved.origin) {
         case plynth::MaterialOrigin::Wall:
@@ -774,6 +1266,12 @@ void PropertiesPanel::refreshMaterialRows(int page)
             break;
         case plynth::MaterialOrigin::None:
             note = tr("neutral look");
+            break;
+        case plynth::MaterialOrigin::Stair:
+            note = tr("set on this stair");
+            break;
+        case plynth::MaterialOrigin::Roof:
+            note = tr("set on this roof section");
             break;
         }
         if (target.kind == plynth::MaterialTarget::Kind::Default)
@@ -833,7 +1331,7 @@ void PropertiesPanel::openPicker(size_t slotIndex, const QString& hoverMaterial)
     pickTarget_ = targetFor(slot.target, selection_.id());
     pickGeneratorParam_.clear();
     ensurePicker();
-    const plynth::ResolvedMaterial resolved = plynth::materialAt(document_.project(), pickTarget_);
+    const plynth::ResolvedMaterial resolved = resolveMaterial(pickTarget_);
     const bool isDefault = pickTarget_.kind == plynth::MaterialTarget::Kind::Default;
     // The picker opens beside the whole panel, so the row labels stay readable.
     const QPoint anchor(mapTo(window(), QPoint(0, 0)).x(), slot.row->mapTo(window(), QPoint(0, 0)).y());
@@ -869,6 +1367,12 @@ void PropertiesPanel::applyMaterial(const plynth::MaterialTarget& target, const 
     case plynth::MaterialTarget::Kind::Default:
         command = std::make_unique<plynth::SetDefaultMaterialCommand>(target.surface, material);
         break;
+    case plynth::MaterialTarget::Kind::Stair:
+        editStair([&material](plynth::Stair& stair) { stair.material = material; });
+        return;
+    case plynth::MaterialTarget::Kind::Roof:
+        editRoofSection([&material](plynth::RoofSettings&, std::optional<std::string>& covering) { covering = material; });
+        return;
     }
     controller_.run(std::move(command));
 }
@@ -887,6 +1391,20 @@ bool PropertiesPanel::openMaterialPicker(const QString& text, const QString& hov
     case plynth::MaterialTarget::Kind::Room:
         selection_.set(SelectionKind::Room, fromCore(target.object));
         break;
+    case plynth::MaterialTarget::Kind::Stair:
+        selection_.set(SelectionKind::Stair, fromCore(target.object));
+        break;
+    case plynth::MaterialTarget::Kind::Roof:
+        selection_.clear();
+        for (const plynth::RoofSection& entry : document_.plan().roofSections) {
+            if (entry.id != target.object)
+                continue;
+            for (const plynth::RoofArea& area : plynth::roofAreasOf(document_.plan(), entry.floor))
+                if (area.section == entry.id)
+                    selection_.set(SelectionKind::RoofSection,
+                                   fromCore(entry.floor) + QLatin1Char(':') + QString::number(area.index));
+        }
+        break;
     case plynth::MaterialTarget::Kind::Default:
         selection_.clear();
         break;
@@ -897,6 +1415,7 @@ bool PropertiesPanel::openMaterialPicker(const QString& text, const QString& hov
         const bool same = own.kind == target.kind &&
                           (target.kind == plynth::MaterialTarget::Kind::Wall   ? own.wallFace == target.wallFace
                            : target.kind == plynth::MaterialTarget::Kind::Room ? own.roomSurface == target.roomSurface
+                           : target.kind == plynth::MaterialTarget::Kind::Stair || target.kind == plynth::MaterialTarget::Kind::Roof ? true
                                                                                : own.surface == target.surface);
         if (same && materialSlots_[i].page == pages_->currentIndex()) {
             openPicker(i, hoverMaterial);
@@ -911,6 +1430,15 @@ bool PropertiesPanel::openMaterialPicker(const QString& text, const QString& hov
 // Gives the thickness box a new merge key each time it gets focus, so one visit is one undo step.
 bool PropertiesPanel::eventFilter(QObject* watched, QEvent* event)
 {
+    if (event->type() == QEvent::Wheel) {
+        auto* box = qobject_cast<QWidget*>(watched);
+        const bool isBox = qobject_cast<QAbstractSpinBox*>(watched) != nullptr || qobject_cast<QComboBox*>(watched) != nullptr ||
+                           qobject_cast<QSlider*>(watched) != nullptr;
+        if (isBox && box != nullptr && !box->hasFocus() && !box->isAncestorOf(QApplication::focusWidget())) {
+            QCoreApplication::sendEvent(scroll_->verticalScrollBar(), event);
+            return true;
+        }
+    }
     if (event->type() == QEvent::FocusIn)
         for (QDoubleSpinBox* spin : keyedSpins_)
             if (watched == spin || watched->parent() == spin)
@@ -980,17 +1508,81 @@ void PropertiesPanel::refresh()
         page = kItemPage;
         refreshItem();
         break;
+    case SelectionKind::Stair:
+        page = kStairPage;
+        refreshStair();
+        break;
+    case SelectionKind::RoofSection:
+        if (selectedRoof()) {
+            page = kRoofPage;
+            refreshRoof();
+        } else if (!detecting && !placing) {
+            refreshNothing();
+        }
+        break;
     default:
         if (!detecting && !placing)
             refreshNothing();
         break;
     }
     pages_->setCurrentIndex(page);
-    deleteButton_->setVisible(!selection_.isEmpty() && !detecting && !placing);
+    pages_->updateGeometry();
+    deleteButton_->setVisible(!selection_.isEmpty() && selection_.kind() != SelectionKind::RoofSection && !detecting && !placing);
     for (QWidget* editor : editors_)
         editor->setEnabled(!readOnly);
     wallHeight_->setEnabled(!readOnly && wallOwnHeight_->isChecked());
     refreshing_ = false;
+}
+
+// Lists the roof entries that govern no section, each with a Remove button that runs RemoveRoofSectionCommand.
+void PropertiesPanel::refreshUnusedRoofEntries()
+{
+    const Theme& t = Theme::instance();
+    auto* layout = static_cast<QVBoxLayout*>(unusedRoofBox_->layout());
+    while (QLayoutItem* item = layout->takeAt(0)) {
+        if (QWidget* widget = item->widget()) {
+            widget->hide();
+            widget->deleteLater();
+        }
+        delete item;
+    }
+    const plynth::Plan& plan = document_.plan();
+    const std::vector<plynth::Id> unused = plynth::unusedRoofSections(plan);
+    unusedRoofBox_->setVisible(!unused.empty());
+    if (unused.empty())
+        return;
+    auto* title = new QLabel(tr("Unused roof entries"), unusedRoofBox_);
+    title->setFont(t.uiFont(t.sizeSmall(), QFont::DemiBold));
+    title->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
+    title->setToolTip(tr("Settings kept for a roof section that no longer exists at that spot. Remove them to clear the warning."));
+    layout->addWidget(title);
+    for (const plynth::Id& id : unused) {
+        const plynth::RoofSection* entry = nullptr;
+        for (const plynth::RoofSection& candidate : plan.roofSections)
+            if (candidate.id == id)
+                entry = &candidate;
+        if (entry == nullptr)
+            continue;
+        auto* row = new QWidget(unusedRoofBox_);
+        auto* rowLayout = new QHBoxLayout(row);
+        rowLayout->setContentsMargins(0, 0, 0, 0);
+        auto* text = new QLabel(fromCore(entry->id) + QStringLiteral("  ") + fromCore(entry->floor) +
+                                    QStringLiteral(" (%1, %2)").arg(entry->x, 0, 'f', 2).arg(entry->y, 0, 'f', 2),
+                                row);
+        text->setFont(t.monoFont(t.sizeNormal()));
+        text->setToolTip(tr("A roof entry on this floor whose spot holds no roof section"));
+        rowLayout->addWidget(text, 1);
+        auto* remove = new QPushButton(tr("Remove"), row);
+        remove->setToolTip(tr("Remove this unused roof entry. Undo brings it back."));
+        remove->setProperty("tourId", QStringLiteral("panel-roof-unused-remove"));
+        remove->setEnabled(!document_.isReadOnly());
+        rowLayout->addWidget(remove);
+        connect(remove, &QPushButton::clicked, this, [this, id]() {
+            if (!refreshing_)
+                controller_.run(std::make_unique<plynth::RemoveRoofSectionCommand>(id));
+        });
+        layout->addWidget(row);
+    }
 }
 
 // Fills the page for nothing selected.
@@ -1007,11 +1599,33 @@ void PropertiesPanel::refreshNothing()
     }
     scaleHint_->setVisible(!scaleHint_->text().isEmpty());
     setSpin(gridSpin_, document_.project().settings.gridSize);
-    setSpin(ceilingSpin_, controller_.floor() ? controller_.floor()->ceilingHeight : 0.0);
     const plynth::Floor* floor = controller_.floor();
+    const bool otherFloor = floor != nullptr && floor->id != shownFloorId_;
+    if (floor != nullptr)
+        shownFloorId_ = floor->id;
+    if (otherFloor) {
+        // Text typed for the floor that was shown must not be committed to this one when focus leaves.
+        floorName_->setText(fromCore(floor->name));
+        for (QDoubleSpinBox* spin : {ceilingSpin_, slabSpin_, offsetX_, offsetY_}) {
+            const double now = spin->value();
+            const bool before = spin->blockSignals(true);
+            spin->setValue(now == spin->minimum() ? now + spin->singleStep() : now - spin->singleStep());
+            spin->setValue(now);
+            spin->blockSignals(before);
+        }
+    }
+    setSpin(ceilingSpin_, floor ? floor->ceilingHeight : 0.0);
+    setSpin(slabSpin_, floor ? floor->slabThickness : plynth::kDefaultSlabThickness);
+    setSpin(offsetX_, floor ? floor->imageOffset.x : 0.0);
+    setSpin(offsetY_, floor ? floor->imageOffset.y : 0.0);
+    if (floor != nullptr && !floorName_->hasFocus())
+        floorName_->setText(fromCore(floor->name));
+    floorImage_->setText(floor != nullptr && floor->image.has_value() ? fromCore(*floor->image) : tr("None"));
     pointCount_->setText(QString::number(floor ? floor->points.size() : 0));
     wallCount_->setText(QString::number(floor ? floor->walls.size() : 0));
     roomCount_->setText(QString::number(floor ? floor->rooms.size() : 0));
+    fillRoofEditor(roofDefault_, document_.plan().roof);
+    refreshUnusedRoofEntries();
     setSpin(newWallSpin_, controller_.newWallThickness());
     const bool wallTool = controller_.active() == ToolId::Wall;
     newWallSpin_->setVisible(wallTool);
@@ -1902,6 +2516,9 @@ void PropertiesPanel::buildGeneratorBody(const plynth::Item& item, const plynth:
             }
             editor->setToolTip(tip);
             editor->setProperty("tourId", QStringLiteral("generator-param-") + fromCore(param.id));
+            // As for the fixed boxes of the panel: the wheel scrolls the page unless the box has focus.
+            if (qobject_cast<QAbstractSpinBox*>(editor) != nullptr || qobject_cast<QComboBox*>(editor) != nullptr)
+                editor->setFocusPolicy(Qt::StrongFocus);
             if (qobject_cast<QAbstractSpinBox*>(editor) != nullptr) {
                 editor->installEventFilter(this);
                 if (auto* edit = editor->findChild<QLineEdit*>())

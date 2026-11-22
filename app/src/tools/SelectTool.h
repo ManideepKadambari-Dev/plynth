@@ -1,5 +1,6 @@
 #pragma once
 
+#include "tools/StairTool.h"
 #include "tools/Tool.h"
 
 #include <plynth/core/Plan.h>
@@ -14,7 +15,7 @@ namespace plynth::app {
 // handle of the selected wall, and turns the selected item with its rotation handle.
 class SelectTool : public Tool {
 public:
-    explicit SelectTool(ToolController& host) : Tool(host) {}
+    explicit SelectTool(ToolController& host) : Tool(host), stairs_(host) {}
 
     ToolId id() const override { return ToolId::Select; }
     QString hint() const override;
@@ -53,6 +54,7 @@ private:
     plynth::Id rotateItem_;
     QPointF itemGrab_;
     bool handleHover_ = false;
+    StairEditor stairs_;
 };
 
 }

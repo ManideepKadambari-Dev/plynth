@@ -109,9 +109,14 @@ bool Theme::load(const QString& resourcePath)
     itemLabelMinPixels_ = spacing["itemLabelMinPixels"].toInt(itemLabelMinPixels_);
     buildBarHeight_ = spacing["buildBarHeight"].toInt(buildBarHeight_);
     problemMarker_ = spacing["problemMarker"].toInt(problemMarker_);
+    qualityMark_ = spacing["qualityMark"].toInt(qualityMark_);
+    markStroke_ = spacing["markStroke"].toDouble(markStroke_);
     previewButton_ = spacing["previewButton"].toInt(previewButton_);
 
-    overlay3dOpacity_ = root["opacity"].toObject()["overlay3d"].toDouble(overlay3dOpacity_);
+    const QJsonObject opacity = root["opacity"].toObject();
+    overlay3dOpacity_ = opacity["overlay3d"].toDouble(overlay3dOpacity_);
+    floorBelowOpacity_ = opacity["floorBelow"].toDouble(floorBelowOpacity_);
+    roofAreaOpacity_ = opacity["roofArea"].toDouble(roofAreaOpacity_);
     const QJsonObject preview = root["preview"].toObject();
     const QColor light(preview["lightColor"].toString());
     if (light.isValid())

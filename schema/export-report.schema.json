@@ -1,0 +1,123 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:export-report:1",
+  "title": "Plynth export report, version 1",
+  "description": "Written by Plynth as export/export_report.json in a project folder after every export that got past the lock, blocked or not, and printed as the result of plynth export (core/include/plynth/core/Export.h). It holds the quality gate (DESIGN.md section 7.17). Paths are absolute, UTF-8, with forward slashes.",
+  "type": "object",
+  "required": ["format", "version", "ok", "error", "exported", "checked_only", "forced", "overridden", "job_id", "started_at", "elapsed_ms", "blender_version", "exporter", "plan_fingerprint", "build_fingerprint", "outputs", "objects", "triangles", "collision_objects", "quality", "steps"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "plynth-export-report" },
+    "version": { "const": 1 },
+    "ok": { "description": "True when the files were exported, or the checks ran with --check.", "type": "boolean" },
+    "error": {
+      "description": "Why nothing was exported, null when ok. code is a CLI error code (quality_failed, blender_failed, ...); worker_code is the worker's code when it gave one.",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["code", "message", "worker_code"],
+          "additionalProperties": false,
+          "properties": {
+            "code": { "type": "string", "pattern": "^[a-z_]+$" },
+            "message": { "type": "string", "minLength": 1 },
+            "worker_code": { "type": ["string", "null"] }
+          }
+        }
+      ]
+    },
+    "exported": { "description": "The files are now in export/.", "type": "boolean" },
+    "checked_only": { "description": "The checks ran without writing anything (plynth export --check).", "type": "boolean" },
+    "forced": { "description": "The export was asked to go past failing checks (plynth export --force, or Export anyway in the app).", "type": "boolean" },
+    "overridden": { "description": "Ids of the failed checks a forced export went past.", "type": "array", "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" } },
+    "job_id": { "type": "string", "pattern": "^[a-z0-9_-]+$" },
+    "started_at": { "description": "UTC, ISO 8601 with whole seconds.", "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$" },
+    "elapsed_ms": { "type": "integer", "minimum": 0 },
+    "blender_version": { "description": "Empty when Blender did not run.", "type": "string" },
+    "exporter": { "description": "The exporter id, the project's export mode, for example single.", "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+    "plan_fingerprint": { "type": "string", "pattern": "^[0-9a-f]{16}$" },
+    "build_fingerprint": { "description": "The plan_fingerprint of the build that was exported, or null when there was no build report.", "oneOf": [{ "type": "string", "pattern": "^[0-9a-f]{16}$" }, { "type": "null" }] },
+    "outputs": {
+      "type": "object",
+      "required": ["files", "textures_folder", "texture_count", "report_file", "log_file"],
+      "additionalProperties": false,
+      "properties": {
+        "files": {
+          "description": "The FBX files in export/. Empty unless exported.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["group", "file", "objects", "triangles"],
+            "additionalProperties": false,
+            "properties": {
+              "group": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+              "file": { "type": "string", "minLength": 1 },
+              "objects": { "type": "integer", "minimum": 0 },
+              "triangles": { "type": "integer", "minimum": 0 }
+            }
+          }
+        },
+        "textures_folder": { "description": "export/Textures, or null unless exported.", "type": ["string", "null"] },
+        "texture_count": { "type": "integer", "minimum": 0 },
+        "report_file": { "type": "string", "minLength": 1 },
+        "log_file": { "description": "build/export_work/blender.log, or null when Blender did not run.", "type": ["string", "null"] }
+      }
+    },
+    "objects": { "type": "integer", "minimum": 0 },
+    "triangles": { "type": "integer", "minimum": 0 },
+    "collision_objects": { "type": "integer", "minimum": 0 },
+    "quality": {
+      "type": "object",
+      "required": ["passed", "fail_count", "warning_count", "checks"],
+      "additionalProperties": false,
+      "properties": {
+        "passed": { "description": "No check failed.", "type": "boolean" },
+        "fail_count": { "type": "integer", "minimum": 0 },
+        "warning_count": { "type": "integer", "minimum": 0 },
+        "checks": {
+          "description": "In the order the worker ran them. Empty when Blender did not run.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "name", "phase", "status", "message", "findings"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+              "name": { "type": "string", "minLength": 1 },
+              "phase": { "enum": ["scene", "file"] },
+              "status": { "enum": ["pass", "warning", "fail", "skipped"] },
+              "message": { "type": "string", "minLength": 1 },
+              "findings": {
+                "type": "array",
+                "maxItems": 50,
+                "items": {
+                  "type": "object",
+                  "required": ["object", "plan_id", "message"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "object": { "type": ["string", "null"] },
+                    "plan_id": { "type": ["string", "null"] },
+                    "message": { "type": "string", "minLength": 1 }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "steps": {
+      "description": "prepare (core) first, then every worker step in order.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["step", "ms"],
+        "additionalProperties": false,
+        "properties": {
+          "step": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+          "ms": { "type": "integer", "minimum": 0 }
+        }
+      }
+    }
+  }
+}

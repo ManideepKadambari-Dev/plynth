@@ -22,18 +22,20 @@ using Json = nlohmann::ordered_json;
 // Which Blender add-ons are enabled, remembered between runs so the generator list can say which generators
 // are available without starting Blender each time. Asking Blender (the probe task, BlenderJob.h) takes a few
 // seconds; the answer is kept in one machine file next to the settings, schema/addon-cache.schema.json:
-//   {"format": "plynth-addons", "version": 1, "blender": "C:/Program Files/Blender Foundation/Blender 5.2/blender.exe",
+//   {"format": "plynth-addons", "version": 2, "blender": "C:/Program Files/Blender Foundation/Blender 5.2/blender.exe",
 //    "blender_version": "5.2.0", "checked_at": "2026-11-22T10:15:00Z",
 //    "enabled": [{"module": "bl_ext.blender_org.archimesh", "name": "Archimesh", "version": "1.2.5"}]}
 // It is a cache, not a setting: deleting it only means "not checked yet". The app probes in the background when
 // the cache is missing or names another Blender; "plynth generator check-addons" probes on request.
+// Version 1 caches came from a probe that listed the add-ons Blender had loaded. Version 2 lists those saved as
+// enabled and found on disk, so a version 1 cache is never used.
 //
 // Add-ons are named by their short module name: the last dotted part of the module, lower case, so
 // "bl_ext.blender_org.Bagapie" is "bagapie". Generators list the short names they need.
 
 inline constexpr std::string_view kAddonCacheFileName = "addons.json";
 inline constexpr std::string_view kAddonCacheFormat = "plynth-addons";
-inline constexpr int kAddonCacheVersion = 1;
+inline constexpr int kAddonCacheVersion = 2;
 inline constexpr std::chrono::seconds kAddonProbeTimeout{120};
 
 struct AddonCache {
@@ -65,7 +67,8 @@ std::filesystem::path addonCacheFile();
 // The cache in its file form, as above.
 Json addonCacheToJson(const AddonCache& cache);
 
-// The answer from reading the cache file. A missing file is ok with no cache.
+// The answer from reading the cache file. A missing file and one of an older version are ok with no cache; an
+// older one is replaced by the next probe.
 struct AddonCacheRead {
     Status status; // CannotRead, or BadFile when it is not valid JSON or breaks the schema's rules
     std::optional<AddonCache> cache;
@@ -82,10 +85,10 @@ struct AddonProbe {
     AddonCache cache;
 };
 
-// Runs the probe task in this Blender without the factory startup (so the user's add-ons are seen), in a fresh
-// temporary work folder that is removed afterwards, and writes the cache file when it succeeds. run.factoryStartup
-// is ignored. Blocks; the app runs it on a worker thread.
+// Asks this Blender with runBlenderProbe (BlenderJob.h): factory startup in Plynth's private folder, reading the
+// user's saved settings as data. Writes the cache file only when that succeeds and never asks again with normal
+// startup. run.factoryStartup is ignored. Blocks; the app runs it on a worker thread.
 AddonProbe probeAddons(const BlenderInstall& blender, const std::filesystem::path& cacheFile,
-                       const BlenderRunOptions& run = {false, kAddonProbeTimeout, {}}, std::stop_token stop = {});
+                       const BlenderRunOptions& run = {true, kAddonProbeTimeout, {}}, std::stop_token stop = {});
 
 }

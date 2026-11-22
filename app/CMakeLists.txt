@@ -9,6 +9,8 @@ add_executable(plynth WIN32
     src/building/BuildController.cpp
     src/building/BuildPanel.h
     src/building/BuildPanel.cpp
+    src/building/ExportController.h
+    src/building/ExportController.cpp
     src/building/ProblemMark.h
     src/catalog/ImportQueue.h
     src/catalog/ImportQueue.cpp
@@ -18,6 +20,8 @@ add_executable(plynth WIN32
     src/catalog/LibraryWatcher.cpp
     src/canvas/OpeningPaint.h
     src/canvas/OpeningPaint.cpp
+    src/canvas/StairPaint.h
+    src/canvas/StairPaint.cpp
     src/canvas/OverlayBuilder.h
     src/canvas/OverlayBuilder.cpp
     src/canvas/OverlayOpenings.cpp
@@ -53,6 +57,8 @@ add_executable(plynth WIN32
     src/dialogs/RoomTypesDialog.cpp
     src/dialogs/ScaleDialog.h
     src/dialogs/ScaleDialog.cpp
+    src/document/FloorFocus.h
+    src/document/FloorFocus.cpp
     src/document/Selection.h
     src/document/Selection.cpp
     src/document/DocumentBridge.h
@@ -73,6 +79,8 @@ add_executable(plynth WIN32
     src/preview/ThemeQml.cpp
     src/panels/AssetsPanel.h
     src/panels/AssetsPanel.cpp
+    src/panels/ExportPanel.h
+    src/panels/ExportPanel.cpp
     src/panels/MaterialsPanel.h
     src/panels/MaterialsPanel.cpp
     src/panels/ImportQueueView.h
@@ -93,6 +101,8 @@ add_executable(plynth WIN32
     src/tools/RoomTool.cpp
     src/tools/ScaleTool.h
     src/tools/ScaleTool.cpp
+    src/tools/StairTool.h
+    src/tools/StairTool.cpp
     src/tools/SelectTool.h
     src/tools/SelectTool.cpp
     src/tools/Tool.h
@@ -114,11 +124,14 @@ add_executable(plynth WIN32
     src/wallview/WallView.cpp
     src/wallview/WallViewData.h
     src/wallview/WallViewData.cpp
+    src/window/FloorTabs.h
+    src/window/FloorTabs.cpp
     src/window/BuildBar.h
     src/window/BuildBar.cpp
     src/window/MainWindow.h
     src/window/MainWindow.cpp
     src/window/MainWindowBuild.cpp
+    src/window/MainWindowExport.cpp
     src/window/ReadOnlyBanner.h
     src/window/ReadOnlyBanner.cpp
     src/window/StatusBar.h

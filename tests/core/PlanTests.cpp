@@ -5,6 +5,9 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <plynth/core/Roofs.h>
+#include <plynth/core/Stairs.h>
+
 #include <cmath>
 #include <limits>
 
@@ -331,4 +334,101 @@ TEST_CASE("checkPlan refuses broken generator items", "[core][plan][generator]")
         plan.floors[0].items[2].generator.reset();
         expectRefused(plan, base + "/asset");
     }
+}
+
+TEST_CASE("stairs and roof entries count in ids and lookups", "[core][plan][id]") {
+    Plan plan = fullPlan();
+    Stair st;
+    st.id = "s2";
+    plan.floors[0].stairs.push_back(st);
+    RoofSection rs;
+    rs.id = "rf3";
+    rs.floor = "f1";
+    plan.roofSections.push_back(rs);
+
+    REQUIRE(idInUse(plan, "s2"));
+    REQUIRE(idInUse(plan, "rf3"));
+    REQUIRE_FALSE(idInUse(plan, "s3"));
+    REQUIRE(findStair(plan.floors[0], "s2") != nullptr);
+    REQUIRE(findStair(plan.floors[1], "s2") == nullptr);
+    REQUIRE(findFloorContaining(plan, "s2") == &plan.floors[0]);
+    REQUIRE(findRoofSection(plan, "rf3") != nullptr);
+    REQUIRE(findRoofSection(plan, "rf9") == nullptr);
+    REQUIRE(newId(plan, kStairIdPrefix) == "s3");
+    REQUIRE(newId(plan, kRoofSectionIdPrefix) == "rf4");
+
+    const Plan fresh = makeEmptyPlan();
+    REQUIRE(newId(fresh, kStairIdPrefix) == "s1");
+    Plan withRoom = fullPlan();
+    REQUIRE(newId(withRoom, kRoofSectionIdPrefix) == "rf1");
+    withRoom.floors[0].stairs.push_back(Stair{.id = "s1"});
+    REQUIRE(newId(withRoom, kStairIdPrefix) == "s2");
+}
+
+TEST_CASE("floorIndex, floorAbove and floorBelow follow plan order", "[core][plan]") {
+    const Plan plan = fullPlan();
+    REQUIRE(floorIndex(plan, "f1") == 0);
+    REQUIRE(floorIndex(plan, "f2") == 1);
+    REQUIRE_FALSE(floorIndex(plan, "f9").has_value());
+    REQUIRE(floorAbove(plan, "f1") == &plan.floors[1]);
+    REQUIRE(floorAbove(plan, "f2") == nullptr);
+    REQUIRE(floorBelow(plan, "f2") == &plan.floors[0]);
+    REQUIRE(floorBelow(plan, "f1") == nullptr);
+    REQUIRE(floorAbove(plan, "f9") == nullptr);
+}
+
+TEST_CASE("the stair turn names read back", "[core][plan]") {
+    REQUIRE(stairTurnName(StairTurn::Left) == "left");
+    REQUIRE(stairTurnName(StairTurn::Right) == "right");
+    REQUIRE(stairTurnFromName("left") == StairTurn::Left);
+    REQUIRE_FALSE(stairTurnFromName("up").has_value());
+}
+
+TEST_CASE("checkPlan refuses broken floors, stairs and roofs", "[core][plan][check]") {
+    const auto refuse = [](auto change, ErrorCode code, const std::string& where) {
+        Plan plan = fullPlan();
+        change(plan);
+        const Status s = checkPlan(plan);
+        INFO(s.message);
+        REQUIRE(s.code == code);
+        REQUIRE(s.where == where);
+    };
+    const auto withStair = [](Plan& p) {
+        Stair st;
+        st.id = "s1";
+        p.floors[0].stairs.push_back(st);
+    };
+    refuse([](Plan& p) { p.floors[0].slabThickness = 0.01; }, ErrorCode::InvalidValue, "/floors/0/slab_thickness");
+    refuse([](Plan& p) { p.floors[1].slabThickness = 1.5; }, ErrorCode::InvalidValue, "/floors/1/slab_thickness");
+    refuse([](Plan& p) { p.floors[0].imageOffset.y = kNaN; }, ErrorCode::InvalidValue, "/floors/0/image_offset/y");
+    refuse([&](Plan& p) { withStair(p); p.floors[0].stairs[0].width = 0.3; }, ErrorCode::InvalidValue, "/floors/0/stairs/0/width");
+    refuse([&](Plan& p) { withStair(p); p.floors[0].stairs[0].rotation = 360.0; }, ErrorCode::InvalidValue,
+           "/floors/0/stairs/0/rotation");
+    refuse([&](Plan& p) { withStair(p); p.floors[0].stairs[0].type = "bad type"; }, ErrorCode::InvalidValue, "/floors/0/stairs/0/type");
+    refuse([&](Plan& p) { withStair(p); p.floors[0].stairs[0].material = "bad name"; }, ErrorCode::InvalidValue,
+           "/floors/0/stairs/0/material");
+    refuse([&](Plan& p) { withStair(p); p.floors[0].stairs[0].id = "p1"; }, ErrorCode::AlreadyExists, "/floors/0/stairs/0/id");
+    refuse([](Plan& p) { p.roof.pitch = 80.0; }, ErrorCode::InvalidValue, "/roof/pitch");
+    refuse([](Plan& p) { p.roof.overhang = 3.0; }, ErrorCode::InvalidValue, "/roof/overhang");
+    refuse([](Plan& p) { p.roof.parapet = -1.0; }, ErrorCode::InvalidValue, "/roof/parapet");
+    refuse([](Plan& p) { p.roof.direction = 360.0; }, ErrorCode::InvalidValue, "/roof/direction");
+
+    const auto withEntry = [](Plan& p) {
+        RoofSection rs;
+        rs.id = "rf1";
+        rs.floor = "f2";
+        p.roofSections.push_back(rs);
+    };
+    refuse([&](Plan& p) { withEntry(p); p.roofSections[0].floor = "f9"; }, ErrorCode::NotFound, "/roof_sections/0/floor");
+    refuse([&](Plan& p) { withEntry(p); p.roofSections[0].settings.pitch = 80.0; }, ErrorCode::InvalidValue,
+           "/roof_sections/0/settings/pitch");
+    refuse([&](Plan& p) { withEntry(p); p.roofSections[0].material = "bad name"; }, ErrorCode::InvalidValue,
+           "/roof_sections/0/material");
+    refuse([&](Plan& p) { withEntry(p); p.roofSections[0].id = "f1"; }, ErrorCode::AlreadyExists, "/roof_sections/0/id");
+
+    Plan good = fullPlan();
+    withStair(good);
+    withEntry(good);
+    good.floors[0].slabThickness = 0.3;
+    REQUIRE(checkPlan(good).ok());
 }

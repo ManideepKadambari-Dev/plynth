@@ -38,6 +38,8 @@ OPENING_FILLS = Registry("opening fill")
 MATERIAL_SOURCES = Registry("material source")
 BAKERS = Registry("baker")
 MATERIAL_CHECKS = Registry("material check")
+EXPORT_STEPS = Registry("export step")
+QUALITY_CHECKS = Registry("quality check")
 ADDON_BRIDGES = Registry("add-on bridge")
 
 

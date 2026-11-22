@@ -32,6 +32,7 @@ class AssetBuildTests(BuildTest):
             "scale": 1.0,
             "rotate_z": 0,
             "triangle_warning": 500000,
+            "bake_size": 256,
             "thumbnail": {"render": False, "size": 64, "background": BACKGROUND},
         }
         result = self.run_task("cleanup_asset", params, job_id="clean-%s" % asset_id)
@@ -45,9 +46,9 @@ class AssetBuildTests(BuildTest):
         params["settings"]["bevel_width"] = 0.0
         if assets is None:
             assets = [{"id": "sofa", "blend_file": self.make_asset("sofa", os.path.join(MODELS, "sofa", "sofa.obj")),
-                       "collection": "sofa"},
+                       "collection": "sofa", "materials": []},
                       {"id": "tv", "blend_file": self.make_asset("tv", os.path.join(MODELS, "tv", "tv.obj")),
-                       "collection": "tv"}]
+                       "collection": "tv", "materials": []}]
         params["assets"] = assets
         floor = params["floors"][0]
         plan_items = []
@@ -81,6 +82,11 @@ class AssetBuildTests(BuildTest):
         for empty in empties:
             self.assertEqual(empty.instance_type, "COLLECTION")
         self.assertEqual(len([o for o in bpy.data.objects if o.type == "MESH" and o.get("plynth_kind") == "item"]), 0)
+        hulls = {o.name: o for o in bpy.data.objects if o.get("plynth_kind") == "collision"}
+        self.assertEqual(sorted(hulls), ["UCX_SM_sofa_i1_00", "UCX_SM_sofa_i2_00", "UCX_SM_tv_i3_00"])
+        self.assertIs(hulls["UCX_SM_sofa_i1_00"].data, hulls["UCX_SM_sofa_i2_00"].data)
+        self.assertIsNot(hulls["UCX_SM_sofa_i1_00"].data, hulls["UCX_SM_tv_i3_00"].data)
+        self.assertEqual(result["output"]["counts"]["collision"], 3)
 
     # Each instance matrix equals Translation(location) @ RotationZ(rotation_z).
     def test_matrices(self):
@@ -117,9 +123,9 @@ class AssetBuildTests(BuildTest):
 
     # A missing asset.blend gives asset_load_failed for each item using it and the build goes on.
     def test_missing_asset(self):
-        assets = [{"id": "sofa", "blend_file": self.path("nowhere", "asset.blend"), "collection": "sofa"},
+        assets = [{"id": "sofa", "blend_file": self.path("nowhere", "asset.blend"), "collection": "sofa", "materials": []},
                   {"id": "tv", "blend_file": self.make_asset("tv", os.path.join(MODELS, "tv", "tv.obj")),
-                   "collection": "tv"}]
+                   "collection": "tv", "materials": []}]
         result = self.run_build(self.params(assets))
         problems = result["output"]["problems"]
         self.assertEqual([(p["code"], p["severity"], p["object"], p["floor"], p["step"]) for p in problems],

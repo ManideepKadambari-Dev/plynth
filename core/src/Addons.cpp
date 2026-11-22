@@ -42,6 +42,17 @@ const std::string* textField(const Json& object, const char* key)
     return it->get_ptr<const std::string*>();
 }
 
+// Says whether this is an add-on cache saved by an older Plynth, which is never used.
+bool isOlderCache(const Json& json)
+{
+    const std::string* format = textField(json, "format");
+    if (!format || *format != kAddonCacheFormat) return false;
+    const auto version = json.find("version");
+    if (version == json.end() || !version->is_number_integer()) return false;
+    const long long found = version->get<long long>();
+    return found >= 1 && found < kAddonCacheVersion;
+}
+
 }
 
 // The short name of an add-on module.
@@ -133,6 +144,7 @@ AddonCacheRead readAddonCache(const fs::path& file)
     const Json json = Json::parse(text.str(), nullptr, false);
     if (json.is_discarded() || !json.is_object()) return refused("The add-on cache is not valid JSON.");
 
+    if (isOlderCache(json)) return {};
     for (const auto& [key, value] : json.items()) {
         if (key != "format" && key != "version" && key != "blender" && key != "blender_version" && key != "checked_at" &&
             key != "enabled") {
@@ -194,25 +206,13 @@ AddonProbe probeAddons(const BlenderInstall& blender, const fs::path& cacheFile,
                        std::stop_token stop)
 {
     AddonProbe probe;
-    std::error_code ec;
-    const std::string jobId = newJobId("probe");
-    const fs::path work = fs::temp_directory_path(ec) / ("plynth-" + jobId);
-    const Json job = makeBlenderJob(kProbeTask, jobId, work / pathFromUtf8(kResultFileName), Json::object());
-    BlenderRunOptions options = run;
-    options.factoryStartup = false;
-    const BlenderJobRun ran = runBlenderJob(blender.executable, job, work, options, {}, stop);
-    ProbeResult result;
-    if (ran.status.ok()) result = readProbeResult(ran.result, jobId);
-    fs::remove_all(work, ec);
-
+    const BlenderProbeRun ran = runBlenderProbe(blender, run, stop);
     if (ran.status.code == ErrorCode::Cancelled) {
         probe.status = ran.status;
     } else if (!ran.status.ok()) {
         probe.status = fail(ErrorCode::BlenderFailed, "Blender could not list its add-ons: " + ran.status.message);
-    } else if (!result.header.status.ok()) {
-        probe.status = fail(ErrorCode::BlenderFailed, "Blender could not list its add-ons: " + result.header.status.message);
     } else {
-        probe.cache = addonCacheFromProbe(blender, result, sessionNow());
+        probe.cache = addonCacheFromProbe(blender, ran.result, sessionNow());
         probe.status = writeAddonCache(cacheFile, probe.cache);
     }
     return probe;

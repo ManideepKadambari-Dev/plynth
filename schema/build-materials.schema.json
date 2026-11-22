@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "urn:plynth:schema:build-materials:1",
   "title": "Plynth built materials, version 1",
-  "description": "build/materials.json, written by the Blender build together with build/building.fbx. The FBX cannot carry metallic or opacity maps to the 3D preview, so the preview replaces the materials its FBX loader made with these: matched by material name, or by object name and slot order when the loader keeps no names. Furniture keeps the materials of its asset and is not listed. Paths are absolute, UTF-8, forward slashes. base_color is sRGB; the other maps are linear, grey maps are read from the red channel, normal is OpenGL. Every map is an image tiled by the mesh's UVs; nothing is a plain number.",
+  "description": "build/materials.json, written by the Blender build together with build/building.fbx. The FBX cannot carry metallic or opacity maps to the 3D preview, so the preview replaces the materials its FBX loader made with these, matched by the base color image path. The paths are the ones building.fbx uses: images larger than 1024 px on a side are scaled copies in build/preview_textures/. Several slots that show the same catalog material share its files and have the same maps. Paths are absolute, UTF-8, forward slashes. base_color is sRGB; the other maps are linear, grey maps are read from the red channel, normal is OpenGL. Every map is an image tiled by the mesh's UVs; nothing is a plain number.",
   "type": "object",
   "required": ["format", "version", "materials", "objects"],
   "additionalProperties": false,
@@ -16,12 +16,13 @@
         "required": ["name", "material", "surface", "maps", "alpha_mode"],
         "additionalProperties": false,
         "properties": {
-          "name": { "description": "The Blender and FBX material name: the catalog id, or the neutral surface name.", "type": "string", "minLength": 1 },
-          "material": { "description": "The catalog material id, or null for a neutral look.", "oneOf": [{ "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }, { "type": "null" }] },
+          "name": { "description": "The Blender and FBX material name: the slot name of a built surface (for example Living_Floor), or the material's name in the scene for furniture.", "type": "string", "minLength": 1 },
+          "material": { "description": "The catalog material id, or null for a neutral look and for furniture.", "oneOf": [{ "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }, { "type": "null" }] },
           "surface": {
-            "description": "The neutral surface, or null for a catalog material.",
-            "enum": ["Wall_Inside", "Wall_Outside", "Wall_Top", "Reveal", "Threshold", "Floor", "Ceiling", "Door", "Frame", "Glass", "Handle", null]
+            "description": "The neutral surface, or null for a catalog material and for furniture.",
+            "enum": ["Wall_Inside", "Wall_Outside", "Wall_Top", "Reveal", "Threshold", "Floor", "Ceiling", "Door", "Frame", "Glass", "Handle", "Stair", "Roof", "Flat_Roof", "Soffit", "Fascia", "Generated", null]
           },
+          "asset": { "description": "The asset id for a material of furniture. Left out for built surfaces, and in files written before milestone 10.", "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
           "maps": {
             "type": "object",
             "required": ["base_color", "normal", "roughness", "metallic", "opacity", "occlusion"],
@@ -40,7 +41,7 @@
       }
     },
     "objects": {
-      "description": "Every built object except furniture, with the material name of each of its slots in order.",
+      "description": "Every built object except furniture and collision meshes, with the material name of each of its slots in order.",
       "type": "array",
       "items": {
         "type": "object",

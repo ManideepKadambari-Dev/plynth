@@ -10,7 +10,8 @@ from material_helpers import (BACKGROUND, CHANNELS, SAMPLES, MaterialTest, flat_
 from plynth import registry
 from plynth.materials import bakers, checks, names, sources, write_png
 
-SAMPLE_IDS = ["white_paint", "red_brick", "oak_planks", "grey_tile", "painted_wood", "brushed_steel", "clear_glass"]
+SAMPLE_IDS = ["white_paint", "red_brick", "oak_planks", "grey_tile", "painted_wood", "brushed_steel", "clear_glass",
+              "roof_tiles", "concrete"]
 
 
 class RegistryTests(unittest.TestCase):
@@ -63,7 +64,7 @@ class SampleTests(MaterialTest):
     # The tile sizes of material.json arrive in the result.
     def test_tile_sizes(self):
         expected = {"red_brick": (1.2, 0.6), "oak_planks": (2.0, 2.0), "grey_tile": (0.6, 0.6),
-                    "brushed_steel": (0.5, 0.5)}
+                    "brushed_steel": (0.5, 0.5), "roof_tiles": (1.0, 1.0), "concrete": (2.0, 2.0)}
         for material_id, size in expected.items():
             with self.subTest(material_id):
                 result = self.clean_ok(os.path.join(SAMPLES, material_id), output_folder=self.path("out", material_id))

@@ -1,6 +1,6 @@
 # Writing generators
 
-This page explains how to add to Plynth without changing the program. Today it covers opening shapes, importers, the Blender worker registries, build steps and opening fills. Generators and roof types are added to this page in later releases.
+This page explains how to add to Plynth without changing the program. Today it covers opening shapes, roof types, stair types, importers, exporters, the Blender worker registries, build steps, opening fills, export steps and quality checks. Generators are added to this page in a later release.
 
 For the commands see the [Command line guide](CLI_GUIDE.md). For the screens see the [User guide](USER_GUIDE.md).
 
@@ -106,6 +106,64 @@ A shape that is part of Plynth is one C++ file. Nothing else is edited.
 
 A shape that is registered this way shows up in `plynth opening shapes` and in the app's shape list. Add a test next to the existing shape tests that checks its outline for a normal size and for the smallest size it allows.
 
+## Adding a roof type
+
+A roof type turns one roof section into finished faces. Roof sections are worked out from the floors, so a type never sees walls, only an outline. The five built-in types are `flat`, `gable`, `hip`, `shed` and `sawtooth`. `plynth roof types` lists them with the settings each uses.
+
+A roof type is one C++ file. Nothing else is edited.
+
+1. Add a file to `core/src/roofs/types/`, for example `MansardRoof.cpp`. Copy `ShedRoof.cpp` as a start, because it is the shortest.
+2. Write a class that derives from `RoofType` (`core/include/plynth/core/Roofs.h`) and gives:
+   - `id()`, the name stored in `plan.json`: lower case letters, digits and `_`, starting with a letter. It must differ from every other roof type.
+   - `name()`, the short name shown in the app, and `sortKey()`, which orders the list.
+   - `usesPitch()`, `usesDirection()`, `usesOverhang()` and `usesParapet()`. The app shows only the fields a type uses, and `plynth roof types` lists them.
+   - `fits(input)`. Return an empty status when the type can roof this section. Otherwise return a status with a plain sentence, and the build uses `fallback()` and reports `roof_type_fallback` with that sentence. The hip roof does this for a section that is not convex.
+   - `fallback()`, the id of the type to use then. `flat` for a type that fits every section.
+   - `build(input)`, the faces.
+3. At the bottom of the file, make one object at namespace scope: `const RoofTypeRegistrar registrar(std::make_unique<MansardRoof>());`. That registers the type when the program starts.
+4. Run CMake again. The build picks up every file in that folder and links it into the app, the command line and the tests.
+
+**What `build` gets.** A `RoofInput` in world coordinates, in metres. `section` is the area of the section. `eaves` is the outline the roof may cover: the section pushed outward by the overhang, minus the footprint of the floor above. `base` is the height the roof sits on, the top of the slab. `settings` holds the type, pitch, overhang, parapet and direction. `direction` is the direction already worked out: from `settings.direction` when it is set, and along the longer side of the section when it is automatic.
+
+**What `build` returns.** A list of `RoofFace`. Every face is one flat polygon in world coordinates, with an optional list of holes. A face is tagged with the part it is, so each part gets the right material:
+
+| Part | What it is |
+|---|---|
+| `covering` | The top surface. It gets the roof or flat roof material. |
+| `underside` | The surface under the eaves. |
+| `edge` | The thickness round the edge. |
+| `gable` | A vertical triangle or trapezoid that closes the end of a pitched roof. |
+| `parapet` | Every face of the low wall round a flat roof. |
+| `glazing` | Vertical glass, as on a sawtooth roof. |
+
+The points of a face must lie on one plane, and the outline must run anticlockwise as seen from the side the face looks toward. Blender does not fix a face that is wrong. It only makes a mesh from what it is given, so keep every rule in the C++ file. `core/src/roofs/RoofParts.h` has helpers for the common work: cutting a polygon by a line, shrinking it, flat and vertical faces, a face on a plane, gable fills, and `pitchedFaces`, which makes the covering, underside, edge and gable faces of a roof made of planes. The hip roof gets its faces by letting the lowest plane win where planes meet.
+
+Add a test next to the roof tests. Check that every face is flat within 1e-6 m, that the faces cover the eaves outline, and that the type falls back as it should on a section it does not fit. Nothing else changes: the type shows up in `plynth roof types`, in the Properties panel, in the roof sections on the plan and in the build.
+
+## Adding a stair type
+
+A stair type turns a rise, a width and a turn into steps. Core places the steps on the plan, works out the hole in the floors and checks for problems. The four built-in types are `straight`, `l_shape`, `u_shape` and `spiral`. `plynth stair types` lists them.
+
+A stair type is one C++ file.
+
+1. Add a file to `core/src/stairs/types/`, for example `WinderStair.cpp`. Copy `StraightStair.cpp` as a start.
+2. Write a class that derives from `StairType` (`core/include/plynth/core/Stairs.h`), or from `BuiltInStair` in `core/src/stairs/StairSupport.h`, which handles the turn for you. It gives:
+   - `id()`, `name()` and `sortKey()` as for a roof type.
+   - `usesTurn()`, true when the type has a left or right. The app hides the Turn field otherwise.
+   - `shape(input)`, the steps.
+3. At the bottom of the file, make one object at namespace scope: `const StairTypeRegistrar registrar(std::make_unique<WinderStair>());`.
+4. Run CMake again.
+
+**What `shape` gets.** A `StairInput` with the `rise` to climb, the `width`, the `turn`, the `riserCount` and the `riser` height. The number of risers is worked out in core: at most 0.19 m each, all equal, and one tread fewer than there are risers, because the last riser steps onto the upper floor.
+
+**The frame.** Steps are in the stair's own frame, in metres. `u` runs across the stair to the right of the climb, `v` runs forward along the climb, and `z` runs up from the level of the lower floor. The point (0, 0) is the middle of the front edge of the bottom step. Core turns and moves the frame onto the plan.
+
+**What `shape` returns.** A `StairShape`: a list of steps from the bottom up, and a walk line from (0, 0) to where the climb reaches the upper floor. The plan draws the walk line as an arrow.
+
+Each `StairStep` has a `part` (`step`, `landing` or `column`), an outline, a `bottom` and a `top`. The outline is one convex polygon with the points anticlockwise. Blender raises it from `bottom` to `top` as a closed solid, with no gap and no overlap. A step in a straight flight is a box from the floor up to its tread, so the stair is solid underneath. Cut curves with `arcSegmentCount`, so every type follows the same smoothness rule.
+
+The footprint of the stair, which is the hole in the slab and the ceilings, is the union of the step outlines. Add a test next to the stair tests: every outline has a positive area and is convex, the last step reaches the rise, the walk line ends at the arrival, and the number of steps matches the risers.
+
 ## Adding an importer
 
 An importer is one way assets come into the library. Today there is one, for your own files (`local_file`). BlenderKit and Fab zips come later, as more importers. This section is for developers.
@@ -191,13 +249,13 @@ Blender does the heavy work in the background. Its side is Python, in `blender/p
 
 ### How a file registers itself
 
-`blender/plynth/registry.py` has a small `Registry` class and ten registries: `TASKS`, `IMPORTERS`, `CLEANUP_STEPS`, `CHECKS`, `EXPORTERS`, `BUILD_STEPS`, `OPENING_FILLS`, `MATERIAL_SOURCES`, `BAKERS` and `MATERIAL_CHECKS`. Each has `register(id, thing)`, which refuses a duplicate id, plus `get`, `all` and `ids`.
+`blender/plynth/registry.py` has a small `Registry` class and thirteen registries: `TASKS`, `IMPORTERS`, `CLEANUP_STEPS`, `CHECKS`, `EXPORTERS`, `BUILD_STEPS`, `OPENING_FILLS`, `MATERIAL_SOURCES`, `BAKERS`, `MATERIAL_CHECKS`, `EXPORT_STEPS`, `QUALITY_CHECKS` and `ADDON_BRIDGES`. Each has `register(id, thing)`, which refuses a duplicate id, plus `get`, `all` and `ids`.
 
-Each package (`tasks/`, `importers/`, `cleanup/`, `checks/`, `exporters/`, `building/`, `fills/`) is loaded with `discover(package)`, which imports every module in the folder in name order. A module registers itself on its last line as it is imported. So adding an entry is adding one file. Nothing else is edited: no list, no import. Only the Python standard library and `bpy` are used.
+Each package (`tasks/`, `importers/`, `cleanup/`, `checks/`, `exporters/`, `building/`, `fills/`, `exporting/`, `quality/`, `bridges/`) is loaded with `discover(package)`, which imports every module in the folder in name order. A module registers itself on its last line as it is imported. So adding an entry is adding one file. Nothing else is edited: no list, no import. Only the Python standard library and `bpy` are used.
 
 ### Tasks
 
-A task is what a job asks for. Files in `plynth/tasks/`: `probe`, `cleanup_asset`, `render_thumbnail`, `build`, `cleanup_material`. A task is a function `run(ctx)` registered with `TASKS.register("name", run)`. It reads `ctx.params`, fills `ctx.output`, adds warnings with `ctx.warn(code, message)`, and raises `WorkerError(code, message)` to fail with a named error. The C++ side must also know the task name and its parameters and output: see `core/include/plynth/core/BlenderJob.h` and `catalog/AssetJobs.h`.
+A task is what a job asks for. Files in `plynth/tasks/`: `probe`, `cleanup_asset`, `render_thumbnail`, `build`, `cleanup_material`, `export`. A task is a function `run(ctx)` registered with `TASKS.register("name", run)`. It reads `ctx.params`, fills `ctx.output`, adds warnings with `ctx.warn(code, message)`, and raises `WorkerError(code, message)` to fail with a named error. The C++ side must also know the task name and its parameters and output: see `core/include/plynth/core/BlenderJob.h` and `catalog/AssetJobs.h`.
 
 ### File format importers
 
@@ -244,7 +302,7 @@ One file for each check in `plynth/checks/`, run by the `run_checks` step. A che
 C++ and Python talk through files, described in `schema/blender-job.schema.json` and `schema/blender-result.schema.json`.
 
 - Plynth writes `job.json`: `format`, `version`, `task`, `job_id`, `result_file` and `params`. The folder holding `result_file` is the job's work folder.
-- It starts `blender --background --factory-startup -noaudio --python-exit-code 3 --python plynth_worker.py -- --job <file>`. The entry point `plynth_worker.py` reads the job, finds the task in the registry and runs it.
+- It starts `blender --background --factory-startup -noaudio --python-exit-code 3 --python plynth_worker.py -- --job <file>`, with Blender's user folders (`BLENDER_USER_RESOURCES`, `_CONFIG`, `_SCRIPTS`, `_EXTENSIONS`, `_DATAFILES`) set to a private folder of Plynth's, so a job never writes your own Blender folders. Only the add-on probe reads your saved settings, as plain data (see [Setting up Plynth](SETUP.md)). The entry point `plynth_worker.py` reads the job, finds the task in the registry and runs it.
 - While running, the worker prints progress lines: `PLYNTH:{"progress":{"step":"set_pivot","index":4,"count":11,"message":"Setting the pivot"}}`. Use `jobs.progress(...)`.
 - At the end it writes `result.json` through a temporary file and a rename: `ok`, `error`, `blender_version`, `warnings`, `elapsed_ms` and `output`. The worker never lets an exception escape without trying to write a result. An uncaught error exits with code 3 and C++ reports `blender_failed` with the end of the log.
 
@@ -297,22 +355,24 @@ The order numbers. The gaps are for new steps, and the reserved ones belong to l
 | 25 | `triangulate` | Splits wall faces with more than four corners into triangles |
 | 26 | `opening_fills` | Fits a door or window into each opening |
 | 30 | `floors` | A floor and a ceiling for each room |
-| 40 | reserved | Stairs |
-| 50 | reserved | Roofs |
+| 35 | `slabs` | The slab above each floor that has one, with its edges, undersides, ledge tops and the sides of the stair wells |
+| 40 | `stairs` | One solid step at a time for every stair |
+| 50 | `roofs` | A mesh for each roof section, by its type: covering, underside, edge, gables, parapets and glazing |
 | 60 | `assets` | Places every item as a copy of its asset |
-| 70 | reserved | Generators |
+| 70 | `generators` | Runs the generator of each generator item and puts what it makes at the item's place as one mesh. One whose add-on cannot be switched on is left out with a warning |
 | 80 | `materials` | The library material of every surface, built from its image maps, with UVs at the material's tile size. A surface without one gets its neutral look |
 | 90 | reserved | Trim |
 | 100 | reserved | Set dressing |
-| 110 | reserved | Collision |
+| 110 | `collision` | A closed convex `UCX_` mesh for each collision shape core worked out, and one convex hull for each furniture item. They go in a `Collision` collection and are left out of `building.fbx` |
 | 120 | `save_blend` | Saves `building.blend` |
 | 130 | `export_fbx` | Makes the item copies real objects, exports `building.fbx` and writes `materials.json` beside it |
+| 135 | `preview_parts` | Writes the preview folder for the 3D view: for each floor one file for the floor, one for its slab and one for its roofs, and `parts.json` that lists them. Collision is left out |
 
 A few things to know when you choose a number:
 
 - A step that changes the walls mesh goes after `openings` (20) if it needs the holes, and before `triangulate` (25) if its result should be split too.
 - `triangulate` is there because the 3D view loads the FBX, and its loader drops wall faces that have a hole joined to the edge by a thin slit. Splitting those faces into triangles keeps them.
-- Steps after `save_blend` (120) are not in `building.blend`. `export_fbx` (130) turns the items into real objects after the blend is saved, so the blend keeps the cheap copies.
+- Steps after `save_blend` (120) are not in `building.blend`. `export_fbx` (130) turns the items into real objects after the blend is saved, so the blend keeps the cheap copies. `preview_parts` (135) runs last and only writes files for the 3D view.
 
 ### How the openings are cut
 
@@ -421,12 +481,90 @@ Worker codes of this task: errors `import_failed`, `no_base_color`, `several_mat
 
 ### Adding an exporter
 
-An exporter is one file in `blender/plynth/exporters/` that registers an `ExporterEntry(extension, export)`. `export(objects, filepath, path_mode)` writes the given objects, or the whole scene when `objects` is `None`. `exporters/__init__.py` has `write_file`, which writes under a temporary name and renames the result, so a failed export leaves nothing behind. `fbx.py` is the one profile Plynth uses for `asset.fbx` and `building.fbx`.
+An exporter decides which FBX files an export writes and which built objects go into each. It lives in core, because core knows the project. It is one file, and nothing else is edited.
+
+1. Make one new file in `core/src/exporters/`, for example `GroupedExporter.cpp`. CMake finds every `.cpp` in that folder and builds it into the OBJECT library `plynth_exporters`, so you do not edit `CMakeLists.txt`.
+2. In it, write a class that derives from `Exporter` (`core/include/plynth/core/Exporter.h`) and implements `id()`, `name()`, `description()` and `groups(project, out)`. The id is the project's export mode name, so `single` serves the single mode. `groups` fills a list of `ExportGroup`, one for each file: its `id`, its `file` name, and which kinds of objects or plan ids it takes. An empty list of kinds takes everything. When the project cannot be exported this way, return `InvalidValue` with a plain sentence.
+3. At the bottom of the file, register it:
+
+```cpp
+const ExporterRegistrar registrar(std::make_unique<GroupedExporter>());
+```
+
+`SingleExporter.cpp` is the worked example, about twenty lines. `exportFileStem(name)` turns a project name into a safe file name. The export runs the exporter's groups through the same Blender task and the same checks, and every group is written with the same FBX profile.
+
+On the Blender side, the file format is a registry too. One file in `blender/plynth/exporters/` registers an `ExporterEntry(extension, export)`. `export(objects, filepath, path_mode)` writes the given objects, or the whole scene when `objects` is `None`. `exporters/__init__.py` has `write_file`, which writes under a temporary name and renames the result, so a failed export leaves nothing behind. `fbx.py` is the one profile Plynth uses for `asset.fbx`, `building.fbx` and the export.
+
+### Adding a quality check
+
+A quality check is one file in `blender/plynth/quality/`. It has an `ORDER`, a phase, a name shown in the Export tab, and `run(ctx)`. The export task finds every file, so nothing else is edited.
+
+```python
+from . import QualityCheck, finding, result
+from ..registry import QUALITY_CHECKS
+
+ORDER = 95
+
+
+# Fails for a mesh with more than 100 materials.
+def run(ctx):
+    findings = []
+    for obj in ctx.state["meshes"]:
+        if len(obj.data.materials) > 100:
+            findings.append(finding("%s has too many materials." % obj.name, obj.name, obj.get("plynth_id")))
+    if findings:
+        return result("fail", "Some meshes have too many materials.", findings)
+    return result("pass", "No mesh has too many materials.")
+
+
+QUALITY_CHECKS.register("material_count", QualityCheck(ORDER, "scene", "Material count", run))
+```
+
+- The phase is `"scene"` for a check that looks at the objects before the FBX is written, or `"file"` for one that reads the written files back.
+- `result(status, message, findings)` gives the answer. The status is `pass`, `warning`, `fail` or `skipped`. Only `fail` blocks an export, and only when it is not forced. At most 50 findings are kept.
+- `finding(message, object, plan_id)` makes one finding. The plan id is what the app selects when you click the finding, so give one when the object comes from the plan.
+- `ctx.state["meshes"]` holds the building and furniture objects, `ctx.state["collision"]` the `UCX_` objects. `ctx.params` is the export job, with the `limits` and the `expected_bounds` that core worked out.
+- A check never stops the export. Do not raise an error for a problem you can report.
+
+Look at `naming.py` for a bigger one. A new check shows up in the Export tab and in the report at once. Core only needs a change if the check needs a number it does not pass yet.
+
+### Adding an export step
+
+The `export` task, like the build, only runs steps in order. Each step is one file in `blender/plynth/exporting/`. The steps are `open_blend` (10), `prepare` (20), `name_objects` (30), `textures` (40), `checks` (50), `write_fbx` (60) and `file_checks` (70).
+
+```python
+from . import Step
+from ..registry import EXPORT_STEPS
+
+ORDER = 45
+
+
+# Does one thing between collecting textures and running the checks.
+def run(ctx):
+    ctx.state["my_note"] = len(ctx.state["meshes"])
+
+
+EXPORT_STEPS.register("my_step", Step(ORDER, "Doing my step", run))
+```
+
+Drop the file in `exporting/` and the step runs between `textures` (40) and `checks` (50). The sentence is shown as progress. `ctx.state` is shared between the steps. A step may fail the whole job by raising `WorkerError`, which is meant for real errors such as a missing file. A quality problem is a check, not a step. The export never saves `building.blend`.
 
 ### Testing
 
-The Python tests run inside Blender: `blender -b --factory-startup --python blender/tests/run_tests.py -- [pattern]`. `ctest -L blender` runs them when Blender is found. Every registry has a test that refuses a duplicate id. The sample chair in `samples/models/chair` is the model most tests use.
+The Python tests run inside Blender: `blender -b --factory-startup --python blender/tests/run_tests.py -- [pattern]`. `ctest -L blender` runs them when Blender is found and gives Blender a scratch folder as its user folders. `--factory-startup` alone does not keep Blender away from your own folders, so when you run the command by hand, first point the five user variables at an empty scratch folder (PowerShell):
+
+```
+$s = "$env:TEMP\plynth-blender-scratch"
+New-Item -ItemType Directory -Force $s | Out-Null
+$env:BLENDER_USER_RESOURCES = $s
+$env:BLENDER_USER_CONFIG = $s
+$env:BLENDER_USER_SCRIPTS = $s
+$env:BLENDER_USER_EXTENSIONS = $s
+$env:BLENDER_USER_DATAFILES = $s
+```
+
+Set these in the same window, and use the same window to run the command. The run starts a second Blender with user folders of its own and a prepared extensions folder, and an add-on is only ever switched on in such a folder. The tests that need add-ons skip unless `PLYNTH_TEST_ADDONS` names a folder with copies of them, laid out like an extensions folder (`<repository>\<add-on>\blender_manifest.toml`). The tests never take add-ons from your own Blender folders: they refuse a folder inside them. Every registry has a test that refuses a duplicate id. The sample chair in `samples/models/chair` is the model most tests use.
 
 ## Other things you will be able to add
 
-Later releases add the same kind of page for generators (small Blender scripts) and roof types. Each one will be added to this page, with its file format and its rules.
+A later release adds the same kind of page for generators (small Blender scripts). It will be added to this page, with its file format and its rules.

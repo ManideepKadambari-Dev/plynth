@@ -30,7 +30,9 @@ class ChairCleanupTests(CleanupTest):
         self.assertEqual(output["triangles"], 72)
         self.assertEqual(output["objects"], 6)
         self.assertEqual(output["materials"], ["Fabric", "Wood"])
-        self.assertEqual(output["textures"], ["textures/chair_wood.png"])
+        self.assertEqual(output["textures"], sorted(
+            "textures/maps/%s/%s.png" % (key, channel) for key in ("fabric", "wood")
+            for channel in ("base_color", "metallic", "normal", "roughness")))
         self.assertEqual(output["missing_textures"], [])
         self.assertEqual(self.result["warnings"], [])
 
@@ -64,13 +66,14 @@ class ChairCleanupTests(CleanupTest):
         self.assertEqual([s.material.name for s in seat.material_slots], ["Fabric"])
         self.assertEqual([s.material.name for s in back.material_slots], ["Wood"])
 
-    # The texture is copied beside asset.blend and linked by a relative path.
+    # The wood image is carried into its map folder and linked by a relative path. The first copy beside it is gone.
     def test_textures(self):
-        self.assertTrue(os.path.isfile(self.path("item", "textures", "chair_wood.png")))
+        self.assertTrue(os.path.isfile(self.path("item", "textures", "maps", "wood", "base_color.png")))
+        self.assertFalse(os.path.exists(self.path("item", "textures", "chair_wood.png")))
         self.open_asset()
-        image = bpy.data.images["chair_wood.png"]
-        self.assertEqual(image.filepath.replace("\\", "/"), "//textures/chair_wood.png")
-        self.assertIsNone(image.packed_file)
+        images = {i.filepath.replace("\\", "/"): i for i in bpy.data.images}
+        self.assertIn("//textures/maps/wood/base_color.png", images)
+        self.assertIsNone(images["//textures/maps/wood/base_color.png"].packed_file)
 
     # The output folder holds only asset.blend and textures, and the original files are untouched.
     def test_output_folder(self):
@@ -124,7 +127,10 @@ class CleanupOptionTests(CleanupTest):
         self.assertTrue(result["ok"], result["error"])
         self.assertEqual(self.codes(result), ["missing_texture"])
         self.assertEqual(result["output"]["missing_textures"], ["chair_wood.png"])
-        self.assertEqual(result["output"]["textures"], [])
+        self.assertEqual(result["output"]["textures"], sorted(
+            "textures/maps/%s/%s.png" % (key, channel) for key in ("fabric", "wood")
+            for channel in ("base_color", "metallic", "normal", "roughness")))
+        self.assertEqual(result["output"]["material_maps"][1]["maps"]["base_color"]["from"], "value")
         self.assert_result_valid(result)
 
     # A picture that lives in another folder than the one the model names is found by its file name.
@@ -134,7 +140,8 @@ class CleanupOptionTests(CleanupTest):
         os.replace(os.path.join(chair, "chair_wood.png"), os.path.join(chair, "maps", "deep", "CHAIR_WOOD.PNG"))
         result = self.cleanup(os.path.join(chair, "chair.obj"), "obj")
         self.assertEqual(result["warnings"], [])
-        self.assertEqual(result["output"]["textures"], ["textures/CHAIR_WOOD.PNG"])
+        self.assertIn("textures/maps/wood/base_color.png", result["output"]["textures"])
+        self.assertEqual(result["output"]["material_maps"][1]["maps"]["base_color"]["detail"], "CHAIR_WOOD.PNG")
 
     # Progress lines name every step in order.
     def test_progress_steps(self):

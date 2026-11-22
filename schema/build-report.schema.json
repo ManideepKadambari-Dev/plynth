@@ -55,7 +55,11 @@
         "rooms": { "type": "integer", "minimum": 0 },
         "items": { "type": "integer", "minimum": 0 },
         "materials": { "description": "Blender materials made for built surfaces. Missing in reports written before milestone 9.", "type": "integer", "minimum": 0 },
-        "generators": { "description": "Items built by generators. Missing in reports written before milestone 14.", "type": "integer", "minimum": 0 }
+        "collision": { "description": "UCX_ collision meshes made. Missing in reports written before milestone 10.", "type": "integer", "minimum": 0 },
+        "slabs": { "description": "Slab meshes made. Missing in older reports.", "type": "integer", "minimum": 0 },
+        "stairs": { "description": "Stair meshes made. Missing in older reports.", "type": "integer", "minimum": 0 },
+        "roofs": { "description": "Roof section meshes made. Missing in older reports.", "type": "integer", "minimum": 0 },
+        "generators": { "description": "Items built by generators. Missing in older reports.", "type": "integer", "minimum": 0 }
       }
     },
     "steps": {

@@ -23,8 +23,8 @@ struct GeneratorEnv {
 };
 
 // Loads the generators folder of a library and the add-on cache. The cache is kept only when it was made by
-// the Blender that would be used (the option, then the settings and the search); with no usable Blender or no
-// matching cache it stays empty.
+// the Blender that would be used (the option, then PLYNTH_BLENDER, then the settings and the search); with no
+// usable Blender or no matching cache it stays empty.
 GeneratorEnv loadGeneratorEnv(const LibraryPaths& paths, const MachineSettings& settings,
                               const std::optional<std::filesystem::path>& blenderOption);
 

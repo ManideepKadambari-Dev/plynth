@@ -1,10 +1,12 @@
 #pragma once
 
+#include "Blender.h"
 #include "Status.h"
 
 #include <nlohmann/json.hpp>
 
 #include <filesystem>
+#include <stop_token>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -32,7 +34,7 @@ using Json = nlohmann::ordered_json;
 //
 // Worker error codes: bad_job, unknown_task, unsupported_format, import_failed, no_geometry, several_models,
 // several_materials, no_base_color, bake_failed, unpack_failed, save_failed, render_failed, export_failed,
-// internal.
+// preferences_unreadable, internal.
 
 inline constexpr std::string_view kBlenderJobFormat = "plynth-blender-job";
 inline constexpr int kBlenderJobVersion = 1;
@@ -50,6 +52,7 @@ inline constexpr std::string_view kCleanupAssetTask = "cleanup_asset";     // se
 inline constexpr std::string_view kRenderThumbnailTask = "render_thumbnail"; // see catalog/AssetJobs.h
 inline constexpr std::string_view kBuildTask = "build";                    // see BuildJob.h
 inline constexpr std::string_view kCleanupMaterialTask = "cleanup_material"; // see catalog/MaterialJobs.h
+inline constexpr std::string_view kExportTask = "export";                  // see ExportJob.h
 
 // Makes a job: format, version, task, job_id, result_file and params, in that order.
 Json makeBlenderJob(std::string_view task, std::string_view jobId, const std::filesystem::path& resultFile,
@@ -60,7 +63,8 @@ std::string newJobId(std::string_view stem);
 
 // A note from the worker that did not stop the job, for example {"code": "high_polycount", ...}.
 // Codes: high_polycount, scale_suspicious, missing_texture, removed_objects, unsupported_object,
-// fbx_failed (asset.fbx for the live preview could not be written; the asset itself is fine).
+// fbx_failed (asset.fbx for the live preview could not be written; the asset itself is fine),
+// material_approximated (an asset material's maps could not show it exactly, see catalog/AssetJobs.h).
 // Material codes (catalog/MaterialJobs.h): ambiguous_map, unused_image, map_size_mismatch, visible_seams,
 // low_resolution.
 struct BlenderWarning {
@@ -83,13 +87,20 @@ struct BlenderResultHeader {
 
 BlenderResultHeader readBlenderResultHeader(const Json& result, std::string_view task, std::string_view jobId);
 
-// The probe task. Params: {} . Output:
+// The probe task. It runs with factory startup in Plynth's private folder and reads the user's saved Blender
+// settings as data: it loads no settings, imports no add-on and writes nothing in the user's folders.
+// Params, all required, absolute paths:
+//   {"user_folders": {"config": "...", "scripts": "...", "extensions": "...", "blenderkit_data": "..."}}
+// The worker has no default for them and answers bad_job without them. Output:
 //   {"blender": {"version": "5.2.0", "version_text": "5.2.0 LTS", "python": "3.11.9", "build_date": "2026-07-14"},
 //    "addons": [{"module": "bl_ext.user_default.blenderkit", "name": "BlenderKit Online Asset Library",
 //                "version": "3.14.0"}],
 //    "blenderkit": {"installed": true, "enabled": true, "signed_in": false}}
-// addons lists only enabled add-ons and extensions. signed_in only says whether an API key is stored in the
-// add-on's preferences; the key itself is never read out or written anywhere.
+// addons lists only add-ons and extensions that are both saved as enabled and found on disk. Enabled does not
+// prove that one loads. installed means found on disk. signed_in only says whether a BlenderKit sign-in is
+// saved, not that it is still valid; the key itself is never output or written anywhere.
+// No saved settings means Blender's defaults and not signed in. Settings that cannot be read give the error
+// preferences_unreadable, with a fixed sentence that holds nothing from the file.
 struct ProbeAddon {
     std::string module;
     std::string name;
@@ -107,5 +118,22 @@ struct ProbeResult {
 };
 
 ProbeResult readProbeResult(const Json& result, std::string_view jobId);
+
+// Makes a probe job with the given user folders.
+Json makeProbeJob(const BlenderUserFolders& folders, std::string_view jobId, const std::filesystem::path& resultFile);
+
+struct BlenderProbeRun {
+    // Ok when result can be used. Otherwise why not; result.header.errorCode holds the worker's code when it
+    // gave one.
+    Status status;
+    ProbeResult result;
+};
+
+// Asks one Blender about the user's add-ons. Works out the user's folders before the child's environment is
+// replaced, runs the probe job in a temporary work folder and removes that folder however the run ends.
+// options.factoryStartup is ignored. Fails without starting Blender when the install is not usable or a
+// folder cannot be worked out. A failed probe is never run again with normal startup. Blocks.
+BlenderProbeRun runBlenderProbe(const BlenderInstall& install, const BlenderRunOptions& options = {},
+                                std::stop_token stop = {});
 
 }

@@ -38,6 +38,17 @@ std::wstring environmentText(const wchar_t* name)
     return value;
 }
 
+// The folder an environment variable names, as an absolute path, when that folder exists. Empty otherwise.
+fs::path existingFolderFrom(const wchar_t* name)
+{
+    const std::wstring text = environmentText(name);
+    if (text.empty()) return {};
+    std::error_code ec;
+    const fs::path path(text);
+    if (!fs::is_directory(path, ec)) return {};
+    return fs::absolute(path, ec).lexically_normal();
+}
+
 // The folder Blender gets as its own user folder when it runs with factory startup. Factory startup alone does
 // not protect the user's Blender folders, so every such run is pointed here. PLYNTH_BLENDER_PRIVATE moves it.
 fs::path blenderPrivateFolder()
@@ -356,6 +367,46 @@ std::optional<std::size_t> preferredBlender(const std::vector<BlenderInstall>& i
     return std::nullopt;
 }
 
+// Works out where the user's own Blender keeps its files, without touching them.
+BlenderUserFolders blenderUserFolders(const BlenderInstall& install)
+{
+    std::error_code ec;
+    const fs::path resources = existingFolderFrom(L"BLENDER_USER_RESOURCES");
+    fs::path portable;
+    if (install.executable.has_parent_path()) {
+        const fs::path beside = install.executable.parent_path() / L"portable";
+        if (fs::is_directory(beside, ec)) portable = fs::absolute(beside, ec).lexically_normal();
+    }
+    fs::path appData;
+    if (install.version) {
+        if (const std::wstring base = environmentText(L"APPDATA"); !base.empty()) {
+            appData = fs::absolute(fs::path(base) / L"Blender Foundation" / L"Blender" /
+                                       (std::to_wstring(install.version->major) + L"." + std::to_wstring(install.version->minor)),
+                                   ec)
+                          .lexically_normal();
+        }
+    }
+    const auto pick = [&](const wchar_t* variable, const wchar_t* name) -> fs::path {
+        if (fs::path own = existingFolderFrom(variable); !own.empty()) return own;
+        for (const fs::path& base : {resources, portable, appData}) {
+            if (!base.empty()) return base / name;
+        }
+        return {};
+    };
+
+    BlenderUserFolders folders;
+    folders.config = pick(L"BLENDER_USER_CONFIG", L"config");
+    folders.scripts = pick(L"BLENDER_USER_SCRIPTS", L"scripts");
+    folders.extensions = pick(L"BLENDER_USER_EXTENSIONS", L"extensions");
+    for (const wchar_t* variable : {L"XDG_DATA_HOME", L"USERPROFILE"}) {
+        if (const std::wstring base = environmentText(variable); !base.empty()) {
+            folders.blenderKitData = fs::absolute(fs::path(base) / L"blenderkit_data", ec).lexically_normal();
+            break;
+        }
+    }
+    return folders;
+}
+
 // Picks the Blender for a job.
 BlenderChoice chooseBlender(const std::optional<fs::path>& option, const MachineSettings& settings, std::stop_token stop)
 {
@@ -404,6 +455,8 @@ BlenderChoice chooseBlender(const std::optional<fs::path>& option, const Machine
         fs::path path(env);
         if (fs::is_directory(path, ec)) path /= L"blender.exe";
         if (tryPath(path, "PLYNTH_BLENDER")) return choice;
+        choice.status = fail(ErrorCode::BlenderNotFound, "The Blender named by PLYNTH_BLENDER cannot be used." + tried);
+        return choice;
     }
     if (settings.blender && tryPath(*settings.blender, "The Blender in the settings")) return choice;
 
@@ -480,7 +533,9 @@ BlenderJobRun runBlenderJob(const fs::path& blender, const Json& job, const fs::
     ProcessSpec spec;
     spec.program = blender;
     spec.arguments = {"--background"};
-    if (options.factoryStartup) {
+    // The probe reads the user's saved state as data, so it never gets the user's folders, whatever was asked.
+    const bool isProbe = job.contains("task") && job["task"].is_string() && job["task"].get<std::string>() == kProbeTask;
+    if (options.factoryStartup || isProbe) {
         spec.arguments.emplace_back("--factory-startup");
         if (const Status s = useBlenderPrivateFolder(spec); !s.ok()) {
             run.status = s;

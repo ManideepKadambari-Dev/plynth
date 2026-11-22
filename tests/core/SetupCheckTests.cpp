@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <fstream>
 #include <limits>
 #include <string>
 
@@ -175,6 +176,7 @@ TEST_CASE("an untested Blender needs attention but does not block", "[core][setu
 }
 
 TEST_CASE("the add-on probe finds add-ons and BlenderKit", "[core][setup]") {
+    plynth::test::IsolatedUser user("setup-addons-user");
     plynth::test::TempDir tmp("setup-addons");
     plynth::test::makeFakeBlender(tmp.path() / "b" / "Blender 5.2", "5.2.0");
     plynth::test::ScopedEnv addons("FAKE_BLENDER_ADDONS", "bl_ext.blender_org.archimesh,bl_ext.blender_org.home_builder_5,object_boolean_tools");
@@ -200,6 +202,7 @@ TEST_CASE("the add-on probe finds add-ons and BlenderKit", "[core][setup]") {
 }
 
 TEST_CASE("BlenderKit states", "[core][setup]") {
+    plynth::test::IsolatedUser user("setup-kit-user");
     plynth::test::TempDir tmp("setup-kit");
     plynth::test::makeFakeBlender(tmp.path() / "b" / "Blender 5.2", "5.2.0");
     const MachineSettings settings = goodFolders(tmp.path());
@@ -214,6 +217,7 @@ TEST_CASE("BlenderKit states", "[core][setup]") {
 }
 
 TEST_CASE("a failed probe leaves add-ons not checked", "[core][setup]") {
+    plynth::test::IsolatedUser user("setup-probe-fail-user");
     plynth::test::TempDir tmp("setup-probe-fail");
     plynth::test::makeFakeBlender(tmp.path() / "b" / "Blender 5.2", "5.2.0", "fail");
     const SetupReport report = runSetupCheck(goodFolders(tmp.path()), optionsFor(tmp.path() / "b", true));
@@ -222,6 +226,121 @@ TEST_CASE("a failed probe leaves add-ons not checked", "[core][setup]") {
     const SetupItem* archimesh = report.find(kCheckArchimesh);
     REQUIRE(archimesh->state == CheckState::NotChecked);
     REQUIRE(archimesh->detail == "Blender is needed to check add-ons.");
+}
+
+TEST_CASE("the setup check never gives the probe the user's folders", "[core][setup][safety]") {
+    for (const char* mode : {"write_user", "write_user+fail", "write_user+crash"}) {
+        DYNAMIC_SECTION(mode) {
+            plynth::test::TempDir tmp("setup-safe");
+            plynth::test::IsolatedUser user("setup-safe-user");
+            const fs::path exe = plynth::test::makeFakeBlender(tmp.path() / "b" / "Blender 5.2", "5.2.0", mode);
+            const auto before = user.fingerprint();
+            const SetupReport report = runSetupCheck(goodFolders(tmp.path()), optionsFor(tmp.path() / "b", true));
+            REQUIRE(user.fingerprint() == before);
+            REQUIRE(report.probed == (std::string(mode) == "write_user"));
+            REQUIRE(fs::exists(user.tmp.path() / "private" / "config" / "fake_marker.txt"));
+            REQUIRE(fs::is_empty(user.tempFolder));
+
+            std::ifstream args(exe.parent_path() / "fake_args.log", std::ios::binary);
+            int starts = 0;
+            for (std::string line; std::getline(args, line); ++starts) {
+                REQUIRE(line.find("--factory-startup") != std::string::npos);
+            }
+            REQUIRE(starts >= 2);
+        }
+    }
+}
+
+namespace {
+
+// True when the fake in this folder was ever started.
+bool wasStarted(const fs::path& exe)
+{
+    return fs::exists(exe.parent_path() / "fake_env.log");
+}
+
+}
+
+TEST_CASE("a named Blender is the only one the setup check looks at", "[core][setup][choice]") {
+    plynth::test::TempDir tmp("setup-bound");
+    plynth::test::IsolatedUser user("setup-bound-user");
+    plynth::test::ScopedEnv shortTimeout("PLYNTH_BLENDER_VERSION_TIMEOUT_MS", "2000");
+    const fs::path good = plynth::test::makeFakeBlender(tmp.path() / "b" / "good", "5.2.0");
+    const fs::path other = plynth::test::makeFakeBlender(tmp.path() / "b" / "other", "5.2.0");
+    const fs::path old = plynth::test::makeFakeBlender(tmp.path() / "old", "4.1.0");
+    const fs::path hung = plynth::test::makeFakeBlender(tmp.path() / "hung", "5.2.0", "hang_version");
+    const fs::path missing = tmp.path() / "none" / "blender.exe";
+    const MachineSettings settings = goodFolders(tmp.path());
+    SetupCheckOptions options = optionsFor(tmp.path() / "b", false);
+    options.search.environment = true;
+
+    SECTION("the variable names a missing file") {
+        plynth::test::ScopedEnv env("PLYNTH_BLENDER", pathToUtf8(missing));
+        const SetupReport report = runSetupCheck(settings, options);
+        REQUIRE(report.blenderInstalls.empty());
+        REQUIRE(report.find(kCheckBlender)->state == CheckState::Missing);
+        REQUIRE(report.find(kCheckBlender)->detail.find("none") != std::string::npos);
+        REQUIRE_FALSE(report.ready);
+        REQUIRE_FALSE(wasStarted(good));
+        REQUIRE_FALSE(wasStarted(other));
+    }
+    SECTION("the variable names a Blender that is too old") {
+        plynth::test::ScopedEnv env("PLYNTH_BLENDER", pathToUtf8(old));
+        const SetupReport report = runSetupCheck(settings, options);
+        REQUIRE(report.blenderInstalls.size() == 1);
+        REQUIRE(report.find(kCheckBlenderVersion)->state == CheckState::TooOld);
+        REQUIRE_FALSE(wasStarted(good));
+        REQUIRE_FALSE(wasStarted(other));
+    }
+    SECTION("the variable names a Blender that does not answer") {
+        plynth::test::ScopedEnv env("PLYNTH_BLENDER", pathToUtf8(hung));
+        const SetupReport report = runSetupCheck(settings, options);
+        REQUIRE(report.blenderInstalls.size() == 1);
+        REQUIRE(report.find(kCheckBlender)->state == CheckState::Missing);
+        REQUIRE_FALSE(wasStarted(good));
+        REQUIRE_FALSE(wasStarted(other));
+    }
+    SECTION("the option beats the variable") {
+        plynth::test::ScopedEnv env("PLYNTH_BLENDER", pathToUtf8(old));
+        options.blender = good;
+        const SetupReport report = runSetupCheck(settings, options);
+        REQUIRE(report.blenderInstalls.size() == 1);
+        REQUIRE(report.find(kCheckBlender)->state == CheckState::Found);
+        REQUIRE(report.ready);
+        REQUIRE_FALSE(wasStarted(old));
+        REQUIRE_FALSE(wasStarted(other));
+    }
+    SECTION("a bad option starts no other Blender") {
+        plynth::test::ScopedEnv env("PLYNTH_BLENDER", pathToUtf8(good));
+        options.blender = missing;
+        REQUIRE(runSetupCheck(settings, options).find(kCheckBlender)->state == CheckState::Missing);
+        options.blender = old;
+        REQUIRE(runSetupCheck(settings, options).find(kCheckBlenderVersion)->state == CheckState::TooOld);
+        REQUIRE_FALSE(wasStarted(good));
+        REQUIRE_FALSE(wasStarted(other));
+    }
+    SECTION("without a name every install is listed") {
+        plynth::test::ScopedEnv env("PLYNTH_BLENDER", "");
+        REQUIRE(runSetupCheck(settings, options).blenderInstalls.size() == 2);
+    }
+    SECTION("the variable is ignored when the search leaves it out") {
+        plynth::test::ScopedEnv env("PLYNTH_BLENDER", pathToUtf8(missing));
+        options.search.environment = false;
+        REQUIRE(runSetupCheck(settings, options).blenderInstalls.size() == 2);
+    }
+    SECTION("the quick check looks only at the variable") {
+        {
+            plynth::test::ScopedEnv env("PLYNTH_BLENDER", pathToUtf8(missing));
+            MachineSettings saved = settings;
+            saved.blender = good;
+            REQUIRE(quickSetupCheck(saved, true).find(kCheckBlender)->state == CheckState::Missing);
+        }
+        plynth::test::ScopedEnv env("PLYNTH_BLENDER", pathToUtf8(old));
+        const SetupReport report = quickSetupCheck(settings, true);
+        REQUIRE(report.find(kCheckBlender)->state == CheckState::Found);
+        REQUIRE(report.find(kCheckBlender)->path == old);
+        REQUIRE_FALSE(wasStarted(old));
+    }
 }
 
 TEST_CASE("library folder states", "[core][setup]") {
@@ -370,6 +489,7 @@ TEST_CASE("setupReportToJson lists the installs", "[core][setup]") {
 }
 
 TEST_CASE("the setup check runs against the real Blender", "[.blender]") {
+    plynth::test::IsolatedUser user("setup-real-user");
     plynth::test::TempDir tmp("setup-real");
     const SetupReport report = runSetupCheck(goodFolders(tmp.path()), SetupCheckOptions{});
     REQUIRE(report.find(kCheckBlender)->state == CheckState::Found);
@@ -379,6 +499,7 @@ TEST_CASE("the setup check runs against the real Blender", "[.blender]") {
 }
 
 TEST_CASE("Home Builder 5 is found as Home Builder", "[core][setup]") {
+    plynth::test::IsolatedUser user("setup-home-builder-user");
     plynth::test::TempDir tmp("setup-home-builder");
     plynth::test::makeFakeBlender(tmp.path() / "b" / "Blender 5.2", "5.2.0");
     plynth::test::ScopedEnv addons("FAKE_BLENDER_ADDONS", "bl_ext.blender_org.home_builder_5");
@@ -389,6 +510,7 @@ TEST_CASE("Home Builder 5 is found as Home Builder", "[core][setup]") {
 }
 
 TEST_CASE("an add-on row names the library generators that need it", "[core][setup]") {
+    plynth::test::IsolatedUser user("setup-affects-user");
     plynth::test::TempDir tmp("setup-affects");
     plynth::test::makeFakeBlender(tmp.path() / "b" / "Blender 5.2", "5.2.0");
     const MachineSettings settings = goodFolders(tmp.path());
@@ -417,4 +539,22 @@ TEST_CASE("an add-on row names the library generators that need it", "[core][set
     MachineSettings noLibrary = settings;
     noLibrary.library.reset();
     REQUIRE(affectsOf(quickSetupCheck(noLibrary, true), kCheckArchimesh).size() == 1);
+}
+
+TEST_CASE("unreadable preferences still name the generators of an add-on", "[core][setup][safety]") {
+    plynth::test::IsolatedUser user("setup-unreadable-user");
+    plynth::test::TempDir tmp("setup-unreadable");
+    plynth::test::makeFakeBlender(tmp.path() / "b" / "Blender 5.2", "5.2.0", "unreadable");
+    const MachineSettings settings = goodFolders(tmp.path());
+    const fs::path generators = *settings.library / "generators";
+    fs::create_directories(generators);
+    fs::copy_file(fs::path(PLYNTH_TEST_DATA_DIR) / "generators" / "archimesh_column.py", generators / "archimesh_column.py",
+                  fs::copy_options::overwrite_existing);
+
+    const SetupReport report = runSetupCheck(settings, optionsFor(tmp.path() / "b", true));
+    REQUIRE_FALSE(report.probed);
+    const SetupItem* archimesh = report.find(kCheckArchimesh);
+    REQUIRE(archimesh->state == CheckState::NotChecked);
+    REQUIRE(archimesh->detail == "The fake preferences cannot be read.");
+    REQUIRE(std::find(archimesh->affects.begin(), archimesh->affects.end(), "Archimesh column generator") != archimesh->affects.end());
 }

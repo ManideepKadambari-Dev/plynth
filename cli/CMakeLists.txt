@@ -24,14 +24,17 @@ add_library(plynth_cli STATIC
     src/commands/PointCommands.cpp
     src/commands/DetectCommands.cpp
     src/commands/DoctorCommands.cpp
+    src/commands/ExportCommands.cpp
     src/commands/HelpCommand.cpp
     src/commands/ImportCommands.cpp
     src/commands/ItemCommands.cpp
     src/commands/ProjectCommands.cpp
+    src/commands/RoofCommands.cpp
     src/commands/RoomCommands.cpp
     src/commands/ScaleCommands.cpp
     src/commands/SessionCommands.cpp
     src/commands/SettingsCommands.cpp
+    src/commands/StairCommands.cpp
     src/commands/VersionCommand.cpp
     src/commands/WallCommands.cpp
 )

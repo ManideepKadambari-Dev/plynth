@@ -2,7 +2,13 @@
 // Blender: it reads the job file after "--", acts by the mode in fake_mode.txt next to the program (or the
 // FAKE_BLENDER_MODE variable), and writes a result file that follows schema/blender-result.schema.json.
 // Modes: ok (default), fail, crash, hang, hang_version, bad_result, no_thumbnail, no_fbx, build_problem,
-// several_materials (a cleanup_material job on a .blend with no material named fails with that error).
+// several_materials (a cleanup_material job on a .blend with no material named fails with that error),
+// quality_fail (an export job reports a failing naming check with a finding on w1), quality_warn (a warning),
+// unreadable (a probe job fails with preferences_unreadable).
+// Several modes can be joined with "+", for example write_user+crash. write_user writes marker files into the
+// folders BLENDER_USER_CONFIG and BLENDER_USER_EXTENSIONS name, else into config and extensions under
+// FAKE_BLENDER_USER_ROOT, and into no folder when neither is set. It never uses a real default folder.
+// Every start also appends its arguments to fake_args.log.
 // Every start also appends the BLENDER_USER_* variables it sees to fake_env.log.
 // Every job is also appended as one line to fake_jobs.log next to the program.
 // The version comes from fake_version.txt next to the program, else 5.2.0.
@@ -76,13 +82,32 @@ std::string fakeVersion()
     return v.empty() ? "5.2.0" : v;
 }
 
-// What the fake does with a job.
-std::string fakeMode()
+// The modes as written, joined with "+".
+std::string fakeModeText()
 {
     const std::string m = readSmallFile(programFolder() / "fake_mode.txt");
     if (!m.empty()) return m;
-    const std::string e = environment("FAKE_BLENDER_MODE");
-    return e.empty() ? "ok" : e;
+    return environment("FAKE_BLENDER_MODE");
+}
+
+// True when write_user is one of the modes.
+bool writesUser()
+{
+    std::stringstream list(fakeModeText());
+    for (std::string part; std::getline(list, part, '+');) {
+        if (part == "write_user") return true;
+    }
+    return false;
+}
+
+// What the fake does with a job: the first mode that is not write_user.
+std::string fakeMode()
+{
+    std::stringstream list(fakeModeText());
+    for (std::string part; std::getline(list, part, '+');) {
+        if (!part.empty() && part != "write_user") return part;
+    }
+    return "ok";
 }
 
 // Waits until the program is killed.
@@ -167,6 +192,23 @@ void writeFile(const fs::path& file, const std::string& bytes)
 fs::path pathFrom(const std::string& text)
 {
     return fs::path(std::u8string(text.begin(), text.end()));
+}
+
+// Writes a marker file into the user's config and extensions folders, as a Blender that loads the user's
+// settings would. The folders come from the environment, else from FAKE_BLENDER_USER_ROOT, never from a
+// real default.
+void writeUserMarkers()
+{
+    const std::string root = environment("FAKE_BLENDER_USER_ROOT");
+    for (const char* kind : {"config", "extensions"}) {
+        const std::string name = std::string("BLENDER_USER_") + (std::string(kind) == "config" ? "CONFIG" : "EXTENSIONS");
+        const std::string given = environment(name.c_str());
+        fs::path folder;
+        if (!given.empty()) folder = pathFrom(given);
+        else if (!root.empty()) folder = pathFrom(root) / kind;
+        if (folder.empty()) continue;
+        writeFile(folder / "fake_marker.txt", "touched by the fake\n");
+    }
 }
 
 // Prints a progress line the way the worker does.
@@ -326,6 +368,17 @@ int writeBuiltMaterials(const fs::path& folder, const Json& params)
     const int count = static_cast<int>(materials.size());
     Json slots = Json::array();
     for (const Json& m : materials) slots.push_back(m["name"]);
+    const Json noAssets = Json::array();
+    for (const Json& asset : params.contains("assets") ? params["assets"] : noAssets) {
+        for (const Json& m : asset.contains("materials") ? asset["materials"] : noAssets) {
+            materials.push_back(Json{{"name", m["name"]},
+                                     {"material", nullptr},
+                                     {"surface", nullptr},
+                                     {"asset", asset["id"]},
+                                     {"maps", m["maps"]},
+                                     {"alpha_mode", m["maps"]["opacity"].is_null() ? "opaque" : "blend"}});
+        }
+    }
     Json objects = Json::array();
     for (const Json& floor : params["floors"]) {
         objects.push_back(Json{{"name", "SM_" + floor["id"].get<std::string>() + "_Walls"}, {"slots", slots}});
@@ -333,6 +386,27 @@ int writeBuiltMaterials(const fs::path& folder, const Json& params)
     const Json file = Json{{"format", "plynth-build-materials"}, {"version", 1}, {"materials", materials}, {"objects", objects}};
     writeFile(folder / "materials.json", file.dump(2) + "\n");
     return count;
+}
+
+// The preview parts the fake build writes: one file per floor, one more for each floor with slab polygons and with roofs, and
+// parts.json listing them.
+void writePreviewParts(const fs::path& folder, const Json& floors)
+{
+    Json parts = Json::array();
+    for (const Json& floor : floors) {
+        const std::string id = floor["id"].get<std::string>();
+        writeFile(folder / (id + ".fbx"), "FAKEFBX");
+        parts.push_back(Json{{"floor", id}, {"kind", "storey"}, {"file", id + ".fbx"}});
+        if (!floor["slab"]["polygons"].empty()) {
+            writeFile(folder / (id + "_slab.fbx"), "FAKEFBX");
+            parts.push_back(Json{{"floor", id}, {"kind", "slab"}, {"file", id + "_slab.fbx"}});
+        }
+        if (floor["roofs"].empty()) continue;
+        writeFile(folder / (id + "_roof.fbx"), "FAKEFBX");
+        parts.push_back(Json{{"floor", id}, {"kind", "roof"}, {"file", id + "_roof.fbx"}});
+    }
+    const Json file = Json{{"format", "plynth-build-preview"}, {"version", 1}, {"parts", parts}};
+    writeFile(folder / "parts.json", file.dump(2) + "\n");
 }
 
 // What the fake build task writes and reports.
@@ -349,6 +423,16 @@ Json buildOutput(const Json& params, const std::string& mode)
     const int openings = sumOf(floors, "openings");
     const int rooms = sumOf(floors, "rooms");
     const int items = sumOf(floors, "items");
+    const int stairs = sumOf(floors, "stairs");
+    const int roofs = sumOf(floors, "roofs");
+    int slabs = 0;
+    for (const Json& floor : floors) slabs += floor["slab"]["polygons"].empty() ? 0 : 1;
+    if (fbx && params["preview_folder"].is_string()) writePreviewParts(folder / params["preview_folder"].get<std::string>(), floors);
+    int collision = items;
+    for (const Json& floor : floors) {
+        if (!floor.contains("collision")) continue;
+        for (const Json& shape : floor["collision"]) collision += static_cast<int>(shape["pieces"].size() + (shape.contains("hulls") ? shape["hulls"].size() : 0));
+    }
     int fills = 0;
     const bool fill = params["settings"]["fill_openings"].get<bool>();
     Json problems = Json::array();
@@ -375,9 +459,68 @@ Json buildOutput(const Json& params, const std::string& mode)
     out["materials_file"] = fbx ? Json("materials.json") : Json(nullptr);
     out["objects"] = objects;
     out["triangles"] = objects * 12;
-    out["counts"] = Json{{"wall_solids", solids}, {"openings_cut", openings}, {"fills", fills}, {"rooms", rooms}, {"items", items}, {"materials", materialCount}};
+    out["counts"] = Json{{"wall_solids", solids}, {"openings_cut", openings}, {"fills", fills}, {"rooms", rooms}, {"items", items},
+                       {"materials", materialCount}, {"slabs", slabs}, {"stairs", stairs}, {"roofs", roofs}, {"collision", collision}};
     out["steps"] = steps;
     out["problems"] = problems;
+    return out;
+}
+
+// The steps the fake export reports.
+constexpr const char* kExportSteps[] = {"open_blend", "prepare", "name_objects", "textures", "checks", "write_fbx", "file_checks"};
+
+// One check result of the fake export.
+Json fakeCheck(const char* id, const char* name, const char* phase, const char* status, const char* message, Json findings = Json::array())
+{
+    return Json{{"id", id}, {"name", name}, {"phase", phase}, {"status", status}, {"message", message}, {"findings", std::move(findings)}};
+}
+
+// What the fake export task writes and reports: every group's file and Textures/T_Fake_BaseColor.png when the job
+// writes and no scene check fails (or it is forced).
+Json exportOutput(const Json& params, const std::string& mode)
+{
+    const fs::path folder = pathFrom(params["output_folder"].get<std::string>());
+    const bool failing = mode == "quality_fail";
+    const bool warning = mode == "quality_warn";
+    const bool write = params["write"].get<bool>() && (!failing || params["force"].get<bool>());
+
+    Json files = Json::array();
+    Json textures = Json::array();
+    if (write) {
+        for (const Json& group : params["groups"]) {
+            writeFile(folder / pathFrom(group["file"].get<std::string>()), "FAKEFBX");
+            files.push_back(Json{{"group", group["id"]}, {"file", group["file"]}, {"objects", 12}, {"triangles", 144}});
+        }
+        writeFile(folder / pathFrom(params["textures_folder"].get<std::string>()) / "T_Fake_BaseColor.png", tinyPng());
+        textures.push_back("T_Fake_BaseColor.png");
+    }
+
+    Json naming = fakeCheck("naming", "Naming", "scene", "pass", "Every name follows the rules.");
+    if (failing) {
+        naming = fakeCheck("naming", "Naming", "scene", "fail", "One object has a bad name.",
+                           Json::array({Json{{"object", "SM_Bad Name"}, {"plan_id", "w1"}, {"message", "The name has a space in it."}}}));
+    } else if (warning) {
+        naming = fakeCheck("naming", "Naming", "scene", "warning", "One name is unusual.");
+    }
+    Json checks = Json::array();
+    checks.push_back(fakeCheck("build_current", "Build is up to date", "scene", "pass", "The build matches the plan."));
+    checks.push_back(naming);
+    checks.push_back(write ? fakeCheck("fbx_scale", "File scale", "file", "pass", "The files have the right size.")
+                           : fakeCheck("fbx_scale", "File scale", "file", "skipped", "Nothing was written."));
+
+    Json steps = Json::array();
+    for (const char* step : kExportSteps) steps.push_back(Json{{"step", step}, {"ms", 2}});
+
+    const int groups = static_cast<int>(files.size());
+    Json out = Json::object();
+    out["written"] = write;
+    out["files"] = files;
+    out["textures"] = textures;
+    out["objects"] = 12 * groups;
+    out["triangles"] = 144 * groups;
+    out["collision_objects"] = 3 * groups;
+    out["checks"] = checks;
+    out["steps"] = steps;
     return out;
 }
 
@@ -402,6 +545,12 @@ std::vector<std::string> commandLineArguments()
 int main()
 {
     const std::vector<std::string> args = commandLineArguments();
+    {
+        std::ofstream log(programFolder() / "fake_args.log", std::ios::binary | std::ios::app);
+        for (std::size_t i = 0; i < args.size(); ++i) log << (i ? "|" : "") << args[i];
+        log << "\n";
+    }
+    if (writesUser()) writeUserMarkers();
     {
         std::ofstream log(programFolder() / "fake_env.log", std::ios::binary | std::ios::app);
         log << (std::find(args.begin(), args.end(), "--version") != args.end() ? "version" : "job");
@@ -444,10 +593,37 @@ int main()
         log << job.dump() << "\n";
     }
 
+    if (job["task"].get<std::string>() == "probe") {
+        const Json& given = job["params"];
+        const Json folders = given.is_object() && given.contains("user_folders") ? given["user_folders"] : Json();
+        bool complete = folders.is_object();
+        for (const char* key : {"config", "scripts", "extensions", "blenderkit_data"}) {
+            complete = complete && folders.contains(key) && folders[key].is_string() && !folders[key].get<std::string>().empty();
+        }
+        if (!complete) {
+            Json bad = Json::object();
+            bad["format"] = "plynth-blender-result";
+            bad["version"] = 1;
+            bad["task"] = "probe";
+            bad["job_id"] = job["job_id"];
+            bad["ok"] = false;
+            bad["error"] = Json{{"code", "bad_job"}, {"message", "The probe job has no user folders."}};
+            bad["blender_version"] = version;
+            bad["warnings"] = Json::array();
+            bad["elapsed_ms"] = 1;
+            bad["output"] = nullptr;
+            writeResult(pathFrom(job["result_file"].get<std::string>()), bad);
+            return 0;
+        }
+    }
+
     const bool isBuild = job["task"].get<std::string>() == "build";
     if (isBuild) {
         int index = 0;
         for (const char* step : kBuildSteps) progress(step, ++index, static_cast<int>(std::size(kBuildSteps)), "Fake build step");
+    } else if (job["task"].get<std::string>() == "export") {
+        int index = 0;
+        for (const char* step : kExportSteps) progress(step, ++index, static_cast<int>(std::size(kExportSteps)), "Fake export step");
     } else {
         progress("import_source", 1, 2, "Fake import");
         progress("save_blend", 2, 2, "Fake save");
@@ -480,8 +656,17 @@ int main()
         const bool render = mode != "fail";
         result["ok"] = false;
         const bool build = task == "build";
-        result["error"] = Json{{"code", render ? "render_failed" : build ? "save_failed" : "import_failed"},
-                               {"message", render ? "Fake render failure" : build ? "Fake save failure." : "Fake import failure."}};
+        const bool exporting = task == "export";
+        result["error"] = Json{{"code", render ? "render_failed" : build ? "save_failed" : exporting ? "export_failed" : "import_failed"},
+                               {"message", render ? "Fake render failure" : build ? "Fake save failure." : exporting ? "Fake export failure." : "Fake import failure."}};
+        result["output"] = nullptr;
+        writeResult(resultFile, result);
+        return 0;
+    }
+
+    if (mode == "unreadable" && task == "probe") {
+        result["ok"] = false;
+        result["error"] = Json{{"code", "preferences_unreadable"}, {"message", "The fake preferences cannot be read."}};
         result["output"] = nullptr;
         writeResult(resultFile, result);
         return 0;
@@ -498,13 +683,16 @@ int main()
 
     if (task == "build") {
         result["output"] = buildOutput(params, mode);
+    } else if (task == "export") {
+        result["output"] = exportOutput(params, mode);
     } else if (task == "probe") {
         result["output"] = probeOutput(version);
     } else if (task == "cleanup_material") {
         result["output"] = materialOutput(params, mode);
     } else if (task == "cleanup_asset") {
         const fs::path folder = pathFrom(params["output_folder"].get<std::string>());
-        writeFile(folder / "asset.blend", "FAKEBLEND");
+        const bool fromBlend = params["source"]["format"].get<std::string>() == "blend";
+        writeFile(folder / "asset.blend", fromBlend ? "CLEANED:" + params["source"]["file"].get<std::string>() : "FAKEBLEND");
         const bool fbxWritten = mode != "no_fbx";
         if (fbxWritten) writeFile(folder / "asset.fbx", "FAKEFBX");
         else result["warnings"].push_back(Json{{"code", "fbx_failed"}, {"message", "Fake asset.fbx failure"}});
@@ -518,13 +706,24 @@ int main()
         }
         const bool zip = params["source"]["format"].get<std::string>() == "zip";
         Json output = measures(true);
+        Json textures = Json::array();
+        Json maps = Json::object();
+        for (const char* channel : {"base_color", "normal", "roughness", "metallic"}) {
+            const std::string file = std::string("textures/maps/fake/") + channel + ".png";
+            writeFile(folder / pathFrom(file), tinyPng());
+            textures.push_back(file);
+            maps[channel] = Json{{"file", file}, {"from", "file"}, {"detail", "fake.png"}};
+        }
+        for (const char* channel : {"opacity", "occlusion"}) maps[channel] = Json{{"file", nullptr}, {"from", "none"}, {"detail", ""}};
+        output["textures"] = textures;
+        output["material_maps"] = Json::array({Json{{"name", "Fake"}, {"maps", maps}, {"preview_maps", maps}}});
         output["blend_file"] = "asset.blend";
         output["fbx_file"] = fbxWritten ? Json("asset.fbx") : Json(nullptr);
         output["picked_file"] = zip ? Json("model.obj") : Json(nullptr);
         output["missing_textures"] = Json::array();
         output["thumbnail"] = thumbnail;
         Json ordered = Json::object();
-        for (const char* key : {"blend_file", "fbx_file", "picked_file", "size", "triangles", "objects", "materials", "textures", "missing_textures", "thumbnail"}) {
+        for (const char* key : {"blend_file", "fbx_file", "picked_file", "size", "triangles", "objects", "materials", "textures", "missing_textures", "material_maps", "thumbnail"}) {
             ordered[key] = output[key];
         }
         result["output"] = ordered;

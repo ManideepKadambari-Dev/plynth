@@ -5,6 +5,7 @@
 #include "plynth/core/OpeningShapes.h"
 #include "plynth/core/Openings.h"
 #include "plynth/core/Rooms.h"
+#include "plynth/core/Storeys.h"
 #include "plynth/core/WallGeometry.h"
 
 #include "ClipperInclude.h"
@@ -360,7 +361,7 @@ std::vector<double> floorElevations(const Plan& plan)
     double level = 0.0;
     for (const Floor& floor : plan.floors) {
         levels.push_back(level);
-        level += floor.ceilingHeight;
+        level += floorRise(floor);
     }
     return levels;
 }
@@ -578,7 +579,112 @@ std::optional<RoomBuild> roomBuild(const Floor& floor, const Room& room, double 
         if (owner < outers.size()) polygons[owner].holes.push_back(canonical(hole.points, false));
     }
     out.polygons = std::move(polygons);
+    out.ceilingPolygons = out.polygons;
     return out;
+}
+
+// The polygons with the holes cut out of them. Holes inside a polygon become its holes again.
+std::vector<WorldPolygon> withoutHoles(const std::vector<WorldPolygon>& polygons, const std::vector<WorldPolygon>& cuts)
+{
+    if (cuts.empty()) return polygons;
+    Clipper2Lib::PathsD subject;
+    for (const WorldPolygon& p : polygons) {
+        subject.push_back(toPath(p.outline));
+        for (const std::vector<Vec2>& h : p.holes) subject.push_back(toPath(h));
+    }
+    Clipper2Lib::PathsD clip;
+    for (const WorldPolygon& c : cuts) clip.push_back(toPath(c.outline));
+    // Overlapping cuts are joined first, so where two footprints overlap the material stays removed.
+    const Clipper2Lib::PathsD cutUnion = Clipper2Lib::Union(clip, Clipper2Lib::FillRule::NonZero, kPrecision);
+    const Clipper2Lib::PathsD result =
+        Clipper2Lib::Difference(subject, cutUnion, Clipper2Lib::FillRule::EvenOdd, kPrecision);
+
+    std::vector<AreaRing> outers;
+    std::vector<AreaRing> holes;
+    for (const Clipper2Lib::PathD& path : result) {
+        AreaRing r;
+        r.points = withoutRepeats(fromPath(path));
+        if (r.points.size() < 3) continue;
+        r.area = signedArea(r.points);
+        (r.area > 0.0 ? outers : holes).push_back(std::move(r));
+    }
+    std::vector<WorldPolygon> out(outers.size());
+    for (std::size_t i = 0; i < outers.size(); ++i) out[i].outline = canonical(outers[i].points, true);
+    for (const AreaRing& hole : holes) {
+        std::size_t owner = outers.size();
+        for (std::size_t i = 0; i < outers.size(); ++i) {
+            if (!mostlyInside(hole.points, outers[i].points)) continue;
+            if (owner == outers.size() || outers[i].area < outers[owner].area) owner = i;
+        }
+        if (owner < outers.size()) out[owner].holes.push_back(canonical(hole.points, false));
+    }
+    std::sort(out.begin(), out.end(), [](const WorldPolygon& a, const WorldPolygon& b) {
+        return a.outline.front().x != b.outline.front().x ? a.outline.front().x < b.outline.front().x
+                                                          : a.outline.front().y < b.outline.front().y;
+    });
+    return out;
+}
+
+// Works out a room's floor and ceiling with stair holes cut out of them.
+std::optional<RoomBuild> roomBuild(const Floor& floor, const Room& room, double elevation,
+                                   const std::vector<WorldPolygon>& floorHoles,
+                                   const std::vector<WorldPolygon>& ceilingHoles)
+{
+    std::optional<RoomBuild> out = roomBuild(floor, room, elevation);
+    if (!out) return out;
+    const std::vector<WorldPolygon> whole = out->polygons;
+    out->polygons = withoutHoles(whole, floorHoles);
+    out->ceilingPolygons = withoutHoles(whole, ceilingHoles);
+    return out;
+}
+
+// Turns a stair layout into world coordinates at a floor level.
+StairBuild stairBuild(const StairLayout& layout, double elevation)
+{
+    const auto ring = [](const std::vector<Vec2>& plan) {
+        std::vector<Vec2> world;
+        for (const Vec2& p : plan) world.push_back(planToWorld(p));
+        return oriented(withoutRepeats(world), true);
+    };
+    StairBuild out;
+    out.id = layout.stair;
+    out.toFloor = layout.toFloor;
+    out.rise = layout.rise;
+    out.riserCount = layout.riserCount;
+    out.riser = layout.riser;
+    for (const StairStep& step : layout.steps) {
+        StairStepBuild built;
+        built.part = step.part;
+        built.outline = ring(step.outline);
+        built.bottom = elevation + step.bottom;
+        built.top = elevation + step.top;
+        out.steps.push_back(std::move(built));
+    }
+    out.hole.outline = canonical(ring(layout.footprint), true);
+    return out;
+}
+
+// The name of a roof part in the job.
+std::string_view roofPartName(RoofPart part)
+{
+    switch (part) {
+    case RoofPart::Covering: return "covering";
+    case RoofPart::Underside: return "underside";
+    case RoofPart::Edge: return "edge";
+    case RoofPart::Gable: return "gable";
+    case RoofPart::Parapet: return "parapet";
+    case RoofPart::Glazing: return "glazing";
+    }
+    return "covering";
+}
+
+// The roof part for a name.
+std::optional<RoofPart> roofPartFromName(std::string_view name)
+{
+    for (const RoofPart part : {RoofPart::Covering, RoofPart::Underside, RoofPart::Edge, RoofPart::Gable, RoofPart::Parapet, RoofPart::Glazing}) {
+        if (roofPartName(part) == name) return part;
+    }
+    return std::nullopt;
 }
 
 // Where an item's asset goes in the world.

@@ -78,6 +78,9 @@ Answer pointRemove(const RunContext& context, const RemoveOptions& options) {
     if (options.cascade) {
         return removeCascade("point remove", "point", context, options.project, options.id);
     }
+    if (auto refused = refuseStairId("point remove", "point", context, options.project, options.id)) {
+        return *refused;
+    }
     return edit(
         "point remove", context, options.project,
         [&](const Plan&) { return std::make_unique<RemovePointCommand>(options.id); },

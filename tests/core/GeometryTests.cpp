@@ -144,3 +144,19 @@ TEST_CASE("rightOf turns a quarter to the right", "[core][geometry]") {
     REQUIRE(rightOf({1.0, 0.0}) == Vec2{-0.0, 1.0});
     REQUIRE(rightOf({0.0, 1.0}) == Vec2{-1.0, 0.0});
 }
+
+TEST_CASE("imageToPlan and planToImage use the floor's image offset", "[core][geometry]") {
+    Floor floor;
+    floor.imageOffset = {1.0, 2.0};
+    const Vec2 plan = imageToPlan(floor, 100.0, {100.0, 0.0});
+    REQUIRE(plan.x == Approx(2.0));
+    REQUIRE(plan.y == Approx(2.0));
+    const Vec2 pixel = planToImage(floor, 100.0, plan);
+    REQUIRE(pixel.x == Approx(100.0));
+    REQUIRE(pixel.y == Approx(0.0));
+
+    const Floor plain;
+    const Vec2 same = imageToPlan(plain, 50.0, {25.0, 75.0});
+    REQUIRE(same.x == Approx(0.5));
+    REQUIRE(same.y == Approx(1.5));
+}

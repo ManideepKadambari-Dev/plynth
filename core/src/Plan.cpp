@@ -1,5 +1,8 @@
 #include "plynth/core/Plan.h"
 
+#include "plynth/core/Roofs.h"
+#include "plynth/core/Stairs.h"
+
 #include <algorithm>
 #include <cmath>
 #include <set>
@@ -252,6 +255,66 @@ Status checkItems(const Floor& floor, const std::string& floorPath, IdSet& seen)
     return {};
 }
 
+// Checks the stairs of one floor.
+Status checkStairs(const Floor& floor, const std::string& floorPath, IdSet& seen)
+{
+    for (std::size_t i = 0; i < floor.stairs.size(); ++i) {
+        const Stair& st = floor.stairs[i];
+        const std::string base = floorPath + "/stairs/" + std::to_string(i);
+        if (auto s = checkId(st.id, seen, base + "/id"); !s.ok()) return s;
+        if (!isValidName(st.type)) return fail(ErrorCode::InvalidValue, "The stair type is not a valid name.", base + "/type");
+        if (!std::isfinite(st.x)) return fail(ErrorCode::InvalidValue, "The stair x coordinate must be a finite number.", base + "/x");
+        if (!std::isfinite(st.y)) return fail(ErrorCode::InvalidValue, "The stair y coordinate must be a finite number.", base + "/y");
+        if (!std::isfinite(st.rotation) || st.rotation < 0.0 || st.rotation >= 360.0) {
+            return fail(ErrorCode::InvalidValue, "The stair rotation must be from 0 up to 360 degrees.", base + "/rotation");
+        }
+        if (!std::isfinite(st.width) || st.width < kMinStairWidth || st.width > kMaxStairWidth) {
+            return fail(ErrorCode::InvalidValue, "The stair width must be from 0.6 to 3 metres.", base + "/width");
+        }
+        if (auto s = checkOptionalName(st.material, "material", base + "/material"); !s.ok()) return s;
+    }
+    return {};
+}
+
+// Checks one set of roof settings.
+Status checkRoofSettingsFields(const RoofSettings& r, const std::string& where)
+{
+    if (!isValidName(r.type)) return fail(ErrorCode::InvalidValue, "The roof type is not a valid name.", where + "/type");
+    if (!std::isfinite(r.pitch) || r.pitch < 0.0 || r.pitch > kMaxRoofPitch) {
+        return fail(ErrorCode::InvalidValue, "The roof pitch must be from 0 to 75 degrees.", where + "/pitch");
+    }
+    if (!std::isfinite(r.overhang) || r.overhang < 0.0 || r.overhang > kMaxRoofOverhang) {
+        return fail(ErrorCode::InvalidValue, "The roof overhang must be from 0 to 2 metres.", where + "/overhang");
+    }
+    if (!std::isfinite(r.parapet) || r.parapet < 0.0 || r.parapet > kMaxParapet) {
+        return fail(ErrorCode::InvalidValue, "The parapet height must be from 0 to 3 metres.", where + "/parapet");
+    }
+    if (r.direction && (!std::isfinite(*r.direction) || *r.direction < 0.0 || *r.direction >= 360.0)) {
+        return fail(ErrorCode::InvalidValue, "The roof direction must be from 0 up to 360 degrees.", where + "/direction");
+    }
+    return {};
+}
+
+// Checks the roof default and the roof section entries.
+Status checkRoofs(const Plan& plan, IdSet& seen)
+{
+    if (auto s = checkRoofSettingsFields(plan.roof, "/roof"); !s.ok()) return s;
+    for (std::size_t i = 0; i < plan.roofSections.size(); ++i) {
+        const RoofSection& r = plan.roofSections[i];
+        const std::string base = "/roof_sections/" + std::to_string(i);
+        if (auto s = checkId(r.id, seen, base + "/id"); !s.ok()) return s;
+        if (!findFloor(plan, r.floor)) {
+            return fail(ErrorCode::NotFound, "The roof section " + r.id + " names " + r.floor + ", which is not a floor of the plan.",
+                        base + "/floor");
+        }
+        if (!std::isfinite(r.x)) return fail(ErrorCode::InvalidValue, "The anchor x coordinate must be a finite number.", base + "/x");
+        if (!std::isfinite(r.y)) return fail(ErrorCode::InvalidValue, "The anchor y coordinate must be a finite number.", base + "/y");
+        if (auto s = checkRoofSettingsFields(r.settings, base + "/settings"); !s.ok()) return s;
+        if (auto s = checkOptionalName(r.material, "material", base + "/material"); !s.ok()) return s;
+    }
+    return {};
+}
+
 // Checks one floor and everything on it.
 Status checkFloor(const Floor& floor, std::size_t index, IdSet& seen)
 {
@@ -260,6 +323,15 @@ Status checkFloor(const Floor& floor, std::size_t index, IdSet& seen)
     if (!positive(floor.ceilingHeight)) {
         return fail(ErrorCode::InvalidValue, "The ceiling height must be a number above zero.", base + "/ceiling_height");
     }
+    if (!std::isfinite(floor.slabThickness) || floor.slabThickness < kMinSlabThickness || floor.slabThickness > kMaxSlabThickness) {
+        return fail(ErrorCode::InvalidValue, "The slab thickness must be from 0.05 to 1 metre.", base + "/slab_thickness");
+    }
+    if (!std::isfinite(floor.imageOffset.x)) {
+        return fail(ErrorCode::InvalidValue, "The image offset must be a finite number.", base + "/image_offset/x");
+    }
+    if (!std::isfinite(floor.imageOffset.y)) {
+        return fail(ErrorCode::InvalidValue, "The image offset must be a finite number.", base + "/image_offset/y");
+    }
     if (floor.image && floor.image->empty()) {
         return fail(ErrorCode::InvalidValue, "The plan image path is empty.", base + "/image");
     }
@@ -267,7 +339,8 @@ Status checkFloor(const Floor& floor, std::size_t index, IdSet& seen)
     if (auto s = checkWalls(floor, base, seen); !s.ok()) return s;
     if (auto s = checkRooms(floor, base, seen); !s.ok()) return s;
     if (auto s = checkOpenings(floor, base, seen); !s.ok()) return s;
-    return checkItems(floor, base, seen);
+    if (auto s = checkItems(floor, base, seen); !s.ok()) return s;
+    return checkStairs(floor, base, seen);
 }
 
 }
@@ -291,7 +364,7 @@ const Floor* findFloor(const Plan& plan, std::string_view floorId) { return find
 Floor* findFloorContaining(Plan& plan, std::string_view objectId)
 {
     for (auto& f : plan.floors) {
-        if (findPoint(f, objectId) || findWall(f, objectId) || findRoom(f, objectId) || findOpening(f, objectId) || findItem(f, objectId)) return &f;
+        if (findPoint(f, objectId) || findWall(f, objectId) || findRoom(f, objectId) || findOpening(f, objectId) || findItem(f, objectId) || findStair(f, objectId)) return &f;
     }
     return nullptr;
 }
@@ -309,7 +382,37 @@ Room* findRoom(Floor& floor, std::string_view id) { return findById(floor.rooms,
 const Room* findRoom(const Floor& floor, std::string_view id) { return findById(floor.rooms, id); }
 Opening* findOpening(Floor& floor, std::string_view id) { return findById(floor.openings, id); }
 const Opening* findOpening(const Floor& floor, std::string_view id) { return findById(floor.openings, id); }
+
+// Says whether an item runs a generator rather than placing an asset.
 bool isGeneratorItem(const Item& item) { return item.generator.has_value(); }
+
+Stair* findStair(Floor& floor, std::string_view id) { return findById(floor.stairs, id); }
+const Stair* findStair(const Floor& floor, std::string_view id) { return findById(floor.stairs, id); }
+RoofSection* findRoofSection(Plan& plan, std::string_view id) { return findById(plan.roofSections, id); }
+const RoofSection* findRoofSection(const Plan& plan, std::string_view id) { return findById(plan.roofSections, id); }
+
+// Where a floor is in plan order.
+std::optional<std::size_t> floorIndex(const Plan& plan, std::string_view floorId)
+{
+    for (std::size_t i = 0; i < plan.floors.size(); ++i) {
+        if (plan.floors[i].id == floorId) return i;
+    }
+    return std::nullopt;
+}
+
+// The floor right above one.
+const Floor* floorAbove(const Plan& plan, std::string_view floorId)
+{
+    const auto i = floorIndex(plan, floorId);
+    return i && *i + 1 < plan.floors.size() ? &plan.floors[*i + 1] : nullptr;
+}
+
+// The floor right below one.
+const Floor* floorBelow(const Plan& plan, std::string_view floorId)
+{
+    const auto i = floorIndex(plan, floorId);
+    return i && *i > 0 ? &plan.floors[*i - 1] : nullptr;
+}
 
 Item* findItem(Floor& floor, std::string_view id) { return findById(floor.items, id); }
 const Item* findItem(const Floor& floor, std::string_view id) { return findById(floor.items, id); }
@@ -317,7 +420,7 @@ const Item* findItem(const Floor& floor, std::string_view id) { return findById(
 // Says whether any floor or object already uses this id.
 bool idInUse(const Plan& plan, std::string_view id)
 {
-    return findFloor(plan, id) != nullptr || findFloorContaining(plan, id) != nullptr;
+    return findFloor(plan, id) != nullptr || findFloorContaining(plan, id) != nullptr || findRoofSection(plan, id) != nullptr;
 }
 
 // Makes a new id: the prefix and one more than the highest number used with it.
@@ -332,7 +435,9 @@ Id newId(const Plan& plan, std::string_view prefix)
         for (const auto& r : f.rooms) consider(r.id);
         for (const auto& o : f.openings) consider(o.id);
         for (const auto& it : f.items) consider(it.id);
+        for (const auto& st : f.stairs) consider(st.id);
     }
+    for (const auto& r : plan.roofSections) consider(r.id);
     return std::string(prefix) + std::to_string(highest + 1);
 }
 
@@ -359,7 +464,7 @@ Status checkPlan(const Plan& plan)
     for (std::size_t i = 0; i < plan.floors.size(); ++i) {
         if (auto s = checkFloor(plan.floors[i], i, seen); !s.ok()) return s;
     }
-    return {};
+    return checkRoofs(plan, seen);
 }
 
 // The name used in files for an opening type.
@@ -420,6 +525,20 @@ std::optional<HingeEnd> hingeEndFromName(std::string_view name)
 HingeEnd otherEnd(HingeEnd end)
 {
     return end == HingeEnd::Start ? HingeEnd::End : HingeEnd::Start;
+}
+
+// The name used in files for a stair turn.
+std::string_view stairTurnName(StairTurn turn)
+{
+    return turn == StairTurn::Left ? "left" : "right";
+}
+
+// The stair turn for a name used in files.
+std::optional<StairTurn> stairTurnFromName(std::string_view name)
+{
+    if (name == "left") return StairTurn::Left;
+    if (name == "right") return StairTurn::Right;
+    return std::nullopt;
 }
 
 }

@@ -8,6 +8,10 @@
 
 #include <nlohmann/json.hpp>
 
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+
 #include <algorithm>
 #include <cctype>
 #include <fstream>
@@ -18,6 +22,19 @@ namespace plynth {
 namespace fs = std::filesystem;
 
 namespace {
+
+// The Blender that PLYNTH_BLENDER names, as the file to run. Empty when the variable is not set or empty.
+fs::path blenderFromVariable()
+{
+    const DWORD size = GetEnvironmentVariableW(L"PLYNTH_BLENDER", nullptr, 0);
+    if (size <= 1) return {};
+    std::wstring value(size, L'\0');
+    value.resize(GetEnvironmentVariableW(L"PLYNTH_BLENDER", value.data(), size));
+    fs::path path(value);
+    std::error_code ec;
+    if (fs::is_directory(path, ec)) path /= L"blender.exe";
+    return path;
+}
 
 // Lower cases ASCII text.
 std::string lowered(std::string text)
@@ -324,10 +341,31 @@ SetupReport runSetupCheck(const MachineSettings& settings, const SetupCheckOptio
     report.firstRun = !options.settingsExist;
     report.updated = settingsUpdated(settings, options.settingsExist);
 
+    // The option and then the variable are binding: only that Blender is looked at, and when it is missing
+    // or unusable the report says so and no other Blender is started.
     BlenderSearch search = options.search;
     if (!search.chosen) search.chosen = settings.blender;
-    report.blenderInstalls = findBlenderInstalls(search, stop);
-    report.selectedBlender = preferredBlender(report.blenderInstalls, settings.blender);
+    fs::path bound;
+    std::vector<BlenderSource> boundSources;
+    if (options.blender) {
+        bound = *options.blender;
+    } else if (search.environment) {
+        bound = blenderFromVariable();
+        boundSources = {BlenderSource::Environment};
+    }
+    fs::path boundMissing;
+    std::error_code boundEc;
+    if (bound.empty()) {
+        report.blenderInstalls = findBlenderInstalls(search, stop);
+        report.selectedBlender = preferredBlender(report.blenderInstalls, settings.blender);
+    } else if (fs::is_regular_file(bound, boundEc)) {
+        BlenderInstall install = inspectBlender(bound, stop);
+        install.sources = boundSources;
+        report.blenderInstalls.push_back(std::move(install));
+        if (report.blenderInstalls.front().usable()) report.selectedBlender = 0;
+    } else {
+        boundMissing = bound;
+    }
 
     SetupItem blender = item(kCheckBlender, "Blender", true);
     SetupItem blenderVersion = item(kCheckBlenderVersion, "Blender version", true);
@@ -367,8 +405,12 @@ SetupReport runSetupCheck(const MachineSettings& settings, const SetupCheckOptio
         blender.state = CheckState::Missing;
         blender.link = std::string(kBlenderDownloadUrl);
         if (report.blenderInstalls.empty()) {
-            blender.detail = settings.blender ? "The Blender " + pathToUtf8(*settings.blender) + " does not exist and no other Blender was found."
-                                              : "No Blender was found on this computer.";
+            if (!boundMissing.empty()) {
+                blender.detail = "The Blender " + pathToUtf8(boundMissing) + " does not exist. No other Blender was looked for.";
+            } else {
+                blender.detail = settings.blender ? "The Blender " + pathToUtf8(*settings.blender) + " does not exist and no other Blender was found."
+                                                  : "No Blender was found on this computer.";
+            }
             blender.action = "Install Blender " + formatBlenderVersion(kMinBlenderVersion) +
                              " or newer from blender.org, or use Browse to pick blender.exe.";
         } else {
@@ -392,21 +434,14 @@ SetupReport runSetupCheck(const MachineSettings& settings, const SetupCheckOptio
     } else if (!usable || stop.stop_requested()) {
         fillAddonsNotChecked(report, "Blender is needed to check add-ons.", generators);
     } else {
-        std::error_code ec;
-        const std::string jobId = newJobId("probe");
-        const fs::path work = fs::temp_directory_path(ec) / ("plynth-" + jobId);
-        const fs::path resultFile = work / pathFromUtf8(kResultFileName);
-        const Json job = makeBlenderJob(kProbeTask, jobId, resultFile, Json::object());
         BlenderRunOptions run;
-        run.factoryStartup = false;
         run.timeout = std::chrono::seconds(120);
-        const BlenderJobRun ran = runBlenderJob(usable->executable, job, work, run, {}, stop);
-        ProbeResult probe;
-        if (ran.status.ok()) probe = readProbeResult(ran.result, jobId);
-        fs::remove_all(work, ec);
-        if (ran.status.ok() && probe.header.status.ok()) {
+        const BlenderProbeRun probe = runBlenderProbe(*usable, run, stop);
+        if (probe.status.ok()) {
             report.probed = true;
-            fillAddons(report, probe, generators);
+            fillAddons(report, probe.result, generators);
+        } else if (probe.result.header.errorCode == "preferences_unreadable") {
+            fillAddonsNotChecked(report, probe.status.message, generators);
         } else {
             fillAddonsNotChecked(report, "Blender is needed to check add-ons.", generators);
         }
@@ -431,7 +466,18 @@ SetupReport quickSetupCheck(const MachineSettings& settings, bool settingsExist,
 
     SetupItem blender = item(kCheckBlender, "Blender", true);
     std::error_code ec;
-    if (settings.blender && fs::is_regular_file(*settings.blender, ec)) {
+    if (const fs::path named = blenderFromVariable(); !named.empty()) {
+        if (fs::is_regular_file(named, ec)) {
+            blender.state = CheckState::Found;
+            blender.path = named;
+            blender.detail = "The Blender named by PLYNTH_BLENDER exists. Its version is checked in the setup check.";
+        } else {
+            blender.state = CheckState::Missing;
+            blender.link = std::string(kBlenderDownloadUrl);
+            blender.detail = "The Blender " + pathToUtf8(named) + " named by PLYNTH_BLENDER does not exist.";
+            blender.action = "Fix or remove the PLYNTH_BLENDER variable.";
+        }
+    } else if (settings.blender && fs::is_regular_file(*settings.blender, ec)) {
         blender.state = CheckState::Found;
         blender.path = *settings.blender;
         blender.detail = "The Blender chosen in the settings exists. Its version is checked in the setup check.";

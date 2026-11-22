@@ -24,9 +24,12 @@ def count(ctx, name, amount=1):
     counts[name] = counts.get(name, 0) + amount
 
 
-# Returns the name of a slot: the library material id, or the neutral surface name when there is none. The
-# first surface seen for a name is remembered so a material that fails to load can get a neutral look.
-def slot_name(ctx, material, surface):
-    name = material or surface
-    ctx.state.setdefault("slot_surfaces", {}).setdefault(name, surface)
-    return name
+# Returns the Blender material name of a face: the slot name the job gives it. The slot must be in the job's
+# slots table; a name that is not there is kept and treated as a neutral Wall_Inside look.
+def slot_name(ctx, slot):
+    return slot
+
+
+# Returns the slots table of the job as a dictionary from slot name to its entry.
+def slot_table(ctx):
+    return {entry["name"]: entry for entry in ctx.params.get("slots", [])}

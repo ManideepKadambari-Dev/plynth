@@ -58,7 +58,7 @@ Item namedItem(const GeneratorInfo& like, const std::string& id, const std::stri
 }
 
 // The fixture project with generator items added to its first floor and a second floor with one.
-Project projectWith(const GeneratorFolder& f, std::vector<Item> first, std::vector<Item> second)
+Project projectWith(std::vector<Item> first, std::vector<Item> second)
 {
     Project project = plynth::test::buildProject();
     Floor upstairs = project.plan.floors[0];
@@ -92,7 +92,7 @@ TEST_CASE("the generator build plan places each item on its floor", "[core][gene
     g1.rotation = 90.0;
     Item g5 = generatorItem(column, "g5", 2.0, 2.0, steel);
     g5.z = 0.1;
-    const Project project = projectWith(f, {g1}, {g5});
+    const Project project = projectWith({g1}, {g5});
 
     const GeneratorBuildPlan plan = makeGeneratorBuildPlan(project.plan, &f.library, std::nullopt);
     REQUIRE(plan.problems.empty());
@@ -113,9 +113,10 @@ TEST_CASE("the generator build plan places each item on its floor", "[core][gene
     REQUIRE(first.materialParams == std::vector<std::string>{"material"});
 
     const GeneratorItemBuild& second = plan.floors[1].items[0];
-    const ItemPlacement p5 = itemPlacement(g5, 3.0);
+    const double level = project.plan.floors[0].ceilingHeight + project.plan.floors[0].slabThickness;
+    const ItemPlacement p5 = itemPlacement(g5, level);
     REQUIRE(second.location == p5.location);
-    REQUIRE(second.location.z == 3.1);
+    REQUIRE(second.location.z == level + g5.z);
 
     REQUIRE(plan.generators.size() == 1);
     REQUIRE(plan.generators[0].id == "column");
@@ -130,7 +131,6 @@ TEST_CASE("missing, broken and unavailable generators are left out with problems
     const GeneratorInfo& column = *f.library.find("column");
     const GeneratorInfo& archimesh = *f.library.find("archimesh_column");
     const Project project = projectWith(
-        f,
         {generatorItem(column, "g1", 1.0, 1.0, defaultGeneratorParams(column, 3.0)),
          namedItem(column, "g2", "nothing"), namedItem(column, "g3", "broken"),
          generatorItem(archimesh, "g4", 3.0, 2.0, defaultGeneratorParams(archimesh, 3.0))},
@@ -185,7 +185,7 @@ TEST_CASE("values that no longer fit are fitted with a warning", "[core][generat
     for (GeneratorParamValue& v : item.generator->params) {
         if (v.id == "sides") v.value = 2.5;
     }
-    const Project project = projectWith(f, {item}, {});
+    const Project project = projectWith({item}, {});
 
     const GeneratorBuildPlan plan = makeGeneratorBuildPlan(project.plan, &f.library, std::nullopt);
     REQUIRE(plan.floors[0].items.size() == 1);
@@ -204,7 +204,7 @@ TEST_CASE("no library builds nothing and says nothing", "[core][generatorbuild]"
 {
     GeneratorFolder f("genbuild-nolibrary");
     const GeneratorInfo& column = *f.library.find("column");
-    const Project project = projectWith(f, {generatorItem(column, "g1", 1.0, 1.0, defaultGeneratorParams(column, 3.0))}, {});
+    const Project project = projectWith({generatorItem(column, "g1", 1.0, 1.0, defaultGeneratorParams(column, 3.0))}, {});
     const GeneratorBuildPlan plan = makeGeneratorBuildPlan(project.plan, nullptr, std::nullopt);
     REQUIRE(plan.problems.empty());
     REQUIRE(plan.generators.empty());
@@ -219,7 +219,7 @@ TEST_CASE("generatorJobItems writes null for an empty or unusable material", "[c
     std::vector<GeneratorParamValue> bare = defaultGeneratorParams(column, 3.0);
     plynth::test::requireOk(setGeneratorParam(column, bare, "material", std::string()));
     const Project project = projectWith(
-        f, {generatorItem(column, "g1", 1.0, 1.0, defaultGeneratorParams(column, 3.0)), generatorItem(column, "g2", 2.0, 1.0, bare)}, {});
+        {generatorItem(column, "g1", 1.0, 1.0, defaultGeneratorParams(column, 3.0)), generatorItem(column, "g2", 2.0, 1.0, bare)}, {});
     const GeneratorBuildPlan plan = makeGeneratorBuildPlan(project.plan, &f.library, std::nullopt);
 
     const Json all = generatorJobItems(plan.floors[0]);
@@ -248,8 +248,8 @@ TEST_CASE("a build job with generators validates against the job schema", "[core
 {
     GeneratorFolder f("genbuild-job");
     const GeneratorInfo& column = *f.library.find("column");
-    Project project = projectWith(f, {generatorItem(column, "g1", 1.0, 1.0, defaultGeneratorParams(column, 3.0))},
-                                  {generatorItem(column, "g5", 2.0, 2.0, defaultGeneratorParams(column, 3.0))});
+    Project project = projectWith({generatorItem(column, "g1", 1.0, 1.0, defaultGeneratorParams(column, 3.0))},
+                               {generatorItem(column, "g5", 2.0, 2.0, defaultGeneratorParams(column, 3.0))});
     const GeneratorBuildPlan generators = makeGeneratorBuildPlan(project.plan, &f.library, std::nullopt);
 
     const BuildPlan plan = makeBuildPlan(project, plynth::test::sampleAssetSource());
@@ -261,5 +261,5 @@ TEST_CASE("a build job with generators validates against the job schema", "[core
     const std::string problem = plynth::test::schemaProblem("blender-job.schema.json", nlohmann::json::parse(job.dump()));
     INFO(problem);
     REQUIRE(problem.empty());
-    REQUIRE(job["params"]["floors"][1]["generator_items"][0]["location"][2] == 3.0);
+    REQUIRE(job["params"]["floors"][1]["generator_items"][0]["location"][2] == plan.floors[1].elevation);
 }

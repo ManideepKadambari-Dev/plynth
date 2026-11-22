@@ -20,6 +20,7 @@ public:
 
     void activate() override;
     void deactivate() override;
+    void floorChanged() override;
     void mousePressed(const ToolMouse& mouse) override;
     void mouseMoved(const ToolMouse& mouse) override;
     void mouseLeft() override;

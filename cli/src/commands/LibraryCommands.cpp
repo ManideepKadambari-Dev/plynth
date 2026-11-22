@@ -19,6 +19,11 @@ struct InfoOptions {
     std::string library;
 };
 
+struct SampleShapesOptions {
+    std::string library;
+    std::string from;
+};
+
 struct RescanOptions {
     std::string library;
     std::string blender;
@@ -123,6 +128,35 @@ Answer libraryRescan(const RunContext& context, const RescanOptions& options) {
     return success(command, std::move(result));
 }
 
+// Copies the sample opening shapes into the library without replacing any file that is already there.
+Answer libraryAddSampleShapes(const RunContext& context, const SampleShapesOptions& options) {
+    const std::string command = "library add-sample-shapes";
+    OpenedCatalog opened;
+    Answer failed;
+    if (!openCatalog(command, context, options.library, opened, failed)) {
+        return failed;
+    }
+    std::filesystem::path from;
+    if (options.from.empty()) {
+        from = sampleShapesFolder();
+        if (from.empty()) {
+            return failure(command, fail(ErrorCode::NotFound,
+                                         "The sample shapes were not found. Give the folder with --from, or set "
+                                         "PLYNTH_SAMPLES to the samples folder."));
+        }
+    } else {
+        from = userPath(context, options.from);
+    }
+    const SampleShapesCopy copy = addSampleShapes(opened.paths, from);
+    if (!copy.status.ok()) {
+        return failure(command, copy.status);
+    }
+    Json result = Json::object();
+    result["copied"] = copy.copied;
+    result["skipped"] = copy.skipped;
+    return success(command, std::move(result));
+}
+
 }
 
 std::vector<CommandSpec> libraryCommands() {
@@ -156,7 +190,18 @@ std::vector<CommandSpec> libraryCommands() {
         return [options](const RunContext& context) { return libraryRescan(context, *options); };
     };
 
-    return {init, info, rescan};
+    CommandSpec sampleShapes;
+    sampleShapes.words = {"library", "add-sample-shapes"};
+    sampleShapes.description =
+        "Copy the sample opening shapes into the library. Files already there are left as they are.";
+    sampleShapes.setup = [](CLI::App& sub) -> Handler {
+        auto options = std::make_shared<SampleShapesOptions>();
+        addLibraryOption(sub, options->library);
+        sub.add_option("--from", options->from, "A folder holding the *.shape.json files.")->type_name("folder");
+        return [options](const RunContext& context) { return libraryAddSampleShapes(context, *options); };
+    };
+
+    return {init, info, rescan, sampleShapes};
 }
 
 }

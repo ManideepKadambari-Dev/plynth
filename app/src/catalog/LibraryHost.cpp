@@ -36,13 +36,18 @@ LibraryHost::LibraryHost(QObject* parent) : QObject(parent)
     reopen();
 }
 
-// Saves the settings, then opens the library they name.
-plynth::Status LibraryHost::apply(const plynth::MachineSettings& settings)
+// Loads the settings fresh, applies the change, saves, then opens the library they name. A file that is
+// missing is a first run and starts from defaults. A file that cannot be read is never overwritten.
+plynth::Status LibraryHost::apply(const std::function<void(plynth::MachineSettings&)>& change)
 {
-    const plynth::Status status = plynth::saveSettings(settings);
+    plynth::SettingsLoad load = plynth::loadSettings();
+    if (!load.status.ok())
+        return load.status;
+    change(load.settings);
+    const plynth::Status status = plynth::saveSettings(load.settings);
     if (!status.ok())
         return status;
-    settings_ = settings;
+    settings_ = load.settings;
     settingsExisted_ = true;
     settingsProblem_.clear();
     reopen();
@@ -160,7 +165,7 @@ void LibraryHost::probeIfNeeded()
         } else if (cached && plynth::addonCacheMatches(*cached, choice.install)) {
             result = cached;
         } else {
-            const plynth::AddonProbe probe = plynth::probeAddons(choice.install, plynth::addonCacheFile(), {false, plynth::kAddonProbeTimeout, {}}, stop);
+            const plynth::AddonProbe probe = plynth::probeAddons(choice.install, plynth::addonCacheFile(), {true, plynth::kAddonProbeTimeout, {}}, stop);
             if (probe.status.ok())
                 result = probe.cache;
         }
@@ -187,7 +192,7 @@ void LibraryHost::checkAddons()
         if (!choice.status.ok()) {
             text = fromCore(choice.status.message);
         } else {
-            const plynth::AddonProbe probe = plynth::probeAddons(choice.install, plynth::addonCacheFile(), {false, plynth::kAddonProbeTimeout, {}}, stop);
+            const plynth::AddonProbe probe = plynth::probeAddons(choice.install, plynth::addonCacheFile(), {true, plynth::kAddonProbeTimeout, {}}, stop);
             if (probe.status.ok()) {
                 result = probe.cache;
                 text = QObject::tr("Checked the add-ons: %1 enabled in Blender.").arg(probe.cache.enabled.size());
@@ -228,6 +233,26 @@ QString LibraryHost::addSampleGenerators()
     if (!copy.status.ok())
         return fromCore(copy.status.message);
     return tr("Added %1 sample generators, %2 were already there.").arg(copy.copied.size()).arg(copy.skipped.size());
+}
+
+// Copies the sample shapes into the library, registers the folder again (shapes already known are skipped
+// by core) and tells the views so the opening shape lists fill again.
+QString LibraryHost::addSampleShapes()
+{
+    if (!hasLibrary())
+        return QObject::tr("Open a library first.");
+    const std::filesystem::path from = plynth::sampleShapesFolder();
+    if (from.empty())
+        return QObject::tr("The sample shapes folder was not found next to the program.");
+    const plynth::SampleShapesCopy copy = plynth::addSampleShapes(paths_, from);
+    if (!copy.status.ok())
+        return fromCore(copy.status.message);
+    plynth::registerShapeFolder(paths_.shapes);
+    emit libraryChanged();
+    if (copy.copied.empty())
+        return QObject::tr("All %n sample shape(s) are already in the library.", nullptr, int(copy.skipped.size()));
+    return QObject::tr("Added %n sample shape(s). %1 already there.", nullptr, int(copy.copied.size()))
+        .arg(copy.skipped.size());
 }
 
 // Opens materials.db. An empty index next to folders in materials/items is rebuilt once, so a library filled

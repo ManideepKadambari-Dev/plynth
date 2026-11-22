@@ -1,6 +1,7 @@
 #include "SchemaSupport.h"
 #include "TestSupport.h"
 
+#include <plynth/core/Export.h>
 #include <plynth/core/ProjectJson.h>
 
 #include <catch2/catch_test_macros.hpp>
@@ -39,8 +40,9 @@ nlohmann::json plain(const Json& j)
 
 TEST_CASE("the schema files are valid schemas", "[core][schema]") {
     for (const char* file : {"plan.schema.json", "project.schema.json", "plan.v1.schema.json", "project.v1.schema.json", "plan.v2.schema.json",
-                             "project.v2.schema.json", "plan.v3.schema.json", "project.v3.schema.json", "settings.schema.json", "settings.v1.schema.json",
-                             "settings.v2.schema.json"}) {
+                             "project.v2.schema.json", "plan.v3.schema.json", "project.v3.schema.json", "plan.v4.schema.json", "project.v4.schema.json",
+                             "plan.v5.schema.json", "settings.schema.json", "settings.v1.schema.json",
+                             "settings.v2.schema.json", "export-report.schema.json"}) {
         INFO(file);
         // An empty object is not a plan or a project, so a working validator complains about it
         // with a message about the instance, not about reading or loading the schema.
@@ -194,7 +196,7 @@ TEST_CASE("version 3 files pass the version 3 schemas and upgrade", "[core][sche
         REQUIRE(s.fileVersion == 3);
         REQUIRE(s.settings.materials == MaterialDefaults{});
         const nlohmann::json saved = plain(settingsToJson(s.settings));
-        REQUIRE(saved["version"] == 4);
+        REQUIRE(saved["version"] == 5);
         REQUIRE(schemaProblem("project.schema.json", saved).empty());
         REQUIRE_FALSE(schemaProblem("project.v3.schema.json", saved).empty());
     }
@@ -247,4 +249,131 @@ TEST_CASE("a plan with an asset item and a generator item validates", "[core][sc
     nlohmann::json badValue = written;
     badValue["floors"][0]["items"][2]["generator"]["params"]["diameter"] = nlohmann::json::array({1});
     REQUIRE_FALSE(schemaProblem("plan.schema.json", badValue).empty());
+}
+
+TEST_CASE("version 5 files pass the version 5 schema and upgrade", "[core][schema][migrate]") {
+    const auto dir = std::filesystem::path(PLYNTH_TEST_DATA_DIR);
+    for (const char* name : {"v5-full.json", "v5-minimal.json"}) {
+        INFO(name);
+        const nlohmann::json plan = nlohmann::json::parse(plynth::test::readTextFile(dir / name));
+        REQUIRE(schemaProblem("plan.v5.schema.json", plan).empty());
+        REQUIRE_FALSE(schemaProblem("plan.schema.json", plan).empty());
+        const PlanRead r = planFromJson(Json::parse(plan.dump()));
+        plynth::test::requireOk(r.status);
+        REQUIRE(r.migrated);
+        REQUIRE(r.fileVersion == 5);
+        const nlohmann::json saved = plain(planToJson(r.plan));
+        REQUIRE(saved["version"] == 6);
+        for (const auto& floor : saved["floors"]) {
+            for (const auto& item : floor["items"]) REQUIRE(item["generator"].is_null());
+        }
+        REQUIRE(schemaProblem("plan.schema.json", saved).empty());
+        REQUIRE_FALSE(schemaProblem("plan.v5.schema.json", saved).empty());
+    }
+}
+
+TEST_CASE("version 4 files pass the version 4 schemas and upgrade", "[core][schema][migrate]") {
+    const auto dir = std::filesystem::path(PLYNTH_TEST_DATA_DIR);
+    for (const char* name : {"v4-full.json", "v4-minimal.json", "v4-two-floors.json"}) {
+        INFO(name);
+        const nlohmann::json plan = nlohmann::json::parse(plynth::test::readTextFile(dir / name));
+        REQUIRE(schemaProblem("plan.v4.schema.json", plan).empty());
+        REQUIRE_FALSE(schemaProblem("plan.schema.json", plan).empty());
+        const PlanRead r = planFromJson(Json::parse(plan.dump()));
+        plynth::test::requireOk(r.status);
+        REQUIRE(r.migrated);
+        REQUIRE(r.fileVersion == 4);
+        const nlohmann::json saved = plain(planToJson(r.plan));
+        REQUIRE(saved["version"] == 6);
+        REQUIRE(schemaProblem("plan.schema.json", saved).empty());
+        REQUIRE_FALSE(schemaProblem("plan.v4.schema.json", saved).empty());
+    }
+
+    for (const char* name : {"v4-project.json", "v4-project-minimal.json"}) {
+        INFO(name);
+        const nlohmann::json project = nlohmann::json::parse(plynth::test::readTextFile(dir / name));
+        REQUIRE(schemaProblem("project.v4.schema.json", project).empty());
+        REQUIRE_FALSE(schemaProblem("project.schema.json", project).empty());
+        const SettingsRead s = settingsFromJson(Json::parse(project.dump()));
+        plynth::test::requireOk(s.status);
+        REQUIRE(s.migrated);
+        REQUIRE(s.fileVersion == 4);
+        const nlohmann::json saved = plain(settingsToJson(s.settings));
+        REQUIRE(saved["version"] == 5);
+        REQUIRE(saved["materials"]["roof"] == "roof_tiles");
+        REQUIRE(saved["materials"]["flat_roof"] == "concrete");
+        REQUIRE(saved["materials"]["stair"] == "oak_planks");
+        REQUIRE(schemaProblem("project.schema.json", saved).empty());
+        REQUIRE_FALSE(schemaProblem("project.v4.schema.json", saved).empty());
+    }
+}
+
+TEST_CASE("a plan with stairs and roof entries validates", "[core][schema]") {
+    Plan plan = fullPlan();
+    plan.floors[0].stairs.push_back(Stair{.id = "s1", .type = "l_shape", .x = 1.0, .y = 2.0, .rotation = 90.0, .material = "oak_planks"});
+    plan.floors[1].imageOffset = {0.5, -1.0};
+    plan.roof.direction = 10.0;
+    RoofSection rs;
+    rs.id = "rf1";
+    rs.floor = "f2";
+    rs.settings.type = "gable";
+    rs.material = "roof_tiles";
+    plan.roofSections.push_back(rs);
+    const nlohmann::json j = plain(planToJson(plan));
+    REQUIRE(schemaProblem("plan.schema.json", j).empty());
+    REQUIRE(j["roof_sections"][0]["settings"]["type"] == "gable");
+}
+
+TEST_CASE("written export reports validate against the export report schema", "[core][schema][export]") {
+    ExportReport report;
+    report.jobId = "export-3f9a07c1";
+    report.startedAt = sessionNow();
+    report.exporter = "single";
+    report.planFingerprint = "0123456789abcdef";
+    report.buildFingerprint = "0123456789abcdef";
+    report.exported = true;
+    report.forced = true;
+    report.overridden = {"naming"};
+    report.files = {"D:/Flat/export/Flat.fbx"};
+    report.fileOutputs = {{"building", "Flat.fbx", 40, 18200}};
+    report.texturesFolder = "D:/Flat/export/Textures";
+    report.textureCount = 2;
+    report.reportFile = "D:/Flat/export/export_report.json";
+    report.logFile = "D:/Flat/build/export_work/blender.log";
+    report.objects = 40;
+    report.triangles = 18200;
+    report.collisionObjects = 31;
+    report.blenderVersion = "5.2.0";
+    QualityCheckResult naming;
+    naming.id = "naming";
+    naming.name = "Naming";
+    naming.status = QualityStatus::Fail;
+    naming.message = "One name breaks the rules.";
+    naming.findings = {{"SM_f1_Walls", "w3", "The name has a space."}, {"", "", "A slot name repeats."}};
+    QualityCheckResult scale;
+    scale.id = "fbx_scale";
+    scale.name = "File scale";
+    scale.phase = QualityPhase::File;
+    scale.status = QualityStatus::Skipped;
+    scale.message = "Nothing was written.";
+    report.checks = {naming, scale};
+    report.steps = {{"prepare", 3}, {"open_blend", 410}};
+
+    REQUIRE(schemaProblem("export-report.schema.json", plain(exportReportToJson(report))).empty());
+
+    ExportReport blocked = report;
+    blocked.status = fail(ErrorCode::QualityFailed, "The export was blocked.");
+    blocked.exported = false;
+    blocked.forced = false;
+    blocked.overridden.clear();
+    blocked.files.clear();
+    blocked.fileOutputs.clear();
+    blocked.texturesFolder.clear();
+    blocked.textureCount = 0;
+    blocked.buildFingerprint.clear();
+    REQUIRE(schemaProblem("export-report.schema.json", plain(exportReportToJson(blocked))).empty());
+
+    nlohmann::json bad = plain(exportReportToJson(report));
+    bad["quality"]["checks"][0]["status"] = "maybe";
+    REQUIRE_FALSE(schemaProblem("export-report.schema.json", bad).empty());
 }

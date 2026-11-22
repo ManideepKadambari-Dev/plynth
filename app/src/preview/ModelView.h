@@ -17,6 +17,8 @@ class ThemeQml;
 class ModelView : public QQuickWidget {
     Q_OBJECT
     Q_PROPERTY(QString modelFile READ modelFileText NOTIFY modelFileChanged)
+    Q_PROPERTY(QVariantList parts READ partUrls NOTIFY partsChanged)
+    Q_PROPERTY(QVariantList partVisible READ partVisible NOTIFY partVisibleChanged)
     Q_PROPERTY(QVector3D boundsMin READ boundsMin NOTIFY boundsChanged)
     Q_PROPERTY(QVector3D boundsMax READ boundsMax NOTIFY boundsChanged)
     Q_PROPERTY(bool interactive READ interactive CONSTANT)
@@ -30,6 +32,15 @@ class ModelView : public QQuickWidget {
 public:
     enum class Preset { ThreeQuarter = 0, Top = 1 };
     enum class State { Empty, Loading, Ready, Failed };
+
+    // One FBX of a preview: a floor's storey, the slab above it or its roofs. floorIndex is the floor's place in the plan.
+    struct Part {
+        QUrl file;
+        int floorIndex = 0;
+        bool roof = false;
+        bool slab = false;
+        bool operator==(const Part&) const = default;
+    };
 
     // interactive lets the mouse orbit, pan and zoom. shadows turns on the key light's shadows.
     explicit ModelView(bool interactive, bool shadows, QWidget* parent = nullptr, double orthoScale = 0.0);
@@ -54,11 +65,28 @@ public:
     // Makes the view read build/materials.json from the project folder each time the model loads, and show the
     // building with those materials. Off by default, so asset models keep their own look.
     void useBuiltMaterials(bool on) { useMaterials_ = on; }
+    // Shows an asset model with the materials of its info.json (the preview maps), instead of the ones the FBX
+    // loader makes. Call before setModel. An empty list leaves the FBX look.
+    void setAssetMaterials(const QVariantList& list);
+    // The entry of one material as the QML wants it, from absolute image paths (empty when none).
+    static QVariantMap materialEntry(const std::filesystem::path& baseColor, const std::filesystem::path& normal,
+                                     const std::filesystem::path& roughness, const std::filesystem::path& metallic,
+                                     const std::filesystem::path& opacity, const std::filesystem::path& occlusion,
+                                     bool blend);
     // One map per built material: key, baseColor, normal, roughness, metallic, opacity, occlusion (urls, empty
     // when none) and blend. Empty when there is no materials.json.
     QVariantList builtMaterials() const { return materials_; }
     int builtMaterialCount() const { return static_cast<int>(materials_.size()); }
 
+    // Loads these FBX files side by side, each by its own loader, all in scene metres. Same bounds rule as
+    // setModel. The first part is the modelFile.
+    void setParts(const QList<Part>& parts, const QVector3D& boundsMin, const QVector3D& boundsMax);
+    // Hides roof parts when showRoofs is off, and when cutFloorIndex is 0 or more every part of a floor above it
+    // plus the roofs of that floor and the floors above. Roofs of lower floors stay. New bounds frame what is left. A single model without parts is never hidden.
+    void setPartFilter(bool showRoofs, int cutFloorIndex, const QVector3D& boundsMin, const QVector3D& boundsMax);
+    QVariantList partUrls() const;
+    QVariantList partVisible() const { return partVisible_; }
+    int partCount() const { return static_cast<int>(parts_.size()); }
     // Loads this FBX file. The bounds are the box of the model in scene metres (X right, Y up, Z toward the
     // front of the plan), worked out by the caller because the loader reports them wrongly.
     void setModel(const QUrl& file, const QVector3D& boundsMin, const QVector3D& boundsMax);
@@ -88,6 +116,8 @@ signals:
     void stateChanged();
     // The loaded model has been drawn.
     void pictureDrawn();
+    void partsChanged();
+    void partVisibleChanged();
     void fitRequested();
     void reloadRequested();
     void materialsChanged();
@@ -95,11 +125,16 @@ signals:
 private:
     void startFrameCount();
     void readMaterials();
+    void updateVisibility();
 
     bool interactive_;
     double orthoScale_ = 0.0;
     bool shadows_;
     QUrl file_;
+    QList<Part> parts_;
+    QVariantList partVisible_;
+    bool showRoofs_ = true;
+    int cutFloorIndex_ = -1;
     QVector3D boundsMin_;
     QVector3D boundsMax_{1.0f, 1.0f, 1.0f};
     Preset preset_ = Preset::ThreeQuarter;
@@ -108,6 +143,7 @@ private:
     State state_ = State::Empty;
     int framesSinceLoad_ = 0;
     bool useMaterials_ = false;
+    bool assetMaterials_ = false;
     QVariantList materials_;
 };
 

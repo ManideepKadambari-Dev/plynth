@@ -24,6 +24,7 @@ using plynth::cli::kExitFailed;
 using plynth::cli::kExitOk;
 using plynth::cli::testing::errorCode;
 using plynth::cli::testing::installFakeBlender;
+using plynth::cli::testing::PrivateUser;
 using plynth::cli::testing::readFile;
 using plynth::cli::testing::runChecked;
 using plynth::cli::testing::Sample;
@@ -146,6 +147,7 @@ TEST_CASE("generator list with no library is no_library", "[cli][generator]") {
 TEST_CASE("generator list --probe asks the fake Blender and sets the availability", "[cli][generator]") {
     GeneratorReset reset;
     const Sample sample("gen-probe");
+    const PrivateUser user(sample.temp);
     makeLibrary(sample);
     const auto fake = installFakeBlender(sample.temp.path() / "fb52", "5.2.0");
     {
@@ -176,6 +178,7 @@ TEST_CASE("generator list --probe asks the fake Blender and sets the availabilit
 TEST_CASE("generator check-addons lists the enabled add-ons and the availability", "[cli][generator]") {
     GeneratorReset reset;
     const Sample sample("gen-check");
+    const PrivateUser user(sample.temp);
     makeLibrary(sample);
     const auto fake = installFakeBlender(sample.temp.path() / "fb52", "5.2.0");
     const ScopedEnvironment addons("FAKE_BLENDER_ADDONS", "bl_ext.blender_org.archimesh");
@@ -194,6 +197,7 @@ TEST_CASE("generator check-addons lists the enabled add-ons and the availability
 TEST_CASE("generator check-addons without a usable Blender is blender_not_found", "[cli][generator]") {
     GeneratorReset reset;
     const Sample sample("gen-check-none");
+    const PrivateUser user(sample.temp);
     makeLibrary(sample);
     const auto outcome =
         runChecked({"generator", "check-addons", "--blender", utf8(sample.temp.path() / "nowhere" / "blender.exe")});
@@ -297,6 +301,9 @@ TEST_CASE("place --generator refuses bad values and leaves the plan alone", "[cl
 TEST_CASE("a generator that needs an add-on is refused when it is off and placed when unknown", "[cli][generator]") {
     GeneratorReset reset;
     const Sample sample("gen-addon");
+    const PrivateUser user(sample.temp);
+    // The variable beats the saved path, so it must not name a Blender of this machine.
+    const ScopedEnvironment variable("PLYNTH_BLENDER", "");
     prepare(sample);
 
     const auto unknown = sample.run({"place", "--generator", "archimesh_column", "--room", "r1"});

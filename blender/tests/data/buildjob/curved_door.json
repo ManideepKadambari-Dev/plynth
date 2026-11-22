@@ -14,6 +14,7 @@
   "fbx_file": "building.fbx",
   "materials_file": "materials.json",
   "textures_folder": "textures",
+  "preview_folder": null,
   "plan": {
    "version": 1
   },
@@ -369,497 +370,580 @@
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": null,
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Wall_Top"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": "left",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "wc",
          "side": null,
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Wall_Top"
         }
        ]
       },
-      "holes": []
+      "holes": [],
+      "top_slot": "Wall_Top"
      }
     ],
     "openings": [
@@ -1318,11 +1402,89 @@
        "frame": null,
        "glass": null,
        "handle": null
+      },
+      "slots": {
+       "reveal": "Exterior_Wall",
+       "threshold": "Threshold",
+       "door": "Door",
+       "frame": "Frame",
+       "glass": "Glass",
+       "handle": "Handle"
       }
      }
     ],
     "rooms": [],
-    "items": []
+    "items": [],
+    "collision": [],
+    "slab": {
+     "bottom": 0.0,
+     "top": 0.0,
+     "polygons": [],
+     "undersides": [],
+     "sides": [],
+     "tops": [],
+     "materials": {
+      "edge": null,
+      "well": null,
+      "underside": null
+     },
+     "slots": {
+      "edge": "Exterior_Wall",
+      "well": "Stair_Well",
+      "underside": "Soffit"
+     }
+    },
+    "stairs": [],
+    "roofs": []
+   }
+  ],
+  "preview_textures_folder": "preview_textures",
+  "preview_texture_size": 1024,
+  "slots": [
+   {
+    "name": "Door",
+    "material": null,
+    "surface": "Door"
+   },
+   {
+    "name": "Exterior_Wall",
+    "material": null,
+    "surface": "Wall_Outside"
+   },
+   {
+    "name": "Frame",
+    "material": null,
+    "surface": "Frame"
+   },
+   {
+    "name": "Glass",
+    "material": null,
+    "surface": "Glass"
+   },
+   {
+    "name": "Handle",
+    "material": null,
+    "surface": "Handle"
+   },
+   {
+    "name": "Soffit",
+    "material": null,
+    "surface": "Soffit"
+   },
+   {
+    "name": "Stair_Well",
+    "material": null,
+    "surface": "Wall_Inside"
+   },
+   {
+    "name": "Threshold",
+    "material": null,
+    "surface": "Threshold"
+   },
+   {
+    "name": "Wall_Top",
+    "material": null,
+    "surface": "Wall_Top"
    }
   ]
  }

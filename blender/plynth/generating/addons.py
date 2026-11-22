@@ -14,8 +14,8 @@ def find_module(short_name):
 
 
 # Turns the add-on on in this Blender session without saving it to the preferences. Returns true when it is on.
-# It refuses to run unless Blender was started with a job-private extensions folder, because enabling an add-on
-# from the shared folder can strip other extensions' libraries there.
+# It refuses unless Blender's extensions folder was prepared for this run, because enabling an add-on from any
+# other folder can strip other extensions' libraries there.
 def enable(short_name):
     if not extensions.is_private():
         return False

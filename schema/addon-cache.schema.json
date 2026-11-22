@@ -1,14 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "urn:plynth:schema:addon-cache:1",
-  "title": "Plynth add-on cache, version 1",
-  "description": "addons.json in the settings folder: which add-ons were enabled in a Blender when it was last asked (core/include/plynth/core/Addons.h). A cache only; deleting it means the add-ons are not checked yet.",
+  "$id": "urn:plynth:schema:addon-cache:2",
+  "title": "Plynth add-on cache, version 2",
+  "description": "addons.json in the settings folder: which add-ons were saved as enabled and found on disk when a Blender was last asked (core/include/plynth/core/Addons.h). A cache only; deleting it means the add-ons are not checked yet, and so does a file of an older version.",
   "type": "object",
   "required": ["format", "version", "blender", "blender_version", "checked_at", "enabled"],
   "additionalProperties": false,
   "properties": {
     "format": { "const": "plynth-addons" },
-    "version": { "const": 1 },
+    "version": { "const": 2 },
     "blender": { "description": "The Blender executable that was asked, absolute, forward slashes.", "type": "string", "minLength": 1 },
     "blender_version": { "type": "string" },
     "checked_at": { "description": "UTC, for example 2026-11-22T10:15:00Z.", "type": "string", "minLength": 1 },

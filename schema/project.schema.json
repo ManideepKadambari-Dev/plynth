@@ -1,14 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "urn:plynth:schema:project:4",
-  "title": "Plynth project settings, version 4",
-  "description": "The project.json file in a project folder. Lengths are in metres. Older files are upgraded when read: version 1 (project.v1.schema.json) gets defaults with the built-in sizes, version 2 (project.v2.schema.json) gets wall_item_centre 1.2, version 3 (project.v3.schema.json) gets materials with the built-in defaults.",
+  "$id": "urn:plynth:schema:project:5",
+  "title": "Plynth project settings, version 5",
+  "description": "The project.json file in a project folder. Lengths are in metres. Older files are upgraded when read: version 1 (project.v1.schema.json) gets defaults with the built-in sizes, version 2 (project.v2.schema.json) gets wall_item_centre 1.2, version 3 (project.v3.schema.json) gets materials with the built-in defaults, version 4 (project.v4.schema.json) gets the roof, flat_roof and stair materials.",
   "type": "object",
   "required": ["format", "version", "name"],
   "additionalProperties": false,
   "properties": {
     "format": { "const": "plynth-project" },
-    "version": { "const": 4 },
+    "version": { "const": 5 },
     "name": { "type": "string", "minLength": 1 },
     "export_mode": {
       "description": "single gives one FBX for the whole building, grouped gives one FBX per group.",
@@ -64,7 +64,10 @@
         "door": { "description": "Door leaves.", "$ref": "#/definitions/optionalName", "default": "painted_wood" },
         "frame": { "description": "Door and window frames.", "$ref": "#/definitions/optionalName", "default": "white_paint" },
         "glass": { "description": "Window panes.", "$ref": "#/definitions/optionalName", "default": "clear_glass" },
-        "handle": { "description": "Door handles.", "$ref": "#/definitions/optionalName", "default": "brushed_steel" }
+        "handle": { "description": "Door handles.", "$ref": "#/definitions/optionalName", "default": "brushed_steel" },
+        "roof": { "description": "The covering of pitched roofs: gable, hip, shed and sawtooth.", "$ref": "#/definitions/optionalName", "default": "roof_tiles" },
+        "flat_roof": { "description": "The covering of flat roofs.", "$ref": "#/definitions/optionalName", "default": "concrete" },
+        "stair": { "description": "Steps, landings and the column of a spiral stair.", "$ref": "#/definitions/optionalName", "default": "oak_planks" }
       },
       "default": {}
     }

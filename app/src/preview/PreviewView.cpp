@@ -5,6 +5,8 @@
 
 #include <plynth/core/BuildGeometry.h>
 #include <plynth/core/BuildJob.h>
+#include <plynth/core/BuildPreview.h>
+#include <plynth/core/Roofs.h>
 
 #include <QCoreApplication>
 #include <QDesktopServices>
@@ -175,12 +177,14 @@ void PreviewView::resizeEvent(QResizeEvent* event)
 }
 
 // Computes the box of the whole building from the walls, with a margin.
-void PreviewView::buildingBounds(const plynth::Plan& plan, QVector3D* low, QVector3D* high)
+void PreviewView::buildingBounds(const plynth::Plan& plan, QVector3D* low, QVector3D* high, int lastFloor,
+                                 bool withRoofs)
 {
     const std::vector<double> levels = plynth::floorElevations(plan);
     bool any = false;
     float minX = 0, minZ = 0, maxX = 0, maxZ = 0, top = 0;
-    for (size_t f = 0; f < plan.floors.size(); ++f) {
+    const size_t count = lastFloor < 0 ? plan.floors.size() : std::min(plan.floors.size(), static_cast<size_t>(lastFloor) + 1);
+    for (size_t f = 0; f < count; ++f) {
         const plynth::Floor& floor = plan.floors[f];
         const double level = f < levels.size() ? levels[f] : 0.0;
         for (const plynth::Wall& wall : floor.walls) {
@@ -215,6 +219,22 @@ void PreviewView::buildingBounds(const plynth::Plan& plan, QVector3D* low, QVect
             any = true;
             top = std::max(top, static_cast<float>(level + item.z + item.size.height));
         }
+        if (!withRoofs)
+            continue;
+        for (const plynth::RoofBuild& roof : plynth::floorRoofs(plan, f, levels).roofs) {
+            for (const plynth::RoofFace& face : roof.faces) {
+                for (const plynth::Vec3& v : face.outline) {
+                    const float x = static_cast<float>(v.x);
+                    const float z = static_cast<float>(-v.y);
+                    minX = any ? std::min(minX, x) : x;
+                    maxX = any ? std::max(maxX, x) : x;
+                    minZ = any ? std::min(minZ, z) : z;
+                    maxZ = any ? std::max(maxZ, z) : z;
+                    any = true;
+                    top = std::max(top, static_cast<float>(v.z));
+                }
+            }
+        }
     }
     if (!any) {
         *low = QVector3D(-1, 0, -1);
@@ -240,7 +260,29 @@ void PreviewView::reload(const plynth::Plan& plan)
     loadFile(plan);
 }
 
-// Gives the scene the file and the bounds of the plan, or the empty state when the file is missing.
+// Reads the preview parts of the build that holds this fbx.
+QList<ModelView::Part> PreviewView::readParts(const std::filesystem::path& fbx, const std::vector<std::string>& floorIds)
+{
+    QList<ModelView::Part> list;
+    const plynth::PreviewPartsRead read = plynth::readPreviewParts(fbx.parent_path());
+    if (!read.status.ok())
+        return list;
+    for (const plynth::PreviewPart& part : read.parts) {
+        const auto it = std::find(floorIds.begin(), floorIds.end(), part.floor);
+        if (it == floorIds.end())
+            continue;
+        ModelView::Part out;
+        out.file = QUrl::fromLocalFile(QString::fromStdWString(part.file.wstring()));
+        out.floorIndex = static_cast<int>(it - floorIds.begin());
+        out.roof = part.kind == plynth::PreviewPartKind::Roof;
+        out.slab = part.kind == plynth::PreviewPartKind::Slab;
+        list.append(out);
+    }
+    return list;
+}
+
+// Gives the scene the parts (or building.fbx without parts) and the bounds of the plan, or the empty state
+// when the file is missing.
 void PreviewView::loadFile(const plynth::Plan& plan)
 {
     if (scene_ == nullptr)
@@ -250,10 +292,47 @@ void PreviewView::loadFile(const plynth::Plan& plan)
         scene_->clearModel(tr("Build the plan to see it in 3D. (Ctrl+B)"));
         return;
     }
-    QVector3D low;
-    QVector3D high;
-    buildingBounds(plan, &low, &high);
-    scene_->setModel(QUrl::fromLocalFile(QString::fromStdWString(fbx_.wstring())), low, high);
+    floorIds_.clear();
+    for (const plynth::Floor& floor : plan.floors)
+        floorIds_.push_back(floor.id);
+    buildingBounds(plan, &low_, &high_);
+    cutHigh_.clear();
+    for (size_t f = 0; f < plan.floors.size(); ++f) {
+        QVector3D lo;
+        QVector3D hi;
+        buildingBounds(plan, &lo, &hi, static_cast<int>(f), false);
+        cutHigh_.push_back(hi);
+    }
+    QList<ModelView::Part> parts = readParts(fbx_, floorIds_);
+    if (parts.isEmpty())
+        parts.append(ModelView::Part{QUrl::fromLocalFile(QString::fromStdWString(fbx_.wstring())), 0, false});
+    scene_->setParts(parts, low_, high_);
+    applyFilter();
+}
+
+// Passes the roof and cut choices to the scene with the bounds that frame what stays.
+void PreviewView::applyFilter()
+{
+    if (scene_ == nullptr || scene_->partCount() == 0)
+        return;
+    int cut = -1;
+    if (!cutFloorId_.isEmpty()) {
+        const auto it = std::find(floorIds_.begin(), floorIds_.end(), cutFloorId_.toStdString());
+        if (it != floorIds_.end())
+            cut = static_cast<int>(it - floorIds_.begin());
+    }
+    QVector3D high = high_;
+    if (cut >= 0 && static_cast<size_t>(cut) < cutHigh_.size())
+        high = QVector3D(high_.x(), cutHigh_[static_cast<size_t>(cut)].y(), high_.z());
+    scene_->setPartFilter(showRoofs_, cut, low_, high);
+}
+
+// Remembers the roof and cut choices and applies them.
+void PreviewView::setRoofOptions(bool showRoofs, const QString& cutFloorId)
+{
+    showRoofs_ = showRoofs;
+    cutFloorId_ = cutFloorId;
+    applyFilter();
 }
 
 // Frames the building.

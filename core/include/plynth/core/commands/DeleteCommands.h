@@ -16,6 +16,7 @@ struct DeleteSet {
     std::vector<Id> rooms;
     std::vector<Id> walls;
     std::vector<Id> points;
+    std::vector<Id> stairs;    // stairs named in the list, removed first (RemoveStairCommand)
 };
 
 // A delete command ready to run, or the reason it cannot be built.
@@ -33,8 +34,9 @@ struct DeleteBuild {
 // Points that had no wall to begin with stay unless named. Inside the group, named items go first
 // (RemoveItemCommand), then detached items, then openings (RemoveOpeningCommand), then rooms, then walls, then
 // points, each in the floor's list order. Build it on the plan it will run on and run it at once.
+// Named stairs are removed before everything else; removing walls never removes a stair.
 // InvalidValue for an empty list or ids on different floors, NotFound for an unknown id or one that is not an
-// item, opening, point, wall or room.
+// item, opening, point, wall, room or stair.
 DeleteBuild makeDeleteCommand(const Plan& plan, std::span<const Id> ids);
 
 }

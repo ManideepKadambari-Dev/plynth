@@ -1,0 +1,21 @@
+{
+  "format": "plynth-material-source",
+  "version": 1,
+  "id": "concrete",
+  "name": "Concrete",
+  "groups": [
+    "exterior",
+    "floor",
+    "wall"
+  ],
+  "tags": [
+    "cast",
+    "concrete",
+    "grey"
+  ],
+  "tile_size": {
+    "width": 2.0,
+    "height": 2.0
+  },
+  "license": "own_work"
+}

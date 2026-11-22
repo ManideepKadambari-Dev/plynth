@@ -5,6 +5,7 @@
 #include <plynth/core/Build.h>
 #include <plynth/core/Document.h>
 #include <plynth/core/EditSession.h>
+#include <plynth/core/Export.h>
 #include <plynth/core/ProjectFiles.h>
 
 #include <QImage>
@@ -36,6 +37,10 @@ class BuildBar;
 class BuildController;
 class BuildPanel;
 class DocumentBridge;
+class FloorFocus;
+class FloorTabs;
+class ExportController;
+class ExportPanel;
 class HomeScreen;
 class ImportQueue;
 class ImportQueueView;
@@ -86,8 +91,21 @@ public:
 
     // For checks only: activates a tool by name (select, scale, wall, room, detect). False for an unknown name.
     bool activateToolByName(const QString& name);
-    // For checks only: selects the point, wall or room with this id on the first floor. An unknown id selects nothing.
+    // For checks only: shows the floor with this id. False for an unknown id.
+    bool showFloor(const QString& id);
+    // For checks only: selects the point, wall or room with this id, switching to its floor first. An unknown id selects nothing.
     void selectById(const QString& id);
+    // For checks only: turns image alignment of the shown floor on or off, as View > Align plan image.
+    void setAlignImage(bool on);
+    // For checks only: turns the roof sections of the shown floor on the plan on or off, as View > Roof sections.
+    void setRoofSectionsShown(bool on);
+    // For checks only: shows the floor of a roof section ("<floor id>:<index>"), turns roof sections on and selects it.
+    void selectRoof(const QString& id);
+    // For checks only: View > Show roofs in 3D and View > Cut 3D at the shown floor.
+    void setShowRoofs3d(bool on);
+    void setCutAtFloor(bool on);
+    bool showRoofs3d() const;
+    bool cutAtFloor() const;
     // For checks only: sets a parameter of the selected generator item ("diameter=0.5"). False when refused.
     bool setGeneratorParam(const QString& assignment);
     // For checks only: the Catalog menu's Add the sample generators.
@@ -162,6 +180,10 @@ public:
     void setOverlay3d(bool on);
     // For checks only: shows the Build tab.
     void showBuildTab();
+    // Starts an export of the last build, or only its quality checks when write is false. Force goes past failed checks.
+    void startExport(bool write, bool force);
+    // For checks only: shows the Export tab.
+    void showExportTab();
     // For checks only: shows the 3D page ("3d") or the plan ("plan").
     void showView(const QString& name);
     // For checks only: sets the camera of the 3D page: "three-quarter" or "top".
@@ -210,8 +232,16 @@ private:
     void updateActions();
     void updateViewActions();
     void refreshImage();
+    void refreshFloorTabs();
+    void floorShown();
+    void addFloor(bool above, const QString& besideFloor);
+    void renameFloor(const QString& floorId);
+    void removeFloor(const QString& floorId);
+    void stepFloor(int direction);
+    void updateAlignAction();
     void refreshOverlay();
     void refreshPreview();
+    void applyPreviewRoofOptions();
     void refreshProblemMarkers();
     void refreshBuilding3d();
     void buildFinished(const plynth::BuildReport& report);
@@ -221,6 +251,13 @@ private:
     void openBuildFolder();
     void openInBlender();
     bool buildBlocked(QString* reason) const;
+    QString exportNotice(bool* offerBuild) const;
+    void exportFinished(const plynth::ExportReport& report);
+    void exportAnyway();
+    void loadExportReport();
+    void updateExportUi();
+    void openExportFolder();
+    void cancelWork();
     void showCentreView(bool scene3d);
     void refreshSelection();
     void deleteSelection();
@@ -252,6 +289,8 @@ private:
     plynth::ProcessIdentity self_;
 
     TitleBar* titleBar_ = nullptr;
+    FloorFocus* focus_ = nullptr;
+    FloorTabs* floorTabs_ = nullptr;
     PlanCanvas* canvas_ = nullptr;
     Selection* selection_ = nullptr;
     ToolController* tools_ = nullptr;
@@ -273,8 +312,19 @@ private:
     BuildController* builder_ = nullptr;
     OverlayRenderer* overlayRenderer_ = nullptr;
     QAction* overlay3dAction_ = nullptr;
+    QAction* roofSectionsAction_ = nullptr;
+    QAction* showRoofs3dAction_ = nullptr;
+    QAction* cutAtFloorAction_ = nullptr;
     QAction* problemsOnPlanAction_ = nullptr;
     BuildPanel* buildPanel_ = nullptr;
+    ExportController* exporter_ = nullptr;
+    ExportPanel* exportPanel_ = nullptr;
+    QAction* exportAction_ = nullptr;
+    QAction* checkExportAction_ = nullptr;
+    QAction* exportAnywayAction_ = nullptr;
+    QAction* exportFolderAction_ = nullptr;
+    std::optional<plynth::ExportReport> exportReport_;
+    QString exportError_;
     QAction* buildAction_ = nullptr;
     QAction* cancelBuildAction_ = nullptr;
     QAction* reportAction_ = nullptr;
@@ -294,6 +344,7 @@ private:
     QAction* rescanMaterialsAction_ = nullptr;
     QAction* importMaterialsAction_ = nullptr;
     QAction* addSamplesAction_ = nullptr;
+    QAction* addShapesAction_ = nullptr;
     QAction* reloadGeneratorsAction_ = nullptr;
     QAction* checkAddonsAction_ = nullptr;
     QAction* addSampleGeneratorsAction_ = nullptr;
@@ -309,7 +360,10 @@ private:
     QAction* wallViewAction_ = nullptr;
     QAction* flipWallViewAction_ = nullptr;
     bool wallViewSized_ = false;
-    QAction* toolActions_[kAllTools.size()] = {};
+    QAction* toolActions_[kToolCount] = {};
+    QAction* alignImageAction_ = nullptr;
+    QAction* floorUpAction_ = nullptr;
+    QAction* floorDownAction_ = nullptr;
     QAction* acceptDetectionAction_ = nullptr;
     QAction* turnLeftAction_ = nullptr;
     QAction* turnRightAction_ = nullptr;

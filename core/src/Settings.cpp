@@ -280,9 +280,20 @@ Status settingsFromJson(const Json& json, MachineSettings& out)
 // Reads settings from a file.
 SettingsLoad loadSettings(const fs::path& file)
 {
+    return loadSettings(file, [](const fs::path& path, std::error_code& ec) { return fs::exists(path, ec); });
+}
+
+// Reads settings from a file, asking the given check whether it is there.
+SettingsLoad loadSettings(const fs::path& file, const FileExistsCheck& exists)
+{
     SettingsLoad result;
     std::error_code ec;
-    if (!fs::exists(file, ec)) return result;
+    const bool present = exists(file, ec);
+    if (ec) {
+        result.status = fail(ErrorCode::CannotRead, "The settings file " + pathToUtf8(file) + " could not be checked: " + ec.message());
+        return result;
+    }
+    if (!present) return result;
 
     std::string text;
     if (!readText(file, text)) {

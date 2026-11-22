@@ -78,11 +78,13 @@ int main(int argc, char* argv[])
                                       QStringLiteral("Open the terminal and type this text. For checks only."),
                                       QStringLiteral("text"));
     QCommandLineOption toolOption(QStringLiteral("tool"),
-                                  QStringLiteral("Activate a tool: select, scale, wall, opening, room, furniture or detect. For checks only."),
+                                  QStringLiteral("Activate a tool: select, scale, wall, opening, room, stair, furniture or detect. For checks only."),
                                   QStringLiteral("name"));
     QCommandLineOption selectOption(QStringLiteral("select"),
-                                    QStringLiteral("Select the point, wall, opening or room with this id. For checks only."),
+                                    QStringLiteral("Select the point, wall, opening, room, item or stair with this id. For checks only."),
                                     QStringLiteral("id"));
+    QCommandLineOption floorOption(QStringLiteral("floor"),
+                                   QStringLiteral("Show the floor with this id, such as f2. For checks only."), QStringLiteral("id"));
     QCommandLineOption wallSideOption(QStringLiteral("wall-side"),
                                       QStringLiteral("Side of the wall the wall view is seen from: left or right. For checks only."),
                                       QStringLiteral("side"));
@@ -144,14 +146,38 @@ int main(int argc, char* argv[])
     QCommandLineOption buildOption(QStringLiteral("build"),
                                    QStringLiteral("Build the project after opening it and wait for the end. For checks only."));
     QCommandLineOption buildTabOption(QStringLiteral("build-tab"), QStringLiteral("Show the Build tab. For checks only."));
+    QCommandLineOption alignImageOption(QStringLiteral("align-image"),
+                                        QStringLiteral("Turn on image alignment of the shown floor. For checks only."));
+    QCommandLineOption roofSectionsOption(QStringLiteral("roof-sections"),
+                                          QStringLiteral("Show the roof sections of the shown floor on the plan. For checks only."));
+    QCommandLineOption selectRoofOption(QStringLiteral("select-roof"),
+                                        QStringLiteral("Select the roof section <floor>:<index>, such as f2:0, on its floor. For checks only."),
+                                        QStringLiteral("id"));
+    QCommandLineOption noRoofsOption(QStringLiteral("no-roofs"),
+                                     QStringLiteral("Hide the roofs in the 3D view. For checks only."));
+    QCommandLineOption cutAtFloorOption(QStringLiteral("cut-at-floor"),
+                                        QStringLiteral("Cut the 3D view at the shown floor. For checks only."));
+    QCommandLineOption exportOption(QStringLiteral("export"),
+                                    QStringLiteral("Export the last build after opening the project and wait for the end. For checks only."));
+    QCommandLineOption exportCheckOption(QStringLiteral("export-check"),
+                                         QStringLiteral("Run the export quality checks after opening the project and wait for the end. For checks only."));
+    QCommandLineOption exportTabOption(QStringLiteral("export-tab"), QStringLiteral("Show the Export tab. For checks only."));
     QCommandLineOption homeOption(QStringLiteral("home"), QStringLiteral("Show the home screen. For checks only."));
     parser.addOption(zoomOption);
     parser.addOption(overlayOption);
     parser.addOption(buildOption);
     parser.addOption(buildTabOption);
+    parser.addOption(exportOption);
+    parser.addOption(exportCheckOption);
+    parser.addOption(exportTabOption);
     parser.addOption(viewOption);
     parser.addOption(cameraOption);
     parser.addOption(homeOption);
+    parser.addOption(alignImageOption);
+    parser.addOption(roofSectionsOption);
+    parser.addOption(selectRoofOption);
+    parser.addOption(noRoofsOption);
+    parser.addOption(cutAtFloorOption);
     parser.addOption(furnitureAtOption);
     parser.addOption(hoverAssetOption);
     parser.addOption(assetCategoriesOption);
@@ -177,6 +203,7 @@ int main(int argc, char* argv[])
     parser.addOption(selectAssetOption);
     parser.addOption(toolOption);
     parser.addOption(selectOption);
+    parser.addOption(floorOption);
     QCommandLineOption generatorParamOption(QStringLiteral("generator-param"),
                                             QStringLiteral("Set a parameter of the selected generator item, for example diameter=0.5. "
                                                            "Repeat for several. For checks only."),
@@ -198,8 +225,8 @@ int main(int argc, char* argv[])
         return kExitBadArguments;
     if (parser.isSet(toolOption)) {
         const QStringList names{QStringLiteral("select"), QStringLiteral("scale"), QStringLiteral("wall"),
-                                QStringLiteral("opening"), QStringLiteral("room"), QStringLiteral("furniture"),
-                                QStringLiteral("detect")};
+                                QStringLiteral("opening"), QStringLiteral("room"), QStringLiteral("stair"),
+                                QStringLiteral("furniture"), QStringLiteral("detect")};
         if (!names.contains(parser.value(toolOption).toLower()))
             return kExitBadArguments;
     }
@@ -290,10 +317,22 @@ int main(int argc, char* argv[])
             loadTitle = QObject::tr("Cannot open image");
         }
     }
+    if (parser.isSet(floorOption))
+        window.showFloor(parser.value(floorOption));
     if (parser.isSet(toolOption))
         window.activateToolByName(parser.value(toolOption));
+    if (parser.isSet(alignImageOption))
+        window.setAlignImage(true);
+    if (parser.isSet(roofSectionsOption))
+        window.setRoofSectionsShown(true);
     if (parser.isSet(selectOption))
         window.selectById(parser.value(selectOption));
+    if (parser.isSet(selectRoofOption))
+        window.selectRoof(parser.value(selectRoofOption));
+    if (parser.isSet(noRoofsOption))
+        window.setShowRoofs3d(false);
+    if (parser.isSet(cutAtFloorOption))
+        window.setCutAtFloor(true);
     for (const QString& assignment : parser.values(generatorParamOption))
         window.setGeneratorParam(assignment);
     if (parser.isSet(undoOption))
@@ -321,12 +360,18 @@ int main(int argc, char* argv[])
     window.show();
     if (parser.isSet(buildTabOption))
         window.showBuildTab();
+    if (parser.isSet(exportTabOption))
+        window.showExportTab();
     if (parser.isSet(overlayOption))
         window.setOverlay3d(true);
     if (parser.isSet(zoomOption) && parser.value(zoomOption).toLower() == QStringLiteral("actual"))
         QTimer::singleShot(100, &window, [&window]() { window.setActualSize(); });
     if (parser.isSet(buildOption))
         QTimer::singleShot(0, &window, [&window]() { window.startBuild(); });
+    if (parser.isSet(exportOption))
+        QTimer::singleShot(0, &window, [&window]() { window.startExport(true, false); });
+    else if (parser.isSet(exportCheckOption))
+        QTimer::singleShot(0, &window, [&window]() { window.startExport(false, false); });
     if (parser.isSet(furnitureAtOption)) {
         const QString hover = parser.value(hoverAssetOption);
         QTimer::singleShot(250, &window, [&window, furnitureX, furnitureY, hover]() {
@@ -379,7 +424,7 @@ int main(int argc, char* argv[])
         QTimer::singleShot(0, &window, [&window, text]() { window.startTerminalCheck(text); });
     }
 
-    const bool wantsBuild = parser.isSet(buildOption);
+    const bool wantsBuild = parser.isSet(buildOption) || parser.isSet(exportOption) || parser.isSet(exportCheckOption);
     if (wantsScreenshot) {
         const QString file = parser.value(screenshotOption);
         const QSize target = hasSize ? size : window.size();
@@ -399,6 +444,9 @@ int main(int argc, char* argv[])
             if (!window.materialsPictureReady() && !waited.hasExpired(kBuildWaitMs))
                 return;
             poll->stop();
+            // Panels rebuilt just before need a few passes to show and lay out their rows.
+            for (int pass = 0; pass < 4; ++pass)
+                QApplication::processEvents();
             const bool ok = saveScreenshot(window, file, target);
             const bool problem = loadFailed || window.planImageFailed();
             QApplication::exit(!ok                    ? kExitSaveFailed

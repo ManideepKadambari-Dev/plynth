@@ -47,6 +47,18 @@ void FurnitureTool::deactivate()
     host_.canvas().viewport()->update();
 }
 
+// Closes the picker and forgets the click, which was on the floor shown before.
+void FurnitureTool::floorChanged()
+{
+    if (host_.pickerOpen())
+        host_.picker().dismiss();
+    click_.reset();
+    preview_.reset();
+    hoveredAsset_.clear();
+    hoveredGenerator_.clear();
+    host_.canvas().viewport()->update();
+}
+
 // A left click marks the place and opens the picker there, with the type of the room under the click.
 void FurnitureTool::mousePressed(const ToolMouse& mouse)
 {

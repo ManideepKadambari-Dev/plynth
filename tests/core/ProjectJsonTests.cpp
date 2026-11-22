@@ -74,11 +74,12 @@ TEST_CASE("plan keys are written in schema order", "[core][json]") {
     const Json j = planToJson(fullPlan());
     std::vector<std::string> top;
     for (auto it = j.begin(); it != j.end(); ++it) top.push_back(it.key());
-    REQUIRE(top == std::vector<std::string>{"format", "version", "scale", "floors"});
+    REQUIRE(top == std::vector<std::string>{"format", "version", "scale", "floors", "roof", "roof_sections"});
 
     std::vector<std::string> floorKeys;
     for (auto it = j["floors"][0].begin(); it != j["floors"][0].end(); ++it) floorKeys.push_back(it.key());
-    REQUIRE(floorKeys == std::vector<std::string>{"id", "name", "image", "ceiling_height", "points", "walls", "rooms", "openings", "items"});
+    REQUIRE(floorKeys == std::vector<std::string>{"id", "name", "image", "ceiling_height", "points", "walls", "rooms", "openings", "items",
+                                                    "slab_thickness", "image_offset", "stairs"});
 
     std::vector<std::string> openingKeys;
     for (auto it = j["floors"][0]["openings"][0].begin(); it != j["floors"][0]["openings"][0].end(); ++it) openingKeys.push_back(it.key());
@@ -238,7 +239,7 @@ TEST_CASE("settings keys are in schema order and defaults apply", "[core][json]"
     for (auto it = j.begin(); it != j.end(); ++it) keys.push_back(it.key());
     REQUIRE(keys == std::vector<std::string>{"format", "version", "name", "export_mode", "grid_size", "defaults", "materials"});
 
-    const SettingsRead r = settingsFromJson(Json::parse(R"({"format":"plynth-project","version":4,"name":"A"})"));
+    const SettingsRead r = settingsFromJson(Json::parse(R"({"format":"plynth-project","version":5,"name":"A"})"));
     plynth::test::requireOk(r.status);
     REQUIRE(r.settings.exportMode == ExportMode::Single);
     REQUIRE(r.settings.gridSize == kDefaultGridSize);
@@ -253,37 +254,37 @@ TEST_CASE("settings refuse bad values", "[core][json]") {
         REQUIRE(r.status.code == code);
         REQUIRE(r.status.where == where);
     };
-    refused(R"({"format":"plynth-project","version":4})", ErrorCode::BadFile, "/name");
-    refused(R"({"format":"plynth-project","version":4,"name":""})", ErrorCode::BadFile, "/name");
-    refused(R"({"format":"plynth-project","version":4,"name":5})", ErrorCode::BadFile, "/name");
-    refused(R"({"format":"plynth-project","version":4,"name":"A","export_mode":"double"})", ErrorCode::BadFile, "/export_mode");
-    refused(R"({"format":"plynth-project","version":4,"name":"A","grid_size":0})", ErrorCode::BadFile, "/grid_size");
-    refused(R"({"format":"plynth-project","version":4,"name":"A","grid_size":null})", ErrorCode::BadFile, "/grid_size");
-    refused(R"({"format":"plynth-project","version":4,"name":"A","extra":1})", ErrorCode::BadFile, "/extra");
-    refused(R"({"format":"plynth-plan","version":4,"name":"A"})", ErrorCode::BadFile, "/format");
+    refused(R"({"format":"plynth-project","version":5})", ErrorCode::BadFile, "/name");
+    refused(R"({"format":"plynth-project","version":5,"name":""})", ErrorCode::BadFile, "/name");
+    refused(R"({"format":"plynth-project","version":5,"name":5})", ErrorCode::BadFile, "/name");
+    refused(R"({"format":"plynth-project","version":5,"name":"A","export_mode":"double"})", ErrorCode::BadFile, "/export_mode");
+    refused(R"({"format":"plynth-project","version":5,"name":"A","grid_size":0})", ErrorCode::BadFile, "/grid_size");
+    refused(R"({"format":"plynth-project","version":5,"name":"A","grid_size":null})", ErrorCode::BadFile, "/grid_size");
+    refused(R"({"format":"plynth-project","version":5,"name":"A","extra":1})", ErrorCode::BadFile, "/extra");
+    refused(R"({"format":"plynth-plan","version":5,"name":"A"})", ErrorCode::BadFile, "/format");
     refused(R"({"format":"plynth-project","name":"A"})", ErrorCode::BadFile, "/version");
-    refused(R"({"format":"plynth-project","version":5,"name":"A"})", ErrorCode::UnsupportedVersion, "/version");
-    refused(R"({"format":"plynth-project","version":4,"name":"A","defaults":{"extra":1}})", ErrorCode::BadFile, "/defaults/extra");
-    refused(R"({"format":"plynth-project","version":4,"name":"A","defaults":{"door_width":0}})", ErrorCode::BadFile, "/defaults");
-    refused(R"({"format":"plynth-project","version":4,"name":"A","defaults":{"door_width":"wide"}})", ErrorCode::BadFile,
+    refused(R"({"format":"plynth-project","version":6,"name":"A"})", ErrorCode::UnsupportedVersion, "/version");
+    refused(R"({"format":"plynth-project","version":5,"name":"A","defaults":{"extra":1}})", ErrorCode::BadFile, "/defaults/extra");
+    refused(R"({"format":"plynth-project","version":5,"name":"A","defaults":{"door_width":0}})", ErrorCode::BadFile, "/defaults");
+    refused(R"({"format":"plynth-project","version":5,"name":"A","defaults":{"door_width":"wide"}})", ErrorCode::BadFile,
             "/defaults/door_width");
-    refused(R"({"format":"plynth-project","version":4,"name":"A","defaults":{"ceiling_height":2.0}})", ErrorCode::BadFile, "/defaults");
-    refused(R"({"format":"plynth-project","version":4,"name":"A","defaults":[1]})", ErrorCode::BadFile, "/defaults");
+    refused(R"({"format":"plynth-project","version":5,"name":"A","defaults":{"ceiling_height":2.0}})", ErrorCode::BadFile, "/defaults");
+    refused(R"({"format":"plynth-project","version":5,"name":"A","defaults":[1]})", ErrorCode::BadFile, "/defaults");
 }
 
 TEST_CASE("a bad default material name is refused with a pointer", "[core][json][materials]") {
     const SettingsRead r = settingsFromJson(
-        Json::parse(R"({"format":"plynth-project","version":4,"name":"A","materials":{"floor":"bad name"}})"));
+        Json::parse(R"({"format":"plynth-project","version":5,"name":"A","materials":{"floor":"bad name"}})"));
     REQUIRE(r.status.code == ErrorCode::BadFile);
     REQUIRE(r.status.where == "/materials/floor");
 
     const SettingsRead unknown = settingsFromJson(
-        Json::parse(R"({"format":"plynth-project","version":4,"name":"A","materials":{"roof":"tile"}})"));
+        Json::parse(R"({"format":"plynth-project","version":5,"name":"A","materials":{"roofing":"tile"}})"));
     REQUIRE(unknown.status.code == ErrorCode::BadFile);
-    REQUIRE(unknown.status.where == "/materials/roof");
+    REQUIRE(unknown.status.where == "/materials/roofing");
 
     const SettingsRead wrongType = settingsFromJson(
-        Json::parse(R"({"format":"plynth-project","version":4,"name":"A","materials":{"floor":5}})"));
+        Json::parse(R"({"format":"plynth-project","version":5,"name":"A","materials":{"floor":5}})"));
     REQUIRE(wrongType.status.code == ErrorCode::BadFile);
     REQUIRE(wrongType.status.where == "/materials/floor");
 }
@@ -293,13 +294,14 @@ TEST_CASE("settings write every surface and read them back", "[core][json][mater
     setMaterialDefault(s.materials, Surface::Ceiling, std::nullopt);
     setMaterialDefault(s.materials, Surface::Floor, "grey_tile");
     const Json j = settingsToJson(s);
-    REQUIRE(j["version"] == 4);
-    REQUIRE(j["materials"].size() == 9);
+    REQUIRE(j["version"] == 5);
+    REQUIRE(j["materials"].size() == 12);
     REQUIRE(j["materials"]["ceiling"].is_null());
     REQUIRE(j["materials"]["floor"] == "grey_tile");
     std::vector<std::string> keys;
     for (auto it = j["materials"].begin(); it != j["materials"].end(); ++it) keys.push_back(it.key());
-    REQUIRE(keys == std::vector<std::string>{"wall_inside", "wall_outside", "wall_top", "floor", "ceiling", "door", "frame", "glass", "handle"});
+    REQUIRE(keys == std::vector<std::string>{"wall_inside", "wall_outside", "wall_top", "floor", "ceiling", "door", "frame", "glass", "handle",
+                                                    "roof", "flat_roof", "stair"});
     const SettingsRead r = settingsFromJson(j);
     plynth::test::requireOk(r.status);
     REQUIRE(r.settings == s);
@@ -409,19 +411,96 @@ TEST_CASE("migrateJson stops at a failing step and reports a missing step", "[co
     REQUIRE(migrateJson(text, 3, steps).code == ErrorCode::BadFile);
 }
 
-TEST_CASE("the current format versions are 6 and 4", "[core][json][migrate]") {
+TEST_CASE("the current format versions are 6 and 5", "[core][json][migrate]") {
     REQUIRE(kPlanFormatVersion == 6);
-    REQUIRE(kProjectFormatVersion == 4);
+    REQUIRE(kProjectFormatVersion == 5);
     REQUIRE(planMigrations().size() == 5);
-    REQUIRE(planMigrations()[3].fromVersion == 4);
-    REQUIRE(planMigrations()[4].fromVersion == 5);
     REQUIRE(planMigrations()[0].fromVersion == 1);
     REQUIRE(planMigrations()[1].fromVersion == 2);
     REQUIRE(planMigrations()[2].fromVersion == 3);
-    REQUIRE(projectMigrations().size() == 3);
+    REQUIRE(planMigrations()[3].fromVersion == 4);
+    REQUIRE(planMigrations()[4].fromVersion == 5);
+    REQUIRE(projectMigrations().size() == 4);
     REQUIRE(projectMigrations()[0].fromVersion == 1);
     REQUIRE(projectMigrations()[1].fromVersion == 2);
     REQUIRE(projectMigrations()[2].fromVersion == 3);
+    REQUIRE(projectMigrations()[3].fromVersion == 4);
+}
+
+TEST_CASE("a version 4 plan reads with the new fields at their defaults", "[core][json][migrate]") {
+    const std::string text = plynth::test::readTextFile(std::filesystem::path(PLYNTH_TEST_DATA_DIR) / "v4-two-floors.json");
+    const PlanRead r = planFromJson(Json::parse(text));
+    plynth::test::requireOk(r.status);
+    REQUIRE(r.fileVersion == 4);
+    REQUIRE(r.migrated);
+    REQUIRE(r.plan.floors.size() == 2);
+    for (const Floor& f : r.plan.floors) {
+        REQUIRE(f.slabThickness == 0.2);
+        REQUIRE(f.imageOffset == ImageOffset{});
+        REQUIRE(f.stairs.empty());
+    }
+    REQUIRE(r.plan.roof == RoofSettings{});
+    REQUIRE(r.plan.roofSections.empty());
+    const Json written = planToJson(r.plan);
+    REQUIRE(written["version"] == 6);
+    REQUIRE(written["floors"][1]["slab_thickness"] == 0.2);
+    REQUIRE(written["roof"]["type"] == "flat");
+    REQUIRE(written["roof"]["direction"].is_null());
+    REQUIRE(written["roof_sections"].is_array());
+}
+
+TEST_CASE("a version 4 project gets the roof, flat roof and stair defaults", "[core][json][migrate]") {
+    const std::string text = plynth::test::readTextFile(std::filesystem::path(PLYNTH_TEST_DATA_DIR) / "v4-project.json");
+    const SettingsRead r = settingsFromJson(Json::parse(text));
+    plynth::test::requireOk(r.status);
+    REQUIRE(r.fileVersion == 4);
+    REQUIRE(r.migrated);
+    REQUIRE(r.settings.materials.wallInside == "plaster_white");
+    REQUIRE(r.settings.materials.roof == "roof_tiles");
+    REQUIRE(r.settings.materials.flatRoof == "concrete");
+    REQUIRE(r.settings.materials.stair == "oak_planks");
+    const Json written = settingsToJson(r.settings);
+    REQUIRE(written["version"] == 5);
+    REQUIRE(written["materials"]["stair"] == "oak_planks");
+
+    const SettingsRead minimal = settingsFromJson(Json::parse(
+        plynth::test::readTextFile(std::filesystem::path(PLYNTH_TEST_DATA_DIR) / "v4-project-minimal.json")));
+    plynth::test::requireOk(minimal.status);
+    REQUIRE(minimal.settings.materials == MaterialDefaults{});
+}
+
+TEST_CASE("floors with stairs and a plan with roof entries keep every field", "[core][json]") {
+    Plan plan = plynth::test::fullPlan();
+    plan.floors[0].slabThickness = 0.25;
+    plan.floors[1].imageOffset = {1.5, -0.25};
+    Stair st;
+    st.id = "s1";
+    st.type = "u_shape";
+    st.x = 1.0;
+    st.y = 2.0;
+    st.rotation = 90.0;
+    st.width = 1.2;
+    st.turn = StairTurn::Left;
+    st.material = "oak_planks";
+    plan.floors[0].stairs.push_back(st);
+    plan.roof.type = "gable";
+    plan.roof.direction = 45.0;
+    RoofSection rs;
+    rs.id = "rf1";
+    rs.floor = "f2";
+    rs.x = 1.0;
+    rs.y = 1.0;
+    rs.settings = {"hip", 35.0, 0.4, 0.0, std::nullopt};
+    rs.material = "roof_tiles";
+    plan.roofSections.push_back(rs);
+    const PlanRead r = planFromJson(Json::parse(planToJson(plan).dump()));
+    plynth::test::requireOk(r.status);
+    REQUIRE(r.plan == plan);
+    REQUIRE_FALSE(r.migrated);
+    const Json j = planToJson(plan);
+    std::vector<std::string> keys;
+    for (auto it = j["floors"][0]["stairs"][0].begin(); it != j["floors"][0]["stairs"][0].end(); ++it) keys.push_back(it.key());
+    REQUIRE(keys == std::vector<std::string>{"id", "type", "x", "y", "rotation", "width", "turn", "material"});
 }
 
 TEST_CASE("a version 2 plan upgrades with empty item lists", "[core][json][migrate]") {
@@ -447,7 +526,7 @@ TEST_CASE("a version 2 project gets the wall item centre", "[core][json][migrate
     REQUIRE(r.settings.defaults.ceilingHeight == 2.6);
     REQUIRE(r.settings.defaults.wallItemCentre == 1.2);
     const Json written = settingsToJson(r.settings);
-    REQUIRE(written["version"] == 4);
+    REQUIRE(written["version"] == 5);
     REQUIRE(written["defaults"]["wall_item_centre"] == 1.2);
 }
 
@@ -541,7 +620,7 @@ TEST_CASE("a version 1 project gets the built-in defaults", "[core][json][migrat
     REQUIRE(r.settings.name == "Old flat");
     REQUIRE(r.settings.gridSize == 0.25);
     REQUIRE(r.settings.defaults == DefaultSizes{});
-    REQUIRE(settingsToJson(r.settings)["version"] == 4);
+    REQUIRE(settingsToJson(r.settings)["version"] == 5);
 }
 
 TEST_CASE("project defaults round trip", "[core][json]") {
@@ -707,4 +786,27 @@ TEST_CASE("a version 5 plan upgrades to 6", "[core][json][migrate][generator]") 
     REQUIRE(r.fileVersion == 5);
     REQUIRE(r.migrated);
     REQUIRE_FALSE(r.plan.floors[0].items[0].generator.has_value());
+}
+
+TEST_CASE("a version 5 plan keeps its slabs, stairs and roofs as version 6", "[core][json][migrate]") {
+    Plan plan = fullPlan();
+    plan.floors[0].slabThickness = 0.3;
+    plan.floors[0].stairs.push_back(Stair{.id = "s1", .type = "l_shape", .x = 1.0, .y = 2.0});
+    plan.floors[1].imageOffset = {0.5, -1.0};
+    plan.roof.type = "gable";
+    RoofSection section;
+    section.id = "rf1";
+    section.floor = "f2";
+    plan.roofSections.push_back(section);
+
+    Json j = planToJson(plan);
+    j["version"] = 5;
+    for (Json& floor : j["floors"]) {
+        for (Json& item : floor["items"]) item.erase("generator");
+    }
+    const PlanRead r = planFromJson(j);
+    plynth::test::requireOk(r.status);
+    REQUIRE(r.fileVersion == 5);
+    REQUIRE(r.migrated);
+    REQUIRE(r.plan == plan);
 }

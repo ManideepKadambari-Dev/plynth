@@ -4,6 +4,7 @@
 #include "plynth/core/commands/OpeningCommands.h"
 #include "plynth/core/commands/PointCommands.h"
 #include "plynth/core/commands/RoomCommands.h"
+#include "plynth/core/commands/StairCommands.h"
 #include "plynth/core/commands/WallCommands.h"
 
 #include "CommandSupport.h"
@@ -36,9 +37,10 @@ DeleteBuild makeDeleteCommand(const Plan& plan, std::span<const Id> ids)
     std::set<Id> points;
     std::set<Id> walls;
     std::set<Id> rooms;
+    std::set<Id> stairs;
     for (const Id& id : ids) {
         const Floor* found = findFloorContaining(plan, id);
-        if (!found) return refuse(ErrorCode::NotFound, "There is no point, wall, room, opening or item " + id + ".");
+        if (!found) return refuse(ErrorCode::NotFound, "There is no point, wall, room, opening, item or stair " + id + ".");
         if (floor && floor != found) return refuse(ErrorCode::InvalidValue, "The items are on different floors.");
         floor = found;
         if (findPoint(*found, id)) {
@@ -51,8 +53,10 @@ DeleteBuild makeDeleteCommand(const Plan& plan, std::span<const Id> ids)
             openings.insert(id);
         } else if (findItem(*found, id)) {
             items.insert(id);
+        } else if (findStair(*found, id)) {
+            stairs.insert(id);
         } else {
-            return refuse(ErrorCode::NotFound, "The id " + id + " is not a point, wall, room, opening or item.");
+            return refuse(ErrorCode::NotFound, "The id " + id + " is not a point, wall, room, opening, item or stair.");
         }
     }
 
@@ -82,6 +86,11 @@ DeleteBuild makeDeleteCommand(const Plan& plan, std::span<const Id> ids)
 
     DeleteBuild build;
     auto group = std::make_unique<CommandGroup>("Delete");
+    for (const Stair& s : floor->stairs) {
+        if (!stairs.count(s.id)) continue;
+        build.removes.stairs.push_back(s.id);
+        group->add(std::make_unique<RemoveStairCommand>(s.id));
+    }
     for (const Item& i : floor->items) {
         if (!items.count(i.id)) continue;
         build.removes.items.push_back(i.id);

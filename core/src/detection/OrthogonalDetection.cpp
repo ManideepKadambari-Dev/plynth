@@ -230,6 +230,7 @@ std::optional<Piece> makePiece(const Band& band, int axis, const cv::Mat& wall, 
     std::nth_element(sorted.begin(), sorted.begin() + static_cast<std::ptrdiff_t>(n / 2), sorted.end());
     const double thickness = sorted[n / 2];
     if (thickness < lim.minThickness - 1.0 || thickness > lim.maxThickness + 1.0) return std::nullopt;
+    if (static_cast<double>(n) < thickness) return std::nullopt;
 
     double sumA = 0.0;
     double sumC = 0.0;
@@ -250,12 +251,22 @@ std::optional<Piece> makePiece(const Band& band, int axis, const cv::Mat& wall, 
     if (std::abs(slope) > std::tan(kMaxSlopeDegrees * std::numbers::pi / 180.0)) return std::nullopt;
 
     double worst = 0.0;
-    int dirty = 0;
-    for (const Station& s : band.stations) {
+    std::vector<char> side(n, 0);
+    for (std::size_t i = 0; i < n; ++i) {
+        const Station& s = band.stations[i];
         const double fit = meanC + slope * (s.along + 0.5 - meanA);
         worst = std::max(worst, std::abs((s.p0 + s.p1) / 2.0 - fit));
-        if (wallInk(wall, axis, s.along, s.p0 - 2) || wallInk(wall, axis, s.along, s.p1 + 1)) ++dirty;
+        side[i] = wallInk(wall, axis, s.along, s.p0 - 2) || wallInk(wall, axis, s.along, s.p1 + 1) ? 1 : 0;
     }
+    // A piece often ends in a perpendicular wall, which touches its sides from there to the end. That
+    // stretch is a junction, not stray ink, so it does not count against the piece.
+    std::size_t first = 0;
+    std::size_t last = n;
+    while (first < last && side[first]) ++first;
+    while (last > first && side[last - 1]) --last;
+    if (first >= last) return std::nullopt;
+    int dirty = 0;
+    for (std::size_t i = first; i < last; ++i) dirty += side[i];
     if (worst > std::max(2.0, 0.25 * thickness)) return std::nullopt;
     if (static_cast<double>(n - static_cast<std::size_t>(dirty)) < kMinCleanSides * static_cast<double>(n)) return std::nullopt;
 
@@ -494,7 +505,7 @@ DetectionResult detectOrthogonal(const GrayImage& image, double pixelsPerMetre, 
 
     // Split the wall mask into horizontal and vertical runs, so the thickness of a crossing wall never
     // passes as a run.
-    const int runLength = std::max(lim.minLength, static_cast<int>(std::floor(1.5 * lim.maxThickness)) + 1);
+    const int runLength = std::max(lim.minLength, static_cast<int>(std::floor(0.7 * lim.maxThickness)) + 1);
     cv::Mat horizontal = horizontalRuns(wall, runLength);
     cv::Mat horizontalAcross;
     cv::transpose(horizontal, horizontalAcross);

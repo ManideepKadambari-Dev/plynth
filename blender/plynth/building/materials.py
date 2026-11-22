@@ -3,7 +3,7 @@ import os
 import bmesh
 import bpy
 
-from . import Step, count, report
+from . import Step, count, report, slot_table
 from .. import shading, surfaces
 from ..jobs import WorkerError
 from ..registry import BUILD_STEPS
@@ -12,18 +12,36 @@ ORDER = 80
 NEUTRAL_TILE = (1.0, 1.0)
 
 
-# Returns the objects the build made, which are the mesh objects with a plynth kind other than items.
+# Returns the objects the build made, which are the mesh objects with a plynth kind other than items and
+# collision meshes.
 def built_objects():
     return [o for o in bpy.data.objects
-            if o.type == "MESH" and "plynth_kind" in o and o["plynth_kind"] != "item"]
+            if o.type == "MESH" and "plynth_kind" in o and o["plynth_kind"] not in ("item", "collision")]
 
 
-# Makes a Blender material for every slot name the built objects use: a library material from its image maps,
-# or the neutral look of its surface as constant images written to the textures folder. A map that will not
-# load gives material_failed and the neutral look. Then every UV is divided by the tile size of its material,
-# so a tile is one repeat of the image. The result is kept in ctx.state for the materials file.
+# Deletes the neutral look images an earlier build wrote into the folder, so only the ones this build
+# needs are left. Files with other names are not touched.
+def clear_neutral_images(folder):
+    for surface in surfaces.LOOKS:
+        for channel in shading.CHANNELS:
+            path = os.path.join(folder, "%s_%s.png" % (surface, channel))
+            try:
+                if os.path.isfile(path):
+                    os.remove(path)
+            except OSError:
+                pass
+
+
+# Makes a Blender material for every slot the built objects use: the library material the slot shows, from its
+# image maps, or the neutral look of the slot's surface as constant images written to the textures folder.
+# A map that will not load gives material_failed and the neutral look. A name a generator took that is not in
+# the slots table is a library material id or the Generated look. Then every UV is divided by the tile
+# size of its material, so a tile is one repeat of the image. The result is kept in ctx.state for the
+# materials file.
 def run(ctx):
     library = {m["id"]: m for m in ctx.params.get("materials", [])}
+    slots = slot_table(ctx)
+    generated = ctx.state.get("slot_surfaces", {})
     objects = built_objects()
     used = []
     for obj in objects:
@@ -35,11 +53,14 @@ def run(ctx):
         os.makedirs(folder, exist_ok=True)
     except OSError as error:
         raise WorkerError("save_failed", "The textures folder could not be made: %s" % error)
+    clear_neutral_images(folder)
     built = []
     tiles = {}
     for name in sorted(used):
         mat = bpy.data.materials[name]
-        entry = library.get(name)
+        slot = slots.get(name, {"name": name, "material": name if name in generated else None,
+                                "surface": generated.get(name, "Wall_Inside")})
+        entry = library.get(slot["material"]) if slot["material"] else None
         maps = None
         surface = None
         tile = NEUTRAL_TILE
@@ -49,18 +70,16 @@ def run(ctx):
                 shading.apply_maps(mat, maps)
                 tile = (entry["tile_size"]["width"], entry["tile_size"]["height"])
             except shading.MapError as error:
-                report(ctx, "material_failed", "warning", "The material %s could not be loaded: %s" % (name, error),
-                       None, None)
+                report(ctx, "material_failed", "warning", "The material %s could not be loaded: %s" % (
+                    slot["material"], error), None, None)
                 maps = None
         if maps is None:
-            surface = ctx.state.get("slot_surfaces", {}).get(name, name)
-            if surface not in surfaces.LOOKS:
-                surface = "Wall_Inside"
-            maps = neutral(mat, surface, folder, name, name not in surfaces.LOOKS)
+            surface = slot["surface"] if slot["surface"] in surfaces.LOOKS else "Wall_Inside"
+            maps = shading.apply_neutral(mat, surface, folder)
         tiles[name] = tile
         built.append({
             "name": name,
-            "material": name if surface is None else None,
+            "material": slot["material"] if surface is None else None,
             "surface": surface,
             "maps": maps,
             "alpha_mode": "blend" if maps.get("opacity") else "opaque",
@@ -70,17 +89,6 @@ def run(ctx):
     ctx.state["built_materials"] = built
     ctx.state["built_objects"] = [{"name": o.name, "slots": [m.name if m else "" for m in o.data.materials]}
                                   for o in sorted(objects, key=lambda o: o.name)]
-
-
-# Gives the material the neutral look of the surface. A library material that failed keeps its own name, so
-# its constant images are named after it and no two materials share an image; a surface material uses the
-# surface name.
-def neutral(mat, surface, folder, name, failed):
-    if failed:
-        maps = shading.write_neutral_maps(folder, name, surfaces.LOOKS[surface])
-        shading.apply_maps(mat, maps)
-        return maps
-    return shading.apply_neutral(mat, surface, folder)
 
 
 # Divides the UVs of every face by the tile size of its material.

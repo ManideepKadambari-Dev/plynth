@@ -4,6 +4,7 @@ from ..jobs import WorkerError, progress
 from ..registry import TASKS
 
 SOURCE_FORMATS = ("blend", "fbx", "obj", "gltf", "zip")
+BAKE_SIZES = (256, 512, 1024, 2048, 4096)
 
 
 # Checks the params of the job and fills in nothing: a missing or wrong field is a bad_job.
@@ -23,6 +24,8 @@ def check_params(params):
         raise WorkerError("bad_job", "The rotation must be 0, 90, 180 or 270.")
     if not isinstance(params.get("triangle_warning"), int):
         raise WorkerError("bad_job", "The job has no triangle warning limit.")
+    if params.get("bake_size", 1024) not in BAKE_SIZES:
+        raise WorkerError("bad_job", "The bake size must be 256, 512, 1024, 2048 or 4096.")
     if not isinstance(params.get("thumbnail"), dict):
         raise WorkerError("bad_job", "The job has no thumbnail settings.")
 
@@ -51,6 +54,7 @@ def run(ctx):
         "materials": ctx.state["materials"],
         "textures": ctx.state["textures"],
         "missing_textures": ctx.state["missing_textures"],
+        "material_maps": ctx.state.get("material_maps", []),
         "thumbnail": ctx.state["thumbnail"],
     }
 

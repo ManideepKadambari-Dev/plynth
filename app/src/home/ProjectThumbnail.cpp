@@ -27,6 +27,8 @@ QImage renderProjectThumbnail(const plynth::Plan& plan, const QImage& planImage,
     painter.scale(factor, factor);
 
     const OverlayData overlay = buildOverlay(plan);
+    // The marks sit in plan space, where the image starts at its offset, but the picture starts at (0, 0).
+    painter.translate(-overlay.imageOffset);
     QColor roomFill = t.signalBlue();
     roomFill.setAlpha(t.roomFillAlpha());
     painter.setPen(Qt::NoPen);
@@ -37,7 +39,7 @@ QImage renderProjectThumbnail(const plynth::Plan& plan, const QImage& planImage,
     wall.setAlpha(t.overlayAlpha());
     painter.setBrush(wall);
     for (const OverlayWall& band : overlay.walls)
-        painter.drawPath(band.band);
+        painter.drawPath(band.outline);
     painter.end();
     return out;
 }

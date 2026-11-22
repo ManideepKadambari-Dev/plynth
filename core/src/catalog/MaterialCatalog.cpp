@@ -478,6 +478,14 @@ Status MaterialCatalog::addGroup(std::string_view id, std::string_view name)
     });
 }
 
+// The name of a group when it is built in, otherwise an empty string.
+static std::string builtInGroupName(Database& db, std::string_view id)
+{
+    Statement s(db, "SELECT name FROM material_groups WHERE id = ? AND built_in = 1");
+    s.bind(1, id);
+    return s.step() ? s.text(0) : std::string();
+}
+
 // Changes the name of a group and what search finds for the materials that have it.
 Status MaterialCatalog::renameGroup(std::string_view id, std::string_view name)
 {
@@ -487,6 +495,9 @@ Status MaterialCatalog::renameGroup(std::string_view id, std::string_view name)
         Transaction tx(db);
         if (!exists(db, "SELECT 1 FROM material_groups WHERE id = ?", id)) {
             return fail(ErrorCode::NotFound, "There is no group \"" + std::string(id) + "\".");
+        }
+        if (const std::string builtIn = builtInGroupName(db, id); !builtIn.empty()) {
+            return fail(ErrorCode::InvalidValue, "The built-in group " + builtIn + " cannot be renamed.");
         }
         {
             Statement s(db, "UPDATE material_groups SET name = ? WHERE id = ?");
@@ -513,6 +524,9 @@ Status MaterialCatalog::removeGroup(std::string_view id)
         Transaction tx(db);
         if (!exists(db, "SELECT 1 FROM material_groups WHERE id = ?", id)) {
             return fail(ErrorCode::NotFound, "There is no group \"" + std::string(id) + "\".");
+        }
+        if (const std::string builtIn = builtInGroupName(db, id); !builtIn.empty()) {
+            return fail(ErrorCode::InvalidValue, "The built-in group " + builtIn + " cannot be removed.");
         }
         std::vector<std::string> members;
         {

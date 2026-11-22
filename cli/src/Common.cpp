@@ -1,5 +1,6 @@
 #include "Common.h"
 
+#include <plynth/core/BuildGeometry.h>
 #include <plynth/core/EditSession.h>
 #include <plynth/core/ProjectFiles.h>
 #include <plynth/core/Geometry.h>
@@ -7,8 +8,12 @@
 #include <plynth/core/Openings.h>
 #include <plynth/core/commands/DeleteCommands.h>
 #include <plynth/core/ProjectJson.h>
+#include <plynth/core/Roofs.h>
+#include <plynth/core/Storeys.h>
 
 #include <algorithm>
+#include <cmath>
+#include <optional>
 
 namespace plynth::cli {
 
@@ -253,7 +258,7 @@ Json openingEntry(const Floor& floor, const Opening& opening) {
     return entry;
 }
 
-Json floorEntry(const Floor& floor) {
+Json floorEntry(const Plan& plan, const Floor& floor) {
     Json entry = Json::object();
     entry["id"] = floor.id;
     entry["name"] = floor.name;
@@ -263,6 +268,22 @@ Json floorEntry(const Floor& floor) {
         entry["image"] = nullptr;
     }
     entry["ceiling_height"] = floor.ceilingHeight;
+    entry["slab_thickness"] = floor.slabThickness;
+    Json offset = Json::object();
+    offset["x"] = floor.imageOffset.x;
+    offset["y"] = floor.imageOffset.y;
+    entry["image_offset"] = std::move(offset);
+    const std::optional<std::size_t> index = floorIndex(plan, floor.id);
+    const std::vector<double> levels = floorElevations(plan);
+    const double elevation = index && *index < levels.size() ? levels[*index] : 0.0;
+    entry["elevation"] = std::round(elevation * 1e6) / 1e6;
+    entry["rise"] = std::round(floorRise(floor) * 1e6) / 1e6;
+    Json stairs = Json::array();
+    for (const Stair& stair : floor.stairs) {
+        stairs.push_back(stair.id);
+    }
+    entry["stairs"] = std::move(stairs);
+    entry["roof_sections"] = roofAreasOf(plan, floor.id).size();
     return entry;
 }
 
@@ -272,7 +293,9 @@ Answer removeCascade(const std::string& command, const std::string& kind, const 
     return editProject(command, context, projectOption, [&](Document& document) {
         if (const Floor* floor = findFloorContaining(document.plan(), id)) {
             std::string actual = "item";
-            if (findItem(*floor, id) != nullptr) {
+            if (findStair(*floor, id) != nullptr) {
+                actual = "stair";
+            } else if (findItem(*floor, id) != nullptr) {
                 actual = "item";
             } else if (findPoint(*floor, id) != nullptr) {
                 actual = "point";
@@ -302,6 +325,21 @@ Answer removeCascade(const std::string& command, const std::string& kind, const 
         return success(command, removedJson(build.removes.items, build.removes.detached, build.removes.openings,
                                             build.removes.rooms, build.removes.walls, build.removes.points));
     });
+}
+
+std::optional<Answer> refuseStairId(const std::string& command, const std::string& kind, const RunContext& context,
+                                    const std::string& projectOption, const Id& id) {
+    Document document;
+    Answer failed;
+    if (!openProject(command, resolveProjectFolder(context, projectOption), document, failed, true)) {
+        return std::nullopt;
+    }
+    const Floor* floor = findFloorContaining(document.plan(), id);
+    if (floor == nullptr || findStair(*floor, id) == nullptr) {
+        return std::nullopt;
+    }
+    return failure(command, fail(ErrorCode::InvalidValue, id + " is a stair, not " + (kind == "opening" ? "an " : "a ") +
+                                                              kind + ". Use stair remove."));
 }
 
 Json removedJson(const std::vector<Id>& items, const std::vector<Id>& detached, const std::vector<Id>& openings,

@@ -6,8 +6,11 @@ Run with: python make_from_core_materials.py
 """
 import json
 import os
+import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(HERE))
+
 FOLDER = os.path.join(HERE, "buildjob")
 CHANNELS = ("base_color", "normal", "roughness", "metallic", "opacity", "occlusion")
 MATERIALS = {
@@ -18,6 +21,8 @@ MATERIALS = {
     "white_paint": ({"width": 1.0, "height": 1.0}, {"base_color": "png", "normal": "png", "roughness": "png",
                                                     "metallic": "png", "opacity": None, "occlusion": None}),
 }
+SLOT_MATERIAL = {"Wall_Inside": "white_paint", "Wall_Outside": "red_brick", "Wall_Top": "red_brick",
+                 "Floor": "grey_tile", "Ceiling": "white_paint", "Threshold": "grey_tile"}
 
 
 # Returns the job entry of one library material with placeholder paths.
@@ -46,6 +51,11 @@ def main():
         for room in floor["rooms"]:
             room["floor_material"] = "grey_tile"
             room["ceiling_material"] = "white_paint"
+        for opening in floor["openings"]:
+            opening["materials"]["reveal"] = "white_paint"
+            opening["materials"]["threshold"] = "grey_tile"
+    for slot in params["slots"]:
+        slot["material"] = SLOT_MATERIAL.get(slot["surface"])
     with open(os.path.join(FOLDER, "from_core_materials.json"), "w", encoding="utf-8", newline="\n") as handle:
         handle.write(json.dumps(job, indent=2) + "\n")
 

@@ -36,6 +36,7 @@ std::string_view errorCodeName(ErrorCode code)
     case ErrorCode::BlenderFailed: return "blender_failed";
     case ErrorCode::Cancelled: return "cancelled";
     case ErrorCode::DatabaseError: return "database_error";
+    case ErrorCode::QualityFailed: return "quality_failed";
     }
     return "invalid_value";
 }

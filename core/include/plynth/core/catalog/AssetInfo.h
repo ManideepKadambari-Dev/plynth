@@ -4,6 +4,7 @@
 #include "../EditSession.h"
 #include "../Status.h"
 #include "CatalogNames.h"
+#include "MaterialMaps.h"
 
 #include <filesystem>
 #include <functional>
@@ -19,6 +20,13 @@ namespace plynth {
 //   asset.fbx     the same model exported by the worker for the app's live 3D preview, textures linked by
 //                 relative paths into textures/; missing until the worker has written it
 //   textures/     every image the model uses, linked from asset.blend by relative paths
+//     maps/<key>/<channel>.<ext>   the image maps of each of the asset's materials (from milestone 10, owner
+//                   decision): the same channels and conventions as a catalog material (MaterialMaps.h), made
+//                   by the worker's bakers at cleanup; asset.blend's materials are rebuilt from these maps, so
+//                   asset.blend, asset.fbx, the build and the export all carry only images. key is
+//                   catalogIdFromName of the material name, made unique within the asset
+//     preview/      copies of maps larger than kPreviewTextureSize on a side, scaled down to it; asset.fbx
+//                   points at these instead, so the live preview loads small images
 //   thumb.png     512 px render, missing when the render failed
 //   info.json     this struct, in the format of schema/asset-info.schema.json
 // Only core writes info.json. Blender reports what it did in its result file, and core writes info.json from
@@ -39,6 +47,13 @@ inline constexpr std::string_view kAssetThumbFileName = "thumb.png";
 inline constexpr std::string_view kAssetTexturesFolder = "textures";
 inline constexpr std::string_view kAssetInfoFormat = "plynth-asset";
 inline constexpr int kAssetInfoVersion = 1;
+inline constexpr std::string_view kAssetMapsFolder = "textures/maps";
+inline constexpr std::string_view kAssetPreviewFolder = "textures/preview";
+
+// The longest side of an image the app's 3D preview loads (owner, milestone 10). Bigger maps get a scaled copy
+// for every FBX the app loads (asset.fbx, building.fbx); asset.blend, building.blend and the export keep the
+// full size.
+inline constexpr int kPreviewTextureSize = 1024;
 
 // The longest id, name and tag.
 inline constexpr std::size_t kMaxAssetIdLength = 64;
@@ -82,6 +97,18 @@ struct AssetThumbnail {
     bool operator==(const AssetThumbnail&) const = default;
 };
 
+// The maps of one material inside an asset. File paths are relative to the item folder. Base color, normal,
+// roughness and metallic always have a file; opacity only for a material that is not fully opaque; occlusion
+// only when the source had one. previewMaps holds the files asset.fbx uses: the same file as in maps when it
+// is no larger than kPreviewTextureSize, otherwise its copy in textures/preview/.
+struct AssetMaterial {
+    std::string name;        // the material's name in asset.blend, one of AssetInfo::materials
+    MaterialMaps maps;       // files under kAssetMapsFolder
+    MaterialMaps previewMaps;
+
+    bool operator==(const AssetMaterial&) const = default;
+};
+
 struct AssetInfo {
     std::string id;
     std::string name;
@@ -99,9 +126,15 @@ struct AssetInfo {
     AssetThumbnail thumbnail;
     std::string blenderVersion;          // the Blender that cleaned or last measured it
     std::vector<BlenderWarning> warnings; // from the last cleanup or measure
+    // info.json "material_maps", one per entry of materials, in the same order. Missing in files written before
+    // milestone 10 (it reads as empty); rescan then lists the asset in needsRefresh so it is cleaned once more.
+    std::vector<AssetMaterial> materialMaps;
 
     bool operator==(const AssetInfo&) const = default;
 };
+
+// True when every material of the asset has its maps (materialMaps matches materials by name and order).
+bool hasMaterialMaps(const AssetInfo& info);
 
 struct AssetInfoRead {
     Status status;
@@ -110,7 +143,8 @@ struct AssetInfoRead {
 
 // Reads and checks info.json. CannotRead, or BadFile with a JSON pointer for invalid JSON, a wrong format,
 // a missing or unknown field, an id that breaks checkAssetId or differs from the folder name (when folder
-// is given), a bad tag, or a size that is negative or not finite. UnsupportedVersion when newer.
+// is given), a bad tag, or a size that is negative or not finite, a material map outside textures/ or a
+// required map without a file. UnsupportedVersion when newer.
 AssetInfoRead readAssetInfo(const std::filesystem::path& file, std::string_view folderName = {});
 
 // Writes info.json through a temporary file and a rename. CannotWrite.

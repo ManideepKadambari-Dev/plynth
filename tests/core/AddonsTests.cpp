@@ -3,13 +3,17 @@
 
 #include <plynth/core/Addons.h>
 #include <plynth/core/Blender.h>
+#include <plynth/core/ProjectFiles.h>
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <stop_token>
 #include <string>
+#include <thread>
+#include <vector>
 
 using namespace plynth;
 namespace fs = std::filesystem;
@@ -39,6 +43,15 @@ void writeText(const fs::path& file, const std::string& text)
 {
     fs::create_directories(file.parent_path());
     std::ofstream(file, std::ios::binary) << text;
+}
+
+// The lines of a log the fake Blender wrote next to its program.
+std::vector<std::string> logLines(const fs::path& exe, const char* name)
+{
+    std::vector<std::string> lines;
+    std::ifstream in(exe.parent_path() / name, std::ios::binary);
+    for (std::string line; std::getline(in, line);) lines.push_back(line);
+    return lines;
 }
 
 }
@@ -109,15 +122,38 @@ TEST_CASE("a missing cache file is fine and a broken one is refused", "[addons]"
     };
     bad("{ not json");
     bad("[]");
-    bad(R"({"format": "other", "version": 1, "blender": "b", "blender_version": "5", "checked_at": "2026-11-22T10:15:00Z", "enabled": []})");
-    bad(R"({"format": "plynth-addons", "version": 2, "blender": "b", "blender_version": "5", "checked_at": "2026-11-22T10:15:00Z", "enabled": []})");
-    bad(R"({"format": "plynth-addons", "version": 1, "blender": "b", "blender_version": "5", "checked_at": "yesterday", "enabled": []})");
-    bad(R"({"format": "plynth-addons", "version": 1, "blender": "b", "blender_version": "5", "checked_at": "2026-11-22T10:15:00Z", "enabled": [{"module": "m"}]})");
-    bad(R"({"format": "plynth-addons", "version": 1, "blender": "b", "blender_version": "5", "checked_at": "2026-11-22T10:15:00Z", "enabled": [], "extra": 1})");
+    bad(R"({"format": "other", "version": 2, "blender": "b", "blender_version": "5", "checked_at": "2026-11-22T10:15:00Z", "enabled": []})");
+    bad(R"({"format": "plynth-addons", "version": 3, "blender": "b", "blender_version": "5", "checked_at": "2026-11-22T10:15:00Z", "enabled": []})");
+    bad(R"({"format": "plynth-addons", "version": 0, "blender": "b", "blender_version": "5", "checked_at": "2026-11-22T10:15:00Z", "enabled": []})");
+    bad(R"({"format": "plynth-addons", "version": 2, "blender": "b", "blender_version": "5", "checked_at": "yesterday", "enabled": []})");
+    bad(R"({"format": "plynth-addons", "version": 2, "blender": "b", "blender_version": "5", "checked_at": "2026-11-22T10:15:00Z", "enabled": [{"module": "m"}]})");
+    bad(R"({"format": "plynth-addons", "version": 2, "blender": "b", "blender_version": "5", "checked_at": "2026-11-22T10:15:00Z", "enabled": [], "extra": 1})");
+}
+
+TEST_CASE("a cache of an older version is not used and the next probe replaces it", "[addons]")
+{
+    plynth::test::IsolatedUser user("addon-cache-old-user");
+    plynth::test::TempDir tmp("addon-cache-old");
+    const fs::path exe = plynth::test::makeFakeBlender(tmp.path() / "blender", "5.2.0");
+    const fs::path file = tmp.path() / "addons.json";
+    writeText(file, R"({"format": "plynth-addons", "version": 1, "blender": "b", "blender_version": "5.2.0", "checked_at": "2026-11-22T10:15:00Z", "enabled": []})");
+
+    const AddonCacheRead old = readAddonCache(file);
+    plynth::test::requireOk(old.status);
+    REQUIRE_FALSE(old.cache.has_value());
+
+    BlenderRunOptions run;
+    run.scriptsFolder = plynth::test::makeFakeScripts(tmp.path() / "scripts");
+    plynth::test::requireOk(probeAddons(inspectBlender(exe), file, run).status);
+    const AddonCacheRead replaced = readAddonCache(file);
+    plynth::test::requireOk(replaced.status);
+    REQUIRE(replaced.cache.has_value());
+    REQUIRE(plynth::test::schemaProblemForText("addon-cache.schema.json", plynth::test::readTextFile(file)).empty());
 }
 
 TEST_CASE("probeAddons writes the cache from the probe", "[addons]")
 {
+    plynth::test::IsolatedUser user("addon-probe-user");
     plynth::test::TempDir tmp("addon-probe");
     const fs::path exe = plynth::test::makeFakeBlender(tmp.path() / "blender", "5.2.0");
     const fs::path scripts = plynth::test::makeFakeScripts(tmp.path() / "scripts");
@@ -144,6 +180,7 @@ TEST_CASE("probeAddons writes the cache from the probe", "[addons]")
 
 TEST_CASE("a failing probe leaves the old cache as it was", "[addons]")
 {
+    plynth::test::IsolatedUser user("addon-probe-fail-user");
     plynth::test::TempDir tmp("addon-probe-fail");
     const fs::path exe = plynth::test::makeFakeBlender(tmp.path() / "blender", "5.2.0", "fail");
     const fs::path scripts = plynth::test::makeFakeScripts(tmp.path() / "scripts");
@@ -162,6 +199,7 @@ TEST_CASE("a failing probe leaves the old cache as it was", "[addons]")
 
 TEST_CASE("a stopped probe is cancelled", "[addons]")
 {
+    plynth::test::IsolatedUser user("addon-probe-stop-user");
     plynth::test::TempDir tmp("addon-probe-stop");
     const fs::path exe = plynth::test::makeFakeBlender(tmp.path() / "blender", "5.2.0");
     const fs::path scripts = plynth::test::makeFakeScripts(tmp.path() / "scripts");
@@ -173,4 +211,68 @@ TEST_CASE("a stopped probe is cancelled", "[addons]")
     const AddonProbe probe = probeAddons(install, tmp.path() / "addons.json", run, stop.get_token());
     REQUIRE(probe.status.code == ErrorCode::Cancelled);
     REQUIRE_FALSE(fs::exists(tmp.path() / "addons.json"));
+}
+
+TEST_CASE("probeAddons leaves the user's folders alone however the run ends", "[addons][safety]")
+{
+    struct Outcome {
+        const char* mode;
+        ErrorCode code;
+    };
+    for (const Outcome& outcome : {Outcome{"write_user", ErrorCode::None}, Outcome{"write_user+fail", ErrorCode::BlenderFailed},
+                                   Outcome{"write_user+unreadable", ErrorCode::BlenderFailed}, Outcome{"write_user+crash", ErrorCode::BlenderFailed},
+                                   Outcome{"write_user+hang", ErrorCode::BlenderFailed}, Outcome{"write_user+hang", ErrorCode::Cancelled}}) {
+        DYNAMIC_SECTION(outcome.mode << " " << errorCodeName(outcome.code)) {
+            plynth::test::TempDir tmp("addon-safe");
+            plynth::test::IsolatedUser user("addon-safe-user");
+            const fs::path exe = plynth::test::makeFakeBlender(tmp.path() / "blender", "5.2.0", outcome.mode);
+            const fs::path file = tmp.path() / "addons.json";
+            const BlenderInstall install = inspectBlender(exe);
+            REQUIRE(install.usable());
+            const auto before = user.fingerprint();
+
+            BlenderRunOptions run;
+            run.factoryStartup = false;
+            run.scriptsFolder = plynth::test::makeFakeScripts(tmp.path() / "scripts");
+            run.timeout = std::chrono::seconds(1);
+            std::stop_source stop;
+            std::thread stopper;
+            if (outcome.code == ErrorCode::Cancelled) {
+                run.timeout = std::chrono::seconds(60);
+                stopper = std::thread([&] {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(800));
+                    stop.request_stop();
+                });
+            }
+            const AddonProbe probe = probeAddons(install, file, run, stop.get_token());
+            if (stopper.joinable()) stopper.join();
+
+            REQUIRE(probe.status.code == outcome.code);
+            REQUIRE(fs::exists(file) == (outcome.code == ErrorCode::None));
+            REQUIRE(user.fingerprint() == before);
+            REQUIRE(fs::is_empty(user.tempFolder));
+            // The marker says a folder holds prepared add-on copies, which the shared private folder never does.
+            REQUIRE_FALSE(fs::exists(user.tmp.path() / "private" / "extensions" / ".plynth-prepared"));
+
+            const auto args = logLines(exe, "fake_args.log");
+            REQUIRE(args.size() >= 2);
+            for (const std::string& line : args) REQUIRE(line.find("--factory-startup") != std::string::npos);
+            const std::string priv = pathToUtf8(user.tmp.path() / "private");
+            for (const std::string& line : logLines(exe, "fake_env.log")) {
+                REQUIRE(line.find("BLENDER_USER_RESOURCES=" + priv + "|") != std::string::npos);
+                REQUIRE(line.find("BLENDER_USER_CONFIG=" + priv + "/config|") != std::string::npos);
+                REQUIRE(line.find("BLENDER_USER_SCRIPTS=" + priv + "/scripts|") != std::string::npos);
+                REQUIRE(line.find("BLENDER_USER_EXTENSIONS=" + priv + "/extensions|") != std::string::npos);
+                REQUIRE(line.find("BLENDER_USER_DATAFILES=" + priv + "/datafiles") != std::string::npos);
+            }
+
+            // The fake logs a job it was given, also when the run then fails.
+            const auto jobs = logLines(exe, "fake_jobs.log");
+            REQUIRE(jobs.size() == 1);
+            const nlohmann::json job = nlohmann::json::parse(jobs.front());
+            REQUIRE(plynth::test::schemaProblem("blender-job.schema.json", job).empty());
+            const fs::path config = pathFromUtf8(job["params"]["user_folders"]["config"].get<std::string>());
+            REQUIRE(fs::equivalent(config, user.userRoot / "config"));
+        }
+    }
 }

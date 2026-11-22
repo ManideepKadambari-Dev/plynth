@@ -69,6 +69,31 @@ std::string infoProblem(const fs::path& file)
     return plynth::test::schemaProblem("asset-info.schema.json", nlohmann::json::parse(plynth::test::readTextFile(file)));
 }
 
+
+// Gives an asset on disk the one material the fake Blender reports, with or without its maps, the way an
+// asset cleaned after milestone 10 or before it looks.
+AssetInfo setFakeMaterial(ImportFixture& f, const std::string& id, bool withMaps)
+{
+    const fs::path file = f.lib.paths.assetItems / pathFromUtf8(id) / "info.json";
+    AssetInfoRead read = readAssetInfo(file, id);
+    plynth::test::requireOk(read.status);
+    AssetInfo info = read.info;
+    info.materials = {"Fake"};
+    info.materialMaps.clear();
+    if (withMaps) {
+        AssetMaterial material;
+        material.name = "Fake";
+        for (const MapChannel channel : {MapChannel::BaseColor, MapChannel::Normal, MapChannel::Roughness, MapChannel::Metallic}) {
+            materialMap(material.maps, channel) = {"textures/maps/fake/" + std::string(mapChannelName(channel)) + ".png", MapOrigin::File, "fake.png"};
+        }
+        material.previewMaps = material.maps;
+        info.materialMaps = {material};
+    }
+    plynth::test::requireOk(writeAssetInfo(file, info));
+    plynth::test::requireOk(f.lib.catalog->indexAsset(info));
+    return info;
+}
+
 }
 
 TEST_CASE("an import lands in items with asset.blend, thumb.png and info.json", "[core][import]") {
@@ -484,6 +509,7 @@ TEST_CASE("refreshAsset measures again and renders the thumbnail", "[core][impor
 TEST_CASE("refreshAsset writes the missing asset.fbx", "[core][import][refresh]") {
     ImportFixture f("refresh-fbx");
     f.lib.add("lamp", "Lamp", {}, {}, true, false);
+    setFakeMaterial(f, "lamp", true);
     const fs::path fbx = f.lib.paths.assetItems / "lamp" / "asset.fbx";
     REQUIRE_FALSE(fs::exists(fbx));
     REQUIRE(f.lib.catalog->asset("lamp")->fbxFile.empty());
@@ -510,6 +536,7 @@ TEST_CASE("refreshAsset with no_fbx keeps the asset and reports the warning", "[
 TEST_CASE("refreshAsset picks up a changed asset.blend", "[core][import][refresh]") {
     ImportFixture f("refresh-changed");
     f.lib.add("lamp", "Lamp");
+    setFakeMaterial(f, "lamp", true);
     plynth::test::writeBytes(f.lib.paths.assetItems / "lamp" / "asset.blend", "FAKEBLEND");
     plynth::test::writeBytes(f.lib.paths.assetItems / "lamp" / "asset.blend", "A LONGER FAKE");
     REQUIRE(f.lib.catalog->rescan().needsRefresh == std::vector<std::string>{"lamp"});
@@ -596,7 +623,15 @@ TEST_CASE("importing the sample chair with the real Blender", "[.blender]") {
     const fs::path folder = lib.paths.assetItems / "chair";
     REQUIRE(pngSize(folder / "thumb.png") == std::pair<int, int>{512, 512});
     REQUIRE(infoProblem(folder / "info.json").empty());
-    REQUIRE(fs::exists(folder / "textures" / "chair_wood.png"));
+    const AssetInfoRead info = readAssetInfo(folder / "info.json", "chair");
+    plynth::test::requireOk(info.status);
+    REQUIRE(hasMaterialMaps(info.info));
+    REQUIRE_FALSE(info.info.materialMaps.empty());
+    for (const AssetMaterial& material : info.info.materialMaps) {
+        for (const MapChannel channel : {MapChannel::BaseColor, MapChannel::Normal, MapChannel::Roughness, MapChannel::Metallic}) {
+            REQUIRE(fs::exists(folder / pathFromUtf8(materialMap(material.maps, channel).file)));
+        }
+    }
     AssetQuery query;
     query.text = "chair";
     REQUIRE(lib.catalog->search(query).size() == 1);
@@ -608,4 +643,98 @@ TEST_CASE("importing the sample chair with the real Blender", "[.blender]") {
     REQUIRE(again->size.width == Catch::Approx(0.45).margin(0.001));
     REQUIRE(again->size.height == Catch::Approx(0.90).margin(0.001));
     REQUIRE(again->triangles == 72);
+}
+
+TEST_CASE("an import keeps the maps of its materials in info.json", "[core][import][assetmaps]") {
+    ImportFixture f("import-maps");
+    const ImportOutcome outcome = importAsset(*f.lib.catalog, f.context, f.request("chair.obj"));
+    plynth::test::requireOk(outcome.status);
+    const fs::path folder = f.lib.paths.assetItems / "chair";
+    const AssetInfoRead read = readAssetInfo(folder / "info.json", "chair");
+    plynth::test::requireOk(read.status);
+    REQUIRE(read.info.materials == std::vector<std::string>{"Fake"});
+    REQUIRE(read.info.materialMaps.size() == 1);
+    REQUIRE(hasMaterialMaps(read.info));
+    REQUIRE(read.info.textures.size() == 4);
+    REQUIRE(read.info.materialMaps[0].maps.baseColor.file == "textures/maps/fake/base_color.png");
+    REQUIRE(fs::exists(folder / "textures" / "maps" / "fake" / "base_color.png"));
+    REQUIRE(infoProblem(folder / "info.json").empty());
+    REQUIRE(f.lib.catalog->rescan().needsRefresh.empty());
+}
+
+TEST_CASE("refreshAsset cleans an asset without maps again from its own asset.blend", "[core][import][refresh][assetmaps]") {
+    ImportFixture f("refresh-maps");
+    f.lib.add("lamp", "Floor lamp", {"lamp"}, {"brass", "tall"}, true);
+    const fs::path folder = f.lib.paths.assetItems / "lamp";
+    AssetInfo before = setFakeMaterial(f, "lamp", false);
+    before.license = "cc0";
+    before.source = {"blenderkit", "abc123", *parseSessionTime("2026-11-20T08:00:00Z")};
+    plynth::test::requireOk(writeAssetInfo(folder / "info.json", before));
+    plynth::test::requireOk(f.lib.catalog->indexAsset(before));
+    plynth::test::writeBytes(folder / "textures" / "old_brass.png", "OLD");
+    REQUIRE_FALSE(hasMaterialMaps(before));
+
+    const RescanReport report = f.lib.catalog->rescan();
+    REQUIRE(report.needsRefresh == std::vector<std::string>{"lamp"});
+    REQUIRE(f.lib.catalog->asset("lamp")->state == AssetState::Ready);
+
+    const ImportOutcome outcome = refreshAsset(*f.lib.catalog, f.context, "lamp");
+    plynth::test::requireOk(outcome.status);
+    REQUIRE_FALSE(outcome.thumbnailFailed);
+
+    const AssetInfoRead read = readAssetInfo(folder / "info.json", "lamp");
+    plynth::test::requireOk(read.status);
+    REQUIRE(hasMaterialMaps(read.info));
+    REQUIRE(read.info.name == "Floor lamp");
+    REQUIRE(read.info.categories == std::vector<std::string>{"lamp"});
+    REQUIRE(read.info.tags == std::vector<std::string>{"brass", "tall"});
+    REQUIRE(read.info.license == "cc0");
+    REQUIRE(read.info.source == before.source);
+    REQUIRE(read.info.textures.size() == 4);
+    REQUIRE(read.info.thumbnail.rendered);
+    REQUIRE(infoProblem(folder / "info.json").empty());
+
+    REQUIRE(plynth::test::readTextFile(folder / "asset.blend") == "CLEANED:" + pathToUtf8(folder / "asset.blend"));
+    REQUIRE(fs::exists(folder / "asset.fbx"));
+    REQUIRE(fs::exists(folder / "thumb.png"));
+    REQUIRE(fs::exists(folder / "textures" / "maps" / "fake" / "base_color.png"));
+    REQUIRE_FALSE(fs::exists(folder / "textures" / "old_brass.png"));
+    const auto record = f.lib.catalog->asset("lamp");
+    REQUIRE(record->state == AssetState::Ready);
+    REQUIRE(record->thumbnail == ThumbnailState::Ok);
+    REQUIRE(f.lib.catalog->rescan().needsRefresh.empty());
+    REQUIRE(f.stagingEntries() == 0);
+}
+
+TEST_CASE("a crash while cleaning an asset again changes nothing", "[core][import][refresh][assetmaps]") {
+    ImportFixture f("refresh-maps-crash", "crash");
+    f.lib.add("lamp", "Lamp", {}, {}, true);
+    setFakeMaterial(f, "lamp", false);
+    const fs::path folder = f.lib.paths.assetItems / "lamp";
+    plynth::test::writeBytes(folder / "textures" / "old.png", "OLD");
+    const std::string info = plynth::test::readTextFile(folder / "info.json");
+    const ImportOutcome outcome = refreshAsset(*f.lib.catalog, f.context, "lamp");
+    REQUIRE(outcome.status.code == ErrorCode::BlenderFailed);
+    REQUIRE(plynth::test::readTextFile(folder / "info.json") == info);
+    REQUIRE(plynth::test::readTextFile(folder / "asset.blend") == "FAKEBLEND");
+    REQUIRE(plynth::test::readTextFile(folder / "textures" / "old.png") == "OLD");
+    REQUIRE(fs::exists(folder / "asset.fbx"));
+    REQUIRE(f.lib.catalog->rescan().needsRefresh == std::vector<std::string>{"lamp"});
+}
+
+TEST_CASE("cleaning an asset again with no_fbx keeps it and warns", "[core][import][refresh][assetmaps]") {
+    ImportFixture f("refresh-maps-nofbx", "no_fbx");
+    f.lib.add("lamp", "Lamp", {}, {}, true);
+    setFakeMaterial(f, "lamp", false);
+    const ImportOutcome outcome = refreshAsset(*f.lib.catalog, f.context, "lamp");
+    plynth::test::requireOk(outcome.status);
+    REQUIRE(outcome.warnings.size() == 1);
+    REQUIRE(outcome.warnings[0].code == "fbx_failed");
+    const fs::path folder = f.lib.paths.assetItems / "lamp";
+    REQUIRE_FALSE(fs::exists(folder / "asset.fbx"));
+    REQUIRE(f.lib.catalog->asset("lamp")->state == AssetState::Ready);
+    const AssetInfoRead read = readAssetInfo(folder / "info.json", "lamp");
+    plynth::test::requireOk(read.status);
+    REQUIRE(hasMaterialMaps(read.info));
+    REQUIRE(f.lib.catalog->rescan().needsRefresh == std::vector<std::string>{"lamp"});
 }

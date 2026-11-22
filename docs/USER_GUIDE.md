@@ -1,6 +1,6 @@
 # User guide
 
-This covers what Plynth does today: the home screen, opening a project, showing its plan image, setting the scale, drawing walls (straight and curved, with rounded corners), placing doors, windows and other openings, setting heights, finding walls and openings in the image automatically, making rooms, placing furniture from the library, undo and redo, saving, building the building in Blender and looking at it in 3D, the setup check, the library, the assets catalog and the materials catalog, putting materials on walls, rooms and the whole project, working next to the command line, and the built-in terminal. More screens arrive in later releases.
+This covers what Plynth does today: the home screen, opening a project, showing its plan image, setting the scale, drawing walls (straight and curved, with rounded corners), placing doors, windows and other openings, setting heights, adding floors, stairs and roofs, finding walls and openings in the image automatically, making rooms, placing furniture from the library, undo and redo, saving, building the building in Blender and looking at it in 3D, the setup check, the library, the assets catalog and the materials catalog, putting materials on walls, rooms and the whole project, working next to the command line, and the built-in terminal. More screens arrive in later releases.
 
 New here? Start with [Getting started](GETTING_STARTED.md). For keys see [Keyboard shortcuts](SHORTCUTS.md). For scripts see the [Command line guide](CLI_GUIDE.md). For Blender, the library folder and the first run see [Setting up Plynth](SETUP.md).
 
@@ -80,12 +80,13 @@ A strip of buttons sits at the left edge of the plan. The active tool is the one
 | Wall | W | Draw walls |
 | Opening | O | Place doors, windows and other openings on walls |
 | Room | R | Turn a closed area into a room |
+| Stair | T | Place a stair that climbs to the next floor up |
 | Furniture | P | Place furniture from the library |
 | Detect | D | Find walls, openings and rooms in the plan image for you |
 
 The status bar at the bottom shows the position of the cursor in metres and a short hint for the active tool. If a tool cannot do what you asked, the reason shows there in amber for a few seconds instead of in a dialog.
 
-The Scale tool needs a plan image. The Wall, Opening, Room, Furniture and Detect tools also need a scale, because without one a click cannot be turned into metres. Until the scale is set, their buttons are greyed and their tooltips say "Set the scale first (S)". The Furniture tool also needs a library folder, and says "No library folder is set." without one. While the command line is editing the project, the Scale, Wall, Opening, Room, Furniture and Detect tools are disabled and you can only select. You can still click to look at things.
+The Scale tool needs a plan image. The Wall, Opening, Room, Stair, Furniture and Detect tools also need a scale, because without one a click cannot be turned into metres. Until the scale is set, their buttons are greyed and their tooltips say "Set the scale first (S)". The Furniture tool also needs a library folder, and says "No library folder is set." without one. While the command line is editing the project, the Scale, Wall, Opening, Room, Furniture and Detect tools are disabled and you can only select. You can still click to look at things.
 
 ## Setting the scale
 
@@ -360,6 +361,132 @@ To fix it, put the asset back in the library, or select the item and use **Swap 
 - **Wall height.** Select a wall and tick "Own height" in the panel, then type a height. A half wall that is 1.1 m high is made this way. Untick it to follow the ceiling again.
 - A height that would leave an opening above the top of a wall is refused, and the message names the opening. Lower or remove the opening first.
 
+## Floors
+
+A project can have any number of floors. Each floor is a tab in a thin bar along the bottom of the plan, lowest floor on the left. The tab of the floor you are working on is blue. Everything you do, drawing, detecting, placing furniture and the Properties panel, works on that floor.
+
+- **Switch floors:** click a tab, or press Ctrl+Page Up for the floor above and Ctrl+Page Down for the floor below (View > Floor above and Floor below).
+- **Add a floor:** the **+** button at the right end of the bar adds an empty floor above the top one. Right click a tab and choose **Add floor below** to put one under it.
+- **Rename:** double click a tab, or right click it and choose **Rename**.
+- **Remove:** right click a tab and choose **Remove floor**. Plynth asks first, because the floor goes with its walls, rooms, openings, furniture, stairs and roof settings. Ctrl+Z brings it all back. The only floor cannot be removed.
+
+Adding, renaming and removing a floor can all be undone.
+
+### Heights and slabs
+
+With nothing selected, the Properties panel has a **Floor** section: the name, the **Ceiling height**, the **Slab thickness**, the plan image and the image offset.
+
+Floors are stacked on slabs. A slab is the thick floor between one ceiling and the floor above it. It is 0.2 m thick to start with, and you can set 0.05 m to 1 m. The level of a floor is the level of the floor below, plus that floor's ceiling height, plus its slab. With ceilings of 3.0 m and slabs of 0.2 m, the first floor is at 0 m and the second at 3.2 m. The height a stair has to climb is that same 3.2 m.
+
+Walls keep their own heights. From outside, the slab shows as a band of the outside wall material between the storeys.
+
+### The floor below
+
+On every floor except the lowest, the walls of the floor below are drawn as a faint outline under your marks. Use it to see where the walls underneath are. It cannot be selected, so a click goes through it.
+
+### Lining up the plan image
+
+Every floor has its own plan image, but the whole plan has one scale. If the upper floor's drawing sits a little off from the lower one, move its image until the corners line up with the faint outline.
+
+1. Show the upper floor, then turn on **View > Align plan image**.
+2. Drag the image, or nudge it with the arrow keys: 1 cm for each press, 10 cm with Shift. The image moves, and the marks you traced on it move with it.
+3. Turn the option off again when it fits.
+
+You can also type the **Image offset X** and **Image offset Y**, in metres, in the Floor section. **Move marks with the image** is on to start with and only applies to the numbers you type. Turn it off when the marks are already right and only the picture should move. Dragging and nudging always move the marks too. Dragging, nudging and typing can all be undone.
+
+Detection takes the offset into account, so walls found in an offset image land where the picture shows them.
+
+## Stairs
+
+A stair is marked once, on the lower floor. It climbs to the next floor up in the plan, and Plynth works out the steps from the floor heights.
+
+**To place one**, show the lower floor and press **T**, the Stair tool. Click where the bottom step starts and drag toward the top of the stair. A live preview follows the mouse and turns in steps of 15 degrees. Hold Alt to turn it freely. Let go, and a small menu lists the stair types. Pick one and the stair is added. Esc stops. On the top floor the tool says "Add a floor above first.", because there is nowhere to climb to.
+
+### The types
+
+| Type | What it is |
+|---|---|
+| Straight | One flight. |
+| L shape | A flight, a square landing, then a second flight turned 90 degrees. |
+| U shape | A flight, a landing, then a second flight that comes back beside the first, 10 cm apart. |
+| Spiral | Wedge shaped steps round a centre column. |
+
+L shape, U shape and spiral have a **Turn** setting, left or right as you climb. Straight has none. The **Width** is from 0.6 m to 3 m and starts at 1 m.
+
+### What the numbers mean
+
+Select a stair and the Properties panel shows its type, width, turn and material, then the worked out values in the mono font.
+
+- **Rise** is the height to climb, from one floor level to the next. It includes the slab, so ceilings of 3.0 m and slabs of 0.2 m give 3.2 m.
+- **Risers** is how many steps up. A riser is at most 0.19 m, and all risers are equal. A rise of 3.2 m gives 17 risers of 0.188 m. The last riser steps onto the upper floor, so there is one tread fewer than there are risers: 16.
+- **Riser height** is the height of one step.
+- **Going** is the depth of one tread, 0.27 m.
+- **Length** is the walk line from the bottom step to the upper floor. Sixteen treads of 0.27 m make 4.32 m.
+
+A landing takes the place of one tread. Steps are solid. A spiral's steps are thin slabs on a column.
+
+### The hole and the arrival
+
+The stair's whole outline is cut out of the slab, the ceilings below and the room floors above, so there is clear height all the way up. On the upper floor the same outline is drawn as a dashed blue line with a dot where you arrive. It cannot be selected. Its tooltip says "Stair s2 from Floor 1. Edit it on Floor 1." Switch to the lower floor to change the stair.
+
+### Editing a stair
+
+A selected stair is amber. Drag its move handle to move it and its rotate handle to turn it. Each drag is one undo step. Delete removes the stair. The **Steps** material picks the material of the steps. Without one, the project default for stairs is used, oak planks to start with.
+
+### Stair problems
+
+The Properties panel lists the problems of a stair, and the Build tab shows them too. A stair with a warning is still built.
+
+| Problem | Kind | What it means |
+|---|---|---|
+| Stair overlaps a wall | warning | The stair crosses a wall on its floor or on the floor above. The message names the wall. Move the stair or the wall. |
+| Stair reaches outside the floor | warning | Part of the stair is outside the walls and rooms of its floor. |
+| Stair arrives outside every room | warning | The top of the stair is not inside any room of the floor above. |
+| Stair has no floor above | error | The floor above was removed. The stair is left out. Add a floor again, or remove the stair. |
+| Unknown stair type | error | The plan names a type this copy of Plynth does not have. The stair is left out. |
+
+## Roofs
+
+You do not draw a roof. Plynth works it out. Every part of a floor that has nothing above it is a **roof section**. A house with one floor has one section. An upper floor over half of the ground floor leaves the other half as a section of the ground floor, and the top of the upper floor is a second one. When you move a wall, the sections follow. A part narrower than 0.2 m, such as a thin strip left beside the floor above, gets no roof. Plynth gives it a plain flat top in the outside wall material instead.
+
+Each section takes its settings from the **roof default**, unless it has settings of its own. A new project's default is a flat roof with a 0.6 m parapet. A pitch of 30 degrees and an overhang of 0.3 m are kept ready for when you switch to a pitched type.
+
+### Seeing and choosing sections
+
+Turn on **View > Roof sections** (Alt+R) to see the roof sections of the shown floor as a blue hatch. Each has a label in the mono font with its type and its main setting, and an arrow for the direction of a ridge or a fall. Click a section to select it. A selected section is amber.
+
+### Settings
+
+With nothing selected, the **Roof default** group in the Properties panel sets the default. With a section selected, the same fields set that section. Only the fields the type uses are shown.
+
+| Type | Pitch | Direction | Overhang | Parapet | Shape |
+|---|---|---|---|---|---|
+| Flat | no | no | yes, but not with a parapet | yes | A thin layer, with a low wall round the edge. |
+| Gable | yes | yes, the ridge | yes | no | Two slopes meeting at a ridge, with a vertical triangle at each end. |
+| Hip | yes | no | yes | no | A slope on every side, meeting at a ridge or a point. |
+| Shed | yes | yes, the way it falls | yes | no | One slope. |
+| Sawtooth | yes | yes, the ridges | yes | no | A row of 3 m wide slopes, each with a vertical glass face on its high side. |
+
+- **Pitch** is the slope in degrees above level. A pitched roof needs at least 5 and at most 75.
+- **Direction** is in degrees, measured clockwise on the plan from the right. Tick **Automatic direction** to let Plynth run the ridge along the longer side of the section. A shed with automatic direction falls toward the bottom of the plan when the long side runs left to right.
+- **Overhang** is how far the roof reaches past the outer walls, up to 2 m. It stops at the walls of the floor above, so the roof of a low wing never pokes into the taller block.
+- **Parapet** is the height of the low wall round a flat roof, up to 3 m. Zero means none. The wall is 0.2 m thick. A flat roof with a parapet has no overhang.
+
+Roofs are 15 cm thick. A pitched roof that rises against a taller storey can cover its windows, because the slope does not turn away from the wall. For a low wing, choose a flat roof, or a shed that falls away from the wall.
+
+**Hip needs a convex section**, one with no inward corners and no holes. A section shaped like an L cannot have a hip roof. It is built as a gable roof instead, and the Build tab says "A hip roof needs a section without holes or inward corners, so it is built as a gable."
+
+### Settings of one section
+
+Change a section that follows the default and it gets settings of its own, tied to a point inside it. The roof section also has a **Covering** material. **Use the default** takes the settings away again, and the section follows the default.
+
+If you later change the walls so that the point is no longer in that section, the settings are kept but have no effect, and the Build tab says "The roof entry rf1 is not in any roof section, so it has no effect." (with the id of the entry). Remove them in the app: with nothing selected, open the **Roof default** group in the Properties panel and press **Remove** next to the unused entry. Or use `plynth roof clear`, or redraw the walls.
+
+### Materials
+
+Pitched roofs use the project default **Roofs** (clay tiles to start with), flat roofs use **Flat roofs** (concrete) and stairs use **Stairs** (oak planks). They are three more rows in the default materials, and `roof_tiles` and `concrete` come with the sample materials. Undersides use the ceiling default, roof edges the wall top default, and gables, parapets and slab bands the outside wall default.
+
+
 ## Curved walls
 
 Any wall can be bent into a true circular arc.
@@ -450,7 +577,7 @@ A save writes each file to a temporary name first and then renames it, so a cras
 
 ### Older projects
 
-Projects made with earlier versions of Plynth open as they are and upgrade by themselves. Nothing is asked and nothing is lost: doors and windows you already had get a hinge on the start of the wall and a swing to the right, the project gets the default sizes, every floor starts with no furniture, and the wall item centre is 1.2 m. Rooms get no wall material of their own, and the project gets the default materials listed under "Materials on walls, rooms and the project". The files are written in the new format the next time you save. A project saved by this version cannot be opened by an older version of Plynth, so keep a copy if you still need that.
+Projects made with earlier versions of Plynth open as they are and upgrade by themselves. Nothing is asked and nothing is lost: doors and windows you already had get a hinge on the start of the wall and a swing to the right, the project gets the default sizes, every floor starts with no furniture, and the wall item centre is 1.2 m. Rooms get no wall material of their own, and the project gets the default materials listed under "Materials on walls, rooms and the project". Every floor gets a 0.2 m slab, no stairs and the default roof, so in a project with several floors each upper floor moves up by 0.2 m for every floor below it. The files are written in the new format the next time you save. A project saved by this version cannot be opened by an older version of Plynth, so keep a copy if you still need that.
 
 ### Autosave and recovery
 
@@ -476,22 +603,32 @@ When a build finishes, the 3D view opens by itself and the bar says "Built at 10
 - **Corners.** Where exactly two walls of the same height meet at a corner, both ends are cut on the diagonal so the outer faces join cleanly. T junctions, rounded corners, very sharp angles (under 25 degrees), walls of different heights and very short walls keep square ends.
 - **Openings**, cut in their exact shape: an arch is round, a keyhole is a keyhole.
 - **Doors and windows.** A door gets a frame, a closed leaf and a handle on both faces, on the side away from the hinge. A window gets a frame and a thin pane of glass. A plain opening stays empty. A doorway that reaches the floor also gets a strip of floor through the wall.
-- **Floors and ceilings**, one flat face for each closed room. They have no thickness yet. A room whose walls do not close gets none. The ceilings are not drawn when you look from above, so the top view shows the floors.
+- **Floors and ceilings**, one flat face for each closed room. A room whose walls do not close gets none. The ceilings are not drawn when you look from above, so the top view shows the floors.
 - **Furniture** at its marker, turned the way the plan shows, as a copy of the asset's own model. An item whose asset is missing is left out, with a problem at its marker. Plynth never puts a placeholder box there.
 - **Edges** rounded by 1 cm, so they catch the light.
 - **Materials.** Every wall face, floor, ceiling, door leaf, frame, glass pane and handle gets a material from your materials catalog, by the rules in "Materials on walls, rooms and the project". A surface with no material, or whose material is missing, gets a plain neutral color. Inside wall faces are a little lighter than outside faces, so you can tell them apart.
-- **Upper floors** are stacked on top of the floors below, by their ceiling heights.
+- **Slabs** between the floors, as thick as the floor's slab thickness. The slab shows from outside as a band. Where an upper floor reaches past the one below, the underside of the slab is built so the overhang is closed.
+- **Stairs**, one solid step at a time, with the hole cut through the slab, the ceilings and the floors.
+- **Roofs** on every part of a floor with nothing above it, each section by its type.
+- **Upper floors** stacked on their slabs. A floor starts at the level below plus that floor's ceiling height plus its slab.
 
-The 3D view shows the materials, metal and see-through glass included. See "Materials in the 3D view". Furniture keeps the look its own model has, and its metal and see-through parts do not show in the 3D view yet.
+The 3D view shows the materials, metal and see-through glass included, on furniture too. See "Materials in the 3D view" and "Furniture materials".
+
+- **Collision.** Closed convex shapes for walls, floors, ceilings, slabs, stairs, roofs and furniture, named `UCX_...`. See "Collision". They are in `building.blend` and in the export.
+- **Slot names.** Materials are named for the surface, such as `Living_Floor`. See "Material slot names".
 
 ### Where the files go
 
 Everything is written into the project's `build` folder:
 
 - `building.blend`, the Blender file. Open it in Blender with **Build > Open building.blend in Blender**, edit it, render it.
-- `building.fbx`, what the 3D view loads.
+- `building.fbx`, the whole building in one file.
+- `preview`, a folder with one file for each floor, one for the slab above it and one for its roofs, and `parts.json` that lists them. The 3D view loads these so it can hide roofs and floors. They are written after `building.fbx`. If they cannot be written, the 3D view loads `building.fbx` instead.
 - `materials.json`, written next to the FBX. It tells the 3D view which image maps each material uses.
 - `textures`, the plain neutral images for surfaces that have no material.
+- `preview_textures`, copies of textures larger than 1024 pixels, scaled down for the 3D view.
+- `built-plan.json`, the plan of the last successful build. "Build is up to date" is judged against it.
+- `export_work`, the files of the last export job.
 - `build.json`, the report of the last build, which fills the Build tab when you open the project again.
 - `job.json`, `result.json` and `blender.log`, for finding out what went wrong.
 
@@ -511,7 +648,14 @@ Press **3**, click **3D** in the bar above the plan, or use **View > 3D view** t
 
 The background is the theme's ground color, the same as behind the plan, and the scene has a soft light from above so walls and furniture have shading and shadows.
 
-Before the first build the 3D view says "Build the plan to see it in 3D. (Ctrl+B)". That is not an error. When a project is opened again, the 3D view loads the last `building.fbx` if it is there.
+**Roofs and floors.** Two items in the View menu change what the 3D view shows. They need the files in the `preview` folder, so build again once if the project was built before roofs and stairs existed.
+
+- **View > Show roofs in 3D** (on by default). Turn it off to see the rooms under the roofs.
+- **View > Cut 3D at the shown floor** (off by default). Turn it on to see the floors up to the shown one, without the shown floor's roof and without the floors above. Show the ground floor and turn it on to look at that floor from above, stair included.
+
+The overlay on the plan draws only the shown floor.
+
+Before the first build the 3D view says "Build the plan to see it in 3D. (Ctrl+B)". That is not an error. When a project is opened again, the 3D view shows the last build, with the files in `preview` when they are there and `building.fbx` when they are not.
 
 ## Build problems
 
@@ -520,7 +664,7 @@ A build always finishes with a list of problems, even when it worked. Each probl
 - When there are problems, an amber **problems** button appears in the bar, such as "3 problems". Click it to open the **Build** tab.
 - The **Build** tab is one column in the right panel, with four parts. **Summary** says when the build ran, how long it took, which Blender, and how many objects, triangles, cuts, doors and windows, rooms and items. **Problems** lists each one. **Files** shows where the files are, with **Open folder** and **Open in Blender**. **Steps** lists the steps with their times in milliseconds. **Build > Show build report** opens the tab.
 - Each problem has an amber icon, a sentence and the id of its object. A filled icon is an **error**: the object was left out or is incomplete. An outline icon is a **warning**: it was built, but check it. Click a problem to go to the plan, select that object and centre the plan on it.
-- **Markers.** The plan shows an amber triangle at each problem, filled for an error and outlined for a warning. Point at one to read the sentence. Turn them off with **View > Build problems on plan**. Only the first floor is shown in the app so far.
+- **Markers.** The plan shows an amber triangle at each problem, filled for an error and outlined for a warning. Point at one to read the sentence. Turn them off with **View > Build problems on plan**. The plan shows the markers of the floor you are working on.
 
 What the problems mean:
 
@@ -535,6 +679,12 @@ What the problems mean:
 | Could not fit the door or window | warning | The opening is cut but empty, for example because it is too small for a frame. Make it larger. |
 | Could not load the asset | error | Blender could not open the asset's model, so the item was left out. Press Retry render on the asset. |
 | Could not round the edges | warning | The wall edges stay sharp. The building is otherwise fine. |
+| Stair problems | warning or error | See "Stair problems" under Stairs. |
+| A hip roof needs a section without holes or inward corners | warning | A hip roof was asked for on a section that is not convex or has a hole, so it was built as a gable. Pick another type or reshape the walls. |
+| The roof entry is not in any roof section | warning | A roof entry's point lies in no roof section, or in a section another entry already governs. It has no effect. |
+| Unknown roof type | warning | The plan names a roof type this copy of Plynth does not have, so the section is built flat. |
+| Could not build a slab, stair or roof | error | Blender could not make that part from its outline, so it is left out and the building is incomplete. The export is blocked until it is fixed. The rest of the building is built. Check the walls round it. |
+| Could not write the preview parts | warning | The 3D view loads the whole building file instead, so Show roofs and Cut at the shown floor do nothing until the next good build. |
 | Furniture warnings | warning | Not in any room, overlaps a wall and the others in "Furniture warnings" are shown here too. |
 | Missing material | warning | A wall, room or project default names a material that is not in the library. The surface got the neutral look. Import the material again or pick another. For a project default the problem has no object, so there is no marker. |
 | Material is broken | warning | The library has the material but it is marked broken. The surface got the neutral look. Select the material in the Materials tab to see why, and press Retry render. |
@@ -547,7 +697,7 @@ Problems do not stop a build. Fix what you care about and press Build again.
 
 **View > 3D overlay on plan** (Alt+3) draws the top view of the built building over the plan image, so you can check that the walls sit on the walls of the drawing. It needs a build and a scale. It is drawn a little see-through, over the plan image and under the marks and handles, and it pans and zooms with the plan. It is redrawn after each build.
 
-The plan view draws wall ends square, while the built building cuts a corner of two walls on the diagonal. At an outer corner of two walls of different thickness the overlay can therefore differ from the plan's outline by up to half a wall thickness. The walls themselves are in the right place.
+The plan view draws the same mitred corners as the build, so the overlay lines up with the plan's walls at corners and at T junctions.
 
 ## The live asset preview
 
@@ -693,12 +843,12 @@ Removing a category takes it off every asset that has it. Removing a room type l
 
 The second catalog of the library holds materials: the paint, brick, wood, tile, metal and glass that walls, floors and doors are made of. You bring your own texture images or Blender materials. Plynth turns each one into the same set of image maps, draws a thumbnail, and keeps it in the library.
 
-Open it with **Catalog > Materials catalog** (Ctrl+Shift+M), or click the **Materials** tab at the top of the right panel, next to **Assets**. With no library set, the tab says "No library folder is set." and has an **Open setup check** button. With a library and no materials, it says "No materials yet." and has an **Add the sample materials** button. That button imports the seven samples that come with Plynth: `white_paint`, `red_brick`, `oak_planks`, `grey_tile`, `painted_wood`, `brushed_steel` and `clear_glass`. New projects use them as their default materials, so add them before your first build. The same action is in **Catalog > Add the sample materials**. Running it twice does nothing the second time.
+Open it with **Catalog > Materials catalog** (Ctrl+Shift+M), or click the **Materials** tab at the top of the right panel, next to **Assets**. With no library set, the tab says "No library folder is set." and has an **Open setup check** button. With a library and no materials, it says "No materials yet." and has an **Add the sample materials** button. That button imports the nine samples that come with Plynth: `white_paint`, `red_brick`, `oak_planks`, `grey_tile`, `painted_wood`, `brushed_steel`, `clear_glass`, `roof_tiles` and `concrete`. New projects use them as their default materials, so add them before your first build. The same action is in **Catalog > Add the sample materials**. Running it twice does nothing the second time.
 
 ### Finding materials
 
 - **Search materials.** Type part of a name, tag or group. The grid filters as you type. Several words must all match.
-- **Group.** "All groups", "Uncategorized", or one group. The built-in groups are floor, wall, ceiling, exterior, trim, door, glass and metal. **Add group**, **Rename** and **Remove** change the list. Removing a group takes it off every material that has it. The materials stay.
+- **Group.** "All groups", "Uncategorized", or one group. The built-in groups are floor, wall, ceiling, exterior, trim, door, glass and metal. **Add group**, **Rename** and **Remove** change the list. The eight built-in groups cannot be renamed or removed (the tooltip says "Built-in groups cannot be renamed or removed."). Your own groups can, and a material can still be moved between groups. Removing a group takes it off every material that has it. The materials stay.
 
 A count under the controls says how many materials match. Each tile shows the thumbnail and the name.
 
@@ -853,7 +1003,8 @@ Select something and look in the Properties panel.
 
 - **A wall** shows **Inside** and **Outside**.
 - **A room** shows **Floor**, **Wall faces** and **Ceiling**.
-- **Nothing selected** shows **Default materials**, with the nine surfaces: wall inside, wall outside, wall top, floor, ceiling, door, frame, glass and handle.
+- **A stair** shows **Steps**. **A roof section** shows **Covering**.
+- **Nothing selected** shows **Default materials**, with twelve surfaces: wall inside, wall outside, wall top, floor, ceiling, door, frame, glass, handle, roofs, flat roofs and stairs.
 
 Each row shows a small swatch, the name of the material that applies now, and in grey where it comes from, such as "from the room", "set on this room" or "project default". A material the library does not have shows its id and "not in the library" in amber.
 
@@ -861,7 +1012,7 @@ Click a row to open the picker. Pick a group, then a material. Hover a material 
 
 ### New and old projects
 
-A new project uses these defaults: wall inside `white_paint`, wall outside `red_brick`, wall top `white_paint`, floor `oak_planks`, ceiling `white_paint`, door `painted_wood`, frame `white_paint`, glass `clear_glass` and handle `brushed_steel`. Projects from earlier versions get the same defaults when they open. You can change any of them. If the sample materials are not in the library, each build says "Missing material" for them and the surfaces get the neutral look. Press **Add the sample materials** to fix that.
+A new project uses these defaults: wall inside `white_paint`, wall outside `red_brick`, wall top `white_paint`, floor `oak_planks`, ceiling `white_paint`, door `painted_wood`, frame `white_paint`, glass `clear_glass`, handle `brushed_steel`, pitched roofs `roof_tiles`, flat roofs `concrete` and stairs `oak_planks`. Projects from earlier versions get the same defaults when they open. You can change any of them. If the sample materials are not in the library, each build says "Missing material" for them and the surfaces get the neutral look. Press **Add the sample materials** to fix that.
 
 ## Materials in the 3D view
 
@@ -869,7 +1020,124 @@ After a build, the 3D view shows each material with its color, bumps, shine, met
 
 The FBX file does not carry metal, roughness and see-through values, so the build writes a second file, `build\materials.json`, next to it. The 3D view reads it and gives each surface its maps. Every built material has its own base color image, so the view can tell the materials apart. If `materials.json` is missing, for example after you copied only the FBX, the view shows the FBX's own plain colors.
 
-The texture paths in the file point into your library. If you move the library, build again so the paths are written again. Furniture keeps the look its model has. Its metal and see-through parts do not show in the 3D view yet.
+The texture paths in the file point into your library. If you move the library, build again so the paths are written again. Furniture materials are in the file too, so a metal or glass part of a chair shows as it will in Unreal. To keep the view fast, it loads copies of textures no larger than 1024 pixels. The export keeps the full size.
+
+## Exporting for Unreal
+
+Exporting turns the last build into one FBX file that Unreal can import, with its textures and its collision shapes. It does not build. It takes `build\building.blend` as it is, hand edits included, so build first.
+
+**To export**, open the **Export** tab in the right panel, press **Export** or Ctrl+E, or use **Build > Export**. First the quality checks run (see "The quality gate"). If none failed, the files are written. If the project has not been built, the tab says "Build the project first." and has a **Build** button.
+
+**Check export** (Ctrl+Shift+E, or the **Check** button) runs the same checks and writes no FBX and no textures. Use it to see what is wrong before you export.
+
+The export runs in the background with a progress bar and a **Cancel** button. It cannot start while a build is running, and a build cannot start while it runs.
+
+### What is in the export folder
+
+Everything goes into the project's `export` folder:
+
+- `<Name>.fbx`, named after the project. A project called "My Flat 2" gives `My_Flat_2.fbx`. Walls, floors, ceilings, slabs, stairs, roofs, doors, windows and furniture are all in it. The collision shapes go in the same file.
+- `Textures`, the images the FBX uses and no others. The names are `T_<Material>_<Channel>`, for example `T_OakPlanks_BaseColor.jpg` and `T_OakPlanks_Normal.png`. A surface with no material gets a plain image named after its slot.
+- `export_report.json`, the report of the last export. It lists the checks, the files and the time.
+
+The FBX holds only relative texture paths. You can copy or move the whole `export` folder anywhere, and the textures are still found as long as `Textures` stays beside the FBX. Textures keep their full size. Only the 3D view uses smaller copies.
+
+**Open folder** in the Export tab, or **Build > Open export folder**, shows the folder in Explorer. The folder can be deleted at any time. A new export replaces the old files. An export that is blocked by a failed check leaves the old files exactly as they were, so check the time in the tab to know which export is on disk.
+
+The Export tab shows the last export: when it ran, how long it took, the result, the number of objects, triangles and collision meshes, and the file paths. If the plan changed after the last build, the "Build is up to date" check fails. Build again, then export.
+
+Grouped projects cannot be exported yet. The tab says "Grouped export is not available yet." and the buttons are greyed. Set the project's export mode back to single to export.
+
+### Export anyway
+
+When a check fails, the tab says "Export blocked: 2 checks failed." and shows **Export anyway...**. Pressing it asks first. If you confirm, the files are written even though the checks failed. The report records that the export was forced and names the failed checks it went past, so you can see later what was ignored. Warnings never block an export.
+
+## The quality gate
+
+The checks look at the real objects that go into the FBX. The Export tab lists them in a column. Each row has the check's name, a sentence and a mark: blue for pass, an amber outline for a warning, filled amber for a fail, grey for skipped. Click a row to see what it found. Click a finding that names something on the plan, and Plynth switches to the plan and selects it.
+
+"Build is up to date" is judged against the plan of the last successful build, saved in `build\built-plan.json`. A build that failed does not change what counts as built.
+
+| Check | What it looks at | How to fix a fail |
+|---|---|---|
+| Build is up to date | The plan has not changed since the last successful build. | Press Build, then export. |
+| Build is complete | The last build left nothing out: no missing assets, no openings that were not cut, no rooms that do not close, no slab, stair or roof that could not be built. Each finding names the item. | Fix the problems on the Build tab, then build again. |
+| Scale and units | The scene is in metres with scale 1, and the walls are the size the plan says, within 1 mm. | Do not change the scale in `building.blend`. Build again. |
+| Pivots and applied transforms | Every object sits at the building's origin with no rotation, scale or parent. | The export does this itself. A fail means a hand edit made a parent. Remove it. |
+| Naming | Every mesh is called `SM_...` or `UCX_...`, names are not repeated, and names use only letters, digits and `_`. | Rename the object in `building.blend`. |
+| UVs | Every textured mesh has UVs. A face whose UVs have no area, or furniture whose UVs overlap, is a warning. | Add UVs in Blender. Walls, floors and ceilings always have them. |
+| Texture sharpness | How many pixels of texture each metre of surface gets. A warning below half the median of the building or below 256 pixels per metre. A fail below a quarter of the median. | Use a bigger texture, or a smaller tile size, for the material the finding names. |
+| Triangle counts | A mesh with no triangles fails. A warning above 1,000,000 triangles in one mesh or 10,000,000 in all. | Remove the empty mesh, or use lighter furniture. |
+| Materials and textures | Every mesh has materials, every slot has a real material, every image file exists, and every base color is an image. An unassigned material blocks the export. | Pick a material for the surface. |
+| Collision | Every wall, floor, slab, stair, roof and furniture item has a `UCX_` mesh, and each one is closed and convex. Ceilings, door leaves and window glass need none. | Build again. |
+| FBX scale | After writing, Plynth reads the FBX back and checks the walls' size and the object count. Skipped when nothing was written. | Report it. It means the file is wrong. |
+
+A ceiling set to "No material" fails the Materials check. Choose a material for it, or use **Export anyway...** if you want it plain.
+
+## Collision
+
+Unreal needs simple shapes to stop the player walking through things. Plynth makes them for you. Each is a closed convex mesh named `UCX_<mesh name>_<number>`, for example `UCX_SM_f1_Walls_00`, and Unreal uses it as the collision of the mesh with that name.
+
+- **Walls** are cut into pieces. A piece is convex, so a wall with a doorway becomes a piece left of the door, a piece right of it and a piece over it. You can walk through the doorway. A plain opening gets a piece under it. A **window** does not cut the wall: the glass area stays blocked.
+- **Floors and ceilings** get a collision slab 10 cm thick, under the floor and above the ceiling, or as thin as the slab between the floors when that is thinner, so nothing pokes into the next floor. Rooms that are not rectangles are split into several slabs. Columns and holes stay open.
+- **Door thresholds** get a slab too.
+- **Slabs** between the floors get closed convex pieces from the bottom of the slab to its top. The hole for a stair stays open.
+- **Stairs** get one piece for each step, landing and column.
+- **Roofs** get sloped convex shapes under the covering, so you can walk on a roof. A flat roof's parapet gets a piece for each face that looks up. Gables and glazing get none.
+- **Door leaves and window fills** get none.
+- **Furniture** gets one convex hull around each item.
+
+The collision meshes are in `building.blend` and in the export, and not in `building.fbx`, which the 3D view loads. If you import the exported FBX into Blender you will see a closed top over the building. That is the backs of the ceilings and the collision slabs. Unreal hides collision meshes and does not draw them.
+
+## Material slot names
+
+Every surface in the FBX has a material named for what the surface is, so you can give each one your own Unreal material. These are the slot names:
+
+| Surface | Slot |
+|---|---|
+| A wall face inside a room | `<RoomType>_Wall`, for example `Living_Wall` |
+| A wall face outside | `Exterior_Wall` |
+| Top and bottom of walls | `Wall_Top` |
+| A room's floor | `<RoomType>_Floor`, for example `Living_Floor` |
+| A room's ceiling | `<RoomType>_Ceiling` |
+| Door and window reveals | The slot of the wall face they follow |
+| A doorway's floor strip | The floor slot it follows |
+| Door leaf, frame, glass, handle | `Door`, `Frame`, `Glass`, `Handle` |
+| Slab edges and ledge tops | `Exterior_Wall` |
+| Slab and roof undersides | `Soffit` |
+| The sides of a stair well | `Stair_Well` |
+| Every part of a stair | `Stair` |
+| A pitched roof's covering | `Roof` |
+| A flat roof's covering | `Flat_Roof` |
+| Roof edges | `Fascia` |
+| Gables and parapets | `Exterior_Wall` |
+| Sawtooth glazing | `Glass` |
+
+The room type is written with a capital at each word: `guest_room` gives `GuestRoom`. A room with no type uses `Room`. Rooms of one type share slots across the whole building.
+
+If one slot would show two different materials, each gets the material added. With oak floors in one bedroom and tiles in another, you get `Bedroom_Floor_OakPlanks` and `Bedroom_Floor_GreyTile`. A surface with no material gets `_Neutral`. Furniture materials are named `<Asset>_<Material>`, for example `Sofa_Fabric`.
+
+The same names are used in `building.blend` and in `building.fbx`. Builds from earlier versions used the catalog ids as material names, such as `oak_planks`. Build again to get the slot names, and assign your Unreal materials again once.
+
+## Importing into Unreal
+
+This is advice, since Plynth does not run Unreal. Import `<Name>.fbx` with these settings in the import dialog:
+
+- Turn **Combine Meshes** off, so each `SM_` mesh stays its own static mesh and picks up the `UCX_` collision that has its name.
+- Keep the `Textures` folder beside the FBX when you import, so Unreal finds the images.
+- Turn on **Generate Lightmap UVs** if you will use baked lighting. Plynth does not make a second UV set.
+
+Repeated furniture becomes separate meshes in the FBX. Ten identical chairs are ten meshes.
+
+## Furniture materials
+
+When you import a model, Plynth gives each of its materials the same image maps a catalog material has: base color, normal, roughness, metallic and opacity. Metal and glass on furniture then show in the 3D view and in Unreal. Images the model already used are copied as they are. A material made of nodes, such as noise, is drawn into an image over one square. A material that depends on the object's own coordinates looks a little different once drawn, and the import warns "material approximated".
+
+Assets imported in earlier versions have no maps. Rescan lists them, and Plynth makes the maps once, in the background, from the asset's own model file. Hand edits you made to the asset stay.
+
+## Add the sample shapes
+
+Plynth comes with sample opening shapes, such as a keyhole, in `samples\shapes`. A new library gets copies in its `shapes` folder. For a library you made earlier, use **Catalog > Add the sample shapes**. The status bar says how many were added. Files already there are never replaced. The shapes then show in the opening shape picker. See "Shapes".
 
 ## When a plan image is missing
 

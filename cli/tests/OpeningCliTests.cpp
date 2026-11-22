@@ -97,7 +97,7 @@ TEST_CASE("project set changes the default sizes and saves version 3", "[cli][pr
     CHECK(info.answer.at("result").at("defaults").at("door_height") == 2.0);
     CHECK(info.answer.at("result").at("defaults").at("door_width") == 0.9);
     const auto file = nlohmann::json::parse(readFile(sample.folder / "project.json"));
-    CHECK(file.at("version") == 4);
+    CHECK(file.at("version") == 5);
     CHECK(file.at("defaults").at("door_height") == 2.0);
 }
 
@@ -161,7 +161,7 @@ TEST_CASE("a version 1 project reads and the first edit saves version 3", "[cli]
     CHECK(opening.at("hinge") == "start");
     CHECK(opening.at("swing") == "right");
     const auto projectFile = nlohmann::json::parse(readFile(folder / "project.json"));
-    CHECK(projectFile.at("version") == 4);
+    CHECK(projectFile.at("version") == 5);
     CHECK(projectFile.contains("defaults"));
 }
 
@@ -201,7 +201,7 @@ TEST_CASE("a version 2 project is saved as version 3 by an edit command", "[cli]
     CHECK(plan.at("floors").at(0).at("items").is_array());
     CHECK(plan.at("floors").at(0).at("items").empty());
     const auto projectFile = nlohmann::json::parse(readFile(folder / "project.json"));
-    CHECK(projectFile.at("version") == 4);
+    CHECK(projectFile.at("version") == 5);
     CHECK(projectFile.at("defaults").at("wall_item_centre") == 1.2);
 }
 

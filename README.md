@@ -4,7 +4,7 @@ Turn a 2D floor plan image into a finished, game-ready 3D building for Unreal En
 
 Load a plan, mark walls, rooms, openings and furniture, then click Build. Blender constructs the building in the background and Plynth exports FBX files with textures and collision, ready to import.
 
-Everything the app does is also available from the command line.
+Export writes one FBX with applied transforms, named material slots such as `Living_Floor`, a `Textures` folder and `UCX_` collision shapes, after a set of quality checks. Everything the app does is also available from the command line.
 
 Walls, floors and doors get their paint, brick, wood and glass from a materials catalog in your library. Seven sample materials, drawn for Plynth, are in `samples/materials/`. See `docs/GETTING_STARTED.md`.
 
@@ -46,13 +46,22 @@ The first configure downloads and builds the vcpkg packages, so it takes a few m
 
 ### Command line
 
-Run these from the Developer PowerShell for Visual Studio. CMake ships inside Visual Studio and is on PATH there.
+The presets use the Ninja generator, which needs the Visual Studio C++ environment. Run these from the Developer PowerShell for Visual Studio, where CMake and Ninja are on PATH:
 
 ```
 cmake --preset msvc
 cmake --build --preset debug
 ctest --preset debug
 ```
+
+From any other terminal, put `tools\msvc-env.cmd` in front of each command. It loads the environment, then runs the command at low CPU priority with at most 6 build threads:
+
+```
+tools\msvc-env.cmd cmake --preset msvc
+tools\msvc-env.cmd cmake --build --preset debug
+```
+
+To build in another folder, add `-B out/build/<name>` to the configure command.
 
 The app is built to `out/build/msvc/app/Debug/plynth.exe`. Next to it is `plynth.com`, a small console program with the same command line. Use it from a terminal so the answer is printed before the prompt returns. See `docs/CLI_GUIDE.md`.
 

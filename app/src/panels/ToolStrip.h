@@ -11,6 +11,11 @@ namespace plynth::app {
 
 class ToolController;
 
+// Every tool in the order of the tool strip and the Edit menu, the Stair tool after Room.
+inline constexpr std::array<ToolId, kToolCount> kStripTools{ToolId::Select, ToolId::Scale,     ToolId::Wall,
+                                                            ToolId::Opening, ToolId::Room,      ToolId::Stair,
+                                                            ToolId::Furniture, ToolId::Detect};
+
 // One square tool button with an icon drawn in code.
 class ToolButton : public QAbstractButton {
     Q_OBJECT
@@ -46,7 +51,7 @@ protected:
 
 private:
     ToolController* controller_;
-    std::array<ToolButton*, kAllTools.size()> buttons_{};
+    std::array<ToolButton*, kToolCount> buttons_{};
 };
 
 }
