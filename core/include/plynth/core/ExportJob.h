@@ -37,7 +37,8 @@ using Json = nlohmann::ordered_json;
 //                "rest": false}],
 //              (name, members and rest are optional in the schema and always written by core;
 //               an id of null is an empty ExportMember::id; Exporter.h says which group an object goes to)
-//    "materials": [...the "materials" list of build/materials.json...],
+//    "materials": [...the "materials" list of build/materials.json, each catalog material with "tile_size":
+//                  {"width", "height"}: the built one, else the library's, else left out...],
 //    "expected_bounds": {"min": [x, y, z], "max": [x, y, z]} or null,
 //    "build": {"report_found": true, "plan_changed": false, "problems": [buildProblem, ...]},
 //    "limits": {"object_triangles": 1000000, "total_triangles": 10000000, "low_texel_density": 256,
@@ -213,8 +214,9 @@ struct ExportSettings {
 // Makes the export job: the envelope of makeBlenderJob with task kExportTask and the params above. blend_file is
 // projectFolder/build/building.blend, output_folder is stagingFolder. Paths are absolute, UTF-8, forward
 // slashes. kit null writes "kit": null; otherwise kit.file is exportFileStem(project name) + kKitFileSuffix,
-// fill_openings and bevel are the build's defaults (BuildSettings). tileSizes (catalog material id to tile size in
-// metres, from the library) adds "tile_size" to each materials entry whose catalog id is in it, for the kit UVs.
+// fill_openings and bevel are the build's defaults (BuildSettings). A materials entry's "tile_size", for the kit
+// UVs, is its BuiltMaterial::tileSize, the size it was built with, which always wins. tileSizes (catalog material
+// id to tile size in metres, from the library) is only used for an entry that has none.
 Json makeExportJob(const Project& project, const std::vector<ExportGroup>& groups,
                    const std::vector<BuiltMaterial>& materials, const ExportBuildState& build,
                    const ExportSettings& settings, const std::filesystem::path& projectFolder,

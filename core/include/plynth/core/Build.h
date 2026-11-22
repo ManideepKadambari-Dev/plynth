@@ -144,9 +144,10 @@ BuildReportRead readBuildReport(const std::filesystem::path& projectFolder);
 // build/materials.json, schema/build-materials.schema.json: for each Blender material of the built surfaces
 // (one per slot, MaterialSlots.h), the images of its channels, and for each built object the material of each
 // of its slots in order. The 3D preview replaces the materials the FBX loader made with these, matched by the
-// base color image path (milestone 9, gate U1). Several slots may share one catalog material and so one base
-// color path; their entries then have the same maps, and the first one found is used. The export (Export.h)
-// reads this file to name the textures it copies.
+// base color image path. Several slots may share one catalog material and so one base color path; their
+// entries then have the same maps, and the first one found is used. The export (Export.h) reads this file to
+// name the textures it copies and for the tile size each material was built with, so the modular kit's UVs
+// match the building's after the library changes.
 inline constexpr std::string_view kBuildMaterialsFormat = "plynth-build-materials";
 inline constexpr int kBuildMaterialsVersion = 1;
 
@@ -167,6 +168,8 @@ struct BuiltMaterial {
     std::filesystem::path occlusion;  // empty when there is none
     AlphaMode alphaMode = AlphaMode::Opaque;
     std::string asset;                // the asset id for a material of furniture; empty for a built surface
+    std::optional<TileSize> tileSize; // what the build divided a catalog material's UVs by (tile_size in the file);
+                                      // empty for a neutral look, for furniture and when the file has none
 
     bool operator==(const BuiltMaterial&) const = default;
 };

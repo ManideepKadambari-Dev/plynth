@@ -247,7 +247,7 @@
                 ]
               },
               "materials": {
-                "description": "The materials list of build/materials.json (schema build-materials), so textures are named after their catalog material. Empty when the file is missing. Core adds tile_size from the library for every catalog material it can look up, for the kit's UVs.",
+                "description": "The materials list of build/materials.json (schema build-materials), so textures are named after their catalog material. Empty when the file is missing. tile_size is the one the build used, from that file. Only for a catalog material without one there does core add the library's, when it can look it up. The kit's UVs are divided by it.",
                 "type": "array",
                 "items": {
                   "type": "object",

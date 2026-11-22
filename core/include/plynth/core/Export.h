@@ -55,7 +55,8 @@ struct ExportRequest {
     BlenderRunOptions run{true, kBuildTimeout, {}};
     ExportSettings settings;
     // Only the kit uses it: its faces need the same slot names as the build, which makeBuildPlan works out with
-    // the materials catalog. Empty: an export with the kit switched on goes on without it (ExportKitReport).
+    // the materials catalog, and a material gets its tile size from it only when build/materials.json has none.
+    // Empty: an export with the kit switched on goes on without it (ExportKitReport).
     std::optional<LibraryPaths> library;
 };
 

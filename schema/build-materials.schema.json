@@ -36,7 +36,17 @@
               "occlusion": { "type": ["string", "null"], "minLength": 1 }
             }
           },
-          "alpha_mode": { "description": "blend when there is an opacity map.", "enum": ["opaque", "blend"] }
+          "alpha_mode": { "description": "blend when there is an opacity map.", "enum": ["opaque", "blend"] },
+          "tile_size": {
+            "description": "The tile size the build divided the UVs of this catalog material by, in metres: width along U, height along V. Left out for a neutral look and for furniture, and may be missing in older files.",
+            "type": "object",
+            "required": ["width", "height"],
+            "additionalProperties": false,
+            "properties": {
+              "width": { "type": "number", "minimum": 0.01, "maximum": 100 },
+              "height": { "type": "number", "minimum": 0.01, "maximum": 100 }
+            }
+          }
         }
       }
     },
