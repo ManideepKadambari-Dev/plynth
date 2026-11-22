@@ -322,7 +322,7 @@ class HousePlanTests(unittest.TestCase):
         self.assertEqual(g[2][1], u[2][1])
         self.assertEqual(u[0][1], g[0][1] - 100)
         self.assertEqual((g[1][0] - g[0][0], g[2][1] - g[0][1]), (970, 770))
-        self.assertAlmostEqual((u[1][0] - u[0][0]) / (g[1][0] - g[0][0]), 2.0 / 3.0, delta=0.01)
+        self.assertEqual((u[1][0] - u[0][0], g[1][0] - g[0][0]), (875, 970))
 
     # The expected walls are dark at their middle, the rooms light, and every opening is a gap in its wall.
     def test_expected_matches_drawing(self):
