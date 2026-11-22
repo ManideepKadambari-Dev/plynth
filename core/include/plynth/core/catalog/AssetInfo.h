@@ -3,6 +3,7 @@
 #include "../BlenderJob.h"
 #include "../EditSession.h"
 #include "../Status.h"
+#include "CatalogNames.h"
 
 #include <filesystem>
 #include <functional>
@@ -133,9 +134,5 @@ std::string catalogIdFromName(std::string_view text);
 // The base id when taken returns false for it, otherwise base_2, base_3 and so on (cut so it stays within
 // the length limit).
 std::string uniqueCatalogId(const std::string& base, const std::function<bool(std::string_view)>& taken);
-
-// A name made from a file name stem: "_" and "-" become spaces, the first letter upper case.
-// "red_chair-02" gives "Red chair 02".
-std::string catalogNameFromStem(std::string_view stem);
 
 }

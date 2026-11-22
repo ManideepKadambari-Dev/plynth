@@ -1,5 +1,5 @@
 #include "plynth/core/ProjectFiles.h"
-#include "plynth/core/catalog/AssetInfo.h"
+#include "plynth/core/catalog/CatalogNames.h"
 #include "plynth/core/catalog/MaterialImporter.h"
 #include "plynth/core/catalog/MaterialInfo.h"
 

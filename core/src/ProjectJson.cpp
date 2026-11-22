@@ -411,7 +411,6 @@ Json defaultsToJson(const DefaultSizes& d)
     return out;
 }
 
-
 // Turns the default materials into their project.json form, every surface written.
 Json materialsToJson(const MaterialDefaults& defaults)
 {
@@ -570,7 +569,6 @@ Status migrateProject2To3(Json& json)
     if (!defaults->contains("wall_item_centre")) (*defaults)["wall_item_centre"] = kDefaultWallItemCentre;
     return {};
 }
-
 
 // Version 3 to 4: every room gets an empty wall material.
 Status migratePlan3To4(Json& json)
