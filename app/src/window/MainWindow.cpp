@@ -556,6 +556,24 @@ void MainWindow::buildMenus()
     problemsOnPlanAction_->setCheckable(true);
     problemsOnPlanAction_->setChecked(true);
     connect(problemsOnPlanAction_, &QAction::toggled, canvas_, &PlanCanvas::setProblemsShown);
+    roofSectionsAction_ = addMenuAction(titleBar_->viewMenu(), tr("&Roof sections"),
+                                        tr("Show the roof sections of the shown floor on the plan, with their type. Click one to edit it (Alt+R)"),
+                                        QStringLiteral("view-roof-sections"), {QKeySequence(Qt::ALT | Qt::Key_R)});
+    roofSectionsAction_->setCheckable(true);
+    connect(roofSectionsAction_, &QAction::toggled, canvas_, &PlanCanvas::setRoofSectionsShown);
+    connect(canvas_, &PlanCanvas::roofSectionClicked, this,
+            [this](const QString& id) { selection_->set(SelectionKind::RoofSection, id); });
+    showRoofs3dAction_ = addMenuAction(titleBar_->viewMenu(), tr("Show roofs in &3D"),
+                                       tr("Show the roofs in the 3D view. Turn off to see the rooms under them"),
+                                       QStringLiteral("view-show-roofs-3d"), {});
+    showRoofs3dAction_->setCheckable(true);
+    showRoofs3dAction_->setChecked(true);
+    connect(showRoofs3dAction_, &QAction::toggled, this, [this]() { applyPreviewRoofOptions(); });
+    cutAtFloorAction_ = addMenuAction(titleBar_->viewMenu(), tr("&Cut 3D at the shown floor"),
+                                      tr("Show the floors up to the shown one in 3D, without the shown floor's roof"),
+                                      QStringLiteral("view-cut-at-floor"), {});
+    cutAtFloorAction_->setCheckable(true);
+    connect(cutAtFloorAction_, &QAction::toggled, this, [this]() { applyPreviewRoofOptions(); });
     titleBar_->viewMenu()->addSeparator();
     snapGridAction_ = addMenuAction(titleBar_->viewMenu(), tr("Snap to &grid"),
                                     tr("Snap new and moved points to the grid (G)"), QStringLiteral("view-snap-grid"),
@@ -870,6 +888,51 @@ void MainWindow::showCentreView(bool scene3d)
     buildBar_->setView(scene3d ? BuildBar::View::Scene3d : BuildBar::View::Plan);
     view3dAction_->setChecked(scene3d);
     updateViewActions();
+}
+
+// Hands the two roof choices of the View menu to the 3D page. The 3D page does not take them yet:
+// the preview task connects showRoofs3d() and cutAtFloor() here.
+void MainWindow::applyPreviewRoofOptions()
+{
+}
+
+// For checks only: turns the roof sections on the plan on or off.
+void MainWindow::setRoofSectionsShown(bool on)
+{
+    roofSectionsAction_->setChecked(on);
+}
+
+// For checks only: shows the floor of the roof section, turns roof sections on and selects it.
+void MainWindow::selectRoof(const QString& id)
+{
+    const qsizetype colon = id.lastIndexOf(QLatin1Char(':'));
+    if (colon <= 0)
+        return;
+    showFloor(id.left(colon));
+    roofSectionsAction_->setChecked(true);
+    selection_->set(SelectionKind::RoofSection, id);
+}
+
+// For checks only: View > Show roofs in 3D.
+void MainWindow::setShowRoofs3d(bool on)
+{
+    showRoofs3dAction_->setChecked(on);
+}
+
+// For checks only: View > Cut 3D at the shown floor.
+void MainWindow::setCutAtFloor(bool on)
+{
+    cutAtFloorAction_->setChecked(on);
+}
+
+bool MainWindow::showRoofs3d() const
+{
+    return showRoofs3dAction_->isChecked();
+}
+
+bool MainWindow::cutAtFloor() const
+{
+    return cutAtFloorAction_->isChecked();
 }
 
 // For checks only: shows the 3D page or the plan.

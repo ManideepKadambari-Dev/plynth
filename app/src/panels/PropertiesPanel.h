@@ -3,6 +3,7 @@
 #include "tools/Tool.h"
 
 #include <plynth/core/Materials.h>
+#include <plynth/core/Roofs.h>
 
 #include <QMetaObject>
 #include <QWidget>
@@ -83,6 +84,28 @@ private:
     void refreshStair();
     void editStair(const std::function<void(plynth::Stair&)>& change);
     void buildFloorSection(QGridLayout* grid);
+    // The widgets of one roof settings group: the Roof default on the project page and the page of a section.
+    struct RoofEditor {
+        QComboBox* type = nullptr;
+        QLabel* pitchLabel = nullptr;
+        QDoubleSpinBox* pitch = nullptr;
+        QCheckBox* autoDirection = nullptr;
+        QLabel* directionLabel = nullptr;
+        QDoubleSpinBox* direction = nullptr;
+        QLabel* overhangLabel = nullptr;
+        QDoubleSpinBox* overhang = nullptr;
+        QLabel* parapetLabel = nullptr;
+        QDoubleSpinBox* parapet = nullptr;
+    };
+    void buildRoofEditor(QGridLayout* grid, RoofEditor& editor, bool section);
+    void fillRoofEditor(const RoofEditor& editor, const plynth::RoofSettings& settings);
+    plynth::RoofSettings readRoofEditor(const RoofEditor& editor) const;
+    void buildRoofPage();
+    void refreshRoof();
+    void editRoofDefault();
+    void editRoofSection(const std::function<void(plynth::RoofSettings&, std::optional<std::string>&)>& change);
+    std::optional<plynth::RoofArea> selectedRoof() const;
+    plynth::ResolvedMaterial resolveMaterial(const plynth::MaterialTarget& target) const;
     void editImageOffset(bool xChanged);
     void refreshItem();
     void runItemCommand(std::unique_ptr<plynth::Command> command);
@@ -232,6 +255,13 @@ private:
     QLabel* stairGoing_ = nullptr;
     QLabel* stairLength_ = nullptr;
     QLabel* stairProblems_ = nullptr;
+
+    RoofEditor roofDefault_;
+    RoofEditor roofSection_;
+    QLabel* roofFloor_ = nullptr;
+    QLabel* roofArea_ = nullptr;
+    QLabel* roofEntry_ = nullptr;
+    QPushButton* roofUseDefault_ = nullptr;
 
     QLabel* roomId_ = nullptr;
     QComboBox* roomType_ = nullptr;

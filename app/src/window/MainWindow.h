@@ -94,6 +94,15 @@ public:
     void selectById(const QString& id);
     // For checks only: turns image alignment of the shown floor on or off, as View > Align plan image.
     void setAlignImage(bool on);
+    // For checks only: turns the roof sections of the shown floor on the plan on or off, as View > Roof sections.
+    void setRoofSectionsShown(bool on);
+    // For checks only: shows the floor of a roof section ("<floor id>:<index>"), turns roof sections on and selects it.
+    void selectRoof(const QString& id);
+    // For checks only: View > Show roofs in 3D and View > Cut 3D at the shown floor.
+    void setShowRoofs3d(bool on);
+    void setCutAtFloor(bool on);
+    bool showRoofs3d() const;
+    bool cutAtFloor() const;
     // For checks only: chooses the side the wall view is seen from.
     void setWallViewSide(plynth::WallSide side);
 
@@ -216,6 +225,7 @@ private:
     void updateAlignAction();
     void refreshOverlay();
     void refreshPreview();
+    void applyPreviewRoofOptions();
     void refreshProblemMarkers();
     void refreshBuilding3d();
     void buildFinished(const plynth::BuildReport& report);
@@ -279,6 +289,9 @@ private:
     BuildController* builder_ = nullptr;
     OverlayRenderer* overlayRenderer_ = nullptr;
     QAction* overlay3dAction_ = nullptr;
+    QAction* roofSectionsAction_ = nullptr;
+    QAction* showRoofs3dAction_ = nullptr;
+    QAction* cutAtFloorAction_ = nullptr;
     QAction* problemsOnPlanAction_ = nullptr;
     BuildPanel* buildPanel_ = nullptr;
     QAction* buildAction_ = nullptr;

@@ -114,6 +114,7 @@ bool Theme::load(const QString& resourcePath)
     const QJsonObject opacity = root["opacity"].toObject();
     overlay3dOpacity_ = opacity["overlay3d"].toDouble(overlay3dOpacity_);
     floorBelowOpacity_ = opacity["floorBelow"].toDouble(floorBelowOpacity_);
+    roofAreaOpacity_ = opacity["roofArea"].toDouble(roofAreaOpacity_);
     const QJsonObject preview = root["preview"].toObject();
     const QColor light(preview["lightColor"].toString());
     if (light.isValid())

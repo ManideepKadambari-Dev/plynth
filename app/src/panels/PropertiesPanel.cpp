@@ -16,6 +16,7 @@
 #include <plynth/core/Items.h>
 #include <plynth/core/RoomTypes.h>
 #include <plynth/core/Rooms.h>
+#include <plynth/core/Roofs.h>
 #include <plynth/core/Stairs.h>
 #include <plynth/core/WallGeometry.h>
 #include <plynth/core/OpeningShapes.h>
@@ -27,6 +28,7 @@
 #include <plynth/core/commands/MaterialCommands.h>
 #include <plynth/core/commands/OpeningCommands.h>
 #include <plynth/core/commands/PointCommands.h>
+#include <plynth/core/commands/RoofCommands.h>
 #include <plynth/core/commands/RoomCommands.h>
 #include <plynth/core/commands/StairCommands.h>
 #include <plynth/core/commands/SettingsCommands.h>
@@ -66,6 +68,7 @@ constexpr int kOpeningPage = 5;
 constexpr int kOpeningToolPage = 6;
 constexpr int kItemPage = 7;
 constexpr int kStairPage = 8;
+constexpr int kRoofPage = 9;
 
 // Turns a core text into Qt text.
 QString fromCore(const std::string& text)
@@ -98,6 +101,7 @@ PropertiesPanel::PropertiesPanel(plynth::Document& document, Selection& selectio
     buildOpeningToolPage();
     buildItemPage();
     buildStairPage();
+    buildRoofPage();
     column->addWidget(pages_);
     column->addStretch(1);
 
@@ -254,6 +258,9 @@ void PropertiesPanel::buildNothingPage()
 
     buildFloorSection(grid);
 
+    addMaterialSection(grid, tr("Roof default"));
+    buildRoofEditor(grid, roofDefault_, false);
+
     addMaterialSection(grid, tr("Default materials"));
     struct DefaultRow {
         plynth::Surface surface;
@@ -270,6 +277,9 @@ void PropertiesPanel::buildNothingPage()
         {plynth::Surface::Frame, "Frames", "The material of door and window frames"},
         {plynth::Surface::Glass, "Glass", "The material of window panes"},
         {plynth::Surface::Handle, "Handles", "The material of door handles"},
+        {plynth::Surface::Roof, "Roofs", "The material of the covering of pitched roofs, when the roof section names none"},
+        {plynth::Surface::FlatRoof, "Flat roofs", "The material of the covering of flat roofs, when the roof section names none"},
+        {plynth::Surface::Stair, "Stairs", "The material of steps and landings, when the stair names none"},
     };
     for (const DefaultRow& row : defaults) {
         plynth::MaterialTarget target;
@@ -510,6 +520,218 @@ void PropertiesPanel::refreshStair()
     stairProblems_->setText(problems.join(QLatin1Char('\n')));
     stairProblems_->setVisible(!problems.isEmpty());
     refreshMaterialRows(kStairPage);
+}
+
+// Adds the rows of one roof settings group: type, then the fields the type uses (shown by fillRoofEditor).
+void PropertiesPanel::buildRoofEditor(QGridLayout* grid, RoofEditor& editor, bool section)
+{
+    const Theme& t = Theme::instance();
+    const QString who = section ? tr("this roof section") : tr("every roof section that has no settings of its own");
+    const QString prefix = section ? QStringLiteral("panel-roof-") : QStringLiteral("panel-roof-default-");
+    editor.type = addComboRow(grid, tr("Type"), tr("The shape of the roof of %1").arg(who), prefix + QStringLiteral("type"));
+    for (const plynth::RoofType* type : plynth::allRoofTypes())
+        editor.type->addItem(fromCore(std::string(type->name())), fromCore(std::string(type->id())));
+    editor.pitch = addSpinRow(grid, tr("Pitch"), plynth::kMinPitchedRoofPitch, plynth::kMaxRoofPitch, 1.0,
+                              tr("How steep the roof slopes, in degrees from level"), prefix + QStringLiteral("pitch"),
+                              &editor.pitchLabel);
+    editor.pitch->setDecimals(1);
+    editor.pitch->setSuffix(QStringLiteral("°"));
+    editor.autoDirection = new QCheckBox(tr("Automatic direction"), grid->parentWidget());
+    editor.autoDirection->setFont(t.uiFont(t.sizeNormal()));
+    editor.autoDirection->setStyle(t.controlStyle());
+    editor.autoDirection->setToolTip(tr("When on, the ridge runs along the longer side of the section. Turn it off to set the direction."));
+    editor.autoDirection->setProperty("tourId", prefix + QStringLiteral("auto-direction"));
+    grid->addWidget(editor.autoDirection, grid->rowCount(), 0, 1, 2);
+    editors_.push_back(editor.autoDirection);
+    editor.direction = addSpinRow(grid, tr("Direction"), 0.0, 359.9, 5.0,
+                                  tr("The way the ridge runs, or the way a shed roof falls, in degrees clockwise on the plan from the right"),
+                                  prefix + QStringLiteral("direction"), &editor.directionLabel);
+    editor.direction->setDecimals(1);
+    editor.direction->setSuffix(QStringLiteral("°"));
+    editor.overhang = addSpinRow(grid, tr("Overhang"), 0.0, plynth::kMaxRoofOverhang, 0.05,
+                                 tr("How far the roof reaches past the outer walls. A flat roof with a parapet has none."),
+                                 prefix + QStringLiteral("overhang"), &editor.overhangLabel);
+    editor.parapet = addSpinRow(grid, tr("Parapet"), 0.0, plynth::kMaxParapet, 0.05,
+                                tr("Height of the low wall around a flat roof. Zero for none."),
+                                prefix + QStringLiteral("parapet"), &editor.parapetLabel);
+
+    RoofEditor* self = &editor;
+    const auto edited = [this, self, section]() {
+        if (refreshing_)
+            return;
+        if (!section) {
+            editRoofDefault();
+            return;
+        }
+        const plynth::RoofSettings values = readRoofEditor(*self);
+        editRoofSection([values](plynth::RoofSettings& settings, std::optional<std::string>&) { settings = values; });
+    };
+    connect(editor.type, &QComboBox::activated, this, [edited](int) { edited(); });
+    connect(editor.pitch, &QDoubleSpinBox::valueChanged, this, [edited](double) { edited(); });
+    connect(editor.direction, &QDoubleSpinBox::valueChanged, this, [edited](double) { edited(); });
+    connect(editor.overhang, &QDoubleSpinBox::valueChanged, this, [edited](double) { edited(); });
+    connect(editor.parapet, &QDoubleSpinBox::valueChanged, this, [edited](double) { edited(); });
+    connect(editor.autoDirection, &QCheckBox::clicked, this, [edited](bool) { edited(); });
+}
+
+// The settings the boxes of a group show. A direction is empty while Auto is on.
+plynth::RoofSettings PropertiesPanel::readRoofEditor(const RoofEditor& editor) const
+{
+    plynth::RoofSettings settings;
+    settings.type = editor.type->currentData().toString().toStdString();
+    settings.pitch = editor.pitch->value();
+    settings.overhang = editor.overhang->value();
+    settings.parapet = editor.parapet->value();
+    if (!editor.autoDirection->isChecked())
+        settings.direction = editor.direction->value();
+    return settings;
+}
+
+// Shows settings in a group and hides the fields the type does not use.
+void PropertiesPanel::fillRoofEditor(const RoofEditor& editor, const plynth::RoofSettings& settings)
+{
+    int index = editor.type->findData(fromCore(settings.type));
+    if (index < 0) {
+        editor.type->addItem(fromCore(settings.type), fromCore(settings.type));
+        index = editor.type->count() - 1;
+    }
+    editor.type->setCurrentIndex(index);
+    setSpin(editor.pitch, settings.pitch);
+    setSpin(editor.overhang, settings.overhang);
+    setSpin(editor.parapet, settings.parapet);
+    setSpin(editor.direction, settings.direction.value_or(editor.direction->value()));
+    const bool before = editor.autoDirection->blockSignals(true);
+    editor.autoDirection->setChecked(!settings.direction.has_value());
+    editor.autoDirection->blockSignals(before);
+    const plynth::RoofType* type = plynth::findRoofType(settings.type);
+    const bool pitch = type != nullptr && type->usesPitch();
+    const bool direction = type != nullptr && type->usesDirection();
+    const bool parapet = type != nullptr && type->usesParapet();
+    const bool overhang = type != nullptr && type->usesOverhang() && !(parapet && settings.parapet > 0.0);
+    editor.pitch->setVisible(pitch);
+    editor.pitchLabel->setVisible(pitch);
+    editor.autoDirection->setVisible(direction);
+    editor.direction->setVisible(direction && settings.direction.has_value());
+    editor.directionLabel->setVisible(direction && settings.direction.has_value());
+    editor.overhang->setVisible(overhang);
+    editor.overhangLabel->setVisible(overhang);
+    editor.parapet->setVisible(parapet);
+    editor.parapetLabel->setVisible(parapet);
+}
+
+// Runs SetRoofDefaultCommand with what the Roof default group shows. The boxes go back on a refusal.
+void PropertiesPanel::editRoofDefault()
+{
+    if (refreshing_)
+        return;
+    const plynth::RoofSettings values = readRoofEditor(roofDefault_);
+    if (values == document_.plan().roof)
+        return;
+    if (!controller_.run(std::make_unique<plynth::SetRoofDefaultCommand>(values)).ok())
+        refresh();
+}
+
+// The selected roof section, from its "<floor>:<index>" id. Empty when it is no longer there.
+std::optional<plynth::RoofArea> PropertiesPanel::selectedRoof() const
+{
+    if (selection_.kind() != SelectionKind::RoofSection)
+        return std::nullopt;
+    const QString id = selection_.id();
+    const qsizetype colon = id.lastIndexOf(QLatin1Char(':'));
+    if (colon <= 0)
+        return std::nullopt;
+    bool ok = false;
+    const int index = id.mid(colon + 1).toInt(&ok);
+    if (!ok || index < 0)
+        return std::nullopt;
+    const std::vector<plynth::RoofArea> areas = plynth::roofAreasOf(document_.plan(), id.left(colon).toStdString());
+    if (static_cast<std::size_t>(index) >= areas.size())
+        return std::nullopt;
+    return areas[static_cast<std::size_t>(index)];
+}
+
+// Changes the selected roof section. A section that follows the default gets an entry at its label point.
+void PropertiesPanel::editRoofSection(const std::function<void(plynth::RoofSettings&, std::optional<std::string>&)>& change)
+{
+    if (refreshing_)
+        return;
+    const std::optional<plynth::RoofArea> area = selectedRoof();
+    if (!area)
+        return;
+    plynth::RoofSettings settings = area->settings;
+    std::optional<std::string> material = area->material;
+    change(settings, material);
+    if (settings == area->settings && material == area->material)
+        return;
+    std::unique_ptr<plynth::Command> command;
+    if (area->section.empty())
+        command = std::make_unique<plynth::AddRoofSectionCommand>(area->floor, area->labelPoint.x, area->labelPoint.y,
+                                                                 settings, material);
+    else
+        command = std::make_unique<plynth::SetRoofSectionCommand>(area->section, settings, material);
+    if (!controller_.run(std::move(command)).ok())
+        refresh();
+}
+
+// The page for a selected roof section: its floor and area, the settings its type uses, the covering and
+// the button that gives it back to the default.
+void PropertiesPanel::buildRoofPage()
+{
+    QGridLayout* grid = nullptr;
+    makePage(&grid);
+    roofFloor_ = addLabelRow(grid, tr("Floor"));
+    roofFloor_->setToolTip(tr("The floor this roof section sits on"));
+    roofArea_ = addLabelRow(grid, tr("Area"));
+    roofArea_->setToolTip(tr("The plan area this roof section covers"));
+    roofEntry_ = addLabelRow(grid, tr("Settings"));
+    roofEntry_->setToolTip(tr("Whether this section has settings of its own or follows the roof default"));
+    buildRoofEditor(grid, roofSection_, true);
+
+    addMaterialSection(grid, tr("Materials"));
+    plynth::MaterialTarget covering;
+    covering.kind = plynth::MaterialTarget::Kind::Roof;
+    addMaterialRow(grid, tr("Covering"),
+                   tr("The material of the covering of this roof section. Without one, the project default for this kind of roof shows"),
+                   QStringLiteral("material-picker-roof"), covering);
+
+    roofUseDefault_ = new QPushButton(tr("Use the default"), grid->parentWidget());
+    roofUseDefault_->setToolTip(tr("Remove the settings of this section so it follows the roof default again"));
+    roofUseDefault_->setProperty("tourId", QStringLiteral("panel-roof-use-default"));
+    grid->addWidget(roofUseDefault_, grid->rowCount(), 0, 1, 2);
+    editors_.push_back(roofUseDefault_);
+    connect(roofUseDefault_, &QPushButton::clicked, this, [this]() {
+        const std::optional<plynth::RoofArea> area = selectedRoof();
+        if (refreshing_ || !area || area->section.empty())
+            return;
+        controller_.run(std::make_unique<plynth::RemoveRoofSectionCommand>(area->section));
+    });
+}
+
+// Fills the page for a selected roof section.
+void PropertiesPanel::refreshRoof()
+{
+    const std::optional<plynth::RoofArea> area = selectedRoof();
+    if (!area)
+        return;
+    const plynth::Floor* floor = plynth::findFloor(document_.plan(), area->floor);
+    roofFloor_->setText(floor == nullptr ? fromCore(area->floor)
+                                         : fromCore(floor->name.empty() ? floor->id : floor->name));
+    roofArea_->setText(QStringLiteral("%1 m²").arg(plynth::planAreaSize(area->area), 0, 'f', 2));
+    roofEntry_->setText(area->section.empty() ? tr("Roof default") : fromCore(area->section));
+    fillRoofEditor(roofSection_, area->settings);
+    roofUseDefault_->setEnabled(!area->section.empty() && !document_.isReadOnly());
+    refreshMaterialRows(kRoofPage);
+}
+
+// The material a target shows now. A roof target means the selected roof section, which may follow the default.
+plynth::ResolvedMaterial PropertiesPanel::resolveMaterial(const plynth::MaterialTarget& target) const
+{
+    if (target.kind == plynth::MaterialTarget::Kind::Roof) {
+        const std::optional<plynth::RoofArea> area = selectedRoof();
+        return area ? plynth::roofPartMaterial(document_.project(), *area, plynth::RoofPart::Covering)
+                    : plynth::ResolvedMaterial{};
+    }
+    return plynth::materialAt(document_.project(), target);
 }
 
 // The page for a selected point: id, position and the walls that use it.
@@ -977,7 +1199,7 @@ void PropertiesPanel::refreshMaterialRows(int page)
         if (slot.page != page)
             continue;
         const plynth::MaterialTarget target = targetFor(slot.target, selection_.id());
-        const plynth::ResolvedMaterial resolved = plynth::materialAt(document_.project(), target);
+        const plynth::ResolvedMaterial resolved = resolveMaterial(target);
         QString note;
         switch (resolved.origin) {
         case plynth::MaterialOrigin::Wall:
@@ -1040,7 +1262,7 @@ void PropertiesPanel::openPicker(size_t slotIndex, const QString& hoverMaterial)
         });
         connect(picker_, &MaterialPicker::cleared, this, [this]() { applyMaterial(pickTarget_, std::nullopt); });
     }
-    const plynth::ResolvedMaterial resolved = plynth::materialAt(document_.project(), pickTarget_);
+    const plynth::ResolvedMaterial resolved = resolveMaterial(pickTarget_);
     const bool isDefault = pickTarget_.kind == plynth::MaterialTarget::Kind::Default;
     // The picker opens beside the whole panel, so the row labels stay readable.
     const QPoint anchor(mapTo(window(), QPoint(0, 0)).x(), slot.row->mapTo(window(), QPoint(0, 0)).y());
@@ -1080,6 +1302,7 @@ void PropertiesPanel::applyMaterial(const plynth::MaterialTarget& target, const 
         editStair([&material](plynth::Stair& stair) { stair.material = material; });
         return;
     case plynth::MaterialTarget::Kind::Roof:
+        editRoofSection([&material](plynth::RoofSettings&, std::optional<std::string>& covering) { covering = material; });
         return;
     }
     controller_.run(std::move(command));
@@ -1102,8 +1325,18 @@ bool PropertiesPanel::openMaterialPicker(const QString& text, const QString& hov
     case plynth::MaterialTarget::Kind::Stair:
         selection_.set(SelectionKind::Stair, fromCore(target.object));
         break;
-    case plynth::MaterialTarget::Kind::Default:
     case plynth::MaterialTarget::Kind::Roof:
+        selection_.clear();
+        for (const plynth::RoofSection& entry : document_.plan().roofSections) {
+            if (entry.id != target.object)
+                continue;
+            for (const plynth::RoofArea& area : plynth::roofAreasOf(document_.plan(), entry.floor))
+                if (area.section == entry.id)
+                    selection_.set(SelectionKind::RoofSection,
+                                   fromCore(entry.floor) + QLatin1Char(':') + QString::number(area.index));
+        }
+        break;
+    case plynth::MaterialTarget::Kind::Default:
         selection_.clear();
         break;
     }
@@ -1113,7 +1346,7 @@ bool PropertiesPanel::openMaterialPicker(const QString& text, const QString& hov
         const bool same = own.kind == target.kind &&
                           (target.kind == plynth::MaterialTarget::Kind::Wall   ? own.wallFace == target.wallFace
                            : target.kind == plynth::MaterialTarget::Kind::Room ? own.roomSurface == target.roomSurface
-                           : target.kind == plynth::MaterialTarget::Kind::Stair ? true
+                           : target.kind == plynth::MaterialTarget::Kind::Stair || target.kind == plynth::MaterialTarget::Kind::Roof ? true
                                                                                : own.surface == target.surface);
         if (same && materialSlots_[i].page == pages_->currentIndex()) {
             openPicker(i, hoverMaterial);
@@ -1197,6 +1430,14 @@ void PropertiesPanel::refresh()
         page = kStairPage;
         refreshStair();
         break;
+    case SelectionKind::RoofSection:
+        if (selectedRoof()) {
+            page = kRoofPage;
+            refreshRoof();
+        } else if (!detecting && !placing) {
+            refreshNothing();
+        }
+        break;
     default:
         if (!detecting && !placing)
             refreshNothing();
@@ -1235,6 +1476,7 @@ void PropertiesPanel::refreshNothing()
     pointCount_->setText(QString::number(floor ? floor->points.size() : 0));
     wallCount_->setText(QString::number(floor ? floor->walls.size() : 0));
     roomCount_->setText(QString::number(floor ? floor->rooms.size() : 0));
+    fillRoofEditor(roofDefault_, document_.plan().roof);
     setSpin(newWallSpin_, controller_.newWallThickness());
     const bool wallTool = controller_.active() == ToolId::Wall;
     newWallSpin_->setVisible(wallTool);

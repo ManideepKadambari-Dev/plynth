@@ -147,6 +147,15 @@ int main(int argc, char* argv[])
     QCommandLineOption buildTabOption(QStringLiteral("build-tab"), QStringLiteral("Show the Build tab. For checks only."));
     QCommandLineOption alignImageOption(QStringLiteral("align-image"),
                                         QStringLiteral("Turn on image alignment of the shown floor. For checks only."));
+    QCommandLineOption roofSectionsOption(QStringLiteral("roof-sections"),
+                                          QStringLiteral("Show the roof sections of the shown floor on the plan. For checks only."));
+    QCommandLineOption selectRoofOption(QStringLiteral("select-roof"),
+                                        QStringLiteral("Select the roof section <floor>:<index>, such as f2:0, on its floor. For checks only."),
+                                        QStringLiteral("id"));
+    QCommandLineOption noRoofsOption(QStringLiteral("no-roofs"),
+                                     QStringLiteral("Hide the roofs in the 3D view. For checks only."));
+    QCommandLineOption cutAtFloorOption(QStringLiteral("cut-at-floor"),
+                                        QStringLiteral("Cut the 3D view at the shown floor. For checks only."));
     QCommandLineOption homeOption(QStringLiteral("home"), QStringLiteral("Show the home screen. For checks only."));
     parser.addOption(zoomOption);
     parser.addOption(overlayOption);
@@ -156,6 +165,10 @@ int main(int argc, char* argv[])
     parser.addOption(cameraOption);
     parser.addOption(homeOption);
     parser.addOption(alignImageOption);
+    parser.addOption(roofSectionsOption);
+    parser.addOption(selectRoofOption);
+    parser.addOption(noRoofsOption);
+    parser.addOption(cutAtFloorOption);
     parser.addOption(furnitureAtOption);
     parser.addOption(hoverAssetOption);
     parser.addOption(assetCategoriesOption);
@@ -286,8 +299,16 @@ int main(int argc, char* argv[])
         window.activateToolByName(parser.value(toolOption));
     if (parser.isSet(alignImageOption))
         window.setAlignImage(true);
+    if (parser.isSet(roofSectionsOption))
+        window.setRoofSectionsShown(true);
     if (parser.isSet(selectOption))
         window.selectById(parser.value(selectOption));
+    if (parser.isSet(selectRoofOption))
+        window.selectRoof(parser.value(selectRoofOption));
+    if (parser.isSet(noRoofsOption))
+        window.setShowRoofs3d(false);
+    if (parser.isSet(cutAtFloorOption))
+        window.setCutAtFloor(true);
     if (parser.isSet(wallSideOption))
         window.setWallViewSide(parser.value(wallSideOption).toLower() == QStringLiteral("left") ? plynth::WallSide::Left
                                                                                              : plynth::WallSide::Right);
