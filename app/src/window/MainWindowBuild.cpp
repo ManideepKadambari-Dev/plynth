@@ -185,7 +185,7 @@ void MainWindow::refreshBuilding3d()
         canvas_->setBuilding3d(QImage(), QRectF());
         return;
     }
-    overlayRenderer_->render(QUrl::fromLocalFile(QString::fromStdWString(fbx.wstring())), doc_.plan(), *ppm);
+    overlayRenderer_->render(QUrl::fromLocalFile(QString::fromStdWString(fbx.wstring())), doc_.plan(), *ppm, focus_->floorId());
 }
 
 // For checks only: shows the plan at 100 percent.

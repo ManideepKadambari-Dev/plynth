@@ -17,6 +17,8 @@ class ThemeQml;
 class ModelView : public QQuickWidget {
     Q_OBJECT
     Q_PROPERTY(QString modelFile READ modelFileText NOTIFY modelFileChanged)
+    Q_PROPERTY(QVariantList parts READ partUrls NOTIFY partsChanged)
+    Q_PROPERTY(QVariantList partVisible READ partVisible NOTIFY partVisibleChanged)
     Q_PROPERTY(QVector3D boundsMin READ boundsMin NOTIFY boundsChanged)
     Q_PROPERTY(QVector3D boundsMax READ boundsMax NOTIFY boundsChanged)
     Q_PROPERTY(bool interactive READ interactive CONSTANT)
@@ -30,6 +32,14 @@ class ModelView : public QQuickWidget {
 public:
     enum class Preset { ThreeQuarter = 0, Top = 1 };
     enum class State { Empty, Loading, Ready, Failed };
+
+    // One FBX of a preview: a floor's storey or a floor's roofs. floorIndex is the floor's place in the plan.
+    struct Part {
+        QUrl file;
+        int floorIndex = 0;
+        bool roof = false;
+        bool operator==(const Part&) const = default;
+    };
 
     // interactive lets the mouse orbit, pan and zoom. shadows turns on the key light's shadows.
     explicit ModelView(bool interactive, bool shadows, QWidget* parent = nullptr, double orthoScale = 0.0);
@@ -59,6 +69,15 @@ public:
     QVariantList builtMaterials() const { return materials_; }
     int builtMaterialCount() const { return static_cast<int>(materials_.size()); }
 
+    // Loads these FBX files side by side, each by its own loader, all in scene metres. Same bounds rule as
+    // setModel. The first part is the modelFile.
+    void setParts(const QList<Part>& parts, const QVector3D& boundsMin, const QVector3D& boundsMax);
+    // Hides roof parts when showRoofs is off, and every part of a floor above cutFloorIndex (and every roof) when
+    // cutFloorIndex is 0 or more. New bounds frame what is left. A single model without parts is never hidden.
+    void setPartFilter(bool showRoofs, int cutFloorIndex, const QVector3D& boundsMin, const QVector3D& boundsMax);
+    QVariantList partUrls() const;
+    QVariantList partVisible() const { return partVisible_; }
+    int partCount() const { return static_cast<int>(parts_.size()); }
     // Loads this FBX file. The bounds are the box of the model in scene metres (X right, Y up, Z toward the
     // front of the plan), worked out by the caller because the loader reports them wrongly.
     void setModel(const QUrl& file, const QVector3D& boundsMin, const QVector3D& boundsMax);
@@ -88,6 +107,8 @@ signals:
     void stateChanged();
     // The loaded model has been drawn.
     void pictureDrawn();
+    void partsChanged();
+    void partVisibleChanged();
     void fitRequested();
     void reloadRequested();
     void materialsChanged();
@@ -95,11 +116,16 @@ signals:
 private:
     void startFrameCount();
     void readMaterials();
+    void updateVisibility();
 
     bool interactive_;
     double orthoScale_ = 0.0;
     bool shadows_;
     QUrl file_;
+    QList<Part> parts_;
+    QVariantList partVisible_;
+    bool showRoofs_ = true;
+    int cutFloorIndex_ = -1;
     QVector3D boundsMin_;
     QVector3D boundsMax_{1.0f, 1.0f, 1.0f};
     Preset preset_ = Preset::ThreeQuarter;

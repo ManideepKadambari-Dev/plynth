@@ -890,10 +890,10 @@ void MainWindow::showCentreView(bool scene3d)
     updateViewActions();
 }
 
-// Hands the two roof choices of the View menu to the 3D page. The 3D page does not take them yet:
-// the preview task connects showRoofs3d() and cutAtFloor() here.
+// Hands the two roof choices of the View menu to the 3D page, with the shown floor as the cut floor.
 void MainWindow::applyPreviewRoofOptions()
 {
+    preview_->setRoofOptions(showRoofs3d(), cutAtFloor() ? focus_->floorId() : QString());
 }
 
 // For checks only: turns the roof sections on the plan on or off.
@@ -961,6 +961,7 @@ void MainWindow::refreshPreview()
 {
     loadBuildReport();
     preview_->setProject(doc_.hasFolder() ? doc_.folder() : std::filesystem::path(), doc_.plan());
+    applyPreviewRoofOptions();
     updateViewActions();
     canvas_->setBuilding3d(QImage(), QRectF());
     refreshBuilding3d();
@@ -1452,6 +1453,8 @@ void MainWindow::setAlignImage(bool on)
 void MainWindow::floorShown()
 {
     floorTabs_->setShown(focus_->floorId());
+    applyPreviewRoofOptions();
+    refreshBuilding3d();
     selection_->clear();
     refreshImage();
     refreshProblemMarkers();

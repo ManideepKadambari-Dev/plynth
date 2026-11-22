@@ -569,7 +569,7 @@ void PlanCanvas::paintRoofHatch(QPainter* painter)
         const QColor accent = selected ? t.signalAmber() : t.signalBlue();
         const QPainterPath area = view.map(roof.area);
         QColor fill = accent;
-        fill.setAlpha(selected ? t.roomFillAlpha() * 2 : t.roomFillAlpha());
+        fill.setAlpha(static_cast<int>(std::lround(t.roofAreaOpacity() * 255.0 * (selected ? 2.0 : 1.0))));
         painter->setPen(Qt::NoPen);
         painter->setBrush(fill);
         painter->drawPath(area);

@@ -22,7 +22,8 @@ public:
     ~OverlayRenderer() override;
 
     // Starts drawing. The result comes back as ready or failed. A call while one runs replaces it.
-    void render(const QUrl& fbx, const plynth::Plan& plan, double pixelsPerMetre);
+    // With a floor id it draws only that floor's storey part when the build has parts.
+    void render(const QUrl& fbx, const plynth::Plan& plan, double pixelsPerMetre, const QString& floorId = QString());
     bool busy() const { return !view_.isNull(); }
 
 signals:
