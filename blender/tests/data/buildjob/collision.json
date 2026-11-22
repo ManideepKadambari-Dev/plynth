@@ -294,7 +294,9 @@
         "bottom": 0.0,
         "top": 3.0
        }
-      ]
+      ],
+      "index": 0,
+      "hulls": []
      },
      {
       "target": {
@@ -324,7 +326,9 @@
         "bottom": -0.1,
         "top": 0.0
        }
-      ]
+      ],
+      "index": 0,
+      "hulls": []
      }
     ],
     "slab": {

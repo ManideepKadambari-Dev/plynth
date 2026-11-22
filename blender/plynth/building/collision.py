@@ -51,14 +51,14 @@ def find_target(kind, plan_id, index=0):
 
 # Makes every piece of one shape.
 def make_shape(ctx, floor, shape, collection):
-    target = find_target(shape["target"]["kind"], shape["target"]["id"], shape.get("index", 0))
+    target = find_target(shape["target"]["kind"], shape["target"]["id"], shape["index"])
     plan_id = shape["target"]["id"]
     if target is None:
         report(ctx, "collision_failed", "warning", "The %s of %s was not built, so it has no collision." % (
             shape["target"]["kind"], plan_id), floor["id"], plan_id)
         return
     sources = [(piece_mesh, piece) for piece in shape["pieces"]]
-    sources += [(hull_points_mesh, hull) for hull in shape.get("hulls", [])]
+    sources += [(hull_points_mesh, hull) for hull in shape["hulls"]]
     for number, (make, source) in enumerate(sources):
         name = "UCX_%s_%02d" % (target.name, number)
         mesh = make(name, source)

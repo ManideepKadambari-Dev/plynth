@@ -401,7 +401,7 @@
     "collisionShape": {
       "description": "Convex pieces and hulls for one built object (core/include/plynth/core/Collision.h). Each becomes a closed convex mesh UCX_<object name>_<NN>, numbered from 00 over the pieces and then the hulls.",
       "type": "object",
-      "required": ["target", "pieces"],
+      "required": ["target", "pieces", "index", "hulls"],
       "additionalProperties": false,
       "properties": {
         "target": {
@@ -435,7 +435,7 @@
         }
       },
       "if": { "properties": { "target": { "properties": { "kind": { "const": "roof" } } } } },
-      "then": { "required": ["index", "hulls"], "properties": { "hulls": { "minItems": 1 } } },
+      "then": { "properties": { "hulls": { "minItems": 1 } } },
       "else": { "properties": { "pieces": { "minItems": 1 }, "index": { "const": 0 }, "hulls": { "maxItems": 0 } } }
     },
     "tileSize": {
@@ -546,7 +546,7 @@
         "slab": {
           "description": "The slab above the floor (core/include/plynth/core/Storeys.h). Side faces on every ring of polygons from bottom to top, each edge or well as sides says; bottom faces only for undersides; top faces only for tops. Object SM_<floor>_Slab, plynth_kind slab.",
           "type": "object",
-          "required": ["bottom", "top", "polygons", "undersides", "sides", "tops", "materials"],
+          "required": ["bottom", "top", "polygons", "undersides", "sides", "tops", "materials", "slots"],
           "additionalProperties": false,
           "properties": {
             "bottom": { "type": "number" },
@@ -600,7 +600,7 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["id", "type", "to_floor", "rise", "riser_count", "riser", "material", "steps", "hole"],
+            "required": ["id", "type", "to_floor", "rise", "riser_count", "riser", "material", "slot", "steps", "hole"],
             "additionalProperties": false,
             "properties": {
               "id": { "$ref": "#/definitions/planId" },
@@ -645,7 +645,7 @@
                 "type": "array",
                 "items": {
                   "type": "object",
-                  "required": ["part", "outline", "holes", "material"],
+                  "required": ["part", "outline", "holes", "material", "slot"],
                   "additionalProperties": false,
                   "properties": {
                     "part": { "enum": ["covering", "underside", "edge", "gable", "parapet", "glazing"] },
