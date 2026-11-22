@@ -38,6 +38,7 @@ OPENING_FILLS = Registry("opening fill")
 MATERIAL_SOURCES = Registry("material source")
 BAKERS = Registry("baker")
 MATERIAL_CHECKS = Registry("material check")
+ADDON_BRIDGES = Registry("add-on bridge")
 
 
 # Imports every module of a package, in name order, so each one registers itself.
