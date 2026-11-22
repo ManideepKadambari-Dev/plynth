@@ -1479,7 +1479,7 @@ The example is shortened and written by hand from the code and the tests. It was
 - `reviewable` is true when the groups can be edited, which is only so in grouped mode. A single project answers with its one group, `building`, and `reviewable` false.
 - `from_build` is true when the groups were made from the plan of the last successful build (`build\built-plan.json`). It is false when there is no build yet, and the project's own plan is used.
 - Each group has an `id`, a `name`, the `file` it would write, `rest` (it takes anything no other group takes), `automatic` (false for a group you made) and its `members`.
-- A member is a `kind` and an `id`: `walls` for a floor, `floor` and `ceiling` for a room, `door` and `window` for an opening, `item` for a furniture item, and `thresholds`, `slab`, `stair`, `roof`, `generator` and `light`. `id` is `null` for a member that takes every object of its kind. `label` is a plain sentence for people.
+- A member is a `kind` and an `id`: `walls` for a floor, `floor` and `ceiling` for a room, `door` and `window` for an opening, `item` for a furniture item that places an asset, `generator` for an item a generator makes (an item has one of the two, never both), and `thresholds`, `slab`, `stair`, `roof` and `light`. `id` is `null` for a member that takes every object of its kind. `label` is a plain sentence for people.
 - `notes` lists the edits that were skipped because they no longer fit the plan.
 - `kit.enabled` is the modular kit switch (see "export kit").
 

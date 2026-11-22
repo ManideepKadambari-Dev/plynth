@@ -424,7 +424,7 @@ Worker codes of this task: errors `import_failed`, `no_base_color`, `several_mat
 An exporter decides which FBX files an export writes and which built objects go into each. It lives in core, because core knows the project. It is one file, and nothing else is edited.
 
 1. Make one new file in `core/src/exporters/`, for example `GroupedExporter.cpp`. CMake finds every `.cpp` in that folder and builds it into the OBJECT library `plynth_exporters`, so you do not edit `CMakeLists.txt`.
-2. In it, write a class that derives from `Exporter` (`core/include/plynth/core/Exporter.h`) and implements `id()`, `name()`, `description()` and `groups(project, out)`. The id is the project's export mode name, so `single` serves the single mode. `groups` fills a list of `ExportGroup`, one for each file: its `id`, its `file` name, and which kinds of objects or plan ids it takes. An empty list of kinds takes everything. When the project cannot be exported this way, return `InvalidValue` with a plain sentence.
+2. In it, write a class that derives from `Exporter` (`core/include/plynth/core/Exporter.h`) and implements `id()`, `name()`, `description()` and `groups(project, out)`. The id is the project's export mode name, so `single` serves the single mode. `groups` fills a list of `ExportGroup`, one for each file: its `id`, its `file` name, and which kinds of objects or plan ids it takes. An empty list of kinds or ids does not narrow the group. A group with no members, kinds or ids takes everything only when no group of the export is marked `rest`, as in a single export. When the project cannot be exported this way, return `InvalidValue` with a plain sentence.
 3. At the bottom of the file, register it:
 
 ```cpp
@@ -472,7 +472,7 @@ public:
                 if (opening.type == OpeningType::Door) group.members.push_back({std::string(kKindDoor), opening.id});
             }
         }
-        out.push_back(std::move(group));
+        if (!group.members.empty()) out.push_back(std::move(group));
     }
 };
 
@@ -487,8 +487,8 @@ The example was written for this page and has not been built.
 
 What to know when you write one:
 
-- **A member is a kind and a plan id.** Every built object carries a `plynth_kind` and a `plynth_id`, for example `door` and `o3`, or `item` and `i1`. A member with an empty id takes every object of that kind. `ExportGroups.h` lists the kinds as `kKind...` constants, including kinds that later releases make (`slab`, `stair`, `roof`, `generator`, `light`). A member for a kind nothing has is harmless.
-- **An object goes to one group.** The Blender side picks the group by this order: a group with the exact member, then a group with the kind as an empty id member, then the first group with no members whose `kinds` and `ids` filters take it, then the group marked `rest`. If a rule gives a member that an earlier rule already has, core drops it from the later group. A group left with no member is dropped, and only one group keeps `rest`.
+- **A member is a kind and a plan id.** Every built object carries a `plynth_kind` and a `plynth_id`, for example `door` and `o3`, or `item` and `i1`. A member with an empty id takes every object of that kind. `ExportGroups.h` lists the kinds as `kKind...` constants, including kinds that later releases make (`slab`, `stair`, `roof`, `generator`, `light`). A member for a kind nothing has is harmless. An item has one member, never two: `item` for an asset, `generator` for an item a generator makes, both with the item's id.
+- **An object goes to one group.** The Blender side picks the group by this order: a group with the exact member, then a group with the kind as an empty id member, then the first group with no members whose `kinds` and `ids` filters take it, then the group marked `rest`. When a group is marked `rest`, a group with no members, kinds or ids is skipped in the third step, so an empty group takes nothing. If a rule gives a member that an earlier rule already has, core drops it from the later group. A group that loses all its members to earlier rules is dropped, and only one group keeps `rest`.
 - **List only what the build makes.** Give a member only for objects the plan says exist, such as a door for each door opening. Then the review shows what an export will really write.
 - **Edits come on top.** Whatever your rule makes, the user can rename, merge and move its groups, and the edits are applied to your groups by id. Keep ids stable from one build to the next, so a user's edit keeps finding its group.
 - **Collision follows its object.** A `UCX_` mesh goes into the file of the object it belongs to, so a rule never mentions collision.
