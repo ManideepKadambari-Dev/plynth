@@ -4,6 +4,7 @@
 #include <plynth/core/Blender.h>
 #include <plynth/core/BlenderJob.h>
 #include <plynth/core/ProjectFiles.h>
+#include <plynth/core/Process.h>
 #include <plynth/core/catalog/AssetJobs.h>
 
 #define WIN32_LEAN_AND_MEAN
@@ -28,7 +29,7 @@ namespace {
 
 // A fake install, a scripts folder and a work folder in one temporary folder.
 struct JobFixture {
-    explicit JobFixture(const std::string& tag, const std::string& mode = "") : tmp(tag)
+    explicit JobFixture(const std::string& tag, const std::string& mode = "") : tmp(tag), isolated(tag + "-user")
     {
         exe = plynth::test::makeFakeBlender(tmp.path() / "blender", "5.2.0", mode);
         scripts = plynth::test::makeFakeScripts(tmp.path() / "scripts");
@@ -39,10 +40,16 @@ struct JobFixture {
     // A probe job writing its result into the work folder.
     Json probeJob(const std::string& id = "probe-00000001") const
     {
-        return makeBlenderJob(kProbeTask, id, work / "result.json", Json::object());
+        BlenderUserFolders folders;
+        folders.config = tmp.path() / "user" / "config";
+        folders.scripts = tmp.path() / "user" / "scripts";
+        folders.extensions = tmp.path() / "user" / "extensions";
+        folders.blenderKitData = tmp.path() / "user" / "blenderkit_data";
+        return makeProbeJob(folders, id, work / "result.json");
     }
 
     plynth::test::TempDir tmp;
+    plynth::test::IsolatedUser isolated;
     fs::path exe;
     fs::path scripts;
     fs::path work;
@@ -162,7 +169,7 @@ TEST_CASE("a missing Blender is blender_not_found", "[core][blenderjob]") {
 TEST_CASE("a run without factory startup works", "[core][blenderjob]") {
     JobFixture f("job-factory");
     f.options.factoryStartup = false;
-    plynth::test::requireOk(runBlenderJob(f.exe, f.probeJob(), f.work, f.options).status);
+    plynth::test::requireOk(runBlenderJob(f.exe, cleanupJob(f, "obj", "chair-00000008"), f.work, f.options).status);
 }
 
 namespace {
@@ -216,7 +223,7 @@ TEST_CASE("a run without factory startup keeps the user's environment", "[core][
     const DWORD savedSize = GetEnvironmentVariableW(L"BLENDER_USER_RESOURCES", saved, 4096);
     SetEnvironmentVariableW(L"BLENDER_USER_RESOURCES", L"C:/users/me/resources");
     f.options.factoryStartup = false;
-    plynth::test::requireOk(runBlenderJob(f.exe, f.probeJob(), f.work, f.options).status);
+    plynth::test::requireOk(runBlenderJob(f.exe, cleanupJob(f, "obj", "chair-00000009"), f.work, f.options).status);
     SetEnvironmentVariableW(L"BLENDER_USER_RESOURCES", savedSize > 0 ? saved : nullptr);
     const auto lines = fakeEnvLines(f);
     REQUIRE(lines.size() == 1);
@@ -227,7 +234,13 @@ TEST_CASE("a run without factory startup keeps the user's environment", "[core][
 TEST_CASE("jobs validate against the job schema", "[core][blenderjob][schema]") {
     plynth::test::TempDir tmp("job-schema");
     const fs::path result = tmp.path() / "result.json";
-    REQUIRE(problemWith("blender-job.schema.json", makeBlenderJob(kProbeTask, "probe-1a2b3c4d", result, Json::object())).empty());
+    BlenderUserFolders folders;
+    folders.config = tmp.path() / "config";
+    folders.scripts = tmp.path() / "scripts";
+    folders.extensions = tmp.path() / "extensions";
+    folders.blenderKitData = tmp.path() / "blenderkit_data";
+    REQUIRE(problemWith("blender-job.schema.json", makeProbeJob(folders, "probe-1a2b3c4d", result)).empty());
+    REQUIRE_FALSE(problemWith("blender-job.schema.json", makeBlenderJob(kProbeTask, "probe-1a2b3c4d", result, Json::object())).empty());
 
     CleanupJob cleanup;
     cleanup.sourceFile = tmp.path() / "chair.obj";
@@ -477,4 +490,230 @@ TEST_CASE("readBlenderResultHeader checks what was asked", "[core][blenderjob]")
     REQUIRE(bad.status.code == ErrorCode::BlenderFailed);
     REQUIRE(bad.status.message == "The file holds no model.");
     REQUIRE(bad.errorCode == "no_geometry");
+}
+
+namespace {
+
+// An install of the fake that counts as usable, without starting it.
+BlenderInstall fakeInstall(const fs::path& exe, BlenderVersion version = {5, 2, 0})
+{
+    BlenderInstall install;
+    install.executable = exe;
+    install.version = version;
+    install.support = blenderSupport(version);
+    return install;
+}
+
+// True when two paths name the same place, whatever their separators.
+bool samePlace(const fs::path& a, const fs::path& b)
+{
+    return a.lexically_normal().generic_u8string() == b.lexically_normal().generic_u8string();
+}
+
+// The lines of a log the fake wrote next to its program. Empty when it never started.
+std::vector<std::string> fakeLog(const fs::path& exe, const char* name)
+{
+    std::vector<std::string> lines;
+    std::ifstream in(exe.parent_path() / name, std::ios::binary);
+    for (std::string line; std::getline(in, line);) lines.push_back(line);
+    return lines;
+}
+
+// Checks that every start of the fake used factory startup and the private folder for all five variables.
+void requireAllStartsPrivate(const JobFixture& f)
+{
+    const auto args = fakeLog(f.exe, "fake_args.log");
+    const auto envs = fakeLog(f.exe, "fake_env.log");
+    REQUIRE_FALSE(args.empty());
+    REQUIRE(args.size() == envs.size());
+    for (const std::string& line : args) REQUIRE(line.find("--factory-startup") != std::string::npos);
+    const std::string priv = pathToUtf8(f.isolated.tmp.path() / "private");
+    const std::string user = pathToUtf8(f.isolated.userRoot);
+    for (const std::string& line : envs) {
+        REQUIRE(line.find("BLENDER_USER_RESOURCES=" + priv + "|") != std::string::npos);
+        REQUIRE(line.find("BLENDER_USER_CONFIG=" + priv + "/config|") != std::string::npos);
+        REQUIRE(line.find("BLENDER_USER_SCRIPTS=" + priv + "/scripts|") != std::string::npos);
+        REQUIRE(line.find("BLENDER_USER_EXTENSIONS=" + priv + "/extensions|") != std::string::npos);
+        REQUIRE(line.find("BLENDER_USER_DATAFILES=" + priv + "/datafiles") != std::string::npos);
+        REQUIRE(line.find(user) == std::string::npos);
+    }
+}
+
+}
+
+TEST_CASE("the fake writes into the user folders when it is started with them", "[core][blenderjob][safety]") {
+    JobFixture f("safe-control", "write_user");
+    const auto before = f.isolated.fingerprint();
+    ProcessSpec spec;
+    spec.program = f.exe;
+    spec.arguments = {"--background", "--version"};
+    spec.timeout = std::chrono::seconds(30);
+    plynth::test::requireOk(runProcess(spec).status);
+    REQUIRE(f.isolated.fingerprint() != before);
+    REQUIRE(fs::exists(f.isolated.userRoot / "config" / "fake_marker.txt"));
+    REQUIRE(fs::exists(f.isolated.userRoot / "extensions" / "fake_marker.txt"));
+}
+
+TEST_CASE("a probe leaves the user's folders alone however the run ends", "[core][blenderjob][safety]") {
+    struct Outcome {
+        const char* mode;
+        ErrorCode code;
+    };
+    for (const Outcome& outcome : {Outcome{"write_user", ErrorCode::None}, Outcome{"write_user+fail", ErrorCode::BlenderFailed},
+                                   Outcome{"write_user+crash", ErrorCode::BlenderFailed}, Outcome{"write_user+hang", ErrorCode::BlenderFailed},
+                                   Outcome{"write_user+hang", ErrorCode::Cancelled}}) {
+        DYNAMIC_SECTION(outcome.mode << " " << errorCodeName(outcome.code)) {
+            JobFixture f("safe-probe", outcome.mode);
+            const BlenderInstall install = inspectBlender(f.exe);
+            REQUIRE(install.usable());
+            const auto before = f.isolated.fingerprint();
+
+            std::stop_source source;
+            std::thread stopper;
+            BlenderRunOptions options = f.options;
+            options.factoryStartup = false;
+            options.timeout = std::chrono::seconds(1);
+            if (outcome.code == ErrorCode::Cancelled) {
+                options.timeout = std::chrono::seconds(60);
+                stopper = std::thread([&] {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(800));
+                    source.request_stop();
+                });
+            }
+            const BlenderProbeRun run = runBlenderProbe(install, options, source.get_token());
+            if (stopper.joinable()) stopper.join();
+
+            REQUIRE(run.status.code == outcome.code);
+            if (outcome.code == ErrorCode::None) REQUIRE(run.result.version == "5.2.0");
+            REQUIRE(f.isolated.fingerprint() == before);
+            REQUIRE(fs::exists(f.isolated.tmp.path() / "private" / "config" / "fake_marker.txt"));
+            REQUIRE(fs::is_empty(f.isolated.tempFolder));
+            requireAllStartsPrivate(f);
+        }
+    }
+}
+
+TEST_CASE("a probe job run directly is also forced to factory startup", "[core][blenderjob][safety]") {
+    JobFixture f("safe-direct", "write_user");
+    f.options.factoryStartup = false;
+    const auto before = f.isolated.fingerprint();
+    plynth::test::requireOk(runBlenderJob(f.exe, f.probeJob(), f.work, f.options).status);
+    REQUIRE(f.isolated.fingerprint() == before);
+    requireAllStartsPrivate(f);
+}
+
+TEST_CASE("a probe job without user folders is refused by the worker", "[core][blenderjob][safety]") {
+    JobFixture f("safe-nofolders");
+    const Json job = makeBlenderJob(kProbeTask, "probe-00000007", f.work / "result.json", Json::object());
+    const BlenderJobRun run = runBlenderJob(f.exe, job, f.work, f.options);
+    REQUIRE(run.status.code == ErrorCode::BlenderFailed);
+    REQUIRE(run.errorCode == "bad_job");
+}
+
+TEST_CASE("a private folder that cannot be made stops the probe before Blender starts", "[core][blenderjob][safety]") {
+    JobFixture f("safe-noprivate", "write_user");
+    const fs::path file = f.tmp.path() / "not-a-folder";
+    std::ofstream(file) << "x";
+    plynth::test::ScopedEnv priv("PLYNTH_BLENDER_PRIVATE", pathToUtf8(file / "inside"));
+    const auto before = f.isolated.fingerprint();
+    const BlenderProbeRun run = runBlenderProbe(fakeInstall(f.exe), f.options);
+    REQUIRE(run.status.code == ErrorCode::CannotWrite);
+    REQUIRE(fakeLog(f.exe, "fake_args.log").empty());
+    REQUIRE(f.isolated.fingerprint() == before);
+    REQUIRE(fs::is_empty(f.isolated.tempFolder));
+}
+
+TEST_CASE("a probe of an unusable install or with no folders starts nothing", "[core][blenderjob][safety]") {
+    JobFixture f("safe-unusable");
+    BlenderInstall old = fakeInstall(f.exe, {3, 6, 0});
+    REQUIRE(runBlenderProbe(old, f.options).status.code == ErrorCode::BlenderNotFound);
+    BlenderInstall broken = fakeInstall(f.exe);
+    broken.status = fail(ErrorCode::BlenderFailed, "broken");
+    REQUIRE(runBlenderProbe(broken, f.options).status.code == ErrorCode::BlenderNotFound);
+
+    plynth::test::ScopedEnv resources("BLENDER_USER_RESOURCES", "");
+    plynth::test::ScopedEnv config("BLENDER_USER_CONFIG", "");
+    plynth::test::ScopedEnv scripts("BLENDER_USER_SCRIPTS", "");
+    plynth::test::ScopedEnv extensions("BLENDER_USER_EXTENSIONS", "");
+    plynth::test::ScopedEnv appData("APPDATA", "");
+    REQUIRE(runBlenderProbe(fakeInstall(f.exe), f.options).status.code == ErrorCode::NotFound);
+    REQUIRE(fakeLog(f.exe, "fake_args.log").empty());
+}
+
+TEST_CASE("the user's folders come from the variables first", "[core][blenderjob][folders]") {
+    plynth::test::IsolatedUser user("folders-vars");
+    const BlenderInstall install = fakeInstall(user.tmp.path() / "bin" / "blender.exe");
+    BlenderUserFolders folders = blenderUserFolders(install);
+    REQUIRE(samePlace(folders.config, user.userRoot / "config"));
+    REQUIRE(samePlace(folders.scripts, user.userRoot / "scripts"));
+    REQUIRE(samePlace(folders.extensions, user.userRoot / "extensions"));
+    REQUIRE(samePlace(folders.blenderKitData, user.tmp.path() / "profile" / "blenderkit_data"));
+
+    fs::create_directories(user.tmp.path() / "other");
+    {
+        plynth::test::ScopedEnv config("BLENDER_USER_CONFIG", pathToUtf8(user.tmp.path() / "other"));
+        folders = blenderUserFolders(install);
+        REQUIRE(samePlace(folders.config, user.tmp.path() / "other"));
+        REQUIRE(samePlace(folders.scripts, user.userRoot / "scripts"));
+    }
+    {
+        plynth::test::ScopedEnv xdg("XDG_DATA_HOME", pathToUtf8(user.tmp.path() / "other"));
+        REQUIRE(samePlace(blenderUserFolders(install).blenderKitData, user.tmp.path() / "other" / "blenderkit_data"));
+    }
+}
+
+TEST_CASE("a variable folder that is missing is skipped like Blender does", "[core][blenderjob][folders]") {
+    plynth::test::IsolatedUser user("folders-missing");
+    const BlenderInstall install = fakeInstall(user.tmp.path() / "bin" / "blender.exe");
+    plynth::test::ScopedEnv config("BLENDER_USER_CONFIG", pathToUtf8(user.tmp.path() / "missing"));
+    BlenderUserFolders folders = blenderUserFolders(install);
+    REQUIRE(samePlace(folders.config, user.userRoot / "config"));
+
+    plynth::test::ScopedEnv resources("BLENDER_USER_RESOURCES", pathToUtf8(user.tmp.path() / "also-missing"));
+    folders = blenderUserFolders(install);
+    REQUIRE(samePlace(folders.config, user.tmp.path() / "appdata" / "Blender Foundation" / "Blender" / "5.2" / "config"));
+    REQUIRE(samePlace(folders.scripts, user.userRoot / "scripts"));
+}
+
+TEST_CASE("portable comes before APPDATA and the version picks the folder", "[core][blenderjob][folders]") {
+    plynth::test::IsolatedUser user("folders-portable");
+    plynth::test::ScopedEnv resources("BLENDER_USER_RESOURCES", "");
+    plynth::test::ScopedEnv config("BLENDER_USER_CONFIG", "");
+    plynth::test::ScopedEnv scripts("BLENDER_USER_SCRIPTS", "");
+    plynth::test::ScopedEnv extensions("BLENDER_USER_EXTENSIONS", "");
+    const fs::path exe = user.tmp.path() / "bin" / "blender.exe";
+    const fs::path appBase = user.tmp.path() / "appdata" / "Blender Foundation" / "Blender";
+
+    REQUIRE(samePlace(blenderUserFolders(fakeInstall(exe)).extensions, appBase / "5.2" / "extensions"));
+    REQUIRE(samePlace(blenderUserFolders(fakeInstall(exe, {4, 2, 3})).extensions, appBase / "4.2" / "extensions"));
+
+    fs::create_directories(user.tmp.path() / "bin" / "portable");
+    const BlenderUserFolders portable = blenderUserFolders(fakeInstall(exe));
+    REQUIRE(samePlace(portable.config, user.tmp.path() / "bin" / "portable" / "config"));
+    REQUIRE(samePlace(portable.scripts, user.tmp.path() / "bin" / "portable" / "scripts"));
+
+    fs::create_directories(user.tmp.path() / "res");
+    plynth::test::ScopedEnv again("BLENDER_USER_RESOURCES", pathToUtf8(user.tmp.path() / "res"));
+    REQUIRE(samePlace(blenderUserFolders(fakeInstall(exe)).config, user.tmp.path() / "res" / "config"));
+}
+
+TEST_CASE("the job validates and folders that cannot be worked out are empty", "[core][blenderjob][folders]") {
+    plynth::test::IsolatedUser user("folders-validate");
+    const fs::path exe = user.tmp.path() / "bin" / "blender.exe";
+    const BlenderUserFolders folders = blenderUserFolders(fakeInstall(exe));
+    const Json job = makeProbeJob(folders, "probe-0000000a", user.tmp.path() / "work" / "result.json");
+    REQUIRE(problemWith("blender-job.schema.json", job).empty());
+    REQUIRE(job["params"]["user_folders"]["config"].get<std::string>().find('\\') == std::string::npos);
+
+    plynth::test::ScopedEnv resources("BLENDER_USER_RESOURCES", "");
+    plynth::test::ScopedEnv config("BLENDER_USER_CONFIG", "");
+    plynth::test::ScopedEnv scripts("BLENDER_USER_SCRIPTS", "");
+    plynth::test::ScopedEnv extensions("BLENDER_USER_EXTENSIONS", "");
+    plynth::test::ScopedEnv appData("APPDATA", "");
+    plynth::test::ScopedEnv profile("USERPROFILE", "");
+    const BlenderUserFolders none = blenderUserFolders(fakeInstall(exe));
+    REQUIRE(none.config.empty());
+    REQUIRE(none.scripts.empty());
+    REQUIRE(none.extensions.empty());
+    REQUIRE(none.blenderKitData.empty());
 }

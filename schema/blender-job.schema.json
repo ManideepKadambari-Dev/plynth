@@ -17,7 +17,30 @@
   "allOf": [
     {
       "if": { "properties": { "task": { "const": "probe" } } },
-      "then": { "properties": { "params": { "type": "object", "additionalProperties": false, "properties": {} } } }
+      "then": {
+        "properties": {
+          "params": {
+            "description": "Read the saved add-on state as data. The probe always runs with factory startup in Plynth's private folder.",
+            "type": "object",
+            "required": ["user_folders"],
+            "additionalProperties": false,
+            "properties": {
+              "user_folders": {
+                "description": "The user's own Blender folders, absolute paths. They are only read and need not exist. There are no defaults.",
+                "type": "object",
+                "required": ["config", "scripts", "extensions", "blenderkit_data"],
+                "additionalProperties": false,
+                "properties": {
+                  "config": { "type": "string", "pattern": "^([A-Za-z]:/|/)" },
+                  "scripts": { "type": "string", "pattern": "^([A-Za-z]:/|/)" },
+                  "extensions": { "type": "string", "pattern": "^([A-Za-z]:/|/)" },
+                  "blenderkit_data": { "type": "string", "pattern": "^([A-Za-z]:/|/)" }
+                }
+              }
+            }
+          }
+        }
+      }
     },
     {
       "if": { "properties": { "task": { "const": "cleanup_asset" } } },

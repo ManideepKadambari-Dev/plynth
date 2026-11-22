@@ -3,6 +3,10 @@
 // FAKE_BLENDER_MODE variable), and writes a result file that follows schema/blender-result.schema.json.
 // Modes: ok (default), fail, crash, hang, hang_version, bad_result, no_thumbnail, no_fbx, build_problem,
 // several_materials (a cleanup_material job on a .blend with no material named fails with that error).
+// Several modes can be joined with "+", for example write_user+crash. write_user writes marker files into the
+// folders BLENDER_USER_CONFIG and BLENDER_USER_EXTENSIONS name, else into config and extensions under
+// FAKE_BLENDER_USER_ROOT, and into no folder when neither is set. It never uses a real default folder.
+// Every start also appends its arguments to fake_args.log.
 // Every start also appends the BLENDER_USER_* variables it sees to fake_env.log.
 // Every job is also appended as one line to fake_jobs.log next to the program.
 // The version comes from fake_version.txt next to the program, else 5.2.0.
@@ -76,13 +80,32 @@ std::string fakeVersion()
     return v.empty() ? "5.2.0" : v;
 }
 
-// What the fake does with a job.
-std::string fakeMode()
+// The modes as written, joined with "+".
+std::string fakeModeText()
 {
     const std::string m = readSmallFile(programFolder() / "fake_mode.txt");
     if (!m.empty()) return m;
-    const std::string e = environment("FAKE_BLENDER_MODE");
-    return e.empty() ? "ok" : e;
+    return environment("FAKE_BLENDER_MODE");
+}
+
+// True when write_user is one of the modes.
+bool writesUser()
+{
+    std::stringstream list(fakeModeText());
+    for (std::string part; std::getline(list, part, '+');) {
+        if (part == "write_user") return true;
+    }
+    return false;
+}
+
+// What the fake does with a job: the first mode that is not write_user.
+std::string fakeMode()
+{
+    std::stringstream list(fakeModeText());
+    for (std::string part; std::getline(list, part, '+');) {
+        if (!part.empty() && part != "write_user") return part;
+    }
+    return "ok";
 }
 
 // Waits until the program is killed.
@@ -167,6 +190,23 @@ void writeFile(const fs::path& file, const std::string& bytes)
 fs::path pathFrom(const std::string& text)
 {
     return fs::path(std::u8string(text.begin(), text.end()));
+}
+
+// Writes a marker file into the user's config and extensions folders, as a Blender that loads the user's
+// settings would. The folders come from the environment, else from FAKE_BLENDER_USER_ROOT, never from a
+// real default.
+void writeUserMarkers()
+{
+    const std::string root = environment("FAKE_BLENDER_USER_ROOT");
+    for (const char* kind : {"config", "extensions"}) {
+        const std::string name = std::string("BLENDER_USER_") + (std::string(kind) == "config" ? "CONFIG" : "EXTENSIONS");
+        const std::string given = environment(name.c_str());
+        fs::path folder;
+        if (!given.empty()) folder = pathFrom(given);
+        else if (!root.empty()) folder = pathFrom(root) / kind;
+        if (folder.empty()) continue;
+        writeFile(folder / "fake_marker.txt", "touched by the fake\n");
+    }
 }
 
 // Prints a progress line the way the worker does.
@@ -430,6 +470,12 @@ int main()
 {
     const std::vector<std::string> args = commandLineArguments();
     {
+        std::ofstream log(programFolder() / "fake_args.log", std::ios::binary | std::ios::app);
+        for (std::size_t i = 0; i < args.size(); ++i) log << (i ? "|" : "") << args[i];
+        log << "\n";
+    }
+    if (writesUser()) writeUserMarkers();
+    {
         std::ofstream log(programFolder() / "fake_env.log", std::ios::binary | std::ios::app);
         log << (std::find(args.begin(), args.end(), "--version") != args.end() ? "version" : "job");
         for (const char* name : {"BLENDER_USER_RESOURCES", "BLENDER_USER_CONFIG", "BLENDER_USER_SCRIPTS", "BLENDER_USER_EXTENSIONS", "BLENDER_USER_DATAFILES"})
@@ -469,6 +515,30 @@ int main()
     {
         std::ofstream log(programFolder() / "fake_jobs.log", std::ios::binary | std::ios::app);
         log << job.dump() << "\n";
+    }
+
+    if (job["task"].get<std::string>() == "probe") {
+        const Json& given = job["params"];
+        const Json folders = given.is_object() && given.contains("user_folders") ? given["user_folders"] : Json();
+        bool complete = folders.is_object();
+        for (const char* key : {"config", "scripts", "extensions", "blenderkit_data"}) {
+            complete = complete && folders.contains(key) && folders[key].is_string() && !folders[key].get<std::string>().empty();
+        }
+        if (!complete) {
+            Json bad = Json::object();
+            bad["format"] = "plynth-blender-result";
+            bad["version"] = 1;
+            bad["task"] = "probe";
+            bad["job_id"] = job["job_id"];
+            bad["ok"] = false;
+            bad["error"] = Json{{"code", "bad_job"}, {"message", "The probe job has no user folders."}};
+            bad["blender_version"] = version;
+            bad["warnings"] = Json::array();
+            bad["elapsed_ms"] = 1;
+            bad["output"] = nullptr;
+            writeResult(pathFrom(job["result_file"].get<std::string>()), bad);
+            return 0;
+        }
     }
 
     const bool isBuild = job["task"].get<std::string>() == "build";

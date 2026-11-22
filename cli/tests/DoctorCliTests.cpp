@@ -50,6 +50,26 @@ nlohmann::json item(const nlohmann::json& result, const std::string& id) {
     return {};
 }
 
+// Points every folder Blender or Plynth would use at temporary folders, so no test touches the user's own.
+struct PrivateUser {
+    explicit PrivateUser(const TempFolder& temp)
+        : appdata("APPDATA", utf8(temp.path() / "user" / "appdata")),
+          profile("USERPROFILE", utf8(temp.path() / "user" / "profile")),
+          privateFolder("PLYNTH_BLENDER_PRIVATE", utf8(temp.path() / "user" / "private")),
+          resources("BLENDER_USER_RESOURCES", utf8(temp.path() / "user" / "resources")),
+          config("BLENDER_USER_CONFIG", utf8(temp.path() / "user" / "config")),
+          scripts("BLENDER_USER_SCRIPTS", utf8(temp.path() / "user" / "scripts")),
+          extensions("BLENDER_USER_EXTENSIONS", utf8(temp.path() / "user" / "extensions")),
+          datafiles("BLENDER_USER_DATAFILES", utf8(temp.path() / "user" / "datafiles")) {
+        for (const char* name : {"appdata", "profile", "private", "resources", "config", "scripts", "extensions",
+                                 "datafiles"}) {
+            std::filesystem::create_directories(temp.path() / "user" / name);
+        }
+    }
+    plynth::cli::testing::ScopedEnvironment appdata, profile, privateFolder, resources, config, scripts, extensions,
+        datafiles;
+};
+
 // Makes a library and a projects folder under temp and saves them in the settings.
 void setUpFolders(const TempFolder& temp) {
     std::filesystem::create_directories(temp.path() / "Projects");
@@ -96,6 +116,41 @@ TEST_CASE("doctor asks the fake Blender about add-ons", "[cli][doctor]") {
     CHECK(item(result, "addon_archimesh").at("state") == "found");
     CHECK(item(result, "addon_blenderkit").at("state") == "needs_attention");
     CHECK(result.at("ready") == true);
+}
+
+TEST_CASE("doctor --blender beats PLYNTH_BLENDER and starts only the named Blender", "[cli][doctor]") {
+    SettingsReset reset;
+    TempFolder temp("doctor-option");
+    const PrivateUser user(temp);
+    setUpFolders(temp);
+    const auto named = installFakeBlender(temp.path() / "named", "5.2.0");
+    const auto other = installFakeBlender(temp.path() / "other", "5.2.0");
+    const plynth::cli::testing::ScopedEnvironment variable("PLYNTH_BLENDER", utf8(other));
+
+    const auto outcome = runChecked({"doctor", "--no-addons", "--blender", utf8(named)});
+    REQUIRE(outcome.exitCode == kExitOk);
+    const auto& result = outcome.answer.at("result");
+    validateReport(result);
+    CHECK(item(result, "blender").at("path") == utf8(named));
+    CHECK(std::filesystem::exists(temp.path() / "named" / "fake_args.log"));
+    CHECK_FALSE(std::filesystem::exists(temp.path() / "other" / "fake_args.log"));
+    CHECK(result.at("blender_installs").size() == 1);
+}
+
+TEST_CASE("doctor --blender with a missing file says so and starts no other Blender", "[cli][doctor]") {
+    SettingsReset reset;
+    TempFolder temp("doctor-option-missing");
+    const PrivateUser user(temp);
+    setUpFolders(temp);
+    const auto other = installFakeBlender(temp.path() / "other", "5.2.0");
+    const plynth::cli::testing::ScopedEnvironment variable("PLYNTH_BLENDER", utf8(other));
+
+    const auto outcome = runChecked({"doctor", "--no-addons", "--blender", utf8(temp.path() / "nowhere" / "blender.exe")});
+    REQUIRE(outcome.exitCode == kExitOk);
+    const auto& result = outcome.answer.at("result");
+    validateReport(result);
+    CHECK(item(result, "blender").at("state") == "missing");
+    CHECK_FALSE(std::filesystem::exists(temp.path() / "other" / "fake_args.log"));
 }
 
 TEST_CASE("doctor with no library or projects folder is not ready", "[cli][doctor]") {
