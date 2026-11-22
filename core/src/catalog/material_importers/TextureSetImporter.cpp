@@ -3,8 +3,11 @@
 #include "plynth/core/catalog/MaterialImporter.h"
 #include "plynth/core/catalog/MaterialInfo.h"
 
+#include <nlohmann/json.hpp>
+
 #include <algorithm>
 #include <cctype>
+#include <fstream>
 #include <system_error>
 
 namespace plynth {
@@ -49,6 +52,25 @@ bool holdsImage(const fs::path& folder)
     return false;
 }
 
+// Says whether a folder has a material.json that gives values or a base color value, so no image is needed.
+bool holdsValuesOnlyMaterial(const fs::path& folder)
+{
+    std::ifstream in(folder / "material.json", std::ios::binary);
+    if (!in) return false;
+    const nlohmann::json json = nlohmann::json::parse(in, nullptr, false);
+    if (!json.is_object()) return false;
+    const auto values = json.find("values");
+    if (values != json.end() && values->is_object()) return true;
+    const auto base = json.find("base_color_value");
+    return base != json.end() && base->is_array() && !base->empty();
+}
+
+// Says whether a folder can be imported as a texture set: it holds images or a values-only material.json.
+bool isTextureSetFolder(const fs::path& folder)
+{
+    return holdsImage(folder) || holdsValuesOnlyMaterial(folder);
+}
+
 // The name of a file or folder without a trailing separator.
 std::string nameOf(const fs::path& path)
 {
@@ -78,7 +100,7 @@ public:
     {
         if (source.file.empty() || !source.url.empty()) return 0;
         std::error_code ec;
-        if (fs::is_directory(source.file, ec)) return holdsImage(source.file) ? 10 : 0;
+        if (fs::is_directory(source.file, ec)) return isTextureSetFolder(source.file) ? 10 : 0;
         return (isImageFile(source.file) || lowerSuffix(source.file) == ".zip") ? 10 : 0;
     }
 
@@ -96,8 +118,8 @@ public:
         const bool folder = fs::is_directory(source.file, ec);
         out.reference = nameOf(source.file);
         if (folder) {
-            if (!holdsImage(source.file)) {
-                return fail(ErrorCode::InvalidValue, "The folder " + pathToUtf8(source.file) + " holds no images.");
+            if (!isTextureSetFolder(source.file)) {
+                return fail(ErrorCode::InvalidValue, "The folder " + pathToUtf8(source.file) + " holds no images and no material.json with values.");
             }
             out.defaultName = catalogNameFromStem(nameOf(source.file));
             return {};

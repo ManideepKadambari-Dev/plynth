@@ -168,6 +168,16 @@ TEST_CASE("importer scores pick folders with images, zips, images and .blend fil
     plynth::test::writeBytes(deep / "a" / "b" / "c.png", "i");
     REQUIRE(pick(deep).empty());
 
+    const fs::path glass = f.lib.tmp.path() / "in" / "glass";
+    plynth::test::writeBytes(glass / "material.json", R"({"id": "g", "base_color_value": [0.8, 0.9, 0.9], "values": {"opacity": 0.2}})");
+    REQUIRE(pick(glass) == "texture_set");
+    const fs::path readme = f.lib.tmp.path() / "in" / "readme_only";
+    plynth::test::writeBytes(readme / "README.txt", "hello");
+    REQUIRE(pick(readme).empty());
+    const fs::path bare = f.lib.tmp.path() / "in" / "bare_json";
+    plynth::test::writeBytes(bare / "material.json", R"({"id": "g", "name": "G"})");
+    REQUIRE(pick(bare).empty());
+
     REQUIRE(pick(f.file("brick.zip")) == "texture_set");
     REQUIRE(pick(f.file("brick.png")) == "texture_set");
     REQUIRE(pick(f.file("Wood.BLEND")) == "blend_material");
@@ -238,6 +248,22 @@ TEST_CASE("importing a folder makes items/<id> with a valid info.json and indexe
     REQUIRE(plynth::test::ids(f.lib.catalog->search(query)) == std::vector<std::string>{"oak_planks"});
     REQUIRE(f.stagingEntries() == 0);
     REQUIRE(fs::exists(source / "base_col.png"));
+}
+
+TEST_CASE("a folder with only a values material.json imports", "[core][materialimport]") {
+    ImportFixture f("mi-values-only");
+    const fs::path dir = f.lib.tmp.path() / "in" / "clear_glass";
+    plynth::test::writeBytes(dir / "material.json",
+        R"({"format": "plynth-material-source", "version": 1, "id": "clear_glass", "name": "Clear glass", "groups": ["glass"],
+ "base_color_value": [0.82, 0.9, 0.93], "values": {"roughness": 0.05, "opacity": 0.2}, "license": "own_work"})");
+    const MaterialImportOutcome outcome = importMaterial(*f.lib.catalog, f.context, f.request(dir));
+    plynth::test::requireOk(outcome.status);
+    REQUIRE(outcome.materialId == "clear_glass");
+    REQUIRE(outcome.importer == "texture_set");
+    const auto jobs = f.jobs();
+    REQUIRE(jobs.size() == 1);
+    REQUIRE(jobs[0]["params"]["source"]["kind"] == "texture_set");
+    REQUIRE(isPng(f.lib.paths.materialItems / "clear_glass" / "textures" / "base_color.png"));
 }
 
 TEST_CASE("the id comes from the request, material.json, then the name", "[core][materialimport]") {

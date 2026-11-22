@@ -81,7 +81,7 @@ std::vector<std::string> importableMaterialSuffixes();
 
 // The texture set importer (id "texture_set", name "Texture set"), core/src/catalog/material_importers/:
 // - a folder scores 10 when it holds an image with a textureImageSuffixes ending directly in it or one folder
-//   down; a single image file and a .zip score 10
+//   down, or a material.json with a "values" object or a "base_color_value" (no image needed); a single image file and a .zip score 10
 // - worker source texture_set, source kind kSourceTextureSet, reference the folder or file name, default name
 //   from the folder or file stem (catalogNameFromStem), no license, originalIsZip for .zip
 inline constexpr std::string_view kTextureSetImporterId = "texture_set";
