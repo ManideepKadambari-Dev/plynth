@@ -49,6 +49,9 @@ jobs:
       - name: Prepare vcpkg
         shell: pwsh
         run: |
+          # Loading MSVC points VCPKG_ROOT at Visual Studio's copy, which cannot be bootstrapped.
+          $env:VCPKG_ROOT = 'C:cpkg'
+          "VCPKG_ROOT=$env:VCPKG_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           # The manifest baseline needs the full vcpkg history.
           if ((git -C $env:VCPKG_ROOT rev-parse --is-shallow-repository) -eq 'true') {
             git -C $env:VCPKG_ROOT fetch --unshallow
