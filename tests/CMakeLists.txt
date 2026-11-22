@@ -68,6 +68,8 @@ add_executable(plynth_core_tests
     core/ExportGroupsTests.cpp
     core/ExportOptionsTests.cpp
     core/KitTests.cpp
+    core/ExportEdgeCaseTests.cpp
+    core/ExportEditGuardTests.cpp
     core/BuildAssetMapsTests.cpp
     core/SnappingTests.cpp
     core/RoomTypesTests.cpp

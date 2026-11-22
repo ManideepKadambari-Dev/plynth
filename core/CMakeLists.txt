@@ -55,6 +55,7 @@ add_library(plynth_core STATIC
     src/ExportJob.cpp
     src/Export.cpp
     src/ExportGroups.cpp
+    src/ExportEditGuard.cpp
     src/Kit.cpp
     src/openings/OpeningShapes.cpp
     src/openings/ShapeFiles.cpp
