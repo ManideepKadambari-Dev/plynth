@@ -6,6 +6,10 @@
 #include <plynth/core/ProjectFiles.h>
 #include <plynth/core/catalog/AssetJobs.h>
 
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+
 #include <catch2/catch_test_macros.hpp>
 #include <nlohmann/json.hpp>
 
@@ -159,6 +163,65 @@ TEST_CASE("a run without factory startup works", "[core][blenderjob]") {
     JobFixture f("job-factory");
     f.options.factoryStartup = false;
     plynth::test::requireOk(runBlenderJob(f.exe, f.probeJob(), f.work, f.options).status);
+}
+
+namespace {
+
+// Points the private Blender folder at a temporary one for the life of the object.
+struct PrivateFolderScope {
+    explicit PrivateFolderScope(const fs::path& folder) { SetEnvironmentVariableW(L"PLYNTH_BLENDER_PRIVATE", folder.c_str()); }
+    ~PrivateFolderScope() { SetEnvironmentVariableW(L"PLYNTH_BLENDER_PRIVATE", nullptr); }
+};
+
+// The lines the fake wrote about the variables it saw.
+std::vector<std::string> fakeEnvLines(const JobFixture& f)
+{
+    std::vector<std::string> lines;
+    std::ifstream in(f.exe.parent_path() / "fake_env.log", std::ios::binary);
+    for (std::string line; std::getline(in, line);) lines.push_back(line);
+    return lines;
+}
+
+}
+
+TEST_CASE("a factory startup job and the version probe run in the private folder", "[core][blenderjob]") {
+    JobFixture f("job-private");
+    const fs::path priv = f.tmp.path() / "private";
+    PrivateFolderScope scope(priv);
+    SetEnvironmentVariableW(L"BLENDER_USER_CONFIG", L"C:/users/me/config");
+    SetEnvironmentVariableW(L"BLENDER_USER_EXTENSIONS", L"C:/users/me/extensions");
+    REQUIRE(inspectBlender(f.exe).status.ok());
+    plynth::test::requireOk(runBlenderJob(f.exe, f.probeJob(), f.work, f.options).status);
+    SetEnvironmentVariableW(L"BLENDER_USER_CONFIG", nullptr);
+    SetEnvironmentVariableW(L"BLENDER_USER_EXTENSIONS", nullptr);
+
+    const std::string root = pathToUtf8(priv);
+    const auto lines = fakeEnvLines(f);
+    REQUIRE(lines.size() == 2);
+    REQUIRE(lines[0].rfind("version|", 0) == 0);
+    REQUIRE(lines[1].rfind("job|", 0) == 0);
+    for (const std::string& line : lines) {
+        REQUIRE(line.find("BLENDER_USER_RESOURCES=" + root + "|") != std::string::npos);
+        REQUIRE(line.find("users/me") == std::string::npos);
+        REQUIRE(line.find("BLENDER_USER_CONFIG=" + pathToUtf8(priv / "config") + "|") != std::string::npos);
+    }
+    REQUIRE(fs::is_directory(priv / "extensions"));
+}
+
+TEST_CASE("a run without factory startup keeps the user's environment", "[core][blenderjob]") {
+    JobFixture f("job-normal-env");
+    const fs::path priv = f.tmp.path() / "private";
+    PrivateFolderScope scope(priv);
+    wchar_t saved[4096] = {};
+    const DWORD savedSize = GetEnvironmentVariableW(L"BLENDER_USER_RESOURCES", saved, 4096);
+    SetEnvironmentVariableW(L"BLENDER_USER_RESOURCES", L"C:/users/me/resources");
+    f.options.factoryStartup = false;
+    plynth::test::requireOk(runBlenderJob(f.exe, f.probeJob(), f.work, f.options).status);
+    SetEnvironmentVariableW(L"BLENDER_USER_RESOURCES", savedSize > 0 ? saved : nullptr);
+    const auto lines = fakeEnvLines(f);
+    REQUIRE(lines.size() == 1);
+    REQUIRE(lines[0].find("BLENDER_USER_RESOURCES=C:/users/me/resources|") != std::string::npos);
+    REQUIRE_FALSE(fs::exists(priv));
 }
 
 TEST_CASE("jobs validate against the job schema", "[core][blenderjob][schema]") {
