@@ -1,4 +1,5 @@
 #include "SampleProject.h"
+#include "SettingsGuard.h"
 
 #include <plynth/core/Settings.h>
 
@@ -20,8 +21,7 @@ namespace {
 
 // Removes the settings file so a test starts from a first run.
 void clearSettings() {
-    std::error_code ignored;
-    std::filesystem::remove(plynth::settingsFile(), ignored);
+    plynth::cli::testing::removeSettingsFileSafely();
 }
 
 }

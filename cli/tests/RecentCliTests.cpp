@@ -1,4 +1,5 @@
 #include "SampleProject.h"
+#include "SettingsGuard.h"
 
 #include <plynth/core/EditSession.h>
 #include <plynth/core/Settings.h>
@@ -18,21 +19,14 @@ using plynth::cli::testing::utf8;
 
 namespace {
 
-// Clears the settings file when a test starts and when it ends.
-struct SettingsReset {
-    SettingsReset() { clear(); }
-    ~SettingsReset() { clear(); }
-    static void clear() {
-        std::error_code ignored;
-        std::filesystem::remove(plynth::settingsFile(), ignored);
-    }
-};
+using SettingsReset = plynth::cli::testing::GuardedSettingsReset;
 
 // Saves a recent list with a project that exists and one whose folder is gone.
 void writeRecent(const std::filesystem::path& here, const std::filesystem::path& gone) {
     plynth::MachineSettings settings;
     plynth::addRecentProject(settings, gone, "Gone", plynth::sessionNow());
     plynth::addRecentProject(settings, here, "Flat", plynth::sessionNow());
+    plynth::cli::testing::requireSafeSettings("saving settings");
     REQUIRE(plynth::saveSettings(settings).ok());
 }
 
