@@ -1,5 +1,6 @@
 #include "FakeBlender.h"
 #include "SampleProject.h"
+#include "SettingsGuard.h"
 
 #include <plynth/core/EditSession.h>
 #include <plynth/core/Library.h>
@@ -27,15 +28,7 @@ using plynth::cli::testing::utf8;
 
 namespace {
 
-// Clears the settings file when a test starts and when it ends.
-struct SettingsReset {
-    SettingsReset() { clear(); }
-    ~SettingsReset() { clear(); }
-    static void clear() {
-        std::error_code ignored;
-        std::filesystem::remove(plynth::settingsFile(), ignored);
-    }
-};
+using SettingsReset = plynth::cli::testing::GuardedSettingsReset;
 
 // Checks a JSON value against the build report schema.
 void requireReport(const nlohmann::json& report) {

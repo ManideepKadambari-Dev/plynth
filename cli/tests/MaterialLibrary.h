@@ -1,6 +1,7 @@
 #pragma once
 
 #include "SampleProject.h"
+#include "SettingsGuard.h"
 
 #include <plynth/core/Library.h>
 #include <plynth/core/Settings.h>
@@ -16,15 +17,7 @@
 
 namespace plynth::cli::testing {
 
-// Clears the settings file when a test starts and when it ends.
-struct MaterialSettingsReset {
-    MaterialSettingsReset() { clear(); }
-    ~MaterialSettingsReset() { clear(); }
-    static void clear() {
-        std::error_code ignored;
-        std::filesystem::remove(plynth::settingsFile(), ignored);
-    }
-};
+using MaterialSettingsReset = GuardedSettingsReset;
 
 // Writes one material folder by hand (textures, thumbnail, info.json) and indexes it.
 inline void makeMaterial(const std::filesystem::path& library, const std::string& id, const std::string& name,
