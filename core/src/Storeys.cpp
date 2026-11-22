@@ -13,6 +13,7 @@ namespace plynth {
 namespace {
 
 constexpr int kPrecision = 8;
+constexpr double kMiterLimit = 10.0; // corners of a wide part keep their exact shape
 constexpr double kSliver = 1e-6; // pieces smaller than this many square metres are rounding noise
 
 // A list of points as a Clipper path.
@@ -246,6 +247,28 @@ std::vector<PlanArea> exposedArea(const Plan& plan, std::size_t floorIndex)
     return run(Clipper2Lib::ClipType::Difference, pathsOf(own), pathsOf(above));
 }
 
+std::vector<PlanArea> roofSectionAreas(const Plan& plan, std::size_t floorIndex)
+{
+    const std::vector<PlanArea> exposed = exposedArea(plan, floorIndex);
+    if (exposed.empty()) return {};
+    const Clipper2Lib::PathsD all = pathsOf(exposed);
+    const double half = 0.5 * (kMinRoofSectionWidth - kRoofWidthTolerance);
+    const Clipper2Lib::PathsD shrunk = Clipper2Lib::InflatePaths(all, -half, Clipper2Lib::JoinType::Miter,
+                                                                 Clipper2Lib::EndType::Polygon, kMiterLimit, kPrecision);
+    if (shrunk.empty()) return {};
+    const Clipper2Lib::PathsD grown = Clipper2Lib::InflatePaths(shrunk, half, Clipper2Lib::JoinType::Miter,
+                                                                Clipper2Lib::EndType::Polygon, kMiterLimit, kPrecision);
+    if (grown.empty()) return {};
+    std::vector<PlanArea> kept = run(Clipper2Lib::ClipType::Intersection, grown, all);
+    double keptSize = 0.0;
+    double exposedSize = 0.0;
+    for (const PlanArea& a : kept) keptSize += planAreaSize(a);
+    for (const PlanArea& a : exposed) exposedSize += planAreaSize(a);
+    // Nothing was dropped: keep exposedArea as it is, so its corners are not touched.
+    if (std::abs(keptSize - exposedSize) < kSliver) return exposed;
+    return kept;
+}
+
 std::vector<PlanArea> overhangArea(const Plan& plan, std::size_t floorIndex)
 {
     if (floorIndex + 1 >= plan.floors.size()) return {};
@@ -318,6 +341,13 @@ SlabBuild slabBuild(const Plan& plan, std::size_t floorIndex, const std::vector<
         slab.sides.push_back(std::move(sides));
     }
     for (const PlanArea& a : cut(hanging)) slab.undersides.push_back(toWorld(a));
+    const std::vector<PlanArea> exposed = exposedArea(plan, floorIndex);
+    const std::vector<PlanArea> sections = roofSectionAreas(plan, floorIndex);
+    if (!exposed.empty()) {
+        const std::vector<PlanArea> ledges = sections.empty() ? exposed
+                                                               : run(Clipper2Lib::ClipType::Difference, pathsOf(exposed), pathsOf(sections));
+        for (const PlanArea& a : cut(ledges)) slab.tops.push_back(toWorld(a));
+    }
     return slab;
 }
 

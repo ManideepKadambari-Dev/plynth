@@ -243,7 +243,7 @@ std::vector<RoofArea> areasOfFloor(const Plan& plan, std::size_t floorIndex)
 {
     std::vector<RoofArea> out;
     const Floor& floor = plan.floors[floorIndex];
-    const std::vector<PlanArea> sections = exposedArea(plan, floorIndex);
+    const std::vector<PlanArea> sections = roofSectionAreas(plan, floorIndex);
     std::vector<const RoofSection*> governing(sections.size(), nullptr);
     for (const RoofSection& entry : plan.roofSections) {
         if (entry.floor != floor.id) continue;
@@ -588,7 +588,7 @@ std::vector<Id> unusedRoofSections(const Plan& plan)
     std::vector<std::vector<bool>> taken(plan.floors.size());
     std::vector<std::vector<PlanArea>> sections(plan.floors.size());
     for (std::size_t i = 0; i < plan.floors.size(); ++i) {
-        sections[i] = exposedArea(plan, i);
+        sections[i] = roofSectionAreas(plan, i);
         taken[i].assign(sections[i].size(), false);
     }
     for (const RoofSection& entry : plan.roofSections) {
