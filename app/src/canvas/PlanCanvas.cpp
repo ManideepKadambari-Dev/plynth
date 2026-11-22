@@ -37,6 +37,42 @@ namespace plynth::app {
 
 namespace {
 
+// Finds the spot nearest to a wanted box where it fits inside the region and touches none of the obstacles.
+// Returns false when there is no such spot.
+bool findFreeSpot(const QRectF& want, const QPainterPath& region, const QVector<QPainterPath>& obstacles,
+                  QRectF* result)
+{
+    const auto fits = [&](const QRectF& box) {
+        if (!region.isEmpty() && !region.contains(box))
+            return false;
+        for (const QPainterPath& obstacle : obstacles)
+            if (obstacle.intersects(box))
+                return false;
+        return true;
+    };
+    constexpr double kSpotStep = 6.0;
+    const QRectF reach = region.isEmpty() ? want.adjusted(-200, -200, 200, 200) : region.boundingRect();
+    const int rings = static_cast<int>(std::max(reach.width(), reach.height()) / kSpotStep) + 1;
+    QRectF best;
+    double bestDistance = 1e300;
+    for (int ix = -rings; ix <= rings; ++ix) {
+        for (int iy = -rings; iy <= rings; ++iy) {
+            const double distance = std::hypot(ix * kSpotStep, iy * kSpotStep);
+            if (distance >= bestDistance)
+                continue;
+            const QRectF box = want.translated(ix * kSpotStep, iy * kSpotStep);
+            if (!fits(box))
+                continue;
+            best = box;
+            bestDistance = distance;
+        }
+    }
+    if (bestDistance >= 1e300)
+        return false;
+    *result = best;
+    return true;
+}
+
 constexpr double kMinZoom = 0.02;
 constexpr double kMaxZoom = 32.0;
 constexpr double kStep = 1.25;
@@ -628,6 +664,12 @@ void PlanCanvas::paintRoofLabels(QPainter* painter)
         const int pad = t.unit();
         QRectF pill(0, 0, metrics.horizontalAdvance(roof.label) + pad * 2.0, metrics.height() + pad);
         pill.moveCenter(mapFromScene(roof.labelPoint));
+        QVector<QPainterPath> walls;
+        for (const OverlayWall& wall : overlay_.walls)
+            walls.append(mapFromScene(wall.band));
+        QRectF clear;
+        if (findFreeSpot(pill, mapFromScene(roof.area), walls, &clear))
+            pill = clear;
         QColor backing = t.panel();
         backing.setAlpha(230);
         painter->setPen(QPen(accent, 1.0));
@@ -866,6 +908,13 @@ QVector<PlanCanvas::RoomChip> PlanCanvas::roomChips() const
     const Theme& t = Theme::instance();
     const QFontMetrics nameMetrics(t.uiFont(t.sizeNormal()));
     const QFontMetrics areaMetrics(t.monoFont(t.sizeSmall()));
+    QVector<QPainterPath> stairs;
+    for (const OverlayStair& stair : overlay_.stairs) {
+        QPainterPath footprint;
+        footprint.addPolygon(mapFromScene(stair.footprint));
+        footprint.closeSubpath();
+        stairs.append(footprint);
+    }
     QVector<RoomChip> chips;
     for (const OverlayRoom& room : overlay_.rooms) {
         const int nameWidth = nameMetrics.horizontalAdvance(room.name);
@@ -884,6 +933,19 @@ QVector<PlanCanvas::RoomChip> PlanCanvas::roomChips() const
         chip.areaBox = QRectF(at.x() - width / 2.0, chip.nameBox.bottom(), width, areaMetrics.height());
         chip.pill = QRectF(at.x() - width / 2.0, at.y() - height / 2.0, width, height)
                         .adjusted(-t.unit(), -t.unit() / 2.0, t.unit(), t.unit() / 2.0);
+        // A chip that would sit on a stair moves to the nearest clear spot in its room, or is left out.
+        bool onStair = false;
+        for (const QPainterPath& stair : stairs)
+            onStair = onStair || stair.intersects(chip.pill);
+        if (onStair) {
+            QRectF clear;
+            if (!findFreeSpot(chip.pill, mapFromScene(room.floor), stairs, &clear))
+                continue;
+            const QPointF shift = clear.center() - chip.pill.center();
+            chip.pill = clear;
+            chip.nameBox.translate(shift);
+            chip.areaBox.translate(shift);
+        }
         chips.append(chip);
     }
     return chips;
