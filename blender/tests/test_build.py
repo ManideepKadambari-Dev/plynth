@@ -37,7 +37,7 @@ class SquareRoomTests(BuildTest):
         self.assert_job_valid("square_room")
         self.assert_result_valid(self.result)
         steps = [s["step"] for s in self.result["output"]["steps"]]
-        self.assertEqual(steps, ["prepare_scene", "walls", "openings", "bevel", "triangulate", "opening_fills", "floors", "assets", "materials",
+        self.assertEqual(steps, ["prepare_scene", "walls", "openings", "bevel", "triangulate", "opening_fills", "floors", "assets", "generators", "materials",
                          "save_blend", "export_fbx"])
         counts = self.result["output"]["counts"]
         self.assertEqual((counts["wall_solids"], counts["rooms"]), (1, 1))
