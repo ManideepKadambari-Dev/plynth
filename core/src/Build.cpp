@@ -128,12 +128,15 @@ fs::path buildFolder(const fs::path& projectFolder)
     return projectFolder / pathFromUtf8(kBuildFolderName);
 }
 
-// Sixteen hex digits that change when the plan or the project settings change.
+// Sixteen hex digits that change when the plan or the project settings change. The export mode is left out, so
+// switching it never makes a build out of date.
 std::string planFingerprint(const Project& project)
 {
+    ProjectSettings settings = project.settings;
+    settings.exportMode = ExportMode::Single;
     std::string text = planToJson(project.plan).dump();
     text += '\n';
-    text += settingsToJson(project.settings).dump();
+    text += settingsToJson(settings).dump();
     char out[17];
     std::snprintf(out, sizeof out, "%016llx", static_cast<unsigned long long>(fnv1a(text)));
     return out;

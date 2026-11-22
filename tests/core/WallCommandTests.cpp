@@ -498,3 +498,14 @@ TEST_CASE("DrawWallCommand refusals and undo", "[core][command][wall]") {
         REQUIRE(p == start);
     }
 }
+
+TEST_CASE("SetExportModeCommand", "[core][command][settings]") {
+    Project p = makeNewProject();
+    REQUIRE(p.settings.exportMode == ExportMode::Single);
+    SetExportModeCommand c(ExportMode::Grouped);
+    REQUIRE(c.name() == "Set export mode");
+    roundTrip(c, p);
+    REQUIRE(p.settings.exportMode == ExportMode::Grouped);
+    REQUIRE(c.changes() == Change::Settings);
+    REQUIRE(c.floorId().empty());
+}

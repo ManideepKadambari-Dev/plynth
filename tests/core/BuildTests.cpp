@@ -312,6 +312,14 @@ TEST_CASE("planFingerprint changes when the plan or settings change", "[core][bu
     REQUIRE(planFingerprint(c) != print);
 }
 
+TEST_CASE("planFingerprint ignores the export mode and keeps its old value", "[core][build][settings]") {
+    Project single = buildProject();
+    Project grouped = buildProject();
+    grouped.settings.exportMode = ExportMode::Grouped;
+    REQUIRE(planFingerprint(grouped) == planFingerprint(single));
+    REQUIRE(planFingerprint(single) == "326ee401bf9de961");
+}
+
 TEST_CASE("problemPosition finds the object on the plan", "[core][build]") {
     const Project project = buildProject();
     const auto at = [&](const std::string& object) {
