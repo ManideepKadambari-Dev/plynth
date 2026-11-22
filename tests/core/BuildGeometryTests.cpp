@@ -1,5 +1,6 @@
 #include "SquareFixtures.h"
 #include "TestSupport.h"
+#include "../../core/src/BandOutline.h"
 
 #include <plynth/core/BuildGeometry.h>
 #include <plynth/core/Openings.h>
@@ -278,7 +279,7 @@ TEST_CASE("a half wall at a corner keeps square ends and the full wall is not mi
 TEST_CASE("a very short wall at a sharp angle keeps a square end instead of folding", "[core][build]") {
     Floor f;
     f.id = "f1";
-    f.points = {{"p1", 0.0, 0.0, 0.0}, {"p2", 0.3, 0.0, 0.0}, {"p3", 4.0, 1.5, 0.0}};
+    f.points = {{"p1", 0.0, 0.0, 0.0}, {"p2", 0.3, 0.0, 0.0}, {"p3", -1.7, 3.4641016151377544, 0.0}};
     Wall a;
     a.id = "w1";
     a.from = "p1";
@@ -290,16 +291,25 @@ TEST_CASE("a very short wall at a sharp angle keeps a square end instead of fold
     b.to = "p3";
     f.walls = {a, b};
 
+    const std::vector<std::vector<Vec2>> shortBand = detail::wallBandWith(f, f.walls[0], true);
+    REQUIRE(shortBand.size() == 1);
+    REQUIRE(ringArea(shortBand[0]) == Approx(0.7 * 0.4).margin(1e-9));
+    for (const Vec2& p : shortBand[0]) {
+        REQUIRE(p.x >= -0.2 - 1e-9);
+        REQUIRE(p.x <= 0.5 + 1e-9);
+    }
+
+    const std::vector<std::vector<Vec2>> longBand = detail::wallBandWith(f, f.walls[1], true);
+    REQUIRE(longBand.size() == 1);
+    REQUIRE(ringArea(longBand[0]) == Approx(4.4 * 0.4).margin(1e-9));
+    for (const Vec2& p : longBand[0]) {
+        const Vec2 along{(p.x - 0.3) * -0.5 + p.y * 0.8660254037844386, 0.0};
+        REQUIRE(along.x >= -0.2 - 1e-9);
+    }
+
     const std::vector<WallSolid> solids = wallSolids(f);
     REQUIRE(solids.size() == 1);
-    const std::vector<Vec2>& outline = solids[0].outline.points;
-    double bands = 0.0;
-    for (const Wall& w : f.walls) {
-        for (const std::vector<Vec2>& band : wallBand(f, w)) bands += ringArea(band);
-    }
-    REQUIRE(range(outline, true).first == Approx(-0.2).margin(1e-9));
-    REQUIRE(ringArea(outline) > 0.0);
-    REQUIRE(ringArea(outline) <= bands + 1e-9);
+    REQUIRE(range(solids[0].outline.points, true).first == Approx(-1.8 - 0.2 * 0.8660254037844386).margin(1e-6));
     REQUIRE(solids[0].holes.empty());
 }
 

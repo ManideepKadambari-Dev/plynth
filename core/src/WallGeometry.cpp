@@ -118,7 +118,7 @@ void applyMitre(const Floor& floor, const Wall& wall, const Point& point, bool a
     if (other == &wall) return;
     const WallCurve otherCurve = wallCurve(floor, *other);
     if (!otherCurve.valid) return;
-    if (std::fabs(wallHeight(floor, wall) - wallHeight(floor, *other)) > 1e-9) return;
+    if (std::fabs(wallHeight(floor, wall) - wallHeight(floor, *other)) > 1e-6) return;
 
     const Vec2 u1 = leavingDirection(curve, atStart);
     const Vec2 u2 = leavingDirection(otherCurve, other->from == point.id);
@@ -133,10 +133,13 @@ void applyMitre(const Floor& floor, const Wall& wall, const Point& point, bool a
     if (!meetPoint(plus(corner, rightOf(in), half), u1, plus(corner, rightOf(u2), otherHalf), u2, pathRight)) return;
     if (!meetPoint(plus(corner, rightOf(in), -half), u1, plus(corner, rightOf(u2), -otherHalf), u2, pathLeft)) return;
 
-    // A mitre that reaches past the middle of a short wall would fold the band, so the end stays square.
-    const double reach = std::max(dot({pathRight.x - corner.x, pathRight.y - corner.y}, u1),
-                                  dot({pathLeft.x - corner.x, pathLeft.y - corner.y}, u1));
-    if (reach > curve.length / 2.0) return;
+    // A mitre that reaches past the middle of either wall would fold its band, so both ends stay square.
+    const auto reachOn = [&](Vec2 dir) {
+        return std::max(dot({pathRight.x - corner.x, pathRight.y - corner.y}, dir),
+                        dot({pathLeft.x - corner.x, pathLeft.y - corner.y}, dir));
+    };
+    if (reachOn(u1) > curve.length / 2.0) return;
+    if (reachOn(u2) > otherCurve.length / 2.0) return;
 
     // The wall's own right is the path's right only when the wall runs the same way as the path.
     const bool sameWay = !atStart;
