@@ -18,6 +18,8 @@ add_executable(plynth WIN32
     src/catalog/LibraryWatcher.cpp
     src/canvas/OpeningPaint.h
     src/canvas/OpeningPaint.cpp
+    src/canvas/StairPaint.h
+    src/canvas/StairPaint.cpp
     src/canvas/OverlayBuilder.h
     src/canvas/OverlayBuilder.cpp
     src/canvas/OverlayOpenings.cpp
@@ -93,6 +95,8 @@ add_executable(plynth WIN32
     src/tools/RoomTool.cpp
     src/tools/ScaleTool.h
     src/tools/ScaleTool.cpp
+    src/tools/StairTool.h
+    src/tools/StairTool.cpp
     src/tools/SelectTool.h
     src/tools/SelectTool.cpp
     src/tools/Tool.h

@@ -32,6 +32,25 @@ QPolygonF toPolygon(const std::vector<plynth::Vec2>& ring, double ppm)
 
 }
 
+// Turns a stair layout into polygons in image pixels.
+OverlayStair makeOverlayStair(const plynth::StairLayout& layout, double ppm)
+{
+    OverlayStair stair;
+    stair.id = fromCore(layout.stair);
+    for (const plynth::StairStep& step : layout.steps) {
+        OverlayStairStep entry;
+        entry.outline = toPolygon(step.outline, ppm);
+        entry.part = step.part == plynth::StairPart::Step ? 0 : step.part == plynth::StairPart::Landing ? 1 : 2;
+        stair.steps.append(entry);
+    }
+    stair.footprint = toPolygon(layout.footprint, ppm);
+    stair.walkLine = toPolygon(layout.walkLine, ppm);
+    stair.arrival = QPointF(layout.arrival.x * ppm, layout.arrival.y * ppm);
+    if (!stair.walkLine.isEmpty())
+        stair.origin = stair.walkLine.first();
+    return stair;
+}
+
 // Gives the canvas the points, walls and rooms of the first floor.
 OverlayData buildOverlay(const plynth::Plan& plan, const plynth::AssetCatalog* catalog)
 {
@@ -58,6 +77,28 @@ OverlayData buildOverlay(const plynth::Plan& plan, const std::string& floorId, c
                 overlay.below.addPolygon(toPolygon(ring, ppm));
                 overlay.below.closeSubpath();
             }
+    }
+
+    const std::vector<plynth::StairProblem> stairProblems = plynth::stairProblems(plan, floor);
+    for (const plynth::Stair& stair : floor.stairs) {
+        const plynth::StairLayout layout = plynth::stairLayout(plan, floor, stair);
+        if (!layout.status.ok())
+            continue;
+        OverlayStair entry = makeOverlayStair(layout, ppm);
+        QStringList sentences;
+        for (const plynth::StairProblem& problem : stairProblems)
+            if (problem.stair == stair.id) {
+                entry.problem = true;
+                sentences << fromCore(problem.message);
+            }
+        entry.tip = sentences.join(QLatin1Char('\n'));
+        overlay.stairs.append(entry);
+    }
+    for (const plynth::StairLayout& layout : plynth::stairsArrivingAt(plan, floorId)) {
+        OverlayStair entry = makeOverlayStair(layout, ppm);
+        const plynth::Floor* from = plynth::findFloor(plan, layout.fromFloor);
+        entry.from = fromCore(from != nullptr ? from->name : layout.fromFloor);
+        overlay.arriving.append(entry);
     }
 
     for (const plynth::Point& point : floor.points)

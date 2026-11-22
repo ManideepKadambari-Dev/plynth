@@ -1,6 +1,7 @@
 #include "PlanCanvas.h"
 
 #include "canvas/OpeningPaint.h"
+#include "canvas/StairPaint.h"
 #include "building/ProblemMark.h"
 #include "theme/Theme.h"
 #include "tools/Tool.h"
@@ -438,6 +439,17 @@ void PlanCanvas::paintOverlay(QPainter* painter)
     }
 
     painter->resetTransform();
+    {
+        const QTransform view = viewportTransform();
+        for (const OverlayStair& stair : overlay_.arriving)
+            paintArrivingStair(*painter, stair, view);
+        for (const OverlayStair& stair : overlay_.stairs)
+            if (!(selectionKind_ == SelectionKind::Stair && stair.id == selectionId_))
+                paintStair(*painter, stair, view, StairLook::Normal);
+        for (const OverlayStair& stair : overlay_.stairs)
+            if (selectionKind_ == SelectionKind::Stair && stair.id == selectionId_)
+                paintStair(*painter, stair, view, StairLook::Selected);
+    }
     paintItems(painter);
     {
         const QTransform view = viewportTransform();
@@ -498,9 +510,43 @@ void PlanCanvas::paintProblems(QPainter* painter)
                          t.signalAmber(), 1.6);
 }
 
-// Shows the sentence of the problem marker under the cursor as a tooltip.
+// The id of the stair whose footprint holds a scene point. The one drawn last wins.
+QString PlanCanvas::stairAt(const QPointF& scene) const
+{
+    for (int i = static_cast<int>(overlay_.stairs.size()) - 1; i >= 0; --i)
+        if (overlay_.stairs[i].footprint.containsPoint(scene, Qt::OddEvenFill))
+            return overlay_.stairs[i].id;
+    return QString();
+}
+
+// Shows the sentence of the problem marker, or of the stair, under the cursor as a tooltip.
 bool PlanCanvas::event(QEvent* event)
 {
+    if (event->type() == QEvent::ToolTip) {
+        const auto* help = static_cast<QHelpEvent*>(event);
+        const QPointF scene = mapToScene(viewport()->mapFrom(this, help->pos()));
+        QString text;
+        for (const OverlayStair& stair : overlay_.arriving)
+            if (stair.footprint.containsPoint(scene, Qt::OddEvenFill))
+                text = tr("Stair %1 from %2. Edit it on %2.").arg(stair.id, stair.from);
+        if (text.isEmpty())
+            for (const OverlayStair& stair : overlay_.stairs)
+                if (stair.footprint.containsPoint(scene, Qt::OddEvenFill))
+                    text = stair.tip.isEmpty() ? tr("Stair %1").arg(stair.id) : stair.tip;
+        if (!text.isEmpty()) {
+            const int side = Theme::instance().problemMarker();
+            bool overMarker = false;
+            if (problemsShown_)
+                for (const ProblemMarker& marker : problems_)
+                    overMarker = overMarker || markerBox(mapFromScene(marker.position), side)
+                                                   .adjusted(-2, -2, 2, 2)
+                                                   .contains(viewport()->mapFrom(this, help->pos()));
+            if (!overMarker) {
+                QToolTip::showText(help->globalPos(), text, this);
+                return true;
+            }
+        }
+    }
     if (event->type() == QEvent::ToolTip && problemsShown_) {
         const auto* help = static_cast<QHelpEvent*>(event);
         const QPoint at = viewport()->mapFrom(this, help->pos());

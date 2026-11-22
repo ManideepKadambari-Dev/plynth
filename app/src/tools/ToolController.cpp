@@ -14,6 +14,7 @@
 #include "tools/RoomTool.h"
 #include "tools/ScaleTool.h"
 #include "tools/SelectTool.h"
+#include "tools/StairTool.h"
 #include "tools/WallTool.h"
 
 #include <plynth/core/Items.h>
@@ -47,6 +48,7 @@ ToolController::ToolController(plynth::Document& document, PlanCanvas* canvas, S
     tools_[static_cast<size_t>(ToolId::Opening)] = std::make_unique<OpeningTool>(*this);
     tools_[static_cast<size_t>(ToolId::Room)] = std::make_unique<RoomTool>(*this);
     tools_[static_cast<size_t>(ToolId::Furniture)] = std::make_unique<FurnitureTool>(*this);
+    tools_[static_cast<size_t>(ToolId::Stair)] = std::make_unique<StairTool>(*this);
     detection_ = new DetectionSession(*this, this);
     tools_[static_cast<size_t>(ToolId::Detect)] = std::make_unique<DetectTool>(*this);
     connect(detection_, &DetectionSession::changed, this, [this]() {
@@ -126,6 +128,11 @@ QString ToolController::unavailableReason(ToolId id) const
         return tr("Set the scale first (S)");
     if (id == ToolId::Furniture && catalog() == nullptr)
         return tr("No library folder is set.");
+    if (id == ToolId::Stair) {
+        const plynth::Floor* current = floor();
+        if (current == nullptr || plynth::floorAbove(document_.plan(), current->id) == nullptr)
+            return tr("Add a floor above first.");
+    }
     return QString();
 }
 
@@ -160,6 +167,16 @@ void ToolController::refreshOverlay()
     const std::string id = focus_ != nullptr ? focus_->floorId().toStdString() : std::string();
     canvas_->setOverlay(id.empty() ? buildOverlay(document_.plan(), catalog()) : buildOverlay(document_.plan(), id, catalog()));
     canvas_->setGridStep(gridStepPixels());
+}
+
+// For checks: switches to the Stair tool and shows the preview of a drag between two places in metres. False
+// when the tool is not available.
+bool ToolController::showStairPreview(double fromX, double fromY, double toX, double toY)
+{
+    if (!setActive(ToolId::Stair))
+        return false;
+    static_cast<StairTool*>(tool(ToolId::Stair))->previewDrag(plynth::Vec2{fromX, fromY}, plynth::Vec2{toX, toY});
+    return true;
 }
 
 // The one line hint of the active tool.

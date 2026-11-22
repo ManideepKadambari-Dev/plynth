@@ -79,6 +79,28 @@ struct ProblemMarker {
     QString tip;
 };
 
+// One piece of a stair on the plan, in scene units. part is 0 for a step, 1 for a landing and 2 for the
+// column of a spiral stair.
+struct OverlayStairStep {
+    QPolygonF outline;
+    int part = 0;
+};
+
+// One stair, in scene units: its steps, the outline of the whole footprint, the walk line with its arrow and
+// the point where it reaches the floor above. For a stair of the shown floor id is its id; for one arriving from
+// below id is its id too and from names the floor it starts on.
+struct OverlayStair {
+    QString id;
+    QString from;
+    QVector<OverlayStairStep> steps;
+    QPolygonF footprint;
+    QPolygonF walkLine;
+    QPointF origin;
+    QPointF arrival;
+    QString tip;     // the problem sentences, one per line
+    bool problem = false;
+};
+
 // Everything the canvas draws over the plan image.
 struct OverlayData {
     QVector<OverlayItem> items;
@@ -90,6 +112,9 @@ struct OverlayData {
     QPointF imageOffset;
     // The walls of the floor below, drawn faint under everything else. Not selectable.
     QPainterPath below;
+    // The stairs of the shown floor, and the ones that arrive on it from the floor below (locked, not selectable).
+    QVector<OverlayStair> stairs;
+    QVector<OverlayStair> arriving;
 };
 
 // One proposed wall, in scene units.
@@ -138,6 +163,8 @@ public:
     void setOverlay(const OverlayData& overlay);
     void setProposals(const ProposalOverlay& proposals);
     void setSelection(SelectionKind kind, const QString& id);
+    // The id of the stair of the shown floor whose footprint holds a scene point, or an empty string.
+    QString stairAt(const QPointF& scene) const;
     // The problems of the last build, and whether they are drawn.
     void setProblems(const QVector<ProblemMarker>& markers);
     void setProblemsShown(bool shown);

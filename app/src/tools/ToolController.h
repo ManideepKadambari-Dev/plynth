@@ -59,8 +59,12 @@ public:
     void documentChanged(unsigned changes);
 
     QString hint() const;
+    // For checks: switches to the Stair tool and shows the live preview of a drag from one place to another,
+    // in metres. False when the tool is not available (no scale, or the shown floor is the top one).
+    bool showStairPreview(double fromX, double fromY, double toX, double toY);
 
     plynth::Document& document() { return document_; }
+    const plynth::Document& document() const { return document_; }
     PlanCanvas& canvas() { return *canvas_; }
     Selection& selection() { return *selection_; }
     QWidget* dialogParent() { return dialogParent_.data(); }
@@ -158,7 +162,7 @@ private:
     QPointer<PlanCanvas> canvas_;
     QPointer<Selection> selection_;
     QPointer<QWidget> dialogParent_;
-    std::array<std::unique_ptr<Tool>, kAllTools.size()> tools_;
+    std::array<std::unique_ptr<Tool>, kToolCount> tools_;
     OpeningToolSettings openingSettings_;
     int mergeKey_ = 0;
     FurniturePicker* picker_ = nullptr;
