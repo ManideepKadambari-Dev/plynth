@@ -59,11 +59,21 @@ The type matters for furniture. The furniture picker starts with the categories 
 
 See "The assets catalog" and "Placing furniture" in the [User guide](USER_GUIDE.md).
 
-## 8. Build, and look at it in 3D
+## 8. Add the sample materials
+
+Walls, floors and doors get their paint, brick and wood from the materials catalog. A new project already points at seven sample materials, so add them before your first build.
+
+1. Open the **Materials** tab in the right panel, next to **Assets**, or press Ctrl+Shift+M.
+2. Press **Add the sample materials**. Blender runs in the background and draws a thumbnail for each of the seven. It takes a short while.
+3. To change one, click a wall or a room and pick a material in the Properties panel: **Inside** and **Outside** for a wall, **Floor**, **Wall faces** and **Ceiling** for a room. With nothing selected, Properties shows the default for every kind of surface.
+
+Without the samples the build still works. Each surface gets a plain neutral color and the Build tab says "Missing material". See "The materials catalog" and "Materials on walls, rooms and the project" in the [User guide](USER_GUIDE.md).
+
+## 9. Build, and look at it in 3D
 
 1. Press Ctrl+S if the project has never been saved. A build needs the project's folder.
 2. Press **Build** in the bar above the plan, or Ctrl+B. A progress bar shows each step. It takes a few seconds for a small flat.
-3. When it is done, the 3D view opens. Drag with the left button to turn the building, drag with the middle or right button to pan, and use the wheel to zoom. Press Ctrl+0 to fit it in the window again. The **Top** and **Three quarter** buttons in the corner jump to two good views.
+3. When it is done, the 3D view opens, with the materials on the walls, floors and doors. Drag with the left button to turn the building, drag with the middle or right button to pan, and use the wheel to zoom. Press Ctrl+0 to fit it in the window again. The **Top** and **Three quarter** buttons in the corner jump to two good views.
 4. Press **3**, or click **Plan**, to go back to the plan. Press Alt+3 to lay the top view of the building over the plan and check that it lines up.
 
 If the bar shows an amber **problems** button, click it. The Build tab lists what the build left out or could not finish, and clicking a line shows it on the plan. A furniture item whose asset is missing is the usual one. Fix it and press Build again.
@@ -76,6 +86,6 @@ See "Building", "The 3D view" and "Build problems" in the [User guide](USER_GUID
 
 - [User guide](USER_GUIDE.md): every screen and feature.
 - [Keyboard shortcuts](SHORTCUTS.md): the full list of keys and mouse actions.
-- [Command line guide](CLI_GUIDE.md): do all of this from a terminal or a script. For example, `plynth place sofa --room living` places the sofa from step 7, and `plynth build` does step 8.
+- [Command line guide](CLI_GUIDE.md): do all of this from a terminal or a script. For example, `plynth place sofa --room living` places the sofa from step 7, and `plynth materials import samples\materials\*` does step 8, and `plynth build` does step 9.
 - [Setting up Plynth](SETUP.md): what each item of the setup check means.
-- [Writing generators](GENERATORS.md): add your own opening shapes and importers.
+- [Writing generators](GENERATORS.md): add your own opening shapes, importers and material importers.

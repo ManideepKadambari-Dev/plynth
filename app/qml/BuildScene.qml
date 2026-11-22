@@ -84,6 +84,92 @@ Item {
         fit()
     }
 
+    property var madeObjects: []
+
+    Component { id: textureComponent; Texture { } }
+    Component { id: materialComponent; PrincipledMaterial { } }
+
+    // The key that ties a loaded material to an entry of materials.json: the base color image path in lower
+    // case with forward slashes, because the FBX loader keeps no material names.
+    function pathKey(source) {
+        var text = "" + source
+        text = text.replace(/^file:\/\/\//, "")
+        try { text = decodeURIComponent(text) } catch (e) { }
+        return text.replace(/\\/g, "/").toLowerCase()
+    }
+
+    function makeTexture(url) {
+        var t = textureComponent.createObject(loader, {
+            source: url,
+            generateMipmaps: true,
+            mipFilter: Texture.Linear,
+            minFilter: Texture.Linear,
+            magFilter: Texture.Linear
+        })
+        root.madeObjects.push(t)
+        return t
+    }
+
+    // Makes the material of one entry of materials.json: factors are 1 because the maps carry the values, and
+    // roughness, metalness, opacity and occlusion are read from the red channel of their maps.
+    function makeMaterial(e) {
+        var m = materialComponent.createObject(loader, { baseColor: "white", roughness: 1, metalness: 1 })
+        root.madeObjects.push(m)
+        m.baseColorMap = makeTexture(e.baseColor)
+        m.normalMap = makeTexture(e.normal)
+        m.roughnessMap = makeTexture(e.roughness)
+        m.roughnessChannel = Material.R
+        m.metalnessMap = makeTexture(e.metallic)
+        m.metalnessChannel = Material.R
+        if (e.occlusion !== "") {
+            m.occlusionMap = makeTexture(e.occlusion)
+            m.occlusionChannel = Material.R
+        }
+        if (e.opacity !== "") {
+            m.opacity = 1
+            m.opacityMap = makeTexture(e.opacity)
+            m.opacityChannel = Material.R
+            if (e.blend)
+                m.alphaMode = PrincipledMaterial.Blend
+        }
+        return m
+    }
+
+    function destroyMade() {
+        for (var i = 0; i < root.madeObjects.length; i++)
+            root.madeObjects[i].destroy()
+        root.madeObjects = []
+    }
+
+    // Swaps the loaded materials for the built ones. A material with no entry keeps the FBX look.
+    function applyMaterials(node) {
+        destroyMade()
+        var list = scene.builtMaterials
+        if (list.length === 0)
+            return
+        replaceIn(node, list)
+    }
+
+    function replaceIn(node, list) {
+        if (node instanceof Model) {
+            var swapped = []
+            for (var k = 0; k < node.materials.length; k++) {
+                var old = node.materials[k]
+                var entry = null
+                if (old.baseColorMap) {
+                    var key = pathKey(old.baseColorMap.source)
+                    for (var i = 0; i < list.length; i++) {
+                        if (list[i].key === key) { entry = list[i]; break }
+                    }
+                }
+                swapped.push(entry ? makeMaterial(entry) : old)
+            }
+            node.materials = swapped
+        }
+        for (var j = 0; j < node.children.length; j++)
+            replaceIn(node.children[j], list)
+    }
+
     onWidthChanged: if (!root.userMoved) Qt.callLater(fit)
     onHeightChanged: if (!root.userMoved) Qt.callLater(fit)
     Component.onCompleted: applyPreset()
@@ -115,9 +201,17 @@ Item {
 
         environment: SceneEnvironment {
             backgroundMode: SceneEnvironment.Transparent
+            tonemapMode: SceneEnvironment.TonemapModeFilmic
             antialiasingMode: SceneEnvironment.MSAA
             antialiasingQuality: SceneEnvironment.High
-            lightProbe: Texture { textureData: ProceduralSkyTextureData {} }
+            lightProbe: Texture {
+                textureData: ProceduralSkyTextureData {
+                    skyTopColor: Theme.skyTopColor
+                    skyHorizonColor: Theme.skyHorizonColor
+                    groundHorizonColor: Theme.groundHorizonColor
+                    groundBottomColor: Theme.groundBottomColor
+                }
+            }
             probeExposure: Theme.probeExposure
             aoEnabled: true
             aoStrength: Theme.aoStrength
@@ -160,9 +254,10 @@ Item {
             source: scene.modelFile
             scale: Qt.vector3d(root.fbxUnit, root.fbxUnit, root.fbxUnit)
             onStatusChanged: {
-                if (status === RuntimeLoader.Success)
+                if (status === RuntimeLoader.Success) {
+                    root.applyMaterials(loader)
                     scene.reportStatus(1, "")
-                else if (status === RuntimeLoader.Error)
+                } else if (status === RuntimeLoader.Error)
                     scene.reportStatus(2, errorString)
                 else
                     scene.reportStatus(0, "")

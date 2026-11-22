@@ -100,9 +100,10 @@ While the terminal or a text box has focus, the keys go there first, so click th
 | Shortcut | Action |
 |---|---|
 | Ctrl+Shift+A | Show the Assets tab |
+| Ctrl+Shift+M | Show the Materials tab |
 | Ctrl+I | Import model files into the library |
 
-Rescan library, Room types and categories, Open library folder and Help, Setup check have no shortcut. They are in the Catalog menu and the Help menu.
+Rescan library, Import materials, Add the sample materials, Rescan materials, Room types and categories, Open library folder and Help, Setup check have no shortcut. They are in the Catalog menu and the Help menu.
 
 While you type in the search box or edit a name or the tags of an asset, letters go into the box and do not switch tools. Press Enter to save a name or the tags.
 

@@ -11,6 +11,7 @@
   "output": {
     "blend_file": "building.blend",
     "fbx_file": "building.fbx",
+    "materials_file": "materials.json",
     "objects": 42,
     "triangles": 18200,
     "steps": [

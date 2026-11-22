@@ -66,6 +66,8 @@ public:
     int bendHandle() const { return bendHandle_; }
     int pickerColumnWidth() const { return pickerColumnWidth_; }
     int pickerRowHeight() const { return pickerRowHeight_; }
+    int materialSwatch() const { return materialSwatch_; }
+    int materialGridThumb() const { return materialGridThumb_; }
     int previewWidth() const { return previewWidth_; }
     int rotationHandle() const { return rotationHandle_; }
     int itemLabelMinPixels() const { return itemLabelMinPixels_; }
@@ -81,6 +83,10 @@ public:
     double probeExposure() const { return probeExposure_; }
     int aoStrength() const { return aoStrength_; }
     QColor lightColor() const { return lightColor_; }
+    QColor skyTopColor() const { return skyTop_; }
+    QColor skyHorizonColor() const { return skyHorizon_; }
+    QColor groundHorizonColor() const { return groundHorizon_; }
+    QColor groundBottomColor() const { return groundBottom_; }
     QColor terminalAnsi(int index) const { return ansi_[static_cast<size_t>(index)]; }
     QString monoFamily() const { return monoFamily_; }
 
@@ -125,6 +131,8 @@ private:
     int bendHandle_ = 10;
     int pickerColumnWidth_ = 220;
     int pickerRowHeight_ = 28;
+    int materialSwatch_ = 20;
+    int materialGridThumb_ = 96;
     int previewWidth_ = 288;
     int rotationHandle_ = 10;
     int itemLabelMinPixels_ = 48;
@@ -140,6 +148,8 @@ private:
     double probeExposure_ = 1.0;
     int aoStrength_ = 60;
     QColor lightColor_ = Qt::white;
+    QColor skyTop_ = Qt::lightGray, skyHorizon_ = Qt::lightGray;
+    QColor groundHorizon_ = Qt::gray, groundBottom_ = Qt::gray;
     std::array<QColor, 16> ansi_;
 };
 

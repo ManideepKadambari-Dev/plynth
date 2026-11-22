@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "Theme.h"
 
 #include <QApplication>
@@ -101,6 +102,8 @@ bool Theme::load(const QString& resourcePath)
     proposalDash_ = spacing["proposalDash"].toInt(proposalDash_);
     pickerColumnWidth_ = spacing["pickerColumnWidth"].toInt(pickerColumnWidth_);
     pickerRowHeight_ = spacing["pickerRowHeight"].toInt(pickerRowHeight_);
+    materialSwatch_ = spacing["materialSwatch"].toInt(materialSwatch_);
+    materialGridThumb_ = spacing["materialGridThumb"].toInt(materialGridThumb_);
     previewWidth_ = spacing["previewWidth"].toInt(previewWidth_);
     rotationHandle_ = spacing["rotationHandle"].toInt(rotationHandle_);
     itemLabelMinPixels_ = spacing["itemLabelMinPixels"].toInt(itemLabelMinPixels_);
@@ -113,6 +116,15 @@ bool Theme::load(const QString& resourcePath)
     const QColor light(preview["lightColor"].toString());
     if (light.isValid())
         lightColor_ = light;
+    const auto readColor = [&](const char* key, QColor& target) {
+        const QColor c(preview[key].toString());
+        if (c.isValid())
+            target = c;
+    };
+    readColor("skyTopColor", skyTop_);
+    readColor("skyHorizonColor", skyHorizon_);
+    readColor("groundHorizonColor", groundHorizon_);
+    readColor("groundBottomColor", groundBottom_);
     keyLightBrightness_ = preview["keyLightBrightness"].toDouble(keyLightBrightness_);
     probeExposure_ = preview["probeExposure"].toDouble(probeExposure_);
     aoStrength_ = preview["aoStrength"].toInt(aoStrength_);
@@ -187,6 +199,15 @@ QString Theme::styleSheet() const
         QLabel { background: transparent; }
         QPushButton:disabled, QAbstractSpinBox:disabled, QComboBox:disabled, QCheckBox:disabled { color: %6; }
         QPushButton:disabled { border-color: %5; background: %3; }
+        QCheckBox::indicator, QListView::indicator, QTreeView::indicator {
+            width: %13px; height: %13px; border: 1px solid %6; border-radius: %14px; background: %2;
+        }
+        QCheckBox::indicator:hover, QListView::indicator:hover, QTreeView::indicator:hover { border-color: %1; }
+        QCheckBox::indicator:checked, QListView::indicator:checked, QTreeView::indicator:checked {
+            background: %7; border-color: %7;
+        }
+        QCheckBox::indicator:disabled, QListView::indicator:disabled, QTreeView::indicator:disabled { border-color: %5; }
+        QCheckBox { spacing: %9px; }
     )");
     return sheet
         .arg(text_.name(), ground_.name(), panel_.name(), raised_.name(), line_.name(),
@@ -194,7 +215,9 @@ QString Theme::styleSheet() const
         .arg(unit_)
         .arg(unit_ * 3)
         .arg(radius_)
-        .arg(unit_ * 4);
+        .arg(unit_ * 4)
+        .arg(unit_ * 3)
+        .arg(std::max(1, radius_ / 2));
 }
 
 // Style sheet for a vertical or horizontal scroll bar: a thin track with a Line colored handle.

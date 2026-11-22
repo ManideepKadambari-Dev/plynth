@@ -1,0 +1,19 @@
+{
+  "format": "plynth-material-source",
+  "version": 1,
+  "id": "red_brick",
+  "name": "Red brick",
+  "groups": [
+    "exterior",
+    "wall"
+  ],
+  "tags": [
+    "brick",
+    "red"
+  ],
+  "tile_size": {
+    "width": 1.2,
+    "height": 0.6
+  },
+  "license": "own_work"
+}

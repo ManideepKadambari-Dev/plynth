@@ -2,12 +2,12 @@ import bmesh
 import bpy
 from mathutils import Vector
 
-from . import Step, count, report
+from . import Step, count, report, slot_name
 from .. import meshes, surfaces
 from ..registry import BUILD_STEPS
 
 ORDER = 20
-REVEAL_SIDE = 2
+CUT_SIDE = 4
 MINIMUM_SHARE = 0.5
 MAXIMUM_SHARE = 2.0
 SOLVERS = ("MANIFOLD", "EXACT")
@@ -31,7 +31,7 @@ def run(ctx):
 
 
 # Builds the closed cutter solid of an opening as an object linked into the scene.
-def make_cutter(opening, walls):
+def make_cutter(ctx, opening, walls):
     names = list(walls["plynth_walls"])
     if opening["wall"] not in names:
         names.append(opening["wall"])
@@ -57,14 +57,16 @@ def make_cutter(opening, walls):
         j = (i + 1) % total
         faces.append(bm.faces.new([right_verts[i], right_verts[j], left_verts[j], left_verts[i]]))
     bmesh.ops.recalc_face_normals(bm, faces=faces)
+    uv = meshes.uv_layer(bm)
     for face in faces:
+        meshes.project_face(face, uv)
         face[wall_layer] = wall_index
         face[room_layer] = -1
-        face[side_layer] = REVEAL_SIDE
+        face[side_layer] = CUT_SIDE
     mesh = bpy.data.meshes.new("plynth_cutter")
     bm.to_mesh(mesh)
     bm.free()
-    mesh.materials.append(surfaces.material("Reveal"))
+    mesh.materials.append(surfaces.material(slot_name(ctx, opening["materials"]["reveal"], "Reveal")))
     cutter = bpy.data.objects.new("plynth_cutter", mesh)
     bpy.context.scene.collection.objects.link(cutter)
     return cutter
@@ -89,7 +91,23 @@ def boolean_cut(walls, cutter, solver):
     except (AttributeError, TypeError):
         pass
     meshes.apply_modifier(walls, modifier)
-    return meshes.heal_t_junctions(walls)
+    closed = meshes.heal_t_junctions(walls)
+    project_cut_faces(walls)
+    return closed
+
+
+# Gives every face a cut made (side 4) UVs projected on the world plane its normal is closest to.
+def project_cut_faces(walls):
+    bm = bmesh.new()
+    bm.from_mesh(walls.data)
+    side_layer = bm.faces.layers.int.get("plynth_side")
+    uv = meshes.uv_layer(bm)
+    bm.normal_update()
+    for face in bm.faces:
+        if face[side_layer] == CUT_SIDE:
+            meshes.project_face(face, uv)
+    bm.to_mesh(walls.data)
+    bm.free()
 
 
 # Puts the walls mesh back to the saved copy.
@@ -108,7 +126,7 @@ def cut(ctx, floor, walls, opening):
     backup = walls.data.copy()
     before = meshes.volume(walls)
     expected = abs(meshes.polygon_area(opening["outline"])) * opening["thickness"]
-    cutter = make_cutter(opening, walls)
+    cutter = make_cutter(ctx, opening, walls)
     ok = False
     for solver in SOLVERS:
         try:
@@ -135,11 +153,18 @@ def cut(ctx, floor, walls, opening):
 # Makes the floor level faces that carry the floor through the doorways, one object for the floor.
 def make_thresholds(ctx, floor, openings):
     bm = bmesh.new()
+    names = []
     for opening in openings:
-        meshes.add_flat(bm, opening["threshold"], [], floor["elevation"], True)
+        name = slot_name(ctx, opening["materials"]["threshold"], "Threshold")
+        if name not in names:
+            names.append(name)
+        faces = meshes.add_flat(bm, opening["threshold"], [], floor["elevation"], True)
+        meshes.world_uvs(bm, faces)
+        for face in faces:
+            face.material_index = names.index(name)
     collection = ctx.state["collections"][floor["id"]]
     obj = meshes.make_object("SM_%s_Thresholds" % floor["id"], bm, collection, floor["id"], "thresholds")
-    meshes.add_slots(obj, ["Threshold"])
+    meshes.add_slots(obj, names)
 
 
 BUILD_STEPS.register("openings", Step(ORDER, "Cutting openings", run))

@@ -16,6 +16,18 @@ QColor ThemeQml::signalAmber() const { return Theme::instance().signalAmber(); }
 // The white of the scene lights.
 QColor ThemeQml::lightColor() const { return Theme::instance().lightColor(); }
 
+// The skyTopColor of the light probe sky.
+QColor ThemeQml::skyTopColor() const { return Theme::instance().skyTopColor(); }
+
+// The skyHorizonColor of the light probe sky.
+QColor ThemeQml::skyHorizonColor() const { return Theme::instance().skyHorizonColor(); }
+
+// The groundHorizonColor of the light probe sky.
+QColor ThemeQml::groundHorizonColor() const { return Theme::instance().groundHorizonColor(); }
+
+// The groundBottomColor of the light probe sky.
+QColor ThemeQml::groundBottomColor() const { return Theme::instance().groundBottomColor(); }
+
 // How bright the key light is.
 double ThemeQml::keyLightBrightness() const { return Theme::instance().keyLightBrightness(); }
 

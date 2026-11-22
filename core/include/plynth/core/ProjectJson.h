@@ -15,14 +15,16 @@ namespace plynth {
 // in the same order as schema/plan.schema.json.
 using Json = nlohmann::ordered_json;
 
-// Version 2 of plan.json adds "hinge" and "swing" to openings, version 3 adds "items" to floors.
-// Version 2 of project.json adds "defaults", version 3 adds "wall_item_centre" to them.
+// Version 2 of plan.json adds "hinge" and "swing" to openings, version 3 adds "items" to floors, version 4
+// adds "wall_material" to rooms.
+// Version 2 of project.json adds "defaults", version 3 adds "wall_item_centre" to them, version 4 adds
+// "materials" (MaterialDefaults.h).
 // The schema for the current version is schema/plan.schema.json and schema/project.schema.json; older
 // versions stay as schema/plan.vN.schema.json and schema/project.vN.schema.json.
 inline constexpr std::string_view kPlanFormatName = "plynth-plan";
-inline constexpr int kPlanFormatVersion = 3;
+inline constexpr int kPlanFormatVersion = 4;
 inline constexpr std::string_view kProjectFormatName = "plynth-project";
-inline constexpr int kProjectFormatVersion = 3;
+inline constexpr int kProjectFormatVersion = 4;
 
 // Turns a plan into its plan.json form. Every field is written, absent values as null.
 Json planToJson(const Plan& plan);
@@ -72,6 +74,7 @@ Status migrateJson(Json& json, int currentVersion, std::span<const Migration> st
 // The upgrade steps for plan.json, ordered by fromVersion.
 // 1 to 2: every opening gets "hinge": "start" and "swing": "right" unless it already has them.
 // 2 to 3: every floor gets "items": [] unless it already has them.
+// 3 to 4: every room gets "wall_material": null unless it already has one.
 // When the format changes: raise kPlanFormatVersion, add a step here, keep the old schema as
 // plan.vN.schema.json and update plan.schema.json.
 std::span<const Migration> planMigrations();
@@ -79,6 +82,7 @@ std::span<const Migration> planMigrations();
 // The upgrade steps for project.json.
 // 1 to 2: adds "defaults" with the built-in sizes unless it is already there.
 // 2 to 3: adds "wall_item_centre": 1.2 to "defaults" unless it is already there.
+// 3 to 4: adds "materials" with the built-in MaterialDefaults unless it is already there.
 std::span<const Migration> projectMigrations();
 
 }

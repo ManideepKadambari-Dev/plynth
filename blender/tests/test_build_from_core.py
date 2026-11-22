@@ -1,11 +1,17 @@
 import copy
+import datetime
+import json
 import os
 import unittest
 
 import bpy
 
+import material_helpers
 from build_helpers import BuildTest, load_params
 from plynth import meshes
+from schema_check import load_schema, validate
+
+LIBRARY_MATERIALS = ("grey_tile", "red_brick", "white_paint")
 
 
 # Returns the area of a ring of points, positive when anticlockwise.
@@ -34,7 +40,8 @@ class FromCoreTests(BuildTest):
         self.assertEqual(counts["wall_solids"], len(floor["wall_solids"]))
         fills = len([o for o in floor["openings"] if o["type"] in ("door", "window")])
         self.assertEqual(counts["fills"], fills)
-        self.assertEqual(sorted(os.listdir(self.path("build"))), ["building.blend", "building.fbx"])
+        self.assertEqual(sorted(os.listdir(self.path("build"))),
+                         ["building.blend", "building.fbx", "materials.json", "textures"])
 
     # Every room floor has the area core gave it, and the walls lost the volume of the openings.
     def test_geometry(self):
@@ -68,6 +75,106 @@ class FromCoreTests(BuildTest):
         self.assertEqual(result["output"]["problems"], [])
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
         self.assertTrue(meshes.is_manifold(bpy.data.objects["SM_f1_Walls"]))
+
+
+class FromCoreMaterialsTests(material_helpers.MaterialTest, BuildTest):
+    # Cleans three sample materials into a scratch library the way the catalog stores them and returns its folder.
+    def make_library(self):
+        library = self.path("library")
+        now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        for material_id in LIBRARY_MATERIALS:
+            folder = self.path("library", "materials", "items", material_id)
+            params = self.clean_params(os.path.join(material_helpers.SAMPLES, material_id), output_folder=folder)
+            result = self.run_task("cleanup_material", params, job_id="clean-" + material_id)
+            self.assertTrue(result["ok"], result["error"])
+            output = result["output"]
+            info = {
+                "format": "plynth-material", "version": 1, "id": material_id, "name": material_id,
+                "groups": [], "tags": [], "license": "own_work",
+                "source": {"kind": "texture_set", "reference": material_id, "imported_at": now},
+                "tile_size": output["tile_size"], "maps": output["maps"], "texture_size": output["texture_size"],
+                "files": {"bytes": 0, "modified": now},
+                "thumbnail": {"file": None, "error": None, "engine": None, "rendered_at": None},
+                "cleanup": {"blender_version": bpy.app.version_string, "warnings": result["warnings"]},
+            }
+            self.assertEqual(validate(info, load_schema("material-info")), [], material_id)
+            with open(os.path.join(folder, "info.json"), "w", encoding="utf-8") as handle:
+                json.dump(info, handle)
+        return library
+
+    # Returns the materials job with its project folder and library folder filled in.
+    def make_params(self):
+        library = self.make_library()
+        path = os.path.join(helpers_data(), "from_core_materials.json")
+        with open(path, "r", encoding="utf-8") as handle:
+            text = handle.read().replace("@LIBRARY@", library).replace("@PROJECT@", self.path("project"))
+        return json.loads(text)["params"]
+
+    # Builds the job, which uses white paint inside, red brick outside and grey tile floors, with the bevel off.
+    def setUp(self):
+        super().setUp()
+        self.params = self.make_params()
+        self.params["settings"]["bevel_width"] = 0.0
+        self.result = self.build(self.params)
+
+    # The build has no problems and every map file of the job exists.
+    def test_build(self):
+        self.assertTrue(self.result["ok"], self.result["error"])
+        self.assert_result_valid(self.result)
+        output = self.result["output"]
+        self.assertEqual([p for p in output["problems"] if p["code"] != "missing_material"], [])
+        for entry in self.params["materials"]:
+            for path in entry["maps"].values():
+                self.assertTrue(path is None or os.path.isfile(path), path)
+        self.assertEqual(output["counts"]["materials"], len(self.read_materials()["materials"]))
+
+    # Every room's floor has the area core gave it.
+    def test_floor_areas(self):
+        bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
+        floor = self.params["floors"][0]
+        for room in floor["rooms"]:
+            obj = bpy.data.objects["SM_%s_%s_Floor" % (floor["id"], room["id"])]
+            self.assertAlmostEqual(meshes.area(obj), room["area"], delta=1e-3)
+            self.assertEqual([m.name for m in obj.data.materials], ["grey_tile"])
+
+    # Every inside wall face uses white_paint and every outside face red_brick (wall ends, tops and reveals are left out).
+    def test_wall_faces(self):
+        bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
+        walls = bpy.data.objects["SM_f1_Walls"]
+        names = [m.name for m in walls.data.materials]
+        sides = [item.value for item in walls.data.attributes["plynth_side"].data]
+        rooms = [item.value for item in walls.data.attributes["plynth_room"].data]
+        inside = outside = 0
+        for polygon in walls.data.polygons:
+            if sides[polygon.index] >= 2:
+                continue
+            name = names[polygon.material_index]
+            if rooms[polygon.index] != -1:
+                self.assertEqual(name, "white_paint")
+                inside += 1
+            else:
+                self.assertEqual(name, "red_brick")
+                outside += 1
+        self.assertGreater(inside, 0)
+        self.assertGreater(outside, 0)
+
+    # materials.json validates and names the three library materials.
+    def test_materials_file(self):
+        data = self.read_materials()
+        self.assertEqual(validate(data, load_schema("build-materials")), [])
+        names = {m["name"] for m in data["materials"]}
+        self.assertTrue(set(LIBRARY_MATERIALS) <= names, names)
+
+    # Reads the materials.json the build wrote.
+    def read_materials(self):
+        with open(self.path("build", "materials.json"), "r", encoding="utf-8") as handle:
+            return json.load(handle)
+
+
+# Returns the folder of the job fixtures.
+def helpers_data():
+    from build_helpers import DATA_FOLDER
+    return DATA_FOLDER
 
 
 if __name__ == "__main__":

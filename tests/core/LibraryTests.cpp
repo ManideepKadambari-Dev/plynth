@@ -4,6 +4,7 @@
 #include <plynth/core/ProjectFiles.h>
 
 #include <catch2/catch_test_macros.hpp>
+#include <sqlite3.h>
 
 #include <filesystem>
 #include <fstream>
@@ -34,7 +35,8 @@ TEST_CASE("initLibrary makes every folder and both databases", "[core][library]"
     plynth::test::requireOk(initLibrary(root));
     const LibraryPaths p = libraryPaths(root);
     for (const fs::path* folder : {&p.assets, &p.assetItems, &p.assetInbox, &p.assetInboxDone, &p.assetInboxFailed,
-                                   &p.assetStaging, &p.materials, &p.materialItems, &p.materialInbox, &p.generators, &p.shapes}) {
+                                   &p.assetStaging, &p.materials, &p.materialItems, &p.materialInbox, &p.materialInboxDone,
+                                   &p.materialInboxFailed, &p.materialStaging, &p.generators, &p.shapes}) {
         INFO(pathToUtf8(*folder));
         REQUIRE(fs::is_directory(*folder));
     }
@@ -157,5 +159,101 @@ TEST_CASE("libraryPaths touches nothing", "[core][library]") {
     REQUIRE(p.assetInbox == tmp.path() / "Nothing" / "assets" / "inbox");
     REQUIRE(p.assetInboxDone == p.assetInbox / "done");
     REQUIRE(p.materialsDb == tmp.path() / "Nothing" / "materials" / "materials.db");
+    REQUIRE(p.materialInboxDone == p.materialInbox / "done");
+    REQUIRE(p.materialInboxFailed == p.materialInbox / "failed");
+    REQUIRE(p.materialStaging == p.materials / ".staging");
     REQUIRE(p.shapes == tmp.path() / "Nothing" / "shapes");
+}
+
+namespace {
+
+// Runs one statement on a database file and returns the first number it gives, or 0.
+long long scalar(const fs::path& db, const char* sql)
+{
+    sqlite3* handle = nullptr;
+    REQUIRE(sqlite3_open(pathToUtf8(db).c_str(), &handle) == SQLITE_OK);
+    sqlite3_stmt* stmt = nullptr;
+    REQUIRE(sqlite3_prepare_v2(handle, sql, -1, &stmt, nullptr) == SQLITE_OK);
+    long long value = 0;
+    if (sqlite3_step(stmt) == SQLITE_ROW) value = sqlite3_column_int64(stmt, 0);
+    sqlite3_finalize(stmt);
+    sqlite3_close(handle);
+    return value;
+}
+
+// Runs statements that return nothing.
+void runSql(const fs::path& db, const char* sql)
+{
+    sqlite3* handle = nullptr;
+    REQUIRE(sqlite3_open(pathToUtf8(db).c_str(), &handle) == SQLITE_OK);
+    REQUIRE(sqlite3_exec(handle, sql, nullptr, nullptr, nullptr) == SQLITE_OK);
+    sqlite3_close(handle);
+}
+
+}
+
+TEST_CASE("a new library seeds the material groups and licenses", "[core][library][materials]") {
+    plynth::test::TempDir tmp("lib-material-seed");
+    const fs::path root = tmp.path() / "Lib";
+    plynth::test::requireOk(initLibrary(root));
+    const LibraryPaths p = libraryPaths(root);
+    REQUIRE(scalar(p.materialsDb, "SELECT COUNT(*) FROM material_groups") == 8);
+    REQUIRE(scalar(p.materialsDb, "SELECT COUNT(*) FROM material_groups WHERE built_in = 1") == 8);
+    REQUIRE(scalar(p.materialsDb, "SELECT COUNT(*) FROM licenses") == 6);
+    REQUIRE(scalar(p.materialsDb, "SELECT sort FROM material_groups WHERE id = 'floor'") == 0);
+    REQUIRE(scalar(p.materialsDb, "SELECT sort FROM material_groups WHERE id = 'metal'") == 7);
+    for (const char* id : {"floor", "wall", "ceiling", "exterior", "trim", "door", "glass", "metal"}) {
+        INFO(id);
+        const std::string sql = std::string("SELECT COUNT(*) FROM material_groups WHERE id = '") + id + "'";
+        REQUIRE(scalar(p.materialsDb, sql.c_str()) == 1);
+    }
+}
+
+TEST_CASE("initLibrary on a milestone 6 library adds the new folders and seeds the groups once", "[core][library][materials]") {
+    plynth::test::TempDir tmp("lib-material-upgrade");
+    const fs::path root = tmp.path() / "Lib";
+    plynth::test::requireOk(initLibrary(root));
+    const LibraryPaths p = libraryPaths(root);
+
+    fs::remove_all(p.materialInboxDone);
+    fs::remove_all(p.materialInboxFailed);
+    fs::remove_all(p.materialStaging);
+    runSql(p.materialsDb, "DELETE FROM material_groups; DELETE FROM licenses;");
+    plynth::test::writeBytes(p.materialItems / "keep" / "info.json", "{}");
+    REQUIRE(scalar(p.materialsDb, "SELECT COUNT(*) FROM material_groups") == 0);
+
+    plynth::test::requireOk(initLibrary(root));
+    REQUIRE(fs::is_directory(p.materialInboxDone));
+    REQUIRE(fs::is_directory(p.materialInboxFailed));
+    REQUIRE(fs::is_directory(p.materialStaging));
+    REQUIRE(fs::exists(p.materialItems / "keep" / "info.json"));
+    REQUIRE(scalar(p.materialsDb, "SELECT COUNT(*) FROM material_groups") == 8);
+    REQUIRE(scalar(p.materialsDb, "SELECT COUNT(*) FROM licenses") == 6);
+
+    plynth::test::requireOk(initLibrary(root));
+    REQUIRE(scalar(p.materialsDb, "SELECT COUNT(*) FROM material_groups") == 8);
+    REQUIRE(scalar(p.materialsDb, "SELECT COUNT(*) FROM licenses") == 6);
+}
+
+TEST_CASE("initLibrary keeps the user's material groups when the table is not empty", "[core][library][materials]") {
+    plynth::test::TempDir tmp("lib-material-keep");
+    const fs::path root = tmp.path() / "Lib";
+    plynth::test::requireOk(initLibrary(root));
+    const LibraryPaths p = libraryPaths(root);
+    runSql(p.materialsDb, "INSERT INTO material_groups (id, name, sort, built_in) VALUES ('mine', 'Mine', 8, 0)");
+    plynth::test::requireOk(initLibrary(root));
+    REQUIRE(scalar(p.materialsDb, "SELECT COUNT(*) FROM material_groups") == 9);
+}
+
+TEST_CASE("initLibrary empties the idle material staging folders", "[core][library][materials]") {
+    plynth::test::TempDir tmp("lib-material-staging");
+    const fs::path root = tmp.path() / "Lib";
+    plynth::test::requireOk(initLibrary(root));
+    const LibraryPaths p = libraryPaths(root);
+    plynth::test::writeBytes(p.materialStaging / "left-00000001" / "job.json", "{}");
+    plynth::test::writeBytes(p.materialStaging / "busy-00000002" / "job.json", "{}");
+    plynth::test::markFolderLive(p.materialStaging / "busy-00000002");
+    plynth::test::requireOk(initLibrary(root));
+    REQUIRE_FALSE(fs::exists(p.materialStaging / "left-00000001"));
+    REQUIRE(fs::exists(p.materialStaging / "busy-00000002" / "job.json"));
 }

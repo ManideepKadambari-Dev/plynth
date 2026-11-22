@@ -20,7 +20,7 @@
           "required": ["code", "message"],
           "additionalProperties": false,
           "properties": {
-            "code": { "enum": ["bad_job", "unknown_task", "unsupported_format", "import_failed", "no_geometry", "several_models", "unpack_failed", "save_failed", "render_failed", "export_failed", "internal"] },
+            "code": { "enum": ["bad_job", "unknown_task", "unsupported_format", "import_failed", "no_geometry", "several_models", "several_materials", "no_base_color", "bake_failed", "unpack_failed", "save_failed", "render_failed", "export_failed", "internal"] },
             "message": { "type": "string", "minLength": 1 }
           }
         }
@@ -34,7 +34,7 @@
         "required": ["code", "message"],
         "additionalProperties": false,
         "properties": {
-          "code": { "enum": ["high_polycount", "scale_suspicious", "missing_texture", "removed_objects", "unsupported_object", "fbx_failed"] },
+          "code": { "enum": ["high_polycount", "scale_suspicious", "missing_texture", "removed_objects", "unsupported_object", "fbx_failed", "ambiguous_map", "unused_image", "map_size_mismatch", "visible_seams", "low_resolution"] },
           "message": { "type": "string", "minLength": 1 }
         }
       }
@@ -63,6 +63,10 @@
     {
       "if": { "properties": { "ok": { "const": true }, "task": { "const": "build" } } },
       "then": { "properties": { "output": { "$ref": "#/definitions/buildOutput" } } }
+    },
+    {
+      "if": { "properties": { "ok": { "const": true }, "task": { "const": "cleanup_material" } } },
+      "then": { "properties": { "output": { "$ref": "#/definitions/cleanupMaterialOutput" } } }
     }
   ],
   "definitions": {
@@ -176,23 +180,25 @@
     },
     "buildOutput": {
       "type": "object",
-      "required": ["blend_file", "fbx_file", "objects", "triangles", "counts", "steps", "problems"],
+      "required": ["blend_file", "fbx_file", "materials_file", "objects", "triangles", "counts", "steps", "problems"],
       "additionalProperties": false,
       "properties": {
         "blend_file": { "const": "building.blend" },
         "fbx_file": { "enum": ["building.fbx", null] },
+        "materials_file": { "description": "Written with the FBX; null when no FBX was asked for.", "enum": ["materials.json", null] },
         "objects": { "type": "integer", "minimum": 0 },
         "triangles": { "type": "integer", "minimum": 0 },
         "counts": {
           "type": "object",
-          "required": ["wall_solids", "openings_cut", "fills", "rooms", "items"],
+          "required": ["wall_solids", "openings_cut", "fills", "rooms", "items", "materials"],
           "additionalProperties": false,
           "properties": {
             "wall_solids": { "type": "integer", "minimum": 0 },
             "openings_cut": { "type": "integer", "minimum": 0 },
             "fills": { "type": "integer", "minimum": 0 },
             "rooms": { "type": "integer", "minimum": 0 },
-            "items": { "type": "integer", "minimum": 0 }
+            "items": { "type": "integer", "minimum": 0 },
+            "materials": { "description": "Blender materials made for built surfaces, from the library and neutral.", "type": "integer", "minimum": 0 }
           }
         },
         "steps": {
@@ -209,6 +215,90 @@
           }
         },
         "problems": { "type": "array", "items": { "$ref": "#/definitions/buildProblem" } }
+      }
+    },
+    "mapFile": {
+      "description": "Relative to output_folder: textures/<channel>.<ext>, for example textures/normal.png.",
+      "type": "string",
+      "pattern": "^textures/(base_color|normal|roughness|metallic|opacity|occlusion)\\.(png|jpg|jpeg)$"
+    },
+    "materialMap": {
+      "description": "from: file (detail is the source image's name), value (detail is the number), baked (rendered with Eevee), none (no map).",
+      "type": "object",
+      "required": ["file", "from", "detail"],
+      "additionalProperties": false,
+      "properties": {
+        "file": { "oneOf": [{ "$ref": "#/definitions/mapFile" }, { "type": "null" }] },
+        "from": { "enum": ["file", "value", "baked", "none"] },
+        "detail": { "type": "string" }
+      },
+      "if": { "properties": { "from": { "const": "none" } } },
+      "then": { "properties": { "file": { "type": "null" } } },
+      "else": { "properties": { "file": { "$ref": "#/definitions/mapFile" } } }
+    },
+    "requiredMap": {
+      "allOf": [
+        { "$ref": "#/definitions/materialMap" },
+        { "properties": { "from": { "enum": ["file", "value", "baked"] } } }
+      ]
+    },
+    "cleanupMaterialOutput": {
+      "type": "object",
+      "required": ["maps", "texture_size", "tile_size", "picked_material", "source_info", "thumbnail"],
+      "additionalProperties": false,
+      "properties": {
+        "maps": {
+          "type": "object",
+          "required": ["base_color", "normal", "roughness", "metallic", "opacity", "occlusion"],
+          "additionalProperties": false,
+          "properties": {
+            "base_color": { "$ref": "#/definitions/requiredMap" },
+            "normal": { "$ref": "#/definitions/requiredMap" },
+            "roughness": { "$ref": "#/definitions/requiredMap" },
+            "metallic": { "$ref": "#/definitions/requiredMap" },
+            "opacity": { "$ref": "#/definitions/materialMap" },
+            "occlusion": { "$ref": "#/definitions/materialMap" }
+          }
+        },
+        "texture_size": {
+          "description": "Pixel size of the base color map.",
+          "type": "object",
+          "required": ["width", "height"],
+          "additionalProperties": false,
+          "properties": {
+            "width": { "type": "integer", "minimum": 1 },
+            "height": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "tile_size": {
+          "description": "The tile size used: the job's, material.json's, or 1 m square.",
+          "type": "object",
+          "required": ["width", "height"],
+          "additionalProperties": false,
+          "properties": {
+            "width": { "type": "number", "minimum": 0.01, "maximum": 100 },
+            "height": { "type": "number", "minimum": 0.01, "maximum": 100 }
+          }
+        },
+        "picked_material": { "description": "The material taken from a .blend; null for a texture set.", "type": ["string", "null"] },
+        "source_info": {
+          "description": "What material.json said, each field only when it was there; null when there was no material.json.",
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 64 },
+                "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+                "groups": { "type": "array", "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" } },
+                "tags": { "type": "array", "items": { "type": "string" } },
+                "license": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }
+              }
+            }
+          ]
+        },
+        "thumbnail": { "$ref": "#/definitions/thumbnail" }
       }
     }
   }

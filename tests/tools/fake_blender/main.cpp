@@ -1,7 +1,9 @@
 // A stand-in for blender.exe in tests. It answers --version and runs the Plynth worker protocol without
 // Blender: it reads the job file after "--", acts by the mode in fake_mode.txt next to the program (or the
 // FAKE_BLENDER_MODE variable), and writes a result file that follows schema/blender-result.schema.json.
-// Modes: ok (default), fail, crash, hang, hang_version, bad_result, no_thumbnail, no_fbx, build_problem.
+// Modes: ok (default), fail, crash, hang, hang_version, bad_result, no_thumbnail, no_fbx, build_problem,
+// several_materials (a cleanup_material job on a .blend with no material named fails with that error).
+// Every job is also appended as one line to fake_jobs.log next to the program.
 // The version comes from fake_version.txt next to the program, else 5.2.0.
 // Probe add-ons come from FAKE_BLENDER_ADDONS (comma separated modules) and FAKE_BLENDER_BLENDERKIT
 // (none, installed, enabled or signed_in).
@@ -209,6 +211,69 @@ Json probeOutput(const std::string& version)
 }
 
 
+// The material.json of a source folder, or null when there is none.
+Json readMaterialSource(const fs::path& folder)
+{
+    std::error_code ec;
+    if (!fs::is_directory(folder, ec)) return nullptr;
+    std::ifstream in(folder / "material.json", std::ios::binary);
+    if (!in) return nullptr;
+    const Json json = Json::parse(in, nullptr, false);
+    return json.is_object() ? json : Json(nullptr);
+}
+
+// The cleanup_material task: four map files (opacity when the job gives a value below 1), thumb.png and the
+// fields of material.json that the worker would report.
+Json materialOutput(const Json& params, const std::string& mode)
+{
+    const fs::path folder = pathFrom(params["output_folder"].get<std::string>());
+    const Json& source = params["source"];
+    const bool wantThumbnail = params["thumbnail"]["render"].get<bool>();
+
+    Json maps = Json::object();
+    for (const char* channel : {"base_color", "normal", "roughness", "metallic"}) {
+        writeFile(folder / "textures" / (std::string(channel) + ".png"), tinyPng());
+        maps[channel] = Json{{"file", std::string("textures/") + channel + ".png"}, {"from", "file"}, {"detail", "fake.png"}};
+    }
+    const Json& values = source["values"];
+    const bool opacity = values.contains("opacity") && values["opacity"].get<double>() < 1.0;
+    if (opacity) writeFile(folder / "textures" / "opacity.png", tinyPng());
+    maps["opacity"] = opacity ? Json{{"file", "textures/opacity.png"}, {"from", "value"}, {"detail", std::to_string(values["opacity"].get<double>())}}
+                              : Json{{"file", nullptr}, {"from", "none"}, {"detail", ""}};
+    maps["occlusion"] = Json{{"file", nullptr}, {"from", "none"}, {"detail", ""}};
+
+    const Json sourceFile = source["kind"] == "texture_set" ? readMaterialSource(pathFrom(source["path"].get<std::string>())) : Json(nullptr);
+    Json info = nullptr;
+    if (sourceFile.is_object()) {
+        info = Json::object();
+        for (const char* key : {"id", "name", "groups", "tags", "license"}) {
+            if (sourceFile.contains(key)) info[key] = sourceFile[key];
+        }
+    }
+    Json tile = Json{{"width", 1.0}, {"height", 1.0}};
+    if (params["tile_size"].is_object()) tile = params["tile_size"];
+    else if (sourceFile.is_object() && sourceFile.contains("tile_size")) tile = sourceFile["tile_size"];
+
+    Json thumbnail = Json{{"file", nullptr}, {"engine", nullptr}, {"error", nullptr}};
+    if (wantThumbnail && mode == "no_thumbnail") {
+        thumbnail["error"] = "Fake render failure";
+    } else if (wantThumbnail) {
+        writeFile(folder / "thumb.png", tinyPng());
+        thumbnail = Json{{"file", "thumb.png"}, {"engine", "eevee"}, {"error", nullptr}};
+    }
+    Json picked = nullptr;
+    if (source["kind"] == "blend") picked = source["material"].is_string() ? source["material"] : Json("FakeMaterial");
+
+    Json out = Json::object();
+    out["maps"] = maps;
+    out["texture_size"] = Json{{"width", 8}, {"height", 8}};
+    out["tile_size"] = tile;
+    out["picked_material"] = picked;
+    out["source_info"] = info;
+    out["thumbnail"] = thumbnail;
+    return out;
+}
+
 // The steps the fake build reports.
 constexpr const char* kBuildSteps[] = {"prepare_scene", "walls", "openings", "floors", "assets", "materials", "save_blend", "export_fbx"};
 
@@ -220,6 +285,50 @@ int sumOf(const Json& floors, const char* key)
     return total;
 }
 
+// The materials.json the fake build writes: each library material of the job, and a neutral Wall_Outside
+// when a ring edge has no material. Returns how many materials it lists.
+int writeBuiltMaterials(const fs::path& folder, const Json& params)
+{
+    Json materials = Json::array();
+    for (const Json& m : params["materials"]) {
+        materials.push_back(Json{{"name", m["id"]},
+                                 {"material", m["id"]},
+                                 {"surface", nullptr},
+                                 {"maps", m["maps"]},
+                                 {"alpha_mode", m["maps"]["opacity"].is_null() ? "opaque" : "blend"}});
+    }
+    bool neutral = false;
+    for (const Json& floor : params["floors"]) {
+        for (const Json& solid : floor["wall_solids"]) {
+            for (const Json& edge : solid["outline"]["edges"]) neutral = neutral || edge["material"].is_null();
+        }
+    }
+    if (neutral) {
+        const std::u8string utf8 = (folder / "textures" / "Wall_Outside_").generic_u8string();
+        const std::string base(utf8.begin(), utf8.end());
+        materials.push_back(Json{{"name", "Wall_Outside"},
+                                 {"material", nullptr},
+                                 {"surface", "Wall_Outside"},
+                                 {"maps", Json{{"base_color", base + "base_color.png"},
+                                               {"normal", base + "normal.png"},
+                                               {"roughness", base + "roughness.png"},
+                                               {"metallic", base + "metallic.png"},
+                                               {"opacity", nullptr},
+                                               {"occlusion", nullptr}}},
+                                 {"alpha_mode", "opaque"}});
+    }
+    const int count = static_cast<int>(materials.size());
+    Json slots = Json::array();
+    for (const Json& m : materials) slots.push_back(m["name"]);
+    Json objects = Json::array();
+    for (const Json& floor : params["floors"]) {
+        objects.push_back(Json{{"name", "SM_" + floor["id"].get<std::string>() + "_Walls"}, {"slots", slots}});
+    }
+    const Json file = Json{{"format", "plynth-build-materials"}, {"version", 1}, {"materials", materials}, {"objects", objects}};
+    writeFile(folder / "materials.json", file.dump(2) + "\n");
+    return count;
+}
+
 // What the fake build task writes and reports.
 Json buildOutput(const Json& params, const std::string& mode)
 {
@@ -227,6 +336,7 @@ Json buildOutput(const Json& params, const std::string& mode)
     writeFile(folder / "building.blend", "FAKEBLEND");
     const bool fbx = params["fbx_file"].is_string();
     if (fbx) writeFile(folder / "building.fbx", "FAKEFBX");
+    const int materialCount = fbx ? writeBuiltMaterials(folder, params) : static_cast<int>(params["materials"].size());
 
     const Json& floors = params["floors"];
     const int solids = sumOf(floors, "wall_solids");
@@ -256,9 +366,10 @@ Json buildOutput(const Json& params, const std::string& mode)
     Json out = Json::object();
     out["blend_file"] = "building.blend";
     out["fbx_file"] = fbx ? Json("building.fbx") : Json(nullptr);
+    out["materials_file"] = fbx ? Json("materials.json") : Json(nullptr);
     out["objects"] = objects;
     out["triangles"] = objects * 12;
-    out["counts"] = Json{{"wall_solids", solids}, {"openings_cut", openings}, {"fills", fills}, {"rooms", rooms}, {"items", items}};
+    out["counts"] = Json{{"wall_solids", solids}, {"openings_cut", openings}, {"fills", fills}, {"rooms", rooms}, {"items", items}, {"materials", materialCount}};
     out["steps"] = steps;
     out["problems"] = problems;
     return out;
@@ -315,6 +426,11 @@ int main()
     const Json job = Json::parse(in, nullptr, false);
     if (job.is_discarded()) return 3;
 
+    {
+        std::ofstream log(programFolder() / "fake_jobs.log", std::ios::binary | std::ios::app);
+        log << job.dump() << "\n";
+    }
+
     const bool isBuild = job["task"].get<std::string>() == "build";
     if (isBuild) {
         int index = 0;
@@ -358,10 +474,21 @@ int main()
         return 0;
     }
 
+    if (mode == "several_materials" && task == "cleanup_material" && params["source"]["kind"] == "blend" &&
+        params["source"]["material"].is_null()) {
+        result["ok"] = false;
+        result["error"] = Json{{"code", "several_materials"}, {"message", "The file has several materials: Brick, Wood. Name the one to take."}};
+        result["output"] = nullptr;
+        writeResult(resultFile, result);
+        return 0;
+    }
+
     if (task == "build") {
         result["output"] = buildOutput(params, mode);
     } else if (task == "probe") {
         result["output"] = probeOutput(version);
+    } else if (task == "cleanup_material") {
+        result["output"] = materialOutput(params, mode);
     } else if (task == "cleanup_asset") {
         const fs::path folder = pathFrom(params["output_folder"].get<std::string>());
         writeFile(folder / "asset.blend", "FAKEBLEND");

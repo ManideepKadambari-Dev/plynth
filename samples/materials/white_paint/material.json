@@ -1,0 +1,26 @@
+{
+  "format": "plynth-material-source",
+  "version": 1,
+  "id": "white_paint",
+  "name": "White paint",
+  "groups": [
+    "wall",
+    "ceiling"
+  ],
+  "tags": [
+    "paint",
+    "smooth",
+    "white"
+  ],
+  "tile_size": {
+    "width": 1.0,
+    "height": 1.0
+  },
+  "maps": {
+    "base_color": "paint.png"
+  },
+  "values": {
+    "roughness": 0.9
+  },
+  "license": "own_work"
+}

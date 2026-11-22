@@ -19,9 +19,11 @@ namespace plynth {
 //         failed/        inbox entries that could not be imported, each with <name>.error.txt
 //       .staging/        work folders of running imports; never indexed, emptied by initLibrary
 //     materials/
-//       materials.db     created empty now (schema/materials-db.sql), filled in milestone 9
-//       items/
-//       inbox/
+//       materials.db     index: material groups, tags, licenses, search (schema/materials-db.sql)
+//       items/<id>/      textures/, thumb.png, info.json (catalog/MaterialInfo.h)
+//       inbox/           texture folders, zips or .blend files to import
+//         done/, failed/ as for assets (see catalog/MaterialImport.h)
+//       .staging/        work folders of running material imports and refreshes, emptied by initLibrary
 //     generators/        milestone 14
 //     shapes/            custom opening outlines, read with registerShapeFolder
 // The files in items/ are the truth. The .db files are indexes that rescan rebuilds, except for the user's
@@ -58,6 +60,9 @@ struct LibraryPaths {
     std::filesystem::path materialsDb;
     std::filesystem::path materialItems;
     std::filesystem::path materialInbox;
+    std::filesystem::path materialInboxDone;
+    std::filesystem::path materialInboxFailed;
+    std::filesystem::path materialStaging;
     std::filesystem::path generators;
     std::filesystem::path shapes;
 };
@@ -69,7 +74,9 @@ LibraryPaths libraryPaths(const std::filesystem::path& root);
 bool isLibraryFolder(const std::filesystem::path& root);
 
 // Makes a folder into a library: creates every missing folder above and both databases with their tables,
-// seeds assets.db with the built-in room types, categories and licenses, and empties .staging. Never removes
+// seeds assets.db with the built-in room types, categories and licenses and materials.db with the built-in
+// material groups and licenses (also into an existing, empty materials.db), and empties both .staging
+// folders. Never removes
 // or changes anything else, so it is safe on an existing library. CannotWrite when a folder or file cannot
 // be made; DatabaseError or UnsupportedVersion from the databases.
 Status initLibrary(const std::filesystem::path& root);

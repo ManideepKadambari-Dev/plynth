@@ -14,7 +14,13 @@ add_library(plynth_core STATIC
     src/catalog/Staging.cpp
     src/catalog/AssetImport.cpp
     src/catalog/AssetInfo.cpp
+    src/catalog/CatalogNames.cpp
     src/catalog/AssetCatalog.cpp
+    src/catalog/MaterialInfo.cpp
+    src/catalog/MaterialCatalog.cpp
+    src/catalog/MaterialJobs.cpp
+    src/catalog/MaterialImport.cpp
+    src/catalog/MaterialImporterRegistry.cpp
     src/catalog/ItemAssets.cpp
     src/catalog/BuiltInCatalog.cpp
     src/catalog/Database.cpp
@@ -37,6 +43,8 @@ add_library(plynth_core STATIC
     src/BuildGeometry.cpp
     src/BuildJob.cpp
     src/Build.cpp
+    src/MaterialDefaults.cpp
+    src/Materials.cpp
     src/openings/OpeningShapes.cpp
     src/openings/ShapeFiles.cpp
     src/commands/FloorCommands.cpp
@@ -47,6 +55,7 @@ add_library(plynth_core STATIC
     src/commands/DeleteCommands.cpp
     src/commands/OpeningCommands.cpp
     src/commands/ItemCommands.cpp
+    src/commands/MaterialCommands.cpp
     src/commands/DetectionCommands.cpp
     src/detection/Detection.cpp
     src/detection/Detector.cpp
@@ -111,7 +120,8 @@ if(PLYNTH_SHAPE_SOURCES)
 endif()
 
 # Importers register themselves the same way, so they are built as an object library too.
-file(GLOB PLYNTH_IMPORTER_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/catalog/importers/*.cpp)
+file(GLOB PLYNTH_IMPORTER_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/catalog/importers/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/catalog/material_importers/*.cpp)
 if(PLYNTH_IMPORTER_SOURCES)
     add_library(plynth_importers OBJECT ${PLYNTH_IMPORTER_SOURCES})
     target_include_directories(plynth_importers PRIVATE include src)

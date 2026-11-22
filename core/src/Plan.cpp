@@ -146,6 +146,7 @@ Status checkRooms(const Floor& floor, const std::string& floorPath, IdSet& seen)
             }
         }
         if (auto s = checkOptionalName(r.floorMaterial, "material", base + "/floor_material"); !s.ok()) return s;
+        if (auto s = checkOptionalName(r.wallMaterial, "material", base + "/wall_material"); !s.ok()) return s;
         if (auto s = checkOptionalName(r.ceilingMaterial, "material", base + "/ceiling_material"); !s.ok()) return s;
     }
     return {};

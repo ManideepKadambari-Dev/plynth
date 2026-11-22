@@ -127,8 +127,12 @@ void StatusBar::showMessage(const QString& text, bool refusal)
     messageLabel_->setStyleSheet(QStringLiteral("color: %1;").arg((refusal ? t.signalAmber() : t.text()).name()));
     messageLabel_->setTextFormat(Qt::RichText);
     messageLabel_->setText(t.withMonoPaths(text));
+    messageLabel_->setToolTip(text);
     messageLabel_->show();
     hintLabel_->hide();
+    messageLabel_->adjustSize();
+    layout()->invalidate();
+    layout()->activate();
     messageTimer_->start();
 }
 

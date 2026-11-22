@@ -51,7 +51,8 @@ class SquareRoomTests(BuildTest):
 
     # The files exist and no temporary file is left.
     def test_files(self):
-        self.assertEqual(sorted(os.listdir(self.path("build"))), ["building.blend", "building.fbx"])
+        self.assertEqual(sorted(os.listdir(self.path("build"))),
+                         ["building.blend", "building.fbx", "materials.json", "textures"])
 
     # Walls have the volume of the solid, a surface on every face, and inside and outside faces differ.
     def test_walls(self):
@@ -112,12 +113,15 @@ class SquareRoomTests(BuildTest):
         self.assertEqual(floor["plynth_kind"], "floor")
         self.assertEqual(ceiling["plynth_id"], "r1")
 
-    # Neutral looks are applied.
+    # Neutral looks are applied as constant images in build/textures.
     def test_materials(self):
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
         mat = bpy.data.materials["Wall_Inside"]
-        node = mat.node_tree.nodes["Principled BSDF"]
-        self.assertAlmostEqual(node.inputs["Roughness"].default_value, 0.9, delta=1e-6)
+        images = {n.label: n.image for n in mat.node_tree.nodes if n.type == "TEX_IMAGE"}
+        self.assertEqual(sorted(images), ["base_color", "metallic", "normal", "roughness"])
+        roughness = images["roughness"]
+        self.assertEqual(os.path.dirname(roughness.filepath.replace("\\", "/")), self.path("build", "textures"))
+        self.assertAlmostEqual(roughness.pixels[0], 0.9, delta=0.01)
 
     # The FBX re-imports with the walls, floor and ceiling at the same bounds.
     def test_fbx_reimport(self):
@@ -179,7 +183,8 @@ class FloorsTests(BuildTest):
         result = self.build(load_params("square_room"), fbx_file=None)
         self.assertTrue(result["ok"], result["error"])
         self.assertIsNone(result["output"]["fbx_file"])
-        self.assertEqual(sorted(os.listdir(self.path("build"))), ["building.blend"])
+        self.assertEqual(sorted(os.listdir(self.path("build"))), ["building.blend", "textures"])
+        self.assertIsNone(result["output"]["materials_file"])
         self.assertGreater(result["output"]["triangles"], 0)
 
     # A job without floors is a bad_job.

@@ -1,6 +1,7 @@
 #include "ImportQueueView.h"
 
 #include "catalog/ImportQueue.h"
+#include "materials/MaterialImportQueue.h"
 #include "theme/ElideLabel.h"
 #include "theme/Theme.h"
 
@@ -18,15 +19,44 @@
 
 namespace plynth::app {
 
+// Shows the asset import queue.
+ImportQueueView::ImportQueueView(ImportQueue& queue, QWidget* parent) : QWidget(parent)
+{
+    rows_fn_ = [&queue]() {
+        std::vector<Row> rows;
+        for (const QueueItem& item : queue.items())
+            rows.push_back({item.id, item.title, item.stage, item.percent, item.state == QueueItem::State::Failed,
+                            item.kind == QueueItem::Kind::Refresh, item.message, item.workFolder});
+        return rows;
+    };
+    cancel_ = [&queue](int id) { queue.cancel(id); };
+    connect(&queue, &ImportQueue::itemsChanged, this, &ImportQueueView::rebuild);
+    start();
+}
+
+// Shows the material import queue.
+ImportQueueView::ImportQueueView(MaterialImportQueue& queue, QWidget* parent) : QWidget(parent)
+{
+    rows_fn_ = [&queue]() {
+        std::vector<Row> rows;
+        for (const MaterialQueueItem& item : queue.items())
+            rows.push_back({item.id, item.title, item.stage, item.percent, item.state == MaterialQueueItem::State::Failed,
+                            false, item.message, item.workFolder});
+        return rows;
+    };
+    cancel_ = [&queue](int id) { queue.cancel(id); };
+    connect(&queue, &MaterialImportQueue::itemsChanged, this, &ImportQueueView::rebuild);
+    start();
+}
+
 // Builds an empty list that shows itself when the queue has items.
-ImportQueueView::ImportQueueView(ImportQueue& queue, QWidget* parent) : QWidget(parent), queue_(queue)
+void ImportQueueView::start()
 {
     setProperty("tourId", QStringLiteral("catalog-queue"));
     setToolTip(tr("The imports that are running or waiting"));
     rows_ = new QVBoxLayout(this);
     rows_->setContentsMargins(0, 0, 0, 0);
     rows_->setSpacing(Theme::instance().unit() * 2);
-    connect(&queue_, &ImportQueue::itemsChanged, this, &ImportQueueView::rebuild);
     rebuild();
 }
 
@@ -39,10 +69,13 @@ void ImportQueueView::rebuild()
             w->deleteLater();
         delete item;
     }
-    const std::vector<QueueItem>& items = queue_.items();
+    const std::vector<Row> items = rows_fn_();
     setVisible(!items.empty());
-    for (const QueueItem& item : items) {
-        const bool failed = item.state == QueueItem::State::Failed;
+    // The parent lays out again at once, so a picture taken right after the last row left shows no gap.
+    if (parentWidget() != nullptr && parentWidget()->layout() != nullptr)
+        parentWidget()->layout()->activate();
+    for (const Row& item : items) {
+        const bool failed = item.failed;
         auto* row = new QFrame(this);
         row->setObjectName(QStringLiteral("queueRow"));
         row->setStyleSheet(QStringLiteral("QFrame#queueRow { background: %1; border: 1px solid %2; border-radius: %3px; }")
@@ -55,7 +88,7 @@ void ImportQueueView::rebuild()
         auto* top = new QHBoxLayout();
         top->setSpacing(t.unit() * 2);
         auto* name = new QLabel(item.title, row);
-        if (item.kind == QueueItem::Kind::Refresh) {
+        if (item.plainTitle) {
             name->setFont(t.uiFont(t.sizeNormal(), QFont::DemiBold));
         } else {
             name->setFont(t.monoFont(t.sizeNormal()));
@@ -128,7 +161,7 @@ void ImportQueueView::rebuild()
         auto* action = new QPushButton(failed ? tr("Dismiss") : tr("Cancel"), row);
         action->setToolTip(failed ? tr("Remove this line from the list") : tr("Stop this import. Nothing is kept"));
         action->setProperty("tourId", failed ? QStringLiteral("queue-dismiss") : QStringLiteral("queue-cancel"));
-        connect(action, &QPushButton::clicked, this, [this, id]() { queue_.cancel(id); });
+        connect(action, &QPushButton::clicked, this, [this, id]() { cancel_(id); });
         buttons->addWidget(action);
         box->addLayout(buttons);
         rows_->addWidget(row);

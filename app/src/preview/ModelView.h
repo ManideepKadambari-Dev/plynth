@@ -3,7 +3,10 @@
 #include <QQuickWidget>
 #include <QString>
 #include <QUrl>
+#include <QVariantList>
 #include <QVector3D>
+
+#include <filesystem>
 
 namespace plynth::app {
 
@@ -23,6 +26,7 @@ class ModelView : public QQuickWidget {
     Q_PROPERTY(int preset READ presetIndex NOTIFY presetChanged)
     Q_PROPERTY(QString emptyText READ emptyText NOTIFY emptyTextChanged)
     Q_PROPERTY(QString failure READ failure NOTIFY stateChanged)
+    Q_PROPERTY(QVariantList builtMaterials READ builtMaterials NOTIFY materialsChanged)
 public:
     enum class Preset { ThreeQuarter = 0, Top = 1 };
     enum class State { Empty, Loading, Ready, Failed };
@@ -46,6 +50,14 @@ public:
     int presetIndex() const { return static_cast<int>(preset_); }
     QString emptyText() const { return emptyText_; }
     QString failure() const;
+
+    // Makes the view read build/materials.json from the project folder each time the model loads, and show the
+    // building with those materials. Off by default, so asset models keep their own look.
+    void useBuiltMaterials(bool on) { useMaterials_ = on; }
+    // One map per built material: key, baseColor, normal, roughness, metallic, opacity, occlusion (urls, empty
+    // when none) and blend. Empty when there is no materials.json.
+    QVariantList builtMaterials() const { return materials_; }
+    int builtMaterialCount() const { return static_cast<int>(materials_.size()); }
 
     // Loads this FBX file. The bounds are the box of the model in scene metres (X right, Y up, Z toward the
     // front of the plan), worked out by the caller because the loader reports them wrongly.
@@ -78,9 +90,11 @@ signals:
     void pictureDrawn();
     void fitRequested();
     void reloadRequested();
+    void materialsChanged();
 
 private:
     void startFrameCount();
+    void readMaterials();
 
     bool interactive_;
     double orthoScale_ = 0.0;
@@ -93,6 +107,8 @@ private:
     QString error_;
     State state_ = State::Empty;
     int framesSinceLoad_ = 0;
+    bool useMaterials_ = false;
+    QVariantList materials_;
 };
 
 }

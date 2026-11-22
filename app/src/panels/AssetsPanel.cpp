@@ -443,6 +443,16 @@ void AssetsPanel::buildDetails()
     problems_->setProperty("tourId", QStringLiteral("catalog-warnings"));
     box->addWidget(problems_);
 
+    materialsTitle_ = mutedLabel(tr("Materials"), body);
+    box->addWidget(materialsTitle_);
+    materialsBox_ = new QWidget(body);
+    materialsBox_->setToolTip(tr("The materials inside the asset. Each can be added to the materials catalog"));
+    materialsBox_->setProperty("tourId", QStringLiteral("catalog-materials"));
+    materialsColumn_ = new QVBoxLayout(materialsBox_);
+    materialsColumn_->setContentsMargins(0, 0, 0, 0);
+    materialsColumn_->setSpacing(t.unit());
+    box->addWidget(materialsBox_);
+
     auto* buttons = new QHBoxLayout();
     buttons->setSpacing(t.unit() * 2);
     retry_ = new QPushButton(tr("Retry render"), body);
@@ -724,6 +734,7 @@ void AssetsPanel::showDetails()
             problems << fromCore(warning.message);
     problems_->setText(problems.join(QLatin1Char('\n')));
     problems_->setVisible(!problems.isEmpty());
+    fillMaterials(record, info.status.ok() ? info.info.materials : std::vector<std::string>());
 
     const bool busy = busy_.contains(fromCore(record.id));
     retry_->setEnabled(retryEnabled_ && !busy);
@@ -731,6 +742,50 @@ void AssetsPanel::showDetails()
                        : busy         ? tr("A render of this asset is already running")
                                       : tr("Measure the asset again and render a new thumbnail"));
     refreshing_ = was;
+}
+
+// Lists the materials inside the asset, each with a button that adds it to the materials catalog.
+void AssetsPanel::fillMaterials(const plynth::AssetRecord& record, const std::vector<std::string>& names)
+{
+    const Theme& t = Theme::instance();
+    while (QLayoutItem* item = materialsColumn_->takeAt(0)) {
+        if (QWidget* w = item->widget())
+            w->deleteLater();
+        delete item;
+    }
+    materialsTitle_->setVisible(!names.empty());
+    materialsBox_->setVisible(!names.empty());
+    const QString assetId = fromCore(record.id);
+    for (const std::string& raw : names) {
+        const QString name = fromCore(raw);
+        auto* row = new QWidget(materialsBox_);
+        auto* line = new QHBoxLayout(row);
+        line->setContentsMargins(0, 0, 0, 0);
+        line->setSpacing(t.unit() * 2);
+        auto* label = new QLabel(name, row);
+        label->setFont(t.monoFont(t.sizeSmall()));
+        label->setTextFormat(Qt::PlainText);
+        label->setMinimumWidth(0);
+        label->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+        label->setToolTip(name);
+        line->addWidget(label, 1);
+        auto* add = new QPushButton(tr("Add to materials catalog"), row);
+        add->setEnabled(importMaterialsEnabled_);
+        add->setToolTip(importMaterialsEnabled_ ? tr("Copy this material into the materials catalog as its own material. The asset keeps its own")
+                                                : tr("Set a library folder first"));
+        add->setProperty("tourId", QStringLiteral("catalog-add-material"));
+        connect(add, &QPushButton::clicked, this, [this, assetId, name]() { emit addMaterialRequested(assetId, name); });
+        line->addWidget(add);
+        materialsColumn_->addWidget(row);
+    }
+}
+
+// Turns the Add to materials catalog buttons on or off.
+void AssetsPanel::setMaterialImportEnabled(bool enabled)
+{
+    importMaterialsEnabled_ = enabled;
+    if (current_)
+        showDetails();
 }
 
 // Scrolls the details to the category list and puts the focus on it.

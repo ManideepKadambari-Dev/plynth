@@ -2,9 +2,11 @@
 
 #include "BlenderJob.h"
 #include "BuildGeometry.h"
+#include "Materials.h"
 #include "Plan.h"
 #include "Project.h"
 #include "Status.h"
+#include "catalog/MaterialInfo.h"
 
 #include <nlohmann/json.hpp>
 
@@ -27,34 +29,59 @@ using Json = nlohmann::ordered_json;
 //   {"project": {"name": "Flat", "folder": "D:/Projects/Flat"},
 //    "output_folder": "D:/Projects/Flat/build", "blend_file": "building.blend", "fbx_file": "building.fbx",
 //    "plan": {...plan.json...},
+//    "materials_file": "materials.json", "textures_folder": "textures",
 //    "settings": {"bevel_width": 0.01, "bevel_segments": 2, "fill_openings": true},
 //    "assets": [{"id": "sofa", "blend_file": "D:/Library/assets/items/sofa/asset.blend", "collection": "sofa"}],
+//    "materials": [{"id": "oak_planks", "tile_size": {"width": 2.0, "height": 2.0},
+//                   "maps": {"base_color": "D:/Library/materials/items/oak_planks/textures/base_color.jpg",
+//                            "normal": "...", "roughness": "...", "metallic": "...",
+//                            "opacity": null, "occlusion": null}}],
 //    "floors": [{"id": "f1", "elevation": 0.0, "ceiling_height": 3.0,
-//                "wall_solids": [{"height": 3.0, "outline": ring, "holes": [ring, ...]}],
+//                "wall_solids": [{"height": 3.0, "top_material": "white_paint", "outline": ring, "holes": [ring, ...]}],
 //                "openings": [opening, ...], "rooms": [room, ...], "items": [item, ...]}]}
-//   ring: {"points": [[x, y], ...], "edges": [{"wall": "w1", "side": "right", "room": "r1"}, ...]}
+//   ring: {"points": [[x, y], ...],
+//          "edges": [{"wall": "w1", "side": "right", "room": "r1", "material": "white_paint"}, ...]}
 //         side is "left", "right" or null (an end face); room is null outside.
 //   opening: {"id", "wall", "type", "shape", "width", "height", "sill", "hinge", "swing", "frame",
 //             "centre": [x, y], "tangent": [x, y], "right": [x, y], "thickness", "curved",
 //             "outline": [[u, v], ...], "inner_outline": [[u, v], ...],
-//             "cutter": {"right": [[x, y, z], ...], "left": [[x, y, z], ...]}, "threshold": [[x, y], ...]}
-//   room: {"id", "type", "area", "floor_z", "ceiling_z", "polygons": [{"outline": [[x, y], ...],
-//          "holes": [[[x, y], ...], ...]}]}
+//             "cutter": {"right": [[x, y, z], ...], "left": [[x, y, z], ...]}, "threshold": [[x, y], ...],
+//             "materials": {"reveal", "threshold", "door", "frame", "glass", "handle"}}
+//   room: {"id", "type", "area", "floor_z", "ceiling_z", "floor_material", "ceiling_material",
+//          "polygons": [{"outline": [[x, y], ...], "holes": [[[x, y], ...], ...]}]}
 //   item: {"id", "asset", "location": [x, y, z], "rotation_z", "size": {"width", "depth", "height"}, "wall"}
-// The fields mean what the structs in BuildGeometry.h say; positions are world coordinates.
+// The fields mean what the structs in BuildGeometry.h say; positions are world coordinates. Every material
+// field is the id of an entry of "materials", or null: the surface then gets its neutral look (the material
+// is unset, missing from the library or broken, and core has reported it). Materials follow Materials.h.
 //
 // Output in the result, schema/blender-result.schema.json "buildOutput":
-//   {"blend_file": "building.blend", "fbx_file": "building.fbx", "objects": 42, "triangles": 18200,
-//    "counts": {"wall_solids": 1, "openings_cut": 9, "fills": 7, "rooms": 5, "items": 4},
+//   {"blend_file": "building.blend", "fbx_file": "building.fbx", "materials_file": "materials.json" or null,
+//    "objects": 42, "triangles": 18200,
+//    "counts": {"wall_solids": 1, "openings_cut": 9, "fills": 7, "rooms": 5, "items": 4, "materials": 6},
 //    "steps": [{"step": "walls", "ms": 120}, ...],
 //    "problems": [{"code": "cut_failed", "severity": "error", "message": "...", "floor": "f1",
 //                  "object": "o3", "step": "openings"}]}
-// The worker writes building.blend and building.fbx under a temporary name and renames them at the end, so a
-// failed build leaves the files of the last good build in place.
+// The worker writes building.blend, building.fbx and materials.json under a temporary name and renames them at
+// the end, so a failed build leaves the files of the last good build in place. materials.json
+// (schema/build-materials.schema.json) is written with the FBX and says, for every material of the built
+// surfaces, which image goes into which channel, because the FBX cannot carry metallic or opacity maps to the
+// 3D preview (owner, milestone 8). The neutral looks of surfaces without a material are written as constant
+// images into build/textures/.
+//
+// Surfaces and UVs (the "materials" step and the steps that make meshes):
+// - a built face's Blender material is named after its catalog material id, or after its neutral surface
+//   (Wall_Inside, Wall_Outside, Wall_Top, Reveal, Threshold, Floor, Ceiling, Door, Frame, Glass, Handle)
+//   when it has none; furniture keeps the materials of its asset
+// - UVs are in metres divided by the material's tile size (neutral surfaces: 1 m): wall side faces u along
+//   their ring from its first point and v up from the floor's level; wall tops, floors and thresholds world
+//   (X, Y); ceilings (X, -Y); the faces a cut makes, fills and anything else are projected on the world plane
+//   their normal is closest to
 
 inline constexpr std::string_view kBuildFolderName = "build";
 inline constexpr std::string_view kBuildBlendFileName = "building.blend";
 inline constexpr std::string_view kBuildFbxFileName = "building.fbx";
+inline constexpr std::string_view kBuildMaterialsFileName = "materials.json";
+inline constexpr std::string_view kBuildTexturesFolder = "textures";
 
 // The finished-look settings of DESIGN.md section 7.13a that are fixed for now.
 inline constexpr double kBuildBevelWidth = 0.01; // metres; 0 turns the bevel off
@@ -87,9 +114,14 @@ std::optional<BuildSeverity> buildSeverityFromName(std::string_view name);
 //   asset_broken (error, the asset is Broken or its asset.blend is gone; the item is left out),
 //   no_library (error, no library is set or it cannot open; every item is left out, object empty),
 //   and every other itemProblemName (warnings: no_room, outside_room, overlaps_item, overlaps_wall,
-//   overlaps_opening, off_wall, too_tall, size_changed).
+//   overlaps_opening, off_wall, too_tall, size_changed),
+//   missing_material (warning, the surface gets its neutral look), material_broken (warning, the same).
+//   One material problem per material id and object that names it: object is the wall, room or opening
+//   (ResolvedMaterial::from), or empty for a project default. no_library is also reported when the plan uses a
+//   material and there is no library.
 // Codes the worker steps report: cut_failed (error), fill_failed (warning, the opening is cut but empty),
-// asset_load_failed (error), bevel_failed (warning, the walls are left sharp). New steps may add codes.
+// asset_load_failed (error), bevel_failed (warning, the walls are left sharp), material_failed (warning, a
+// map could not be loaded and the surface got its neutral look). New steps may add codes.
 inline constexpr std::string_view kCheckStep = "check";
 
 struct BuildProblem {
@@ -121,11 +153,82 @@ struct BuildAsset {
     bool operator==(const BuildAsset&) const = default;
 };
 
+// A library material the job lists, with its map files. opacity and occlusion are empty when it has none.
+struct BuildMaterial {
+    std::string id;
+    TileSize tileSize;
+    std::filesystem::path baseColor;
+    std::filesystem::path normal;
+    std::filesystem::path roughness;
+    std::filesystem::path metallic;
+    std::filesystem::path opacity;
+    std::filesystem::path occlusion;
+
+    bool operator==(const BuildMaterial&) const = default;
+};
+
+// What the build needs to know about one material from the library.
+struct BuildMaterialState {
+    BuildMaterial material;
+    bool broken = false; // MaterialState::Broken, info.json unreadable, or a map file is not there
+    std::string problem; // why, when broken
+};
+
+// Says what the library has for a material id. Empty when the material is not in the library.
+using BuildMaterialSource = std::function<std::optional<BuildMaterialState>(std::string_view materialId)>;
+
+// The material of the wall faces of one wall that look into one room (room empty: outside). material is empty
+// for the neutral look.
+struct WallFaceMaterial {
+    Id wall;
+    Id room;
+    std::string material;
+
+    bool operator==(const WallFaceMaterial&) const = default;
+};
+
+// The materials of one opening that is built; empty strings get the neutral look.
+struct OpeningMaterialIds {
+    Id opening;
+    std::string reveal;
+    std::string threshold;
+    std::string door;
+    std::string frame;
+    std::string glass;
+    std::string handle;
+
+    bool operator==(const OpeningMaterialIds&) const = default;
+};
+
+// The materials of one room that is built; empty strings get the neutral look.
+struct RoomMaterialIds {
+    Id room;
+    std::string floor;
+    std::string ceiling;
+
+    bool operator==(const RoomMaterialIds&) const = default;
+};
+
+// Every material choice on one floor, after the library check.
+struct FloorMaterials {
+    Id floor;
+    std::vector<WallFaceMaterial> wallFaces;   // one per (wall, room) pair on the floor's ring edges, sorted
+    std::string wallTop;
+    std::vector<OpeningMaterialIds> openings; // in the order of FloorBuild::openings
+    std::vector<RoomMaterialIds> rooms;       // in the order of FloorBuild::rooms
+
+    bool operator==(const FloorMaterials&) const = default;
+};
+
 // Everything worked out before Blender starts.
 struct BuildPlan {
     std::vector<FloorBuild> floors;   // in plan order
     std::vector<BuildAsset> assets;   // each asset an item that is built uses, once, sorted by id
-    std::vector<BuildProblem> problems; // in floor order, then walls, openings, rooms, items, each in plan order
+    std::vector<BuildMaterial> materials;     // each usable material the surfaces use, once, sorted by id
+    std::vector<FloorMaterials> floorMaterials; // one per entry of floors, in the same order
+    // In floor order, then walls, openings, rooms, items, each in plan order; then the material problems,
+    // sorted by material id and object.
+    std::vector<BuildProblem> problems;
 
     bool operator==(const BuildPlan&) const = default;
 };
@@ -133,8 +236,13 @@ struct BuildPlan {
 // Works out the build plan of a project: floorElevations, then for every floor wallSolids, openingBuild for
 // each opening (one that does not fit gives opening_does_not_fit), roomBuild for each room (room_not_closed),
 // and the items whose asset the source has and is not broken (missing_asset, asset_broken), with itemProblems
-// for the rest as warnings. An empty source means there is no library: no_library and no items.
-BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets);
+// for the rest as warnings. An empty assets source means there is no library: no_library and no items.
+// Then the materials of every built surface by Materials.h, each checked with the materials source
+// (missing_material, material_broken; such a surface gets the neutral look). An empty materials source means
+// there is no library: every surface gets the neutral look, and no_library is reported once in all when the
+// plan uses a material.
+BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets,
+                        const BuildMaterialSource& materials = {});
 
 // A problem in its file form: {"code", "severity", "message", "floor", "object", "step"}, with null for an
 // empty floor or object. The worker's result, build.json and "plynth build --check" all use it.
@@ -145,7 +253,8 @@ Json buildProblemToJson(const BuildProblem& problem);
 Status checkBuildable(const Plan& plan);
 
 // Makes the build job: the envelope of makeBlenderJob with task kBuildTask and the params above. outputFolder
-// is projectFolder / kBuildFolderName. fbx_file is null when settings.writeFbx is false.
+// is projectFolder / kBuildFolderName. fbx_file and materials_file are null when settings.writeFbx is false.
+// Map paths are absolute, UTF-8, forward slashes.
 Json makeBuildJob(const Project& project, const BuildPlan& plan, const BuildSettings& settings,
                   const std::filesystem::path& projectFolder, std::string_view jobId,
                   const std::filesystem::path& resultFile);
@@ -165,6 +274,7 @@ struct BuildCounts {
     int fills = 0;
     int rooms = 0;
     int items = 0;
+    int materials = 0; // Blender materials made for built surfaces, library and neutral
 
     bool operator==(const BuildCounts&) const = default;
 };
@@ -175,6 +285,7 @@ struct BuildWorkerOutput {
     BlenderResultHeader header;
     std::string blendFile;  // file name inside the output folder
     std::string fbxFile;    // file name inside the output folder, empty when none was asked for
+    std::string materialsFile; // kBuildMaterialsFileName when written with the FBX, otherwise empty
     long long objects = 0;
     long long triangles = 0;
     BuildCounts counts;

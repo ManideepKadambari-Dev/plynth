@@ -92,6 +92,20 @@ int main(int argc, char* argv[])
                                          QStringLiteral("id"));
     QCommandLineOption assetCategoriesOption(QStringLiteral("asset-categories"),
                                              QStringLiteral("With --select-asset, scroll the details to the categories. For checks only."));
+    QCommandLineOption materialsTabOption(QStringLiteral("materials-tab"),
+                                          QStringLiteral("Show the Materials tab. For checks only."));
+    QCommandLineOption selectMaterialOption(QStringLiteral("select-material"),
+                                            QStringLiteral("Select the material with this id in the Materials tab. For checks only."),
+                                            QStringLiteral("id"));
+    QCommandLineOption materialPickerOption(QStringLiteral("material-picker"),
+                                            QStringLiteral("Open the material picker for a target such as w3.outside, r2.floor or default.floor. For checks only."),
+                                            QStringLiteral("target"));
+    QCommandLineOption hoverMaterialOption(QStringLiteral("hover-material"),
+                                           QStringLiteral("With --material-picker, hover the material with this id. For checks only."),
+                                           QStringLiteral("id"));
+    QCommandLineOption pickMaterialOption(QStringLiteral("pick-material"),
+                                          QStringLiteral("With --material-picker, choose the material with this id as a click would. For checks only."),
+                                          QStringLiteral("id"));
     QCommandLineOption setupOption(QStringLiteral("setup"), QStringLiteral("Open the setup check. For checks only."));
     QCommandLineOption setupItemOption(QStringLiteral("setup-item"),
                                        QStringLiteral("Open the setup check scrolled to the item with this title. For checks only."),
@@ -99,6 +113,16 @@ int main(int argc, char* argv[])
     QCommandLineOption importOption(QStringLiteral("import"),
                                     QStringLiteral("Queue an import of this file or folder. For checks only."),
                                     QStringLiteral("file"));
+    QCommandLineOption importMaterialsOption(QStringLiteral("import-materials"),
+                                             QStringLiteral("Show the material import screen. For checks only."));
+    QCommandLineOption materialSourceOption(QStringLiteral("material-source"),
+                                            QStringLiteral("With --import-materials, add this file or folder to the list. For checks only."),
+                                            QStringLiteral("path"));
+    QCommandLineOption addAssetMaterialOption(QStringLiteral("add-asset-material"),
+                                              QStringLiteral("Add a material of an asset to the materials catalog, as asset/material, as the button does. For checks only."),
+                                              QStringLiteral("asset/material"));
+    QCommandLineOption addSamplesOption(QStringLiteral("add-sample-materials"),
+                                        QStringLiteral("Import the sample materials as the button does. For checks only."));
     QCommandLineOption furnitureAtOption(QStringLiteral("furniture-at"),
                                          QStringLiteral("Open the furniture picker at x,y in metres on the plan. For checks only."),
                                          QStringLiteral("x,y"));
@@ -130,9 +154,18 @@ int main(int argc, char* argv[])
     parser.addOption(furnitureAtOption);
     parser.addOption(hoverAssetOption);
     parser.addOption(assetCategoriesOption);
+    parser.addOption(materialsTabOption);
+    parser.addOption(selectMaterialOption);
+    parser.addOption(materialPickerOption);
+    parser.addOption(hoverMaterialOption);
+    parser.addOption(pickMaterialOption);
     parser.addOption(setupOption);
     parser.addOption(setupItemOption);
     parser.addOption(importOption);
+    parser.addOption(importMaterialsOption);
+    parser.addOption(materialSourceOption);
+    parser.addOption(addSamplesOption);
+    parser.addOption(addAssetMaterialOption);
     parser.addOption(catalogOption);
     parser.addOption(selectAssetOption);
     parser.addOption(toolOption);
@@ -259,6 +292,10 @@ int main(int argc, char* argv[])
         if (parser.isSet(assetCategoriesOption))
             QTimer::singleShot(150, &window, [&window]() { window.showAssetCategories(); });
     }
+    if (parser.isSet(materialsTabOption) || parser.isSet(selectMaterialOption))
+        window.showMaterialsTab();
+    if (parser.isSet(selectMaterialOption))
+        window.selectMaterial(parser.value(selectMaterialOption));
     if (parser.isSet(homeOption) || (!wantsScreenshot && !hasProject && !parser.isSet(imageOption)))
         window.showHome();
     window.show();
@@ -276,8 +313,27 @@ int main(int argc, char* argv[])
             window.showFurniturePicker(furnitureX, furnitureY, hover);
         });
     }
+    if (parser.isSet(materialPickerOption)) {
+        const QString target = parser.value(materialPickerOption);
+        const QString hover = parser.value(hoverMaterialOption);
+        const QString pick = parser.value(pickMaterialOption);
+        QTimer::singleShot(250, &window, [&window, target, hover, pick]() { window.showMaterialPicker(target, hover, pick); });
+    }
     if (parser.isSet(importOption))
         window.importFile(parser.value(importOption));
+    if (parser.isSet(importMaterialsOption)) {
+        for (const QString& source : parser.values(materialSourceOption))
+            window.addMaterialSource(source);
+        QTimer::singleShot(0, &window, [&window]() { window.showMaterialImport(); });
+    }
+    if (parser.isSet(addAssetMaterialOption)) {
+        const QString both = parser.value(addAssetMaterialOption);
+        QTimer::singleShot(0, &window, [&window, both]() {
+            window.addAssetMaterialForCheck(both.section(QLatin1Char('/'), 0, 0), both.section(QLatin1Char('/'), 1));
+        });
+    }
+    if (parser.isSet(addSamplesOption))
+        QTimer::singleShot(0, &window, [&window]() { window.addSampleMaterials(); });
     if (parser.isSet(setupOption) || parser.isSet(setupItemOption)) {
         const QString item = parser.value(setupItemOption);
         QTimer::singleShot(0, &window, [&window, item]() { window.showSetupCheck(item); });
@@ -315,6 +371,8 @@ int main(int argc, char* argv[])
             if (!window.previewPictureReady() && !waited.hasExpired(wantsBuild ? kBuildWaitMs : kPreviewWaitMs))
                 return;
             if ((!window.setupPictureReady() || !window.importPictureReady()) && !waited.hasExpired(kSetupWaitMs))
+                return;
+            if (!window.materialsPictureReady() && !waited.hasExpired(kBuildWaitMs))
                 return;
             poll->stop();
             const bool ok = saveScreenshot(window, file, target);

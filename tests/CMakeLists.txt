@@ -1,6 +1,7 @@
 find_package(Catch2 CONFIG REQUIRED)
 find_package(nlohmann_json_schema_validator CONFIG REQUIRED)
 find_package(Clipper2 CONFIG REQUIRED)
+find_package(unofficial-sqlite3 CONFIG REQUIRED)
 include(Catch)
 
 add_executable(plynth_echo_lines tools/echo_lines/main.cpp)
@@ -22,6 +23,10 @@ add_executable(plynth_core_tests
     core/LibraryTests.cpp
     core/AssetInfoTests.cpp
     core/AssetCatalogTests.cpp
+    core/MaterialInfoTests.cpp
+    core/MaterialCatalogTests.cpp
+    core/MaterialJobsTests.cpp
+    core/MaterialImportTests.cpp
     core/ItemAssetsTests.cpp
     core/ItemsTests.cpp
     core/ItemCommandTests.cpp
@@ -30,6 +35,8 @@ add_executable(plynth_core_tests
     core/PlanImageTests.cpp
     core/PlanTests.cpp
     core/ProjectJsonTests.cpp
+    core/MaterialsTests.cpp
+    core/MaterialCommandTests.cpp
     core/SchemaTests.cpp
     core/CommandTests.cpp
     core/CommandStackTests.cpp
@@ -62,6 +69,7 @@ target_link_libraries(plynth_core_tests PRIVATE
     plynth::core
     Catch2::Catch2WithMain
     Clipper2::Clipper2
+    unofficial::sqlite3::sqlite3
     nlohmann_json_schema_validator::validator)
 target_compile_definitions(plynth_core_tests PRIVATE
     PLYNTH_EXPECTED_VERSION="${PROJECT_VERSION}"

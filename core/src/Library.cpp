@@ -31,8 +31,9 @@ Status makeFolder(const fs::path& folder)
     return {};
 }
 
-// Creates one database file when it is empty and refuses a newer one. script makes the tables.
-void ensureDatabase(const fs::path& file, int currentVersion, const char* script, bool seed)
+// Creates one database file when it is empty and refuses a newer one. script makes the tables. The material
+// lists are seeded whenever the groups table is empty, so a library made before they existed gets them too.
+void ensureDatabase(const fs::path& file, int currentVersion, const char* script, bool seedAssets, bool seedMaterials)
 {
     std::error_code ec;
     const bool exists = fs::is_regular_file(file, ec);
@@ -47,8 +48,9 @@ void ensureDatabase(const fs::path& file, int currentVersion, const char* script
             db->exec(script);
             tx.commit();
         }
-        if (seed) catalog::seedBuiltIns(*db);
+        if (seedAssets) catalog::seedBuiltIns(*db);
     }
+    if (seedMaterials) catalog::seedMaterialBuiltIns(*db);
 }
 
 }
@@ -69,6 +71,9 @@ LibraryPaths libraryPaths(const fs::path& root)
     p.materialsDb = p.materials / pathFromUtf8(kMaterialsDbName);
     p.materialItems = p.materials / pathFromUtf8(kLibraryItemsFolder);
     p.materialInbox = p.materials / pathFromUtf8(kLibraryInboxFolder);
+    p.materialInboxDone = p.materialInbox / pathFromUtf8(kLibraryInboxDoneFolder);
+    p.materialInboxFailed = p.materialInbox / pathFromUtf8(kLibraryInboxFailedFolder);
+    p.materialStaging = p.materials / pathFromUtf8(kLibraryStagingFolder);
     p.generators = root / pathFromUtf8(kLibraryGeneratorsFolder);
     p.shapes = root / pathFromUtf8(kLibraryShapesFolder);
     return p;
@@ -90,6 +95,7 @@ Status initLibrary(const fs::path& root)
     if (Status s = makeLibraryFolders(p); !s.ok()) return s;
 
     staging::clearIdle(p.assetStaging);
+    staging::clearIdle(p.materialStaging);
     return ensureLibraryDatabases(p);
 }
 
@@ -97,7 +103,8 @@ Status initLibrary(const fs::path& root)
 Status makeLibraryFolders(const LibraryPaths& p)
 {
     for (const fs::path* folder : {&p.root, &p.assets, &p.assetItems, &p.assetInbox, &p.assetInboxDone, &p.assetInboxFailed,
-                                   &p.assetStaging, &p.materials, &p.materialItems, &p.materialInbox, &p.generators, &p.shapes}) {
+                                   &p.assetStaging, &p.materials, &p.materialItems, &p.materialInbox, &p.materialInboxDone,
+                                   &p.materialInboxFailed, &p.materialStaging, &p.generators, &p.shapes}) {
         if (Status s = makeFolder(*folder); !s.ok()) return s;
     }
     return {};
@@ -107,14 +114,14 @@ Status makeLibraryFolders(const LibraryPaths& p)
 Status ensureLibraryDatabases(const LibraryPaths& p)
 {
     try {
-        ensureDatabase(p.assetsDb, kAssetsDbVersion, kAssetsDbSql, true);
+        ensureDatabase(p.assetsDb, kAssetsDbVersion, kAssetsDbSql, true, false);
     } catch (const NewerDatabase&) {
         return fail(ErrorCode::UnsupportedVersion, "The assets database was written by a newer Plynth.");
     } catch (const catalog::DbError& e) {
         return fail(ErrorCode::DatabaseError, "The assets database could not be set up: " + std::string(e.what()));
     }
     try {
-        ensureDatabase(p.materialsDb, kMaterialsDbVersion, kMaterialsDbSql, false);
+        ensureDatabase(p.materialsDb, kMaterialsDbVersion, kMaterialsDbSql, false, true);
     } catch (const NewerDatabase&) {
         return fail(ErrorCode::UnsupportedVersion, "The materials database was written by a newer Plynth.");
     } catch (const catalog::DbError& e) {

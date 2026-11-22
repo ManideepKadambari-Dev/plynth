@@ -1,6 +1,8 @@
 #include "plynth/core/BuildJob.h"
 
 #include "plynth/core/Items.h"
+#include "plynth/core/Materials.h"
+#include "plynth/core/Materials.h"
 #include "plynth/core/ProjectFiles.h"
 #include "plynth/core/ProjectJson.h"
 
@@ -66,6 +68,14 @@ Json xyz(const Vec3& p)
     return Json::array({p.x, p.y, p.z});
 }
 
+// An absolute path in the file form: UTF-8 with forward slashes.
+std::string absolutePath(const std::filesystem::path& path)
+{
+    std::error_code ec;
+    const std::filesystem::path full = std::filesystem::absolute(path, ec);
+    return pathToUtf8(ec ? path : full);
+}
+
 // A list of [x, y].
 Json xyList(const std::vector<Vec2>& points)
 {
@@ -82,8 +92,19 @@ Json xyzList(const std::vector<Vec3>& points)
     return list;
 }
 
+// The material of a ring edge: the wall's face material for a side face, the wall top material for an end face.
+std::string edgeMaterial(const WallEdge& edge, const FloorMaterials* materials)
+{
+    if (!materials) return {};
+    if (!edge.side) return materials->wallTop;
+    for (const WallFaceMaterial& face : materials->wallFaces) {
+        if (face.wall == edge.wall && face.room == edge.room) return face.material;
+    }
+    return {};
+}
+
 // A wall solid ring.
-Json ringJson(const WallRing& ring)
+Json ringJson(const WallRing& ring, const FloorMaterials* materials)
 {
     Json edges = Json::array();
     for (const WallEdge& e : ring.edges) {
@@ -91,6 +112,7 @@ Json ringJson(const WallRing& ring)
         edge["wall"] = e.wall;
         edge["side"] = e.side ? Json(std::string(wallSideName(*e.side))) : Json(nullptr);
         edge["room"] = textOrNull(e.room);
+        edge["material"] = textOrNull(edgeMaterial(e, materials));
         edges.push_back(std::move(edge));
     }
     Json json = Json::object();
@@ -100,7 +122,7 @@ Json ringJson(const WallRing& ring)
 }
 
 // One opening as the worker reads it.
-Json openingJson(const OpeningBuild& o)
+Json openingJson(const OpeningBuild& o, const OpeningMaterialIds& ids)
 {
     Json json = Json::object();
     json["id"] = o.id;
@@ -125,11 +147,19 @@ Json openingJson(const OpeningBuild& o)
     cutter["left"] = xyzList(o.cutter.left);
     json["cutter"] = std::move(cutter);
     json["threshold"] = xyList(o.threshold);
+    Json materials = Json::object();
+    materials["reveal"] = textOrNull(ids.reveal);
+    materials["threshold"] = textOrNull(ids.threshold);
+    materials["door"] = textOrNull(ids.door);
+    materials["frame"] = textOrNull(ids.frame);
+    materials["glass"] = textOrNull(ids.glass);
+    materials["handle"] = textOrNull(ids.handle);
+    json["materials"] = std::move(materials);
     return json;
 }
 
 // One room as the worker reads it.
-Json roomJson(const RoomBuild& r)
+Json roomJson(const RoomBuild& r, const RoomMaterialIds& ids)
 {
     Json polygons = Json::array();
     for (const WorldPolygon& p : r.polygons) {
@@ -146,6 +176,8 @@ Json roomJson(const RoomBuild& r)
     json["area"] = r.area;
     json["floor_z"] = r.floorZ;
     json["ceiling_z"] = r.ceilingZ;
+    json["floor_material"] = textOrNull(ids.floor);
+    json["ceiling_material"] = textOrNull(ids.ceiling);
     json["polygons"] = std::move(polygons);
     return json;
 }
@@ -168,22 +200,29 @@ Json itemJson(const ItemBuild& i)
 }
 
 // One floor as the worker reads it.
-Json floorJson(const FloorBuild& f)
+Json floorJson(const FloorBuild& f, const FloorMaterials* materials)
 {
     Json solids = Json::array();
     for (const WallSolid& s : f.wallSolids) {
         Json holes = Json::array();
-        for (const WallRing& h : s.holes) holes.push_back(ringJson(h));
+        for (const WallRing& h : s.holes) holes.push_back(ringJson(h, materials));
         Json solid = Json::object();
         solid["height"] = s.height;
-        solid["outline"] = ringJson(s.outline);
+        solid["top_material"] = textOrNull(materials ? materials->wallTop : std::string());
+        solid["outline"] = ringJson(s.outline, materials);
         solid["holes"] = std::move(holes);
         solids.push_back(std::move(solid));
     }
     Json openings = Json::array();
-    for (const OpeningBuild& o : f.openings) openings.push_back(openingJson(o));
+    for (std::size_t i = 0; i < f.openings.size(); ++i) {
+        const bool known = materials && i < materials->openings.size();
+        openings.push_back(openingJson(f.openings[i], known ? materials->openings[i] : OpeningMaterialIds{}));
+    }
     Json rooms = Json::array();
-    for (const RoomBuild& r : f.rooms) rooms.push_back(roomJson(r));
+    for (std::size_t i = 0; i < f.rooms.size(); ++i) {
+        const bool known = materials && i < materials->rooms.size();
+        rooms.push_back(roomJson(f.rooms[i], known ? materials->rooms[i] : RoomMaterialIds{}));
+    }
     Json items = Json::array();
     for (const ItemBuild& i : f.items) items.push_back(itemJson(i));
 
@@ -209,6 +248,126 @@ BuildProblem checkProblem(std::string code, BuildSeverity severity, std::string 
     p.object = object;
     p.step = std::string(kCheckStep);
     return p;
+}
+
+// Checks the material of each built surface against the library, keeps the usable ones and the problems.
+class MaterialChecker {
+public:
+    explicit MaterialChecker(const BuildMaterialSource& source) : source_(source) {}
+
+    // The id to put in the job for a resolved material, or empty for the neutral look.
+    std::string use(const ResolvedMaterial& resolved, const Id& floor)
+    {
+        if (!resolved.material) return {};
+        const std::string& id = *resolved.material;
+        planUsesMaterial_ = true;
+        if (!source_) return {};
+
+        auto found = cache_.find(id);
+        if (found == cache_.end()) found = cache_.emplace(id, source_(id)).first;
+        const std::optional<BuildMaterialState>& state = found->second;
+        if (state && !state->broken) {
+            BuildMaterial material = state->material;
+            material.id = id;
+            usable_.emplace(id, std::move(material));
+            return id;
+        }
+        const auto key = std::make_pair(id, resolved.from);
+        if (problems_.count(key) != 0) return {};
+        BuildProblem p;
+        p.severity = BuildSeverity::Warning;
+        p.step = std::string(kCheckStep);
+        p.object = resolved.from;
+        p.floor = resolved.from.empty() ? Id() : floor;
+        std::string who;
+        if (resolved.origin == MaterialOrigin::Wall) who = "Wall " + resolved.from;
+        else if (resolved.origin == MaterialOrigin::Room) who = "Room " + resolved.from;
+        else who = "The project default for " + std::string(surfaceName(resolved.surface));
+        if (!state) {
+            p.code = "missing_material";
+            p.message = who + " uses the material " + id + ", which is not in the library, so it gets a plain look.";
+        } else {
+            p.code = "material_broken";
+            p.message = who + " uses the material " + id + ", which is broken";
+            p.message += state->problem.empty() ? "." : ": " + state->problem;
+            p.message += " It gets a plain look.";
+        }
+        problems_.emplace(key, std::move(p));
+        return {};
+    }
+
+    // Puts the usable materials and the material problems into the plan.
+    void finish(BuildPlan& plan, bool alreadyNoLibrary)
+    {
+        for (auto& [id, material] : usable_) plan.materials.push_back(std::move(material));
+        for (auto& [key, problem] : problems_) plan.problems.push_back(std::move(problem));
+        if (!source_ && planUsesMaterial_ && !alreadyNoLibrary) {
+            plan.problems.push_back(checkProblem("no_library", BuildSeverity::Warning,
+                                                 "No library is set, so every surface gets a plain look.", {}, {}));
+        }
+    }
+
+private:
+    const BuildMaterialSource& source_;
+    std::map<std::string, std::optional<BuildMaterialState>> cache_;
+    std::map<std::string, BuildMaterial> usable_;
+    std::map<std::pair<std::string, Id>, BuildProblem> problems_;
+    bool planUsesMaterial_ = false;
+};
+
+// The materials of every built surface of one floor.
+FloorMaterials floorMaterials(const Project& project, const Floor& floor, const FloorBuild& build, MaterialChecker& checker)
+{
+    FloorMaterials out;
+    out.floor = floor.id;
+    out.wallTop = checker.use(surfaceDefaultMaterial(project, Surface::WallTop), floor.id);
+
+    std::set<std::pair<Id, Id>> faces;
+    for (const WallSolid& solid : build.wallSolids) {
+        const auto collect = [&faces](const WallRing& ring) {
+            for (const WallEdge& e : ring.edges) {
+                if (e.side) faces.emplace(e.wall, e.room);
+            }
+        };
+        collect(solid.outline);
+        for (const WallRing& hole : solid.holes) collect(hole);
+    }
+    for (const auto& [wallId, roomId] : faces) {
+        const Wall* wall = findWall(floor, wallId);
+        if (!wall) continue;
+        const Room* room = roomId.empty() ? nullptr : findRoom(floor, roomId);
+        out.wallFaces.push_back({wallId, roomId, checker.use(wallFaceMaterial(project, *wall, room), floor.id)});
+    }
+
+    for (const OpeningBuild& built : build.openings) {
+        const Opening* opening = findOpening(floor, built.id);
+        OpeningMaterialIds ids;
+        ids.opening = built.id;
+        if (opening) {
+            const OpeningMaterials m = openingMaterials(project, floor, *opening);
+            ids.reveal = checker.use(m.reveal, floor.id);
+            if (built.sill == 0.0) ids.threshold = checker.use(m.threshold, floor.id);
+            if (built.type == OpeningType::Door) {
+                ids.door = checker.use(m.door, floor.id);
+                ids.handle = checker.use(m.handle, floor.id);
+            }
+            if (built.type == OpeningType::Window) ids.glass = checker.use(m.glass, floor.id);
+            if (built.type != OpeningType::Plain) ids.frame = checker.use(m.frame, floor.id);
+        }
+        out.openings.push_back(std::move(ids));
+    }
+
+    for (const RoomBuild& built : build.rooms) {
+        const Room* room = findRoom(floor, built.id);
+        RoomMaterialIds ids;
+        ids.room = built.id;
+        if (room) {
+            ids.floor = checker.use(roomFloorMaterial(project, *room), floor.id);
+            ids.ceiling = checker.use(roomCeilingMaterial(project, *room), floor.id);
+        }
+        out.rooms.push_back(std::move(ids));
+    }
+    return out;
 }
 
 // Reads one problem of a result.
@@ -244,9 +403,10 @@ std::optional<BuildSeverity> buildSeverityFromName(std::string_view name)
 }
 
 // Works out the build plan of a project.
-BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets)
+BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, const BuildMaterialSource& materials)
 {
     BuildPlan plan;
+    MaterialChecker checker(materials);
     const std::vector<double> levels = floorElevations(project.plan);
 
     bool anyItems = false;
@@ -324,9 +484,14 @@ BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets)
                                                      problem.message, floor.id, item.id));
             }
         }
+        plan.floorMaterials.push_back(floorMaterials(project, floor, build, checker));
         plan.floors.push_back(std::move(build));
     }
     for (auto& [id, asset] : used) plan.assets.push_back(std::move(asset));
+    const bool noLibrary = std::any_of(plan.problems.begin(), plan.problems.end(),
+                                       [](const BuildProblem& p) { return p.code == "no_library"; });
+    // A caller that gives an assets source has a library; the materials source then speaks for itself.
+    checker.finish(plan, noLibrary || static_cast<bool>(assets));
     return plan;
 }
 
@@ -365,6 +530,8 @@ Json makeBuildJob(const Project& project, const BuildPlan& plan, const BuildSett
     params["output_folder"] = pathToUtf8(projectFolder / pathFromUtf8(kBuildFolderName));
     params["blend_file"] = std::string(kBuildBlendFileName);
     params["fbx_file"] = settings.writeFbx ? Json(std::string(kBuildFbxFileName)) : Json(nullptr);
+    params["materials_file"] = settings.writeFbx ? Json(std::string(kBuildMaterialsFileName)) : Json(nullptr);
+    params["textures_folder"] = std::string(kBuildTexturesFolder);
     params["plan"] = planToJson(project.plan);
     Json set = Json::object();
     set["bevel_width"] = settings.bevelWidth;
@@ -380,8 +547,31 @@ Json makeBuildJob(const Project& project, const BuildPlan& plan, const BuildSett
         assetList.push_back(std::move(asset));
     }
     params["assets"] = std::move(assetList);
+    Json materialList = Json::array();
+    for (const BuildMaterial& m : plan.materials) {
+        Json tile = Json::object();
+        tile["width"] = m.tileSize.width;
+        tile["height"] = m.tileSize.height;
+        Json maps = Json::object();
+        maps["base_color"] = absolutePath(m.baseColor);
+        maps["normal"] = absolutePath(m.normal);
+        maps["roughness"] = absolutePath(m.roughness);
+        maps["metallic"] = absolutePath(m.metallic);
+        maps["opacity"] = m.opacity.empty() ? Json(nullptr) : Json(absolutePath(m.opacity));
+        maps["occlusion"] = m.occlusion.empty() ? Json(nullptr) : Json(absolutePath(m.occlusion));
+        Json material = Json::object();
+        material["id"] = m.id;
+        material["tile_size"] = std::move(tile);
+        material["maps"] = std::move(maps);
+        materialList.push_back(std::move(material));
+    }
+    params["materials"] = std::move(materialList);
     Json floors = Json::array();
-    for (const FloorBuild& f : plan.floors) floors.push_back(floorJson(f));
+    for (const FloorBuild& f : plan.floors) {
+        const auto it = std::find_if(plan.floorMaterials.begin(), plan.floorMaterials.end(),
+                                     [&f](const FloorMaterials& m) { return m.floor == f.id; });
+        floors.push_back(floorJson(f, it == plan.floorMaterials.end() ? nullptr : &*it));
+    }
     params["floors"] = std::move(floors);
     return makeBlenderJob(kBuildTask, jobId, resultFile, std::move(params));
 }
@@ -396,6 +586,7 @@ BuildWorkerOutput readBuildResult(const Json& result, std::string_view jobId)
         const Json& output = result["output"];
         out.blendFile = text(output, "blend_file", "/output");
         out.fbxFile = optionalText(output, "fbx_file", "/output");
+        out.materialsFile = optionalText(output, "materials_file", "/output");
         out.objects = count(output, "objects", "/output");
         out.triangles = count(output, "triangles", "/output");
         const Json& counts = field(output, "counts", "/output");
@@ -405,6 +596,7 @@ BuildWorkerOutput readBuildResult(const Json& result, std::string_view jobId)
         out.counts.fills = static_cast<int>(count(counts, "fills", "/output/counts"));
         out.counts.rooms = static_cast<int>(count(counts, "rooms", "/output/counts"));
         out.counts.items = static_cast<int>(count(counts, "items", "/output/counts"));
+        out.counts.materials = static_cast<int>(count(counts, "materials", "/output/counts"));
         const Json& steps = field(output, "steps", "/output");
         if (!steps.is_array()) throw Problem{"/output/steps", "Must be a list."};
         for (std::size_t i = 0; i < steps.size(); ++i) {

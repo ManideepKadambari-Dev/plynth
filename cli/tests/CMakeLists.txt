@@ -18,6 +18,9 @@ add_executable(plynth_cli_tests
     ImportCliTests.cpp
     ItemCliTests.cpp
     BuildCliTests.cpp
+    MaterialCliTests.cpp
+    MaterialCatalogCliTests.cpp
+    MaterialImportCliTests.cpp
     RecentCliTests.cpp
     TestSetup.cpp
     TestSupport.cpp

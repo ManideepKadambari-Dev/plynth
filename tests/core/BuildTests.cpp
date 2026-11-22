@@ -36,6 +36,7 @@ struct BuildFixture {
         const fs::path exe = makeFakeBlender(lib.tmp.path() / "blender", "5.2.0", mode);
         request.projectFolder = projectFolder;
         request.project = buildProject();
+        clearMaterialDefaults(request.project);
         request.library = lib.paths;
         request.blender = inspectBlender(exe);
         request.run.scriptsFolder = makeFakeScripts(lib.tmp.path() / "scripts");
@@ -96,13 +97,15 @@ TEST_CASE("runBuild through the fake Blender writes the files and the report", "
     REQUIRE(report.fbxFile == f.projectFolder / "build" / "building.fbx");
     REQUIRE(fs::exists(report.blendFile));
     REQUIRE(fs::exists(report.fbxFile));
+    REQUIRE(report.materialsFile == f.projectFolder / "build" / "materials.json");
+    REQUIRE(fs::exists(report.materialsFile));
     REQUIRE(fs::exists(f.projectFolder / "build" / "job.json"));
     REQUIRE(fs::exists(f.projectFolder / "build" / "result.json"));
     REQUIRE(fs::exists(f.projectFolder / "build" / "blender.log"));
     REQUIRE(report.logFile == f.projectFolder / "build" / "blender.log");
     REQUIRE_FALSE(fs::exists(f.lockFile()));
 
-    REQUIRE(report.counts == BuildCounts{1, 1, 1, 1, 2});
+    REQUIRE(report.counts == BuildCounts{1, 1, 1, 1, 2, 1});
     REQUIRE(report.objects == 1 + 1 + 2 + 2);
     REQUIRE(report.steps.size() == 9);
     REQUIRE(report.steps[0].step == "check");
@@ -122,6 +125,8 @@ TEST_CASE("runBuild through the fake Blender writes the files and the report", "
     REQUIRE(reportProblem(f.reportFile()).empty());
     const nlohmann::json written = nlohmann::json::parse(plynth::test::readTextFile(f.reportFile()));
     REQUIRE(written["ok"] == true);
+    REQUIRE(written["outputs"]["materials_file"] == pathToUtf8(report.materialsFile));
+    REQUIRE(written["counts"]["materials"] == 1);
     REQUIRE(written["error_count"] == 5);
     REQUIRE(written["warning_count"] == 2);
 
@@ -137,7 +142,10 @@ TEST_CASE("runBuild without an fbx or a library", "[core][build][run]") {
     plynth::test::requireOk(report.status);
     REQUIRE(fs::exists(report.blendFile));
     REQUIRE(report.fbxFile.empty());
+    REQUIRE(report.materialsFile.empty());
     REQUIRE_FALSE(fs::exists(f.projectFolder / "build" / "building.fbx"));
+    REQUIRE_FALSE(fs::exists(f.projectFolder / "build" / "materials.json"));
+    REQUIRE(nlohmann::json::parse(plynth::test::readTextFile(f.reportFile()))["outputs"]["materials_file"].is_null());
     REQUIRE(report.problems[0].code == "no_library");
     REQUIRE(report.counts.items == 0);
     REQUIRE(reportProblem(f.reportFile()).empty());
@@ -344,6 +352,7 @@ Project blenderFixtureProject()
 {
     Project project = makeNewProject();
     project.settings.name = "Fixture";
+    clearMaterialDefaults(project);
     Floor f;
     f.id = "f1";
     f.name = "Floor 1";
@@ -421,4 +430,109 @@ TEST_CASE("write the job for the Blender tests", "[.write-fixture]") {
     const fs::path saved = fs::path(PLYNTH_TEST_DATA_DIR) / "buildjob" / "from_core.json";
     std::ofstream(saved, std::ios::binary | std::ios::trunc) << blenderFixtureJob().dump(2) << "\n";
     REQUIRE(fs::exists(saved));
+}
+
+TEST_CASE("the build report keeps materials_file and the materials count", "[core][build][run][materials]") {
+    BuildFixture f("run-materials");
+    const BuildReport report = runBuild(f.request);
+    plynth::test::requireOk(report.status);
+    REQUIRE(reportProblem(f.reportFile()).empty());
+    REQUIRE(report.counts.materials == 1);
+
+    const BuildReportRead read = readBuildReport(f.projectFolder);
+    plynth::test::requireOk(read.status);
+    REQUIRE(read.report.materialsFile == report.materialsFile);
+    REQUIRE(read.report.counts.materials == 1);
+    REQUIRE(buildReportToJson(read.report) == buildReportToJson(report));
+}
+
+TEST_CASE("a report written by milestone 8 reads with no materials", "[core][build][materials]") {
+    plynth::test::TempDir tmp("build-report-m8");
+    fs::create_directories(tmp.path() / "build");
+    fs::copy_file(fs::path(PLYNTH_TEST_DATA_DIR) / "build" / "build-m8.json", tmp.path() / "build" / "build.json");
+    REQUIRE(plynth::test::schemaProblem("build-report.schema.json",
+                                        nlohmann::json::parse(plynth::test::readTextFile(tmp.path() / "build" / "build.json")))
+                .empty());
+    const BuildReportRead read = readBuildReport(tmp.path());
+    plynth::test::requireOk(read.status);
+    REQUIRE(read.report.counts.materials == 0);
+    REQUIRE(read.report.materialsFile.empty());
+    REQUIRE(read.report.counts.items == 1);
+    REQUIRE(read.report.fbxFile == fs::path("D:/Projects/Flat/build/building.fbx"));
+}
+
+TEST_CASE("readBuiltMaterials reads what the build wrote", "[core][build][materials]") {
+    BuildFixture f("run-built-materials");
+    plynth::test::requireOk(runBuild(f.request).status);
+    const fs::path file = f.projectFolder / "build" / "materials.json";
+    REQUIRE(plynth::test::schemaProblem("build-materials.schema.json", nlohmann::json::parse(plynth::test::readTextFile(file))).empty());
+
+    const BuiltMaterialsRead read = readBuiltMaterials(f.projectFolder);
+    plynth::test::requireOk(read.status);
+    REQUIRE(read.materials.size() == 1);
+    const BuiltMaterial& m = read.materials[0];
+    REQUIRE(m.name == "Wall_Outside");
+    REQUIRE(m.material.empty());
+    REQUIRE(m.surface == "Wall_Outside");
+    REQUIRE(m.baseColor == fs::path(f.projectFolder / "build" / "textures" / "Wall_Outside_base_color.png"));
+    REQUIRE(m.opacity.empty());
+    REQUIRE(m.occlusion.empty());
+    REQUIRE(m.alphaMode == AlphaMode::Opaque);
+    REQUIRE(read.objects.size() == 1);
+    REQUIRE(read.objects[0].object == "SM_f1_Walls");
+    REQUIRE(read.objects[0].slotNames == std::vector<std::string>{"Wall_Outside"});
+}
+
+TEST_CASE("readBuiltMaterials reads a library material with an opacity map", "[core][build][materials]") {
+    plynth::test::TempDir tmp("built-materials-blend");
+    fs::create_directories(tmp.path() / "build");
+    nlohmann::json json = {{"format", "plynth-build-materials"},
+                           {"version", 1},
+                           {"materials",
+                            {{{"name", "clear_glass"},
+                              {"material", "clear_glass"},
+                              {"surface", nullptr},
+                              {"maps",
+                               {{"base_color", "D:/Lib/a.png"},
+                                {"normal", "D:/Lib/b.png"},
+                                {"roughness", "D:/Lib/c.png"},
+                                {"metallic", "D:/Lib/d.png"},
+                                {"opacity", "D:/Lib/e.png"},
+                                {"occlusion", nullptr}}},
+                              {"alpha_mode", "blend"}}}},
+                           {"objects", {{{"name", "SM_f1_Walls"}, {"slots", {"clear_glass"}}}}}};
+    std::ofstream(tmp.path() / "build" / "materials.json") << json.dump(2);
+    REQUIRE(plynth::test::schemaProblem("build-materials.schema.json", json).empty());
+    const BuiltMaterialsRead read = readBuiltMaterials(tmp.path());
+    plynth::test::requireOk(read.status);
+    REQUIRE(read.materials[0].material == "clear_glass");
+    REQUIRE(read.materials[0].surface.empty());
+    REQUIRE(read.materials[0].opacity == fs::path("D:/Lib/e.png"));
+    REQUIRE(read.materials[0].alphaMode == AlphaMode::Blend);
+}
+
+TEST_CASE("readBuiltMaterials says not_found and bad_file", "[core][build][materials]") {
+    plynth::test::TempDir tmp("built-materials-bad");
+    REQUIRE(readBuiltMaterials(tmp.path()).status.code == ErrorCode::NotFound);
+
+    BuildFixture f("run-built-materials-bad");
+    plynth::test::requireOk(runBuild(f.request).status);
+    const fs::path file = f.projectFolder / "build" / "materials.json";
+    nlohmann::json good = nlohmann::json::parse(plynth::test::readTextFile(file));
+
+    nlohmann::json badAlpha = good;
+    badAlpha["materials"][0]["alpha_mode"] = "additive";
+    std::ofstream(file, std::ios::trunc) << badAlpha.dump(2);
+    const BuiltMaterialsRead alpha = readBuiltMaterials(f.projectFolder);
+    REQUIRE(alpha.status.code == ErrorCode::BadFile);
+    REQUIRE(alpha.status.where == "/materials/0/alpha_mode");
+    REQUIRE(alpha.materials.empty());
+
+    nlohmann::json noMaps = good;
+    noMaps["materials"][0].erase("maps");
+    std::ofstream(file, std::ios::trunc) << noMaps.dump(2);
+    REQUIRE(readBuiltMaterials(f.projectFolder).status.code == ErrorCode::BadFile);
+
+    std::ofstream(file, std::ios::trunc) << "{not json";
+    REQUIRE(readBuiltMaterials(f.projectFolder).status.code == ErrorCode::BadFile);
 }

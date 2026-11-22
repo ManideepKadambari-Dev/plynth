@@ -2,10 +2,13 @@
 
 #include "tools/Tool.h"
 
+#include <plynth/core/Materials.h>
+
 #include <QMetaObject>
 #include <QWidget>
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -25,6 +28,8 @@ class Document;
 
 namespace plynth::app {
 
+class MaterialPicker;
+class MaterialRow;
 class Selection;
 class ToolController;
 
@@ -43,6 +48,12 @@ public:
     void mountItem();
     void takeOffItem();
     void updateItemSize();
+    // For checks only: selects what a material target such as "w3.outside" or "default.floor" names and opens the
+    // material picker on its row. With a material id, hovers it. False when the target is unknown or not shown.
+    // With pickMaterial, chooses that material at once as a click would.
+    bool openMaterialPicker(const QString& target, const QString& hoverMaterial, const QString& pickMaterial = QString());
+    // For checks only: true when the picker is closed or its preview has its picture.
+    bool pickerOpen() const;
 
 signals:
     void deleteRequested();
@@ -86,6 +97,18 @@ private:
     QDoubleSpinBox* addKeyedSpinRow(QGridLayout* grid, const QString& label, double min, double max, double step,
                                     const QString& tip, const QString& tourId);
     QLabel* addNote(QGridLayout* grid);
+    void addMaterialSection(QGridLayout* grid, const QString& title);
+    MaterialRow* addMaterialRow(QGridLayout* grid, const QString& label, const QString& tip, const QString& tourId,
+                                const plynth::MaterialTarget& target);
+    void refreshMaterialRows(int page);
+    void openPicker(size_t slot, const QString& hoverMaterial);
+    void applyMaterial(const plynth::MaterialTarget& target, const std::optional<std::string>& material);
+    // One material setting: its row, the part of its target that does not depend on the selection, and its page.
+    struct MaterialSlot {
+        MaterialRow* row = nullptr;
+        plynth::MaterialTarget target;
+        int page = 0;
+    };
 
     plynth::Document& document_;
     Selection& selection_;
@@ -98,6 +121,9 @@ private:
     QStackedWidget* pages_ = nullptr;
     QPushButton* deleteButton_ = nullptr;
     std::vector<QWidget*> editors_;
+    std::vector<MaterialSlot> materialSlots_;
+    MaterialPicker* picker_ = nullptr;
+    plynth::MaterialTarget pickTarget_;
 
     QLabel* scaleValue_ = nullptr;
     QLabel* scaleHint_ = nullptr;

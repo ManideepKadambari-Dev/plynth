@@ -5,6 +5,8 @@
 #include "detection/DetectionSession.h"
 #include "furniture/AssetPreview.h"
 #include "furniture/FurniturePicker.h"
+#include "materials/MaterialPicker.h"
+#include "materials/MaterialRow.h"
 #include "document/Selection.h"
 #include "theme/Theme.h"
 #include "tools/ToolController.h"
@@ -18,8 +20,10 @@
 #include <plynth/core/OpeningShapes.h>
 #include <plynth/core/Openings.h>
 #include <plynth/core/catalog/ItemAssets.h>
+#include <plynth/core/catalog/MaterialCatalog.h>
 #include <plynth/core/commands/FloorCommands.h>
 #include <plynth/core/commands/ItemCommands.h>
+#include <plynth/core/commands/MaterialCommands.h>
 #include <plynth/core/commands/OpeningCommands.h>
 #include <plynth/core/commands/PointCommands.h>
 #include <plynth/core/commands/RoomCommands.h>
@@ -108,6 +112,10 @@ PropertiesPanel::PropertiesPanel(plynth::Document& document, Selection& selectio
     connect(&controller_, &ToolController::activeChanged, this, &PropertiesPanel::refresh);
     connect(&controller_.detection(), &DetectionSession::changed, this, &PropertiesPanel::refresh);
     connect(&controller_, &ToolController::openingSettingsChanged, this, &PropertiesPanel::refresh);
+    if (controller_.library() != nullptr) {
+        connect(controller_.library(), &LibraryHost::materialsChanged, this, &PropertiesPanel::refresh);
+        connect(controller_.library(), &LibraryHost::libraryChanged, this, &PropertiesPanel::refresh);
+    }
     refresh();
 }
 
@@ -254,6 +262,33 @@ void PropertiesPanel::buildNothingPage()
         if (!refreshing_)
             controller_.setNewWallThickness(value);
     });
+
+    addMaterialSection(grid, tr("Default materials"));
+    struct DefaultRow {
+        plynth::Surface surface;
+        const char* label;
+        const char* tip;
+    };
+    const DefaultRow defaults[] = {
+        {plynth::Surface::WallInside, "Walls inside", "The material of wall faces that look into a room, when neither the wall nor the room names one"},
+        {plynth::Surface::WallOutside, "Walls outside", "The material of wall faces that look into no room, when the wall names none"},
+        {plynth::Surface::WallTop, "Wall tops", "The material of the tops and bottoms of walls"},
+        {plynth::Surface::Floor, "Floors", "The material of floors, when the room names none"},
+        {plynth::Surface::Ceiling, "Ceilings", "The material of ceilings, when the room names none"},
+        {plynth::Surface::Door, "Doors", "The material of door leaves"},
+        {plynth::Surface::Frame, "Frames", "The material of door and window frames"},
+        {plynth::Surface::Glass, "Glass", "The material of window panes"},
+        {plynth::Surface::Handle, "Handles", "The material of door handles"},
+    };
+    for (const DefaultRow& row : defaults) {
+        plynth::MaterialTarget target;
+        target.kind = plynth::MaterialTarget::Kind::Default;
+        target.surface = row.surface;
+        const std::string_view surface = plynth::surfaceName(row.surface);
+        addMaterialRow(grid, tr(row.label), tr(row.tip),
+                       QStringLiteral("material-picker-default-%1").arg(QString::fromUtf8(surface.data(), static_cast<qsizetype>(surface.size()))),
+                       target);
+    }
 }
 
 // The page for a selected point: id, position and the walls that use it.
@@ -363,6 +398,17 @@ void PropertiesPanel::buildWallPage()
             refresh();
     });
     wallOpenings_ = addLabelRow(grid, tr("Openings"));
+
+    addMaterialSection(grid, tr("Materials"));
+    plynth::MaterialTarget inside;
+    inside.kind = plynth::MaterialTarget::Kind::Wall;
+    inside.wallFace = plynth::WallFace::Inside;
+    addMaterialRow(grid, tr("Inside"), tr("The material of the face of this wall that looks into a room. Without one, the room wall material or the project default shows"),
+                   QStringLiteral("material-picker-wall-inside"), inside);
+    plynth::MaterialTarget outside = inside;
+    outside.wallFace = plynth::WallFace::Outside;
+    addMaterialRow(grid, tr("Outside"), tr("The material of the face of this wall that looks outdoors. Without one, the project default shows"),
+                   QStringLiteral("material-picker-wall-outside"), outside);
 }
 
 // The page for a selected room: id, type, floor area and number of walls.
@@ -405,6 +451,21 @@ void PropertiesPanel::buildRoomPage()
     roomArea_ = addLabelRow(grid, tr("Area"));
     roomArea_->setToolTip(tr("Floor area inside the walls"));
     roomWalls_ = addLabelRow(grid, tr("Walls"));
+
+    addMaterialSection(grid, tr("Materials"));
+    plynth::MaterialTarget floor;
+    floor.kind = plynth::MaterialTarget::Kind::Room;
+    floor.roomSurface = plynth::RoomSurface::Floor;
+    addMaterialRow(grid, tr("Floor"), tr("The material of the floor of this room. Without one, the project default shows"),
+                   QStringLiteral("material-picker-room-floor"), floor);
+    plynth::MaterialTarget walls = floor;
+    walls.roomSurface = plynth::RoomSurface::Walls;
+    addMaterialRow(grid, tr("Wall faces"), tr("The material of the wall faces that look into this room, unless a wall names its own inside material"),
+                   QStringLiteral("material-picker-room-wall"), walls);
+    plynth::MaterialTarget ceiling = floor;
+    ceiling.roomSurface = plynth::RoomSurface::Ceiling;
+    addMaterialRow(grid, tr("Ceiling"), tr("The material of the ceiling of this room. Without one, the project default shows"),
+                   QStringLiteral("material-picker-room-ceiling"), ceiling);
 }
 
 // Adds a row with a slider: its name and value on one line, the slider under them.
@@ -631,6 +692,200 @@ void PropertiesPanel::refreshRoom()
     const plynth::RoomShape shape = plynth::roomShape(*floor, *room);
     roomArea_->setText(QStringLiteral("%1 m\u00B2").arg(shape.area, 0, 'f', 2));
     roomWalls_->setText(QString::number(room->walls.size()));
+    refreshMaterialRows(kRoomPage);
+}
+
+// Adds a muted title that spans the page, above a group of material rows.
+void PropertiesPanel::addMaterialSection(QGridLayout* grid, const QString& title)
+{
+    const Theme& t = Theme::instance();
+    auto* label = new QLabel(title, grid->parentWidget());
+    label->setFont(t.uiFont(t.sizeSmall(), QFont::DemiBold));
+    label->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
+    const int row = grid->rowCount();
+    grid->addWidget(label, row, 0, 1, 2, Qt::AlignBottom);
+    grid->setRowMinimumHeight(row, t.unit() * 6);
+}
+
+// Adds a row with a label and a material row that opens the picker for the target.
+MaterialRow* PropertiesPanel::addMaterialRow(QGridLayout* grid, const QString& label, const QString& tip,
+                                             const QString& tourId, const plynth::MaterialTarget& target)
+{
+    const Theme& t = Theme::instance();
+    auto* name = new QLabel(label, grid->parentWidget());
+    name->setFont(t.uiFont(t.sizeSmall()));
+    name->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
+    name->setToolTip(tip);
+    auto* row = new MaterialRow(grid->parentWidget());
+    row->setToolTip(tip);
+    row->setProperty("tourId", tourId);
+    const int index = grid->rowCount();
+    grid->addWidget(name, index, 0, Qt::AlignVCenter);
+    grid->addWidget(row, index, 1);
+    editors_.push_back(row);
+    MaterialSlot slot;
+    slot.row = row;
+    slot.target = target;
+    slot.page = pages_->count() - 1;
+    materialSlots_.push_back(slot);
+    const size_t at = materialSlots_.size() - 1;
+    connect(row, &QAbstractButton::clicked, this, [this, at]() { openPicker(at, QString()); });
+    return row;
+}
+
+namespace {
+
+// The target of a slot with the selected wall or room filled in.
+plynth::MaterialTarget targetFor(const plynth::MaterialTarget& base, const QString& selected)
+{
+    plynth::MaterialTarget target = base;
+    if (target.kind != plynth::MaterialTarget::Kind::Default)
+        target.object = selected.toStdString();
+    return target;
+}
+
+}
+
+// Shows what each material row of a page names now, by core's rules, with the swatch from the catalog. A
+// material the library lacks shows its id and "not in the library" in amber.
+void PropertiesPanel::refreshMaterialRows(int page)
+{
+    const Theme& t = Theme::instance();
+    plynth::MaterialCatalog* catalog = controller_.library() ? controller_.library()->materialCatalog() : nullptr;
+    for (const MaterialSlot& slot : materialSlots_) {
+        if (slot.page != page)
+            continue;
+        const plynth::MaterialTarget target = targetFor(slot.target, selection_.id());
+        const plynth::ResolvedMaterial resolved = plynth::materialAt(document_.project(), target);
+        QString note;
+        switch (resolved.origin) {
+        case plynth::MaterialOrigin::Wall:
+            note = tr("set on this wall");
+            break;
+        case plynth::MaterialOrigin::Room:
+            note = target.kind == plynth::MaterialTarget::Kind::Room ? tr("set on this room") : tr("from the room");
+            break;
+        case plynth::MaterialOrigin::Default:
+            note = tr("project default");
+            break;
+        case plynth::MaterialOrigin::None:
+            note = tr("neutral look");
+            break;
+        }
+        if (target.kind == plynth::MaterialTarget::Kind::Default)
+            note.clear();
+        if (!resolved.material.has_value()) {
+            slot.row->setContent(QPixmap(), tr("No material"), note, QString());
+            continue;
+        }
+        const std::optional<plynth::MaterialRecord> record =
+            catalog ? catalog->material(*resolved.material) : std::nullopt;
+        const QString id = fromCore(*resolved.material);
+        if (!record) {
+            slot.row->setContent(QPixmap(), id, QString(), tr("not in the library"));
+            continue;
+        }
+        QPixmap swatch;
+        if (record->state != plynth::MaterialState::Broken && record->thumbnail == plynth::ThumbnailState::Ok)
+            swatch = AssetPreview::loadPixmap(QString::fromStdWString(record->thumbFile.wstring()), t.materialSwatch(),
+                                              devicePixelRatioF());
+        const QString warning = record->state == plynth::MaterialState::Broken ? tr("broken") : QString();
+        slot.row->setContent(swatch, fromCore(record->name), note, warning);
+    }
+}
+
+// Opens the picker beside a row, with the row's material marked and the first row set to clear it.
+void PropertiesPanel::openPicker(size_t slotIndex, const QString& hoverMaterial)
+{
+    LibraryHost* host = controller_.library();
+    if (host == nullptr || slotIndex >= materialSlots_.size())
+        return;
+    if (!host->materialCatalog()) {
+        controller_.showMessage(tr("There is no library with materials. Open the setup check to choose one."));
+        return;
+    }
+    const MaterialSlot& slot = materialSlots_[slotIndex];
+    pickTarget_ = targetFor(slot.target, selection_.id());
+    if (picker_ == nullptr) {
+        picker_ = new MaterialPicker(*host, window());
+        connect(picker_, &MaterialPicker::materialChosen, this, [this](const QString& id) {
+            applyMaterial(pickTarget_, id.toStdString());
+        });
+        connect(picker_, &MaterialPicker::cleared, this, [this]() { applyMaterial(pickTarget_, std::nullopt); });
+    }
+    const plynth::ResolvedMaterial resolved = plynth::materialAt(document_.project(), pickTarget_);
+    const bool isDefault = pickTarget_.kind == plynth::MaterialTarget::Kind::Default;
+    // The picker opens beside the whole panel, so the row labels stay readable.
+    const QPoint anchor(mapTo(window(), QPoint(0, 0)).x(), slot.row->mapTo(window(), QPoint(0, 0)).y());
+    picker_->openAt(anchor, isDefault ? tr("No material") : tr("Use the default"),
+                    resolved.material ? fromCore(*resolved.material) : QString());
+    if (!hoverMaterial.isEmpty())
+        picker_->hoverMaterial(hoverMaterial);
+}
+
+// Checks the material with the library, then runs the command for the target. Nothing changes on a refusal.
+void PropertiesPanel::applyMaterial(const plynth::MaterialTarget& target, const std::optional<std::string>& material)
+{
+    LibraryHost* host = controller_.library();
+    if (material.has_value()) {
+        if (host == nullptr || host->materialCatalog() == nullptr) {
+            controller_.showMessage(tr("There is no library with materials."));
+            return;
+        }
+        const plynth::MaterialForUse use = plynth::materialForUse(*host->materialCatalog(), *material);
+        if (!use.status.ok()) {
+            controller_.showMessage(fromCore(use.status.message));
+            return;
+        }
+    }
+    std::unique_ptr<plynth::Command> command;
+    switch (target.kind) {
+    case plynth::MaterialTarget::Kind::Wall:
+        command = std::make_unique<plynth::SetWallMaterialCommand>(target.object, target.wallFace, material);
+        break;
+    case plynth::MaterialTarget::Kind::Room:
+        command = std::make_unique<plynth::SetRoomMaterialCommand>(target.object, target.roomSurface, material);
+        break;
+    case plynth::MaterialTarget::Kind::Default:
+        command = std::make_unique<plynth::SetDefaultMaterialCommand>(target.surface, material);
+        break;
+    }
+    controller_.run(std::move(command));
+}
+
+// For checks only: selects the wall or room a target names, or nothing for a default, and opens the picker.
+bool PropertiesPanel::openMaterialPicker(const QString& text, const QString& hoverMaterial, const QString& pickMaterial)
+{
+    const plynth::MaterialTargetParse parsed = plynth::parseMaterialTarget(document_.plan(), text.toStdString());
+    if (!parsed.status.ok())
+        return false;
+    const plynth::MaterialTarget& target = parsed.target;
+    switch (target.kind) {
+    case plynth::MaterialTarget::Kind::Wall:
+        selection_.set(SelectionKind::Wall, fromCore(target.object));
+        break;
+    case plynth::MaterialTarget::Kind::Room:
+        selection_.set(SelectionKind::Room, fromCore(target.object));
+        break;
+    case plynth::MaterialTarget::Kind::Default:
+        selection_.clear();
+        break;
+    }
+    refresh();
+    for (size_t i = 0; i < materialSlots_.size(); ++i) {
+        const plynth::MaterialTarget& own = materialSlots_[i].target;
+        const bool same = own.kind == target.kind &&
+                          (target.kind == plynth::MaterialTarget::Kind::Wall   ? own.wallFace == target.wallFace
+                           : target.kind == plynth::MaterialTarget::Kind::Room ? own.roomSurface == target.roomSurface
+                                                                               : own.surface == target.surface);
+        if (same && materialSlots_[i].page == pages_->currentIndex()) {
+            openPicker(i, hoverMaterial);
+            if (!pickMaterial.isEmpty() && picker_ != nullptr)
+                picker_->choose(pickMaterial);
+            return true;
+        }
+    }
+    return false;
 }
 
 // Gives the thickness box a new merge key each time it gets focus, so one visit is one undo step.
@@ -737,6 +992,7 @@ void PropertiesPanel::refreshNothing()
     const bool wallTool = controller_.active() == ToolId::Wall;
     newWallSpin_->setVisible(wallTool);
     newWallLabel_->setVisible(wallTool);
+    refreshMaterialRows(kNothingPage);
 }
 
 // Fills the page for a selected point.
@@ -794,6 +1050,7 @@ void PropertiesPanel::refreshWall()
         if (opening.wall == wall->id)
             ++openings;
     wallOpenings_->setText(QString::number(openings));
+    refreshMaterialRows(kWallPage);
     straightenButton_->setEnabled(!document_.isReadOnly() && std::abs(wall->bulge) >= plynth::kMinBulge);
 }
 

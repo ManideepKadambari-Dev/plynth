@@ -1,0 +1,20 @@
+{
+  "format": "plynth-material-source",
+  "version": 1,
+  "id": "grey_tile",
+  "name": "Grey tile",
+  "groups": [
+    "floor",
+    "wall"
+  ],
+  "tags": [
+    "ceramic",
+    "grey",
+    "tile"
+  ],
+  "tile_size": {
+    "width": 0.6,
+    "height": 0.6
+  },
+  "license": "own_work"
+}

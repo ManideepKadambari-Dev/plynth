@@ -54,6 +54,7 @@ void OverlayRenderer::render(const QUrl& fbx, const plynth::Plan& plan, double p
 
     auto* view = new ModelView(scale, nullptr);
     view_ = view;
+    view->useBuiltMaterials(true);
     view->setAttribute(Qt::WA_DontShowOnScreen);
     view->setFixedSize(width, height);
     connect(view, &ModelView::pictureDrawn, this, [this]() { QTimer::singleShot(0, this, [this]() { finish(true); }); });

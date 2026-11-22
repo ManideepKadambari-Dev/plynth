@@ -47,6 +47,7 @@ plynth::Status LibraryHost::apply(const plynth::MachineSettings& settings)
 void LibraryHost::reopen()
 {
     catalog_.reset();
+    materials_.reset();
     libraryProblem_.clear();
     const plynth::LibraryChoice choice = plynth::chooseLibrary(std::nullopt, settings_);
     if (!choice.status.ok()) {
@@ -63,6 +64,7 @@ void LibraryHost::reopen()
         plynth::useRoomTypes({});
     } else {
         paths_ = choice.paths;
+        openMaterials();
         plynth::useRoomTypes(catalog_->roomTypeList());
         if (shapesRegistered_ != paths_.shapes) {
             shapesRegistered_ = paths_.shapes;
@@ -76,6 +78,25 @@ void LibraryHost::reopen()
     }
     emit libraryChanged();
     emit roomTypesChanged();
+}
+
+// Opens materials.db. An empty index next to folders in materials/items is rebuilt once, so a library filled
+// by hand or by an older run shows its materials.
+void LibraryHost::openMaterials()
+{
+    plynth::Status status;
+    materials_ = plynth::MaterialCatalog::open(paths_, status);
+    if (!materials_)
+        return;
+    if (materials_->materialCount() == 0) {
+        std::error_code ignored;
+        for (const auto& entry : std::filesystem::directory_iterator(paths_.materialItems, ignored)) {
+            if (entry.is_directory(ignored) && !entry.path().filename().string().starts_with('.')) {
+                materials_->rescan();
+                break;
+            }
+        }
+    }
 }
 
 // Reads the settings file again, changes only the recent list with the given function, saves, and copies the
@@ -126,6 +147,12 @@ void LibraryHost::roomTypesEdited()
     if (catalog_)
         plynth::useRoomTypes(catalog_->roomTypeList());
     emit roomTypesChanged();
+}
+
+// Tells the views to read the materials again.
+void LibraryHost::materialsEdited()
+{
+    emit materialsChanged();
 }
 
 // Tells the views to read the assets again.

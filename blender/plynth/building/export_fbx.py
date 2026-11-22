@@ -1,3 +1,4 @@
+import json
 import os
 
 import bpy
@@ -46,6 +47,7 @@ def run(ctx):
     name = ctx.params.get("fbx_file")
     if not name:
         ctx.state["fbx_file"] = None
+        ctx.state["materials_file"] = None
         return
     target = os.path.join(ctx.params["output_folder"], name)
     try:
@@ -53,6 +55,26 @@ def run(ctx):
     except Exception as error:
         raise WorkerError("export_failed", "building.fbx could not be written: %s" % error)
     ctx.state["fbx_file"] = name
+    write_materials(ctx)
+
+
+# Writes materials.json beside the FBX under a temporary name and renames it. It lists the images of every
+# built material and the slot order of every built object, for the 3D preview.
+def write_materials(ctx):
+    name = ctx.params.get("materials_file") or "materials.json"
+    target = os.path.join(ctx.params["output_folder"], name)
+    temporary = os.path.join(ctx.params["output_folder"], "materials.part.json")
+    data = {"format": "plynth-build-materials", "version": 1, "materials": ctx.state.get("built_materials", []),
+            "objects": ctx.state.get("built_objects", [])}
+    try:
+        with open(temporary, "w", encoding="utf-8") as handle:
+            json.dump(data, handle, indent=1)
+        os.replace(temporary, target)
+    except OSError as error:
+        if os.path.exists(temporary):
+            os.remove(temporary)
+        raise WorkerError("export_failed", "materials.json could not be written: %s" % error)
+    ctx.state["materials_file"] = name
 
 
 BUILD_STEPS.register("export_fbx", Step(ORDER, "Exporting the FBX", run))

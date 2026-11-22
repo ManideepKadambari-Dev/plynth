@@ -8,6 +8,7 @@
 #include "plynth/core/Rooms.h"
 #include "plynth/core/WallGeometry.h"
 #include "plynth/core/catalog/AssetInfo.h"
+#include "plynth/core/catalog/MaterialInfo.h"
 
 #include <nlohmann/json.hpp>
 
@@ -23,6 +24,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <fstream>
+#include <map>
 #include <memory>
 #include <sstream>
 
@@ -188,6 +190,55 @@ BuildAssetSource buildAssetSourceFor(const AssetCatalog& catalog)
     };
 }
 
+// A BuildMaterialSource that asks the catalog.
+BuildMaterialSource buildMaterialSourceFor(const MaterialCatalog& catalog)
+{
+    auto cache = std::make_shared<std::map<std::string, std::optional<BuildMaterialState>>>();
+    return [&catalog, cache](std::string_view materialId) -> std::optional<BuildMaterialState> {
+        const std::string key(materialId);
+        if (const auto found = cache->find(key); found != cache->end()) return found->second;
+        std::optional<BuildMaterialState> result;
+        if (const std::optional<MaterialRecord> record = catalog.material(materialId)) {
+            BuildMaterialState state;
+            state.material.id = key;
+            state.material.tileSize = record->tileSize;
+            if (record->state == MaterialState::Broken) {
+                state.broken = true;
+                state.problem = record->problem;
+            } else {
+                const MaterialInfoRead read = catalog.info(materialId);
+                if (!read.status.ok()) {
+                    state.broken = true;
+                    state.problem = read.status.message;
+                } else {
+                    const auto absolute = [&](const MaterialMap& map) {
+                        return map.file.empty() ? fs::path() : record->folder / pathFromUtf8(map.file);
+                    };
+                    state.material.tileSize = read.info.tileSize;
+                    state.material.baseColor = absolute(read.info.maps.baseColor);
+                    state.material.normal = absolute(read.info.maps.normal);
+                    state.material.roughness = absolute(read.info.maps.roughness);
+                    state.material.metallic = absolute(read.info.maps.metallic);
+                    state.material.opacity = absolute(read.info.maps.opacity);
+                    state.material.occlusion = absolute(read.info.maps.occlusion);
+                    std::error_code ec;
+                    for (const MapChannel channel : allMapChannels()) {
+                        const MaterialMap& map = materialMap(read.info.maps, channel);
+                        if (!map.file.empty() && !fs::is_regular_file(record->folder / pathFromUtf8(map.file), ec)) {
+                            state.broken = true;
+                            state.problem = map.file + " is missing.";
+                            break;
+                        }
+                    }
+                }
+            }
+            result = std::move(state);
+        }
+        cache->emplace(key, result);
+        return result;
+    };
+}
+
 // Where on the plan a problem's object is.
 std::optional<Vec2> problemPosition(const Plan& plan, const BuildProblem& problem)
 {
@@ -291,14 +342,18 @@ BuildReport runBuild(const BuildRequest& request, const std::function<void(const
     report.blenderVersion = request.blender.version ? formatBlenderVersion(*request.blender.version) : std::string();
 
     std::unique_ptr<AssetCatalog> catalog;
+    std::unique_ptr<MaterialCatalog> materialCatalog;
     BuildAssetSource source;
+    BuildMaterialSource materialSource;
     if (request.library) {
         Status opened;
         catalog = AssetCatalog::open(*request.library, opened);
         if (catalog) source = buildAssetSourceFor(*catalog);
+        materialCatalog = MaterialCatalog::open(*request.library, opened);
+        if (materialCatalog) materialSource = buildMaterialSourceFor(*materialCatalog);
     }
     const auto checkStart = std::chrono::steady_clock::now();
-    const BuildPlan plan = makeBuildPlan(request.project, source);
+    const BuildPlan plan = makeBuildPlan(request.project, source, materialSource);
     report.steps.push_back({std::string(kCheckStep), since(checkStart)});
     report.problems = plan.problems;
 
@@ -334,6 +389,7 @@ BuildReport runBuild(const BuildRequest& request, const std::function<void(const
     report.blenderVersion = out.header.blenderVersion;
     report.blendFile = folder / pathFromUtf8(out.blendFile);
     if (!out.fbxFile.empty()) report.fbxFile = folder / pathFromUtf8(out.fbxFile);
+    if (!out.materialsFile.empty()) report.materialsFile = folder / pathFromUtf8(out.materialsFile);
     report.objects = out.objects;
     report.triangles = out.triangles;
     report.counts = out.counts;
@@ -373,6 +429,7 @@ Json buildReportToJson(const BuildReport& report)
     Json outputs = Json::object();
     outputs["blend_file"] = pathOrNull(report.blendFile);
     outputs["fbx_file"] = pathOrNull(report.fbxFile);
+    outputs["materials_file"] = pathOrNull(report.materialsFile);
     outputs["log_file"] = pathOrNull(report.logFile);
     json["outputs"] = std::move(outputs);
     json["objects"] = report.objects;
@@ -383,6 +440,7 @@ Json buildReportToJson(const BuildReport& report)
     counts["fills"] = report.counts.fills;
     counts["rooms"] = report.counts.rooms;
     counts["items"] = report.counts.items;
+    counts["materials"] = report.counts.materials;
     json["counts"] = std::move(counts);
     Json steps = Json::array();
     for (const BuildStepTime& s : report.steps) steps.push_back(Json{{"step", s.step}, {"ms", s.ms}});
@@ -465,6 +523,7 @@ BuildReportRead readBuildReport(const fs::path& projectFolder)
         if (!json.contains("outputs") || !json["outputs"].is_object()) throw std::string("/outputs");
         report.blendFile = path(json["outputs"], "blend_file", "/outputs");
         report.fbxFile = path(json["outputs"], "fbx_file", "/outputs");
+        if (json["outputs"].contains("materials_file")) report.materialsFile = path(json["outputs"], "materials_file", "/outputs");
         report.logFile = path(json["outputs"], "log_file", "/outputs");
         report.objects = whole(json, "objects", "");
         report.triangles = whole(json, "triangles", "");
@@ -475,6 +534,7 @@ BuildReportRead readBuildReport(const fs::path& projectFolder)
         report.counts.fills = static_cast<int>(whole(counts, "fills", "/counts"));
         report.counts.rooms = static_cast<int>(whole(counts, "rooms", "/counts"));
         report.counts.items = static_cast<int>(whole(counts, "items", "/counts"));
+        if (counts.contains("materials")) report.counts.materials = static_cast<int>(whole(counts, "materials", "/counts"));
         if (!json.contains("steps") || !json["steps"].is_array()) throw std::string("/steps");
         for (std::size_t i = 0; i < json["steps"].size(); ++i) {
             const std::string where = "/steps/" + std::to_string(i);
@@ -497,6 +557,91 @@ BuildReportRead readBuildReport(const fs::path& projectFolder)
         }
     } catch (const std::string& where) {
         return bad("The field " + where + " is missing or has the wrong type.", where);
+    }
+    return result;
+}
+
+// Reads build/materials.json.
+BuiltMaterialsRead readBuiltMaterials(const fs::path& projectFolder)
+{
+    BuiltMaterialsRead result;
+    const fs::path file = buildFolder(projectFolder) / pathFromUtf8(kBuildMaterialsFileName);
+    std::error_code ec;
+    if (!fs::is_regular_file(file, ec)) {
+        result.status = fail(ErrorCode::NotFound, "There is no " + std::string(kBuildMaterialsFileName) + " in " + pathToUtf8(buildFolder(projectFolder)) + ".");
+        return result;
+    }
+    std::ifstream in(file, std::ios::binary);
+    if (!in) {
+        result.status = fail(ErrorCode::CannotRead, "The file " + pathToUtf8(file) + " could not be opened.");
+        return result;
+    }
+    const Json json = Json::parse(in, nullptr, false);
+    const auto bad = [&](const std::string& where) {
+        result.status = fail(ErrorCode::BadFile, "The built materials file is not valid: the field " + where + " is missing or has the wrong type.", where);
+        result.materials.clear();
+        result.objects.clear();
+        return result;
+    };
+    if (json.is_discarded() || !json.is_object()) return bad("");
+
+    try {
+        const auto text = [](const Json& object, const char* key, const std::string& where) -> std::string {
+            if (!object.is_object() || !object.contains(key) || !object[key].is_string() || object[key].get<std::string>().empty()) {
+                throw std::string(where + "/" + key);
+            }
+            return object[key].get<std::string>();
+        };
+        const auto optionalText = [](const Json& object, const char* key, const std::string& where) -> std::string {
+            if (!object.contains(key)) throw std::string(where + "/" + key);
+            if (object[key].is_null()) return {};
+            if (!object[key].is_string()) throw std::string(where + "/" + key);
+            return object[key].get<std::string>();
+        };
+        const auto array = [](const Json& object, const char* key) -> const Json& {
+            if (!object.contains(key) || !object[key].is_array()) throw std::string(std::string("/") + key);
+            return object[key];
+        };
+
+        if (text(json, "format", "") != kBuildMaterialsFormat) throw std::string("/format");
+        if (!json.contains("version") || json["version"] != kBuildMaterialsVersion) throw std::string("/version");
+        const Json& materials = array(json, "materials");
+        for (std::size_t i = 0; i < materials.size(); ++i) {
+            const std::string where = "/materials/" + std::to_string(i);
+            const Json& m = materials[i];
+            BuiltMaterial built;
+            built.name = text(m, "name", where);
+            built.material = optionalText(m, "material", where);
+            built.surface = optionalText(m, "surface", where);
+            if (!m.contains("maps") || !m["maps"].is_object()) throw std::string(where + "/maps");
+            const Json& maps = m["maps"];
+            const std::string mapsWhere = where + "/maps";
+            built.baseColor = pathFromUtf8(text(maps, "base_color", mapsWhere));
+            built.normal = pathFromUtf8(text(maps, "normal", mapsWhere));
+            built.roughness = pathFromUtf8(text(maps, "roughness", mapsWhere));
+            built.metallic = pathFromUtf8(text(maps, "metallic", mapsWhere));
+            built.opacity = pathFromUtf8(optionalText(maps, "opacity", mapsWhere));
+            built.occlusion = pathFromUtf8(optionalText(maps, "occlusion", mapsWhere));
+            const std::string mode = text(m, "alpha_mode", where);
+            if (mode == "opaque") built.alphaMode = AlphaMode::Opaque;
+            else if (mode == "blend") built.alphaMode = AlphaMode::Blend;
+            else throw std::string(where + "/alpha_mode");
+            result.materials.push_back(std::move(built));
+        }
+        const Json& objects = array(json, "objects");
+        for (std::size_t i = 0; i < objects.size(); ++i) {
+            const std::string where = "/objects/" + std::to_string(i);
+            BuiltObjectSlots slots;
+            slots.object = text(objects[i], "name", where);
+            const Json& list = array(objects[i], "slots");
+            for (const Json& slot : list) {
+                if (!slot.is_string() || slot.get<std::string>().empty()) throw std::string(where + "/slots");
+                slots.slotNames.push_back(slot.get<std::string>());
+            }
+            result.objects.push_back(std::move(slots));
+        }
+    } catch (const std::string& where) {
+        return bad(where);
     }
     return result;
 }
