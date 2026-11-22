@@ -10,20 +10,23 @@
 
 namespace plynth {
 
-// The preview parts of a build (milestone 12): one FBX per floor and one per floor's roofs, written by the
-// build step preview_parts into build/preview/ beside building.fbx, with the same materials and images (so
-// build/materials.json applies to them too). The app's 3D view loads them to hide roofs or the floors above the
-// one shown, and the plan overlay loads only the shown floor's part. Without parts.json (an older build, or
-// preview_failed) the app loads building.fbx as before.
+// The preview parts of a build: one FBX per floor, one for the slab above it and one for its roofs, written by
+// the build step preview_parts into build/preview/ beside building.fbx, with the same materials and images (so
+// build/materials.json applies to them too). The app's 3D view loads them to hide roofs, or to cut the building
+// at the shown floor, and the plan overlay loads only the shown floor's storey part. Without parts.json (an
+// older build, or preview_failed) the app loads building.fbx as before.
 //
 // build/preview/parts.json, schema/build-preview.schema.json:
 //   {"format": "plynth-build-preview", "version": 1,
-//    "parts": [{"floor": "f1", "kind": "storey", "file": "f1.fbx"}, {"floor": "f1", "kind": "roof",
-//               "file": "f1_roof.fbx"}, ...]}
-// Parts are in floor order, the storey before the roof. A floor without roof sections has no roof part. File
-// names are inside build/preview/. Everything of a floor's collection except roofs (and collision, from
-// milestone 10) goes into its storey part: walls, thresholds, fills, floors, ceilings, items, the slab and the
-// stairs that climb from it.
+//    "parts": [{"floor": "f1", "kind": "storey", "file": "f1.fbx"}, {"floor": "f1", "kind": "slab",
+//               "file": "f1_slab.fbx"}, {"floor": "f1", "kind": "roof", "file": "f1_roof.fbx"}, ...]}
+// Parts are in floor order, then storey, slab, roof. A floor without roof sections has no roof part and one
+// without a slab no slab part. File names are inside build/preview/. The slab part is the floor's slab object:
+// its side faces and undersides. The roof part is its roofs. Collision is in no part. Everything
+// else of the floor's collection goes into its storey part: walls, thresholds, fills, floors, ceilings, items
+// and the stairs that climb from it.
+// The cut at floor c hides the storey parts of the floors above c and the slab and roof parts of c and above.
+// Hiding the roofs alone keeps every slab. Parts written without a slab part have the slab in the storey.
 
 inline constexpr std::string_view kBuildPreviewFolder = "preview";
 inline constexpr std::string_view kPreviewPartsFileName = "parts.json";
@@ -33,6 +36,7 @@ inline constexpr int kPreviewPartsVersion = 1;
 enum class PreviewPartKind {
     Storey, // "storey"
     Roof,   // "roof"
+    Slab,   // "slab": the slab above the floor
 };
 
 std::string_view previewPartKindName(PreviewPartKind kind);

@@ -5,6 +5,7 @@
 #include "TestSupport.h"
 
 #include <plynth/core/Build.h>
+#include <plynth/core/BuildPreview.h>
 #include <plynth/core/EditSession.h>
 #include <plynth/core/ProjectFiles.h>
 
@@ -567,6 +568,13 @@ TEST_CASE("a build through the fake writes a report with the slab, stair and roo
     REQUIRE(plynth::test::schemaProblem("build-preview.schema.json", nlohmann::json::parse(plynth::test::readTextFile(parts))).empty());
     REQUIRE(fs::exists(f.projectFolder / "build" / "preview" / "f1.fbx"));
     REQUIRE(fs::exists(f.projectFolder / "build" / "preview" / "f1_roof.fbx"));
+    REQUIRE(fs::exists(f.projectFolder / "build" / "preview" / "f1_slab.fbx"));
+    const PreviewPartsRead read = readPreviewParts(f.projectFolder / "build");
+    plynth::test::requireOk(read.status);
+    REQUIRE(read.parts.size() == 3);
+    REQUIRE(read.parts[0].kind == PreviewPartKind::Storey);
+    REQUIRE(read.parts[1].kind == PreviewPartKind::Slab);
+    REQUIRE(read.parts[2].kind == PreviewPartKind::Roof);
 }
 
 TEST_CASE("problemPosition finds a stair and a roof section entry", "[core][build]") {

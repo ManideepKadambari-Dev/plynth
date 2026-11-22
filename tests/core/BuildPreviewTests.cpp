@@ -64,3 +64,34 @@ TEST_CASE("preview part kinds have names that read back", "[core][build][preview
     REQUIRE(previewPartKindFromName("roof") == PreviewPartKind::Roof);
     REQUIRE_FALSE(previewPartKindFromName("x").has_value());
 }
+
+TEST_CASE("readPreviewParts reads storey, slab and roof in order and still reads files with two kinds", "[core][build][preview]") {
+    plynth::test::TempDir tmp("preview-slab");
+    const fs::path preview = tmp.path() / "preview";
+    write(preview / "parts.json",
+          R"({"format":"plynth-build-preview","version":1,"parts":[{"floor":"f1","kind":"storey","file":"f1.fbx"},)"
+          R"({"floor":"f1","kind":"slab","file":"f1_slab.fbx"},{"floor":"f1","kind":"roof","file":"f1_roof.fbx"}]})");
+    write(preview / "f1.fbx", "x");
+    write(preview / "f1_slab.fbx", "x");
+    write(preview / "f1_roof.fbx", "x");
+    REQUIRE(plynth::test::schemaProblem("build-preview.schema.json", nlohmann::json::parse(plynth::test::readTextFile(preview / "parts.json"))).empty());
+
+    const PreviewPartsRead three = readPreviewParts(tmp.path());
+    plynth::test::requireOk(three.status);
+    REQUIRE(three.parts.size() == 3);
+    REQUIRE(three.parts[0].kind == PreviewPartKind::Storey);
+    REQUIRE(three.parts[1].kind == PreviewPartKind::Slab);
+    REQUIRE(three.parts[1].file.filename() == "f1_slab.fbx");
+    REQUIRE(three.parts[2].kind == PreviewPartKind::Roof);
+
+    write(preview / "parts.json",
+          R"({"format":"plynth-build-preview","version":1,"parts":[{"floor":"f1","kind":"storey","file":"f1.fbx"},)"
+          R"({"floor":"f1","kind":"roof","file":"f1_roof.fbx"}]})");
+    const PreviewPartsRead two = readPreviewParts(tmp.path());
+    plynth::test::requireOk(two.status);
+    REQUIRE(two.parts.size() == 2);
+
+    write(preview / "parts.json",
+          R"({"format":"plynth-build-preview","version":1,"parts":[{"floor":"f1","kind":"cap","file":"f1.fbx"}]})");
+    REQUIRE(readPreviewParts(tmp.path()).status.code == ErrorCode::BadFile);
+}

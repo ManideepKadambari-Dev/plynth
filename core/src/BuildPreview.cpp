@@ -10,16 +10,22 @@ namespace plynth {
 
 namespace fs = std::filesystem;
 
-// "storey" or "roof".
+// "storey", "slab" or "roof".
 std::string_view previewPartKindName(PreviewPartKind kind)
 {
-    return kind == PreviewPartKind::Roof ? "roof" : "storey";
+    switch (kind) {
+    case PreviewPartKind::Roof: return "roof";
+    case PreviewPartKind::Slab: return "slab";
+    case PreviewPartKind::Storey: break;
+    }
+    return "storey";
 }
 
 // The kind for a name used in files.
 std::optional<PreviewPartKind> previewPartKindFromName(std::string_view name)
 {
     if (name == "storey") return PreviewPartKind::Storey;
+    if (name == "slab") return PreviewPartKind::Slab;
     if (name == "roof") return PreviewPartKind::Roof;
     return std::nullopt;
 }
