@@ -232,6 +232,20 @@ class SourceTests(MaterialTest):
         self.assertEqual(self.codes(result), ["unused_image"])
         self.assertIn("notes.png", result["warnings"][0]["message"])
 
+    # A refresh-style job on a cleaned item folder, with thumb.png and info.json beside the textures and the
+    # current maps named in the job, gives no unused_image warning.
+    def test_refresh_of_cleaned_folder(self):
+        first = self.clean_ok(self.copy_sample("red_brick"), output_folder=self.path("item"))
+        item = self.path("item")
+        with open(os.path.join(item, "info.json"), "w", encoding="utf-8") as handle:
+            handle.write("{}")
+        write_png(os.path.join(item, "thumb.png"), noise_image(16, 3))
+        maps = {c: self.map_path(first, c).replace("\\", "/") for c, m in first["output"]["maps"].items()
+                if m["file"] and m["from"] != "value"}
+        result = self.clean_ok(item, maps=maps, output_folder=self.path("item2"))
+        self.assertNotIn("unused_image", self.codes(result))
+        self.assertIsNone(result["output"]["source_info"])
+
     # A set with no base color is no_base_color.
     def test_no_base_color(self):
         folder = self.make_set("nobase", {"x_roughness.png": noise_image(32), "x_nor.png": noise_image(32)})

@@ -72,6 +72,9 @@ def normal_convention(source, side, filename):
     return names.classify(filename)[1] or "opengl"
 
 
+LIBRARY_FILES = ("thumb.png", "info.json", "material.json")
+
+
 # Reads the source, decides which image or value feeds each channel and returns Loaded. Warns ambiguous_map
 # and unused_image. Raises import_failed and no_base_color.
 def load(ctx, source):
@@ -155,7 +158,10 @@ def load(ctx, source):
         if channel not in plans:
             plans[channel] = value_plan(channel, value)
 
+    named = {os.path.normcase(os.path.abspath(p)) for p in request_maps.values()}
     for path in images:
+        if os.path.basename(path).lower() in LIBRARY_FILES or os.path.normcase(os.path.abspath(path)) in named:
+            continue
         if path not in used and path not in groups["ignored"]:
             ctx.warn("unused_image", "%s matched no channel and was not used." % os.path.basename(path))
     tile = side.get("tile_size") if side else None
