@@ -152,9 +152,11 @@ void ModelView::updateVisibility()
     QVariantList flags;
     for (const Part& part : parts_) {
         bool show = true;
-        if (part.roof && (!showRoofs_ || cutFloorIndex_ >= 0))
+        if (part.roof && (!showRoofs_ || (cutFloorIndex_ >= 0 && part.floorIndex >= cutFloorIndex_)))
             show = false;
-        if (cutFloorIndex_ >= 0 && part.floorIndex > cutFloorIndex_)
+        if (part.slab && cutFloorIndex_ >= 0 && part.floorIndex >= cutFloorIndex_)
+            show = false;
+        if (!part.slab && cutFloorIndex_ >= 0 && part.floorIndex > cutFloorIndex_)
             show = false;
         flags.append(show);
     }

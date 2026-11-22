@@ -33,11 +33,12 @@ public:
     enum class Preset { ThreeQuarter = 0, Top = 1 };
     enum class State { Empty, Loading, Ready, Failed };
 
-    // One FBX of a preview: a floor's storey or a floor's roofs. floorIndex is the floor's place in the plan.
+    // One FBX of a preview: a floor's storey, the slab above it or its roofs. floorIndex is the floor's place in the plan.
     struct Part {
         QUrl file;
         int floorIndex = 0;
         bool roof = false;
+        bool slab = false;
         bool operator==(const Part&) const = default;
     };
 
@@ -72,8 +73,8 @@ public:
     // Loads these FBX files side by side, each by its own loader, all in scene metres. Same bounds rule as
     // setModel. The first part is the modelFile.
     void setParts(const QList<Part>& parts, const QVector3D& boundsMin, const QVector3D& boundsMax);
-    // Hides roof parts when showRoofs is off, and every part of a floor above cutFloorIndex (and every roof) when
-    // cutFloorIndex is 0 or more. New bounds frame what is left. A single model without parts is never hidden.
+    // Hides roof parts when showRoofs is off, and when cutFloorIndex is 0 or more every part of a floor above it
+    // plus the roofs of that floor and the floors above. Roofs of lower floors stay. New bounds frame what is left. A single model without parts is never hidden.
     void setPartFilter(bool showRoofs, int cutFloorIndex, const QVector3D& boundsMin, const QVector3D& boundsMax);
     QVariantList partUrls() const;
     QVariantList partVisible() const { return partVisible_; }

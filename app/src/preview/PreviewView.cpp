@@ -275,6 +275,7 @@ QList<ModelView::Part> PreviewView::readParts(const std::filesystem::path& fbx, 
         out.file = QUrl::fromLocalFile(QString::fromStdWString(part.file.wstring()));
         out.floorIndex = static_cast<int>(it - floorIds.begin());
         out.roof = part.kind == plynth::PreviewPartKind::Roof;
+        out.slab = part.kind == plynth::PreviewPartKind::Slab;
         list.append(out);
     }
     return list;

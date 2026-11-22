@@ -75,7 +75,7 @@ void OverlayRenderer::render(const QUrl& fbx, const plynth::Plan& plan, double p
         const auto it = std::find(ids.begin(), ids.end(), floorId.toStdString());
         if (!parts.isEmpty() && it != ids.end()) {
             for (const ModelView::Part& part : parts)
-                if (!part.roof && part.floorIndex == static_cast<int>(it - ids.begin()))
+                if (!part.roof && !part.slab && part.floorIndex == static_cast<int>(it - ids.begin()))
                     chosen.append(part);
             if (chosen.isEmpty()) {
                 delete view;
