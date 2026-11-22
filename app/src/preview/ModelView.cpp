@@ -3,10 +3,13 @@
 #include "ThemeQml.h"
 #include "theme/Theme.h"
 
+#include <plynth/core/Build.h>
+
 #include <QQmlContext>
 #include <QQmlError>
 #include <QQuickWindow>
 #include <QTimer>
+#include <QVariantMap>
 
 namespace plynth::app {
 
@@ -55,6 +58,38 @@ ModelView::ModelView(bool interactive, bool shadows, QWidget* parent, double ort
     }
 }
 
+// Reads materials.json of the project that holds the loaded building.fbx, which sits in the build folder. A
+// missing or broken file leaves the list empty, so the FBX keeps its own materials.
+void ModelView::readMaterials()
+{
+    QVariantList list;
+    if (useMaterials_ && file_.isLocalFile()) {
+        const std::filesystem::path fbx = file_.toLocalFile().toStdWString();
+        const plynth::BuiltMaterialsRead read = plynth::readBuiltMaterials(fbx.parent_path().parent_path());
+        if (read.status.ok()) {
+            auto url = [](const std::filesystem::path& path) {
+                return path.empty() ? QString() : QUrl::fromLocalFile(QString::fromStdWString(path.wstring())).toString();
+            };
+            for (const plynth::BuiltMaterial& m : read.materials) {
+                QString key = QString::fromStdWString(m.baseColor.wstring());
+                key.replace(QLatin1Char('\\'),QLatin1Char('/'));
+                QVariantMap entry;
+                entry.insert(QStringLiteral("key"), key.toLower());
+                entry.insert(QStringLiteral("baseColor"), url(m.baseColor));
+                entry.insert(QStringLiteral("normal"), url(m.normal));
+                entry.insert(QStringLiteral("roughness"), url(m.roughness));
+                entry.insert(QStringLiteral("metallic"), url(m.metallic));
+                entry.insert(QStringLiteral("opacity"), url(m.opacity));
+                entry.insert(QStringLiteral("occlusion"), url(m.occlusion));
+                entry.insert(QStringLiteral("blend"), m.alphaMode == plynth::AlphaMode::Blend);
+                list.append(entry);
+            }
+        }
+    }
+    materials_ = list;
+    emit materialsChanged();
+}
+
 // The text the QML shows in amber: the message of a failed load.
 QString ModelView::failure() const
 {
@@ -70,6 +105,7 @@ void ModelView::setModel(const QUrl& file, const QVector3D& boundsMin, const QVe
     boundsMax_ = boundsMax;
     const bool same = file == file_;
     file_ = file;
+    readMaterials();
     state_ = State::Loading;
     error_.clear();
     framesSinceLoad_ = 0;
@@ -86,6 +122,7 @@ void ModelView::reloadModel()
 {
     if (file_.isEmpty())
         return;
+    readMaterials();
     state_ = State::Loading;
     framesSinceLoad_ = 0;
     emit stateChanged();

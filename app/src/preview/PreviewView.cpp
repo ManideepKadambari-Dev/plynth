@@ -88,6 +88,7 @@ PreviewView::PreviewView(QWidget* parent) : QWidget(parent)
     }
 
     scene_ = new ModelView(true, true, this);
+    scene_->useBuiltMaterials(true);
     if (scene_->status() == QQuickWidget::Error) {
         const QString problem = scene_->errorText();
         delete scene_;
