@@ -29,6 +29,10 @@ add_executable(plynth_core_tests
     core/MaterialImportTests.cpp
     core/ItemAssetsTests.cpp
     core/ItemsTests.cpp
+    core/GeneratorsTests.cpp
+    core/AddonsTests.cpp
+    core/GeneratorBuildTests.cpp
+    core/GeneratorCommandsTests.cpp
     core/ItemCommandTests.cpp
     core/SearchTests.cpp
     core/RescanTests.cpp
