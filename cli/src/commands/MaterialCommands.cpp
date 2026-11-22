@@ -1,3 +1,4 @@
+#include "../CatalogCommon.h"
 #include "../Common.h"
 
 #include <plynth/core/MaterialDefaults.h>
@@ -101,6 +102,19 @@ Answer materialSet(const RunContext& context, const SetOptions& options) {
         std::optional<std::string> material;
         if (options.material != "none") {
             material = options.material;
+            Answer badId;
+            if (!checkIdArgument(name, options.material, badId)) {
+                return badId;
+            }
+            OpenedMaterialCatalog opened;
+            Answer noLibrary;
+            if (!openMaterialCatalog(name, context, options.library, opened, noLibrary)) {
+                return noLibrary;
+            }
+            const MaterialForUse usable = materialForUse(*opened.catalog, options.material);
+            if (!usable.status.ok()) {
+                return failure(name, usable.status);
+            }
         }
         const std::optional<std::string> previous = markedMaterial(document.project(), parsed.target);
         Answer failed;
@@ -148,6 +162,11 @@ Answer materialList(const RunContext& context, const ListOptions& options) {
         return failed;
     }
     const Project& project = document.project();
+    OpenedMaterialCatalog opened;
+    bool haveLibrary = false;
+    if (!openMaterialCatalogIfAny(name, context, options.library, opened, haveLibrary, failed)) {
+        return failed;
+    }
     Json walls = Json::array();
     Json rooms = Json::array();
     for (const Floor& floor : project.plan.floors) {
@@ -182,9 +201,20 @@ Answer materialList(const RunContext& context, const ListOptions& options) {
     result["defaults"] = defaultsJson(project.settings.materials);
     result["walls"] = std::move(walls);
     result["rooms"] = std::move(rooms);
-    result["used"] = materialsUsed(project);
-    result["missing"] = Json::array();
-    result["library"] = nullptr;
+    const std::vector<std::string> used = materialsUsed(project);
+    Json missing = Json::array();
+    if (haveLibrary) {
+        for (const std::string& id : used) {
+            if (materialForUse(*opened.catalog, id).status.code == ErrorCode::NotFound) {
+                missing.push_back(id);
+            }
+        }
+        result["library"] = pathToUtf8(opened.paths.root);
+    } else {
+        result["library"] = nullptr;
+    }
+    result["used"] = used;
+    result["missing"] = std::move(missing);
     return success(name, std::move(result));
 }
 
@@ -199,8 +229,7 @@ std::vector<CommandSpec> materialCommands() {
     set.setup = [](CLI::App& sub) -> Handler {
         auto options = std::make_shared<SetOptions>();
         addProjectOption(sub, options->project);
-        sub.add_option("--library", options->library, "Library folder. Not used until materials are checked.")
-            ->type_name("folder");
+        addLibraryOption(sub, options->library);
         sub.add_option("target", options->target, "Where to set it, for example r1.floor.")->required();
         sub.add_option("material", options->material, "A material id, or none to clear it.")->required();
         return [options](const RunContext& context) { return materialSet(context, *options); };
@@ -213,8 +242,7 @@ std::vector<CommandSpec> materialCommands() {
     list.setup = [](CLI::App& sub) -> Handler {
         auto options = std::make_shared<ListOptions>();
         addProjectOption(sub, options->project);
-        sub.add_option("--library", options->library, "Library folder. Not used until materials are checked.")
-            ->type_name("folder");
+        addLibraryOption(sub, options->library);
         return [options](const RunContext& context) { return materialList(context, *options); };
     };
 

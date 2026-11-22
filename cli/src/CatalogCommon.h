@@ -7,6 +7,7 @@
 #include <plynth/core/Blender.h>
 #include <plynth/core/catalog/AssetCatalog.h>
 #include <plynth/core/catalog/AssetImport.h>
+#include <plynth/core/catalog/MaterialCatalog.h>
 
 #include <memory>
 #include <string>
@@ -21,6 +22,13 @@ struct OpenedCatalog {
     std::unique_ptr<AssetCatalog> catalog;
 };
 
+// An open library with its materials catalog.
+struct OpenedMaterialCatalog {
+    MachineSettings settings;
+    LibraryPaths paths;
+    std::unique_ptr<MaterialCatalog> catalog;
+};
+
 // Adds the --library option, which names the library folder. Without it the settings decide.
 void addLibraryOption(CLI::App& sub, std::string& value);
 
@@ -29,6 +37,17 @@ void addLibraryOption(CLI::App& sub, std::string& value);
 // returned in failed.
 bool openCatalog(const std::string& command, const RunContext& context, const std::string& libraryOption,
                  OpenedCatalog& opened, Answer& failed);
+
+// Opens the materials catalog of the library (the --library value, or the settings). On error the answer
+// for command is returned in failed (no_library and the refusals of MaterialCatalog::open).
+bool openMaterialCatalog(const std::string& command, const RunContext& context, const std::string& libraryOption,
+                         OpenedMaterialCatalog& opened, Answer& failed);
+
+// Like openMaterialCatalog, but a missing library is not an error: found is false and failed stays empty.
+// A --library value that is not a library is still an error.
+bool openMaterialCatalogIfAny(const std::string& command, const RunContext& context,
+                              const std::string& libraryOption, OpenedMaterialCatalog& opened, bool& found,
+                              Answer& failed);
 
 // Registers Library/shapes/ of the library in the settings, when there is one. Does nothing otherwise and
 // never fails: a command that only needs shapes still works without a library.
@@ -58,6 +77,12 @@ bool checkIdArgument(const std::string& command, const std::string& id, Answer& 
 
 // The asset entry shared by the asset commands.
 Json assetEntry(const AssetRecord& record);
+
+// The material entry shared by the materials commands.
+Json materialEntry(const MaterialRecord& record);
+
+// The group entry of the materials catalog: id, name, whether it is built in and how many materials hold it.
+Json materialGroupEntry(const MaterialGroupEntry& entry);
 
 // The room type entry: id, name, whether it is built in and its category ids.
 Json roomTypeEntry(const RoomTypeEntry& entry);

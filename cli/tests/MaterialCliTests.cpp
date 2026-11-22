@@ -1,3 +1,4 @@
+#include "MaterialLibrary.h"
 #include "SampleProject.h"
 
 #include <plynth/cli/Cli.h>
@@ -8,12 +9,14 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
+#include <filesystem>
 #include <string>
 #include <vector>
 
 using plynth::cli::kExitFailed;
 using plynth::cli::kExitOk;
 using plynth::cli::testing::errorCode;
+using plynth::cli::testing::MaterialLibrary;
 using plynth::cli::testing::readFile;
 using plynth::cli::testing::runChecked;
 using plynth::cli::testing::Sample;
@@ -74,6 +77,7 @@ nlohmann::json wallOf(const Sample& sample, const std::string& id) {
 }
 
 TEST_CASE("material set changes a room, a wall face and a default", "[cli][material]") {
+    MaterialLibrary library("material-set-lib");
     Sample sample("material-set");
     buildTwoRooms(sample, "living", "hall");
 
@@ -111,6 +115,7 @@ TEST_CASE("material set changes a room, a wall face and a default", "[cli][mater
 }
 
 TEST_CASE("material set takes a room type when one room has it", "[cli][material]") {
+    MaterialLibrary library("material-hall-lib");
     Sample sample("material-hall");
     buildTwoRooms(sample, "living", "hall");
     const auto set = sample.run({"material", "set", "hall.floor", "oak_planks"});
@@ -132,6 +137,7 @@ TEST_CASE("material set names both rooms when a type matches two", "[cli][materi
 }
 
 TEST_CASE("material set refuses what is wrong and changes nothing", "[cli][material]") {
+    MaterialLibrary library("material-refuse-lib");
     Sample sample("material-refuse");
     buildTwoRooms(sample, "living", "hall");
     const auto plan = readFile(sample.folder / "plan.json");
@@ -177,6 +183,7 @@ TEST_CASE("material set is refused with locked while the app has the project ope
 }
 
 TEST_CASE("material list gives resolved materials with origins and the ones used", "[cli][material]") {
+    MaterialLibrary library("material-list-lib");
     Sample sample("material-list");
     buildTwoRooms(sample, "living", "hall");
     REQUIRE(sample.run({"material", "set", "r1.floor", "oak_planks"}).exitCode == kExitOk);
@@ -199,7 +206,7 @@ TEST_CASE("material list gives resolved materials with origins and the ones used
     CHECK(result.at("defaults").at("wall_inside") == "white_paint");
     CHECK(result.at("defaults").size() == 9);
     CHECK(result.at("missing").empty());
-    CHECK(result.at("library").is_null());
+    CHECK(result.at("library") == plynth::cli::testing::utf8(library.root));
 
     const auto& rooms = result.at("rooms");
     REQUIRE(rooms.size() == 2);
@@ -244,6 +251,70 @@ TEST_CASE("material list works on a project with no rooms", "[cli][material]") {
     CHECK(listed.answer.at("result").at("walls").empty());
     CHECK(listed.answer.at("result").at("rooms").empty());
     CHECK(listed.answer.at("result").at("defaults").at("wall_inside") == "white_paint");
+}
+
+TEST_CASE("material set checks the material against the library", "[cli][material]") {
+    MaterialLibrary library("material-check-lib");
+    Sample sample("material-check");
+    buildTwoRooms(sample, "living", "hall");
+    const auto plan = readFile(sample.folder / "plan.json");
+
+    const auto gone = sample.run({"material", "set", "r1.floor", "gone"});
+    CHECK(gone.exitCode == kExitFailed);
+    CHECK(errorCode(gone) == "not_found");
+    CHECK(gone.answer.at("error").at("message") == "There is no material gone in the library.");
+
+    std::filesystem::remove(library.item("red_brick") / "textures" / "base_color.png");
+    {
+        plynth::Status status;
+        auto catalog = plynth::MaterialCatalog::open(plynth::libraryPaths(library.root), status);
+        REQUIRE(status.ok());
+        catalog->rescan();
+    }
+    const auto broken = sample.run({"material", "set", "r1.floor", "red_brick"});
+    CHECK(broken.exitCode == kExitFailed);
+    CHECK(errorCode(broken) == "invalid_value");
+    CHECK(readFile(sample.folder / "plan.json") == plan);
+
+    const auto none = sample.run({"material", "set", "r1.floor", "none"});
+    CHECK(none.exitCode == kExitOk);
+
+    const auto other = sample.run({"material", "set", "r1.floor", "oak_planks", "--library", plynth::cli::testing::utf8(library.root)});
+    CHECK(other.exitCode == kExitOk);
+}
+
+TEST_CASE("material set without a library is no_library, but none needs no library", "[cli][material]") {
+    plynth::cli::testing::MaterialSettingsReset reset;
+    Sample sample("material-no-library");
+    buildTwoRooms(sample, "living", "hall");
+    const auto plan = readFile(sample.folder / "plan.json");
+    const auto refused = sample.run({"material", "set", "r1.floor", "oak_planks"});
+    CHECK(refused.exitCode == kExitFailed);
+    CHECK(errorCode(refused) == "no_library");
+    CHECK(readFile(sample.folder / "plan.json") == plan);
+    CHECK(sample.run({"material", "set", "r1.floor", "none"}).exitCode == kExitOk);
+
+    const auto listed = sample.run({"material", "list"});
+    REQUIRE(listed.exitCode == kExitOk);
+    CHECK(listed.answer.at("result").at("library").is_null());
+    CHECK(listed.answer.at("result").at("missing").empty());
+}
+
+TEST_CASE("material list names the materials the library lacks", "[cli][material]") {
+    MaterialLibrary library("material-missing-lib");
+    Sample sample("material-missing");
+    buildTwoRooms(sample, "living", "hall");
+    REQUIRE(sample.run({"material", "set", "r1.floor", "oak_planks"}).exitCode == kExitOk);
+    REQUIRE(sample.run({"material", "set", "r2.floor", "grey_tile"}).exitCode == kExitOk);
+    REQUIRE(plynth::cli::testing::runChecked({"materials", "remove", "oak_planks", "--yes"}).exitCode == kExitOk);
+
+    const auto listed = sample.run({"material", "list"});
+    REQUIRE(listed.exitCode == kExitOk);
+    const auto& result = listed.answer.at("result");
+    CHECK(result.at("missing") == nlohmann::json::array({"oak_planks"}));
+    const auto used = result.at("used").get<std::vector<std::string>>();
+    CHECK(std::ranges::find(used, "oak_planks") != used.end());
+    CHECK(result.at("library") == plynth::cli::testing::utf8(library.root));
 }
 
 TEST_CASE("help lists the material commands", "[cli][help]") {

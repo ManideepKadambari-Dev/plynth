@@ -85,6 +85,55 @@ bool openCatalog(const std::string& command, const RunContext& context, const st
     return true;
 }
 
+bool openMaterialCatalog(const std::string& command, const RunContext& context, const std::string& libraryOption,
+                         OpenedMaterialCatalog& opened, Answer& failed) {
+    const SettingsLoad loaded = loadSettings();
+    if (!loaded.status.ok()) {
+        failed = failure(command, loaded.status);
+        return false;
+    }
+    opened.settings = loaded.settings;
+    std::optional<std::filesystem::path> option;
+    if (!libraryOption.empty()) {
+        option = userPath(context, libraryOption);
+    }
+    const LibraryChoice choice = chooseLibrary(option, opened.settings);
+    if (!choice.status.ok()) {
+        failed = failure(command, choice.status);
+        return false;
+    }
+    opened.paths = choice.paths;
+    Status status;
+    opened.catalog = MaterialCatalog::open(opened.paths, status);
+    if (!status.ok()) {
+        failed = failure(command, status);
+        return false;
+    }
+    return true;
+}
+
+bool openMaterialCatalogIfAny(const std::string& command, const RunContext& context,
+                              const std::string& libraryOption, OpenedMaterialCatalog& opened, bool& found,
+                              Answer& failed) {
+    found = false;
+    if (libraryOption.empty()) {
+        const SettingsLoad loaded = loadSettings();
+        if (!loaded.status.ok()) {
+            failed = failure(command, loaded.status);
+            return false;
+        }
+        const LibraryChoice choice = chooseLibrary(std::nullopt, loaded.settings);
+        if (choice.status.code == ErrorCode::NoLibrary) {
+            return true;
+        }
+    }
+    if (!openMaterialCatalog(command, context, libraryOption, opened, failed)) {
+        return false;
+    }
+    found = true;
+    return true;
+}
+
 bool makeImportContext(const std::string& command, const RunContext& context, const OpenedCatalog& opened,
                        const std::string& blenderOption, ImportContext& importContext, Answer& failed) {
     std::optional<std::filesystem::path> option;
@@ -185,6 +234,54 @@ Json assetEntry(const AssetRecord& record) {
     entry["thumbnail"] = std::move(thumbnail);
     entry["folder"] = pathToUtf8(record.folder);
     return entry;
+}
+
+Json materialEntry(const MaterialRecord& record) {
+    Json source = Json::object();
+    source["kind"] = record.sourceKind;
+    source["reference"] = record.sourceReference;
+    source["imported_at"] = formatSessionTime(record.importedAt);
+    Json tile = Json::object();
+    tile["width"] = record.tileSize.width;
+    tile["height"] = record.tileSize.height;
+    Json thumbnail = Json::object();
+    thumbnail["state"] = std::string(thumbnailStateName(record.thumbnail));
+    if (record.thumbnail == ThumbnailState::Ok) {
+        thumbnail["file"] = pathToUtf8(record.thumbFile);
+    } else {
+        thumbnail["file"] = nullptr;
+    }
+    if (record.thumbnailError.empty()) {
+        thumbnail["error"] = nullptr;
+    } else {
+        thumbnail["error"] = record.thumbnailError;
+    }
+    Json entry = Json::object();
+    entry["id"] = record.id;
+    entry["name"] = record.name;
+    entry["groups"] = record.groups;
+    entry["tags"] = record.tags;
+    entry["license"] = record.license;
+    entry["source"] = std::move(source);
+    entry["tile_size"] = std::move(tile);
+    entry["state"] = std::string(materialStateName(record.state));
+    if (record.problem.empty()) {
+        entry["problem"] = nullptr;
+    } else {
+        entry["problem"] = record.problem;
+    }
+    entry["thumbnail"] = std::move(thumbnail);
+    entry["folder"] = pathToUtf8(record.folder);
+    return entry;
+}
+
+Json materialGroupEntry(const MaterialGroupEntry& entry) {
+    Json json = Json::object();
+    json["id"] = entry.id;
+    json["name"] = entry.name;
+    json["built_in"] = entry.builtIn;
+    json["materials"] = entry.materialCount;
+    return json;
 }
 
 Json roomTypeEntry(const RoomTypeEntry& entry) {

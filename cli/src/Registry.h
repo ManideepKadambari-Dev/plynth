@@ -49,6 +49,7 @@ std::vector<CommandSpec> importCommands();
 std::vector<CommandSpec> itemCommands();
 std::vector<CommandSpec> buildCommands();
 std::vector<CommandSpec> materialCommands();
+std::vector<CommandSpec> materialCatalogCommands();
 
 // All commands in the order help lists them.
 const std::vector<CommandSpec>& allCommands();
