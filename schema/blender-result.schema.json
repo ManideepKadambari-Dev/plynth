@@ -190,7 +190,7 @@
         "triangles": { "type": "integer", "minimum": 0 },
         "counts": {
           "type": "object",
-          "required": ["wall_solids", "openings_cut", "fills", "rooms", "items", "materials"],
+          "required": ["wall_solids", "openings_cut", "fills", "rooms", "items", "materials", "slabs", "stairs", "roofs"],
           "additionalProperties": false,
           "properties": {
             "wall_solids": { "type": "integer", "minimum": 0 },
@@ -198,7 +198,10 @@
             "fills": { "type": "integer", "minimum": 0 },
             "rooms": { "type": "integer", "minimum": 0 },
             "items": { "type": "integer", "minimum": 0 },
-            "materials": { "description": "Blender materials made for built surfaces, from the library and neutral.", "type": "integer", "minimum": 0 }
+            "materials": { "description": "Blender materials made for built surfaces, from the library and neutral.", "type": "integer", "minimum": 0 },
+            "slabs": { "description": "Slab meshes made.", "type": "integer", "minimum": 0 },
+            "stairs": { "description": "Stair meshes made.", "type": "integer", "minimum": 0 },
+            "roofs": { "description": "Roof section meshes made.", "type": "integer", "minimum": 0 }
           }
         },
         "steps": {

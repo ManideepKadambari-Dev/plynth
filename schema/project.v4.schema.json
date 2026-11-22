@@ -1,0 +1,80 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:project:4",
+  "title": "Plynth project settings, version 4",
+  "description": "The project.json file in a project folder. Lengths are in metres. Older files are upgraded when read: version 1 (project.v1.schema.json) gets defaults with the built-in sizes, version 2 (project.v2.schema.json) gets wall_item_centre 1.2, version 3 (project.v3.schema.json) gets materials with the built-in defaults.",
+  "type": "object",
+  "required": ["format", "version", "name"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "plynth-project" },
+    "version": { "const": 4 },
+    "name": { "type": "string", "minLength": 1 },
+    "export_mode": {
+      "description": "single gives one FBX for the whole building, grouped gives one FBX per group.",
+      "enum": ["single", "grouped"],
+      "default": "single"
+    },
+    "grid_size": {
+      "description": "Wall snap grid in metres.",
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "default": 0.5
+    },
+    "defaults": {
+      "description": "Sizes new marks get. Marks already placed keep their own sizes. A door or a window (sill plus height) is never taller than ceiling_height, and wall_item_centre is below it.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ceiling_height": {
+          "description": "Ceiling height for floors made later. Each floor keeps its own ceiling_height in plan.json.",
+          "type": "number", "exclusiveMinimum": 0, "default": 3.0
+        },
+        "door_width": {
+          "description": "Width of new doors and plain openings.",
+          "type": "number", "exclusiveMinimum": 0, "default": 0.9
+        },
+        "door_height": {
+          "description": "Height of new doors and plain openings, from the floor.",
+          "type": "number", "exclusiveMinimum": 0, "default": 2.1
+        },
+        "window_width": { "type": "number", "exclusiveMinimum": 0, "default": 1.2 },
+        "window_height": { "type": "number", "exclusiveMinimum": 0, "default": 1.2 },
+        "window_sill": {
+          "description": "Height of the bottom of new windows above the floor.",
+          "type": "number", "minimum": 0, "default": 0.9
+        },
+        "wall_item_centre": {
+          "description": "Height above the floor of the centre of an item when it is first mounted on a wall, for example a TV.",
+          "type": "number", "exclusiveMinimum": 0, "default": 1.2
+        }
+      },
+      "default": {}
+    },
+    "materials": {
+      "description": "The material each kind of surface gets where plan.json names none: ids in the materials catalog, or null for the neutral look. The built-in defaults are the sample materials in samples/materials/. A missing field takes its default.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "wall_inside": { "description": "Wall faces that look into a room.", "$ref": "#/definitions/optionalName", "default": "white_paint" },
+        "wall_outside": { "description": "Wall faces that look into no room.", "$ref": "#/definitions/optionalName", "default": "red_brick" },
+        "wall_top": { "description": "Tops and bottoms of walls.", "$ref": "#/definitions/optionalName", "default": "white_paint" },
+        "floor": { "$ref": "#/definitions/optionalName", "default": "oak_planks" },
+        "ceiling": { "$ref": "#/definitions/optionalName", "default": "white_paint" },
+        "door": { "description": "Door leaves.", "$ref": "#/definitions/optionalName", "default": "painted_wood" },
+        "frame": { "description": "Door and window frames.", "$ref": "#/definitions/optionalName", "default": "white_paint" },
+        "glass": { "description": "Window panes.", "$ref": "#/definitions/optionalName", "default": "clear_glass" },
+        "handle": { "description": "Door handles.", "$ref": "#/definitions/optionalName", "default": "brushed_steel" }
+      },
+      "default": {}
+    }
+  },
+  "definitions": {
+    "optionalName": {
+      "oneOf": [
+        { "type": "string", "pattern": "^[A-Za-z0-9_-]+$", "maxLength": 128 },
+        { "type": "null" }
+      ]
+    }
+  }
+}

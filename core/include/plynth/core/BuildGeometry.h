@@ -2,15 +2,18 @@
 
 #include "Geometry.h"
 #include "Plan.h"
+#include "Stairs.h"
 #include "Status.h"
 
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace plynth {
 
-// What the Blender build makes, worked out in core from the plan (DESIGN.md section 7.13 steps 1, 2, 3 and 6).
+// What the Blender build makes, worked out in core from the plan (DESIGN.md section 7.13 steps 1 to 6; slabs
+// and floor holes in Storeys.h, stairs in Stairs.h, roofs in Roofs.h).
 // Every shape comes from the functions the app draws with (WallGeometry.h, Openings.h, OpeningShapes.h,
 // Rooms.h, Items.h), so the plan view and the built building agree, and the Blender side only turns finished
 // outlines into meshes.
@@ -43,8 +46,8 @@ inline constexpr double kOpeningFrameWidth = 0.05;
 // A plan position in world X and Y.
 Vec2 planToWorld(Vec2 plan);
 
-// The level of each floor above the first floor's, in plan order: the sum of the ceiling heights of the
-// floors before it. Floor slabs and stairs come in milestone 12.
+// The level of each floor above the first floor's, in plan order: the sum of floorRise (ceiling height plus
+// slab thickness, Storeys.h) of the floors before it.
 std::vector<double> floorElevations(const Plan& plan);
 
 // What one side face of a wall solid shows. The face stands on one edge of a ring.
@@ -152,13 +155,22 @@ struct RoomBuild {
     double area = 0.0;     // RoomShape::area, square metres
     double floorZ = 0.0;   // the floor's level
     double ceilingZ = 0.0; // the floor's level plus its ceiling height
-    std::vector<WorldPolygon> polygons; // RoomShape::floorArea, each outline with the holes inside it
+    std::vector<WorldPolygon> polygons; // RoomShape::floorArea minus floorHoles: the floor face
+    std::vector<WorldPolygon> ceilingPolygons; // RoomShape::floorArea minus ceilingHoles: the ceiling face
 
     bool operator==(const RoomBuild&) const = default;
 };
 
 // Works out a room's floor and ceiling. Empty when the room's walls do not close (RoomShape::closed false).
+// Without holes, ceilingPolygons equal polygons.
 std::optional<RoomBuild> roomBuild(const Floor& floor, const Room& room, double elevation);
+
+// The same with stair holes: floorHoles are the footprints of stairs arriving from the floor below,
+// ceilingHoles those of stairs that climb from this floor (StairBuild::hole), in world coordinates. area stays
+// RoomShape::area.
+std::optional<RoomBuild> roomBuild(const Floor& floor, const Room& room, double elevation,
+                                   const std::vector<WorldPolygon>& floorHoles,
+                                   const std::vector<WorldPolygon>& ceilingHoles);
 
 // Where an item's asset goes in the world, by the mapping in Items.h: location (x, -y, level + z) and a turn
 // about Z of -rotation, in radians. The asset's pivot (bottom centre) goes to location.
@@ -184,6 +196,79 @@ struct ItemBuild {
     bool operator==(const ItemBuild&) const = default;
 };
 
+// One piece of a stair in world coordinates: the outline anticlockwise, bottom and top world Z.
+struct StairStepBuild {
+    StairPart part = StairPart::Step;
+    std::vector<Vec2> outline;
+    double bottom = 0.0;
+    double top = 0.0;
+
+    bool operator==(const StairStepBuild&) const = default;
+};
+
+// One stair as the build makes it.
+struct StairBuild {
+    Id id;
+    std::string type;
+    Id toFloor;
+    double rise = 0.0;
+    int riserCount = 0;
+    double riser = 0.0;
+    std::vector<StairStepBuild> steps;
+    WorldPolygon hole; // the footprint, cut from the slab, this floor's ceilings and the next floor's floors
+
+    bool operator==(const StairBuild&) const = default;
+};
+
+// Turns a stair layout whose status is ok into world coordinates at a floor level.
+StairBuild stairBuild(const StairLayout& layout, double elevation);
+
+// The slab above one floor (Storeys.h). Side faces stand on every ring of polygons from bottom to top: outer
+// rings are the slab's edge, hole rings the sides of stair wells. Bottom faces are made only for undersides.
+struct SlabBuild {
+    Id floor;
+    double bottom = 0.0; // world Z: the floor's level plus its ceiling height
+    double top = 0.0;    // world Z: the next floor's level
+    std::vector<WorldPolygon> polygons;
+    std::vector<WorldPolygon> undersides;
+
+    bool operator==(const SlabBuild&) const = default;
+};
+
+// What a roof face is, for its material.
+enum class RoofPart {
+    Covering,  // "covering": the top surface
+    Underside, // "underside": below the roof, seen under the eaves
+    Edge,      // "edge": the faces round the roof's thickness (fascia)
+    Gable,     // "gable": the vertical fill between the slab and the roof's underside at gable ends
+    Parapet,   // "parapet": every face of a flat roof's parapet
+    Glazing,   // "glazing": the vertical glass of a sawtooth bay
+};
+
+std::string_view roofPartName(RoofPart part);
+std::optional<RoofPart> roofPartFromName(std::string_view name);
+
+// One planar face of a roof in world coordinates. outline is anticlockwise seen from the side the face looks
+// toward, holes the other way. No two points in a row closer than 1e-6.
+struct RoofFace {
+    RoofPart part = RoofPart::Covering;
+    std::vector<Vec3> outline;
+    std::vector<std::vector<Vec3>> holes;
+
+    bool operator==(const RoofFace&) const = default;
+};
+
+// One roof section as the build makes it.
+struct RoofBuild {
+    Id floor;
+    int index = 0;      // RoofArea::index
+    Id section;         // the RoofSection entry that applies; empty for the default
+    std::string type;   // the type built (the fallback when the chosen one did not fit)
+    std::vector<RoofFace> faces;
+
+    bool operator==(const RoofBuild&) const = default;
+};
+
 // Everything the build makes for one floor. Openings, rooms and items that cannot be built are left out; the
 // build plan (BuildJob.h) says why.
 struct FloorBuild {
@@ -194,6 +279,9 @@ struct FloorBuild {
     std::vector<OpeningBuild> openings; // in the floor's opening order
     std::vector<RoomBuild> rooms;       // in the floor's room order
     std::vector<ItemBuild> items;       // in the floor's item order
+    SlabBuild slab;                     // the slab above the floor
+    std::vector<StairBuild> stairs;     // stairs that climb from this floor and can be built, in stair order
+    std::vector<RoofBuild> roofs;       // the floor's roof sections, in index order
 
     bool operator==(const FloorBuild&) const = default;
 };

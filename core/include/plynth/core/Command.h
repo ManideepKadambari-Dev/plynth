@@ -14,17 +14,21 @@ namespace plynth {
 namespace Change {
 inline constexpr unsigned Settings = 1u << 0;
 inline constexpr unsigned Scale = 1u << 1;
-inline constexpr unsigned Floors = 1u << 2;     // floors added, removed, renamed, reordered or a ceiling height changed
-inline constexpr unsigned FloorImage = 1u << 3;
+inline constexpr unsigned Floors = 1u << 2;     // floors added, removed, renamed, reordered, a ceiling height or slab changed
+inline constexpr unsigned FloorImage = 1u << 3; // a floor's image or image offset changed
 inline constexpr unsigned Points = 1u << 4;
 inline constexpr unsigned Walls = 1u << 5;
 inline constexpr unsigned Rooms = 1u << 6;
 inline constexpr unsigned Openings = 1u << 7;
 inline constexpr unsigned Items = 1u << 8;
-inline constexpr unsigned Content = (1u << 9) - 1; // every part of the project above
 inline constexpr unsigned History = 1u << 9;       // undo, redo or the unsaved changes state
 inline constexpr unsigned Folder = 1u << 10;       // the document now belongs to another folder
 inline constexpr unsigned ReadOnly = 1u << 11;     // the document became read only or editable again
+inline constexpr unsigned Stairs = 1u << 12;
+inline constexpr unsigned Roofs = 1u << 13;        // the roof default or a roof section entry changed
+// Every part of the project above. Roof sections are worked out from walls and rooms, so views that show them
+// also redraw on Floors, Walls and Rooms.
+inline constexpr unsigned Content = ((1u << 9) - 1) | Stairs | Roofs;
 inline constexpr unsigned Everything = Content | History | Folder | ReadOnly;
 }
 

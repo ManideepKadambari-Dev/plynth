@@ -21,6 +21,9 @@ enum class Surface {
     Frame,       // "frame": door and window frames
     Glass,       // "glass": window panes
     Handle,      // "handle": door handles
+    Roof,        // "roof": the covering of pitched roofs (gable, hip, shed, sawtooth); project format 5
+    FlatRoof,    // "flat_roof": the covering of flat roofs; project format 5
+    Stair,       // "stair": steps, landings and the column of a spiral stair; project format 5
 };
 
 // Every surface, in the order above.
@@ -39,10 +42,12 @@ inline constexpr std::string_view kSampleOakPlanks = "oak_planks";
 inline constexpr std::string_view kSamplePaintedWood = "painted_wood";
 inline constexpr std::string_view kSampleClearGlass = "clear_glass";
 inline constexpr std::string_view kSampleBrushedSteel = "brushed_steel";
+inline constexpr std::string_view kSampleRoofTiles = "roof_tiles";
+inline constexpr std::string_view kSampleConcrete = "concrete";
 
 // The material each surface gets when the plan names none. Empty means no material: the build gives that
 // surface its neutral look. A new project, and a project file from before version 4, starts with the
-// sample materials shown here.
+// sample materials shown here; a version 4 file gets the last three when it is read.
 struct MaterialDefaults {
     std::optional<std::string> wallInside = std::string(kSampleWhitePaint);
     std::optional<std::string> wallOutside = std::string(kSampleRedBrick);
@@ -53,6 +58,9 @@ struct MaterialDefaults {
     std::optional<std::string> frame = std::string(kSampleWhitePaint);
     std::optional<std::string> glass = std::string(kSampleClearGlass);
     std::optional<std::string> handle = std::string(kSampleBrushedSteel);
+    std::optional<std::string> roof = std::string(kSampleRoofTiles);
+    std::optional<std::string> flatRoof = std::string(kSampleConcrete);
+    std::optional<std::string> stair = std::string(kSampleOakPlanks);
 
     bool operator==(const MaterialDefaults&) const = default;
 };

@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:build-preview:1",
+  "title": "Plynth build preview parts, version 1",
+  "description": "build/preview/parts.json, written by the build with the preview parts: one FBX per floor and one per floor's roofs, with the same materials and images as build/building.fbx, so build/materials.json applies to them too. The app's 3D view loads them to hide roofs and upper floors; the plan overlay loads one floor's storey part. Parts are in floor order, the storey before the roof; a floor without roof sections has no roof part.",
+  "type": "object",
+  "required": ["format", "version", "parts"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "plynth-build-preview" },
+    "version": { "const": 1 },
+    "parts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["floor", "kind", "file"],
+        "additionalProperties": false,
+        "properties": {
+          "floor": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]*$" },
+          "kind": { "description": "storey: everything of the floor but its roofs (walls, fills, floors, ceilings, items, slab, stairs). roof: its roof sections.", "enum": ["storey", "roof"] },
+          "file": { "description": "A file name inside build/preview/, no folder.", "type": "string", "pattern": "^[^/\\\\]+\\.fbx$" }
+        }
+      }
+    }
+  }
+}
