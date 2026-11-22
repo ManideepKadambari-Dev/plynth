@@ -79,6 +79,7 @@ public:
     int problemMarker() const { return problemMarker_; }
     int previewButton() const { return previewButton_; }
     double overlay3dOpacity() const { return overlay3dOpacity_; }
+    double floorBelowOpacity() const { return floorBelowOpacity_; }
     double keyLightBrightness() const { return keyLightBrightness_; }
     double probeExposure() const { return probeExposure_; }
     int aoStrength() const { return aoStrength_; }
@@ -144,6 +145,7 @@ private:
     int problemMarker_ = 12;
     int previewButton_ = 28;
     double overlay3dOpacity_ = 0.85;
+    double floorBelowOpacity_ = 0.35;
     double keyLightBrightness_ = 1.0;
     double probeExposure_ = 1.0;
     int aoStrength_ = 60;

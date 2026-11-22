@@ -79,7 +79,7 @@ void PlanCanvas::setImage(const QImage& image)
         return;
     }
     pixmapItem_ = scene_->addPixmap(QPixmap::fromImage(image));
-    pixmapItem_->setPos(0, 0);
+    pixmapItem_->setPos(imageOffset_);
     pixmapItem_->setZValue(1);
     fitToWindow();
 }
@@ -102,6 +102,7 @@ void PlanCanvas::setDimmed(bool dimmed)
 void PlanCanvas::setOverlay(const OverlayData& overlay)
 {
     overlay_ = overlay;
+    setImageOffset(overlay.imageOffset);
     QPainterPath gaps;
     for (const OverlayOpening& opening : overlay_.openings) {
         QPainterPath cut;
@@ -112,6 +113,31 @@ void PlanCanvas::setOverlay(const OverlayData& overlay)
     if (!gaps.isEmpty())
         for (OverlayWall& wall : overlay_.walls)
             wall.band = wall.band.subtracted(gaps);
+    viewport()->update();
+}
+
+// Puts the plan image at an offset, keeping what the view shows where it is.
+void PlanCanvas::setImageOffset(const QPointF& offset)
+{
+    if (offset == imageOffset_)
+        return;
+    imageOffset_ = offset;
+    if (pixmapItem_ == nullptr)
+        return;
+    const QPointF centre = mapToScene(viewport()->rect().center());
+    pixmapItem_->setPos(imageOffset_);
+    updateSceneRect();
+    centerOn(centre);
+}
+
+// Turns image alignment on or off.
+void PlanCanvas::setAlignMode(bool on)
+{
+    if (alignMode_ == on)
+        return;
+    alignMode_ = on;
+    aligning_ = false;
+    updateCursor();
     viewport()->update();
 }
 
@@ -273,7 +299,7 @@ QRectF PlanCanvas::imageRect() const
 {
     if (pixmapItem_ == nullptr)
         return QRectF();
-    return QRectF(QPointF(0, 0), QSizeF(pixmapItem_->pixmap().size()));
+    return QRectF(imageOffset_, QSizeF(pixmapItem_->pixmap().size()));
 }
 
 // Grows the scene around the image so it can be pushed partly off screen but never lost.
@@ -355,11 +381,19 @@ void PlanCanvas::paintOverlay(QPainter* painter)
         QColor gridColor = t.line();
         gridColor.setAlpha(t.overlayAlpha());
         painter->setPen(QPen(gridColor, 0));
-        for (double x = 0.0; x <= img.width(); x += gridStep_)
-            painter->drawLine(QPointF(x, 0.0), QPointF(x, img.height()));
-        for (double y = 0.0; y <= img.height(); y += gridStep_)
-            painter->drawLine(QPointF(0.0, y), QPointF(img.width(), y));
+        for (double x = std::ceil(img.left() / gridStep_) * gridStep_; x <= img.right(); x += gridStep_)
+            painter->drawLine(QPointF(x, img.top()), QPointF(x, img.bottom()));
+        for (double y = std::ceil(img.top() / gridStep_) * gridStep_; y <= img.bottom(); y += gridStep_)
+            painter->drawLine(QPointF(img.left(), y), QPointF(img.right(), y));
         painter->setRenderHint(QPainter::Antialiasing, true);
+    }
+
+    if (!overlay_.below.isEmpty()) {
+        painter->setPen(Qt::NoPen);
+        QColor faint = t.muted();
+        faint.setAlphaF(t.floorBelowOpacity());
+        painter->setBrush(faint);
+        painter->drawPath(overlay_.below);
     }
 
     QColor roomBlue = t.signalBlue();
@@ -744,6 +778,14 @@ void PlanCanvas::mousePressEvent(QMouseEvent* event)
         event->accept();
         return;
     }
+    if (hasImage() && alignMode_ && event->button() == Qt::LeftButton) {
+        aligning_ = true;
+        alignStart_ = mapToScene(event->position().toPoint());
+        viewport()->setCursor(Qt::ClosedHandCursor);
+        emit alignDragStarted();
+        event->accept();
+        return;
+    }
     if (hasImage() && tool_ != nullptr) {
         tool_->mousePressed(toolMouse(*this, event));
         event->accept();
@@ -765,6 +807,11 @@ void PlanCanvas::mouseMoveEvent(QMouseEvent* event)
         event->accept();
         return;
     }
+    if (aligning_) {
+        emit alignDragged(mapToScene(event->position().toPoint()) - alignStart_);
+        event->accept();
+        return;
+    }
     if (hasImage()) {
         const ToolMouse mouse = toolMouse(*this, event);
         emit cursorMoved(mouse.scene);
@@ -783,6 +830,13 @@ void PlanCanvas::mouseReleaseEvent(QMouseEvent* event)
         panning_ = false;
         panButton_ = Qt::NoButton;
         updateCursor();
+        event->accept();
+        return;
+    }
+    if (aligning_ && event->button() == Qt::LeftButton) {
+        aligning_ = false;
+        updateCursor();
+        emit alignDragFinished();
         event->accept();
         return;
     }
@@ -813,6 +867,21 @@ void PlanCanvas::keyPressEvent(QKeyEvent* event)
         }
         event->accept();
         return;
+    }
+    if (alignMode_ && hasImage()) {
+        QPoint direction;
+        switch (event->key()) {
+        case Qt::Key_Left: direction = QPoint(-1, 0); break;
+        case Qt::Key_Right: direction = QPoint(1, 0); break;
+        case Qt::Key_Up: direction = QPoint(0, -1); break;
+        case Qt::Key_Down: direction = QPoint(0, 1); break;
+        default: break;
+        }
+        if (!direction.isNull()) {
+            emit alignNudged(direction, event->modifiers() & Qt::ShiftModifier);
+            event->accept();
+            return;
+        }
     }
     if (event->key() == Qt::Key_Shift || event->key() == Qt::Key_Control) {
         if (tool_ != nullptr)
@@ -934,6 +1003,8 @@ void PlanCanvas::updateCursor()
         viewport()->setCursor(Qt::ClosedHandCursor);
     else if (spaceHeld_)
         viewport()->setCursor(Qt::OpenHandCursor);
+    else if (alignMode_)
+        viewport()->setCursor(Qt::SizeAllCursor);
     else
         viewport()->setCursor(tool_ != nullptr ? tool_->cursor() : Qt::ArrowCursor);
 }

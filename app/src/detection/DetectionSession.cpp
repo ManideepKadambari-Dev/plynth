@@ -213,7 +213,11 @@ ProposalOverlay DetectionSession::overlay() const
     if (!active_ || state_ == State::Failed || raw_ == nullptr)
         return out;
     const double ppm = marked_.pixelsPerMetre;
-    const auto at = [ppm](const plynth::Vec2& p) { return QPointF(p.x * ppm, p.y * ppm); };
+    const plynth::Floor* floor = host_.floor();
+    const plynth::ImageOffset offset = floor != nullptr ? floor->imageOffset : plynth::ImageOffset{};
+    const auto at = [ppm, offset](const plynth::Vec2& p) {
+        return QPointF((p.x + offset.x) * ppm, (p.y + offset.y) * ppm);
+    };
 
     std::set<std::size_t> used;
     for (const plynth::ProposedWall& wall : marked_.walls) {
@@ -259,6 +263,15 @@ ProposalOverlay DetectionSession::overlay() const
         out.openings.append(mark);
     }
     return out;
+}
+
+// Starts again on the image of the floor that is shown now.
+void DetectionSession::floorChanged()
+{
+    if (!active_)
+        return;
+    clearResult();
+    restart(0);
 }
 
 // A new image or scale runs detection again. Any other edit only re-checks what the floor already has.

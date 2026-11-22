@@ -32,14 +32,33 @@ QPolygonF toPolygon(const std::vector<plynth::Vec2>& ring, double ppm)
 
 }
 
-// Gives the canvas the points, walls and rooms of the first floor, in image pixels.
+// Gives the canvas the points, walls and rooms of the first floor.
 OverlayData buildOverlay(const plynth::Plan& plan, const plynth::AssetCatalog* catalog)
 {
+    if (plan.floors.empty())
+        return OverlayData();
+    return buildOverlay(plan, plan.floors.front().id, catalog);
+}
+
+// Gives the canvas the points, walls and rooms of one floor, and the faint walls of the floor below.
+OverlayData buildOverlay(const plynth::Plan& plan, const std::string& floorId, const plynth::AssetCatalog* catalog)
+{
     OverlayData overlay;
-    if (!plan.scale.pixelsPerMetre.has_value() || plan.floors.empty())
+    const plynth::Floor* shown = plynth::findFloor(plan, floorId);
+    if (!plan.scale.pixelsPerMetre.has_value() || shown == nullptr)
         return overlay;
     const double ppm = *plan.scale.pixelsPerMetre;
-    const plynth::Floor& floor = plan.floors.front();
+    const plynth::Floor& floor = *shown;
+    overlay.imageOffset = QPointF(floor.imageOffset.x * ppm, floor.imageOffset.y * ppm);
+
+    if (const plynth::Floor* below = plynth::floorBelow(plan, floorId)) {
+        overlay.below.setFillRule(Qt::WindingFill);
+        for (const plynth::Wall& wall : below->walls)
+            for (const std::vector<plynth::Vec2>& ring : plynth::wallBand(*below, wall)) {
+                overlay.below.addPolygon(toPolygon(ring, ppm));
+                overlay.below.closeSubpath();
+            }
+    }
 
     for (const plynth::Point& point : floor.points)
         overlay.points.append({fromCore(point.id), QPointF(point.x * ppm, point.y * ppm)});

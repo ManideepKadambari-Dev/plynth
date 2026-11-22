@@ -51,6 +51,8 @@ public:
     virtual bool keyPressed(QKeyEvent*) { return false; }
     // Shift or Control went down or up, so a preview may need to change.
     virtual void modifiersChanged() {}
+    // Another floor is shown now. A tool drops what it was doing on the old floor.
+    virtual void floorChanged() {}
     // The document changed. byTool is true while this tool's own command is running.
     virtual void documentChanged(unsigned changes) { Q_UNUSED(changes); }
     // Draws previews over the plan. The painter works in canvas pixels.

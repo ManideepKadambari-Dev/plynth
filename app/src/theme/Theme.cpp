@@ -111,7 +111,9 @@ bool Theme::load(const QString& resourcePath)
     problemMarker_ = spacing["problemMarker"].toInt(problemMarker_);
     previewButton_ = spacing["previewButton"].toInt(previewButton_);
 
-    overlay3dOpacity_ = root["opacity"].toObject()["overlay3d"].toDouble(overlay3dOpacity_);
+    const QJsonObject opacity = root["opacity"].toObject();
+    overlay3dOpacity_ = opacity["overlay3d"].toDouble(overlay3dOpacity_);
+    floorBelowOpacity_ = opacity["floorBelow"].toDouble(floorBelowOpacity_);
     const QJsonObject preview = root["preview"].toObject();
     const QColor light(preview["lightColor"].toString());
     if (light.isValid())

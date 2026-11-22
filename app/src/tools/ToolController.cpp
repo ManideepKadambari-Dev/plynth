@@ -2,6 +2,8 @@
 
 #include "canvas/PlanCanvas.h"
 #include "catalog/LibraryHost.h"
+#include "document/FloorFocus.h"
+#include "canvas/OverlayBuilder.h"
 #include "document/Selection.h"
 #include "detection/DetectionSession.h"
 #include "theme/Theme.h"
@@ -19,6 +21,7 @@
 #include <plynth/core/Snapping.h>
 #include <plynth/core/WallGeometry.h>
 #include <plynth/core/catalog/ItemAssets.h>
+#include <plynth/core/commands/FloorCommands.h>
 #include <plynth/core/commands/ItemCommands.h>
 
 namespace plynth::app {
@@ -52,6 +55,22 @@ ToolController::ToolController(plynth::Document& document, PlanCanvas* canvas, S
     });
     canvas_->setTool(tool(active_));
     tool(active_)->activate();
+    if (parent != nullptr)
+        setFocus(parent->findChild<FloorFocus*>());
+    connect(canvas_, &PlanCanvas::alignDragStarted, this, [this]() {
+        if (const plynth::Floor* current = floor()) {
+            alignFrom_ = current->imageOffset;
+            alignKey_ = nextMergeKey();
+        }
+    });
+    connect(canvas_, &PlanCanvas::alignDragged, this, [this](const QPointF& delta) {
+        const std::optional<double> ppm = pixelsPerMetre();
+        if (ppm.has_value() && *ppm > 0.0)
+            moveImageTo(alignFrom_.x + delta.x() / *ppm, alignFrom_.y + delta.y() / *ppm);
+    });
+    connect(canvas_, &PlanCanvas::alignNudged, this, [this](const QPoint& direction, bool big) {
+        nudgeImage(direction, big);
+    });
 }
 
 // Stops detection and takes the tool away from the canvas, if the canvas is still there.
@@ -128,7 +147,19 @@ void ToolController::refreshAvailability()
 // Passes a document change to the active tool.
 void ToolController::documentChanged(unsigned changes)
 {
+    constexpr unsigned overlayChanges = plynth::Change::Content | plynth::Change::FloorImage |
+                                        plynth::Change::Scale | plynth::Change::Floors | plynth::Change::Folder;
+    if (changes & overlayChanges)
+        refreshOverlay();
     tool(active_)->documentChanged(changes);
+}
+
+// Draws the shown floor over the plan: its marks, the faint floor below, and the image at its offset.
+void ToolController::refreshOverlay()
+{
+    const std::string id = focus_ != nullptr ? focus_->floorId().toStdString() : std::string();
+    canvas_->setOverlay(id.empty() ? buildOverlay(document_.plan(), catalog()) : buildOverlay(document_.plan(), id, catalog()));
+    canvas_->setGridStep(gridStepPixels());
 }
 
 // The one line hint of the active tool.
@@ -143,11 +174,84 @@ void ToolController::hintChanged()
     emit hintTextChanged(hint());
 }
 
-// The first floor, which is the only one the app edits in this milestone.
+// Follows the shown floor. Tools and detection start fresh when it changes.
+void ToolController::setFocus(FloorFocus* focus)
+{
+    if (focus_ != nullptr)
+        disconnect(focus_, nullptr, this, nullptr);
+    focus_ = focus;
+    if (focus_ != nullptr)
+        connect(focus_, &FloorFocus::changed, this, [this]() { floorChanged(); });
+}
+
+// The shown floor, or the first one when no focus was given.
 const plynth::Floor* ToolController::floor() const
 {
+    if (focus_ != nullptr)
+        return focus_->floor();
     const plynth::Plan& plan = document_.plan();
     return plan.floors.empty() ? nullptr : &plan.floors.front();
+}
+
+// Another floor is shown: alignment ends, the active tool and detection drop their state.
+void ToolController::floorChanged()
+{
+    setAlignImage(false);
+    tool(active_)->floorChanged();
+    detection_->floorChanged();
+    refreshOverlay();
+    refreshAvailability();
+}
+
+// True when the image cannot be aligned now: read only, no image on this floor, or no scale.
+bool ToolController::alignRefusal() const
+{
+    return document_.isReadOnly() || floor() == nullptr || !floor()->image.has_value() || !hasImage() ||
+           !pixelsPerMetre().has_value();
+}
+
+// Turns alignment on or off. Turning on is refused without an image, a scale or write access.
+void ToolController::setAlignImage(bool on)
+{
+    if (on && alignRefusal()) {
+        if (document_.isReadOnly())
+            showMessage(tr("The project is read only"));
+        else if (!pixelsPerMetre().has_value())
+            showMessage(tr("Set the scale first (S)"));
+        else
+            showMessage(tr("This floor has no plan image to align"));
+        on = false;
+    }
+    if (on == alignImage_)
+        return;
+    alignImage_ = on;
+    canvas_->setAlignMode(on);
+    emit alignImageChanged(on);
+    if (on)
+        showNotice(tr("Drag the plan image to line it up. Arrow keys nudge it by 1 cm, Shift by 10 cm."));
+}
+
+// Moves the shown floor's image offset to a place. Moves in one drag share a merge key, so they undo as one.
+void ToolController::moveImageTo(double dx, double dy)
+{
+    const plynth::Floor* current = floor();
+    if (current == nullptr)
+        return;
+    run(std::make_unique<plynth::SetFloorImageOffsetCommand>(current->id, plynth::ImageOffset{dx, dy}, true,
+                                                             alignKey_));
+}
+
+// Moves the image by 1 cm, or 10 cm when big. Each key press is its own undo step.
+void ToolController::nudgeImage(const QPoint& direction, bool big)
+{
+    const plynth::Floor* current = floor();
+    if (current == nullptr)
+        return;
+    const double step = big ? 0.10 : 0.01;
+    run(std::make_unique<plynth::SetFloorImageOffsetCommand>(
+        current->id,
+        plynth::ImageOffset{current->imageOffset.x + direction.x() * step, current->imageOffset.y + direction.y() * step},
+        true, nextMergeKey()));
 }
 
 // Pixels per metre, when the scale is set.
@@ -156,7 +260,7 @@ std::optional<double> ToolController::pixelsPerMetre() const
     return document_.plan().scale.pixelsPerMetre;
 }
 
-// True when the first floor has an image on the sheet.
+// True when the shown floor has an image on the sheet.
 bool ToolController::hasImage() const
 {
     return canvas_->hasImage();

@@ -86,6 +86,10 @@ struct OverlayData {
     QVector<OverlayOpening> openings;
     QVector<OverlayPoint> points;
     QVector<OverlayRoom> rooms;
+    // Where the plan image sits, in scene units: the floor's image offset times the scale.
+    QPointF imageOffset;
+    // The walls of the floor below, drawn faint under everything else. Not selectable.
+    QPainterPath below;
 };
 
 // One proposed wall, in scene units.
@@ -141,6 +145,13 @@ public:
     // whether it is drawn. An empty image draws nothing.
     void setBuilding3d(const QImage& image, const QRectF& sceneRect);
     void setBuilding3dShown(bool shown);
+    // Image alignment: while on, a left drag moves the plan image and the arrow keys nudge it. The canvas only
+    // reports the gestures; the tools turn them into commands.
+    void setAlignMode(bool on);
+    bool alignMode() const { return alignMode_; }
+    // Where the plan image sits, in scene units.
+    QPointF imageOffset() const { return imageOffset_; }
+    void setImageOffset(const QPointF& offset);
     // Grid step in scene units, or 0 for no grid. The grid shows only when a step is wide enough on screen.
     void setGridStep(double scenePixels);
     // The tool that gets the mouse and keys and draws its previews.
@@ -159,6 +170,12 @@ signals:
     void cursorLeft();
     // An asset tile was dropped on the plan. scene is where, in image pixels. Ctrl was held when it dropped.
     void assetDropped(const QString& assetId, const QPointF& scene, bool free);
+    // Image alignment gestures. A drag sends alignDragged with the distance from where it started, in scene
+    // units, then alignDragFinished. A nudge says which way, and whether Shift made it a big one.
+    void alignDragStarted();
+    void alignDragged(const QPointF& delta);
+    void alignDragFinished();
+    void alignNudged(const QPoint& direction, bool big);
 
 protected:
     bool event(QEvent* event) override;
@@ -213,6 +230,10 @@ private:
     SelectionKind selectionKind_ = SelectionKind::None;
     QString selectionId_;
     double gridStep_ = 0.0;
+    QPointF imageOffset_;
+    bool alignMode_ = false;
+    bool aligning_ = false;
+    QPointF alignStart_;
     Tool* tool_ = nullptr;
     double zoom_ = 1.0;
     bool fitMode_ = true;

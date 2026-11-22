@@ -14,6 +14,10 @@ namespace plynth::app {
 // without a scale.
 OverlayData buildOverlay(const plynth::Plan& plan, const plynth::AssetCatalog* catalog = nullptr);
 
+// The same for the floor with this id. Also gives the floor's image offset and the faint outline of the walls
+// of the floor below. Scene units are plan metres times the scale, so the floor's image sits at its offset.
+OverlayData buildOverlay(const plynth::Plan& plan, const std::string& floorId, const plynth::AssetCatalog* catalog);
+
 // Works out where an opening is drawn on the plan, in image pixels, from core's openingPlacement. Not valid
 // when the opening has no place (its wall is missing).
 OverlayOpening makeOverlayOpening(const plynth::Floor& floor, const plynth::Opening& opening, double ppm);
