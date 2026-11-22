@@ -64,6 +64,10 @@
     "lightColor": "#FFFFFF",
     "keyLightBrightness": 2.7,
     "probeExposure": 1.7,
+    "skyTopColor": "#AAB2BA",
+    "skyHorizonColor": "#D6D8DA",
+    "groundHorizonColor": "#B4B2AE",
+    "groundBottomColor": "#8A8884",
     "aoStrength": 60
   },
   "effects": {

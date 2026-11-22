@@ -4,6 +4,8 @@
 #include "materials/MaterialPreview.h"
 #include "theme/Theme.h"
 
+#include <plynth/core/catalog/AssetInfo.h>
+
 #include <QComboBox>
 #include <QEvent>
 #include <QDesktopServices>
@@ -11,6 +13,7 @@
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QImageReader>
+#include <QInputDialog>
 #include <QItemSelectionModel>
 #include <QLabel>
 #include <QLineEdit>
@@ -297,6 +300,27 @@ void MaterialsPanel::buildControls(QVBoxLayout* column)
     group_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
     box->addWidget(group_);
     connect(group_, &QComboBox::activated, this, &MaterialsPanel::fillGrid);
+    connect(group_, &QComboBox::currentIndexChanged, this, &MaterialsPanel::updateGroupButtons);
+
+    auto* groupButtons = new QHBoxLayout();
+    groupButtons->setSpacing(t.unit() * 2);
+    addGroup_ = new QPushButton(tr("Add group"), controls_);
+    addGroup_->setToolTip(tr("Make a new material group"));
+    addGroup_->setProperty("tourId", QStringLiteral("materials-group-add"));
+    connect(addGroup_, &QPushButton::clicked, this, &MaterialsPanel::addGroup);
+    renameGroup_ = new QPushButton(tr("Rename"), controls_);
+    renameGroup_->setToolTip(tr("Change the name of the group shown in the filter above"));
+    renameGroup_->setProperty("tourId", QStringLiteral("materials-group-rename"));
+    connect(renameGroup_, &QPushButton::clicked, this, &MaterialsPanel::renameGroup);
+    removeGroup_ = new QPushButton(tr("Remove"), controls_);
+    removeGroup_->setToolTip(tr("Delete the group shown in the filter above. The materials stay but lose the group"));
+    removeGroup_->setProperty("tourId", QStringLiteral("materials-group-remove"));
+    connect(removeGroup_, &QPushButton::clicked, this, &MaterialsPanel::removeGroup);
+    groupButtons->addWidget(addGroup_);
+    groupButtons->addWidget(renameGroup_);
+    groupButtons->addWidget(removeGroup_);
+    groupButtons->addStretch(1);
+    box->addLayout(groupButtons);
 
     auto* buttons = new QHBoxLayout();
     buttons->setSpacing(t.unit() * 2);
@@ -595,6 +619,103 @@ void MaterialsPanel::fillGroupFilter()
         group_->addItem(QStringLiteral("%1 (%2)").arg(fromCore(entry.name)).arg(entry.materialCount), fromCore(entry.id));
     const int index = group_->findData(keep);
     group_->setCurrentIndex(index >= 0 ? index : 0);
+    updateGroupButtons();
+}
+
+// Turns Rename and Remove on only while a real group is chosen in the filter.
+void MaterialsPanel::updateGroupButtons()
+{
+    if (!group_ || !renameGroup_)
+        return;
+    const QString id = group_->currentData().toString();
+    const bool real = !id.isEmpty() && id != kAllGroups && id != kUncategorized;
+    renameGroup_->setEnabled(real);
+    removeGroup_->setEnabled(real);
+}
+
+// Asks for a name and adds a group with an id made from it.
+void MaterialsPanel::addGroup()
+{
+    plynth::MaterialCatalog* catalog = host_.materialCatalog();
+    if (!catalog)
+        return;
+    bool ok = false;
+    const QString name =
+        QInputDialog::getText(this, tr("Add group"), tr("Name of the group"), QLineEdit::Normal, QString(), &ok).trimmed();
+    if (!ok || name.isEmpty())
+        return;
+    const std::string id = plynth::uniqueCatalogId(plynth::catalogIdFromName(name.toStdString()),
+                                                   [catalog](std::string_view candidate) {
+                                                       for (const plynth::MaterialGroupEntry& entry : catalog->groups())
+                                                           if (entry.id == candidate)
+                                                               return true;
+                                                       return false;
+                                                   });
+    const plynth::Status status = catalog->addGroup(id, name.toStdString());
+    if (!status.ok())
+        emit message(fromCore(status.message));
+    host_.materialsEdited();
+    if (status.ok()) {
+        const int index = group_->findData(fromCore(id));
+        if (index >= 0) {
+            group_->setCurrentIndex(index);
+            fillGrid();
+        }
+    }
+}
+
+// Asks for a new name for the group chosen in the filter.
+void MaterialsPanel::renameGroup()
+{
+    plynth::MaterialCatalog* catalog = host_.materialCatalog();
+    if (!catalog || !renameGroup_->isEnabled())
+        return;
+    const QString id = group_->currentData().toString();
+    QString current = group_->currentText();
+    for (const plynth::MaterialGroupEntry& entry : catalog->groups())
+        if (fromCore(entry.id) == id)
+            current = fromCore(entry.name);
+    bool ok = false;
+    const QString name =
+        QInputDialog::getText(this, tr("Rename group"), tr("New name"), QLineEdit::Normal, current, &ok).trimmed();
+    if (!ok || name.isEmpty())
+        return;
+    const plynth::Status status = catalog->renameGroup(id.toStdString(), name.toStdString());
+    if (!status.ok())
+        emit message(fromCore(status.message));
+    host_.materialsEdited();
+}
+
+// Asks, then removes the group chosen in the filter, saying how many materials lose it.
+void MaterialsPanel::removeGroup()
+{
+    plynth::MaterialCatalog* catalog = host_.materialCatalog();
+    if (!catalog || !removeGroup_->isEnabled())
+        return;
+    const QString id = group_->currentData().toString();
+    QString name = group_->currentText();
+    int count = 0;
+    for (const plynth::MaterialGroupEntry& entry : catalog->groups())
+        if (fromCore(entry.id) == id) {
+            name = fromCore(entry.name);
+            count = entry.materialCount;
+        }
+    QMessageBox box(this);
+    box.setIcon(QMessageBox::NoIcon);
+    box.setWindowTitle(tr("Remove group"));
+    box.setText(tr("Remove the group %1? %n material(s) lose it. The materials stay in the library.", nullptr, count).arg(name));
+    QPushButton* yes = box.addButton(tr("Remove"), QMessageBox::DestructiveRole);
+    QPushButton* no = box.addButton(tr("Cancel"), QMessageBox::RejectRole);
+    yes->setToolTip(tr("Delete the group"));
+    no->setToolTip(tr("Keep the group"));
+    box.setDefaultButton(no);
+    box.exec();
+    if (box.clickedButton() != yes)
+        return;
+    const plynth::Status status = catalog->removeGroup(id.toStdString());
+    if (!status.ok())
+        emit message(fromCore(status.message));
+    host_.materialsEdited();
 }
 
 // The tile picture of a material, from disk and kept until the next refresh.

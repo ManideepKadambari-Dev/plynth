@@ -116,6 +116,15 @@ bool Theme::load(const QString& resourcePath)
     const QColor light(preview["lightColor"].toString());
     if (light.isValid())
         lightColor_ = light;
+    const auto readColor = [&](const char* key, QColor& target) {
+        const QColor c(preview[key].toString());
+        if (c.isValid())
+            target = c;
+    };
+    readColor("skyTopColor", skyTop_);
+    readColor("skyHorizonColor", skyHorizon_);
+    readColor("groundHorizonColor", groundHorizon_);
+    readColor("groundBottomColor", groundBottom_);
     keyLightBrightness_ = preview["keyLightBrightness"].toDouble(keyLightBrightness_);
     probeExposure_ = preview["probeExposure"].toDouble(probeExposure_);
     aoStrength_ = preview["aoStrength"].toInt(aoStrength_);

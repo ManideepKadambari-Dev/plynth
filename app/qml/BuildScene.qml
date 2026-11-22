@@ -206,10 +206,10 @@ Item {
             antialiasingQuality: SceneEnvironment.High
             lightProbe: Texture {
                 textureData: ProceduralSkyTextureData {
-                    skyTopColor: "#aab2ba"
-                    skyHorizonColor: "#d6d8da"
-                    groundHorizonColor: "#b4b2ae"
-                    groundBottomColor: "#8a8884"
+                    skyTopColor: Theme.skyTopColor
+                    skyHorizonColor: Theme.skyHorizonColor
+                    groundHorizonColor: Theme.groundHorizonColor
+                    groundBottomColor: Theme.groundBottomColor
                 }
             }
             probeExposure: Theme.probeExposure

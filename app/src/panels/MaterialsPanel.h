@@ -72,6 +72,10 @@ private:
     void showDetails();
     void applyEdit(const plynth::MaterialEdit& edit);
     void removeSelected();
+    void addGroup();
+    void renameGroup();
+    void removeGroup();
+    void updateGroupButtons();
     QPixmap tilePixmap(const plynth::MaterialRecord& record);
 
     LibraryHost& host_;
@@ -85,6 +89,9 @@ private:
     QTimer* searchTimer_ = nullptr;
     QComboBox* group_ = nullptr;
     QPushButton* rescan_ = nullptr;
+    QPushButton* addGroup_ = nullptr;
+    QPushButton* renameGroup_ = nullptr;
+    QPushButton* removeGroup_ = nullptr;
     QPushButton* import_ = nullptr;
     QStackedWidget* pages_ = nullptr;
     QLabel* emptyText_ = nullptr;
