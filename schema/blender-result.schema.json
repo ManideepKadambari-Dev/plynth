@@ -198,7 +198,8 @@
             "fills": { "type": "integer", "minimum": 0 },
             "rooms": { "type": "integer", "minimum": 0 },
             "items": { "type": "integer", "minimum": 0 },
-            "materials": { "description": "Blender materials made for built surfaces, from the library and neutral.", "type": "integer", "minimum": 0 }
+            "materials": { "description": "Blender materials made for built surfaces, from the library and neutral.", "type": "integer", "minimum": 0 },
+            "generators": { "description": "Items built by generators. Missing when the job had none.", "type": "integer", "minimum": 0 }
           }
         },
         "steps": {

@@ -70,7 +70,9 @@ double defaultWallItemZ(const DefaultSizes& defaults, double height);
 
 // Checks the rules every command enforces before it changes an item. In order:
 // - InvalidValue when the asset is not a well formed name, a number is not finite, a size is not above zero,
-//   or z is below zero.
+//   or z is below zero. For a generator item: when the asset is not empty, or the generator name or a
+//   parameter id is not a well formed lower case name, or a parameter id is used twice. Whether the values fit
+//   the generator's declaration is checked by the front ends with checkGeneratorParams (Generators.h).
 // - NotFound when room or wall is set and is not a room or wall of the floor.
 // - InvalidValue for a wall item whose top (z + height) is above its wall's height (wallHeight), or that is
 //   wider than its wall's length. The message gives the numbers.
@@ -136,6 +138,10 @@ enum class ItemProblemKind {
     TooTall,         // "too_tall": a floor item reaches above the ceiling, or a wall item above its wall
     MissingAsset,    // "missing_asset": the asset is not in the library
     SizeChanged,     // "size_changed": the library's size for the asset differs from the stored one
+    MissingGenerator,     // "missing_generator": a generator item's generator is not in the library
+    GeneratorUnavailable, // "generator_unavailable": its generator needs an add-on that is not enabled
+    GeneratorChanged,     // "generator_changed": its values no longer fit the generator's declaration, or the
+                          // size worked out from them differs from the stored one
 };
 
 // The stable lower case name of a problem kind, used by the CLI as a warning code.
@@ -152,14 +158,33 @@ struct ItemProblem {
 // library. Made from the catalog with assetLookupFor (catalog/ItemAssets.h).
 using AssetLookup = std::function<std::optional<ItemSize>(std::string_view asset)>;
 
+// What the library says about the generator of a generator item.
+struct GeneratorItemState {
+    bool available = true;            // false when an add-on it needs is known to be off
+    std::string unavailableReason;    // one plain sentence when not available, naming the add-ons
+    bool valuesFit = true;            // the stored values pass checkGeneratorParams
+    std::optional<ItemSize> size;     // generatorSize of the stored values; empty when they do not fit
+};
+
+// Says what the library knows about a generator: its state, or empty when the generator is not in the library.
+// Made with generatorItemLookupFor (Generators.h).
+using GeneratorItemLookup = std::function<std::optional<GeneratorItemState>(const GeneratorUse& use)>;
+
 // The problems of one item as it would be on the floor: an item with the id of one already there stands in
 // for it, so a command or a drag preview can check the result before it runs. Overlaps are checked against the
-// floor's other items. MissingAsset and SizeChanged are checked only when lookup is given. Each overlapping
-// item, wall or opening gives its own entry. Order: as ItemProblemKind, then by the other id.
+// floor's other items. MissingAsset and SizeChanged are checked only when lookup is given, and only for asset
+// items. MissingGenerator, GeneratorUnavailable and GeneratorChanged are checked only when generators is given,
+// and only for generator items. Each overlapping item, wall or opening gives its own entry. Order: as
+// ItemProblemKind, then by the other id.
+// The first form passes no generator lookup.
 std::vector<ItemProblem> checkItem(const Floor& floor, const Item& item, const AssetLookup& lookup = {});
+std::vector<ItemProblem> checkItem(const Floor& floor, const Item& item, const AssetLookup& lookup,
+                                   const GeneratorItemLookup& generators);
 
 // The problems of every item on the floor, in the floor's item order (checkItem for each). The app draws those
 // items in Signal amber and the CLI lists them.
 std::vector<ItemProblem> itemProblems(const Floor& floor, const AssetLookup& lookup = {});
+std::vector<ItemProblem> itemProblems(const Floor& floor, const AssetLookup& lookup,
+                                      const GeneratorItemLookup& generators);
 
 }

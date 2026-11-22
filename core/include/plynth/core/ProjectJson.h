@@ -16,13 +16,14 @@ namespace plynth {
 using Json = nlohmann::ordered_json;
 
 // Version 2 of plan.json adds "hinge" and "swing" to openings, version 3 adds "items" to floors, version 4
-// adds "wall_material" to rooms.
+// adds "wall_material" to rooms, version 5 is milestone 12's, version 6 adds "generator" to items (and lets
+// "asset" be null for a generator item).
 // Version 2 of project.json adds "defaults", version 3 adds "wall_item_centre" to them, version 4 adds
 // "materials" (MaterialDefaults.h).
 // The schema for the current version is schema/plan.schema.json and schema/project.schema.json; older
 // versions stay as schema/plan.vN.schema.json and schema/project.vN.schema.json.
 inline constexpr std::string_view kPlanFormatName = "plynth-plan";
-inline constexpr int kPlanFormatVersion = 4;
+inline constexpr int kPlanFormatVersion = 6;
 inline constexpr std::string_view kProjectFormatName = "plynth-project";
 inline constexpr int kProjectFormatVersion = 4;
 
@@ -75,6 +76,8 @@ Status migrateJson(Json& json, int currentVersion, std::span<const Migration> st
 // 1 to 2: every opening gets "hinge": "start" and "swing": "right" unless it already has them.
 // 2 to 3: every floor gets "items": [] unless it already has them.
 // 3 to 4: every room gets "wall_material": null unless it already has one.
+// 4 to 5: milestone 12's step. Until it is merged this is a step that changes nothing.
+// 5 to 6: every item gets "generator": null unless it already has one.
 // When the format changes: raise kPlanFormatVersion, add a step here, keep the old schema as
 // plan.vN.schema.json and update plan.schema.json.
 std::span<const Migration> planMigrations();

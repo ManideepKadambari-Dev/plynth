@@ -5,6 +5,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 namespace plynth {
@@ -125,7 +126,31 @@ struct ItemSize {
     bool operator==(const ItemSize&) const = default;
 };
 
-// A catalog asset placed on a floor (DESIGN.md section 7.6).
+// One parameter value of a placed generator (Generators.h): a number (lengths in metres, angles in degrees,
+// whole numbers too), yes or no, or text (a choice id, or a material id where empty text means the neutral
+// look). In plan.json a number, true or false, a string, or null for empty text.
+using GeneratorValue = std::variant<double, bool, std::string>;
+
+struct GeneratorParamValue {
+    std::string id;
+    GeneratorValue value;
+
+    bool operator==(const GeneratorParamValue&) const = default;
+};
+
+// The generator an item runs instead of placing an asset (plan format 6), and its parameter values, sorted by
+// id with each id once. name is the generator's id, the file stem of Library/generators/<name>.py. The plan
+// keeps it even when the library on this machine does not have that generator.
+struct GeneratorUse {
+    std::string name;
+    std::vector<GeneratorParamValue> params;
+
+    bool operator==(const GeneratorUse&) const = default;
+};
+
+// A catalog asset placed on a floor (DESIGN.md section 7.6), or a generator placed like one (DESIGN.md 7.10).
+// A generator item has generator set and asset empty; its size comes from its parameters (generatorSize in
+// Generators.h). Everything else below means the same for both kinds.
 // x and y are the centre of the footprint on the plan, which is where the asset's pivot (the bottom centre
 // of its bounding box) goes. z is the height of the asset's bottom above the floor.
 // rotation is in degrees from 0 up to 360, clockwise as seen on the plan. At 0 the asset's front faces +y
@@ -146,9 +171,13 @@ struct Item {
     double rotation = 0.0;
     std::optional<Id> wall;
     ItemSize size;
+    std::optional<GeneratorUse> generator;
 
     bool operator==(const Item&) const = default;
 };
+
+// Says whether an item runs a generator rather than placing an asset.
+bool isGeneratorItem(const Item& item);
 
 // One storey. image is a path in UTF-8 with forward slashes, relative to the project folder
 // (for example "plans/floor1.png"). It may be absolute only in memory, before the project is first saved.
@@ -214,7 +243,10 @@ bool isValidId(std::string_view id);
 // and pixels per metre above zero, corner radius, offset and sill zero or more, wall height above zero when set.
 // Items: asset a well formed name, room and wall (when set) a room and a wall of their own floor, z zero or
 // more, rotation from 0 up to 360, every size above zero. Whether an item fits its room or overlaps anything
-// is not part of the format; itemProblems in Items.h reports that.
+// is not part of the format; itemProblems in Items.h reports that. A generator item instead has an empty
+// asset, a generator name that is a well formed lower case name (letters a to z, digits and "_", starting with
+// a letter, at most 64), parameter ids of the same form, each once and sorted, and finite numbers. Whether the
+// generator exists or its values fit its declaration is not part of the format either.
 // Whether an opening fits its wall, and whether its shape is registered, is not part of the format: commands
 // refuse openings that do not fit (checkOpeningFit in Openings.h), and openingProblems lists the ones that
 // stopped fitting after a wall changed. So a file from another machine with a custom shape still loads.
