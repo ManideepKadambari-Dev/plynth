@@ -5,7 +5,9 @@
 
 #include <filesystem>
 #include <optional>
+#include <string>
 #include <string_view>
+#include <vector>
 
 namespace plynth {
 
@@ -75,11 +77,29 @@ bool isLibraryFolder(const std::filesystem::path& root);
 
 // Makes a folder into a library: creates every missing folder above and both databases with their tables,
 // seeds assets.db with the built-in room types, categories and licenses and materials.db with the built-in
-// material groups and licenses (also into an existing, empty materials.db), and empties both .staging
-// folders. Never removes
+// material groups and licenses (also into an existing, empty materials.db), empties both .staging
+// folders, and copies the sample opening shapes into shapes/ (addSampleShapes with sampleShapesFolder(); no
+// samples found is not an error). Never removes
 // or changes anything else, so it is safe on an existing library. CannotWrite when a folder or file cannot
 // be made; DatabaseError or UnsupportedVersion from the databases.
 Status initLibrary(const std::filesystem::path& root);
+
+// The sample opening shapes that ship with Plynth (samples/shapes/*.shape.json, for example the keyhole): the
+// first of the PLYNTH_SAMPLES environment variable's shapes/ folder, the folder "samples/shapes" next to the
+// running program, and in a developer build the source tree's samples/shapes. Empty when none exists.
+inline constexpr std::string_view kSamplesVariable = "PLYNTH_SAMPLES";
+std::filesystem::path sampleShapesFolder();
+
+struct SampleShapesCopy {
+    Status status;                   // NotFound when from does not exist, CannotWrite
+    std::vector<std::string> copied;  // file names copied into shapes/
+    std::vector<std::string> skipped; // file names already there, left as they are
+};
+
+// Copies every *.shape.json of from into the library's shapes/ folder, never overwriting a file that is
+// already there (the owner's "Add the sample shapes" for libraries made before milestone 10; the app and
+// "plynth library add-sample-shapes" call it). Sorted file names.
+SampleShapesCopy addSampleShapes(const LibraryPaths& library, const std::filesystem::path& from);
 
 struct LibraryChoice {
     Status status; // NoLibrary when none is set or the folder is not a library, with a sentence naming

@@ -31,9 +31,12 @@ using Json = nlohmann::ordered_json;
 //   build/building.fbx     what the 3D preview loads
 //   build/materials.json   which image goes into which channel of each built material, for the 3D preview
 //   build/textures/        constant images of the neutral looks
+//   build/preview_textures/ copies of large images scaled to kPreviewTextureSize, used by building.fbx only
 //   build/build.json       the report of the last build, schema/build-report.schema.json
 //   build/job.json, build/result.json, build/blender.log   the last job, its result and Blender's output
-//   build/build.lock       while a build runs
+//   build/build.lock       while a build or an export runs (an export reads building.blend, so the two never
+//                          run at the same time)
+//   build/export_work/     the job, result and Blender log of the last export (Export.h)
 // Nothing in the project's plan or settings is changed.
 
 inline constexpr std::string_view kBuildReportFileName = "build.json";
@@ -131,13 +134,16 @@ struct BuildReportRead {
 };
 
 // Reads projectFolder/build/build.json, for the app when it opens a project. A report written before milestone
-// 9 has no materials count and no materials_file; they read as 0 and empty.
+// 9 has no materials count and no materials_file; they read as 0 and empty. One written before milestone 10
+// has no collision count; it reads as 0.
 BuildReportRead readBuildReport(const std::filesystem::path& projectFolder);
 
-// build/materials.json, schema/build-materials.schema.json: for each Blender material of the built surfaces,
-// the images of its channels, and for each built object the material of each of its slots in order. The 3D
-// preview replaces the materials the FBX loader made with these, matched by material name, or by object name
-// and slot order when the loader keeps no names.
+// build/materials.json, schema/build-materials.schema.json: for each Blender material of the built surfaces
+// (one per slot, MaterialSlots.h), the images of its channels, and for each built object the material of each
+// of its slots in order. The 3D preview replaces the materials the FBX loader made with these, matched by the
+// base color image path (milestone 9, gate U1). Several slots may share one catalog material and so one base
+// color path; their entries then have the same maps, and the first one found is used. The export (Export.h)
+// reads this file to name the textures it copies.
 inline constexpr std::string_view kBuildMaterialsFormat = "plynth-build-materials";
 inline constexpr int kBuildMaterialsVersion = 1;
 
@@ -147,7 +153,7 @@ enum class AlphaMode {
 };
 
 struct BuiltMaterial {
-    std::string name;                 // the Blender and FBX material name
+    std::string name;                 // the Blender and FBX material name: the slot name, for example "Living_Floor"
     std::string material;             // the catalog id; empty for a neutral look
     std::string surface;              // the neutral surface name (for example "Glass"); empty for a catalog one
     std::filesystem::path baseColor;  // absolute
@@ -157,6 +163,7 @@ struct BuiltMaterial {
     std::filesystem::path opacity;    // empty when opaque
     std::filesystem::path occlusion;  // empty when there is none
     AlphaMode alphaMode = AlphaMode::Opaque;
+    std::string asset;                // the asset id for a material of furniture; empty for a built surface
 
     bool operator==(const BuiltMaterial&) const = default;
 };
