@@ -31,8 +31,11 @@ add_executable(plynth_core_tests
     core/ItemsTests.cpp
     core/GeneratorsTests.cpp
     core/AddonsTests.cpp
+    core/AddonFolderTests.cpp
     core/GeneratorBuildTests.cpp
+    core/GeneratorJobTests.cpp
     core/GeneratorCommandsTests.cpp
+    core/SampleGeneratorsTests.cpp
     core/ItemCommandTests.cpp
     core/SearchTests.cpp
     core/RescanTests.cpp

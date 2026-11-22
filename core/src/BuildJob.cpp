@@ -798,6 +798,13 @@ std::optional<BuildSeverity> buildSeverityFromName(std::string_view name)
     return std::nullopt;
 }
 
+// Works out the build plan without using the generators or add-ons it is given.
+BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, const BuildMaterialSource& materials,
+                        const GeneratorLibrary*, const std::optional<AddonCache>&)
+{
+    return makeBuildPlan(project, assets, materials);
+}
+
 // Works out the build plan of a project.
 BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, const BuildMaterialSource& materials)
 {

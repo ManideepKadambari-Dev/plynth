@@ -11,6 +11,9 @@
 // Every start also appends its arguments to fake_args.log.
 // Every start also appends the BLENDER_USER_* variables it sees to fake_env.log.
 // Every job is also appended as one line to fake_jobs.log next to the program.
+// Every job also appends one JSON line to fake_extensions.log: {"task", "marker", "user_default"}. marker says
+// whether the folder BLENDER_USER_EXTENSIONS names holds .plynth-prepared, user_default lists the sorted names
+// in that folder's user_default. Without the variable no folder is looked at.
 // The version comes from fake_version.txt next to the program, else 5.2.0.
 // Probe add-ons come from FAKE_BLENDER_ADDONS (comma separated modules) and FAKE_BLENDER_BLENDERKIT
 // (none, installed, enabled or signed_in).
@@ -211,6 +214,26 @@ void writeUserMarkers()
     }
 }
 
+// What the extensions folder given to this job holds. Reads no file and writes nothing there.
+Json extensionsSeen(const std::string& task)
+{
+    bool marker = false;
+    std::vector<std::string> names;
+    const std::string given = environment("BLENDER_USER_EXTENSIONS");
+    if (!given.empty()) {
+        const fs::path folder = pathFrom(given);
+        std::error_code ec;
+        marker = fs::is_regular_file(folder / ".plynth-prepared", ec);
+        ec.clear();
+        for (fs::directory_iterator it(folder / "user_default", ec), end; !ec && it != end; it.increment(ec)) {
+            const std::u8string name = it->path().filename().u8string();
+            names.emplace_back(name.begin(), name.end());
+        }
+        std::sort(names.begin(), names.end());
+    }
+    return Json{{"task", task}, {"marker", marker}, {"user_default", names}};
+}
+
 // Prints a progress line the way the worker does.
 void progress(const char* step, int index, int count, const char* message)
 {
@@ -325,11 +348,11 @@ Json materialOutput(const Json& params, const std::string& mode)
 // The steps the fake build reports.
 constexpr const char* kBuildSteps[] = {"prepare_scene", "walls", "openings", "floors", "assets", "materials", "save_blend", "export_fbx"};
 
-// The sum of one list over all floors of a build job.
+// The sum of one list over all floors of a build job. A floor without the list adds nothing.
 int sumOf(const Json& floors, const char* key)
 {
     int total = 0;
-    for (const Json& floor : floors) total += static_cast<int>(floor[key].size());
+    for (const Json& floor : floors) total += floor.contains(key) ? static_cast<int>(floor[key].size()) : 0;
     return total;
 }
 
@@ -428,7 +451,8 @@ Json buildOutput(const Json& params, const std::string& mode)
     int slabs = 0;
     for (const Json& floor : floors) slabs += floor["slab"]["polygons"].empty() ? 0 : 1;
     if (fbx && params["preview_folder"].is_string()) writePreviewParts(folder / params["preview_folder"].get<std::string>(), floors);
-    int collision = items;
+    const int generated = sumOf(floors, "generator_items");
+    int collision = items + generated;
     for (const Json& floor : floors) {
         if (!floor.contains("collision")) continue;
         for (const Json& shape : floor["collision"]) collision += static_cast<int>(shape["pieces"].size() + (shape.contains("hulls") ? shape["hulls"].size() : 0));
@@ -449,7 +473,7 @@ Json buildOutput(const Json& params, const std::string& mode)
             }
         }
     }
-    const int objects = solids + openings + rooms * 2 + items;
+    const int objects = solids + openings + rooms * 2 + items + generated;
     Json steps = Json::array();
     for (const char* step : kBuildSteps) steps.push_back(Json{{"step", step}, {"ms", 3}});
 
@@ -461,6 +485,7 @@ Json buildOutput(const Json& params, const std::string& mode)
     out["triangles"] = objects * 12;
     out["counts"] = Json{{"wall_solids", solids}, {"openings_cut", openings}, {"fills", fills}, {"rooms", rooms}, {"items", items},
                        {"materials", materialCount}, {"slabs", slabs}, {"stairs", stairs}, {"roofs", roofs}, {"collision", collision}};
+    if (generated > 0) out["counts"]["generators"] = generated;
     out["steps"] = steps;
     out["problems"] = problems;
     return out;
@@ -591,6 +616,10 @@ int main()
     {
         std::ofstream log(programFolder() / "fake_jobs.log", std::ios::binary | std::ios::app);
         log << job.dump() << "\n";
+    }
+    {
+        std::ofstream log(programFolder() / "fake_extensions.log", std::ios::binary | std::ios::app);
+        log << extensionsSeen(job["task"].get<std::string>()).dump() << "\n";
     }
 
     if (job["task"].get<std::string>() == "probe") {

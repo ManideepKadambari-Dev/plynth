@@ -19,6 +19,7 @@ add_executable(plynth_cli_tests
     ImportCliTests.cpp
     ItemCliTests.cpp
     GeneratorCliTests.cpp
+    GeneratorBuildCliTests.cpp
     BuildCliTests.cpp
     FloorCliTests.cpp
     StairCliTests.cpp

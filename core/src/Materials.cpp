@@ -302,6 +302,9 @@ std::vector<std::string> materialsUsed(const Project& project)
     return {used.begin(), used.end()};
 }
 
+// The same, with the materials of generator items.
+std::vector<std::string> materialsUsed(const Project& project, const GeneratorLibrary&) { return materialsUsed(project); }
+
 // "inside" or "outside".
 std::string_view wallFaceName(WallFace face)
 {

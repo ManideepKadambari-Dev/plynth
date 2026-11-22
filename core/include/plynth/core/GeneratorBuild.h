@@ -2,7 +2,7 @@
 
 #include "Addons.h"
 #include "BuildGeometry.h"
-#include "BuildJob.h"
+#include "BuildProblem.h"
 #include "Generators.h"
 #include "Plan.h"
 
@@ -28,9 +28,13 @@ using Json = nlohmann::ordered_json;
 //     each generator a built item uses, once, sorted by id
 //   every floor: "generator_items": [{"id": "i7", "generator": "column",
 //     "params": {"diameter": 0.3, "height": 3.0, "shape": "round", "material": "white_paint"},
-//     "location": [x, y, z], "rotation_z": r, "size": {"width", "depth", "height"}, "room": "r1", "wall": null}]
+//     "location": [x, y, z], "rotation_z": r, "size": {"width", "depth", "height"}, "room": "r1", "wall": null,
+//     "slots": {"material": "Column_Material"}}]
 //     location and rotation_z as for items (itemPlacement in BuildGeometry.h); material values are the id of an
 //     entry of the job's materials list or null for the neutral look kGeneratedSurface
+//     slots has one entry per material parameter, the name of an entry of the job's slots list (MaterialSlots.h),
+//     and is {} when materialSlots is empty; gen.material(param) gives the material of that name; faces with any
+//     other material get the slot of the first declared material parameter, or kGeneratedSlot when there is none
 // Worker problem codes: generator_failed (error, the item is left out: the file could not be loaded, has no
 // generate function, raised an error, or made no mesh), generator_unavailable (warning, an add-on it needs could
 // not be enabled in the build's Blender; the item is left out), generator_size (warning, what it made reaches
@@ -69,6 +73,15 @@ struct BuildGenerator {
     bool operator==(const BuildGenerator&) const = default;
 };
 
+// The slot of one material parameter of a generator item.
+struct GeneratorMaterialSlot {
+    std::string param;
+    std::string material; // the catalog id after the library check; empty for the neutral look
+    std::string slot;     // the name of its BuildSlot
+
+    bool operator==(const GeneratorMaterialSlot&) const = default;
+};
+
 // One generator item as the build makes it.
 struct GeneratorItemBuild {
     Id id;
@@ -80,6 +93,7 @@ struct GeneratorItemBuild {
     ItemSize size;                            // generatorSize of params
     std::optional<Id> room;
     std::optional<Id> wall;
+    std::vector<GeneratorMaterialSlot> materialSlots; // in materialParams order; filled by makeBuildPlan
 
     bool operator==(const GeneratorItemBuild&) const = default;
 };

@@ -32,6 +32,21 @@ using Json = nlohmann::ordered_json;
 //
 // Add-ons are named by their short module name: the last dotted part of the module, lower case, so
 // "bl_ext.blender_org.Bagapie" is "bagapie". Generators list the short names they need.
+//
+// A job that switches add-ons on gets an extensions folder of its own (prepareAddonFolder), filled only from a
+// source folder the caller names, laid out like an extensions folder. The user's own Blender folders are never
+// a source:
+//   - the source is refused with InvalidValue, before it is opened or listed, when it is empty or not absolute,
+//     or is, lies in or holds %APPDATA%/Blender Foundation or a folder of blenderUserFolders; links in the
+//     source path are then resolved and it is checked again
+//   - the job's folder must be absolute, must not exist and must not lie in the source; only then is it made
+//   - for each short name, the first cache module of the form bl_ext.<repository>.<id> with that short name
+//     (parts of letters, digits and "_" only) is copied from <source>/<repository>/<id>, which needs a
+//     blender_manifest.toml, to <job folder>/user_default/<id>, without __pycache__
+//   - an add-on that is not found or holds a link is left out, which is not an error
+//   - nothing else is listed or copied, nothing is written in the source, and kPreparedExtensionsMarker is
+//     written last, only when every copy finished
+//   - the caller removes a job folder that was made, also after a failure
 
 inline constexpr std::string_view kAddonCacheFileName = "addons.json";
 inline constexpr std::string_view kAddonCacheFormat = "plynth-addons";
@@ -90,5 +105,16 @@ struct AddonProbe {
 // startup. run.factoryStartup is ignored. Blocks; the app runs it on a worker thread.
 AddonProbe probeAddons(const BlenderInstall& blender, const std::filesystem::path& cacheFile,
                        const BlenderRunOptions& run = {true, kAddonProbeTimeout, {}}, std::stop_token stop = {});
+
+// What copying add-ons for one job did.
+struct AddonFolderCopy {
+    Status status;                   // InvalidValue, CannotRead, CannotWrite or Cancelled; there is then no marker
+    std::vector<std::string> copied; // short names, sorted
+};
+
+// Prepares one job's extensions folder from a source folder, by the rules at the top of this file.
+AddonFolderCopy prepareAddonFolder(const std::filesystem::path& jobFolder, const std::filesystem::path& source,
+                                   const BlenderInstall& blender, const AddonCache& cache,
+                                   const std::vector<std::string>& shortNames, std::stop_token stop = {});
 
 }

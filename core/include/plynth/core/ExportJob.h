@@ -87,9 +87,10 @@ using Json = nlohmann::ordered_json;
 //                   slot with the neutral look (no material assigned, or one that failed to load), an image
 //                   file that is missing, or a base color that is not an image (a procedural material: Plynth
 //                   cannot bake it, because baking needs Cycles)
-//   collision       "Collision": fail for a mesh of plynth_kind walls, floor, slab, stair, roof or item without
-//                   a UCX_ mesh, each object on its own, so every roof section needs one (ceilings, thresholds
-//                   and door and window fills need none), and for a UCX_ mesh that is not closed or not convex
+//   collision       "Collision": fail for a mesh of plynth_kind walls, floor, slab, stair, roof, item or
+//                   generator without a UCX_ mesh, each object on its own, so every roof section needs one
+//                   (ceilings, thresholds and door and window fills need none), and for a UCX_ mesh that is not
+//                   closed or not convex
 //   fbx_scale       phase "file": reads each written FBX back into an empty scene; fail unless the walls'
 //                   bounds match expected_bounds within bounds_tolerance and the object count matches
 //

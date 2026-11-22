@@ -39,6 +39,16 @@ using Json = nlohmann::ordered_json;
 //                          run at the same time)
 //   build/export_work/     the job, result and Blender log of the last export (Export.h)
 // Nothing in the project's plan or settings is changed.
+//
+// Generators and add-ons: a build reads the library's generators and the add-on cache, which counts only when
+// it was made by the build's Blender, and always runs with factory startup. Add-ons are copied only from
+// BuildRequest::addonSource. When that is set and a generator to build needs add-ons:
+//   - without a matching cache, probeAddons runs once first
+//   - the job gets a new folder plynth-ext-<8 hex> in the temp folder (prepareAddonFolder), removed however
+//     the run ends
+//   - a probe or copy that fails gives one generator_unavailable warning, and the build runs on without it
+// With no addonSource there is no probe and no copy, and the worker reports generator_unavailable for the
+// items that need an add-on.
 
 inline constexpr std::string_view kBuildReportFileName = "build.json";
 inline constexpr std::string_view kBuiltPlanFileName = "built-plan.json";
@@ -77,6 +87,9 @@ struct BuildRequest {
     BlenderInstall blender;               // a usable install from chooseBlender
     BlenderRunOptions run{true, kBuildTimeout, {}};
     BuildSettings settings;
+    // Where add-ons may be copied from for this build. Empty, the default: none are copied. runBuild never
+    // fills it in from the environment or the user's Blender folders. run.extensionsFolder is not used.
+    std::filesystem::path addonSource;
 };
 
 enum class BuildStage {
@@ -122,7 +135,7 @@ struct BuildReport {
 
 // Builds a project: checkBuildable, takes build/build.lock (InUse while another build holds a lock that is
 // younger than kBuildTimeout and whose process still runs; a stale lock is taken over), makeBuildPlan with
-// the library's assets and materials catalogs, makeBuildJob, runBlenderJob in build/, readBuildResult, then writes build/build.json
+// the library's catalogs and generators, makeBuildJob, runBlenderJob in build/, readBuildResult, then writes build/build.json
 // and removes the lock, also after a failure. A report is written for every build that got past the lock,
 // failed or not. Blocks; the app runs it on a worker thread and passes stop for its Cancel button.
 BuildReport runBuild(const BuildRequest& request, const std::function<void(const BuildProgress&)>& onProgress = {},
@@ -138,7 +151,7 @@ struct BuildReportRead {
 
 // Reads projectFolder/build/build.json, for the app when it opens a project. A report written before milestone
 // 9 has no materials count and no materials_file; they read as 0 and empty. One written before milestone 10
-// has no collision count; it reads as 0.
+// has no collision count; it reads as 0. So does a missing generators count.
 BuildReportRead readBuildReport(const std::filesystem::path& projectFolder);
 
 // build/materials.json, schema/build-materials.schema.json: for each Blender material of the built surfaces

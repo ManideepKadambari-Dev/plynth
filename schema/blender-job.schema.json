@@ -700,7 +700,7 @@
           }
         },
         "collision": {
-          "description": "The floor's collision: walls first, then each room's floor and ceiling, then the thresholds, the slab, the stairs and the roofs. Items get a convex hull made by the build and are not listed.",
+          "description": "The floor's collision: walls first, then each room's floor and ceiling, then the thresholds, the slab, the stairs and the roofs. Items and generator items get a convex hull made by the build and are not listed.",
           "type": "array",
           "items": { "$ref": "#/definitions/collisionShape" }
         },
@@ -739,7 +739,13 @@
           }
         },
         "room": { "oneOf": [{ "$ref": "#/definitions/planId" }, { "type": "null" }] },
-        "wall": { "oneOf": [{ "$ref": "#/definitions/planId" }, { "type": "null" }] }
+        "wall": { "oneOf": [{ "$ref": "#/definitions/planId" }, { "type": "null" }] },
+        "slots": {
+          "description": "One slot per material parameter: the parameter id to the name of an entry of the build's slots list.",
+          "type": "object",
+          "propertyNames": { "$ref": "#/definitions/catalogId" },
+          "additionalProperties": { "$ref": "#/definitions/slotRef" }
+        }
       }
     },
     "buildOpening": {

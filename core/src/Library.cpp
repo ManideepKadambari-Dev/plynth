@@ -140,6 +140,12 @@ fs::path sampleShapesFolder()
     return {};
 }
 
+// Gives no folder of sample generators.
+fs::path sampleGeneratorsFolder()
+{
+    return {};
+}
+
 // Copies the sample shape files that are not in the library yet.
 SampleShapesCopy addSampleShapes(const LibraryPaths& library, const fs::path& from)
 {

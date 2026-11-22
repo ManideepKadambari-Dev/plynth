@@ -167,12 +167,22 @@ struct BlenderProgress {
     std::string message; // one plain sentence for the progress bar
 };
 
+// The file that marks an extensions folder prepared for one job (Addons.h). The shared private folder never
+// has one.
+inline constexpr std::string_view kPreparedExtensionsMarker = ".plynth-prepared";
+
 struct BlenderRunOptions {
     // True so the user's startup file and add-ons cannot change the result and Blender is given Plynth's
     // private folder as its user folder. The probe task always runs this way, whatever this says.
     bool factoryStartup = true;
     std::chrono::seconds timeout{600};
     std::filesystem::path scriptsFolder; // empty: blenderScriptsFolder()
+    // Empty: the shared private extensions folder. Otherwise a folder prepared for this one job
+    // (prepareAddonFolder). It replaces BLENDER_USER_EXTENSIONS only, the other four stay private, and the probe
+    // task ignores it. runBlenderJob gives InvalidValue and does not start Blender when it is set without factory
+    // startup, is not absolute, has no marker, or lies inside the private folder, the folder
+    // BLENDER_USER_EXTENSIONS names for this process, or %APPDATA%/Blender Foundation, with links resolved.
+    std::filesystem::path extensionsFolder;
 };
 
 struct BlenderJobRun {
@@ -192,8 +202,9 @@ struct BlenderJobRun {
 //             --python <scripts>/plynth_worker.py -- --job <workFolder>/job.json
 // passes each progress line to onProgress, saves the output as workFolder/blender.log, and reads the
 // result file the job names. With factory startup, and always for the probe task, the child's five
-// BLENDER_USER_ variables point at Plynth's private folder. When that folder cannot be created the status is
-// CannotWrite and Blender is not started. Blocks; the app calls it from a worker thread.
+// BLENDER_USER_ variables point at Plynth's private folder, or the extensions one at options.extensionsFolder.
+// When the private folder cannot be created the status is CannotWrite and Blender is not started. Blocks; the
+// app calls it from a worker thread.
 BlenderJobRun runBlenderJob(const std::filesystem::path& blender, const Json& job,
                             const std::filesystem::path& workFolder, const BlenderRunOptions& options,
                             const std::function<void(const BlenderProgress&)>& onProgress = {},

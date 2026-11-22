@@ -218,4 +218,11 @@ AddonProbe probeAddons(const BlenderInstall& blender, const fs::path& cacheFile,
     return probe;
 }
 
+// Says that add-ons cannot be copied, and touches no folder.
+AddonFolderCopy prepareAddonFolder(const fs::path&, const fs::path&, const BlenderInstall&, const AddonCache&,
+                                   const std::vector<std::string>&, std::stop_token)
+{
+    return {fail(ErrorCode::InvalidValue, "Add-ons cannot be copied yet."), {}};
+}
+
 }

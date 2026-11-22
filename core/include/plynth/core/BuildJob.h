@@ -2,7 +2,9 @@
 
 #include "BlenderJob.h"
 #include "BuildGeometry.h"
+#include "BuildProblem.h"
 #include "Collision.h"
+#include "GeneratorBuild.h"
 #include "MaterialSlots.h"
 #include "Materials.h"
 #include "Plan.h"
@@ -43,13 +45,15 @@ using Json = nlohmann::ordered_json;
 //                            "opacity": null, "occlusion": null}}],
 //    "preview_folder": "preview",
 //    "slots": [{"name": "Living_Floor", "material": "oak_planks", "surface": "Floor"}, ...],
+//    "generators": [{"id": "column", "file": "D:/Library/generators/column.py", "addons": []}],
 //    "floors": [{"id": "f1", "elevation": 0.0, "ceiling_height": 3.0,
 //                "wall_solids": [{"height": 3.0, "top_material": "white_paint", "top_slot": "Wall_Top",
 //                                 "outline": ring, "holes": [ring, ...]}],
 //                "openings": [opening, ...], "rooms": [room, ...], "items": [item, ...],
 //                "slab": slab, "stairs": [stair, ...], "roofs": [roof, ...],
 //                "collision": [{"target": {"kind": "walls", "id": "f1"},
-//                               "pieces": [{"outline": [[x, y], ...], "bottom": 0.0, "top": 3.0}]}, ...]}]}
+//                               "pieces": [{"outline": [[x, y], ...], "bottom": 0.0, "top": 3.0}]}, ...],
+//                "generator_items": [generator item, ...]}]}
 //   ring: {"points": [[x, y], ...],
 //          "edges": [{"wall": "w1", "side": "right", "room": "r1", "material": "white_paint",
 //                     "slot": "Living_Wall"}, ...]}
@@ -64,6 +68,9 @@ using Json = nlohmann::ordered_json;
 //          "floor_slot", "ceiling_slot",
 //          "polygons": [{"outline": [[x, y], ...], "holes": [[[x, y], ...], ...]}], "ceiling_polygons": [...]}
 //   item: {"id", "asset", "location": [x, y, z], "rotation_z", "size": {"width", "depth", "height"}, "wall"}
+//   generator item: {"id", "generator", "params", "location": [x, y, z], "rotation_z",
+//          "size": {"width", "depth", "height"}, "room", "wall", "slots": {<material param>: slot name}}
+//          see GeneratorBuild.h; both lists are always written, empty when there are no generators
 //   slab: {"bottom", "top", "polygons": [polygon, ...], "undersides": [polygon, ...],
 //          "sides": [{"outline": ["edge", "well", ...], "holes": [["edge", ...], ...]}, ...],
 //          "tops": [polygon, ...], "materials": {"edge", "well", "underside"},
@@ -95,17 +102,18 @@ using Json = nlohmann::ordered_json;
 // is named after the slot, and the slot's material is always the same as the material field beside it.
 // "surface" in a slot is the neutral surface whose look the slot gets when its material is null (Wall_Inside,
 // Wall_Outside, Wall_Top, Reveal, Threshold, Floor, Ceiling, Door, Frame, Glass, Handle, Stair, Roof, Flat_Roof,
-// Soffit, Fascia).
+// Soffit, Fascia, Generated). Generated is the look of a generator's material left empty.
 // "collision" lists the pieces and hulls of floorCollision; the build turns each into a convex mesh
-// UCX_<target object name>_<NN> (the pieces, then the hulls), and adds one convex hull per item
-// (UCX_<item object name>_00). The target is the object with that plynth_kind and plynth_id, and for a roof
-// with that plynth_roof_index.
+// UCX_<target object name>_<NN> (the pieces, then the hulls), and adds one convex hull per item and per
+// generator item (UCX_<item object name>_00, so UCX_SM_<generator>_<item>_00 for a generator's). The target is
+// the object with that plynth_kind and plynth_id, and for a roof with that plynth_roof_index.
 //
 // Output in the result, schema/blender-result.schema.json "buildOutput":
 //   {"blend_file": "building.blend", "fbx_file": "building.fbx", "materials_file": "materials.json" or null,
 //    "objects": 42, "triangles": 18200,
 //    "counts": {"wall_solids": 1, "openings_cut": 9, "fills": 7, "rooms": 5, "items": 4, "materials": 6,
-//               "collision": 31, "slabs": 2, "stairs": 1, "roofs": 3},
+//               "collision": 31, "slabs": 2, "stairs": 1, "roofs": 3, "generators": 2},
+//               (generators only when the job has generator items)
 //    "steps": [{"step": "walls", "ms": 120}, ...],
 //    "problems": [{"code": "cut_failed", "severity": "error", "message": "...", "floor": "f1",
 //                  "object": "o3", "step": "openings"}]}
@@ -123,7 +131,7 @@ using Json = nlohmann::ordered_json;
 // size images, which is what the export reads. materials.json also lists every asset material, with "asset"
 // set to the asset id, so metal and see-through parts of furniture show in the preview.
 //
-// Collision (step "collision", order 110): one closed convex mesh per piece, hull and item, plynth_kind
+// Collision (step "collision", order 110): one closed convex mesh per piece, hull, item and generator item, plynth_kind
 // "collision", custom property plynth_collision_for holding the target object's name, in a collection named
 // "Collision". building.blend keeps them; building.fbx and materials.json leave them out, so the 3D preview
 // never shows them; the export (ExportJob.h) writes them.
@@ -157,18 +165,6 @@ struct BuildSettings {
     bool operator==(const BuildSettings&) const = default;
 };
 
-// How bad a build problem is.
-enum class BuildSeverity {
-    Error,   // "error": the object was left out of the build or is incomplete
-    Warning, // "warning": it was built, but should be checked
-};
-
-// "error" or "warning".
-std::string_view buildSeverityName(BuildSeverity severity);
-
-// The severity for a name used in files. Empty when the name is unknown.
-std::optional<BuildSeverity> buildSeverityFromName(std::string_view name);
-
 // Problem codes found by core before Blender starts (step "check"):
 //   opening_does_not_fit (error, the opening is not cut; the message is checkOpeningFit's),
 //   room_not_closed (error, no floor or ceiling), missing_asset (error, the item is left out),
@@ -190,18 +186,11 @@ std::optional<BuildSeverity> buildSeverityFromName(std::string_view name);
 // fails; floor is always set; object is a plan id, never an object name: the floor for a slab, the stair for
 // a stair, and for a roof its section entry, or the floor when the section follows the plan's default),
 // preview_failed (warning: a preview part could not be written; the 3D view then loads building.fbx).
-inline constexpr std::string_view kCheckStep = "check";
-
-struct BuildProblem {
-    std::string code;
-    BuildSeverity severity = BuildSeverity::Error;
-    std::string message; // one plain sentence, for example "Door o3 does not fit its wall: it reaches 0.1 m past the corner."
-    Id floor;            // empty when it is not about one floor
-    Id object;           // the plan id the app marks: a point, wall, room, opening or item; empty for none
-    std::string step;    // kCheckStep, or the worker step that found it
-
-    bool operator==(const BuildProblem&) const = default;
-};
+// Generator items (GeneratorBuild.h): found by core missing_generator, generator_broken (errors),
+// generator_unavailable, generator_changed (warnings); found by the worker generator_failed (error),
+// generator_unavailable, generator_size (warnings). object is the item. generator_unavailable from runBuild,
+// when the add-ons could not be checked or copied, has no floor and no object. A generator's material that is
+// missing or broken gives missing_material or material_broken with object the item.
 
 // The maps of one material inside an asset, absolute paths (AssetInfo.h). opacity and occlusion are empty
 // when it has none. Full size; the build makes its own preview copies.
@@ -382,6 +371,12 @@ struct BuildPlan {
     // macro, and the app includes this header.)
     std::vector<BuildSlot> materialSlots;
     std::vector<std::vector<CollisionShape>> collision; // floorCollision of each entry of floors, same order
+    // The generator items, which are never asset items, with their material slots filled in. Their materials
+    // are checked and their slots named like those of the surfaces. problems also holds their problems, each
+    // where its item stands in the floor's item order and before that item's other warnings. Without generators
+    // the library counts as empty, so no item is dropped silently. Without an assets source there is no library:
+    // no_library and no items of either kind.
+    GeneratorBuildPlan generators;
 
     bool operator==(const BuildPlan&) const = default;
 };
@@ -401,6 +396,10 @@ struct BuildPlan {
 // missing material counts as the neutral look when names are compared), and floorCollision of every floor.
 BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets,
                         const BuildMaterialSource& materials = {});
+
+// The same with the library's generators, and the add-on cache when it matches the build's Blender.
+BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, const BuildMaterialSource& materials,
+                        const GeneratorLibrary* generators, const std::optional<AddonCache>& addons);
 
 // A problem in its file form: {"code", "severity", "message", "floor", "object", "step"}, with null for an
 // empty floor or object. The worker's result, build.json and "plynth build --check" all use it.
@@ -437,14 +436,16 @@ struct BuildCounts {
     int slabs = 0;     // slab meshes made
     int stairs = 0;    // stair meshes made
     int roofs = 0;     // roof section meshes made
-    int collision = 0; // UCX_ collision meshes made: pieces, hulls and item hulls
+    int collision = 0;  // UCX_ collision meshes made: pieces, hulls, item and generator item hulls
+    int generators = 0; // items built by generators; 0 when the result or report has no count
 
     bool operator==(const BuildCounts&) const = default;
 };
 
 // The build task's result, read and checked. BadFile when a field is missing (counts.collision, slabs, stairs
 // and roofs included) or has the wrong type, or a severity is unknown. An older build report without those
-// counts reads with them 0.
+// counts reads with them 0. counts.generators may be missing and reads as 0; BadFile when it is there and is
+// not a count.
 struct BuildWorkerOutput {
     BlenderResultHeader header;
     std::string blendFile;  // file name inside the output folder
