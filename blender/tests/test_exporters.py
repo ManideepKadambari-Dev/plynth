@@ -44,7 +44,7 @@ class ExporterTests(CleanupTest):
         self.assertAlmostEqual(size.x, 0.45, delta=1e-3)
         self.assertAlmostEqual(size.y, 0.50, delta=1e-3)
         self.assertAlmostEqual(size.z, 0.90, delta=1e-3)
-        found = [i for i in bpy.data.images if i.source == "FILE" and "chair_wood" in i.filepath]
+        found = [i for i in bpy.data.images if i.source == "FILE" and "wood" in i.filepath and "base_color" in i.filepath]
         self.assertTrue(found)
         path = os.path.abspath(bpy.path.abspath(found[0].filepath, library=None))
         self.assertTrue(os.path.isfile(path), path)

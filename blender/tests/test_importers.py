@@ -98,13 +98,13 @@ class FormatTests(CleanupTest):
         bpy.ops.wm.save_as_mainfile(filepath=blend, copy=True)
         result = self.second_cleanup(blend, "blend")
         self.assertTrue(result["ok"], result["error"])
-        self.assertEqual(result["output"]["textures"], ["textures/chair_wood.png"])
+        self.assertIn("textures/maps/wood/base_color.png", result["output"]["textures"])
         self.assertEqual(result["output"]["missing_textures"], [])
-        self.assertTrue(os.path.isfile(self.path("item2", "textures", "chair_wood.png")))
+        self.assertTrue(os.path.isfile(self.path("item2", "textures", "maps", "wood", "base_color.png")))
         self.open_asset_two()
-        image = bpy.data.images["chair_wood.png"]
-        self.assertEqual(image.filepath.replace("\\", "/"), "//textures/chair_wood.png")
-        self.assertIsNone(image.packed_file)
+        images = {i.filepath.replace("\\", "/"): i for i in bpy.data.images}
+        self.assertIn("//textures/maps/wood/base_color.png", images)
+        self.assertIsNone(images["//textures/maps/wood/base_color.png"].packed_file)
 
 
 class ZipTests(CleanupTest):
@@ -117,7 +117,7 @@ class ZipTests(CleanupTest):
         self.assertTrue(result["ok"], result["error"])
         self.assertEqual(result["output"]["picked_file"], "chair/chair.obj")
         self.assertEqual(result["output"]["triangles"], 72)
-        self.assertEqual(result["output"]["textures"], ["textures/chair_wood.png"])
+        self.assertIn("textures/maps/wood/base_color.png", result["output"]["textures"])
         self.assertEqual(result["output"]["missing_textures"], [])
         self.assertTrue(os.path.isdir(self.path("work", "unpacked")))
         self.assert_result_valid(result)
