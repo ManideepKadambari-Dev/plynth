@@ -253,6 +253,7 @@ std::string exportMemberLabel(const Plan& plan, const ExportMember& member)
     return pair;
 }
 
+// Whether no edit of any kind is stored.
 bool ExportGroupEdits::empty() const
 {
     return added.empty() && renames.empty() && merges.empty() && moves.empty();

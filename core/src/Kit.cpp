@@ -28,6 +28,7 @@ constexpr double kClose = 1e-6;
 constexpr double kAreaEps = 1e-7;
 constexpr double kLevelEps = 1e-9;
 constexpr double kReach = 200.0;
+constexpr double kHairline = 1e-5; // metres: gaps and slivers thinner than twice this are float noise
 constexpr double kTwoPi = 2.0 * std::numbers::pi;
 
 // Where a piece's own axes sit in the world: its origin and the turn of its X axis about Z.
@@ -269,6 +270,7 @@ KitRing makeKitRing(const std::vector<Vec2>& input, const std::vector<SourceEdge
     return ring;
 }
 
+// A kit solid from a cut polygon: its height, its top look and a face on every edge.
 KitSolid makeKitSolid(const Poly& poly, const WallSolid& source, const std::vector<SourceEdge>& edges,
                       const FloorMaterials& materials)
 {
@@ -437,7 +439,8 @@ std::vector<std::pair<double, double>> junctionParts(const std::vector<WallInfo>
         if (j == index) continue;
         const PathsD hit = Clipper2Lib::Intersect(w.bands, walls[j].bands, Clipper2Lib::FillRule::NonZero, kPrecision);
         for (const PathD& path : hit) {
-            if (std::fabs(Clipper2Lib::Area(path)) < 1e-9) continue;
+            // Bands that only touch along a diagonal edge leave slivers of float noise: not a junction.
+            if (std::fabs(Clipper2Lib::Area(path)) < 1e-6) continue;
             double lo = 1e300;
             double hi = -1e300;
             for (const Clipper2Lib::PointD& p : path) {
@@ -723,9 +726,17 @@ std::vector<Cand> cornerCands(const FloorCtx& ctx, const PathsD& taken)
     };
     std::vector<Rem> rems;
     for (std::size_t si = 0; si < ctx.build->wallSolids.size(); ++si) {
-        const PathsD left = taken.empty() ? pathsOf(ctx.build->wallSolids[si])
-                                          : Clipper2Lib::Difference(pathsOf(ctx.build->wallSolids[si]), taken,
-                                                                    Clipper2Lib::FillRule::NonZero, kPrecision);
+        PathsD left = taken.empty() ? pathsOf(ctx.build->wallSolids[si])
+                                    : Clipper2Lib::Difference(pathsOf(ctx.build->wallSolids[si]), taken,
+                                                              Clipper2Lib::FillRule::NonZero, kPrecision);
+        if (!taken.empty()) {
+            // Pieces cut along a diagonal leave hairline gaps between them. They join the real corner parts into
+            // long thin tails, so thin channels are removed: shrink a little, then grow back with sharp corners.
+            left = Clipper2Lib::InflatePaths(left, -kHairline, Clipper2Lib::JoinType::Miter, Clipper2Lib::EndType::Polygon, 10.0,
+                                             kPrecision);
+            left = Clipper2Lib::InflatePaths(left, kHairline, Clipper2Lib::JoinType::Miter, Clipper2Lib::EndType::Polygon, 10.0,
+                                             kPrecision);
+        }
         for (Poly& poly : polysFrom(left, kAreaEps)) rems.push_back({si, std::move(poly)});
     }
 
@@ -802,16 +813,28 @@ std::vector<Cand> cornerCands(const FloorCtx& ctx, const PathsD& taken)
     return out;
 }
 
-// Millimetres, rounded half up. The value is first snapped to a tenth of a micrometre so float noise cannot
-// tip a value that sits on a half millimetre (a 0.125 m wall has faces at 62.5 mm) into the other bin.
-long long q(double v)
+// A length in whole units of the given size (in tenths of a micrometre), rounded half up. The value is first
+// snapped to a tenth of a micrometre with integers, so float noise cannot tip a value that sits on a half unit
+// (a 0.125 m wall has faces at 62.5 mm and a thickness of 12.5 cm) into the other bin.
+long long inUnits(double v, long long unit)
 {
     const long long tenthMicrometres = std::llround(v * 1e7);
-    const long long unit = 10000;
     long long whole = tenthMicrometres / unit;
     if (tenthMicrometres % unit < 0) --whole;
     const long long rest = tenthMicrometres - whole * unit;
     return rest >= unit / 2 ? whole + 1 : whole;
+}
+
+// Millimetres, for comparing and hashing.
+long long q(double v)
+{
+    return inUnits(v, 10000);
+}
+
+// Whole centimetres, for the name of a piece.
+long long centimetres(double v)
+{
+    return inUnits(v, 100000);
 }
 
 // A point in millimetres, for putting points in order.
@@ -926,8 +949,8 @@ KitPiece localPiece(const Cand& c, const FloorCtx& ctx, const Frame& f)
 // the other end of its wall has its box turned round, its hinge and swing named the other way and its cutter
 // points in the other order; this puts all of that in the piece's own terms.
 struct OpeningKey {
-    int hingeSide = 0;  // which way along the piece's X the hinge jamb lies
-    int swingSide = 0;  // which way along the piece's Y the leaf opens
+    int hingeSide = 0;  // which way along the opening's own direction the hinge jamb lies
+    int swingSide = 0;  // which way the leaf opens, by the main direction of the opening's right side
     std::vector<Vec3> cutter;   // every cutter point, in a fixed order
     std::vector<Vec2> outline;  // the outline with u counted along the piece's X, in a fixed order
 };
@@ -936,9 +959,11 @@ struct OpeningKey {
 OpeningKey keyOf(const OpeningBuild& b)
 {
     OpeningKey k;
-    const double along = b.tangent.x >= 0.0 ? 1.0 : -1.0;
+    // At 45 degrees the two axes tie, so X wins unless Y is larger by more than float noise.
+    const auto sideOf = [](Vec2 v) { return (std::fabs(v.y) > std::fabs(v.x) + 1e-9 ? v.y : v.x) >= 0.0 ? 1 : -1; };
+    const double along = sideOf(b.tangent);
     k.hingeSide = (b.hinge == HingeEnd::Start ? -1 : 1) * static_cast<int>(along);
-    k.swingSide = (b.swing == WallSide::Right ? 1 : -1) * (b.right.y >= 0.0 ? 1 : -1);
+    k.swingSide = (b.swing == WallSide::Right ? 1 : -1) * sideOf(b.right);
     k.cutter = b.cutter.right;
     k.cutter.insert(k.cutter.end(), b.cutter.left.begin(), b.cutter.left.end());
     std::sort(k.cutter.begin(), k.cutter.end(), [](const Vec3& a, const Vec3& c) {
@@ -1208,9 +1233,9 @@ struct Builder {
             const std::string hashed = salt == 0 ? text : text + "#" + std::to_string(salt);
             char digits[17];
             std::snprintf(digits, sizeof digits, "%016llx", static_cast<unsigned long long>(fnv1a(hashed)));
-            const std::string id = std::string(kindWord(piece.kind)) + "_" + std::to_string(std::llround(piece.length * 100.0)) + "x" +
-                                   std::to_string(std::llround(piece.height * 100.0)) + "x" +
-                                   std::to_string(std::llround(piece.thickness * 100.0)) + "_" + std::string(digits, 6);
+            const std::string id = std::string(kindWord(piece.kind)) + "_" + std::to_string(centimetres(piece.length)) + "x" +
+                                   std::to_string(centimetres(piece.height)) + "x" +
+                                   std::to_string(centimetres(piece.thickness)) + "_" + std::string(digits, 6);
             const bool taken = std::any_of(pieces.begin(), pieces.end(), [&](const KitPiece& p) { return p.id == id; });
             if (!taken) return id;
         }

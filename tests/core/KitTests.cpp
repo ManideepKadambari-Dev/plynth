@@ -848,3 +848,137 @@ TEST_CASE("piece ids do not change with float noise from where a thin room stand
         for (const double dy : {0.0, 0.7, 5.1}) requireSamePieces(base, kitOf(room(dx, dy)));
     }
 }
+
+TEST_CASE("piece names do not change as a 0.125 m room moves over the plan", "[kit][stable]") {
+    const auto room = [](double dx, double dy) {
+        Project p = squareRoom();
+        Floor& f = p.plan.floors[0];
+        for (Wall& w : f.walls) w.thickness = 0.125;
+        std::rotate(f.walls.begin(), f.walls.begin() + 1, f.walls.end());
+        for (Point& pt : f.points) {
+            pt.x += dx;
+            pt.y += dy;
+        }
+        return p;
+    };
+    const ModularKit base = kitOf(room(2.05, 2.05));
+    REQUIRE_FALSE(base.pieces.empty());
+    int moved = 0;
+    for (int k = 0; k <= 2000; ++k) {
+        const double shift = 0.05 * k;
+        const ModularKit kit = kitOf(room(2.05 + shift, 2.05 + shift));
+        if (kit.pieces.size() != base.pieces.size()) {
+            FAIL("piece count changed at shift " << shift);
+        }
+        for (std::size_t i = 0; i < kit.pieces.size(); ++i) {
+            if (kit.pieces[i].id != base.pieces[i].id) FAIL("piece " << i << " renamed at shift " << shift << ": " << base.pieces[i].id << " became " << kit.pieces[i].id);
+        }
+        ++moved;
+    }
+    REQUIRE(moved == 2001);
+}
+
+namespace {
+
+// A triangle of 0.3 m walls with a door on w1 close to its sharp corner, so the corner piece holds the door.
+Project triangleWithDoor(HingeEnd hinge)
+{
+    Project p = makeNewProject();
+    Floor f;
+    f.id = "f1";
+    f.points = {{"p1", 0.0, 0.0, 0.0}, {"p2", 4.0, 0.0, 0.0}, {"p3", 2.0, 3.4641016, 0.0}};
+    const char* ends[3][2] = {{"p1", "p2"}, {"p2", "p3"}, {"p3", "p1"}};
+    for (int i = 0; i < 3; ++i) {
+        Wall w;
+        w.id = "w" + std::to_string(i + 1);
+        w.from = ends[i][0];
+        w.to = ends[i][1];
+        w.thickness = 0.3;
+        f.walls.push_back(w);
+    }
+    Opening door = doorOn("w1", 0.5);
+    door.id = "o1";
+    door.width = 0.6;
+    for (door.offset = 0.1; door.offset < 2.0; door.offset += 0.005) {
+        if (checkOpeningFit(f, door).ok()) break;
+    }
+    door.hinge = hinge;
+    f.openings.push_back(door);
+    p.plan.floors[0] = f;
+    clearMaterialDefaults(p);
+    return p;
+}
+
+}
+
+TEST_CASE("a reversed wall at a corner piece keeps its name, and opposite hinges differ", "[kit][stable]") {
+    const Project plain = triangleWithDoor(HingeEnd::Start);
+    const ModularKit base = kitOf(plain);
+    int cornerHolders = 0;
+    for (const KitPiece& piece : base.pieces) {
+        if (piece.kind == KitPieceKind::Corner && !piece.openings.empty()) ++cornerHolders;
+    }
+    REQUIRE(cornerHolders >= 1);
+
+    Project turned = plain;
+    Floor& f = turned.plan.floors[0];
+    std::swap(f.walls[0].from, f.walls[0].to);
+    Opening& o = f.openings[0];
+    o.offset = 4.0 - o.offset;
+    o.hinge = o.hinge == HingeEnd::Start ? HingeEnd::End : HingeEnd::Start;
+    o.swing = o.swing == WallSide::Right ? WallSide::Left : WallSide::Right;
+    requireSamePieces(base, kitOf(turned));
+
+    const ModularKit other = kitOf(triangleWithDoor(HingeEnd::End));
+    std::set<std::string> a;
+    std::set<std::string> b;
+    for (const KitPiece& piece : base.pieces) a.insert(piece.id);
+    for (const KitPiece& piece : other.pieces) b.insert(piece.id);
+    REQUIRE(a != b);
+}
+
+TEST_CASE("a door in a 45 degree corner keeps its piece names as the room moves and its wall turns round", "[kit][stable]") {
+    const auto build = [](double dx, double dy, bool reversed) {
+        Project p = makeNewProject();
+        Floor f;
+        f.id = "f1";
+        f.points = {{"p1", dx, dy, 0.0}, {"p2", dx + 4.0, dy, 0.0}, {"p3", dx + 4.0, dy + 4.0, 0.0}};
+        const char* ends[3][2] = {{"p1", "p2"}, {"p2", "p3"}, {"p3", "p1"}};
+        for (int i = 0; i < 3; ++i) {
+            Wall w;
+            w.id = "w" + std::to_string(i + 1);
+            w.from = ends[i][0];
+            w.to = ends[i][1];
+            w.thickness = 0.3;
+            f.walls.push_back(w);
+        }
+        Opening door = doorOn("w1", 0.5);
+        door.id = "o1";
+        door.width = 0.6;
+        for (door.offset = 0.1; door.offset < 2.0; door.offset += 0.005) {
+            if (checkOpeningFit(f, door).ok()) break;
+        }
+        if (reversed) {
+            std::swap(f.walls[0].from, f.walls[0].to);
+            door.offset = 4.0 - door.offset;
+            door.hinge = door.hinge == HingeEnd::Start ? HingeEnd::End : HingeEnd::Start;
+            door.swing = door.swing == WallSide::Right ? WallSide::Left : WallSide::Right;
+        }
+        f.openings.push_back(door);
+        p.plan.floors[0] = f;
+        clearMaterialDefaults(p);
+        return p;
+    };
+    const ModularKit base = kitOf(build(0.0, 0.0, false));
+    int cornerHolders = 0;
+    for (const KitPiece& piece : base.pieces) {
+        if (piece.kind == KitPieceKind::Corner && !piece.openings.empty()) ++cornerHolders;
+    }
+    REQUIRE(cornerHolders >= 1);
+    requireSamePieces(base, kitOf(build(0.0, 0.0, true)));
+    for (int k = 0; k < 300; ++k) {
+        const double shift = 0.37 * k;
+        INFO("shift " << shift);
+        requireSamePieces(base, kitOf(build(shift, shift * 0.61, k % 2 == 1)));
+    }
+}
