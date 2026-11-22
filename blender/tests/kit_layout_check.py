@@ -99,7 +99,7 @@ def place_pieces(layout, pieces, collection, missing):
 
 # Renders the scene from above and at three quarters into the folder. The same three quarter view of the walls
 # file follows, for comparison, when walls and placed are given.
-def render(folder, low, high, walls=(), placed=()):
+def render(folder, low, high, walls=(), placed=(), close=None):
     os.makedirs(folder, exist_ok=True)
     scene = bpy.context.scene
     scene.render.engine = "BLENDER_EEVEE"
@@ -134,6 +134,44 @@ def render(folder, low, high, walls=(), placed=()):
         for obj in walls:
             obj.hide_render = False
         scene.render.filepath = os.path.join(folder, "walls_view.png")
+        bpy.ops.render.render(write_still=True)
+    if close is not None:
+        render_close(folder, close, placed, walls)
+
+
+# Returns the placement of the corner piece with the most faces (the T junction in a plan with partitions), or None.
+def junction_placement(layout, pieces):
+    best = None
+    for placement in layout["placements"]:
+        source = pieces.get(placement["mesh"])
+        if source is None or "Corner" not in placement["mesh"]:
+            continue
+        if best is None or len(source.data.polygons) > best[0]:
+            best = (len(source.data.polygons), placement)
+    return best[1] if best else None
+
+
+# Renders one placement close up from its +Y side and a little along X (the room side of a T junction, seen
+# at an angle so the partition shows), once with the placed pieces
+# and once with the walls file.
+def render_close(folder, placement, placed, walls):
+    scene = bpy.context.scene
+    camera = scene.camera
+    turn = math.radians(placement["rotation_z_degrees"])
+    base = Vector(placement["location"])
+    side = Vector((-math.sin(turn), math.cos(turn), 0.0))
+    along = Vector((math.cos(turn), math.sin(turn), 0.0))
+    camera.data.type = "PERSP"
+    camera.data.lens = 35
+    camera.location = base + side * 3.0 + along * 2.2 + Vector((0.0, 0.0, 3.4))
+    target = base + side * 0.2 + Vector((0.0, 0.0, 1.2))
+    camera.rotation_euler = (target - camera.location).to_track_quat("-Z", "Y").to_euler()
+    for name, show, hide in (("tjunction_kit.png", placed, walls), ("tjunction_walls.png", walls, placed)):
+        for obj in hide:
+            obj.hide_render = True
+        for obj in show:
+            obj.hide_render = False
+        scene.render.filepath = os.path.join(folder, name)
         bpy.ops.render.render(write_still=True)
 
 
@@ -178,8 +216,13 @@ def check(folder, renders):
         for obj in wall_objects:
             obj.hide_render = True
             obj.hide_viewport = True
-        render(renders, kit_low, kit_high, wall_objects, placed)
+        close = junction_placement(layout, pieces)
+        render(renders, kit_low, kit_high, wall_objects, placed, close)
         answer["renders"] = ["kit_layout_top.png", "kit_layout_view.png", "walls_view.png"]
+        if close is not None:
+            answer["renders"] += ["tjunction_kit.png", "tjunction_walls.png"]
+            answer["junction"] = {"piece": close["piece"], "location": close["location"],
+                                  "rotation_z_degrees": close["rotation_z_degrees"]}
     return answer
 
 

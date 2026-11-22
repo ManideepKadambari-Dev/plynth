@@ -2,7 +2,7 @@
  "format": "plynth-blender-job",
  "version": 1,
  "task": "export",
- "job_id": "export-99936d35",
+ "job_id": "export-b4b32236",
  "result_file": "@PROJECT@/build/export_work/result.json",
  "params": {
   "project": {

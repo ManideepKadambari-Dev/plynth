@@ -2,7 +2,7 @@
  "format": "plynth-blender-job",
  "version": 1,
  "task": "build",
- "job_id": "build-114dcd3a",
+ "job_id": "build-76ddc112",
  "result_file": "@PROJECT@/build/result.json",
  "params": {
   "project": {

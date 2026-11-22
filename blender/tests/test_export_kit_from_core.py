@@ -112,6 +112,51 @@ class FromCoreKitTests(helpers.TempFolderTest):
         self.assertEqual(validate(layout, load_schema("kit-layout")), [])
         self.assertEqual([p["id"] for p in kit["pieces"]], [p["id"] for p in layout["pieces"]])
 
+    # The T junction corner keeps its visible faces: two strips of room wall with their room, wall and side, only the
+    # arms between them cut, at every placement; and the faces left uncut add up, slot by slot, to the faces of
+    # the built wall solids.
+    def test_t_junction_corner_keeps_its_faces(self):
+        job = base.load_job("from_core_kit_export")["params"]
+        with open(os.path.join(DATA_FOLDER, "from_core_kit_layout.json"), "r", encoding="utf-8") as handle:
+            layout = json.load(handle)
+        counts = {p["id"]: p["count"] for p in layout["pieces"]}
+        corners = [p for p in job["kit"]["pieces"] if p["kind"] == "corner" and len(p["wall_solids"][0]["outline"]["edges"]) == 6]
+        self.assertEqual(len(corners), 1)
+        ring = corners[0]["wall_solids"][0]["outline"]
+        self.assertGreaterEqual(counts[corners[0]["id"]], 5)
+        edges = ring["edges"]
+        self.assertEqual([(e["slot"], bool(e.get("kit_cut"))) for e in edges],
+                         [("Exterior_Wall", False), ("Wall_Top", True), ("Room_Wall", False), ("Wall_Top", True),
+                          ("Room_Wall", False), ("Wall_Top", True)])
+        strips = [e for e in edges if e["slot"] == "Room_Wall"]
+        self.assertEqual(len({e["room"] for e in strips}), 2)
+        for strip in strips:
+            self.assertEqual(strip["side"], "right")
+            self.assertTrue(strip["wall"] and strip["room"])
+        points = ring["points"]
+        for index, e in enumerate(edges):
+            if e["slot"] == "Room_Wall":
+                a, b = points[index], points[(index + 1) % 6]
+                self.assertAlmostEqual(((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5, 0.09, delta=1e-6)
+
+        def lengths(solids, times=lambda piece: 1):
+            found = {}
+            for piece, solid in solids:
+                for r in [solid["outline"]] + solid["holes"]:
+                    for i, e in enumerate(r["edges"]):
+                        if not e.get("kit_cut"):
+                            a, b = r["points"][i], r["points"][(i + 1) % len(r["points"])]
+                            found[e["slot"]] = found.get(e["slot"], 0.0) + times(piece) * (
+                                (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
+            return found
+
+        built = base.load_job("from_core_kit_build")["params"]["floors"][0]["wall_solids"]
+        wanted = lengths([(None, s) for s in built])
+        got = lengths([(p, s) for p in job["kit"]["pieces"] for s in p["wall_solids"]], lambda p: counts[p["id"]])
+        self.assertEqual(sorted(wanted), sorted(got))
+        for slot in wanted:
+            self.assertAlmostEqual(got[slot], wanted[slot], delta=1e-3, msg=slot)
+
     # Every check passes, the kit file too, and the kit and the group files are written.
     def test_checks_pass_and_kit_written(self):
         job = self.job()
