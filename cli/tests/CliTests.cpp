@@ -39,15 +39,15 @@ TEST_CASE("version answers with the program and format versions", "[cli]") {
     CHECK(outcome.answer.at("command") == "version");
     const auto& result = outcome.answer.at("result");
     CHECK(result.at("version") == PLYNTH_EXPECTED_VERSION);
-    CHECK(result.at("plan_format") == 3);
-    CHECK(result.at("project_format") == 3);
+    CHECK(result.at("plan_format") == 4);
+    CHECK(result.at("project_format") == 4);
 }
 
 TEST_CASE("version is one compact line", "[cli]") {
     const auto outcome = runChecked({"version"});
     CHECK(outcome.text ==
           std::string(R"({"ok":true,"command":"version","result":{"version":")") + PLYNTH_EXPECTED_VERSION +
-              "\",\"plan_format\":3,\"project_format\":3}}\n");
+              "\",\"plan_format\":4,\"project_format\":4}}\n");
 }
 
 TEST_CASE("the pretty flag indents the answer and may come anywhere", "[cli]") {

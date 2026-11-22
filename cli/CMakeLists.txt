@@ -16,6 +16,7 @@ add_library(plynth_cli STATIC
     src/commands/BuildCommands.cpp
     src/commands/FloorCommands.cpp
     src/commands/LibraryCommands.cpp
+    src/commands/MaterialCommands.cpp
     src/commands/OpeningCommands.cpp
     src/commands/PointCommands.cpp
     src/commands/DetectCommands.cpp

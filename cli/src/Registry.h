@@ -48,6 +48,7 @@ std::vector<CommandSpec> doctorCommands();
 std::vector<CommandSpec> importCommands();
 std::vector<CommandSpec> itemCommands();
 std::vector<CommandSpec> buildCommands();
+std::vector<CommandSpec> materialCommands();
 
 // All commands in the order help lists them.
 const std::vector<CommandSpec>& allCommands();
