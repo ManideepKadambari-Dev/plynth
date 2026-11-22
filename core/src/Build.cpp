@@ -8,6 +8,7 @@
 #include "plynth/core/Rooms.h"
 #include "plynth/core/WallGeometry.h"
 #include "plynth/core/catalog/AssetInfo.h"
+#include "plynth/core/catalog/MaterialInfo.h"
 
 #include <nlohmann/json.hpp>
 
@@ -23,6 +24,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <fstream>
+#include <map>
 #include <memory>
 #include <sstream>
 
@@ -188,6 +190,55 @@ BuildAssetSource buildAssetSourceFor(const AssetCatalog& catalog)
     };
 }
 
+// A BuildMaterialSource that asks the catalog.
+BuildMaterialSource buildMaterialSourceFor(const MaterialCatalog& catalog)
+{
+    auto cache = std::make_shared<std::map<std::string, std::optional<BuildMaterialState>>>();
+    return [&catalog, cache](std::string_view materialId) -> std::optional<BuildMaterialState> {
+        const std::string key(materialId);
+        if (const auto found = cache->find(key); found != cache->end()) return found->second;
+        std::optional<BuildMaterialState> result;
+        if (const std::optional<MaterialRecord> record = catalog.material(materialId)) {
+            BuildMaterialState state;
+            state.material.id = key;
+            state.material.tileSize = record->tileSize;
+            if (record->state == MaterialState::Broken) {
+                state.broken = true;
+                state.problem = record->problem;
+            } else {
+                const MaterialInfoRead read = catalog.info(materialId);
+                if (!read.status.ok()) {
+                    state.broken = true;
+                    state.problem = read.status.message;
+                } else {
+                    const auto absolute = [&](const MaterialMap& map) {
+                        return map.file.empty() ? fs::path() : record->folder / pathFromUtf8(map.file);
+                    };
+                    state.material.tileSize = read.info.tileSize;
+                    state.material.baseColor = absolute(read.info.maps.baseColor);
+                    state.material.normal = absolute(read.info.maps.normal);
+                    state.material.roughness = absolute(read.info.maps.roughness);
+                    state.material.metallic = absolute(read.info.maps.metallic);
+                    state.material.opacity = absolute(read.info.maps.opacity);
+                    state.material.occlusion = absolute(read.info.maps.occlusion);
+                    std::error_code ec;
+                    for (const MapChannel channel : allMapChannels()) {
+                        const MaterialMap& map = materialMap(read.info.maps, channel);
+                        if (!map.file.empty() && !fs::is_regular_file(record->folder / pathFromUtf8(map.file), ec)) {
+                            state.broken = true;
+                            state.problem = map.file + " is missing.";
+                            break;
+                        }
+                    }
+                }
+            }
+            result = std::move(state);
+        }
+        cache->emplace(key, result);
+        return result;
+    };
+}
+
 // Where on the plan a problem's object is.
 std::optional<Vec2> problemPosition(const Plan& plan, const BuildProblem& problem)
 {
@@ -291,14 +342,18 @@ BuildReport runBuild(const BuildRequest& request, const std::function<void(const
     report.blenderVersion = request.blender.version ? formatBlenderVersion(*request.blender.version) : std::string();
 
     std::unique_ptr<AssetCatalog> catalog;
+    std::unique_ptr<MaterialCatalog> materialCatalog;
     BuildAssetSource source;
+    BuildMaterialSource materialSource;
     if (request.library) {
         Status opened;
         catalog = AssetCatalog::open(*request.library, opened);
         if (catalog) source = buildAssetSourceFor(*catalog);
+        materialCatalog = MaterialCatalog::open(*request.library, opened);
+        if (materialCatalog) materialSource = buildMaterialSourceFor(*materialCatalog);
     }
     const auto checkStart = std::chrono::steady_clock::now();
-    const BuildPlan plan = makeBuildPlan(request.project, source);
+    const BuildPlan plan = makeBuildPlan(request.project, source, materialSource);
     report.steps.push_back({std::string(kCheckStep), since(checkStart)});
     report.problems = plan.problems;
 

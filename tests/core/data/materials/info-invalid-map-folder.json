@@ -1,0 +1,79 @@
+{
+  "format": "plynth-material",
+  "version": 1,
+  "id": "red_brick",
+  "name": "Red brick",
+  "groups": [
+    "wall",
+    "exterior"
+  ],
+  "tags": [
+    "brick",
+    "red"
+  ],
+  "license": "own_work",
+  "source": {
+    "kind": "texture_set",
+    "reference": "red_brick",
+    "imported_at": "2026-11-21T10:00:00Z"
+  },
+  "tile_size": {
+    "width": 1.2,
+    "height": 0.6
+  },
+  "maps": {
+    "base_color": {
+      "file": "textures/base_color.png",
+      "from": "file",
+      "detail": "red_brick_diff.png"
+    },
+    "normal": {
+      "file": "maps/normal.png",
+      "from": "file",
+      "detail": "red_brick_nor_gl.png"
+    },
+    "roughness": {
+      "file": "textures/roughness.png",
+      "from": "file",
+      "detail": "red_brick_rough.png"
+    },
+    "metallic": {
+      "file": "textures/metallic.png",
+      "from": "value",
+      "detail": "0"
+    },
+    "opacity": {
+      "file": null,
+      "from": "none",
+      "detail": ""
+    },
+    "occlusion": {
+      "file": "textures/occlusion.jpg",
+      "from": "file",
+      "detail": "red_brick_ao.jpg"
+    }
+  },
+  "texture_size": {
+    "width": 512,
+    "height": 512
+  },
+  "files": {
+    "bytes": 4096,
+    "modified": "2026-11-21T10:00:05Z"
+  },
+  "thumbnail": {
+    "file": "thumb.png",
+    "error": null,
+    "engine": "eevee",
+    "rendered_at": "2026-11-21T10:00:07Z"
+  },
+  "cleanup": {
+    "blender_version": "5.2.0",
+    "warnings": [
+      {
+        "code": "unused_image",
+        "message": "notes.png was not used."
+      }
+    ]
+  }
+}

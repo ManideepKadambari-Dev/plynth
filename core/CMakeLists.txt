@@ -15,6 +15,8 @@ add_library(plynth_core STATIC
     src/catalog/AssetImport.cpp
     src/catalog/AssetInfo.cpp
     src/catalog/AssetCatalog.cpp
+    src/catalog/MaterialInfo.cpp
+    src/catalog/MaterialCatalog.cpp
     src/catalog/ItemAssets.cpp
     src/catalog/BuiltInCatalog.cpp
     src/catalog/Database.cpp
