@@ -20,6 +20,8 @@ VIEW_WIDTH = 2.3
 VIEW_DISTANCE = 8.0
 LIGHT_RADIUS = 1.15
 LIGHT_SCALE = 0.55
+REPEAT_METRES = 1.0
+BACKDROP_DISTANCE = 0.9
 
 
 # Adds a mesh object holding the bmesh to the scene and returns it.
@@ -33,14 +35,15 @@ def add_object(name, bm, location):
     return obj
 
 
-# Makes the sphere with UVs in metres divided by the tile size: u runs round the equator, v from pole to pole.
-def make_sphere(material, tile_size):
+# Makes the sphere. One texture repeat covers one metre of surface, the same scale as the tile: u runs round
+# the equator in whole repeats so there is no seam, v from pole to pole.
+def make_sphere(material):
     bm = bmesh.new()
     bm.loops.layers.uv.new("UVMap")
     bmesh.ops.create_uvsphere(bm, u_segments=96, v_segments=48, radius=SPHERE_DIAMETER / 2.0, calc_uvs=True)
     layer = bm.loops.layers.uv.active
-    around = math.pi * SPHERE_DIAMETER / tile_size["width"]
-    pole_to_pole = math.pi * SPHERE_DIAMETER / 2.0 / tile_size["height"]
+    around = float(round(math.pi * SPHERE_DIAMETER / REPEAT_METRES))
+    pole_to_pole = around / 2.0
     for face in bm.faces:
         face.smooth = True
         for loop in face.loops:
@@ -50,17 +53,48 @@ def make_sphere(material, tile_size):
     return obj
 
 
-# Makes the 1 m square tile, standing upright and turned 30 degrees toward the lights, with UVs in metres
-# divided by the tile size.
-def make_tile(material, tile_size):
+# Makes the 1 m square tile, standing upright and turned 30 degrees toward the lights. It shows exactly one
+# texture repeat, whatever the material's real tile size.
+def make_tile(material):
     bm = bmesh.new()
     layer = bm.loops.layers.uv.new("UVMap")
     corners = [(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)]
     face = bm.faces.new([bm.verts.new((x, y, 0.0)) for x, y in corners])
     for loop, (x, y) in zip(face.loops, corners):
-        loop[layer].uv = ((x + 0.5) / tile_size["width"], (y + 0.5) / tile_size["height"])
+        loop[layer].uv = ((x + 0.5) / REPEAT_METRES, (y + 0.5) / REPEAT_METRES)
     obj = add_object("plynth_material_tile", bm, TILE_CENTRE)
     obj.rotation_euler = (math.radians(90.0), 0.0, math.radians(TILE_TURN))
+    obj.data.materials.append(material)
+    return obj
+
+
+# Adds a grey checker panel behind the sphere and the tile so a see-through material shows what is behind it.
+def make_backdrop():
+    bm = bmesh.new()
+    half_width = VIEW_WIDTH / 2.0 * 0.92
+    half_height = 0.62
+    for x, z in ((-half_width, -half_height), (half_width, -half_height), (half_width, half_height),
+                 (-half_width, half_height)):
+        bm.verts.new((x, 0.0, z))
+    bm.faces.new(bm.verts)
+    obj = add_object("plynth_material_backdrop", bm, VIEW_CENTRE + Vector((0.0, BACKDROP_DISTANCE, 0.0)))
+    material = bpy.data.materials.new("plynth_material_backdrop")
+    try:
+        material.use_nodes = True
+    except Exception:
+        pass
+    tree = material.node_tree
+    tree.nodes.clear()
+    coords = tree.nodes.new("ShaderNodeTexCoord")
+    checker = tree.nodes.new("ShaderNodeTexChecker")
+    checker.inputs["Scale"].default_value = 14.0
+    checker.inputs["Color1"].default_value = (0.12, 0.12, 0.13, 1.0)
+    checker.inputs["Color2"].default_value = (0.38, 0.38, 0.40, 1.0)
+    emission = tree.nodes.new("ShaderNodeEmission")
+    output = tree.nodes.new("ShaderNodeOutputMaterial")
+    tree.links.new(coords.outputs["Generated"], checker.inputs["Vector"])
+    tree.links.new(checker.outputs["Color"], emission.inputs["Color"])
+    tree.links.new(emission.outputs["Emission"], output.inputs["Surface"])
     obj.data.materials.append(material)
     return obj
 
@@ -93,16 +127,20 @@ def build_rig():
         thumbnail.look_at(light, VIEW_CENTRE)
 
 
-# Renders the material as a sphere and a tilted tile side by side to output_file with Eevee only. paths maps
-# each channel to its image file (a channel without a map is left out). Returns "eevee". Raises WorkerError
+# Renders the material as a sphere and a tilted tile side by side to output_file with Eevee only. Both show
+# one metre of surface per texture repeat, so the tile shows exactly one repeat. A material with an opacity map
+# gets a checker panel behind it. paths maps each channel to its image file (a channel without a map is left
+# out). tile_size is kept for the callers and not used. Returns "eevee". Raises WorkerError
 # render_failed, and shading.MapError when a map will not load.
 def render(output_file, spec, paths, tile_size):
     scene_tools.clear_scene()
     material = bpy.data.materials.new("plynth_material_preview")
     try:
         shading.apply_maps(material, {channel: path for channel, path in paths.items() if path})
-        make_sphere(material, tile_size)
-        make_tile(material, tile_size)
+        make_sphere(material)
+        make_tile(material)
+        if paths.get("opacity"):
+            make_backdrop()
         bpy.context.view_layer.update()
         build_rig()
         thumbnail.build_world(spec["background"])

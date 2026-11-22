@@ -382,6 +382,34 @@ class ThumbnailTests(MaterialTest):
         result = self.clean_ok(os.path.join(SAMPLES, "clear_glass"), thumbnail=spec)
         self.assertEqual(result["output"]["thumbnail"]["file"], "thumb.png")
 
+    # The glass tile shows the checker panel behind it: its pixels vary a lot, where an opaque flat tile is smooth.
+    def test_glass_thumbnail_shows_backdrop(self):
+        spec = {"render": True, "size": 256, "background": BACKGROUND}
+        glass = self.clean_ok(os.path.join(SAMPLES, "clear_glass"), thumbnail=spec)
+        glass_picture = self.pixels(os.path.join(self.out_folder, "thumb.png")).astype(float)
+        paint = self.clean_ok(os.path.join(SAMPLES, "white_paint"), thumbnail=spec, output_folder=self.path("out2"))
+        paint_picture = self.pixels(os.path.join(self.path("out2"), "thumb.png")).astype(float)
+        self.assertEqual(glass["output"]["thumbnail"]["file"], "thumb.png")
+        tile = (slice(90, 160), slice(160, 225))
+        self.assertGreater(glass_picture[tile][:, :, :3].std(), 12.0)
+        self.assertLess(paint_picture[tile][:, :, :3].std() * 2.0, glass_picture[tile][:, :, :3].std())
+
+    # The flat tile shows exactly one texture repeat whatever the tile size, and the sphere goes round in whole repeats.
+    def test_thumbnail_uv_scale(self):
+        import bpy
+        from plynth.materials import thumbnail as material_thumbnail
+        material = bpy.data.materials.new("uv_check")
+        tile = material_thumbnail.make_tile(material)
+        sphere = material_thumbnail.make_sphere(material)
+        try:
+            uvs = [tile.data.uv_layers.active.data[i].uv[0] for i in range(4)]
+            self.assertAlmostEqual(max(uvs) - min(uvs), 1.0)
+            around = [uv.uv[0] for uv in sphere.data.uv_layers.active.data]
+            self.assertAlmostEqual(max(around), round(max(around)))
+        finally:
+            bpy.data.objects.remove(tile)
+            bpy.data.objects.remove(sphere)
+
     # render false gives no thumbnail and no error.
     def test_no_thumbnail_wanted(self):
         result = self.clean_ok(os.path.join(SAMPLES, "red_brick"))
