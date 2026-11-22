@@ -355,8 +355,8 @@ The order numbers. The gaps are for new steps, and the reserved ones belong to l
 | 25 | `triangulate` | Splits wall faces with more than four corners into triangles |
 | 26 | `opening_fills` | Fits a door or window into each opening |
 | 30 | `floors` | A floor and a ceiling for each room |
-| 35 | `slabs` | The slab above each floor that has one, with its edges, undersides and ledge tops |
-| 40 | `stairs` | One solid step at a time for every stair, with the well sides |
+| 35 | `slabs` | The slab above each floor that has one, with its edges, undersides, ledge tops and the sides of the stair wells |
+| 40 | `stairs` | One solid step at a time for every stair |
 | 50 | `roofs` | A mesh for each roof section, by its type: covering, underside, edge, gables, parapets and glazing |
 | 60 | `assets` | Places every item as a copy of its asset |
 | 70 | reserved | Generators |

@@ -614,7 +614,7 @@ When a build finishes, the 3D view opens by itself and the bar says "Built at 10
 
 The 3D view shows the materials, metal and see-through glass included, on furniture too. See "Materials in the 3D view" and "Furniture materials".
 
-- **Collision.** Closed convex shapes for walls, floors, ceilings and furniture, named `UCX_...`. See "Collision". They are in `building.blend` and in the export.
+- **Collision.** Closed convex shapes for walls, floors, ceilings, slabs, stairs, roofs and furniture, named `UCX_...`. See "Collision". They are in `building.blend` and in the export.
 - **Slot names.** Materials are named for the surface, such as `Living_Floor`. See "Material slot names".
 
 ### Where the files go
