@@ -45,6 +45,11 @@ add_library(plynth_core STATIC
     src/Build.cpp
     src/MaterialDefaults.cpp
     src/Materials.cpp
+    src/Collision.cpp
+    src/MaterialSlots.cpp
+    src/Exporter.cpp
+    src/ExportJob.cpp
+    src/Export.cpp
     src/openings/OpeningShapes.cpp
     src/openings/ShapeFiles.cpp
     src/commands/FloorCommands.cpp
@@ -128,4 +133,14 @@ if(PLYNTH_IMPORTER_SOURCES)
     target_compile_features(plynth_importers PUBLIC cxx_std_20)
     target_link_libraries(plynth_importers PRIVATE nlohmann_json::nlohmann_json)
     target_sources(plynth_core INTERFACE $<TARGET_OBJECTS:plynth_importers>)
+endif()
+
+# Exporters register themselves the same way, so they are built as an object library too.
+file(GLOB PLYNTH_EXPORTER_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/exporters/*.cpp)
+if(PLYNTH_EXPORTER_SOURCES)
+    add_library(plynth_exporters OBJECT ${PLYNTH_EXPORTER_SOURCES})
+    target_include_directories(plynth_exporters PRIVATE include src)
+    target_compile_features(plynth_exporters PUBLIC cxx_std_20)
+    target_link_libraries(plynth_exporters PRIVATE nlohmann_json::nlohmann_json)
+    target_sources(plynth_core INTERFACE $<TARGET_OBJECTS:plynth_exporters>)
 endif()
