@@ -593,3 +593,113 @@ TEST_CASE("the footprint of the curved wall fixture lies on its wall solids", "[
     f.rooms = {left, right};
     requireFootprintOnWalls(f, 0);
 }
+
+namespace {
+
+// Says whether the footprint covers a point: inside a piece's outline and in none of its holes.
+bool footprintCovers(const std::vector<PlanArea>& footprint, Vec2 p)
+{
+    const auto inside = [&](const std::vector<Vec2>& ring) {
+        bool in = false;
+        for (std::size_t i = 0, j = ring.size() - 1; i < ring.size(); j = i++) {
+            if ((ring[i].y > p.y) != (ring[j].y > p.y) &&
+                p.x < (ring[j].x - ring[i].x) * (p.y - ring[i].y) / (ring[j].y - ring[i].y) + ring[i].x) {
+                in = !in;
+            }
+        }
+        return in;
+    };
+    for (const PlanArea& a : footprint) {
+        if (!inside(a.outline)) continue;
+        bool inHole = false;
+        for (const std::vector<Vec2>& h : a.holes) inHole = inHole || inside(h);
+        if (!inHole) return true;
+    }
+    return false;
+}
+
+// Checks that every wall's band is covered along its length, at its centre and near both faces.
+void requireBandsCovered(const Floor& floor)
+{
+    const std::vector<PlanArea> footprint = floorFootprint(floor);
+    for (const Wall& w : floor.walls) {
+        const Point* a = nullptr;
+        const Point* b = nullptr;
+        for (const Point& p : floor.points) {
+            if (p.id == w.from) a = &p;
+            if (p.id == w.to) b = &p;
+        }
+        REQUIRE((a && b));
+        const double len = std::hypot(b->x - a->x, b->y - a->y);
+        const Vec2 n{-(b->y - a->y) / len, (b->x - a->x) / len};
+        for (const double along : {0.15, 0.3, 0.5, 0.7, 0.85}) {
+            for (const double across : {-0.9, 0.0, 0.9}) {
+                const Vec2 p{a->x + (b->x - a->x) * along + n.x * across * w.thickness / 2.0,
+                             a->y + (b->y - a->y) * along + n.y * across * w.thickness / 2.0};
+                INFO("wall " << w.id << " at " << along << " across " << across);
+                CHECK(footprintCovers(footprint, p));
+            }
+        }
+    }
+}
+
+}
+
+TEST_CASE("two crossing rooms are one piece with no hole", "[storeys][footprint]")
+{
+    Floor f;
+    f.id = "f1";
+    addRectangle(f, 1, 0, 0, 6, 6, 0.3);
+    addRectangle(f, 2, -4, 4, 5, 10, 0.3);
+    Room a;
+    a.id = "ra";
+    a.walls = {"w11", "w12", "w13", "w14", "w21", "w22", "w23", "w24"};
+    Room b;
+    b.id = "rb";
+    b.walls = {"w21", "w22", "w23", "w24"};
+    f.rooms = {a, b};
+    const std::vector<PlanArea> footprint = floorFootprint(f);
+    REQUIRE(footprint.size() == 1);
+    CHECK(footprint[0].holes.empty());
+    CHECK(planAreaSize(footprint[0]) == Approx(86.09).margin(1e-6));
+    CHECK(footprintCovers(footprint, {-2.0, 8.0}));
+    CHECK(footprintCovers(footprint, {2.0, 2.0}));
+}
+
+TEST_CASE("a crossing island leaves a hole only where no room is", "[storeys][footprint]")
+{
+    Floor f;
+    f.id = "f1";
+    addRectangle(f, 1, 0, 0, 6, 6, 0.3);
+    addRectangle(f, 2, -4, 4, 5, 10, 0.3);
+    Room a;
+    a.id = "ra";
+    a.walls = {"w11", "w12", "w13", "w14", "w21", "w22", "w23", "w24"};
+    f.rooms = {a};
+    const std::vector<PlanArea> footprint = floorFootprint(f);
+    CHECK_FALSE(footprintCovers(footprint, {-2.0, 8.0}));
+    CHECK_FALSE(footprintCovers(footprint, {3.0, 5.0}));
+    CHECK(footprintCovers(footprint, {2.0, 2.0}));
+    requireBandsCovered(f);
+}
+
+TEST_CASE("two islands that cross each other leave no hole along their bands", "[storeys][footprint]")
+{
+    Floor f;
+    f.id = "f1";
+    addRectangle(f, 1, 0, 0, 12, 12, 0.3);
+    addRectangle(f, 2, 2, 2, 6, 6, 0.2);
+    addRectangle(f, 3, 4, 4, 8, 8, 0.2);
+    Room r;
+    r.id = "r1";
+    r.walls = {"w11", "w12", "w13", "w14", "w21", "w22", "w23", "w24", "w31", "w32", "w33", "w34"};
+    f.rooms = {r};
+    const RoomShape shape = roomShape(f, f.rooms[0]);
+    REQUIRE(shape.closed);
+    const std::vector<PlanArea> footprint = floorFootprint(f);
+    CHECK_FALSE(footprintCovers(footprint, {3.0, 3.0}));
+    CHECK_FALSE(footprintCovers(footprint, {5.0, 5.0}));
+    CHECK_FALSE(footprintCovers(footprint, {7.0, 7.0}));
+    CHECK(footprintCovers(footprint, {10.0, 10.0}));
+    requireBandsCovered(f);
+}

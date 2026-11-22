@@ -226,8 +226,15 @@ std::vector<PlanArea> floorFootprint(const Floor& floor)
     for (const Room& room : floor.rooms) {
         const RoomShape shape = roomShape(floor, room);
         if (!shape.closed) continue;
-        // The whole area inside the centre lines: the outer ring turned positive, the islands negative.
-        for (std::size_t i = 0; i < shape.rings.size(); ++i) paths.push_back(toPath(turned(shape.rings[i], i == 0)));
+        // The area inside the centre lines, worked out for this room alone: the outer ring less its islands.
+        // An island that reaches outside the room must not cut into another room's area.
+        if (shape.rings.empty()) continue;
+        Clipper2Lib::PathsD islands;
+        for (std::size_t i = 1; i < shape.rings.size(); ++i) islands.push_back(toPath(turned(shape.rings[i], true)));
+        const Clipper2Lib::PathsD outer{toPath(turned(shape.rings[0], true))};
+        const std::vector<PlanArea> own = islands.empty() ? run(Clipper2Lib::ClipType::Union, outer, {})
+                                                          : run(Clipper2Lib::ClipType::Difference, outer, islands);
+        for (const PlanArea& a : own) addPaths(a, paths);
     }
     if (paths.empty()) return {};
     return run(Clipper2Lib::ClipType::Union, paths, {});
