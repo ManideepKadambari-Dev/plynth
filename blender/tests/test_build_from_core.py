@@ -330,11 +330,9 @@ class FromCoreHouseTests(LibraryBuildTest):
         self.assertEqual(counts["wall_solids"], sum(len(f["wall_solids"]) for f in self.floors))
 
     # Every room's floor and ceiling area plus its hole areas is the area core gave the room. The stair of the house
-    # clears the walls, so no room is notched by it; a notch would still be accepted if it stayed within the well.
+    # clears the walls, so no room is notched by it and a room without a hole keeps its whole area.
     def test_room_areas(self):
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
-        well = max(plain_area(s["hole"]["outline"]) for f in self.floors for s in f["stairs"])
-        cut = 0
         holed = 0
         for floor in self.floors:
             for room in floor["rooms"]:
@@ -347,12 +345,8 @@ class FromCoreHouseTests(LibraryBuildTest):
                     if holes > 0:
                         holed += 1
                         self.assertAlmostEqual(meshes.area(obj) + holes, room["area"], delta=1e-3, msg=obj.name)
-                    elif room["area"] - outlines > 1e-3:
-                        cut += 1
-                        self.assertLess(room["area"] - outlines, well + 1e-3, obj.name)
                     else:
                         self.assertAlmostEqual(meshes.area(obj), room["area"], delta=1e-3, msg=obj.name)
-        self.assertEqual(cut, 0)
         self.assertGreater(holed, 0)
 
     # Each floor has one slab, its top where core put it and its footprint the area of the job's polygons less the
