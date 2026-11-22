@@ -7,6 +7,18 @@
 
 namespace plynth {
 
+// Turns a pixel of a floor's image into a plan position in metres.
+Vec2 imageToPlan(const Floor& floor, double pixelsPerMetre, Vec2 pixel)
+{
+    return {pixel.x / pixelsPerMetre + floor.imageOffset.x, pixel.y / pixelsPerMetre + floor.imageOffset.y};
+}
+
+// Turns a plan position in metres into a pixel of the floor's image.
+Vec2 planToImage(const Floor& floor, double pixelsPerMetre, Vec2 position)
+{
+    return {(position.x - floor.imageOffset.x) * pixelsPerMetre, (position.y - floor.imageOffset.y) * pixelsPerMetre};
+}
+
 // Straight line distance between two positions.
 double distance(Vec2 a, Vec2 b)
 {

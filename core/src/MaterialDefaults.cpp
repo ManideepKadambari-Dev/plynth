@@ -8,8 +8,9 @@ namespace plynth {
 
 namespace {
 
-constexpr std::array<Surface, 9> kSurfaces = {Surface::WallInside, Surface::WallOutside, Surface::WallTop, Surface::Floor, Surface::Ceiling,
-                                              Surface::Door,       Surface::Frame,       Surface::Glass,   Surface::Handle};
+constexpr std::array<Surface, 12> kSurfaces = {Surface::WallInside, Surface::WallOutside, Surface::WallTop, Surface::Floor,
+                                               Surface::Ceiling,    Surface::Door,        Surface::Frame,   Surface::Glass,
+                                               Surface::Handle,     Surface::Roof,        Surface::FlatRoof, Surface::Stair};
 
 }
 
@@ -32,6 +33,9 @@ std::string_view surfaceName(Surface surface)
     case Surface::Frame: return "frame";
     case Surface::Glass: return "glass";
     case Surface::Handle: return "handle";
+    case Surface::Roof: return "roof";
+    case Surface::FlatRoof: return "flat_roof";
+    case Surface::Stair: return "stair";
     }
     return "wall_inside";
 }
@@ -60,6 +64,9 @@ std::optional<std::string> MaterialDefaults::*field(Surface surface)
     case Surface::Frame: return &MaterialDefaults::frame;
     case Surface::Glass: return &MaterialDefaults::glass;
     case Surface::Handle: return &MaterialDefaults::handle;
+    case Surface::Roof: return &MaterialDefaults::roof;
+    case Surface::FlatRoof: return &MaterialDefaults::flatRoof;
+    case Surface::Stair: return &MaterialDefaults::stair;
     }
     return &MaterialDefaults::wallInside;
 }

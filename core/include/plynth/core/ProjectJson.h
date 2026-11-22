@@ -24,9 +24,9 @@ using Json = nlohmann::ordered_json;
 // The schema for the current version is schema/plan.schema.json and schema/project.schema.json; older
 // versions stay as schema/plan.vN.schema.json and schema/project.vN.schema.json.
 inline constexpr std::string_view kPlanFormatName = "plynth-plan";
-inline constexpr int kPlanFormatVersion = 4;
+inline constexpr int kPlanFormatVersion = 5;
 inline constexpr std::string_view kProjectFormatName = "plynth-project";
-inline constexpr int kProjectFormatVersion = 4;
+inline constexpr int kProjectFormatVersion = 5;
 
 // Turns a plan into its plan.json form. Every field is written, absent values as null.
 Json planToJson(const Plan& plan);

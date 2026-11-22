@@ -28,13 +28,17 @@ Wall& wall(Project& p, const std::string& id)
 }
 
 TEST_CASE("the surfaces have names that read back", "[core][materials]") {
-    REQUIRE(allSurfaces().size() == 9);
+    REQUIRE(allSurfaces().size() == 12);
     for (const Surface s : allSurfaces()) {
         REQUIRE(surfaceFromName(surfaceName(s)) == s);
     }
     REQUIRE(surfaceName(Surface::WallInside) == "wall_inside");
     REQUIRE(surfaceName(Surface::Handle) == "handle");
-    REQUIRE_FALSE(surfaceFromName("roof").has_value());
+    REQUIRE(surfaceName(Surface::Roof) == "roof");
+    REQUIRE(surfaceName(Surface::FlatRoof) == "flat_roof");
+    REQUIRE(surfaceName(Surface::Stair) == "stair");
+    REQUIRE(surfaceFromName("flat_roof") == Surface::FlatRoof);
+    REQUIRE_FALSE(surfaceFromName("roofing").has_value());
 }
 
 TEST_CASE("material defaults start as the sample materials and can change", "[core][materials]") {
@@ -48,6 +52,9 @@ TEST_CASE("material defaults start as the sample materials and can change", "[co
     REQUIRE(materialDefault(d, Surface::Frame) == "white_paint");
     REQUIRE(materialDefault(d, Surface::Glass) == "clear_glass");
     REQUIRE(materialDefault(d, Surface::Handle) == "brushed_steel");
+    REQUIRE(materialDefault(d, Surface::Roof) == "roof_tiles");
+    REQUIRE(materialDefault(d, Surface::FlatRoof) == "concrete");
+    REQUIRE(materialDefault(d, Surface::Stair) == "oak_planks");
 
     for (const Surface s : allSurfaces()) {
         MaterialDefaults changed;

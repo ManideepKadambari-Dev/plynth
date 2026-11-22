@@ -1,0 +1,36 @@
+{
+  "format": "plynth-plan",
+  "version": 4,
+  "scale": { "pixels_per_metre": 100 },
+  "floors": [
+    {
+      "id": "f1", "name": "Ground", "image": "plans/floor1.png", "ceiling_height": 2.8,
+      "points": [
+        { "id": "p1", "x": 0, "y": 0, "corner_radius": 0 },
+        { "id": "p2", "x": 4, "y": 0, "corner_radius": 0 },
+        { "id": "p3", "x": 4, "y": 3, "corner_radius": 0 },
+        { "id": "p4", "x": 0, "y": 3, "corner_radius": 0 }
+      ],
+      "walls": [
+        { "id": "w1", "from": "p1", "to": "p2" },
+        { "id": "w2", "from": "p2", "to": "p3" },
+        { "id": "w3", "from": "p3", "to": "p4" },
+        { "id": "w4", "from": "p4", "to": "p1" }
+      ],
+      "rooms": [ { "id": "r1", "type": "living", "walls": ["w1", "w2", "w3", "w4"] } ],
+      "openings": [],
+      "items": []
+    },
+    {
+      "id": "f2", "name": "Upper", "image": null, "ceiling_height": 2.6,
+      "points": [
+        { "id": "p5", "x": 0, "y": 0 },
+        { "id": "p6", "x": 4, "y": 0 }
+      ],
+      "walls": [ { "id": "w5", "from": "p5", "to": "p6" } ],
+      "rooms": [],
+      "openings": [],
+      "items": []
+    }
+  ]
+}
