@@ -78,7 +78,7 @@ class BlenderKitFetchTests(helpers.TempFolderTest):
         env = dict(self.configs[config])
         env["FAKE_BLENDERKIT_SOURCE"] = os.path.join(self.root, "source")
         env["FAKE_BLENDERKIT_LOG"] = self.path("requests.log")
-        command = [bpy.app.binary_path, "-b"]
+        command = [bpy.app.binary_path, "-b", "-t", "6", "--offline-mode"]
         command += ["--python", WORKER, "--", "--job", job_file]
         started = time.time()
         done = subprocess.run(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,

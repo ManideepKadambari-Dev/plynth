@@ -4,8 +4,8 @@
 
 The folder gets config/, scripts/, extensions/, download/ and the other folders of a made-up user. Start Blender
 with the environment that child_env(folder) returns and it sees the fake add-on and never the user's own
-settings. A folder in or around the user's own Blender, BlenderKit or Plynth folders is refused. The script can
-also be imported (make_config).
+settings. The folder must be missing, empty or made by this script. One in or around the user's own Blender,
+BlenderKit or Plynth folders is always refused. The script can also be imported (make_config).
 """
 import argparse
 import glob
@@ -18,6 +18,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 FAKE_ADDON = os.path.join(HERE, "..", "data", "fake_blenderkit", "blenderkit")
 FAKE_KEY = "fake-api-key-do-not-leak-0123456789"
+MADE_MARKER = ".plynth_fake_config"
 # Where each variable of a child points inside the folder. Blender ignores one whose folder is missing.
 PRIVATE_FOLDERS = {
     "BLENDER_USER_RESOURCES": "resources",
@@ -55,9 +56,22 @@ def private_root(folder):
     return root
 
 
+# Returns the folder marked as made by this script. Refuses one that someone else filled, before any change.
+def own_root(folder):
+    root = private_root(folder)
+    marker = os.path.join(root, MADE_MARKER)
+    if not os.path.isfile(marker):
+        os.makedirs(root, exist_ok=True)
+        if os.listdir(root):
+            raise ValueError("The fake config needs an empty folder or one that this script made.")
+        with open(marker, "x", encoding="utf-8") as handle:
+            handle.write("Made for the fake BlenderKit config. Some folders in here are replaced on each run.\n")
+    return root
+
+
 # Makes the private folders in folder and returns an environment that points every user variable at them.
 def child_env(folder):
-    root = private_root(folder)
+    root = own_root(folder)
     env = {name: value for name, value in os.environ.items() if not name.upper().startswith("BLENDER_USER_")}
     for name, part in PRIVATE_FOLDERS.items():
         env[name] = os.path.join(root, part)
@@ -87,7 +101,7 @@ def find_blender(given=None):
 # Makes the config by starting Blender once with the new folders and saving its preferences. Returns the
 # environment to use afterwards.
 def make_config(folder, signed_out=False, disabled=False, missing=False, blender=None):
-    folder = private_root(folder)
+    folder = own_root(folder)
     for name in ("config", "scripts", "extensions", "download"):
         shutil.rmtree(os.path.join(folder, name), ignore_errors=True)
         os.makedirs(os.path.join(folder, name))
@@ -98,7 +112,8 @@ def make_config(folder, signed_out=False, disabled=False, missing=False, blender
     if not exe:
         raise RuntimeError("Blender was not found. Pass --blender or set PLYNTH_BLENDER.")
     options = {"signed_out": signed_out, "disabled": disabled or missing, "download": os.path.join(folder, "download")}
-    command = [exe, "-b", "--python", os.path.abspath(__file__), "--", "--apply", json.dumps(options)]
+    command = [exe, "-b", "-t", "6", "--offline-mode", "--python", os.path.abspath(__file__), "--", "--apply",
+               json.dumps(options)]
     env = child_env(folder)
     done = subprocess.run(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                           text=True, timeout=180)
