@@ -54,12 +54,43 @@ def read_names(path):
     return sorted(o.name for o in bpy.data.objects if o.type == "MESH")
 
 
+# Puts the tile size of each catalog material, from the matching build job, into the export job's material
+# entries. The core made export job does not carry it yet, and the build divides UVs by it.
+def add_tile_sizes(params):
+    tiles = {m["id"]: m["tile_size"] for m in base.load_job("from_core_kit_build")["params"]["materials"]}
+    for entry in params["materials"]:
+        if entry.get("material") in tiles:
+            entry["tile_size"] = tiles[entry["material"]]
+
+
+# Returns the metres per UV unit of the faces of the objects, by (material, side or top and bottom), and the
+# face area behind each number.
+def density(objects):
+    found = {}
+    for obj in objects:
+        mesh = obj.data
+        layer = mesh.uv_layers[0].data
+        for polygon in mesh.polygons:
+            points = [layer[i].uv for i in polygon.loop_indices]
+            area = abs(sum(points[k][0] * points[(k + 1) % len(points)][1]
+                           - points[(k + 1) % len(points)][0] * points[k][1] for k in range(len(points)))) / 2.0
+            if area < 1e-9:
+                continue
+            key = (mesh.materials[polygon.material_index].name.split(".")[0],
+                   "side" if abs(polygon.normal.z) < 0.2 else "flat")
+            total = found.setdefault(key, [0.0, 0.0])
+            total[0] += polygon.area
+            total[1] += area
+    return {key: (values[0] ** 0.5 / values[1] ** 0.5, values[0]) for key, values in found.items()}
+
+
 class FromCoreKitTests(helpers.TempFolderTest):
     # Returns the kit export job made by plynth export on the scratch project, with the folders filled in and the
     # files going into a staging folder of this test.
     def job(self, write=True):
         project, library = shared_project()
         job = base.fill(base.load_job("from_core_kit_export"), project, library)
+        add_tile_sizes(job["params"])
         job["params"]["output_folder"] = self.path("export", ".staging")
         job["params"]["write"] = write
         job["result_file"] = self.path("work", "result.json")
@@ -123,6 +154,22 @@ class FromCoreKitTests(helpers.TempFolderTest):
         self.assertIsNone(result["output"]["kit"])
         self.assertEqual([c["id"] for c in result["output"]["checks"] if c["status"] == "fail"], [])
         self.assertFalse(os.path.exists(self.path("export")))
+
+    # The kit pieces show each material at the size the walls do: the same metres per UV unit for every slot.
+    def test_texture_density_matches_walls(self):
+        self.assertTrue(self.export(self.job())["ok"])
+        walls = [o for o in bpy.data.objects if o.name.startswith("SM_f1_") and o.type == "MESH"]
+        pieces = [o for o in bpy.data.objects if o.name.startswith("SM_Kit_")]
+        self.assertTrue(walls and pieces)
+        wanted = density(walls)
+        got = density(pieces)
+        self.assertNotEqual(wanted[("Exterior_Wall", "side")][0], 1.0, "the fixture has no tiled material")
+        compared = 0
+        for key, (value, area) in got.items():
+            if key in wanted and min(area, wanted[key][1]) > 1.0:
+                self.assertAlmostEqual(value / wanted[key][0], 1.0, delta=0.03, msg=str(key))
+                compared += 1
+        self.assertGreaterEqual(compared, 4)
 
     # Placing the kit by its layout rebuilds the walls: same bounds, same area seen from above, and two pictures.
     def test_layout_check(self):

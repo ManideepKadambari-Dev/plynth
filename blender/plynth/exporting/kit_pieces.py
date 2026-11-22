@@ -10,6 +10,7 @@ from .. import fills as fills_package
 from .. import meshes, registry, surfaces
 from ..building import bevel as build_bevel
 from ..building import collision as build_collision
+from ..building import materials as build_materials
 from ..building import opening_fills, openings, triangulate
 from ..jobs import WorkerError
 from ..registry import EXPORT_STEPS
@@ -56,7 +57,6 @@ def run(ctx):
         ctx.state["meshes"].append(made)
         ctx.state["collision"] += hulls
     ctx.state["kit_problems"] = shim.state["problems"]
-    register_materials(ctx)
 
 
 # Returns the Kit collection, linked under the scene (not under the building's collections), made on first use.
@@ -76,15 +76,25 @@ def neutral_look(slot):
     return "Wall_Inside"
 
 
+# Adds a material the building meshes did not already bring to the export's materials, so its textures are
+# collected and checked and its tile size is known.
+def register_known(ctx, material):
+    if any(info["material"] == material for info in ctx.state["materials"].values()):
+        return
+    entries = {entry["name"]: entry for entry in ctx.params.get("materials", []) if "name" in entry}
+    ctx.state["materials"][material.name] = {"material": material, "original": material.name,
+                                             "entry": entries.get(material.name)}
+
+
 # Returns the name of the Blender material a slot uses: the material the build made under that name, else the
 # same with odd characters replaced (the export names), else a new one with the neutral look, which the
 # materials check then reports.
 def resolve_slot(ctx, slot):
-    if slot in bpy.data.materials:
-        return slot
+    for name in (slot, sanitize(slot)):
+        if name in bpy.data.materials:
+            register_known(ctx, bpy.data.materials[name])
+            return name
     clean = sanitize(slot)
-    if clean in bpy.data.materials:
-        return clean
     look = neutral_look(slot)
     material = surfaces.material(clean)
     surfaces.apply_look(material, surfaces.LOOKS[look])
@@ -93,17 +103,16 @@ def resolve_slot(ctx, slot):
     return clean
 
 
-# Adds every material a kit mesh uses that the building meshes did not already bring, so textures are collected
-# and checked for it too.
-def register_materials(ctx):
-    known = {info["material"] for info in ctx.state["materials"].values()}
-    entries = {entry["name"]: entry for entry in ctx.params.get("materials", []) if "name" in entry}
-    for obj in ctx.state["kit_objects"]:
-        for material in obj.data.materials:
-            if material is not None and material not in known:
-                known.add(material)
-                ctx.state["materials"][material.name] = {"material": material, "original": material.name,
-                                                         "entry": entries.get(material.name)}
+# Returns the tile size (width, height in metres) of every material the export knows, by Blender material name.
+# The build divides the UVs of every face by it, so the kit must too or its textures show at another size.
+# A material whose job entry has no tile_size counts as 1 m square, like the neutral look.
+def tile_sizes(ctx):
+    found = {}
+    for name, info in ctx.state["materials"].items():
+        size = (info["entry"] or {}).get("tile_size")
+        if size:
+            found[name] = (size["width"], size["height"])
+    return found
 
 
 # Returns the index of value in items, adding it first when it is new, or -1 for none.
@@ -268,6 +277,7 @@ def make_piece(ctx, shim, kit, piece, collection):
     triangulate.run(shim)
     if kit["fill_openings"]:
         add_fills(ctx, shim, piece, obj)
+    build_materials.scale_uvs([obj], tile_sizes(ctx))
     drop_helpers(obj)
     return obj, make_collision(piece, collection)
 
