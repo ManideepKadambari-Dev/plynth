@@ -16,6 +16,7 @@
 #include "preview/PreviewView.h"
 
 #include <plynth/core/Blender.h>
+#include <plynth/core/Roofs.h>
 #include <plynth/core/SetupCheck.h>
 
 #include <QAction>
@@ -203,10 +204,29 @@ void MainWindow::setOverlay3d(bool on)
     overlay3dAction_->setChecked(on);
 }
 
-// Opens the Plan page, selects the object of a problem and centres the plan on it.
+// Opens the Plan page, selects the object of a problem and centres the plan on it. A floor id only switches to that
+// floor, and a roof entry switches to its floor and selects its section.
 void MainWindow::showProblem(const QString& objectId)
 {
     showCentreView(false);
+    const std::string key = objectId.toStdString();
+    if (plynth::findFloor(doc_.plan(), key) != nullptr) {
+        selection_->clear();
+        showFloor(objectId);
+        return;
+    }
+    if (const plynth::RoofSection* entry = plynth::findRoofSection(doc_.plan(), key)) {
+        showFloor(fromCore(entry->floor));
+        for (const plynth::RoofArea& area : plynth::roofAreasOf(doc_.plan(), entry->floor))
+            if (area.section == key) {
+                roofSectionsAction_->setChecked(true);
+                selection_->set(SelectionKind::RoofSection, QStringLiteral("%1:%2").arg(fromCore(area.floor)).arg(area.index));
+                break;
+            }
+        if (const std::optional<double> ppm = doc_.plan().scale.pixelsPerMetre)
+            canvas_->centerOn(QPointF(entry->x * *ppm, entry->y * *ppm));
+        return;
+    }
     selectById(objectId);
     const std::optional<double> ppm = doc_.plan().scale.pixelsPerMetre;
     if (!ppm.has_value())
