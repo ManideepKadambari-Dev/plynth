@@ -51,31 +51,42 @@ std::string lowerCase(std::string_view text)
     return out;
 }
 
-// Trims spaces and tabs at both ends.
+// Trims spaces at both ends.
 std::string trimmed(std::string_view text)
 {
     std::size_t start = 0;
     std::size_t end = text.size();
-    while (start < end && (text[start] == ' ' || text[start] == '\t')) ++start;
-    while (end > start && (text[end - 1] == ' ' || text[end - 1] == '\t')) --end;
+    while (start < end && text[start] == ' ') ++start;
+    while (end > start && text[end - 1] == ' ') --end;
     return std::string(text.substr(start, end - start));
 }
 
-// Says whether a name is allowed: 1 to 64 characters after trimming, with an ASCII letter or digit in it (the
-// schema's rule). Characters are counted, not bytes, so names in other scripts get the same length.
+// Says whether a name is allowed: after trimming 1 to 64 characters, only A to Z, a to z, 0 to 9, spaces,
+// hyphens and underscores, with at least one letter or digit. Names are English only (owner decision).
 bool isValidGroupName(std::string_view name)
 {
     const std::string clean = trimmed(name);
-    const auto characters = std::count_if(clean.begin(), clean.end(), [](char c) { return (static_cast<unsigned char>(c) & 0xC0) != 0x80; });
-    if (clean.empty() || characters > static_cast<long long>(kMaxExportGroupName)) return false;
-    return std::any_of(clean.begin(), clean.end(), [](char c) { return std::isalnum(static_cast<unsigned char>(c)) != 0; });
+    if (clean.empty() || clean.size() > kMaxExportGroupName) return false;
+    bool alnum = false;
+    for (const char c : clean) {
+        const bool letterOrDigit = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9');
+        if (!letterOrDigit && c != ' ' && c != '-' && c != '_') return false;
+        alnum = alnum || letterOrDigit;
+    }
+    return alnum;
+}
+
+// The plain sentence for a refused name.
+const char* groupNameRule()
+{
+    return "A group name uses only the letters A to Z, the digits 0 to 9, spaces, hyphens and underscores, "
+           "with at least one letter or digit, and is 1 to 64 characters long.";
 }
 
 // The message for a refused name.
 Status badNameStatus()
 {
-    return fail(ErrorCode::InvalidValue,
-                "A group name has 1 to " + std::to_string(kMaxExportGroupName) + " characters and at least one letter or digit.");
+    return fail(ErrorCode::InvalidValue, groupNameRule());
 }
 
 // Finds a group by id. Null when there is none.
@@ -469,9 +480,7 @@ Status readGroupId(const Json& item, const char* key, const std::string& where, 
 Status readGroupName(const Json& item, const std::string& where, std::string& out)
 {
     if (!readText(item, "name", out) || !isValidGroupName(out)) {
-        return fail(ErrorCode::BadFile,
-                    "\"name\" must be 1 to " + std::to_string(kMaxExportGroupName) + " characters with a letter or digit.",
-                    where + "/name");
+        return fail(ErrorCode::BadFile, std::string(groupNameRule()) + " Fix this name in the file or remove the edit.", where + "/name");
     }
     return {};
 }

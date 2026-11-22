@@ -543,42 +543,73 @@ TEST_CASE("the review refuses a bad options file", "[core][exportgroups]") {
     CHECK(review.groups.empty());
 }
 
-TEST_CASE("group names count characters and need a letter or digit of the schema", "[core][exportgroups]") {
+TEST_CASE("group names are English only", "[core][exportgroups]") {
     const Project project = flatProject();
     ExportGroupEdits edits;
     const std::vector<ExportGroup> current = currentOf(project, edits);
-    std::string longName = "a";
-    for (int i = 0; i < 63; ++i) longName += "\xC3\xA9";
-    CHECK(renameExportGroup(edits, current, "furniture_r1", "K\xC3\xBC" "che").ok());
-    CHECK(renameExportGroup(edits, current, "furniture_r2", longName).ok());
-    CHECK(renameExportGroup(edits, current, "furniture_r1", longName + "\xC3\xA9").code == ErrorCode::InvalidValue);
-    // The schema asks for an ASCII letter or digit somewhere in the name.
-    CHECK(renameExportGroup(edits, current, "furniture_r1", "\xE0\xA4\xB0\xE0\xA4\xB8\xE0\xA5\x8B\xE0\xA4\x88").code == ErrorCode::InvalidValue);
-    CHECK(renameExportGroup(edits, current, "furniture_r1", "\xE0\xA4\xB0\xE0\xA4\xB8\xE0\xA5\x8B\xE0\xA4\x88 2").ok());
+    CHECK(renameExportGroup(edits, current, "furniture_r1", "Kitchen-2_a b").ok());
+    CHECK(renameExportGroup(edits, current, "furniture_r2", std::string(64, 'a')).ok());
+    for (const std::string bad : {std::string("K\xC3\xBC" "che"), std::string("\xE0\xA4\xB0\xE0\xA4\xB8\xE0\xA5\x8B\xE0\xA4\x88 2"),
+                                  std::string("Tab\there"), std::string("a.b"), std::string("a/b"), std::string(65, 'a')}) {
+        const ExportGroupEdits before = edits;
+        const Status status = renameExportGroup(edits, current, "furniture_r1", bad);
+        CHECK(status.code == ErrorCode::InvalidValue);
+        CHECK(status.message.find("A to Z") != std::string::npos);
+        CHECK(status.message.find("hyphens") != std::string::npos);
+        CHECK(edits == before);
+    }
+    std::string id;
+    CHECK(addExportGroup(edits, current, "K\xC3\xBC" "che", id).code == ErrorCode::InvalidValue);
 }
 
-TEST_CASE("the review carries the plan its member labels come from", "[core][exportgroups]") {
-    const TempDir dir("review-labels");
-    Project built = flatProject();
-    built.settings.exportMode = ExportMode::Grouped;
-    writeBuiltPlan(dir.path(), built.plan);
+TEST_CASE("automatic group names stay valid and unique for non English room types", "[core][exportgroups]") {
+    Project project = flatProject();
+    Floor& floor = project.plan.floors[0];
+    floor.rooms[0].type = "k\xC3\xBC" "che";
+    floor.rooms[1].type = "\xE0\xA4\xB0\xE0\xA4\xB8\xE0\xA5\x8B\xE0\xA4\x88";
+    Room r3;
+    r3.id = "r3";
+    r3.type = "\xE0\xA4\xB0\xE0\xA4\xB8\xE0\xA5\x8B\xE0\xA4\x88";
+    floor.rooms.push_back(r3);
+    floor.items.push_back(itemIn("i4", "bed", "r3"));
+    Room r4;
+    r4.id = "r4";
+    r4.type = std::string(100, 'x');
+    floor.rooms.push_back(r4);
+    floor.items.push_back(itemIn("i5", "bed", "r4"));
 
-    Project project = built;
-    project.plan.floors[0].rooms[0].type = "kitchen";
-    project.plan.floors[0].name = "Ground";
+    const std::vector<ExportGroup> groups = automatic(project);
+    std::set<std::string> names;
+    std::set<std::string> files;
+    for (const ExportGroup& g : groups) {
+        ExportGroupEdits edits;
+        std::string newId;
+        // A name is valid when the edit functions take it as a rename to itself.
+        CHECK(renameExportGroup(edits, groups, g.id, g.name).ok());
+        CHECK(g.name.size() <= kMaxExportGroupName);
+        CHECK(names.insert(g.name).second);
+        CHECK(files.insert(g.file).second);
+    }
+    CHECK(group(groups, "furniture_r1")->name == "Furniture Kche");
+    CHECK(group(groups, "furniture_r2")->name == "Furniture Room r2");
+    CHECK(group(groups, "furniture_r3")->name == "Furniture Room r3");
+}
 
-    const ExportMember floorOfR1{"floor", "r1"};
-    const ExportMember walls{"walls", "f1"};
-    ExportGroupReview review = reviewExportGroups(dir.path(), project);
-    REQUIRE(review.status.ok());
-    CHECK(review.fromBuild);
-    CHECK(exportMemberLabel(review.plan, floorOfR1) == "Floor of Living r1");
-    CHECK(exportMemberLabel(review.plan, walls) == "Walls, Floor 1");
+TEST_CASE("an options file saved with a non English name is refused and says why", "[core][exportgroups]") {
+    const TempDir dir("options-old-name");
+    {
+        std::ofstream out(dir.path() / "export-options.json", std::ios::binary);
+        out << "{\"format\": \"plynth-export-options\", \"version\": 1, \"groups\": {\"renames\": "
+               "[{\"group\": \"furniture_r1\", \"name\": \"K\xC3\xBC" "che\"}]}, \"kit\": {\"enabled\": true}}";
+    }
+    const ExportOptionsRead read = readExportOptions(dir.path());
+    CHECK(read.status.code == ErrorCode::BadFile);
+    CHECK(read.status.where == "/groups/renames/0/name");
+    CHECK(read.status.message.find("A to Z") != std::string::npos);
+    CHECK(read.status.message.find("Fix this name") != std::string::npos);
 
-    const TempDir noBuild("review-labels-nobuild");
-    review = reviewExportGroups(noBuild.path(), project);
-    REQUIRE(review.status.ok());
-    CHECK_FALSE(review.fromBuild);
-    CHECK(exportMemberLabel(review.plan, floorOfR1) == "Floor of Kitchen r1");
-    CHECK(exportMemberLabel(review.plan, walls) == "Walls, Ground");
+    // The export and the review refuse too, so nothing is dropped without the user knowing.
+    Project project = flatProject();
+    project.settings.exportMode = ExportMode::Grouped;
+    CHECK(reviewExportGroups(dir.path(), project).status.code == ErrorCode::BadFile);
 }

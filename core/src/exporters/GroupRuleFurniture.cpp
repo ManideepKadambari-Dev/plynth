@@ -63,7 +63,12 @@ public:
             std::string id = "furniture_" + idPart(entry.room->id);
             for (int n = 2; !usedIds.insert(id).second; ++n) id = "furniture_" + idPart(entry.room->id) + "_" + std::to_string(n);
             group.id = id;
-            group.name = "Furniture " + label + (labelCount(label) > 1 ? " " + entry.room->id : std::string());
+            // A valid English name of at most 64 characters: the label is made of letters and digits already, so
+            // only its length is cut, and the room id (unique) keeps two rooms with one label apart.
+            const std::string suffix = labelCount(label) > 1 ? " " + entry.room->id : std::string();
+            const std::string prefix = "Furniture ";
+            const std::size_t room = kMaxExportGroupName > prefix.size() + suffix.size() ? kMaxExportGroupName - prefix.size() - suffix.size() : 1;
+            group.name = prefix + label.substr(0, room) + suffix;
             addItems(group, entry.items);
             out.push_back(std::move(group));
         }

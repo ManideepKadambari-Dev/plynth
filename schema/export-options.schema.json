@@ -83,6 +83,6 @@
   },
   "definitions": {
     "groupId": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 80 },
-    "groupName": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "[A-Za-z0-9]" }
+    "groupName": { "description": "English only: A to Z, a to z, 0 to 9, spaces, hyphens and underscores, with at least one letter or digit.", "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9 _-]*[A-Za-z0-9][A-Za-z0-9 _-]*$" }
   }
 }
