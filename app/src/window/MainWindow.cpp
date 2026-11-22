@@ -323,6 +323,7 @@ MainWindow::MainWindow(QWidget* parent)
                                                                   : tr("Set a library folder first"));
         importMaterialsAction_->setEnabled(materialsOpen);
         addSamplesAction_->setEnabled(materialsOpen);
+        addShapesAction_->setEnabled(open);
         materialImport_->setLibraryOpen(materialsOpen);
         assets_->setMaterialImportEnabled(materialsOpen);
     };
@@ -618,6 +619,11 @@ void MainWindow::buildCatalogMenu()
                                            tr("Read the materials folder again and update the index"),
                                            QStringLiteral("materials-rescan-action"), {});
     menu->addSeparator();
+    addShapesAction_ = addMenuAction(menu, tr("Add the sample &shapes"),
+                                     tr("Copy the sample opening shapes, such as the keyhole, into the library"),
+                                     QStringLiteral("catalog-sample-shapes"), {});
+    connect(addShapesAction_, &QAction::triggered, this,
+            [this]() { statusBar_->showMessage(host_->addSampleShapes(), false); });
     QAction* rooms = addMenuAction(menu, tr("Room &types and categories..."),
                                    tr("Edit the room types and the categories of the catalog"),
                                    QStringLiteral("catalog-room-types"), {});

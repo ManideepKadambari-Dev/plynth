@@ -285,6 +285,7 @@ private:
     QAction* rescanMaterialsAction_ = nullptr;
     QAction* importMaterialsAction_ = nullptr;
     QAction* addSamplesAction_ = nullptr;
+    QAction* addShapesAction_ = nullptr;
     ImportQueue* queue_ = nullptr;
     ImportQueueView* queueView_ = nullptr;
     LibraryWatcher* libraryWatcher_ = nullptr;
