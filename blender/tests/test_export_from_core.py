@@ -334,6 +334,9 @@ class HouseExportTests(helpers.TempFolderTest):
                 obj = bpy.data.objects[name]
                 self.assertTrue(len(obj.data.polygons) >= 4 and convex(obj), name)
         self.assertEqual(len([n for n in names if n.startswith("UCX_SM_f1_s1_Stair_")]), 16)
+        build = fill(load_job("from_core_house"), *shared_house())
+        wanted = sum(len(c["pieces"]) + len(c["hulls"]) for f in build["params"]["floors"] for c in f["collision"])
+        self.assertEqual(len([n for n in names if n.startswith("UCX_")]), wanted)
 
 
 if __name__ == "__main__":

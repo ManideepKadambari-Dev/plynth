@@ -126,6 +126,8 @@ class CollisionTests(BuildTest):
             obj = bpy.data.objects[name]
             self.assertIn(obj, list(collection.objects))
             self.assertEqual(obj.type, "MESH")
+            self.assertEqual(obj.display_type, "WIRE")
+            self.assertTrue(obj.hide_render, "a render of building.blend must not show %s" % name)
             self.assertTrue(is_closed(obj))
             volume = mesh_volume(obj)
             self.assertGreater(volume, 0.0)
@@ -265,6 +267,7 @@ class ItemHullTests(BuildTest):
         for hull, item in ((first, "i1"), (second, "i2")):
             empty = bpy.data.objects["SM_box_%s" % item]
             self.assertEqual(hull["plynth_kind"], "collision")
+            self.assertTrue(hull.hide_render)
             self.assertEqual(hull["plynth_collision_for"], empty.name)
             for row in range(4):
                 for column in range(4):

@@ -130,6 +130,7 @@ def add_object(name, mesh, collection, target_name, plan_id):
     obj["plynth_id"] = plan_id
     obj["plynth_collision_for"] = target_name
     obj.display_type = "WIRE"
+    obj.hide_render = True
     collection.objects.link(obj)
     return obj
 
