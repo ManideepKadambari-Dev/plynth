@@ -120,15 +120,35 @@ std::vector<BlenderInstall> findBlenderInstalls(const BlenderSearch& search, std
 std::optional<std::size_t> preferredBlender(const std::vector<BlenderInstall>& installs,
                                             const std::optional<std::filesystem::path>& chosen);
 
+// The folders where the user's own Blender keeps its settings, scripts, extensions and BlenderKit data.
+struct BlenderUserFolders {
+    std::filesystem::path config;
+    std::filesystem::path scripts;
+    std::filesystem::path extensions;
+    std::filesystem::path blenderKitData;
+};
+
+// Works out the user's folders for an install from this process's environment, as absolute paths. Only looks
+// whether folders exist: it reads and creates nothing and starts no program. For config, scripts and
+// extensions, the first of:
+//   1. BLENDER_USER_CONFIG, BLENDER_USER_SCRIPTS or BLENDER_USER_EXTENSIONS, when that folder exists
+//   2. config, scripts or extensions in BLENDER_USER_RESOURCES, when the folder the variable names exists
+//   3. the same in the folder "portable" next to blender.exe, when that folder exists
+//   4. the same in %APPDATA%/Blender Foundation/Blender/<major.minor>
+// blenderKitData is blenderkit_data in XDG_DATA_HOME, else in USERPROFILE. A folder that cannot be worked out
+// is empty.
+BlenderUserFolders blenderUserFolders(const BlenderInstall& install);
+
 // The Blender a job should use.
 struct BlenderChoice {
     Status status; // BlenderNotFound when none is usable, naming what was found and why it was not used
     BlenderInstall install;
 };
 
-// Picks the Blender for a job: the option when given (it must be usable), then PLYNTH_BLENDER, then the
-// path in settings, then the preferred one of a full search. Only the first usable one is inspected when an
-// explicit path is given, so this is quick when the settings hold a good path.
+// Picks the Blender for a job: the option when given, else PLYNTH_BLENDER when not empty, else the path in
+// settings, else the preferred one of a full search. The option and the variable are binding: when the one
+// given is missing or not usable, BlenderNotFound says so and no other Blender is started. A good path in
+// settings is the only one inspected, so this is quick.
 BlenderChoice chooseBlender(const std::optional<std::filesystem::path>& option, const MachineSettings& settings,
                             std::stop_token stop = {});
 
@@ -148,8 +168,8 @@ struct BlenderProgress {
 };
 
 struct BlenderRunOptions {
-    // True for cleanup and thumbnails, so the user's startup file and add-ons cannot change the result.
-    // False for the probe, which must see the user's add-ons.
+    // True so the user's startup file and add-ons cannot change the result and Blender is given Plynth's
+    // private folder as its user folder. The probe task always runs this way, whatever this says.
     bool factoryStartup = true;
     std::chrono::seconds timeout{600};
     std::filesystem::path scriptsFolder; // empty: blenderScriptsFolder()
@@ -171,7 +191,9 @@ struct BlenderJobRun {
 //   <blender> --background [--factory-startup] -noaudio --python-exit-code 3
 //             --python <scripts>/plynth_worker.py -- --job <workFolder>/job.json
 // passes each progress line to onProgress, saves the output as workFolder/blender.log, and reads the
-// result file the job names. Blocks; the app calls it from a worker thread.
+// result file the job names. With factory startup, and always for the probe task, the child's five
+// BLENDER_USER_ variables point at Plynth's private folder. When that folder cannot be created the status is
+// CannotWrite and Blender is not started. Blocks; the app calls it from a worker thread.
 BlenderJobRun runBlenderJob(const std::filesystem::path& blender, const Json& job,
                             const std::filesystem::path& workFolder, const BlenderRunOptions& options,
                             const std::function<void(const BlenderProgress&)>& onProgress = {},

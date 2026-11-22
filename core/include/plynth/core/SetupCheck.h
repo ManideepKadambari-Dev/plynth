@@ -109,10 +109,13 @@ struct SetupCheckOptions {
     std::uintmax_t minLibraryFree = kMinLibraryFreeBytes;
     bool settingsExist = true;     // from SettingsLoad::exists, for firstRun
     std::optional<GraphicsProbe> graphics; // from the app; empty in doctor
+    std::optional<std::filesystem::path> blender; // the explicit option, which beats the variable and settings
 };
 
-// Runs every check. Blender: findBlenderInstalls, then the preferred one; missing when none is found,
-// too old when only old ones are. Blender version: supported, too old, or needs attention when untested.
+// Runs every check. Blender: options.blender when given, else PLYNTH_BLENDER when search.environment is true
+// and it is not empty. That one is then the only Blender inspected and listed, and when it is missing or not
+// usable the report says so and no other Blender is started. With neither, findBlenderInstalls, then the
+// preferred one. Missing when none is found, too old when only old ones are. Blender version: supported, too old, or needs attention when untested.
 // Library folder: set, exists, is a library (isLibraryFolder), writable, free space. Projects folder: set,
 // exists, writable. Graphics driver, from options.graphics: Found with version = api and the detail naming
 // the device; Missing with the probe's problem as detail and the action "Update the graphics driver. See the
@@ -125,10 +128,10 @@ struct SetupCheckOptions {
 SetupReport runSetupCheck(const MachineSettings& settings, const SetupCheckOptions& options,
                           std::stop_token stop = {});
 
-// The checks that run no program: folders, whether the saved Blender path still exists (state Found with no
-// version, NotChecked for the version and the add-ons), and the graphics driver from graphics as in
-// runSetupCheck (NotChecked in the first form). The app runs it at start to decide whether to open the setup
-// check screen.
+// The checks that run no program: folders, whether Blender is there (only the one PLYNTH_BLENDER names when
+// that is not empty, else the saved path, else any that is found; state Found with no version, NotChecked for
+// the version and the add-ons), and the graphics driver from graphics as in runSetupCheck (NotChecked in the
+// first form). The app runs it at start to decide whether to open the setup check screen.
 SetupReport quickSetupCheck(const MachineSettings& settings, bool settingsExist);
 SetupReport quickSetupCheck(const MachineSettings& settings, bool settingsExist,
                             const std::optional<GraphicsProbe>& graphics);

@@ -20,7 +20,7 @@
           "required": ["code", "message"],
           "additionalProperties": false,
           "properties": {
-            "code": { "enum": ["bad_job", "unknown_task", "unsupported_format", "import_failed", "no_geometry", "several_models", "several_materials", "no_base_color", "bake_failed", "unpack_failed", "save_failed", "render_failed", "export_failed", "internal"] },
+            "code": { "enum": ["bad_job", "unknown_task", "unsupported_format", "import_failed", "no_geometry", "several_models", "several_materials", "no_base_color", "bake_failed", "unpack_failed", "save_failed", "render_failed", "export_failed", "preferences_unreadable", "internal"] },
             "message": { "type": "string", "minLength": 1 }
           }
         }
@@ -107,7 +107,7 @@
           }
         },
         "addons": {
-          "description": "Enabled add-ons and extensions only.",
+          "description": "Only add-ons and extensions that are both saved as enabled and found on disk.",
           "type": "array",
           "items": {
             "type": "object",
@@ -121,7 +121,7 @@
           }
         },
         "blenderkit": {
-          "description": "signed_in only says whether an API key is stored. The key is never read out.",
+          "description": "installed means found on disk. signed_in only says whether a sign-in is saved. The key is never output.",
           "type": "object",
           "required": ["installed", "enabled", "signed_in"],
           "additionalProperties": false,
