@@ -1,5 +1,7 @@
 #include "MainWindow.h"
 
+#include "document/FloorFocus.h"
+
 #include "BuildBar.h"
 #include "StatusBar.h"
 #include "building/BuildController.h"
@@ -148,15 +150,15 @@ void MainWindow::updateBuildUi()
     refreshProblemMarkers();
 }
 
-// Gives the plan one marker for each problem of the last build that has a place on the first floor.
+// Gives the plan one marker for each problem of the last build that has a place on the shown floor.
 void MainWindow::refreshProblemMarkers()
 {
     QVector<ProblemMarker> markers;
     const std::optional<double> ppm = doc_.plan().scale.pixelsPerMetre;
-    if (report_ && ppm.has_value() && !doc_.plan().floors.empty()) {
-        const plynth::Floor& first = doc_.plan().floors.front();
+    if (report_ && ppm.has_value() && focus_->floor() != nullptr) {
+        const plynth::Floor& shown = *focus_->floor();
         for (const plynth::BuildProblem& problem : report_->problems) {
-            if (!problem.floor.empty() && problem.floor != first.id)
+            if (!problem.floor.empty() && problem.floor != shown.id)
                 continue;
             const std::optional<plynth::Vec2> at = plynth::problemPosition(doc_.plan(), problem);
             if (!at.has_value())

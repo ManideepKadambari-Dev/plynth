@@ -9,6 +9,8 @@
 #include "canvas/PlanCanvas.h"
 #include "ReadOnlyBanner.h"
 #include "document/DocumentBridge.h"
+#include "document/FloorFocus.h"
+#include "FloorTabs.h"
 #include "detection/DetectionSession.h"
 #include "document/Selection.h"
 #include "catalog/ImportQueue.h"
@@ -133,6 +135,7 @@ MainWindow::MainWindow(QWidget* parent)
     auto* column = new QVBoxLayout(central);
     column->setContentsMargins(0, 0, 0, 0);
     column->setSpacing(0);
+    focus_ = new FloorFocus(doc_, this);
     canvas_ = new PlanCanvas(central);
     canvas_->setAcceptDrops(true);
     canvas_->viewport()->setAcceptDrops(true);
@@ -170,6 +173,8 @@ MainWindow::MainWindow(QWidget* parent)
     centreColumn->setSpacing(0);
     buildBar_ = new BuildBar(centre);
     centreColumn->addWidget(buildBar_);
+    floorTabs_ = new FloorTabs(*focus_, centre);
+    centreColumn->addWidget(floorTabs_);
     centreStack_ = new QStackedWidget(centre);
     centreStack_->addWidget(splitter_);
     preview_ = new PreviewView(centreStack_);
@@ -210,6 +215,7 @@ MainWindow::MainWindow(QWidget* parent)
         updateBuildUi();
     });
     connect(builder_, &BuildController::finished, this, &MainWindow::buildFinished);
+    connect(focus_, &FloorFocus::changed, this, &MainWindow::floorShown);
     connect(buildBar_, &BuildBar::buildRequested, this, &MainWindow::startBuild);
     connect(buildBar_, &BuildBar::cancelRequested, builder_, &BuildController::cancel);
     connect(buildBar_, &BuildBar::problemsRequested, this, [this]() { right_->showTab(RightPanel::Tab::Build); });
@@ -363,6 +369,7 @@ MainWindow::MainWindow(QWidget* parent)
     connect(autosaveTimer_, &QTimer::timeout, this, &MainWindow::runAutosave);
     autosaveTimer_->start();
 
+    refreshFloorTabs();
     refreshImage();
     refreshOverlay();
     updateTitle();
@@ -897,6 +904,10 @@ void MainWindow::updateTitle()
 // Reacts to a document change: image, title, menu state and the app state file.
 void MainWindow::onDocumentChanged(unsigned changes)
 {
+    if (changes & (plynth::Change::Floors | plynth::Change::Folder)) {
+        focus_->revalidate();
+        refreshFloorTabs();
+    }
     if (changes & (plynth::Change::FloorImage | plynth::Change::Floors | plynth::Change::Folder))
         refreshImage();
     if (changes & (plynth::Change::Points | plynth::Change::Walls | plynth::Change::Rooms | plynth::Change::Openings | plynth::Change::Items | plynth::Change::Scale |
@@ -964,12 +975,12 @@ void MainWindow::cacheImage(const QString& path, const QImage& image)
     cachedImage_ = image;
 }
 
-// Shows the image of the first floor, or the reason it cannot be shown. Skips the work when the
+// Shows the image of the shown floor, or the reason it cannot be shown. Skips the work when the
 // same file is already on the sheet, so a save does not refit the view.
 void MainWindow::refreshImage()
 {
-    const plynth::Plan& plan = doc_.plan();
-    if (plan.floors.empty() || !plan.floors.front().image.has_value()) {
+    const plynth::Floor* shown = focus_->floor();
+    if (shown == nullptr || !shown->image.has_value()) {
         shownImageKey_.clear();
         imageFailed_ = false;
         canvas_->clearImage();
@@ -980,7 +991,7 @@ void MainWindow::refreshImage()
     }
 
     const QString path = QFileInfo(fromCore(plynth::pathToUtf8(
-        plynth::resolveImagePath(doc_.folder(), *plan.floors.front().image)))).absoluteFilePath();
+        plynth::resolveImagePath(doc_.folder(), *shown->image)))).absoluteFilePath();
     const QString key = imageKey(path);
     if (canvas_->hasImage() && key == shownImageKey_)
         return;
@@ -1075,7 +1086,7 @@ void MainWindow::validateSelection()
 {
     if (selection_->isEmpty())
         return;
-    const plynth::Floor* floor = doc_.plan().floors.empty() ? nullptr : &doc_.plan().floors.front();
+    const plynth::Floor* floor = focus_->floor();
     const std::string id = selection_->id().toStdString();
     bool found = false;
     if (floor != nullptr) {
@@ -1127,7 +1138,7 @@ void MainWindow::updateToolActions()
         turnLeftAction_->setEnabled(itemSelected);
     if (turnRightAction_ != nullptr)
         turnRightAction_->setEnabled(itemSelected);
-    const plynth::Floor* floor = doc_.plan().floors.empty() ? nullptr : &doc_.plan().floors.front();
+    const plynth::Floor* floor = focus_->floor();
     const plynth::Item* item = itemSelected && floor ? plynth::findItem(*floor, selection_->id().toStdString()) : nullptr;
     if (mountAction_ != nullptr)
         mountAction_->setEnabled(item != nullptr && !item->wall.has_value());
@@ -1177,34 +1188,62 @@ bool MainWindow::activateToolByName(const QString& name)
     return true;
 }
 
-// For checks only: selects a point, wall or room of the first floor by its id.
+// For checks only: shows the floor with this id.
+bool MainWindow::showFloor(const QString& id)
+{
+    return focus_->setFloorId(id);
+}
+
+// For checks only: selects a point, wall, room, opening or item by its id, switching to its floor first.
 void MainWindow::selectById(const QString& id)
 {
     selection_->clear();
-    if (doc_.plan().floors.empty())
-        return;
-    const plynth::Floor& floor = doc_.plan().floors.front();
     const std::string key = id.toStdString();
-    if (plynth::findPoint(floor, key) != nullptr) {
-        selection_->set(SelectionKind::Point, id);
+    for (const plynth::Floor& floor : doc_.plan().floors) {
+        std::optional<SelectionKind> kind;
+        if (plynth::findPoint(floor, key) != nullptr)
+            kind = SelectionKind::Point;
+        for (const plynth::Wall& wall : floor.walls)
+            if (wall.id == key)
+                kind = SelectionKind::Wall;
+        for (const plynth::Room& room : floor.rooms)
+            if (room.id == key)
+                kind = SelectionKind::Room;
+        if (plynth::findOpening(floor, key) != nullptr)
+            kind = SelectionKind::Opening;
+        if (plynth::findItem(floor, key) != nullptr)
+            kind = SelectionKind::Item;
+        if (!kind.has_value())
+            continue;
+        focus_->setFloorId(QString::fromStdString(floor.id));
+        selection_->set(*kind, id);
         return;
     }
-    for (const plynth::Wall& wall : floor.walls)
-        if (wall.id == key) {
-            selection_->set(SelectionKind::Wall, id);
-            return;
-        }
-    for (const plynth::Room& room : floor.rooms)
-        if (room.id == key) {
-            selection_->set(SelectionKind::Room, id);
-            return;
-        }
-    if (plynth::findOpening(floor, key) != nullptr) {
-        selection_->set(SelectionKind::Opening, id);
-        return;
+}
+
+// Rebuilds the floor tabs from the plan.
+void MainWindow::refreshFloorTabs()
+{
+    QList<QPair<QString, QString>> floors;
+    for (const plynth::Floor& floor : doc_.plan().floors) {
+        const QString id = fromCore(floor.id);
+        floors.append({id, floor.name.empty() ? id : fromCore(floor.name)});
     }
-    if (plynth::findItem(floor, key) != nullptr)
-        selection_->set(SelectionKind::Item, id);
+    floorTabs_->setFloors(floors);
+    floorTabs_->setShown(focus_->floorId());
+}
+
+// Redraws what depends on the shown floor after another floor was chosen.
+void MainWindow::floorShown()
+{
+    floorTabs_->setShown(focus_->floorId());
+    selection_->clear();
+    refreshImage();
+    refreshProblemMarkers();
+    wallView_->refresh();
+    updateWallView();
+    updateDeleteAction();
+    panel_->refresh();
 }
 
 // For checks only: opens the furniture picker over the plan and hovers an asset like the mouse would.
@@ -1570,7 +1609,7 @@ bool MainWindow::setPlanImage(const QString& path, QString* error)
         return false;
     cacheImage(path, image);
     const plynth::Status status = doc_.execute(std::make_unique<plynth::SetFloorImageCommand>(
-        doc_.plan().floors.front().id, plynth::pathToUtf8(std::filesystem::absolute(toPath(path)))));
+        focus_->floorId().toStdString(), plynth::pathToUtf8(std::filesystem::absolute(toPath(path)))));
     if (!status.ok()) {
         cachedImage_ = QImage();
         cachedImageKey_.clear();

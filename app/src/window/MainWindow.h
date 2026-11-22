@@ -36,6 +36,8 @@ class BuildBar;
 class BuildController;
 class BuildPanel;
 class DocumentBridge;
+class FloorFocus;
+class FloorTabs;
 class HomeScreen;
 class ImportQueue;
 class ImportQueueView;
@@ -86,7 +88,9 @@ public:
 
     // For checks only: activates a tool by name (select, scale, wall, room, detect). False for an unknown name.
     bool activateToolByName(const QString& name);
-    // For checks only: selects the point, wall or room with this id on the first floor. An unknown id selects nothing.
+    // For checks only: shows the floor with this id. False for an unknown id.
+    bool showFloor(const QString& id);
+    // For checks only: selects the point, wall or room with this id, switching to its floor first. An unknown id selects nothing.
     void selectById(const QString& id);
     // For checks only: chooses the side the wall view is seen from.
     void setWallViewSide(plynth::WallSide side);
@@ -201,6 +205,8 @@ private:
     void updateActions();
     void updateViewActions();
     void refreshImage();
+    void refreshFloorTabs();
+    void floorShown();
     void refreshOverlay();
     void refreshPreview();
     void refreshProblemMarkers();
@@ -243,6 +249,8 @@ private:
     plynth::ProcessIdentity self_;
 
     TitleBar* titleBar_ = nullptr;
+    FloorFocus* focus_ = nullptr;
+    FloorTabs* floorTabs_ = nullptr;
     PlanCanvas* canvas_ = nullptr;
     Selection* selection_ = nullptr;
     ToolController* tools_ = nullptr;

@@ -82,6 +82,8 @@ int main(int argc, char* argv[])
     QCommandLineOption selectOption(QStringLiteral("select"),
                                     QStringLiteral("Select the point, wall, opening or room with this id. For checks only."),
                                     QStringLiteral("id"));
+    QCommandLineOption floorOption(QStringLiteral("floor"),
+                                   QStringLiteral("Show the floor with this id, such as f2. For checks only."), QStringLiteral("id"));
     QCommandLineOption wallSideOption(QStringLiteral("wall-side"),
                                       QStringLiteral("Side of the wall the wall view is seen from: left or right. For checks only."),
                                       QStringLiteral("side"));
@@ -170,6 +172,7 @@ int main(int argc, char* argv[])
     parser.addOption(selectAssetOption);
     parser.addOption(toolOption);
     parser.addOption(selectOption);
+    parser.addOption(floorOption);
     parser.addOption(wallSideOption);
     parser.addOption(imageOption);
     parser.addOption(terminalOption);
@@ -274,6 +277,8 @@ int main(int argc, char* argv[])
             loadTitle = QObject::tr("Cannot open image");
         }
     }
+    if (parser.isSet(floorOption))
+        window.showFloor(parser.value(floorOption));
     if (parser.isSet(toolOption))
         window.activateToolByName(parser.value(toolOption));
     if (parser.isSet(selectOption))
