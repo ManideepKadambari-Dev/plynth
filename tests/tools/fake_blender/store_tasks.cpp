@@ -1,5 +1,6 @@
 // The fake store tasks of the fake Blender. blenderkit_fetch acts by the FAKE_BLENDERKIT variable: ok
-// (default), material, hdr, not_signed_in, addon_missing, download_failed, timeout, missing_file (reports a
+// (default, the item is a model), material, hdr, not_signed_in, addon_missing, download_failed, timeout,
+// mislabel (succeeds with the other kind than asked), missing_file (reports a
 // file it did not write). It writes fake_item.blend
 // and textures/fake.png into the job's output_folder, and its whole command line to fake_args.txt next to
 // the job file.
@@ -107,10 +108,17 @@ int runFakeStoreFetch(const Json& job, const std::string& jobPath, const std::ve
         return failure("wrong_asset_kind", "This BlenderKit item is an HDR. Only models and materials can be imported.");
     }
 
+    const bool wantsMaterial = params["kind"].get<std::string>() == "material";
+    const bool material = how == "mislabel" ? !wantsMaterial : how == "material";
+    if (how != "mislabel" && material != wantsMaterial) {
+        return failure("wrong_asset_kind", material
+            ? "This BlenderKit item is a material. Import it in the Materials tab or with plynth materials import."
+            : "This BlenderKit item is a model. Import it in the Assets tab or with plynth assets import.");
+    }
+
     progress("copy", 3, "Copying the download");
     if (how != "missing_file") writeFile(folder / "fake_item.blend", "FAKEBLEND");
     writeFile(folder / "textures" / "fake.png", "FAKEPNG");
-    const bool material = how == "material";
     result["ok"] = true;
     result["error"] = nullptr;
     result["output"] = Json{{"file", "fake_item.blend"},

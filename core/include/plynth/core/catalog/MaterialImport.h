@@ -76,6 +76,8 @@ struct MaterialImportOutcome {
     bool thumbnailFailed = false;
     bool originalRemoved = false;
     std::filesystem::path keptWorkFolder;
+    std::filesystem::path movedTo; // as in ImportOutcome
+    Json details = Json::object(); // as in ImportOutcome
 };
 
 // Imports one folder, file, zip or address with the steps above. Blocks; the app runs it on a worker thread with its own

@@ -147,8 +147,9 @@ struct BlenderChoice {
 
 // Picks the Blender for a job: the option when given, else PLYNTH_BLENDER when not empty, else the path in
 // settings, else the preferred one of a full search. The option and the variable are binding: when the one
-// given is missing or not usable, BlenderNotFound says so and no other Blender is started. A good path in
-// settings is the only one inspected, so this is quick.
+// given is missing or not usable, BlenderNotFound says so and no other Blender is started. An option that is
+// an empty path is given and missing, it never counts as no option. A good path in settings is the only one
+// inspected, so this is quick.
 BlenderChoice chooseBlender(const std::optional<std::filesystem::path>& option, const MachineSettings& settings,
                             std::stop_token stop = {});
 
@@ -167,6 +168,12 @@ struct BlenderProgress {
     std::string message; // one plain sentence for the progress bar
 };
 
+// A step a job may report when its output cannot be trusted, with the only sentence shown for it.
+struct BlenderStep {
+    std::string step;
+    std::string message;
+};
+
 struct BlenderRunOptions {
     // True so the user's startup file and add-ons cannot change the result and Blender is given Plynth's
     // private folder as its user folder. The probe task always runs this way, whatever this says. False only
@@ -175,27 +182,39 @@ struct BlenderRunOptions {
     bool factoryStartup = true;
     std::chrono::seconds timeout{600};
     std::filesystem::path scriptsFolder; // empty: blenderScriptsFolder()
+    // For a run without factory startup, in order. What such a Blender prints can hold add-on secrets, so none
+    // of it is stored, returned or shown. A progress line counts only when its step is listed here. It is then
+    // built again from this list: index is the place in the list, count the list's size, message the sentence
+    // here. A step that repeats the one before is dropped. Empty: no progress.
+    std::vector<BlenderStep> steps;
 };
 
 struct BlenderJobRun {
     // Ok when the worker wrote a result file with ok true. BlenderFailed when it wrote ok false (the message
     // is the worker's), when Blender exited without a result file, or when the result file is not valid
-    // (the message ends with the last lines of the log), and when the timeout passed. Cancelled on stop.
+    // (with factory startup the message ends with the last lines of the log, without it the sentence stands
+    // alone), and when the timeout passed. Cancelled on stop.
     // NotFound when the scripts folder is missing.
     Status status;
     Json result;            // the parsed result file, when there was one
     std::string errorCode;  // the worker's error code, for example "import_failed", when it gave one
-    std::string logTail;    // the last part of Blender's output, also saved as workFolder/blender.log
+    // The last part of what is saved as workFolder/blender.log: Blender's output with factory startup, only
+    // the rebuilt step lines without it.
+    std::string logTail;
     int exitCode = -1;
 };
 
 // Runs one job: writes job to workFolder/job.json, starts
-//   <blender> --background [--factory-startup] -noaudio --python-exit-code 3
+//   <blender> --background [--factory-startup] --disable-autoexec -noaudio --python-exit-code 3
 //             --python <scripts>/plynth_worker.py -- --job <workFolder>/job.json
 // passes each progress line to onProgress, saves the output as workFolder/blender.log, and reads the
-// result file the job names. With factory startup, and always for the probe task, the child's five
-// BLENDER_USER_ variables point at Plynth's private folder. When that folder cannot be created the status is
-// CannotWrite and Blender is not started. Blocks; the app calls it from a worker thread.
+// result file the job names. Without factory startup the output never leaves this function in any way: the
+// log and progress hold only the rebuilt lines of options.steps, failures are fixed sentences, and the result
+// file is removed once it is read, also when it is broken or the run failed, timed out or was cancelled.
+// Scripts inside .blend files never run by themselves, whatever the user's settings say. With factory
+// startup, and always for the probe task, the child's five BLENDER_USER_ variables point at Plynth's private
+// folder. When that folder cannot be created the status is CannotWrite and Blender is not started. Blocks;
+// the app calls it from a worker thread.
 BlenderJobRun runBlenderJob(const std::filesystem::path& blender, const Json& job,
                             const std::filesystem::path& workFolder, const BlenderRunOptions& options,
                             const std::function<void(const BlenderProgress&)>& onProgress = {},

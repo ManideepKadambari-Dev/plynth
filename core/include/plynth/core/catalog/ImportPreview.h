@@ -20,7 +20,8 @@ using Json = nlohmann::ordered_json;
 // "assets import --dry-run", "materials import --dry-run" and the app's Fab import check.
 //
 // importAsset and importMaterial start with the same two steps: the importer is
-// request.importer when set, otherwise the picked one; ImportSource::options comes from optionsForImporter.
+// request.importer when set, otherwise the picked one; ImportSource::options comes from optionsForImporter
+// and ImportSource::guessed is set the same way for both, so a dry run shows the license the import records.
 
 struct ImportPreview {
     Status status;           // as the import's first steps would answer: NotFound, InvalidValue, BadFile

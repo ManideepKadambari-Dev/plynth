@@ -34,6 +34,10 @@ struct ImportSource {
     // then the request's importerOptions on top (optionsForImporter in Integrations.h). Filled by the import
     // before plan is called; an empty object for score and for importers without options.
     Json options = Json::object();
+    // True when Plynth guessed where the source is from: the request names no importer, so the best score
+    // picked it, and gives no "license" option for this import. An importer then claims no license of its own
+    // (Fab gives unknown). Filled by the import and the dry run before plan is called.
+    bool guessed = false;
 };
 
 // What the user asked for. Empty fields take defaults: the id and name from the file name (for an address
@@ -96,7 +100,9 @@ public:
     virtual int score(const ImportSource& source) const = 0;
     // Decides what Blender reads. workFolder is an empty folder of this import, for files it needs to make.
     // InvalidValue with a plain sentence when the source cannot be used after all; out.details may still say
-    // what it found, for example the models to choose from.
+    // what it found. An importer that lets the user pick lists {"models": [{"entry": "..."}...]} there and
+    // takes the option "model" with an entry. The front ends offer the pick from that list, whatever the
+    // sentence says.
     virtual Status plan(const ImportSource& source, const std::filesystem::path& workFolder,
                         ImportPlan& out) const = 0;
 };

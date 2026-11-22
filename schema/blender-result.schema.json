@@ -21,7 +21,7 @@
           "additionalProperties": false,
           "properties": {
             "code": { "enum": ["bad_job", "unknown_task", "unsupported_format", "import_failed", "no_geometry", "several_models", "several_materials", "no_base_color", "bake_failed", "unpack_failed", "save_failed", "render_failed", "export_failed", "preferences_unreadable", "internal", "addon_missing", "not_signed_in", "download_failed", "download_timeout", "wrong_asset_kind"] },
-            "message": { "type": "string", "minLength": 1 }
+            "message": { "description": "From a store fetch: a fixed sentence, with the add-on's version (digits, dots and hyphens) and at most an exception's type name. Never add-on output, log or exception text.", "type": "string", "minLength": 1 }
           }
         }
       ]

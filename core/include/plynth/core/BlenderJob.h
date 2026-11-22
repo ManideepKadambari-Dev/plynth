@@ -30,7 +30,7 @@ using Json = nlohmann::ordered_json;
 //
 // Progress: while it runs the worker prints lines to standard output of the form
 //   PLYNTH:{"progress": {"step": "apply_transforms", "index": 3, "count": 11, "message": "Applying transforms"}}
-// Every other line is log text.
+// Every other line is log text. Without factory startup no line is trusted or kept, see runBlenderJob.
 //
 // Worker error codes: bad_job, unknown_task, unsupported_format, import_failed, no_geometry, several_models,
 // several_materials, no_base_color, bake_failed, unpack_failed, save_failed, render_failed, export_failed,

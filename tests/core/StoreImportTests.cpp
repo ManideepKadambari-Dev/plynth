@@ -297,7 +297,7 @@ TEST_CASE("a requested id that is taken stops before the fetch", "[store_import]
 }
 
 TEST_CASE("a material address refuses the asset import and keeps nothing", "[store_import]") {
-    KitMode mode("material");
+    KitMode mode("mislabel");
     AssetFixture f("si-wrong-kind");
     const ImportOutcome outcome = importAsset(*f.lib.catalog, f.context, f.address());
     REQUIRE(outcome.status.code == ErrorCode::InvalidValue);
@@ -368,7 +368,7 @@ TEST_CASE("a Fab variants zip runs the cleanup with format fab on the source fil
     REQUIRE(info.source.kind == "fab_zip");
     REQUIRE(info.source.reference == "chair_variants.zip");
     REQUIRE(info.name == "Chair");
-    REQUIRE(info.license == "royalty_free");
+    REQUIRE(info.license == "unknown");
     REQUIRE(f.staging() == 0);
 }
 
@@ -444,7 +444,9 @@ TEST_CASE("a license the catalog lacks becomes unknown, and a bad plan name fall
 TEST_CASE("a Fab license that is not in the catalog becomes unknown", "[store_import]") {
     AssetFixture f("si-fab-license");
     plynth::test::requireOk(setIntegrationOptions(f.lib.paths, "fab", nlohmann::ordered_json{{"license", "not_a_license"}}));
-    const ImportOutcome outcome = importAsset(*f.lib.catalog, f.context, f.file(f.zip("chair_variants.zip", kVariants)));
+    ImportRequest byHand = f.file(f.zip("chair_variants.zip", kVariants));
+    byHand.importer = "fab_zip";
+    const ImportOutcome outcome = importAsset(*f.lib.catalog, f.context, byHand);
     plynth::test::requireOk(outcome.status);
     REQUIRE(assetInfoOf(f, outcome.assetId).license == kUnknownLicenseId);
 }
@@ -560,7 +562,7 @@ TEST_CASE("the request's blend material and name win over the fetch's", "[store_
 }
 
 TEST_CASE("a model address refuses the material import and keeps nothing", "[store_import]") {
-    KitMode mode("");
+    KitMode mode("mislabel");
     MaterialFixture f("si-material-wrong");
     const MaterialImportOutcome outcome = importMaterial(*f.lib.catalog, f.context, f.address());
     REQUIRE(outcome.status.code == ErrorCode::InvalidValue);
@@ -608,7 +610,7 @@ TEST_CASE("a Fab texture zip runs the material cleanup with source fab", "[store
     const MaterialInfoRead read = readMaterialInfo(info, outcome.materialId);
     plynth::test::requireOk(read.status);
     REQUIRE(read.info.source.kind == "fab_zip");
-    REQUIRE(read.info.license == "royalty_free");
+    REQUIRE(read.info.license == "unknown");
 }
 
 TEST_CASE("a material import keeps the Fab zip when asked", "[store_import]") {

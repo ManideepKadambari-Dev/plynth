@@ -149,6 +149,12 @@ const Integration* integrationForImporter(std::string_view importerId, bool mate
     return nullptr;
 }
 
+// Gives no importer for a button yet.
+std::string integrationImporter(const Integration&, const ImportSource&, bool)
+{
+    return {};
+}
+
 // Says whether a source kind is a store item.
 bool isStoreSource(std::string_view sourceKind)
 {

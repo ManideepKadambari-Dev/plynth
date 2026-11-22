@@ -72,6 +72,11 @@ struct ImportOutcome {
     bool thumbnailFailed = false;         // imported, but the render failed; the asset shows "Render failed"
     bool originalRemoved = false;         // the zip went to the Recycle Bin
     std::filesystem::path keptWorkFolder; // set when a Blender failure kept the work folder
+    // Where importInboxEntry moved the entry, done/ or failed/, with the numbered name it got. Empty when it
+    // was not moved (left in the inbox, or sent to the Recycle Bin). Callers use this and never look by name.
+    std::filesystem::path movedTo;
+    // The plan's details, also when the plan refused (Importer::plan).
+    Json details = Json::object();
 };
 
 // Imports one file, folder or address with the steps above. Blocks; the app runs it on a worker thread

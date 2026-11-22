@@ -177,8 +177,8 @@ TEST_CASE("fab choice prefers the lowest LOD, then the shortest path", "[fab]")
     const auto c = contentsOf({"Medium/Chair_LOD1.fbx", "Medium/Chair_LOD0.fbx", "Medium/Chair.fbx"});
     CHECK(chooseFabModel(c, FabOptions{}).model->entry == "Medium/Chair_LOD0.fbx");
 
-    const auto d = contentsOf({"deep/er/Chair.fbx", "x/Chair.fbx"});
-    CHECK(chooseFabModel(d, FabOptions{}).model->entry == "x/Chair.fbx");
+    const auto d = contentsOf({"Models/Export/Chair.fbx", "Meshes/Chair.fbx"});
+    CHECK(chooseFabModel(d, FabOptions{}).model->entry == "Meshes/Chair.fbx");
 }
 
 TEST_CASE("fab choice takes the textures of the picked version only", "[fab]")

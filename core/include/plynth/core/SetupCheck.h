@@ -109,7 +109,9 @@ struct SetupCheckOptions {
     std::uintmax_t minLibraryFree = kMinLibraryFreeBytes;
     bool settingsExist = true;     // from SettingsLoad::exists, for firstRun
     std::optional<GraphicsProbe> graphics; // from the app; empty in doctor
-    std::optional<std::filesystem::path> blender; // the explicit option, which beats the variable and settings
+    // The explicit option, which beats the variable and settings. An empty path is still an option: Blender is
+    // Missing, the add-ons are NotChecked and no Blender is looked for or started.
+    std::optional<std::filesystem::path> blender;
 };
 
 // Runs every check. Blender: options.blender when given, else PLYNTH_BLENDER when search.environment is true

@@ -66,6 +66,8 @@ BlenderKitAddress parseBlenderKitAddress(std::string_view text);
 //                     saved file loads; a fetch always runs with --background.
 //   "resolution":     one of isBlenderKitResolution, default "2k"
 //   "wait_seconds":   60 to 3600, default 600
+// optionFields lists resolution as a choice and wait_seconds as a whole number. checkAddress is the status of
+// parseBlenderKitAddress. storeSourceKinds is kSourceBlenderKit.
 // There are no per import options.
 struct BlenderKitOptions {
     std::string resolution = "2k";

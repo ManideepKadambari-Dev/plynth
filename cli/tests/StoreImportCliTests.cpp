@@ -358,7 +358,7 @@ TEST_CASE("assets import of a BlenderKit material id is refused with a sentence"
     MaterialSettingsReset reset;
     TempFolder temp("store-kit-wrong");
     const auto library = setUp(temp);
-    ScopedEnvironment mode("FAKE_BLENDERKIT", "material");
+    ScopedEnvironment mode("FAKE_BLENDERKIT", "mislabel");
 
     const auto outcome = runChecked({"assets", "import", blenderKitUrl(), "--blender", fakeBlender(temp)});
     CHECK(outcome.exitCode != kExitOk);

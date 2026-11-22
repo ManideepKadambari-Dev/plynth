@@ -27,6 +27,9 @@ add_executable(plynth_cli_tests
     MaterialCatalogCliTests.cpp
     MaterialImportCliTests.cpp
     StoreImportCliTests.cpp
+    StoreFailureCliTests.cpp
+    StoreSourceCliTests.cpp
+    BlenderOptionCliTests.cpp
     RecentCliTests.cpp
     EnvironmentCliTests.cpp
     TestSetup.cpp
@@ -39,7 +42,8 @@ target_compile_definitions(plynth_cli_tests PRIVATE
     PLYNTH_SCHEMA_DIR="${PROJECT_SOURCE_DIR}/schema"
     PLYNTH_SAMPLE_PLAN="${PROJECT_SOURCE_DIR}/samples/plans/apartment-01.png"
     PLYNTH_SAMPLE_CHAIR_FOLDER="${PROJECT_SOURCE_DIR}/samples/models/chair"
-    PLYNTH_FAKE_BLENDER="$<TARGET_FILE:plynth_fake_blender>")
-add_dependencies(plynth_cli_tests plynth_fake_blender)
+    PLYNTH_FAKE_BLENDER="$<TARGET_FILE:plynth_fake_blender>"
+    PLYNTH_LEAKY_BLENDER="$<TARGET_FILE:plynth_leaky_blender>")
+add_dependencies(plynth_cli_tests plynth_fake_blender plynth_leaky_blender)
 
 catch_discover_tests(plynth_cli_tests DISCOVERY_MODE PRE_TEST)

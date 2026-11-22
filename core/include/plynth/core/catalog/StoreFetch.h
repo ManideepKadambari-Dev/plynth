@@ -30,7 +30,13 @@ namespace plynth {
 // In the imports: importAsset and importMaterial run the plan's fetch, when it has one, after the importer's
 // plan and before the cleanup job, in the work folder of the import, with progress in the Blender stage, and
 // then call applyFetch. The two jobs share job.json, result.json and blender.log in that folder, one after the
-// other. A failed fetch keeps the work folder for the log like a failed cleanup, and its log is the one kept.
+// other. A failed fetch keeps the work folder like a failed cleanup. Its log holds only the steps of
+// ImportFetch::steps, never what Blender or an add-on printed.
+//
+// A fetch task's failure is a fixed sentence, to which it may add the add-on's version (digits, dots and
+// hyphens). It
+// never puts an add-on's output, log text, exception text or other values into a result, at most an
+// exception's type name, also for a failure it did not expect.
 // A refusal by applyFetch is not Blender's failure, so the work folder is removed.
 
 struct FetchOutput {

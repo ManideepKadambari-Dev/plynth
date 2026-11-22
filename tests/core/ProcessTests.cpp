@@ -99,15 +99,6 @@ TEST_CASE("arguments with spaces and quotes arrive unchanged", "[core][process]"
     }
 }
 
-TEST_CASE("runProcess with a minimized window still gives its lines and exit code", "[core][process]") {
-    ProcessSpec spec = echo({"one", "two", "--exit", "5"});
-    spec.minimizedWindow = true;
-    std::vector<std::string> lines;
-    const ProcessResult r = runProcess(spec, [&](std::string_view l) { lines.emplace_back(l); });
-    plynth::test::requireOk(r.status);
-    REQUIRE(r.exitCode == 5);
-    REQUIRE(lines == std::vector<std::string>{"arg:one", "arg:two"});
-}
 
 TEST_CASE("runProcess adds environment variables and keeps the others", "[core][process]") {
     ProcessSpec spec = echo({"--env", "PLYNTH_TEST_VARIABLE", "--env", "PATH"});

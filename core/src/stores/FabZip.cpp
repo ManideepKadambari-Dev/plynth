@@ -480,6 +480,12 @@ bool looksLikeFabMaterialZip(const FabZipContents& contents)
     return resolutions.size() >= 2 || !contents.metadata.empty();
 }
 
+// Gives no item id yet.
+std::string fabItemId(const FabZipContents&)
+{
+    return {};
+}
+
 FabChoice chooseFabModel(const FabZipContents& contents, const FabOptions& options)
 {
     FabChoice choice;

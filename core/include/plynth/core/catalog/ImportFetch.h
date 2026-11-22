@@ -1,10 +1,13 @@
 #pragma once
 
+#include "../Blender.h"
+
 #include <nlohmann/json.hpp>
 
 #include <chrono>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace plynth {
 
@@ -32,6 +35,9 @@ struct ImportFetch {
     Json params;              // the task's params without output_folder, which runImportFetch adds
     std::string expectedKind; // kFetchKindModel or kFetchKindMaterial
     std::chrono::seconds timeout{720}; // for the whole Blender run, a little more than the task's own wait
+    // The task's steps in order. runImportFetch puts them in BlenderRunOptions::steps: nothing else the fetch
+    // prints is shown or kept.
+    std::vector<BlenderStep> steps;
 };
 
 }

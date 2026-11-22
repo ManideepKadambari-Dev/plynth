@@ -10,6 +10,9 @@ add_executable(plynth_fake_blender tools/fake_blender/main.cpp tools/fake_blende
 target_link_libraries(plynth_fake_blender PRIVATE nlohmann_json::nlohmann_json shell32)
 set_target_properties(plynth_fake_blender PROPERTIES OUTPUT_NAME fake_blender)
 
+add_executable(plynth_leaky_blender tools/leaky_blender/main.cpp)
+target_link_libraries(plynth_leaky_blender PRIVATE nlohmann_json::nlohmann_json shell32)
+
 add_executable(plynth_core_tests
     core/TestSetup.cpp
     core/VersionTests.cpp
@@ -86,6 +89,17 @@ add_executable(plynth_core_tests
     core/StoreFetchTests.cpp
     core/ImportPreviewTests.cpp
     core/StoreImportTests.cpp
+    core/StoreKeyLeakTests.cpp
+    core/StoreFetchScriptTests.cpp
+    core/ZipSafetyTests.cpp
+    core/IntegrationsFileTests.cpp
+    core/FabItemWordsTests.cpp
+    core/InboxMovedPathTests.cpp
+    core/FabLicenseTests.cpp
+    core/FabOwnZipTests.cpp
+    core/FabResolutionTests.cpp
+    core/FabPackTests.cpp
+    core/StoreSourceTests.cpp
 )
 target_link_libraries(plynth_core_tests PRIVATE
     plynth::core
@@ -108,9 +122,10 @@ else()
 endif()
 target_compile_definitions(plynth_core_tests PRIVATE PLYNTH_DEV_SAMPLES=${PLYNTH_TEST_DEV_SAMPLES})
 
-add_dependencies(plynth_core_tests plynth_echo_lines plynth_fake_blender)
+add_dependencies(plynth_core_tests plynth_echo_lines plynth_fake_blender plynth_leaky_blender)
 target_compile_definitions(plynth_core_tests PRIVATE
     PLYNTH_ECHO_LINES="$<TARGET_FILE:plynth_echo_lines>"
-    PLYNTH_FAKE_BLENDER="$<TARGET_FILE:plynth_fake_blender>")
+    PLYNTH_FAKE_BLENDER="$<TARGET_FILE:plynth_fake_blender>"
+    PLYNTH_LEAKY_BLENDER="$<TARGET_FILE:plynth_leaky_blender>")
 
 catch_discover_tests(plynth_core_tests DISCOVERY_MODE PRE_TEST)

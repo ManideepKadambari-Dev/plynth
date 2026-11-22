@@ -37,7 +37,7 @@
             "quality": { "description": "Default medium.", "enum": ["low", "medium", "high", "raw"] },
             "max_texture_size": { "description": "Pixels. null takes the largest there is. Default 4096.", "oneOf": [{ "type": "integer", "minimum": 256, "maximum": 16384 }, { "type": "null" }] },
             "normal": { "description": "Default auto.", "enum": ["auto", "opengl", "directx"] },
-            "license": { "description": "A license id of the catalogs. Default royalty_free.", "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 64 }
+            "license": { "description": "A license id of the catalogs, for zips the user imports as Fab by hand. A zip that Plynth guesses is from Fab gets unknown instead. Default royalty_free.", "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 64 }
           }
         }
       },

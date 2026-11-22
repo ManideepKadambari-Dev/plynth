@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "urn:plynth:schema:fab-source:1",
   "title": "Plynth Fab source, version 1",
-  "description": "Written by core as source.fab.json in an import's work folder (core/include/plynth/core/catalog/FabZip.h) and read by the Blender worker: the cleanup_asset format fab and the cleanup_material source kind fab. It says which entries of a Fab zip to unpack and use. The worker unpacks only the entries in files, refusing absolute paths and .. parts, into unpack_folder, keeping their paths. Entry names are as Python's zipfile gives them, with forward slashes. Other paths are absolute with forward slashes.",
+  "description": "Written by core as source.fab.json in an import's work folder (core/include/plynth/core/catalog/FabZip.h) and read by the Blender worker: the cleanup_asset format fab and the cleanup_material source kind fab. It says which entries of a Fab zip to unpack and use. The worker unpacks only the entries in files into unpack_folder, keeping their paths, and refuses the names that core/include/plynth/core/ZipListing.h calls unsafe before it writes the first file. Entry names are as Python's zipfile gives them, with forward slashes. Other paths are absolute with forward slashes.",
   "type": "object",
   "required": ["format", "version", "zip", "kind", "unpack_folder", "files", "model", "model_format", "textures", "metadata", "maps", "normal"],
   "additionalProperties": false,
@@ -21,14 +21,14 @@
     "model": { "description": "The model entry to read; null for a material.", "oneOf": [{ "$ref": "#/definitions/entry" }, { "type": "null" }] },
     "model_format": { "description": "The worker importer that reads the model; null for a material.", "enum": ["fbx", "gltf", "obj", "blend", null] },
     "textures": {
-      "description": "The images to build materials from, matched to channels by their file names with the worker's name table. For a model, a material whose own image textures all load keeps them; the others get the set of textures whose name, without its channel word and the prefixes T_, M_, MI_ and MAT_, matches the material's name, or the only set when there is one. Unused textures give unused_image, a material left without a base color gives missing_texture, several images for one channel give ambiguous_map.",
+      "description": "The images to build materials from, possibly at different resolutions (each texture has its own), matched to channels by their file names with the worker's name table. For a model, a material whose own image textures all load keeps them; the others get the set of textures whose name, without its channel word and the prefixes T_, M_, MI_ and MAT_, matches the material's name, or the only set when there is one. Unused textures give unused_image, a material left without a base color gives missing_texture, several images for one channel give ambiguous_map.",
       "type": "array",
       "uniqueItems": true,
       "items": { "$ref": "#/definitions/entry" }
     },
     "metadata": { "description": "A .json entry the worker may read for the item's name and, for a material, its real world size. null for none. Unknown content is ignored.", "oneOf": [{ "$ref": "#/definitions/entry" }, { "type": "null" }] },
     "maps": {
-      "description": "Textures the user picked by hand, by material name, or * for every material. They win over the name matching. A material zip uses only *.",
+      "description": "Textures the user picked by hand, by material name, or * for every material. They win over the name matching, a material's own over *. A name changes only that material, and one the model does not have gives a missing_texture warning naming it. The normal option applies to a picked normal map too. A material zip uses only *.",
       "type": "object",
       "additionalProperties": {
         "type": "object",

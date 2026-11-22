@@ -3,6 +3,7 @@
 #include "../Library.h"
 #include "../SetupCheck.h"
 #include "../Status.h"
+#include "Importer.h"
 
 #include <nlohmann/json.hpp>
 
@@ -28,6 +29,30 @@ using Json = nlohmann::ordered_json;
 
 // How an option is used: saved as the default for every import, or given for one import only.
 enum class OptionUse { Saved, Import };
+
+// How the app draws a saved option.
+enum class OptionKind {
+    Choice,      // one of choices
+    WholeNumber, // from minimum to maximum
+    License,     // a license id, the choices come from the catalog
+};
+
+struct OptionChoice {
+    Json value; // the value to save: text, a number, null or a whole list
+    std::string label;
+};
+
+// A saved option as the app shows it. A saved value that is not among the choices is shown as it is and is
+// saved only when the user picks something.
+struct OptionField {
+    std::string key;
+    std::string label; // for example "Wait for a download (seconds)"
+    std::string help;  // one sentence for the tooltip
+    OptionKind kind = OptionKind::Choice;
+    std::vector<OptionChoice> choices;
+    int minimum = 0;
+    int maximum = 0;
+};
 
 class Integration {
 public:
@@ -57,6 +82,13 @@ public:
     // InvalidValue naming the option for an unknown key or a bad value; per import keys are refused for
     // OptionUse::Saved. Keys missing from options are fine.
     virtual Status checkOptions(const Json& options, OptionUse use) const = 0;
+    // The source kinds of its store items. Empty for a source whose items are the user's own files.
+    virtual std::vector<std::string> storeSourceKinds() const { return {}; }
+    // One field for each key of defaultOptions, in the same order, so the app reaches what the CLI does with
+    // no code for this integration.
+    virtual std::vector<OptionField> optionFields() const { return {}; }
+    // For one that takes addresses: the sentence to show beside a pasted text it cannot use.
+    virtual Status checkAddress(std::string_view /*text*/) const { return {}; }
 };
 
 // Adds an integration. False, and it is dropped, when its id is taken or not a well formed lower case name.
@@ -77,8 +109,13 @@ std::vector<const Integration*> allIntegrations();
 // importers (material true). Null when none does.
 const Integration* integrationForImporter(std::string_view importerId, bool material);
 
-// True for source kinds of store items (kSourceBlenderKit, kSourceFabZip). Such items are never copied into
-// packs or bundled; a pack stores their reference and each user gets their own copy.
+// The importer an integration's import button uses for a source: the best scoring one among the importers it
+// lists in that registry, ties to the lower id. Empty when none of them reads the source. It goes into the
+// request's importer, so the item gets this integration's source and options.
+std::string integrationImporter(const Integration& integration, const ImportSource& source, bool material);
+
+// True for the source kinds that a registered integration lists in storeSourceKinds. Such items are never
+// copied into packs or bundled; a pack stores their reference and each user gets their own copy.
 bool isStoreSource(std::string_view sourceKind);
 
 inline constexpr std::string_view kIntegrationsFileName = "integrations.json";
@@ -90,8 +127,12 @@ std::filesystem::path integrationsFile(const LibraryPaths& library);
 
 // The file: {"format": "plynth-integrations", "version": 1, "integrations": {"fab": {"quality": "high"}}}.
 struct IntegrationOptionsRead {
-    Status status; // BadFile with a JSON pointer for a broken file or an option its integration refuses;
-                   // UnsupportedVersion when newer; CannotRead when it cannot be opened
+    // BadFile with a JSON pointer for a broken file or an option its integration refuses: "/format" for a
+    // format that is missing, not text or another, "/version" for a version that is not a whole number or is
+    // below 1, and the entry's pointer for a badly formed id or an entry that is not an object, known or not.
+    // UnsupportedVersion when newer, however large the number. CannotRead when it cannot be opened. Never
+    // throws for the file's content.
+    Status status;
     bool exists = false;
     Json saved = Json::object(); // the "integrations" object; entries of unknown integrations are kept as
                                  // they are, so a newer Plynth's options survive
@@ -109,6 +150,7 @@ Json integrationOptions(const Integration& integration, const Json& saved);
 // written through a temporary file and a rename. A value equal to the default is still saved. NotFound for an
 // unknown integration, InvalidValue for a refused option (nothing written), the read's failure for a file that
 // cannot be read, CannotWrite when it cannot be replaced, on Windows also while another process holds it open.
+// What it writes always follows schema/integrations.schema.json.
 Status setIntegrationOptions(const LibraryPaths& library, std::string_view id, const Json& changes);
 
 // Removes an integration's saved entry, so its defaults apply again. Ok without writing when none is saved.
