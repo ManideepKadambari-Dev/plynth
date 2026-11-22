@@ -426,7 +426,10 @@ BuildReport runBuild(const BuildRequest& request, const std::function<void(const
     report.problems.insert(report.problems.end(), out.problems.begin(), out.problems.end());
     report.elapsedMs = since(started);
 
-    const std::string planText = planToJson(request.project.plan).dump(2, ' ', false, Json::error_handler_t::replace) + "\n";
+    Json built = Json::object();
+    built["plan_fingerprint"] = report.planFingerprint;
+    built["plan"] = planToJson(request.project.plan);
+    const std::string planText = built.dump(2, ' ', false, Json::error_handler_t::replace) + "\n";
     if (Status written = fileio::writeAtomic(folder / pathFromUtf8(kBuiltPlanFileName), planText); !written.ok()) {
         report.status = written;
         return report;

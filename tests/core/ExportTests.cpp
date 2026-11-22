@@ -379,7 +379,7 @@ TEST_CASE("the expected bounds come from the plan that was built", "[core][expor
     const std::optional<ExportBounds> builtBounds = expectedWallBounds(built);
     REQUIRE(builtBounds.has_value());
 
-    std::ofstream(f.projectFolder / "build" / "built-plan.json", std::ios::binary) << planToJson(built.plan).dump();
+    std::ofstream(f.projectFolder / "build" / "built-plan.json", std::ios::binary) << Json{{"plan_fingerprint", planFingerprint(built)}, {"plan", planToJson(built.plan)}}.dump();
     f.writeBuildReport(planFingerprint(built));
 
     f.request.project.plan.floors[0].points[0].x -= 0.1;
@@ -391,6 +391,28 @@ TEST_CASE("the expected bounds come from the plan that was built", "[core][expor
     REQUIRE(params["build"]["plan_changed"] == true);
     REQUIRE(params["expected_bounds"]["min"][0].get<double>() == builtBounds->min.x);
     REQUIRE(params["expected_bounds"]["max"][0].get<double>() == builtBounds->max.x);
+}
+
+TEST_CASE("a failed build after a plan change does not make the build current", "[core][export][run]") {
+    ExportFixture f("run-failed-build");
+    const Project built = f.request.project;
+    std::ofstream(f.projectFolder / "build" / "built-plan.json", std::ios::binary)
+        << Json{{"plan_fingerprint", planFingerprint(built)}, {"plan", planToJson(built.plan)}}.dump();
+    f.request.project.plan.floors[0].points[0].x -= 0.1;
+
+    BuildReport failed;
+    failed.jobId = "build-00000002";
+    failed.startedAt = sessionNow();
+    failed.planFingerprint = planFingerprint(f.request.project);
+    failed.status = fail(ErrorCode::BlenderFailed, "The build failed.");
+    failed.errorCode = "save_failed";
+    std::ofstream(f.projectFolder / "build" / "build.json", std::ios::binary) << buildReportToJson(failed).dump(2);
+
+    const ExportReport report = runExport(f.request);
+    plynth::test::requireOk(report.status);
+    REQUIRE(f.lastJobParams()["build"]["report_found"] == true);
+    REQUIRE(f.lastJobParams()["build"]["plan_changed"] == true);
+    REQUIRE(report.buildFingerprint == planFingerprint(built));
 }
 
 TEST_CASE("the job carries the materials of the build", "[core][export][run]") {

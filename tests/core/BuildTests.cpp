@@ -202,7 +202,10 @@ TEST_CASE("built-plan.json keeps the plan of the last successful build", "[core]
     plynth::test::requireOk(runBuild(f.request).status);
     const fs::path file = f.projectFolder / "build" / "built-plan.json";
     const std::string first = plynth::test::readTextFile(file);
-    REQUIRE(planFromJson(nlohmann::json::parse(first)).plan == f.request.project.plan);
+    const PlanRead read = planFromJson(Json::parse(first)["plan"]);
+    INFO(read.status.message);
+    REQUIRE(read.status.ok());
+    REQUIRE(read.plan == f.request.project.plan);
 
     f.request.project.plan.floors[0].points[0].x -= 0.1;
     std::ofstream(f.lib.tmp.path() / "blender" / "fake_mode.txt") << "fail";

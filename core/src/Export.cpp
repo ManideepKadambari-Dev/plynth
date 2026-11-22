@@ -46,16 +46,23 @@ bool createExclusive(const fs::path& file, const std::string& text)
     return true;
 }
 
-// The plan of the last successful build, read from build/built-plan.json. Empty when the file is missing or unusable.
-std::optional<Plan> builtPlan(const fs::path& projectFolder)
+// What the last successful build was made from, read from build/built-plan.json.
+struct BuiltPlan {
+    Plan plan;
+    std::string fingerprint;
+};
+
+// Empty when the file is missing or unusable.
+std::optional<BuiltPlan> readBuiltPlan(const fs::path& projectFolder)
 {
     std::ifstream in(buildFolder(projectFolder) / pathFromUtf8(kBuiltPlanFileName), std::ios::binary);
     if (!in) return std::nullopt;
     const Json json = Json::parse(in, nullptr, false);
-    if (json.is_discarded()) return std::nullopt;
-    PlanRead read = planFromJson(json);
+    if (!json.is_object() || !json.contains("plan") || !json.contains("plan_fingerprint")) return std::nullopt;
+    if (!json["plan_fingerprint"].is_string()) return std::nullopt;
+    PlanRead read = planFromJson(json["plan"]);
     if (!read.status.ok()) return std::nullopt;
-    return std::move(read.plan);
+    return BuiltPlan{std::move(read.plan), json["plan_fingerprint"].get<std::string>()};
 }
 
 // Whether an existing lock still counts: younger than kBuildTimeout by its time and its write time, and, when it
@@ -284,12 +291,16 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
 
     const auto prepareStart = std::chrono::steady_clock::now();
     ExportBuildState buildState;
+    const std::optional<BuiltPlan> builtPlan = readBuiltPlan(request.projectFolder);
     const BuildReportRead built = readBuildReport(request.projectFolder);
     if (built.status.ok()) {
         buildState.reportFound = true;
-        buildState.planChanged = built.report.planFingerprint != report.planFingerprint;
         buildState.problems = built.report.problems;
         report.buildFingerprint = built.report.planFingerprint;
+        // A failed build leaves the old building.blend, so only the last successful build counts.
+        if (builtPlan) report.buildFingerprint = builtPlan->fingerprint;
+        else if (!built.report.status.ok()) report.buildFingerprint.clear();
+        buildState.planChanged = report.buildFingerprint != report.planFingerprint;
     }
     const BuiltMaterialsRead materials = readBuiltMaterials(request.projectFolder);
 
@@ -303,7 +314,7 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
     }
     // The scale check compares the built walls, so the expected bounds come from the plan that was built.
     Project boundsSource = request.project;
-    if (const std::optional<Plan> plan = builtPlan(request.projectFolder)) boundsSource.plan = *plan;
+    if (builtPlan) boundsSource.plan = builtPlan->plan;
     const Json job = makeExportJob(boundsSource, groups, materials.status.ok() ? materials.materials : std::vector<BuiltMaterial>{},
                                    buildState, request.settings, request.projectFolder, staging, report.jobId,
                                    work / pathFromUtf8(kResultFileName));
