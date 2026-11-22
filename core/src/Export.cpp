@@ -209,8 +209,16 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
         report.status = fail(ErrorCode::BlenderNotFound, "There is no usable Blender to export with.");
         return report;
     }
-    std::vector<ExportGroup> groups;
-    if (report.status = exporter->groups(request.project, groups); !report.status.ok()) return report;
+    // The groups of the built plan with the saved edits; an unreadable options file stops the export here, before
+    // the lock is taken and before anything is written.
+    ExportGroupReview review = reviewExportGroups(request.projectFolder, request.project);
+    if (!review.status.ok()) {
+        report.status = review.status;
+        return report;
+    }
+    std::vector<ExportGroup> groups = std::move(review.groups);
+    report.groupNotes = review.notes;
+    report.kit.asked = review.options.kit.enabled;
     if (groups.empty()) {
         report.status = fail(ErrorCode::InvalidValue, "The exporter has no file to write.");
         return report;
@@ -276,6 +284,11 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
     // The scale check compares the built walls, so the expected bounds come from the plan that was built.
     Project boundsSource = request.project;
     if (builtPlan) boundsSource.plan = builtPlan->plan;
+    // Every group goes to the worker with a name: the file name without ".fbx" when it has none (the single
+    // group), which is the project's file name stem.
+    for (ExportGroup& g : groups) {
+        if (g.name.empty()) g.name = g.file.size() > 4 ? g.file.substr(0, g.file.size() - 4) : g.id;
+    }
     const Json job = makeExportJob(boundsSource, groups, materials.status.ok() ? materials.materials : std::vector<BuiltMaterial>{},
                                    buildState, request.settings, request.projectFolder, staging, report.jobId,
                                    work / pathFromUtf8(kResultFileName));
@@ -308,6 +321,7 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
     report.collisionObjects = out.collisionObjects;
     report.checks = out.checks;
     report.steps.insert(report.steps.end(), out.steps.begin(), out.steps.end());
+    report.emptyGroups = out.emptyGroups;
 
     std::vector<std::string> failed;
     for (const QualityCheckResult& c : report.checks) {
@@ -355,6 +369,9 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
         moved = moveInto(staging / pathFromUtf8(file.file), target) && moved;
         report.files.push_back(target);
         report.fileOutputs.push_back(file);
+        for (const ExportGroup& g : groups) {
+            if (g.id == file.group) report.fileOutputs.back().name = g.name;
+        }
     }
     const fs::path stagedTextures = staging / pathFromUtf8(kExportTexturesFolder);
     if (fs::is_directory(stagedTextures, ec)) {
@@ -410,7 +427,13 @@ Json exportReportToJson(const ExportReport& report)
     Json outputs = Json::object();
     Json files = Json::array();
     for (const ExportFileOutput& f : report.fileOutputs) {
-        files.push_back(Json{{"group", f.group}, {"file", f.file}, {"objects", f.objects}, {"triangles", f.triangles}});
+        Json entry = Json::object();
+        entry["group"] = f.group;
+        if (!f.name.empty()) entry["name"] = f.name;
+        entry["file"] = f.file;
+        entry["objects"] = f.objects;
+        entry["triangles"] = f.triangles;
+        files.push_back(std::move(entry));
     }
     outputs["files"] = std::move(files);
     outputs["textures_folder"] = pathOrNull(report.texturesFolder);
@@ -442,6 +465,18 @@ Json exportReportToJson(const ExportReport& report)
                            {"fail_count", report.failCount()},
                            {"warning_count", report.warningCount()},
                            {"checks", std::move(checks)}};
+
+    json["groups"] = Json{{"empty", report.emptyGroups}, {"notes", report.groupNotes}};
+    Json kit = Json::object();
+    kit["asked"] = report.kit.asked;
+    kit["written"] = report.kit.written;
+    kit["skipped"] = report.kit.skipped.empty() ? Json(nullptr) : Json(report.kit.skipped);
+    kit["file"] = pathOrNull(report.kit.file);
+    kit["layout_file"] = pathOrNull(report.kit.layoutFile);
+    kit["pieces"] = report.kit.pieces;
+    kit["placements"] = report.kit.placements;
+    kit["triangles"] = report.kit.triangles;
+    json["kit"] = std::move(kit);
 
     Json steps = Json::array();
     for (const BuildStepTime& s : report.steps) steps.push_back(Json{{"step", s.step}, {"ms", s.ms}});
@@ -541,6 +576,7 @@ ExportReportRead readExportReport(const fs::path& projectFolder)
             ExportFileOutput f;
             f.group = text(files[i], "group", where);
             f.file = text(files[i], "file", where);
+            if (files[i].contains("name")) f.name = text(files[i], "name", where);
             f.objects = whole(files[i], "objects", where);
             f.triangles = whole(files[i], "triangles", where);
             report.files.push_back(folder / pathFromUtf8(f.file));
@@ -582,6 +618,32 @@ ExportReportRead readExportReport(const fs::path& projectFolder)
                 c.findings.push_back(std::move(f));
             }
             report.checks.push_back(std::move(c));
+        }
+        if (json.contains("groups")) {
+            const Json& groups = json["groups"];
+            if (!groups.is_object()) throw std::string("/groups");
+            for (const Json& id : array(groups, "empty", "/groups")) {
+                if (!id.is_string()) throw std::string("/groups/empty");
+                report.emptyGroups.push_back(id.get<std::string>());
+            }
+            for (const Json& note : array(groups, "notes", "/groups")) {
+                if (!note.is_string()) throw std::string("/groups/notes");
+                report.groupNotes.push_back(note.get<std::string>());
+            }
+        }
+        if (json.contains("kit")) {
+            const Json& kit = json["kit"];
+            if (!kit.is_object()) throw std::string("/kit");
+            report.kit.asked = flag(kit, "asked", "/kit");
+            report.kit.written = flag(kit, "written", "/kit");
+            report.kit.skipped = optionalText(kit, "skipped", "/kit");
+            const std::string kitFile = optionalText(kit, "file", "/kit");
+            if (!kitFile.empty()) report.kit.file = pathFromUtf8(kitFile);
+            const std::string layout = optionalText(kit, "layout_file", "/kit");
+            if (!layout.empty()) report.kit.layoutFile = pathFromUtf8(layout);
+            report.kit.pieces = static_cast<int>(whole(kit, "pieces", "/kit"));
+            report.kit.placements = static_cast<int>(whole(kit, "placements", "/kit"));
+            report.kit.triangles = whole(kit, "triangles", "/kit");
         }
         const Json& steps = array(json, "steps", "");
         for (std::size_t i = 0; i < steps.size(); ++i) {

@@ -542,3 +542,17 @@ TEST_CASE("the review refuses a bad options file", "[core][exportgroups]") {
     CHECK(review.status.code == ErrorCode::BadFile);
     CHECK(review.groups.empty());
 }
+
+TEST_CASE("group names count characters and need a letter or digit of the schema", "[core][exportgroups]") {
+    const Project project = flatProject();
+    ExportGroupEdits edits;
+    const std::vector<ExportGroup> current = currentOf(project, edits);
+    std::string longName = "a";
+    for (int i = 0; i < 63; ++i) longName += "\xC3\xA9";
+    CHECK(renameExportGroup(edits, current, "furniture_r1", "K\xC3\xBC" "che").ok());
+    CHECK(renameExportGroup(edits, current, "furniture_r2", longName).ok());
+    CHECK(renameExportGroup(edits, current, "furniture_r1", longName + "\xC3\xA9").code == ErrorCode::InvalidValue);
+    // The schema asks for an ASCII letter or digit somewhere in the name.
+    CHECK(renameExportGroup(edits, current, "furniture_r1", "\xE0\xA4\xB0\xE0\xA4\xB8\xE0\xA5\x8B\xE0\xA4\x88").code == ErrorCode::InvalidValue);
+    CHECK(renameExportGroup(edits, current, "furniture_r1", "\xE0\xA4\xB0\xE0\xA4\xB8\xE0\xA5\x8B\xE0\xA4\x88 2").ok());
+}

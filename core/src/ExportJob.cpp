@@ -196,9 +196,18 @@ Json makeExportJob(const Project& project, const std::vector<ExportGroup>& group
         group["file"] = g.file;
         group["kinds"] = g.kinds;
         group["ids"] = g.ids;
+        if (!g.name.empty()) group["name"] = g.name;
+        Json members = Json::array();
+        for (const ExportMember& m : g.members) {
+            members.push_back(Json{{"kind", m.kind}, {"id", m.id.empty() ? Json(nullptr) : Json(m.id)}});
+        }
+        group["members"] = std::move(members);
+        group["rest"] = g.rest;
         groupList.push_back(std::move(group));
     }
     params["groups"] = std::move(groupList);
+    // The kit is written into the job by the export round that makes it (ExportJob.h); without one it is null.
+    params["kit"] = nullptr;
 
     Json materialList = Json::array();
     for (const BuiltMaterial& m : materials) materialList.push_back(materialJson(m));
@@ -247,6 +256,23 @@ ExportWorkerOutput readExportResult(const Json& result, std::string_view jobId)
             file.objects = count(files[i], "objects", where);
             file.triangles = count(files[i], "triangles", where);
             out.files.push_back(std::move(file));
+        }
+        if (output.contains("empty_groups")) {
+            const Json& empty = list(output, "empty_groups", "/output");
+            for (std::size_t i = 0; i < empty.size(); ++i) {
+                if (!empty[i].is_string()) throw Problem{"/output/empty_groups/" + std::to_string(i), "Must be text."};
+                out.emptyGroups.push_back(empty[i].get<std::string>());
+            }
+        }
+        if (output.contains("kit") && !output["kit"].is_null()) {
+            const Json& kit = output["kit"];
+            if (!kit.is_object()) throw Problem{"/output/kit", "Must be an object or null."};
+            ExportKitOutput wroteKit;
+            wroteKit.file = fileName(kit, "file", "/output/kit");
+            wroteKit.pieces = static_cast<int>(count(kit, "pieces", "/output/kit"));
+            wroteKit.objects = count(kit, "objects", "/output/kit");
+            wroteKit.triangles = count(kit, "triangles", "/output/kit");
+            out.kit = std::move(wroteKit);
         }
         const Json& textures = list(output, "textures", "/output");
         for (std::size_t i = 0; i < textures.size(); ++i) {

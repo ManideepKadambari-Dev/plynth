@@ -120,6 +120,9 @@ TEST_CASE("makeExportJob validates against the job schema", "[core][export][sche
     second.file = "Walls.fbx";
     second.kinds = {"wall"};
     second.ids = {"w1", "w2"};
+    second.name = "Walls";
+    second.members = {{"walls", "f1"}, {"slab", ""}};
+    second.rest = true;
 
     const fs::path staging = tmp.path() / "export" / ".staging";
     const Json job = makeExportJob(project, {group, second}, materials, build, ExportSettings{true, false}, tmp.path(), staging,
@@ -138,6 +141,14 @@ TEST_CASE("makeExportJob validates against the job schema", "[core][export][sche
     REQUIRE(params["groups"].size() == 2);
     REQUIRE(params["groups"][1]["kinds"] == Json::array({"wall"}));
     REQUIRE(params["groups"][1]["ids"] == Json::array({"w1", "w2"}));
+    REQUIRE(params["groups"][0].contains("name") == false);
+    REQUIRE(params["groups"][0]["members"].empty());
+    REQUIRE(params["groups"][0]["rest"] == false);
+    REQUIRE(params["groups"][1]["name"] == "Walls");
+    REQUIRE(params["groups"][1]["members"][0] == Json{{"kind", "walls"}, {"id", "f1"}});
+    REQUIRE(params["groups"][1]["members"][1] == Json{{"kind", "slab"}, {"id", nullptr}});
+    REQUIRE(params["groups"][1]["rest"] == true);
+    REQUIRE(params["kit"].is_null());
     REQUIRE(params["materials"].size() == 3);
     REQUIRE(params["materials"][0]["name"] == "Living_Floor");
     REQUIRE(params["materials"][0]["maps"]["opacity"].is_null());
@@ -268,4 +279,28 @@ TEST_CASE("readExportResult of a failed job is blender_failed with the code", "[
     const ExportWorkerOutput out = readExportResult(result, "export-00000001");
     REQUIRE(out.header.status.code == ErrorCode::BlenderFailed);
     REQUIRE(out.header.errorCode == "no_geometry");
+}
+
+TEST_CASE("readExportResult reads a result with empty groups and a kit", "[core][export]") {
+    Json result = readData("result-valid.json");
+    REQUIRE(readExportResult(result, "export-00000001").emptyGroups.empty());
+    REQUIRE_FALSE(readExportResult(result, "export-00000001").kit.has_value());
+
+    result["output"]["empty_groups"] = Json::array({"furniture_r2"});
+    result["output"]["kit"] = Json{{"file", "Flat_Kit.fbx"}, {"pieces", 3}, {"objects", 9}, {"triangles", 1200}};
+    INFO(resultProblem(result));
+    REQUIRE(resultProblem(result).empty());
+    const ExportWorkerOutput out = readExportResult(result, "export-00000001");
+    requireOk(out.header.status);
+    REQUIRE(out.emptyGroups == std::vector<std::string>{"furniture_r2"});
+    REQUIRE(out.kit.has_value());
+    REQUIRE(*out.kit == ExportKitOutput{"Flat_Kit.fbx", 3, 9, 1200});
+
+    result["output"]["kit"] = nullptr;
+    REQUIRE_FALSE(readExportResult(result, "export-00000001").kit.has_value());
+    result["output"]["kit"] = Json{{"file", "sub/Flat_Kit.fbx"}, {"pieces", 3}, {"objects", 9}, {"triangles", 1200}};
+    REQUIRE(readExportResult(result, "export-00000001").header.status.code == ErrorCode::BadFile);
+    result["output"]["kit"] = nullptr;
+    result["output"]["empty_groups"] = Json::array({7});
+    REQUIRE(readExportResult(result, "export-00000001").header.status.code == ErrorCode::BadFile);
 }

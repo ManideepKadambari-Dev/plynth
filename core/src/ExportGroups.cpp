@@ -61,11 +61,13 @@ std::string trimmed(std::string_view text)
     return std::string(text.substr(start, end - start));
 }
 
-// Says whether a name is allowed: 1 to 64 bytes after trimming, with a letter or digit in it.
+// Says whether a name is allowed: 1 to 64 characters after trimming, with an ASCII letter or digit in it (the
+// schema's rule). Characters are counted, not bytes, so names in other scripts get the same length.
 bool isValidGroupName(std::string_view name)
 {
     const std::string clean = trimmed(name);
-    if (clean.empty() || clean.size() > kMaxExportGroupName) return false;
+    const auto characters = std::count_if(clean.begin(), clean.end(), [](char c) { return (static_cast<unsigned char>(c) & 0xC0) != 0x80; });
+    if (clean.empty() || characters > static_cast<long long>(kMaxExportGroupName)) return false;
     return std::any_of(clean.begin(), clean.end(), [](char c) { return std::isalnum(static_cast<unsigned char>(c)) != 0; });
 }
 

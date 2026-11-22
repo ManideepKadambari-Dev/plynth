@@ -412,8 +412,17 @@ Json exportOutput(const Json& params, const std::string& mode)
 
     Json files = Json::array();
     Json textures = Json::array();
+    Json emptyGroups = Json::array();
     if (write) {
+        const std::size_t groupCount = params["groups"].size();
+        std::size_t position = 0;
         for (const Json& group : params["groups"]) {
+            ++position;
+            // Mode empty_group: the last group gets no object, so no file is written for it.
+            if (mode == "empty_group" && position == groupCount) {
+                emptyGroups.push_back(group["id"]);
+                continue;
+            }
             writeFile(folder / pathFrom(group["file"].get<std::string>()), "FAKEFBX");
             files.push_back(Json{{"group", group["id"]}, {"file", group["file"]}, {"objects", 12}, {"triangles", 144}});
         }
@@ -445,6 +454,8 @@ Json exportOutput(const Json& params, const std::string& mode)
     out["objects"] = 12 * groups;
     out["triangles"] = 144 * groups;
     out["collision_objects"] = 3 * groups;
+    out["empty_groups"] = emptyGroups;
+    out["kit"] = nullptr; // the job's kit is read and ignored until the kit export round
     out["checks"] = checks;
     out["steps"] = steps;
     return out;
