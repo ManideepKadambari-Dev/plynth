@@ -197,6 +197,26 @@ Json roomJson(const RoomBuild& r, const RoomMaterialIds& ids)
     return json;
 }
 
+// The side names of the rings of every slab polygon.
+Json slabSidesJson(const std::vector<SlabPolygonSides>& list)
+{
+    const auto names = [](const std::vector<SlabSide>& ring) {
+        Json out = Json::array();
+        for (SlabSide side : ring) out.push_back(std::string(slabSideName(side)));
+        return out;
+    };
+    Json out = Json::array();
+    for (const SlabPolygonSides& s : list) {
+        Json holes = Json::array();
+        for (const std::vector<SlabSide>& h : s.holes) holes.push_back(names(h));
+        Json entry = Json::object();
+        entry["outline"] = names(s.outline);
+        entry["holes"] = std::move(holes);
+        out.push_back(std::move(entry));
+    }
+    return out;
+}
+
 // A slab as the worker reads it.
 Json slabJson(const SlabBuild& s, const SlabMaterialIds& ids)
 {
@@ -209,6 +229,8 @@ Json slabJson(const SlabBuild& s, const SlabMaterialIds& ids)
     json["top"] = s.top;
     json["polygons"] = polygonsJson(s.polygons);
     json["undersides"] = polygonsJson(s.undersides);
+    json["sides"] = slabSidesJson(s.sides);
+    json["tops"] = polygonsJson(s.tops);
     json["materials"] = std::move(materials);
     return json;
 }

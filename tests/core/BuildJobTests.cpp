@@ -690,3 +690,64 @@ TEST_CASE("the job with a stair, slab and roof validates", "[core][build][stairs
     REQUIRE(job["params"]["floors"][1]["rooms"][0]["polygons"][0]["holes"].size() == 1);
     REQUIRE(job["params"]["floors"][1]["roofs"].size() == 1);
 }
+
+namespace {
+
+// Requires one entry of sides per slab polygon and one name per ring edge, and returns how many are "well".
+std::size_t checkSlabSides(const Json& slab)
+{
+    REQUIRE(slab.contains("sides"));
+    REQUIRE(slab.contains("tops"));
+    const Json& polygons = slab["polygons"];
+    const Json& sides = slab["sides"];
+    REQUIRE(sides.size() == polygons.size());
+    std::size_t wells = 0;
+    for (std::size_t i = 0; i < polygons.size(); ++i) {
+        REQUIRE(sides[i]["outline"].size() == polygons[i]["outline"].size());
+        REQUIRE(sides[i]["holes"].size() == polygons[i]["holes"].size());
+        for (const Json& name : sides[i]["outline"]) wells += name == "well" ? 1 : 0;
+        for (std::size_t h = 0; h < polygons[i]["holes"].size(); ++h) {
+            REQUIRE(sides[i]["holes"][h].size() == polygons[i]["holes"][h].size());
+            for (const Json& name : sides[i]["holes"][h]) wells += name == "well" ? 1 : 0;
+        }
+    }
+    return wells;
+}
+
+}
+
+TEST_CASE("the job writes sides for every slab ring and an empty tops list", "[core][build][stairs]") {
+    plynth::test::TempDir tmp("job-slab-sides");
+    const Project project = stairProject();
+    const BuildPlan plan = makeBuildPlan(project, {});
+    const Json job = makeBuildJob(project, plan, BuildSettings{}, tmp.path(), "build-1a2b3c4d", tmp.path() / "result.json");
+    REQUIRE(jobProblem(job).empty());
+    const Json& slab = job["params"]["floors"][0]["slab"];
+    REQUIRE(slab.contains("sides"));
+    REQUIRE(slab.contains("tops"));
+    REQUIRE(slab["tops"].empty());
+    REQUIRE(checkSlabSides(slab) > 0);
+    for (const Json& name : slab["sides"][0]["holes"][0]) REQUIRE(name == "well");
+
+    const Json& top = job["params"]["floors"][1]["slab"];
+    REQUIRE(checkSlabSides(top) == 0);
+    REQUIRE(top["sides"][0]["holes"].empty());
+}
+
+TEST_CASE("a hairline mismatch between floors writes its tops", "[core][build]") {
+    plynth::test::TempDir tmp("job-slab-tops");
+    Project project = stairProject();
+    project.plan.floors[0].stairs.clear();
+    for (Point& p : project.plan.floors[1].points) {
+        p.x += 0.1;
+        p.y += 0.1;
+    }
+    const BuildPlan plan = makeBuildPlan(project, {});
+    const Json job = makeBuildJob(project, plan, BuildSettings{}, tmp.path(), "build-1a2b3c4d", tmp.path() / "result.json");
+    INFO(jobProblem(job));
+    REQUIRE(jobProblem(job).empty());
+    const Json& slab = job["params"]["floors"][0]["slab"];
+    checkSlabSides(slab);
+    REQUIRE_FALSE(slab["tops"].empty());
+    REQUIRE(slab["tops"].size() == plan.floors[0].slab.tops.size());
+}

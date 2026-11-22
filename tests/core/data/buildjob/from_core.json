@@ -3949,6 +3949,87 @@
             }
           ],
           "undersides": [],
+          "sides": [
+            {
+              "outline": [
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge"
+              ],
+              "holes": []
+            }
+          ],
+          "tops": [
+            {
+              "outline": [
+                [
+                  7.975000001490116,
+                  0.10000000149011612
+                ],
+                [
+                  8.058437123894691,
+                  0.10000000149011612
+                ],
+                [
+                  8.041176468133926,
+                  0.1352941170334816
+                ]
+              ],
+              "holes": []
+            },
+            {
+              "outline": [
+                [
+                  8.041176468133926,
+                  -4.135294117033482
+                ],
+                [
+                  8.058437123894691,
+                  -4.100000001490116
+                ],
+                [
+                  7.975000001490116,
+                  -4.100000001490116
+                ]
+              ],
+              "holes": []
+            }
+          ],
           "materials": {
             "edge": null,
             "well": null,
