@@ -17,7 +17,7 @@ def pattern_from(argv):
 
 
 # Starts this same run again in a Blender that uses a private extensions folder, and returns its exit code.
-# The user's shared extensions folder is only read, and the count of its library files must not change.
+# The user's shared extensions folder is only read, and its library file count must not go down. A rising count is another Blender restoring libraries.
 def run_with_private_extensions():
     import bpy
     from plynth import extensions
@@ -29,8 +29,9 @@ def run_with_private_extensions():
                    "--python", os.path.abspath(__file__)] + (sys.argv[sys.argv.index("--"):] if "--" in sys.argv else [])
         code = subprocess.call(command, env=extensions.environment(folder), cwd=os.getcwd())
         after = extensions.shared_library_count()
-        if before != after:
-            print("The shared extension libraries changed: %d files before, %d after." % (before, after))
+        print("Shared extension library files: %d before, %d after." % (before, after))
+        if after < before:
+            print("The shared extension libraries lost files.")
             return code or 1
         return code
     finally:

@@ -2,10 +2,11 @@ import contextlib
 
 import bpy
 
-from . import Scope, enable_addon, realize, register, stand_on_origin
+from . import Scope, enable_addon, mesh_size, realize, register, stand_on_origin
 from ..generating import AddonUnavailable
 
 MODULES = ("home_builder_5", "home_builder")
+ATTEMPTS = 6
 TYPES_MODULE = "product_libraries.frameless.types_frameless"
 
 
@@ -81,11 +82,34 @@ def input_access_for_new_blender():
                 setattr(cls, name, original)
 
 
+# Marks every driver dirty and evaluates the dependency graph so all part sizes are settled before they are read.
+def refresh_drivers():
+    for obj in bpy.data.objects:
+        if obj.animation_data is None:
+            continue
+        for curve in obj.animation_data.drivers:
+            curve.driver.expression = curve.driver.expression
+    for _ in range(2):
+        bpy.context.view_layer.update()
+        bpy.context.evaluated_depsgraph_get().update()
+
+
 # Makes a run of count base cabinets side by side, each width metres wide, with doors, standing on z 0 with the
 # front toward -Y, and centres the run on the origin. Returns a list with one mesh object, with no modifiers,
 # no drivers and no cage or template objects.
 def base_cabinets(count=3, width=0.6, height=0.87, depth=0.6):
     require()
+    for _ in range(ATTEMPTS):
+        made = build_cabinets(count, width, height, depth)
+        size = mesh_size(made[0])
+        if abs(size[0] - count * width) < 0.005 and depth - 0.005 < size[1] < depth + 0.06:
+            return made
+        bpy.data.objects.remove(made[0])
+    raise RuntimeError("Home Builder kept returning cabinet parts at the wrong size.")
+
+
+# Makes the cabinets once. The add-on's drivers sometimes settle on stale values, so the result is checked by the caller.
+def build_cabinets(count, width, height, depth):
     cabinet_type = package_module(TYPES_MODULE).BaseCabinet
     scope = Scope()
     try:
@@ -97,7 +121,7 @@ def base_cabinets(count=3, width=0.6, height=0.87, depth=0.6):
                 cabinet.create("Base Cabinet")
                 cabinet.obj.location.x = index * width
                 cages.append(cabinet.obj)
-            bpy.context.view_layer.update()
+            refresh_drivers()
             parts = [obj for obj in scope.new_objects()
                      if obj.type == "MESH" and obj.parent is not None and obj not in cages
                      and obj.display_type not in ("WIRE", "BOUNDS")]

@@ -11,25 +11,14 @@
 """
 
 
-# Returns the x and y size of the first object.
-def footprint(objects):
-    points = [v.co for v in objects[0].data.vertices]
-    return [max(c[a] for c in points) - min(c[a] for c in points) for a in (0, 1)]
-
-
 # Makes cabinets about 60 cm wide that fill the length exactly. The doors stand 27 mm proud at the front and the
-# back panel 27 mm behind the cabinet box, so the box is shallower than the item by 54 mm. The add-on now and then
-# leaves a part at the wrong size, so a result that is off is made again, up to five times.
+# back panel 27 mm behind the cabinet box, so the box is shallower than the item by 54 mm.
 def generate(gen):
     p = gen.params
     api = gen.bridge("home_builder_5").api
     count = max(1, round(p["length"] / 0.6))
-    for _ in range(5):
-        made = api.base_cabinets(count=count, width=p["length"] / count, height=p["height"],
-                                 depth=p["depth"] - 0.054)
-        width, depth = footprint(made)
-        if abs(width - p["length"]) < 0.005 and abs(depth - p["depth"]) < 0.005:
-            break
+    made = api.base_cabinets(count=count, width=p["length"] / count, height=p["height"],
+                             depth=p["depth"] - 0.054)
     for obj in made:
         gen.link(obj)
         obj.data.materials.clear()
