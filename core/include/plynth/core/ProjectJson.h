@@ -20,7 +20,6 @@ using Json = nlohmann::ordered_json;
 // "roof" and "roof_sections" to the plan.
 // Version 2 of project.json adds "defaults", version 3 adds "wall_item_centre" to them, version 4 adds
 // "materials" (MaterialDefaults.h), version 5 adds "roof", "flat_roof" and "stair" to "materials".
-// Both version numbers below become 5 in milestone 12 task C1, together with the migrations.
 // The schema for the current version is schema/plan.schema.json and schema/project.schema.json; older
 // versions stay as schema/plan.vN.schema.json and schema/project.vN.schema.json.
 inline constexpr std::string_view kPlanFormatName = "plynth-plan";

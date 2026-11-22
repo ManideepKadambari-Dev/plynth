@@ -167,7 +167,7 @@ enum class ScaleKeep { ImagePositions, Metres };
 
 // Sets or clears the scale of the plan. InvalidValue unless the value is finite and above zero.
 // When the plan already had a scale, the new one differs and keep is ImagePositions, every point position,
-// wall bulge and opening offset on every floor is multiplied by old / new; from milestone 12 also every item,
+// wall bulge and opening offset on every floor is multiplied by old / new, and so is every item,
 // stair and roof section anchor position. Positions scale about their floor's image offset: p becomes
 // offset + (p - offset) * old / new.
 // Thickness, heights, widths, sills and corner radius are real sizes and never change. Setting the first scale
