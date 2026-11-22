@@ -1,5 +1,6 @@
 #include "FakeBlender.h"
 #include "SampleProject.h"
+#include "SettingsGuard.h"
 
 #include <plynth/core/EditSession.h>
 #include <plynth/core/Settings.h>
@@ -31,8 +32,7 @@ struct SettingsReset {
     SettingsReset() { clear(); }
     ~SettingsReset() { clear(); }
     static void clear() {
-        std::error_code ignored;
-        fs::remove(plynth::settingsFile(), ignored);
+        plynth::cli::testing::removeSettingsFileSafely();
     }
 };
 
@@ -256,7 +256,7 @@ TEST_CASE("a bad export-options.json is bad_file", "[cli][export][groups]") {
 
 TEST_CASE("group names are English only", "[cli][export][groups]") {
     GroupedSample flat("groups-english");
-    auto refused = flat.run({"export", "groups", "new", "--name", std::string("Caf") + char(0xC3) + char(0xA9)});
+    auto refused = flat.run({"export", "groups", "new", "--name", std::string("Caf") + '\xC3' + '\xA9'});
     CHECK(refused.exitCode == kExitFailed);
     CHECK(errorCode(refused) == "invalid_value");
     CHECK_FALSE(refused.answer.at("error").at("message").get<std::string>().empty());
