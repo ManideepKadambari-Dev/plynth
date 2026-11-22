@@ -1336,6 +1336,13 @@ Project slabbedProject(double first, double second)
     project.plan.floors.push_back(third);
     project.plan.floors[0].slabThickness = first;
     project.plan.floors[1].slabThickness = second;
+    // A door with sill 0 on the first wall of each floor, so every floor has threshold pieces.
+    const char* suffix[] = {"", "u", "uv"};
+    for (std::size_t i = 0; i < project.plan.floors.size(); ++i) {
+        Opening door = doorOn(std::string("w1") + suffix[i], 2.0);
+        door.id = std::string("o1") + suffix[i];
+        project.plan.floors[i].openings = {door};
+    }
     return project;
 }
 
@@ -1365,7 +1372,10 @@ TEST_CASE("no collision under a floor rises above the next level, whatever the s
                 for (const CollisionShape* shape : shapesOfKind(plan.collision[i + 1], CollisionTargetKind::Floor)) {
                     for (const CollisionPiece& piece : shape->pieces) REQUIRE(piece.bottom >= ceilingZ - 1e-9);
                 }
-                for (const CollisionShape* shape : shapesOfKind(plan.collision[i + 1], CollisionTargetKind::Thresholds)) {
+                const auto thresholds = shapesOfKind(plan.collision[i + 1], CollisionTargetKind::Thresholds);
+                REQUIRE_FALSE(thresholds.empty());
+                for (const CollisionShape* shape : thresholds) {
+                    REQUIRE_FALSE(shape->pieces.empty());
                     for (const CollisionPiece& piece : shape->pieces) REQUIRE(piece.bottom >= ceilingZ - 1e-9);
                 }
             }
@@ -1388,7 +1398,10 @@ TEST_CASE("each floor's pieces go down by the slab of the floor below, the lowes
                 REQUIRE(piece.top - piece.bottom == Approx(depth[i]).margin(1e-9));
             }
         }
-        for (const CollisionShape* shape : shapesOfKind(plan.collision[i], CollisionTargetKind::Thresholds)) {
+        const auto thresholds = shapesOfKind(plan.collision[i], CollisionTargetKind::Thresholds);
+        REQUIRE_FALSE(thresholds.empty());
+        for (const CollisionShape* shape : thresholds) {
+            REQUIRE_FALSE(shape->pieces.empty());
             for (const CollisionPiece& piece : shape->pieces) {
                 REQUIRE(piece.top - piece.bottom == Approx(depth[i]).margin(1e-9));
             }
