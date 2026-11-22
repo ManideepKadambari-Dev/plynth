@@ -180,7 +180,7 @@ TEST_CASE("chooseBlender", "[core][blender]") {
         s.blender = old;
         const BlenderChoice c = chooseBlender(std::nullopt, s);
         plynth::test::requireOk(c.status);
-        REQUIRE(c.install.executable == fs::weakly_canonical(good));
+        REQUIRE(fs::equivalent(c.install.executable, good));
     }
     SECTION("the settings are used when nothing else is given") {
         MachineSettings s;
