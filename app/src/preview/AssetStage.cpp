@@ -46,7 +46,10 @@ QVariantList AssetStage::assetMaterials(const plynth::AssetRecord& record)
     if (!read.status.ok())
         return list;
     auto full = [&](const plynth::MaterialMap& map) {
-        return map.file.empty() ? std::filesystem::path() : (record.folder / std::filesystem::u8path(map.file));
+        if (map.file.empty())
+            return std::filesystem::path();
+        const std::u8string utf8(map.file.begin(), map.file.end());
+        return record.folder / std::filesystem::path(utf8);
     };
     for (const plynth::AssetMaterial& m : read.info.materialMaps) {
         const plynth::MaterialMaps& p = m.previewMaps;
