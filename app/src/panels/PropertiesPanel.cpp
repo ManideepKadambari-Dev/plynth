@@ -155,7 +155,8 @@ PropertiesPanel::PropertiesPanel(plynth::Document& document, Selection& selectio
             editor->installEventFilter(this);
     // The wheel scrolls the page unless the box has focus, so passing over a box never edits the plan.
     for (QWidget* box : findChildren<QWidget*>())
-        if (qobject_cast<QAbstractSpinBox*>(box) != nullptr || qobject_cast<QComboBox*>(box) != nullptr) {
+        if (qobject_cast<QAbstractSpinBox*>(box) != nullptr || qobject_cast<QComboBox*>(box) != nullptr ||
+            qobject_cast<QSlider*>(box) != nullptr) {
             box->setFocusPolicy(Qt::StrongFocus);
             box->installEventFilter(this);
         }
@@ -1411,7 +1412,8 @@ bool PropertiesPanel::eventFilter(QObject* watched, QEvent* event)
 {
     if (event->type() == QEvent::Wheel) {
         auto* box = qobject_cast<QWidget*>(watched);
-        const bool isBox = qobject_cast<QAbstractSpinBox*>(watched) != nullptr || qobject_cast<QComboBox*>(watched) != nullptr;
+        const bool isBox = qobject_cast<QAbstractSpinBox*>(watched) != nullptr || qobject_cast<QComboBox*>(watched) != nullptr ||
+                           qobject_cast<QSlider*>(watched) != nullptr;
         if (isBox && box != nullptr && !box->hasFocus() && !box->isAncestorOf(QApplication::focusWidget())) {
             QCoreApplication::sendEvent(scroll_->verticalScrollBar(), event);
             return true;
