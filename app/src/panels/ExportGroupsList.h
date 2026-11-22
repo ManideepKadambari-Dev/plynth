@@ -31,12 +31,18 @@ public:
     // Shows a review. With readOnly set, nothing can be edited. The plan, when given, gives members their labels.
     void setReview(const std::filesystem::path& projectFolder, const plynth::ExportGroupReview& review, bool readOnly,
                    const plynth::Plan* plan = nullptr);
+    // True while a group name is being typed.
+    bool editing() const;
+    // Takes the read only state at once, also while a name is being typed, so a commit that follows is refused.
+    void setReadOnlyNow(bool readOnly) { readOnly_ = readOnly; }
     // Opens every group (for screenshots) or closes them all.
     void setAllExpanded(bool expanded);
 
 signals:
     // The export options file was written; ask for the review again.
     void edited();
+    // The name editor was closed, by Enter, Escape or leaving the row.
+    void editorClosed();
 
 private:
     void rebuild();

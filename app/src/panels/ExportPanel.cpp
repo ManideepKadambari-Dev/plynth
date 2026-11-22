@@ -260,6 +260,7 @@ ExportPanel::ExportPanel(QWidget* parent) : QWidget(parent)
         connect(groupsTree_, &QTreeWidget::itemExpanded, this, [this]() { fitGroupsTree(); });
         connect(groupsTree_, &QTreeWidget::itemCollapsed, this, [this]() { fitGroupsTree(); });
     }
+    connect(groups_, &ExportGroupsList::editorClosed, this, &ExportPanel::applyDeferred);
     watcher_ = new QFileSystemWatcher(this);
     watchTimer_ = new QTimer(this);
     watchTimer_->setSingleShot(true);
@@ -289,6 +290,19 @@ void ExportPanel::fitGroupsColumns()
 ExportPanel::~ExportPanel()
 {
     delete groups_;
+}
+
+// Shows what setReport was given while a name was being typed.
+void ExportPanel::applyDeferred()
+{
+    if (!deferred_ || groups_->editing())
+        return;
+    Deferred later = std::move(*deferred_);
+    deferred_.reset();
+    ExportPanelState state = later.state;
+    if (deferredHasReview_)
+        state.review = &later.review;
+    setReport(later.report ? &*later.report : nullptr, state);
 }
 
 // Asks for a fresh review each time the tab is shown.
@@ -580,6 +594,22 @@ void ExportPanel::addChecks(const plynth::ExportReport& report)
 // Rebuilds the body from a report and the state around it.
 void ExportPanel::setReport(const plynth::ExportReport* report, const ExportPanelState& state)
 {
+    // A name being typed is never torn down: the whole refresh waits for the editor to close.
+    if (groups_->editing()) {
+        groups_->setReadOnlyNow(state.readOnly);
+        Deferred later;
+        if (report != nullptr)
+            later.report = *report;
+        later.state = state;
+        if (state.review != nullptr)
+            later.review = *state.review;
+        later.state.review = nullptr;
+        later.state.projectFolder = state.projectFolder;
+        deferred_ = std::move(later);
+        deferredHasReview_ = state.review != nullptr;
+        return;
+    }
+    deferred_.reset();
     const Theme& t = Theme::instance();
     while (QLayoutItem* item = column_->takeAt(0)) {
         if (item->widget() == groups_)

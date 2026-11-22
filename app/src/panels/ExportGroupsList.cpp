@@ -174,7 +174,12 @@ ExportGroupsList::ExportGroupsList(QWidget* parent) : QWidget(parent)
             expanded_.erase(groupIdOf(item));
     });
     connect(tree_->itemDelegate(), &QAbstractItemDelegate::closeEditor, this,
-            [this]() { QTimer::singleShot(0, this, &ExportGroupsList::applyPending); });
+            [this]() {
+                QTimer::singleShot(0, this, [this]() {
+                    applyPending();
+                    emit editorClosed();
+                });
+            });
     connect(newButton_, &QPushButton::clicked, this, &ExportGroupsList::newGroup);
     connect(resetButton_, &QPushButton::clicked, this, &ExportGroupsList::resetGroups);
     tree->onDropMember = [this](const plynth::ExportMember& member, const std::string& to) {
@@ -183,6 +188,12 @@ ExportGroupsList::ExportGroupsList(QWidget* parent) : QWidget(parent)
     };
 
     rebuild();
+}
+
+// True while a group name is being typed.
+bool ExportGroupsList::editing() const
+{
+    return static_cast<GroupsTree*>(tree_)->editing();
 }
 
 // Shows a review. The plan only gives the members their plain labels. While a name is being typed the review waits,
@@ -195,8 +206,9 @@ void ExportGroupsList::setReview(const std::filesystem::path& projectFolder, con
     for (const auto& group : review.groups)
         for (const auto& member : group.members)
             labels[{member.kind, member.id}] = fromCore(plynth::exportMemberLabel(plan ? *plan : none, member));
-    if (static_cast<GroupsTree*>(tree_)->editing()) {
+    if (editing()) {
         pending_ = Pending{projectFolder, review, readOnly, labels};
+        readOnly_ = readOnly;
         return;
     }
     pending_.reset();

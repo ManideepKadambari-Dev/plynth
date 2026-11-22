@@ -8,6 +8,7 @@
 #include <QWidget>
 
 #include <filesystem>
+#include <optional>
 
 class QFileSystemWatcher;
 class QPushButton;
@@ -74,6 +75,7 @@ private:
     void addChecks(const plynth::ExportReport& report);
     void addGroups(const ExportPanelState& state);
     void addKitSwitch(const ExportPanelState& state);
+    void applyDeferred();
     void addOptionsProblem(const ExportPanelState& state);
     void resetOptions();
     void addKitReport(const plynth::ExportReport& report);
@@ -85,6 +87,14 @@ private:
     QWidget* body_ = nullptr;
     QHash<QString, bool> expanded_;
     ExportGroupsList* groups_ = nullptr;
+    // What setReport was given while a group name was being typed; shown when the editor closes.
+    struct Deferred {
+        std::optional<plynth::ExportReport> report;
+        ExportPanelState state;
+        plynth::ExportGroupReview review;
+    };
+    std::optional<Deferred> deferred_;
+    bool deferredHasReview_ = false;
     QTreeWidget* groupsTree_ = nullptr;
     plynth::ExportGroupReview review_;
     bool groupsExpanded_ = false;
