@@ -648,7 +648,7 @@ Adds a stair to a floor. It climbs to the next floor up in the plan, and its ste
 |---|---|
 | `--floor <id>` | The floor the stair starts on. Default: the first floor. |
 | `--x <metres>`, `--y <metres>` | Required. The middle of the front edge of the bottom step. |
-| `--rot <degrees>` | The direction of the climb, clockwise from down the plan. 0 climbs toward the bottom of the plan, 90 toward the left. From 0 up to 360. Default 0. |
+| `--rot <degrees>` | The direction of the climb, clockwise from down the plan. 0 climbs toward the bottom of the plan, 90 toward the left. Any number is accepted and turned into 0 up to 360. Default 0. |
 | `--type <id>` | `straight`, `l_shape`, `u_shape` or `spiral`. See `stair types`. Default `straight`. |
 | `--width <metres>` | From 0.6 to 3. Default 1. |
 | `--turn left\|right` | Which way an L, U or spiral stair turns, as you climb. Default `right`. Types without a turn ignore it. |
@@ -673,7 +673,7 @@ plynth stair add --floor f1 --x 1 --y 1
 | `arrival` | Where the stair reaches the upper floor. |
 | `problems` | What the build would report for this stair. Each has `code`, `severity` and `message`. See below. |
 
-A stair that has a problem with severity `warning` is still added. Refusals, with nothing changed: `invalid_value` for a stair on the top floor ("Stair s1 has no floor above it."), for a width outside 0.6 to 3, for a rotation outside 0 to 360 and for an unknown type (the message lists the known ones); `not_found` for an unknown floor or an unknown material; `bad_arguments` for a missing `--x` or `--y`.
+A stair that has a problem with severity `warning` is still added. Refusals, with nothing changed: `invalid_value` for a stair on the top floor ("Add a floor above before placing a stair."), for a width outside 0.6 to 3 and for an unknown type (the message lists the known ones). A rotation outside 0 to 360 is not refused. It is turned into that range, so `--rot 450` is stored as 90; `not_found` for an unknown floor or an unknown material; `bad_arguments` for a missing `--x` or `--y`.
 
 **Stair problem codes.** They appear in `problems` and in the build report.
 
@@ -803,7 +803,6 @@ Refusals, with nothing changed:
 |---|---|
 | `invalid_value` | An unknown type, a number out of range, a pitched type with a pitch below 5, or `--at` with a point that is in no roof section. |
 | `not_found` | An unknown roof entry, floor or material. |
-| `already_exists` | Adding an entry for a section that already has one. Name the entry (`rf1`) to change it. |
 | `bad_arguments` | No setting option; no target; both an id and `--at`; a `--direction` that is not a number or `auto`; `--at` that is not `x,y`; `--material`, `--floor` or `--at` with `default`. Exit code 2. |
 
 ### roof clear

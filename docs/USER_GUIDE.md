@@ -392,7 +392,7 @@ Every floor has its own plan image, but the whole plan has one scale. If the upp
 2. Drag the image, or nudge it with the arrow keys: 1 cm for each press, 10 cm with Shift. The image moves, and the marks you traced on it move with it.
 3. Turn the option off again when it fits.
 
-You can also type the **Image offset X** and **Image offset Y**, in metres, in the Floor section. **Move marks with the image** is on to start with. Turn it off when the marks are already right and only the picture should move. Dragging, nudging and typing can all be undone.
+You can also type the **Image offset X** and **Image offset Y**, in metres, in the Floor section. **Move marks with the image** is on to start with and only applies to the numbers you type. Turn it off when the marks are already right and only the picture should move. Dragging and nudging always move the marks too. Dragging, nudging and typing can all be undone.
 
 Detection takes the offset into account, so walls found in an offset image land where the picture shows them.
 
@@ -474,13 +474,13 @@ With nothing selected, the **Roof default** group in the Properties panel sets t
 
 Roofs are 15 cm thick. A pitched roof that rises against a taller storey can cover its windows, because the slope does not turn away from the wall. For a low wing, choose a flat roof, or a shed that falls away from the wall.
 
-**Hip needs a convex section**, one with no inward corners. A section shaped like an L cannot have a hip roof. It is built as a gable roof instead, and the Build tab says "Roof type fallback".
+**Hip needs a convex section**, one with no inward corners and no holes. A section shaped like an L cannot have a hip roof. It is built as a gable roof instead, and the Build tab says "A hip roof needs a section without holes or inward corners, so it is built as a gable."
 
 ### Settings of one section
 
 Change a section that follows the default and it gets settings of its own, tied to a point inside it. The roof section also has a **Covering** material. **Use the default** takes the settings away again, and the section follows the default.
 
-If you later change the walls so that the point is no longer in that section, the settings are kept but have no effect, and the Build tab says "Roof settings not used". Remove them with `plynth roof clear`, or redraw the walls.
+If you later change the walls so that the point is no longer in that section, the settings are kept but have no effect, and the Build tab says "The roof entry rf1 is not in any roof section, so it has no effect." (with the id of the entry). Remove them with `plynth roof clear`, or redraw the walls.
 
 ### Materials
 
@@ -674,8 +674,8 @@ What the problems mean:
 | Could not load the asset | error | Blender could not open the asset's model, so the item was left out. Press Retry render on the asset. |
 | Could not round the edges | warning | The wall edges stay sharp. The building is otherwise fine. |
 | Stair problems | warning or error | See "Stair problems" under Stairs. |
-| Roof type fallback | warning | A hip roof was asked for on a section that is not convex, so it was built as a gable. Pick another type or reshape the walls. |
-| Roof settings not used | warning | A roof entry's point lies in no roof section, or in a section another entry already governs. It has no effect. |
+| A hip roof needs a section without holes or inward corners | warning | A hip roof was asked for on a section that is not convex or has a hole, so it was built as a gable. Pick another type or reshape the walls. |
+| The roof entry is not in any roof section | warning | A roof entry's point lies in no roof section, or in a section another entry already governs. It has no effect. |
 | Unknown roof type | warning | The plan names a roof type this copy of Plynth does not have, so the section is built flat. |
 | Could not build a slab, stair or roof | warning | Blender could not make that part from its outline. The rest of the building is fine. Check the walls round it. |
 | Could not write the preview parts | warning | The 3D view loads the whole building file instead, so Show roofs and Cut at the shown floor do nothing until the next good build. |

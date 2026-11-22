@@ -147,8 +147,8 @@ These keys and clicks work with the tools. The Select tool is the default.
 | Left button and drag on the move handle of a selected stair | Select | Move the stair. The whole drag is one undo step. |
 | Left button and drag on the rotate handle of a selected stair | Select | Turn the stair. Alt turns freely. |
 | Left click on a roof section | Select | Select the section while View > Roof sections is on |
-| Left button and drag | Align plan image | Move the plan image of the shown floor. The marks move with it unless "Move marks with the image" is off. |
-| Arrow keys | Align plan image | Nudge the plan image by 1 cm. Shift nudges by 10 cm. |
+| Left button and drag | Align plan image | Move the plan image of the shown floor. The walls, rooms, openings, items and stairs of that floor move with it. |
+| Arrow keys | Align plan image | Nudge the plan image by 1 cm. Shift nudges by 10 cm. The marks move with it. |
 
 Shift has no effect on a wall that starts a chain, because there is no earlier point to keep straight from. Snapping to existing points always wins, so you can still close a loop while Shift is held. Ctrl needs to be held when you click, and Alt is not used because Windows gives it to the menu bar.
 
