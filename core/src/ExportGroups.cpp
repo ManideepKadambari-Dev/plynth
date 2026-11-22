@@ -3,6 +3,7 @@
 #include "BuiltPlan.h"
 #include "FileIo.h"
 
+#include "plynth/core/Kit.h"
 #include "plynth/core/MaterialSlots.h"
 #include "plynth/core/ProjectFiles.h"
 
@@ -215,7 +216,8 @@ std::vector<ExportGroup> automaticExportGroups(const Project& project)
 void nameExportGroupFiles(std::vector<ExportGroup>& groups, std::string_view projectName)
 {
     const std::string project = exportFileStem(projectName);
-    std::set<std::string> used;
+    // The kit file is written next to the group files, so no group may have its name.
+    std::set<std::string> used{lowerCase(project + std::string(kKitFileSuffix))};
     for (ExportGroup& group : groups) {
         const std::string stem = project + "_" + exportFileStem(group.name.empty() ? group.id : group.name);
         std::string file = stem + ".fbx";
@@ -650,6 +652,45 @@ Status writeExportOptions(const fs::path& projectFolder, const ExportOptions& op
     }
     const std::string text = exportOptionsToJson(options).dump(2, ' ', false, Json::error_handler_t::replace) + "\n";
     return fileio::writeAtomic(file, text);
+}
+
+// Replaces a bad options file with the defaults, keeping the kit switch and a copy of the old file.
+ExportOptionsRepair repairExportOptions(const fs::path& projectFolder)
+{
+    ExportOptionsRepair repair;
+    const ExportOptionsRead read = readExportOptions(projectFolder);
+    repair.options = read.options;
+    if (read.status.ok() || read.status.code == ErrorCode::UnsupportedVersion || read.status.code == ErrorCode::CannotRead) {
+        repair.status = read.status;
+        return repair;
+    }
+
+    const fs::path file = projectFolder / pathFromUtf8(kExportOptionsFileName);
+    ExportOptions fresh;
+    std::ifstream in(file, std::ios::binary);
+    std::ostringstream text;
+    text << in.rdbuf();
+    in.close();
+    const Json json = Json::parse(text.str(), nullptr, false);
+    if (json.is_object()) {
+        const auto kit = json.find("kit");
+        if (kit != json.end() && kit->is_object()) {
+            const auto enabled = kit->find("enabled");
+            if (enabled != kit->end() && enabled->is_boolean()) fresh.kit.enabled = enabled->get<bool>();
+        }
+    }
+    const fs::path backup = projectFolder / pathFromUtf8(std::string(kExportOptionsFileName) + ".bad");
+    if (Status s = fileio::writeAtomic(backup, text.str()); !s.ok()) {
+        repair.status = s;
+        return repair;
+    }
+    if (Status s = writeExportOptions(projectFolder, fresh); !s.ok()) {
+        repair.status = s;
+        return repair;
+    }
+    repair.options = fresh;
+    repair.repaired = true;
+    return repair;
 }
 
 // Works out the groups of a project for review and export.

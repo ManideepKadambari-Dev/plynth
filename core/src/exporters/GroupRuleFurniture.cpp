@@ -32,7 +32,7 @@ public:
     std::string_view id() const override { return "furniture"; }
     int order() const override { return 30; }
 
-    // Items and their generators per room in plan order, then the items that stand in no room.
+    // Items per room in plan order, then the items that stand in no room.
     void addGroups(const Project& project, std::vector<ExportGroup>& out) const override
     {
         std::vector<RoomItems> rooms;
@@ -82,13 +82,11 @@ public:
     }
 
 private:
-    // Adds the item and generator member of each item.
+    // Adds one member for each item. An item is an asset (kind "item"); the generator kind is for the generator
+    // items of milestone 14, which will name that kind instead when the item has a generator.
     static void addItems(ExportGroup& group, const std::vector<const Item*>& items)
     {
-        for (const Item* item : items) {
-            group.members.push_back({std::string(kKindItem), item->id});
-            group.members.push_back({std::string(kKindGenerator), item->id});
-        }
+        for (const Item* item : items) group.members.push_back({std::string(kKindItem), item->id});
     }
 };
 

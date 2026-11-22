@@ -675,7 +675,7 @@ TEST_CASE("saved group edits rename the file and the next export removes the old
     REQUIRE(f.exportEntries() == std::set<std::string>{"Square_Walls.fbx", "Square_Floors.fbx", "Square_Lounge_props.fbx", "Textures",
                                                        "export_report.json"});
     REQUIRE(second.fileOutputs[2].name == "Lounge props");
-    REQUIRE(lastJob(f)["params"]["groups"][0]["members"].size() == 4);
+    REQUIRE(lastJob(f)["params"]["groups"][0]["members"].size() == 3);
     REQUIRE(reportProblem(f.reportFile()).empty());
     REQUIRE(second.groupNotes.empty());
 }
@@ -926,4 +926,23 @@ TEST_CASE("kit cut faces have no wall in the job", "[core][export][run][kit]") {
         }
     }
     REQUIRE(cuts > 0);
+}
+
+TEST_CASE("a group named Kit does not take the kit file name", "[core][export][run][kit]") {
+    TestLibrary lib("export-kit-name");
+    ExportFixture f("run-kit-name");
+    makeGrouped(f);
+    f.request.library = lib.paths;
+    f.request.settings.force = true;
+    ExportOptions options;
+    options.kit.enabled = true;
+    options.groups.renames = {{"furniture_r1", "Kit"}};
+    plynth::test::requireOk(writeExportOptions(f.projectFolder, options));
+    plynth::test::requireOk(runExport(f.request).status);
+    // The second export, forced, must not lose either file.
+    const ExportReport second = runExport(f.request);
+    plynth::test::requireOk(second.status);
+    REQUIRE(plynth::test::readTextFile(f.exportDir() / "Square_Kit.fbx") == "FAKEKIT");
+    REQUIRE(plynth::test::readTextFile(f.exportDir() / "Square_Kit_2.fbx") == "FAKEFBX");
+    REQUIRE(fs::exists(f.exportDir() / "Square_Kit_layout.json"));
 }

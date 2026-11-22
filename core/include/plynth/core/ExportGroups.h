@@ -23,20 +23,20 @@ using Json = nlohmann::ordered_json;
 // export options file. Group edits are not plan changes and are not commands: they live outside plan.json and
 // project.json, so changing them never makes the build out of date (planFingerprint does not see them).
 
-// The plynth_kind values of built objects (BuildJob.h, Collision.h). Kinds of later milestones are listed so
-// rules can name them before those objects exist; a member of a kind nothing has is harmless.
+// The plynth_kind values of built objects (BuildJob.h, Collision.h). Some are listed before any build makes
+// them, so rules can name them; a member with an empty id of a kind nothing has is harmless.
 inline constexpr std::string_view kKindWalls = "walls";           // id: the floor
 inline constexpr std::string_view kKindThresholds = "thresholds"; // id: the floor
 inline constexpr std::string_view kKindFloor = "floor";           // id: the room
 inline constexpr std::string_view kKindCeiling = "ceiling";       // id: the room
 inline constexpr std::string_view kKindDoor = "door";             // id: the opening
 inline constexpr std::string_view kKindWindow = "window";         // id: the opening
-inline constexpr std::string_view kKindItem = "item";             // id: the item
-inline constexpr std::string_view kKindSlab = "slab";             // milestone 12; id: the floor
-inline constexpr std::string_view kKindStair = "stair";           // milestone 12; id: the stair
-inline constexpr std::string_view kKindRoof = "roof";             // milestone 12; id: the floor
-inline constexpr std::string_view kKindGenerator = "generator";   // milestone 14; id: the item
-inline constexpr std::string_view kKindLight = "light";           // milestone 15; id: the light
+inline constexpr std::string_view kKindItem = "item";             // id: an item that places an asset
+inline constexpr std::string_view kKindSlab = "slab";             // id: the floor
+inline constexpr std::string_view kKindStair = "stair";           // id: the stair
+inline constexpr std::string_view kKindRoof = "roof";             // id: the floor
+inline constexpr std::string_view kKindGenerator = "generator";   // id: an item that a generator makes
+inline constexpr std::string_view kKindLight = "light";           // id: the light
 inline constexpr std::string_view kKindKit = "kit";               // kit pieces (Kit.h); never in a group
 
 // The built-in rules and the groups they make, in this order (one file each in core/src/exporters/, named
@@ -49,11 +49,15 @@ inline constexpr std::string_view kKindKit = "kit";               // kit pieces 
 //   furniture  order 30  per room that holds items, in plan order: group "furniture_<room id>" (lower case,
 //                        characters other than a to z, 0 to 9 and "_" as "_"), name "Furniture <Label>" where
 //                        Label is roomSlotLabel (MaterialSlots.h), with " <room id>" added when two rooms share
-//                        the label; members item and generator for each of its items. Items with no room go to
+//                        the label; one member for each of its items, as below. Items with no room go to
 //                        group "furniture", name "Furniture" (DESIGN.md: "furniture, one FBX per room")
 // Exact members only for objects the plan says the build makes: walls for a floor with walls, thresholds for
 // a floor with a door or plain opening at sill 0, floor and ceiling for each room, door or window for each
-// opening of that type, item and generator for each item.
+// opening of that type, and one member for each item. An item is an asset or a generator, never both:
+//   an item that places an asset     kind "item" and the item's id, no generator member
+//   an item that a generator makes   kind "generator" and the item's id, no item member
+// Each is the plynth_kind and plynth_id the build gives that item's objects, so moving that one member moves
+// all of the item. While an item can only place an asset, every item gets an item member.
 
 // A group rule: makes some of the automatic groups from the plan that was built.
 class ExportGroupRule {
@@ -80,8 +84,9 @@ struct ExportGroupRuleRegistrar {
 std::vector<const ExportGroupRule*> allExportGroupRules();
 
 // The automatic groups of a project: every rule's groups in rule order. A member a group of an earlier rule
-// already has is dropped from later ones, a group left with no member is dropped, and only the first group
-// with rest keeps it (the first group gets it when none has it). Files are named by nameExportGroupFiles.
+// already has is dropped from later ones, a group that loses all its members this way is dropped, and only the
+// first group with rest keeps it (the first group gets it when none has it). A group a rule gave no members
+// stays. Files are named by nameExportGroupFiles.
 std::vector<ExportGroup> automaticExportGroups(const Project& project);
 
 // Gives every group its file: exportFileStem(projectName), "_", exportFileStem(group name), ".fbx", for
@@ -91,8 +96,8 @@ void nameExportGroupFiles(std::vector<ExportGroup>& groups, std::string_view pro
 
 // A plain label for a member, for the review list, from the plan that was built: "Walls, Floor 1",
 // "Thresholds, Floor 1", "Floor of Kitchen r3", "Ceiling of Kitchen r3", "Door o3", "Window o5",
-// "<asset> i4" (the item's asset id, or its generator name), "Every <kind>" for an empty id, and
-// "<kind> <id>" for anything else.
+// "<asset> i4" for an item member (the item's asset id), "<generator> i4" for a generator member (the
+// generator's name), "Every <kind>" for an empty id, and "<kind> <id>" for anything else.
 std::string exportMemberLabel(const Plan& plan, const ExportMember& member);
 
 // The user's group edits. They refer to group ids and plan ids, so they survive later builds; an edit that no
@@ -146,12 +151,15 @@ struct ExportGroupsApplied {
 // that group went; a merge of a group that is gone is skipped), then moves in their order (a member that is in
 // no group, or a target that is gone, is skipped; the member leaves its group and joins the target), then
 // renames (of a group that is gone: skipped). Then nameExportGroupFiles. Groups left with no member stay in
-// the list (the review shows them; the worker does not write them).
+// the list and the review shows them. Such a group takes no object and is not written (Exporter.h step 3),
+// unless it has rest, when it takes what is left.
 ExportGroupsApplied applyExportGroupEdits(const std::vector<ExportGroup>& automatic, const ExportGroupEdits& edits,
                                           std::string_view projectName);
 
-// Group names: 1 to 64 characters after trimming spaces, with at least one letter or digit. Names are stored
-// trimmed.
+// Group names are English only: the letters A to Z and a to z, the digits 0 to 9, spaces, hyphens and
+// underscores, with at least one letter or digit, 1 to 64 characters after trimming spaces. Nothing else is
+// allowed, so no accented letters and no other alphabets. Automatic names follow the same rule. Room, floor
+// and project names are not limited by it. Names are stored trimmed.
 inline constexpr std::size_t kMaxExportGroupName = 64;
 
 // The edit functions the app and the CLI use. current is applyExportGroupEdits of the automatic groups with the
@@ -211,6 +219,20 @@ ExportOptionsRead readExportOptions(const std::filesystem::path& projectFolder);
 // Writes projectFolder/export-options.json through a temporary file and a rename. Writing the default options
 // removes the file instead, so a project nobody changed has none.
 Status writeExportOptions(const std::filesystem::path& projectFolder, const ExportOptions& options);
+
+// The result of repairExportOptions.
+struct ExportOptionsRepair {
+    Status status;           // Ok, UnsupportedVersion for a newer file (left as it is), CannotRead or CannotWrite
+    bool repaired = false;   // the file was bad and has been replaced
+    ExportOptions options;   // what the project has now
+};
+
+// Makes a bad export-options.json usable again, for "plynth export groups reset" and the app's Reset groups.
+// A missing or valid file is left alone (repaired false). A file written by a newer Plynth is never touched
+// (UnsupportedVersion). Any other bad file, whether it is not JSON or breaks a rule such as a group name, is
+// copied to export-options.json.bad and replaced by the default options, keeping the kit switch when the old
+// file still has a readable one. All group edits in it are dropped.
+ExportOptionsRepair repairExportOptions(const std::filesystem::path& projectFolder);
 
 // What the Export tab and "plynth export groups" show before an export.
 struct ExportGroupReview {

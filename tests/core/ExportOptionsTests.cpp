@@ -165,3 +165,54 @@ TEST_CASE("the schema takes English group names only", "[core][exportoptions]") 
     REQUIRE_FALSE(problem("---").empty());
     REQUIRE_FALSE(problem("a.b").empty());
 }
+
+TEST_CASE("repairing a bad options file keeps the kit switch and a copy of the old file", "[core][exportoptions]") {
+    const TempDir dir("options-repair-name");
+    const std::string bad = "{\"format\": \"plynth-export-options\", \"version\": 1, \"groups\": {\"renames\": "
+                            "[{\"group\": \"furniture_r1\", \"name\": \"K\xC3\xBC" "che\"}]}, \"kit\": {\"enabled\": true}}";
+    writeOptionsText(dir.path(), bad);
+    REQUIRE(readExportOptions(dir.path()).status.code == ErrorCode::BadFile);
+
+    const ExportOptionsRepair repair = repairExportOptions(dir.path());
+    REQUIRE(repair.status.ok());
+    REQUIRE(repair.repaired);
+    REQUIRE(repair.options.kit.enabled);
+    REQUIRE(repair.options.groups.empty());
+    const ExportOptionsRead after = readExportOptions(dir.path());
+    REQUIRE(after.status.ok());
+    REQUIRE(after.options == repair.options);
+    REQUIRE(readTextFile(dir.path() / "export-options.json.bad") == bad);
+
+    const ExportOptionsRepair again = repairExportOptions(dir.path());
+    REQUIRE(again.status.ok());
+    REQUIRE_FALSE(again.repaired);
+    REQUIRE(again.options.kit.enabled);
+}
+
+TEST_CASE("repairing a file that is not JSON starts from the defaults", "[core][exportoptions]") {
+    const TempDir dir("options-repair-json");
+    writeOptionsText(dir.path(), "{ not json");
+    const ExportOptionsRepair repair = repairExportOptions(dir.path());
+    REQUIRE(repair.status.ok());
+    REQUIRE(repair.repaired);
+    REQUIRE(repair.options == ExportOptions{});
+    REQUIRE_FALSE(fs::exists(dir.path() / "export-options.json"));
+    REQUIRE(readTextFile(dir.path() / "export-options.json.bad") == "{ not json");
+    REQUIRE(readExportOptions(dir.path()).status.ok());
+}
+
+TEST_CASE("repairing never touches a newer file or a missing one", "[core][exportoptions]") {
+    const TempDir dir("options-repair-newer");
+    const ExportOptionsRepair none = repairExportOptions(dir.path());
+    REQUIRE(none.status.ok());
+    REQUIRE_FALSE(none.repaired);
+    REQUIRE_FALSE(fs::exists(dir.path() / "export-options.json"));
+
+    const std::string newer = readTextFile(dataFile("options_version_2.json"));
+    writeOptionsText(dir.path(), newer);
+    const ExportOptionsRepair repair = repairExportOptions(dir.path());
+    REQUIRE(repair.status.code == ErrorCode::UnsupportedVersion);
+    REQUIRE_FALSE(repair.repaired);
+    REQUIRE(readTextFile(dir.path() / "export-options.json") == newer);
+    REQUIRE_FALSE(fs::exists(dir.path() / "export-options.json.bad"));
+}

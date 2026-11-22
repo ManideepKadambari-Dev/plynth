@@ -156,11 +156,11 @@ TEST_CASE("the automatic groups of a project", "[core][exportgroups]") {
                                                         {"thresholds", "f1"}, {"slab", ""}, {"stair", ""}, {"roof", ""}, {"light", ""}});
 
     CHECK(groups[2].name == "Furniture Living");
-    CHECK(groups[2].members == std::vector<ExportMember>{{"item", "i1"}, {"generator", "i1"}});
+    CHECK(groups[2].members == std::vector<ExportMember>{{"item", "i1"}});
     CHECK(groups[3].name == "Furniture Bedroom");
-    CHECK(groups[3].members == std::vector<ExportMember>{{"item", "i2"}, {"generator", "i2"}});
+    CHECK(groups[3].members == std::vector<ExportMember>{{"item", "i2"}});
     CHECK(groups[4].name == "Furniture");
-    CHECK(groups[4].members == std::vector<ExportMember>{{"item", "i3"}, {"generator", "i3"}});
+    CHECK(groups[4].members == std::vector<ExportMember>{{"item", "i3"}});
 
     std::set<ExportMember> seen;
     int rests = 0;
@@ -309,7 +309,7 @@ TEST_CASE("edits move members between groups", "[core][exportgroups]") {
     ExportGroupsApplied applied = applyExportGroupEdits(base, edits, "Flat");
     CHECK(holds(*group(applied.groups, "structure"), "item", "i1"));
     CHECK_FALSE(holds(*group(applied.groups, "furniture_r1"), "item", "i1"));
-    CHECK(holds(*group(applied.groups, "furniture_r1"), "generator", "i1"));
+    CHECK(group(applied.groups, "furniture_r1")->members.empty());
 
     edits = {};
     edits.added = {{"group_1", "Hero"}};
@@ -360,7 +360,7 @@ TEST_CASE("edits that no longer apply are skipped with one note each", "[core][e
 TEST_CASE("a group emptied by moves stays in the list", "[core][exportgroups]") {
     const Project project = flatProject();
     ExportGroupEdits edits;
-    edits.moves = {{{"item", "i1"}, "structure"}, {{"generator", "i1"}, "structure"}};
+    edits.moves = {{{"item", "i1"}, "structure"}};
     const ExportGroupsApplied applied = applyExportGroupEdits(automatic(project), edits, "Flat");
     REQUIRE(group(applied.groups, "furniture_r1"));
     CHECK(group(applied.groups, "furniture_r1")->members.empty());
@@ -612,4 +612,52 @@ TEST_CASE("an options file saved with a non English name is refused and says why
     Project project = flatProject();
     project.settings.exportMode = ExportMode::Grouped;
     CHECK(reviewExportGroups(dir.path(), project).status.code == ErrorCode::BadFile);
+}
+
+TEST_CASE("an item is one member, never an asset and a generator", "[core][exportgroups]") {
+    const std::vector<ExportGroup> groups = automaticExportGroups(flatProject());
+    for (const ExportGroup& g : groups) {
+        for (const ExportMember& m : g.members) CHECK(m.kind != "generator");
+    }
+    CHECK(group(groups, "furniture_r1")->members.size() == 1);
+}
+
+TEST_CASE("the kit file name is never given to a group", "[core][exportgroups]") {
+    std::vector<ExportGroup> groups(3);
+    groups[0].id = "a";
+    groups[0].name = "Kit";
+    groups[1].id = "b";
+    groups[1].name = "kit";
+    groups[2].id = "c";
+    groups[2].name = "Walls";
+    nameExportGroupFiles(groups, "Flat");
+    CHECK(groups[0].file == "Flat_Kit_2.fbx");
+    CHECK(groups[1].file == "Flat_kit_3.fbx");
+    CHECK(groups[2].file == "Flat_Walls.fbx");
+}
+
+TEST_CASE("the review carries the plan its member labels come from", "[core][exportgroups]") {
+    const TempDir dir("review-labels");
+    Project built = flatProject();
+    built.settings.exportMode = ExportMode::Grouped;
+    writeBuiltPlan(dir.path(), built.plan);
+
+    Project project = built;
+    project.plan.floors[0].rooms[0].type = "kitchen";
+    project.plan.floors[0].name = "Ground";
+
+    const ExportMember floorOfR1{"floor", "r1"};
+    const ExportMember walls{"walls", "f1"};
+    ExportGroupReview review = reviewExportGroups(dir.path(), project);
+    REQUIRE(review.status.ok());
+    CHECK(review.fromBuild);
+    CHECK(exportMemberLabel(review.plan, floorOfR1) == "Floor of Living r1");
+    CHECK(exportMemberLabel(review.plan, walls) == "Walls, Floor 1");
+
+    const TempDir noBuild("review-labels-nobuild");
+    review = reviewExportGroups(noBuild.path(), project);
+    REQUIRE(review.status.ok());
+    CHECK_FALSE(review.fromBuild);
+    CHECK(exportMemberLabel(review.plan, floorOfR1) == "Floor of Kitchen r1");
+    CHECK(exportMemberLabel(review.plan, walls) == "Walls, Ground");
 }
