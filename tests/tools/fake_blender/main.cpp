@@ -335,7 +335,7 @@ int writeBuiltMaterials(const fs::path& folder, const Json& params)
     return count;
 }
 
-// The preview parts the fake build writes: one file per floor, one more for each floor with slab polygons and with roofs, and
+// The preview parts the fake build writes: one file per floor, one more for each floor with roofs, and
 // parts.json listing them.
 void writePreviewParts(const fs::path& folder, const Json& floors)
 {
@@ -344,10 +344,6 @@ void writePreviewParts(const fs::path& folder, const Json& floors)
         const std::string id = floor["id"].get<std::string>();
         writeFile(folder / (id + ".fbx"), "FAKEFBX");
         parts.push_back(Json{{"floor", id}, {"kind", "storey"}, {"file", id + ".fbx"}});
-        if (!floor["slab"]["polygons"].empty()) {
-            writeFile(folder / (id + "_slab.fbx"), "FAKEFBX");
-            parts.push_back(Json{{"floor", id}, {"kind", "slab"}, {"file", id + "_slab.fbx"}});
-        }
         if (floor["roofs"].empty()) continue;
         writeFile(folder / (id + "_roof.fbx"), "FAKEFBX");
         parts.push_back(Json{{"floor", id}, {"kind", "roof"}, {"file", id + "_roof.fbx"}});
