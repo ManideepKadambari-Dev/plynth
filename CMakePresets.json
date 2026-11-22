@@ -5,12 +5,14 @@
     {
       "name": "base",
       "hidden": true,
-      "generator": "Visual Studio 18 2026",
-      "architecture": { "value": "x64", "strategy": "set" },
+      "generator": "Ninja Multi-Config",
+      "architecture": { "value": "x64", "strategy": "external" },
+      "toolset": { "value": "host=x64", "strategy": "external" },
       "binaryDir": "${sourceDir}/out/build/${presetName}",
       "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
       "cacheVariables": {
-        "CMAKE_PREFIX_PATH": "$env{QTDIR}"
+        "CMAKE_PREFIX_PATH": "$env{QTDIR}",
+        "CMAKE_CONFIGURATION_TYPES": "Debug;Release"
       },
       "vendor": {
         "microsoft.com/VisualStudioSettings/CMake/1.0": { "hostOS": [ "Windows" ] }
