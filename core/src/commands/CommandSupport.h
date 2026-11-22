@@ -61,4 +61,10 @@ inline bool isWellFormedName(std::string_view name)
     return true;
 }
 
+// Says whether text is a well formed material name: the catalog name rule with at most 128 characters.
+inline bool isMaterialName(std::string_view name)
+{
+    return name.size() <= 128 && isWellFormedName(name);
+}
+
 }

@@ -1,5 +1,7 @@
 #include "plynth/core/ProjectJson.h"
 
+#include "plynth/core/MaterialDefaults.h"
+
 #include <nlohmann/json.hpp>
 
 #include <cmath>
@@ -136,7 +138,7 @@ Wall readWall(const Json& j, const std::string& where)
 // Reads one room.
 Room readRoom(const Json& j, const std::string& where)
 {
-    expectObject(j, where, {"id", "type", "walls", "floor_material", "ceiling_material"});
+    expectObject(j, where, {"id", "type", "walls", "floor_material", "wall_material", "ceiling_material"});
     Room r;
     r.id = getString(j, "id", where);
     r.type = getOptionalString(j, "type", where);
@@ -147,6 +149,7 @@ Room readRoom(const Json& j, const std::string& where)
         r.walls.push_back((*walls)[i].get<std::string>());
     }
     r.floorMaterial = getOptionalString(j, "floor_material", where);
+    r.wallMaterial = getOptionalString(j, "wall_material", where);
     r.ceilingMaterial = getOptionalString(j, "ceiling_material", where);
     return r;
 }
@@ -310,6 +313,7 @@ Json planToJson(const Plan& plan)
             for (const Id& id : r.walls) rw.push_back(id);
             jr["walls"] = std::move(rw);
             jr["floor_material"] = optString(r.floorMaterial);
+            jr["wall_material"] = optString(r.wallMaterial);
             jr["ceiling_material"] = optString(r.ceilingMaterial);
             rooms.push_back(std::move(jr));
         }
@@ -407,6 +411,18 @@ Json defaultsToJson(const DefaultSizes& d)
     return out;
 }
 
+
+// Turns the default materials into their project.json form, every surface written.
+Json materialsToJson(const MaterialDefaults& defaults)
+{
+    Json out = Json::object();
+    for (const Surface surface : allSurfaces()) {
+        const std::optional<std::string>& value = materialDefault(defaults, surface);
+        out[std::string(surfaceName(surface))] = value ? Json(*value) : Json(nullptr);
+    }
+    return out;
+}
+
 }
 
 // Turns project settings into their project.json form.
@@ -419,6 +435,7 @@ Json settingsToJson(const ProjectSettings& settings)
     out["export_mode"] = std::string(exportModeName(settings.exportMode));
     out["grid_size"] = settings.gridSize;
     out["defaults"] = defaultsToJson(settings.defaults);
+    out["materials"] = materialsToJson(settings.materials);
     return out;
 }
 
@@ -429,7 +446,7 @@ SettingsRead settingsFromJson(const Json& json)
     try {
         Json copy = json;
         prepare(copy, kProjectFormatName, kProjectFormatVersion, projectMigrations(), result.fileVersion, result.migrated);
-        expectObject(copy, "", {"format", "version", "name", "export_mode", "grid_size", "defaults"});
+        expectObject(copy, "", {"format", "version", "name", "export_mode", "grid_size", "defaults", "materials"});
 
         ProjectSettings settings;
         settings.name = getString(copy, "name", "");
@@ -453,6 +470,15 @@ SettingsRead settingsFromJson(const Json& json)
             d.windowSill = getNumberOr(*dit, "window_sill", "/defaults", d.windowSill);
             d.wallItemCentre = getNumberOr(*dit, "wall_item_centre", "/defaults", d.wallItemCentre);
             if (Status s = checkDefaultSizes(d); !s.ok()) refuse(s.message, "/defaults");
+        }
+        if (auto mit = copy.find("materials"); mit != copy.end()) {
+            expectObject(*mit, "/materials", {"wall_inside", "wall_outside", "wall_top", "floor", "ceiling", "door", "frame", "glass", "handle"});
+            for (const Surface surface : allSurfaces()) {
+                const std::string key(surfaceName(surface));
+                if (!mit->contains(key)) continue;
+                setMaterialDefault(settings.materials, surface, getOptionalString(*mit, key.c_str(), "/materials"));
+            }
+            if (Status s = checkMaterialDefaults(settings.materials); !s.ok()) refuse(s.message, s.where);
         }
         result.settings = std::move(settings);
     } catch (const ReadError& e) {
@@ -545,19 +571,44 @@ Status migrateProject2To3(Json& json)
     return {};
 }
 
+
+// Version 3 to 4: every room gets an empty wall material.
+Status migratePlan3To4(Json& json)
+{
+    auto floors = json.find("floors");
+    if (floors == json.end() || !floors->is_array()) return {};
+    for (Json& floor : *floors) {
+        if (!floor.is_object()) continue;
+        auto rooms = floor.find("rooms");
+        if (rooms == floor.end() || !rooms->is_array()) continue;
+        for (Json& room : *rooms) {
+            if (room.is_object() && !room.contains("wall_material")) room["wall_material"] = nullptr;
+        }
+    }
+    return {};
+}
+
+// Version 3 to 4: the project gets the built-in default materials.
+Status migrateProject3To4(Json& json)
+{
+    if (!json.is_object()) return {};
+    if (!json.contains("materials")) json["materials"] = materialsToJson(MaterialDefaults{});
+    return {};
+}
+
 }
 
 // The upgrade steps for plan.json.
 std::span<const Migration> planMigrations()
 {
-    static const std::vector<Migration> steps = {{1, migratePlan1To2}, {2, migratePlan2To3}};
+    static const std::vector<Migration> steps = {{1, migratePlan1To2}, {2, migratePlan2To3}, {3, migratePlan3To4}};
     return steps;
 }
 
 // The upgrade steps for project.json.
 std::span<const Migration> projectMigrations()
 {
-    static const std::vector<Migration> steps = {{1, migrateProject1To2}, {2, migrateProject2To3}};
+    static const std::vector<Migration> steps = {{1, migrateProject1To2}, {2, migrateProject2To3}, {3, migrateProject3To4}};
     return steps;
 }
 

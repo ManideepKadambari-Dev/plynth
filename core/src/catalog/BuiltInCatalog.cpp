@@ -2,6 +2,7 @@
 
 #include "plynth/core/RoomTypes.h"
 #include "plynth/core/catalog/AssetCatalog.h"
+#include "plynth/core/catalog/MaterialCatalog.h"
 
 #include <array>
 
@@ -53,6 +54,16 @@ const std::vector<LicenseEntry>& licenseList()
     return list;
 }
 
+}
+
+// The groups a new materials catalog starts with.
+std::span<const MaterialGroupEntry> builtInMaterialGroups()
+{
+    static const std::vector<MaterialGroupEntry> list = {
+        {"floor", "Floor", true, 0},   {"wall", "Wall", true, 0},   {"ceiling", "Ceiling", true, 0}, {"exterior", "Exterior", true, 0},
+        {"trim", "Trim", true, 0},     {"door", "Door", true, 0},   {"glass", "Glass", true, 0},     {"metal", "Metal", true, 0},
+    };
+    return list;
 }
 
 // The categories a new library starts with.
@@ -123,6 +134,39 @@ void seedBuiltIns(Database& db)
         }
     }
     {
+        Statement s(db, "INSERT INTO licenses (id, name, url, redistributable, sort) VALUES (?, ?, ?, ?, ?)");
+        int sort = 0;
+        for (const LicenseEntry& l : builtInLicenses()) {
+            s.reset();
+            s.bind(1, l.id).bind(2, l.name).bind(3, l.url).bind(4, l.redistributable ? 1 : 0).bind(5, sort++);
+            s.run();
+        }
+    }
+    tx.commit();
+}
+
+}
+
+namespace plynth::catalog {
+
+// Fills a materials database with the built-in groups and licenses where those tables are empty.
+void seedMaterialBuiltIns(Database& db)
+{
+    const auto isEmpty = [&db](const char* table) {
+        Statement s(db, std::string("SELECT COUNT(*) FROM ") + table);
+        return s.step() && s.integer(0) == 0;
+    };
+    Transaction tx(db);
+    if (isEmpty("material_groups")) {
+        Statement s(db, "INSERT INTO material_groups (id, name, sort, built_in) VALUES (?, ?, ?, 1)");
+        int sort = 0;
+        for (const MaterialGroupEntry& g : builtInMaterialGroups()) {
+            s.reset();
+            s.bind(1, g.id).bind(2, g.name).bind(3, sort++);
+            s.run();
+        }
+    }
+    if (isEmpty("licenses")) {
         Statement s(db, "INSERT INTO licenses (id, name, url, redistributable, sort) VALUES (?, ?, ?, ?, ?)");
         int sort = 0;
         for (const LicenseEntry& l : builtInLicenses()) {

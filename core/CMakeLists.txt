@@ -37,6 +37,8 @@ add_library(plynth_core STATIC
     src/BuildGeometry.cpp
     src/BuildJob.cpp
     src/Build.cpp
+    src/MaterialDefaults.cpp
+    src/Materials.cpp
     src/openings/OpeningShapes.cpp
     src/openings/ShapeFiles.cpp
     src/commands/FloorCommands.cpp
@@ -47,6 +49,7 @@ add_library(plynth_core STATIC
     src/commands/DeleteCommands.cpp
     src/commands/OpeningCommands.cpp
     src/commands/ItemCommands.cpp
+    src/commands/MaterialCommands.cpp
     src/commands/DetectionCommands.cpp
     src/detection/Detection.cpp
     src/detection/Detector.cpp

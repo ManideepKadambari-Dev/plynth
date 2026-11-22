@@ -1,0 +1,5 @@
+{
+  "format": "plynth-plan",
+  "version": 3,
+  "floors": [ { "id": "f1" } ]
+}

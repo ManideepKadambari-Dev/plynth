@@ -244,7 +244,7 @@ std::optional<BuildSeverity> buildSeverityFromName(std::string_view name)
 }
 
 // Works out the build plan of a project.
-BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets)
+BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, const BuildMaterialSource&)
 {
     BuildPlan plan;
     const std::vector<double> levels = floorElevations(project.plan);
