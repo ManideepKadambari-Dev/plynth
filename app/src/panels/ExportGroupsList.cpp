@@ -6,7 +6,9 @@
 #include <QDropEvent>
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QAbstractItemDelegate>
 #include <QInputDialog>
+#include <QLineEdit>
 #include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
@@ -20,6 +22,18 @@
 namespace plynth::app {
 
 namespace {
+
+// True when two group lists mean the same: ids, names, members and rest, in the same order. The file names are left
+// out, because they depend on the project name.
+bool sameGroups(const std::vector<plynth::ExportGroup>& a, const std::vector<plynth::ExportGroup>& b)
+{
+    if (a.size() != b.size())
+        return false;
+    for (std::size_t i = 0; i < a.size(); ++i)
+        if (a[i].id != b[i].id || a[i].name != b[i].name || a[i].rest != b[i].rest || a[i].members != b[i].members)
+            return false;
+    return true;
+}
 
 constexpr int kRoleGroup = Qt::UserRole;      // the group id, on group and member rows
 constexpr int kRoleKind = Qt::UserRole + 1;   // the member kind; empty on group rows
@@ -174,16 +188,11 @@ ExportGroupsList::ExportGroupsList(QWidget* parent) : QWidget(parent)
             expanded_.erase(groupIdOf(item));
     });
     connect(tree_->itemDelegate(), &QAbstractItemDelegate::closeEditor, this,
-            [this]() {
-                QTimer::singleShot(0, this, [this]() {
-                    applyPending();
-                    emit editorClosed();
-                });
-            });
+            [this]() { QTimer::singleShot(0, this, [this]() { emit editorClosed(); }); });
     connect(newButton_, &QPushButton::clicked, this, &ExportGroupsList::newGroup);
     connect(resetButton_, &QPushButton::clicked, this, &ExportGroupsList::resetGroups);
     tree->onDropMember = [this](const plynth::ExportMember& member, const std::string& to) {
-        if (!readOnly_)
+        if (!locked())
             moveMember(member, to);
     };
 
@@ -196,8 +205,8 @@ bool ExportGroupsList::editing() const
     return static_cast<GroupsTree*>(tree_)->editing();
 }
 
-// Shows a review. The plan only gives the members their plain labels. While a name is being typed the review waits,
-// so the editor is not thrown away.
+// Shows a review. The plan only gives the members their plain labels. A name still being typed is dropped, because
+// the panel keeps the editor open only when nothing here changes.
 void ExportGroupsList::setReview(const std::filesystem::path& projectFolder, const plynth::ExportGroupReview& review,
                                  bool readOnly, const plynth::Plan* plan)
 {
@@ -206,40 +215,78 @@ void ExportGroupsList::setReview(const std::filesystem::path& projectFolder, con
     for (const auto& group : review.groups)
         for (const auto& member : group.members)
             labels[{member.kind, member.id}] = fromCore(plynth::exportMemberLabel(plan ? *plan : none, member));
-    if (editing()) {
-        pending_ = Pending{projectFolder, review, readOnly, labels};
-        readOnly_ = readOnly;
-        return;
-    }
-    pending_.reset();
+    if (editing())
+        cancelEditing();
     applyReview(projectFolder, review, readOnly, labels);
 }
 
 // Takes a review. The tree is rebuilt only when something it shows changed, so open groups and the selection stay.
+// A review is a reload, so it ends a lock that came from a change outside.
 void ExportGroupsList::applyReview(const std::filesystem::path& projectFolder, const plynth::ExportGroupReview& review,
                                    bool readOnly,
                                    const std::map<std::pair<std::string, std::string>, QString>& labels)
 {
-    const bool same = projectFolder == folder_ && readOnly == shownReadOnly_ && review.groups == review_.groups &&
+    const bool wasLocked = outsideLocked_;
+    outsideLocked_ = false;
+    const bool same = projectFolder == folder_ && readOnly == shownLocked_ && review.groups == review_.groups &&
                       review.notes == review_.notes && review.options == review_.options && labels == labels_;
     folder_ = projectFolder;
     review_ = review;
     readOnly_ = readOnly;
     labels_ = labels;
+    expected_ = review.groups;
+    if (readOnly)
+        showMessage(lockText());
+    else if (wasLocked || !same)
+        message_->hide();
     if (same)
         return;
-    message_->hide();
     rebuild();
 }
 
-// Shows the review that waited for the editor.
-void ExportGroupsList::applyPending()
+// True when showing this review would lock the list.
+bool ExportGroupsList::mustCloseEditor(bool readOnly, const plynth::ExportGroupReview* review) const
 {
-    if (!pending_ || static_cast<GroupsTree*>(tree_)->editing())
+    return readOnly || review == nullptr || !sameGroups(review->groups, expected_);
+}
+
+// Closes an open name editor without saving.
+void ExportGroupsList::cancelEditing()
+{
+    if (auto* editor = tree_->viewport()->findChild<QLineEdit*>())
+        emit tree_->itemDelegate()->closeEditor(editor, QAbstractItemDelegate::RevertModelCache);
+}
+
+// Compares the groups in the options file now with the ones shown.
+void ExportGroupsList::checkOutside()
+{
+    if (locked() || folder_.empty())
         return;
-    const Pending next = *pending_;
-    pending_.reset();
-    applyReview(next.folder, next.review, next.readOnly, next.labels);
+    const plynth::ExportOptionsRead read = plynth::readExportOptions(folder_);
+    if (!read.status.ok()) {
+        lockOutside();
+        return;
+    }
+    const plynth::ExportGroupsApplied now = plynth::applyExportGroupEdits(review_.automatic, read.options.groups, "");
+    if (!sameGroups(now.groups, expected_))
+        lockOutside();
+}
+
+// Locks editing because the groups changed outside the app, and asks for the review again.
+void ExportGroupsList::lockOutside()
+{
+    outsideLocked_ = true;
+    cancelEditing();
+    showMessage(lockText());
+    QTimer::singleShot(0, this, [this]() { rebuild(); });
+    emit outsideChanged();
+}
+
+// Why editing is locked, in plain words.
+QString ExportGroupsList::lockText() const
+{
+    return outsideLocked_ ? tr("The groups were changed outside the app. Editing is locked until the list reloads.")
+                          : tr("The project is being edited from the command line. Editing is locked until it ends.");
 }
 
 // Opens or closes every group.
@@ -284,7 +331,7 @@ void ExportGroupsList::rebuild()
         row->setForeground(1, muted);
         row->setTextAlignment(2, Qt::AlignRight | Qt::AlignVCenter);
         Qt::ItemFlags flags = Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsDropEnabled;
-        if (!readOnly_)
+        if (!locked())
             flags |= Qt::ItemIsEditable;
         row->setFlags(flags);
         row->setToolTip(0, tr("%1, written as %2").arg(fromCore(group.name), fromCore(group.file)));
@@ -305,7 +352,7 @@ void ExportGroupsList::rebuild()
             child->setForeground(0, muted);
             child->setForeground(1, muted);
             Qt::ItemFlags childFlags = Qt::ItemIsEnabled | Qt::ItemIsSelectable;
-            if (!readOnly_)
+            if (!locked())
                 childFlags |= Qt::ItemIsDragEnabled;
             child->setFlags(childFlags);
             child->setToolTip(0, tr("Right click to move it to another group, or drag it onto a group"));
@@ -314,8 +361,8 @@ void ExportGroupsList::rebuild()
             addNote(row, tr("Also takes anything added by hand"));
         row->setExpanded(expanded_.count(group.id) > 0);
     }
-    tree_->setDragEnabled(!readOnly_);
-    shownReadOnly_ = readOnly_;
+    tree_->setDragEnabled(!locked());
+    shownLocked_ = locked();
     rebuilding_ = false;
     updateButtons();
 }
@@ -336,8 +383,8 @@ void ExportGroupsList::addNote(QTreeWidgetItem* row, const QString& text)
 void ExportGroupsList::updateButtons()
 {
     const bool edits = !review_.options.groups.empty();
-    newButton_->setEnabled(!readOnly_ && !review_.groups.empty());
-    resetButton_->setEnabled(!readOnly_ && edits);
+    newButton_->setEnabled(!locked() && !review_.groups.empty());
+    resetButton_->setEnabled(!locked() && edits);
 }
 
 // The text above the box that asks for a group name, with the characters a name may use.
@@ -353,22 +400,28 @@ void ExportGroupsList::showMessage(const QString& text)
     message_->setVisible(!text.isEmpty());
 }
 
-// Reads the options file again just before an edit, so changes made since the list was shown (by the command line
-// or another window) are kept.
-bool ExportGroupsList::freshOptions(plynth::ExportOptions& options)
+// Reads the options file again just before an edit and works out the groups they give now. When those are not the
+// groups shown, nothing is written: the list locks and reloads. Otherwise the fresh options are kept, so a change
+// that did not touch the groups (the kit switch) is not lost, and current is what the edit is checked against.
+bool ExportGroupsList::freshOptions(plynth::ExportOptions& options, std::vector<plynth::ExportGroup>& current)
 {
-    if (readOnly_) {
-        showMessage(tr("The project is open for reading only, so the groups cannot be changed."));
+    auto refuse = [this](const QString& text) {
+        showMessage(text);
         QTimer::singleShot(0, this, [this]() { rebuild(); });
         return false;
-    }
+    };
+    if (locked())
+        return refuse(lockText());
     const plynth::ExportOptionsRead read = plynth::readExportOptions(folder_);
-    if (!read.status.ok()) {
-        showMessage(fromCore(read.status.message));
-        QTimer::singleShot(0, this, [this]() { rebuild(); });
+    if (!read.status.ok())
+        return refuse(fromCore(read.status.message));
+    plynth::ExportGroupsApplied now = plynth::applyExportGroupEdits(review_.automatic, read.options.groups, "");
+    if (!sameGroups(now.groups, expected_)) {
+        lockOutside();
         return false;
     }
     options = read.options;
+    current = std::move(now.groups);
     return true;
 }
 
@@ -381,13 +434,14 @@ bool ExportGroupsList::store(const plynth::ExportOptions& options, const plynth:
         QTimer::singleShot(0, this, [this]() { rebuild(); });
         return false;
     };
-    if (readOnly_)
-        return refuse(tr("The project is open for reading only, so the groups cannot be changed."));
+    if (locked())
+        return refuse(lockText());
     if (!status.ok())
         return refuse(fromCore(status.message));
     const plynth::Status written = plynth::writeExportOptions(folder_, options);
     if (!written.ok())
         return refuse(fromCore(written.message));
+    expected_ = plynth::applyExportGroupEdits(review_.automatic, options.groups, "").groups;
     showMessage(QString());
     emit edited();
     return true;
@@ -396,7 +450,7 @@ bool ExportGroupsList::store(const plynth::ExportOptions& options, const plynth:
 // Starts typing a new name for a group.
 void ExportGroupsList::startRename(const std::string& group)
 {
-    if (readOnly_)
+    if (locked())
         return;
     for (int i = 0; i < tree_->topLevelItemCount(); ++i) {
         QTreeWidgetItem* row = tree_->topLevelItem(i);
@@ -411,9 +465,10 @@ void ExportGroupsList::startRename(const std::string& group)
 void ExportGroupsList::renameTo(QTreeWidgetItem* item)
 {
     plynth::ExportOptions options;
-    if (!freshOptions(options))
+    std::vector<plynth::ExportGroup> current;
+    if (!freshOptions(options, current))
         return;
-    const plynth::Status status = plynth::renameExportGroup(options.groups, review_.groups, groupIdOf(item),
+    const plynth::Status status = plynth::renameExportGroup(options.groups, current, groupIdOf(item),
                                                             toCore(item->text(0)));
     store(options, status);
 }
@@ -422,9 +477,10 @@ void ExportGroupsList::renameTo(QTreeWidgetItem* item)
 void ExportGroupsList::mergeGroup(const std::string& group, const std::string& into)
 {
     plynth::ExportOptions options;
-    if (!freshOptions(options))
+    std::vector<plynth::ExportGroup> current;
+    if (!freshOptions(options, current))
         return;
-    const plynth::Status status = plynth::mergeExportGroups(options.groups, review_.groups, group, into);
+    const plynth::Status status = plynth::mergeExportGroups(options.groups, current, group, into);
     store(options, status);
 }
 
@@ -432,9 +488,10 @@ void ExportGroupsList::mergeGroup(const std::string& group, const std::string& i
 void ExportGroupsList::moveMember(const plynth::ExportMember& member, const std::string& to)
 {
     plynth::ExportOptions options;
-    if (!freshOptions(options))
+    std::vector<plynth::ExportGroup> current;
+    if (!freshOptions(options, current))
         return;
-    const plynth::Status status = plynth::moveExportMember(options.groups, review_.groups, member, to);
+    const plynth::Status status = plynth::moveExportMember(options.groups, current, member, to);
     store(options, status);
 }
 
@@ -448,13 +505,14 @@ void ExportGroupsList::moveToNewGroup(const plynth::ExportMember& member)
     if (!ok)
         return;
     plynth::ExportOptions options;
-    if (!freshOptions(options))
+    std::vector<plynth::ExportGroup> current;
+    if (!freshOptions(options, current))
         return;
     std::string id;
-    plynth::Status status = plynth::addExportGroup(options.groups, review_.groups, toCore(name), id);
+    plynth::Status status = plynth::addExportGroup(options.groups, current, toCore(name), id);
     if (status.ok()) {
         // The new group is not in the current list yet, so the move is checked against a list that has it.
-        std::vector<plynth::ExportGroup> next = review_.groups;
+        std::vector<plynth::ExportGroup> next = current;
         plynth::ExportGroup added;
         added.id = id;
         added.name = toCore(name);
@@ -474,10 +532,11 @@ void ExportGroupsList::newGroup()
     if (!ok)
         return;
     plynth::ExportOptions options;
-    if (!freshOptions(options))
+    std::vector<plynth::ExportGroup> current;
+    if (!freshOptions(options, current))
         return;
     std::string id;
-    const plynth::Status status = plynth::addExportGroup(options.groups, review_.groups, toCore(name), id);
+    const plynth::Status status = plynth::addExportGroup(options.groups, current, toCore(name), id);
     store(options, status);
 }
 
@@ -490,7 +549,8 @@ void ExportGroupsList::resetGroups()
     if (answer != QMessageBox::Yes)
         return;
     plynth::ExportOptions options;
-    if (!freshOptions(options))
+    std::vector<plynth::ExportGroup> current;
+    if (!freshOptions(options, current))
         return;
     options.groups = plynth::ExportGroupEdits{};
     store(options, plynth::Status{});
@@ -500,7 +560,7 @@ void ExportGroupsList::resetGroups()
 void ExportGroupsList::showMenu(const QPoint& at)
 {
     QTreeWidgetItem* item = tree_->itemAt(at);
-    if (!item || readOnly_)
+    if (!item || locked())
         return;
     QMenu menu(this);
     if (isMember(item)) {

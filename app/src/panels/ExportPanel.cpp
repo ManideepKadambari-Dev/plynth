@@ -261,11 +261,15 @@ ExportPanel::ExportPanel(QWidget* parent) : QWidget(parent)
         connect(groupsTree_, &QTreeWidget::itemCollapsed, this, [this]() { fitGroupsTree(); });
     }
     connect(groups_, &ExportGroupsList::editorClosed, this, &ExportPanel::applyDeferred);
+    connect(groups_, &ExportGroupsList::outsideChanged, this, [this]() { QTimer::singleShot(0, this, &ExportPanel::refreshRequested); });
     watcher_ = new QFileSystemWatcher(this);
     watchTimer_ = new QTimer(this);
     watchTimer_->setSingleShot(true);
     watchTimer_->setInterval(250);
-    connect(watcher_, &QFileSystemWatcher::directoryChanged, watchTimer_, qOverload<>(&QTimer::start));
+    connect(watcher_, &QFileSystemWatcher::directoryChanged, this, [this]() {
+        groups_->checkOutside();
+        watchTimer_->start();
+    });
     connect(watchTimer_, &QTimer::timeout, this, &ExportPanel::refreshRequested);
     setReport(nullptr, ExportPanelState());
 }
@@ -594,9 +598,11 @@ void ExportPanel::addChecks(const plynth::ExportReport& report)
 // Rebuilds the body from a report and the state around it.
 void ExportPanel::setReport(const plynth::ExportReport* report, const ExportPanelState& state)
 {
-    // A name being typed is never torn down: the whole refresh waits for the editor to close.
+    // A name being typed is never torn down by a refresh that changes no group: the refresh waits for the editor to
+    // close. A refresh that locks the list (a session, or groups changed outside) closes the editor without saving.
+    if (groups_->editing() && groups_->mustCloseEditor(state.readOnly, state.review))
+        groups_->cancelEditing();
     if (groups_->editing()) {
-        groups_->setReadOnlyNow(state.readOnly);
         Deferred later;
         if (report != nullptr)
             later.report = *report;
