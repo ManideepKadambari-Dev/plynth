@@ -161,6 +161,10 @@ void MainWindow::updateExportUi()
     if (doc_.hasFolder()) {
         const plynth::ExportOptionsRead options = plynth::readExportOptions(doc_.folder());
         state.kitEnabled = options.status.ok() && options.options.kit.enabled;
+        if (!options.status.ok()) {
+            state.optionsProblem = fromCore(options.status.message);
+            state.optionsRepairable = options.status.code != plynth::ErrorCode::UnsupportedVersion;
+        }
     }
     plynth::ExportGroupReview review;
     if (state.grouped && doc_.hasFolder()) {

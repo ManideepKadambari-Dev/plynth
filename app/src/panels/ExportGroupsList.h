@@ -8,6 +8,7 @@
 
 #include <filesystem>
 #include <map>
+#include <optional>
 #include <set>
 #include <string>
 
@@ -40,7 +41,10 @@ signals:
 private:
     void rebuild();
     void showMenu(const QPoint& at);
-    void startRename(QTreeWidgetItem* item);
+    void startRename(const std::string& group);
+    void applyReview(const std::filesystem::path& projectFolder, const plynth::ExportGroupReview& review, bool readOnly,
+                     const std::map<std::pair<std::string, std::string>, QString>& labels);
+    void applyPending();
     void renameTo(QTreeWidgetItem* item);
     void mergeGroup(const std::string& group, const std::string& into);
     void moveMember(const plynth::ExportMember& member, const std::string& to);
@@ -49,6 +53,7 @@ private:
     void resetGroups();
     bool store(const plynth::ExportOptions& options, const plynth::Status& status);
     void showMessage(const QString& text);
+    QString newGroupPrompt() const;
     void addNote(QTreeWidgetItem* row, const QString& text);
     void updateButtons();
 
@@ -58,6 +63,14 @@ private:
     bool rebuilding_ = false;
     std::set<std::string> expanded_;
     std::map<std::pair<std::string, std::string>, QString> labels_;
+    // A review that arrived while a name was being typed; it is shown when the editor closes.
+    struct Pending {
+        std::filesystem::path folder;
+        plynth::ExportGroupReview review;
+        bool readOnly = false;
+        std::map<std::pair<std::string, std::string>, QString> labels;
+    };
+    std::optional<Pending> pending_;
     GroupsTree* tree_ = nullptr;
     QLabel* notes_ = nullptr;
     QLabel* empty_ = nullptr;

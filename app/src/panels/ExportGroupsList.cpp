@@ -11,6 +11,7 @@
 #include <QMenu>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QTimer>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
@@ -57,12 +58,6 @@ std::string groupIdOf(const QTreeWidgetItem* item)
     return toCore(item->data(0, kRoleGroup).toString());
 }
 
-// The row of the group, whichever row of it is given.
-QTreeWidgetItem* groupRowOf(QTreeWidgetItem* item)
-{
-    return item->parent() ? item->parent() : item;
-}
-
 } // namespace
 
 // The tree of groups. A member dragged onto a group is reported, never moved by the tree itself.
@@ -72,11 +67,14 @@ public:
 
     std::function<void(const plynth::ExportMember&, const std::string&)> onDropMember;
 
+    // True while a name is being typed in a row.
+    bool editing() const { return state() == QAbstractItemView::EditingState; }
+
 protected:
     // Accepts a dragged member over any row.
     void dragMoveEvent(QDragMoveEvent* event) override
     {
-        if (isMember(currentItem()) && itemAt(event->position().toPoint()))
+        if (event->source() == this && isMember(currentItem()) && itemAt(event->position().toPoint()))
             event->acceptProposedAction();
         else
             event->ignore();
@@ -88,7 +86,7 @@ protected:
         QTreeWidgetItem* source = currentItem();
         QTreeWidgetItem* target = itemAt(event->position().toPoint());
         event->ignore();
-        if (isMember(source) && target && onDropMember)
+        if (event->source() == this && isMember(source) && target && onDropMember)
             onDropMember(memberOf(source), groupIdOf(target));
     }
 };
@@ -175,6 +173,8 @@ ExportGroupsList::ExportGroupsList(QWidget* parent) : QWidget(parent)
         if (!rebuilding_)
             expanded_.erase(groupIdOf(item));
     });
+    connect(tree_->itemDelegate(), &QAbstractItemDelegate::closeEditor, this,
+            [this]() { QTimer::singleShot(0, this, &ExportGroupsList::applyPending); });
     connect(newButton_, &QPushButton::clicked, this, &ExportGroupsList::newGroup);
     connect(resetButton_, &QPushButton::clicked, this, &ExportGroupsList::resetGroups);
     tree->onDropMember = [this](const plynth::ExportMember& member, const std::string& to) {
@@ -185,20 +185,49 @@ ExportGroupsList::ExportGroupsList(QWidget* parent) : QWidget(parent)
     rebuild();
 }
 
-// Shows a review. The plan only gives the members their plain labels.
+// Shows a review. The plan only gives the members their plain labels. While a name is being typed the review waits,
+// so the editor is not thrown away.
 void ExportGroupsList::setReview(const std::filesystem::path& projectFolder, const plynth::ExportGroupReview& review,
                                  bool readOnly, const plynth::Plan* plan)
 {
+    std::map<std::pair<std::string, std::string>, QString> labels;
+    const plynth::Plan none;
+    for (const auto& group : review.groups)
+        for (const auto& member : group.members)
+            labels[{member.kind, member.id}] = fromCore(plynth::exportMemberLabel(plan ? *plan : none, member));
+    if (static_cast<GroupsTree*>(tree_)->editing()) {
+        pending_ = Pending{projectFolder, review, readOnly, labels};
+        return;
+    }
+    pending_.reset();
+    applyReview(projectFolder, review, readOnly, labels);
+}
+
+// Takes a review. The tree is rebuilt only when something it shows changed, so open groups and the selection stay.
+void ExportGroupsList::applyReview(const std::filesystem::path& projectFolder, const plynth::ExportGroupReview& review,
+                                   bool readOnly,
+                                   const std::map<std::pair<std::string, std::string>, QString>& labels)
+{
+    const bool same = projectFolder == folder_ && readOnly == readOnly_ && review.groups == review_.groups &&
+                      review.notes == review_.notes && review.options == review_.options && labels == labels_;
     folder_ = projectFolder;
     review_ = review;
     readOnly_ = readOnly;
-    labels_.clear();
-    const plynth::Plan none;
-    for (const auto& group : review_.groups)
-        for (const auto& member : group.members)
-            labels_[{member.kind, member.id}] = fromCore(plynth::exportMemberLabel(plan ? *plan : none, member));
+    labels_ = labels;
+    if (same)
+        return;
     message_->hide();
     rebuild();
+}
+
+// Shows the review that waited for the editor.
+void ExportGroupsList::applyPending()
+{
+    if (!pending_ || static_cast<GroupsTree*>(tree_)->editing())
+        return;
+    const Pending next = *pending_;
+    pending_.reset();
+    applyReview(next.folder, next.review, next.readOnly, next.labels);
 }
 
 // Opens or closes every group.
@@ -298,6 +327,12 @@ void ExportGroupsList::updateButtons()
     resetButton_->setEnabled(!readOnly_ && edits);
 }
 
+// The text above the box that asks for a group name, with the characters a name may use.
+QString ExportGroupsList::newGroupPrompt() const
+{
+    return tr("Name of the new group.\nLetters A to Z, digits, spaces, hyphens and underscores, up to 64 characters.");
+}
+
 // Shows why an edit was refused.
 void ExportGroupsList::showMessage(const QString& text)
 {
@@ -308,27 +343,36 @@ void ExportGroupsList::showMessage(const QString& text)
 // Writes the options after an edit that was accepted, or shows the refusal.
 bool ExportGroupsList::store(const plynth::ExportOptions& options, const plynth::Status& status)
 {
-    if (!status.ok()) {
-        showMessage(fromCore(status.message));
-        rebuild();
+    // The tree is put back to what is saved after the current event, not inside it.
+    auto refuse = [this](const QString& text) {
+        showMessage(text);
+        QTimer::singleShot(0, this, [this]() { rebuild(); });
         return false;
-    }
+    };
+    if (readOnly_)
+        return refuse(tr("The project is open for reading only, so the groups cannot be changed."));
+    if (!status.ok())
+        return refuse(fromCore(status.message));
     const plynth::Status written = plynth::writeExportOptions(folder_, options);
-    if (!written.ok()) {
-        showMessage(fromCore(written.message));
-        rebuild();
-        return false;
-    }
+    if (!written.ok())
+        return refuse(fromCore(written.message));
     showMessage(QString());
     emit edited();
     return true;
 }
 
 // Starts typing a new name for a group.
-void ExportGroupsList::startRename(QTreeWidgetItem* item)
+void ExportGroupsList::startRename(const std::string& group)
 {
-    if (!readOnly_ && item)
-        tree_->editItem(groupRowOf(item), 0);
+    if (readOnly_)
+        return;
+    for (int i = 0; i < tree_->topLevelItemCount(); ++i) {
+        QTreeWidgetItem* row = tree_->topLevelItem(i);
+        if (groupIdOf(row) == group) {
+            tree_->editItem(row, 0);
+            return;
+        }
+    }
 }
 
 // Applies the name typed in a group row.
@@ -360,7 +404,7 @@ void ExportGroupsList::moveMember(const plynth::ExportMember& member, const std:
 void ExportGroupsList::moveToNewGroup(const plynth::ExportMember& member)
 {
     bool ok = false;
-    const QString name = QInputDialog::getText(this, tr("New group"), tr("Name of the new group"), QLineEdit::Normal,
+    const QString name = QInputDialog::getText(this, tr("New group"), newGroupPrompt(), QLineEdit::Normal,
                                                QString(), &ok)
                              .trimmed();
     if (!ok)
@@ -384,7 +428,7 @@ void ExportGroupsList::moveToNewGroup(const plynth::ExportMember& member)
 void ExportGroupsList::newGroup()
 {
     bool ok = false;
-    const QString name = QInputDialog::getText(this, tr("New group"), tr("Name of the new group"), QLineEdit::Normal,
+    const QString name = QInputDialog::getText(this, tr("New group"), newGroupPrompt(), QLineEdit::Normal,
                                                QString(), &ok)
                              .trimmed();
     if (!ok)
@@ -429,7 +473,7 @@ void ExportGroupsList::showMenu(const QPoint& at)
         move->addAction(tr("New group..."), this, [this, member] { moveToNewGroup(member); });
     } else {
         const std::string id = groupIdOf(item);
-        menu.addAction(tr("Rename"), this, [this, item] { startRename(item); });
+        menu.addAction(tr("Rename"), this, [this, id] { startRename(id); });
         QMenu* merge = menu.addMenu(tr("Merge into"));
         for (const auto& group : review_.groups) {
             if (group.id == id)

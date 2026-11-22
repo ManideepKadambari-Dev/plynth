@@ -13,6 +13,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLocale>
+#include <QMessageBox>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPushButton>
@@ -301,6 +302,7 @@ void ExportPanel::showEvent(QShowEvent* event)
 void ExportPanel::setGroupsExpanded(bool expanded)
 {
     groupsExpanded_ = expanded;
+    groupsExpandedDone_ = false;
     groups_->setAllExpanded(expanded);
     fitGroupsTree();
 }
@@ -347,8 +349,8 @@ void ExportPanel::setKitEnabled(bool enabled)
         status = plynth::writeExportOptions(projectFolder_, read.options);
     }
     kitError_ = status.ok() ? QString() : fromCore(status.message);
-    // The new review puts the box back to what is saved.
-    emit refreshRequested();
+    // The new review puts the box back to what is saved. It comes after this click, which the box is part of.
+    QTimer::singleShot(0, this, &ExportPanel::refreshRequested);
 }
 
 // Adds the checkbox that switches the modular kit on for the next export.
@@ -379,7 +381,7 @@ void ExportPanel::addKitReport(const plynth::ExportReport& report)
 {
     const Theme& t = Theme::instance();
     const plynth::ExportKitReport& kit = report.kit;
-    if (!kit.asked)
+    if (!kit.asked || (!kit.written && kit.skipped.empty()))
         return;
     QWidget* section = addSection(tr("Modular kit"));
     if (kit.written) {
@@ -397,6 +399,55 @@ void ExportPanel::addKitReport(const plynth::ExportReport& report)
     }
 }
 
+// Repairs the unreadable options file after asking: a copy is kept, the group edits go and the kit switch stays when
+// it can be read. The CLI does the same.
+void ExportPanel::resetOptions()
+{
+    const auto answer = QMessageBox::question(
+        this, tr("Reset groups"),
+        tr("The export options file cannot be read. Keep a copy of it as export-options.json.bad and go back to the "
+           "automatic groups? The modular kit switch stays as it was if it can be read."),
+        QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
+    if (answer != QMessageBox::Yes)
+        return;
+    const plynth::ExportOptionsRepair repair = plynth::repairExportOptions(projectFolder_);
+    resetError_ = repair.status.ok() ? QString() : fromCore(repair.status.message);
+    emit refreshRequested();
+}
+
+// Shows why the options file cannot be read, with a button that throws it away.
+void ExportPanel::addOptionsProblem(const ExportPanelState& state)
+{
+    const Theme& t = Theme::instance();
+    if (state.notice != state.optionsProblem) {
+        auto* line = new QLabel(state.optionsProblem, body_);
+        line->setWordWrap(true);
+        line->setFont(t.uiFont(t.sizeNormal()));
+        line->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
+        line->setToolTip(tr("Why the groups cannot be shown"));
+        column_->addWidget(line);
+    }
+    if (!resetError_.isEmpty()) {
+        auto* error = new QLabel(resetError_, body_);
+        error->setWordWrap(true);
+        error->setFont(t.uiFont(t.sizeSmall()));
+        error->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
+        column_->addWidget(error);
+    }
+    if (!state.optionsRepairable)
+        return;
+    auto* row = new QWidget(body_);
+    auto* layout = new QHBoxLayout(row);
+    layout->setContentsMargins(0, 0, 0, 0);
+    QPushButton* reset = addButton(row, tr("Reset groups"),
+                                   tr("Keep a copy of the unreadable export options file and go back to the automatic groups"),
+                                   QStringLiteral("export-groups-reset"), false);
+    reset->setEnabled(!state.readOnly && !state.projectFolder.empty());
+    layout->addStretch(1);
+    connect(reset, &QPushButton::clicked, this, &ExportPanel::resetOptions);
+    column_->addWidget(row);
+}
+
 // Adds the Groups section for a grouped project, or the one line for a single project.
 void ExportPanel::addGroups(const ExportPanelState& state)
 {
@@ -406,6 +457,11 @@ void ExportPanel::addGroups(const ExportPanelState& state)
     heading->setStyleSheet(QStringLiteral("color: %1; padding-top: %2px;").arg(t.muted().name()).arg(t.unit() * 2));
     heading->setToolTip(tr("The files an export writes"));
     column_->addWidget(heading);
+    if (!state.optionsProblem.isEmpty()) {
+        addOptionsProblem(state);
+        return;
+    }
+    resetError_.clear();
     if (!state.grouped) {
         auto* line = new QLabel(tr("Single FBX: one file. Switch to grouped in Properties > Project."), body_);
         line->setWordWrap(true);
@@ -421,7 +477,10 @@ void ExportPanel::addGroups(const ExportPanelState& state)
         review_.groups.clear();
     // The labels come from the plan the groups were made from, which review_ keeps as long as the list needs it.
     groups_->setReview(state.projectFolder, review_, state.readOnly, &review_.plan);
-    groups_->setAllExpanded(groupsExpanded_);
+    if (groupsExpanded_ && !groupsExpandedDone_ && !review_.groups.empty()) {
+        groups_->setAllExpanded(true);
+        groupsExpandedDone_ = true;
+    }
     column_->addWidget(groups_);
     groups_->show();
     fitGroupsTree();
@@ -558,7 +617,7 @@ void ExportPanel::setReport(const plynth::ExportReport* report, const ExportPane
         column_->addWidget(label);
     };
     if (!state.notice.isEmpty()) {
-        note(state.notice, t.muted());
+        note(state.notice, state.notice == state.optionsProblem ? t.signalAmber() : t.muted());
         if (state.offerBuild) {
             auto* row = new QWidget(body_);
             auto* layout = new QHBoxLayout(row);

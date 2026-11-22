@@ -30,6 +30,8 @@ struct ExportPanelState {
     bool folderExists = false; // the export folder is there to open
     bool grouped = false;      // the project exports one FBX for each group
     bool built = false;        // the project has a build, so its groups can be shown
+    QString optionsProblem;    // why export-options.json cannot be read; empty when it can
+    bool optionsRepairable = false; // the bad file may be replaced; false for one written by a newer Plynth
     bool kitEnabled = false;   // export-options.json switches the modular kit on
     bool readOnly = false;     // a CLI session holds the project, so the groups cannot be edited
     std::filesystem::path projectFolder;               // empty when the project is not saved
@@ -72,6 +74,8 @@ private:
     void addChecks(const plynth::ExportReport& report);
     void addGroups(const ExportPanelState& state);
     void addKitSwitch(const ExportPanelState& state);
+    void addOptionsProblem(const ExportPanelState& state);
+    void resetOptions();
     void addKitReport(const plynth::ExportReport& report);
     void fitGroupsTree();
     void fitGroupsColumns();
@@ -84,10 +88,12 @@ private:
     QTreeWidget* groupsTree_ = nullptr;
     plynth::ExportGroupReview review_;
     bool groupsExpanded_ = false;
+    bool groupsExpandedDone_ = false;
     QFileSystemWatcher* watcher_ = nullptr;
     QTimer* watchTimer_ = nullptr;
     std::filesystem::path watched_;
     std::filesystem::path projectFolder_;
+    QString resetError_; // why the options file could not be removed; empty when it could
     QString kitError_; // why the last change of the kit switch was not saved; empty when it was
 };
 
