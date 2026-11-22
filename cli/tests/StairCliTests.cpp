@@ -106,6 +106,24 @@ TEST_CASE("stair remove removes and stair types lists the four types", "[cli][st
     CHECK(names == std::vector<std::string>{"straight", "l_shape", "u_shape", "spiral"});
 }
 
+TEST_CASE("item, wall, point, room and opening remove refuse a stair id and name stair remove", "[cli][stair]") {
+    Sample sample("stair-wrong-remove");
+    REQUIRE(sample.run({"floor", "add"}).exitCode == kExitOk);
+    REQUIRE(sample.run({"stair", "add", "--x", "1", "--y", "1"}).exitCode == kExitOk);
+    const auto before = readFile(sample.folder / "plan.json");
+    for (const char* group : {"item", "wall", "point", "room", "opening"}) {
+        const auto refused = sample.run({group, "remove", "s1"});
+        INFO(group);
+        CHECK(refused.exitCode == kExitFailed);
+        CHECK(errorCode(refused) == "invalid_value");
+        const std::string message = refused.answer.at("error").at("message").get<std::string>();
+        CHECK(message.find("a stair") != std::string::npos);
+        CHECK(message.find("stair remove") != std::string::npos);
+        CHECK(readFile(sample.folder / "plan.json") == before);
+    }
+    CHECK(sample.run({"stair", "list"}).answer.at("result").at("stairs").size() == 1);
+}
+
 TEST_CASE("a stair takes a material through stair add, stair set and material set", "[cli][stair]") {
     MaterialLibrary library("stair-material");
     Sample sample("stair-material-project");

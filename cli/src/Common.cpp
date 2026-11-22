@@ -293,7 +293,9 @@ Answer removeCascade(const std::string& command, const std::string& kind, const 
     return editProject(command, context, projectOption, [&](Document& document) {
         if (const Floor* floor = findFloorContaining(document.plan(), id)) {
             std::string actual = "item";
-            if (findItem(*floor, id) != nullptr) {
+            if (findStair(*floor, id) != nullptr) {
+                actual = "stair";
+            } else if (findItem(*floor, id) != nullptr) {
                 actual = "item";
             } else if (findPoint(*floor, id) != nullptr) {
                 actual = "point";
@@ -323,6 +325,21 @@ Answer removeCascade(const std::string& command, const std::string& kind, const 
         return success(command, removedJson(build.removes.items, build.removes.detached, build.removes.openings,
                                             build.removes.rooms, build.removes.walls, build.removes.points));
     });
+}
+
+std::optional<Answer> refuseStairId(const std::string& command, const std::string& kind, const RunContext& context,
+                                    const std::string& projectOption, const Id& id) {
+    Document document;
+    Answer failed;
+    if (!openProject(command, resolveProjectFolder(context, projectOption), document, failed, true)) {
+        return std::nullopt;
+    }
+    const Floor* floor = findFloorContaining(document.plan(), id);
+    if (floor == nullptr || findStair(*floor, id) == nullptr) {
+        return std::nullopt;
+    }
+    return failure(command, fail(ErrorCode::InvalidValue, id + " is a stair, not " + (kind == "opening" ? "an " : "a ") +
+                                                              kind + ". Use stair remove."));
 }
 
 Json removedJson(const std::vector<Id>& items, const std::vector<Id>& detached, const std::vector<Id>& openings,

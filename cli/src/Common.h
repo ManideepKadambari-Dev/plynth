@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -96,6 +97,11 @@ Json roomEntry(const Floor& floor, const Room& room);
 Answer removeCascade(const std::string& command, const std::string& kind, const RunContext& context,
                      const std::string& projectOption,
                      const Id& id);
+
+// For the remove commands that do not cascade: when id names a stair, the refusal that points to stair remove.
+// Empty when the id is not a stair or the project cannot be read, so the normal path reports it.
+std::optional<Answer> refuseStairId(const std::string& command, const std::string& kind, const RunContext& context,
+                                    const std::string& projectOption, const Id& id);
 
 // The result of a remove command: the ids of the items, detached items, openings, rooms, walls and points that
 // were removed. A detached item stays on the plan but is no longer on its removed wall.
