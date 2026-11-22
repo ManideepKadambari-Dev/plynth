@@ -4,8 +4,14 @@
 #include <plynth/core/OpeningShapes.h>
 #include <plynth/core/RoomTypes.h>
 
+#include <QCoreApplication>
 #include <QDir>
+#include <QFileInfo>
+#include <QFileSystemWatcher>
 #include <QStandardPaths>
+#include <QTimer>
+
+#include <plynth/core/Blender.h>
 
 namespace plynth::app {
 
@@ -53,8 +59,10 @@ void LibraryHost::reopen()
     if (!choice.status.ok()) {
         libraryProblem_ = fromCore(choice.status.message);
         plynth::useRoomTypes({});
+        generators_ = {};
         emit libraryChanged();
         emit roomTypesChanged();
+        emit generatorsChanged();
         return;
     }
     plynth::Status status;
@@ -76,8 +84,150 @@ void LibraryHost::reopen()
                                         fromCore(load.refused.front().second.message));
         }
     }
+    if (catalog_) {
+        generators_ = plynth::loadGeneratorFolder(paths_.generators);
+        watchGenerators();
+        readAddonCacheFile();
+    } else {
+        generators_ = {};
+    }
     emit libraryChanged();
     emit roomTypesChanged();
+    emit generatorsChanged();
+    if (catalog_)
+        probeIfNeeded();
+}
+
+// Watches the generators folder and reads it again two quiet seconds after a change. The folder is made when
+// missing so the watch has something to follow.
+void LibraryHost::watchGenerators()
+{
+    if (!generatorWatcher_) {
+        generatorWatcher_ = new QFileSystemWatcher(this);
+        generatorTimer_ = new QTimer(this);
+        generatorTimer_->setSingleShot(true);
+        generatorTimer_->setInterval(1000);
+        connect(generatorTimer_, &QTimer::timeout, this, &LibraryHost::reloadGenerators);
+        connect(generatorWatcher_, &QFileSystemWatcher::directoryChanged, this, [this]() { generatorTimer_->start(); });
+        connect(generatorWatcher_, &QFileSystemWatcher::fileChanged, this, [this]() { generatorTimer_->start(); });
+    }
+    if (!generatorWatcher_->directories().isEmpty())
+        generatorWatcher_->removePaths(generatorWatcher_->directories());
+    if (!generatorWatcher_->files().isEmpty())
+        generatorWatcher_->removePaths(generatorWatcher_->files());
+    std::error_code ignored;
+    std::filesystem::create_directories(paths_.generators, ignored);
+    generatorWatcher_->addPath(QString::fromStdWString(paths_.generators.wstring()));
+    for (const plynth::GeneratorInfo& info : generators_.generators)
+        generatorWatcher_->addPath(QString::fromStdWString(info.file.wstring()));
+}
+
+// Reads the generators folder again and tells the views when the list differs.
+void LibraryHost::reloadGenerators()
+{
+    if (!catalog_)
+        return;
+    plynth::GeneratorLibrary fresh = plynth::loadGeneratorFolder(paths_.generators);
+    const bool same = fresh.generators == generators_.generators && fresh.refused.size() == generators_.refused.size();
+    generators_ = std::move(fresh);
+    watchGenerators();
+    if (!same)
+        emit generatorsChanged();
+}
+
+// Reads the add-on cache file. Without a running Blender check it is trusted as it is.
+void LibraryHost::readAddonCacheFile()
+{
+    addonCache_.reset();
+    const plynth::AddonCacheRead read = plynth::readAddonCache(plynth::addonCacheFile());
+    if (read.status.ok() && read.cache)
+        addonCache_ = read.cache;
+}
+
+// Starts the background check when the cache is missing or was made by another Blender.
+void LibraryHost::probeIfNeeded()
+{
+    if (!autoProbe_ || probeRunning_)
+        return;
+    const std::optional<plynth::AddonCache> cached = addonCache_;
+    const plynth::MachineSettings settings = settings_;
+    probeRunning_ = true;
+    probe_ = std::jthread([this, cached, settings](std::stop_token stop) {
+        std::optional<plynth::AddonCache> result;
+        const plynth::BlenderChoice choice = plynth::chooseBlender(std::nullopt, settings, stop);
+        if (!choice.status.ok()) {
+            result = std::nullopt;
+        } else if (cached && plynth::addonCacheMatches(*cached, choice.install)) {
+            result = cached;
+        } else {
+            const plynth::AddonProbe probe = plynth::probeAddons(choice.install, plynth::addonCacheFile(), {false, plynth::kAddonProbeTimeout, {}}, stop);
+            if (probe.status.ok())
+                result = probe.cache;
+        }
+        QMetaObject::invokeMethod(this, [this, result]() {
+            probeRunning_ = false;
+            addonCache_ = result;
+            emit generatorsChanged();
+        }, Qt::QueuedConnection);
+    });
+}
+
+// Runs the add-on check now, even when the cache looks right.
+void LibraryHost::checkAddons()
+{
+    if (probeRunning_)
+        return;
+    const plynth::MachineSettings settings = settings_;
+    probeRunning_ = true;
+    emit generatorsChanged();
+    probe_ = std::jthread([this, settings](std::stop_token stop) {
+        QString text;
+        std::optional<plynth::AddonCache> result;
+        const plynth::BlenderChoice choice = plynth::chooseBlender(std::nullopt, settings, stop);
+        if (!choice.status.ok()) {
+            text = fromCore(choice.status.message);
+        } else {
+            const plynth::AddonProbe probe = plynth::probeAddons(choice.install, plynth::addonCacheFile(), {false, plynth::kAddonProbeTimeout, {}}, stop);
+            if (probe.status.ok()) {
+                result = probe.cache;
+                text = QObject::tr("Checked the add-ons: %1 enabled in Blender.").arg(probe.cache.enabled.size());
+            } else {
+                text = fromCore(probe.status.message);
+            }
+        }
+        QMetaObject::invokeMethod(this, [this, result, text]() {
+            probeRunning_ = false;
+            if (result)
+                addonCache_ = result;
+            emit generatorsChanged();
+            emit addonCheckFinished(text);
+        }, Qt::QueuedConnection);
+    });
+}
+
+// Copies the sample generators from the samples folder next to the program (or up the tree) into the library.
+QString LibraryHost::addSampleGenerators()
+{
+    if (!catalog_)
+        return tr("Open a library first.");
+    QDir dir(QCoreApplication::applicationDirPath());
+    QString from;
+    for (int i = 0; i < 8; ++i) {
+        if (QFileInfo(dir.filePath(QStringLiteral("samples/generators"))).isDir()) {
+            from = dir.filePath(QStringLiteral("samples/generators"));
+            break;
+        }
+        if (!dir.cdUp())
+            break;
+    }
+    if (from.isEmpty())
+        return tr("The sample generators folder was not found.");
+    const plynth::SampleGeneratorsCopy copy =
+        plynth::addSampleGenerators(paths_.generators, std::filesystem::path(from.toStdWString()));
+    reloadGenerators();
+    if (!copy.status.ok())
+        return fromCore(copy.status.message);
+    return tr("Added %1 sample generators, %2 were already there.").arg(copy.copied.size()).arg(copy.skipped.size());
 }
 
 // Opens materials.db. An empty index next to folders in materials/items is rebuilt once, so a library filled

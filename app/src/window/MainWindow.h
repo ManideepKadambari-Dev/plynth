@@ -88,6 +88,14 @@ public:
     bool activateToolByName(const QString& name);
     // For checks only: selects the point, wall or room with this id on the first floor. An unknown id selects nothing.
     void selectById(const QString& id);
+    // For checks only: sets a parameter of the selected generator item ("diameter=0.5"). False when refused.
+    bool setGeneratorParam(const QString& assignment);
+    // For checks only: the Catalog menu's Add the sample generators.
+    void addSampleGenerators();
+    // For checks only: runs the add-on check and returns when it has finished.
+    void checkAddonsAndWait();
+    // For checks only: undoes the last change once.
+    void undoOnce() { doc_.undo(); }
     // For checks only: chooses the side the wall view is seen from.
     void setWallViewSide(plynth::WallSide side);
 
@@ -186,6 +194,7 @@ private:
     void queueFinished(int kind, bool ok, const QString& assetId, const QString& message, bool thumbnailFailed);
     void editRoomTypes();
     void openLibraryFolder();
+    void openGeneratorsFolder();
     void roomTypesChanged();
     void reportMissingImages(const plynth::SaveReport& report);
     void buildMenus();
@@ -285,6 +294,10 @@ private:
     QAction* rescanMaterialsAction_ = nullptr;
     QAction* importMaterialsAction_ = nullptr;
     QAction* addSamplesAction_ = nullptr;
+    QAction* reloadGeneratorsAction_ = nullptr;
+    QAction* checkAddonsAction_ = nullptr;
+    QAction* addSampleGeneratorsAction_ = nullptr;
+    QAction* openGeneratorsAction_ = nullptr;
     ImportQueue* queue_ = nullptr;
     ImportQueueView* queueView_ = nullptr;
     LibraryWatcher* libraryWatcher_ = nullptr;
