@@ -2,6 +2,7 @@
 #include "SampleProject.h"
 #include "SettingsGuard.h"
 
+#include <plynth/core/ProjectFiles.h>
 #include <plynth/core/Settings.h>
 
 #include <catch2/catch_test_macros.hpp>
@@ -65,7 +66,7 @@ TEST_CASE("doctor with the fake Blender, folders set and add-ons skipped is read
     CHECK(result.at("ready") == true);
     CHECK(result.at("probed") == false);
     CHECK(item(result, "blender").at("state") == "found");
-    CHECK(item(result, "blender").at("path") == utf8(fake));
+    CHECK(std::filesystem::equivalent(plynth::pathFromUtf8(item(result, "blender").at("path").get<std::string>()), fake));
     CHECK(item(result, "blender_version").at("state") == "found");
     CHECK(item(result, "library_folder").at("state") == "found");
     CHECK(item(result, "projects_folder").at("state") == "found");
