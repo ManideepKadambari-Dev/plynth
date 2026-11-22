@@ -37,6 +37,23 @@ def free_meshes():
         OPEN.pop().free()
 
 
+# Returns the faces of an object that have area and whose UV area differs from it, as (face index, area, UV area).
+# The neutral tile is one metre square, so a face with true metric UVs has the same area in both.
+def uv_mismatches(name):
+    bm = mesh_of(name)
+    uv = bm.loops.layers.uv.get("UVMap")
+    found = []
+    for face in bm.faces:
+        area = face.calc_area()
+        if area <= 1e-8:
+            continue
+        points = [loop[uv].uv for loop in face.loops]
+        flat = 0.5 * abs(sum(a.x * b.y - b.x * a.y for a, b in zip(points, points[1:] + points[:1])))
+        if abs(flat - area) > 1e-6 + 1e-4 * area:
+            found.append((face.index, area, flat))
+    return found
+
+
 class StoreyTest(BuildTest):
     # Opens the built blend file after freeing the bmeshes of the earlier checks.
     def open_blend(self):
@@ -143,6 +160,12 @@ class StairFixtureTests(StoreyTest):
             for loop in face.loops:
                 self.assertAlmostEqual(loop[uv].uv.x, loop.vert.co.x, places=4)
                 self.assertAlmostEqual(loop[uv].uv.y, loop.vert.co.y, places=4)
+
+    # Every face of the stair and the slab has UVs in metres: sides and risers as much as treads. A stair side
+    # with no UV area smears the texture into streaks.
+    def test_uv_areas(self):
+        for name in ("SM_f1_s1_Stair", "SM_f1_Slab"):
+            self.assertEqual(uv_mismatches(name), [], name)
 
     # The ground ceiling and the upper floor lose the stair footprint, the rest stay whole.
     def test_holes(self):

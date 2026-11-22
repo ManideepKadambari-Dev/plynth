@@ -27,6 +27,7 @@ def make_stair(ctx, floor, stair):
     bm = bmesh.new()
     try:
         uv = meshes.uv_layer(bm)
+        made = []
         for step in stair["steps"]:
             outline = [(float(p[0]), float(p[1])) for p in step["outline"]]
             if len(outline) < 3 or not all(math.isfinite(c) for p in outline for c in p):
@@ -40,7 +41,10 @@ def make_stair(ctx, floor, stair):
                 outline = outline[::-1]
             for face, _, _ in meshes.add_prism(bm, [outline], step["bottom"], step["top"]):
                 face.material_index = 0
-                meshes.project_face(face, uv)
+                made.append(face)
+        bm.normal_update()
+        for face in made:
+            meshes.project_face(face, uv)
         collection = ctx.state["collections"][floor["id"]]
         obj = meshes.make_object("SM_%s_%s_Stair" % (floor["id"], stair["id"]), bm, collection, stair["id"], "stair")
     except Exception:
