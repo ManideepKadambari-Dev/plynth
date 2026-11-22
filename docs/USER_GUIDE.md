@@ -530,7 +530,7 @@ What the problems mean:
 | Asset is broken | error | The library has the asset, but it is marked broken or its model file is gone. The item was left out. Import the asset again or swap it. |
 | No library | error | No library folder is set, so every item was left out. Set one in the setup check. |
 | Could not cut | error | The opening could not be cut cleanly, so the wall was left uncut there. Try moving the opening a little. |
-| Could not fit the door or window | error | The opening is cut but empty, for example because it is too small for a frame. Make it larger. |
+| Could not fit the door or window | warning | The opening is cut but empty, for example because it is too small for a frame. Make it larger. |
 | Could not load the asset | error | Blender could not open the asset's model, so the item was left out. Press Retry render on the asset. |
 | Could not round the edges | warning | The wall edges stay sharp. The building is otherwise fine. |
 | Furniture warnings | warning | Not in any room, overlaps a wall and the others in "Furniture warnings" are shown here too. |

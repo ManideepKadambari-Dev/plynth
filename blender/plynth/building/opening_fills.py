@@ -25,12 +25,12 @@ def run(ctx):
             if entry is None:
                 continue
             if not opening["inner_outline"]:
-                report(ctx, "fill_failed", "error", "The opening is too small for a frame.", floor["id"], opening["id"])
+                report(ctx, "fill_failed", "warning", "The opening is too small for a frame.", floor["id"], opening["id"])
                 continue
             try:
                 made = entry.build(ctx, floor, opening)
             except Exception as error:
-                report(ctx, "fill_failed", "error", "The fill could not be made: %s" % error, floor["id"],
+                report(ctx, "fill_failed", "warning", "The fill could not be made: %s" % error, floor["id"],
                        opening["id"])
                 continue
             if made:

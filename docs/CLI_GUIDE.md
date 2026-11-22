@@ -1286,7 +1286,7 @@ The stages are `preparing`, `blender` (one line per step, `index` counting from 
 | `asset_broken` | error | The library lists the asset, but it is marked broken or its folder or `asset.blend` is gone. The item is left out. |
 | `no_library` | error | No usable library. Every item is left out. |
 | `cut_failed` | error | The opening could not be cut into its wall. The wall is left as it was. |
-| `fill_failed` | error | The opening was cut, but the door or window could not be made, for example because the opening is too small for a frame. The hole stays empty. |
+| `fill_failed` | warning | The opening was cut, but the door or window could not be made, for example because the opening is too small for a frame. The hole stays empty. |
 | `asset_load_failed` | error | Blender could not load the asset's `asset.blend`. The item is left out. |
 | `bevel_failed` | warning | The wall edges could not be rounded, so they stay sharp. |
 | `no_room`, `outside_room`, `overlaps_item`, `overlaps_wall`, `overlaps_opening`, `off_wall`, `too_tall`, `size_changed` | warning | The furniture warnings of the item (see "Furniture items"). They are shown again here because the build marks them on the plan. |
