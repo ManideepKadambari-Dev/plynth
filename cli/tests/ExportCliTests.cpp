@@ -387,6 +387,35 @@ TEST_CASE("export takes the kit library from --library", "[cli][export][kit]") {
     CHECK_FALSE(exportedEnding(flat, "_Kit.fbx").empty());
 }
 
+TEST_CASE("export refuses a bad --library and leaves export unchanged", "[cli][export][kit]") {
+    ExportSample flat("export-kit-bad-library");
+    useLibrary(flat);
+    REQUIRE(flat.sample.run({"export", "kit", "on"}).exitCode == kExitOk);
+    REQUIRE(flat.exportWith().exitCode == kExitOk);
+    const auto before = entries(flat.exportFolder());
+    REQUIRE_FALSE(exportedEnding(flat, "_Kit.fbx").empty());
+
+    const auto refused = flat.exportWith({"--library", utf8(flat.sample.temp.path() / "typo")});
+    CHECK(refused.exitCode == kExitFailed);
+    CHECK(refused.answer.at("ok") == false);
+    CHECK(refused.answer.at("error").at("code") == "no_library");
+    CHECK(entries(flat.exportFolder()) == before);
+}
+
+TEST_CASE("export says why a broken configured library skipped the kit", "[cli][export][kit]") {
+    ExportSample flat("export-kit-broken-library");
+    const fs::path library = useLibrary(flat);
+    REQUIRE(flat.sample.run({"export", "kit", "on"}).exitCode == kExitOk);
+    std::ofstream(library / "materials" / "materials.db", std::ios::binary) << "not a database";
+    const auto outcome = flat.exportWith();
+    REQUIRE(outcome.exitCode == kExitOk);
+    const auto& kit = outcome.answer.at("result").at("kit");
+    CHECK(kit.at("written") == false);
+    const std::string why = kit.at("skipped").get<std::string>();
+    CHECK(why.find("No library is set") == std::string::npos);
+    CHECK_FALSE(why.empty());
+}
+
 TEST_CASE("export kit off removes the kit files at the next export", "[cli][export][kit]") {
     ExportSample flat("export-kit-off");
     useLibrary(flat);

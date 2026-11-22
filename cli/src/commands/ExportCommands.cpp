@@ -78,16 +78,28 @@ Answer exportReport(const std::string& command, const ExportArgs& options, const
     return success(command, exportReportToJson(read.report));
 }
 
-// The library paths when a library can be opened (the --library value, or the settings), none otherwise. Only
-// the modular kit needs them, and an export without a library goes on without the kit.
-std::optional<LibraryPaths> tryLibrary(const std::string& command, const RunContext& context,
-                                       const std::string& libraryOption) {
-    OpenedCatalog opened;
-    Answer ignored;
-    if (!openCatalog(command, context, libraryOption, opened, ignored)) {
-        return std::nullopt;
+// Finds the library the kit uses. An explicit --library must open its materials catalog, or the export is
+// refused. Without it the configured folder is passed on as it is, so the export itself says why a broken
+// one cannot make the kit. Gives false and fills failed only for a refusal.
+bool kitLibrary(const std::string& command, const RunContext& context, const std::string& libraryOption,
+                std::optional<LibraryPaths>& library, Answer& failed) {
+    if (!libraryOption.empty()) {
+        OpenedMaterialCatalog opened;
+        if (!openMaterialCatalog(command, context, libraryOption, opened, failed)) {
+            return false;
+        }
+        library = opened.paths;
+        return true;
     }
-    return opened.paths;
+    const SettingsLoad loaded = loadSettings();
+    if (!loaded.status.ok()) {
+        failed = failure(command, loaded.status);
+        return false;
+    }
+    if (loaded.settings.library) {
+        library = libraryPaths(*loaded.settings.library);
+    }
+    return true;
 }
 
 // Exports the last build, or only runs the checks with --check.
@@ -120,7 +132,9 @@ Answer exportProject(const RunContext& context, const ExportArgs& options) {
     request.projectFolder = folder;
     request.project = document.project();
     request.blender = choice.install;
-    request.library = tryLibrary(command, context, options.library);
+    if (!kitLibrary(command, context, options.library, request.library, failed)) {
+        return failed;
+    }
     request.settings.force = options.force;
     request.settings.write = !options.check;
 
@@ -274,6 +288,13 @@ Answer groupsEdit(const std::string& what, const std::string& target, const Expo
     if (!openProject(command, folder, document, failed, false)) {
         return failed;
     }
+    std::optional<ExportOptionsRepair> repair;
+    if (what == "reset") {
+        repair = repairExportOptions(folder);
+        if (!repair->status.ok()) {
+            return failure(command, repair->status);
+        }
+    }
     const ExportGroupReview review = reviewExportGroups(folder, document.project());
     if (!review.status.ok()) {
         return failure(command, review.status);
@@ -315,6 +336,10 @@ Answer groupsEdit(const std::string& what, const std::string& target, const Expo
     Json result = groupsJson(after);
     if (what == "new") {
         result["new_group"] = newId;
+    }
+    if (repair && repair->repaired) {
+        const std::filesystem::path backup = folder / (std::string(kExportOptionsFileName) + ".bad");
+        result["repaired"] = {{"backup", pathToUtf8(backup)}};
     }
     return success(command, std::move(result));
 }
@@ -400,7 +425,8 @@ std::vector<CommandSpec> exportCommands() {
         addProjectOption(sub, options->project);
         addBlenderOption(sub, options->blender);
         addLibraryOption(sub, options->library);
-        sub.add_option("--name", options->name, "The group name, for 'export groups rename' and 'new'.")
+        sub.add_option("--name", options->name, "The group name, for 'export groups rename' and 'new'. Allowed: A-Z, a-z, 0-9, "
+                       "spaces, hyphens and underscores, 1 to 64 characters, at least one letter or digit.")
             ->type_name("text");
         sub.add_option("--into", options->into, "The group to merge into, for 'export groups merge'.")
             ->type_name("group");

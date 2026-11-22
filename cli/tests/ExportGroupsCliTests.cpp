@@ -254,6 +254,71 @@ TEST_CASE("a bad export-options.json is bad_file", "[cli][export][groups]") {
     CHECK(readFile(flat.optionsFile()) == "{not json");
 }
 
+TEST_CASE("group names are English only", "[cli][export][groups]") {
+    GroupedSample flat("groups-english");
+    auto refused = flat.run({"export", "groups", "new", "--name", std::string("Caf") + char(0xC3) + char(0xA9)});
+    CHECK(refused.exitCode == kExitFailed);
+    CHECK(errorCode(refused) == "invalid_value");
+    CHECK_FALSE(refused.answer.at("error").at("message").get<std::string>().empty());
+    refused = flat.run({"export", "groups", "rename", "structure", "--name", "Walls/1"});
+    CHECK(errorCode(refused) == "invalid_value");
+    CHECK_FALSE(fs::exists(flat.optionsFile()));
+    CHECK(flat.run({"export", "groups", "new", "--name", "Hero_prop-2"}).exitCode == kExitOk);
+}
+
+TEST_CASE("reset repairs a bad export-options.json and keeps a readable kit switch", "[cli][export][groups]") {
+    const std::vector<std::pair<std::string, bool>> bads = {
+        {"{not json", false},
+        {R"({"format":"plynth-export-options","version":1,"groups":{"bogus":1},"kit":{"enabled":true}})", true},
+        {R"({"format":"plynth-export-options","version":1,"groups":{"added":[{"id":"group_1","name":"Caf?"}]},"kit":{"enabled":true}})", true}};
+    int n = 0;
+    for (const auto& [text, kitOn] : bads) {
+        GroupedSample flat("groups-reset-bad" + std::to_string(n++));
+        std::ofstream(flat.optionsFile(), std::ios::binary) << text;
+        REQUIRE(errorCode(flat.run({"export", "groups"})) == "bad_file");
+        const auto reset = flat.run({"export", "groups", "reset"});
+        REQUIRE(reset.exitCode == kExitOk);
+        CHECK(GroupedSample::groupIds(reset) == std::vector<std::string>{"structure", "surfaces", "furniture_r1"});
+        CHECK(reset.answer.at("result").at("kit").at("enabled") == kitOn);
+        const fs::path backup = flat.sample.folder / "export-options.json.bad";
+        CHECK(fs::exists(backup));
+        CHECK(readFile(backup) == text);
+        REQUIRE(reset.answer.at("result").contains("repaired"));
+        CHECK(reset.answer.at("result").at("repaired").at("backup") == utf8(backup));
+        CHECK(flat.run({"export", "groups"}).exitCode == kExitOk);
+    }
+}
+
+TEST_CASE("reset leaves a newer export-options.json alone", "[cli][export][groups]") {
+    GroupedSample flat("groups-reset-newer");
+    const std::string text = R"({"format":"plynth-export-options","version":99})";
+    std::ofstream(flat.optionsFile(), std::ios::binary) << text;
+    const auto reset = flat.run({"export", "groups", "reset"});
+    CHECK(reset.exitCode == kExitFailed);
+    CHECK(errorCode(reset) == "unsupported_version");
+    CHECK(readFile(flat.optionsFile()) == text);
+    CHECK_FALSE(fs::exists(flat.sample.folder / "export-options.json.bad"));
+}
+
+TEST_CASE("an item is one member of its group", "[cli][export][groups]") {
+    GroupedSample flat("groups-one-member");
+    const auto listed = flat.run({"export", "groups"});
+    REQUIRE(listed.exitCode == kExitOk);
+    int itemMembers = 0;
+    for (const auto& group : listed.answer.at("result").at("groups")) {
+        for (const auto& member : group.at("members")) {
+            CHECK(member.at("kind") != "generator");
+            if (member.at("kind") == "item") {
+                ++itemMembers;
+            }
+        }
+    }
+    CHECK(itemMembers == 1);
+    const auto moved = flat.run({"export", "groups", "move", "item:i1", "--to", "structure"});
+    REQUIRE(moved.exitCode == kExitOk);
+    CHECK(GroupedSample::group(moved, "furniture_r1").at("members").empty());
+}
+
 TEST_CASE("a single project lists its one group and refuses edits", "[cli][export][groups]") {
     GroupedSample flat("groups-single", "single");
     const auto listed = flat.run({"export", "groups"});
@@ -372,4 +437,10 @@ TEST_CASE("help lists the group and kit commands", "[cli][export][groups]") {
     CHECK(outcome.text.find("export kit on") != std::string::npos);
     CHECK(outcome.text.find("project set") != std::string::npos);
     CHECK(outcome.text.find("--export") != std::string::npos);
+}
+
+TEST_CASE("the --name help lists the allowed characters", "[cli][export][groups]") {
+    const auto outcome = plynth::cli::testing::runChecked({"export", "--help"});
+    CHECK(outcome.text.find("A-Z") != std::string::npos);
+    CHECK(outcome.text.find("hyphen") != std::string::npos);
 }
