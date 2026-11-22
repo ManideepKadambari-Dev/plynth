@@ -88,7 +88,7 @@ The app checks when it starts that your graphics card can run the 3D view. The r
 
 ### Add-ons
 
-Add-ons are optional extras that live inside Blender. Plynth never needs them to import your own models, and it never installs them. The setup check finds out which add-ons are switched on and shows what stays off without each one. It does this by reading your saved Blender preferences and the add-on folders as plain data. It does not open your add-ons or change anything in your Blender folders.
+Add-ons are optional extras that live inside Blender. Plynth never needs them to import your own models, and it never installs them. The setup check finds out which add-ons are switched on and shows what stays off without each one. It does this by reading your saved Blender preferences (`userpref.blend`) and the add-on folders as plain data. When BlenderKit is on and the preferences hold no key, it may also read BlenderKit's `config\preferences.json`, only to see whether a sign in exists. It does not open your add-ons or change anything in your Blender folders.
 
 | Add-on | What it is for |
 |---|---|
@@ -129,7 +129,7 @@ plynth doctor
 
 Useful options:
 
-- `--no-addons` skips the add-on check, so Blender is not started.
+- `--no-addons` skips the add-on check, so the add-on probe is not run and your preferences are not read. Blender is still started briefly with `--version` to read its version.
 - `--blender <file>` checks one particular `blender.exe` and no other. It beats the `PLYNTH_BLENDER` variable and the saved setting.
 
 The full answer is described in the [command line guide](CLI_GUIDE.md).
