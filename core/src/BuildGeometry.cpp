@@ -1,6 +1,7 @@
 #include "plynth/core/BuildGeometry.h"
 
 #include "BandOutline.h"
+#include "RingClean.h"
 
 #include "plynth/core/OpeningShapes.h"
 #include "plynth/core/Openings.h"
@@ -70,41 +71,7 @@ std::vector<Vec2> fromPath(const Clipper2Lib::PathD& path)
     return points;
 }
 
-// The ring without points that sit on the one before them.
-std::vector<Vec2> withoutRepeats(const std::vector<Vec2>& ring)
-{
-    std::vector<Vec2> out;
-    for (const Vec2& p : ring) {
-        if (out.empty() || distance(out.back(), p) >= kClose) out.push_back(p);
-    }
-    while (out.size() > 1 && distance(out.front(), out.back()) < kClose) out.pop_back();
-    return out;
-}
-
-// The ring without spikes: a point where it runs along a line and straight back over it. Rounding in the union
-// can leave one where two bands of different heights meet at a diagonal, with no width and no area.
-std::vector<Vec2> withoutSpikes(std::vector<Vec2> ring)
-{
-    bool changed = true;
-    while (changed && ring.size() > 3) {
-        changed = false;
-        for (std::size_t i = 0; i < ring.size(); ++i) {
-            const Vec2 a = ring[(i + ring.size() - 1) % ring.size()];
-            const Vec2 b = ring[i];
-            const Vec2 c = ring[(i + 1) % ring.size()];
-            const double ab = distance(a, b);
-            const Vec2 u{b.x - a.x, b.y - a.y};
-            const Vec2 v{c.x - b.x, c.y - b.y};
-            if (ab < kClose || (u.x * v.x + u.y * v.y) >= 0.0) continue;
-            if (std::fabs(u.x * v.y - u.y * v.x) / ab < kClose) {
-                ring.erase(ring.begin() + static_cast<std::ptrdiff_t>(i));
-                changed = true;
-                break;
-            }
-        }
-    }
-    return ring;
-}
+using detail::withoutRepeats;
 
 // The ring turned to run anticlockwise (or clockwise) as seen from above, by the world shoelace sum.
 std::vector<Vec2> oriented(std::vector<Vec2> ring, bool anticlockwise)
@@ -446,7 +413,7 @@ std::vector<WallSolid> wallSolids(const Floor& floor)
         std::vector<AreaRing> holes;
         for (const Clipper2Lib::PathD& path : shape) {
             AreaRing ring;
-            ring.points = withoutSpikes(withoutRepeats(fromPath(path)));
+            ring.points = detail::cleanedWallRing(fromPath(path));
             if (ring.points.size() < 3) continue;
             ring.area = signedArea(ring.points);
             if (std::fabs(ring.area) < 1e-9) continue;

@@ -1,6 +1,7 @@
 #include "SquareFixtures.h"
 #include "TestSupport.h"
 #include "../../core/src/BandOutline.h"
+#include "../../core/src/RingClean.h"
 
 #include <plynth/core/BuildGeometry.h>
 #include <plynth/core/Openings.h>
@@ -526,6 +527,16 @@ Floor turnedHalfWallRoom(double degrees, bool half)
     return f;
 }
 
+// The length of the shortest edge of a ring.
+double shortestEdge(const WallRing& ring)
+{
+    double shortest = 1e300;
+    for (std::size_t i = 0; i < ring.points.size(); ++i) {
+        shortest = std::min(shortest, distance(ring.points[i], ring.points[(i + 1) % ring.points.size()]));
+    }
+    return shortest;
+}
+
 // Whether a ring goes along a line and straight back over it: a spike with no width.
 bool hasSpike(const WallRing& ring)
 {
@@ -553,11 +564,79 @@ TEST_CASE("wall solids have no zero width spikes, turned or not", "[core][build]
             double area = 0.0;
             for (const WallSolid& s : solids) {
                 REQUIRE_FALSE(hasSpike(s.outline));
-                for (const WallRing& h : s.holes) REQUIRE_FALSE(hasSpike(h));
+                REQUIRE(shortestEdge(s.outline) >= detail::kRingClose);
+                for (const WallRing& h : s.holes) {
+                    REQUIRE_FALSE(hasSpike(h));
+                    REQUIRE(shortestEdge(h) >= detail::kRingClose);
+                }
                 area += std::fabs(signedArea(s.outline.points));
                 for (const WallRing& h : s.holes) area -= std::fabs(signedArea(h.points));
             }
             REQUIRE(area == Approx(3.2).margin(1e-9));
         }
     }
+}
+
+namespace {
+
+// The shortest edge of a list of points taken as a ring.
+double shortestEdgeOf(const std::vector<Vec2>& ring)
+{
+    double shortest = 1e300;
+    for (std::size_t i = 0; i < ring.size(); ++i) shortest = std::min(shortest, distance(ring[i], ring[(i + 1) % ring.size()]));
+    return shortest;
+}
+
+// Whether a list of points taken as a ring has a point where it runs back over the edge before.
+bool spikeIn(const std::vector<Vec2>& ring)
+{
+    for (std::size_t i = 0; i < ring.size(); ++i) {
+        const Vec2 a = ring[i];
+        const Vec2 b = ring[(i + 1) % ring.size()];
+        const Vec2 c = ring[(i + 2) % ring.size()];
+        const Vec2 u{b.x - a.x, b.y - a.y};
+        const Vec2 v{c.x - b.x, c.y - b.y};
+        const double length = std::hypot(u.x, u.y);
+        if (length > 0.0 && u.x * v.x + u.y * v.y < 0.0 && std::fabs(u.x * v.y - u.y * v.x) / length < detail::kRingClose) return true;
+    }
+    return false;
+}
+
+// A 4 m square with a slit of a width cut up from the middle of its bottom edge, one metre deep.
+std::vector<Vec2> squareWithSlit(double width)
+{
+    return {{0.0, 0.0}, {2.0 - width / 2.0, 0.0}, {2.0 - width / 2.0, 1.0}, {2.0 + width / 2.0, 1.0},
+            {2.0 + width / 2.0, 0.0}, {4.0, 0.0}, {4.0, 4.0}, {0.0, 4.0}};
+}
+
+// A 4 m square with a needle two metres long and a width thin at the foot, sticking out of its corner (4, 0).
+std::vector<Vec2> squareWithNeedle(double width)
+{
+    return {{0.0, 0.0}, {4.0, 0.0}, {6.0, 0.0}, {4.0, width}, {4.0, 4.0}, {0.0, 4.0}};
+}
+
+}
+
+TEST_CASE("cleaning a ring leaves no short edge and no spike", "[core][build][geometry][spikes]") {
+    for (const double width : {0.0, 1e-8, 9e-7}) {
+        INFO("width " << width);
+        for (const std::vector<Vec2>& ring : {squareWithSlit(width), squareWithNeedle(width)}) {
+            const std::vector<Vec2> clean = detail::cleanedWallRing(ring);
+            REQUIRE(clean.size() >= 4);
+            REQUIRE(shortestEdgeOf(clean) >= detail::kRingClose);
+            REQUIRE_FALSE(spikeIn(clean));
+            REQUIRE(std::fabs(signedArea(clean)) == Approx(16.0).margin(1e-5));
+        }
+    }
+}
+
+TEST_CASE("cleaning a ring keeps a sharp corner and a slit wider than the limit", "[core][build][geometry][spikes]") {
+    // A corner of 1 degree: its point is not a spike.
+    const double tip = 10.0 * std::tan(std::numbers::pi / 180.0);
+    const std::vector<Vec2> wedge{{0.0, 0.0}, {10.0, 0.0}, {0.0, tip}, {-1.0, 0.05}};
+    REQUIRE(detail::cleanedWallRing(wedge) == wedge);
+
+    // A slit of 2 micrometres is wider than the limit, so every point stays.
+    const std::vector<Vec2> slit = squareWithSlit(2e-6);
+    REQUIRE(detail::cleanedWallRing(slit) == slit);
 }
