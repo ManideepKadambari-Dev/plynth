@@ -1,3 +1,5 @@
+#include "RoomFixtures.h"
+
 #include <plynth/core/Geometry.h>
 #include <plynth/core/Stairs.h>
 
@@ -382,4 +384,99 @@ TEST_CASE("checkStair accepts a good stair and refuses bad values", "[stairs]")
     CHECK(checkStair(s).code == ErrorCode::InvalidValue);
     s.material = "oak_planks";
     CHECK(checkStair(s).ok());
+}
+
+namespace {
+
+// A square room of the given side with 0.2 m walls on a floor, with the number n in its ids.
+void addSquareRoom(Floor& floor, int n, double side)
+{
+    plynth::test::addRectangle(floor, n, 0.0, 0.0, side, side, 0.2);
+    Room room;
+    room.id = "r" + std::to_string(n);
+    for (int i = 1; i <= 4; ++i) room.walls.push_back("w" + std::to_string(n) + std::to_string(i));
+    floor.rooms.push_back(room);
+}
+
+// Two floors with square rooms of the given sides and one straight stair on the lower floor.
+Plan roomsPlan(double lowerSide, double upperSide, double x, double y)
+{
+    Stair stair = stairOf("straight");
+    stair.x = x;
+    stair.y = y;
+    Plan plan = twoFloorPlan(stair);
+    plan.floors[0].name = "Ground";
+    plan.floors[1].name = "Upper";
+    addSquareRoom(plan.floors[0], 1, lowerSide);
+    addSquareRoom(plan.floors[1], 2, upperSide);
+    return plan;
+}
+
+// Says whether the problems hold one with this code.
+bool hasProblem(const std::vector<StairProblem>& problems, const std::string& code)
+{
+    return std::any_of(problems.begin(), problems.end(), [&](const StairProblem& p) { return p.code == code; });
+}
+
+}
+
+TEST_CASE("a stair inside both floors has no problems", "[stairs]")
+{
+    const Plan plan = roomsPlan(8.0, 8.0, 2.0, 1.0);
+    CHECK(stairProblems(plan, plan.floors[0]).empty());
+}
+
+TEST_CASE("a stair crossing a wall of its floor names the wall", "[stairs]")
+{
+    Plan plan = roomsPlan(8.0, 8.0, 2.0, 1.0);
+    plynth::test::addPoint(plan.floors[0], "p91", 0.5, 3.0);
+    plynth::test::addPoint(plan.floors[0], "p92", 4.5, 3.0);
+    plynth::test::addWall(plan.floors[0], "w91", "p91", "p92", 0.2);
+    const std::vector<StairProblem> problems = stairProblems(plan, plan.floors[0]);
+    REQUIRE(problems.size() == 1);
+    CHECK(problems[0].code == "stair_overlaps_wall");
+    CHECK_FALSE(problems[0].error);
+    CHECK(problems[0].wall == "w91");
+    CHECK(problems[0].stair == "s1");
+    CHECK(problems[0].message.find("w91") != std::string::npos);
+    CHECK(problems[0].message.find("Ground") != std::string::npos);
+}
+
+TEST_CASE("a stair crossing a wall of the floor above names the wall", "[stairs]")
+{
+    Plan plan = roomsPlan(8.0, 8.0, 2.0, 1.0);
+    plynth::test::addPoint(plan.floors[1], "p91", 0.5, 3.0);
+    plynth::test::addPoint(plan.floors[1], "p92", 4.5, 3.0);
+    plynth::test::addWall(plan.floors[1], "w91", "p91", "p92", 0.2);
+    const std::vector<StairProblem> problems = stairProblems(plan, plan.floors[0]);
+    REQUIRE(problems.size() == 1);
+    CHECK(problems[0].code == "stair_overlaps_wall");
+    CHECK(problems[0].wall == "w91");
+    CHECK(problems[0].message.find("Upper") != std::string::npos);
+}
+
+TEST_CASE("a wall beside a stair is not an overlap", "[stairs]")
+{
+    Plan plan = roomsPlan(8.0, 8.0, 2.0, 1.0);
+    plynth::test::addPoint(plan.floors[0], "p91", 5.0, 1.0);
+    plynth::test::addPoint(plan.floors[0], "p92", 5.0, 5.0);
+    plynth::test::addWall(plan.floors[0], "w91", "p91", "p92", 0.2);
+    CHECK(stairProblems(plan, plan.floors[0]).empty());
+}
+
+TEST_CASE("a stair half outside the footprint gives stair_outside_floor", "[stairs]")
+{
+    const Plan plan = roomsPlan(4.0, 10.0, 1.0, 2.0);
+    const std::vector<StairProblem> problems = stairProblems(plan, plan.floors[0]);
+    CHECK(hasProblem(problems, "stair_outside_floor"));
+    CHECK_FALSE(hasProblem(problems, "stair_arrival_outside_room"));
+    for (const StairProblem& p : problems) CHECK_FALSE(p.error);
+}
+
+TEST_CASE("an arrival outside every upper room gives stair_arrival_outside_room", "[stairs]")
+{
+    const Plan plan = roomsPlan(10.0, 4.0, 1.0, 1.0);
+    const std::vector<StairProblem> problems = stairProblems(plan, plan.floors[0]);
+    CHECK(hasProblem(problems, "stair_arrival_outside_room"));
+    CHECK_FALSE(hasProblem(problems, "stair_outside_floor"));
 }

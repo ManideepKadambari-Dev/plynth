@@ -1,5 +1,9 @@
 #include "plynth/core/Stairs.h"
 
+#include "plynth/core/Rooms.h"
+#include "plynth/core/Storeys.h"
+#include "plynth/core/WallGeometry.h"
+
 #include "ClipperInclude.h"
 
 #include <algorithm>
@@ -13,6 +17,7 @@ namespace {
 
 constexpr int kClipperPrecision = 8;
 constexpr double kCollinearTolerance = 1e-9;
+constexpr double kOverlapTolerance = 1e-4; // square metres
 
 // The registry: every stair type ever registered. Built as a function local static so that registering from
 // namespace scope objects works in any start up order.
@@ -107,24 +112,6 @@ std::vector<Vec2> unionOutline(const std::vector<StairStep>& steps)
     best = withoutStraightPoints(std::move(best));
     if (!best.empty() && signedArea(best) < 0.0) std::reverse(best.begin(), best.end());
     return best;
-}
-
-// The floor after this one in plan order, or null.
-const Floor* nextFloor(const Plan& plan, const Floor& floor)
-{
-    for (std::size_t i = 0; i < plan.floors.size(); ++i) {
-        if (plan.floors[i].id == floor.id) return i + 1 < plan.floors.size() ? &plan.floors[i + 1] : nullptr;
-    }
-    return nullptr;
-}
-
-// The floor before this one in plan order, or null.
-const Floor* previousFloor(const Plan& plan, std::string_view floorId)
-{
-    for (std::size_t i = 1; i < plan.floors.size(); ++i) {
-        if (plan.floors[i].id == floorId) return &plan.floors[i - 1];
-    }
-    return nullptr;
 }
 
 // A stair's name for messages.
@@ -229,7 +216,7 @@ StairLayout previewStairLayout(const Plan& plan, const Floor& floor, const Stair
     layout.stair = stair.id;
     layout.fromFloor = floor.id;
 
-    const Floor* above = nextFloor(plan, floor);
+    const Floor* above = floorAbove(plan, floor.id);
     if (!above) {
         layout.status = fail(ErrorCode::InvalidValue, stairLabel(stair) + " has no floor above it.");
         return layout;
@@ -248,7 +235,7 @@ StairLayout previewStairLayout(const Plan& plan, const Floor& floor, const Stair
     }
 
     StairInput input;
-    input.rise = floor.ceilingHeight + floor.slabThickness;
+    input.rise = floorRise(floor);
     input.width = stair.width;
     input.turn = stair.turn;
     input.riserCount = std::max(2, static_cast<int>(std::ceil(input.rise / kMaxRiser - 1e-9)));
@@ -293,7 +280,7 @@ StairLayout stairLayout(const Plan& plan, const Floor& floor, const Stair& stair
 std::vector<StairLayout> stairsArrivingAt(const Plan& plan, std::string_view floorId)
 {
     std::vector<StairLayout> out;
-    const Floor* below = previousFloor(plan, floorId);
+    const Floor* below = floorBelow(plan, floorId);
     if (!below) return out;
     for (const Stair& stair : below->stairs) {
         StairLayout layout = stairLayout(plan, *below, stair);
@@ -302,16 +289,102 @@ std::vector<StairLayout> stairsArrivingAt(const Plan& plan, std::string_view flo
     return out;
 }
 
-// The errors of the stairs on a floor. The wall and footprint warnings come with the floor footprint rules.
+namespace {
+
+// A closed ring as a Clipper path with a positive orientation.
+Clipper2Lib::PathD ringPath(const std::vector<Vec2>& ring, bool positive)
+{
+    Clipper2Lib::PathD path;
+    for (const Vec2& p : ring) path.emplace_back(p.x, p.y);
+    if (positive == (signedArea(ring) < 0.0)) std::reverse(path.begin(), path.end());
+    return path;
+}
+
+// The plan area of the footprint as paths: outlines positive, holes negative.
+Clipper2Lib::PathsD areaPaths(const std::vector<PlanArea>& areas)
+{
+    Clipper2Lib::PathsD out;
+    for (const PlanArea& area : areas) {
+        out.push_back(ringPath(area.outline, true));
+        for (const auto& hole : area.holes) out.push_back(ringPath(hole, false));
+    }
+    return out;
+}
+
+// The size of the part of a polygon that lies inside the given paths, square metres.
+double overlapSize(const std::vector<Vec2>& polygon, const Clipper2Lib::PathsD& clip)
+{
+    if (polygon.size() < 3 || clip.empty()) return 0.0;
+    const Clipper2Lib::PathsD subject{ringPath(polygon, true)};
+    const Clipper2Lib::PathsD common = Clipper2Lib::Intersect(subject, clip, Clipper2Lib::FillRule::NonZero, kClipperPrecision);
+    return std::fabs(Clipper2Lib::Area(common));
+}
+
+// The size of the part of a polygon that lies outside the given paths, square metres.
+double outsideSize(const std::vector<Vec2>& polygon, const Clipper2Lib::PathsD& clip)
+{
+    if (polygon.size() < 3) return 0.0;
+    const Clipper2Lib::PathsD subject{ringPath(polygon, true)};
+    const Clipper2Lib::PathsD rest = Clipper2Lib::Difference(subject, clip, Clipper2Lib::FillRule::NonZero, kClipperPrecision);
+    return std::fabs(Clipper2Lib::Area(rest));
+}
+
+// Says whether a position is in a room of the floor.
+bool inAnyRoom(const Floor& floor, Vec2 position)
+{
+    for (const Room& room : floor.rooms) {
+        const RoomShape shape = roomShape(floor, room);
+        if (!shape.closed) continue;
+        int count = 0;
+        for (const std::vector<Vec2>& ring : shape.floorArea) {
+            if (ring.size() >= 3 && insidePolygon(position, ring)) ++count;
+        }
+        if (count % 2 == 1) return true;
+    }
+    return false;
+}
+
+// Adds a stair_overlaps_wall problem for every wall of a floor that the footprint overlaps.
+void addWallOverlaps(const Stair& stair, const std::vector<Vec2>& footprint, const Floor& floor, std::vector<StairProblem>& out)
+{
+    for (const Wall& wall : floor.walls) {
+        Clipper2Lib::PathsD band;
+        for (const auto& ring : wallBand(floor, wall)) band.push_back(ringPath(ring, true));
+        if (overlapSize(footprint, band) <= kOverlapTolerance) continue;
+        out.push_back({stair.id, "stair_overlaps_wall", false,
+                       stairLabel(stair) + " overlaps wall " + wall.id + " on " + floor.name + ".", wall.id});
+    }
+}
+
+}
+
+// The problems of the stairs on a floor, in stair order.
 std::vector<StairProblem> stairProblems(const Plan& plan, const Floor& floor)
 {
     std::vector<StairProblem> out;
+    const Floor* above = floorAbove(plan, floor.id);
     for (const Stair& stair : floor.stairs) {
-        if (!nextFloor(plan, floor)) {
+        if (!above) {
             out.push_back({stair.id, "stair_no_floor_above", true, stairLabel(stair) + " has no floor above it.", {}});
-        } else if (!findStairType(stair.type)) {
+            continue;
+        }
+        if (!findStairType(stair.type)) {
             out.push_back({stair.id, "stair_type_unknown", true,
                            "The stair type \"" + stair.type + "\" is not known. Known types: " + knownTypeIds() + ".", {}});
+            continue;
+        }
+        const StairLayout layout = stairLayout(plan, floor, stair);
+        if (!layout.status.ok() || layout.footprint.empty()) continue;
+
+        if (outsideSize(layout.footprint, areaPaths(floorFootprint(floor))) > kOverlapTolerance) {
+            out.push_back({stair.id, "stair_outside_floor", false,
+                           stairLabel(stair) + " reaches outside the walls and rooms of " + floor.name + ".", {}});
+        }
+        addWallOverlaps(stair, layout.footprint, floor, out);
+        addWallOverlaps(stair, layout.footprint, *above, out);
+        if (!inAnyRoom(*above, layout.arrival)) {
+            out.push_back({stair.id, "stair_arrival_outside_room", false,
+                           stairLabel(stair) + " arrives outside every room of " + above->name + ".", {}});
         }
     }
     return out;

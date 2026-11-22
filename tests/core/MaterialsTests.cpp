@@ -3,6 +3,8 @@
 
 #include <plynth/core/MaterialDefaults.h>
 #include <plynth/core/Materials.h>
+#include <plynth/core/Roofs.h>
+#include <plynth/core/Stairs.h>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -293,7 +295,7 @@ TEST_CASE("door, frame, glass and handle come from their defaults", "[core][mate
 
 TEST_CASE("materialsUsed is sorted and has no repeats", "[core][materials]") {
     Project p = splitRoomProject();
-    const std::vector<std::string> defaults = {"brushed_steel", "clear_glass", "oak_planks", "painted_wood", "red_brick", "white_paint"};
+    const std::vector<std::string> defaults = {"brushed_steel", "clear_glass", "concrete", "oak_planks", "painted_wood", "red_brick", "white_paint"};
     REQUIRE(materialsUsed(p) == defaults);
 
     room(p, "r1").wallMaterial = "tile";
@@ -301,8 +303,8 @@ TEST_CASE("materialsUsed is sorted and has no repeats", "[core][materials]") {
     wall(p, "w1").materialOutside = "stucco";
     room(p, "r2").floorMaterial = "carpet";
     room(p, "r2").ceilingMaterial = "tile";
-    const std::vector<std::string> expected = {"brushed_steel", "carpet",    "clear_glass", "oak_planks", "painted_wood",
-                                               "plaster",       "red_brick", "stucco",      "tile",       "white_paint"};
+    const std::vector<std::string> expected = {"brushed_steel", "carpet",    "clear_glass", "concrete", "oak_planks", "painted_wood",
+                                               "plaster",       "red_brick", "stucco",      "tile",     "white_paint"};
     REQUIRE(materialsUsed(p) == expected);
 
     setMaterialDefault(p.settings.materials, Surface::Glass, std::nullopt);
@@ -442,4 +444,190 @@ TEST_CASE("materialAt says what a target shows now", "[core][materials]") {
         gone.object = "w99";
         REQUIRE(materialAt(p, gone).origin == MaterialOrigin::None);
     }
+}
+
+namespace {
+
+// Says whether the list holds a value.
+bool listHas(const std::vector<std::string>& list, const std::string& value)
+{
+    return std::find(list.begin(), list.end(), value) != list.end();
+}
+
+}
+
+TEST_CASE("material origins for stairs and roofs have names", "[core][materials]") {
+    REQUIRE(materialOriginName(MaterialOrigin::Stair) == "stair");
+    REQUIRE(materialOriginName(MaterialOrigin::Roof) == "roof");
+}
+
+TEST_CASE("a stair takes its own material, then the stair default", "[core][materials]") {
+    Project p = splitRoomProject();
+    Stair s;
+    s.id = "s1";
+    ResolvedMaterial m = stairMaterial(p, s);
+    REQUIRE(m.material == "oak_planks");
+    REQUIRE(m.origin == MaterialOrigin::Default);
+    REQUIRE(m.surface == Surface::Stair);
+
+    setMaterialDefault(p.settings.materials, Surface::Stair, "concrete");
+    REQUIRE(stairMaterial(p, s).material == "concrete");
+
+    s.material = "grey_tile";
+    m = stairMaterial(p, s);
+    REQUIRE(m.material == "grey_tile");
+    REQUIRE(m.origin == MaterialOrigin::Stair);
+    REQUIRE(m.from == "s1");
+
+    s.material.reset();
+    setMaterialDefault(p.settings.materials, Surface::Stair, std::nullopt);
+    REQUIRE(stairMaterial(p, s).origin == MaterialOrigin::None);
+}
+
+TEST_CASE("a roof covering takes the entry, then the flat or pitched default", "[core][materials]") {
+    Project p = splitRoomProject();
+    RoofArea flat;
+    flat.floor = "f1";
+    flat.settings.type = "flat";
+    ResolvedMaterial m = roofPartMaterial(p, flat, RoofPart::Covering);
+    REQUIRE(m.material == "concrete");
+    REQUIRE(m.origin == MaterialOrigin::Default);
+    REQUIRE(m.surface == Surface::FlatRoof);
+
+    RoofArea gable = flat;
+    gable.settings.type = "gable";
+    m = roofPartMaterial(p, gable, RoofPart::Covering);
+    REQUIRE(m.material == "roof_tiles");
+    REQUIRE(m.surface == Surface::Roof);
+
+    gable.section = "rf1";
+    gable.material = "slate";
+    m = roofPartMaterial(p, gable, RoofPart::Covering);
+    REQUIRE(m.material == "slate");
+    REQUIRE(m.origin == MaterialOrigin::Roof);
+    REQUIRE(m.from == "rf1");
+
+    flat.section = "rf2";
+    flat.material = "gravel";
+    REQUIRE(roofPartMaterial(p, flat, RoofPart::Covering).material == "gravel");
+}
+
+TEST_CASE("the other roof parts use the wall, ceiling and glass defaults", "[core][materials]") {
+    Project p = splitRoomProject();
+    RoofArea area;
+    area.floor = "f1";
+    area.section = "rf1";
+    area.material = "slate";
+    REQUIRE(roofPartMaterial(p, area, RoofPart::Underside).material == "white_paint");
+    REQUIRE(roofPartMaterial(p, area, RoofPart::Underside).surface == Surface::Ceiling);
+    REQUIRE(roofPartMaterial(p, area, RoofPart::Edge).surface == Surface::WallTop);
+    REQUIRE(roofPartMaterial(p, area, RoofPart::Gable).material == "red_brick");
+    REQUIRE(roofPartMaterial(p, area, RoofPart::Gable).surface == Surface::WallOutside);
+    REQUIRE(roofPartMaterial(p, area, RoofPart::Parapet).material == "red_brick");
+    REQUIRE(roofPartMaterial(p, area, RoofPart::Glazing).material == "clear_glass");
+    REQUIRE(roofPartMaterial(p, area, RoofPart::Glazing).origin == MaterialOrigin::Default);
+}
+
+TEST_CASE("slab materials use the wall and ceiling defaults", "[core][materials]") {
+    Project p = splitRoomProject();
+    const SlabMaterials m = slabMaterials(p);
+    REQUIRE(m.edge.material == "red_brick");
+    REQUIRE(m.edge.surface == Surface::WallOutside);
+    REQUIRE(m.well.material == "white_paint");
+    REQUIRE(m.well.surface == Surface::WallInside);
+    REQUIRE(m.underside.material == "white_paint");
+    REQUIRE(m.underside.surface == Surface::Ceiling);
+    setMaterialDefault(p.settings.materials, Surface::WallOutside, "stucco");
+    REQUIRE(slabMaterials(p).edge.material == "stucco");
+}
+
+TEST_CASE("parseMaterialTarget reads stair and roof section ids and the new defaults", "[core][materials]") {
+    Project p = splitRoomProject();
+    Floor f2;
+    f2.id = "f2";
+    p.plan.floors.push_back(f2);
+    Stair stair;
+    stair.id = "s2";
+    p.plan.floors[0].stairs.push_back(stair);
+    RoofSection entry;
+    entry.id = "rf1";
+    entry.floor = "f2";
+    p.plan.roofSections.push_back(entry);
+
+    MaterialTargetParse r = parseMaterialTarget(p.plan, "s2");
+    plynth::test::requireOk(r.status);
+    REQUIRE(r.target.kind == MaterialTarget::Kind::Stair);
+    REQUIRE(r.target.object == "s2");
+
+    r = parseMaterialTarget(p.plan, "rf1");
+    plynth::test::requireOk(r.status);
+    REQUIRE(r.target.kind == MaterialTarget::Kind::Roof);
+    REQUIRE(r.target.object == "rf1");
+
+    r = parseMaterialTarget(p.plan, "default.flat_roof");
+    plynth::test::requireOk(r.status);
+    REQUIRE(r.target.kind == MaterialTarget::Kind::Default);
+    REQUIRE(r.target.surface == Surface::FlatRoof);
+    REQUIRE(parseMaterialTarget(p.plan, "default.stair").target.surface == Surface::Stair);
+    REQUIRE(parseMaterialTarget(p.plan, "default.roof").target.surface == Surface::Roof);
+
+    REQUIRE(parseMaterialTarget(p.plan, "s9").status.code == ErrorCode::NotFound);
+    REQUIRE(parseMaterialTarget(p.plan, "rf9").status.code == ErrorCode::NotFound);
+}
+
+TEST_CASE("materialAt follows stair and roof section targets", "[core][materials]") {
+    Project p = splitRoomProject();
+    Floor f2;
+    f2.id = "f2";
+    p.plan.floors.push_back(f2);
+    Stair stair;
+    stair.id = "s2";
+    p.plan.floors[0].stairs.push_back(stair);
+    RoofSection entry;
+    entry.id = "rf1";
+    entry.floor = "f2";
+    entry.settings.type = "flat";
+    p.plan.roofSections.push_back(entry);
+
+    MaterialTarget stairTarget;
+    stairTarget.kind = MaterialTarget::Kind::Stair;
+    stairTarget.object = "s2";
+    REQUIRE(materialAt(p, stairTarget).material == "oak_planks");
+    p.plan.floors[0].stairs[0].material = "grey_tile";
+    REQUIRE(materialAt(p, stairTarget).origin == MaterialOrigin::Stair);
+
+    MaterialTarget roofTarget;
+    roofTarget.kind = MaterialTarget::Kind::Roof;
+    roofTarget.object = "rf1";
+    REQUIRE(materialAt(p, roofTarget).material == "concrete");
+    p.plan.roofSections[0].material = "gravel";
+    const ResolvedMaterial m = materialAt(p, roofTarget);
+    REQUIRE(m.material == "gravel");
+    REQUIRE(m.origin == MaterialOrigin::Roof);
+    REQUIRE(m.from == "rf1");
+
+    stairTarget.object = "s9";
+    REQUIRE_FALSE(materialAt(p, stairTarget).material.has_value());
+}
+
+TEST_CASE("materialsUsed includes stair and roof materials only where they are used", "[core][materials]") {
+    Project p = splitRoomProject();
+    std::vector<std::string> used = materialsUsed(p);
+    REQUIRE(listHas(used, "concrete"));
+    REQUIRE_FALSE(listHas(used, "roof_tiles"));
+
+    setMaterialDefault(p.settings.materials, Surface::Stair, "stair_stone");
+    REQUIRE_FALSE(listHas(materialsUsed(p), "stair_stone"));
+    Floor f2;
+    f2.id = "f2";
+    p.plan.floors.push_back(f2);
+    Stair stair;
+    stair.id = "s1";
+    stair.material = "grey_tile";
+    p.plan.floors[0].stairs.push_back(stair);
+    used = materialsUsed(p);
+    REQUIRE(listHas(used, "grey_tile"));
+    REQUIRE(std::is_sorted(used.begin(), used.end()));
+    p.plan.floors[0].stairs[0].material.reset();
+    REQUIRE(listHas(materialsUsed(p), "stair_stone"));
 }
