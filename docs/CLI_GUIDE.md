@@ -1421,7 +1421,7 @@ plynth export report
 |---|---|
 | `--project <folder>` | The project. Default: the current folder. |
 | `--blender <exe>` | Use this Blender instead of the one the setup check chooses. |
-| `--library <folder>` | The library the kit takes its material slot names from. Default: the library in the settings. Only the kit uses it. |
+| `--library <folder>` | The library the kit takes its material slot names from. Default: the library in the settings. Only the kit uses it, and it needs only the materials catalog. A folder you name here must be a library with a materials catalog, or the export is refused and `export\` is not changed. |
 | `--check` | Run the quality checks and write no FBX and no textures. The report is still written. |
 | `--force` | Write the files even when a check failed. The report records it. |
 | `--quiet` | Write no progress lines to standard error. |
@@ -1534,7 +1534,7 @@ plynth export groups new --name Hero
 
 ### export groups reset
 
-Removes every group edit, so the automatic groups come back. The kit switch stays as it is. It takes no other option. It also repairs an `export-options.json` that is refused with `bad_file` because of a group name that is not allowed.
+Removes every group edit, so the automatic groups come back. The kit switch stays as it is. It takes no other option. It also repairs a bad `export-options.json`, whether the file is not JSON or breaks a rule such as a group name. The old file is copied to `export-options.json.bad`, and its path is in `result.repaired.backup`. All group edits are dropped, and the kit switch is kept when the old file still has a readable one. A file written by a newer Plynth is not touched: `reset` answers `unsupported_version` and leaves it as it is.
 
 ```
 plynth export groups reset
@@ -1547,7 +1547,8 @@ plynth export groups reset
 | `not_found` | The group or the member is not in the list, or the group named by `--to` or `--into` is not. |
 | `invalid_value` | A bad name, a merge of a group into itself, a member not written `kind:id` (the message shows the form), or a single project. |
 | `already_exists` | Another group already has that name. |
-| `bad_file` | `export-options.json` is there but cannot be read, or holds a group name the rules above refuse. The file is left as it is. `export groups reset` is the one edit that repairs it, by removing every group edit. |
+| `bad_file` | `export-options.json` is there but cannot be read, or holds a group name the rules above refuse. The file is left as it is. `export groups reset` is the one command that repairs it (see above). |
+| `unsupported_version` | `export-options.json` was written by a newer Plynth. It is left as it is, and `reset` does not touch it either. |
 | `bad_arguments` | A missing or an extra option, such as `rename` with no `--name`, or `--name` given to `merge`. |
 | `locked` | The project is open in the app and no edit session is active. |
 
@@ -1565,7 +1566,7 @@ plynth export kit off
 {"ok":true,"command":"export kit on","result":{"enabled":true}}
 ```
 
-`export kit` only reads the switch and is never refused by the lock. `on` and `off` write it, with the rules of the other edit commands. `export kit maybe` is `bad_arguments`. When the switch is on, `export` also writes the kit (see "export"). The kit needs a library: `export` takes `--library` or the library in the settings, and without one it carries on without the kit and says why in the answer (`kit.skipped`).
+`export kit` only reads the switch and is never refused by the lock. `on` and `off` write it, with the rules of the other edit commands. `export kit maybe` is `bad_arguments`. When the switch is on, `export` also writes the kit (see "export"). The kit needs a library with a materials catalog: `export` takes `--library` or the library in the settings. Without one it carries on without the kit and says why in the answer (`kit.skipped`). A configured library that is broken still exports, and `kit.skipped` says "The library materials could not be opened, so the kit was left out." An explicit `--library` that is not a usable library is refused instead.
 
 ### export-options.json
 
@@ -1585,7 +1586,7 @@ The file in the project folder that holds the group edits and the kit switch. It
 }
 ```
 
-The edits are applied to the automatic groups in this order: `added`, `merges`, `moves`, `renames`. An edit that names a group or a plan id that is gone is skipped, and the skip is listed under `notes`. You can edit the file by hand. An unreadable file is `bad_file`, and a file with a newer `version` is `unsupported_version`. Deleting the file goes back to the automatic groups with the kit off.
+The edits are applied to the automatic groups in this order: `added`, `merges`, `moves`, `renames`. An edit that names a group or a plan id that is gone is skipped, and the skip is listed under `notes`. You can edit the file by hand. An unreadable file is `bad_file`, and until `export groups reset` repairs it (the old file is kept as `export-options.json.bad`) every other group and kit command answers `bad_file`. A file with a newer `version` is `unsupported_version` and is never changed. Deleting the file goes back to the automatic groups with the kit off.
 
 ### session begin
 

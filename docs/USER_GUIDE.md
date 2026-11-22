@@ -952,7 +952,7 @@ A group with nothing in it is not written. A collision shape always goes into th
 - **Merge.** Right click a group and choose **Merge into**, then the group that should take its members. The first group goes away.
 - **Move a member.** Right click a member and choose **Move to**, then a group or **New group...**. Or drag the member onto a group.
 - **New group.** The **New group...** button makes an empty group. Move members into it.
-- **Reset groups.** The button asks first, then throws away every edit and goes back to the automatic groups. The kit switch is not touched.
+- **Reset groups.** The button asks first, then throws away every edit and goes back to the automatic groups. The kit switch is not touched. If `export-options.json` is damaged, **Reset groups** also repairs it: the old file is kept beside it as `export-options.json.bad`.
 
 A refused edit shows its reason in amber under the list. Group edits are export settings, not plan changes, so they have no undo. Use **Reset groups** to go back.
 
@@ -977,7 +977,7 @@ To switch it on, tick **Also write the modular kit** in the Export tab. From the
 
 Floors, ceilings, thresholds and furniture are not in the kit.
 
-**How the walls are cut.** Each wall is cut on the project's grid (the grid size in Properties, 0.5 m at first). Plynth finds the places where walls meet and keeps them for the corner pieces. Between them it cuts the wall at every whole multiple of the grid. A door or window is never cut through. If a grid line would fall inside an opening, that cut is dropped, so the opening sits inside one piece. No piece is shorter than 5 cm. A plain square room with 4 m walls, 0.2 m thick, on a 0.5 m grid gives one corner piece used four times and two wall pieces, 0.5 m and 0.4 m long, used between the corners.
+**How the walls are cut.** Each wall is cut on the project's grid (the grid size in Properties, 0.5 m at first). Plynth finds the places where walls meet and keeps them for the corner pieces. Between them it cuts the wall at every whole multiple of the grid, counted from the wall's lower end (the end with the smaller X, then the smaller Y, on the plan's world axes), not from where you started drawing. A door or window is never cut through. If a grid line would fall inside an opening, that cut is dropped, so the opening sits inside one piece. Grid cuts that would leave a sliver under 5 cm are dropped, but a stretch between two junctions can still be shorter than that. A plain square room with 4 m walls, 0.2 m thick, on a 0.5 m grid gives one corner piece used four times and two wall pieces, 0.5 m and 0.4 m long, used between the corners.
 
 **The same piece is made once.** Two pieces are the same when their shape, materials, openings and heights match within a millimetre. A wall drawn from right to left gives the same piece as one drawn from left to right, and a corner matches when turned. A piece used many times is one mesh in the kit and many placements in the layout.
 
@@ -985,7 +985,7 @@ Floors, ceilings, thresholds and furniture are not in the kit.
 
 **Cut faces are not rounded.** The building's wall edges are slightly rounded (bevelled). The faces where one piece is cut from the next are left sharp, so two pieces placed side by side meet with no groove.
 
-**Each piece has its own origin.** In the kit FBX every piece sits at its own origin, so they overlap in the file. Import it with **Combine Meshes** off, and each piece becomes its own static mesh. A wall, opening or curved piece has its origin on the wall's centre line at the start of the piece, at floor level, with X along the wall. A corner has its origin at the plan point where its walls meet.
+**Each piece has its own origin.** In the kit FBX every piece sits at its own origin, so they overlap in the file. Import it with **Combine Meshes** off, and each piece becomes its own static mesh. A wall, opening or curved piece has its origin at floor level at one end of the piece, with X along it. Which end depends on the piece's shape and not on the way the wall was drawn, so always place pieces by the layout's `location` and `rotation_z_degrees`. A corner has its origin at the plan point where its walls meet. Its X runs along one of those walls.
 
 **The layout file.** `<Name>_Kit_layout.json` lists the floors with their grid, every piece (`id`, `mesh`, `kind`, `length`, `height`, `thickness`, `count`) and every placement. A placement has the piece, its mesh, the floor, the wall or plan point it comes from, a `location` and a `rotation_z_degrees`. The coordinates are Blender's world: metres, X as the plan's x, Y as minus the plan's y, Z up from the first floor. That is the frame every exported FBX is written in. A rotation is in degrees about Z, turning anticlockwise seen from above, from 0 up to but not including 360. The shape of the file is in `schema/kit-layout.schema.json`.
 
