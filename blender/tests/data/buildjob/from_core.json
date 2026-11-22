@@ -16,7 +16,7 @@
     "textures_folder": "textures",
     "plan": {
       "format": "plynth-plan",
-      "version": 3,
+      "version": 4,
       "scale": {
         "pixels_per_metre": null
       },
@@ -147,6 +147,7 @@
                 "w6"
               ],
               "floor_material": null,
+              "wall_material": null,
               "ceiling_material": null
             },
             {
@@ -159,6 +160,7 @@
                 "w7"
               ],
               "floor_material": null,
+              "wall_material": null,
               "ceiling_material": null
             }
           ],
@@ -282,10 +284,6 @@
                   -4.100000001490116
                 ],
                 [
-                  0.10000000149011612,
-                  -4.100000001490116
-                ],
-                [
                   3.9,
                   -4.1
                 ],
@@ -294,24 +292,8 @@
                   -4.100000001490116
                 ],
                 [
-                  7.975000001490116,
+                  8.060000002384186,
                   -4.100000001490116
-                ],
-                [
-                  8.041176468133926,
-                  -4.135294117033482
-                ],
-                [
-                  8.058437123894691,
-                  -4.100000001490116
-                ],
-                [
-                  8.100000001490116,
-                  -4.100000001490116
-                ],
-                [
-                  8.100000001490116,
-                  -4.015013352036476
                 ],
                 [
                   8.25506167113781,
@@ -354,23 +336,7 @@
                   -0.3020525276660919
                 ],
                 [
-                  8.100000001490116,
-                  0.015013352036476135
-                ],
-                [
-                  8.100000001490116,
-                  0.10000000149011612
-                ],
-                [
-                  8.058437123894691,
-                  0.10000000149011612
-                ],
-                [
-                  8.041176468133926,
-                  0.1352941170334816
-                ],
-                [
-                  7.975000001490116,
+                  8.060000002384186,
                   0.10000000149011612
                 ],
                 [
@@ -432,10 +398,6 @@
                 [
                   -0.10000000149011612,
                   -0.5967263355851173
-                ],
-                [
-                  -0.1,
-                  -3.9
                 ]
               ],
               "edges": [
@@ -446,12 +408,6 @@
                   "material": null
                 },
                 {
-                  "wall": "w5",
-                  "side": "left",
-                  "room": null,
-                  "material": null
-                },
-                {
                   "wall": "w4",
                   "side": "left",
                   "room": null,
@@ -471,30 +427,6 @@
                 },
                 {
                   "wall": "w3",
-                  "side": null,
-                  "room": null,
-                  "material": null
-                },
-                {
-                  "wall": "w3",
-                  "side": null,
-                  "room": null,
-                  "material": null
-                },
-                {
-                  "wall": "w3",
-                  "side": null,
-                  "room": null,
-                  "material": null
-                },
-                {
-                  "wall": "w3",
-                  "side": null,
-                  "room": null,
-                  "material": null
-                },
-                {
-                  "wall": "w3",
                   "side": "left",
                   "room": null,
                   "material": null
@@ -555,30 +487,6 @@
                 },
                 {
                   "wall": "w2",
-                  "side": null,
-                  "room": null,
-                  "material": null
-                },
-                {
-                  "wall": "w2",
-                  "side": null,
-                  "room": null,
-                  "material": null
-                },
-                {
-                  "wall": "w2",
-                  "side": null,
-                  "room": null,
-                  "material": null
-                },
-                {
-                  "wall": "w2",
-                  "side": null,
-                  "room": null,
-                  "material": null
-                },
-                {
-                  "wall": "w2",
                   "side": "left",
                   "room": null,
                   "material": null
@@ -627,12 +535,6 @@
                 },
                 {
                   "wall": "w1",
-                  "side": "left",
-                  "room": null,
-                  "material": null
-                },
-                {
-                  "wall": "w6",
                   "side": "left",
                   "room": null,
                   "material": null
@@ -859,7 +761,7 @@
                     -0.10000000149011612
                   ],
                   [
-                    7.933703102171421,
+                    7.939999997615814,
                     -0.10000000149011612
                   ],
                   [
@@ -903,7 +805,7 @@
                     -3.6189511120319366
                   ],
                   [
-                    7.933703102171421,
+                    7.939999997615814,
                     -3.899999998509884
                   ]
                 ],
@@ -3587,6 +3489,8 @@
             "area": 14.385634559299106,
             "floor_z": 0.0,
             "ceiling_z": 3.0,
+            "floor_material": null,
+            "ceiling_material": null,
             "polygons": [
               {
                 "outline": [
@@ -3657,9 +3561,7 @@
                 ],
                 "holes": []
               }
-            ],
-            "floor_material": null,
-            "ceiling_material": null
+            ]
           },
           {
             "id": "r2",
@@ -3667,6 +3569,8 @@
             "area": 15.757979134438708,
             "floor_z": 0.0,
             "ceiling_z": 3.0,
+            "floor_material": null,
+            "ceiling_material": null,
             "polygons": [
               {
                 "outline": [
@@ -3729,9 +3633,7 @@
                 ],
                 "holes": []
               }
-            ],
-            "floor_material": null,
-            "ceiling_material": null
+            ]
           }
         ],
         "items": []
