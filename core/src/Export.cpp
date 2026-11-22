@@ -46,15 +46,14 @@ bool createExclusive(const fs::path& file, const std::string& text)
     return true;
 }
 
-// The plan the last build was made from, read from build/job.json. Empty when the file is missing or unusable.
+// The plan of the last successful build, read from build/built-plan.json. Empty when the file is missing or unusable.
 std::optional<Plan> builtPlan(const fs::path& projectFolder)
 {
-    std::ifstream in(buildFolder(projectFolder) / pathFromUtf8(kJobFileName), std::ios::binary);
+    std::ifstream in(buildFolder(projectFolder) / pathFromUtf8(kBuiltPlanFileName), std::ios::binary);
     if (!in) return std::nullopt;
-    const Json job = Json::parse(in, nullptr, false);
-    if (!job.is_object() || !job.contains("params") || !job["params"].is_object()) return std::nullopt;
-    if (!job["params"].contains("plan")) return std::nullopt;
-    PlanRead read = planFromJson(job["params"]["plan"]);
+    const Json json = Json::parse(in, nullptr, false);
+    if (json.is_discarded()) return std::nullopt;
+    PlanRead read = planFromJson(json);
     if (!read.status.ok()) return std::nullopt;
     return std::move(read.plan);
 }

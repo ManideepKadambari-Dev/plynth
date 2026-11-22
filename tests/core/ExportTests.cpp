@@ -379,9 +379,7 @@ TEST_CASE("the expected bounds come from the plan that was built", "[core][expor
     const std::optional<ExportBounds> builtBounds = expectedWallBounds(built);
     REQUIRE(builtBounds.has_value());
 
-    Json envelope = Json::object();
-    envelope["params"] = Json{{"plan", planToJson(built.plan)}};
-    std::ofstream(f.projectFolder / "build" / "job.json", std::ios::binary) << envelope.dump();
+    std::ofstream(f.projectFolder / "build" / "built-plan.json", std::ios::binary) << planToJson(built.plan).dump();
     f.writeBuildReport(planFingerprint(built));
 
     f.request.project.plan.floors[0].points[0].x -= 0.1;

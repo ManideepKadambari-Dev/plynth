@@ -5,6 +5,7 @@
 #include "TestSupport.h"
 
 #include <plynth/core/Build.h>
+#include <plynth/core/ProjectJson.h>
 #include <plynth/core/EditSession.h>
 #include <plynth/core/ProjectFiles.h>
 
@@ -194,6 +195,19 @@ TEST_CASE("a failing worker gives blender_failed and a report with ok false", "[
     REQUIRE(written["error"]["code"] == "blender_failed");
     REQUIRE(written["error"]["worker_code"] == "save_failed");
     REQUIRE(written["outputs"]["blend_file"].is_null());
+}
+
+TEST_CASE("built-plan.json keeps the plan of the last successful build", "[core][build][run]") {
+    BuildFixture f("run-built-plan");
+    plynth::test::requireOk(runBuild(f.request).status);
+    const fs::path file = f.projectFolder / "build" / "built-plan.json";
+    const std::string first = plynth::test::readTextFile(file);
+    REQUIRE(planFromJson(nlohmann::json::parse(first)).plan == f.request.project.plan);
+
+    f.request.project.plan.floors[0].points[0].x -= 0.1;
+    std::ofstream(f.lib.tmp.path() / "blender" / "fake_mode.txt") << "fail";
+    REQUIRE(runBuild(f.request).status.code == ErrorCode::BlenderFailed);
+    REQUIRE(plynth::test::readTextFile(file) == first);
 }
 
 TEST_CASE("a crashing Blender is blender_failed", "[core][build][run]") {

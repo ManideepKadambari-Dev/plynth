@@ -33,6 +33,7 @@ using Json = nlohmann::ordered_json;
 //   build/textures/        constant images of the neutral looks
 //   build/preview_textures/ copies of large images scaled to kPreviewTextureSize, used by building.fbx only
 //   build/build.json       the report of the last build, schema/build-report.schema.json
+//   build/built-plan.json  the plan of the last successful build, for the export checks
 //   build/job.json, build/result.json, build/blender.log   the last job, its result and Blender's output
 //   build/build.lock       while a build or an export runs (an export reads building.blend, so the two never
 //                          run at the same time)
@@ -40,6 +41,7 @@ using Json = nlohmann::ordered_json;
 // Nothing in the project's plan or settings is changed.
 
 inline constexpr std::string_view kBuildReportFileName = "build.json";
+inline constexpr std::string_view kBuiltPlanFileName = "built-plan.json";
 inline constexpr std::string_view kBuildLockFileName = "build.lock";
 inline constexpr std::string_view kBuildReportFormat = "plynth-build-report";
 inline constexpr int kBuildReportVersion = 1;
