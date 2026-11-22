@@ -57,6 +57,7 @@ private:
     void moveToNewGroup(const plynth::ExportMember& member);
     void newGroup();
     void resetGroups();
+    bool freshOptions(plynth::ExportOptions& options);
     bool store(const plynth::ExportOptions& options, const plynth::Status& status);
     void showMessage(const QString& text);
     QString newGroupPrompt() const;
@@ -66,6 +67,7 @@ private:
     std::filesystem::path folder_;
     plynth::ExportGroupReview review_;
     bool readOnly_ = false;
+    bool shownReadOnly_ = false; // the read only state the tree was last built with
     bool rebuilding_ = false;
     std::set<std::string> expanded_;
     std::map<std::pair<std::string, std::string>, QString> labels_;

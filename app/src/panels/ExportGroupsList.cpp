@@ -220,7 +220,7 @@ void ExportGroupsList::applyReview(const std::filesystem::path& projectFolder, c
                                    bool readOnly,
                                    const std::map<std::pair<std::string, std::string>, QString>& labels)
 {
-    const bool same = projectFolder == folder_ && readOnly == readOnly_ && review.groups == review_.groups &&
+    const bool same = projectFolder == folder_ && readOnly == shownReadOnly_ && review.groups == review_.groups &&
                       review.notes == review_.notes && review.options == review_.options && labels == labels_;
     folder_ = projectFolder;
     review_ = review;
@@ -315,6 +315,7 @@ void ExportGroupsList::rebuild()
         row->setExpanded(expanded_.count(group.id) > 0);
     }
     tree_->setDragEnabled(!readOnly_);
+    shownReadOnly_ = readOnly_;
     rebuilding_ = false;
     updateButtons();
 }
@@ -350,6 +351,25 @@ void ExportGroupsList::showMessage(const QString& text)
 {
     message_->setText(text);
     message_->setVisible(!text.isEmpty());
+}
+
+// Reads the options file again just before an edit, so changes made since the list was shown (by the command line
+// or another window) are kept.
+bool ExportGroupsList::freshOptions(plynth::ExportOptions& options)
+{
+    if (readOnly_) {
+        showMessage(tr("The project is open for reading only, so the groups cannot be changed."));
+        QTimer::singleShot(0, this, [this]() { rebuild(); });
+        return false;
+    }
+    const plynth::ExportOptionsRead read = plynth::readExportOptions(folder_);
+    if (!read.status.ok()) {
+        showMessage(fromCore(read.status.message));
+        QTimer::singleShot(0, this, [this]() { rebuild(); });
+        return false;
+    }
+    options = read.options;
+    return true;
 }
 
 // Writes the options after an edit that was accepted, or shows the refusal.
@@ -390,7 +410,9 @@ void ExportGroupsList::startRename(const std::string& group)
 // Applies the name typed in a group row.
 void ExportGroupsList::renameTo(QTreeWidgetItem* item)
 {
-    plynth::ExportOptions options = review_.options;
+    plynth::ExportOptions options;
+    if (!freshOptions(options))
+        return;
     const plynth::Status status = plynth::renameExportGroup(options.groups, review_.groups, groupIdOf(item),
                                                             toCore(item->text(0)));
     store(options, status);
@@ -399,7 +421,9 @@ void ExportGroupsList::renameTo(QTreeWidgetItem* item)
 // Merges a group into another one.
 void ExportGroupsList::mergeGroup(const std::string& group, const std::string& into)
 {
-    plynth::ExportOptions options = review_.options;
+    plynth::ExportOptions options;
+    if (!freshOptions(options))
+        return;
     const plynth::Status status = plynth::mergeExportGroups(options.groups, review_.groups, group, into);
     store(options, status);
 }
@@ -407,7 +431,9 @@ void ExportGroupsList::mergeGroup(const std::string& group, const std::string& i
 // Moves a member to a group.
 void ExportGroupsList::moveMember(const plynth::ExportMember& member, const std::string& to)
 {
-    plynth::ExportOptions options = review_.options;
+    plynth::ExportOptions options;
+    if (!freshOptions(options))
+        return;
     const plynth::Status status = plynth::moveExportMember(options.groups, review_.groups, member, to);
     store(options, status);
 }
@@ -421,7 +447,9 @@ void ExportGroupsList::moveToNewGroup(const plynth::ExportMember& member)
                              .trimmed();
     if (!ok)
         return;
-    plynth::ExportOptions options = review_.options;
+    plynth::ExportOptions options;
+    if (!freshOptions(options))
+        return;
     std::string id;
     plynth::Status status = plynth::addExportGroup(options.groups, review_.groups, toCore(name), id);
     if (status.ok()) {
@@ -445,7 +473,9 @@ void ExportGroupsList::newGroup()
                              .trimmed();
     if (!ok)
         return;
-    plynth::ExportOptions options = review_.options;
+    plynth::ExportOptions options;
+    if (!freshOptions(options))
+        return;
     std::string id;
     const plynth::Status status = plynth::addExportGroup(options.groups, review_.groups, toCore(name), id);
     store(options, status);
@@ -459,7 +489,9 @@ void ExportGroupsList::resetGroups()
                                               QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
     if (answer != QMessageBox::Yes)
         return;
-    plynth::ExportOptions options = review_.options;
+    plynth::ExportOptions options;
+    if (!freshOptions(options))
+        return;
     options.groups = plynth::ExportGroupEdits{};
     store(options, plynth::Status{});
 }
