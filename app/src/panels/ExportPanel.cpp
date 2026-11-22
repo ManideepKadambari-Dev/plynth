@@ -135,6 +135,13 @@ public:
         texts->addWidget(name);
         texts->addWidget(message);
         row->addLayout(texts, 1);
+        if (check.status == plynth::QualityStatus::Fail) {
+            auto* failed = new QLabel(tr("Failed"), header_);
+            failed->setFont(t.uiFont(t.sizeSmall(), QFont::Bold));
+            failed->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
+            failed->setAttribute(Qt::WA_TransparentForMouseEvents);
+            row->addWidget(failed, 0, Qt::AlignTop);
+        }
         if (hasFindings) {
             count_ = new QLabel(header_);
             count_->setFont(t.monoFont(t.sizeSmall()));

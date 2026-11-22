@@ -19,7 +19,7 @@ constexpr int kBorderWidth = 1;
 QPushButton* makeTab(const QString& text, const QString& tip, const QString& tourId, QWidget* parent)
 {
     const Theme& t = Theme::instance();
-    return makeTabButton(text, tip, tourId, parent, t.unit() * 2, t.unit() * 2);
+    return makeTabButton(text, tip, tourId, parent, t.unit() * 2, t.unit());
 }
 
 }
@@ -72,7 +72,7 @@ RightPanel::RightPanel(QWidget* properties, QWidget* assets, QWidget* materials,
     showTab(Tab::Properties);
 }
 
-// Shows one tab and sets the width of the panel for it.
+// Shows one tab; the panel keeps one width so all tab labels fit.
 void RightPanel::showTab(Tab tab)
 {
     const Theme& t = Theme::instance();
@@ -83,7 +83,7 @@ void RightPanel::showTab(Tab tab)
     buildButton_->setChecked(tab == Tab::Build);
     exportButton_->setChecked(tab == Tab::Export);
     pages_->setCurrentIndex(static_cast<int>(tab));
-    setFixedWidth(tab == Tab::Properties ? t.propertiesWidth() : t.assetsWidth());
+    setFixedWidth(t.assetsWidth());
 }
 
 // Paints the Panel background with the Line border on its left edge.
