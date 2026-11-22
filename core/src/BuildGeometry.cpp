@@ -81,6 +81,31 @@ std::vector<Vec2> withoutRepeats(const std::vector<Vec2>& ring)
     return out;
 }
 
+// The ring without spikes: a point where it runs along a line and straight back over it. Rounding in the union
+// can leave one where two bands of different heights meet at a diagonal, with no width and no area.
+std::vector<Vec2> withoutSpikes(std::vector<Vec2> ring)
+{
+    bool changed = true;
+    while (changed && ring.size() > 3) {
+        changed = false;
+        for (std::size_t i = 0; i < ring.size(); ++i) {
+            const Vec2 a = ring[(i + ring.size() - 1) % ring.size()];
+            const Vec2 b = ring[i];
+            const Vec2 c = ring[(i + 1) % ring.size()];
+            const double ab = distance(a, b);
+            const Vec2 u{b.x - a.x, b.y - a.y};
+            const Vec2 v{c.x - b.x, c.y - b.y};
+            if (ab < kClose || (u.x * v.x + u.y * v.y) >= 0.0) continue;
+            if (std::fabs(u.x * v.y - u.y * v.x) / ab < kClose) {
+                ring.erase(ring.begin() + static_cast<std::ptrdiff_t>(i));
+                changed = true;
+                break;
+            }
+        }
+    }
+    return ring;
+}
+
 // The ring turned to run anticlockwise (or clockwise) as seen from above, by the world shoelace sum.
 std::vector<Vec2> oriented(std::vector<Vec2> ring, bool anticlockwise)
 {
@@ -421,7 +446,7 @@ std::vector<WallSolid> wallSolids(const Floor& floor)
         std::vector<AreaRing> holes;
         for (const Clipper2Lib::PathD& path : shape) {
             AreaRing ring;
-            ring.points = withoutRepeats(fromPath(path));
+            ring.points = withoutSpikes(withoutRepeats(fromPath(path)));
             if (ring.points.size() < 3) continue;
             ring.area = signedArea(ring.points);
             if (std::fabs(ring.area) < 1e-9) continue;

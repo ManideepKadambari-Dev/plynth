@@ -508,3 +508,56 @@ TEST_CASE("itemPlacement turns an item into Blender's axes", "[core][build]") {
     item.rotation = 0.0;
     REQUIRE(itemPlacement(item, 0.0).rotationZ == 0.0);
 }
+
+namespace {
+
+// The square room of 4 m turned about the origin by an angle and moved, with one wall of half height.
+Floor turnedHalfWallRoom(double degrees, bool half)
+{
+    Floor f = squareWithRoom();
+    const double a = degrees * std::numbers::pi / 180.0;
+    for (Point& pt : f.points) {
+        const double x = pt.x;
+        const double y = pt.y;
+        pt.x = x * std::cos(a) - y * std::sin(a) + 3.0;
+        pt.y = x * std::sin(a) + y * std::cos(a) + 3.0;
+    }
+    if (half) f.walls[0].height = 1.0;
+    return f;
+}
+
+// Whether a ring goes along a line and straight back over it: a spike with no width.
+bool hasSpike(const WallRing& ring)
+{
+    const std::size_t n = ring.points.size();
+    for (std::size_t i = 0; i < n; ++i) {
+        const Vec2 a = ring.points[i];
+        const Vec2 b = ring.points[(i + 1) % n];
+        const Vec2 c = ring.points[(i + 2) % n];
+        const Vec2 u = detail::unit({b.x - a.x, b.y - a.y});
+        const Vec2 v = detail::unit({c.x - b.x, c.y - b.y});
+        if (std::fabs(u.x * v.y - u.y * v.x) < 1e-6 && detail::dot(u, v) < 0.0) return true;
+    }
+    return false;
+}
+
+}
+
+TEST_CASE("wall solids have no zero width spikes, turned or not", "[core][build][geometry][spikes]") {
+    for (const double angle : {0.0, 30.0, 45.0, 90.0}) {
+        for (const bool half : {false, true}) {
+            INFO("angle " << angle << " half " << half);
+            const Floor f = turnedHalfWallRoom(angle, half);
+            const std::vector<WallSolid> solids = wallSolids(f);
+            REQUIRE_FALSE(solids.empty());
+            double area = 0.0;
+            for (const WallSolid& s : solids) {
+                REQUIRE_FALSE(hasSpike(s.outline));
+                for (const WallRing& h : s.holes) REQUIRE_FALSE(hasSpike(h));
+                area += std::fabs(signedArea(s.outline.points));
+                for (const WallRing& h : s.holes) area -= std::fabs(signedArea(h.points));
+            }
+            REQUIRE(area == Approx(3.2).margin(1e-9));
+        }
+    }
+}
