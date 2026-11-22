@@ -69,8 +69,9 @@ void paintStair(QPainter& painter, const OverlayStair& stair, const QTransform& 
     }
 
     const QColor accent = selected ? t.signalAmber() : t.signalBlue();
-    QPen outline(accent, selected ? 2.0 : 1.5);
-    if (stair.problem && !selected)
+    const bool flagged = stair.problem && !selected;
+    QPen outline(flagged ? t.signalAmber() : accent, selected ? 2.0 : 1.5);
+    if (flagged)
         outline.setDashPattern({4.0, 3.0});
     painter.setPen(outline);
     painter.setBrush(Qt::NoBrush);
