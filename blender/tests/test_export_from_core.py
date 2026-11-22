@@ -87,7 +87,7 @@ class Fixture(BuildTest):
         bpy.ops.wm.read_factory_settings(use_empty=True)
 
     # Builds the project with the build job of the scratch project and returns the folders.
-    def make_project(self, export="from_core_export", build="from_core_build", assets=ASSETS):
+    def make_project(self, export="from_core_export", build="from_core_build", assets=ASSETS, drop_collision=None):
         project = self.path("project")
         library = self.path("Library")
         export_job = fill(load_job(export), project, library)
@@ -95,6 +95,8 @@ class Fixture(BuildTest):
         for asset_id in assets:
             self.make_asset(asset_id, library)
         build_job = fill(load_job(build), project, library)
+        for floor in build_job["params"]["floors"]:
+            floor["collision"] = [c for c in floor["collision"] if c["target"]["kind"] != drop_collision]
         os.makedirs(project + "/build", exist_ok=True)
         result = self.run_task("build", build_job["params"], job_id="build-1")
         assert result["ok"], result["error"]
@@ -211,6 +213,17 @@ def convex(obj):
     return all((v - p.center).dot(p.normal) <= 1e-5 for p in obj.data.polygons for v in vertices)
 
 
+# Builds the house project with the collision of one kind of target left out, once per kind, and returns its folders.
+def house_without(kind):
+    key = "house without " + kind
+    if key not in _project:
+        fixture = Fixture()
+        fixture.setUp()
+        atexit.register(shutil.rmtree, fixture.folder, True)
+        _project[key] = fixture.make_project("from_core_house_export", "from_core_house", (), drop_collision=kind)
+    return _project[key]
+
+
 class HouseExportTests(helpers.TempFolderTest):
     # Returns the export job of the house with the files going into a staging folder of this test.
     def job(self):
@@ -238,7 +251,30 @@ class HouseExportTests(helpers.TempFolderTest):
         self.assertEqual([i for i, s in statuses.items() if s == "warning"], ["uvs"])
         for check in ("collision", "materials", "naming", "scale", "transforms"):
             self.assertEqual(statuses[check], "pass", check)
+        uvs = next(c for c in output["checks"] if c["id"] == "uvs")
+        about = sorted({f["object"] for f in uvs["findings"]})
+        print("uvs findings about", about)
+        for name in about:
+            self.assertFalse(name.endswith(("_Slab", "_Stair")) or "_Roof_" in name, name)
         self.assertTrue(output["written"])
+
+    # Takes the collision of every slab, then every stair, then every roof out of the build in turn: the export then
+    # fails the collision check and names each of those objects.
+    def test_missing_part_collision_fails(self):
+        for kind, names in (("slab", {"SM_f1_Slab", "SM_f2_Slab"}), ("stair", {"SM_f1_s1_Stair"}),
+                            ("roof", {"SM_f1_Roof_00", "SM_f2_Roof_00"})):
+            with self.subTest(kind=kind):
+                project, library = house_without(kind)
+                job = fill(load_job("from_core_house_export"), project, library)
+                job["params"]["output_folder"] = self.path("export", ".staging")
+                job["params"]["write"] = False
+                job["result_file"] = self.path("work", "result.json")
+                result = self.run_task("export", job["params"], job_id=job["job_id"])
+                self.assertTrue(result["ok"], result["error"])
+                check = next(c for c in result["output"]["checks"] if c["id"] == "collision")
+                self.assertEqual(check["status"], "fail")
+                self.assertEqual({f["object"] for f in check["findings"]}, names)
+                self.assertTrue(all(f["plan_id"] for f in check["findings"]))
 
     # The written FBX holds convex UCX_ meshes for every slab, stair and roof, 16 for the stair's steps.
     def test_fbx_has_part_collision(self):

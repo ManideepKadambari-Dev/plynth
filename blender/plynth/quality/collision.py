@@ -6,7 +6,7 @@ from ._common import plan_id
 from ..registry import QUALITY_CHECKS
 
 ORDER = 100
-NEEDS_COLLISION = ("walls", "floor", "item")
+NEEDS_COLLISION = ("walls", "floor", "slab", "stair", "roof", "item")
 TOLERANCE = 1e-4
 
 
@@ -50,7 +50,7 @@ def run(ctx):
                                     plan_id(obj)))
     if findings:
         return result("fail", "Some collision is missing or not usable.", findings)
-    return result("pass", "Every walls, floor and item mesh has closed, convex collision.")
+    return result("pass", "Every wall, floor, slab, stair, roof and item mesh has closed, convex collision.")
 
 
 QUALITY_CHECKS.register("collision", QualityCheck(ORDER, "scene", "Collision", run))
