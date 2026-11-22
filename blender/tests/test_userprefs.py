@@ -14,6 +14,21 @@ from plynth import userprefs
 
 FAKE_KEY = "FAKEKEY-q7Zr4mXw90pLtVb2"
 MARKER_VARIABLE = "PLYNTH_FIXTURE_MARKER"
+# Where each variable of a child points inside its folder. Blender ignores one whose folder is missing.
+PRIVATE_FOLDERS = {
+    "BLENDER_USER_RESOURCES": "resources",
+    "BLENDER_USER_CONFIG": "config",
+    "BLENDER_USER_SCRIPTS": "scripts",
+    "BLENDER_USER_EXTENSIONS": "extensions",
+    "BLENDER_USER_DATAFILES": "resources/datafiles",
+    "APPDATA": "appdata",
+    "LOCALAPPDATA": "local",
+    "USERPROFILE": "home",
+    "HOME": "home",
+    "XDG_DATA_HOME": "xdg",
+    "PLYNTH_BLENDER_PRIVATE": "plynth_private",
+    "PLYNTH_CONFIG_DIR": "plynth_config",
+}
 
 LEGACY_SOURCE = (
     'bl_info = {"name": "Fixture Legacy", "version": (1, 2, 3), "blender": (4, 2, 0), "category": "Development"}\n'
@@ -107,6 +122,15 @@ def fingerprint(root):
     return found
 
 
+# Makes a made-up user's folders under root and returns an environment that points every user variable at them.
+def private_env(root):
+    env = {name: value for name, value in os.environ.items() if not name.upper().startswith("BLENDER_USER_")}
+    for name, part in PRIVATE_FOLDERS.items():
+        env[name] = os.path.join(root, part).replace("\\", "/")
+        os.makedirs(env[name], exist_ok=True)
+    return env
+
+
 class Fixture:
     # A fake user area saved by a child Blender: config, scripts, extensions, a custom repository and the rest.
     def __init__(self, name):
@@ -151,28 +175,15 @@ class Fixture:
     def save(self, enable=(), key=None, global_dir="", repos=(), script_dirs=(), disable_repos=()):
         import bpy
         self.write_sources()
-        for folder in ("config", "bkdata", "resources", "appdata", "home", "xdg", "local"):
-            os.makedirs(self.path(folder), exist_ok=True)
+        os.makedirs(self.global_dir, exist_ok=True)
         spec = {"enable": list(enable), "key": key, "global_dir": global_dir, "repos": list(repos),
                 "script_dirs": list(script_dirs), "disable_repos": list(disable_repos)}
         script = os.path.join(_scratch, "make_fixture.py")
         write_text(script, CHILD_SCRIPT)
-        env = {name: value for name, value in os.environ.items() if not name.startswith("BLENDER_USER_")}
-        env.update({
-            "BLENDER_USER_CONFIG": self.config,
-            "BLENDER_USER_SCRIPTS": self.scripts,
-            "BLENDER_USER_EXTENSIONS": self.extensions,
-            "BLENDER_USER_DATAFILES": self.path("resources", "datafiles"),
-            "BLENDER_USER_RESOURCES": self.path("resources"),
-            "APPDATA": self.path("appdata"),
-            "LOCALAPPDATA": self.path("local"),
-            "USERPROFILE": self.path("home"),
-            "XDG_DATA_HOME": self.path("xdg"),
-            "PLYNTH_FIXTURE": json.dumps(spec),
-            MARKER_VARIABLE: self.marker,
-        })
+        env = private_env(self.root)
+        env.update({"PLYNTH_FIXTURE": json.dumps(spec), MARKER_VARIABLE: self.marker})
         done = subprocess.run(
-            [bpy.app.binary_path, "-t", "6", "--background", "--factory-startup", "-noaudio",
+            [bpy.app.binary_path, "-t", "6", "--offline-mode", "--background", "--factory-startup", "-noaudio",
              "--python-exit-code", "3", "--python", script],
             env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=180)
         text = done.stdout.decode("utf-8", "replace")

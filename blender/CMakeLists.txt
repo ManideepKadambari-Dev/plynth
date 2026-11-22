@@ -24,21 +24,36 @@ if(PLYNTH_BLENDER AND EXISTS "${PLYNTH_BLENDER}")
     enable_testing()
     add_test(
         NAME blender_python
-        COMMAND "${PLYNTH_BLENDER}" --background --factory-startup -noaudio --python-exit-code 3
-                --python "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_tests.py"
+        COMMAND "${PLYNTH_BLENDER}" --background --factory-startup -noaudio -t 6 --offline-mode
+                --python-exit-code 3 --python "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_tests.py"
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
-    # Factory startup does not protect the user's Blender folders, so the test gets a private one. All five
-    # user variables point inside it, because Blender ignores a variable whose folder is missing and falls back
-    # to the user's own folder. A setup test makes the folders every time the test runs, so a deleted build
-    # folder cannot send Blender anywhere else.
+    # Factory startup does not protect the user's folders, so each variable that names one points inside the
+    # build folder. Blender ignores a variable whose folder is missing and falls back to the user's own folder.
+    # A setup test makes the folders every time the test runs, so a deleted build folder cannot send Blender
+    # anywhere else.
     set(_plynth_private "${CMAKE_BINARY_DIR}/blender-private")
     set(_plynth_private_folders "${_plynth_private}" "${_plynth_private}/config" "${_plynth_private}/scripts"
-        "${_plynth_private}/extensions" "${_plynth_private}/datafiles")
+        "${_plynth_private}/extensions" "${_plynth_private}/datafiles" "${_plynth_private}/appdata"
+        "${_plynth_private}/local" "${_plynth_private}/home" "${_plynth_private}/xdg"
+        "${_plynth_private}/plynth-private" "${_plynth_private}/plynth-config")
+    set(_plynth_private_env
+        "BLENDER_USER_RESOURCES=${_plynth_private}"
+        "BLENDER_USER_CONFIG=${_plynth_private}/config"
+        "BLENDER_USER_SCRIPTS=${_plynth_private}/scripts"
+        "BLENDER_USER_EXTENSIONS=${_plynth_private}/extensions"
+        "BLENDER_USER_DATAFILES=${_plynth_private}/datafiles"
+        "APPDATA=${_plynth_private}/appdata"
+        "LOCALAPPDATA=${_plynth_private}/local"
+        "USERPROFILE=${_plynth_private}/home"
+        "HOME=${_plynth_private}/home"
+        "XDG_DATA_HOME=${_plynth_private}/xdg"
+        "PLYNTH_BLENDER_PRIVATE=${_plynth_private}/plynth-private"
+        "PLYNTH_CONFIG_DIR=${_plynth_private}/plynth-config")
     add_test(NAME blender_private_folders
         COMMAND "${CMAKE_COMMAND}" -E make_directory ${_plynth_private_folders})
     set_tests_properties(blender_private_folders PROPERTIES LABELS blender FIXTURES_SETUP blender_private)
     set_tests_properties(blender_python PROPERTIES LABELS blender TIMEOUT 900 FIXTURES_REQUIRED blender_private
-        ENVIRONMENT "BLENDER_USER_RESOURCES=${_plynth_private};BLENDER_USER_CONFIG=${_plynth_private}/config;BLENDER_USER_SCRIPTS=${_plynth_private}/scripts;BLENDER_USER_EXTENSIONS=${_plynth_private}/extensions;BLENDER_USER_DATAFILES=${_plynth_private}/datafiles")
+        ENVIRONMENT "${_plynth_private_env}")
 else()
     message(STATUS "Blender not found, the worker Python tests are not added")
 endif()
