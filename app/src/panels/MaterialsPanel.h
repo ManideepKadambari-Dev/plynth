@@ -60,7 +60,11 @@ signals:
     void retryRequested(const QString& id);
     void message(const QString& text);
 
+protected:
+    bool eventFilter(QObject* watched, QEvent* event) override;
+
 private:
+    void snapSplit();
     void buildControls(QVBoxLayout* column);
     void buildDetails();
     void fillGroupFilter();

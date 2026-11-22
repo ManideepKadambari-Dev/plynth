@@ -5,6 +5,7 @@
 #include "theme/Theme.h"
 
 #include <QComboBox>
+#include <QEvent>
 #include <QDesktopServices>
 #include <QDoubleSpinBox>
 #include <QGridLayout>
@@ -246,6 +247,8 @@ MaterialsPanel::MaterialsPanel(LibraryHost& host, QWidget* parent) : QWidget(par
     splitter_->setStretchFactor(0, 3);
     splitter_->setStretchFactor(1, 2);
     detailsScroll_->hide();
+    grid_->installEventFilter(this);
+    connect(splitter_, &QSplitter::splitterMoved, this, [this]() { QTimer::singleShot(0, this, [this]() { snapSplit(); }); });
     pages_->addWidget(splitter_);
     column->addWidget(pages_, 1);
 
@@ -697,6 +700,41 @@ bool MaterialsPanel::selectMaterial(const QString& id)
 QString MaterialsPanel::selectedId() const
 {
     return current_ ? fromCore(current_->id) : QString();
+}
+
+// Redraws the split when the grid is resized or shown, so only whole rows of tiles are visible.
+bool MaterialsPanel::eventFilter(QObject* watched, QEvent* event)
+{
+    if (watched == grid_ && (event->type() == QEvent::Resize || event->type() == QEvent::Show))
+        QTimer::singleShot(0, this, [this]() { snapSplit(); });
+    return QWidget::eventFilter(watched, event);
+}
+
+// Moves the split so the grid ends on a whole row of tiles. The spare pixels go to the details.
+void MaterialsPanel::snapSplit()
+{
+    if (!detailsScroll_->isVisible() || model_->rowCount() == 0)
+        return;
+    const QRect first = grid_->visualRect(model_->index(0, 0));
+    int pitch = 0;
+    for (int i = 1; i < model_->rowCount(); ++i) {
+        const QRect r = grid_->visualRect(model_->index(i, 0));
+        if (r.top() > first.top()) {
+            pitch = r.top() - first.top();
+            break;
+        }
+    }
+    if (pitch <= 0)
+        pitch = first.height() + Theme::instance().unit();
+    const int height = grid_->viewport()->height();
+    const int rows = std::max(1, height / pitch);
+    const int spare = height - rows * pitch;
+    QList<int> sizes = splitter_->sizes();
+    if (spare <= 0 || sizes.size() < 2 || sizes[0] - spare < grid_->minimumHeight())
+        return;
+    sizes[0] -= spare;
+    sizes[1] += spare;
+    splitter_->setSizes(sizes);
 }
 
 // Fills the details from the selected material, or hides them.

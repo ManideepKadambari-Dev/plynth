@@ -158,6 +158,16 @@ QWidget* MaterialImportScreen::buildSources()
     sources_->setToolTip(tr("Folders and zip files of textures, single images, or a .blend file. Drop them here or use the buttons"));
     sources_->setProperty("tourId", QStringLiteral("materials-import-sources"));
     box->addWidget(sources_, 1);
+    sourcesHint_ = new QLabel(tr("Drop folders, zip files, images or .blend files here, or use Add folder / Add files."),
+                              sources_->viewport());
+    sourcesHint_->setWordWrap(true);
+    sourcesHint_->setAlignment(Qt::AlignCenter);
+    sourcesHint_->setFont(t.uiFont(t.sizeNormal()));
+    sourcesHint_->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
+    sourcesHint_->setAttribute(Qt::WA_TransparentForMouseEvents);
+    auto* hintLayout = new QVBoxLayout(sources_->viewport());
+    hintLayout->setContentsMargins(t.unit() * 8, t.unit() * 4, t.unit() * 8, t.unit() * 4);
+    hintLayout->addWidget(sourcesHint_);
     connect(sources_, &QListWidget::itemSelectionChanged, this, &MaterialImportScreen::updateState);
 
     note_ = new QLabel(page);
@@ -206,6 +216,21 @@ QWidget* MaterialImportScreen::buildSources()
 
     import_ = new QPushButton(tr("Import"), page);
     import_->setDefault(true);
+    import_->setFont(t.uiFont(t.sizeNormal(), QFont::DemiBold));
+    {
+        const QColor dim = QColor::fromRgbF(t.signalBlue().redF() * 0.35 + t.ground().redF() * 0.65,
+                                            t.signalBlue().greenF() * 0.35 + t.ground().greenF() * 0.65,
+                                            t.signalBlue().blueF() * 0.35 + t.ground().blueF() * 0.65);
+        import_->setStyleSheet(QStringLiteral("QPushButton { background: %1; color: %2; border: 1px solid %1; "
+                                              "border-radius: %3px; padding: %4px %5px; }"
+                                              "QPushButton:hover { border-color: %2; }"
+                                              "QPushButton:disabled { background: %6; color: %7; border-color: %6; }")
+                                   .arg(t.signalBlue().name(), t.onBlue().name())
+                                   .arg(t.radius())
+                                   .arg(t.unit())
+                                   .arg(t.unit() * 5)
+                                   .arg(dim.name(), t.muted().name()));
+    }
     import_->setToolTip(tr("Add every line of the list to the import queue"));
     import_->setProperty("tourId", QStringLiteral("materials-import-start"));
     connect(import_, &QPushButton::clicked, this, &MaterialImportScreen::importAll);
@@ -392,6 +417,7 @@ void MaterialImportScreen::setLibraryOpen(bool open)
 void MaterialImportScreen::updateState()
 {
     const int count = sources_->count();
+    sourcesHint_->setVisible(count == 0);
     import_->setEnabled(libraryOpen_ && count > 0);
     import_->setToolTip(!libraryOpen_ ? tr("Set a library folder first")
                         : count == 0  ? tr("Add something to import first")

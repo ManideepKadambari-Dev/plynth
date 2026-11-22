@@ -99,7 +99,13 @@ Item {
     }
 
     function makeTexture(url) {
-        var t = textureComponent.createObject(loader, { source: url })
+        var t = textureComponent.createObject(loader, {
+            source: url,
+            generateMipmaps: true,
+            mipFilter: Texture.Linear,
+            minFilter: Texture.Linear,
+            magFilter: Texture.Linear
+        })
         root.madeObjects.push(t)
         return t
     }
@@ -195,9 +201,17 @@ Item {
 
         environment: SceneEnvironment {
             backgroundMode: SceneEnvironment.Transparent
+            tonemapMode: SceneEnvironment.TonemapModeFilmic
             antialiasingMode: SceneEnvironment.MSAA
             antialiasingQuality: SceneEnvironment.High
-            lightProbe: Texture { textureData: ProceduralSkyTextureData {} }
+            lightProbe: Texture {
+                textureData: ProceduralSkyTextureData {
+                    skyTopColor: "#aab2ba"
+                    skyHorizonColor: "#d6d8da"
+                    groundHorizonColor: "#b4b2ae"
+                    groundBottomColor: "#8a8884"
+                }
+            }
             probeExposure: Theme.probeExposure
             aoEnabled: true
             aoStrength: Theme.aoStrength

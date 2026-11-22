@@ -60,6 +60,7 @@ private:
 
     QListWidget* sources_ = nullptr;
     QLabel* note_ = nullptr;
+    QLabel* sourcesHint_ = nullptr;
     QPushButton* remove_ = nullptr;
     QPushButton* clear_ = nullptr;
     QPushButton* import_ = nullptr;
