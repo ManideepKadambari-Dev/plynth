@@ -9,7 +9,7 @@ from export_helpers import ExportTest
 from plynth import quality, registry
 
 CHECK_IDS = ["build_current", "build_complete", "scale", "transforms", "naming", "uvs", "texel_density",
-             "triangles", "materials", "collision", "fbx_scale"]
+             "triangles", "materials", "collision", "groups", "fbx_scale"]
 
 
 # Returns the L shaped prism used as a concave collision mesh.

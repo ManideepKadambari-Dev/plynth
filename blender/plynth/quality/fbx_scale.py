@@ -44,13 +44,17 @@ def read_back(entry, walls):
     return count, bounds
 
 
-# Reads every written FBX back into the scene and fails unless the walls have the bounds the plan gives and
-# the number of objects matches what was written. What the import added is removed again.
+# Reads every written FBX back into the scene and fails unless the walls, taken together over all files, have
+# the bounds the plan gives and the number of objects in each file matches what was written. What the import
+# added is removed again.
 def run(ctx):
     findings = []
     expected = ctx.params.get("expected_bounds")
     tolerance = ctx.params["limits"]["bounds_tolerance"]
     walls = {o.name for o in ctx.state["meshes"] if o.get("plynth_kind") == "walls"}
+    low = [float("inf")] * 3
+    high = [float("-inf")] * 3
+    with_walls = []
     for entry in ctx.state["written_files"]:
         try:
             count, bounds = read_back(entry, walls & set(entry["objects"]))
@@ -60,9 +64,14 @@ def run(ctx):
         if count != len(entry["objects"]):
             findings.append(finding("%s holds %d objects, %d were written." % (entry["file"], count,
                                                                               len(entry["objects"])), entry["file"]))
-        if expected is not None and bounds is not None:
-            findings += [finding("%s: %s" % (entry["file"], text), entry["file"])
-                         for text in bound_differences(bounds, expected, tolerance)]
+        if bounds is not None:
+            with_walls.append(entry["file"])
+            low = [min(a, b) for a, b in zip(low, bounds[0])]
+            high = [max(a, b) for a, b in zip(high, bounds[1])]
+    if expected is not None and with_walls:
+        label = ", ".join(with_walls)
+        findings += [finding("%s: %s" % (label, text), with_walls[0])
+                     for text in bound_differences((low, high), expected, tolerance)]
     if findings:
         return result("fail", "A written file does not match the scene.", findings)
     return result("pass", "The written files read back with the right size and object count.")

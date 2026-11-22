@@ -327,8 +327,8 @@ class ExportTests(ExportTest):
     def test_groups(self):
         params = self.params(clean=True)
         params["groups"] = [{"id": "furniture", "file": "Furniture.fbx", "kinds": ["item"], "ids": []},
-                            {"id": "shell", "file": "Shell.fbx", "kinds": ["walls", "floor", "ceiling", "threshold",
-                                                                          "fill"], "ids": []}]
+                            {"id": "shell", "file": "Shell.fbx", "kinds": ["walls", "floor", "ceiling", "thresholds",
+                                                                          "door", "window"], "ids": []}]
         result = self.export(params=params)
         self.assertTrue(result["ok"], result["error"])
         files = {f["group"]: f for f in result["output"]["files"]}

@@ -6,7 +6,7 @@ from ._common import plan_id
 from ..registry import QUALITY_CHECKS
 
 ORDER = 100
-NEEDS_COLLISION = ("walls", "floor", "item")
+NEEDS_COLLISION = ("walls", "floor", "item", "kit")
 TOLERANCE = 1e-4
 
 
@@ -34,7 +34,7 @@ def is_convex(mesh):
     return True
 
 
-# Fails for a building mesh or item without a UCX_ mesh (the door and window fills, ceilings and thresholds need
+# Fails for a building mesh, item or kit piece without a UCX_ mesh (the door and window fills, ceilings and thresholds need
 # none) and for a UCX_ mesh that is not closed or not convex.
 def run(ctx):
     findings = []
