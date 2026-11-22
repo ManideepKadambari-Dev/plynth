@@ -38,6 +38,35 @@ std::wstring environmentText(const wchar_t* name)
     return value;
 }
 
+// The folder Blender gets as its own user folder when it runs with factory startup. Factory startup alone does
+// not protect the user's Blender folders, so every such run is pointed here. PLYNTH_BLENDER_PRIVATE moves it.
+fs::path blenderPrivateFolder()
+{
+    if (const std::wstring set = environmentText(L"PLYNTH_BLENDER_PRIVATE"); !set.empty()) return fs::path(set);
+    if (const std::wstring local = environmentText(L"LOCALAPPDATA"); !local.empty()) return fs::path(local) / L"Plynth" / L"blender-private";
+    std::error_code ec;
+    return fs::temp_directory_path(ec) / L"Plynth" / L"blender-private";
+}
+
+// Creates the private folder and sets the variables that send a factory startup Blender there, replacing any
+// that point at the user's folders. Only the child sees them. Fails when the folder cannot be created, so a
+// run never falls back to the user's folders.
+Status useBlenderPrivateFolder(ProcessSpec& spec)
+{
+    const fs::path root = blenderPrivateFolder();
+    std::error_code ec;
+    for (const wchar_t* sub : {L"", L"config", L"scripts", L"extensions", L"datafiles"}) {
+        fs::create_directories(root / sub, ec);
+        if (ec) return fail(ErrorCode::CannotWrite, "The private Blender folder " + pathToUtf8(root) + " could not be created.");
+    }
+    spec.environment.emplace_back("BLENDER_USER_RESOURCES", pathToUtf8(root));
+    spec.environment.emplace_back("BLENDER_USER_CONFIG", pathToUtf8(root / L"config"));
+    spec.environment.emplace_back("BLENDER_USER_SCRIPTS", pathToUtf8(root / L"scripts"));
+    spec.environment.emplace_back("BLENDER_USER_EXTENSIONS", pathToUtf8(root / L"extensions"));
+    spec.environment.emplace_back("BLENDER_USER_DATAFILES", pathToUtf8(root / L"datafiles"));
+    return {};
+}
+
 // A path as a lower case string, so the same install is found once however it was spelled.
 std::wstring pathKey(const fs::path& path)
 {
@@ -258,6 +287,10 @@ BlenderInstall inspectBlender(const fs::path& executable, std::stop_token stop)
     spec.program = executable;
     spec.arguments = {"--background", "--factory-startup", "--version"};
     spec.timeout = versionTimeout();
+    if (const Status s = useBlenderPrivateFolder(spec); !s.ok()) {
+        install.status = fail(ErrorCode::BlenderFailed, s.message);
+        return install;
+    }
     std::vector<std::string> lines;
     const ProcessResult run = runProcess(spec, [&](std::string_view line) { lines.emplace_back(line); }, stop);
 
@@ -447,7 +480,13 @@ BlenderJobRun runBlenderJob(const fs::path& blender, const Json& job, const fs::
     ProcessSpec spec;
     spec.program = blender;
     spec.arguments = {"--background"};
-    if (options.factoryStartup) spec.arguments.emplace_back("--factory-startup");
+    if (options.factoryStartup) {
+        spec.arguments.emplace_back("--factory-startup");
+        if (const Status s = useBlenderPrivateFolder(spec); !s.ok()) {
+            run.status = s;
+            return run;
+        }
+    }
     for (const char* arg : {"-noaudio", "--python-exit-code", "3", "--python"}) spec.arguments.emplace_back(arg);
     spec.arguments.push_back(pathToUtf8(scripts / pathFromUtf8(kWorkerScriptName)));
     for (const char* arg : {"--", "--job"}) spec.arguments.emplace_back(arg);

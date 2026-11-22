@@ -3,6 +3,7 @@
 // FAKE_BLENDER_MODE variable), and writes a result file that follows schema/blender-result.schema.json.
 // Modes: ok (default), fail, crash, hang, hang_version, bad_result, no_thumbnail, no_fbx, build_problem,
 // several_materials (a cleanup_material job on a .blend with no material named fails with that error).
+// Every start also appends the BLENDER_USER_* variables it sees to fake_env.log.
 // Every job is also appended as one line to fake_jobs.log next to the program.
 // The version comes from fake_version.txt next to the program, else 5.2.0.
 // Probe add-ons come from FAKE_BLENDER_ADDONS (comma separated modules) and FAKE_BLENDER_BLENDERKIT
@@ -14,9 +15,11 @@
 #include <windows.h>
 #include <shellapi.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -52,14 +55,17 @@ std::string readSmallFile(const fs::path& file)
     return s.substr(start);
 }
 
-// An environment variable, empty when it is not set.
+// An environment variable as UTF-8, empty when it is not set.
 std::string environment(const char* name)
 {
-    char* value = nullptr;
-    std::size_t size = 0;
-    _dupenv_s(&value, &size, name);
-    std::string out = value ? value : "";
-    free(value);
+    const std::wstring wideName(name, name + std::strlen(name));
+    const DWORD size = GetEnvironmentVariableW(wideName.c_str(), nullptr, 0);
+    if (size == 0) return {};
+    std::wstring value(size, L'\0');
+    value.resize(GetEnvironmentVariableW(wideName.c_str(), value.data(), size));
+    const int bytes = WideCharToMultiByte(CP_UTF8, 0, value.c_str(), -1, nullptr, 0, nullptr, nullptr);
+    std::string out(static_cast<std::size_t>(bytes > 0 ? bytes - 1 : 0), '\0');
+    if (bytes > 1) WideCharToMultiByte(CP_UTF8, 0, value.c_str(), -1, out.data(), bytes, nullptr, nullptr);
     return out;
 }
 
@@ -329,7 +335,7 @@ int writeBuiltMaterials(const fs::path& folder, const Json& params)
     return count;
 }
 
-// The preview parts the fake build writes: one file per floor, one more for each floor with roofs, and
+// The preview parts the fake build writes: one file per floor, one more for each floor with slab polygons and with roofs, and
 // parts.json listing them.
 void writePreviewParts(const fs::path& folder, const Json& floors)
 {
@@ -338,6 +344,10 @@ void writePreviewParts(const fs::path& folder, const Json& floors)
         const std::string id = floor["id"].get<std::string>();
         writeFile(folder / (id + ".fbx"), "FAKEFBX");
         parts.push_back(Json{{"floor", id}, {"kind", "storey"}, {"file", id + ".fbx"}});
+        if (!floor["slab"]["polygons"].empty()) {
+            writeFile(folder / (id + "_slab.fbx"), "FAKEFBX");
+            parts.push_back(Json{{"floor", id}, {"kind", "slab"}, {"file", id + "_slab.fbx"}});
+        }
         if (floor["roofs"].empty()) continue;
         writeFile(folder / (id + "_roof.fbx"), "FAKEFBX");
         parts.push_back(Json{{"floor", id}, {"kind", "roof"}, {"file", id + "_roof.fbx"}});
@@ -419,6 +429,13 @@ std::vector<std::string> commandLineArguments()
 int main()
 {
     const std::vector<std::string> args = commandLineArguments();
+    {
+        std::ofstream log(programFolder() / "fake_env.log", std::ios::binary | std::ios::app);
+        log << (std::find(args.begin(), args.end(), "--version") != args.end() ? "version" : "job");
+        for (const char* name : {"BLENDER_USER_RESOURCES", "BLENDER_USER_CONFIG", "BLENDER_USER_SCRIPTS", "BLENDER_USER_EXTENSIONS", "BLENDER_USER_DATAFILES"})
+            log << "|" << name << "=" << environment(name);
+        log << "\n";
+    }
     const std::string mode = fakeMode();
     const std::string version = fakeVersion();
 
