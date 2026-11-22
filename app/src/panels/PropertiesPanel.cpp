@@ -227,6 +227,18 @@ void PropertiesPanel::buildNothingPage()
         controller_.run(std::make_unique<plynth::SetGridSizeCommand>(gridSpin_->value()));
     });
 
+    exportModeCombo_ = addComboRow(grid, tr("Export mode"),
+                                   tr("Single FBX writes one file. Grouped FBX writes one file for each group, which you "
+                                      "review in the Export tab. Changing it does not make the build out of date."),
+                                   QStringLiteral("panel-export-mode"));
+    exportModeCombo_->addItem(tr("Single FBX"), static_cast<int>(plynth::ExportMode::Single));
+    exportModeCombo_->addItem(tr("Grouped FBX"), static_cast<int>(plynth::ExportMode::Grouped));
+    connect(exportModeCombo_, &QComboBox::activated, this, [this](int index) {
+        const auto mode = static_cast<plynth::ExportMode>(exportModeCombo_->itemData(index).toInt());
+        if (!refreshing_ && mode != document_.project().settings.exportMode)
+            controller_.run(std::make_unique<plynth::SetExportModeCommand>(mode));
+    });
+
     ceilingSpin_ = addKeyedSpinRow(grid, tr("Ceiling height"), 0.5, 100.0, 0.05,
                                    tr("Height of the ceiling of this floor. Walls without their own height use it."),
                                    QStringLiteral("panel-ceiling-height"));
@@ -983,6 +995,11 @@ void PropertiesPanel::refreshNothing()
     }
     scaleHint_->setVisible(!scaleHint_->text().isEmpty());
     setSpin(gridSpin_, document_.project().settings.gridSize);
+    {
+        const int index = exportModeCombo_->findData(static_cast<int>(document_.project().settings.exportMode));
+        const QSignalBlocker blocker(exportModeCombo_);
+        exportModeCombo_->setCurrentIndex(index);
+    }
     setSpin(ceilingSpin_, controller_.floor() ? controller_.floor()->ceilingHeight : 0.0);
     const plynth::Floor* floor = controller_.floor();
     pointCount_->setText(QString::number(floor ? floor->points.size() : 0));

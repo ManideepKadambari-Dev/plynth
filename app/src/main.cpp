@@ -1,3 +1,4 @@
+#include "panels/ExportPanel.h"
 #include "theme/Theme.h"
 #include "window/MainWindow.h"
 
@@ -148,6 +149,8 @@ int main(int argc, char* argv[])
     QCommandLineOption exportCheckOption(QStringLiteral("export-check"),
                                          QStringLiteral("Run the export quality checks after opening the project and wait for the end. For checks only."));
     QCommandLineOption exportTabOption(QStringLiteral("export-tab"), QStringLiteral("Show the Export tab. For checks only."));
+    QCommandLineOption exportGroupsExpandedOption(QStringLiteral("export-groups-expanded"),
+                                                  QStringLiteral("Open every group in the Export tab. For checks only."));
     QCommandLineOption homeOption(QStringLiteral("home"), QStringLiteral("Show the home screen. For checks only."));
     parser.addOption(zoomOption);
     parser.addOption(overlayOption);
@@ -156,6 +159,7 @@ int main(int argc, char* argv[])
     parser.addOption(exportOption);
     parser.addOption(exportCheckOption);
     parser.addOption(exportTabOption);
+    parser.addOption(exportGroupsExpandedOption);
     parser.addOption(viewOption);
     parser.addOption(cameraOption);
     parser.addOption(homeOption);
@@ -309,6 +313,8 @@ int main(int argc, char* argv[])
     window.show();
     if (parser.isSet(buildTabOption))
         window.showBuildTab();
+    if (parser.isSet(exportGroupsExpandedOption))
+        window.findChild<plynth::app::ExportPanel*>()->setGroupsExpanded(true);
     if (parser.isSet(exportTabOption))
         window.showExportTab();
     if (parser.isSet(overlayOption))

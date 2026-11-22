@@ -1,11 +1,13 @@
 #include "ExportPanel.h"
 
 #include "building/ProblemMark.h"
+#include "panels/ExportGroupsList.h"
 #include "theme/ElideLabel.h"
 #include "theme/Theme.h"
 
 #include <QDateTime>
 #include <QDir>
+#include <QFileSystemWatcher>
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -14,6 +16,11 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QShowEvent>
+#include <QTimer>
+#include <QHeaderView>
+#include <QTreeWidget>
+#include <QTreeWidgetItemIterator>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -236,7 +243,125 @@ ExportPanel::ExportPanel(QWidget* parent) : QWidget(parent)
     column_->setSpacing(t.unit() * 2);
     scroll->setWidget(body_);
     outer->addWidget(scroll, 1);
+
+    groups_ = new ExportGroupsList();
+    groupsTree_ = groups_->findChild<QTreeWidget*>();
+    groups_->hide();
+    connect(groups_, &ExportGroupsList::edited, this, [this]() {
+        QTimer::singleShot(0, this, &ExportPanel::refreshRequested);
+    });
+    if (groupsTree_ != nullptr) {
+        groupsTree_->setTextElideMode(Qt::ElideMiddle);
+        groupsTree_->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+        groupsTree_->header()->setSectionResizeMode(1, QHeaderView::Interactive);
+        groupsTree_->viewport()->installEventFilter(this);
+        connect(groupsTree_, &QTreeWidget::itemExpanded, this, [this]() { fitGroupsTree(); });
+        connect(groupsTree_, &QTreeWidget::itemCollapsed, this, [this]() { fitGroupsTree(); });
+    }
+    watcher_ = new QFileSystemWatcher(this);
+    watchTimer_ = new QTimer(this);
+    watchTimer_->setSingleShot(true);
+    watchTimer_->setInterval(250);
+    connect(watcher_, &QFileSystemWatcher::directoryChanged, watchTimer_, qOverload<>(&QTimer::start));
+    connect(watchTimer_, &QTimer::timeout, this, &ExportPanel::refreshRequested);
     setReport(nullptr, ExportPanelState());
+}
+
+// Keeps the file column to a share of the tree's width, so names and files both stay readable.
+bool ExportPanel::eventFilter(QObject* watched, QEvent* event)
+{
+    if (groupsTree_ != nullptr && watched == groupsTree_->viewport() && event->type() == QEvent::Resize)
+        fitGroupsColumns();
+    return QWidget::eventFilter(watched, event);
+}
+
+// Sets the width of the file column.
+void ExportPanel::fitGroupsColumns()
+{
+    const int width = groupsTree_->viewport()->width();
+    if (width > 0)
+        groupsTree_->header()->resizeSection(1, width * 45 / 100);
+}
+
+// Frees the list, which is not always in the layout.
+ExportPanel::~ExportPanel()
+{
+    delete groups_;
+}
+
+// Asks for a fresh review each time the tab is shown.
+void ExportPanel::showEvent(QShowEvent* event)
+{
+    QWidget::showEvent(event);
+    QTimer::singleShot(0, this, &ExportPanel::refreshRequested);
+}
+
+// For checks only: keeps every group open.
+void ExportPanel::setGroupsExpanded(bool expanded)
+{
+    groupsExpanded_ = expanded;
+    groups_->setAllExpanded(expanded);
+    fitGroupsTree();
+}
+
+// Gives the groups tree the height of its visible rows, so the tab scrolls instead of the tree.
+void ExportPanel::fitGroupsTree()
+{
+    if (groupsTree_ == nullptr)
+        return;
+    int rows = 0;
+    for (QTreeWidgetItemIterator it(groupsTree_); *it; ++it) {
+        bool shown = true;
+        for (QTreeWidgetItem* up = (*it)->parent(); up != nullptr; up = up->parent())
+            shown = shown && up->isExpanded();
+        if (shown)
+            ++rows;
+    }
+    const int hint = groupsTree_->topLevelItemCount() > 0 ? groupsTree_->sizeHintForRow(0) : 0;
+    const int rowHeight = hint > 0 ? hint : groupsTree_->fontMetrics().height() + 6;
+    groupsTree_->setFixedHeight(rows * rowHeight + groupsTree_->frameWidth() * 2 + 2);
+}
+
+// Watches the project folder, so a change to export-options.json made elsewhere refreshes the list.
+void ExportPanel::watchFolder(const std::filesystem::path& folder)
+{
+    if (folder == watched_)
+        return;
+    if (!watcher_->directories().isEmpty())
+        watcher_->removePaths(watcher_->directories());
+    watched_ = folder;
+    if (!folder.empty())
+        watcher_->addPath(nativePath(folder));
+}
+
+// Adds the Groups section for a grouped project, or the one line for a single project.
+void ExportPanel::addGroups(const ExportPanelState& state)
+{
+    const Theme& t = Theme::instance();
+    auto* heading = new QLabel(tr("Groups"), body_);
+    heading->setFont(t.uiFont(t.sizeSmall(), QFont::DemiBold));
+    heading->setStyleSheet(QStringLiteral("color: %1; padding-top: %2px;").arg(t.muted().name()).arg(t.unit() * 2));
+    heading->setToolTip(tr("The files an export writes"));
+    column_->addWidget(heading);
+    if (!state.grouped) {
+        auto* line = new QLabel(tr("Single FBX: one file. Switch to grouped in Properties > Project."), body_);
+        line->setWordWrap(true);
+        line->setFont(t.uiFont(t.sizeNormal()));
+        line->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
+        line->setProperty("tourId", QStringLiteral("export-groups-single"));
+        line->setToolTip(tr("This project exports one FBX. Choose Grouped FBX under Export mode in Properties > Project"));
+        column_->addWidget(line);
+        return;
+    }
+    review_ = state.review != nullptr ? *state.review : plynth::ExportGroupReview();
+    if (!state.built)
+        review_.groups.clear();
+    // The labels come from the plan the groups were made from, which review_ keeps as long as the list needs it.
+    groups_->setReview(state.projectFolder, review_, state.readOnly, &review_.plan);
+    groups_->setAllExpanded(groupsExpanded_);
+    column_->addWidget(groups_);
+    groups_->show();
+    fitGroupsTree();
 }
 
 // Starts a section with a title line and returns the widget to fill.
@@ -335,9 +460,13 @@ void ExportPanel::setReport(const plynth::ExportReport* report, const ExportPane
 {
     const Theme& t = Theme::instance();
     while (QLayoutItem* item = column_->takeAt(0)) {
-        delete item->widget();
+        if (item->widget() == groups_)
+            groups_->hide();
+        else
+            delete item->widget();
         delete item;
     }
+    watchFolder(state.projectFolder);
 
     auto* buttons = new QWidget(body_);
     auto* buttonRow = new QHBoxLayout(buttons);
@@ -378,6 +507,8 @@ void ExportPanel::setReport(const plynth::ExportReport* report, const ExportPane
     }
     if (!state.error.isEmpty())
         note(state.error, t.signalAmber());
+
+    addGroups(state);
 
     if (report == nullptr) {
         if (state.notice.isEmpty() && state.error.isEmpty())

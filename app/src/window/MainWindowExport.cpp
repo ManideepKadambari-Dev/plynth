@@ -9,6 +9,7 @@
 #include "panels/RightPanel.h"
 
 #include <plynth/core/Build.h>
+#include <plynth/core/ExportGroups.h>
 
 #include <QAction>
 #include <QDesktopServices>
@@ -37,8 +38,11 @@ QString MainWindow::exportNotice(bool* offerBuild) const
 {
     if (offerBuild != nullptr)
         *offerBuild = false;
-    if (doc_.project().settings.exportMode == plynth::ExportMode::Grouped)
-        return tr("Grouped export is not available yet.");
+    if (doc_.project().settings.exportMode == plynth::ExportMode::Grouped && doc_.hasFolder()) {
+        const plynth::ExportOptionsRead options = plynth::readExportOptions(doc_.folder());
+        if (!options.status.ok())
+            return fromCore(options.status.message);
+    }
     std::error_code ignored;
     const bool built = doc_.hasFolder() &&
                        std::filesystem::exists(plynth::buildFolder(doc_.folder()) / "building.blend", ignored);
@@ -68,6 +72,8 @@ void MainWindow::startExport(bool write, bool force)
     request.project = doc_.project();
     request.settings.write = write;
     request.settings.force = force;
+    if (host_->hasLibrary())
+        request.library = host_->paths();
     buildProgressText_ = tr("Starting");
     buildProgressPercent_ = 0;
     exporter_->start(std::move(request), host_->settings());
@@ -148,6 +154,19 @@ void MainWindow::updateExportUi()
     checkExportAction_->setEnabled(state.canRun && !running);
     exportAnywayAction_->setEnabled(state.canRun && !running && blocked);
     exportFolderAction_->setEnabled(state.folderExists);
+    state.grouped = doc_.project().settings.exportMode == plynth::ExportMode::Grouped;
+    state.built = doc_.hasFolder() &&
+                  std::filesystem::exists(plynth::buildFolder(doc_.folder()) / "building.blend", ignored);
+    state.readOnly = doc_.isReadOnly();
+    plynth::ExportGroupReview review;
+    if (state.grouped && doc_.hasFolder()) {
+        state.projectFolder = doc_.folder();
+        review = plynth::reviewExportGroups(doc_.folder(), doc_.project());
+        state.review = &review;
+    } else if (doc_.hasFolder()) {
+        state.projectFolder = doc_.folder();
+    }
+    connect(exportPanel_, &ExportPanel::refreshRequested, this, &MainWindow::updateExportUi, Qt::UniqueConnection);
     exportPanel_->setReport(exportReport_ ? &*exportReport_ : nullptr, state);
 }
 
