@@ -299,6 +299,11 @@ Answer groupsEdit(const std::string& what, const std::string& target, const Expo
     if (!review.status.ok()) {
         return failure(command, review.status);
     }
+    if (!review.reviewable && repair && repair->repaired) {
+        Json result = groupsJson(review);
+        result["repaired"] = {{"backup", pathToUtf8(folder / (std::string(kExportOptionsFileName) + ".bad"))}};
+        return success(command, std::move(result));
+    }
     if (!review.reviewable) {
         return failure(command, fail(ErrorCode::InvalidValue,
                                      "Groups can only be edited in grouped export mode. Run plynth project set "

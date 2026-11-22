@@ -300,6 +300,25 @@ TEST_CASE("reset leaves a newer export-options.json alone", "[cli][export][group
     CHECK_FALSE(fs::exists(flat.sample.folder / "export-options.json.bad"));
 }
 
+TEST_CASE("reset repairs a bad file in a single project and refuses a good one", "[cli][export][groups]") {
+    GroupedSample flat("groups-reset-single", "single");
+    const std::string bad = "{not json";
+    std::ofstream(flat.optionsFile(), std::ios::binary) << bad;
+    const auto reset = flat.run({"export", "groups", "reset"});
+    REQUIRE(reset.exitCode == kExitOk);
+    CHECK(reset.answer.at("result").contains("repaired"));
+    CHECK(readFile(flat.sample.folder / "export-options.json.bad") == bad);
+    CHECK_FALSE(fs::exists(flat.optionsFile()));
+    CHECK(flat.exportNow().exitCode == kExitOk);
+
+    const std::string good = R"({"format":"plynth-export-options","version":1,"kit":{"enabled":true}})";
+    std::ofstream(flat.optionsFile(), std::ios::binary) << good;
+    const auto refused = flat.run({"export", "groups", "reset"});
+    CHECK(refused.exitCode == kExitFailed);
+    CHECK(errorCode(refused) == "invalid_value");
+    CHECK(readFile(flat.optionsFile()) == good);
+}
+
 TEST_CASE("an item is one member of its group", "[cli][export][groups]") {
     GroupedSample flat("groups-one-member");
     const auto listed = flat.run({"export", "groups"});
