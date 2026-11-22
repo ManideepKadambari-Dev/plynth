@@ -266,7 +266,7 @@ class SourceTests(MaterialTest):
     # A kind of source nothing is installed for is refused, and a bad job is bad_job.
     def test_unknown_source_and_bad_job(self):
         folder = self.make_set("kind", {"x_col.png": noise_image(32)})
-        self.assertEqual(self.clean(folder, kind="blend")["error"]["code"], "unsupported_format")
+        self.assertEqual(self.clean(folder, kind="fab_zip", check_job=False)["error"]["code"], "unsupported_format")
         params = self.clean_params(folder)
         del params["output_folder"]
         self.assertEqual(self.run_task("cleanup_material", params)["error"]["code"], "bad_job")

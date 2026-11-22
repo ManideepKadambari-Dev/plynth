@@ -141,6 +141,8 @@ def run(ctx):
         thumb = render_thumbnail(folder, ctx.params["thumbnail"], paths, tile)
         width, height = read_size(paths["base_color"])
     finally:
+        for cleanup in ctx.state.get("cleanups", []):
+            cleanup()
         for temporary in ctx.state.get("temp_folders", []):
             shutil.rmtree(temporary, ignore_errors=True)
 

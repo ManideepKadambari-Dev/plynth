@@ -25,7 +25,7 @@ def has_seam(lines):
 # Warns visible_seams when the left and right, or top and bottom, edges of the base color differ strongly,
 # which means the image will show lines where it repeats.
 def run(ctx, found):
-    if found.maps["base_color"]["from"] != "file":
+    if found.maps["base_color"]["from"] not in ("file", "baked"):
         return
     rgb = read_pixels(found.paths["base_color"])[:, :, :3]
     sides = []
