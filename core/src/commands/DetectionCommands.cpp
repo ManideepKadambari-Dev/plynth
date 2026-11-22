@@ -1,5 +1,6 @@
 #include "plynth/core/commands/DetectionCommands.h"
 
+#include "plynth/core/Geometry.h"
 #include "plynth/core/Openings.h"
 #include "plynth/core/Snapping.h"
 #include "plynth/core/WallGeometry.h"
@@ -16,6 +17,25 @@
 namespace plynth {
 
 namespace {
+
+// Proposals are in metres from the image's top left corner; the floor's image may sit elsewhere, so every
+// position goes through imageToPlan.
+void shiftByImageOffset(const Floor& floor, DetectionResult& result)
+{
+    if (floor.imageOffset == ImageOffset{}) return;
+    const double ppm = result.pixelsPerMetre > 0.0 ? result.pixelsPerMetre : 1.0;
+    const auto move = [&](Vec2& p) {
+        const Vec2 q = imageToPlan(floor, ppm, {p.x * ppm, p.y * ppm});
+        p = q;
+    };
+    for (Vec2& p : result.points) move(p);
+    for (ProposedRoom& room : result.rooms) {
+        move(room.inside);
+        for (std::vector<Vec2>& ring : room.rings) {
+            for (Vec2& p : ring) move(p);
+        }
+    }
+}
 
 constexpr double kMinSnapRadius = 0.05; // metres
 
@@ -146,6 +166,7 @@ Status ApplyDetectionCommand::apply(Project& project)
     if (const Status s = checkDetectionResult(proposals_); !s.ok()) return s;
 
     DetectionResult marked = proposals_;
+    shiftByImageOffset(*floor, marked);
     markExisting(*floor, marked);
 
     std::vector<std::unique_ptr<Command>> steps;

@@ -156,7 +156,8 @@ private:
     ImageOffset offset_;
     bool moveMarks_;
     int mergeKey_;
-    ImageOffset previous_;
+    Floor previousFloor_;                      // the floor before the move, for an exact undo
+    std::vector<RoofSection> previousSections_;
 };
 
 // What stays put when the scale changes.
@@ -192,6 +193,7 @@ private:
     std::optional<double> previous_;
     bool moved_ = false;
     std::vector<Floor> previousFloors_; // the floors before a move, for an exact undo
+    std::vector<RoofSection> previousRoofSections_;
 };
 
 }

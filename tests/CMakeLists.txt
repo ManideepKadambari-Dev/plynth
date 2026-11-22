@@ -55,6 +55,7 @@ add_executable(plynth_core_tests
     core/BuildPreviewTests.cpp
     core/StairsTests.cpp
     core/StairCommandTests.cpp
+    core/FloorCommandTests.cpp
     core/StoreysTests.cpp
     core/RoofsTests.cpp
     core/RoofCommandTests.cpp
