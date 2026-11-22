@@ -56,6 +56,35 @@ TEST_CASE("a missing settings file is ok and means first run", "[core][settings]
     REQUIRE(loaded.settings.triangleWarning == kDefaultTriangleWarning);
 }
 
+TEST_CASE("a settings path that cannot be checked is CannotRead, not a first run", "[core][settings]") {
+    plynth::test::TempDir tmp("settings-unreadable");
+    const fs::path file = tmp.path() / "settings.json";
+    {
+        std::ofstream out(file, std::ios::binary);
+        out << "{}";
+    }
+    // The standard library on Windows reports almost nothing as an error, so the failing check is given.
+    const FileExistsCheck failing = [](const fs::path&, std::error_code& ec) {
+        ec = std::make_error_code(std::errc::permission_denied);
+        return false;
+    };
+    const SettingsLoad load = loadSettings(file, failing);
+    REQUIRE(load.status.code == ErrorCode::CannotRead);
+    REQUIRE_FALSE(load.exists);
+    REQUIRE(load.settings == MachineSettings{});
+
+    const FileExistsCheck missing = [](const fs::path&, std::error_code& ec) {
+        ec.clear();
+        return false;
+    };
+    const SettingsLoad first = loadSettings(file, missing);
+    REQUIRE(first.status.ok());
+    REQUIRE_FALSE(first.exists);
+
+    const SettingsLoad real = loadSettings(file);
+    REQUIRE(real.exists);
+}
+
 TEST_CASE("settings data files", "[core][settings]") {
     SECTION("a full file") {
         const SettingsLoad l = loadSettings(dataFile("settings-valid.json"));
