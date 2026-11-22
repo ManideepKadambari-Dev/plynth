@@ -1,5 +1,8 @@
 #include "MainWindow.h"
 
+#include "BuildBar.h"
+#include "building/BuildController.h"
+#include "building/BuildPanel.h"
 #include "TitleBar.h"
 #include "StatusBar.h"
 #include "canvas/OverlayBuilder.h"
@@ -20,6 +23,9 @@
 #include "panels/PropertiesPanel.h"
 #include "panels/RightPanel.h"
 #include "panels/ToolStrip.h"
+#include "preview/GraphicsProbe.h"
+#include "preview/OverlayRenderer.h"
+#include "preview/PreviewView.h"
 #include "tools/ToolController.h"
 #include "document/ProjectWatcher.h"
 #include "terminal/TerminalDock.h"
@@ -152,8 +158,20 @@ MainWindow::MainWindow(QWidget* parent)
     splitter_->addWidget(wallView_);
     splitter_->setStretchFactor(0, 3);
     splitter_->setStretchFactor(1, 2);
-    row->addWidget(splitter_, 1);
-    right_ = new RightPanel(panel_, assets_, work);
+    auto* centre = new QWidget(work);
+    auto* centreColumn = new QVBoxLayout(centre);
+    centreColumn->setContentsMargins(0, 0, 0, 0);
+    centreColumn->setSpacing(0);
+    buildBar_ = new BuildBar(centre);
+    centreColumn->addWidget(buildBar_);
+    centreStack_ = new QStackedWidget(centre);
+    centreStack_->addWidget(splitter_);
+    preview_ = new PreviewView(centreStack_);
+    centreStack_->addWidget(preview_);
+    centreColumn->addWidget(centreStack_, 1);
+    row->addWidget(centre, 1);
+    buildPanel_ = new BuildPanel(work);
+    right_ = new RightPanel(panel_, assets_, buildPanel_, work);
     row->addWidget(right_);
     work_ = work;
     pages_ = new QStackedWidget(central);
@@ -166,10 +184,34 @@ MainWindow::MainWindow(QWidget* parent)
     column->addWidget(statusBar_);
     setCentralWidget(central);
     setAcceptDrops(true);
-    terminal_ = new TerminalDock(work, canvas_, this);
+    terminal_ = new TerminalDock(work, centreStack_, this);
     terminal_->setWorkingFolder(host_->projectsFolder());
     lastFolder_ = host_->projectsFolder();
 
+    overlayRenderer_ = new OverlayRenderer(this);
+    connect(overlayRenderer_, &OverlayRenderer::ready, this, [this](const QImage& image, const QRectF& rect) {
+        canvas_->setBuilding3d(image, rect);
+        canvas_->setBuilding3dShown(overlay3dAction_->isChecked());
+    });
+    builder_ = new BuildController(this);
+    buildUiTimer_ = new QTimer(this);
+    buildUiTimer_->setSingleShot(true);
+    buildUiTimer_->setInterval(300);
+    connect(buildUiTimer_, &QTimer::timeout, this, &MainWindow::updateBuildUi);
+    connect(builder_, &BuildController::progress, this, [this](const QString& text, int percent) {
+        buildProgressText_ = text;
+        buildProgressPercent_ = percent;
+        updateBuildUi();
+    });
+    connect(builder_, &BuildController::finished, this, &MainWindow::buildFinished);
+    connect(buildBar_, &BuildBar::buildRequested, this, &MainWindow::startBuild);
+    connect(buildBar_, &BuildBar::cancelRequested, builder_, &BuildController::cancel);
+    connect(buildBar_, &BuildBar::problemsRequested, this, [this]() { right_->showTab(RightPanel::Tab::Build); });
+    connect(buildPanel_, &BuildPanel::problemActivated, this, &MainWindow::showProblem);
+    connect(buildPanel_, &BuildPanel::openFolderRequested, this, &MainWindow::openBuildFolder);
+    connect(buildPanel_, &BuildPanel::openBlenderRequested, this, &MainWindow::openInBlender);
+    connect(buildBar_, &BuildBar::viewRequested, this,
+            [this](BuildBar::View view) { showCentreView(view == BuildBar::View::Scene3d); });
     connect(home_, &HomeScreen::newProjectRequested, this, &MainWindow::newProject);
     connect(home_, &HomeScreen::newFromImageRequested, this, &MainWindow::newProjectFromImage);
     connect(home_, &HomeScreen::openProjectRequested, this, &MainWindow::openProjectDialog);
@@ -208,6 +250,7 @@ MainWindow::MainWindow(QWidget* parent)
 
     buildMenus();
     buildCatalogMenu();
+    updateBuildUi();
     connect(host_, &LibraryHost::roomTypesChanged, this, &MainWindow::roomTypesChanged);
     connect(assets_, &AssetsPanel::message, statusBar_, [this](const QString& text) { statusBar_->showMessage(text); });
     if (!host_->shapeNotice().isEmpty())
@@ -417,13 +460,41 @@ void MainWindow::buildMenus()
                   &PlanCanvas::zoomIn);
     addViewAction(tr("Zoom &out"), tr("Zoom out (Ctrl+-)"), QStringLiteral("view-zoom-out"),
                   zoomOutKeys, &PlanCanvas::zoomOut);
-    addViewAction(tr("&Fit to window"), tr("Fit the whole plan in the window (Ctrl+0)"),
-                  QStringLiteral("view-fit"), {QKeySequence(Qt::CTRL | Qt::Key_0)},
-                  &PlanCanvas::fitToWindow);
+    fitAction_ = addViewAction(tr("&Fit to window"), tr("Fit the whole plan, or the building in 3D, in the window (Ctrl+0)"),
+                               QStringLiteral("view-fit"), {QKeySequence(Qt::CTRL | Qt::Key_0)},
+                               &PlanCanvas::fitToWindow);
+    disconnect(fitAction_, &QAction::triggered, canvas_, nullptr);
+    connect(fitAction_, &QAction::triggered, this, [this]() {
+        if (centreStack_->currentWidget() == preview_)
+            preview_->fit();
+        else
+            canvas_->fitToWindow();
+    });
     addViewAction(tr("&Actual size (100%)"), tr("Show the plan at 100 percent (Ctrl+1)"),
                   QStringLiteral("view-actual-size"), {QKeySequence(Qt::CTRL | Qt::Key_1)},
                   &PlanCanvas::actualSize);
     updateViewActions();
+    titleBar_->viewMenu()->addSeparator();
+    view3dAction_ = addMenuAction(titleBar_->viewMenu(), tr("&3D view"),
+                                  tr("Show the building in 3D instead of the plan (3)"),
+                                  QStringLiteral("view-3d"), {QKeySequence(Qt::Key_3)});
+    view3dAction_->setCheckable(true);
+    connect(view3dAction_, &QAction::triggered, this, [this](bool on) { showCentreView(on); });
+    overlay3dAction_ = addMenuAction(titleBar_->viewMenu(), tr("3D &overlay on plan"),
+                                     tr("Show the top view of the built building over the plan (Alt+3)"),
+                                     QStringLiteral("view-overlay-3d"), {QKeySequence(Qt::ALT | Qt::Key_3)});
+    overlay3dAction_->setCheckable(true);
+    connect(overlay3dAction_, &QAction::toggled, this, [this](bool on) {
+        canvas_->setBuilding3dShown(on);
+        if (on)
+            refreshBuilding3d();
+    });
+    problemsOnPlanAction_ = addMenuAction(titleBar_->viewMenu(), tr("Build &problems on plan"),
+                                          tr("Show the problems of the last build as amber triangles on the plan"),
+                                          QStringLiteral("view-build-problems"), {});
+    problemsOnPlanAction_->setCheckable(true);
+    problemsOnPlanAction_->setChecked(true);
+    connect(problemsOnPlanAction_, &QAction::toggled, canvas_, &PlanCanvas::setProblemsShown);
     titleBar_->viewMenu()->addSeparator();
     snapGridAction_ = addMenuAction(titleBar_->viewMenu(), tr("Snap to &grid"),
                                     tr("Snap new and moved points to the grid (G)"), QStringLiteral("view-snap-grid"),
@@ -448,6 +519,25 @@ void MainWindow::buildMenus()
                                             tr("Show or hide the terminal (Ctrl+`)"), QStringLiteral("view-terminal"),
                                             {QKeySequence(Qt::CTRL | Qt::Key_QuoteLeft)});
     connect(terminalAction, &QAction::triggered, terminal_, &TerminalDock::toggle);
+
+    QMenu* build = titleBar_->buildMenu();
+    buildAction_ = addMenuAction(build, tr("&Build"), tr("Build the building in Blender (Ctrl+B)"),
+                                 QStringLiteral("build-run"), {QKeySequence(Qt::CTRL | Qt::Key_B)});
+    connect(buildAction_, &QAction::triggered, this, &MainWindow::startBuild);
+    cancelBuildAction_ = addMenuAction(build, tr("&Cancel build"), tr("Stop the running build"),
+                                       QStringLiteral("build-cancel-action"), {});
+    connect(cancelBuildAction_, &QAction::triggered, builder_, &BuildController::cancel);
+    build->addSeparator();
+    reportAction_ = addMenuAction(build, tr("Show build &report"), tr("Show the last build in the Build tab"),
+                                  QStringLiteral("build-report"), {});
+    connect(reportAction_, &QAction::triggered, this, [this]() { right_->showTab(RightPanel::Tab::Build); });
+    buildFolderAction_ = addMenuAction(build, tr("&Open build folder"), tr("Open the build folder of the project in Explorer"),
+                                       QStringLiteral("build-open-folder-action"), {});
+    connect(buildFolderAction_, &QAction::triggered, this, &MainWindow::openBuildFolder);
+    openBlenderAction_ = addMenuAction(build, tr("Open building.&blend in Blender"),
+                                       tr("Open the built Blender file in Blender"),
+                                       QStringLiteral("build-open-blender-action"), {});
+    connect(openBlenderAction_, &QAction::triggered, this, &MainWindow::openInBlender);
 
     QAction* setupAction = addMenuAction(titleBar_->helpMenu(), tr("&Setup check"),
                                          tr("Check that Blender, the library and the projects folder are ready"),
@@ -493,21 +583,27 @@ void MainWindow::openSetupCheck()
 }
 
 // For checks only: opens the setup check.
-void MainWindow::showSetupCheck()
+void MainWindow::showSetupCheck(const QString& scrollToTitle)
 {
+    setupScrollTo_ = scrollToTitle;
     openSetupCheck();
 }
 
 // True when no setup check is open, or the one that is open has its result.
-bool MainWindow::setupPictureReady() const
+bool MainWindow::setupPictureReady()
 {
+    if (setupDialog_ && setupDialog_->checkFinished() && !setupScrollTo_.isEmpty()) {
+        setupDialog_->scrollToItem(setupScrollTo_);
+        setupScrollTo_.clear();
+        return false;
+    }
     return !setupDialog_ || setupDialog_->checkFinished();
 }
 
 // Opens the setup check when the quick check says it is needed.
 void MainWindow::openSetupCheckIfNeeded()
 {
-    const plynth::SetupReport quick = plynth::quickSetupCheck(host_->settings(), host_->settingsExisted());
+    const plynth::SetupReport quick = plynth::quickSetupCheck(host_->settings(), host_->settingsExisted(), appGraphics());
     if (plynth::setupNeeded(quick))
         openSetupCheck();
 }
@@ -670,8 +766,51 @@ QAction* MainWindow::addViewAction(const QString& text, const QString& tip, cons
 // Enables the View actions only while an image is loaded.
 void MainWindow::updateViewActions()
 {
+    const bool in3d = centreStack_ != nullptr && centreStack_->currentWidget() == preview_;
     for (QAction* action : viewActions_)
-        action->setEnabled(canvas_->hasImage());
+        action->setEnabled(canvas_->hasImage() && !in3d);
+    if (fitAction_ != nullptr)
+        fitAction_->setEnabled(in3d ? preview_->hasModel() : canvas_->hasImage());
+}
+
+// Shows the 3D page or the plan page in the central area and keeps the tabs and the menu in step.
+void MainWindow::showCentreView(bool scene3d)
+{
+    centreStack_->setCurrentWidget(scene3d ? static_cast<QWidget*>(preview_) : static_cast<QWidget*>(splitter_));
+    buildBar_->setView(scene3d ? BuildBar::View::Scene3d : BuildBar::View::Plan);
+    view3dAction_->setChecked(scene3d);
+    updateViewActions();
+}
+
+// For checks only: shows the 3D page or the plan.
+void MainWindow::showView(const QString& name)
+{
+    showCentreView(name.toLower() == QStringLiteral("3d"));
+}
+
+// For checks only: sets the camera angle of the 3D page: three-quarter or top.
+void MainWindow::setPreviewCamera(const QString& name)
+{
+    preview_->setPreset(name.toLower() == QStringLiteral("top") ? ModelView::Preset::Top
+                                                                : ModelView::Preset::ThreeQuarter);
+}
+
+// For checks only: true when the 3D page and the asset previews have drawn their models, or have none.
+bool MainWindow::previewPictureReady() const
+{
+    return !builder_->running() && !overlayRenderer_->busy() && (centreStack_->currentWidget() != preview_ || preview_->pictureReady()) &&
+           assets_->pictureReady() &&
+           tools_->pickerPreviewReady();
+}
+
+// Loads the building of the open project into the 3D page, or shows its empty state.
+void MainWindow::refreshPreview()
+{
+    loadBuildReport();
+    preview_->setProject(doc_.hasFolder() ? doc_.folder() : std::filesystem::path(), doc_.plan());
+    updateViewActions();
+    canvas_->setBuilding3d(QImage(), QRectF());
+    refreshBuilding3d();
 }
 
 // Sets the Undo and Redo texts and the enabled state of the actions from the document.
@@ -706,6 +845,8 @@ void MainWindow::onDocumentChanged(unsigned changes)
     if (changes & (plynth::Change::Points | plynth::Change::Walls | plynth::Change::Rooms | plynth::Change::Openings | plynth::Change::Items | plynth::Change::Scale |
                    plynth::Change::Floors | plynth::Change::Folder))
         refreshOverlay();
+    if (report_.has_value())
+        buildUiTimer_->start();
     validateSelection();
     wallView_->refresh();
     updateWallView();
@@ -716,6 +857,7 @@ void MainWindow::onDocumentChanged(unsigned changes)
     tools_->refreshAvailability();
     panel_->refresh();
     if (changes & plynth::Change::Folder) {
+        refreshPreview();
         recoveryPending_ = false;
         terminal_->setWorkingFolder(doc_.hasFolder() ? QString::fromStdWString(doc_.folder().wstring())
                                                      : host_->projectsFolder());

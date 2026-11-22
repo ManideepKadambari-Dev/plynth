@@ -1,0 +1,14 @@
+{
+  "format": "plynth-settings",
+  "version": 2,
+  "library": "D:/Lib",
+  "projects": null,
+  "blender": "C:/Blender/blender.exe",
+  "keep_imported_zips": true,
+  "thumbnail_engine": "cycles",
+  "triangle_warning": 1000,
+  "setup_checked_version": "0.6.0",
+  "recent_projects": [
+    { "path": "D:/Projects/Flat", "name": "Flat", "last_opened": "2026-11-20T09:30:00Z" }
+  ]
+}

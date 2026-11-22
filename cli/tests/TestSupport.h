@@ -12,6 +12,7 @@ namespace plynth::cli::testing {
 struct Outcome {
     int exitCode = -1;
     std::string text;      // everything written to the output stream
+    std::string progress;  // everything written to the progress stream
     nlohmann::json answer; // the parsed answer
 };
 

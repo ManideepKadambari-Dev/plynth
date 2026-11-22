@@ -13,6 +13,7 @@ add_library(plynth_cli STATIC
     src/Common.cpp
     src/Registry.cpp
     src/commands/AssetCommands.cpp
+    src/commands/BuildCommands.cpp
     src/commands/FloorCommands.cpp
     src/commands/LibraryCommands.cpp
     src/commands/OpeningCommands.cpp

@@ -1,6 +1,6 @@
 # Writing generators
 
-This page explains how to add to Plynth without changing the program. Today it covers opening shapes, importers and the Blender worker registries. Generators and roof types are added to this page in later releases.
+This page explains how to add to Plynth without changing the program. Today it covers opening shapes, importers, the Blender worker registries, build steps and opening fills. Generators and roof types are added to this page in later releases.
 
 For the commands see the [Command line guide](CLI_GUIDE.md). For the screens see the [User guide](USER_GUIDE.md).
 
@@ -162,13 +162,13 @@ Blender does the heavy work in the background. Its side is Python, in `blender/p
 
 ### How a file registers itself
 
-`blender/plynth/registry.py` has a small `Registry` class and four registries: `TASKS`, `IMPORTERS`, `CLEANUP_STEPS` and `CHECKS`. Each has `register(id, thing)`, which refuses a duplicate id, plus `get`, `all` and `ids`.
+`blender/plynth/registry.py` has a small `Registry` class and seven registries: `TASKS`, `IMPORTERS`, `CLEANUP_STEPS`, `CHECKS`, `EXPORTERS`, `BUILD_STEPS` and `OPENING_FILLS`. Each has `register(id, thing)`, which refuses a duplicate id, plus `get`, `all` and `ids`.
 
-Each package (`tasks/`, `importers/`, `cleanup/`, `checks/`) is loaded with `discover(package)`, which imports every module in the folder in name order. A module registers itself on its last line as it is imported. So adding an entry is adding one file. Nothing else is edited: no list, no import. Only the Python standard library and `bpy` are used.
+Each package (`tasks/`, `importers/`, `cleanup/`, `checks/`, `exporters/`, `building/`, `fills/`) is loaded with `discover(package)`, which imports every module in the folder in name order. A module registers itself on its last line as it is imported. So adding an entry is adding one file. Nothing else is edited: no list, no import. Only the Python standard library and `bpy` are used.
 
 ### Tasks
 
-A task is what a job asks for. Files in `plynth/tasks/`: `probe`, `cleanup_asset`, `render_thumbnail`. A task is a function `run(ctx)` registered with `TASKS.register("name", run)`. It reads `ctx.params`, fills `ctx.output`, adds warnings with `ctx.warn(code, message)`, and raises `WorkerError(code, message)` to fail with a named error. The C++ side must also know the task name and its parameters and output: see `core/include/plynth/core/BlenderJob.h` and `catalog/AssetJobs.h`.
+A task is what a job asks for. Files in `plynth/tasks/`: `probe`, `cleanup_asset`, `render_thumbnail`, `build`. A task is a function `run(ctx)` registered with `TASKS.register("name", run)`. It reads `ctx.params`, fills `ctx.output`, adds warnings with `ctx.warn(code, message)`, and raises `WorkerError(code, message)` to fail with a named error. The C++ side must also know the task name and its parameters and output: see `core/include/plynth/core/BlenderJob.h` and `catalog/AssetJobs.h`.
 
 ### File format importers
 
@@ -204,7 +204,7 @@ def run(ctx):
 CLEANUP_STEPS.register("set_pivot", Step(ORDER, "Setting the pivot", run))
 ```
 
-Steps run in the order of their numbers: import_source 10, remove_extras 20, user_transform 30, apply_transforms 40, set_pivot 50, name_objects 60, collect_textures 70, measure 80, run_checks 90, save_blend 100, render_thumbnail 110. The gaps let a new step slot in between. Each step sends a progress line before it runs. Steps should be safe to run twice on an already clean asset, because `render_thumbnail` and rescan open assets that were cleaned before. The conventions every cleaned asset follows are in `core/include/plynth/core/catalog/AssetInfo.h`.
+Steps run in the order of their numbers: import_source 10, remove_extras 20, user_transform 30, apply_transforms 40, set_pivot 50, name_objects 60, collect_textures 70, measure 80, run_checks 90, save_blend 100, export_fbx 105, render_thumbnail 110. The gaps let a new step slot in between. Each step sends a progress line before it runs. Steps should be safe to run twice on an already clean asset, because `render_thumbnail` and rescan open assets that were cleaned before. The conventions every cleaned asset follows are in `core/include/plynth/core/catalog/AssetInfo.h`.
 
 ### Checks
 
@@ -219,7 +219,117 @@ C++ and Python talk through files, described in `schema/blender-job.schema.json`
 - While running, the worker prints progress lines: `PLYNTH:{"progress":{"step":"set_pivot","index":4,"count":11,"message":"Setting the pivot"}}`. Use `jobs.progress(...)`.
 - At the end it writes `result.json` through a temporary file and a rename: `ok`, `error`, `blender_version`, `warnings`, `elapsed_ms` and `output`. The worker never lets an exception escape without trying to write a result. An uncaught error exits with code 3 and C++ reports `blender_failed` with the end of the log.
 
-Error codes a task may raise: `bad_job`, `unknown_task`, `unsupported_format`, `import_failed`, `no_geometry`, `several_models`, `unpack_failed`, `save_failed`, `render_failed`, `internal`. Warning codes: `high_polycount`, `scale_suspicious`, `missing_texture`, `removed_objects`, `unsupported_object`, `eevee_failed`.
+Error codes a task may raise: `bad_job`, `unknown_task`, `unsupported_format`, `import_failed`, `no_geometry`, `several_models`, `unpack_failed`, `save_failed`, `render_failed`, `export_failed`, `internal`. Warning codes: `high_polycount`, `scale_suspicious`, `missing_texture`, `removed_objects`, `unsupported_object`, `fbx_failed`. The `build` task reports its problems in the result's `output.problems` instead, see "Adding a build step".
+
+### Adding a build step
+
+The `build` task makes the building out of a job that core prepares. It does nothing itself except run **build steps** in order. Each step is one file in `blender/plynth/building/`. Look at `bevel.py` for a small one and `openings.py` for a bigger one.
+
+A step has an `ORDER` number, a sentence shown as progress, and `run(ctx)`:
+
+```python
+from . import Step, report
+from ..registry import BUILD_STEPS
+
+ORDER = 27
+
+
+# Warns about a floor whose walls have a very large number of triangles.
+def run(ctx):
+    for floor_id, walls in ctx.state.get("walls_objects", {}).items():
+        triangles = sum(len(face.vertices) - 2 for face in walls.data.polygons)
+        if triangles > 200000:
+            report(ctx, "heavy_walls", "warning", "The walls of this floor are very heavy.", floor_id, floor_id)
+
+
+BUILD_STEPS.register("heavy_walls", Step(ORDER, "Checking the walls", run))
+```
+
+Drop that file in `building/` and the step runs between `opening_fills` (26) and `floors` (30). Nothing else is edited. The task finds every file, sorts the steps by `ORDER`, prints one progress line per step, times each one, and lists the steps and their times in the result.
+
+What a step can use:
+
+- `ctx.params` is the job: the plan (`plan`), the shapes core worked out (`floors`, each with `wall_solids`, `openings`, `rooms` and `items`, all in world coordinates in metres), the `assets` list and the `settings`. The shapes are described at the top of `core/include/plynth/core/BuildJob.h`. A step never works out a shape again: core already did, with the same code the plan view uses.
+- `ctx.state` is a dictionary the steps share. `walls_objects` maps a floor id to its walls object, and `collections` maps a floor id to the collection its objects go into.
+- `report(ctx, code, severity, message, floor, obj)` records a problem for one object and carries on. `severity` is `"error"` when the object was left out or is incomplete and `"warning"` when it was built and should be checked. `obj` is the plan id the app marks on the plan. The code uses lower case letters and `_`.
+- `count(ctx, name)` adds to one of the numbers in the report: `openings_cut`, `fills`, `rooms`, `items`, `wall_solids`.
+- `meshes.py` has the shared mesh code: polygons with holes to faces, prisms, volume, and a manifold check. `surfaces.py` has the surface names and their neutral looks. Name every object `SM_<floor>_<what>` and give it the custom properties `plynth_id` and `plynth_kind`. `meshes.make_object` does both.
+
+An exception that escapes `run` fails the whole build with the error `internal`. Catch what you expect and use `report` instead.
+
+The order numbers. The gaps are for new steps, and the reserved ones belong to later releases.
+
+| Order | Step | What it does |
+|---|---|---|
+| 5 | `prepare_scene` | An empty scene in metres, one collection for each floor |
+| 10 | `walls` | One walls mesh for each floor, every face tagged with its wall, side and room |
+| 20 | `openings` | Cuts every opening with a Boolean, lays thresholds through doorways |
+| 24 | `bevel` | Rounds the wall edges a little |
+| 25 | `triangulate` | Splits wall faces with more than four corners into triangles |
+| 26 | `opening_fills` | Fits a door or window into each opening |
+| 30 | `floors` | A floor and a ceiling for each room |
+| 40 | reserved | Stairs |
+| 50 | reserved | Roofs |
+| 60 | `assets` | Places every item as a copy of its asset |
+| 70 | reserved | Generators |
+| 80 | `materials` | The neutral look of every surface |
+| 90 | reserved | Trim |
+| 100 | reserved | Set dressing |
+| 110 | reserved | Collision |
+| 120 | `save_blend` | Saves `building.blend` |
+| 130 | `export_fbx` | Makes the item copies real objects and exports `building.fbx` |
+
+A few things to know when you choose a number:
+
+- A step that changes the walls mesh goes after `openings` (20) if it needs the holes, and before `triangulate` (25) if its result should be split too.
+- `triangulate` is there because the 3D view loads the FBX, and its loader drops wall faces that have a hole joined to the edge by a thin slit. Splitting those faces into triangles keeps them.
+- Steps after `save_blend` (120) are not in `building.blend`. `export_fbx` (130) turns the items into real objects after the blend is saved, so the blend keeps the cheap copies.
+
+### How the openings are cut
+
+The `openings` step is the one most likely to break, so it checks itself. Every opening is cut with Blender's Boolean modifier, one opening at a time. It tries the fast Manifold solver first and the slower Exact solver if that fails. A cut counts only if two things are true afterwards: the walls are still one closed solid, and the volume that was removed is between half and double the volume the opening's outline should remove. Otherwise the walls are put back as they were and the opening gets the problem `cut_failed`. Without the second check, a bad Exact cut at a T junction once removed the walls of a whole apartment and still looked like a success.
+
+### Adding an opening fill
+
+A **fill** is what stands in an opening once it is cut: the door leaf, the window glass, the frames. `door.py` and `window.py` in `blender/plynth/fills/` are the built-in ones. A fill is one file with a `build(ctx, floor, opening)` function and a list of opening types it serves:
+
+```python
+import bmesh
+
+from . import FillEntry
+from . import common
+from .. import meshes
+from ..registry import OPENING_FILLS
+
+SURFACES = ["Glass"]
+
+
+# Closes a plain opening with a thin glass pane inside the inner outline.
+def build(ctx, floor, opening):
+    place = common.placer(floor, opening)
+    bm = bmesh.new()
+    meshes.add_prism_uv(bm, opening["inner_outline"], [], -0.003, 0.003, place, 0)
+    return [common.finish(ctx, floor, opening, bm, "Pane", "window", SURFACES)]
+
+
+OPENING_FILLS.register("pane", FillEntry(("plain",), build))
+```
+
+Put it in `blender/plynth/fills/`, and the `opening_fills` step (26) finds it. Nothing else is edited.
+
+- `opening` holds the opening's exact shape in the opening's own flat frame: `outline` and `inner_outline` as lists of `(u, v)` points, where `u` runs along the wall from the middle of the opening and `v` runs up from the sill, in metres. `thickness` is the wall's thickness. `hinge`, `swing`, `sill`, `type` and `shape` come from the plan. `inner_outline` is the outline pulled in by the frame width (5 cm). It is empty when the opening is too small for a frame, and the step then reports `fill_failed` for you.
+- `common.placer(floor, opening)` gives `place(u, v, w)`, which turns a point of that frame into a world point (`w` is across the wall). `meshes.add_prism_uv` extrudes a polygon, with holes, between two `w` values. `common.frame_band` makes the band between the outline and the inner outline, and `common.add_box` a box. `common.finish` makes the object, names it `SM_<floor>_<opening>_<Suffix>`, and gives it its surface slots.
+- A fill follows the exact outline, so arches and custom shapes get matching doors and windows. On a curved wall a fill is flat, in the plane that touches the wall at the middle of the opening.
+- The surface names in `SURFACES` must exist in `surfaces.py`. Add a new surface and its neutral look there if you need one.
+- If two fills serve the same type, the one whose file name sorts first is used. An opening whose type no fill serves is left empty without a problem, which is how `plain` openings work by default.
+- A fill that raises an error gives the problem `fill_failed` for that opening, and the build goes on.
+- Fills are skipped when `fill_openings` is false in the job's settings.
+
+Fitting catalog door and window assets into the opening's frame is planned for a later release. The built-in fills are the plain default.
+
+### Adding an exporter
+
+An exporter is one file in `blender/plynth/exporters/` that registers an `ExporterEntry(extension, export)`. `export(objects, filepath, path_mode)` writes the given objects, or the whole scene when `objects` is `None`. `exporters/__init__.py` has `write_file`, which writes under a temporary name and renames the result, so a failed export leaves nothing behind. `fbx.py` is the one profile Plynth uses for `asset.fbx` and `building.fbx`.
 
 ### Testing
 
@@ -227,4 +337,4 @@ The Python tests run inside Blender: `blender -b --factory-startup --python blen
 
 ## Other things you will be able to add
 
-Later releases add the same kind of page for generators (small Blender scripts), exporters and roof types. Each one will be added to this page, with its file format and its rules.
+Later releases add the same kind of page for generators (small Blender scripts) and roof types. Each one will be added to this page, with its file format and its rules.

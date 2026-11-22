@@ -42,7 +42,7 @@ AssetInfo fullInfo()
     info.thumbnail.engine = "cycles";
     info.thumbnail.renderedAt = *parseSessionTime("2026-11-21T10:00:07Z");
     info.blenderVersion = "5.2.0";
-    info.warnings = {{"eevee_failed", "Eevee failed, so Cycles was used."}};
+    info.warnings = {{"fbx_failed", "asset.fbx could not be written."}};
     return info;
 }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "plynth/core/Geometry.h"
+#include "plynth/core/WallGeometry.h"
 
 #include <algorithm>
 #include <cmath>
@@ -12,6 +13,10 @@ namespace plynth::detail {
 struct BandEnd {
     Vec2 position;
     Vec2 along;
+    // When set, the end is cut on a mitre: left and right (as seen along the wall) replace the square cut.
+    bool mitred = false;
+    Vec2 left;
+    Vec2 right;
 };
 
 // A point plus a vector times a factor.
@@ -38,6 +43,11 @@ inline Vec2 unit(Vec2 v)
 // wall there (the cut is square to that direction). Inner corners use mitres. The outline has a positive
 // signedArea. Used for the wall bands and the footprints of openings.
 std::vector<Vec2> bandAround(const std::vector<Vec2>& line, double half, const BandEnd& start, const BandEnd& end);
+
+// The outlines of a wall's band. With mitre set, an end where exactly two walls meet is cut so the outer faces
+// of both walls meet in one corner; otherwise the ends are square and run past the wall's end by half its
+// thickness.
+std::vector<std::vector<Vec2>> wallBandWith(const Floor& floor, const Wall& wall, bool mitre);
 
 // The shortest distance from a position to a polygon's outline, 0 when the position is inside it.
 inline double distanceToPolygon(Vec2 position, const std::vector<Vec2>& polygon)

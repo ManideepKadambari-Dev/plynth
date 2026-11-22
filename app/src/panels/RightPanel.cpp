@@ -1,5 +1,6 @@
 #include "RightPanel.h"
 
+#include "theme/TabButton.h"
 #include "theme/Theme.h"
 
 #include <QHBoxLayout>
@@ -14,33 +15,17 @@ namespace {
 
 constexpr int kBorderWidth = 1;
 
-// Makes one flat tab button.
+// Makes one flat tab button of the right panel.
 QPushButton* makeTab(const QString& text, const QString& tip, const QString& tourId, QWidget* parent)
 {
     const Theme& t = Theme::instance();
-    auto* button = new QPushButton(text, parent);
-    button->setCheckable(true);
-    button->setFlat(true);
-    button->setFocusPolicy(Qt::NoFocus);
-    button->setFont(t.uiFont(t.sizeNormal(), QFont::DemiBold));
-    button->setToolTip(tip);
-    button->setProperty("tourId", tourId);
-    button->setStyleSheet(
-        QStringLiteral("QPushButton { background: transparent; border: none; border-bottom: 2px solid %1; "
-                       "color: %2; padding: %3px %4px; border-radius: 0px; }"
-                       "QPushButton:hover { color: %5; }"
-                       "QPushButton:checked { color: %5; border-bottom-color: %6; }")
-            .arg(t.line().name(), t.muted().name())
-            .arg(t.unit() * 2)
-            .arg(t.unit() * 4)
-            .arg(t.text().name(), t.signalBlue().name()));
-    return button;
+    return makeTabButton(text, tip, tourId, parent, t.unit() * 2, t.unit() * 4);
 }
 
 }
 
 // Builds the two tabs over a stack holding the two pages.
-RightPanel::RightPanel(QWidget* properties, QWidget* assets, QWidget* parent) : QWidget(parent)
+RightPanel::RightPanel(QWidget* properties, QWidget* assets, QWidget* build, QWidget* parent) : QWidget(parent)
 {
     const Theme& t = Theme::instance();
     setProperty("tourId", QStringLiteral("panel-right"));
@@ -54,19 +39,25 @@ RightPanel::RightPanel(QWidget* properties, QWidget* assets, QWidget* parent) : 
     propertiesButton_ = makeTab(tr("Properties"), tr("Properties of the selected item, or of the plan"),
                                 QStringLiteral("tab-properties"), this);
     assetsButton_ = makeTab(tr("Assets"), tr("The assets catalog (Ctrl+Shift+A)"), QStringLiteral("tab-assets"), this);
+    buildButton_ = makeTab(tr("Build"), tr("The last build: summary, files, steps and problems"),
+                           QStringLiteral("tab-build"), this);
     tabs->addWidget(propertiesButton_, 1);
     tabs->addWidget(assetsButton_, 1);
+    tabs->addWidget(buildButton_, 1);
     column->addLayout(tabs);
 
     pages_ = new QStackedWidget(this);
     properties->setParent(pages_);
     assets->setParent(pages_);
+    build->setParent(pages_);
     pages_->addWidget(properties);
     pages_->addWidget(assets);
+    pages_->addWidget(build);
     column->addWidget(pages_, 1);
 
     connect(propertiesButton_, &QPushButton::clicked, this, [this]() { showTab(Tab::Properties); });
     connect(assetsButton_, &QPushButton::clicked, this, [this]() { showTab(Tab::Assets); });
+    connect(buildButton_, &QPushButton::clicked, this, [this]() { showTab(Tab::Build); });
     showTab(Tab::Properties);
 }
 
@@ -77,7 +68,8 @@ void RightPanel::showTab(Tab tab)
     tab_ = tab;
     propertiesButton_->setChecked(tab == Tab::Properties);
     assetsButton_->setChecked(tab == Tab::Assets);
-    pages_->setCurrentIndex(tab == Tab::Properties ? 0 : 1);
+    buildButton_->setChecked(tab == Tab::Build);
+    pages_->setCurrentIndex(static_cast<int>(tab));
     setFixedWidth(tab == Tab::Properties ? t.propertiesWidth() : t.assetsWidth());
 }
 

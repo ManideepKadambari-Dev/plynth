@@ -2,6 +2,8 @@
 
 #include "plynth/core/PlanImage.h"
 
+#include <process.h>
+
 #include <algorithm>
 #include <cstdint>
 #include <filesystem>
@@ -80,7 +82,7 @@ Bytes makeBmp(std::int32_t w, std::int32_t h, std::uint32_t dib = 40) {
 struct TempFile {
     std::filesystem::path path;
     TempFile(const std::string& name, const Bytes& bytes, std::size_t extraZeros = 0) {
-        path = std::filesystem::temp_directory_path() / ("plynth_test_" + name);
+        path = std::filesystem::temp_directory_path() / ("plynth_test_" + std::to_string(_getpid()) + "_" + name);
         std::ofstream out(path, std::ios::binary);
         out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
         const Bytes zeros(64 * 1024, 0);

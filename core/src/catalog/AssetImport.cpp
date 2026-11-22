@@ -76,14 +76,6 @@ std::string sourceStem(const ImportSource& source)
     return text;
 }
 
-// The settings of the thumbnail the worker renders.
-ThumbnailSpec thumbnailSpec(const MachineSettings& settings)
-{
-    ThumbnailSpec spec;
-    spec.engine = settings.thumbnailEngine;
-    return spec;
-}
-
 // The Blender options for asset jobs: always the factory startup, so the user's add-ons cannot change results.
 BlenderRunOptions assetRunOptions(const ImportContext& context)
 {
@@ -288,7 +280,7 @@ ImportOutcome importAsset(AssetCatalog& catalog, const ImportContext& context, c
     cleanup.scale = request.scale;
     cleanup.rotateZ = request.rotateZ;
     cleanup.triangleWarning = context.settings.triangleWarning;
-    cleanup.thumbnail = thumbnailSpec(context.settings);
+    cleanup.thumbnail = ThumbnailSpec{};
     const Json job = makeCleanupJob(cleanup, jobId, work.path() / pathFromUtf8(kResultFileName));
 
     report(ImportStage::Blender);
@@ -474,7 +466,8 @@ ImportOutcome refreshAsset(AssetCatalog& catalog, const ImportContext& context, 
     thumb.blendFile = blend;
     thumb.outputFile = work.path() / pathFromUtf8(kAssetThumbFileName);
     thumb.measure = true;
-    thumb.thumbnail = thumbnailSpec(context.settings);
+    thumb.fbxFile = folder / pathFromUtf8(kAssetFbxFileName);
+    thumb.thumbnail = ThumbnailSpec{};
     const Json job = makeThumbnailJob(thumb, jobId, work.path() / pathFromUtf8(kResultFileName));
 
     report(ImportStage::Blender);

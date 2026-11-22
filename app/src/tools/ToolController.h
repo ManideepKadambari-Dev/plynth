@@ -72,6 +72,8 @@ public:
     // over is the widget it is drawn over: the plan canvas when null, or the wall view.
     FurniturePicker& picker(QWidget* over = nullptr);
     bool pickerOpen() const;
+    // For checks only: true when no picker is open or its preview has drawn its model.
+    bool pickerPreviewReady() const;
     // Opens the picker over a widget at a point (in that widget) and calls chosen once with the asset the user
     // picks. Closing the picker without a choice calls nothing.
     void pickAsset(QWidget* over, const QPoint& anchor, const QString& roomType,

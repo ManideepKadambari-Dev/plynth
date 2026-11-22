@@ -54,13 +54,67 @@
         "properties": {
           "params": {
             "type": "object",
-            "required": ["blend_file", "output_file", "measure", "thumbnail"],
+            "required": ["blend_file", "output_file", "measure", "fbx_file", "thumbnail"],
             "additionalProperties": false,
             "properties": {
               "blend_file": { "description": "Opened and never saved.", "type": "string", "minLength": 1 },
               "output_file": { "type": "string", "minLength": 1 },
               "measure": { "type": "boolean" },
+              "fbx_file": { "description": "Where to export the model as asset.fbx for the live preview, or null for no export.", "type": ["string", "null"], "minLength": 1 },
               "thumbnail": { "$ref": "#/definitions/thumbnail" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "task": { "const": "build" } } },
+      "then": {
+        "properties": {
+          "params": {
+            "description": "Everything the build needs. plan is plan.json as saved; floors holds the shapes core worked out from it (core/include/plynth/core/BuildGeometry.h). All positions are Blender world coordinates in metres: X = plan x, Y = -plan y, Z up from the first floor's level. Outer rings run anticlockwise seen from above, holes clockwise, the first point not repeated.",
+            "type": "object",
+            "required": ["project", "output_folder", "blend_file", "fbx_file", "plan", "settings", "assets", "floors"],
+            "additionalProperties": false,
+            "properties": {
+              "project": {
+                "type": "object",
+                "required": ["name", "folder"],
+                "additionalProperties": false,
+                "properties": {
+                  "name": { "type": "string" },
+                  "folder": { "type": "string", "minLength": 1 }
+                }
+              },
+              "output_folder": { "description": "The project's build folder. The worker writes blend_file and fbx_file into it, each under a temporary name first and renamed at the end.", "type": "string", "minLength": 1 },
+              "blend_file": { "const": "building.blend" },
+              "fbx_file": { "description": "The FBX the 3D preview loads, or null for none.", "enum": ["building.fbx", null] },
+              "plan": { "description": "plan.json as saved, schema/plan.schema.json.", "type": "object" },
+              "settings": {
+                "type": "object",
+                "required": ["bevel_width", "bevel_segments", "fill_openings"],
+                "additionalProperties": false,
+                "properties": {
+                  "bevel_width": { "description": "Metres. 0 leaves edges sharp.", "type": "number", "minimum": 0, "maximum": 0.05 },
+                  "bevel_segments": { "type": "integer", "minimum": 1, "maximum": 8 },
+                  "fill_openings": { "description": "Put a door or a window into every door and window opening.", "type": "boolean" }
+                }
+              },
+              "assets": {
+                "description": "Each asset the items use, once.",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["id", "blend_file", "collection"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": { "$ref": "#/definitions/catalogId" },
+                    "blend_file": { "type": "string", "minLength": 1 },
+                    "collection": { "description": "The collection in blend_file that holds the asset, named after its id.", "$ref": "#/definitions/catalogId" }
+                  }
+                }
+              },
+              "floors": { "type": "array", "items": { "$ref": "#/definitions/buildFloor" } }
             }
           }
         }
@@ -69,20 +123,170 @@
   ],
   "definitions": {
     "thumbnail": {
-      "description": "Three quarter view from the front right, 25 degrees up, 50 mm lens, framed with an 8 percent margin, neutral studio lights, a plain background of this color, Standard view transform, square 8 bit RGB PNG.",
+      "description": "Three quarter view from the front right, 25 degrees up, 50 mm lens, framed with an 8 percent margin, neutral studio lights, a plain background of this color, Standard view transform, square 8 bit RGB PNG, rendered with Eevee. There is no other engine.",
       "type": "object",
-      "required": ["render", "size", "engine", "background"],
+      "required": ["render", "size", "background"],
       "additionalProperties": false,
       "properties": {
         "render": { "type": "boolean" },
         "size": { "type": "integer", "minimum": 64, "maximum": 2048 },
-        "engine": { "enum": ["eevee", "cycles"] },
         "background": {
           "description": "sRGB, 0 to 1.",
           "type": "array",
           "minItems": 3,
           "maxItems": 3,
           "items": { "type": "number", "minimum": 0, "maximum": 1 }
+        }
+      }
+    },
+    "catalogId": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 64 },
+    "planId": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]*$" },
+    "xy": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
+    "xyz": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
+    "points": { "type": "array", "minItems": 3, "items": { "$ref": "#/definitions/xy" } },
+    "wallRing": {
+      "description": "A ring of a wall solid. edges[i] is the side face standing on the edge from points[i] to points[i + 1], the last back to the first. The solid is to the left of each edge seen from above.",
+      "type": "object",
+      "required": ["points", "edges"],
+      "additionalProperties": false,
+      "properties": {
+        "points": { "$ref": "#/definitions/points" },
+        "edges": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "type": "object",
+            "required": ["wall", "side", "room"],
+            "additionalProperties": false,
+            "properties": {
+              "wall": { "$ref": "#/definitions/planId" },
+              "side": { "description": "The face of the wall this edge belongs to, or null for an end face across the wall.", "enum": ["left", "right", null] },
+              "room": { "description": "The room the face looks into, or null when it looks into no room.", "oneOf": [{ "$ref": "#/definitions/planId" }, { "type": "null" }] }
+            }
+          }
+        }
+      }
+    },
+    "buildFloor": {
+      "type": "object",
+      "required": ["id", "elevation", "ceiling_height", "wall_solids", "openings", "rooms", "items"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/definitions/planId" },
+        "elevation": { "description": "The floor's level above the first floor's.", "type": "number" },
+        "ceiling_height": { "type": "number", "exclusiveMinimum": 0 },
+        "wall_solids": {
+          "description": "The floor's walls as solids of one height each that never overlap, tallest first.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["height", "outline", "holes"],
+            "additionalProperties": false,
+            "properties": {
+              "height": { "description": "Above the floor's level.", "type": "number", "exclusiveMinimum": 0 },
+              "outline": { "$ref": "#/definitions/wallRing" },
+              "holes": { "type": "array", "items": { "$ref": "#/definitions/wallRing" } }
+            }
+          }
+        },
+        "openings": { "type": "array", "items": { "$ref": "#/definitions/buildOpening" } },
+        "rooms": {
+          "description": "Rooms whose walls close, each with its floor area.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "type", "area", "floor_z", "ceiling_z", "polygons"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "$ref": "#/definitions/planId" },
+              "type": { "type": ["string", "null"] },
+              "area": { "description": "Square metres, the same area the app shows.", "type": "number", "minimum": 0 },
+              "floor_z": { "type": "number" },
+              "ceiling_z": { "type": "number" },
+              "polygons": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["outline", "holes"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "outline": { "$ref": "#/definitions/points" },
+                    "holes": { "type": "array", "items": { "$ref": "#/definitions/points" } }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "items": {
+          "description": "Items whose asset is in the job's assets list.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "asset", "location", "rotation_z", "size", "wall"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "$ref": "#/definitions/planId" },
+              "asset": { "$ref": "#/definitions/catalogId" },
+              "location": { "description": "Where the asset's pivot (bottom centre) goes.", "$ref": "#/definitions/xyz" },
+              "rotation_z": { "description": "Radians about Z: minus the plan rotation.", "type": "number" },
+              "size": {
+                "type": "object",
+                "required": ["width", "depth", "height"],
+                "additionalProperties": false,
+                "properties": {
+                  "width": { "type": "number", "exclusiveMinimum": 0 },
+                  "depth": { "type": "number", "exclusiveMinimum": 0 },
+                  "height": { "type": "number", "exclusiveMinimum": 0 }
+                }
+              },
+              "wall": { "oneOf": [{ "$ref": "#/definitions/planId" }, { "type": "null" }] }
+            }
+          }
+        }
+      }
+    },
+    "buildOpening": {
+      "description": "An opening that fits its wall. The opening's own box: u along the wall from -width/2 (Start jamb) to width/2, v up from 0 at the sill. Point (u, v, w), w across the wall toward its right side, is at centre + tangent * u + right * w in X and Y and at Z = floor level + sill + v.",
+      "type": "object",
+      "required": ["id", "wall", "type", "shape", "width", "height", "sill", "hinge", "swing", "frame", "centre", "tangent", "right", "thickness", "curved", "outline", "inner_outline", "cutter", "threshold"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/definitions/planId" },
+        "wall": { "$ref": "#/definitions/planId" },
+        "type": { "enum": ["door", "window", "plain"] },
+        "shape": { "type": "string", "minLength": 1 },
+        "width": { "type": "number", "exclusiveMinimum": 0 },
+        "height": { "type": "number", "exclusiveMinimum": 0 },
+        "sill": { "type": "number", "minimum": 0 },
+        "hinge": { "enum": ["start", "end"] },
+        "swing": { "enum": ["left", "right"] },
+        "frame": { "type": ["string", "null"] },
+        "centre": { "$ref": "#/definitions/xy" },
+        "tangent": { "$ref": "#/definitions/xy" },
+        "right": { "$ref": "#/definitions/xy" },
+        "thickness": { "type": "number", "exclusiveMinimum": 0 },
+        "curved": { "type": "boolean" },
+        "outline": { "description": "The shape in the opening's own box, (u, v), anticlockwise.", "$ref": "#/definitions/points" },
+        "inner_outline": {
+          "description": "outline made smaller by the frame width; for doors and plain openings with sill 0 the bottom stays at v = 0. Empty when nothing is left.",
+          "type": "array",
+          "items": { "$ref": "#/definitions/xy" }
+        },
+        "cutter": {
+          "description": "Two rings of the same length beyond each wall face; point i of both is the same outline point.",
+          "type": "object",
+          "required": ["right", "left"],
+          "additionalProperties": false,
+          "properties": {
+            "right": { "type": "array", "minItems": 3, "items": { "$ref": "#/definitions/xyz" } },
+            "left": { "type": "array", "minItems": 3, "items": { "$ref": "#/definitions/xyz" } }
+          }
+        },
+        "threshold": {
+          "description": "The cut through the wall band at floor level when the sill is 0, so the floor carries on through. Empty otherwise.",
+          "type": "array",
+          "items": { "$ref": "#/definitions/xy" }
         }
       }
     }

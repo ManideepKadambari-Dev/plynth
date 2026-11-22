@@ -1,11 +1,10 @@
 {
   "format": "plynth-settings",
-  "version": 2,
+  "version": 3,
   "library": "D:/Lib",
   "projects": null,
   "blender": "C:/Blender/blender.exe",
   "keep_imported_zips": true,
-  "thumbnail_engine": "cycles",
   "triangle_warning": 1000,
   "setup_checked_version": "0.6.0",
   "recent_projects": [

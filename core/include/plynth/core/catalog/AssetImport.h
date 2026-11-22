@@ -47,7 +47,7 @@ struct ImportProgress {
 struct ImportContext {
     LibraryPaths library;
     BlenderInstall blender;   // a usable install from chooseBlender
-    MachineSettings settings; // keepImportedZips, thumbnailEngine, triangleWarning
+    MachineSettings settings; // keepImportedZips, triangleWarning
     BlenderRunOptions run;
     // Removes an original zip after import. Empty: moveToRecycleBin. Tests pass a plain delete so they never
     // fill the user's Recycle Bin.
@@ -84,9 +84,9 @@ ImportOutcome importInboxEntry(AssetCatalog& catalog, const ImportContext& conte
                                const std::function<void(const ImportProgress&)>& onProgress = {},
                                std::stop_token stop = {});
 
-// Measures an asset again and renders its thumbnail (the render_thumbnail job with measure true), then
-// updates info.json and the index: used for the retry button and for assets that rescan lists in
-// needsRefresh. asset.blend is never changed. NotFound for an unknown asset. When only the render fails the
+// Measures an asset again, renders its thumbnail and writes asset.fbx (the render_thumbnail job with measure
+// true and fbx_file set), then updates info.json and the index: used for the retry button and for assets
+// that rescan lists in needsRefresh. asset.blend is never changed. A failed asset.fbx is a warning only. NotFound for an unknown asset. When only the render fails the
 // status is BlenderFailed and the asset is left Failed with the reason.
 ImportOutcome refreshAsset(AssetCatalog& catalog, const ImportContext& context, std::string_view assetId,
                            const std::function<void(const ImportProgress&)>& onProgress = {},

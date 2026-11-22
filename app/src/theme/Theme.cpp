@@ -104,6 +104,18 @@ bool Theme::load(const QString& resourcePath)
     previewWidth_ = spacing["previewWidth"].toInt(previewWidth_);
     rotationHandle_ = spacing["rotationHandle"].toInt(rotationHandle_);
     itemLabelMinPixels_ = spacing["itemLabelMinPixels"].toInt(itemLabelMinPixels_);
+    buildBarHeight_ = spacing["buildBarHeight"].toInt(buildBarHeight_);
+    problemMarker_ = spacing["problemMarker"].toInt(problemMarker_);
+    previewButton_ = spacing["previewButton"].toInt(previewButton_);
+
+    overlay3dOpacity_ = root["opacity"].toObject()["overlay3d"].toDouble(overlay3dOpacity_);
+    const QJsonObject preview = root["preview"].toObject();
+    const QColor light(preview["lightColor"].toString());
+    if (light.isValid())
+        lightColor_ = light;
+    keyLightBrightness_ = preview["keyLightBrightness"].toDouble(keyLightBrightness_);
+    probeExposure_ = preview["probeExposure"].toDouble(probeExposure_);
+    aoStrength_ = preview["aoStrength"].toInt(aoStrength_);
 
     const QJsonObject effects = root["effects"].toObject();
     overlayAlpha_ = effects["overlayAlpha"].toInt(overlayAlpha_);

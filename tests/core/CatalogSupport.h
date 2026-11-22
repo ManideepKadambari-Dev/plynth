@@ -36,10 +36,11 @@ inline void writeBytes(const std::filesystem::path& file, const std::string& byt
 // The info is not indexed.
 inline AssetInfo makeAssetOnDisk(const LibraryPaths& paths, const std::string& id, const std::string& name,
                                  std::vector<std::string> categories = {}, std::vector<std::string> tags = {},
-                                 bool withThumbnail = false)
+                                 bool withThumbnail = false, bool withFbx = true)
 {
     const std::filesystem::path folder = paths.assetItems / pathFromUtf8(id);
     writeBytes(folder / "asset.blend", "FAKEBLEND");
+    if (withFbx) writeBytes(folder / "asset.fbx", "FAKEFBX");
     AssetInfo info;
     info.id = id;
     info.name = name;
@@ -82,9 +83,9 @@ struct TestLibrary {
 
     // Writes an asset to disk and indexes it.
     AssetInfo add(const std::string& id, const std::string& name, std::vector<std::string> categories = {},
-                  std::vector<std::string> tags = {}, bool withThumbnail = false)
+                  std::vector<std::string> tags = {}, bool withThumbnail = false, bool withFbx = true)
     {
-        AssetInfo info = makeAssetOnDisk(paths, id, name, std::move(categories), std::move(tags), withThumbnail);
+        AssetInfo info = makeAssetOnDisk(paths, id, name, std::move(categories), std::move(tags), withThumbnail, withFbx);
         requireOk(catalog->indexAsset(info));
         return info;
     }

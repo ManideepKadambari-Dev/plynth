@@ -20,6 +20,8 @@ constexpr int kExitImageFailed = 3;
 constexpr int kExitTerminalFailed = 4;
 constexpr qint64 kDetectionWaitMs = 15000;
 constexpr qint64 kSetupWaitMs = 60000;
+constexpr qint64 kPreviewWaitMs = 30000;
+constexpr qint64 kBuildWaitMs = 1800000;
 
 // Reads "WxH" into a size. Returns false when the text is not two positive numbers.
 bool parseSize(const QString& text, QSize& out)
@@ -88,7 +90,12 @@ int main(int argc, char* argv[])
     QCommandLineOption selectAssetOption(QStringLiteral("select-asset"),
                                          QStringLiteral("Select the asset with this id in the Assets tab. For checks only."),
                                          QStringLiteral("id"));
+    QCommandLineOption assetCategoriesOption(QStringLiteral("asset-categories"),
+                                             QStringLiteral("With --select-asset, scroll the details to the categories. For checks only."));
     QCommandLineOption setupOption(QStringLiteral("setup"), QStringLiteral("Open the setup check. For checks only."));
+    QCommandLineOption setupItemOption(QStringLiteral("setup-item"),
+                                       QStringLiteral("Open the setup check scrolled to the item with this title. For checks only."),
+                                       QStringLiteral("title"));
     QCommandLineOption importOption(QStringLiteral("import"),
                                     QStringLiteral("Queue an import of this file or folder. For checks only."),
                                     QStringLiteral("file"));
@@ -98,11 +105,33 @@ int main(int argc, char* argv[])
     QCommandLineOption hoverAssetOption(QStringLiteral("hover-asset"),
                                         QStringLiteral("With --furniture-at, hover the asset with this id. For checks only."),
                                         QStringLiteral("id"));
+    QCommandLineOption viewOption(QStringLiteral("view"),
+                                  QStringLiteral("Show the plan or the 3D page: plan or 3d. For checks only."),
+                                  QStringLiteral("name"));
+    QCommandLineOption cameraOption(QStringLiteral("camera"),
+                                    QStringLiteral("Camera of the 3D page: three-quarter or top. For checks only."),
+                                    QStringLiteral("name"));
+    QCommandLineOption zoomOption(QStringLiteral("zoom"),
+                                  QStringLiteral("Zoom of the plan: fit or actual (100 percent). For checks only."),
+                                  QStringLiteral("mode"));
+    QCommandLineOption overlayOption(QStringLiteral("overlay-3d"),
+                                     QStringLiteral("Show the 3D overlay on the plan. For checks only."));
+    QCommandLineOption buildOption(QStringLiteral("build"),
+                                   QStringLiteral("Build the project after opening it and wait for the end. For checks only."));
+    QCommandLineOption buildTabOption(QStringLiteral("build-tab"), QStringLiteral("Show the Build tab. For checks only."));
     QCommandLineOption homeOption(QStringLiteral("home"), QStringLiteral("Show the home screen. For checks only."));
+    parser.addOption(zoomOption);
+    parser.addOption(overlayOption);
+    parser.addOption(buildOption);
+    parser.addOption(buildTabOption);
+    parser.addOption(viewOption);
+    parser.addOption(cameraOption);
     parser.addOption(homeOption);
     parser.addOption(furnitureAtOption);
     parser.addOption(hoverAssetOption);
+    parser.addOption(assetCategoriesOption);
     parser.addOption(setupOption);
+    parser.addOption(setupItemOption);
     parser.addOption(importOption);
     parser.addOption(catalogOption);
     parser.addOption(selectAssetOption);
@@ -125,6 +154,16 @@ int main(int argc, char* argv[])
                                 QStringLiteral("opening"), QStringLiteral("room"), QStringLiteral("furniture"),
                                 QStringLiteral("detect")};
         if (!names.contains(parser.value(toolOption).toLower()))
+            return kExitBadArguments;
+    }
+    if (parser.isSet(viewOption)) {
+        const QString view = parser.value(viewOption).toLower();
+        if (view != QStringLiteral("plan") && view != QStringLiteral("3d"))
+            return kExitBadArguments;
+    }
+    if (parser.isSet(cameraOption)) {
+        const QString camera = parser.value(cameraOption).toLower();
+        if (camera != QStringLiteral("three-quarter") && camera != QStringLiteral("top"))
             return kExitBadArguments;
     }
     if (parser.isSet(wallSideOption)) {
@@ -209,15 +248,28 @@ int main(int argc, char* argv[])
     if (parser.isSet(wallSideOption))
         window.setWallViewSide(parser.value(wallSideOption).toLower() == QStringLiteral("left") ? plynth::WallSide::Left
                                                                                              : plynth::WallSide::Right);
+    if (parser.isSet(viewOption))
+        window.showView(parser.value(viewOption));
+    if (parser.isSet(cameraOption))
+        window.setPreviewCamera(parser.value(cameraOption));
     if (parser.isSet(catalogOption) || parser.isSet(selectAssetOption))
         window.showAssetsTab();
     if (parser.isSet(selectAssetOption)) {
         window.selectAsset(parser.value(selectAssetOption));
-        QTimer::singleShot(150, &window, [&window]() { window.showAssetCategories(); });
+        if (parser.isSet(assetCategoriesOption))
+            QTimer::singleShot(150, &window, [&window]() { window.showAssetCategories(); });
     }
     if (parser.isSet(homeOption) || (!wantsScreenshot && !hasProject && !parser.isSet(imageOption)))
         window.showHome();
     window.show();
+    if (parser.isSet(buildTabOption))
+        window.showBuildTab();
+    if (parser.isSet(overlayOption))
+        window.setOverlay3d(true);
+    if (parser.isSet(zoomOption) && parser.value(zoomOption).toLower() == QStringLiteral("actual"))
+        QTimer::singleShot(100, &window, [&window]() { window.setActualSize(); });
+    if (parser.isSet(buildOption))
+        QTimer::singleShot(0, &window, [&window]() { window.startBuild(); });
     if (parser.isSet(furnitureAtOption)) {
         const QString hover = parser.value(hoverAssetOption);
         QTimer::singleShot(250, &window, [&window, furnitureX, furnitureY, hover]() {
@@ -226,8 +278,10 @@ int main(int argc, char* argv[])
     }
     if (parser.isSet(importOption))
         window.importFile(parser.value(importOption));
-    if (parser.isSet(setupOption))
-        QTimer::singleShot(0, &window, [&window]() { window.showSetupCheck(); });
+    if (parser.isSet(setupOption) || parser.isSet(setupItemOption)) {
+        const QString item = parser.value(setupItemOption);
+        QTimer::singleShot(0, &window, [&window, item]() { window.showSetupCheck(item); });
+    }
     else if (!wantsScreenshot)
         QTimer::singleShot(0, &window, [&window]() { window.openSetupCheckIfNeeded(); });
     if (loadFailed && !wantsScreenshot)
@@ -245,6 +299,7 @@ int main(int argc, char* argv[])
         QTimer::singleShot(0, &window, [&window, text]() { window.startTerminalCheck(text); });
     }
 
+    const bool wantsBuild = parser.isSet(buildOption);
     if (wantsScreenshot) {
         const QString file = parser.value(screenshotOption);
         const QSize target = hasSize ? size : window.size();
@@ -252,10 +307,12 @@ int main(int argc, char* argv[])
         waited.start();
         auto* poll = new QTimer(&app);
         poll->setInterval(wantsTerminal ? 100 : 400);
-        QObject::connect(poll, &QTimer::timeout, &app, [&window, file, target, loadFailed, wantsTerminal, poll, waited]() {
+        QObject::connect(poll, &QTimer::timeout, &app, [&window, file, target, loadFailed, wantsTerminal, wantsBuild, poll, waited]() {
             if (wantsTerminal && !window.terminalPictureReady())
                 return;
             if (!window.detectionPictureReady() && !waited.hasExpired(kDetectionWaitMs))
+                return;
+            if (!window.previewPictureReady() && !waited.hasExpired(wantsBuild ? kBuildWaitMs : kPreviewWaitMs))
                 return;
             if ((!window.setupPictureReady() || !window.importPictureReady()) && !waited.hasExpired(kSetupWaitMs))
                 return;

@@ -34,6 +34,8 @@ public:
     // has no category to find it by.
     bool hoverAsset(const QString& id);
     // The asset under the cursor, empty when none.
+    // For checks only: true when the preview shows no 3D model, or it has been drawn.
+    bool previewReady() const;
     const QString& hoveredAsset() const { return hovered_; }
 
 signals:

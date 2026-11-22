@@ -10,6 +10,7 @@
 
 class QLabel;
 class QPushButton;
+class QScrollArea;
 class QVBoxLayout;
 class QWidget;
 
@@ -29,6 +30,8 @@ public:
     // Runs the check again on the worker thread.
     void recheck();
     // True when no check is running and a result is shown.
+    // For checks only: scrolls the list until the row with this title is in view.
+    void scrollToItem(const QString& title);
     bool checkFinished() const { return !checking_ && report_.has_value(); }
     // True when the shown result has no required item that blocks.
     bool ready() const { return report_.has_value() && report_->ready; }
@@ -55,6 +58,7 @@ private:
     QLabel* note_ = nullptr;
     QLabel* problem_ = nullptr;
     QWidget* rowsHost_ = nullptr;
+    QScrollArea* scroll_ = nullptr;
     QVBoxLayout* rows_ = nullptr;
     QPushButton* again_ = nullptr;
     QPushButton* done_ = nullptr;

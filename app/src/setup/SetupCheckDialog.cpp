@@ -1,6 +1,7 @@
 #include "SetupCheckDialog.h"
 
 #include "catalog/LibraryHost.h"
+#include "preview/GraphicsProbe.h"
 #include "theme/Theme.h"
 
 #include <plynth/core/Library.h>
@@ -111,7 +112,8 @@ SetupCheckDialog::SetupCheckDialog(LibraryHost& host, QWidget* parent) : QDialog
     note_->hide();
     outer->addWidget(note_);
 
-    auto* scroll = new QScrollArea(this);
+    scroll_ = new QScrollArea(this);
+    QScrollArea* scroll = scroll_;
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -167,6 +169,7 @@ void SetupCheckDialog::recheck()
     const plynth::MachineSettings settings = host_.settings();
     plynth::SetupCheckOptions options;
     options.settingsExist = host_.settingsExisted();
+    options.graphics = appGraphics();
     const std::stop_token token = stop_.get_token();
     worker_ = std::jthread([this, generation, settings, options, token]() {
         plynth::SetupReport report = plynth::runSetupCheck(settings, options, token);
@@ -432,6 +435,21 @@ void SetupCheckDialog::finish()
 void SetupCheckDialog::openLink(const QString& link)
 {
     QDesktopServices::openUrl(QUrl(link));
+}
+
+}
+
+namespace plynth::app {
+
+// For checks only: scrolls the list until the row whose title starts with this text is in view.
+void SetupCheckDialog::scrollToItem(const QString& title)
+{
+    const QList<QLabel*> labels = rowsHost_->findChildren<QLabel*>();
+    for (QLabel* label : labels)
+        if (label->text().startsWith(title)) {
+            scroll_->ensureWidgetVisible(label);
+            return;
+        }
 }
 
 }

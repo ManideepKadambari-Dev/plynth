@@ -1,6 +1,6 @@
 # User guide
 
-This covers what Plynth does today: the home screen, opening a project, showing its plan image, setting the scale, drawing walls (straight and curved, with rounded corners), placing doors, windows and other openings, setting heights, finding walls and openings in the image automatically, making rooms, placing furniture from the library, undo and redo, saving, the setup check, the library and assets catalog, working next to the command line, and the built-in terminal. More screens arrive in later releases.
+This covers what Plynth does today: the home screen, opening a project, showing its plan image, setting the scale, drawing walls (straight and curved, with rounded corners), placing doors, windows and other openings, setting heights, finding walls and openings in the image automatically, making rooms, placing furniture from the library, undo and redo, saving, building the building in Blender and looking at it in 3D, the setup check, the library and assets catalog, working next to the command line, and the built-in terminal. More screens arrive in later releases.
 
 New here? Start with [Getting started](GETTING_STARTED.md). For keys see [Keyboard shortcuts](SHORTCUTS.md). For scripts see the [Command line guide](CLI_GUIDE.md). For Blender, the library folder and the first run see [Setting up Plynth](SETUP.md).
 
@@ -37,13 +37,13 @@ MyApartment/
   project.json      settings, export mode, grid size
   plan.json         all marks
   plans/            floor1.png, floor2.png
-  build/            building.blend, preview.glb
+  build/            building.blend, building.fbx, build.json, blender.log
   export/           FBX files, Textures/, reports
   renders/          images for checking results
   autosave/         a recovery copy of unsaved work
 ```
 
-Only `plan.json`, `project.json` and `plans/` are the real project. `build/`, `export/`, `renders/` and `autosave/` can be deleted at any time; Plynth recreates them. Today only the first three and `autosave/` are used.
+Only `plan.json`, `project.json` and `plans/` are the real project. `build/`, `export/`, `renders/` and `autosave/` can be deleted at any time; Plynth recreates them. Today `build/` and `autosave/` are used as well. `build/` is made by the Build button.
 
 Two small files, `session.lock` and `app-state.json`, may also appear. They are explained below and are safe to delete while Plynth is closed.
 
@@ -267,7 +267,7 @@ Esc, or a click outside the picker, closes it and places nothing.
 - **Categories.** Each shows how many assets it holds. A category with none is greyed.
 - **Assets.** Each shows its name and its size in metres, for example `2.00 x 0.90 x 0.85 m`. An asset that is broken, or that has not been measured, is greyed and its tooltip says why. Use **Retry render** in the Assets tab to measure an asset that says "not measured".
 
-**The hover preview.** Point at an asset without clicking. A panel beside the list shows its thumbnail, its name, its real size, its categories and its license. At the same time the item's footprint is drawn on the plan at the cross, at its true size. The footprint is drawn in amber when the item would have a problem there. See "Furniture warnings". The thumbnail is always a real picture. While one is still being drawn, the panel says "Rendering", and when it failed, "Render failed".
+**The hover preview.** Point at an asset without clicking. A panel beside the list shows its thumbnail, its name, its real size, its categories and its license. At the same time the item's footprint is drawn on the plan at the cross, at its true size. The footprint is drawn in amber when the item would have a problem there. See "Furniture warnings". The preview is the live 3D model once it is drawn, with the thumbnail shown until then. The thumbnail is always a real picture. While one is still being drawn, the panel says "Rendering", and when it failed, "Render failed".
 
 **Dragging from the Assets tab.** You can skip the picker. Drag a tile from the Assets tab and drop it on the plan. The item is placed where you drop it, snapped like a drag. Hold Ctrl while you drop to place it freely. Drop it on the wall view to hang it on the wall face. An asset that is broken or not measured cannot be dragged. It works with any tool active.
 
@@ -458,9 +458,117 @@ Every 30 seconds, if there are unsaved changes, Plynth writes a copy into the pr
 
 If Plynth was closed unexpectedly, the next time you open that project it asks: "This project has unsaved changes from <date and time>. Recover them?" If the saved plan is newer than the copy, the question tells you. Recover loads the copy as unsaved changes, so you still decide whether to save. Discard removes it.
 
+## Building
+
+Building turns the plan into a real 3D building. Plynth starts Blender in the background, raises the walls, cuts every opening, fits the doors and windows, lays floors and ceilings and places your furniture. You never see Blender's window.
+
+**To build**, press the blue **Build** button in the bar above the plan, press Ctrl+B, or use **Build > Build**. The project has to be saved first. If it never was, Plynth asks "The project has to be saved before it can be built. Save it now?" The build uses what is in the window, saved or not, so you do not need to save after every edit.
+
+While it runs, the bar shows a progress bar and the step it is on, for example "Cutting openings", with a **Cancel** button. Cancel stops the build. The last building stays as it was, so a cancelled or failed build never leaves you with half a file. A small flat takes a few seconds. Many openings and a large plan take longer, because every opening is cut one at a time. You can look at the plan while you wait, but you cannot start a second build.
+
+When a build finishes, the 3D view opens by itself and the bar says "Built at 10:42 in 8.2 s". If you change the plan afterwards, the bar says "The plan changed since this build". Build again to catch up. If Blender fails, the bar says "The last build failed. See the Build tab." and the Build tab says why.
+
+**Build is blocked** when a required item of the setup check is missing, such as Blender or the graphics driver. The button then opens the setup check and the status bar says what to fix. See [Setting up Plynth](SETUP.md).
+
+### What gets made
+
+- **Walls** with their real thickness and height. Walls of different heights meet without doubled faces, and a half wall stops at the face of a full one. Curved walls and rounded corners follow the plan.
+- **Corners.** Where exactly two walls of the same height meet at a corner, both ends are cut on the diagonal so the outer faces join cleanly. T junctions, rounded corners, very sharp angles (under 25 degrees), walls of different heights and very short walls keep square ends.
+- **Openings**, cut in their exact shape: an arch is round, a keyhole is a keyhole.
+- **Doors and windows.** A door gets a frame, a closed leaf and a handle on both faces, on the side away from the hinge. A window gets a frame and a thin pane of glass. A plain opening stays empty. A doorway that reaches the floor also gets a strip of floor through the wall.
+- **Floors and ceilings**, one flat face for each closed room. They have no thickness yet. A room whose walls do not close gets none. The ceilings are not drawn when you look from above, so the top view shows the floors.
+- **Furniture** at its marker, turned the way the plan shows, as a copy of the asset's own model. An item whose asset is missing is left out, with a problem at its marker. Plynth never puts a placeholder box there.
+- **Edges** rounded by 1 cm, so they catch the light.
+- **Colors.** Everything gets a plain neutral color. Inside wall faces are a little lighter than outside faces, so you can tell them apart. Real materials come in a later release.
+- **Upper floors** are stacked on top of the floors below, by their ceiling heights.
+
+The 3D view shows base colors, roughness and normal maps. Metal and see-through glass do not show in it yet. The Blender file has them.
+
+### Where the files go
+
+Everything is written into the project's `build` folder:
+
+- `building.blend`, the Blender file. Open it in Blender with **Build > Open building.blend in Blender**, edit it, render it.
+- `building.fbx`, what the 3D view loads.
+- `build.json`, the report of the last build, which fills the Build tab when you open the project again.
+- `job.json`, `result.json` and `blender.log`, for finding out what went wrong.
+
+**Build > Open build folder** opens it in Explorer. The `build` folder can be deleted at any time. Plynth writes each model file under a temporary name and renames it at the end, so a failed build keeps the last good files.
+
+You can also build from a terminal with `plynth build`. See the [Command line guide](CLI_GUIDE.md). A build from there and a build from the app give the same result.
+
+## The 3D view
+
+Press **3**, click **3D** in the bar above the plan, or use **View > 3D view** to look at the built building. Press 3 again, or click **Plan**, to go back. The 3D view only shows. Nothing you do in it changes the plan.
+
+- **Orbit:** drag with the left button. The view turns around a point in the building.
+- **Pan:** drag with the middle or right button.
+- **Zoom:** the mouse wheel. It zooms toward the point the view turns around.
+- **Fit:** press Ctrl+0, or use View > Fit to window, to frame the whole building again, furniture included.
+- **Top** and **Three quarter:** two small buttons in the top right corner. Top looks straight down. Three quarter looks from the front right and a little above, the same angle as the thumbnails.
+
+The background is the theme's ground color, the same as behind the plan, and the scene has a soft light from above so walls and furniture have shading and shadows.
+
+Before the first build the 3D view says "Build the plan to see it in 3D. (Ctrl+B)". That is not an error. When a project is opened again, the 3D view loads the last `building.fbx` if it is there.
+
+## Build problems
+
+A build always finishes with a list of problems, even when it worked. Each problem points at something in the plan.
+
+- When there are problems, an amber **problems** button appears in the bar, such as "3 problems". Click it to open the **Build** tab.
+- The **Build** tab is one column in the right panel, with four parts. **Summary** says when the build ran, how long it took, which Blender, and how many objects, triangles, cuts, doors and windows, rooms and items. **Problems** lists each one. **Files** shows where the files are, with **Open folder** and **Open in Blender**. **Steps** lists the steps with their times in milliseconds. **Build > Show build report** opens the tab.
+- Each problem has an amber icon, a sentence and the id of its object. A filled icon is an **error**: the object was left out or is incomplete. An outline icon is a **warning**: it was built, but check it. Click a problem to go to the plan, select that object and centre the plan on it.
+- **Markers.** The plan shows an amber triangle at each problem, filled for an error and outlined for a warning. Point at one to read the sentence. Turn them off with **View > Build problems on plan**. Only the first floor is shown in the app so far.
+
+What the problems mean:
+
+| Problem | Kind | What it means and what to do |
+|---|---|---|
+| Opening does not fit | error | The opening reaches past its wall or its height. It was not cut. The sentence says by how much. Move or resize it. |
+| Room is not closed | error | The room's walls do not close, so it has no floor or ceiling. Close the gap or redraw the room. |
+| Missing asset | error | The item's asset is not in the library. The item was left out. Put the asset back, or swap it. |
+| Asset is broken | error | The library has the asset, but it is marked broken or its model file is gone. The item was left out. Import the asset again or swap it. |
+| No library | error | No library folder is set, so every item was left out. Set one in the setup check. |
+| Could not cut | error | The opening could not be cut cleanly, so the wall was left uncut there. Try moving the opening a little. |
+| Could not fit the door or window | warning | The opening is cut but empty, for example because it is too small for a frame. Make it larger. |
+| Could not load the asset | error | Blender could not open the asset's model, so the item was left out. Press Retry render on the asset. |
+| Could not round the edges | warning | The wall edges stay sharp. The building is otherwise fine. |
+| Furniture warnings | warning | Not in any room, overlaps a wall and the others in "Furniture warnings" are shown here too. |
+
+A missing asset can show up as "Asset is broken" or "Missing asset" depending on how it went missing. If you removed or renamed the asset's folder by hand while the library still lists it, it is broken. If the library does not know the asset at all, it is missing.
+
+Problems do not stop a build. Fix what you care about and press Build again.
+
+## The 3D overlay on the plan
+
+**View > 3D overlay on plan** (Alt+3) draws the top view of the built building over the plan image, so you can check that the walls sit on the walls of the drawing. It needs a build and a scale. It is drawn a little see-through, over the plan image and under the marks and handles, and it pans and zooms with the plan. It is redrawn after each build.
+
+The plan view draws wall ends square, while the built building cuts a corner of two walls on the diagonal. At an outer corner of two walls of different thickness the overlay can therefore differ from the plan's outline by up to half a wall thickness. The walls themselves are in the right place.
+
+## The live asset preview
+
+The preview of an asset is now the real model, lit from the front right, as soon as its model file is ready. It appears in two places:
+
+- **The furniture picker.** The hover preview panel shows the model for the asset you point at. It is shown from the front right and takes no mouse.
+- **The Assets tab.** The details of the selected asset show the model. Drag to orbit it and use the wheel to zoom.
+
+The thumbnail shows first and stays when the asset has no 3D preview file, or when the model could not be drawn. Each asset gets that file, `asset.fbx`, when it is imported. After the update to this version, Plynth makes it once for every asset that lacks it, in the background. On a big library that means many short Blender runs, so give it a little time on the first start.
+
+## If the 3D view stays empty
+
+"Build the plan to see it in 3D" is normal before the first build. If you built and still see nothing:
+
+- **Check the Build tab.** A problem there may explain it. If the build failed, there is no model to show.
+- **Press Ctrl+0** to fit the view. You may be looking at empty space.
+- **The message "The 3D view cannot start."** means your graphics card or its driver cannot run the 3D view. Plynth needs a card that supports Direct3D 11. Update the graphics driver from the maker of your card (NVIDIA, AMD or Intel), restart Plynth, and open **Help > Setup check** to see the Graphics driver row. On a laptop with two graphics cards, open Windows Settings, System, Display, Graphics, add Plynth and choose High performance. A remote desktop session or a virtual machine without a graphics card often cannot run it.
+- **The message "The 3D model could not be loaded."** means `building.fbx` is missing or damaged. Delete the project's `build` folder and press Build again.
+- **If the Graphics driver row says Found and the message still appears,** the program files may be damaged. Install Plynth again.
+
+While the Graphics driver row says Missing, the Build button opens the setup check instead of building. `plynth build` in a terminal does not need the 3D view and still works.
+
 ## Setup check and the library
 
-Before you import models, Plynth needs Blender, a library folder and a projects folder. **Help > Setup check** shows what is ready and what is not, and it opens by itself on the first run. Plynth never installs anything: if Blender is missing, you install it from blender.org yourself. Every item is explained in [Setting up Plynth](SETUP.md).
+Before you import models, Plynth needs Blender, a library folder and a projects folder. **Help > Setup check** shows what is ready and what is not, and it opens by itself on the first run. Plynth never installs anything: if Blender is missing, you install it from blender.org yourself. Every item is explained in [Setting up Plynth](SETUP.md). The Graphics driver item is checked by the app when it starts, and it decides whether Build is allowed.
 
 The **library** is one folder on your computer that holds your assets catalog. It is shared by all projects. Choose or create it in the setup check. **Catalog > Open library folder** opens it in Explorer.
 
@@ -518,7 +626,7 @@ Models from different places differ in size, orientation and where their middle 
 - **Cameras, lights and empties are removed.** Objects that hang from them stay where they were.
 - **Textures are copied.** Every picture a model uses is copied into the asset's own `textures` folder and linked by a relative path, so the asset folder is complete on its own. Pictures packed inside a `.blend` are unpacked there. A texture that cannot be found is a warning.
 
-Your original file is not changed. The cleaned model is saved as `asset.blend` in `Library\assets\items\<id>\`, with `thumb.png` and an `info.json` that holds the name, categories, tags and license.
+Your original file is not changed. The cleaned model is saved as `asset.blend` in `Library\assets\items\<id>\`, with `asset.fbx` for the live preview, `thumb.png` and an `info.json` that holds the name, categories, tags and license.
 
 ### Warnings
 
@@ -528,17 +636,17 @@ Problems with a model never stop an import. They show in amber under the asset's
 - **Suspicious size.** The largest side is above 30 m or below 0.02 m, which usually means the file used other units. Import again with `--scale` (for example `--scale 0.01` for a model drawn in centimetres).
 - **Missing texture.** A picture the model asked for was not found, so that part has a plain color.
 - **Removed objects.** Cameras, lights or empties were left out.
-- **Eevee failed.** The thumbnail was drawn with the slower Cycles engine, because your graphics driver could not run the fast one.
+- **3D preview file failed.** `asset.fbx`, the file the live 3D preview of the asset uses, could not be written. The asset still works in plans and in builds, and its thumbnail is shown instead of the live model.
 
 ### Thumbnails
 
-A thumbnail is a 512 pixel render made by Blender: the model seen from the front right and a little above, on a dark background, with soft lights. It is drawn once, when the model is imported.
+A thumbnail is a 512 pixel render made by Blender with its Eevee engine: the model seen from the front right and a little above, on a dark background, with soft lights. It is drawn once, when the model is imported. Next to it, the import makes `asset.fbx`, the file the live 3D preview uses.
 
 If it fails, the tile says "Render failed". Select the asset and press **Retry render** in its details. This also measures the model again. **Retry render** is also what to use after you change `asset.blend` in Blender yourself.
 
 ### Details, and editing an asset
 
-Click a tile to see the asset's details under the grid: a larger thumbnail, the name, the id and size in metres, the triangle count, where it came from, and the warnings. Every edit is saved at once.
+Click a tile to see the asset's details under the grid: the live 3D model (drag to orbit it, wheel to zoom; see "The live asset preview"), or its thumbnail when there is no model to show, the name, the id and size in metres, the triangle count, where it came from, and the warnings. Every edit is saved at once.
 
 - **Name.** Type a new name and press Enter.
 - **License.** Pick one from the list: Unknown, CC0, CC BY 4.0, Royalty free, Personal use only or Own work. Plynth does not check it, so set it from the terms you got the model under.

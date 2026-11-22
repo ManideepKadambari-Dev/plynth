@@ -1,5 +1,6 @@
 find_package(Catch2 CONFIG REQUIRED)
 find_package(nlohmann_json_schema_validator CONFIG REQUIRED)
+find_package(Clipper2 CONFIG REQUIRED)
 include(Catch)
 
 add_executable(plynth_echo_lines tools/echo_lines/main.cpp)
@@ -41,6 +42,9 @@ add_executable(plynth_core_tests
     core/WallGeometryTests.cpp
     core/OpeningTests.cpp
     core/OpeningCommandTests.cpp
+    core/BuildGeometryTests.cpp
+    core/BuildJobTests.cpp
+    core/BuildTests.cpp
     core/SnappingTests.cpp
     core/RoomTypesTests.cpp
     core/WallCommandTests.cpp
@@ -57,6 +61,7 @@ add_executable(plynth_core_tests
 target_link_libraries(plynth_core_tests PRIVATE
     plynth::core
     Catch2::Catch2WithMain
+    Clipper2::Clipper2
     nlohmann_json_schema_validator::validator)
 target_compile_definitions(plynth_core_tests PRIVATE
     PLYNTH_EXPECTED_VERSION="${PROJECT_VERSION}"

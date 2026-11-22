@@ -31,7 +31,7 @@ using Json = nlohmann::ordered_json;
 // Every other line is log text.
 //
 // Worker error codes: bad_job, unknown_task, unsupported_format, import_failed, no_geometry, several_models,
-// unpack_failed, save_failed, render_failed, internal.
+// unpack_failed, save_failed, render_failed, export_failed, internal.
 
 inline constexpr std::string_view kBlenderJobFormat = "plynth-blender-job";
 inline constexpr int kBlenderJobVersion = 1;
@@ -47,6 +47,7 @@ inline constexpr std::string_view kProgressPrefix = "PLYNTH:";
 inline constexpr std::string_view kProbeTask = "probe";                     // version and add-ons, see SetupCheck.h
 inline constexpr std::string_view kCleanupAssetTask = "cleanup_asset";     // see catalog/AssetJobs.h
 inline constexpr std::string_view kRenderThumbnailTask = "render_thumbnail"; // see catalog/AssetJobs.h
+inline constexpr std::string_view kBuildTask = "build";                    // see BuildJob.h
 
 // Makes a job: format, version, task, job_id, result_file and params, in that order.
 Json makeBlenderJob(std::string_view task, std::string_view jobId, const std::filesystem::path& resultFile,
@@ -57,7 +58,7 @@ std::string newJobId(std::string_view stem);
 
 // A note from the worker that did not stop the job, for example {"code": "high_polycount", ...}.
 // Codes: high_polycount, scale_suspicious, missing_texture, removed_objects, unsupported_object,
-// eevee_failed (the thumbnail fell back to Cycles).
+// fbx_failed (asset.fbx for the live preview could not be written; the asset itself is fine).
 struct BlenderWarning {
     std::string code;
     std::string message;

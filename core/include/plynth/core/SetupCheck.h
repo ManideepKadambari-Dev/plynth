@@ -29,7 +29,7 @@ enum class CheckState {
     Missing,        // "missing"
     TooOld,         // "too_old"
     NeedsAttention, // "needs_attention": usable, but the user should look (untested version, low disk space)
-    NotChecked,     // "not_checked": not checked in this version (the graphics driver until milestone 8)
+    NotChecked,     // "not_checked": not checked here (add-ons without a Blender, the graphics driver in doctor)
 };
 
 std::string_view checkStateName(CheckState state);
@@ -94,18 +94,30 @@ struct SetupReport {
     const SetupItem* find(std::string_view id) const;
 };
 
+// What the app found when it started the graphics the 3D preview uses. Core has no graphics code, so the
+// app fills this in and passes it to the checks; "plynth doctor" has none.
+struct GraphicsProbe {
+    bool ok = false;
+    std::string api;     // the graphics interface, for example "Direct3D 11"
+    std::string device;  // the graphics card, for example "NVIDIA GeForce RTX 3060"
+    std::string problem; // one plain sentence when ok is false
+};
+
 struct SetupCheckOptions {
     BlenderSearch search;          // chosen is filled from the settings by runSetupCheck when empty
     bool probeAddons = true;       // runs the probe task in the selected Blender (a few seconds)
     std::uintmax_t minLibraryFree = kMinLibraryFreeBytes;
     bool settingsExist = true;     // from SettingsLoad::exists, for firstRun
+    std::optional<GraphicsProbe> graphics; // from the app; empty in doctor
 };
 
 // Runs every check. Blender: findBlenderInstalls, then the preferred one; missing when none is found,
 // too old when only old ones are. Blender version: supported, too old, or needs attention when untested.
 // Library folder: set, exists, is a library (isLibraryFolder), writable, free space. Projects folder: set,
-// exists, writable. Graphics driver: NotChecked until the 3D preview exists (milestone 8), with the detail
-// "Checked once the 3D preview is added." Add-ons (never required): Found or Missing from the probe of the
+// exists, writable. Graphics driver, from options.graphics: Found with version = api and the detail naming
+// the device; Missing with the probe's problem as detail and the action "Update the graphics driver. See the
+// help page on the 3D preview."; NotChecked with "Checked by the app when it starts the 3D preview." when
+// there is no probe. Add-ons (never required): Found or Missing from the probe of the
 // selected Blender; NotChecked with "Blender is needed to check add-ons." when no Blender is usable or the
 // probe failed, and NotChecked when probeAddons is false. BlenderKit Found but not signed in is
 // NeedsAttention.
@@ -113,10 +125,13 @@ struct SetupCheckOptions {
 SetupReport runSetupCheck(const MachineSettings& settings, const SetupCheckOptions& options,
                           std::stop_token stop = {});
 
-// The checks that run no program: folders, and whether the saved Blender path still exists (state Found
-// with no version, NotChecked for the version and the add-ons). The app runs it at start to decide whether
-// to open the setup check screen.
+// The checks that run no program: folders, whether the saved Blender path still exists (state Found with no
+// version, NotChecked for the version and the add-ons), and the graphics driver from graphics as in
+// runSetupCheck (NotChecked in the first form). The app runs it at start to decide whether to open the setup
+// check screen.
 SetupReport quickSetupCheck(const MachineSettings& settings, bool settingsExist);
+SetupReport quickSetupCheck(const MachineSettings& settings, bool settingsExist,
+                            const std::optional<GraphicsProbe>& graphics);
 
 // Whether the app opens the setup check at start: first run, after an update, or a required item blocks.
 bool setupNeeded(const SetupReport& quick);

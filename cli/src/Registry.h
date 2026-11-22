@@ -6,6 +6,7 @@
 
 #include <filesystem>
 #include <functional>
+#include <ostream>
 #include <string>
 #include <vector>
 
@@ -15,6 +16,7 @@ namespace plynth::cli {
 struct RunContext {
     std::filesystem::path currentFolder;
     const CLI::App* root = nullptr; // the whole command tree, for help
+    std::ostream* progress = nullptr; // where long commands write progress lines, null for none
 };
 
 using Handler = std::function<Answer(const RunContext&)>;
@@ -45,6 +47,7 @@ std::vector<CommandSpec> assetCommands();
 std::vector<CommandSpec> doctorCommands();
 std::vector<CommandSpec> importCommands();
 std::vector<CommandSpec> itemCommands();
+std::vector<CommandSpec> buildCommands();
 
 // All commands in the order help lists them.
 const std::vector<CommandSpec>& allCommands();

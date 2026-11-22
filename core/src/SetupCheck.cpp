@@ -164,12 +164,22 @@ SetupItem projectsItem(const MachineSettings& settings)
     return i;
 }
 
-// The graphics driver item, a placeholder until the 3D preview exists.
-SetupItem graphicsItem()
+// The graphics driver item, from the app's probe of the graphics the 3D preview uses.
+SetupItem graphicsItem(const std::optional<GraphicsProbe>& graphics)
 {
     SetupItem i = item(kCheckGraphics, "Graphics driver", true);
-    i.state = CheckState::NotChecked;
-    i.detail = "Checked once the 3D preview is added.";
+    if (!graphics) {
+        i.state = CheckState::NotChecked;
+        i.detail = "Checked by the app when it starts the 3D preview.";
+    } else if (graphics->ok) {
+        i.state = CheckState::Found;
+        i.version = graphics->api;
+        i.detail = graphics->device.empty() ? "The 3D preview can draw." : graphics->device;
+    } else {
+        i.state = CheckState::Missing;
+        i.detail = graphics->problem.empty() ? "The 3D preview could not start." : graphics->problem;
+        i.action = "Update the graphics driver. See the help page on the 3D preview.";
+    }
     return i;
 }
 
@@ -360,7 +370,7 @@ SetupReport runSetupCheck(const MachineSettings& settings, const SetupCheckOptio
     report.items.push_back(std::move(blenderVersion));
     report.items.push_back(libraryItem(settings, options.minLibraryFree));
     report.items.push_back(projectsItem(settings));
-    report.items.push_back(graphicsItem());
+    report.items.push_back(graphicsItem(options.graphics));
 
     const BlenderInstall* usable = report.selectedBlender ? &report.blenderInstalls[*report.selectedBlender] : nullptr;
     if (!options.probeAddons) {
@@ -393,6 +403,13 @@ SetupReport runSetupCheck(const MachineSettings& settings, const SetupCheckOptio
 
 // The checks that run no program.
 SetupReport quickSetupCheck(const MachineSettings& settings, bool settingsExist)
+{
+    return quickSetupCheck(settings, settingsExist, std::nullopt);
+}
+
+// The checks that run no program, with the app's graphics probe.
+SetupReport quickSetupCheck(const MachineSettings& settings, bool settingsExist,
+                            const std::optional<GraphicsProbe>& graphics)
 {
     SetupReport report;
     report.firstRun = !settingsExist;
@@ -429,7 +446,7 @@ SetupReport quickSetupCheck(const MachineSettings& settings, bool settingsExist)
     report.items.push_back(std::move(blenderVersion));
     report.items.push_back(libraryItem(settings, kMinLibraryFreeBytes));
     report.items.push_back(projectsItem(settings));
-    report.items.push_back(graphicsItem());
+    report.items.push_back(graphicsItem(graphics));
     fillAddonsNotChecked(report, "Checked in the setup check.");
     finish(report);
     return report;

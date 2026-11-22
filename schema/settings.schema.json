@@ -1,14 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "urn:plynth:schema:settings:2",
-  "title": "Plynth machine settings, version 2",
-  "description": "Settings that belong to one computer rather than to one project. Saved as %APPDATA%/Plynth/settings.json, or in the folder named by the PLYNTH_CONFIG_DIR environment variable. Paths are absolute, UTF-8, with forward slashes. A missing field takes its default; an unknown field is refused. Version 1 files (settings.v1.schema.json) are upgraded when read: they get an empty recent_projects list.",
+  "$id": "urn:plynth:schema:settings:3",
+  "title": "Plynth machine settings, version 3",
+  "description": "Settings that belong to one computer rather than to one project. Saved as %APPDATA%/Plynth/settings.json, or in the folder named by the PLYNTH_CONFIG_DIR environment variable. Paths are absolute, UTF-8, with forward slashes. A missing field takes its default; an unknown field is refused. Older files are upgraded when read: version 1 (settings.v1.schema.json) gets an empty recent_projects list, version 2 (settings.v2.schema.json) loses thumbnail_engine, because thumbnails are rendered with Eevee only.",
   "type": "object",
   "required": ["format", "version"],
   "additionalProperties": false,
   "properties": {
     "format": { "const": "plynth-settings" },
-    "version": { "const": 2 },
+    "version": { "const": 3 },
     "library": {
       "description": "The Library folder (assets, materials, generators, shapes). Null until chosen.",
       "type": ["string", "null"],
@@ -28,11 +28,6 @@
       "description": "Keep a zip after its asset was imported. When false the zip is moved to the Recycle Bin.",
       "type": "boolean",
       "default": false
-    },
-    "thumbnail_engine": {
-      "description": "The render engine for thumbnails. Eevee falls back to Cycles once when it fails.",
-      "enum": ["eevee", "cycles"],
-      "default": "eevee"
     },
     "triangle_warning": {
       "description": "Imports with more triangles than this get a warning. Never refused.",

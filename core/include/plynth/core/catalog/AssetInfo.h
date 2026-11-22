@@ -15,6 +15,8 @@ namespace plynth {
 
 // One asset on disk: Library/assets/items/<id>/ with
 //   asset.blend   the cleaned model (see the conventions below)
+//   asset.fbx     the same model exported by the worker for the app's live 3D preview, textures linked by
+//                 relative paths into textures/; missing until the worker has written it
 //   textures/     every image the model uses, linked from asset.blend by relative paths
 //   thumb.png     512 px render, missing when the render failed
 //   info.json     this struct, in the format of schema/asset-info.schema.json
@@ -31,6 +33,7 @@ namespace plynth {
 
 inline constexpr std::string_view kAssetInfoFileName = "info.json";
 inline constexpr std::string_view kAssetBlendFileName = "asset.blend";
+inline constexpr std::string_view kAssetFbxFileName = "asset.fbx";
 inline constexpr std::string_view kAssetThumbFileName = "thumb.png";
 inline constexpr std::string_view kAssetTexturesFolder = "textures";
 inline constexpr std::string_view kAssetInfoFormat = "plynth-asset";
@@ -72,7 +75,7 @@ struct AssetSource {
 struct AssetThumbnail {
     bool rendered = false;  // thumb.png exists and is current
     std::string error;      // why the last render failed; empty when it did not fail
-    std::string engine;     // "eevee" or "cycles"
+    std::string engine;     // "eevee"; "cycles" only in files written before milestone 8
     SessionTime renderedAt{};
 
     bool operator==(const AssetThumbnail&) const = default;

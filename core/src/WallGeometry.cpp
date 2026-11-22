@@ -90,6 +90,64 @@ std::vector<const Wall*> wallsAt(const Floor& floor, const Point& point)
     return out;
 }
 
+// Where two lines p + t * d meet. False when they are nearly parallel.
+bool meetPoint(Vec2 p1, Vec2 d1, Vec2 p2, Vec2 d2, Vec2& out)
+{
+    const double denom = d1.x * d2.y - d1.y * d2.x;
+    if (std::fabs(denom) < 1e-6) return false;
+    const double t = ((p2.x - p1.x) * d2.y - (p2.y - p1.y) * d2.x) / denom;
+    out = plus(p1, d1, t);
+    return true;
+}
+
+// Where a wall's direction points when leaving a point along the wall.
+Vec2 leavingDirection(const WallCurve& curve, bool atStart)
+{
+    const Vec2 t = tangentAlong(curve, atStart ? 0.0 : curve.length);
+    return atStart ? t : Vec2{-t.x, -t.y};
+}
+
+// When exactly two walls meet at a point, cuts the end of this wall on the mitre so the outer faces of both
+// walls meet in one clean corner, whatever their thickness.
+void applyMitre(const Floor& floor, const Wall& wall, const Point& point, bool atStart, const WallCurve& curve,
+                double half, BandEnd& end)
+{
+    const std::vector<const Wall*> walls = wallsAt(floor, point);
+    if (walls.size() != 2) return;
+    const Wall* other = walls[0] == &wall ? walls[1] : walls[0];
+    if (other == &wall) return;
+    const WallCurve otherCurve = wallCurve(floor, *other);
+    if (!otherCurve.valid) return;
+    if (std::fabs(wallHeight(floor, wall) - wallHeight(floor, *other)) > 1e-6) return;
+
+    const Vec2 u1 = leavingDirection(curve, atStart);
+    const Vec2 u2 = leavingDirection(otherCurve, other->from == point.id);
+    if (dot(u1, u2) > std::cos(25.0 * kPi / 180.0)) return;
+    const double otherHalf = other->thickness / 2.0;
+    const Vec2 corner = positionOf(point);
+
+    // Seen along a path that comes in along this wall and leaves along the other.
+    const Vec2 in{-u1.x, -u1.y};
+    Vec2 pathRight;
+    Vec2 pathLeft;
+    if (!meetPoint(plus(corner, rightOf(in), half), u1, plus(corner, rightOf(u2), otherHalf), u2, pathRight)) return;
+    if (!meetPoint(plus(corner, rightOf(in), -half), u1, plus(corner, rightOf(u2), -otherHalf), u2, pathLeft)) return;
+
+    // A mitre that reaches past the middle of either wall would fold its band, so both ends stay square.
+    const auto reachOn = [&](Vec2 dir) {
+        return std::max(dot({pathRight.x - corner.x, pathRight.y - corner.y}, dir),
+                        dot({pathLeft.x - corner.x, pathLeft.y - corner.y}, dir));
+    };
+    if (reachOn(u1) > curve.length / 2.0) return;
+    if (reachOn(u2) > otherCurve.length / 2.0) return;
+
+    // The wall's own right is the path's right only when the wall runs the same way as the path.
+    const bool sameWay = !atStart;
+    end.mitred = true;
+    end.right = sameWay ? pathRight : pathLeft;
+    end.left = sameWay ? pathLeft : pathRight;
+}
+
 }
 
 // The bend of the wall between two positions.
@@ -330,6 +388,12 @@ WallPath wallPath(const Floor& floor, const Wall& wall)
 // The outline of a wall's band.
 std::vector<std::vector<Vec2>> wallBand(const Floor& floor, const Wall& wall)
 {
+    return detail::wallBandWith(floor, wall, false);
+}
+
+// The band with its ends square or, when mitre is set, cut on the mitre where exactly two walls meet.
+std::vector<std::vector<Vec2>> detail::wallBandWith(const Floor& floor, const Wall& wall, bool mitre)
+{
     const WallPath path = wallPath(floor, wall);
     if (!path.curve.valid || path.centreLine.size() < 2) return {};
     const double half = wall.thickness / 2.0;
@@ -350,6 +414,7 @@ std::vector<std::vector<Vec2>> wallBand(const Floor& floor, const Wall& wall)
         const Vec2 t = tangentAlong(path.curve, 0.0);
         start.position = plus(path.centreLine.front(), t, -half);
         start.along = t;
+        if (mitre) applyMitre(floor, wall, *from, true, path.curve, half, start);
     }
     if (path.roundedEnd) {
         const CornerRounding r = cornerRounding(floor, *to);
@@ -363,6 +428,7 @@ std::vector<std::vector<Vec2>> wallBand(const Floor& floor, const Wall& wall)
         const Vec2 t = tangentAlong(path.curve, path.curve.length);
         end.position = plus(path.centreLine.back(), t, half);
         end.along = t;
+        if (mitre) applyMitre(floor, wall, *to, false, path.curve, half, end);
     }
 
     const std::vector<Vec2> outline = bandAround(path.centreLine, half, start, end);
@@ -416,6 +482,14 @@ std::vector<Vec2> detail::bandAround(const std::vector<Vec2>& line, double half,
     for (std::size_t i = 0; i < n; ++i) {
         left.push_back(plus(pts[i], normals[i], -half * scale[i]));
         right.push_back(plus(pts[i], normals[i], half * scale[i]));
+    }
+    if (start.mitred) {
+        left.front() = start.left;
+        right.front() = start.right;
+    }
+    if (end.mitred) {
+        left.back() = end.left;
+        right.back() = end.right;
     }
     std::vector<Vec2> out = left;
     out.insert(out.end(), right.rbegin(), right.rend());

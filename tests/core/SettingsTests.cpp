@@ -7,6 +7,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include <nlohmann/json.hpp>
 
+#include <process.h>
+
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -32,7 +34,6 @@ TEST_CASE("settings round trip", "[core][settings]") {
     s.projects = fs::path(tmp.path() / "Projects");
     s.blender = fs::path("C:/Blender/blender.exe");
     s.keepImportedZips = true;
-    s.thumbnailEngine = ThumbnailEngine::Cycles;
     s.triangleWarning = 12345;
     s.setupCheckedVersion = "1.2.3";
 
@@ -62,7 +63,6 @@ TEST_CASE("settings data files", "[core][settings]") {
         REQUIRE(l.settings.library == fs::path("D:/Lib"));
         REQUIRE_FALSE(l.settings.projects);
         REQUIRE(l.settings.keepImportedZips);
-        REQUIRE(l.settings.thumbnailEngine == ThumbnailEngine::Cycles);
         REQUIRE(l.settings.triangleWarning == 1000);
         REQUIRE(l.settings.setupCheckedVersion == "0.6.0");
     }
@@ -77,9 +77,14 @@ TEST_CASE("settings data files", "[core][settings]") {
         REQUIRE(l.status.where == "/colour");
         REQUIRE(l.exists);
     }
-    SECTION("version 3 is unsupported_version") {
-        const SettingsLoad l = loadSettings(dataFile("settings-version-3.json"));
+    SECTION("version 4 is unsupported_version") {
+        const SettingsLoad l = loadSettings(dataFile("settings-version-4.json"));
         REQUIRE(l.status.code == ErrorCode::UnsupportedVersion);
+    }
+    SECTION("a version 3 file may not carry the engine") {
+        const SettingsLoad l = loadSettings(dataFile("settings-v3-with-engine.json"));
+        REQUIRE(l.status.code == ErrorCode::BadFile);
+        REQUIRE(l.status.where == "/thumbnail_engine");
     }
     SECTION("a bad value points at its field") {
         const SettingsLoad l = loadSettings(dataFile("settings-bad-engine.json"));
@@ -117,7 +122,6 @@ TEST_CASE("settingsToJson validates against the schema", "[core][settings][schem
     s.projects = fs::path("D:/Projects");
     s.blender = fs::path("C:/Program Files/Blender Foundation/Blender 5.2/blender.exe");
     s.keepImportedZips = true;
-    s.thumbnailEngine = ThumbnailEngine::Cycles;
     s.setupCheckedVersion = "0.6.0";
     REQUIRE(plynth::test::schemaProblem("settings.schema.json", plain(settingsToJson(s))).empty());
 
@@ -126,14 +130,15 @@ TEST_CASE("settingsToJson validates against the schema", "[core][settings][schem
         const auto json = nlohmann::json::parse(plynth::test::readTextFile(dataFile(name)));
         REQUIRE(plynth::test::schemaProblem("settings.schema.json", json).empty());
     }
-    for (const char* name : {"settings-unknown-field.json", "settings-version-3.json", "settings-bad-engine.json"}) {
+    for (const char* name : {"settings-unknown-field.json", "settings-version-4.json", "settings-bad-engine.json",
+                                  "settings-v3-with-engine.json", "settings-v2.json"}) {
         INFO(name);
         const auto json = nlohmann::json::parse(plynth::test::readTextFile(dataFile(name)));
         REQUIRE_FALSE(plynth::test::schemaProblem("settings.schema.json", json).empty());
     }
 }
 
-TEST_CASE("a version 1 settings file is read and written back as version 2", "[core][settings][migrate]") {
+TEST_CASE("a version 1 settings file is read and written back as version 3", "[core][settings][migrate]") {
     plynth::test::TempDir tmp("settings-v1");
     const SettingsLoad l = loadSettings(dataFile("settings-v1.json"));
     plynth::test::requireOk(l.status);
@@ -149,7 +154,7 @@ TEST_CASE("a version 1 settings file is read and written back as version 2", "[c
     const fs::path file = tmp.path() / "settings.json";
     plynth::test::requireOk(saveSettings(l.settings, file));
     const std::string text = plynth::test::readTextFile(file);
-    REQUIRE(text.find("\"version\": 2") != std::string::npos);
+    REQUIRE(text.find("\"version\": 3") != std::string::npos);
     REQUIRE(text.find("\"recent_projects\": []") != std::string::npos);
     REQUIRE(plynth::test::schemaProblem("settings.schema.json", plain(settingsToJson(l.settings))).empty());
 
@@ -239,7 +244,7 @@ TEST_CASE("the thumbnail path is stable, per folder and under the settings folde
 
 TEST_CASE("PLYNTH_CONFIG_DIR changes the settings file", "[core][settings]") {
     // The variable is set in the ANSI code page, so this folder name stays plain ASCII.
-    const fs::path base = fs::temp_directory_path() / "plynth-settings-env";
+    const fs::path base = fs::temp_directory_path() / ("plynth-settings-env-" + std::to_string(_getpid()));
     std::error_code ignore;
     fs::remove_all(base, ignore);
     struct Cleanup {
@@ -275,9 +280,24 @@ TEST_CASE("default folders sit under Documents\\Plynth", "[core][settings]") {
     REQUIRE(library.parent_path().filename() == "Plynth");
 }
 
-TEST_CASE("thumbnail engine names", "[core][settings]") {
-    REQUIRE(thumbnailEngineName(ThumbnailEngine::Eevee) == "eevee");
-    REQUIRE(thumbnailEngineName(ThumbnailEngine::Cycles) == "cycles");
-    REQUIRE(thumbnailEngineFromName("cycles") == ThumbnailEngine::Cycles);
-    REQUIRE_FALSE(thumbnailEngineFromName("workbench"));
+TEST_CASE("a version 2 settings file with an engine is read and saved as version 3", "[core][settings][migrate]") {
+    plynth::test::TempDir tmp("settings-v2");
+    const SettingsLoad l = loadSettings(dataFile("settings-v2.json"));
+    plynth::test::requireOk(l.status);
+    REQUIRE(l.settings.library == fs::path("D:/Lib"));
+    REQUIRE(l.settings.keepImportedZips);
+    REQUIRE(l.settings.triangleWarning == 1000);
+    REQUIRE(l.settings.recentProjects.size() == 1);
+
+    const auto v2 = nlohmann::json::parse(plynth::test::readTextFile(dataFile("settings-v2.json")));
+    REQUIRE(plynth::test::schemaProblem("settings.v2.schema.json", v2).empty());
+    REQUIRE_FALSE(plynth::test::schemaProblem("settings.schema.json", v2).empty());
+
+    const fs::path file = tmp.path() / "settings.json";
+    plynth::test::requireOk(saveSettings(l.settings, file));
+    const std::string text = plynth::test::readTextFile(file);
+    REQUIRE(text.find("\"version\": 3") != std::string::npos);
+    REQUIRE(text.find("thumbnail_engine") == std::string::npos);
+    const auto saved = nlohmann::json::parse(text);
+    REQUIRE(plynth::test::schemaProblem("settings.schema.json", saved).empty());
 }

@@ -141,7 +141,7 @@ TitleBar::TitleBar(QWidget* parent)
     fileMenu_ = menuBar_->addMenu(tr("&File"));
     editMenu_ = menuBar_->addMenu(tr("&Edit"));
     viewMenu_ = menuBar_->addMenu(tr("&View"));
-    menuBar_->addMenu(tr("&Build"));
+    buildMenu_ = menuBar_->addMenu(tr("&Build"));
     catalogMenu_ = menuBar_->addMenu(tr("&Catalog"));
     helpMenu_ = menuBar_->addMenu(tr("&Help"));
     menuBar_->setToolTip(tr("Menu"));

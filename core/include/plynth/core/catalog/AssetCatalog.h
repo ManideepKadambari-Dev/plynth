@@ -103,6 +103,7 @@ struct AssetRecord {
     std::string thumbnailError;
     std::filesystem::path folder;    // items/<id>
     std::filesystem::path thumbFile; // items/<id>/thumb.png, set when thumbnail is Ok
+    std::filesystem::path fbxFile;   // items/<id>/asset.fbx, set when that file exists
 
     bool uncategorized() const { return categories.empty(); }
     bool operator==(const AssetRecord&) const = default;
@@ -197,7 +198,9 @@ public:
     // Rebuilds the asset rows from items/ (DESIGN.md section 7.11 "Rescanning"): folders starting with "."
     // are skipped; a folder with asset.blend but no info.json gets a new info.json (uncategorized, measured
     // later, so it is listed in needsRefresh); a folder whose asset.blend size or write time differs from
-    // info.json is NeedsRefresh; rows without a folder are removed. Runs no Blender and never deletes files.
+    // info.json is NeedsRefresh; a folder with asset.blend but no asset.fbx is listed in needsRefresh and keeps
+    // its state, so refreshAsset writes the preview file; rows without a folder are removed. Runs no Blender
+    // and never deletes files.
     RescanReport rescan();
 
     // Opens the catalog and hands its room types to useRoomTypes. Used by the app when the library opens and

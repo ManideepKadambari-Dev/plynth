@@ -73,6 +73,14 @@ public:
     int terminalButton() const { return terminalButton_; }
     int terminalPanelWidth() const { return terminalPanelWidth_; }
     int terminalPanelHeight() const { return terminalPanelHeight_; }
+    int buildBarHeight() const { return buildBarHeight_; }
+    int problemMarker() const { return problemMarker_; }
+    int previewButton() const { return previewButton_; }
+    double overlay3dOpacity() const { return overlay3dOpacity_; }
+    double keyLightBrightness() const { return keyLightBrightness_; }
+    double probeExposure() const { return probeExposure_; }
+    int aoStrength() const { return aoStrength_; }
+    QColor lightColor() const { return lightColor_; }
     QColor terminalAnsi(int index) const { return ansi_[static_cast<size_t>(index)]; }
     QString monoFamily() const { return monoFamily_; }
 
@@ -124,6 +132,14 @@ private:
     int terminalButton_ = 44;
     int terminalPanelWidth_ = 760;
     int terminalPanelHeight_ = 420;
+    int buildBarHeight_ = 40;
+    int problemMarker_ = 12;
+    int previewButton_ = 28;
+    double overlay3dOpacity_ = 0.85;
+    double keyLightBrightness_ = 1.0;
+    double probeExposure_ = 1.0;
+    int aoStrength_ = 60;
+    QColor lightColor_ = Qt::white;
     std::array<QColor, 16> ansi_;
 };
 

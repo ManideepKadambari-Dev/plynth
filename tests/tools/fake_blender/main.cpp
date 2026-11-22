@@ -1,7 +1,7 @@
 // A stand-in for blender.exe in tests. It answers --version and runs the Plynth worker protocol without
 // Blender: it reads the job file after "--", acts by the mode in fake_mode.txt next to the program (or the
 // FAKE_BLENDER_MODE variable), and writes a result file that follows schema/blender-result.schema.json.
-// Modes: ok (default), fail, crash, hang, hang_version, bad_result, no_thumbnail.
+// Modes: ok (default), fail, crash, hang, hang_version, bad_result, no_thumbnail, no_fbx, build_problem.
 // The version comes from fake_version.txt next to the program, else 5.2.0.
 // Probe add-ons come from FAKE_BLENDER_ADDONS (comma separated modules) and FAKE_BLENDER_BLENDERKIT
 // (none, installed, enabled or signed_in).
@@ -208,6 +208,62 @@ Json probeOutput(const std::string& version)
                 {"blenderkit", Json{{"installed", installed}, {"enabled", enabled}, {"signed_in", kit == "signed_in"}}}};
 }
 
+
+// The steps the fake build reports.
+constexpr const char* kBuildSteps[] = {"prepare_scene", "walls", "openings", "floors", "assets", "materials", "save_blend", "export_fbx"};
+
+// The sum of one list over all floors of a build job.
+int sumOf(const Json& floors, const char* key)
+{
+    int total = 0;
+    for (const Json& floor : floors) total += static_cast<int>(floor[key].size());
+    return total;
+}
+
+// What the fake build task writes and reports.
+Json buildOutput(const Json& params, const std::string& mode)
+{
+    const fs::path folder = pathFrom(params["output_folder"].get<std::string>());
+    writeFile(folder / "building.blend", "FAKEBLEND");
+    const bool fbx = params["fbx_file"].is_string();
+    if (fbx) writeFile(folder / "building.fbx", "FAKEFBX");
+
+    const Json& floors = params["floors"];
+    const int solids = sumOf(floors, "wall_solids");
+    const int openings = sumOf(floors, "openings");
+    const int rooms = sumOf(floors, "rooms");
+    const int items = sumOf(floors, "items");
+    int fills = 0;
+    const bool fill = params["settings"]["fill_openings"].get<bool>();
+    Json problems = Json::array();
+    for (const Json& floor : floors) {
+        for (const Json& opening : floor["openings"]) {
+            if (fill && opening["type"] != "plain") ++fills;
+            if (mode == "build_problem" && problems.empty()) {
+                problems.push_back(Json{{"code", "cut_failed"},
+                                        {"severity", "error"},
+                                        {"message", "The cut for opening " + opening["id"].get<std::string>() + " failed."},
+                                        {"floor", floor["id"]},
+                                        {"object", opening["id"]},
+                                        {"step", "openings"}});
+            }
+        }
+    }
+    const int objects = solids + openings + rooms * 2 + items;
+    Json steps = Json::array();
+    for (const char* step : kBuildSteps) steps.push_back(Json{{"step", step}, {"ms", 3}});
+
+    Json out = Json::object();
+    out["blend_file"] = "building.blend";
+    out["fbx_file"] = fbx ? Json("building.fbx") : Json(nullptr);
+    out["objects"] = objects;
+    out["triangles"] = objects * 12;
+    out["counts"] = Json{{"wall_solids", solids}, {"openings_cut", openings}, {"fills", fills}, {"rooms", rooms}, {"items", items}};
+    out["steps"] = steps;
+    out["problems"] = problems;
+    return out;
+}
+
 }
 
 // The command line arguments as UTF-8, read from the wide command line so non ASCII paths survive.
@@ -259,8 +315,14 @@ int main()
     const Json job = Json::parse(in, nullptr, false);
     if (job.is_discarded()) return 3;
 
-    progress("import_source", 1, 2, "Fake import");
-    progress("save_blend", 2, 2, "Fake save");
+    const bool isBuild = job["task"].get<std::string>() == "build";
+    if (isBuild) {
+        int index = 0;
+        for (const char* step : kBuildSteps) progress(step, ++index, static_cast<int>(std::size(kBuildSteps)), "Fake build step");
+    } else {
+        progress("import_source", 1, 2, "Fake import");
+        progress("save_blend", 2, 2, "Fake save");
+    }
     std::cout << "fake blender log line" << std::endl;
 
     if (mode == "hang") hangForever();
@@ -288,18 +350,24 @@ int main()
     if (mode == "fail" || (mode == "no_thumbnail" && task == "render_thumbnail")) {
         const bool render = mode != "fail";
         result["ok"] = false;
-        result["error"] = Json{{"code", render ? "render_failed" : "import_failed"},
-                               {"message", render ? "Fake render failure" : "Fake import failure."}};
+        const bool build = task == "build";
+        result["error"] = Json{{"code", render ? "render_failed" : build ? "save_failed" : "import_failed"},
+                               {"message", render ? "Fake render failure" : build ? "Fake save failure." : "Fake import failure."}};
         result["output"] = nullptr;
         writeResult(resultFile, result);
         return 0;
     }
 
-    if (task == "probe") {
+    if (task == "build") {
+        result["output"] = buildOutput(params, mode);
+    } else if (task == "probe") {
         result["output"] = probeOutput(version);
     } else if (task == "cleanup_asset") {
         const fs::path folder = pathFrom(params["output_folder"].get<std::string>());
         writeFile(folder / "asset.blend", "FAKEBLEND");
+        const bool fbxWritten = mode != "no_fbx";
+        if (fbxWritten) writeFile(folder / "asset.fbx", "FAKEFBX");
+        else result["warnings"].push_back(Json{{"code", "fbx_failed"}, {"message", "Fake asset.fbx failure"}});
         const bool wantThumbnail = params["thumbnail"]["render"].get<bool>();
         Json thumbnail = Json{{"file", nullptr}, {"engine", nullptr}, {"error", nullptr}};
         if (wantThumbnail && mode == "no_thumbnail") {
@@ -311,11 +379,12 @@ int main()
         const bool zip = params["source"]["format"].get<std::string>() == "zip";
         Json output = measures(true);
         output["blend_file"] = "asset.blend";
+        output["fbx_file"] = fbxWritten ? Json("asset.fbx") : Json(nullptr);
         output["picked_file"] = zip ? Json("model.obj") : Json(nullptr);
         output["missing_textures"] = Json::array();
         output["thumbnail"] = thumbnail;
         Json ordered = Json::object();
-        for (const char* key : {"blend_file", "picked_file", "size", "triangles", "objects", "materials", "textures", "missing_textures", "thumbnail"}) {
+        for (const char* key : {"blend_file", "fbx_file", "picked_file", "size", "triangles", "objects", "materials", "textures", "missing_textures", "thumbnail"}) {
             ordered[key] = output[key];
         }
         result["output"] = ordered;
@@ -323,6 +392,17 @@ int main()
         const fs::path file = pathFrom(params["output_file"].get<std::string>());
         writeFile(file, tinyPng());
         Json output = measures(params["measure"].get<bool>());
+        Json fbxName = nullptr;
+        if (params["fbx_file"].is_string()) {
+            if (mode == "no_fbx") {
+                result["warnings"].push_back(Json{{"code", "fbx_failed"}, {"message", "Fake asset.fbx failure"}});
+            } else {
+                const fs::path fbx = pathFrom(params["fbx_file"].get<std::string>());
+                writeFile(fbx, "FAKEFBX");
+                fbxName = fbx.filename().string();
+            }
+        }
+        output["fbx_file"] = fbxName;
         output["thumbnail"] = Json{{"file", pathFrom(params["output_file"].get<std::string>()).filename().string()},
                                    {"engine", "eevee"},
                                    {"error", nullptr}};

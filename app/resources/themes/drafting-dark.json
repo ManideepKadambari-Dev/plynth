@@ -50,7 +50,19 @@
     "pickerRowHeight": 28,
     "previewWidth": 288,
     "rotationHandle": 10,
-    "itemLabelMinPixels": 48
+    "itemLabelMinPixels": 48,
+    "buildBarHeight": 40,
+    "problemMarker": 12,
+    "previewButton": 28
+  },
+  "opacity": {
+    "overlay3d": 0.85
+  },
+  "preview": {
+    "lightColor": "#FFFFFF",
+    "keyLightBrightness": 2.2,
+    "probeExposure": 1.5,
+    "aoStrength": 60
   },
   "effects": {
     "overlayAlpha": 150,

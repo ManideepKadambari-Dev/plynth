@@ -67,9 +67,11 @@ The zoom actions work once a plan image is loaded.
 |---|---|
 | Ctrl+= or Ctrl++ | Zoom in one step |
 | Ctrl+- | Zoom out one step |
-| Ctrl+0 | Fit the whole plan in the window |
+| Ctrl+0 | Fit the whole plan in the window. When the 3D view is showing, fit the building in it |
 | Ctrl+1 | Show the plan at 100 percent |
 | Ctrl+` | Show or hide the terminal |
+| 3 | Switch between the plan and the 3D view |
+| Alt+3 | Show or hide the 3D overlay on the plan |
 | G | Snap to grid on or off (on by default) |
 | E | Show or hide the wall view under the plan |
 | F | Flip the wall view to the other side of the wall |
@@ -77,6 +79,21 @@ The zoom actions work once a plan image is loaded.
 Each zoom step is a factor of 1.25. The zoom range is 2 percent to 3200 percent.
 
 E and F work when the canvas or the wall view has focus. F does something only while the wall view is showing.
+
+## Build and the 3D view
+
+| Shortcut | Action |
+|---|---|
+| Ctrl+B | Build the building in Blender |
+| 3 | Switch between the plan and the 3D view (View > 3D view) |
+| Alt+3 | Show the 3D overlay on the plan, or hide it (View > 3D overlay on plan) |
+| Ctrl+0 | In the 3D view, fit the whole building in the window |
+
+Ctrl+B builds while a build is not already running. Cancel the build with the **Cancel** button in the build bar or Build > Cancel build.
+
+In the 3D view the two small buttons in the top right corner look straight down (**Top**) or from the front right (**Three quarter**). They have no shortcut.
+
+While the terminal or a text box has focus, the keys go there first, so click the plan or the 3D view before pressing 3. Ctrl+= and Ctrl+- zoom the plan only.
 
 ## Catalog
 
@@ -175,6 +192,16 @@ With the mouse, drag to select text. The wheel scrolls back through the last 500
 While Space is held, the cursor becomes an open hand. It closes while you drag.
 
 Space needs the canvas to have keyboard focus. Moving the mouse over the canvas gives it focus.
+
+## The 3D view mouse
+
+| Action | What it does |
+|---|---|
+| Left button and drag | Orbit around the middle of the building |
+| Middle or right button and drag | Pan |
+| Mouse wheel | Zoom toward the point the view turns around |
+
+The 3D view only shows the building. Nothing you do in it changes the plan.
 
 ## Fit to window
 

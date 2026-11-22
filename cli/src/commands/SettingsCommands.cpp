@@ -16,13 +16,11 @@ struct SetOptions {
     std::string projects;
     std::string blender;
     std::string keepZips;
-    std::string engine;
     long long triangleWarning = 0;
     bool hasLibrary = false;
     bool hasProjects = false;
     bool hasBlender = false;
     bool hasKeepZips = false;
-    bool hasEngine = false;
     bool hasTriangleWarning = false;
 };
 
@@ -57,7 +55,7 @@ Answer settingsShow() {
 Answer settingsSet(const RunContext& context, const SetOptions& options) {
     const std::string command = "settings set";
     if (!options.hasLibrary && !options.hasProjects && !options.hasBlender && !options.hasKeepZips &&
-        !options.hasEngine && !options.hasTriangleWarning) {
+        !options.hasTriangleWarning) {
         return badArguments(command, "bad_arguments", "Give at least one option to change. Run 'plynth help'.");
     }
     const SettingsLoad loaded = loadSettings();
@@ -115,9 +113,6 @@ Answer settingsSet(const RunContext& context, const SetOptions& options) {
     if (options.hasKeepZips) {
         settings.keepImportedZips = options.keepZips == "true";
     }
-    if (options.hasEngine) {
-        settings.thumbnailEngine = *thumbnailEngineFromName(options.engine);
-    }
     if (options.hasTriangleWarning) {
         if (options.triangleWarning < 1) {
             return failure(command, fail(ErrorCode::InvalidValue, "The triangle warning must be at least 1."));
@@ -137,7 +132,7 @@ Answer settingsSet(const RunContext& context, const SetOptions& options) {
 std::vector<CommandSpec> settingsCommands() {
     CommandSpec show;
     show.words = {"settings", "show"};
-    show.description = "Show the machine settings: library, projects folder, Blender and thumbnail options.";
+    show.description = "Show the machine settings: library, projects folder, Blender and import options.";
     show.setup = [](CLI::App&) -> Handler {
         return [](const RunContext&) { return settingsShow(); };
     };
@@ -160,10 +155,6 @@ std::vector<CommandSpec> settingsCommands() {
             ->type_name("true|false")
             ->check(CLI::IsMember({"true", "false"}))
             ->each([options](const std::string&) { options->hasKeepZips = true; });
-        sub.add_option("--thumbnail-engine", options->engine, "Render engine for thumbnails.")
-            ->type_name("eevee|cycles")
-            ->check(CLI::IsMember({"eevee", "cycles"}))
-            ->each([options](const std::string&) { options->hasEngine = true; });
         sub.add_option("--triangle-warning", options->triangleWarning,
                        "Imports with more triangles than this get a warning.")
             ->type_name("number")

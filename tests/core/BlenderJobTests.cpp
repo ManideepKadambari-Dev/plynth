@@ -173,7 +173,6 @@ TEST_CASE("jobs validate against the job schema", "[core][blenderjob][schema]") 
     cleanup.outputFolder = tmp.path() / "item";
     cleanup.scale = 0.01;
     cleanup.rotateZ = 90;
-    cleanup.thumbnail.engine = ThumbnailEngine::Cycles;
     REQUIRE(problemWith("blender-job.schema.json", makeCleanupJob(cleanup, "chair-1a2b3c4d", result)).empty());
     cleanup.format = "zip";
     cleanup.thumbnail.render = false;
@@ -185,6 +184,30 @@ TEST_CASE("jobs validate against the job schema", "[core][blenderjob][schema]") 
     REQUIRE(problemWith("blender-job.schema.json", makeThumbnailJob(thumb, "thumb-1a2b3c4d", result)).empty());
     thumb.measure = false;
     REQUIRE(problemWith("blender-job.schema.json", makeThumbnailJob(thumb, "thumb-1a2b3c4d", result)).empty());
+    thumb.fbxFile = tmp.path() / "asset.fbx";
+    const Json withFbx = makeThumbnailJob(thumb, "thumb-1a2b3c4d", result);
+    REQUIRE(problemWith("blender-job.schema.json", withFbx).empty());
+    REQUIRE(withFbx["params"]["fbx_file"].is_string());
+}
+
+TEST_CASE("thumbnail jobs carry no engine and a null fbx_file when none is wanted", "[core][blenderjob][schema]") {
+    plynth::test::TempDir tmp("job-noengine");
+    const fs::path result = tmp.path() / "result.json";
+    CleanupJob cleanup;
+    cleanup.sourceFile = tmp.path() / "chair.obj";
+    cleanup.format = "obj";
+    cleanup.assetId = "chair";
+    cleanup.outputFolder = tmp.path() / "item";
+    const Json cleanupJson = makeCleanupJob(cleanup, "chair-1a2b3c4d", result);
+    REQUIRE_FALSE(cleanupJson["params"]["thumbnail"].contains("engine"));
+
+    ThumbnailJob thumb;
+    thumb.blendFile = tmp.path() / "asset.blend";
+    thumb.outputFile = tmp.path() / "thumb.png";
+    const Json thumbJson = makeThumbnailJob(thumb, "thumb-1a2b3c4d", result);
+    REQUIRE_FALSE(thumbJson["params"]["thumbnail"].contains("engine"));
+    REQUIRE(thumbJson["params"]["fbx_file"].is_null());
+    REQUIRE(problemWith("blender-job.schema.json", thumbJson).empty());
 }
 
 TEST_CASE("a job has its fields in a fixed order", "[core][blenderjob]") {
@@ -211,6 +234,8 @@ TEST_CASE("cleanup and thumbnail results are read", "[core][blenderjob]") {
     const AssetJobOutput out = readCleanupResult(run.result, id);
     plynth::test::requireOk(out.header.status);
     REQUIRE(out.blendFile == "asset.blend");
+    REQUIRE(out.fbxFile == "asset.fbx");
+    REQUIRE(fs::exists(f.work / "item" / "asset.fbx"));
     REQUIRE(out.pickedFile.empty());
     REQUIRE(out.measured);
     REQUIRE(out.size.width == 0.5);
@@ -246,6 +271,20 @@ TEST_CASE("no_thumbnail mode imports with a thumbnail error", "[core][blenderjob
     REQUIRE(problemWith("blender-result.schema.json", run.result).empty());
 }
 
+TEST_CASE("no_fbx mode imports with fbx_file null and the fbx_failed warning", "[core][blenderjob]") {
+    JobFixture f("job-nofbx", "no_fbx");
+    const BlenderJobRun run = runBlenderJob(f.exe, cleanupJob(f, "obj", "chair-00000005"), f.work, f.options);
+    plynth::test::requireOk(run.status);
+    REQUIRE(problemWith("blender-result.schema.json", run.result).empty());
+    const AssetJobOutput out = readCleanupResult(run.result, "chair-00000005");
+    plynth::test::requireOk(out.header.status);
+    REQUIRE(out.fbxFile.empty());
+    REQUIRE(out.thumbnailRendered);
+    REQUIRE_FALSE(fs::exists(f.work / "item" / "asset.fbx"));
+    REQUIRE(out.header.warnings.size() == 1);
+    REQUIRE(out.header.warnings[0].code == "fbx_failed");
+}
+
 TEST_CASE("render_thumbnail results", "[core][blenderjob]") {
     JobFixture f("job-render");
     ThumbnailJob job;
@@ -260,7 +299,19 @@ TEST_CASE("render_thumbnail results", "[core][blenderjob]") {
     REQUIRE(out.measured);
     REQUIRE(out.size.depth == 0.5);
     REQUIRE(out.thumbnailRendered);
+    REQUIRE(out.thumbnailEngine == "eevee");
+    REQUIRE(out.fbxFile.empty());
     REQUIRE(fs::exists(job.outputFile));
+
+    job.fbxFile = f.work / "out" / "asset.fbx";
+    run = runBlenderJob(f.exe, makeThumbnailJob(job, "thumb-00000004", f.work / "result.json"), f.work, f.options);
+    plynth::test::requireOk(run.status);
+    REQUIRE(problemWith("blender-result.schema.json", run.result).empty());
+    out = readThumbnailResult(run.result, "thumb-00000004");
+    plynth::test::requireOk(out.header.status);
+    REQUIRE(out.fbxFile == "asset.fbx");
+    REQUIRE(fs::exists(job.fbxFile));
+    job.fbxFile.clear();
 
     job.measure = false;
     run = runBlenderJob(f.exe, makeThumbnailJob(job, "thumb-00000002", f.work / "result.json"), f.work, f.options);

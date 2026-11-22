@@ -131,7 +131,7 @@ TEST_CASE("an unexpected extra word gives bad_arguments", "[cli]") {
 }
 
 TEST_CASE("every word of the first argument is recognised by isCommandWord", "[cli]") {
-    for (const char* word : {"version", "help", "project", "scale", "point", "wall", "place", "item"}) {
+    for (const char* word : {"version", "help", "project", "scale", "point", "wall", "place", "item", "build"}) {
         CHECK(plynth::cli::isCommandWord(word));
     }
     CHECK_FALSE(plynth::cli::isCommandWord("D:/plans/flat"));

@@ -32,6 +32,9 @@ TASKS = Registry("task")
 IMPORTERS = Registry("importer")
 CLEANUP_STEPS = Registry("cleanup step")
 CHECKS = Registry("check")
+EXPORTERS = Registry("exporter")
+BUILD_STEPS = Registry("build step")
+OPENING_FILLS = Registry("opening fill")
 
 
 # Imports every module of a package, in name order, so each one registers itself.

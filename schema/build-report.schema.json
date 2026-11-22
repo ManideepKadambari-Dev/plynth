@@ -1,0 +1,91 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:build-report:1",
+  "title": "Plynth build report, version 1",
+  "description": "Written by Plynth as build/build.json in a project folder after every build, failed or not, and printed as the result of plynth build. Problems point at plan ids so the app can mark them on the plan. Paths are absolute, UTF-8, with forward slashes.",
+  "type": "object",
+  "required": ["format", "version", "ok", "error", "job_id", "started_at", "elapsed_ms", "blender_version", "plan_fingerprint", "outputs", "objects", "triangles", "counts", "steps", "problems", "error_count", "warning_count"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "plynth-build-report" },
+    "version": { "const": 1 },
+    "ok": { "description": "True when the build finished, even with problems.", "type": "boolean" },
+    "error": {
+      "description": "Why the build failed, null when ok. code is a CLI error code (for example blender_failed); worker_code is the worker's code when it gave one (for example save_failed).",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["code", "message", "worker_code"],
+          "additionalProperties": false,
+          "properties": {
+            "code": { "type": "string", "pattern": "^[a-z_]+$" },
+            "message": { "type": "string", "minLength": 1 },
+            "worker_code": { "type": ["string", "null"] }
+          }
+        }
+      ]
+    },
+    "job_id": { "type": "string", "pattern": "^[a-z0-9_-]+$" },
+    "started_at": { "description": "UTC, ISO 8601 with whole seconds.", "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$" },
+    "elapsed_ms": { "type": "integer", "minimum": 0 },
+    "blender_version": { "description": "Empty when Blender did not run.", "type": "string" },
+    "plan_fingerprint": { "description": "16 hex digits that change whenever the plan or project settings change, so the app can tell when the build is out of date.", "type": "string", "pattern": "^[0-9a-f]{16}$" },
+    "outputs": {
+      "type": "object",
+      "required": ["blend_file", "fbx_file", "log_file"],
+      "additionalProperties": false,
+      "properties": {
+        "blend_file": { "description": "build/building.blend, or null when the build failed.", "type": ["string", "null"] },
+        "fbx_file": { "description": "build/building.fbx for the 3D preview, or null.", "type": ["string", "null"] },
+        "log_file": { "description": "build/blender.log, or null when Blender did not run.", "type": ["string", "null"] }
+      }
+    },
+    "objects": { "type": "integer", "minimum": 0 },
+    "triangles": { "type": "integer", "minimum": 0 },
+    "counts": {
+      "type": "object",
+      "required": ["wall_solids", "openings_cut", "fills", "rooms", "items"],
+      "additionalProperties": false,
+      "properties": {
+        "wall_solids": { "type": "integer", "minimum": 0 },
+        "openings_cut": { "type": "integer", "minimum": 0 },
+        "fills": { "type": "integer", "minimum": 0 },
+        "rooms": { "type": "integer", "minimum": 0 },
+        "items": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "steps": {
+      "description": "check (core) first, then every worker step in order.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["step", "ms"],
+        "additionalProperties": false,
+        "properties": {
+          "step": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+          "ms": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "problems": {
+      "description": "Core's problems first (step check), then the worker's.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "severity", "message", "floor", "object", "step"],
+        "additionalProperties": false,
+        "properties": {
+          "code": { "type": "string", "pattern": "^[a-z_]+$" },
+          "severity": { "enum": ["error", "warning"] },
+          "message": { "type": "string", "minLength": 1 },
+          "floor": { "type": ["string", "null"] },
+          "object": { "description": "The plan id of the point, wall, room, opening or item to mark, or null.", "type": ["string", "null"] },
+          "step": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "error_count": { "type": "integer", "minimum": 0 },
+    "warning_count": { "type": "integer", "minimum": 0 }
+  }
+}

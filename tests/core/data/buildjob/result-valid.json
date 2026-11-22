@@ -1,0 +1,27 @@
+{
+  "format": "plynth-blender-result",
+  "version": 1,
+  "task": "build",
+  "job_id": "build-00000001",
+  "ok": true,
+  "error": null,
+  "blender_version": "5.2.0",
+  "warnings": [],
+  "elapsed_ms": 8200,
+  "output": {
+    "blend_file": "building.blend",
+    "fbx_file": "building.fbx",
+    "objects": 42,
+    "triangles": 18200,
+    "counts": { "wall_solids": 1, "openings_cut": 9, "fills": 7, "rooms": 5, "items": 4 },
+    "steps": [
+      { "step": "prepare_scene", "ms": 12 },
+      { "step": "walls", "ms": 120 },
+      { "step": "openings", "ms": 3400 }
+    ],
+    "problems": [
+      { "code": "cut_failed", "severity": "error", "message": "The cut for opening o3 failed.", "floor": "f1", "object": "o3", "step": "openings" },
+      { "code": "bevel_failed", "severity": "warning", "message": "The bevel failed, so the walls stay sharp.", "floor": null, "object": null, "step": "bevel" }
+    ]
+  }
+}

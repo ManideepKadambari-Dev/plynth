@@ -1,10 +1,10 @@
 # Getting started
 
-This page takes you from a fresh install to a plan with walls, rooms and furniture. It takes about ten minutes. Each step names the page that goes deeper.
+This page takes you from a fresh install to a plan with walls, rooms and furniture, built as a 3D building you can walk around. It takes about fifteen minutes. Each step names the page that goes deeper.
 
 ## 1. Install Blender
 
-Plynth uses Blender in the background to clean up the 3D models you import and to draw their thumbnails. You never see its window.
+Plynth uses Blender in the background to clean up the 3D models you import, to draw their thumbnails and to build your building. You never see its window.
 
 1. Download Blender 4.2 or newer from blender.org and install it.
 2. That is all. Plynth finds it by itself.
@@ -59,10 +59,23 @@ The type matters for furniture. The furniture picker starts with the categories 
 
 See "The assets catalog" and "Placing furniture" in the [User guide](USER_GUIDE.md).
 
+## 8. Build, and look at it in 3D
+
+1. Press Ctrl+S if the project has never been saved. A build needs the project's folder.
+2. Press **Build** in the bar above the plan, or Ctrl+B. A progress bar shows each step. It takes a few seconds for a small flat.
+3. When it is done, the 3D view opens. Drag with the left button to turn the building, drag with the middle or right button to pan, and use the wheel to zoom. Press Ctrl+0 to fit it in the window again. The **Top** and **Three quarter** buttons in the corner jump to two good views.
+4. Press **3**, or click **Plan**, to go back to the plan. Press Alt+3 to lay the top view of the building over the plan and check that it lines up.
+
+If the bar shows an amber **problems** button, click it. The Build tab lists what the build left out or could not finish, and clicking a line shows it on the plan. A furniture item whose asset is missing is the usual one. Fix it and press Build again.
+
+If the 3D view stays empty, see "If the 3D view stays empty" in the [User guide](USER_GUIDE.md).
+
+See "Building", "The 3D view" and "Build problems" in the [User guide](USER_GUIDE.md).
+
 ## Where to go next
 
 - [User guide](USER_GUIDE.md): every screen and feature.
 - [Keyboard shortcuts](SHORTCUTS.md): the full list of keys and mouse actions.
-- [Command line guide](CLI_GUIDE.md): do all of this from a terminal or a script. For example, `plynth place sofa --room living` places the sofa from step 7.
+- [Command line guide](CLI_GUIDE.md): do all of this from a terminal or a script. For example, `plynth place sofa --room living` places the sofa from step 7, and `plynth build` does step 8.
 - [Setting up Plynth](SETUP.md): what each item of the setup check means.
 - [Writing generators](GENERATORS.md): add your own opening shapes and importers.

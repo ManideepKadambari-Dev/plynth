@@ -127,13 +127,13 @@ def try_set(target, name, value):
         pass
 
 
-ENGINE_IDS = {"cycles": ["CYCLES"], "eevee": ["BLENDER_EEVEE", "BLENDER_EEVEE_NEXT"]}
+EEVEE_IDS = ["BLENDER_EEVEE", "BLENDER_EEVEE_NEXT"]
 
 
-# Selects the render engine called "eevee" or "cycles". The Eevee id changed between Blender versions, so
-# each known id is tried. Returns false when none is accepted.
-def select_engine(name):
-    for engine in ENGINE_IDS.get(name, []):
+# Selects Eevee. The engine id changed between Blender versions, so each known id is tried. Returns false when
+# none is accepted.
+def select_eevee():
+    for engine in EEVEE_IDS:
         try:
             bpy.context.scene.render.engine = engine
             return True
@@ -165,28 +165,21 @@ def configure_output(size, target):
     scene.display_settings.display_device = "sRGB"
 
 
-# Renders the current scene with one engine to the file in render.filepath. Raises on failure.
-def render_with(name):
+# Renders the current scene with Eevee to the file in render.filepath. Raises WorkerError render_failed.
+def render_with_eevee():
     scene = bpy.context.scene
-    if not select_engine(name):
-        raise WorkerError("render_failed", "The render engine '%s' is not available in this Blender." % name)
-    if name == "cycles":
-        try_set(scene.cycles, "device", "CPU")
-        try_set(scene.cycles, "samples", SAMPLES)
-        try_set(scene.cycles, "use_adaptive_sampling", False)
-        try_set(scene.cycles, "use_denoising", False)
-    else:
-        try_set(scene.eevee, "taa_render_samples", SAMPLES)
+    if not select_eevee():
+        raise WorkerError("render_failed", "Eevee is not available in this Blender.")
+    try_set(scene.eevee, "taa_render_samples", SAMPLES)
     try:
         bpy.ops.render.render(write_still=True)
     except Exception as error:
-        raise WorkerError("render_failed", "Rendering with %s failed: %s" % (name, error))
+        raise WorkerError("render_failed", "Rendering with Eevee failed: %s" % error)
 
 
-# Renders a three quarter view of every mesh object to output_file with the look in spec (render, size, engine,
-# background). Tries Eevee first when asked and falls back to Cycles with an eevee_failed warning. Returns the
-# engine used. Raises WorkerError render_failed when no engine worked.
-def render_thumbnail(output_file, spec, warn):
+# Renders a three quarter view of every mesh object to output_file with the look in spec (size, background)
+# using Eevee only. Returns "eevee". Raises WorkerError render_failed when the render fails.
+def render_thumbnail(output_file, spec):
     objects = scene_tools.mesh_objects(scene_tools.scene_objects())
     bpy.context.view_layer.update()
     centre, radius = bounding_sphere(objects)
@@ -194,25 +187,12 @@ def render_thumbnail(output_file, spec, warn):
     build_world(spec["background"])
     temporary = output_file + ".part"
     configure_output(int(spec["size"]), temporary)
-    wanted = spec["engine"]
-    if wanted not in ("eevee", "cycles"):
-        raise WorkerError("render_failed", "The thumbnail engine '%s' is not known." % wanted)
-
-    order = ["eevee", "cycles"] if wanted == "eevee" else ["cycles"]
-    last_error = None
-    for name in order:
-        if os.path.exists(temporary):
-            os.remove(temporary)
-        try:
-            started = time.monotonic()
-            render_with(name)
-            if not os.path.isfile(temporary):
-                raise WorkerError("render_failed", "The %s render wrote no picture." % name)
-            os.replace(temporary, output_file)
-            print("Thumbnail rendered with %s in %.2f s" % (name, time.monotonic() - started))
-            return name
-        except WorkerError as error:
-            last_error = error
-            if name == "eevee":
-                warn("eevee_failed", "Eevee could not render the thumbnail, so Cycles was used: %s" % error.message)
-    raise last_error
+    if os.path.exists(temporary):
+        os.remove(temporary)
+    started = time.monotonic()
+    render_with_eevee()
+    if not os.path.isfile(temporary):
+        raise WorkerError("render_failed", "The Eevee render wrote no picture.")
+    os.replace(temporary, output_file)
+    print("Thumbnail rendered with Eevee in %.2f s" % (time.monotonic() - started))
+    return "eevee"

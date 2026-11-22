@@ -1,10 +1,15 @@
-find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Widgets Quick QuickWidgets Quick3D)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
 add_executable(plynth WIN32
     src/main.cpp
+    src/building/BuildController.h
+    src/building/BuildController.cpp
+    src/building/BuildPanel.h
+    src/building/BuildPanel.cpp
+    src/building/ProblemMark.h
     src/catalog/ImportQueue.h
     src/catalog/ImportQueue.cpp
     src/catalog/LibraryHost.h
@@ -40,6 +45,18 @@ add_executable(plynth WIN32
     src/document/DocumentBridge.cpp
     src/document/ProjectWatcher.h
     src/document/ProjectWatcher.cpp
+    src/preview/AssetStage.h
+    src/preview/AssetStage.cpp
+    src/preview/OverlayRenderer.h
+    src/preview/OverlayRenderer.cpp
+    src/preview/GraphicsProbe.h
+    src/preview/GraphicsProbe.cpp
+    src/preview/ModelView.h
+    src/preview/ModelView.cpp
+    src/preview/PreviewView.h
+    src/preview/PreviewView.cpp
+    src/preview/ThemeQml.h
+    src/preview/ThemeQml.cpp
     src/panels/AssetsPanel.h
     src/panels/AssetsPanel.cpp
     src/panels/ImportQueueView.h
@@ -81,8 +98,11 @@ add_executable(plynth WIN32
     src/wallview/WallView.cpp
     src/wallview/WallViewData.h
     src/wallview/WallViewData.cpp
+    src/window/BuildBar.h
+    src/window/BuildBar.cpp
     src/window/MainWindow.h
     src/window/MainWindow.cpp
+    src/window/MainWindowBuild.cpp
     src/window/ReadOnlyBanner.h
     src/window/ReadOnlyBanner.cpp
     src/window/StatusBar.h
@@ -97,11 +117,11 @@ if(WIN32)
     target_sources(plynth PRIVATE
         src/window/FramelessWindow_win.h
         src/window/FramelessWindow_win.cpp)
-    target_link_libraries(plynth PRIVATE dwmapi user32)
+    target_link_libraries(plynth PRIVATE dwmapi user32 d3d11 dxgi)
 endif()
 
 target_include_directories(plynth PRIVATE src)
-target_link_libraries(plynth PRIVATE plynth::core plynth::cli plynth::terminal Qt6::Widgets)
+target_link_libraries(plynth PRIVATE plynth::core plynth::cli plynth::terminal Qt6::Widgets Qt6::Quick Qt6::QuickWidgets Qt6::Quick3D)
 
 # Copy the Qt DLLs and plugins next to plynth.exe so it runs from the build folder.
 get_target_property(PLYNTH_QMAKE Qt6::qmake IMPORTED_LOCATION)
@@ -112,7 +132,7 @@ if(PLYNTH_WINDEPLOYQT)
         COMMAND "${PLYNTH_WINDEPLOYQT}"
             $<IF:$<CONFIG:Debug>,--debug,--release>
             --no-translations --no-compiler-runtime --no-system-d3d-compiler
-            --no-opengl-sw --dir "$<TARGET_FILE_DIR:plynth>"
+            --no-opengl-sw --qmldir "${CMAKE_CURRENT_SOURCE_DIR}/qml" --dir "$<TARGET_FILE_DIR:plynth>"
             "$<TARGET_FILE:plynth>"
         COMMENT "Running windeployqt"
     )
