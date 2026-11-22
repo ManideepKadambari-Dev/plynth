@@ -20,7 +20,7 @@ def run(ctx):
 # Makes the floor or the ceiling object of one room: world UVs, mirrored in Y for ceilings.
 def make_surface(ctx, room, floor, collection, kind, z, up):
     bm = bmesh.new()
-    name = slot_name(ctx, room["%s_material" % kind.lower()], kind)
+    name = slot_name(ctx, room["%s_slot" % kind.lower()])
     for polygon in room["polygons"]:
         faces = meshes.add_flat(bm, polygon["outline"], polygon["holes"], z, up)
         meshes.world_uvs(bm, faces, flip_y=not up)

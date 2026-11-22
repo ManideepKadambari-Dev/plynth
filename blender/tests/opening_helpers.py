@@ -3,6 +3,7 @@ import math
 import os
 
 from build_helpers import DATA_FOLDER
+from slot_fixtures import upgrade
 
 FRAME = 0.05
 MARGIN = 0.05
@@ -197,12 +198,14 @@ def curved_floor(openings, radius=3.0, a0=0.3, a1=2.4):
 
 # Wraps floors into a build job.
 def job(floors, settings=None):
-    return {"format": "plynth-blender-job", "version": 1, "task": "build", "job_id": "fixture-1",
+    data = {"format": "plynth-blender-job", "version": 1, "task": "build", "job_id": "fixture-1",
             "result_file": "result.json",
             "params": {"project": {"name": "fixture", "folder": "project"}, "output_folder": "build",
                        "blend_file": "building.blend", "fbx_file": "building.fbx",
                        "materials_file": "materials.json", "textures_folder": "textures", "plan": {"version": 1},
                        "settings": settings or dict(SETTINGS), "assets": [], "materials": [], "floors": floors}}
+    upgrade(data["params"])
+    return data
 
 
 TOP_WALL = {"centre": (2.0, 0.0), "tangent": (1.0, 0.0), "right": (0.0, -1.0)}

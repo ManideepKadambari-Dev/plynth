@@ -135,9 +135,9 @@ class FromCoreMaterialsTests(material_helpers.MaterialTest, BuildTest):
         for room in floor["rooms"]:
             obj = bpy.data.objects["SM_%s_%s_Floor" % (floor["id"], room["id"])]
             self.assertAlmostEqual(meshes.area(obj), room["area"], delta=1e-3)
-            self.assertEqual([m.name for m in obj.data.materials], ["grey_tile"])
+            self.assertEqual([m.name for m in obj.data.materials], ["%s_Floor" % ("Living" if room["id"] == "r1" else "Bedroom")])
 
-    # Every inside wall face uses white_paint and every outside face red_brick (wall ends, tops and reveals are left out).
+    # Every inside wall face uses its room's wall slot and every outside face Exterior_Wall (wall ends, tops and reveals are left out).
     def test_wall_faces(self):
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
         walls = bpy.data.objects["SM_f1_Walls"]
@@ -150,10 +150,10 @@ class FromCoreMaterialsTests(material_helpers.MaterialTest, BuildTest):
                 continue
             name = names[polygon.material_index]
             if rooms[polygon.index] != -1:
-                self.assertEqual(name, "white_paint")
+                self.assertIn(name, ("Living_Wall", "Bedroom_Wall"))
                 inside += 1
             else:
-                self.assertEqual(name, "red_brick")
+                self.assertEqual(name, "Exterior_Wall")
                 outside += 1
         self.assertGreater(inside, 0)
         self.assertGreater(outside, 0)
@@ -162,8 +162,8 @@ class FromCoreMaterialsTests(material_helpers.MaterialTest, BuildTest):
     def test_materials_file(self):
         data = self.read_materials()
         self.assertEqual(validate(data, load_schema("build-materials")), [])
-        names = {m["name"] for m in data["materials"]}
-        self.assertTrue(set(LIBRARY_MATERIALS) <= names, names)
+        shown = {m["material"] for m in data["materials"]}
+        self.assertTrue(set(LIBRARY_MATERIALS) <= shown, shown)
 
     # Reads the materials.json the build wrote.
     def read_materials(self):

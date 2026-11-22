@@ -6,8 +6,12 @@ Run with: python make_from_core_materials.py
 """
 import json
 import os
+import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(HERE))
+
+import slot_fixtures  # noqa: E402
 FOLDER = os.path.join(HERE, "buildjob")
 CHANNELS = ("base_color", "normal", "roughness", "metallic", "opacity", "occlusion")
 MATERIALS = {
@@ -46,6 +50,10 @@ def main():
         for room in floor["rooms"]:
             room["floor_material"] = "grey_tile"
             room["ceiling_material"] = "white_paint"
+        for opening in floor["openings"]:
+            opening["materials"]["reveal"] = "white_paint"
+            opening["materials"]["threshold"] = "grey_tile"
+    slot_fixtures.upgrade(params)
     with open(os.path.join(FOLDER, "from_core_materials.json"), "w", encoding="utf-8", newline="\n") as handle:
         handle.write(json.dumps(job, indent=2) + "\n")
 
