@@ -130,13 +130,14 @@ TEST_CASE("exportFileStem makes a safe file name", "[core][export]") {
     REQUIRE(exportFileStem(std::string(63, 'a') + " b") == std::string(63, 'a'));
 }
 
-TEST_CASE("the single exporter is registered and the grouped one is not", "[core][export]") {
+TEST_CASE("the single and grouped exporters are registered", "[core][export]") {
     const Exporter* single = findExporter("single");
     REQUIRE(single);
     REQUIRE(single->id() == kSingleExporterId);
     REQUIRE(single->name() == "Single FBX");
     REQUIRE_FALSE(single->description().empty());
-    REQUIRE_FALSE(findExporter("grouped"));
+    REQUIRE(findExporter("grouped"));
+    REQUIRE(findExporter("grouped")->id() == kGroupedExporterId);
 
     Project project = makeNewProject();
     project.settings.name = "My Flat 2";
@@ -448,17 +449,6 @@ TEST_CASE("the job carries the materials of the build", "[core][export][run]") {
     const Json materials = f.lastJobParams()["materials"];
     REQUIRE(materials.size() == 3);
     REQUIRE(materials[0]["name"] == "Living_Floor");
-}
-
-TEST_CASE("a project in grouped mode is refused and nothing is written", "[core][export][run]") {
-    ExportFixture f("run-grouped");
-    f.request.project.settings.exportMode = ExportMode::Grouped;
-    const ExportReport report = runExport(f.request);
-    REQUIRE(report.status.code == ErrorCode::InvalidValue);
-    REQUIRE(report.status.message.find("not available yet") != std::string::npos);
-    REQUIRE_FALSE(fs::exists(f.exportDir()));
-    REQUIRE_FALSE(fs::exists(f.lockFile()));
-    REQUIRE_FALSE(fs::exists(f.blenderFolder / "fake_jobs.log"));
 }
 
 TEST_CASE("runExport refuses before doing anything", "[core][export][run]") {

@@ -41,7 +41,8 @@ nlohmann::json plain(const Json& j)
 TEST_CASE("the schema files are valid schemas", "[core][schema]") {
     for (const char* file : {"plan.schema.json", "project.schema.json", "plan.v1.schema.json", "project.v1.schema.json", "plan.v2.schema.json",
                              "project.v2.schema.json", "plan.v3.schema.json", "project.v3.schema.json", "settings.schema.json", "settings.v1.schema.json",
-                             "settings.v2.schema.json", "export-report.schema.json"}) {
+                             "settings.v2.schema.json", "export-report.schema.json", "export-options.schema.json",
+                             "kit-layout.schema.json"}) {
         INFO(file);
         // An empty object is not a plan or a project, so a working validator complains about it
         // with a message about the instance, not about reading or loading the schema.

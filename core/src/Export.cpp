@@ -1,6 +1,7 @@
 #include "plynth/core/Export.h"
 
 #include "BuildLockFiles.h"
+#include "BuiltPlan.h"
 #include "FileIo.h"
 
 #include "plynth/core/Build.h"
@@ -33,25 +34,6 @@ namespace {
 using lockfile::createExclusive;
 using lockfile::epochSeconds;
 using lockfile::lockIsLive;
-
-// What the last successful build was made from, read from build/built-plan.json.
-struct BuiltPlan {
-    Plan plan;
-    std::string fingerprint;
-};
-
-// Empty when the file is missing or unusable.
-std::optional<BuiltPlan> readBuiltPlan(const fs::path& projectFolder)
-{
-    std::ifstream in(buildFolder(projectFolder) / pathFromUtf8(kBuiltPlanFileName), std::ios::binary);
-    if (!in) return std::nullopt;
-    const Json json = Json::parse(in, nullptr, false);
-    if (!json.is_object() || !json.contains("plan") || !json.contains("plan_fingerprint")) return std::nullopt;
-    if (!json["plan_fingerprint"].is_string()) return std::nullopt;
-    PlanRead read = planFromJson(json["plan"]);
-    if (!read.status.ok()) return std::nullopt;
-    return BuiltPlan{std::move(read.plan), json["plan_fingerprint"].get<std::string>()};
-}
 
 // Holds build.lock, the build's lock, while an export runs and removes it at the end.
 class ExportLock {
