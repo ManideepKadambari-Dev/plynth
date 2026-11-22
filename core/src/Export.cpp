@@ -323,9 +323,18 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
             report.kit.skipped = "The library materials could not be opened, so the kit was left out.";
         } else {
             const BuildPlan plan = makeBuildPlan(boundsSource, BuildAssetSource{}, buildMaterialSourceFor(*catalog));
-            kit = modularKit(boundsSource, plan);
-            kitInJob = !kit.pieces.empty();
-            if (!kitInJob) report.kit.skipped = "The plan has no walls, so there is no kit to make.";
+            // An opening that cannot be built (a missing shape, one that does not fit) would leave a solid wall in
+            // the kit, so the kit is left out and says why.
+            const auto bad = std::find_if(plan.problems.begin(), plan.problems.end(), [](const BuildProblem& problem) {
+                return problem.code == "opening_does_not_fit";
+            });
+            if (bad != plan.problems.end()) {
+                report.kit.skipped = "The kit was left out because opening " + bad->object + " cannot be built. " + bad->message;
+            } else {
+                kit = modularKit(boundsSource, plan);
+                kitInJob = !kit.pieces.empty();
+                if (!kitInJob) report.kit.skipped = "The plan has no walls, so there is no kit to make.";
+            }
         }
     }
     const Json job = makeExportJob(boundsSource, groups, builtMaterials, buildState, request.settings, request.projectFolder, staging,

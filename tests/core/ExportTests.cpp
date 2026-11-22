@@ -973,3 +973,32 @@ TEST_CASE("an entry without a built tile size gets the library's", "[core][expor
     plynth::test::requireOk(runExport(f.request).status);
     REQUIRE(lastJob(f)["params"]["materials"][0]["tile_size"] == Json{{"width", 1.0}, {"height", 0.5}});
 }
+
+TEST_CASE("an opening the plan cannot build leaves the kit out with a reason", "[core][export][run][kit]") {
+    TestLibrary lib("export-kit-bad-opening");
+    ExportFixture f("run-kit-bad-opening");
+    f.request.library = lib.paths;
+    Opening window;
+    window.id = "o1";
+    window.wall = "w1";
+    window.offset = 2.0;
+    window.type = OpeningType::Window;
+    window.width = 1.0;
+    window.height = 1.0;
+    window.sill = 0.9;
+    window.shape = "shape_that_nobody_registered";
+    f.request.project.plan.floors[0].openings.push_back(window);
+    switchKit(f.projectFolder, true);
+
+    const ExportReport report = runExport(f.request);
+    plynth::test::requireOk(report.status);
+    REQUIRE(report.kit.asked);
+    REQUIRE_FALSE(report.kit.written);
+    REQUIRE_FALSE(report.kit.skipped.empty());
+    REQUIRE(report.kit.skipped.find("o1") != std::string::npos);
+    REQUIRE(report.kit.skipped.find("cannot be built") != std::string::npos);
+    REQUIRE(lastJob(f)["params"]["kit"].is_null());
+    REQUIRE(f.exportEntries().count("Square_Kit.fbx") == 0);
+    REQUIRE(f.exportEntries().count("Square_Kit_layout.json") == 0);
+    REQUIRE(reportProblem(f.reportFile()).empty());
+}
