@@ -14,6 +14,7 @@ namespace plynth {
 //   project.json        settings
 //   plan.json           the plan
 //   plans/              plan images
+//   export-options.json export group edits and the kit switch, see ExportGroups.h; only there once changed
 //   autosave/           project.json and plan.json with unsaved changes, removed after a save
 //   session.lock        the CLI edit session, see EditSession.h
 //   app-state.json      written by the app while it has the project open, see EditSession.h

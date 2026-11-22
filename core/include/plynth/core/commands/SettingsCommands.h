@@ -40,4 +40,22 @@ private:
     DefaultSizes previous_;
 };
 
+// Sets the project's export mode (DESIGN.md section 7.16). It is chosen when the project is created and can be
+// changed later. The export mode is not part of planFingerprint, so changing it never makes the build out of
+// date. Saved edits to the groups stay in export-options.json and apply again when the mode is grouped.
+class SetExportModeCommand : public Command {
+public:
+    explicit SetExportModeCommand(ExportMode mode);
+
+    std::string name() const override;
+    Status apply(Project& project) override;
+    void undo(Project& project) override;
+    // Settings.
+    unsigned changes() const override;
+
+private:
+    ExportMode mode_;
+    ExportMode previous_ = ExportMode::Single;
+};
+
 }

@@ -54,7 +54,8 @@ std::filesystem::path buildFolder(const std::filesystem::path& projectFolder);
 
 // A short text that changes whenever the plan or the project settings change: 16 hex digits of a 64 bit
 // FNV-1a hash of planToJson and settingsToJson. The report keeps it, so the app can say the plan changed
-// since the last build.
+// since the last build. The export mode does not count: the settings are hashed with it set to single, so
+// fingerprints of single projects stay what they were and switching the mode never makes a build out of date.
 std::string planFingerprint(const Project& project);
 
 // A BuildAssetSource that asks the catalog. The catalog must outlive it.
