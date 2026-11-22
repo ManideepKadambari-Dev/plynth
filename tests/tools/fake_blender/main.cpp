@@ -220,6 +220,50 @@ int sumOf(const Json& floors, const char* key)
     return total;
 }
 
+// The materials.json the fake build writes: each library material of the job, and a neutral Wall_Outside
+// when a ring edge has no material. Returns how many materials it lists.
+int writeBuiltMaterials(const fs::path& folder, const Json& params)
+{
+    Json materials = Json::array();
+    for (const Json& m : params["materials"]) {
+        materials.push_back(Json{{"name", m["id"]},
+                                 {"material", m["id"]},
+                                 {"surface", nullptr},
+                                 {"maps", m["maps"]},
+                                 {"alpha_mode", m["maps"]["opacity"].is_null() ? "opaque" : "blend"}});
+    }
+    bool neutral = false;
+    for (const Json& floor : params["floors"]) {
+        for (const Json& solid : floor["wall_solids"]) {
+            for (const Json& edge : solid["outline"]["edges"]) neutral = neutral || edge["material"].is_null();
+        }
+    }
+    if (neutral) {
+        const std::u8string utf8 = (folder / "textures" / "Wall_Outside_").generic_u8string();
+        const std::string base(utf8.begin(), utf8.end());
+        materials.push_back(Json{{"name", "Wall_Outside"},
+                                 {"material", nullptr},
+                                 {"surface", "Wall_Outside"},
+                                 {"maps", Json{{"base_color", base + "base_color.png"},
+                                               {"normal", base + "normal.png"},
+                                               {"roughness", base + "roughness.png"},
+                                               {"metallic", base + "metallic.png"},
+                                               {"opacity", nullptr},
+                                               {"occlusion", nullptr}}},
+                                 {"alpha_mode", "opaque"}});
+    }
+    const int count = static_cast<int>(materials.size());
+    Json slots = Json::array();
+    for (const Json& m : materials) slots.push_back(m["name"]);
+    Json objects = Json::array();
+    for (const Json& floor : params["floors"]) {
+        objects.push_back(Json{{"name", "SM_" + floor["id"].get<std::string>() + "_Walls"}, {"slots", slots}});
+    }
+    const Json file = Json{{"format", "plynth-build-materials"}, {"version", 1}, {"materials", materials}, {"objects", objects}};
+    writeFile(folder / "materials.json", file.dump(2) + "\n");
+    return count;
+}
+
 // What the fake build task writes and reports.
 Json buildOutput(const Json& params, const std::string& mode)
 {
@@ -227,6 +271,7 @@ Json buildOutput(const Json& params, const std::string& mode)
     writeFile(folder / "building.blend", "FAKEBLEND");
     const bool fbx = params["fbx_file"].is_string();
     if (fbx) writeFile(folder / "building.fbx", "FAKEFBX");
+    const int materialCount = fbx ? writeBuiltMaterials(folder, params) : static_cast<int>(params["materials"].size());
 
     const Json& floors = params["floors"];
     const int solids = sumOf(floors, "wall_solids");
@@ -256,9 +301,10 @@ Json buildOutput(const Json& params, const std::string& mode)
     Json out = Json::object();
     out["blend_file"] = "building.blend";
     out["fbx_file"] = fbx ? Json("building.fbx") : Json(nullptr);
+    out["materials_file"] = fbx ? Json("materials.json") : Json(nullptr);
     out["objects"] = objects;
     out["triangles"] = objects * 12;
-    out["counts"] = Json{{"wall_solids", solids}, {"openings_cut", openings}, {"fills", fills}, {"rooms", rooms}, {"items", items}};
+    out["counts"] = Json{{"wall_solids", solids}, {"openings_cut", openings}, {"fills", fills}, {"rooms", rooms}, {"items", items}, {"materials", materialCount}};
     out["steps"] = steps;
     out["problems"] = problems;
     return out;

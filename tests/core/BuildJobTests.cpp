@@ -1,14 +1,18 @@
 #include "BuildFixtures.h"
+#include "MaterialFixtures.h"
 #include "SchemaSupport.h"
 #include "TestSupport.h"
 
 #include <plynth/core/BuildJob.h>
+#include <plynth/core/Materials.h>
 #include <plynth/core/ProjectFiles.h>
 #include <plynth/core/ProjectJson.h>
 
 #include <catch2/catch_test_macros.hpp>
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -206,7 +210,7 @@ TEST_CASE("readBuildResult reads a valid result", "[core][build]") {
     REQUIRE(out.fbxFile == "building.fbx");
     REQUIRE(out.objects == 42);
     REQUIRE(out.triangles == 18200);
-    REQUIRE(out.counts == BuildCounts{1, 9, 7, 5, 4});
+    REQUIRE(out.counts == BuildCounts{1, 9, 7, 5, 4, 6});
     REQUIRE(out.steps.size() == 3);
     REQUIRE(out.steps[2].step == "openings");
     REQUIRE(out.steps[2].ms == 3400);
@@ -249,4 +253,235 @@ TEST_CASE("readBuildResult of a failed job is blender_failed with the code", "[c
 
 TEST_CASE("readBuildResult refuses another job id", "[core][build]") {
     REQUIRE(readBuildResult(readData("result-valid.json"), "build-other").header.status.code == ErrorCode::BadFile);
+}
+
+namespace {
+
+// The plan with a door and a window of the materials tests: the split room, a window on w3, tile in r2, and
+// the broken material plaster on the outside of w5.
+Project materialsProject()
+{
+    Project project = splitRoomProject();
+    Floor& f = project.plan.floors[0];
+    Opening window;
+    window.id = "o2";
+    window.wall = "w3";
+    window.offset = 2.0;
+    window.type = OpeningType::Window;
+    window.width = 1.2;
+    window.height = 1.2;
+    window.sill = 0.9;
+    f.openings.push_back(window);
+    findRoom(f, "r2")->floorMaterial = "tile";
+    findRoom(f, "r2")->wallMaterial = "tile";
+    findWall(f, "w5")->materialOutside = "plaster";
+    return project;
+}
+
+// The id of a material when the sample source can use it, otherwise null.
+Json usableOrNull(const std::optional<std::string>& id)
+{
+    if (!id) return nullptr;
+    const std::optional<BuildMaterialState> state = sampleMaterialSource()(*id);
+    return state && !state->broken ? Json(*id) : Json(nullptr);
+}
+
+// Every ring of every wall solid of the first floor of a job.
+std::vector<Json> rings(const Json& job)
+{
+    std::vector<Json> out;
+    for (const Json& solid : job["params"]["floors"][0]["wall_solids"]) {
+        out.push_back(solid["outline"]);
+        for (const Json& hole : solid["holes"]) out.push_back(hole);
+    }
+    return out;
+}
+
+}
+
+TEST_CASE("makeBuildPlan lists each usable material once and reports the others", "[core][build][materials]") {
+    const Project project = materialsProject();
+    const BuildPlan plan = makeBuildPlan(project, {}, sampleMaterialSource());
+
+    std::vector<std::string> ids;
+    for (const BuildMaterial& m : plan.materials) ids.push_back(m.id);
+    REQUIRE(ids == std::vector<std::string>{"brushed_steel", "clear_glass", "oak_planks", "painted_wood", "tile", "white_paint"});
+    REQUIRE(plan.materials[1].tileSize == TileSize{2.0, 1.0});
+    REQUIRE(plan.materials[1].baseColor == fs::path("D:/Library/materials/items/clear_glass/textures/base_color.png"));
+    REQUIRE_FALSE(plan.materials[1].opacity.empty());
+    REQUIRE(plan.materials[0].opacity.empty());
+
+    REQUIRE(plan.problems.size() == 2);
+    REQUIRE(plan.problems[0].code == "material_broken");
+    REQUIRE(plan.problems[0].severity == BuildSeverity::Warning);
+    REQUIRE(plan.problems[0].object == "w5");
+    REQUIRE(plan.problems[0].floor == "f1");
+    REQUIRE(plan.problems[0].step == kCheckStep);
+    REQUIRE(plan.problems[0].message.find("plaster") != std::string::npos);
+    REQUIRE(plan.problems[0].message.find("The base color map is missing.") != std::string::npos);
+    REQUIRE(plan.problems[1].code == "missing_material");
+    REQUIRE(plan.problems[1].object.empty());
+    REQUIRE(plan.problems[1].floor.empty());
+    REQUIRE(plan.problems[1].message.find("red_brick") != std::string::npos);
+    REQUIRE(plan.problems[1].message.find("wall_outside") != std::string::npos);
+}
+
+TEST_CASE("the job ring edges follow the material rules", "[core][build][materials]") {
+    plynth::test::TempDir tmp("build-job-materials");
+    const Project project = materialsProject();
+    const Floor& floor = project.plan.floors[0];
+    const BuildPlan plan = makeBuildPlan(project, {}, sampleMaterialSource());
+    const Json job = makeBuildJob(project, plan, BuildSettings{}, tmp.path(), "build-1a2b3c4d", tmp.path() / "result.json");
+    INFO(jobProblem(job));
+    REQUIRE(jobProblem(job).empty());
+
+    int inside = 0;
+    int outside = 0;
+    for (const Json& ring : rings(job)) {
+        for (const Json& edge : ring["edges"]) {
+            if (edge["side"].is_null()) {
+                REQUIRE(edge["material"] == "white_paint");
+                continue;
+            }
+            const Wall* wall = findWall(floor, edge["wall"].get<std::string>());
+            const Room* room = edge["room"].is_null() ? nullptr : findRoom(floor, edge["room"].get<std::string>());
+            REQUIRE(edge["material"] == usableOrNull(wallFaceMaterial(project, *wall, room).material));
+            if (room) {
+                ++inside;
+                REQUIRE(edge["material"] == (room->id == "r2" ? "tile" : "white_paint"));
+            } else {
+                ++outside;
+                REQUIRE(edge["material"].is_null());
+            }
+        }
+    }
+    REQUIRE(inside > 0);
+    REQUIRE(outside > 0);
+    REQUIRE(job["params"]["floors"][0]["wall_solids"][0]["top_material"] == "white_paint");
+}
+
+TEST_CASE("the job opening and room materials follow the material rules", "[core][build][materials]") {
+    plynth::test::TempDir tmp("build-job-materials-openings");
+    const Project project = materialsProject();
+    const Floor& floor = project.plan.floors[0];
+    const BuildPlan plan = makeBuildPlan(project, {}, sampleMaterialSource());
+    const Json job = makeBuildJob(project, plan, BuildSettings{}, tmp.path(), "build-1a2b3c4d", tmp.path() / "result.json");
+    const Json& floorJson = job["params"]["floors"][0];
+
+    REQUIRE(floorJson["openings"].size() == 2);
+    const Json& door = floorJson["openings"][0]["materials"];
+    const OpeningMaterials doorRules = openingMaterials(project, floor, floor.openings[0]);
+    REQUIRE(door["reveal"] == usableOrNull(doorRules.reveal.material));
+    REQUIRE(door["threshold"] == usableOrNull(doorRules.threshold.material));
+    REQUIRE(door["threshold"] == "oak_planks");
+    REQUIRE(door["door"] == "painted_wood");
+    REQUIRE(door["handle"] == "brushed_steel");
+    REQUIRE(door["frame"] == "white_paint");
+    REQUIRE(door["glass"].is_null());
+
+    const Json& window = floorJson["openings"][1]["materials"];
+    const OpeningMaterials windowRules = openingMaterials(project, floor, floor.openings[1]);
+    REQUIRE(window["reveal"] == usableOrNull(windowRules.reveal.material));
+    REQUIRE(window["reveal"] == "tile");
+    REQUIRE(window["glass"] == "clear_glass");
+    REQUIRE(window["frame"] == "white_paint");
+    REQUIRE(window["threshold"].is_null());
+    REQUIRE(window["door"].is_null());
+    REQUIRE(window["handle"].is_null());
+
+    REQUIRE(floorJson["rooms"].size() == 2);
+    REQUIRE(floorJson["rooms"][0]["id"] == "r1");
+    REQUIRE(floorJson["rooms"][0]["floor_material"] == "oak_planks");
+    REQUIRE(floorJson["rooms"][0]["ceiling_material"] == "white_paint");
+    REQUIRE(floorJson["rooms"][1]["floor_material"] == "tile");
+    REQUIRE(floorJson["rooms"][1]["ceiling_material"] == "white_paint");
+}
+
+TEST_CASE("an empty materials source gives the neutral look everywhere and one no_library", "[core][build][materials]") {
+    plynth::test::TempDir tmp("build-job-materials-none");
+    const Project project = materialsProject();
+    const BuildPlan plan = makeBuildPlan(project, {}, {});
+    REQUIRE(plan.materials.empty());
+    REQUIRE(codes(plan.problems) == std::vector<std::string>{"no_library"});
+    REQUIRE(plan.problems[0].object.empty());
+
+    const Json job = makeBuildJob(project, plan, BuildSettings{}, tmp.path(), "build-1a2b3c4d", tmp.path() / "result.json");
+    REQUIRE(jobProblem(job).empty());
+    REQUIRE(job["params"]["materials"].empty());
+    for (const Json& ring : rings(job)) {
+        for (const Json& edge : ring["edges"]) REQUIRE(edge["material"].is_null());
+    }
+    const Json& floorJson = job["params"]["floors"][0];
+    REQUIRE(floorJson["wall_solids"][0]["top_material"].is_null());
+    REQUIRE(floorJson["rooms"][0]["floor_material"].is_null());
+    REQUIRE(floorJson["openings"][0]["materials"]["door"].is_null());
+
+    Project bare = splitRoomProject();
+    clearMaterialDefaults(bare);
+    REQUIRE(makeBuildPlan(bare, {}, {}).problems.empty());
+
+    Project withItems = buildProject();
+    withItems.settings.materials = MaterialDefaults{};
+    const std::vector<std::string> both = codes(makeBuildPlan(withItems, {}, {}).problems);
+    REQUIRE(std::count(both.begin(), both.end(), "no_library") == 1);
+}
+
+TEST_CASE("the job lists map paths as absolute with forward slashes and a null materials_file without an fbx", "[core][build][materials]") {
+    plynth::test::TempDir tmp("build-job-materials-paths");
+    const Project project = materialsProject();
+    const BuildMaterialSource relative = [](std::string_view id) -> std::optional<BuildMaterialState> {
+        std::optional<BuildMaterialState> state = sampleMaterialSource()(id);
+        if (state && !state->broken) {
+            state->material.baseColor = fs::path("lib") / std::string(id) / "base_color.png";
+            state->material.normal = fs::path("lib") / std::string(id) / "normal.png";
+        }
+        return state;
+    };
+    const BuildPlan plan = makeBuildPlan(project, {}, relative);
+    BuildSettings settings;
+    const Json job = makeBuildJob(project, plan, settings, tmp.path(), "build-1a2b3c4d", tmp.path() / "result.json");
+    REQUIRE(jobProblem(job).empty());
+    const Json& params = job["params"];
+    REQUIRE(params["materials_file"] == "materials.json");
+    REQUIRE(params["textures_folder"] == "textures");
+    REQUIRE(params["materials"].size() == 6);
+    for (const Json& m : params["materials"]) {
+        for (const auto& [channel, value] : m["maps"].items()) {
+            if (value.is_null()) continue;
+            const std::string path = value.get<std::string>();
+            INFO(channel << " " << path);
+            REQUIRE(fs::path(path).is_absolute());
+            REQUIRE(path.find('\\') == std::string::npos);
+        }
+        REQUIRE(m["maps"]["opacity"].is_null() == (m["id"] != "clear_glass"));
+        REQUIRE(m["maps"]["occlusion"].is_null());
+    }
+
+    settings.writeFbx = false;
+    const Json noFbx = makeBuildJob(project, plan, settings, tmp.path(), "build-1a2b3c4d", tmp.path() / "result.json");
+    REQUIRE(jobProblem(noFbx).empty());
+    REQUIRE(noFbx["params"]["fbx_file"].is_null());
+    REQUIRE(noFbx["params"]["materials_file"].is_null());
+}
+
+TEST_CASE("readBuildResult reads materials_file and counts.materials", "[core][build][materials]") {
+    const BuildWorkerOutput out = readBuildResult(readData("result-valid.json"), "build-00000001");
+    plynth::test::requireOk(out.header.status);
+    REQUIRE(out.materialsFile == "materials.json");
+    REQUIRE(out.counts.materials == 6);
+    REQUIRE(out.counts == BuildCounts{1, 9, 7, 5, 4, 6});
+
+    Json noFbx = readData("result-valid.json");
+    noFbx["output"]["fbx_file"] = nullptr;
+    noFbx["output"]["materials_file"] = nullptr;
+    const BuildWorkerOutput none = readBuildResult(noFbx, "build-00000001");
+    plynth::test::requireOk(none.header.status);
+    REQUIRE(none.materialsFile.empty());
+
+    Json missing = readData("result-valid.json");
+    missing["output"]["counts"].erase("materials");
+    const BuildWorkerOutput bad = readBuildResult(missing, "build-00000001");
+    REQUIRE(bad.header.status.code == ErrorCode::BadFile);
+    REQUIRE(bad.header.status.where == "/output/counts/materials");
+    REQUIRE(plynth::test::schemaProblem("blender-result.schema.json", nlohmann::json::parse(missing.dump())).size() > 0);
 }
