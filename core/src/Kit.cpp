@@ -36,6 +36,7 @@ struct Frame {
     double theta = 0.0;
 };
 
+// A list of points as a Clipper path.
 PathD toPath(const std::vector<Vec2>& points)
 {
     PathD path;
@@ -44,6 +45,7 @@ PathD toPath(const std::vector<Vec2>& points)
     return path;
 }
 
+// A Clipper path as a list of points.
 std::vector<Vec2> fromPath(const PathD& path)
 {
     std::vector<Vec2> points;
@@ -52,6 +54,7 @@ std::vector<Vec2> fromPath(const PathD& path)
     return points;
 }
 
+// The ring without points that sit on the one before them.
 std::vector<Vec2> withoutRepeats(const std::vector<Vec2>& ring)
 {
     std::vector<Vec2> out;
@@ -62,11 +65,13 @@ std::vector<Vec2> withoutRepeats(const std::vector<Vec2>& ring)
     return out;
 }
 
+// A plan point as a world point and back; the two are the same flip.
 Vec2 flipped(Vec2 p)
 {
     return {p.x, -p.y};
 }
 
+// The ring turned to run the wanted way round.
 std::vector<Vec2> orientedRing(std::vector<Vec2> ring, bool anticlockwise)
 {
     if ((signedArea(ring) > 0.0) != anticlockwise) std::reverse(ring.begin(), ring.end());
@@ -82,11 +87,13 @@ PathsD pathsOf(const std::vector<Vec2>& outline, const std::vector<std::vector<V
     return paths;
 }
 
+// Adds paths to the end of a list of paths.
 void append(PathsD& to, const PathsD& more)
 {
     to.insert(to.end(), more.begin(), more.end());
 }
 
+// A number with tiny noise (below 1e-10) turned into zero.
 double cleanValue(double v)
 {
     return std::fabs(v) < 1e-10 ? 0.0 : v;
@@ -98,6 +105,7 @@ struct Poly {
     std::vector<std::vector<Vec2>> holes;
 };
 
+// Whether most points of a ring are inside another ring.
 bool mostlyInside(const std::vector<Vec2>& inner, const std::vector<Vec2>& outer)
 {
     std::size_t in = 0;
@@ -141,6 +149,7 @@ std::vector<Poly> polysFrom(const PathsD& paths, double minArea)
     return kept;
 }
 
+// A world point in the coordinates of a frame.
 Vec2 toLocal(Vec2 p, const Frame& f)
 {
     const double c = std::cos(f.theta);
@@ -150,6 +159,7 @@ Vec2 toLocal(Vec2 p, const Frame& f)
     return {cleanValue(c * dx + s * dy), cleanValue(-s * dx + c * dy)};
 }
 
+// A world direction in the coordinates of a frame.
 Vec2 dirToLocal(Vec2 v, const Frame& f)
 {
     const double c = std::cos(f.theta);
@@ -157,6 +167,7 @@ Vec2 dirToLocal(Vec2 v, const Frame& f)
     return {cleanValue(c * v.x + s * v.y), cleanValue(-s * v.x + c * v.y)};
 }
 
+// An angle in radians brought into 0 up to a full turn.
 double wrappedAngle(double theta)
 {
     double a = std::fmod(theta, kTwoPi);
@@ -172,6 +183,7 @@ struct SourceEdge {
     KitEdge edge;
 };
 
+// The material the build gives a face.
 std::string faceMaterial(const WallEdge& edge, const FloorMaterials& materials)
 {
     if (!edge.side) return materials.wallTop;
@@ -181,6 +193,7 @@ std::string faceMaterial(const WallEdge& edge, const FloorMaterials& materials)
     return {};
 }
 
+// The slot the build gives a face.
 std::string faceSlot(const WallEdge& edge, const FloorMaterials& materials)
 {
     const std::string top = materials.wallTopSlot.empty() ? std::string(kWallTopSlot) : materials.wallTopSlot;
@@ -191,6 +204,7 @@ std::string faceSlot(const WallEdge& edge, const FloorMaterials& materials)
     return std::string(kExteriorWallSlot);
 }
 
+// Every edge of a build solid with its look.
 std::vector<SourceEdge> sourceEdges(const WallSolid& solid, const FloorMaterials& materials)
 {
     std::vector<SourceEdge> out;
@@ -271,6 +285,7 @@ KitSolid makeKitSolid(const Poly& poly, const WallSolid& source, const std::vect
     return solid;
 }
 
+// A build solid as Clipper paths.
 PathsD pathsOf(const WallSolid& solid)
 {
     std::vector<std::vector<Vec2>> holes;
@@ -278,6 +293,7 @@ PathsD pathsOf(const WallSolid& solid)
     return pathsOf(solid.outline.points, holes);
 }
 
+// A kit solid as Clipper paths.
 PathsD pathsOf(const KitSolid& solid)
 {
     std::vector<std::vector<Vec2>> holes;
@@ -285,6 +301,7 @@ PathsD pathsOf(const KitSolid& solid)
     return pathsOf(solid.outline.points, holes);
 }
 
+// Several kit solids as Clipper paths.
 PathsD pathsOf(const std::vector<KitSolid>& solids)
 {
     PathsD all;
@@ -358,6 +375,7 @@ double keyAlong(const WallInfo& w, Vec2 position)
     return key;
 }
 
+// The segment of a wall that holds a distance along it.
 std::size_t segmentAt(const WallInfo& w, double s)
 {
     std::size_t i = 0;
@@ -365,6 +383,7 @@ std::size_t segmentAt(const WallInfo& w, double s)
     return i;
 }
 
+// The place on a wall at a distance along it.
 Vec2 pointAt(const WallInfo& w, double s)
 {
     s = std::clamp(s, 0.0, w.length);
@@ -374,6 +393,7 @@ Vec2 pointAt(const WallInfo& w, double s)
     return {w.line[i].x + (w.line[i + 1].x - w.line[i].x) * k, w.line[i].y + (w.line[i + 1].y - w.line[i].y) * k};
 }
 
+// The unit direction of one segment of a wall.
 Vec2 segmentDirection(const WallInfo& w, std::size_t i)
 {
     return detail::unit({w.line[i + 1].x - w.line[i].x, w.line[i + 1].y - w.line[i].y});
@@ -441,6 +461,7 @@ std::vector<std::pair<double, double>> junctionParts(const std::vector<WallInfo>
     return merged;
 }
 
+// Whether a distance lies inside any of the parts, with some slack.
 bool insideAny(const std::vector<std::pair<double, double>>& parts, double s, double slack)
 {
     for (const auto& part : parts) {
@@ -535,6 +556,7 @@ struct Region {
     PathsD polygon;
 };
 
+// The wall pieces of one wall, cut at its stations (rules 2 to 4).
 std::vector<Region> regionsOf(const FloorCtx& ctx, const WallInfo& w)
 {
     std::vector<Region> out;
@@ -585,6 +607,7 @@ struct Cand {
     Vec2 sortAt;
 };
 
+// The shortest distance from a point to the edges of a ring.
 double boundaryDistance(Vec2 p, const std::vector<Vec2>& ring)
 {
     double best = 1e300;
@@ -594,6 +617,7 @@ double boundaryDistance(Vec2 p, const std::vector<Vec2>& ring)
     return best;
 }
 
+// Whether a point lies in the solids, not in a hole.
 bool holdsPoint(const std::vector<KitSolid>& solids, Vec2 p)
 {
     for (const KitSolid& s : solids) {
@@ -633,6 +657,7 @@ std::vector<KitSolid> solidsIn(const FloorCtx& ctx, const PathsD& region)
     return out;
 }
 
+// The middle of the area of some solids.
 Vec2 centroidOf(const std::vector<KitSolid>& solids)
 {
     double total = 0.0;
@@ -673,6 +698,7 @@ struct Arm {
     Vec2 direction;
 };
 
+// The walls that leave a plan point, in wall id order.
 std::vector<Arm> armsAt(const FloorCtx& ctx, const Point& point)
 {
     std::vector<Arm> arms;
@@ -776,16 +802,25 @@ std::vector<Cand> cornerCands(const FloorCtx& ctx, const PathsD& taken)
     return out;
 }
 
+// Millimetres, rounded half up. The value is first snapped to a tenth of a micrometre so float noise cannot
+// tip a value that sits on a half millimetre (a 0.125 m wall has faces at 62.5 mm) into the other bin.
 long long q(double v)
 {
-    return std::llround(v * 1000.0);
+    const long long tenthMicrometres = std::llround(v * 1e7);
+    const long long unit = 10000;
+    long long whole = tenthMicrometres / unit;
+    if (tenthMicrometres % unit < 0) --whole;
+    const long long rest = tenthMicrometres - whole * unit;
+    return rest >= unit / 2 ? whole + 1 : whole;
 }
 
+// A point in millimetres, for putting points in order.
 std::tuple<long long, long long> lowKey(const Vec2& p)
 {
     return {q(p.x), q(p.y)};
 }
 
+// Starts a ring at its lowest point.
 void rotateToLowest(KitRing& r)
 {
     if (r.points.empty()) return;
@@ -818,6 +853,7 @@ void normalize(KitPiece& p)
     });
 }
 
+// Works out the length, thickness and height of a piece.
 void measure(KitPiece& p)
 {
     double minX = 1e300;
@@ -839,6 +875,7 @@ void measure(KitPiece& p)
     p.height = height;
 }
 
+// A ring in the coordinates of a frame.
 KitRing ringInFrame(const KitRing& ring, const Frame& f)
 {
     KitRing out;
@@ -885,6 +922,33 @@ KitPiece localPiece(const Cand& c, const FloorCtx& ctx, const Frame& f)
     return p;
 }
 
+// What an opening is, with no regard to which way along the wall its own box runs. The same door seen from
+// the other end of its wall has its box turned round, its hinge and swing named the other way and its cutter
+// points in the other order; this puts all of that in the piece's own terms.
+struct OpeningKey {
+    int hingeSide = 0;  // which way along the piece's X the hinge jamb lies
+    int swingSide = 0;  // which way along the piece's Y the leaf opens
+    std::vector<Vec3> cutter;   // every cutter point, in a fixed order
+    std::vector<Vec2> outline;  // the outline with u counted along the piece's X, in a fixed order
+};
+
+// The key of an opening in a piece's coordinates.
+OpeningKey keyOf(const OpeningBuild& b)
+{
+    OpeningKey k;
+    const double along = b.tangent.x >= 0.0 ? 1.0 : -1.0;
+    k.hingeSide = (b.hinge == HingeEnd::Start ? -1 : 1) * static_cast<int>(along);
+    k.swingSide = (b.swing == WallSide::Right ? 1 : -1) * (b.right.y >= 0.0 ? 1 : -1);
+    k.cutter = b.cutter.right;
+    k.cutter.insert(k.cutter.end(), b.cutter.left.begin(), b.cutter.left.end());
+    std::sort(k.cutter.begin(), k.cutter.end(), [](const Vec3& a, const Vec3& c) {
+        return std::make_tuple(q(a.x), q(a.y), q(a.z)) < std::make_tuple(q(c.x), q(c.y), q(c.z));
+    });
+    for (const Vec2& uv : b.outline) k.outline.push_back({along * uv.x, uv.y});
+    std::sort(k.outline.begin(), k.outline.end(), [](const Vec2& a, const Vec2& c) { return lowKey(a) < lowKey(c); });
+    return k;
+}
+
 // All the data of a piece that makes it the same as another, to the millimetre, as text.
 std::string serialize(const KitPiece& p)
 {
@@ -909,30 +973,33 @@ std::string serialize(const KitPiece& p)
     for (const KitOpening& k : p.openings) {
         const OpeningBuild& b = k.opening;
         const OpeningMaterialIds& m = k.materials;
+        const OpeningKey key = keyOf(b);
         o << 'O' << static_cast<int>(b.type) << ',' << b.shape << ',' << q(b.width) << ',' << q(b.height) << ',' << q(b.sill) << ','
-          << static_cast<int>(b.hinge) << ',' << static_cast<int>(b.swing) << ',' << q(b.centre.x) << ',' << q(b.centre.y) << ','
-          << q(b.tangent.x) << ',' << q(b.tangent.y) << ',' << q(b.right.x) << ',' << q(b.right.y) << ',' << q(b.thickness) << ','
+          << key.hingeSide << ',' << key.swingSide << ',' << q(b.centre.x) << ',' << q(b.centre.y) << ',' << q(b.thickness) << ','
           << b.curved << ',' << k.fill << ',' << m.reveal << ',' << m.threshold << ',' << m.door << ',' << m.frame << ',' << m.glass
           << ',' << m.handle << ',' << m.revealSlot << ',' << m.thresholdSlot << ',' << m.doorSlot << ',' << m.frameSlot << ','
           << m.glassSlot << ',' << m.handleSlot << '[';
-        for (const Vec3& pt : b.cutter.right) o << q(pt.x) << ',' << q(pt.y) << ',' << q(pt.z) << ';';
+        for (const Vec3& pt : key.cutter) o << q(pt.x) << ',' << q(pt.y) << ',' << q(pt.z) << ';';
         o << '/';
-        for (const Vec3& pt : b.cutter.left) o << q(pt.x) << ',' << q(pt.y) << ',' << q(pt.z) << ';';
+        for (const Vec2& pt : key.outline) o << q(pt.x) << ',' << q(pt.y) << ';';
         o << ']';
     }
     return o.str();
 }
 
+// Whether two numbers differ by no more than kKitTolerance.
 bool near(double a, double b)
 {
     return std::fabs(a - b) <= kKitTolerance;
 }
 
+// Whether two points are within kKitTolerance in both directions.
 bool nearV(Vec2 a, Vec2 b)
 {
     return near(a.x, b.x) && near(a.y, b.y);
 }
 
+// Whether two rings have the same points and faces within kKitTolerance.
 bool sameRing(const KitRing& a, const KitRing& b)
 {
     if (a.points.size() != b.points.size()) return false;
@@ -942,6 +1009,7 @@ bool sameRing(const KitRing& a, const KitRing& b)
     return true;
 }
 
+// Whether two lists of 3D points match one by one within kKitTolerance.
 bool sameCutter(const std::vector<Vec3>& a, const std::vector<Vec3>& b)
 {
     if (a.size() != b.size()) return false;
@@ -951,16 +1019,21 @@ bool sameCutter(const std::vector<Vec3>& a, const std::vector<Vec3>& b)
     return true;
 }
 
+// Whether two openings of pieces are the same within kKitTolerance.
 bool sameOpening(const KitOpening& a, const KitOpening& b)
 {
     const OpeningBuild& x = a.opening;
     const OpeningBuild& y = b.opening;
-    if (x.type != y.type || x.shape != y.shape || x.hinge != y.hinge || x.swing != y.swing || x.curved != y.curved || a.fill != b.fill) {
-        return false;
-    }
+    if (x.type != y.type || x.shape != y.shape || x.curved != y.curved || a.fill != b.fill) return false;
     if (!near(x.width, y.width) || !near(x.height, y.height) || !near(x.sill, y.sill) || !near(x.thickness, y.thickness)) return false;
-    if (!nearV(x.centre, y.centre) || !nearV(x.tangent, y.tangent) || !nearV(x.right, y.right)) return false;
-    if (!sameCutter(x.cutter.right, y.cutter.right) || !sameCutter(x.cutter.left, y.cutter.left)) return false;
+    if (!nearV(x.centre, y.centre)) return false;
+    const OpeningKey kx = keyOf(x);
+    const OpeningKey ky = keyOf(y);
+    if (kx.hingeSide != ky.hingeSide || kx.swingSide != ky.swingSide || !sameCutter(kx.cutter, ky.cutter)) return false;
+    if (kx.outline.size() != ky.outline.size()) return false;
+    for (std::size_t i = 0; i < kx.outline.size(); ++i) {
+        if (!nearV(kx.outline[i], ky.outline[i])) return false;
+    }
     const OpeningMaterialIds& m = a.materials;
     const OpeningMaterialIds& n = b.materials;
     return m.reveal == n.reveal && m.threshold == n.threshold && m.door == n.door && m.frame == n.frame && m.glass == n.glass &&
@@ -988,6 +1061,7 @@ bool nearlySame(const KitPiece& a, const KitPiece& b)
     return true;
 }
 
+// Twice the signed area of the triangle a, b, c: positive for a left turn.
 double turnOf(Vec2 a, Vec2 b, Vec2 c)
 {
     return (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
@@ -1015,6 +1089,7 @@ std::vector<Vec2> cleanedRing(std::vector<Vec2> ring)
     return ring;
 }
 
+// Adds the convex prisms of a polygon between two heights.
 void addConvex(std::vector<CollisionPiece>& out, const Poly& poly, double bottom, double top)
 {
     std::vector<Vec2> ring = cleanedRing(poly.outline);
@@ -1098,6 +1173,7 @@ std::vector<CollisionPiece> pieceCollision(const KitPiece& piece)
     return out;
 }
 
+// The kind as it starts a piece id.
 const char* kindWord(KitPieceKind kind)
 {
     switch (kind) {
@@ -1109,6 +1185,7 @@ const char* kindWord(KitPieceKind kind)
     return "Wall";
 }
 
+// The 64 bit FNV-1a hash of some text.
 std::uint64_t fnv1a(const std::string& text)
 {
     std::uint64_t hash = 1469598103934665603ULL;
@@ -1139,6 +1216,7 @@ struct Builder {
         }
     }
 
+    // Adds one placement of a piece.
     void record(const std::string& id, const Cand& c, const FloorCtx& ctx, const Frame& f)
     {
         KitPlacement p;
@@ -1151,7 +1229,8 @@ struct Builder {
         placements.push_back(std::move(p));
     }
 
-    // Rule 9: a placement of a piece found before, or a new piece in the frame it was found in.
+    // Rule 9: a placement of a piece found before, or a new piece in the frame whose data sorts first, so the
+    // name and shape do not depend on which wall or direction found it.
     void place(const Cand& c, const FloorCtx& ctx)
     {
         std::vector<Frame> frames = c.frames;
@@ -1184,14 +1263,22 @@ struct Builder {
             }
         }
 
-        KitPiece piece = std::move(locals[0]);
-        const std::string key = serialize(piece);
-        piece.id = uniqueId(piece, key);
+        std::size_t best = 0;
+        std::string bestKey = serialize(locals[0]);
+        for (std::size_t v = 1; v < locals.size(); ++v) {
+            std::string key = serialize(locals[v]);
+            if (key < bestKey) {
+                bestKey = std::move(key);
+                best = v;
+            }
+        }
+        KitPiece piece = std::move(locals[best]);
+        piece.id = uniqueId(piece, bestKey);
         piece.mesh = std::string(kKitMeshPrefix) + piece.id;
         piece.collision = pieceCollision(piece);
         const std::string id = piece.id;
         pieces.push_back(std::move(piece));
-        record(id, c, ctx, frames[0]);
+        record(id, c, ctx, frames[best]);
     }
 };
 
@@ -1244,11 +1331,13 @@ void cutFloor(const FloorCtx& ctx, Builder& builder)
     for (const Cand& c : cands) builder.place(c, ctx);
 }
 
+// Whether a wall runs from its higher end to its lower one, by X and then Y.
 bool drawnFromHigherEnd(Vec2 from, Vec2 to)
 {
     return from.x > to.x + kClose || (std::fabs(from.x - to.x) <= kClose && from.y > to.y + kClose);
 }
 
+// Gathers what the cutting of one floor needs.
 FloorCtx makeContext(const Project& project, const BuildPlan& plan, std::size_t index, const Floor& floor)
 {
     FloorCtx ctx;

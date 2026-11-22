@@ -197,6 +197,16 @@ void requireCovers(const BuildPlan& plan, const ModularKit& kit, double toleranc
     }
 }
 
+// The lowest world X of a placed piece.
+double lowestX(const ModularKit& kit, const KitPlacement& at)
+{
+    double low = 1e9;
+    for (const Clipper2Lib::PathD& path : placed(*pieceById(kit, at.piece), at)) {
+        for (const Clipper2Lib::PointD& pt : path) low = std::min(low, pt.x);
+    }
+    return low;
+}
+
 int cutEdges(const KitPiece& piece)
 {
     int n = 0;
@@ -284,21 +294,16 @@ TEST_CASE("the square room is cut into one corner and two wall pieces", "[kit]")
         }
     }
 
-    SECTION("the piece frames put the origin at the first station and X along the wall") {
-        const KitPlacement* first = nullptr;
-        for (const KitPlacement& at : kit.placements) {
-            if (at.wall == "w1" && !first) first = &at;
+    SECTION("a wall piece sits on its wall with its X along it, whichever way round its frame is") {
+        for (const KitPlacement* at : placementsOnWall(kit, "w1")) {
+            REQUIRE(at->location.y == Approx(0.0).margin(1e-9));
+            const double turn = std::round(degrees(*at));
+            REQUIRE((turn == 0.0 || turn == 180.0));
+            const KitPiece* piece = pieceById(kit, at->piece);
+            REQUIRE(piece);
+            REQUIRE(piece->solids[0].outline.points.size() == 4);
         }
-        REQUIRE(first);
-        REQUIRE(first->location.x == Approx(0.1));
-        REQUIRE(first->location.y == Approx(0.0).margin(1e-9));
-        REQUIRE(degrees(*first) == Approx(0.0).margin(1e-9));
-        const KitPiece* piece = pieceById(kit, first->piece);
-        REQUIRE(piece);
-        REQUIRE(piece->length == Approx(0.4));
-        double minX = 1e9;
-        for (const Vec2& pt : piece->solids[0].outline.points) minX = std::min(minX, pt.x);
-        REQUIRE(minX == Approx(0.0).margin(1e-9));
+        REQUIRE(lowestX(kit, *placementsOnWall(kit, "w1")[0]) == Approx(0.1));
     }
 }
 
@@ -348,7 +353,7 @@ TEST_CASE("a door gives one opening piece with its fill and collision", "[kit]")
     const auto onWall = placementsOnWall(kit, "w1");
     REQUIRE(onWall.size() == 7);
     std::vector<double> starts;
-    for (const KitPlacement* at : onWall) starts.push_back(at->location.x);
+    for (const KitPlacement* at : onWall) starts.push_back(lowestX(kit, *at));
     std::sort(starts.begin(), starts.end());
     const std::vector<double> expected{0.1, 0.5, 1.0, 1.5, 2.5, 3.0, 3.5};
     REQUIRE(starts.size() == expected.size());
@@ -751,5 +756,95 @@ TEST_CASE("the kit of the sample apartment covers its walls", "[kit][sample]") {
     REQUIRE(schemaProblem("kit-layout.schema.json", kitLayoutToJson(kit, "Apartment", "Apartment_Kit.fbx")).empty());
     for (const KitPiece& piece : kit.pieces) {
         for (const CollisionPiece& c : piece.collision) REQUIRE(isConvexRing(c.outline));
+    }
+}
+
+namespace {
+
+// Whether two kits hold the same pieces by id with the same local geometry, to a tenth of a micrometre.
+void requireSamePieces(const ModularKit& a, const ModularKit& b)
+{
+    REQUIRE(a.pieces.size() == b.pieces.size());
+    for (std::size_t i = 0; i < a.pieces.size(); ++i) {
+        REQUIRE(a.pieces[i].id == b.pieces[i].id);
+        REQUIRE(a.pieces[i].solids.size() == b.pieces[i].solids.size());
+        for (std::size_t s = 0; s < a.pieces[i].solids.size(); ++s) {
+            const KitRing& x = a.pieces[i].solids[s].outline;
+            const KitRing& y = b.pieces[i].solids[s].outline;
+            REQUIRE(x.points.size() == y.points.size());
+            for (std::size_t k = 0; k < x.points.size(); ++k) {
+                REQUIRE(std::fabs(x.points[k].x - y.points[k].x) < 1e-7);
+                REQUIRE(std::fabs(x.points[k].y - y.points[k].y) < 1e-7);
+                REQUIRE(x.edges[k].slot == y.edges[k].slot);
+                REQUIRE(x.edges[k].cut == y.edges[k].cut);
+            }
+        }
+    }
+}
+
+}
+
+TEST_CASE("piece ids and geometry do not depend on which wall is found first", "[kit][stable]") {
+    Project plain = squareRoom();
+    Opening door = doorOn("w2", 2.0);
+    door.id = "o1";
+    plain.plan.floors[0].openings.push_back(door);
+    const ModularKit base = kitOf(plain);
+
+    SECTION("reversing the first wall") {
+        Project p = plain;
+        std::swap(p.plan.floors[0].walls[0].from, p.plan.floors[0].walls[0].to);
+        requireSamePieces(base, kitOf(p));
+    }
+    SECTION("reversing every wall") {
+        Project p = plain;
+        for (Wall& w : p.plan.floors[0].walls) std::swap(w.from, w.to);
+        // The same door seen from the other end hangs on the other jamb and swings to the other side.
+        for (Opening& o : p.plan.floors[0].openings) {
+            o.offset = 4.0 - o.offset;
+            o.hinge = o.hinge == HingeEnd::Start ? HingeEnd::End : HingeEnd::Start;
+            o.swing = o.swing == WallSide::Right ? WallSide::Left : WallSide::Right;
+        }
+        requireSamePieces(base, kitOf(p));
+    }
+    SECTION("reordering the walls") {
+        Project p = plain;
+        std::reverse(p.plan.floors[0].walls.begin(), p.plan.floors[0].walls.end());
+        requireSamePieces(base, kitOf(p));
+        p = plain;
+        std::rotate(p.plan.floors[0].walls.begin(), p.plan.floors[0].walls.begin() + 2, p.plan.floors[0].walls.end());
+        requireSamePieces(base, kitOf(p));
+    }
+    SECTION("removing the first of two equal rooms") {
+        Project two = squareRoom();
+        addSecondRoom(two, 6.0, "living");
+        Floor& f = two.plan.floors[0];
+        f.rooms.erase(f.rooms.begin());
+        f.walls.erase(f.walls.begin(), f.walls.begin() + 4);
+        f.points.erase(f.points.begin(), f.points.begin() + 4);
+        Project single = squareRoom();
+        addSecondRoom(single, 6.0, "living");
+        Floor& g = single.plan.floors[0];
+        g.rooms.pop_back();
+        g.walls.erase(g.walls.begin() + 4, g.walls.end());
+        g.points.erase(g.points.begin() + 4, g.points.end());
+        requireSamePieces(kitOf(single), kitOf(two));
+    }
+}
+
+TEST_CASE("piece ids do not change with float noise from where a thin room stands", "[kit][stable]") {
+    const auto room = [](double dx, double dy) {
+        Project p = squareRoom();
+        for (Wall& w : p.plan.floors[0].walls) w.thickness = 0.125;
+        for (Point& pt : p.plan.floors[0].points) {
+            pt.x += dx;
+            pt.y += dy;
+        }
+        return p;
+    };
+    const ModularKit base = kitOf(room(0.0, 0.0));
+    REQUIRE_FALSE(base.pieces.empty());
+    for (const double dx : {0.1, 0.3, 1.7, 3.3, 12.35}) {
+        for (const double dy : {0.0, 0.7, 5.1}) requireSamePieces(base, kitOf(room(dx, dy)));
     }
 }
