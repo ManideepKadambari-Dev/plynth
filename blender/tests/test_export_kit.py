@@ -299,9 +299,16 @@ class ExportKitTests(ExportTest):
         self.assertIsNone(plain["kit"])
         self.assertIsNone(bpy.data.collections.get("Kit"))
         self.assertEqual(statuses(plain)["kit_file"]["status"], "skipped")
+        from plynth.quality import triangles
+        seen = []
+        original = triangles.triangles_of
+        triangles.triangles_of = lambda obj: seen.append(obj.name) or original(obj)
+        self.addCleanup(setattr, triangles, "triangles_of", original)
         with_kit = self.run_kit()
-        self.assertEqual(with_kit["objects"], plain["objects"] + 8)
-        self.assertEqual(with_kit["files"], plain["files"])
+        for key in ("objects", "triangles", "collision_objects", "files"):
+            self.assertEqual(with_kit[key], plain[key], key)
+        self.assertEqual(statuses(with_kit)["triangles"]["message"], statuses(plain)["triangles"]["message"])
+        self.assertIn("SM_Kit_" + WALL, seen, "the kit pieces are still checked")
 
     # A check only run builds and checks the pieces but writes no kit file.
     def test_check_only(self):

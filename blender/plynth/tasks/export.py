@@ -51,8 +51,8 @@ def run(ctx):
         step.run(ctx)
         timings.append({"step": step_id, "ms": int((time.monotonic() - started) * 1000)})
 
-    meshes = ctx.state["meshes"]
-    collision = ctx.state["collision"]
+    meshes = [o for o in ctx.state["meshes"] if o.get("plynth_kind") != "kit"]
+    collision = [o for o in ctx.state["collision"] if o.get("plynth_kind") != "kit"]
     written = ctx.state["written"]
     ctx.output = {
         "written": written,
