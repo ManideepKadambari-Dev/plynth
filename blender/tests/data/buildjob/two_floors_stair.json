@@ -1,0 +1,865 @@
+{
+ "format": "plynth-blender-job",
+ "version": 1,
+ "task": "build",
+ "job_id": "fixture-1",
+ "result_file": "result.json",
+ "params": {
+  "project": {
+   "name": "fixture",
+   "folder": "project"
+  },
+  "output_folder": "build",
+  "blend_file": "building.blend",
+  "fbx_file": "building.fbx",
+  "materials_file": "materials.json",
+  "textures_folder": "textures",
+  "plan": {
+   "version": 1
+  },
+  "settings": {
+   "bevel_width": 0.01,
+   "bevel_segments": 2,
+   "fill_openings": true
+  },
+  "assets": [],
+  "materials": [],
+  "floors": [
+   {
+    "id": "f1",
+    "elevation": 0.0,
+    "ceiling_height": 3.0,
+    "wall_solids": [
+     {
+      "height": 3.0,
+      "top_material": null,
+      "outline": {
+       "points": [
+        [
+         -0.1,
+         0.1
+        ],
+        [
+         -0.1,
+         -4.1
+        ],
+        [
+         6.1000000000000005,
+         -4.1
+        ],
+        [
+         6.1000000000000005,
+         0.1
+        ]
+       ],
+       "edges": [
+        {
+         "wall": "w4",
+         "side": "right",
+         "room": null,
+         "material": null
+        },
+        {
+         "wall": "w3",
+         "side": "right",
+         "room": null,
+         "material": null
+        },
+        {
+         "wall": "w2",
+         "side": "right",
+         "room": null,
+         "material": null
+        },
+        {
+         "wall": "w1",
+         "side": "right",
+         "room": null,
+         "material": null
+        }
+       ]
+      },
+      "holes": [
+       {
+        "points": [
+         [
+          0.1,
+          -0.1
+         ],
+         [
+          5.9,
+          -0.1
+         ],
+         [
+          5.9,
+          -3.9
+         ],
+         [
+          0.1,
+          -3.9
+         ]
+        ],
+        "edges": [
+         {
+          "wall": "w1",
+          "side": "left",
+          "room": "r1",
+          "material": null
+         },
+         {
+          "wall": "w2",
+          "side": "left",
+          "room": "r1",
+          "material": null
+         },
+         {
+          "wall": "w3",
+          "side": "left",
+          "room": "r1",
+          "material": null
+         },
+         {
+          "wall": "w4",
+          "side": "left",
+          "room": "r1",
+          "material": null
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "openings": [],
+    "rooms": [
+     {
+      "id": "r1",
+      "type": "living",
+      "area": 22.04,
+      "floor_z": 0.0,
+      "ceiling_z": 3.0,
+      "polygons": [
+       {
+        "outline": [
+         [
+          0.1,
+          -0.1
+         ],
+         [
+          0.1,
+          -3.9
+         ],
+         [
+          5.9,
+          -3.9
+         ],
+         [
+          5.9,
+          -0.1
+         ]
+        ],
+        "holes": []
+       }
+      ],
+      "ceiling_polygons": [
+       {
+        "outline": [
+         [
+          0.1,
+          -0.1
+         ],
+         [
+          0.1,
+          -3.9
+         ],
+         [
+          5.9,
+          -3.9
+         ],
+         [
+          5.9,
+          -0.1
+         ]
+        ],
+        "holes": [
+         [
+          [
+           0.6,
+           -1.0
+          ],
+          [
+           4.92,
+           -1.0
+          ],
+          [
+           4.92,
+           -2.0
+          ],
+          [
+           0.6,
+           -2.0
+          ]
+         ]
+        ]
+       }
+      ],
+      "floor_material": null,
+      "ceiling_material": null
+     }
+    ],
+    "items": [],
+    "slab": {
+     "bottom": 3.0,
+     "top": 3.2,
+     "polygons": [
+      {
+       "outline": [
+        [
+         -0.1,
+         0.1
+        ],
+        [
+         -0.1,
+         -4.1
+        ],
+        [
+         6.1,
+         -4.1
+        ],
+        [
+         6.1,
+         0.1
+        ]
+       ],
+       "holes": [
+        [
+         [
+          0.6,
+          -1.0
+         ],
+         [
+          4.92,
+          -1.0
+         ],
+         [
+          4.92,
+          -2.0
+         ],
+         [
+          0.6,
+          -2.0
+         ]
+        ]
+       ]
+      }
+     ],
+     "undersides": [],
+     "materials": {
+      "edge": null,
+      "well": null,
+      "underside": null
+     }
+    },
+    "stairs": [
+     {
+      "id": "s1",
+      "type": "straight",
+      "to_floor": "f2",
+      "rise": 3.2,
+      "riser_count": 17,
+      "riser": 0.188235,
+      "material": null,
+      "steps": [
+       {
+        "part": "step",
+        "outline": [
+         [
+          0.6,
+          -2.0
+         ],
+         [
+          0.87,
+          -2.0
+         ],
+         [
+          0.87,
+          -1.0
+         ],
+         [
+          0.6,
+          -1.0
+         ]
+        ],
+        "bottom": 0.0,
+        "top": 0.188235
+       },
+       {
+        "part": "step",
+        "outline": [
+         [
+          0.87,
+          -2.0
+         ],
+         [
+          1.1400000000000001,
+          -2.0
+         ],
+         [
+          1.1400000000000001,
+          -1.0
+         ],
+         [
+          0.87,
+          -1.0
+         ]
+        ],
+        "bottom": 0.0,
+        "top": 0.376471
+       },
+       {
+        "part": "step",
+        "outline": [
+         [
+          1.1400000000000001,
+          -2.0
+         ],
+         [
+          1.4100000000000001,
+          -2.0
+         ],
+         [
+          1.4100000000000001,
+          -1.0
+         ],
+         [
+          1.1400000000000001,
+          -1.0
+         ]
+        ],
+        "bottom": 0.0,
+        "top": 0.564706
+       },
+       {
+        "part": "step",
+        "outline": [
+         [
+          1.4100000000000001,
+          -2.0
+         ],
+         [
+          1.6800000000000002,
+          -2.0
+         ],
+         [
+          1.6800000000000002,
+          -1.0
+         ],
+         [
+          1.4100000000000001,
+          -1.0
+         ]
+        ],
+        "bottom": 0.0,
+        "top": 0.752941
+       },
+       {
+        "part": "step",
+        "outline": [
+         [
+          1.6800000000000002,
+          -2.0
+         ],
+         [
+          1.9500000000000002,
+          -2.0
+         ],
+         [
+          1.9500000000000002,
+          -1.0
+         ],
+         [
+          1.6800000000000002,
+          -1.0
+         ]
+        ],
+        "bottom": 0.0,
+        "top": 0.941176
+       },
+       {
+        "part": "step",
+        "outline": [
+         [
+          1.9500000000000002,
+          -2.0
+         ],
+         [
+          2.22,
+          -2.0
+         ],
+         [
+          2.22,
+          -1.0
+         ],
+         [
+          1.9500000000000002,
+          -1.0
+         ]
+        ],
+        "bottom": 0.0,
+        "top": 1.129412
+       },
+       {
+        "part": "step",
+        "outline": [
+         [
+          2.22,
+          -2.0
+         ],
+         [
+          2.49,
+          -2.0
+         ],
+         [
+          2.49,
+          -1.0
+         ],
+         [
+          2.22,
+          -1.0
+         ]
+        ],
+        "bottom": 0.0,
+        "top": 1.317647
+       },
+       {
+        "part": "step",
+        "outline": [
+         [
+          2.49,
+          -2.0
+         ],
+         [
+          2.7600000000000002,
+          -2.0
+         ],
+         [
+          2.7600000000000002,
+          -1.0
+         ],
+         [
+          2.49,
+          -1.0
+         ]
+        ],
+        "bottom": 0.0,
+        "top": 1.505882
+       },
+       {
+        "part": "step",
+        "outline": [
+         [
+          2.7600000000000002,
+          -2.0
+         ],
+         [
+          3.0300000000000002,
+          -2.0
+         ],
+         [
+          3.0300000000000002,
+          -1.0
+         ],
+         [
+          2.7600000000000002,
+          -1.0
+         ]
+        ],
+        "bottom": 0.0,
+        "top": 1.694118
+       },
+       {
+        "part": "step",
+        "outline": [
+         [
+          3.0300000000000002,
+          -2.0
+         ],
+         [
+          3.3000000000000003,
+          -2.0
+         ],
+         [
+          3.3000000000000003,
+          -1.0
+         ],
+         [
+          3.0300000000000002,
+          -1.0
+         ]
+        ],
+        "bottom": 0.0,
+        "top": 1.882353
+       },
+       {
+        "part": "step",
+        "outline": [
+         [
+          3.3000000000000003,
+          -2.0
+         ],
+         [
+          3.5700000000000003,
+          -2.0
+         ],
+         [
+          3.5700000000000003,
+          -1.0
+         ],
+         [
+          3.3000000000000003,
+          -1.0
+         ]
+        ],
+        "bottom": 0.0,
+        "top": 2.070588
+       },
+       {
+        "part": "step",
+        "outline": [
+         [
+          3.5700000000000003,
+          -2.0
+         ],
+         [
+          3.8400000000000003,
+          -2.0
+         ],
+         [
+          3.8400000000000003,
+          -1.0
+         ],
+         [
+          3.5700000000000003,
+          -1.0
+         ]
+        ],
+        "bottom": 0.0,
+        "top": 2.258824
+       },
+       {
+        "part": "step",
+        "outline": [
+         [
+          3.8400000000000003,
+          -2.0
+         ],
+         [
+          4.11,
+          -2.0
+         ],
+         [
+          4.11,
+          -1.0
+         ],
+         [
+          3.8400000000000003,
+          -1.0
+         ]
+        ],
+        "bottom": 0.0,
+        "top": 2.447059
+       },
+       {
+        "part": "step",
+        "outline": [
+         [
+          4.11,
+          -2.0
+         ],
+         [
+          4.38,
+          -2.0
+         ],
+         [
+          4.38,
+          -1.0
+         ],
+         [
+          4.11,
+          -1.0
+         ]
+        ],
+        "bottom": 0.0,
+        "top": 2.635294
+       },
+       {
+        "part": "step",
+        "outline": [
+         [
+          4.38,
+          -2.0
+         ],
+         [
+          4.65,
+          -2.0
+         ],
+         [
+          4.65,
+          -1.0
+         ],
+         [
+          4.38,
+          -1.0
+         ]
+        ],
+        "bottom": 0.0,
+        "top": 2.823529
+       },
+       {
+        "part": "step",
+        "outline": [
+         [
+          4.65,
+          -2.0
+         ],
+         [
+          4.92,
+          -2.0
+         ],
+         [
+          4.92,
+          -1.0
+         ],
+         [
+          4.65,
+          -1.0
+         ]
+        ],
+        "bottom": 0.0,
+        "top": 3.011765
+       }
+      ],
+      "hole": {
+       "outline": [
+        [
+         0.6,
+         -2.0
+        ],
+        [
+         4.92,
+         -2.0
+        ],
+        [
+         4.92,
+         -1.0
+        ],
+        [
+         0.6,
+         -1.0
+        ]
+       ],
+       "holes": []
+      }
+     }
+    ],
+    "roofs": []
+   },
+   {
+    "id": "f2",
+    "elevation": 3.2,
+    "ceiling_height": 3.0,
+    "wall_solids": [
+     {
+      "height": 3.0,
+      "top_material": null,
+      "outline": {
+       "points": [
+        [
+         -0.1,
+         0.1
+        ],
+        [
+         -0.1,
+         -4.1
+        ],
+        [
+         6.1000000000000005,
+         -4.1
+        ],
+        [
+         6.1000000000000005,
+         0.1
+        ]
+       ],
+       "edges": [
+        {
+         "wall": "w4",
+         "side": "right",
+         "room": null,
+         "material": null
+        },
+        {
+         "wall": "w3",
+         "side": "right",
+         "room": null,
+         "material": null
+        },
+        {
+         "wall": "w2",
+         "side": "right",
+         "room": null,
+         "material": null
+        },
+        {
+         "wall": "w1",
+         "side": "right",
+         "room": null,
+         "material": null
+        }
+       ]
+      },
+      "holes": [
+       {
+        "points": [
+         [
+          0.1,
+          -0.1
+         ],
+         [
+          5.9,
+          -0.1
+         ],
+         [
+          5.9,
+          -3.9
+         ],
+         [
+          0.1,
+          -3.9
+         ]
+        ],
+        "edges": [
+         {
+          "wall": "w1",
+          "side": "left",
+          "room": "r1",
+          "material": null
+         },
+         {
+          "wall": "w2",
+          "side": "left",
+          "room": "r1",
+          "material": null
+         },
+         {
+          "wall": "w3",
+          "side": "left",
+          "room": "r1",
+          "material": null
+         },
+         {
+          "wall": "w4",
+          "side": "left",
+          "room": "r1",
+          "material": null
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "openings": [],
+    "rooms": [
+     {
+      "id": "r1",
+      "type": "living",
+      "area": 22.04,
+      "floor_z": 3.2,
+      "ceiling_z": 6.2,
+      "polygons": [
+       {
+        "outline": [
+         [
+          0.1,
+          -0.1
+         ],
+         [
+          0.1,
+          -3.9
+         ],
+         [
+          5.9,
+          -3.9
+         ],
+         [
+          5.9,
+          -0.1
+         ]
+        ],
+        "holes": [
+         [
+          [
+           0.6,
+           -1.0
+          ],
+          [
+           4.92,
+           -1.0
+          ],
+          [
+           4.92,
+           -2.0
+          ],
+          [
+           0.6,
+           -2.0
+          ]
+         ]
+        ]
+       }
+      ],
+      "ceiling_polygons": [
+       {
+        "outline": [
+         [
+          0.1,
+          -0.1
+         ],
+         [
+          0.1,
+          -3.9
+         ],
+         [
+          5.9,
+          -3.9
+         ],
+         [
+          5.9,
+          -0.1
+         ]
+        ],
+        "holes": []
+       }
+      ],
+      "floor_material": null,
+      "ceiling_material": null
+     }
+    ],
+    "items": [],
+    "slab": {
+     "bottom": 0.0,
+     "top": 0.0,
+     "polygons": [],
+     "undersides": [],
+     "materials": {
+      "edge": null,
+      "well": null,
+      "underside": null
+     }
+    },
+    "stairs": [],
+    "roofs": []
+   }
+  ],
+  "preview_folder": null
+ }
+}
