@@ -23,6 +23,7 @@ BOUNDS = {"min": [-0.1, -4.1, 0.0], "max": [4.1, 0.1, 3.0]}
 SOFAS = [("i1", 1.5, 2.0, 90.0), ("i2", 3.0, 3.0, 200.0)]
 
 _fixture = {}
+_clean_fixture = {}
 
 
 # Returns the export job of the hand written fixture files with the given placeholders left as they are.
@@ -78,8 +79,23 @@ class FixtureBuilder(BuildTest):
             maps[channel] = path
         return {"id": material_id, "tile_size": {"width": 2.0, "height": 1.0}, "maps": maps}
 
-    # Cleans the sample sofa into an asset folder and returns the job's asset entry for it.
-    def make_sofa(self):
+    # Unwraps every part of the cleaned sofa again into one shared UV map, so no two faces overlap.
+    def separate_uvs(self, blend_file):
+        bpy.ops.wm.open_mainfile(filepath=blend_file)
+        parts = sorted((o for o in bpy.data.objects if o.type == "MESH"), key=lambda o: o.name)
+        for part in parts:
+            part.select_set(True)
+        bpy.context.view_layer.objects.active = parts[0]
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.select_all(action="SELECT")
+        bpy.ops.uv.smart_project(island_margin=0.02)
+        bpy.ops.object.mode_set(mode="OBJECT")
+        bpy.ops.wm.save_mainfile()
+        bpy.ops.wm.read_factory_settings(use_empty=True)
+
+    # Cleans the sample sofa into an asset folder and returns the job's asset entry for it. With separate_uvs
+    # the parts get their own space in the UV map.
+    def make_sofa(self, separate_uvs=False):
         folder = self.path("library", "sofa")
         copy_folder = self.path("src", "sofa")
         shutil.copytree(os.path.join(MODELS, "sofa"), copy_folder)
@@ -96,6 +112,8 @@ class FixtureBuilder(BuildTest):
         result = self.run_task("cleanup_asset", params, job_id="clean-sofa")
         assert result["ok"], result["error"]
         bpy.ops.wm.read_factory_settings(use_empty=True)
+        if separate_uvs:
+            self.separate_uvs(folder + "/asset.blend")
         materials = []
         for entry in result["output"]["material_maps"]:
             maps = {channel: (folder + "/" + entry["maps"][channel]["file"]) if entry["maps"][channel]["file"]
@@ -104,25 +122,29 @@ class FixtureBuilder(BuildTest):
         return {"id": "sofa", "blend_file": folder + "/asset.blend", "collection": "sofa", "materials": materials}
 
     # Makes the build job: the door room with paint_a on the living wall and ceiling, collision pieces and two sofas.
-    def build_params(self):
+    # With clean true every slot shows paint_a, so no slot has the neutral look.
+    def build_params(self, clean=False):
         from test_build_collision import collision_params
         params = copy.deepcopy(load_params("door"))
         params["settings"]["bevel_width"] = 0.0
         paint = self.make_material("paint_a", (200, 40, 40))
         params["materials"] = [paint]
+        painted = None if clean else ("Living_Wall", "Living_Ceiling")
         for slot in params["slots"]:
-            if slot["name"] in ("Living_Wall", "Living_Ceiling"):
+            if painted is None or slot["name"] in painted:
                 slot["material"] = "paint_a"
         floor = params["floors"][0]
         for room in floor["rooms"]:
             room["ceiling_material"] = "paint_a"
+            if clean:
+                room["floor_material"] = "paint_a"
         for solid in floor["wall_solids"]:
             for ring in [solid["outline"]] + solid["holes"]:
                 for edge in ring["edges"]:
-                    if edge.get("slot") == "Living_Wall":
+                    if painted is None or edge.get("slot") in painted:
                         edge["material"] = "paint_a"
         floor["collision"] = collision_params()["floors"][0]["collision"]
-        params["assets"] = [self.make_sofa()]
+        params["assets"] = [self.make_sofa(separate_uvs=clean)]
         plan_items = []
         for item_id, x, y, rotation in SOFAS:
             floor["items"].append({"id": item_id, "asset": "sofa", "location": [x, -y, 0.0],
@@ -133,34 +155,36 @@ class FixtureBuilder(BuildTest):
         return params
 
 
-# Builds the shared fixture once and returns the project folder holding build/. Removed when the tests end.
-def fixture_project():
-    if "folder" not in _fixture:
+# Builds a shared fixture once and returns the project folder holding build/. Removed when the tests end. The
+# clean one has a real material on every slot.
+def fixture_project(clean=False):
+    store = _clean_fixture if clean else _fixture
+    if "folder" not in store:
         builder = FixtureBuilder()
         builder.setUp()
         atexit.register(shutil.rmtree, builder.folder, True)
-        params = builder.build_params()
+        params = builder.build_params(clean)
         params["output_folder"] = builder.path("project", "build")
         params["blend_file"] = "building.blend"
         result = builder.run_task("build", params, job_id="build-1")
         assert result["ok"], result["error"]
-        _fixture["folder"] = builder.path("project")
-        _fixture["builder"] = builder
-        _fixture["problems"] = result["output"]["problems"]
-        _fixture["materials"] = json.load(open(builder.path("project", "build", "materials.json"), "r",
-                                               encoding="utf-8"))["materials"]
-    return _fixture["folder"]
+        store["folder"] = builder.path("project")
+        store["builder"] = builder
+        store["problems"] = result["output"]["problems"]
+        store["materials"] = json.load(open(builder.path("project", "build", "materials.json"), "r",
+                                            encoding="utf-8"))["materials"]
+    return store["folder"]
 
 
 class ExportTest(helpers.TempFolderTest):
     # Returns the export job params for the shared project, writing into a staging folder of this test.
-    def params(self, write=True, force=False, blend_file=None):
-        project = fixture_project()
+    def params(self, write=True, force=False, blend_file=None, clean=False):
+        project = fixture_project(clean)
         params = job_params(write=write, force=force)
         params["project"]["folder"] = project
         params["blend_file"] = blend_file or project + "/build/building.blend"
         params["output_folder"] = self.path("export", ".staging")
-        params["materials"] = copy.deepcopy(_fixture["materials"])
+        params["materials"] = copy.deepcopy((_clean_fixture if clean else _fixture)["materials"])
         return params
 
     # Runs the export task and returns the result.
