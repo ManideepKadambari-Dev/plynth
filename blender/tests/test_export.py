@@ -36,6 +36,11 @@ class FakeCheck:
         return quality.result(self.status, "Fixed answer.", [quality.finding("About the walls.", "SM_f1_Walls", "w1")])
 
 
+# Returns the id and status of the fake checks in an export output.
+def fakes(output):
+    return [(c["id"], c["status"]) for c in output["checks"] if c["id"].startswith("fake_")]
+
+
 class ExportTests(ExportTest):
     # Registers a check for the length of one test.
     def register_check(self, check_id, entry):
@@ -58,7 +63,7 @@ class ExportTests(ExportTest):
 
     # The square room export writes the FBX and Textures, with the names the plan asks for.
     def test_export(self):
-        result = self.export()
+        result = self.export(clean=True)
         self.assertTrue(result["ok"], result["error"])
         self.assert_result_valid(result)
         output = result["output"]
@@ -68,7 +73,7 @@ class ExportTests(ExportTest):
         self.assertEqual([s["step"] for s in output["steps"]], STEPS)
         self.assertEqual(output["files"][0]["group"], "building")
         self.assertEqual(output["files"][0]["file"], "Square.fbx")
-        self.assertEqual(output["checks"], [])
+        self.assertEqual([c["id"] for c in output["checks"] if c["status"] == "fail"], [])
         objects = scene.scene_objects()
         names = sorted(o.name for o in objects if o.type == "MESH")
         for wanted in ("SM_f1_Walls", "SM_f1_r1_Floor", "SM_sofa_i1", "SM_sofa_i2", "UCX_SM_f1_Walls_00",
@@ -90,7 +95,7 @@ class ExportTests(ExportTest):
 
     # Slot names are kept and furniture materials are named after their asset.
     def test_material_names(self):
-        self.export()
+        self.export(clean=True)
         used = {m.name for o in bpy.data.objects if o.type == "MESH" for m in o.data.materials if m}
         for slot in ("Living_Wall", "Living_Ceiling", "Living_Floor", "Exterior_Wall", "Wall_Top"):
             self.assertIn(slot, used)
@@ -102,18 +107,21 @@ class ExportTests(ExportTest):
 
     # Textures are named after their material, copied byte for byte and once for each source file.
     def test_textures(self):
-        result = self.export()
+        result = self.export(clean=True)
         output = result["output"]
         folder = self.path("export", ".staging", "Textures")
         self.assertEqual(sorted(os.listdir(folder)), output["textures"])
         self.assertIn("T_PaintA_BaseColor.png", output["textures"])
         self.assertIn("T_PaintA_Normal.png", output["textures"])
         self.assertEqual([t for t in output["textures"] if t.startswith("T_PaintA_")].count("T_PaintA_BaseColor.png"), 1)
-        project = fixture_project()
+        project = fixture_project(clean=True)
         source = os.path.join(project, "..", "library", "paint_a", "base_color.png")
         self.assertEqual(digest(os.path.join(folder, "T_PaintA_BaseColor.png")), digest(source))
         self.assertTrue(any(t.startswith("T_Sofa_") for t in output["textures"]))
-        self.assertTrue(any(t.startswith("T_Living_Floor_") for t in output["textures"]))
+        floor = bpy.data.materials["Living_Floor"]
+        floor_files = {os.path.basename(n.image.filepath) for n in floor.node_tree.nodes
+                       if n.type == "TEX_IMAGE" and n.image}
+        self.assertIn("T_PaintA_BaseColor.png", floor_files)
         sources = {}
         for image in bpy.data.images:
             path = os.path.normcase(os.path.abspath(bpy.path.abspath(image.filepath)))
@@ -124,7 +132,7 @@ class ExportTests(ExportTest):
 
     # The FBX moved with its Textures folder still finds every texture, and the walls have the bounds of the build.
     def test_reimport_elsewhere(self):
-        self.export()
+        self.export(clean=True)
         moved = self.path("elsewhere", "export")
         shutil.copytree(self.path("export", ".staging"), moved)
         shutil.rmtree(self.path("export"))
@@ -210,8 +218,7 @@ class ExportTests(ExportTest):
         self.assert_result_valid(result)
         output = result["output"]
         self.assertFalse(output["written"])
-        self.assertEqual([(c["id"], c["status"]) for c in output["checks"]], [("fake_scene", "fail"),
-                                                                              ("fake_file", "skipped")])
+        self.assertEqual(fakes(output), [("fake_scene", "fail"), ("fake_file", "skipped")])
         self.assertEqual(output["checks"][0]["findings"][0]["plan_id"], "w1")
         self.assertEqual(output["files"], [])
         self.assertEqual(output["textures"], [])
@@ -220,8 +227,7 @@ class ExportTests(ExportTest):
         forced = self.export(force=True)
         self.assert_result_valid(forced)
         self.assertTrue(forced["output"]["written"])
-        self.assertEqual([(c["id"], c["status"]) for c in forced["output"]["checks"]],
-                         [("fake_scene", "fail"), ("fake_file", "pass")])
+        self.assertEqual(fakes(forced["output"]), [("fake_scene", "fail"), ("fake_file", "pass")])
         self.assertTrue(os.path.isfile(self.path("export", ".staging", "Square.fbx")))
 
     # A warning does not block, and a check that raises fails with a plain sentence.
@@ -233,8 +239,9 @@ class ExportTests(ExportTest):
 
         self.register_check("fake_crash", quality.QualityCheck(2, "scene", "Crash", broken))
         output = self.export(force=False)["output"]
-        self.assertEqual([c["status"] for c in output["checks"]], ["warning", "fail"])
-        self.assertIn("boom", output["checks"][1]["message"])
+        fake = [c for c in output["checks"] if c["id"].startswith("fake_")]
+        self.assertEqual([c["status"] for c in fake], ["warning", "fail"])
+        self.assertIn("boom", fake[1]["message"])
         self.assertFalse(output["written"])
 
     # Findings are capped at 50 and the message says how many there were.
@@ -253,7 +260,7 @@ class ExportTests(ExportTest):
 
     # Groups that take only some kinds split the objects, and a collision mesh follows its object.
     def test_groups(self):
-        params = self.params()
+        params = self.params(clean=True)
         params["groups"] = [{"id": "furniture", "file": "Furniture.fbx", "kinds": ["item"], "ids": []},
                             {"id": "shell", "file": "Shell.fbx", "kinds": ["walls", "floor", "ceiling", "threshold",
                                                                           "fill"], "ids": []}]

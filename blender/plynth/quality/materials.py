@@ -7,8 +7,6 @@ from ._common import base_color_source, image_nodes, plan_id, polygon_materials
 from ..registry import QUALITY_CHECKS
 
 ORDER = 90
-# Written in two parts because a source check keeps the engine's name out of the worker code.
-BAKE_ENGINE = "Cy" + "cles"
 
 
 # Returns the findings for the meshes: no materials and faces on an empty slot.
@@ -46,8 +44,8 @@ def material_findings(ctx):
                 findings.append(finding("The image file %s of %s is missing." % (os.path.basename(path), name), name))
         kind, detail = base_color_source(material["material"])
         if kind == "procedural":
-            findings.append(finding("The base color of %s is procedural (%s), and Plynth cannot bake it, because "
-                                    "baking needs %s." % (name, detail, BAKE_ENGINE), name))
+            findings.append(finding("The base color of %s is procedural (%s). This material uses nodes Plynth "
+                                    "cannot turn into image maps." % (name, detail), name))
         elif kind == "flat":
             findings.append(finding("The base color of %s is a color value, not an image." % name, name))
         elif kind == "empty":
