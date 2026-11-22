@@ -212,11 +212,48 @@
        }
       ],
       "floor_material": null,
-      "ceiling_material": null
+      "ceiling_material": null,
+      "ceiling_polygons": [
+       {
+        "outline": [
+         [
+          0.1,
+          -0.1
+         ],
+         [
+          0.1,
+          -3.9
+         ],
+         [
+          3.9,
+          -3.9
+         ],
+         [
+          3.9,
+          -0.1
+         ]
+        ],
+        "holes": []
+       }
+      ]
      }
     ],
-    "items": []
+    "items": [],
+    "slab": {
+     "bottom": 0.0,
+     "top": 0.0,
+     "polygons": [],
+     "undersides": [],
+     "materials": {
+      "edge": null,
+      "well": null,
+      "underside": null
+     }
+    },
+    "stairs": [],
+    "roofs": []
    }
-  ]
+  ],
+  "preview_folder": null
  }
 }

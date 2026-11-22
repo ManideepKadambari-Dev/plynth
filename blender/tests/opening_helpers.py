@@ -169,15 +169,20 @@ def ring(points, edges):
     return {"points": [list(p) for p in points], "edges": edges}
 
 
+NO_SLAB = {"bottom": 0.0, "top": 0.0, "polygons": [], "undersides": [],
+           "materials": {"edge": None, "well": None, "underside": None}}
+
+
 # The floor of the square room with the given openings.
 def square_floor(openings, elevation=0.0):
     outer = ring(OUTER, [{"wall": w, "side": "right", "room": None, "material": None} for w in ("w4", "w3", "w2", "w1")])
     hole = ring(HOLE, [{"wall": w, "side": "left", "room": "r1", "material": None} for w in ("w1", "w2", "w3", "w4")])
     room = {"id": "r1", "type": "living", "area": 14.44, "floor_z": elevation, "ceiling_z": elevation + 3.0,
-            "floor_material": None, "ceiling_material": None, "polygons": [{"outline": [list(p) for p in ROOM], "holes": []}]}
+            "floor_material": None, "ceiling_material": None, "polygons": [{"outline": [list(p) for p in ROOM], "holes": []}],
+            "ceiling_polygons": [{"outline": [list(p) for p in ROOM], "holes": []}]}
     return {"id": "f1", "elevation": elevation, "ceiling_height": 3.0,
             "wall_solids": [{"height": 3.0, "top_material": None, "outline": outer, "holes": [hole]}],
-            "openings": openings, "rooms": [room], "items": []}
+            "openings": openings, "rooms": [room], "items": [], "slab": NO_SLAB, "stairs": [], "roofs": []}
 
 
 # The floor of one free standing curved wall (a ring sector about the origin) with the given openings.
@@ -192,7 +197,7 @@ def curved_floor(openings, radius=3.0, a0=0.3, a1=2.4):
     edges.append({"wall": "wc", "side": None, "room": None, "material": None})
     return {"id": "f1", "elevation": 0.0, "ceiling_height": 3.0,
             "wall_solids": [{"height": 3.0, "top_material": None, "outline": ring(points, edges), "holes": []}],
-            "openings": openings, "rooms": [], "items": []}
+            "openings": openings, "rooms": [], "items": [], "slab": NO_SLAB, "stairs": [], "roofs": []}
 
 
 # Wraps floors into a build job.
@@ -201,7 +206,7 @@ def job(floors, settings=None):
             "result_file": "result.json",
             "params": {"project": {"name": "fixture", "folder": "project"}, "output_folder": "build",
                        "blend_file": "building.blend", "fbx_file": "building.fbx",
-                       "materials_file": "materials.json", "textures_folder": "textures", "plan": {"version": 1},
+                       "materials_file": "materials.json", "textures_folder": "textures", "preview_folder": None, "plan": {"version": 1},
                        "settings": settings or dict(SETTINGS), "assets": [], "materials": [], "floors": floors}}
 
 

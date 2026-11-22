@@ -1,0 +1,19 @@
+{
+  "format": "plynth-material-source",
+  "version": 1,
+  "id": "roof_tiles",
+  "name": "Roof tiles",
+  "groups": [
+    "exterior"
+  ],
+  "tags": [
+    "clay",
+    "roof",
+    "tiles"
+  ],
+  "tile_size": {
+    "width": 1.0,
+    "height": 1.0
+  },
+  "license": "own_work"
+}
