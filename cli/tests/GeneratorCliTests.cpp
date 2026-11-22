@@ -1,5 +1,6 @@
 #include "FakeBlender.h"
 #include "SampleProject.h"
+#include "SettingsGuard.h"
 
 #include <plynth/core/Addons.h>
 #include <plynth/core/EditSession.h>
@@ -36,8 +37,8 @@ struct GeneratorReset {
     GeneratorReset() { clear(); }
     ~GeneratorReset() { clear(); }
     static void clear() {
+        plynth::cli::testing::removeSettingsFileSafely();
         std::error_code ignored;
-        std::filesystem::remove(plynth::settingsFile(), ignored);
         std::filesystem::remove(plynth::addonCacheFile(), ignored);
     }
 };
