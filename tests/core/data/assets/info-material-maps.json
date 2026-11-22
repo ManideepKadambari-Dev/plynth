@@ -1,0 +1,58 @@
+{
+  "format": "plynth-asset",
+  "version": 1,
+  "id": "armchair",
+  "name": "Armchair",
+  "categories": ["chair"],
+  "tags": ["fabric"],
+  "license": "cc0",
+  "source": {"kind": "local_file", "reference": "armchair.fbx", "imported_at": "2026-11-21T10:00:00Z"},
+  "size": {"width": 0.8, "depth": 0.85, "height": 0.9},
+  "triangles": 5400,
+  "objects": 2,
+  "materials": ["Fabric", "Paint"],
+  "material_maps": [
+    {
+      "name": "Fabric",
+      "maps": {
+        "base_color": {"file": "textures/maps/fabric/base_color.png", "from": "file", "detail": "fabric_albedo.jpg"},
+        "normal": {"file": "textures/maps/fabric/normal.png", "from": "file", "detail": "fabric_normal.png"},
+        "roughness": {"file": "textures/maps/fabric/roughness.png", "from": "value", "detail": "0.3"},
+        "metallic": {"file": "textures/maps/fabric/metallic.png", "from": "value", "detail": "0"},
+        "opacity": {"file": null, "from": "none", "detail": ""},
+        "occlusion": {"file": "textures/maps/fabric/occlusion.png", "from": "file", "detail": "fabric_ao.png"}
+      },
+      "preview_maps": {
+        "base_color": {"file": "textures/preview/fabric_base_color.png", "from": "file", "detail": "fabric_albedo.jpg"},
+        "normal": {"file": "textures/preview/fabric_normal.png", "from": "file", "detail": "fabric_normal.png"},
+        "roughness": {"file": "textures/maps/fabric/roughness.png", "from": "value", "detail": "0.3"},
+        "metallic": {"file": "textures/maps/fabric/metallic.png", "from": "value", "detail": "0"},
+        "opacity": {"file": null, "from": "none", "detail": ""},
+        "occlusion": {"file": "textures/preview/fabric_occlusion.png", "from": "file", "detail": "fabric_ao.png"}
+      }
+    },
+    {
+      "name": "Paint",
+      "maps": {
+        "base_color": {"file": "textures/maps/paint/base_color.png", "from": "value", "detail": "0.70, 0.38, 0.35"},
+        "normal": {"file": "textures/maps/paint/normal.png", "from": "value", "detail": "flat"},
+        "roughness": {"file": "textures/maps/paint/roughness.png", "from": "baked", "detail": "eevee"},
+        "metallic": {"file": "textures/maps/paint/metallic.png", "from": "value", "detail": "1"},
+        "opacity": {"file": "textures/maps/paint/opacity.png", "from": "value", "detail": "0.5"},
+        "occlusion": {"file": null, "from": "none", "detail": ""}
+      },
+      "preview_maps": {
+        "base_color": {"file": "textures/maps/paint/base_color.png", "from": "value", "detail": "0.70, 0.38, 0.35"},
+        "normal": {"file": "textures/maps/paint/normal.png", "from": "value", "detail": "flat"},
+        "roughness": {"file": "textures/maps/paint/roughness.png", "from": "baked", "detail": "eevee"},
+        "metallic": {"file": "textures/maps/paint/metallic.png", "from": "value", "detail": "1"},
+        "opacity": {"file": "textures/maps/paint/opacity.png", "from": "value", "detail": "0.5"},
+        "occlusion": {"file": null, "from": "none", "detail": ""}
+      }
+    }
+  ],
+  "textures": ["textures/maps/fabric/base_color.png", "textures/maps/paint/base_color.png"],
+  "blend": {"file": "asset.blend", "bytes": 2048, "modified": "2026-11-21T10:00:05Z"},
+  "thumbnail": {"file": "thumb.png", "error": null, "engine": "eevee", "rendered_at": "2026-11-21T10:00:07Z"},
+  "cleanup": {"blender_version": "5.2.0", "warnings": [{"code": "material_approximated", "message": "Paint was baked over its UV square."}]}
+}

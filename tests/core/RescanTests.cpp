@@ -1,6 +1,7 @@
 #include "CatalogSupport.h"
 
 #include <plynth/core/catalog/AssetCatalog.h>
+#include <plynth/core/catalog/AssetInfo.h>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -217,4 +218,38 @@ TEST_CASE("rescan counts the inbox", "[core][rescan]") {
     plynth::test::writeBytes(lib.paths.assetInboxDone / "old.obj", "x");
     plynth::test::writeBytes(lib.paths.assetInboxFailed / "bad.obj", "x");
     REQUIRE(lib.catalog->rescan().inboxWaiting == 3);
+}
+
+TEST_CASE("an asset whose materials have no maps is listed in needsRefresh and stays Ready", "[core][rescan][assetmaps]") {
+    TestLibrary lib("rescan-nomaps");
+    addThree(lib);
+    AssetInfo info = lib.add("sofa2", "Sofa two", {"sofa"}, {"fabric"}, true);
+    info.materials = {"Fabric", "Wood"};
+    plynth::test::requireOk(writeAssetInfo(lib.paths.assetItems / "sofa2" / "info.json", info));
+    REQUIRE_FALSE(hasMaterialMaps(info));
+
+    const RescanReport report = lib.catalog->rescan();
+    REQUIRE(report.needsRefresh == std::vector<std::string>{"sofa2"});
+    REQUIRE(lib.catalog->asset("sofa2")->state == AssetState::Ready);
+    REQUIRE(lib.catalog->asset("sofa2")->thumbnail == ThumbnailState::Ok);
+    REQUIRE(lib.catalog->rescan().needsRefresh == std::vector<std::string>{"sofa2"});
+
+    for (const char* name : {"Fabric", "Wood"}) {
+        AssetMaterial material;
+        material.name = name;
+        for (const MapChannel channel : {MapChannel::BaseColor, MapChannel::Normal, MapChannel::Roughness, MapChannel::Metallic}) {
+            materialMap(material.maps, channel) = {"textures/maps/" + std::string(name) + "/" + std::string(mapChannelName(channel)) + ".png",
+                                                   MapOrigin::File, "x.png"};
+        }
+        material.previewMaps = material.maps;
+        info.materialMaps.push_back(material);
+    }
+    plynth::test::requireOk(writeAssetInfo(lib.paths.assetItems / "sofa2" / "info.json", info));
+    REQUIRE(lib.catalog->rescan().needsRefresh.empty());
+}
+
+TEST_CASE("an asset with no materials needs no maps", "[core][rescan][assetmaps]") {
+    TestLibrary lib("rescan-nomaterials");
+    addThree(lib);
+    REQUIRE(lib.catalog->rescan().needsRefresh.empty());
 }

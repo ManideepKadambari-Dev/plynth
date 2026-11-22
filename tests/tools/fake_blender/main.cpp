@@ -572,7 +572,8 @@ int main()
         result["output"] = materialOutput(params, mode);
     } else if (task == "cleanup_asset") {
         const fs::path folder = pathFrom(params["output_folder"].get<std::string>());
-        writeFile(folder / "asset.blend", "FAKEBLEND");
+        const bool fromBlend = params["source"]["format"].get<std::string>() == "blend";
+        writeFile(folder / "asset.blend", fromBlend ? "CLEANED:" + params["source"]["file"].get<std::string>() : "FAKEBLEND");
         const bool fbxWritten = mode != "no_fbx";
         if (fbxWritten) writeFile(folder / "asset.fbx", "FAKEFBX");
         else result["warnings"].push_back(Json{{"code", "fbx_failed"}, {"message", "Fake asset.fbx failure"}});
@@ -586,13 +587,24 @@ int main()
         }
         const bool zip = params["source"]["format"].get<std::string>() == "zip";
         Json output = measures(true);
+        Json textures = Json::array();
+        Json maps = Json::object();
+        for (const char* channel : {"base_color", "normal", "roughness", "metallic"}) {
+            const std::string file = std::string("textures/maps/fake/") + channel + ".png";
+            writeFile(folder / pathFrom(file), tinyPng());
+            textures.push_back(file);
+            maps[channel] = Json{{"file", file}, {"from", "file"}, {"detail", "fake.png"}};
+        }
+        for (const char* channel : {"opacity", "occlusion"}) maps[channel] = Json{{"file", nullptr}, {"from", "none"}, {"detail", ""}};
+        output["textures"] = textures;
+        output["material_maps"] = Json::array({Json{{"name", "Fake"}, {"maps", maps}, {"preview_maps", maps}}});
         output["blend_file"] = "asset.blend";
         output["fbx_file"] = fbxWritten ? Json("asset.fbx") : Json(nullptr);
         output["picked_file"] = zip ? Json("model.obj") : Json(nullptr);
         output["missing_textures"] = Json::array();
         output["thumbnail"] = thumbnail;
         Json ordered = Json::object();
-        for (const char* key : {"blend_file", "fbx_file", "picked_file", "size", "triangles", "objects", "materials", "textures", "missing_textures", "thumbnail"}) {
+        for (const char* key : {"blend_file", "fbx_file", "picked_file", "size", "triangles", "objects", "materials", "textures", "missing_textures", "material_maps", "thumbnail"}) {
             ordered[key] = output[key];
         }
         result["output"] = ordered;

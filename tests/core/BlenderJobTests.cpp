@@ -177,6 +177,15 @@ TEST_CASE("jobs validate against the job schema", "[core][blenderjob][schema]") 
     cleanup.format = "zip";
     cleanup.thumbnail.render = false;
     REQUIRE(problemWith("blender-job.schema.json", makeCleanupJob(cleanup, "chair-1a2b3c4d", result)).empty());
+    REQUIRE(makeCleanupJob(cleanup, "chair-1a2b3c4d", result)["params"]["bake_size"] == 1024);
+    for (const int size : {256, 512, 2048, 4096}) {
+        cleanup.bakeSize = size;
+        const Json sized = makeCleanupJob(cleanup, "chair-1a2b3c4d", result);
+        REQUIRE(sized["params"]["bake_size"] == size);
+        REQUIRE(problemWith("blender-job.schema.json", sized).empty());
+    }
+    cleanup.bakeSize = 300;
+    REQUIRE_FALSE(problemWith("blender-job.schema.json", makeCleanupJob(cleanup, "chair-1a2b3c4d", result)).empty());
 
     ThumbnailJob thumb;
     thumb.blendFile = tmp.path() / "asset.blend";
@@ -243,6 +252,19 @@ TEST_CASE("cleanup and thumbnail results are read", "[core][blenderjob]") {
     REQUIRE(out.triangles == 12);
     REQUIRE(out.objects == 1);
     REQUIRE(out.materials == std::vector<std::string>{"Fake"});
+    REQUIRE(out.textures.size() == 4);
+    REQUIRE(out.textures[0] == "textures/maps/fake/base_color.png");
+    REQUIRE(out.materialMaps.size() == 1);
+    REQUIRE(out.materialMaps[0].name == "Fake");
+    REQUIRE(out.materialMaps[0].maps.baseColor.file == "textures/maps/fake/base_color.png");
+    REQUIRE(out.materialMaps[0].maps.baseColor.origin == MapOrigin::File);
+    REQUIRE(out.materialMaps[0].maps.baseColor.detail == "fake.png");
+    REQUIRE(out.materialMaps[0].maps.opacity.origin == MapOrigin::None);
+    REQUIRE(out.materialMaps[0].maps.opacity.file.empty());
+    REQUIRE(out.materialMaps[0].previewMaps == out.materialMaps[0].maps);
+    for (const MapChannel channel : {MapChannel::BaseColor, MapChannel::Normal, MapChannel::Roughness, MapChannel::Metallic}) {
+        REQUIRE(fs::exists(f.work / "item" / pathFromUtf8(materialMap(out.materialMaps[0].maps, channel).file)));
+    }
     REQUIRE(out.thumbnailRendered);
     REQUIRE(out.thumbnailEngine == "eevee");
     REQUIRE(out.thumbnailError.empty());
@@ -414,4 +436,69 @@ TEST_CASE("readBlenderResultHeader checks what was asked", "[core][blenderjob]")
     REQUIRE(bad.status.code == ErrorCode::BlenderFailed);
     REQUIRE(bad.status.message == "The file holds no model.");
     REQUIRE(bad.errorCode == "no_geometry");
+}
+
+TEST_CASE("readCleanupResult reads constant maps, previews and the material_approximated warning", "[core][blenderjob]") {
+    JobFixture f("job-maps");
+    const std::string id = "chair-00000005";
+    const BlenderJobRun run = runBlenderJob(f.exe, cleanupJob(f, "obj", id), f.work, f.options);
+    plynth::test::requireOk(run.status);
+
+    Json result = run.result;
+    result["warnings"].push_back(Json{{"code", "material_approximated"}, {"message", "Paint was baked over its UV square."}});
+    Json& entry = result["output"]["material_maps"][0];
+    entry["name"] = "Paint";
+    entry["maps"]["base_color"] = Json{{"file", "textures/maps/paint/base_color.png"}, {"from", "value"}, {"detail", "0.70, 0.38, 0.35"}};
+    entry["maps"]["normal"] = Json{{"file", "textures/maps/paint/normal.png"}, {"from", "value"}, {"detail", "flat"}};
+    entry["maps"]["roughness"] = Json{{"file", "textures/maps/paint/roughness.png"}, {"from", "value"}, {"detail", "0.3"}};
+    entry["maps"]["metallic"] = Json{{"file", "textures/maps/paint/metallic.png"}, {"from", "baked"}, {"detail", "eevee"}};
+    entry["preview_maps"] = entry["maps"];
+    entry["preview_maps"]["base_color"] = Json{{"file", "textures/preview/paint_base_color.png"}, {"from", "file"}, {"detail", "paint.png"}};
+    REQUIRE(problemWith("blender-result.schema.json", result).empty());
+
+    const AssetJobOutput out = readCleanupResult(result, id);
+    plynth::test::requireOk(out.header.status);
+    REQUIRE(out.header.warnings.size() == 1);
+    REQUIRE(out.header.warnings[0].code == "material_approximated");
+    const AssetMaterial& paint = out.materialMaps[0];
+    REQUIRE(paint.maps.baseColor.origin == MapOrigin::Value);
+    REQUIRE(paint.maps.baseColor.detail == "0.70, 0.38, 0.35");
+    REQUIRE(paint.maps.normal.detail == "flat");
+    REQUIRE(paint.maps.roughness.detail == "0.3");
+    REQUIRE(paint.maps.metallic.origin == MapOrigin::Baked);
+    REQUIRE(paint.previewMaps.baseColor.file == "textures/preview/paint_base_color.png");
+    REQUIRE(paint.previewMaps.roughness == paint.maps.roughness);
+}
+
+TEST_CASE("readCleanupResult refuses bad material maps", "[core][blenderjob]") {
+    JobFixture f("job-bad-maps");
+    const std::string id = "chair-00000006";
+    const BlenderJobRun run = runBlenderJob(f.exe, cleanupJob(f, "obj", id), f.work, f.options);
+    plynth::test::requireOk(run.status);
+
+    Json missing = run.result;
+    missing["output"].erase("material_maps");
+    const AssetJobOutput gone = readCleanupResult(missing, id);
+    REQUIRE(gone.header.status.code == ErrorCode::BadFile);
+    REQUIRE(gone.header.status.where == "/output/material_maps");
+
+    Json outside = run.result;
+    outside["output"]["material_maps"][0]["maps"]["normal"]["file"] = "elsewhere/normal.png";
+    const AssetJobOutput bad = readCleanupResult(outside, id);
+    REQUIRE(bad.header.status.code == ErrorCode::BadFile);
+    REQUIRE(bad.header.status.where == "/output/material_maps/0/maps/normal/file");
+
+    Json up = run.result;
+    up["output"]["material_maps"][0]["preview_maps"]["metallic"]["file"] = "textures/maps/../../x.png";
+    REQUIRE(readCleanupResult(up, id).header.status.code == ErrorCode::BadFile);
+
+    Json noFile = run.result;
+    noFile["output"]["material_maps"][0]["maps"]["base_color"] = Json{{"file", nullptr}, {"from", "none"}, {"detail", ""}};
+    const AssetJobOutput none = readCleanupResult(noFile, id);
+    REQUIRE(none.header.status.code == ErrorCode::BadFile);
+    REQUIRE(none.header.status.where == "/output/material_maps/0/maps/base_color/from");
+
+    Json noPreview = run.result;
+    noPreview["output"]["material_maps"][0].erase("preview_maps");
+    REQUIRE(readCleanupResult(noPreview, id).header.status.code == ErrorCode::BadFile);
 }
