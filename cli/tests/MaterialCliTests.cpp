@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -50,8 +51,7 @@ const nlohmann::json& entryOf(const nlohmann::json& array, const std::string& id
             return entry;
         }
     }
-    FAIL("no entry " << id);
-    return array;
+    throw std::runtime_error("no entry " + id);
 }
 
 nlohmann::json projectJson(const Sample& sample) {
@@ -70,8 +70,7 @@ nlohmann::json wallOf(const Sample& sample, const std::string& id) {
             return wall;
         }
     }
-    FAIL("no wall " << id);
-    return {};
+    throw std::runtime_error("no wall " + id);
 }
 
 }
