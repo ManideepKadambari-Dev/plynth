@@ -19,7 +19,9 @@
 #include "dialogs/RoomTypesDialog.h"
 #include "home/HomeScreen.h"
 #include "home/ProjectThumbnail.h"
+#include "materials/MaterialRefresher.h"
 #include "panels/AssetsPanel.h"
+#include "panels/MaterialsPanel.h"
 #include "panels/PropertiesPanel.h"
 #include "panels/RightPanel.h"
 #include "panels/ToolStrip.h"
@@ -141,6 +143,7 @@ MainWindow::MainWindow(QWidget* parent)
     tools_->setLibrary(host_);
     panel_ = new PropertiesPanel(doc_, *selection_, *tools_, central);
     assets_ = new AssetsPanel(*host_, central);
+    materials_ = new MaterialsPanel(*host_, central);
     auto* work = new QWidget(central);
     auto* row = new QHBoxLayout(work);
     row->setContentsMargins(0, 0, 0, 0);
@@ -171,7 +174,7 @@ MainWindow::MainWindow(QWidget* parent)
     centreColumn->addWidget(centreStack_, 1);
     row->addWidget(centre, 1);
     buildPanel_ = new BuildPanel(work);
-    right_ = new RightPanel(panel_, assets_, buildPanel_, work);
+    right_ = new RightPanel(panel_, assets_, materials_, buildPanel_, work);
     row->addWidget(right_);
     work_ = work;
     pages_ = new QStackedWidget(central);
@@ -260,6 +263,21 @@ MainWindow::MainWindow(QWidget* parent)
     queueView_ = new ImportQueueView(*queue_, assets_);
     assets_->setQueueView(queueView_);
     libraryWatcher_ = new LibraryWatcher(*host_, *queue_, this);
+    materialRefresher_ = new MaterialRefresher(*host_, this);
+    libraryWatcher_->setMaterialRefresher(materialRefresher_);
+    connect(materialRefresher_, &MaterialRefresher::busyChanged, this,
+            [this]() { materials_->setBusyMaterials(materialRefresher_->busyIds()); });
+    connect(materialRefresher_, &MaterialRefresher::finished, this,
+            [this](const QString&, bool ok, const QString& message) {
+                host_->materialsEdited();
+                if (!ok)
+                    statusBar_->showMessage(tr("The material render failed. %1").arg(message));
+            });
+    connect(materials_, &MaterialsPanel::retryRequested, materialRefresher_, &MaterialRefresher::enqueue);
+    connect(materials_, &MaterialsPanel::rescanRequested, libraryWatcher_, &LibraryWatcher::rescanMaterialsNow);
+    connect(materials_, &MaterialsPanel::setupRequested, this, &MainWindow::openSetupCheck);
+    connect(materials_, &MaterialsPanel::message, statusBar_, [this](const QString& text) { statusBar_->showMessage(text); });
+    connect(rescanMaterialsAction_, &QAction::triggered, libraryWatcher_, &LibraryWatcher::rescanMaterialsNow);
     connect(queue_, &ImportQueue::finished, this, &MainWindow::queueFinished);
     connect(queue_, &ImportQueue::itemsChanged, this, [this]() { assets_->setBusyAssets(queue_->refreshingAssets()); });
     connect(libraryWatcher_, &LibraryWatcher::message, statusBar_,
@@ -281,6 +299,8 @@ MainWindow::MainWindow(QWidget* parent)
                                              : tr("Set a library folder first"));
         importAction_->setEnabled(open);
         rescanAction_->setEnabled(open);
+        rescanMaterialsAction_->setEnabled(open);
+        materials_->setRenderEnabled(open);
     };
     connect(host_, &LibraryHost::libraryChanged, this, syncImportState);
     syncImportState();
@@ -560,6 +580,14 @@ void MainWindow::buildCatalogMenu()
                                   QStringLiteral("catalog-import-action"), {QKeySequence(Qt::CTRL | Qt::Key_I)});
     rescanAction_ = addMenuAction(menu, tr("&Rescan library"), tr("Read the library folder again and update the index"),
                                   QStringLiteral("catalog-rescan-action"), {});
+    menu->addSeparator();
+    QAction* showMaterials = addMenuAction(menu, tr("&Materials catalog"), tr("Show the Materials tab (Ctrl+Shift+M)"),
+                                           QStringLiteral("materials-show"),
+                                           {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_M)});
+    connect(showMaterials, &QAction::triggered, this, [this]() { right_->showTab(RightPanel::Tab::Materials); });
+    rescanMaterialsAction_ = addMenuAction(menu, tr("Rescan m&aterials"),
+                                           tr("Read the materials folder again and update the index"),
+                                           QStringLiteral("materials-rescan-action"), {});
     menu->addSeparator();
     QAction* rooms = addMenuAction(menu, tr("Room &types and categories..."),
                                    tr("Edit the room types and the categories of the catalog"),
@@ -1173,6 +1201,26 @@ bool MainWindow::selectAsset(const QString& id)
 void MainWindow::showAssetCategories()
 {
     assets_->showCategories();
+}
+
+// For checks only: shows the Materials tab.
+void MainWindow::showMaterialsTab()
+{
+    right_->showTab(RightPanel::Tab::Materials);
+}
+
+// For checks only: selects a material in the Materials tab.
+bool MainWindow::selectMaterial(const QString& id)
+{
+    showMaterialsTab();
+    return materials_->selectMaterial(id);
+}
+
+// For checks only: shows Properties and opens the material picker for a target.
+bool MainWindow::showMaterialPicker(const QString& target, const QString& hoverMaterial, const QString& pickMaterial)
+{
+    right_->showTab(RightPanel::Tab::Properties);
+    return panel_->openMaterialPicker(target, hoverMaterial, pickMaterial);
 }
 
 // For checks only: chooses the side the wall view is seen from.

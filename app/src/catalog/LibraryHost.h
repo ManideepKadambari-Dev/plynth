@@ -3,6 +3,7 @@
 #include <plynth/core/Library.h>
 #include <plynth/core/Settings.h>
 #include <plynth/core/catalog/AssetCatalog.h>
+#include <plynth/core/catalog/MaterialCatalog.h>
 
 #include <QObject>
 #include <QString>
@@ -30,6 +31,8 @@ public:
 
     bool hasLibrary() const { return catalog_ != nullptr; }
     plynth::AssetCatalog* catalog() const { return catalog_.get(); }
+    // The materials catalog of the open library. Null when no library is open or materials.db would not open.
+    plynth::MaterialCatalog* materialCatalog() const { return materials_.get(); }
     const plynth::LibraryPaths& paths() const { return paths_; }
     // Why no library is open, as one plain sentence. Empty while one is open.
     const QString& libraryProblem() const { return libraryProblem_; }
@@ -44,6 +47,8 @@ public:
     void roomTypesEdited();
     // Tells the views that assets were added, changed or removed.
     void assetsEdited();
+    // Tells the views that materials were added, changed or removed.
+    void materialsEdited();
     // Puts a project at the top of the recent list and saves the settings. Only the app calls this, when it opens
     // or saves a project.
     void recordProject(const std::filesystem::path& folder, const std::string& name);
@@ -56,14 +61,17 @@ signals:
     void libraryChanged();
     void roomTypesChanged();
     void assetsChanged();
+    void materialsChanged();
     void recentChanged();
 
 private:
+    void openMaterials();
     bool editRecent(const std::function<bool(plynth::MachineSettings&)>& change);
     plynth::MachineSettings settings_;
     bool settingsExisted_ = false;
     QString settingsProblem_;
     std::unique_ptr<plynth::AssetCatalog> catalog_;
+    std::unique_ptr<plynth::MaterialCatalog> materials_;
     plynth::LibraryPaths paths_;
     QString libraryProblem_;
     QString shapeNotice_;

@@ -66,6 +66,8 @@ public:
     int bendHandle() const { return bendHandle_; }
     int pickerColumnWidth() const { return pickerColumnWidth_; }
     int pickerRowHeight() const { return pickerRowHeight_; }
+    int materialSwatch() const { return materialSwatch_; }
+    int materialGridThumb() const { return materialGridThumb_; }
     int previewWidth() const { return previewWidth_; }
     int rotationHandle() const { return rotationHandle_; }
     int itemLabelMinPixels() const { return itemLabelMinPixels_; }
@@ -125,6 +127,8 @@ private:
     int bendHandle_ = 10;
     int pickerColumnWidth_ = 220;
     int pickerRowHeight_ = 28;
+    int materialSwatch_ = 20;
+    int materialGridThumb_ = 96;
     int previewWidth_ = 288;
     int rotationHandle_ = 10;
     int itemLabelMinPixels_ = 48;

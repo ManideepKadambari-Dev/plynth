@@ -101,6 +101,8 @@ bool Theme::load(const QString& resourcePath)
     proposalDash_ = spacing["proposalDash"].toInt(proposalDash_);
     pickerColumnWidth_ = spacing["pickerColumnWidth"].toInt(pickerColumnWidth_);
     pickerRowHeight_ = spacing["pickerRowHeight"].toInt(pickerRowHeight_);
+    materialSwatch_ = spacing["materialSwatch"].toInt(materialSwatch_);
+    materialGridThumb_ = spacing["materialGridThumb"].toInt(materialGridThumb_);
     previewWidth_ = spacing["previewWidth"].toInt(previewWidth_);
     rotationHandle_ = spacing["rotationHandle"].toInt(rotationHandle_);
     itemLabelMinPixels_ = spacing["itemLabelMinPixels"].toInt(itemLabelMinPixels_);

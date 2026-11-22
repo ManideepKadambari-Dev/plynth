@@ -31,6 +31,14 @@ add_executable(plynth WIN32
     src/home/HomeScreen.cpp
     src/home/ProjectThumbnail.h
     src/home/ProjectThumbnail.cpp
+    src/materials/MaterialPicker.h
+    src/materials/MaterialPicker.cpp
+    src/materials/MaterialPreview.h
+    src/materials/MaterialPreview.cpp
+    src/materials/MaterialRefresher.h
+    src/materials/MaterialRefresher.cpp
+    src/materials/MaterialRow.h
+    src/materials/MaterialRow.cpp
     src/furniture/AssetPreview.h
     src/furniture/AssetPreview.cpp
     src/furniture/FurniturePicker.h
@@ -59,6 +67,8 @@ add_executable(plynth WIN32
     src/preview/ThemeQml.cpp
     src/panels/AssetsPanel.h
     src/panels/AssetsPanel.cpp
+    src/panels/MaterialsPanel.h
+    src/panels/MaterialsPanel.cpp
     src/panels/ImportQueueView.h
     src/panels/ImportQueueView.cpp
     src/panels/PropertiesPanel.h

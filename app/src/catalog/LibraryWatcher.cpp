@@ -2,6 +2,7 @@
 
 #include "ImportQueue.h"
 #include "LibraryHost.h"
+#include "materials/MaterialRefresher.h"
 
 #include <plynth/core/catalog/AssetImport.h>
 
@@ -54,15 +55,23 @@ LibraryWatcher::LibraryWatcher(LibraryHost& host, ImportQueue& queue, QObject* p
     itemsTimer_->setSingleShot(true);
     itemsTimer_->setInterval(kSettleMs);
     connect(itemsTimer_, &QTimer::timeout, this, [this]() { rescan(false); });
+    materialsTimer_ = new QTimer(this);
+    materialsTimer_->setSingleShot(true);
+    materialsTimer_->setInterval(kSettleMs);
+    connect(materialsTimer_, &QTimer::timeout, this, [this]() { rescanMaterials(false); });
 
     connect(watcher_, &QFileSystemWatcher::directoryChanged, this, [this](const QString& path) {
         if (!active_ || !host_.hasLibrary())
             return;
-        if (QDir::cleanPath(path) == QDir::cleanPath(toQt(host_.paths().assetInbox)))
+        const QString clean = QDir::cleanPath(path);
+        const QString materialItems = QDir::cleanPath(toQt(host_.paths().materialItems));
+        if (clean == materialItems || clean.startsWith(materialItems + QLatin1Char('/')))
+            materialsTimer_->start();
+        else if (clean == QDir::cleanPath(toQt(host_.paths().assetInbox)))
             inboxTimer_->start();
         else
             itemsTimer_->start();
-        if (QDir::cleanPath(path) == QDir::cleanPath(toQt(host_.paths().assetItems)))
+        if (clean == QDir::cleanPath(toQt(host_.paths().assetItems)) || clean == materialItems)
             follow();
     });
     connect(&host_, &LibraryHost::libraryChanged, this, &LibraryWatcher::follow);
@@ -87,8 +96,17 @@ void LibraryWatcher::follow()
     const plynth::LibraryPaths& paths = host_.paths();
     watcher_->addPath(toQt(paths.assetInbox));
     watcher_->addPath(toQt(paths.assetItems));
+    watcher_->addPath(toQt(paths.materialItems));
     int count = 0;
     for (const QFileInfo& info : QDir(toQt(paths.assetItems)).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+        if (info.fileName().startsWith(QLatin1Char('.')))
+            continue;
+        if (++count > kMaxWatchedItems)
+            break;
+        watcher_->addPath(info.absoluteFilePath());
+    }
+    count = 0;
+    for (const QFileInfo& info : QDir(toQt(paths.materialItems)).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot)) {
         if (info.fileName().startsWith(QLatin1Char('.')))
             continue;
         if (++count > kMaxWatchedItems)
@@ -157,6 +175,35 @@ void LibraryWatcher::rescan(bool announce)
                      .arg(report.updated)
                      .arg(report.removed)
                      .arg(report.needsRefresh.size()));
+}
+
+// Rebuilds the materials index from items/ and queues a refresh for each material that needs one.
+void LibraryWatcher::rescanMaterials(bool announce)
+{
+    if (!host_.hasLibrary() || host_.materialCatalog() == nullptr)
+        return;
+    const plynth::RescanReport report = host_.materialCatalog()->rescan();
+    bool changed = report.added + report.updated + report.removed > 0;
+    for (const std::string& id : report.needsRefresh) {
+        if (materialRefresher_ != nullptr)
+            materialRefresher_->enqueue(QString::fromStdString(id));
+        changed = true;
+    }
+    if (changed)
+        host_.materialsEdited();
+    follow();
+    if (announce)
+        emit message(tr("Rescan of materials: %1 added, %2 changed, %3 removed, %4 to render again.")
+                     .arg(report.added)
+                     .arg(report.updated)
+                     .arg(report.removed)
+                     .arg(report.needsRefresh.size()));
+}
+
+// Rescans the materials at once.
+void LibraryWatcher::rescanMaterialsNow()
+{
+    rescanMaterials(true);
 }
 
 // Reads the inbox and rescans at once.
