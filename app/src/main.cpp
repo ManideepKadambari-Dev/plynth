@@ -143,11 +143,19 @@ int main(int argc, char* argv[])
     QCommandLineOption buildOption(QStringLiteral("build"),
                                    QStringLiteral("Build the project after opening it and wait for the end. For checks only."));
     QCommandLineOption buildTabOption(QStringLiteral("build-tab"), QStringLiteral("Show the Build tab. For checks only."));
+    QCommandLineOption exportOption(QStringLiteral("export"),
+                                    QStringLiteral("Export the last build after opening the project and wait for the end. For checks only."));
+    QCommandLineOption exportCheckOption(QStringLiteral("export-check"),
+                                         QStringLiteral("Run the export quality checks after opening the project and wait for the end. For checks only."));
+    QCommandLineOption exportTabOption(QStringLiteral("export-tab"), QStringLiteral("Show the Export tab. For checks only."));
     QCommandLineOption homeOption(QStringLiteral("home"), QStringLiteral("Show the home screen. For checks only."));
     parser.addOption(zoomOption);
     parser.addOption(overlayOption);
     parser.addOption(buildOption);
     parser.addOption(buildTabOption);
+    parser.addOption(exportOption);
+    parser.addOption(exportCheckOption);
+    parser.addOption(exportTabOption);
     parser.addOption(viewOption);
     parser.addOption(cameraOption);
     parser.addOption(homeOption);
@@ -301,12 +309,18 @@ int main(int argc, char* argv[])
     window.show();
     if (parser.isSet(buildTabOption))
         window.showBuildTab();
+    if (parser.isSet(exportTabOption))
+        window.showExportTab();
     if (parser.isSet(overlayOption))
         window.setOverlay3d(true);
     if (parser.isSet(zoomOption) && parser.value(zoomOption).toLower() == QStringLiteral("actual"))
         QTimer::singleShot(100, &window, [&window]() { window.setActualSize(); });
     if (parser.isSet(buildOption))
         QTimer::singleShot(0, &window, [&window]() { window.startBuild(); });
+    if (parser.isSet(exportOption))
+        QTimer::singleShot(0, &window, [&window]() { window.startExport(true, false); });
+    else if (parser.isSet(exportCheckOption))
+        QTimer::singleShot(0, &window, [&window]() { window.startExport(false, false); });
     if (parser.isSet(furnitureAtOption)) {
         const QString hover = parser.value(hoverAssetOption);
         QTimer::singleShot(250, &window, [&window, furnitureX, furnitureY, hover]() {
@@ -355,7 +369,7 @@ int main(int argc, char* argv[])
         QTimer::singleShot(0, &window, [&window, text]() { window.startTerminalCheck(text); });
     }
 
-    const bool wantsBuild = parser.isSet(buildOption);
+    const bool wantsBuild = parser.isSet(buildOption) || parser.isSet(exportOption) || parser.isSet(exportCheckOption);
     if (wantsScreenshot) {
         const QString file = parser.value(screenshotOption);
         const QSize target = hasSize ? size : window.size();
@@ -375,6 +389,9 @@ int main(int argc, char* argv[])
             if (!window.materialsPictureReady() && !waited.hasExpired(kBuildWaitMs))
                 return;
             poll->stop();
+            // Panels rebuilt just before need a few passes to show and lay out their rows.
+            for (int pass = 0; pass < 4; ++pass)
+                QApplication::processEvents();
             const bool ok = saveScreenshot(window, file, target);
             const bool problem = loadFailed || window.planImageFailed();
             QApplication::exit(!ok                    ? kExitSaveFailed

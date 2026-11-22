@@ -9,6 +9,8 @@ add_executable(plynth WIN32
     src/building/BuildController.cpp
     src/building/BuildPanel.h
     src/building/BuildPanel.cpp
+    src/building/ExportController.h
+    src/building/ExportController.cpp
     src/building/ProblemMark.h
     src/catalog/ImportQueue.h
     src/catalog/ImportQueue.cpp
@@ -71,6 +73,8 @@ add_executable(plynth WIN32
     src/preview/ThemeQml.cpp
     src/panels/AssetsPanel.h
     src/panels/AssetsPanel.cpp
+    src/panels/ExportPanel.h
+    src/panels/ExportPanel.cpp
     src/panels/MaterialsPanel.h
     src/panels/MaterialsPanel.cpp
     src/panels/ImportQueueView.h
@@ -117,6 +121,7 @@ add_executable(plynth WIN32
     src/window/MainWindow.h
     src/window/MainWindow.cpp
     src/window/MainWindowBuild.cpp
+    src/window/MainWindowExport.cpp
     src/window/ReadOnlyBanner.h
     src/window/ReadOnlyBanner.cpp
     src/window/StatusBar.h

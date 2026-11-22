@@ -109,6 +109,7 @@ bool Theme::load(const QString& resourcePath)
     itemLabelMinPixels_ = spacing["itemLabelMinPixels"].toInt(itemLabelMinPixels_);
     buildBarHeight_ = spacing["buildBarHeight"].toInt(buildBarHeight_);
     problemMarker_ = spacing["problemMarker"].toInt(problemMarker_);
+    qualityMark_ = spacing["qualityMark"].toInt(qualityMark_);
     previewButton_ = spacing["previewButton"].toInt(previewButton_);
 
     overlay3dOpacity_ = root["opacity"].toObject()["overlay3d"].toDouble(overlay3dOpacity_);

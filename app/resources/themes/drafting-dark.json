@@ -55,6 +55,7 @@
     "itemLabelMinPixels": 48,
     "buildBarHeight": 40,
     "problemMarker": 12,
+    "qualityMark": 14,
     "previewButton": 28
   },
   "opacity": {
