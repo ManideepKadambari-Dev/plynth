@@ -161,7 +161,7 @@ def floor(floor_id, elevation, roofs):
         }],
         "items": [],
         "slab": {"bottom": elevation + CEILING, "top": elevation + CEILING + SLAB, "polygons": [], "undersides": [],
-                 "materials": {"edge": None, "well": None, "underside": None}},
+                 "sides": [], "tops": [], "materials": {"edge": None, "well": None, "underside": None}},
         "stairs": [],
         "roofs": roofs,
     }

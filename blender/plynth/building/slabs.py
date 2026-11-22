@@ -17,7 +17,7 @@ WELD = 1e-8
 def run(ctx):
     for floor in ctx.params["floors"]:
         slab = floor["slab"]
-        if not slab["polygons"] and not slab["undersides"] and not slab.get("tops"):
+        if not slab["polygons"] and not slab["undersides"] and not slab["tops"]:
             continue
         try:
             make_slab(ctx, floor, slab)
@@ -51,12 +51,9 @@ def sides_for(ring, names, outer):
 
 
 # Returns the side names of every ring of every polygon, as a pair (outline names, hole names) per polygon.
-# Without a sides list the outlines are edges and the holes wells.
 def side_names(slab):
     polygons = slab["polygons"]
-    sides = slab.get("sides")
-    if sides is None:
-        return [(["edge"] * len(p["outline"]), [["well"] * len(h) for h in p["holes"]]) for p in polygons]
+    sides = slab["sides"]
     if len(sides) != len(polygons):
         raise ValueError("%d polygons but %d side lists" % (len(polygons), len(sides)))
     for polygon, entry in zip(polygons, sides):
@@ -160,7 +157,7 @@ def make_slab(ctx, floor, slab):
             meshes.world_uvs(bm, faces, flip_y=True)
             for face in faces:
                 face.material_index = slot(used, names[2])
-        for polygon in slab.get("tops", []):
+        for polygon in slab["tops"]:
             outline = oriented(polygon["outline"], True)
             holes = [oriented(hole, False) for hole in polygon["holes"]]
             faces = add_ledge(bm, outline, holes, slab["top"])

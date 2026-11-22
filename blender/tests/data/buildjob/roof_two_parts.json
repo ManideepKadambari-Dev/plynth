@@ -194,6 +194,8 @@
      "top": 3.2,
      "polygons": [],
      "undersides": [],
+     "sides": [],
+     "tops": [],
      "materials": {
       "edge": null,
       "well": null,
@@ -371,6 +373,8 @@
      "top": 6.4,
      "polygons": [],
      "undersides": [],
+     "sides": [],
+     "tops": [],
      "materials": {
       "edge": null,
       "well": null,

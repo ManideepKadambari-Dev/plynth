@@ -355,7 +355,7 @@
         "slab": {
           "description": "The slab above the floor (core/include/plynth/core/Storeys.h). Side faces on every ring of polygons from bottom to top, each edge or well as sides says; bottom faces only for undersides; top faces only for tops. Object SM_<floor>_Slab, plynth_kind slab.",
           "type": "object",
-          "required": ["bottom", "top", "polygons", "undersides", "materials"],
+          "required": ["bottom", "top", "polygons", "undersides", "sides", "tops", "materials"],
           "additionalProperties": false,
           "properties": {
             "bottom": { "type": "number" },
