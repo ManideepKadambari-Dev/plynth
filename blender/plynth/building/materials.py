@@ -56,8 +56,7 @@ def run(ctx):
     tiles = {}
     for name in sorted(used):
         mat = bpy.data.materials[name]
-        slot = slots.get(name) or {"name": name, "material": name if name in library else None,
-                                   "surface": ctx.state.get("part_surfaces", {}).get(name, "Wall_Inside")}
+        slot = slots.get(name, {"name": name, "material": None, "surface": "Wall_Inside"})
         entry = library.get(slot["material"]) if slot["material"] else None
         maps = None
         surface = None

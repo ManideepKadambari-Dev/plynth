@@ -8,6 +8,7 @@ import bpy
 
 from build_helpers import BuildTest, load_params
 from schema_check import load_schema, validate
+from slot_fixtures import upgrade
 
 
 # Imports an FBX into an empty scene and returns its mesh objects.
@@ -109,6 +110,68 @@ class PreviewSlabTests(BuildTest):
         names = [o.name for o in import_parts(os.path.join(folder, "f1.fbx"))]
         self.assertTrue(names)
         self.assertFalse([n for n in names if "Slab" in n])
+
+
+class PreviewTextureTests(BuildTest):
+    # Writes a one colour png of the given size and returns its path.
+    def write_png(self, name, size, color):
+        path = self.path("library", name + ".png").replace("\\", "/")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        image = bpy.data.images.new(name, size, size)
+        image.pixels = [c / 255.0 for c in color + (255,)] * (size * size)
+        image.filepath_raw = path
+        image.file_format = "PNG"
+        image.save()
+        bpy.data.images.remove(image)
+        return path
+
+    # Builds the gable roof with a 256 pixel roof tile material and a preview size of 64 pixels.
+    def build_tiled(self):
+        params = copy.deepcopy(load_params("roof_gable"))
+        maps = {"base_color": self.write_png("roof_base", 256, (170, 80, 60)),
+                "normal": self.write_png("roof_normal", 256, (128, 128, 255)),
+                "roughness": self.write_png("roof_rough", 256, (200, 200, 200)),
+                "metallic": self.write_png("roof_metal", 256, (0, 0, 0)), "opacity": None, "occlusion": None}
+        params["materials"] = [{"id": "roof_tiles", "tile_size": {"width": 2.0, "height": 0.5}, "maps": maps}]
+        for source in params["floors"][0]["roofs"][0]["faces"]:
+            if source["part"] == "covering":
+                source["material"] = "roof_tiles"
+        upgrade(params)
+        params["preview_texture_size"] = 64
+        result = self.build(params)
+        self.assertTrue(result["ok"], result["error"])
+        return result
+
+    # The roof part, like building.fbx, uses the 64 pixel copies in preview_textures, while building.blend keeps
+    # the 256 pixel images.
+    def test_roof_part_uses_copies(self):
+        self.build_tiled()
+        folder = os.path.abspath(self.path("build", "preview_textures")).replace("\\", "/").lower()
+        whole = image_paths(import_parts(self.path("build", "building.fbx")))
+        part = image_paths(import_parts(self.path("build", "preview", "f1_roof.fbx")))
+        self.assertTrue(part)
+        self.assertTrue(part <= whole, part - whole)
+        copies = [p for p in part if p.startswith(folder)]
+        self.assertTrue(copies, part)
+        for path in copies:
+            image = bpy.data.images.load(path)
+            self.assertLessEqual(max(image.size), 64)
+        bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
+        sizes = [max(i.size) for i in bpy.data.images if i.filepath and "roof_" in i.filepath]
+        self.assertTrue(sizes)
+        self.assertEqual(set(sizes), {256})
+
+    # No part holds a collision mesh, and the build still lists its parts.
+    def test_parts_leave_out_collision(self):
+        result = self.build(load_params("collision"), preview_folder="preview")
+        self.assertTrue(result["ok"], result["error"])
+        self.assertGreater(result["output"]["counts"]["collision"], 0)
+        listed = os.listdir(self.path("build", "preview"))
+        self.assertIn("parts.json", listed)
+        for name in listed:
+            if name.endswith(".fbx"):
+                names = [o.name for o in import_parts(self.path("build", "preview", name))]
+                self.assertFalse([n for n in names if n.startswith("UCX_")], name)
 
 
 class PreviewOffTests(BuildTest):

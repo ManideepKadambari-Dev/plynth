@@ -135,9 +135,8 @@ def slot(used, name):
 
 # Builds the slab object of one floor.
 def make_slab(ctx, floor, slab):
-    materials = slab["materials"]
-    names = [slot_name(ctx, materials["edge"], "Wall_Outside"), slot_name(ctx, materials["well"], "Wall_Inside"),
-             slot_name(ctx, materials["underside"], "Soffit")]
+    slots = slab["slots"]
+    names = [slot_name(ctx, slots["edge"]), slot_name(ctx, slots["well"]), slot_name(ctx, slots["underside"])]
     kinds = {"edge": names[0], "well": names[1]}
     used = []
     bm = bmesh.new()

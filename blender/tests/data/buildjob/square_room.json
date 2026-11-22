@@ -211,6 +211,11 @@
       "edge": null,
       "well": null,
       "underside": null
+     },
+     "slots": {
+      "edge": "Exterior_Wall",
+      "well": "Stair_Well",
+      "underside": "Soffit"
      }
     },
     "stairs": [],
@@ -237,6 +242,16 @@
    },
    {
     "name": "Living_Wall",
+    "material": null,
+    "surface": "Wall_Inside"
+   },
+   {
+    "name": "Soffit",
+    "material": null,
+    "surface": "Soffit"
+   },
+   {
+    "name": "Stair_Well",
     "material": null,
     "surface": "Wall_Inside"
    },

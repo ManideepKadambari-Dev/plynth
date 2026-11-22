@@ -91,10 +91,10 @@ class StairFixtureTests(StoreyTest):
         self.assertEqual(len(bm.faces), 8)
         self.assertAlmostEqual(area_of("SM_f1_Slab"), (2 * 10.4 + 2 * 5.32) * 0.2, places=4)
 
-    # The edge material is on the outer ring and the well material on the hole, each facing away from the slab.
+    # The edge slot is on the outer ring and the well slot on the hole, each facing away from the slab.
     def test_slab_materials(self):
         params = sharp("two_floors_stair")
-        params["floors"][0]["slab"]["materials"] = {"edge": "edge_mat", "well": "well_mat", "underside": None}
+        params["floors"][0]["slab"]["slots"] = {"edge": "edge_mat", "well": "well_mat", "underside": "Soffit"}
         result = self.build(params)
         self.assertTrue(result["ok"], result["error"])
         self.open_blend()
@@ -175,7 +175,7 @@ class SlabFaceTests(StoreyTest):
         slab["sides"] = sides
         slab["tops"] = list(tops)
         slab["undersides"] = []
-        slab["materials"] = {"edge": "edge_mat", "well": "well_mat", "underside": None}
+        slab["slots"] = {"edge": "edge_mat", "well": "well_mat", "underside": "Soffit"}
         result = self.build(params)
         self.assertTrue(result["ok"], result["error"])
         self.open_blend()
@@ -293,7 +293,7 @@ class OverhangTests(StoreyTest):
             for vert in face.verts:
                 self.assertAlmostEqual(vert.co.z, 3.0, places=5)
         self.assertFalse([f for f in bm.faces if f.normal.z > 0.99])
-        self.assertEqual(slot_names(bpy.data.objects["SM_f1_Slab"]), ["Wall_Outside", "Soffit"])
+        self.assertEqual(slot_names(bpy.data.objects["SM_f1_Slab"]), ["Exterior_Wall", "Soffit"])
         self.assertEqual(result["output"]["counts"]["slabs"], 1)
         self.assertEqual(result["output"]["counts"]["stairs"], 0)
 

@@ -1,0 +1,263 @@
+{
+ "format": "plynth-blender-job",
+ "version": 1,
+ "task": "export",
+ "job_id": "export-house",
+ "result_file": "@PROJECT@/build/export_work/result.json",
+ "params": {
+  "project": {
+   "name": "m12b",
+   "folder": "@PROJECT@"
+  },
+  "blend_file": "@PROJECT@/build/building.blend",
+  "output_folder": "@PROJECT@/export/.staging",
+  "textures_folder": "Textures",
+  "groups": [
+   {
+    "id": "building",
+    "file": "m12b.fbx",
+    "kinds": [],
+    "ids": []
+   }
+  ],
+  "materials": [
+   {
+    "name": "Door",
+    "material": "painted_wood",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/painted_wood/textures/base_color.png",
+     "normal": "@LIBRARY@/materials/items/painted_wood/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/painted_wood/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/painted_wood/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque"
+   },
+   {
+    "name": "Exterior_Wall",
+    "material": "red_brick",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/red_brick/textures/base_color.jpg",
+     "normal": "@LIBRARY@/materials/items/red_brick/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/red_brick/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/red_brick/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque"
+   },
+   {
+    "name": "Fascia",
+    "material": "white_paint",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/white_paint/textures/base_color.png",
+     "normal": "@LIBRARY@/materials/items/white_paint/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/white_paint/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/white_paint/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque"
+   },
+   {
+    "name": "Flat_Roof",
+    "material": "concrete",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/concrete/textures/base_color.jpg",
+     "normal": "@LIBRARY@/materials/items/concrete/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/concrete/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/concrete/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque"
+   },
+   {
+    "name": "Frame",
+    "material": "white_paint",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/white_paint/textures/base_color.png",
+     "normal": "@LIBRARY@/materials/items/white_paint/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/white_paint/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/white_paint/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque"
+   },
+   {
+    "name": "Glass",
+    "material": "clear_glass",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/clear_glass/textures/base_color.png",
+     "normal": "@LIBRARY@/materials/items/clear_glass/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/clear_glass/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/clear_glass/textures/metallic.png",
+     "opacity": "@LIBRARY@/materials/items/clear_glass/textures/opacity.png",
+     "occlusion": null
+    },
+    "alpha_mode": "blend"
+   },
+   {
+    "name": "Handle",
+    "material": "brushed_steel",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/brushed_steel/textures/base_color.png",
+     "normal": "@LIBRARY@/materials/items/brushed_steel/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/brushed_steel/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/brushed_steel/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque"
+   },
+   {
+    "name": "Roof",
+    "material": "roof_tiles",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/roof_tiles/textures/base_color.jpg",
+     "normal": "@LIBRARY@/materials/items/roof_tiles/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/roof_tiles/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/roof_tiles/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque"
+   },
+   {
+    "name": "Room_Ceiling",
+    "material": "white_paint",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/white_paint/textures/base_color.png",
+     "normal": "@LIBRARY@/materials/items/white_paint/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/white_paint/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/white_paint/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque"
+   },
+   {
+    "name": "Room_Floor",
+    "material": "oak_planks",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/oak_planks/textures/base_color.jpg",
+     "normal": "@LIBRARY@/materials/items/oak_planks/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/oak_planks/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/oak_planks/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque"
+   },
+   {
+    "name": "Room_Wall",
+    "material": "white_paint",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/white_paint/textures/base_color.png",
+     "normal": "@LIBRARY@/materials/items/white_paint/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/white_paint/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/white_paint/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque"
+   },
+   {
+    "name": "Soffit",
+    "material": "white_paint",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/white_paint/textures/base_color.png",
+     "normal": "@LIBRARY@/materials/items/white_paint/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/white_paint/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/white_paint/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque"
+   },
+   {
+    "name": "Stair",
+    "material": "oak_planks",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/oak_planks/textures/base_color.jpg",
+     "normal": "@LIBRARY@/materials/items/oak_planks/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/oak_planks/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/oak_planks/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque"
+   },
+   {
+    "name": "Stair_Well",
+    "material": "white_paint",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/white_paint/textures/base_color.png",
+     "normal": "@LIBRARY@/materials/items/white_paint/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/white_paint/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/white_paint/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque"
+   },
+   {
+    "name": "Wall_Top",
+    "material": "white_paint",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/white_paint/textures/base_color.png",
+     "normal": "@LIBRARY@/materials/items/white_paint/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/white_paint/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/white_paint/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque"
+   }
+  ],
+  "expected_bounds": {
+   "min": [
+    5.0,
+    -11.0,
+    0.0
+   ],
+   "max": [
+    15.0,
+    -2.0,
+    6.2
+   ]
+  },
+  "build": {
+   "report_found": true,
+   "plan_changed": false,
+   "problems": []
+  },
+  "limits": {
+   "object_triangles": 1000000,
+   "total_triangles": 10000000,
+   "low_texel_density": 256.0,
+   "texel_warning_ratio": 0.5,
+   "texel_fail_ratio": 0.25,
+   "bounds_tolerance": 0.001
+  },
+  "force": false,
+  "write": false
+ }
+}

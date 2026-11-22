@@ -6,7 +6,7 @@
   "result_file": "@PROJECT@/build/result.json",
   "params": {
     "project": {
-      "name": "m12",
+      "name": "m12b",
       "folder": "@PROJECT@"
     },
     "output_folder": "@PROJECT@/build",
@@ -15,6 +15,8 @@
     "materials_file": "materials.json",
     "textures_folder": "textures",
     "preview_folder": "preview",
+    "preview_textures_folder": "preview_textures",
+    "preview_texture_size": 1024,
     "plan": {
       "format": "plynth-plan",
       "version": 5,
@@ -1028,6 +1030,88 @@
         }
       }
     ],
+    "slots": [
+      {
+        "name": "Door",
+        "material": "painted_wood",
+        "surface": "Door"
+      },
+      {
+        "name": "Exterior_Wall",
+        "material": "red_brick",
+        "surface": "Wall_Outside"
+      },
+      {
+        "name": "Fascia",
+        "material": "white_paint",
+        "surface": "Fascia"
+      },
+      {
+        "name": "Flat_Roof",
+        "material": "concrete",
+        "surface": "Flat_Roof"
+      },
+      {
+        "name": "Frame",
+        "material": "white_paint",
+        "surface": "Frame"
+      },
+      {
+        "name": "Glass",
+        "material": "clear_glass",
+        "surface": "Glass"
+      },
+      {
+        "name": "Handle",
+        "material": "brushed_steel",
+        "surface": "Handle"
+      },
+      {
+        "name": "Roof",
+        "material": "roof_tiles",
+        "surface": "Roof"
+      },
+      {
+        "name": "Room_Ceiling",
+        "material": "white_paint",
+        "surface": "Ceiling"
+      },
+      {
+        "name": "Room_Floor",
+        "material": "oak_planks",
+        "surface": "Floor"
+      },
+      {
+        "name": "Room_Wall",
+        "material": "white_paint",
+        "surface": "Wall_Inside"
+      },
+      {
+        "name": "Soffit",
+        "material": "white_paint",
+        "surface": "Soffit"
+      },
+      {
+        "name": "Stair",
+        "material": "oak_planks",
+        "surface": "Stair"
+      },
+      {
+        "name": "Stair_Well",
+        "material": "white_paint",
+        "surface": "Wall_Inside"
+      },
+      {
+        "name": "Threshold",
+        "material": null,
+        "surface": "Threshold"
+      },
+      {
+        "name": "Wall_Top",
+        "material": "white_paint",
+        "surface": "Wall_Top"
+      }
+    ],
     "floors": [
       {
         "id": "f1",
@@ -1037,6 +1121,7 @@
           {
             "height": 3.0,
             "top_material": "white_paint",
+            "top_slot": "Wall_Top",
             "outline": {
               "points": [
                 [
@@ -1508,8 +1593,7 @@
                   }
                 ]
               }
-            ],
-            "top_slot": "Wall_Top"
+            ]
           }
         ],
         "openings": [
@@ -1632,10 +1716,10 @@
             "slots": {
               "reveal": "Room_Wall",
               "threshold": "Threshold",
-              "door": "Door_Neutral",
-              "frame": "Frame_WhitePaint",
-              "glass": "Glass_ClearGlass",
-              "handle": "Handle_Neutral"
+              "door": "Door",
+              "frame": "Frame",
+              "glass": "Glass",
+              "handle": "Handle"
             }
           },
           {
@@ -1757,10 +1841,10 @@
             "slots": {
               "reveal": "Room_Wall",
               "threshold": "Threshold",
-              "door": "Door_Neutral",
-              "frame": "Frame_WhitePaint",
-              "glass": "Glass_ClearGlass",
-              "handle": "Handle_Neutral"
+              "door": "Door",
+              "frame": "Frame",
+              "glass": "Glass",
+              "handle": "Handle"
             }
           },
           {
@@ -1899,10 +1983,10 @@
             "slots": {
               "reveal": "Room_Wall",
               "threshold": "Room_Floor",
-              "door": "Door_PaintedWood",
-              "frame": "Frame_WhitePaint",
-              "glass": "Glass_Neutral",
-              "handle": "Handle_BrushedSteel"
+              "door": "Door",
+              "frame": "Frame",
+              "glass": "Glass",
+              "handle": "Handle"
             }
           },
           {
@@ -2024,10 +2108,10 @@
             "slots": {
               "reveal": "Room_Wall",
               "threshold": "Threshold",
-              "door": "Door_Neutral",
-              "frame": "Frame_WhitePaint",
-              "glass": "Glass_ClearGlass",
-              "handle": "Handle_Neutral"
+              "door": "Door",
+              "frame": "Frame",
+              "glass": "Glass",
+              "handle": "Handle"
             }
           },
           {
@@ -2166,10 +2250,10 @@
             "slots": {
               "reveal": "Room_Wall",
               "threshold": "Room_Floor",
-              "door": "Door_PaintedWood",
-              "frame": "Frame_WhitePaint",
-              "glass": "Glass_Neutral",
-              "handle": "Handle_BrushedSteel"
+              "door": "Door",
+              "frame": "Frame",
+              "glass": "Glass",
+              "handle": "Handle"
             }
           },
           {
@@ -2308,10 +2392,10 @@
             "slots": {
               "reveal": "Room_Wall",
               "threshold": "Room_Floor",
-              "door": "Door_PaintedWood",
-              "frame": "Frame_WhitePaint",
-              "glass": "Glass_Neutral",
-              "handle": "Handle_BrushedSteel"
+              "door": "Door",
+              "frame": "Frame",
+              "glass": "Glass",
+              "handle": "Handle"
             }
           },
           {
@@ -2433,10 +2517,10 @@
             "slots": {
               "reveal": "Room_Wall",
               "threshold": "Threshold",
-              "door": "Door_Neutral",
-              "frame": "Frame_WhitePaint",
-              "glass": "Glass_ClearGlass",
-              "handle": "Handle_Neutral"
+              "door": "Door",
+              "frame": "Frame",
+              "glass": "Glass",
+              "handle": "Handle"
             }
           },
           {
@@ -2558,10 +2642,10 @@
             "slots": {
               "reveal": "Room_Wall",
               "threshold": "Threshold",
-              "door": "Door_Neutral",
-              "frame": "Frame_WhitePaint",
-              "glass": "Glass_ClearGlass",
-              "handle": "Handle_Neutral"
+              "door": "Door",
+              "frame": "Frame",
+              "glass": "Glass",
+              "handle": "Handle"
             }
           },
           {
@@ -2700,10 +2784,10 @@
             "slots": {
               "reveal": "Room_Wall",
               "threshold": "Room_Floor",
-              "door": "Door_Neutral",
-              "frame": "Frame_Neutral",
-              "glass": "Glass_Neutral",
-              "handle": "Handle_Neutral"
+              "door": "Door",
+              "frame": "Frame",
+              "glass": "Glass",
+              "handle": "Handle"
             }
           },
           {
@@ -2842,10 +2926,10 @@
             "slots": {
               "reveal": "Room_Wall",
               "threshold": "Room_Floor",
-              "door": "Door_PaintedWood",
-              "frame": "Frame_WhitePaint",
-              "glass": "Glass_Neutral",
-              "handle": "Handle_BrushedSteel"
+              "door": "Door",
+              "frame": "Frame",
+              "glass": "Glass",
+              "handle": "Handle"
             }
           },
           {
@@ -2967,10 +3051,10 @@
             "slots": {
               "reveal": "Room_Wall",
               "threshold": "Threshold",
-              "door": "Door_Neutral",
-              "frame": "Frame_WhitePaint",
-              "glass": "Glass_ClearGlass",
-              "handle": "Handle_Neutral"
+              "door": "Door",
+              "frame": "Frame",
+              "glass": "Glass",
+              "handle": "Handle"
             }
           },
           {
@@ -3092,10 +3176,10 @@
             "slots": {
               "reveal": "Room_Wall",
               "threshold": "Threshold",
-              "door": "Door_Neutral",
-              "frame": "Frame_WhitePaint",
-              "glass": "Glass_ClearGlass",
-              "handle": "Handle_Neutral"
+              "door": "Door",
+              "frame": "Frame",
+              "glass": "Glass",
+              "handle": "Handle"
             }
           }
         ],
@@ -3108,6 +3192,8 @@
             "ceiling_z": 3.0,
             "floor_material": "oak_planks",
             "ceiling_material": "white_paint",
+            "floor_slot": "Room_Floor",
+            "ceiling_slot": "Room_Ceiling",
             "polygons": [
               {
                 "outline": [
@@ -3161,9 +3247,7 @@
                 ],
                 "holes": []
               }
-            ],
-            "floor_slot": "Room_Floor",
-            "ceiling_slot": "Room_Ceiling"
+            ]
           },
           {
             "id": "r2",
@@ -3173,6 +3257,8 @@
             "ceiling_z": 3.0,
             "floor_material": "oak_planks",
             "ceiling_material": "white_paint",
+            "floor_slot": "Room_Floor",
+            "ceiling_slot": "Room_Ceiling",
             "polygons": [
               {
                 "outline": [
@@ -3218,9 +3304,7 @@
                 ],
                 "holes": []
               }
-            ],
-            "floor_slot": "Room_Floor",
-            "ceiling_slot": "Room_Ceiling"
+            ]
           },
           {
             "id": "r3",
@@ -3230,6 +3314,8 @@
             "ceiling_z": 3.0,
             "floor_material": "oak_planks",
             "ceiling_material": "white_paint",
+            "floor_slot": "Room_Floor",
+            "ceiling_slot": "Room_Ceiling",
             "polygons": [
               {
                 "outline": [
@@ -3275,9 +3361,7 @@
                 ],
                 "holes": []
               }
-            ],
-            "floor_slot": "Room_Floor",
-            "ceiling_slot": "Room_Ceiling"
+            ]
           },
           {
             "id": "r4",
@@ -3287,6 +3371,8 @@
             "ceiling_z": 3.0,
             "floor_material": "oak_planks",
             "ceiling_material": "white_paint",
+            "floor_slot": "Room_Floor",
+            "ceiling_slot": "Room_Ceiling",
             "polygons": [
               {
                 "outline": [
@@ -3375,9 +3461,7 @@
                   ]
                 ]
               }
-            ],
-            "floor_slot": "Room_Floor",
-            "ceiling_slot": "Room_Ceiling"
+            ]
           }
         ],
         "items": [],
@@ -3568,6 +3652,11 @@
             "edge": "red_brick",
             "well": "white_paint",
             "underside": "white_paint"
+          },
+          "slots": {
+            "edge": "Exterior_Wall",
+            "well": "Stair_Well",
+            "underside": "Soffit"
           }
         },
         "stairs": [
@@ -3579,6 +3668,7 @@
             "riser_count": 17,
             "riser": 0.18823529411764706,
             "material": "oak_planks",
+            "slot": "Stair",
             "steps": [
               {
                 "part": "step",
@@ -4034,7 +4124,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "concrete"
+                "material": "concrete",
+                "slot": "Flat_Roof"
               },
               {
                 "part": "underside",
@@ -4076,7 +4167,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "white_paint"
+                "material": "white_paint",
+                "slot": "Soffit"
               },
               {
                 "part": "edge",
@@ -4103,7 +4195,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "white_paint"
+                "material": "white_paint",
+                "slot": "Fascia"
               },
               {
                 "part": "edge",
@@ -4130,7 +4223,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "white_paint"
+                "material": "white_paint",
+                "slot": "Fascia"
               },
               {
                 "part": "edge",
@@ -4157,7 +4251,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "white_paint"
+                "material": "white_paint",
+                "slot": "Fascia"
               },
               {
                 "part": "edge",
@@ -4184,7 +4279,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "white_paint"
+                "material": "white_paint",
+                "slot": "Fascia"
               },
               {
                 "part": "edge",
@@ -4211,7 +4307,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "white_paint"
+                "material": "white_paint",
+                "slot": "Fascia"
               },
               {
                 "part": "edge",
@@ -4238,7 +4335,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "white_paint"
+                "material": "white_paint",
+                "slot": "Fascia"
               },
               {
                 "part": "edge",
@@ -4265,7 +4363,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "white_paint"
+                "material": "white_paint",
+                "slot": "Fascia"
               },
               {
                 "part": "parapet",
@@ -4330,7 +4429,8 @@
                     ]
                   ]
                 ],
-                "material": "red_brick"
+                "material": "red_brick",
+                "slot": "Exterior_Wall"
               },
               {
                 "part": "parapet",
@@ -4357,7 +4457,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "red_brick"
+                "material": "red_brick",
+                "slot": "Exterior_Wall"
               },
               {
                 "part": "parapet",
@@ -4384,7 +4485,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "red_brick"
+                "material": "red_brick",
+                "slot": "Exterior_Wall"
               },
               {
                 "part": "parapet",
@@ -4411,7 +4513,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "red_brick"
+                "material": "red_brick",
+                "slot": "Exterior_Wall"
               },
               {
                 "part": "parapet",
@@ -4438,7 +4541,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "red_brick"
+                "material": "red_brick",
+                "slot": "Exterior_Wall"
               },
               {
                 "part": "parapet",
@@ -4465,7 +4569,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "red_brick"
+                "material": "red_brick",
+                "slot": "Exterior_Wall"
               },
               {
                 "part": "parapet",
@@ -4492,7 +4597,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "red_brick"
+                "material": "red_brick",
+                "slot": "Exterior_Wall"
               },
               {
                 "part": "parapet",
@@ -4519,7 +4625,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "red_brick"
+                "material": "red_brick",
+                "slot": "Exterior_Wall"
               },
               {
                 "part": "parapet",
@@ -4546,7 +4653,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "red_brick"
+                "material": "red_brick",
+                "slot": "Exterior_Wall"
               },
               {
                 "part": "parapet",
@@ -4573,7 +4681,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "red_brick"
+                "material": "red_brick",
+                "slot": "Exterior_Wall"
               },
               {
                 "part": "parapet",
@@ -4600,7 +4709,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "red_brick"
+                "material": "red_brick",
+                "slot": "Exterior_Wall"
               },
               {
                 "part": "parapet",
@@ -4627,12 +4737,1683 @@
                   ]
                 ],
                 "holes": [],
-                "material": "red_brick"
+                "material": "red_brick",
+                "slot": "Exterior_Wall"
               }
             ]
           }
         ],
-        "collision": []
+        "collision": [
+          {
+            "target": {
+              "kind": "walls",
+              "id": "f1"
+            },
+            "pieces": [
+              {
+                "outline": [
+                  [
+                    10.149999998509884,
+                    -3.0
+                  ],
+                  [
+                    5.0,
+                    -3.0
+                  ],
+                  [
+                    5.299999997019768,
+                    -3.2999999970197678
+                  ],
+                  [
+                    10.149999998509884,
+                    -3.2999999970197678
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 3.0
+              },
+              {
+                "outline": [
+                  [
+                    15.0,
+                    -3.0
+                  ],
+                  [
+                    9.850000001490116,
+                    -3.0
+                  ],
+                  [
+                    9.850000001490116,
+                    -3.2999999970197678
+                  ],
+                  [
+                    14.700000002980232,
+                    -3.2999999970197678
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 3.0
+              },
+              {
+                "outline": [
+                  [
+                    7.0,
+                    -7.939999997615814
+                  ],
+                  [
+                    5.090000003576279,
+                    -7.939999997615814
+                  ],
+                  [
+                    5.090000003576279,
+                    -8.060000002384186
+                  ],
+                  [
+                    7.0,
+                    -8.060000002384186
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 3.0
+              },
+              {
+                "outline": [
+                  [
+                    7.899999998509884,
+                    -7.939999997615814
+                  ],
+                  [
+                    7.0,
+                    -7.939999997615814
+                  ],
+                  [
+                    7.0,
+                    -8.060000002384186
+                  ],
+                  [
+                    7.899999998509884,
+                    -8.060000002384186
+                  ]
+                ],
+                "bottom": 2.1,
+                "top": 3.0
+              },
+              {
+                "outline": [
+                  [
+                    10.060000002384186,
+                    -7.939999997615814
+                  ],
+                  [
+                    7.899999998509884,
+                    -7.939999997615814
+                  ],
+                  [
+                    7.899999998509884,
+                    -8.060000002384186
+                  ],
+                  [
+                    10.060000002384186,
+                    -8.060000002384186
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 3.0
+              },
+              {
+                "outline": [
+                  [
+                    10.149999998509884,
+                    -10.700000002980232
+                  ],
+                  [
+                    5.299999997019768,
+                    -10.700000002980232
+                  ],
+                  [
+                    5.0,
+                    -11.0
+                  ],
+                  [
+                    10.149999998509884,
+                    -11.0
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 3.0
+              },
+              {
+                "outline": [
+                  [
+                    12.0,
+                    -10.700000002980232
+                  ],
+                  [
+                    9.850000001490116,
+                    -10.700000002980232
+                  ],
+                  [
+                    9.850000001490116,
+                    -11.0
+                  ],
+                  [
+                    12.0,
+                    -11.0
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 3.0
+              },
+              {
+                "outline": [
+                  [
+                    12.899999998509884,
+                    -10.700000002980232
+                  ],
+                  [
+                    12.0,
+                    -10.700000002980232
+                  ],
+                  [
+                    12.0,
+                    -11.0
+                  ],
+                  [
+                    12.899999998509884,
+                    -11.0
+                  ]
+                ],
+                "bottom": 2.1,
+                "top": 3.0
+              },
+              {
+                "outline": [
+                  [
+                    14.700000002980232,
+                    -10.700000002980232
+                  ],
+                  [
+                    12.899999998509884,
+                    -10.700000002980232
+                  ],
+                  [
+                    12.899999998509884,
+                    -11.0
+                  ],
+                  [
+                    15.0,
+                    -11.0
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 3.0
+              },
+              {
+                "outline": [
+                  [
+                    11.0,
+                    -6.939999997615814
+                  ],
+                  [
+                    9.939999997615814,
+                    -6.939999997615814
+                  ],
+                  [
+                    9.939999997615814,
+                    -7.060000002384186
+                  ],
+                  [
+                    11.0,
+                    -7.060000002384186
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 3.0
+              },
+              {
+                "outline": [
+                  [
+                    11.899999998509884,
+                    -6.939999997615814
+                  ],
+                  [
+                    11.0,
+                    -6.939999997615814
+                  ],
+                  [
+                    11.0,
+                    -7.060000002384186
+                  ],
+                  [
+                    11.899999998509884,
+                    -7.060000002384186
+                  ]
+                ],
+                "bottom": 2.1,
+                "top": 3.0
+              },
+              {
+                "outline": [
+                  [
+                    14.909999996423721,
+                    -6.939999997615814
+                  ],
+                  [
+                    11.899999998509884,
+                    -6.939999997615814
+                  ],
+                  [
+                    11.899999998509884,
+                    -7.060000002384186
+                  ],
+                  [
+                    14.909999996423721,
+                    -7.060000002384186
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 3.0
+              },
+              {
+                "outline": [
+                  [
+                    5.0,
+                    -3.0
+                  ],
+                  [
+                    5.0,
+                    -8.149999998509884
+                  ],
+                  [
+                    5.299999997019768,
+                    -8.149999998509884
+                  ],
+                  [
+                    5.299999997019768,
+                    -3.2999999970197678
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 3.0
+              },
+              {
+                "outline": [
+                  [
+                    5.299999997019768,
+                    -7.850000001490116
+                  ],
+                  [
+                    5.0,
+                    -7.850000001490116
+                  ],
+                  [
+                    5.0,
+                    -11.0
+                  ],
+                  [
+                    5.299999997019768,
+                    -10.700000002980232
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 3.0
+              },
+              {
+                "outline": [
+                  [
+                    10.060000002384186,
+                    -3.0900000035762787
+                  ],
+                  [
+                    9.939999997615814,
+                    -3.0900000035762787
+                  ],
+                  [
+                    9.939999997615814,
+                    -4.0
+                  ],
+                  [
+                    10.060000002384186,
+                    -4.0
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 3.0
+              },
+              {
+                "outline": [
+                  [
+                    9.939999997615814,
+                    -4.0
+                  ],
+                  [
+                    9.939999997615814,
+                    -6.0
+                  ],
+                  [
+                    10.060000002384186,
+                    -6.0
+                  ],
+                  [
+                    10.060000002384186,
+                    -4.0
+                  ]
+                ],
+                "bottom": 2.1,
+                "top": 3.0
+              },
+              {
+                "outline": [
+                  [
+                    9.939999997615814,
+                    -6.0
+                  ],
+                  [
+                    9.939999997615814,
+                    -7.060000002384186
+                  ],
+                  [
+                    10.060000002384186,
+                    -7.060000002384186
+                  ],
+                  [
+                    10.060000002384186,
+                    -6.0
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 3.0
+              },
+              {
+                "outline": [
+                  [
+                    10.060000002384186,
+                    -6.939999997615814
+                  ],
+                  [
+                    9.939999997615814,
+                    -6.939999997615814
+                  ],
+                  [
+                    9.939999997615814,
+                    -8.060000002384186
+                  ],
+                  [
+                    10.060000002384186,
+                    -8.060000002384186
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 3.0
+              },
+              {
+                "outline": [
+                  [
+                    10.060000002384186,
+                    -7.939999997615814
+                  ],
+                  [
+                    9.939999997615814,
+                    -7.939999997615814
+                  ],
+                  [
+                    9.939999997615814,
+                    -9.0
+                  ],
+                  [
+                    10.060000002384186,
+                    -9.0
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 3.0
+              },
+              {
+                "outline": [
+                  [
+                    9.939999997615814,
+                    -9.0
+                  ],
+                  [
+                    9.939999997615814,
+                    -9.899999998509884
+                  ],
+                  [
+                    10.060000002384186,
+                    -9.899999998509884
+                  ],
+                  [
+                    10.060000002384186,
+                    -9.0
+                  ]
+                ],
+                "bottom": 2.1,
+                "top": 3.0
+              },
+              {
+                "outline": [
+                  [
+                    9.939999997615814,
+                    -9.899999998509884
+                  ],
+                  [
+                    9.939999997615814,
+                    -10.909999996423721
+                  ],
+                  [
+                    10.060000002384186,
+                    -10.909999996423721
+                  ],
+                  [
+                    10.060000002384186,
+                    -9.899999998509884
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 3.0
+              },
+              {
+                "outline": [
+                  [
+                    15.0,
+                    -3.0
+                  ],
+                  [
+                    14.700000002980232,
+                    -3.2999999970197678
+                  ],
+                  [
+                    14.700000002980232,
+                    -7.149999998509884
+                  ],
+                  [
+                    15.0,
+                    -7.149999998509884
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 3.0
+              },
+              {
+                "outline": [
+                  [
+                    15.0,
+                    -6.850000001490116
+                  ],
+                  [
+                    14.700000002980232,
+                    -6.850000001490116
+                  ],
+                  [
+                    14.700000002980232,
+                    -10.700000002980232
+                  ],
+                  [
+                    15.0,
+                    -11.0
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 3.0
+              }
+            ],
+            "index": 0,
+            "hulls": []
+          },
+          {
+            "target": {
+              "kind": "floor",
+              "id": "r1"
+            },
+            "pieces": [
+              {
+                "outline": [
+                  [
+                    9.939999997615814,
+                    -7.939999997615814
+                  ],
+                  [
+                    9.939999997615814,
+                    -3.2999999970197678
+                  ],
+                  [
+                    5.299999997019768,
+                    -3.2999999970197678
+                  ],
+                  [
+                    5.299999997019768,
+                    -7.939999997615814
+                  ]
+                ],
+                "bottom": -0.1,
+                "top": 0.0
+              }
+            ],
+            "index": 0,
+            "hulls": []
+          },
+          {
+            "target": {
+              "kind": "ceiling",
+              "id": "r1"
+            },
+            "pieces": [
+              {
+                "outline": [
+                  [
+                    9.939999997615814,
+                    -7.939999997615814
+                  ],
+                  [
+                    9.939999997615814,
+                    -3.2999999970197678
+                  ],
+                  [
+                    5.299999997019768,
+                    -3.2999999970197678
+                  ],
+                  [
+                    5.299999997019768,
+                    -7.939999997615814
+                  ]
+                ],
+                "bottom": 3.0,
+                "top": 3.1
+              }
+            ],
+            "index": 0,
+            "hulls": []
+          },
+          {
+            "target": {
+              "kind": "floor",
+              "id": "r2"
+            },
+            "pieces": [
+              {
+                "outline": [
+                  [
+                    14.700000002980232,
+                    -6.939999997615814
+                  ],
+                  [
+                    14.700000002980232,
+                    -3.2999999970197678
+                  ],
+                  [
+                    10.060000002384186,
+                    -3.2999999970197678
+                  ],
+                  [
+                    10.060000002384186,
+                    -6.939999997615814
+                  ]
+                ],
+                "bottom": -0.1,
+                "top": 0.0
+              }
+            ],
+            "index": 0,
+            "hulls": []
+          },
+          {
+            "target": {
+              "kind": "ceiling",
+              "id": "r2"
+            },
+            "pieces": [
+              {
+                "outline": [
+                  [
+                    14.700000002980232,
+                    -6.939999997615814
+                  ],
+                  [
+                    14.700000002980232,
+                    -3.2999999970197678
+                  ],
+                  [
+                    10.060000002384186,
+                    -3.2999999970197678
+                  ],
+                  [
+                    10.060000002384186,
+                    -6.939999997615814
+                  ]
+                ],
+                "bottom": 3.0,
+                "top": 3.1
+              }
+            ],
+            "index": 0,
+            "hulls": []
+          },
+          {
+            "target": {
+              "kind": "floor",
+              "id": "r3"
+            },
+            "pieces": [
+              {
+                "outline": [
+                  [
+                    9.939999997615814,
+                    -10.700000002980232
+                  ],
+                  [
+                    9.939999997615814,
+                    -8.060000002384186
+                  ],
+                  [
+                    5.299999997019768,
+                    -8.060000002384186
+                  ],
+                  [
+                    5.299999997019768,
+                    -10.700000002980232
+                  ]
+                ],
+                "bottom": -0.1,
+                "top": 0.0
+              }
+            ],
+            "index": 0,
+            "hulls": []
+          },
+          {
+            "target": {
+              "kind": "ceiling",
+              "id": "r3"
+            },
+            "pieces": [
+              {
+                "outline": [
+                  [
+                    9.939999997615814,
+                    -10.700000002980232
+                  ],
+                  [
+                    9.939999997615814,
+                    -8.060000002384186
+                  ],
+                  [
+                    5.299999997019768,
+                    -8.060000002384186
+                  ],
+                  [
+                    5.299999997019768,
+                    -10.700000002980232
+                  ]
+                ],
+                "bottom": 3.0,
+                "top": 3.1
+              }
+            ],
+            "index": 0,
+            "hulls": []
+          },
+          {
+            "target": {
+              "kind": "floor",
+              "id": "r4"
+            },
+            "pieces": [
+              {
+                "outline": [
+                  [
+                    14.700000002980232,
+                    -10.700000002980232
+                  ],
+                  [
+                    14.700000002980232,
+                    -7.060000002384186
+                  ],
+                  [
+                    10.060000002384186,
+                    -7.060000002384186
+                  ],
+                  [
+                    10.060000002384186,
+                    -10.700000002980232
+                  ]
+                ],
+                "bottom": -0.1,
+                "top": 0.0
+              }
+            ],
+            "index": 0,
+            "hulls": []
+          },
+          {
+            "target": {
+              "kind": "ceiling",
+              "id": "r4"
+            },
+            "pieces": [
+              {
+                "outline": [
+                  [
+                    14.700000002980232,
+                    -10.700000002980232
+                  ],
+                  [
+                    14.700000002980232,
+                    -10.299999997019768
+                  ],
+                  [
+                    10.060000002384186,
+                    -10.299999997019768
+                  ],
+                  [
+                    10.060000002384186,
+                    -10.700000002980232
+                  ]
+                ],
+                "bottom": 3.0,
+                "top": 3.1
+              },
+              {
+                "outline": [
+                  [
+                    10.67000000178814,
+                    -10.299999997019768
+                  ],
+                  [
+                    10.67000000178814,
+                    -9.299999997019768
+                  ],
+                  [
+                    10.060000002384186,
+                    -9.299999997019768
+                  ],
+                  [
+                    10.060000002384186,
+                    -10.299999997019768
+                  ]
+                ],
+                "bottom": 3.0,
+                "top": 3.1
+              },
+              {
+                "outline": [
+                  [
+                    14.700000002980232,
+                    -10.299999997019768
+                  ],
+                  [
+                    14.700000002980232,
+                    -8.200000002980232
+                  ],
+                  [
+                    13.560000002384186,
+                    -8.200000002980232
+                  ],
+                  [
+                    13.560000002384186,
+                    -10.299999997019768
+                  ]
+                ],
+                "bottom": 3.0,
+                "top": 3.1
+              },
+              {
+                "outline": [
+                  [
+                    12.560000002384186,
+                    -9.299999997019768
+                  ],
+                  [
+                    12.560000002384186,
+                    -9.200000002980232
+                  ],
+                  [
+                    10.060000002384186,
+                    -9.200000002980232
+                  ],
+                  [
+                    10.060000002384186,
+                    -9.299999997019768
+                  ]
+                ],
+                "bottom": 3.0,
+                "top": 3.1
+              },
+              {
+                "outline": [
+                  [
+                    10.399999998509884,
+                    -9.200000002980232
+                  ],
+                  [
+                    10.399999998509884,
+                    -8.200000002980232
+                  ],
+                  [
+                    10.060000002384186,
+                    -8.200000002980232
+                  ],
+                  [
+                    10.060000002384186,
+                    -9.200000002980232
+                  ]
+                ],
+                "bottom": 3.0,
+                "top": 3.1
+              },
+              {
+                "outline": [
+                  [
+                    14.700000002980232,
+                    -8.200000002980232
+                  ],
+                  [
+                    14.700000002980232,
+                    -7.060000002384186
+                  ],
+                  [
+                    10.060000002384186,
+                    -7.060000002384186
+                  ],
+                  [
+                    10.060000002384186,
+                    -8.200000002980232
+                  ]
+                ],
+                "bottom": 3.0,
+                "top": 3.1
+              }
+            ],
+            "index": 0,
+            "hulls": []
+          },
+          {
+            "target": {
+              "kind": "thresholds",
+              "id": "f1"
+            },
+            "pieces": [
+              {
+                "outline": [
+                  [
+                    7.9,
+                    -8.06
+                  ],
+                  [
+                    7.9,
+                    -7.94
+                  ],
+                  [
+                    7.0,
+                    -7.94
+                  ],
+                  [
+                    7.0,
+                    -8.06
+                  ]
+                ],
+                "bottom": -0.1,
+                "top": 0.0
+              },
+              {
+                "outline": [
+                  [
+                    12.9,
+                    -11.0
+                  ],
+                  [
+                    12.9,
+                    -10.7
+                  ],
+                  [
+                    12.0,
+                    -10.7
+                  ],
+                  [
+                    12.0,
+                    -11.0
+                  ]
+                ],
+                "bottom": -0.1,
+                "top": 0.0
+              },
+              {
+                "outline": [
+                  [
+                    11.899999999999999,
+                    -7.06
+                  ],
+                  [
+                    11.899999999999999,
+                    -6.94
+                  ],
+                  [
+                    11.0,
+                    -6.94
+                  ],
+                  [
+                    11.0,
+                    -7.06
+                  ]
+                ],
+                "bottom": -0.1,
+                "top": 0.0
+              },
+              {
+                "outline": [
+                  [
+                    10.06,
+                    -6.0
+                  ],
+                  [
+                    10.06,
+                    -4.0
+                  ],
+                  [
+                    9.94,
+                    -4.0
+                  ],
+                  [
+                    9.94,
+                    -6.0
+                  ]
+                ],
+                "bottom": -0.1,
+                "top": 0.0
+              },
+              {
+                "outline": [
+                  [
+                    10.06,
+                    -9.899999999999999
+                  ],
+                  [
+                    10.06,
+                    -9.0
+                  ],
+                  [
+                    9.94,
+                    -9.0
+                  ],
+                  [
+                    9.94,
+                    -9.899999999999999
+                  ]
+                ],
+                "bottom": -0.1,
+                "top": 0.0
+              }
+            ],
+            "index": 0,
+            "hulls": []
+          },
+          {
+            "target": {
+              "kind": "slab",
+              "id": "f1"
+            },
+            "pieces": [
+              {
+                "outline": [
+                  [
+                    15.0,
+                    -11.0
+                  ],
+                  [
+                    15.0,
+                    -10.299999997019768
+                  ],
+                  [
+                    5.0,
+                    -10.299999997019768
+                  ],
+                  [
+                    5.0,
+                    -11.0
+                  ]
+                ],
+                "bottom": 3.0,
+                "top": 3.2
+              },
+              {
+                "outline": [
+                  [
+                    10.67000000178814,
+                    -10.299999997019768
+                  ],
+                  [
+                    10.67000000178814,
+                    -9.299999997019768
+                  ],
+                  [
+                    5.0,
+                    -9.299999997019768
+                  ],
+                  [
+                    5.0,
+                    -10.299999997019768
+                  ]
+                ],
+                "bottom": 3.0,
+                "top": 3.2
+              },
+              {
+                "outline": [
+                  [
+                    15.0,
+                    -10.299999997019768
+                  ],
+                  [
+                    15.0,
+                    -8.200000002980232
+                  ],
+                  [
+                    13.560000002384186,
+                    -8.200000002980232
+                  ],
+                  [
+                    13.560000002384186,
+                    -10.299999997019768
+                  ]
+                ],
+                "bottom": 3.0,
+                "top": 3.2
+              },
+              {
+                "outline": [
+                  [
+                    12.560000002384186,
+                    -9.299999997019768
+                  ],
+                  [
+                    12.560000002384186,
+                    -9.200000002980232
+                  ],
+                  [
+                    5.0,
+                    -9.200000002980232
+                  ],
+                  [
+                    5.0,
+                    -9.299999997019768
+                  ]
+                ],
+                "bottom": 3.0,
+                "top": 3.2
+              },
+              {
+                "outline": [
+                  [
+                    10.399999998509884,
+                    -9.200000002980232
+                  ],
+                  [
+                    10.399999998509884,
+                    -8.200000002980232
+                  ],
+                  [
+                    5.0,
+                    -8.200000002980232
+                  ],
+                  [
+                    5.0,
+                    -9.200000002980232
+                  ]
+                ],
+                "bottom": 3.0,
+                "top": 3.2
+              },
+              {
+                "outline": [
+                  [
+                    15.0,
+                    -8.200000002980232
+                  ],
+                  [
+                    15.0,
+                    -3.0
+                  ],
+                  [
+                    5.0,
+                    -3.0
+                  ],
+                  [
+                    5.0,
+                    -8.200000002980232
+                  ]
+                ],
+                "bottom": 3.0,
+                "top": 3.2
+              },
+              {
+                "outline": [
+                  [
+                    14.049999997019768,
+                    -3.0
+                  ],
+                  [
+                    14.049999997019768,
+                    -2.0
+                  ],
+                  [
+                    5.0,
+                    -2.0
+                  ],
+                  [
+                    5.0,
+                    -3.0
+                  ]
+                ],
+                "bottom": 3.0,
+                "top": 3.2
+              }
+            ],
+            "index": 0,
+            "hulls": []
+          },
+          {
+            "target": {
+              "kind": "stair",
+              "id": "s1"
+            },
+            "pieces": [
+              {
+                "outline": [
+                  [
+                    10.4,
+                    -8.2
+                  ],
+                  [
+                    10.4,
+                    -9.2
+                  ],
+                  [
+                    10.67,
+                    -9.2
+                  ],
+                  [
+                    10.67,
+                    -8.2
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 0.18823529411764706
+              },
+              {
+                "outline": [
+                  [
+                    10.67,
+                    -8.2
+                  ],
+                  [
+                    10.67,
+                    -9.2
+                  ],
+                  [
+                    10.940000000000001,
+                    -9.2
+                  ],
+                  [
+                    10.940000000000001,
+                    -8.2
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 0.3764705882352941
+              },
+              {
+                "outline": [
+                  [
+                    10.940000000000001,
+                    -8.2
+                  ],
+                  [
+                    10.940000000000001,
+                    -9.2
+                  ],
+                  [
+                    11.21,
+                    -9.2
+                  ],
+                  [
+                    11.21,
+                    -8.2
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 0.5647058823529412
+              },
+              {
+                "outline": [
+                  [
+                    11.21,
+                    -8.2
+                  ],
+                  [
+                    11.21,
+                    -9.2
+                  ],
+                  [
+                    11.48,
+                    -9.2
+                  ],
+                  [
+                    11.48,
+                    -8.2
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 0.7529411764705882
+              },
+              {
+                "outline": [
+                  [
+                    11.48,
+                    -8.2
+                  ],
+                  [
+                    11.48,
+                    -9.2
+                  ],
+                  [
+                    11.75,
+                    -9.2
+                  ],
+                  [
+                    11.75,
+                    -8.2
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 0.9411764705882353
+              },
+              {
+                "outline": [
+                  [
+                    11.75,
+                    -8.2
+                  ],
+                  [
+                    11.75,
+                    -9.2
+                  ],
+                  [
+                    12.02,
+                    -9.2
+                  ],
+                  [
+                    12.02,
+                    -8.2
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 1.1294117647058823
+              },
+              {
+                "outline": [
+                  [
+                    12.02,
+                    -8.2
+                  ],
+                  [
+                    12.02,
+                    -9.2
+                  ],
+                  [
+                    12.290000000000001,
+                    -9.2
+                  ],
+                  [
+                    12.290000000000001,
+                    -8.2
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 1.3176470588235294
+              },
+              {
+                "outline": [
+                  [
+                    12.290000000000001,
+                    -8.2
+                  ],
+                  [
+                    12.290000000000001,
+                    -9.2
+                  ],
+                  [
+                    12.56,
+                    -9.2
+                  ],
+                  [
+                    12.56,
+                    -8.2
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 1.5058823529411764
+              },
+              {
+                "outline": [
+                  [
+                    12.56,
+                    -8.2
+                  ],
+                  [
+                    12.56,
+                    -10.299999999999999
+                  ],
+                  [
+                    13.56,
+                    -10.299999999999999
+                  ],
+                  [
+                    13.56,
+                    -8.2
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 1.6941176470588235
+              },
+              {
+                "outline": [
+                  [
+                    12.290000000000001,
+                    -9.299999999999999
+                  ],
+                  [
+                    12.290000000000001,
+                    -10.299999999999999
+                  ],
+                  [
+                    12.56,
+                    -10.299999999999999
+                  ],
+                  [
+                    12.56,
+                    -9.299999999999999
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 1.8823529411764706
+              },
+              {
+                "outline": [
+                  [
+                    12.02,
+                    -9.299999999999999
+                  ],
+                  [
+                    12.02,
+                    -10.299999999999999
+                  ],
+                  [
+                    12.290000000000001,
+                    -10.299999999999999
+                  ],
+                  [
+                    12.290000000000001,
+                    -9.299999999999999
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 2.0705882352941174
+              },
+              {
+                "outline": [
+                  [
+                    11.75,
+                    -9.299999999999999
+                  ],
+                  [
+                    11.75,
+                    -10.299999999999999
+                  ],
+                  [
+                    12.02,
+                    -10.299999999999999
+                  ],
+                  [
+                    12.02,
+                    -9.299999999999999
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 2.2588235294117647
+              },
+              {
+                "outline": [
+                  [
+                    11.48,
+                    -9.299999999999999
+                  ],
+                  [
+                    11.48,
+                    -10.299999999999999
+                  ],
+                  [
+                    11.75,
+                    -10.299999999999999
+                  ],
+                  [
+                    11.75,
+                    -9.299999999999999
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 2.447058823529412
+              },
+              {
+                "outline": [
+                  [
+                    11.21,
+                    -9.299999999999999
+                  ],
+                  [
+                    11.21,
+                    -10.299999999999999
+                  ],
+                  [
+                    11.48,
+                    -10.299999999999999
+                  ],
+                  [
+                    11.48,
+                    -9.299999999999999
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 2.635294117647059
+              },
+              {
+                "outline": [
+                  [
+                    10.940000000000001,
+                    -9.299999999999999
+                  ],
+                  [
+                    10.940000000000001,
+                    -10.299999999999999
+                  ],
+                  [
+                    11.21,
+                    -10.299999999999999
+                  ],
+                  [
+                    11.21,
+                    -9.299999999999999
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 2.8235294117647056
+              },
+              {
+                "outline": [
+                  [
+                    10.67,
+                    -9.299999999999999
+                  ],
+                  [
+                    10.67,
+                    -10.299999999999999
+                  ],
+                  [
+                    10.940000000000001,
+                    -10.299999999999999
+                  ],
+                  [
+                    10.940000000000001,
+                    -9.299999999999999
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 3.011764705882353
+              }
+            ],
+            "index": 0,
+            "hulls": []
+          },
+          {
+            "target": {
+              "kind": "roof",
+              "id": "f1"
+            },
+            "pieces": [
+              {
+                "outline": [
+                  [
+                    15.0,
+                    -11.0
+                  ],
+                  [
+                    15.0,
+                    -10.799999997019768
+                  ],
+                  [
+                    14.049999997019768,
+                    -10.799999997019768
+                  ],
+                  [
+                    14.049999997019768,
+                    -11.0
+                  ]
+                ],
+                "bottom": 3.35,
+                "top": 3.9499999999999997
+              },
+              {
+                "outline": [
+                  [
+                    14.25,
+                    -10.799999997019768
+                  ],
+                  [
+                    14.25,
+                    -3.2000000029802322
+                  ],
+                  [
+                    14.049999997019768,
+                    -3.2000000029802322
+                  ],
+                  [
+                    14.049999997019768,
+                    -10.799999997019768
+                  ]
+                ],
+                "bottom": 3.35,
+                "top": 3.9499999999999997
+              },
+              {
+                "outline": [
+                  [
+                    15.0,
+                    -10.799999997019768
+                  ],
+                  [
+                    15.0,
+                    -3.2000000029802322
+                  ],
+                  [
+                    14.799999997019768,
+                    -3.2000000029802322
+                  ],
+                  [
+                    14.799999997019768,
+                    -10.799999997019768
+                  ]
+                ],
+                "bottom": 3.35,
+                "top": 3.9499999999999997
+              },
+              {
+                "outline": [
+                  [
+                    15.0,
+                    -3.2000000029802322
+                  ],
+                  [
+                    15.0,
+                    -3.0
+                  ],
+                  [
+                    14.049999997019768,
+                    -3.0
+                  ],
+                  [
+                    14.049999997019768,
+                    -3.2000000029802322
+                  ]
+                ],
+                "bottom": 3.35,
+                "top": 3.9499999999999997
+              }
+            ],
+            "index": 0,
+            "hulls": [
+              [
+                [
+                  15.0,
+                  -11.0,
+                  3.3500000000000005
+                ],
+                [
+                  15.0,
+                  -3.0,
+                  3.3500000000000005
+                ],
+                [
+                  14.049999997019768,
+                  -3.0,
+                  3.3500000000000005
+                ],
+                [
+                  14.049999997019768,
+                  -11.0,
+                  3.3500000000000005
+                ],
+                [
+                  15.0,
+                  -11.0,
+                  3.2000000000000006
+                ],
+                [
+                  15.0,
+                  -3.0,
+                  3.2000000000000006
+                ],
+                [
+                  14.049999997019768,
+                  -3.0,
+                  3.2000000000000006
+                ],
+                [
+                  14.049999997019768,
+                  -11.0,
+                  3.2000000000000006
+                ]
+              ]
+            ]
+          }
+        ]
       },
       {
         "id": "f2",
@@ -4642,6 +6423,7 @@
           {
             "height": 3.0,
             "top_material": "white_paint",
+            "top_slot": "Wall_Top",
             "outline": {
               "points": [
                 [
@@ -5113,8 +6895,7 @@
                   }
                 ]
               }
-            ],
-            "top_slot": "Wall_Top"
+            ]
           }
         ],
         "openings": [
@@ -5237,10 +7018,10 @@
             "slots": {
               "reveal": "Room_Wall",
               "threshold": "Threshold",
-              "door": "Door_Neutral",
-              "frame": "Frame_WhitePaint",
-              "glass": "Glass_ClearGlass",
-              "handle": "Handle_Neutral"
+              "door": "Door",
+              "frame": "Frame",
+              "glass": "Glass",
+              "handle": "Handle"
             }
           },
           {
@@ -5362,10 +7143,10 @@
             "slots": {
               "reveal": "Room_Wall",
               "threshold": "Threshold",
-              "door": "Door_Neutral",
-              "frame": "Frame_WhitePaint",
-              "glass": "Glass_ClearGlass",
-              "handle": "Handle_Neutral"
+              "door": "Door",
+              "frame": "Frame",
+              "glass": "Glass",
+              "handle": "Handle"
             }
           },
           {
@@ -5487,10 +7268,10 @@
             "slots": {
               "reveal": "Room_Wall",
               "threshold": "Threshold",
-              "door": "Door_Neutral",
-              "frame": "Frame_WhitePaint",
-              "glass": "Glass_ClearGlass",
-              "handle": "Handle_Neutral"
+              "door": "Door",
+              "frame": "Frame",
+              "glass": "Glass",
+              "handle": "Handle"
             }
           },
           {
@@ -5612,10 +7393,10 @@
             "slots": {
               "reveal": "Room_Wall",
               "threshold": "Threshold",
-              "door": "Door_Neutral",
-              "frame": "Frame_WhitePaint",
-              "glass": "Glass_ClearGlass",
-              "handle": "Handle_Neutral"
+              "door": "Door",
+              "frame": "Frame",
+              "glass": "Glass",
+              "handle": "Handle"
             }
           },
           {
@@ -5737,10 +7518,10 @@
             "slots": {
               "reveal": "Room_Wall",
               "threshold": "Threshold",
-              "door": "Door_Neutral",
-              "frame": "Frame_WhitePaint",
-              "glass": "Glass_ClearGlass",
-              "handle": "Handle_Neutral"
+              "door": "Door",
+              "frame": "Frame",
+              "glass": "Glass",
+              "handle": "Handle"
             }
           },
           {
@@ -5879,10 +7660,10 @@
             "slots": {
               "reveal": "Room_Wall",
               "threshold": "Room_Floor",
-              "door": "Door_PaintedWood",
-              "frame": "Frame_WhitePaint",
-              "glass": "Glass_Neutral",
-              "handle": "Handle_BrushedSteel"
+              "door": "Door",
+              "frame": "Frame",
+              "glass": "Glass",
+              "handle": "Handle"
             }
           },
           {
@@ -6004,10 +7785,10 @@
             "slots": {
               "reveal": "Room_Wall",
               "threshold": "Threshold",
-              "door": "Door_Neutral",
-              "frame": "Frame_WhitePaint",
-              "glass": "Glass_ClearGlass",
-              "handle": "Handle_Neutral"
+              "door": "Door",
+              "frame": "Frame",
+              "glass": "Glass",
+              "handle": "Handle"
             }
           },
           {
@@ -6129,10 +7910,10 @@
             "slots": {
               "reveal": "Room_Wall",
               "threshold": "Threshold",
-              "door": "Door_Neutral",
-              "frame": "Frame_WhitePaint",
-              "glass": "Glass_ClearGlass",
-              "handle": "Handle_Neutral"
+              "door": "Door",
+              "frame": "Frame",
+              "glass": "Glass",
+              "handle": "Handle"
             }
           },
           {
@@ -6271,10 +8052,10 @@
             "slots": {
               "reveal": "Room_Wall",
               "threshold": "Room_Floor",
-              "door": "Door_PaintedWood",
-              "frame": "Frame_WhitePaint",
-              "glass": "Glass_Neutral",
-              "handle": "Handle_BrushedSteel"
+              "door": "Door",
+              "frame": "Frame",
+              "glass": "Glass",
+              "handle": "Handle"
             }
           },
           {
@@ -6413,10 +8194,10 @@
             "slots": {
               "reveal": "Room_Wall",
               "threshold": "Room_Floor",
-              "door": "Door_PaintedWood",
-              "frame": "Frame_WhitePaint",
-              "glass": "Glass_Neutral",
-              "handle": "Handle_BrushedSteel"
+              "door": "Door",
+              "frame": "Frame",
+              "glass": "Glass",
+              "handle": "Handle"
             }
           },
           {
@@ -6538,10 +8319,10 @@
             "slots": {
               "reveal": "Room_Wall",
               "threshold": "Threshold",
-              "door": "Door_Neutral",
-              "frame": "Frame_WhitePaint",
-              "glass": "Glass_ClearGlass",
-              "handle": "Handle_Neutral"
+              "door": "Door",
+              "frame": "Frame",
+              "glass": "Glass",
+              "handle": "Handle"
             }
           },
           {
@@ -6663,10 +8444,10 @@
             "slots": {
               "reveal": "Room_Wall",
               "threshold": "Threshold",
-              "door": "Door_Neutral",
-              "frame": "Frame_WhitePaint",
-              "glass": "Glass_ClearGlass",
-              "handle": "Handle_Neutral"
+              "door": "Door",
+              "frame": "Frame",
+              "glass": "Glass",
+              "handle": "Handle"
             }
           }
         ],
@@ -6679,6 +8460,8 @@
             "ceiling_z": 6.2,
             "floor_material": "oak_planks",
             "ceiling_material": "white_paint",
+            "floor_slot": "Room_Floor",
+            "ceiling_slot": "Room_Ceiling",
             "polygons": [
               {
                 "outline": [
@@ -6732,9 +8515,7 @@
                 ],
                 "holes": []
               }
-            ],
-            "floor_slot": "Room_Floor",
-            "ceiling_slot": "Room_Ceiling"
+            ]
           },
           {
             "id": "r6",
@@ -6744,6 +8525,8 @@
             "ceiling_z": 6.2,
             "floor_material": "oak_planks",
             "ceiling_material": "white_paint",
+            "floor_slot": "Room_Floor",
+            "ceiling_slot": "Room_Ceiling",
             "polygons": [
               {
                 "outline": [
@@ -6789,9 +8572,7 @@
                 ],
                 "holes": []
               }
-            ],
-            "floor_slot": "Room_Floor",
-            "ceiling_slot": "Room_Ceiling"
+            ]
           },
           {
             "id": "r7",
@@ -6801,6 +8582,8 @@
             "ceiling_z": 6.2,
             "floor_material": "oak_planks",
             "ceiling_material": "white_paint",
+            "floor_slot": "Room_Floor",
+            "ceiling_slot": "Room_Ceiling",
             "polygons": [
               {
                 "outline": [
@@ -6846,9 +8629,7 @@
                 ],
                 "holes": []
               }
-            ],
-            "floor_slot": "Room_Floor",
-            "ceiling_slot": "Room_Ceiling"
+            ]
           },
           {
             "id": "r8",
@@ -6858,6 +8639,8 @@
             "ceiling_z": 6.2,
             "floor_material": "oak_planks",
             "ceiling_material": "white_paint",
+            "floor_slot": "Room_Floor",
+            "ceiling_slot": "Room_Ceiling",
             "polygons": [
               {
                 "outline": [
@@ -6946,9 +8729,7 @@
                 ],
                 "holes": []
               }
-            ],
-            "floor_slot": "Room_Floor",
-            "ceiling_slot": "Room_Ceiling"
+            ]
           }
         ],
         "items": [],
@@ -7028,8 +8809,13 @@
           "tops": [],
           "materials": {
             "edge": "red_brick",
-            "well": "white_paint",
-            "underside": "white_paint"
+            "well": null,
+            "underside": null
+          },
+          "slots": {
+            "edge": "Exterior_Wall",
+            "well": "Stair_Well",
+            "underside": "Soffit"
           }
         },
         "stairs": [],
@@ -7064,7 +8850,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "roof_tiles"
+                "material": "roof_tiles",
+                "slot": "Roof"
               },
               {
                 "part": "covering",
@@ -7091,7 +8878,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "roof_tiles"
+                "material": "roof_tiles",
+                "slot": "Roof"
               },
               {
                 "part": "underside",
@@ -7118,7 +8906,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "white_paint"
+                "material": "white_paint",
+                "slot": "Soffit"
               },
               {
                 "part": "underside",
@@ -7145,7 +8934,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "white_paint"
+                "material": "white_paint",
+                "slot": "Soffit"
               },
               {
                 "part": "edge",
@@ -7172,7 +8962,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "white_paint"
+                "material": "white_paint",
+                "slot": "Fascia"
               },
               {
                 "part": "edge",
@@ -7199,7 +8990,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "white_paint"
+                "material": "white_paint",
+                "slot": "Fascia"
               },
               {
                 "part": "edge",
@@ -7226,7 +9018,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "white_paint"
+                "material": "white_paint",
+                "slot": "Fascia"
               },
               {
                 "part": "edge",
@@ -7253,7 +9046,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "white_paint"
+                "material": "white_paint",
+                "slot": "Fascia"
               },
               {
                 "part": "edge",
@@ -7280,7 +9074,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "white_paint"
+                "material": "white_paint",
+                "slot": "Fascia"
               },
               {
                 "part": "edge",
@@ -7307,7 +9102,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "white_paint"
+                "material": "white_paint",
+                "slot": "Fascia"
               },
               {
                 "part": "gable",
@@ -7329,7 +9125,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "red_brick"
+                "material": "red_brick",
+                "slot": "Exterior_Wall"
               },
               {
                 "part": "gable",
@@ -7356,7 +9153,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "red_brick"
+                "material": "red_brick",
+                "slot": "Exterior_Wall"
               },
               {
                 "part": "gable",
@@ -7378,7 +9176,8 @@
                   ]
                 ],
                 "holes": [],
-                "material": "red_brick"
+                "material": "red_brick",
+                "slot": "Exterior_Wall"
               },
               {
                 "part": "gable",
@@ -7405,86 +9204,1010 @@
                   ]
                 ],
                 "holes": [],
-                "material": "red_brick"
+                "material": "red_brick",
+                "slot": "Exterior_Wall"
               }
             ]
           }
         ],
-        "collision": []
-      }
-    ],
-    "preview_textures_folder": "preview_textures",
-    "preview_texture_size": 1024,
-    "slots": [
-      {
-        "name": "Door_Neutral",
-        "material": null,
-        "surface": "Door"
-      },
-      {
-        "name": "Door_PaintedWood",
-        "material": "painted_wood",
-        "surface": "Door"
-      },
-      {
-        "name": "Exterior_Wall",
-        "material": "red_brick",
-        "surface": "Wall_Outside"
-      },
-      {
-        "name": "Frame_Neutral",
-        "material": null,
-        "surface": "Frame"
-      },
-      {
-        "name": "Frame_WhitePaint",
-        "material": "white_paint",
-        "surface": "Frame"
-      },
-      {
-        "name": "Glass_ClearGlass",
-        "material": "clear_glass",
-        "surface": "Glass"
-      },
-      {
-        "name": "Glass_Neutral",
-        "material": null,
-        "surface": "Glass"
-      },
-      {
-        "name": "Handle_BrushedSteel",
-        "material": "brushed_steel",
-        "surface": "Handle"
-      },
-      {
-        "name": "Handle_Neutral",
-        "material": null,
-        "surface": "Handle"
-      },
-      {
-        "name": "Room_Ceiling",
-        "material": "white_paint",
-        "surface": "Ceiling"
-      },
-      {
-        "name": "Room_Floor",
-        "material": "oak_planks",
-        "surface": "Floor"
-      },
-      {
-        "name": "Room_Wall",
-        "material": "white_paint",
-        "surface": "Wall_Inside"
-      },
-      {
-        "name": "Threshold",
-        "material": null,
-        "surface": "Threshold"
-      },
-      {
-        "name": "Wall_Top",
-        "material": "white_paint",
-        "surface": "Wall_Top"
+        "collision": [
+          {
+            "target": {
+              "kind": "walls",
+              "id": "f2"
+            },
+            "pieces": [
+              {
+                "outline": [
+                  [
+                    10.149999998509884,
+                    -2.0
+                  ],
+                  [
+                    5.0,
+                    -2.0
+                  ],
+                  [
+                    5.299999997019768,
+                    -2.2999999970197678
+                  ],
+                  [
+                    10.149999998509884,
+                    -2.2999999970197678
+                  ]
+                ],
+                "bottom": 3.2,
+                "top": 6.2
+              },
+              {
+                "outline": [
+                  [
+                    14.049999997019768,
+                    -2.0
+                  ],
+                  [
+                    9.850000001490116,
+                    -2.0
+                  ],
+                  [
+                    9.850000001490116,
+                    -2.2999999970197678
+                  ],
+                  [
+                    13.75,
+                    -2.2999999970197678
+                  ]
+                ],
+                "bottom": 3.2,
+                "top": 6.2
+              },
+              {
+                "outline": [
+                  [
+                    10.060000002384186,
+                    -6.53999999910593
+                  ],
+                  [
+                    5.090000003576279,
+                    -6.53999999910593
+                  ],
+                  [
+                    5.090000003576279,
+                    -6.659999996423721
+                  ],
+                  [
+                    10.060000002384186,
+                    -6.659999996423721
+                  ]
+                ],
+                "bottom": 3.2,
+                "top": 6.2
+              },
+              {
+                "outline": [
+                  [
+                    10.149999998509884,
+                    -10.700000002980232
+                  ],
+                  [
+                    5.299999997019768,
+                    -10.700000002980232
+                  ],
+                  [
+                    5.0,
+                    -11.0
+                  ],
+                  [
+                    10.149999998509884,
+                    -11.0
+                  ]
+                ],
+                "bottom": 3.2,
+                "top": 6.2
+              },
+              {
+                "outline": [
+                  [
+                    13.75,
+                    -10.700000002980232
+                  ],
+                  [
+                    9.850000001490116,
+                    -10.700000002980232
+                  ],
+                  [
+                    9.850000001490116,
+                    -11.0
+                  ],
+                  [
+                    14.049999997019768,
+                    -11.0
+                  ]
+                ],
+                "bottom": 3.2,
+                "top": 6.2
+              },
+              {
+                "outline": [
+                  [
+                    10.399999998509884,
+                    -4.939999997615814
+                  ],
+                  [
+                    9.939999997615814,
+                    -4.939999997615814
+                  ],
+                  [
+                    9.939999997615814,
+                    -5.060000002384186
+                  ],
+                  [
+                    10.399999998509884,
+                    -5.060000002384186
+                  ]
+                ],
+                "bottom": 3.2,
+                "top": 6.2
+              },
+              {
+                "outline": [
+                  [
+                    11.299999997019768,
+                    -4.939999997615814
+                  ],
+                  [
+                    10.399999998509884,
+                    -4.939999997615814
+                  ],
+                  [
+                    10.399999998509884,
+                    -5.060000002384186
+                  ],
+                  [
+                    11.299999997019768,
+                    -5.060000002384186
+                  ]
+                ],
+                "bottom": 5.300000000000001,
+                "top": 6.2
+              },
+              {
+                "outline": [
+                  [
+                    13.96000000089407,
+                    -4.939999997615814
+                  ],
+                  [
+                    11.299999997019768,
+                    -4.939999997615814
+                  ],
+                  [
+                    11.299999997019768,
+                    -5.060000002384186
+                  ],
+                  [
+                    13.96000000089407,
+                    -5.060000002384186
+                  ]
+                ],
+                "bottom": 3.2,
+                "top": 6.2
+              },
+              {
+                "outline": [
+                  [
+                    5.0,
+                    -2.0
+                  ],
+                  [
+                    5.0,
+                    -6.75
+                  ],
+                  [
+                    5.299999997019768,
+                    -6.75
+                  ],
+                  [
+                    5.299999997019768,
+                    -2.2999999970197678
+                  ]
+                ],
+                "bottom": 3.2,
+                "top": 6.2
+              },
+              {
+                "outline": [
+                  [
+                    5.299999997019768,
+                    -6.450000002980232
+                  ],
+                  [
+                    5.0,
+                    -6.450000002980232
+                  ],
+                  [
+                    5.0,
+                    -11.0
+                  ],
+                  [
+                    5.299999997019768,
+                    -10.700000002980232
+                  ]
+                ],
+                "bottom": 3.2,
+                "top": 6.2
+              },
+              {
+                "outline": [
+                  [
+                    10.060000002384186,
+                    -2.0900000035762787
+                  ],
+                  [
+                    9.939999997615814,
+                    -2.0900000035762787
+                  ],
+                  [
+                    9.939999997615814,
+                    -5.060000002384186
+                  ],
+                  [
+                    10.060000002384186,
+                    -5.060000002384186
+                  ]
+                ],
+                "bottom": 3.2,
+                "top": 6.2
+              },
+              {
+                "outline": [
+                  [
+                    10.060000002384186,
+                    -4.939999997615814
+                  ],
+                  [
+                    9.939999997615814,
+                    -4.939999997615814
+                  ],
+                  [
+                    9.939999997615814,
+                    -5.399999998509884
+                  ],
+                  [
+                    10.060000002384186,
+                    -5.399999998509884
+                  ]
+                ],
+                "bottom": 3.2,
+                "top": 6.2
+              },
+              {
+                "outline": [
+                  [
+                    9.939999997615814,
+                    -5.399999998509884
+                  ],
+                  [
+                    9.939999997615814,
+                    -6.299999997019768
+                  ],
+                  [
+                    10.060000002384186,
+                    -6.299999997019768
+                  ],
+                  [
+                    10.060000002384186,
+                    -5.399999998509884
+                  ]
+                ],
+                "bottom": 5.300000000000001,
+                "top": 6.2
+              },
+              {
+                "outline": [
+                  [
+                    9.939999997615814,
+                    -6.299999997019768
+                  ],
+                  [
+                    9.939999997615814,
+                    -6.659999996423721
+                  ],
+                  [
+                    10.060000002384186,
+                    -6.659999996423721
+                  ],
+                  [
+                    10.060000002384186,
+                    -6.299999997019768
+                  ]
+                ],
+                "bottom": 3.2,
+                "top": 6.2
+              },
+              {
+                "outline": [
+                  [
+                    10.060000002384186,
+                    -6.53999999910593
+                  ],
+                  [
+                    9.939999997615814,
+                    -6.53999999910593
+                  ],
+                  [
+                    9.939999997615814,
+                    -9.0
+                  ],
+                  [
+                    10.060000002384186,
+                    -9.0
+                  ]
+                ],
+                "bottom": 3.2,
+                "top": 6.2
+              },
+              {
+                "outline": [
+                  [
+                    9.939999997615814,
+                    -9.0
+                  ],
+                  [
+                    9.939999997615814,
+                    -9.899999998509884
+                  ],
+                  [
+                    10.060000002384186,
+                    -9.899999998509884
+                  ],
+                  [
+                    10.060000002384186,
+                    -9.0
+                  ]
+                ],
+                "bottom": 5.300000000000001,
+                "top": 6.2
+              },
+              {
+                "outline": [
+                  [
+                    9.939999997615814,
+                    -9.899999998509884
+                  ],
+                  [
+                    9.939999997615814,
+                    -10.909999996423721
+                  ],
+                  [
+                    10.060000002384186,
+                    -10.909999996423721
+                  ],
+                  [
+                    10.060000002384186,
+                    -9.899999998509884
+                  ]
+                ],
+                "bottom": 3.2,
+                "top": 6.2
+              },
+              {
+                "outline": [
+                  [
+                    14.049999997019768,
+                    -2.0
+                  ],
+                  [
+                    13.75,
+                    -2.2999999970197678
+                  ],
+                  [
+                    13.75,
+                    -5.149999998509884
+                  ],
+                  [
+                    14.049999997019768,
+                    -5.149999998509884
+                  ]
+                ],
+                "bottom": 3.2,
+                "top": 6.2
+              },
+              {
+                "outline": [
+                  [
+                    14.049999997019768,
+                    -4.850000001490116
+                  ],
+                  [
+                    13.75,
+                    -4.850000001490116
+                  ],
+                  [
+                    13.75,
+                    -10.700000002980232
+                  ],
+                  [
+                    14.049999997019768,
+                    -11.0
+                  ]
+                ],
+                "bottom": 3.2,
+                "top": 6.2
+              }
+            ],
+            "index": 0,
+            "hulls": []
+          },
+          {
+            "target": {
+              "kind": "floor",
+              "id": "r5"
+            },
+            "pieces": [
+              {
+                "outline": [
+                  [
+                    9.939999997615814,
+                    -6.53999999910593
+                  ],
+                  [
+                    9.939999997615814,
+                    -2.2999999970197678
+                  ],
+                  [
+                    5.299999997019768,
+                    -2.2999999970197678
+                  ],
+                  [
+                    5.299999997019768,
+                    -6.53999999910593
+                  ]
+                ],
+                "bottom": 3.1,
+                "top": 3.2
+              }
+            ],
+            "index": 0,
+            "hulls": []
+          },
+          {
+            "target": {
+              "kind": "ceiling",
+              "id": "r5"
+            },
+            "pieces": [
+              {
+                "outline": [
+                  [
+                    9.939999997615814,
+                    -6.53999999910593
+                  ],
+                  [
+                    9.939999997615814,
+                    -2.2999999970197678
+                  ],
+                  [
+                    5.299999997019768,
+                    -2.2999999970197678
+                  ],
+                  [
+                    5.299999997019768,
+                    -6.53999999910593
+                  ]
+                ],
+                "bottom": 6.2,
+                "top": 6.3
+              }
+            ],
+            "index": 0,
+            "hulls": []
+          },
+          {
+            "target": {
+              "kind": "floor",
+              "id": "r6"
+            },
+            "pieces": [
+              {
+                "outline": [
+                  [
+                    13.75,
+                    -4.939999997615814
+                  ],
+                  [
+                    13.75,
+                    -2.2999999970197678
+                  ],
+                  [
+                    10.060000002384186,
+                    -2.2999999970197678
+                  ],
+                  [
+                    10.060000002384186,
+                    -4.939999997615814
+                  ]
+                ],
+                "bottom": 3.1,
+                "top": 3.2
+              }
+            ],
+            "index": 0,
+            "hulls": []
+          },
+          {
+            "target": {
+              "kind": "ceiling",
+              "id": "r6"
+            },
+            "pieces": [
+              {
+                "outline": [
+                  [
+                    13.75,
+                    -4.939999997615814
+                  ],
+                  [
+                    13.75,
+                    -2.2999999970197678
+                  ],
+                  [
+                    10.060000002384186,
+                    -2.2999999970197678
+                  ],
+                  [
+                    10.060000002384186,
+                    -4.939999997615814
+                  ]
+                ],
+                "bottom": 6.2,
+                "top": 6.3
+              }
+            ],
+            "index": 0,
+            "hulls": []
+          },
+          {
+            "target": {
+              "kind": "floor",
+              "id": "r7"
+            },
+            "pieces": [
+              {
+                "outline": [
+                  [
+                    9.939999997615814,
+                    -10.700000002980232
+                  ],
+                  [
+                    9.939999997615814,
+                    -6.659999996423721
+                  ],
+                  [
+                    5.299999997019768,
+                    -6.659999996423721
+                  ],
+                  [
+                    5.299999997019768,
+                    -10.700000002980232
+                  ]
+                ],
+                "bottom": 3.1,
+                "top": 3.2
+              }
+            ],
+            "index": 0,
+            "hulls": []
+          },
+          {
+            "target": {
+              "kind": "ceiling",
+              "id": "r7"
+            },
+            "pieces": [
+              {
+                "outline": [
+                  [
+                    9.939999997615814,
+                    -10.700000002980232
+                  ],
+                  [
+                    9.939999997615814,
+                    -6.659999996423721
+                  ],
+                  [
+                    5.299999997019768,
+                    -6.659999996423721
+                  ],
+                  [
+                    5.299999997019768,
+                    -10.700000002980232
+                  ]
+                ],
+                "bottom": 6.2,
+                "top": 6.3
+              }
+            ],
+            "index": 0,
+            "hulls": []
+          },
+          {
+            "target": {
+              "kind": "floor",
+              "id": "r8"
+            },
+            "pieces": [
+              {
+                "outline": [
+                  [
+                    13.75,
+                    -10.700000002980232
+                  ],
+                  [
+                    13.75,
+                    -10.299999997019768
+                  ],
+                  [
+                    10.060000002384186,
+                    -10.299999997019768
+                  ],
+                  [
+                    10.060000002384186,
+                    -10.700000002980232
+                  ]
+                ],
+                "bottom": 3.1,
+                "top": 3.2
+              },
+              {
+                "outline": [
+                  [
+                    10.67000000178814,
+                    -10.299999997019768
+                  ],
+                  [
+                    10.67000000178814,
+                    -9.299999997019768
+                  ],
+                  [
+                    10.060000002384186,
+                    -9.299999997019768
+                  ],
+                  [
+                    10.060000002384186,
+                    -10.299999997019768
+                  ]
+                ],
+                "bottom": 3.1,
+                "top": 3.2
+              },
+              {
+                "outline": [
+                  [
+                    13.75,
+                    -10.299999997019768
+                  ],
+                  [
+                    13.75,
+                    -8.200000002980232
+                  ],
+                  [
+                    13.560000002384186,
+                    -8.200000002980232
+                  ],
+                  [
+                    13.560000002384186,
+                    -10.299999997019768
+                  ]
+                ],
+                "bottom": 3.1,
+                "top": 3.2
+              },
+              {
+                "outline": [
+                  [
+                    12.560000002384186,
+                    -9.299999997019768
+                  ],
+                  [
+                    12.560000002384186,
+                    -9.200000002980232
+                  ],
+                  [
+                    10.060000002384186,
+                    -9.200000002980232
+                  ],
+                  [
+                    10.060000002384186,
+                    -9.299999997019768
+                  ]
+                ],
+                "bottom": 3.1,
+                "top": 3.2
+              },
+              {
+                "outline": [
+                  [
+                    10.399999998509884,
+                    -9.200000002980232
+                  ],
+                  [
+                    10.399999998509884,
+                    -8.200000002980232
+                  ],
+                  [
+                    10.060000002384186,
+                    -8.200000002980232
+                  ],
+                  [
+                    10.060000002384186,
+                    -9.200000002980232
+                  ]
+                ],
+                "bottom": 3.1,
+                "top": 3.2
+              },
+              {
+                "outline": [
+                  [
+                    13.75,
+                    -8.200000002980232
+                  ],
+                  [
+                    13.75,
+                    -5.060000002384186
+                  ],
+                  [
+                    10.060000002384186,
+                    -5.060000002384186
+                  ],
+                  [
+                    10.060000002384186,
+                    -8.200000002980232
+                  ]
+                ],
+                "bottom": 3.1,
+                "top": 3.2
+              }
+            ],
+            "index": 0,
+            "hulls": []
+          },
+          {
+            "target": {
+              "kind": "ceiling",
+              "id": "r8"
+            },
+            "pieces": [
+              {
+                "outline": [
+                  [
+                    13.75,
+                    -10.700000002980232
+                  ],
+                  [
+                    13.75,
+                    -5.060000002384186
+                  ],
+                  [
+                    10.060000002384186,
+                    -5.060000002384186
+                  ],
+                  [
+                    10.060000002384186,
+                    -10.700000002980232
+                  ]
+                ],
+                "bottom": 6.2,
+                "top": 6.3
+              }
+            ],
+            "index": 0,
+            "hulls": []
+          },
+          {
+            "target": {
+              "kind": "thresholds",
+              "id": "f2"
+            },
+            "pieces": [
+              {
+                "outline": [
+                  [
+                    11.299999999999999,
+                    -5.06
+                  ],
+                  [
+                    11.299999999999999,
+                    -4.94
+                  ],
+                  [
+                    10.4,
+                    -4.94
+                  ],
+                  [
+                    10.4,
+                    -5.06
+                  ]
+                ],
+                "bottom": 3.1,
+                "top": 3.2
+              },
+              {
+                "outline": [
+                  [
+                    10.06,
+                    -6.3
+                  ],
+                  [
+                    10.06,
+                    -5.3999999999999995
+                  ],
+                  [
+                    9.94,
+                    -5.3999999999999995
+                  ],
+                  [
+                    9.94,
+                    -6.3
+                  ]
+                ],
+                "bottom": 3.1,
+                "top": 3.2
+              },
+              {
+                "outline": [
+                  [
+                    10.06,
+                    -9.899999999999999
+                  ],
+                  [
+                    10.06,
+                    -9.0
+                  ],
+                  [
+                    9.94,
+                    -9.0
+                  ],
+                  [
+                    9.94,
+                    -9.899999999999999
+                  ]
+                ],
+                "bottom": 3.1,
+                "top": 3.2
+              }
+            ],
+            "index": 0,
+            "hulls": []
+          },
+          {
+            "target": {
+              "kind": "slab",
+              "id": "f2"
+            },
+            "pieces": [
+              {
+                "outline": [
+                  [
+                    14.049999997019768,
+                    -11.0
+                  ],
+                  [
+                    14.049999997019768,
+                    -2.0
+                  ],
+                  [
+                    5.0,
+                    -2.0
+                  ],
+                  [
+                    5.0,
+                    -11.0
+                  ]
+                ],
+                "bottom": 6.2,
+                "top": 6.4
+              }
+            ],
+            "index": 0,
+            "hulls": []
+          },
+          {
+            "target": {
+              "kind": "roof",
+              "id": "f2"
+            },
+            "pieces": [],
+            "index": 0,
+            "hulls": [
+              [
+                [
+                  14.350000001490116,
+                  -6.5,
+                  9.550933921943695
+                ],
+                [
+                  14.350000001490116,
+                  -1.7000000029802322,
+                  6.1899377406238685
+                ],
+                [
+                  4.700000002980232,
+                  -1.7000000029802322,
+                  6.1899377406238685
+                ],
+                [
+                  4.700000002980232,
+                  -6.5,
+                  9.550933921943695
+                ],
+                [
+                  14.350000001490116,
+                  -6.5,
+                  9.400933921943695
+                ],
+                [
+                  14.350000001490116,
+                  -1.7000000029802322,
+                  6.039937740623868
+                ],
+                [
+                  4.700000002980232,
+                  -1.7000000029802322,
+                  6.039937740623868
+                ],
+                [
+                  4.700000002980232,
+                  -6.5,
+                  9.400933921943695
+                ]
+              ],
+              [
+                [
+                  14.350000001490116,
+                  -11.299999997019768,
+                  6.1899377406238685
+                ],
+                [
+                  14.350000001490116,
+                  -6.5,
+                  9.550933921943695
+                ],
+                [
+                  4.700000002980232,
+                  -6.5,
+                  9.550933921943695
+                ],
+                [
+                  4.700000002980232,
+                  -11.299999997019768,
+                  6.1899377406238685
+                ],
+                [
+                  14.350000001490116,
+                  -11.299999997019768,
+                  6.039937740623868
+                ],
+                [
+                  14.350000001490116,
+                  -6.5,
+                  9.400933921943695
+                ],
+                [
+                  4.700000002980232,
+                  -6.5,
+                  9.400933921943695
+                ],
+                [
+                  4.700000002980232,
+                  -11.299999997019768,
+                  6.039937740623868
+                ]
+              ]
+            ]
+          }
+        ]
       }
     ]
   }

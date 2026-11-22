@@ -211,6 +211,11 @@
       "edge": null,
       "well": null,
       "underside": null
+     },
+     "slots": {
+      "edge": "Exterior_Wall",
+      "well": "Stair_Well",
+      "underside": "Soffit"
      }
     },
     "stairs": [],
@@ -402,6 +407,11 @@
       "edge": null,
       "well": null,
       "underside": null
+     },
+     "slots": {
+      "edge": "Exterior_Wall",
+      "well": "Stair_Well",
+      "underside": "Soffit"
      }
     },
     "stairs": [],
@@ -436,7 +446,8 @@
          ]
         ],
         "holes": [],
-        "material": null
+        "material": null,
+        "slot": "Roof"
        },
        {
         "part": "underside",
@@ -463,7 +474,8 @@
          ]
         ],
         "holes": [],
-        "material": null
+        "material": null,
+        "slot": "Soffit"
        },
        {
         "part": "covering",
@@ -490,7 +502,8 @@
          ]
         ],
         "holes": [],
-        "material": null
+        "material": null,
+        "slot": "Roof"
        },
        {
         "part": "underside",
@@ -517,7 +530,8 @@
          ]
         ],
         "holes": [],
-        "material": null
+        "material": null,
+        "slot": "Soffit"
        },
        {
         "part": "edge",
@@ -544,7 +558,8 @@
          ]
         ],
         "holes": [],
-        "material": null
+        "material": null,
+        "slot": "Fascia"
        },
        {
         "part": "edge",
@@ -571,7 +586,8 @@
          ]
         ],
         "holes": [],
-        "material": null
+        "material": null,
+        "slot": "Fascia"
        },
        {
         "part": "edge",
@@ -598,7 +614,8 @@
          ]
         ],
         "holes": [],
-        "material": null
+        "material": null,
+        "slot": "Fascia"
        },
        {
         "part": "edge",
@@ -625,7 +642,8 @@
          ]
         ],
         "holes": [],
-        "material": null
+        "material": null,
+        "slot": "Fascia"
        },
        {
         "part": "edge",
@@ -652,7 +670,8 @@
          ]
         ],
         "holes": [],
-        "material": null
+        "material": null,
+        "slot": "Fascia"
        },
        {
         "part": "edge",
@@ -679,7 +698,8 @@
          ]
         ],
         "holes": [],
-        "material": null
+        "material": null,
+        "slot": "Fascia"
        },
        {
         "part": "gable",
@@ -701,7 +721,8 @@
          ]
         ],
         "holes": [],
-        "material": null
+        "material": null,
+        "slot": "Exterior_Wall"
        },
        {
         "part": "gable",
@@ -723,7 +744,8 @@
          ]
         ],
         "holes": [],
-        "material": null
+        "material": null,
+        "slot": "Exterior_Wall"
        }
       ]
      }
@@ -740,6 +762,11 @@
     "surface": "Wall_Outside"
    },
    {
+    "name": "Fascia",
+    "material": null,
+    "surface": "Fascia"
+   },
+   {
     "name": "Living_Ceiling",
     "material": null,
     "surface": "Ceiling"
@@ -751,6 +778,21 @@
    },
    {
     "name": "Living_Wall",
+    "material": null,
+    "surface": "Wall_Inside"
+   },
+   {
+    "name": "Roof",
+    "material": null,
+    "surface": "Roof"
+   },
+   {
+    "name": "Soffit",
+    "material": null,
+    "surface": "Soffit"
+   },
+   {
+    "name": "Stair_Well",
     "material": null,
     "surface": "Wall_Inside"
    },

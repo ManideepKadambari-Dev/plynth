@@ -12,6 +12,7 @@ from build_helpers import BuildTest, load_params
 from material_helpers import SAMPLES, MaterialTest
 from plynth import meshes, shading
 from plynth.materials import read_pixels, read_size
+from slot_fixtures import upgrade
 
 FIXTURES = ("roof_flat", "roof_gable", "roof_two_parts")
 BASE = roofs.base_of(0.0)
@@ -90,10 +91,10 @@ class RoofFixtureTests(RoofBuildTest):
     def test_neutral_slots(self):
         self.build_open("roof_gable")
         names = sorted(m.name for m in bpy.data.objects["SM_f1_Roof_00"].data.materials)
-        self.assertEqual(names, ["Fascia", "Roof", "Soffit", "Wall_Outside"])
+        self.assertEqual(names, ["Exterior_Wall", "Fascia", "Roof", "Soffit"])
         self.build_open("roof_flat")
         names = sorted(m.name for m in bpy.data.objects["SM_f1_Roof_00"].data.materials)
-        self.assertEqual(names, ["Fascia", "Flat_Roof", "Soffit", "Wall_Outside"])
+        self.assertEqual(names, ["Exterior_Wall", "Fascia", "Flat_Roof", "Soffit"])
 
     # The mesh area equals the area of the job faces.
     def test_area(self):
@@ -197,7 +198,7 @@ class GableRoofTests(RoofBuildTest):
         obj = bpy.data.objects["SM_f1_Roof_00"]
         for polygon in polygons_of(obj, "Soffit"):
             self.assertLess(polygon.normal.z, 0.0)
-        fills = [p for p in polygons_of(obj, "Wall_Outside")]
+        fills = [p for p in polygons_of(obj, "Exterior_Wall")]
         self.assertEqual(len(fills), 2)
         for polygon in fills:
             self.assertAlmostEqual(polygon.normal.z, 0.0, delta=1e-6)
@@ -232,9 +233,11 @@ class GableRoofTests(RoofBuildTest):
         for source in params["floors"][0]["roofs"][0]["faces"]:
             if source["part"] == "covering":
                 source["material"] = "roof_tiles"
+        upgrade(params)
+        self.assertEqual(next(s["material"] for s in params["slots"] if s["name"] == "Roof"), "roof_tiles")
         self.build_open("roof_gable", params)
         obj = bpy.data.objects["SM_f1_Roof_00"]
-        covering = polygons_of(obj, "roof_tiles")
+        covering = polygons_of(obj, "Roof")
         self.assertEqual(len(covering), 4)
         vertices = obj.data.vertices
         for polygon in covering:
@@ -243,7 +246,7 @@ class GableRoofTests(RoofBuildTest):
             dz = corners[1].z - corners[0].z
             dv = uvs[1][1] - uvs[0][1]
             self.assertAlmostEqual(dv, dz / math.sin(roofs.PITCH) / 0.5, delta=1e-4)
-        self.assertNotIn("Roof", [m.name for m in obj.data.materials])
+        self.assertEqual(sum(1 for m in obj.data.materials if m.name.startswith("Roof")), 1)
 
 
 class RoofFailureTests(RoofBuildTest):

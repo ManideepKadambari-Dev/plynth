@@ -25,15 +25,9 @@ def count(ctx, name, amount=1):
 
 
 # Returns the Blender material name of a face: the slot name the job gives it. The slot must be in the job's
-# slots table; a name that is not there is kept and treated as a neutral Wall_Inside look. The slabs, stairs and
-# roofs are not named by core yet, so they pass the library material (or none) and a neutral surface: the name
-# is then the material or the surface, and the surface is remembered for the materials step.
-def slot_name(ctx, slot, surface=None):
-    if surface is None:
-        return slot
-    name = slot or surface
-    ctx.state.setdefault("part_surfaces", {}).setdefault(name, surface)
-    return name
+# slots table; a name that is not there is kept and treated as a neutral Wall_Inside look.
+def slot_name(ctx, slot):
+    return slot
 
 
 # Returns the slots table of the job as a dictionary from slot name to its entry.

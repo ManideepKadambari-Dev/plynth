@@ -23,7 +23,7 @@ def run(ctx):
 
 # Builds the object of one stair. Steps with a bad outline or no height stop the whole stair.
 def make_stair(ctx, floor, stair):
-    name = slot_name(ctx, stair["material"], "Stair")
+    name = slot_name(ctx, stair["slot"])
     bm = bmesh.new()
     try:
         uv = meshes.uv_layer(bm)

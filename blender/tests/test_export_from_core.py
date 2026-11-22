@@ -7,21 +7,25 @@ import unittest
 import bpy
 
 import helpers
-from build_helpers import BuildTest
+from build_helpers import DATA_FOLDER as BUILD_DATA_FOLDER, BuildTest
 from export_helpers import DATA_FOLDER, MODELS
 from plynth import scene, shading
 from schema_check import load_schema, validate
 
 COLORS = {"white_paint": (235, 235, 230), "grey_tile": (120, 125, 130), "oak_planks": (170, 120, 70),
           "red_brick": (160, 70, 55), "painted_wood": (190, 190, 180), "brushed_steel": (180, 180, 185),
-          "clear_glass": (200, 220, 230)}
+          "clear_glass": (200, 220, 230), "concrete": (150, 150, 148), "roof_tiles": (170, 80, 60)}
 ASSETS = ("sofa", "table")
 _project = {}
 
 
-# Reads one of the job files that plynth build and plynth export made on a scratch project.
+# Reads one of the job files that plynth build and plynth export made on a scratch project: from the export
+# fixtures, or from the build fixtures when it is not there.
 def load_job(name):
-    with open(os.path.join(DATA_FOLDER, name + ".json"), "r", encoding="utf-8") as handle:
+    path = os.path.join(DATA_FOLDER, name + ".json")
+    if not os.path.isfile(path):
+        path = os.path.join(BUILD_DATA_FOLDER, name + ".json")
+    with open(path, "r", encoding="utf-8") as handle:
         return json.load(handle)
 
 
@@ -83,14 +87,14 @@ class Fixture(BuildTest):
         bpy.ops.wm.read_factory_settings(use_empty=True)
 
     # Builds the project with the build job of the scratch project and returns the folders.
-    def make_project(self):
+    def make_project(self, export="from_core_export", build="from_core_build", assets=ASSETS):
         project = self.path("project")
         library = self.path("Library")
-        export_job = fill(load_job("from_core_export"), project, library)
+        export_job = fill(load_job(export), project, library)
         self.make_materials(export_job, library)
-        for asset_id in ASSETS:
+        for asset_id in assets:
             self.make_asset(asset_id, library)
-        build_job = fill(load_job("from_core_build"), project, library)
+        build_job = fill(load_job(build), project, library)
         os.makedirs(project + "/build", exist_ok=True)
         result = self.run_task("build", build_job["params"], job_id="build-1")
         assert result["ok"], result["error"]
@@ -188,6 +192,69 @@ class FromCoreExportTests(helpers.TempFolderTest):
             path = os.path.abspath(bpy.path.abspath(image.filepath))
             self.assertTrue(os.path.isfile(path), path)
             self.assertTrue(os.path.normcase(path).startswith(folder), path)
+
+
+# Builds the house project once (two floors, a stair, a gable roof and flat roofs, no furniture) and returns its
+# folders. Removed when the tests end.
+def shared_house():
+    if "house" not in _project:
+        fixture = Fixture()
+        fixture.setUp()
+        atexit.register(shutil.rmtree, fixture.folder, True)
+        _project["house"] = fixture.make_project("from_core_house_export", "from_core_house", ())
+    return _project["house"]
+
+
+# Returns true when every vertex lies on the inner side of every face plane.
+def convex(obj):
+    vertices = [v.co for v in obj.data.vertices]
+    return all((v - p.center).dot(p.normal) <= 1e-5 for p in obj.data.polygons for v in vertices)
+
+
+class HouseExportTests(helpers.TempFolderTest):
+    # Returns the export job of the house with the files going into a staging folder of this test.
+    def job(self):
+        project, library = shared_house()
+        job = fill(load_job("from_core_house_export"), project, library)
+        job["params"]["output_folder"] = self.path("export", ".staging")
+        job["params"]["write"] = True
+        job["params"]["force"] = False
+        job["result_file"] = self.path("work", "result.json")
+        return job
+
+    # Every quality check passes on the whole house, with the slab, stair and roofs included: the collision check
+    # finds their UCX_ meshes and the materials check finds a slot for every face. The UV check may warn about the
+    # end faces of the walls.
+    def test_checks_pass(self):
+        job = self.job()
+        self.assertEqual(validate(job, load_schema("blender-job")), [])
+        result = self.run_task("export", job["params"], job_id=job["job_id"])
+        self.assertTrue(result["ok"], result["error"])
+        self.assertEqual(validate(result, load_schema("blender-result")), [])
+        output = result["output"]
+        statuses = {c["id"]: c["status"] for c in output["checks"]}
+        self.assertEqual(len(output["checks"]), 11)
+        self.assertEqual([i for i, s in statuses.items() if s == "fail"], [])
+        self.assertEqual([i for i, s in statuses.items() if s == "warning"], ["uvs"])
+        for check in ("collision", "materials", "naming", "scale", "transforms"):
+            self.assertEqual(statuses[check], "pass", check)
+        self.assertTrue(output["written"])
+
+    # The written FBX holds convex UCX_ meshes for every slab, stair and roof, 16 for the stair's steps.
+    def test_fbx_has_part_collision(self):
+        job = self.job()
+        self.assertTrue(self.run_task("export", job["params"], job_id=job["job_id"])["ok"])
+        scene.clear_scene()
+        bpy.ops.import_scene.fbx(filepath=self.path("export", ".staging", job["params"]["groups"][0]["file"]))
+        names = {o.name for o in bpy.data.objects}
+        for target in ("SM_f1_Slab", "SM_f2_Slab", "SM_f1_s1_Stair", "SM_f1_Roof_00", "SM_f2_Roof_00"):
+            self.assertIn(target, names)
+            found = sorted(n for n in names if n.startswith("UCX_%s_" % target))
+            self.assertTrue(found, target)
+            for name in found:
+                obj = bpy.data.objects[name]
+                self.assertTrue(len(obj.data.polygons) >= 4 and convex(obj), name)
+        self.assertEqual(len([n for n in names if n.startswith("UCX_SM_f1_s1_Stair_")]), 16)
 
 
 if __name__ == "__main__":

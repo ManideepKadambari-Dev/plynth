@@ -10,17 +10,6 @@ WELD_DISTANCE = 1e-6
 FLAT_LIMIT = 1e-9
 
 
-# The neutral surface of each roof part. The covering of a flat roof has its own look.
-PART_SURFACES = {
-    "covering": "Roof",
-    "underside": "Soffit",
-    "edge": "Fascia",
-    "gable": "Wall_Outside",
-    "parapet": "Wall_Outside",
-    "glazing": "Glass",
-}
-
-
 # Makes one mesh object for every roof section of every floor, in the floor's collection. A section that cannot
 # be built is reported as roof_failed and the others still are.
 def run(ctx):
@@ -80,7 +69,6 @@ def covering_uvs(face, layer, normal):
 def make_roof(ctx, floor, roof, collection):
     if not roof["faces"]:
         raise ValueError("the section has no faces")
-    flat = roof["type"] == "flat"
     bm = bmesh.new()
     layer = meshes.uv_layer(bm)
     names = []
@@ -91,8 +79,7 @@ def make_roof(ctx, floor, roof, collection):
         normal = ring_normal(outline)
         points = [p for ring in [outline] + list(holes) for p in ring]
         verts = [bm.verts.new(p) for p in points]
-        surface = "Flat_Roof" if flat and source["part"] == "covering" else PART_SURFACES[source["part"]]
-        name = slot_name(ctx, source["material"], surface)
+        name = slot_name(ctx, source["slot"])
         if name not in names:
             names.append(name)
         for a, b, c in tessellate(outline, holes, normal):

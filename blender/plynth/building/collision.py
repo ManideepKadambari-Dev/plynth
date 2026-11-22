@@ -10,7 +10,8 @@ MINIMUM_VOLUME = 1e-9
 MINIMUM_THICKNESS = 1e-4
 
 
-# Makes the collision meshes: one closed convex mesh per piece the job lists, named UCX_<object name>_<NN>, and
+# Makes the collision meshes: one closed convex mesh per piece the job lists, then one per hull (the convex hull of
+# a point set, for roofs), named UCX_<object name>_<NN> with NN counted over the pieces and then the hulls, and
 # one convex hull per furniture item. They go into a Collision collection and carry the kind "collision" and
 # the name of the object they belong to. A piece or hull that cannot be made is reported and left out.
 def run(ctx):
@@ -39,25 +40,28 @@ def collision_collection():
     return found
 
 
-# Returns the built object of a collision target (its plynth kind and id), or None.
-def find_target(kind, plan_id):
+# Returns the built object of a collision target (its plynth kind and id, and for a roof its index), or None.
+def find_target(kind, plan_id, index=0):
     for obj in bpy.data.objects:
         if obj.get("plynth_kind") == kind and obj.get("plynth_id") == plan_id:
-            return obj
+            if kind != "roof" or obj.get("plynth_roof_index") == index:
+                return obj
     return None
 
 
 # Makes every piece of one shape.
 def make_shape(ctx, floor, shape, collection):
-    target = find_target(shape["target"]["kind"], shape["target"]["id"])
+    target = find_target(shape["target"]["kind"], shape["target"]["id"], shape.get("index", 0))
     plan_id = shape["target"]["id"]
     if target is None:
         report(ctx, "collision_failed", "warning", "The %s of %s was not built, so it has no collision." % (
             shape["target"]["kind"], plan_id), floor["id"], plan_id)
         return
-    for number, piece in enumerate(shape["pieces"]):
+    sources = [(piece_mesh, piece) for piece in shape["pieces"]]
+    sources += [(hull_points_mesh, hull) for hull in shape.get("hulls", [])]
+    for number, (make, source) in enumerate(sources):
         name = "UCX_%s_%02d" % (target.name, number)
-        mesh = piece_mesh(name, piece)
+        mesh = make(name, source)
         if mesh is None:
             report(ctx, "collision_failed", "warning", "A collision piece of %s could not be made." % plan_id,
                    floor["id"], plan_id)
@@ -86,6 +90,23 @@ def piece_mesh(name, piece):
         bm.free()
         return None
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    return finish_mesh(name, bm)
+
+
+# Builds the closed convex mesh of a point set (world X, Y and Z), or None when the points are flat or have no
+# volume.
+def hull_points_mesh(name, points):
+    bm = bmesh.new()
+    for point in points:
+        bm.verts.new((point[0], point[1], point[2]))
+    try:
+        result = bmesh.ops.convex_hull(bm, input=bm.verts[:])
+        drop = list({g for g in result["geom_interior"] + result["geom_unused"] if isinstance(g, bmesh.types.BMVert)})
+        bmesh.ops.delete(bm, geom=drop, context="VERTS")
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    except Exception:
+        bm.free()
+        return None
     return finish_mesh(name, bm)
 
 

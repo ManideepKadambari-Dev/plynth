@@ -7,8 +7,13 @@ write the fixtures roof_flat.json, roof_gable.json and roof_two_parts.json into 
 import json
 import math
 import os
+import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+
+from slot_fixtures import upgrade  # noqa: E402
+
 DATA_FOLDER = os.path.join(HERE, "data", "buildjob")
 
 X0, X1 = 0.0, 6.0
@@ -169,7 +174,7 @@ def floor(floor_id, elevation, roofs):
 
 # Returns the job of a building with the floors.
 def job(floors):
-    return {
+    data = {
         "format": "plynth-blender-job", "version": 1, "task": "build", "job_id": "fixture-1",
         "result_file": "result.json",
         "params": {
@@ -181,6 +186,8 @@ def job(floors):
             "assets": [], "materials": [], "floors": floors,
         },
     }
+    upgrade(data["params"])
+    return data
 
 
 # Returns the roof entry of a job floor.
