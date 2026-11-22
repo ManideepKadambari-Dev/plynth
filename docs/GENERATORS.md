@@ -1,6 +1,6 @@
 # Writing generators
 
-This page explains how to add to Plynth without changing the program. Today it covers opening shapes, importers, the Blender worker registries, build steps and opening fills. Generators and roof types are added to this page in later releases.
+This page explains how to add to Plynth without changing the program. Today it covers opening shapes, roof types, stair types, importers, the Blender worker registries, build steps and opening fills. Generators are added to this page in a later release.
 
 For the commands see the [Command line guide](CLI_GUIDE.md). For the screens see the [User guide](USER_GUIDE.md).
 
@@ -105,6 +105,64 @@ A shape that is part of Plynth is one C++ file. Nothing else is edited.
 4. Run CMake again. The build picks up every file in that folder by itself, and links the shapes into the app, the command line and the tests.
 
 A shape that is registered this way shows up in `plynth opening shapes` and in the app's shape list. Add a test next to the existing shape tests that checks its outline for a normal size and for the smallest size it allows.
+
+## Adding a roof type
+
+A roof type turns one roof section into finished faces. Roof sections are worked out from the floors, so a type never sees walls, only an outline. The five built-in types are `flat`, `gable`, `hip`, `shed` and `sawtooth`. `plynth roof types` lists them with the settings each uses.
+
+A roof type is one C++ file. Nothing else is edited.
+
+1. Add a file to `core/src/roofs/types/`, for example `MansardRoof.cpp`. Copy `ShedRoof.cpp` as a start, because it is the shortest.
+2. Write a class that derives from `RoofType` (`core/include/plynth/core/Roofs.h`) and gives:
+   - `id()`, the name stored in `plan.json`: lower case letters, digits and `_`, starting with a letter. It must differ from every other roof type.
+   - `name()`, the short name shown in the app, and `sortKey()`, which orders the list.
+   - `usesPitch()`, `usesDirection()`, `usesOverhang()` and `usesParapet()`. The app shows only the fields a type uses, and `plynth roof types` lists them.
+   - `fits(input)`. Return an empty status when the type can roof this section. Otherwise return a status with a plain sentence, and the build uses `fallback()` and reports `roof_type_fallback` with that sentence. The hip roof does this for a section that is not convex.
+   - `fallback()`, the id of the type to use then. `flat` for a type that fits every section.
+   - `build(input)`, the faces.
+3. At the bottom of the file, make one object at namespace scope: `const RoofTypeRegistrar registrar(std::make_unique<MansardRoof>());`. That registers the type when the program starts.
+4. Run CMake again. The build picks up every file in that folder and links it into the app, the command line and the tests.
+
+**What `build` gets.** A `RoofInput` in world coordinates, in metres. `section` is the area of the section. `eaves` is the outline the roof may cover: the section pushed outward by the overhang, minus the footprint of the floor above. `base` is the height the roof sits on, the top of the slab. `settings` holds the type, pitch, overhang, parapet and direction. `direction` is the direction already worked out: from `settings.direction` when it is set, and along the longer side of the section when it is automatic.
+
+**What `build` returns.** A list of `RoofFace`. Every face is one flat polygon in world coordinates, with an optional list of holes. A face is tagged with the part it is, so each part gets the right material:
+
+| Part | What it is |
+|---|---|
+| `covering` | The top surface. It gets the roof or flat roof material. |
+| `underside` | The surface under the eaves. |
+| `edge` | The thickness round the edge. |
+| `gable` | A vertical triangle or trapezoid that closes the end of a pitched roof. |
+| `parapet` | Every face of the low wall round a flat roof. |
+| `glazing` | Vertical glass, as on a sawtooth roof. |
+
+The points of a face must lie on one plane, and the outline must run anticlockwise as seen from the side the face looks toward. Blender does not fix a face that is wrong. It only makes a mesh from what it is given, so keep every rule in the C++ file. `core/src/roofs/RoofParts.h` has helpers for the common work: cutting a polygon by a line, shrinking it, flat and vertical faces, a face on a plane, gable fills, and `pitchedFaces`, which makes the covering, underside, edge and gable faces of a roof made of planes. The hip roof gets its faces by letting the lowest plane win where planes meet.
+
+Add a test next to the roof tests. Check that every face is flat within 1e-6 m, that the faces cover the eaves outline, and that the type falls back as it should on a section it does not fit. Nothing else changes: the type shows up in `plynth roof types`, in the Properties panel, in the roof sections on the plan and in the build.
+
+## Adding a stair type
+
+A stair type turns a rise, a width and a turn into steps. Core places the steps on the plan, works out the hole in the floors and checks for problems. The four built-in types are `straight`, `l_shape`, `u_shape` and `spiral`. `plynth stair types` lists them.
+
+A stair type is one C++ file.
+
+1. Add a file to `core/src/stairs/types/`, for example `WinderStair.cpp`. Copy `StraightStair.cpp` as a start.
+2. Write a class that derives from `StairType` (`core/include/plynth/core/Stairs.h`), or from `BuiltInStair` in `core/src/stairs/StairSupport.h`, which handles the turn for you. It gives:
+   - `id()`, `name()` and `sortKey()` as for a roof type.
+   - `usesTurn()`, true when the type has a left or right. The app hides the Turn field otherwise.
+   - `shape(input)`, the steps.
+3. At the bottom of the file, make one object at namespace scope: `const StairTypeRegistrar registrar(std::make_unique<WinderStair>());`.
+4. Run CMake again.
+
+**What `shape` gets.** A `StairInput` with the `rise` to climb, the `width`, the `turn`, the `riserCount` and the `riser` height. The number of risers is worked out in core: at most 0.19 m each, all equal, and one tread fewer than there are risers, because the last riser steps onto the upper floor.
+
+**The frame.** Steps are in the stair's own frame, in metres. `u` runs across the stair to the right of the climb, `v` runs forward along the climb, and `z` runs up from the level of the lower floor. The point (0, 0) is the middle of the front edge of the bottom step. Core turns and moves the frame onto the plan.
+
+**What `shape` returns.** A `StairShape`: a list of steps from the bottom up, and a walk line from (0, 0) to where the climb reaches the upper floor. The plan draws the walk line as an arrow.
+
+Each `StairStep` has a `part` (`step`, `landing` or `column`), an outline, a `bottom` and a `top`. The outline is one convex polygon with the points anticlockwise. Blender raises it from `bottom` to `top` as a closed solid, with no gap and no overlap. A step in a straight flight is a box from the floor up to its tread, so the stair is solid underneath. Cut curves with `arcSegmentCount`, so every type follows the same smoothness rule.
+
+The footprint of the stair, which is the hole in the slab and the ceilings, is the union of the step outlines. Add a test next to the stair tests: every outline has a positive area and is convex, the last step reaches the rise, the walk line ends at the arrival, and the number of steps matches the risers.
 
 ## Adding an importer
 
@@ -429,4 +487,4 @@ The Python tests run inside Blender: `blender -b --factory-startup --python blen
 
 ## Other things you will be able to add
 
-Later releases add the same kind of page for generators (small Blender scripts) and roof types. Each one will be added to this page, with its file format and its rules.
+A later release adds the same kind of page for generators (small Blender scripts). It will be added to this page, with its file format and its rules.

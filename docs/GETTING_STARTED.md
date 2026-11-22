@@ -61,10 +61,10 @@ See "The assets catalog" and "Placing furniture" in the [User guide](USER_GUIDE.
 
 ## 8. Add the sample materials
 
-Walls, floors and doors get their paint, brick and wood from the materials catalog. A new project already points at seven sample materials, so add them before your first build.
+Walls, floors and doors get their paint, brick and wood from the materials catalog. A new project already points at nine sample materials, so add them before your first build.
 
 1. Open the **Materials** tab in the right panel, next to **Assets**, or press Ctrl+Shift+M.
-2. Press **Add the sample materials**. Blender runs in the background and draws a thumbnail for each of the seven. It takes a short while.
+2. Press **Add the sample materials**. Blender runs in the background and draws a thumbnail for each of the nine. It takes a short while.
 3. To change one, click a wall or a room and pick a material in the Properties panel: **Inside** and **Outside** for a wall, **Floor**, **Wall faces** and **Ceiling** for a room. With nothing selected, Properties shows the default for every kind of surface.
 
 Without the samples the build still works. Each surface gets a plain neutral color and the Build tab says "Missing material". See "The materials catalog" and "Materials on walls, rooms and the project" in the [User guide](USER_GUIDE.md).
@@ -82,10 +82,22 @@ If the 3D view stays empty, see "If the 3D view stays empty" in the [User guide]
 
 See "Building", "The 3D view" and "Build problems" in the [User guide](USER_GUIDE.md).
 
+## 10. Optional: a second floor, a stair and a roof
+
+Skip this until the first floor builds well.
+
+1. Click **+** in the floor bar at the bottom of the plan. A new tab, **Floor 2**, appears and opens. It is empty.
+2. Press Ctrl+Shift+O and pick the plan image of the upper floor. Press **D** and detect the walls, or draw them. The first floor shows as a faint outline underneath. If the drawing does not line up with it, turn on **View > Align plan image** and drag the image until it does. Turn the option off again.
+3. Click the **Floor 1** tab, press **T**, click where the bottom step should start and drag toward the top of the stair. Let go and pick a type, for example **Straight**. The stair is drawn with its steps, and the Properties panel shows how many risers it needs. A warning there, such as a wall in the way, tells you to move it.
+4. Press **Alt+R**, or use **View > Roof sections**, to see the roof of each part that has nothing above it. Click a section and pick a type in Properties, for example **Gable**.
+5. Build with Ctrl+B. In the 3D view, **View > Show roofs in 3D** hides the roofs, and **Cut 3D at the shown floor** shows only the floors up to the one you are on.
+
+See "Floors", "Stairs" and "Roofs" in the [User guide](USER_GUIDE.md).
+
 ## Where to go next
 
 - [User guide](USER_GUIDE.md): every screen and feature.
 - [Keyboard shortcuts](SHORTCUTS.md): the full list of keys and mouse actions.
-- [Command line guide](CLI_GUIDE.md): do all of this from a terminal or a script. For example, `plynth place sofa --room living` places the sofa from step 7, and `plynth materials import samples\materials\*` does step 8, and `plynth build` does step 9.
+- [Command line guide](CLI_GUIDE.md): do all of this from a terminal or a script. For example, `plynth place sofa --room living` places the sofa from step 7, and `plynth materials import samples\materials\*` does step 8, and `plynth build` does step 9. Step 10 is `plynth floor add`, `plynth stair add` and `plynth roof set`.
 - [Setting up Plynth](SETUP.md): what each item of the setup check means.
 - [Writing generators](GENERATORS.md): add your own opening shapes, importers and material importers.
