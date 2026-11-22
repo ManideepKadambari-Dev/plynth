@@ -46,7 +46,10 @@
 #include <QPainter>
 #include <QKeyEvent>
 #include <QLineEdit>
+#include <QApplication>
 #include <QPushButton>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QSlider>
 #include <QStackedWidget>
 #include <QVBoxLayout>
@@ -57,6 +60,33 @@
 namespace plynth::app {
 
 namespace {
+
+// A stack that is as big as the page it shows, not as the biggest page, so a short page leaves nothing to scroll.
+class CurrentPageStack : public QStackedWidget {
+public:
+    using QStackedWidget::QStackedWidget;
+
+    QSize sizeHint() const override
+    {
+        const QWidget* page = currentWidget();
+        return page != nullptr ? page->sizeHint() : QStackedWidget::sizeHint();
+    }
+    QSize minimumSizeHint() const override
+    {
+        const QWidget* page = currentWidget();
+        return page != nullptr ? page->minimumSizeHint() : QStackedWidget::minimumSizeHint();
+    }
+    bool hasHeightForWidth() const override
+    {
+        const QWidget* page = currentWidget();
+        return page != nullptr && page->hasHeightForWidth();
+    }
+    int heightForWidth(int width) const override
+    {
+        const QWidget* page = currentWidget();
+        return page != nullptr ? page->heightForWidth(width) : -1;
+    }
+};
 
 constexpr int kBorderWidth = 1;
 constexpr int kNothingPage = 0;
@@ -91,7 +121,7 @@ PropertiesPanel::PropertiesPanel(plynth::Document& document, Selection& selectio
     column->setContentsMargins(t.unit() * 4, t.unit() * 3, t.unit() * 4 + kBorderWidth, t.unit() * 3);
     column->setSpacing(t.unit() * 3);
 
-    pages_ = new QStackedWidget(this);
+    pages_ = new CurrentPageStack(this);
     buildNothingPage();
     buildPointPage();
     buildWallPage();
@@ -102,8 +132,15 @@ PropertiesPanel::PropertiesPanel(plynth::Document& document, Selection& selectio
     buildItemPage();
     buildStairPage();
     buildRoofPage();
-    column->addWidget(pages_);
-    column->addStretch(1);
+    // Only the shown page scrolls. The Delete button stays below it, always in view.
+    scroll_ = new QScrollArea(this);
+    scroll_->setWidgetResizable(true);
+    scroll_->setFrameShape(QFrame::NoFrame);
+    scroll_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scroll_->setStyleSheet(QStringLiteral("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; }") +
+                           t.scrollBarStyleSheet());
+    scroll_->setWidget(pages_);
+    column->addWidget(scroll_, 1);
 
     deleteButton_ = new QPushButton(tr("Delete"), this);
     deleteButton_->setToolTip(tr("Delete the selected item and what depends on it (Delete)"));
@@ -116,6 +153,12 @@ PropertiesPanel::PropertiesPanel(plynth::Document& document, Selection& selectio
     for (QWidget* editor : editors_)
         if (qobject_cast<QComboBox*>(editor) != nullptr)
             editor->installEventFilter(this);
+    // The wheel scrolls the page unless the box has focus, so passing over a box never edits the plan.
+    for (QWidget* box : findChildren<QWidget*>())
+        if (qobject_cast<QAbstractSpinBox*>(box) != nullptr || qobject_cast<QComboBox*>(box) != nullptr) {
+            box->setFocusPolicy(Qt::StrongFocus);
+            box->installEventFilter(this);
+        }
     connect(&selection_, &Selection::changed, this, &PropertiesPanel::refresh);
     connect(&controller_, &ToolController::activeChanged, this, &PropertiesPanel::refresh);
     connect(&controller_.detection(), &DetectionSession::changed, this, &PropertiesPanel::refresh);
@@ -1366,6 +1409,14 @@ bool PropertiesPanel::openMaterialPicker(const QString& text, const QString& hov
 // Gives the thickness box a new merge key each time it gets focus, so one visit is one undo step.
 bool PropertiesPanel::eventFilter(QObject* watched, QEvent* event)
 {
+    if (event->type() == QEvent::Wheel) {
+        auto* box = qobject_cast<QWidget*>(watched);
+        const bool isBox = qobject_cast<QAbstractSpinBox*>(watched) != nullptr || qobject_cast<QComboBox*>(watched) != nullptr;
+        if (isBox && box != nullptr && !box->hasFocus() && !box->isAncestorOf(QApplication::focusWidget())) {
+            QCoreApplication::sendEvent(scroll_->verticalScrollBar(), event);
+            return true;
+        }
+    }
     if (event->type() == QEvent::FocusIn)
         for (QDoubleSpinBox* spin : keyedSpins_)
             if (watched == spin || watched->parent() == spin)
@@ -1449,6 +1500,7 @@ void PropertiesPanel::refresh()
         break;
     }
     pages_->setCurrentIndex(page);
+    pages_->updateGeometry();
     deleteButton_->setVisible(!selection_.isEmpty() && selection_.kind() != SelectionKind::RoofSection && !detecting && !placing);
     for (QWidget* editor : editors_)
         editor->setEnabled(!readOnly);

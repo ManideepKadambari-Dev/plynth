@@ -6,7 +6,6 @@
 #include <QHBoxLayout>
 #include <QPainter>
 #include <QPushButton>
-#include <QScrollArea>
 #include <QStackedWidget>
 #include <QVBoxLayout>
 
@@ -50,18 +49,11 @@ RightPanel::RightPanel(QWidget* properties, QWidget* assets, QWidget* materials,
     column->addLayout(tabs);
 
     pages_ = new QStackedWidget(this);
-    // The Properties page can be taller than the window, so it scrolls instead of raising the window's minimum height.
-    auto* propertiesScroll = new QScrollArea(pages_);
-    propertiesScroll->setWidgetResizable(true);
-    propertiesScroll->setFrameShape(QFrame::NoFrame);
-    propertiesScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    propertiesScroll->setStyleSheet(QStringLiteral("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; }") +
-                                    Theme::instance().scrollBarStyleSheet());
-    propertiesScroll->setWidget(properties);
+    properties->setParent(pages_);
     assets->setParent(pages_);
     materials->setParent(pages_);
     build->setParent(pages_);
-    pages_->addWidget(propertiesScroll);
+    pages_->addWidget(properties);
     pages_->addWidget(assets);
     pages_->addWidget(materials);
     pages_->addWidget(build);

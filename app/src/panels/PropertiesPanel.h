@@ -21,6 +21,7 @@ class QGridLayout;
 class QLabel;
 class QLineEdit;
 class QPushButton;
+class QScrollArea;
 class QSlider;
 class QStackedWidget;
 
@@ -153,6 +154,7 @@ private:
     bool pointYEdited_ = false;
 
     QStackedWidget* pages_ = nullptr;
+    QScrollArea* scroll_ = nullptr;
     QPushButton* deleteButton_ = nullptr;
     std::vector<QWidget*> editors_;
     std::vector<MaterialSlot> materialSlots_;
