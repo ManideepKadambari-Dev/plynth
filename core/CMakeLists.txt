@@ -17,6 +17,9 @@ add_library(plynth_core STATIC
     src/catalog/AssetCatalog.cpp
     src/catalog/MaterialInfo.cpp
     src/catalog/MaterialCatalog.cpp
+    src/catalog/MaterialJobs.cpp
+    src/catalog/MaterialImport.cpp
+    src/catalog/MaterialImporterRegistry.cpp
     src/catalog/ItemAssets.cpp
     src/catalog/BuiltInCatalog.cpp
     src/catalog/Database.cpp
@@ -116,7 +119,8 @@ if(PLYNTH_SHAPE_SOURCES)
 endif()
 
 # Importers register themselves the same way, so they are built as an object library too.
-file(GLOB PLYNTH_IMPORTER_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/catalog/importers/*.cpp)
+file(GLOB PLYNTH_IMPORTER_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/catalog/importers/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/catalog/material_importers/*.cpp)
 if(PLYNTH_IMPORTER_SOURCES)
     add_library(plynth_importers OBJECT ${PLYNTH_IMPORTER_SOURCES})
     target_include_directories(plynth_importers PRIVATE include src)

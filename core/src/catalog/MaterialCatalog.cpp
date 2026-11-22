@@ -6,6 +6,7 @@
 #include "Staging.h"
 
 #include "plynth/core/ProjectFiles.h"
+#include "plynth/core/catalog/MaterialImport.h"
 
 #include <algorithm>
 #include <cctype>
@@ -856,12 +857,7 @@ RescanReport MaterialCatalog::rescan()
         }
         tx.commit();
 
-        for (const auto& entry : fs::directory_iterator(impl_->paths.materialInbox, ec)) {
-            const std::string name = pathToUtf8(entry.path().filename());
-            if (name.empty() || name.front() == '.' || name.front() == '~') continue;
-            if (name == kLibraryInboxDoneFolder || name == kLibraryInboxFailedFolder) continue;
-            ++report.inboxWaiting;
-        }
+        report.inboxWaiting = static_cast<int>(materialInboxEntries(impl_->paths).size());
     } catch (const DbError& e) {
         report.broken.emplace_back("", fail(ErrorCode::DatabaseError, std::string("The materials database failed: ") + e.what()));
     }

@@ -68,7 +68,7 @@ inline constexpr int kMaxBakeSize = 4096;
 inline constexpr int kLowResolutionPixelsPerMetre = 256;
 
 // The material thumbnail (DESIGN.md section 7.11): a sphere 1 m across on the left and a flat tile 1 m square
-// on the right, tilted 30 degrees toward the camera, both with UVs of metres divided by the tile size so the
+// on the right, standing upright and turned 30 degrees toward the lights, both with UVs of metres divided by the tile size so the
 // material shows at real world size; the asset thumbnail's lights, background and view transform; square PNG,
 // kThumbnailSize, rendered with Eevee only.
 
