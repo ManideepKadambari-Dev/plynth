@@ -5,6 +5,7 @@
 #include "FileIo.h"
 
 #include "plynth/core/Build.h"
+#include "plynth/core/catalog/MaterialCatalog.h"
 #include "plynth/core/ProjectFiles.h"
 #include "plynth/core/ProjectJson.h"
 
@@ -253,6 +254,13 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
             if (previous.status.ok()) {
                 report.files = previous.report.files;
                 report.fileOutputs = previous.report.fileOutputs;
+                // The old kit files stay too, and the report keeps naming them.
+                report.kit.written = previous.report.kit.written;
+                report.kit.file = previous.report.kit.file;
+                report.kit.layoutFile = previous.report.kit.layoutFile;
+                report.kit.pieces = previous.report.kit.pieces;
+                report.kit.placements = previous.report.kit.placements;
+                report.kit.triangles = previous.report.kit.triangles;
             }
         }
         if (const Status written = writeReport(exportDir, report); !written.ok() && report.status.ok()) report.status = written;
@@ -289,9 +297,28 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
     for (ExportGroup& g : groups) {
         if (g.name.empty()) g.name = g.file.size() > 4 ? g.file.substr(0, g.file.size() - 4) : g.id;
     }
+    // The kit, when the options ask for it: it needs the library for the same slot names the build made.
+    ModularKit kit;
+    bool kitInJob = false;
+    if (report.kit.asked && request.settings.write) {
+        if (!request.library) {
+            report.kit.skipped = "No library is set, so the kit was left out.";
+        } else {
+            Status opened;
+            const std::unique_ptr<MaterialCatalog> catalog = MaterialCatalog::open(*request.library, opened);
+            if (!catalog) {
+                report.kit.skipped = "The library materials could not be opened, so the kit was left out.";
+            } else {
+                const BuildPlan plan = makeBuildPlan(boundsSource, BuildAssetSource{}, buildMaterialSourceFor(*catalog));
+                kit = modularKit(boundsSource, plan);
+                kitInJob = !kit.pieces.empty();
+                if (!kitInJob) report.kit.skipped = "The plan has no walls, so there is no kit to make.";
+            }
+        }
+    }
     const Json job = makeExportJob(boundsSource, groups, materials.status.ok() ? materials.materials : std::vector<BuiltMaterial>{},
                                    buildState, request.settings, request.projectFolder, staging, report.jobId,
-                                   work / pathFromUtf8(kResultFileName));
+                                   work / pathFromUtf8(kResultFileName), kitInJob ? &kit : nullptr);
     report.steps.push_back({"prepare", since(prepareStart)});
 
     progress(ExportStage::Blender);
@@ -352,11 +379,34 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
         }
     }
 
+    // The kit layout is written by core, next to the kit file the worker made.
+    const std::string kitStem = exportFileStem(request.project.settings.name);
+    const std::string layoutName = kitStem + std::string(kKitLayoutSuffix);
+    const bool kitWritten = kitInJob && out.kit.has_value();
+    if (kitInJob && !out.kit) report.kit.skipped = "Blender did not write the kit.";
+    if (kitWritten) {
+        if (!fs::is_regular_file(staging / pathFromUtf8(out.kit->file), ec)) {
+            report.status = fail(ErrorCode::BlenderFailed, "Blender did not write " + out.kit->file + ".\nThe log is in " + pathToUtf8(report.logFile));
+            finish(true);
+            return report;
+        }
+        const std::string layoutText =
+            kitLayoutToJson(kit, request.project.settings.name, out.kit->file).dump(2, ' ', false, Json::error_handler_t::replace) + "\n";
+        if (const Status layoutWritten = fileio::writeAtomic(staging / pathFromUtf8(layoutName), layoutText); !layoutWritten.ok()) {
+            report.status = layoutWritten;
+            finish(true);
+            return report;
+        }
+    }
+
     // The last good export goes only now: the files its report lists, then the old textures. Only names inside
     // the export folder are touched.
     const ExportReportRead previous = readExportReport(request.projectFolder);
     if (previous.status.ok()) {
         for (const fs::path& old : previous.report.files) {
+            if (!old.filename().empty()) fs::remove(exportDir / old.filename(), ec);
+        }
+        for (const fs::path& old : {previous.report.kit.file, previous.report.kit.layoutFile}) {
             if (!old.filename().empty()) fs::remove(exportDir / old.filename(), ec);
         }
     }
@@ -373,6 +423,13 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
             if (g.id == file.group) report.fileOutputs.back().name = g.name;
         }
     }
+    if (kitWritten) {
+        for (const std::string& name : {out.kit->file, layoutName}) {
+            const fs::path target = exportDir / pathFromUtf8(name);
+            fs::remove(target, ec);
+            moved = moveInto(staging / pathFromUtf8(name), target) && moved;
+        }
+    }
     const fs::path stagedTextures = staging / pathFromUtf8(kExportTexturesFolder);
     if (fs::is_directory(stagedTextures, ec)) {
         moved = moveInto(stagedTextures, textures) && moved;
@@ -382,10 +439,17 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
     if (!moved) {
         report.files.clear();
         report.fileOutputs.clear();
+        report.kit.written = false;
         report.status = fail(ErrorCode::CannotWrite, "The exported files could not be moved into " + pathToUtf8(exportDir) + ".");
         finish(true);
         return report;
     }
+    report.kit.written = kitWritten;
+    report.kit.file = kitWritten ? exportDir / pathFromUtf8(out.kit->file) : fs::path();
+    report.kit.layoutFile = kitWritten ? exportDir / pathFromUtf8(layoutName) : fs::path();
+    report.kit.pieces = kitWritten ? static_cast<int>(kit.pieces.size()) : 0;
+    report.kit.placements = kitWritten ? static_cast<int>(kit.placements.size()) : 0;
+    report.kit.triangles = kitWritten ? out.kit->triangles : 0;
     report.exported = true;
     report.texturesFolder = textures;
     report.textureCount = static_cast<int>(out.textures.size());

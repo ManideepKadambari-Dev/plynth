@@ -1,3 +1,4 @@
+#include "CatalogSupport.h"
 #include "FakeBlender.h"
 #include "SchemaSupport.h"
 #include "SquareFixtures.h"
@@ -749,4 +750,133 @@ TEST_CASE("a milestone 10 report still reads", "[core][export][run]") {
     REQUIRE(read.report.fileOutputs[0].name.empty());
     REQUIRE(read.report.emptyGroups.empty());
     REQUIRE_FALSE(read.report.kit.asked);
+}
+
+namespace {
+
+// Switches the kit on in the project's export options.
+void switchKit(const fs::path& projectFolder, bool on)
+{
+    ExportOptions options;
+    options.kit.enabled = on;
+    plynth::test::requireOk(writeExportOptions(projectFolder, options));
+}
+
+}
+
+TEST_CASE("the kit is written with its layout when the options switch it on", "[core][export][run][kit]") {
+    TestLibrary lib("export-kit");
+    ExportFixture f("run-kit");
+    f.request.library = lib.paths;
+    switchKit(f.projectFolder, true);
+
+    const ExportReport report = runExport(f.request);
+    plynth::test::requireOk(report.status);
+    REQUIRE(f.exportEntries() == std::set<std::string>{"Square.fbx", "Square_Kit.fbx", "Square_Kit_layout.json", "Textures", "export_report.json"});
+
+    const Json job = lastJob(f);
+    INFO(jobSchemaProblem(job));
+    REQUIRE(jobSchemaProblem(job).empty());
+    const Json& kitJob = job["params"]["kit"];
+    REQUIRE(kitJob.is_object());
+    REQUIRE(kitJob["file"] == "Square_Kit.fbx");
+    REQUIRE(kitJob["fill_openings"] == true);
+    REQUIRE(kitJob["pieces"].size() >= 2);
+
+    const nlohmann::json layout = nlohmann::json::parse(plynth::test::readTextFile(f.exportDir() / "Square_Kit_layout.json"));
+    INFO(plynth::test::schemaProblem("kit-layout.schema.json", layout));
+    REQUIRE(plynth::test::schemaProblem("kit-layout.schema.json", layout).empty());
+    REQUIRE(layout["kit_file"] == "Square_Kit.fbx");
+    REQUIRE(layout["pieces"].size() == kitJob["pieces"].size());
+    for (std::size_t i = 0; i < kitJob["pieces"].size(); ++i) REQUIRE(layout["pieces"][i]["id"] == kitJob["pieces"][i]["id"]);
+
+    REQUIRE(report.kit.asked);
+    REQUIRE(report.kit.written);
+    REQUIRE(report.kit.skipped.empty());
+    REQUIRE(report.kit.file == f.exportDir() / "Square_Kit.fbx");
+    REQUIRE(report.kit.layoutFile == f.exportDir() / "Square_Kit_layout.json");
+    REQUIRE(report.kit.pieces == static_cast<int>(layout["pieces"].size()));
+    REQUIRE(report.kit.placements == static_cast<int>(layout["placements"].size()));
+    REQUIRE(report.kit.triangles == 100 * report.kit.pieces);
+    REQUIRE(reportProblem(f.reportFile()).empty());
+    const ExportReportRead read = readExportReport(f.projectFolder);
+    plynth::test::requireOk(read.status);
+    REQUIRE(exportReportToJson(read.report) == exportReportToJson(report));
+}
+
+TEST_CASE("without a library the export goes on and says why the kit was left out", "[core][export][run][kit]") {
+    ExportFixture f("run-kit-nolib");
+    switchKit(f.projectFolder, true);
+    const ExportReport report = runExport(f.request);
+    plynth::test::requireOk(report.status);
+    REQUIRE(report.exported);
+    REQUIRE(report.kit.asked);
+    REQUIRE_FALSE(report.kit.written);
+    REQUIRE(report.kit.skipped == "No library is set, so the kit was left out.");
+    REQUIRE(f.exportEntries() == std::set<std::string>{"Square.fbx", "Textures", "export_report.json"});
+    REQUIRE(lastJob(f)["params"]["kit"].is_null());
+    REQUIRE(reportProblem(f.reportFile()).empty());
+}
+
+TEST_CASE("switching the kit off removes the old kit files at the next export", "[core][export][run][kit]") {
+    TestLibrary lib("export-kit-off");
+    ExportFixture f("run-kit-off");
+    f.request.library = lib.paths;
+    switchKit(f.projectFolder, true);
+    plynth::test::requireOk(runExport(f.request).status);
+    REQUIRE(fs::exists(f.exportDir() / "Square_Kit.fbx"));
+
+    switchKit(f.projectFolder, false);
+    const ExportReport report = runExport(f.request);
+    plynth::test::requireOk(report.status);
+    REQUIRE_FALSE(report.kit.asked);
+    REQUIRE_FALSE(report.kit.written);
+    REQUIRE(f.exportEntries() == std::set<std::string>{"Square.fbx", "Textures", "export_report.json"});
+}
+
+TEST_CASE("a blocked export leaves the old kit files", "[core][export][run][kit]") {
+    TestLibrary lib("export-kit-blocked");
+    ExportFixture f("run-kit-blocked");
+    f.request.library = lib.paths;
+    switchKit(f.projectFolder, true);
+    plynth::test::requireOk(runExport(f.request).status);
+
+    f.setMode("quality_fail");
+    const ExportReport blocked = runExport(f.request);
+    REQUIRE(blocked.status.code == ErrorCode::QualityFailed);
+    REQUIRE(fs::exists(f.exportDir() / "Square_Kit.fbx"));
+    REQUIRE(fs::exists(f.exportDir() / "Square_Kit_layout.json"));
+    REQUIRE(blocked.kit.written);
+    REQUIRE(blocked.kit.file == f.exportDir() / "Square_Kit.fbx");
+
+    f.setMode("");
+    switchKit(f.projectFolder, false);
+    plynth::test::requireOk(runExport(f.request).status);
+    REQUIRE_FALSE(fs::exists(f.exportDir() / "Square_Kit.fbx"));
+    REQUIRE_FALSE(fs::exists(f.exportDir() / "Square_Kit_layout.json"));
+}
+
+TEST_CASE("a grouped project gets the kit too", "[core][export][run][kit]") {
+    TestLibrary lib("export-kit-grouped");
+    ExportFixture f("run-kit-grouped");
+    makeGrouped(f);
+    f.request.library = lib.paths;
+    switchKit(f.projectFolder, true);
+    const ExportReport report = runExport(f.request);
+    plynth::test::requireOk(report.status);
+    REQUIRE(report.kit.written);
+    REQUIRE(fs::exists(f.exportDir() / "Square_Kit.fbx"));
+    REQUIRE(fs::exists(f.exportDir() / "Square_Walls.fbx"));
+    REQUIRE(jobSchemaProblem(lastJob(f)).empty());
+}
+
+TEST_CASE("a check only run makes no kit", "[core][export][run][kit]") {
+    TestLibrary lib("export-kit-check");
+    ExportFixture f("run-kit-check");
+    f.request.library = lib.paths;
+    f.request.settings.write = false;
+    switchKit(f.projectFolder, true);
+    plynth::test::requireOk(runExport(f.request).status);
+    REQUIRE(lastJob(f)["params"]["kit"].is_null());
+    REQUIRE_FALSE(fs::exists(f.exportDir() / "Square_Kit.fbx"));
 }

@@ -413,6 +413,7 @@ Json exportOutput(const Json& params, const std::string& mode)
     Json files = Json::array();
     Json textures = Json::array();
     Json emptyGroups = Json::array();
+    Json kitOutput = nullptr;
     if (write) {
         const std::size_t groupCount = params["groups"].size();
         std::size_t position = 0;
@@ -425,6 +426,12 @@ Json exportOutput(const Json& params, const std::string& mode)
             }
             writeFile(folder / pathFrom(group["file"].get<std::string>()), "FAKEFBX");
             files.push_back(Json{{"group", group["id"]}, {"file", group["file"]}, {"objects", 12}, {"triangles", 144}});
+        }
+        if (params.contains("kit") && params["kit"].is_object()) {
+            const Json& kitJob = params["kit"];
+            const int pieces = static_cast<int>(kitJob["pieces"].size());
+            writeFile(folder / pathFrom(kitJob["file"].get<std::string>()), "FAKEKIT");
+            kitOutput = Json{{"file", kitJob["file"]}, {"pieces", pieces}, {"objects", pieces * 2}, {"triangles", 100 * pieces}};
         }
         writeFile(folder / pathFrom(params["textures_folder"].get<std::string>()) / "T_Fake_BaseColor.png", tinyPng());
         textures.push_back("T_Fake_BaseColor.png");
@@ -455,7 +462,7 @@ Json exportOutput(const Json& params, const std::string& mode)
     out["triangles"] = 144 * groups;
     out["collision_objects"] = 3 * groups;
     out["empty_groups"] = emptyGroups;
-    out["kit"] = nullptr; // the job's kit is read and ignored until the kit export round
+    out["kit"] = kitOutput;
     out["checks"] = checks;
     out["steps"] = steps;
     return out;
