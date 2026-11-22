@@ -1,5 +1,6 @@
 #include "plynth/core/Build.h"
 
+#include "BuildLockFiles.h"
 #include "FileIo.h"
 
 #include "plynth/core/Openings.h"
@@ -34,41 +35,9 @@ namespace fs = std::filesystem;
 
 namespace {
 
-// Seconds since 1970 now.
-long long epochSeconds()
-{
-    return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-}
-
-// Makes the lock file only when it does not exist yet. False when it exists or cannot be made.
-bool createExclusive(const fs::path& file, const std::string& text)
-{
-    const HANDLE handle = CreateFileW(file.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (handle == INVALID_HANDLE_VALUE) return false;
-    DWORD written = 0;
-    WriteFile(handle, text.data(), static_cast<DWORD>(text.size()), &written, nullptr);
-    CloseHandle(handle);
-    return true;
-}
-
-// Whether an existing lock still counts: younger than kBuildTimeout, by the time it holds and by the file's
-// own write time, and, when it names a process, that process is still running. A lock whose content cannot
-// be read counts by its write time alone.
-bool lockIsLive(const fs::path& file)
-{
-    std::error_code ec;
-    const auto written = fs::last_write_time(file, ec);
-    if (!ec && fs::file_time_type::clock::now() - written > kBuildTimeout) return false;
-
-    std::ifstream in(file, std::ios::binary);
-    ProcessIdentity who;
-    long long started = 0;
-    if (in >> who.pid >> who.startKey >> started) {
-        if (epochSeconds() - started > kBuildTimeout.count()) return false;
-        return isProcessRunning(who);
-    }
-    return true;
-}
+using lockfile::createExclusive;
+using lockfile::epochSeconds;
+using lockfile::lockIsLive;
 
 // Holds build.lock while a build runs and removes it at the end.
 class BuildLock {

@@ -132,9 +132,11 @@ fs::path sampleShapesFolder()
         const fs::path beside = fs::path(program).parent_path() / L"samples" / L"shapes";
         if (holdsShapes(beside)) return beside;
     }
-    // A developer build finds the source tree through the path of this file.
+#if defined(PLYNTH_DEV_SAMPLES) && PLYNTH_DEV_SAMPLES
+    // A developer build finds the source tree through the path of this file. Release builds do not carry it.
     const fs::path source = fs::path(__FILE__).parent_path().parent_path().parent_path() / L"samples" / L"shapes";
     if (holdsShapes(source)) return source;
+#endif
     return {};
 }
 
