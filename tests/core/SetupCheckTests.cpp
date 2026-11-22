@@ -1,6 +1,7 @@
 #include "FakeBlender.h"
 #include "SchemaSupport.h"
 
+#include <plynth/core/Generators.h>
 #include <plynth/core/Library.h>
 #include <plynth/core/ProjectFiles.h>
 #include <plynth/core/SetupCheck.h>
@@ -13,6 +14,7 @@
 #define NOMINMAX
 #include <windows.h>
 
+#include <algorithm>
 #include <filesystem>
 #include <limits>
 #include <string>
@@ -374,4 +376,45 @@ TEST_CASE("the setup check runs against the real Blender", "[.blender]") {
     REQUIRE(report.probed);
     REQUIRE(report.ready);
     requireValidReport(report);
+}
+
+TEST_CASE("Home Builder 5 is found as Home Builder", "[core][setup]") {
+    plynth::test::TempDir tmp("setup-home-builder");
+    plynth::test::makeFakeBlender(tmp.path() / "b" / "Blender 5.2", "5.2.0");
+    plynth::test::ScopedEnv addons("FAKE_BLENDER_ADDONS", "bl_ext.blender_org.home_builder_5");
+    const SetupReport report = runSetupCheck(goodFolders(tmp.path()), optionsFor(tmp.path() / "b", true));
+    REQUIRE(report.probed);
+    REQUIRE(report.find(kCheckHomeBuilder)->state == CheckState::Found);
+    REQUIRE(report.find(kCheckArchimesh)->state == CheckState::Missing);
+}
+
+TEST_CASE("an add-on row names the library generators that need it", "[core][setup]") {
+    plynth::test::TempDir tmp("setup-affects");
+    plynth::test::makeFakeBlender(tmp.path() / "b" / "Blender 5.2", "5.2.0");
+    const MachineSettings settings = goodFolders(tmp.path());
+    const fs::path generators = *settings.library / "generators";
+    fs::create_directories(generators);
+    fs::copy_file(fs::path(PLYNTH_TEST_DATA_DIR) / "generators" / "archimesh_column.py", generators / "archimesh_column.py");
+
+    const auto affectsOf = [](const SetupReport& report, std::string_view id) { return report.find(id)->affects; };
+    const auto has = [](const std::vector<std::string>& list, const std::string& text) {
+        return std::find(list.begin(), list.end(), text) != list.end();
+    };
+
+    plynth::test::ScopedEnv addons("FAKE_BLENDER_ADDONS", "bl_ext.blender_org.archimesh");
+    const SetupReport probed = runSetupCheck(settings, optionsFor(tmp.path() / "b", true));
+    REQUIRE(probed.find(kCheckArchimesh)->state == CheckState::Found);
+    const std::vector<std::string> archimesh = affectsOf(probed, kCheckArchimesh);
+    REQUIRE(archimesh.front() == "stairs, doors, windows and columns generators");
+    REQUIRE(has(archimesh, "Archimesh column generator"));
+    REQUIRE_FALSE(has(affectsOf(probed, kCheckBoolTool), "Archimesh column generator"));
+    requireValidReport(probed);
+
+    const SetupReport unchecked = runSetupCheck(settings, optionsFor(tmp.path() / "b", false));
+    REQUIRE(has(affectsOf(unchecked, kCheckArchimesh), "Archimesh column generator"));
+    REQUIRE(has(affectsOf(quickSetupCheck(settings, true), kCheckArchimesh), "Archimesh column generator"));
+
+    MachineSettings noLibrary = settings;
+    noLibrary.library.reset();
+    REQUIRE(affectsOf(quickSetupCheck(noLibrary, true), kCheckArchimesh).size() == 1);
 }
