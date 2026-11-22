@@ -20,8 +20,20 @@ namespace plynth {
 // footprint(i) together with footprint(i + 1), minus the holes of the stairs that climb from floor i. Where
 // footprint(i + 1) reaches past footprint(i), the slab carries the upper floor and its underside shows: that is
 // the rule that "closes the underside of an overhanging upper floor". Where footprint(i) is not covered by
-// footprint(i + 1), the slab carries a roof section (Roofs.h). The slab's top face is never built: it is always
-// under the floor above or under a roof. The lowest floor has no slab below it.
+// footprint(i + 1), the slab carries a roof section (Roofs.h) wherever that part is wide enough for one
+// (kMinRoofSectionWidth). The narrow rest is a ledge, where the slab's top face is built so no gap is left.
+// Everywhere else the top is under the floor above or under a roof and is not built. The lowest floor has no
+// slab below it.
+
+// The narrowest part of exposedArea that gets a roof, in metres. A hairline mismatch between two floors is
+// narrower, and so is anything that could not hold a parapet (kParapetThickness).
+inline constexpr double kMinRoofSectionWidth = 0.2;
+
+// How much narrower than kMinRoofSectionWidth a part may be through rounding and still get a roof.
+inline constexpr double kRoofWidthTolerance = 1e-4;
+
+// How near the uncut slab's boundary an edge must lie to be SlabSide::Edge, in metres.
+inline constexpr double kSlabSideTolerance = 1e-5;
 
 // A polygon with holes in plan coordinates. outline has a positive signedArea, holes a negative one, the first
 // point not repeated.
@@ -42,14 +54,28 @@ std::vector<PlanArea> floorFootprint(const Floor& floor);
 double floorRise(const Floor& floor);
 
 // The part of floor i's footprint with no footprint of floor i + 1 above it; the whole footprint for the top
-// floor. Each piece is one roof section, in the order of floorFootprint's rule.
+// floor. Narrow parts included, in the order of floorFootprint's rule.
 std::vector<PlanArea> exposedArea(const Plan& plan, std::size_t floorIndex);
+
+// The roof sections of floor i: exposedArea without the parts narrower than kMinRoofSectionWidth (less
+// kRoofWidthTolerance). That is exposedArea shrunk by half that width, grown back by the same with mitred
+// corners and kept inside exposedArea, so a hairline strip is dropped also when it joins a wide part, and a
+// narrow neck parts two sections. The rule is the same for the top floor. Each piece is one section, in the
+// order of floorFootprint's rule, without jogs or slivers left by rounding.
+std::vector<PlanArea> roofSectionAreas(const Plan& plan, std::size_t floorIndex);
 
 // The part of floor i + 1's footprint that is not above floor i's footprint. Empty for the top floor.
 std::vector<PlanArea> overhangArea(const Plan& plan, std::size_t floorIndex);
 
-// Works out the slab above floor i (see the top of this header) at levels (floorElevations): polygons is the
-// slab's area with the stair holes, undersides is overhangArea minus the same holes, in world coordinates.
+// Works out the slab above floor i (see the top of this header) at levels (floorElevations), in world
+// coordinates:
+// - polygons is the slab's area with the stair holes cut
+// - undersides is overhangArea minus the same holes
+// - tops is exposedArea minus roofSectionAreas and minus the same holes: the ledges
+// - sides says what each ring edge of polygons is. Edge when it lies on the boundary of the slab's area before
+//   the holes were cut (within kSlabSideTolerance), whether that ring is an outline or a hole (a courtyard).
+//   Well otherwise: a cut made that edge, also where a well reaches the boundary and joins the outline. An
+//   edge that would be both has a point where it changes.
 SlabBuild slabBuild(const Plan& plan, std::size_t floorIndex, const std::vector<double>& levels);
 
 }

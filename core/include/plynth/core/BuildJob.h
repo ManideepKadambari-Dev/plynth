@@ -53,22 +53,25 @@ using Json = nlohmann::ordered_json;
 //          "polygons": [{"outline": [[x, y], ...], "holes": [[[x, y], ...], ...]}], "ceiling_polygons": [...]}
 //   item: {"id", "asset", "location": [x, y, z], "rotation_z", "size": {"width", "depth", "height"}, "wall"}
 //   slab: {"bottom", "top", "polygons": [polygon, ...], "undersides": [polygon, ...],
-//          "materials": {"edge", "well", "underside"}}
+//          "sides": [{"outline": ["edge", "well", ...], "holes": [["edge", ...], ...]}, ...],
+//          "tops": [polygon, ...], "materials": {"edge", "well", "underside"}}
+//         sides has one entry per polygon and one name per ring edge (SlabPolygonSides); tops are the ledges,
+//         faces at top with the edge material.
 //   stair: {"id", "type", "to_floor", "rise", "riser_count", "riser", "material",
 //           "steps": [{"part": "step", "outline": [[x, y], ...], "bottom", "top"}], "hole": polygon}
 //   roof: {"index", "section", "type", "faces": [{"part": "covering", "outline": [[x, y, z], ...],
 //          "holes": [[[x, y, z], ...], ...], "material"}]}
 //   polygon: {"outline": [[x, y], ...], "holes": [[[x, y], ...], ...]}
-// Built objects of milestone 12: SM_<floor>_Slab (plynth_kind "slab", plynth_id the floor),
+// Slab, stair and roof objects: SM_<floor>_Slab (plynth_kind "slab", plynth_id the floor),
 // SM_<floor>_<stair>_Stair ("stair", the stair id), SM_<floor>_Roof_<NN> ("roof", the floor id, NN the index
 // from 00, custom properties plynth_roof_index and plynth_roof_section, the entry id or ""), each in its floor's
-// collection. Their neutral surfaces, when the material is null: slab edges Wall_Outside, well sides
+// collection. Their neutral surfaces, when the material is null: slab edges and tops Wall_Outside, well sides
 // Wall_Inside, undersides Soffit; stairs Stair; roof covering Roof (pitched) or Flat_Roof (flat), underside
 // Soffit, edge Fascia, gable and parapet Wall_Outside, glazing Glass.
-// preview_folder (null when fbx_file is null): after export_fbx, the step preview_parts writes one FBX per floor
-// and one per floor's roofs into build/preview/, with the same profile, materials and images as building.fbx,
-// and parts.json listing them (BuildPreview.h), so the 3D view can hide roofs and upper floors and the plan
-// overlay shows one floor.
+// preview_folder (null when fbx_file is null): after export_fbx, the step preview_parts writes one FBX per
+// floor, one for the slab above it and one for its roofs into build/preview/, with the same profile, materials
+// and images as building.fbx, and parts.json listing them (BuildPreview.h), so the 3D view can hide roofs, cut
+// the building at a floor and the plan overlay shows one floor.
 // The fields mean what the structs in BuildGeometry.h say; positions are world coordinates. Every material
 // field is the id of an entry of "materials", or null: the surface then gets its neutral look (the material
 // is unset, missing from the library or broken, and core has reported it). Materials follow Materials.h.
@@ -90,8 +93,8 @@ using Json = nlohmann::ordered_json;
 //
 // Surfaces and UVs (the "materials" step and the steps that make meshes):
 // - a built face's Blender material is named after its catalog material id, or after its neutral surface
-//   (Wall_Inside, Wall_Outside, Wall_Top, Reveal, Threshold, Floor, Ceiling, Door, Frame, Glass, Handle)
-//   when it has none; furniture keeps the materials of its asset
+//   (Wall_Inside, Wall_Outside, Wall_Top, Reveal, Threshold, Floor, Ceiling, Door, Frame, Glass, Handle,
+//   Stair, Roof, Flat_Roof, Soffit, Fascia) when it has none; furniture keeps the materials of its asset
 // - UVs are in metres divided by the material's tile size (neutral surfaces: 1 m): wall side faces u along
 //   their ring from its first point and v up from the floor's level; wall tops, floors and thresholds world
 //   (X, Y); ceilings (X, -Y); the faces a cut makes, fills and anything else are projected on the world plane
@@ -142,7 +145,7 @@ std::optional<BuildSeverity> buildSeverityFromName(std::string_view name);
 // Codes the worker steps report: cut_failed (error), fill_failed (warning, the opening is cut but empty),
 // asset_load_failed (error), bevel_failed (warning, the walls are left sharp), material_failed (warning, a
 // map could not be loaded and the surface got its neutral look). New steps may add codes.
-// Milestone 12, found by core: the StairProblem codes of Stairs.h (object the stair) and the RoofProblem codes
+// Also found by core: the StairProblem codes of Stairs.h (object the stair) and the RoofProblem codes
 // of Roofs.h (object the roof section entry, or empty). Found by the worker: slab_failed, stair_failed,
 // roof_failed (warnings: a mesh could not be made; object the floor, stair or entry), preview_failed (warning:
 // a preview part could not be written; the 3D view then loads building.fbx).
@@ -344,8 +347,8 @@ struct BuildCounts {
 };
 
 // The build task's result, read and checked. BadFile when a field is missing (counts.slabs, stairs and roofs
-// included) or has the wrong type, or a severity is unknown. A build report written before milestone 12 reads
-// with those counts 0.
+// included) or has the wrong type, or a severity is unknown. An older build report without those counts reads
+// with them 0.
 struct BuildWorkerOutput {
     BlenderResultHeader header;
     std::string blendFile;  // file name inside the output folder

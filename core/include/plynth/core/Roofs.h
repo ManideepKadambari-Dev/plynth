@@ -14,8 +14,8 @@
 
 namespace plynth {
 
-// Roofs (DESIGN.md section 7.9). The roof is derived, not drawn: every piece of exposedArea (Storeys.h) is a
-// roof section. A section takes the settings of the RoofSection entry of its floor whose anchor lies in it (the
+// Roofs (DESIGN.md section 7.9). The roof is derived, not drawn: every piece of roofSectionAreas (Storeys.h)
+// is a roof section. A section takes the settings of the RoofSection entry of its floor whose anchor lies in it (the
 // first in plan order when several do), or the plan's roof default. Roof types are registry entries: a
 // built-in type is one file in core/src/roofs/types/ with a RoofTypeRegistrar at namespace scope. A type turns
 // a section into finished faces in world coordinates; the Blender build only makes meshes from them.
@@ -59,7 +59,7 @@ inline constexpr double kSawtoothBaySpan = 3.0;    // metres
 // One derived roof section.
 struct RoofArea {
     Id floor;
-    int index = 0;          // its place in exposedArea of its floor
+    int index = 0;          // its place in roofSectionAreas of its floor
     PlanArea area;          // plan coordinates
     Vec2 labelPoint;        // a position well inside it, for the label the plan draws and new anchors
     Id section;             // the RoofSection entry that applies; empty when the plan's default does

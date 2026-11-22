@@ -22,7 +22,7 @@ namespace plynth {
 //               "file": "f1_slab.fbx"}, {"floor": "f1", "kind": "roof", "file": "f1_roof.fbx"}, ...]}
 // Parts are in floor order, then storey, slab, roof. A floor without roof sections has no roof part and one
 // without a slab no slab part. File names are inside build/preview/. The slab part is the floor's slab object:
-// its side faces and undersides. The roof part is its roofs. Collision is in no part. Everything
+// its side faces, undersides and ledge tops. The roof part is its roofs. Collision is in no part. Everything
 // else of the floor's collection goes into its storey part: walls, thresholds, fills, floors, ceilings, items
 // and the stairs that climb from it.
 // The cut at floor c hides the storey parts of the floors above c and the slab and roof parts of c and above.

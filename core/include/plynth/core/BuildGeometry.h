@@ -223,14 +223,34 @@ struct StairBuild {
 // Turns a stair layout whose status is ok into world coordinates at a floor level.
 StairBuild stairBuild(const StairLayout& layout, double elevation);
 
-// The slab above one floor (Storeys.h). Side faces stand on every ring of polygons from bottom to top: outer
-// rings are the slab's edge, hole rings the sides of stair wells. Bottom faces are made only for undersides.
+// What one side face of a slab is, for its material. The ring's kind does not say it: a courtyard is a hole
+// ring of edge faces, and a well that reaches the boundary is part of the outline.
+enum class SlabSide {
+    Edge, // "edge": the outside band
+    Well, // "well": the side of a stair well
+};
+
+std::string_view slabSideName(SlabSide side);
+
+// The sides of one slab polygon. outline[i] is the face on the edge from point i of the polygon's outline to
+// the next, the last back to the first, and holes[h][i] the same on its hole h.
+struct SlabPolygonSides {
+    std::vector<SlabSide> outline;
+    std::vector<std::vector<SlabSide>> holes;
+
+    bool operator==(const SlabPolygonSides&) const = default;
+};
+
+// The slab above one floor (Storeys.h). Side faces stand on every ring of polygons from bottom to top, each
+// what sides says. Bottom faces are made only for undersides, top faces only for tops.
 struct SlabBuild {
     Id floor;
     double bottom = 0.0; // world Z: the floor's level plus its ceiling height
     double top = 0.0;    // world Z: the next floor's level
     std::vector<WorldPolygon> polygons;
     std::vector<WorldPolygon> undersides;
+    std::vector<SlabPolygonSides> sides; // one per entry of polygons, in the same order
+    std::vector<WorldPolygon> tops;      // the ledges, at top, facing up, with the edge material
 
     bool operator==(const SlabBuild&) const = default;
 };

@@ -205,3 +205,134 @@ TEST_CASE("the slab of the top floor has no underside and a missing floor has no
     CHECK(top.bottom == Approx(6.2));
     CHECK(slabBuild(plan, 7, {0.0, 3.2}).polygons.empty());
 }
+
+namespace {
+
+// Checks that sides has one entry for every edge of every ring of the slab's polygons.
+void requireSidesMatch(const SlabBuild& slab)
+{
+    REQUIRE(slab.sides.size() == slab.polygons.size());
+    for (std::size_t i = 0; i < slab.polygons.size(); ++i) {
+        CHECK(slab.sides[i].outline.size() == slab.polygons[i].outline.size());
+        REQUIRE(slab.sides[i].holes.size() == slab.polygons[i].holes.size());
+        for (std::size_t h = 0; h < slab.polygons[i].holes.size(); ++h) {
+            CHECK(slab.sides[i].holes[h].size() == slab.polygons[i].holes[h].size());
+        }
+    }
+}
+
+// Counts the entries of a ring's sides that have one kind.
+std::size_t countOf(const std::vector<SlabSide>& sides, SlabSide kind)
+{
+    return static_cast<std::size_t>(std::count(sides.begin(), sides.end(), kind));
+}
+
+// Says whether the edge of a world ring from point i lies on the border of the 4.2 m square slab of twoFloors()
+// (x from -0.1 to 4.1, world y from -4.1 to 0.1).
+bool edgeOnSquare(const std::vector<Vec2>& ring, std::size_t i)
+{
+    const Vec2 a = ring[i];
+    const Vec2 b = ring[(i + 1) % ring.size()];
+    const auto both = [&](auto get, double value) { return std::abs(get(a) - value) < 1e-6 && std::abs(get(b) - value) < 1e-6; };
+    const auto x = [](const Vec2& p) { return p.x; };
+    const auto y = [](const Vec2& p) { return p.y; };
+    return both(x, -0.1) || both(x, 4.1) || both(y, -4.1) || both(y, 0.1);
+}
+
+}
+
+TEST_CASE("slabSideName names both kinds", "[storeys]")
+{
+    CHECK(slabSideName(SlabSide::Edge) == "edge");
+    CHECK(slabSideName(SlabSide::Well) == "well");
+}
+
+TEST_CASE("a plain slab has an edge on every side", "[storeys]")
+{
+    const Plan plan = twoFloors();
+    const SlabBuild slab = slabBuild(plan, 0, {0.0, 3.2});
+    requireSidesMatch(slab);
+    REQUIRE(slab.sides.size() == 1);
+    CHECK(slab.sides[0].outline.size() == slab.polygons[0].outline.size());
+    CHECK(countOf(slab.sides[0].outline, SlabSide::Edge) == slab.sides[0].outline.size());
+}
+
+TEST_CASE("a courtyard's hole is all edge", "[storeys]")
+{
+    Plan plan = makeNewProject().plan;
+    addRectangle(plan.floors[0], 1, 0, 0, 4, 4, 0.2);
+    Floor upper;
+    upper.id = "f2";
+    plan.floors.push_back(upper);
+    const SlabBuild slab = slabBuild(plan, 0, {0.0, 3.2});
+    requireSidesMatch(slab);
+    REQUIRE(slab.polygons.size() == 1);
+    REQUIRE(slab.polygons[0].holes.size() == 1);
+    CHECK(countOf(slab.sides[0].outline, SlabSide::Edge) == slab.sides[0].outline.size());
+    CHECK(countOf(slab.sides[0].holes[0], SlabSide::Edge) == slab.sides[0].holes[0].size());
+}
+
+TEST_CASE("an inner stair well is all well and its outline all edge", "[storeys]")
+{
+    Plan plan = twoFloors();
+    addSpiral(plan);
+    const SlabBuild slab = slabBuild(plan, 0, {0.0, 3.2});
+    requireSidesMatch(slab);
+    REQUIRE(slab.polygons.size() == 1);
+    REQUIRE(slab.polygons[0].holes.size() == 1);
+    CHECK(countOf(slab.sides[0].outline, SlabSide::Edge) == slab.sides[0].outline.size());
+    CHECK(countOf(slab.sides[0].holes[0], SlabSide::Well) == slab.sides[0].holes[0].size());
+}
+
+TEST_CASE("a well that reaches the boundary has well on its faces and edge on the rest", "[storeys]")
+{
+    Plan plan = twoFloors();
+    addSpiral(plan);
+    plan.floors[0].stairs[0].x = 4.0;
+    const SlabBuild slab = slabBuild(plan, 0, {0.0, 3.2});
+    requireSidesMatch(slab);
+    REQUIRE(slab.polygons.size() == 1);
+    CHECK(slab.polygons[0].holes.empty());
+    const std::vector<Vec2>& ring = slab.polygons[0].outline;
+    std::size_t wells = 0;
+    for (std::size_t i = 0; i < ring.size(); ++i) {
+        const bool onBorder = edgeOnSquare(ring, i);
+        CHECK((slab.sides[0].outline[i] == SlabSide::Edge) == onBorder);
+        if (!onBorder) ++wells;
+    }
+    CHECK(wells >= 1);
+    CHECK(countOf(slab.sides[0].outline, SlabSide::Well) == wells);
+    CHECK(countOf(slab.sides[0].outline, SlabSide::Edge) >= 4);
+}
+
+TEST_CASE("a straight stair flush with the boundary splits the sides where the kinds change", "[storeys]")
+{
+    Plan plan = twoFloors();
+    Stair s;
+    s.id = "s1";
+    s.type = "straight";
+    s.x = 3.0;
+    s.y = 2.0;
+    plan.floors[0].stairs.push_back(s);
+    const StairLayout layout = stairLayout(plan, plan.floors[0], plan.floors[0].stairs[0]);
+    REQUIRE(layout.status.ok());
+    double maxX = -1e9;
+    for (const Vec2& p : layout.footprint) maxX = std::max(maxX, p.x);
+    plan.floors[0].stairs[0].x += 4.1 - maxX;
+    const SlabBuild slab = slabBuild(plan, 0, {0.0, 3.2});
+    requireSidesMatch(slab);
+    REQUIRE(slab.polygons.size() == 1);
+    CHECK(slab.polygons[0].holes.empty());
+    const std::vector<Vec2>& ring = slab.polygons[0].outline;
+    for (std::size_t i = 0; i < ring.size(); ++i) {
+        CHECK((slab.sides[0].outline[i] == SlabSide::Edge) == edgeOnSquare(ring, i));
+    }
+    CHECK(countOf(slab.sides[0].outline, SlabSide::Well) >= 1);
+}
+
+TEST_CASE("a missing floor and the top floor have no sides", "[storeys]")
+{
+    const Plan plan = twoFloors();
+    CHECK(slabBuild(plan, 7, {0.0, 3.2}).sides.empty());
+    CHECK(slabBuild(plan, 1, {0.0, 3.2}).sides.empty());
+}

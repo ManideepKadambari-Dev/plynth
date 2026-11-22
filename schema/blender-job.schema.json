@@ -91,7 +91,7 @@
               "fbx_file": { "description": "The FBX the 3D preview loads, or null for none.", "enum": ["building.fbx", null] },
               "materials_file": { "description": "Written with the FBX into output_folder (schema/build-materials.schema.json): the images of every channel of each built material, for the 3D preview. null exactly when fbx_file is null.", "enum": ["materials.json", null] },
               "textures_folder": { "description": "The folder in output_folder for the constant images of the neutral looks.", "const": "textures" },
-              "preview_folder": { "description": "The folder in output_folder for the preview parts: one FBX per floor and one per floor's roofs, and parts.json (schema/build-preview.schema.json). null exactly when fbx_file is null.", "enum": ["preview", null] },
+              "preview_folder": { "description": "The folder in output_folder for the preview parts: one FBX per floor, one for the slab above it and one for its roofs, and parts.json (schema/build-preview.schema.json). null exactly when fbx_file is null.", "enum": ["preview", null] },
               "plan": { "description": "plan.json as saved, schema/plan.schema.json.", "type": "object" },
               "settings": {
                 "type": "object",
@@ -252,6 +252,7 @@
         "holes": { "type": "array", "items": { "$ref": "#/definitions/points" } }
       }
     },
+    "slabSides": { "type": "array", "minItems": 3, "items": { "enum": ["edge", "well"] } },
     "wallRing": {
       "description": "A ring of a wall solid. edges[i] is the side face standing on the edge from points[i] to points[i + 1], the last back to the first. The solid is to the left of each edge seen from above.",
       "type": "object",
@@ -329,7 +330,7 @@
           }
         },
         "slab": {
-          "description": "The slab above the floor (core/include/plynth/core/Storeys.h). Side faces on every ring of polygons from bottom to top (outer rings: the slab edge, holes: stair wells); bottom faces only for undersides; no top faces. Object SM_<floor>_Slab, plynth_kind slab.",
+          "description": "The slab above the floor (core/include/plynth/core/Storeys.h). Side faces on every ring of polygons from bottom to top, each edge or well as sides says; bottom faces only for undersides; top faces only for tops. Object SM_<floor>_Slab, plynth_kind slab.",
           "type": "object",
           "required": ["bottom", "top", "polygons", "undersides", "materials"],
           "additionalProperties": false,
@@ -338,6 +339,24 @@
             "top": { "type": "number" },
             "polygons": { "type": "array", "items": { "$ref": "#/definitions/polygon" } },
             "undersides": { "type": "array", "items": { "$ref": "#/definitions/polygon" } },
+            "sides": {
+              "description": "One entry per polygon, in the same order. outline[i] is the side face on the edge from point i of the outline to the next, the last back to the first; holes[h][i] the same on hole h. edge: the outside band, also round a courtyard. well: the side of a stair well, also where it is part of the outline.",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["outline", "holes"],
+                "additionalProperties": false,
+                "properties": {
+                  "outline": { "$ref": "#/definitions/slabSides" },
+                  "holes": { "type": "array", "items": { "$ref": "#/definitions/slabSides" } }
+                }
+              }
+            },
+            "tops": {
+              "description": "The ledges too narrow for a roof section: faces at top, facing up, with the edge material.",
+              "type": "array",
+              "items": { "$ref": "#/definitions/polygon" }
+            },
             "materials": {
               "description": "Neutral surfaces when null: edge Wall_Outside, well Wall_Inside, underside Soffit.",
               "type": "object",
