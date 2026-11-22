@@ -25,6 +25,7 @@ class Tool;
 struct OverlayWall {
     QString id;
     QPainterPath band;
+    QPainterPath outline;
 };
 
 // One opening of the overlay, in scene units. The footprint is the cut through the wall band. A door has

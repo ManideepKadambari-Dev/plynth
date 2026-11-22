@@ -110,8 +110,10 @@ void PlanCanvas::setOverlay(const OverlayData& overlay)
         gaps.addPath(cut);
     }
     if (!gaps.isEmpty())
-        for (OverlayWall& wall : overlay_.walls)
+        for (OverlayWall& wall : overlay_.walls) {
             wall.band = wall.band.subtracted(gaps);
+            wall.outline = wall.outline.subtracted(gaps);
+        }
     viewport()->update();
 }
 
@@ -374,7 +376,7 @@ void PlanCanvas::paintOverlay(QPainter* painter)
     blue.setAlpha(t.overlayAlpha());
     painter->setBrush(blue);
     for (const OverlayWall& wall : overlay_.walls)
-        painter->drawPath(wall.band);
+        painter->drawPath(wall.outline);
 
     if (selectionKind_ == SelectionKind::Room) {
         QColor amberFill = t.signalAmber();
@@ -400,7 +402,7 @@ void PlanCanvas::paintOverlay(QPainter* painter)
         painter->setBrush(amber);
         for (const OverlayWall& wall : overlay_.walls)
             if (wall.id == selectionId_)
-                painter->drawPath(wall.band);
+                painter->drawPath(wall.outline);
     }
 
     painter->resetTransform();
