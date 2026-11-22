@@ -320,6 +320,17 @@ int writeBuiltMaterials(const fs::path& folder, const Json& params)
     const int count = static_cast<int>(materials.size());
     Json slots = Json::array();
     for (const Json& m : materials) slots.push_back(m["name"]);
+    const Json noAssets = Json::array();
+    for (const Json& asset : params.contains("assets") ? params["assets"] : noAssets) {
+        for (const Json& m : asset.contains("materials") ? asset["materials"] : noAssets) {
+            materials.push_back(Json{{"name", m["name"]},
+                                     {"material", nullptr},
+                                     {"surface", nullptr},
+                                     {"asset", asset["id"]},
+                                     {"maps", m["maps"]},
+                                     {"alpha_mode", m["maps"]["opacity"].is_null() ? "opaque" : "blend"}});
+        }
+    }
     Json objects = Json::array();
     for (const Json& floor : params["floors"]) {
         objects.push_back(Json{{"name", "SM_" + floor["id"].get<std::string>() + "_Walls"}, {"slots", slots}});
@@ -343,6 +354,11 @@ Json buildOutput(const Json& params, const std::string& mode)
     const int openings = sumOf(floors, "openings");
     const int rooms = sumOf(floors, "rooms");
     const int items = sumOf(floors, "items");
+    int collision = items;
+    for (const Json& floor : floors) {
+        if (!floor.contains("collision")) continue;
+        for (const Json& shape : floor["collision"]) collision += static_cast<int>(shape["pieces"].size());
+    }
     int fills = 0;
     const bool fill = params["settings"]["fill_openings"].get<bool>();
     Json problems = Json::array();
@@ -369,7 +385,7 @@ Json buildOutput(const Json& params, const std::string& mode)
     out["materials_file"] = fbx ? Json("materials.json") : Json(nullptr);
     out["objects"] = objects;
     out["triangles"] = objects * 12;
-    out["counts"] = Json{{"wall_solids", solids}, {"openings_cut", openings}, {"fills", fills}, {"rooms", rooms}, {"items", items}, {"materials", materialCount}};
+    out["counts"] = Json{{"wall_solids", solids}, {"openings_cut", openings}, {"fills", fills}, {"rooms", rooms}, {"items", items}, {"materials", materialCount}, {"collision", collision}};
     out["steps"] = steps;
     out["problems"] = problems;
     return out;

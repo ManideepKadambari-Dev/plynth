@@ -7,7 +7,10 @@
 #include <sqlite3.h>
 
 #include <filesystem>
+#include <cstdlib>
 #include <fstream>
+#include <initializer_list>
+#include <iterator>
 #include <map>
 #include <string>
 
@@ -256,4 +259,94 @@ TEST_CASE("initLibrary empties the idle material staging folders", "[core][libra
     plynth::test::requireOk(initLibrary(root));
     REQUIRE_FALSE(fs::exists(p.materialStaging / "left-00000001"));
     REQUIRE(fs::exists(p.materialStaging / "busy-00000002" / "job.json"));
+}
+
+namespace {
+
+// Makes a folder of sample shape files.
+fs::path makeSamples(const fs::path& root, std::initializer_list<const char*> names)
+{
+    const fs::path shapes = root / "shapes";
+    for (const char* name : names) plynth::test::writeBytes(shapes / name, std::string("{\"id\":\"") + name + "\"}");
+    return shapes;
+}
+
+// Sets an environment variable for one test and puts the old value back.
+struct EnvVar {
+    std::wstring name;
+    std::wstring old;
+    bool had = false;
+    EnvVar(const std::string& n, const fs::path& value) : name(fs::path(n).wstring())
+    {
+        wchar_t* v = nullptr;
+        size_t size = 0;
+        if (_wdupenv_s(&v, &size, name.c_str()) == 0 && v) {
+            had = true;
+            old = v;
+            free(v);
+        }
+        _wputenv_s(name.c_str(), value.c_str());
+    }
+    ~EnvVar() { _wputenv_s(name.c_str(), had ? old.c_str() : L""); }
+};
+
+}
+
+TEST_CASE("addSampleShapes copies the shape files and skips the ones already there", "[core][library][shapes]") {
+    plynth::test::TempDir tmp("lib-samples");
+    const fs::path root = tmp.path() / "Lib";
+    plynth::test::requireOk(initLibrary(root));
+    const LibraryPaths p = libraryPaths(root);
+    const fs::path from = makeSamples(tmp.path() / "samples", {"b.shape.json", "a.shape.json", "notes.txt"});
+
+    SampleShapesCopy first = addSampleShapes(p, from);
+    plynth::test::requireOk(first.status);
+    REQUIRE(first.copied == std::vector<std::string>{"a.shape.json", "b.shape.json"});
+    REQUIRE(first.skipped.empty());
+    REQUIRE(fs::exists(p.shapes / "a.shape.json"));
+    REQUIRE_FALSE(fs::exists(p.shapes / "notes.txt"));
+
+    plynth::test::writeBytes(p.shapes / "a.shape.json", "mine");
+    SampleShapesCopy second = addSampleShapes(p, from);
+    plynth::test::requireOk(second.status);
+    REQUIRE(second.copied.empty());
+    REQUIRE(second.skipped == std::vector<std::string>{"a.shape.json", "b.shape.json"});
+    std::ifstream in(p.shapes / "a.shape.json");
+    std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    REQUIRE(text == "mine");
+}
+
+TEST_CASE("addSampleShapes on a missing folder is not_found", "[core][library][shapes]") {
+    plynth::test::TempDir tmp("lib-samples-missing");
+    const fs::path root = tmp.path() / "Lib";
+    plynth::test::requireOk(initLibrary(root));
+    const SampleShapesCopy r = addSampleShapes(libraryPaths(root), tmp.path() / "nothing");
+    REQUIRE(r.status.code == ErrorCode::NotFound);
+    REQUIRE(r.copied.empty());
+}
+
+TEST_CASE("initLibrary copies the sample shapes of PLYNTH_SAMPLES and keeps edits", "[core][library][shapes]") {
+    plynth::test::TempDir tmp("lib-samples-init");
+    makeSamples(tmp.path() / "samples", {"keyhole.shape.json"});
+    EnvVar env(std::string(kSamplesVariable), tmp.path() / "samples");
+    REQUIRE(sampleShapesFolder() == tmp.path() / "samples" / "shapes");
+
+    const fs::path root = tmp.path() / "Lib";
+    plynth::test::requireOk(initLibrary(root));
+    const LibraryPaths p = libraryPaths(root);
+    REQUIRE(fs::exists(p.shapes / "keyhole.shape.json"));
+
+    plynth::test::writeBytes(p.shapes / "keyhole.shape.json", "edited");
+    plynth::test::requireOk(initLibrary(root));
+    std::ifstream in(p.shapes / "keyhole.shape.json");
+    std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    REQUIRE(text == "edited");
+}
+
+TEST_CASE("sampleShapesFolder finds the source tree in a developer build", "[core][library][shapes]") {
+    const fs::path none;
+    EnvVar env(std::string(kSamplesVariable), none);
+    const fs::path folder = sampleShapesFolder();
+    REQUIRE_FALSE(folder.empty());
+    REQUIRE(fs::exists(folder / "keyhole.shape.json"));
 }

@@ -7,6 +7,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <nlohmann/json.hpp>
+#include <sqlite3.h>
 
 #include <chrono>
 #include <filesystem>
@@ -63,8 +64,11 @@ TEST_CASE("a new library has the built-in groups and licenses once", "[core][mat
 
 TEST_CASE("an empty groups table is seeded when the catalog opens", "[core][materialcatalog]") {
     MaterialTestLibrary lib("matcat-seed-old");
-    for (const std::string& id : groupIds(*lib.catalog)) requireOk(lib.catalog->removeGroup(id));
-    REQUIRE(lib.catalog->groups().empty());
+    lib.catalog.reset();
+    sqlite3* handle = nullptr;
+    REQUIRE(sqlite3_open(pathToUtf8(lib.paths.materialsDb).c_str(), &handle) == SQLITE_OK);
+    REQUIRE(sqlite3_exec(handle, "DELETE FROM material_groups", nullptr, nullptr, nullptr) == SQLITE_OK);
+    sqlite3_close(handle);
     lib.reopen();
     REQUIRE(lib.catalog->groups().size() == builtInMaterialGroups().size());
 }
@@ -477,4 +481,29 @@ TEST_CASE("runBuild gives the library materials to the job", "[core][materialcat
     }
     REQUIRE(missing);
     for (const BuildProblem& p : report.problems) REQUIRE(p.code != "no_library");
+}
+
+TEST_CASE("the built-in groups cannot be renamed or removed", "[core][materialcatalog]") {
+    MaterialTestLibrary lib("matcat-protected");
+    MaterialCatalog& c = *lib.catalog;
+    lib.add("oak", "Oak planks", {"floor"});
+    const std::vector<MaterialGroupEntry> before = c.groups();
+
+    Status renamed = c.renameGroup("floor", "Ground");
+    REQUIRE(renamed.code == ErrorCode::InvalidValue);
+    REQUIRE(renamed.message == "The built-in group Floor cannot be renamed.");
+    Status removed = c.removeGroup("floor");
+    REQUIRE(removed.code == ErrorCode::InvalidValue);
+    REQUIRE(removed.message == "The built-in group Floor cannot be removed.");
+    for (const MaterialGroupEntry& g : before) {
+        REQUIRE(c.renameGroup(g.id, "Other").code == ErrorCode::InvalidValue);
+        REQUIRE(c.removeGroup(g.id).code == ErrorCode::InvalidValue);
+    }
+    REQUIRE(c.groups() == before);
+    REQUIRE(infoOnDisk(lib, "oak").groups == std::vector<std::string>{"floor"});
+
+    requireOk(c.moveGroup("metal", 0));
+    REQUIRE(groupIds(c).front() == "metal");
+    REQUIRE(c.renameGroup("nope", "X").code == ErrorCode::NotFound);
+    REQUIRE(c.removeGroup("nope").code == ErrorCode::NotFound);
 }
