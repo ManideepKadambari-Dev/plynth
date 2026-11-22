@@ -1,6 +1,6 @@
 # Writing generators
 
-This page explains how to add to Plynth without changing the program. Today it covers opening shapes, importers, exporters, the Blender worker registries, build steps, opening fills, export steps and quality checks. Generators and roof types are added to this page in later releases.
+This page explains how to add to Plynth without changing the program. Today it covers opening shapes, importers, exporters, group rules, the Blender worker registries, build steps, opening fills, export steps and quality checks. Generators and roof types are added to this page in later releases.
 
 For the commands see the [Command line guide](CLI_GUIDE.md). For the screens see the [User guide](USER_GUIDE.md).
 
@@ -431,9 +431,69 @@ An exporter decides which FBX files an export writes and which built objects go 
 const ExporterRegistrar registrar(std::make_unique<GroupedExporter>());
 ```
 
-`SingleExporter.cpp` is the worked example, about twenty lines. `exportFileStem(name)` turns a project name into a safe file name. The export runs the exporter's groups through the same Blender task and the same checks, and every group is written with the same FBX profile.
+`SingleExporter.cpp` is the worked example, about twenty lines. `GroupedExporter.cpp` is the exporter of the grouped mode. It does not list the groups itself. It asks every group rule (next section). `exportFileStem(name)` turns a project name into a safe file name. The export runs the exporter's groups through the same Blender task and the same checks, and every group is written with the same FBX profile.
 
 On the Blender side, the file format is a registry too. One file in `blender/plynth/exporters/` registers an `ExporterEntry(extension, export)`. `export(objects, filepath, path_mode)` writes the given objects, or the whole scene when `objects` is `None`. `exporters/__init__.py` has `write_file`, which writes under a temporary name and renames the result, so a failed export leaves nothing behind. `fbx.py` is the one profile Plynth uses for `asset.fbx`, `building.fbx` and the export.
+
+### Adding a group rule
+
+A grouped export writes one file for each group. The groups are made by group rules, and each rule is one file in core. Core knows the plan, so the rules live there and not in Blender. A new rule needs no other edit.
+
+1. Make one new file in `core/src/exporters/`, named `GroupRule<Name>.cpp`. The same glob that finds exporters builds it, so `CMakeLists.txt` stays as it is.
+2. In it, write a class that derives from `ExportGroupRule` (`core/include/plynth/core/ExportGroups.h`) and implements three functions:
+   - `id()`: a stable lower case name, such as `doors`.
+   - `order()`: where its groups go in the list. Lower numbers come first. The built-in rules are `structure` (10), `surfaces` (20) and `furniture` (30).
+   - `addGroups(project, out)`: add `ExportGroup` entries to `out`, each with an `id`, a `name` and its `members`. Do not fill in `file`. Core names the files afterwards from the project name and the group name.
+3. At the bottom, register it.
+
+Here is a rule that puts every door in a group of its own. Its order is 5, so it runs before the Walls group:
+
+```cpp
+#include "plynth/core/ExportGroups.h"
+
+namespace plynth {
+
+namespace {
+
+// Puts every door in a group of its own.
+class DoorsRule final : public ExportGroupRule {
+public:
+    std::string_view id() const override { return "doors"; }
+    int order() const override { return 5; }
+
+    // One member for each door.
+    void addGroups(const Project& project, std::vector<ExportGroup>& out) const override
+    {
+        ExportGroup group;
+        group.id = "doors";
+        group.name = "Doors";
+        for (const Floor& floor : project.plan.floors) {
+            for (const Opening& opening : floor.openings) {
+                if (opening.type == OpeningType::Door) group.members.push_back({std::string(kKindDoor), opening.id});
+            }
+        }
+        out.push_back(std::move(group));
+    }
+};
+
+const ExportGroupRuleRegistrar registrar(std::make_unique<DoorsRule>());
+
+}
+
+}
+```
+
+The example was written for this page and has not been built.
+
+What to know when you write one:
+
+- **A member is a kind and a plan id.** Every built object carries a `plynth_kind` and a `plynth_id`, for example `door` and `o3`, or `item` and `i1`. A member with an empty id takes every object of that kind. `ExportGroups.h` lists the kinds as `kKind...` constants, including kinds that later releases make (`slab`, `stair`, `roof`, `generator`, `light`). A member for a kind nothing has is harmless.
+- **An object goes to one group.** The Blender side picks the group by this order: a group with the exact member, then a group with the kind as an empty id member, then the first group with no members whose `kinds` and `ids` filters take it, then the group marked `rest`. If a rule gives a member that an earlier rule already has, core drops it from the later group. A group left with no member is dropped, and only one group keeps `rest`.
+- **List only what the build makes.** Give a member only for objects the plan says exist, such as a door for each door opening. Then the review shows what an export will really write.
+- **Edits come on top.** Whatever your rule makes, the user can rename, merge and move its groups, and the edits are applied to your groups by id. Keep ids stable from one build to the next, so a user's edit keeps finding its group.
+- **Collision follows its object.** A `UCX_` mesh goes into the file of the object it belongs to, so a rule never mentions collision.
+
+`GroupRuleStructure.cpp` and `GroupRuleFurniture.cpp` are the readable examples. The tests are `tests/core/ExportGroupsTests.cpp`. On the Blender side, the one helper that sorts objects into groups is `blender/plynth/exporting/groups.py` (`assign`). The writer and the `groups` check both call it, so they always agree.
 
 ### Adding a quality check
 
@@ -466,11 +526,11 @@ QUALITY_CHECKS.register("material_count", QualityCheck(ORDER, "scene", "Material
 - `ctx.state["meshes"]` holds the building and furniture objects, `ctx.state["collision"]` the `UCX_` objects. `ctx.params` is the export job, with the `limits` and the `expected_bounds` that core worked out.
 - A check never stops the export. Do not raise an error for a problem you can report.
 
-Look at `naming.py` for a bigger one. A new check shows up in the Export tab and in the report at once. Core only needs a change if the check needs a number it does not pass yet.
+Look at `naming.py` for a bigger one. Two checks came with grouped export. `groups.py` (105, scene) fails for an object that no group takes and warns about a group with no object. It uses `assign` from `exporting/groups.py`, the same helper the writer uses, so the check and the files cannot disagree. `kit_file.py` (120, file) reads the kit file back and fails when a piece is missing, moved or has no collision. It says "skipped" when the job has no kit, so a check can stay quiet when its part of the export was not asked for. A new check shows up in the Export tab and in the report at once. Core only needs a change if the check needs a number it does not pass yet.
 
 ### Adding an export step
 
-The `export` task, like the build, only runs steps in order. Each step is one file in `blender/plynth/exporting/`. The steps are `open_blend` (10), `prepare` (20), `name_objects` (30), `textures` (40), `checks` (50), `write_fbx` (60) and `file_checks` (70).
+The `export` task, like the build, only runs steps in order. Each step is one file in `blender/plynth/exporting/`. The steps are `open_blend` (10), `prepare` (20), `name_objects` (30), `kit_pieces` (35), `textures` (40), `checks` (50), `write_fbx` (60), `write_kit` (65) and `file_checks` (70).
 
 ```python
 from . import Step
@@ -487,7 +547,7 @@ def run(ctx):
 EXPORT_STEPS.register("my_step", Step(ORDER, "Doing my step", run))
 ```
 
-Drop the file in `exporting/` and the step runs between `textures` (40) and `checks` (50). The sentence is shown as progress. `ctx.state` is shared between the steps. A step may fail the whole job by raising `WorkerError`, which is meant for real errors such as a missing file. A quality problem is a check, not a step. The export never saves `building.blend`.
+Drop the file in `exporting/` and the step runs between `textures` (40) and `checks` (50). `kit_pieces.py` and `write_kit.py` are real examples. `kit_pieces` (35) makes the modular kit's meshes from the outlines core sends in the job. `write_kit` (65) writes them to their own FBX after the group files. Both do nothing when the job has no `kit`, which is how an optional step stays out of the way. The sentence is shown as progress. `ctx.state` is shared between the steps. A step may fail the whole job by raising `WorkerError`, which is meant for real errors such as a missing file. A quality problem is a check, not a step. The export never saves `building.blend`.
 
 ### Testing
 
