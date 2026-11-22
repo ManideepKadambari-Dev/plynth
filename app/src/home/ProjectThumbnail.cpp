@@ -27,6 +27,8 @@ QImage renderProjectThumbnail(const plynth::Plan& plan, const QImage& planImage,
     painter.scale(factor, factor);
 
     const OverlayData overlay = buildOverlay(plan);
+    // The marks sit in plan space, where the image starts at its offset, but the picture starts at (0, 0).
+    painter.translate(-overlay.imageOffset);
     QColor roomFill = t.signalBlue();
     roomFill.setAlpha(t.roomFillAlpha());
     painter.setPen(Qt::NoPen);
