@@ -61,27 +61,41 @@ def rectangle(x0, y0, x1, y1, z):
     return [(x0, y0, z), (x1, y0, z), (x1, y1, z), (x0, y1, z)]
 
 
-# The faces of the flat roof with a parapet, on the slab top at base.
+# The section's outline in world coordinates (world y is minus the plan y), with the points core keeps where the
+# wall bands meet on a straight side.
+SECTION = [(x, -y) for x, y in ((0.0, 0.0), (0.2, 0.0), (6.0, 0.0), (6.0, 4.0), (5.8, 4.0), (0.2, 4.0), (0.0, 4.0))]
+
+
+# Returns the direction pointing away from the middle of the section, for the edge from a to b.
+def outward_of(a, b):
+    normal = (b[1] - a[1], a[0] - b[0], 0.0)
+    middle = ((X0 + X1) / 2.0, (Y0 + Y1) / 2.0)
+    away = (a[0] + b[0]) / 2.0 - middle[0], (a[1] + b[1]) / 2.0 - middle[1]
+    return normal if normal[0] * away[0] + normal[1] * away[1] > 0 else tuple(-v for v in normal)
+
+
+# The faces of the flat roof with a parapet, on the slab top at base. The covering spans the whole section and the
+# parapet stands on its outline.
 def flat_faces(base, parapet=PARAPET):
     layer = base + THICKNESS
     top = layer + parapet
     inset = PARAPET_WALL
     inner_corners = [(X0 + inset, Y0 + inset), (X1 - inset, Y0 + inset), (X1 - inset, Y1 - inset),
                      (X0 + inset, Y1 - inset)]
+    ring = [(x, y, base) for x, y in SECTION]
     faces = [
-        face("covering", rectangle(X0 + inset, Y0 + inset, X1 - inset, Y1 - inset, layer), (0, 0, 1)),
-        face("underside", rectangle(X0, Y0, X1, Y1, base), (0, 0, -1)),
-        face("parapet", rectangle(X0, Y0, X1, Y1, top), (0, 0, 1),
+        face("covering", [(x, y, layer) for x, y in SECTION], (0, 0, 1)),
+        face("underside", ring, (0, 0, -1)),
+        face("parapet", [(x, y, top) for x, y in SECTION], (0, 0, 1),
              holes=[rectangle(X0 + inset, Y0 + inset, X1 - inset, Y1 - inset, top)]),
     ]
-    corners = [(X0, Y0), (X1, Y0), (X1, Y1), (X0, Y1)]
-    outward = [(0, -1, 0), (1, 0, 0), (0, 1, 0), (-1, 0, 0)]
-    for i in range(4):
-        a, b = corners[i], corners[(i + 1) % 4]
-        faces.append(wall("edge", a, b, base, layer, outward[i]))
-        faces.append(wall("parapet", a, b, layer, top, outward[i]))
-        a, b = inner_corners[i], inner_corners[(i + 1) % 4]
-        faces.append(wall("parapet", a, b, layer, top, tuple(-v for v in outward[i])))
+    for a, b in zip(SECTION, SECTION[1:] + SECTION[:1]):
+        outward = outward_of(a, b)
+        faces.append(wall("edge", a, b, base, layer, outward))
+        faces.append(wall("parapet", a, b, layer, top, outward))
+    corners = [(X0 + inset, Y0 + inset), (X1 - inset, Y0 + inset), (X1 - inset, Y1 - inset), (X0 + inset, Y1 - inset)]
+    for a, b in zip(corners, corners[1:] + corners[:1]):
+        faces.append(wall("parapet", a, b, layer, top, tuple(-v for v in outward_of(a, b))))
     return faces
 
 
@@ -104,10 +118,11 @@ def gable_faces(base):
     for y, direction in ((ey1, (0, 1, 0)), (ey0, (0, -1, 0))):
         top = gable_top(base, y)
         faces.append(wall("edge", (ex0, y), (ex1, y), top - THICKNESS, top, direction))
-    section = [(ey1, gable_top(base, ey1)), (RIDGE_Y, gable_top(base, RIDGE_Y)), (ey0, gable_top(base, ey0))]
     for x, direction in ((ex0, (-1, 0, 0)), (ex1, (1, 0, 0))):
-        ring = [(x, y, z) for y, z in section] + [(x, y, z - THICKNESS) for y, z in reversed(section)]
-        faces.append(face("edge", ring, direction))
+        for low, high in ((ey0, RIDGE_Y), (RIDGE_Y, ey1)):
+            ring = [(x, low, gable_top(base, low)), (x, high, gable_top(base, high)),
+                    (x, high, gable_top(base, high) - THICKNESS), (x, low, gable_top(base, low) - THICKNESS)]
+            faces.append(face("edge", ring, direction))
     reach = HALF_SPAN - THICKNESS / SLOPE
     peak = gable_top(base, RIDGE_Y) - THICKNESS
     for x, direction in ((X0, (-1, 0, 0)), (X1, (1, 0, 0))):

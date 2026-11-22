@@ -9,6 +9,7 @@ ORDER = 50
 WELD_DISTANCE = 1e-6
 FLAT_LIMIT = 1e-9
 
+
 # The neutral surface of each roof part. The covering of a flat roof has its own look.
 PART_SURFACES = {
     "covering": "Roof",
