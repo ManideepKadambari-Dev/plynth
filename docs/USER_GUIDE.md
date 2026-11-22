@@ -948,7 +948,7 @@ A group with nothing in it is not written. A collision shape always goes into th
 
 **Editing the groups.** The edits are kept in the project, so every later export uses them:
 
-- **Rename.** Double click a group or press F2. The file is renamed too, and the old file is removed at the next export. A name has 1 to 64 characters and needs at least one letter or digit (a to z, 0 to 9). Two groups cannot have the same name.
+- **Rename.** Double click a group or press F2. The file is renamed too, and the old file is removed at the next export. A name uses English letters (A to Z, a to z), digits, spaces, hyphens and underscores only, with at least one letter or digit, up to 64 characters. Two groups cannot have the same name.
 - **Merge.** Right click a group and choose **Merge into**, then the group that should take its members. The first group goes away.
 - **Move a member.** Right click a member and choose **Move to**, then a group or **New group...**. Or drag the member onto a group.
 - **New group.** The **New group...** button makes an empty group. Move members into it.

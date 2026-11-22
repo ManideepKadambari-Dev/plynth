@@ -1450,7 +1450,7 @@ plynth export report
 |---|---|
 | `not_a_project` | The folder has no `project.json`. |
 | `not_found` | There is no `build\building.blend`. The message is "Build the project first." |
-| `bad_file` | `export-options.json` is there but cannot be read. Nothing runs. |
+| `bad_file` | `export-options.json` is there but cannot be read, or holds a group name that is not allowed (for example one written by an older Plynth). Nothing runs. `plynth export groups reset` repairs it. |
 | `in_use` | A build or another export of the project is running. |
 | `blender_not_found` | No usable Blender. |
 | `blender_failed` | The worker failed. The message names the log file. |
@@ -1495,7 +1495,7 @@ Renames a group. The file is renamed with it, and the next export removes the ol
 plynth export groups rename furniture_r1 --name "Lounge props"
 ```
 
-`--name <text>` is required. A name has 1 to 64 characters after the spaces at its ends are removed, with at least one letter or digit from a to z or 0 to 9. A name another group has, compared without regard to capitals, is refused. A second rename of the same group replaces the first. The answer's group `furniture_r1` now has the name "Lounge props" and the file `MyApartment_Lounge_props.fbx`.
+`--name <text>` is required. A name has 1 to 64 characters after the spaces at its ends are removed. It may hold only A to Z, a to z, 0 to 9, spaces, hyphens and underscores, with at least one letter or digit. A name another group has, compared without regard to capitals, is refused. A second rename of the same group replaces the first. The answer's group `furniture_r1` now has the name "Lounge props" and the file `MyApartment_Lounge_props.fbx`.
 
 ### export groups merge
 
@@ -1534,7 +1534,7 @@ plynth export groups new --name Hero
 
 ### export groups reset
 
-Removes every group edit, so the automatic groups come back. The kit switch stays as it is. It takes no other option.
+Removes every group edit, so the automatic groups come back. The kit switch stays as it is. It takes no other option. It also repairs an `export-options.json` that is refused with `bad_file` because of a group name that is not allowed.
 
 ```
 plynth export groups reset
@@ -1547,7 +1547,7 @@ plynth export groups reset
 | `not_found` | The group or the member is not in the list, or the group named by `--to` or `--into` is not. |
 | `invalid_value` | A bad name, a merge of a group into itself, a member not written `kind:id` (the message shows the form), or a single project. |
 | `already_exists` | Another group already has that name. |
-| `bad_file` | `export-options.json` is there but cannot be read. The file is left as it is. |
+| `bad_file` | `export-options.json` is there but cannot be read, or holds a group name the rules above refuse. The file is left as it is. `export groups reset` is the one edit that repairs it, by removing every group edit. |
 | `bad_arguments` | A missing or an extra option, such as `rename` with no `--name`, or `--name` given to `merge`. |
 | `locked` | The project is open in the app and no edit session is active. |
 
