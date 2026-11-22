@@ -2,7 +2,7 @@
 
 Plynth can be driven from a terminal, a script or a coding assistant. Every command prints one JSON answer, so a program can read the result without parsing text meant for people.
 
-This page covers the commands that exist today: version, help, creating and reading a project, setting the scale, grid and default sizes, floors, points, walls (straight and curved), rounded corners, doors, windows and other openings, rooms, placing furniture with `place` and `item`, finding walls and openings in the plan image with `detect`, the edit session that keeps the app and the command line from overwriting each other, and the machine commands: `doctor`, `settings`, `library` and `assets`. More commands arrive in later releases.
+This page covers the commands that exist today: version, help, creating and reading a project, setting the scale, grid and default sizes, floors, points, walls (straight and curved), rounded corners, doors, windows and other openings, rooms, placing furniture with `place` and `item`, finding walls and openings in the plan image with `detect`, building the project in Blender with `build`, the edit session that keeps the app and the command line from overwriting each other, and the machine commands: `doctor`, `settings`, `library` and `assets`. More commands arrive in later releases.
 
 The plan and project files are now at format version 3. Older projects open and upgrade by themselves. See "File format version 3" below.
 
@@ -19,11 +19,11 @@ Typing `plynth` in a terminal finds `plynth.com` first. The terminal inside Plyn
 
 The first word decides what happens:
 
-- A command word (`version`, `help`, `project`, `scale`, `point`, `wall`, `opening`, `floor`, `room`, `place`, `item`, `detect`, `session`, `doctor`, `settings`, `library`, `assets`) runs the command and prints the answer. No window opens.
+- A command word (`version`, `help`, `project`, `scale`, `point`, `wall`, `opening`, `floor`, `room`, `place`, `item`, `detect`, `build`, `session`, `doctor`, `settings`, `library`, `assets`) runs the command and prints the answer. No window opens.
 - A project folder or an app option (`--image`, `--screenshot`, `--size`, `--terminal`), or no argument at all, opens the window. `plynth.com` starts the window and returns at once.
 - Anything else prints an `unknown_command` answer and exits with code 2. For example `plynth bogus`.
 
-To open a folder that is literally named after a command word, such as `project`, `room`, `opening`, `floor`, `place`, `item` or `detect`, write `.\project`, `.\room`, `.\opening`, `.\floor`, `.\place`, `.\item` or `.\detect`. Without the `.\` Plynth runs the command instead. `doctor`, `settings`, `library` and `assets` are new command words, so a project folder with one of those names that worked before now needs the `.\` too. The same goes for `--project`: write `--project .\opening`.
+To open a folder that is literally named after a command word, such as `project`, `room`, `opening`, `floor`, `place`, `item`, `detect` or `build`, write `.\project`, `.\room`, `.\opening`, `.\floor`, `.\place`, `.\item`, `.\detect` or `.\build`. Without the `.\` Plynth runs the command instead. `doctor`, `settings`, `library` and `assets` are new command words, so a project folder with one of those names that worked before now needs the `.\` too. The same goes for `--project`: write `--project .\opening`.
 
 ### Which project a command works on
 
@@ -81,7 +81,7 @@ The app itself, when you give it `--screenshot`, uses its own codes. 0 means the
 | `invalid_value` | A number or name is out of range, for example a scale of 0. Also used when an opening does not fit its wall, a wall is bent too far, or a height would leave an opening sticking out. The message says what is wrong. |
 | `not_found` | A floor, point, wall, room, opening or file does not exist, or there is no closed area at the position given to `room add`, or there is no wall at the position given to `opening add`. |
 | `already_exists` | The thing to create is already there, for example `project new` in a folder that holds a project, a wall between two points that already have one, or a room where one already is. |
-| `in_use` | Removing something would leave another item pointing at nothing, for example a wall that a room uses. Add `--cascade` to remove what depends on it as well (see `point remove`). |
+| `in_use` | Removing something would leave another item pointing at nothing, for example a wall that a room uses. Add `--cascade` to remove what depends on it as well (see `point remove`). Also used by `build` when another build of the same project is already running. |
 | `not_a_project` | The folder has no `project.json`. |
 | `cannot_read` | A file or folder could not be opened. |
 | `cannot_write` | A file or folder could not be written. |
@@ -1227,6 +1227,110 @@ Errors:
 | `image_error` | The image cannot be decoded, or is too large to process. |
 | `locked` | With `--apply` only: the project is open in the app and no edit session is active. Plain `detect` is never refused. |
 
+### build
+
+Builds the project in Blender: the walls with their thickness, every opening cut in its exact shape, a door or window fitted in each door and window opening, a floor and a ceiling in every closed room, and every placed item as a copy of its asset. It saves `build\building.blend` and `build\building.fbx`. The app's Build button does the same thing, so both give the same result.
+
+```
+plynth build
+plynth build --project D:\Plans\MyApartment
+plynth build --check
+plynth build --quiet --library D:\Demo\Library
+```
+
+`build` never changes the plan or the project settings. It only writes into the project's `build` folder, so it runs while the app has the project open, with no edit session. It uses the plan as saved in the project folder.
+
+The `build` word is a command, so a project folder named `build` has to be given as `--project .\build`.
+
+| Option | Meaning |
+|---|---|
+| `--project <folder>` | The project. Default: the current folder. |
+| `--library <folder>` | The library the items come from. Default: the one in the settings. With none, or a folder that is not a library, the build still runs and every item is left out with the `no_library` problem. |
+| `--blender <exe>` | Use this Blender instead of the one the setup check chooses. |
+| `--quiet` | Write no progress lines to standard error. |
+| `--check` | List the problems without running Blender and without writing anything. |
+
+**Progress.** Unless you give `--quiet` or `--check`, `build` writes one JSON line to standard error for each stage and each Blender step, and then one answer on standard output as for every command. A script can read standard error line by line to show a progress bar, and read standard output once at the end.
+
+```
+{"progress":{"stage":"preparing","step":"","index":0,"count":0,"message":"Checking the plan"}}
+{"progress":{"stage":"blender","step":"prepare_scene","index":1,"count":11,"message":"Preparing the scene"}}
+{"progress":{"stage":"blender","step":"walls","index":2,"count":11,"message":"Raising walls"}}
+{"progress":{"stage":"blender","step":"openings","index":3,"count":11,"message":"Cutting openings"}}
+{"progress":{"stage":"finishing","step":"","index":0,"count":0,"message":"Writing the report"}}
+{"progress":{"stage":"done","step":"","index":0,"count":0,"message":"Done"}}
+```
+
+The stages are `preparing`, `blender` (one line per step, `index` counting from 1 up to `count`), `finishing` and `done`. The steps are the registered build steps, in order: `prepare_scene`, `walls`, `openings`, `bevel`, `triangulate`, `opening_fills`, `floors`, `assets`, `materials`, `save_blend`, `export_fbx`. Adding a step adds a line.
+
+**The answer.** An example, shortened. The real lists hold every step and every problem.
+
+```json
+{"ok":true,"command":"build","result":{"format":"plynth-build-report","version":1,"ok":true,"error":null,"job_id":"build-3f9a07c1","started_at":"2026-11-22T10:42:07Z","elapsed_ms":8240,"blender_version":"5.2.0","plan_fingerprint":"9c41d0e27ab35f18","outputs":{"blend_file":"D:/Plans/MyApartment/build/building.blend","fbx_file":"D:/Plans/MyApartment/build/building.fbx","log_file":"D:/Plans/MyApartment/build/blender.log"},"objects":42,"triangles":18200,"counts":{"wall_solids":1,"openings_cut":8,"fills":8,"rooms":5,"items":4},"steps":[{"step":"check","ms":14},{"step":"prepare_scene","ms":310},{"step":"walls","ms":120}],"problems":[{"code":"missing_asset","severity":"error","message":"Item i5 uses the asset chair, which is not in the library.","floor":"f1","object":"i5","step":"check"}],"error_count":1,"warning_count":0},"warnings":[{"code":"missing_asset","message":"Item i5 uses the asset chair, which is not in the library."}]}
+```
+
+- The `result` is the build report, the same text that is saved as `build\build.json` (`schema/build-report.schema.json`). Paths are absolute with forward slashes.
+- The `ok` inside the report means the build ran and finished. It does not mean there were no problems. Problems with severity `error` can still be listed next to `"ok":true`, so a script that needs a clean building must also test `error_count`.
+- `counts` says how many wall solids, openings, doors and windows, rooms and items were made. `openings_cut` and `fills` count what was built, so an opening that did not fit is not in them. `objects` and `triangles` are what went into the FBX.
+- `steps` lists the time of each step in milliseconds. `check` is the work core does before Blender starts.
+- `plan_fingerprint` changes when the plan or the project settings change. The app uses it to say "The plan changed since this build".
+- `problems` lists core's problems first, then the ones Blender found, each in its own order. The top level `warnings` list has one entry (`code` and `message`) for every problem, whatever its severity. The `object` of a problem is a plan id: a point, wall, opening, room or item. It is `null` when the problem is not about one object.
+
+**Problem codes.** A problem of severity `error` means the object was left out or is incomplete. A problem of severity `warning` means it was built and should be checked.
+
+| Code | Severity | Meaning |
+|---|---|---|
+| `opening_does_not_fit` | error | The opening reaches past its wall or the wall's height. It is not cut. The message says how far. |
+| `room_not_closed` | error | The room's walls do not close a shape, so it gets no floor and no ceiling. |
+| `missing_asset` | error | The item's asset is not in the library. The item is left out. |
+| `asset_broken` | error | The library lists the asset, but it is marked broken or its folder or `asset.blend` is gone. The item is left out. |
+| `no_library` | error | No usable library. Every item is left out. |
+| `cut_failed` | error | The opening could not be cut into its wall. The wall is left as it was. |
+| `fill_failed` | error | The opening was cut, but the door or window could not be made, for example because the opening is too small for a frame. The hole stays empty. |
+| `asset_load_failed` | error | Blender could not load the asset's `asset.blend`. The item is left out. |
+| `bevel_failed` | warning | The wall edges could not be rounded, so they stay sharp. |
+| `no_room`, `outside_room`, `overlaps_item`, `overlaps_wall`, `overlaps_opening`, `off_wall`, `too_tall`, `size_changed` | warning | The furniture warnings of the item (see "Furniture items"). They are shown again here because the build marks them on the plan. |
+
+If an asset's folder was removed or renamed by hand, the code depends on what the catalog says. While the catalog still lists the asset, it is `asset_broken`. When the catalog does not know the asset at all, it is `missing_asset`.
+
+**`--check`.** Works out the same problems without starting Blender and without touching `build`. It is fast, so a script can run it before a build.
+
+```
+plynth build --check
+```
+
+```json
+{"ok":true,"command":"build","result":{"problems":[{"code":"opening_does_not_fit","severity":"error","message":"Window o4 does not fit its wall: it reaches 0.12 m past the corner.","floor":"f1","object":"o4","step":"check"}],"error_count":1,"warning_count":0,"plan_fingerprint":"9c41d0e27ab35f18"}}
+```
+
+Blender can find more problems while it builds (`cut_failed`, `fill_failed`, `asset_load_failed`, `bevel_failed`), so a clean `--check` does not promise a clean build.
+
+**Refusals.** All have exit code 1 and write nothing, except where said.
+
+| Code | When |
+|---|---|
+| `not_a_project` | The folder has no `project.json`. |
+| `invalid_value` | The plan has no walls: "The plan has no walls to build." |
+| `blender_not_found` | No usable Blender. Run `plynth doctor`. |
+| `in_use` | Another build of this project is running. |
+| `blender_failed` | Blender failed. The message names `build\blender.log`. `build\build.json` is written with `"ok":false` and an `error` with the `code` and the worker's own code, such as `save_failed` or `export_failed`. The files of the last good build stay in place. |
+
+**Files.** A build writes into `<project>\build\`:
+
+| File | What it is |
+|---|---|
+| `building.blend` | The Blender file. Open it in Blender, edit it, render it. Items are instances of their asset. |
+| `building.fbx` | What the 3D view loads. Items are real objects that share their mesh. |
+| `build.json` | The report of the last build. |
+| `job.json`, `result.json`, `blender.log` | What was sent to Blender, what came back, and what Blender printed. |
+| `build.lock` | Exists only while a build runs. |
+
+Blender writes the two model files under a temporary name and renames them at the end, so a build that fails or is stopped leaves the last good ones untouched. `build\` can be deleted at any time.
+
+Two builds of one project at the same time are not allowed: the second gets `in_use`. A build that was killed leaves a `build.lock` behind. The next build takes it over when the process in it has ended or the lock is older than 30 minutes.
+
+`plynth build` has no stop signal of its own. Ctrl+C ends the process at once, and the lock file is left for the next build to take over by the process check or the timeout. The app's Cancel button, which does stop a build cleanly, is the way to stop one from the window.
+
 ### session begin
 
 Starts an edit session. See the next section.
@@ -1301,7 +1405,7 @@ Options:
 Without `--no-addons`, doctor starts Blender once in the background, which takes a few seconds. The answer always has `ok` true and exit code 0, even when something is missing. A script reads `ready`, which is true when no required item is missing or too old.
 
 ```json
-{"ok":true,"command":"doctor","result":{"ready":true,"first_run":false,"updated":true,"probed":false,"items":[{"id":"blender","name":"Blender","required":true,"state":"found","version":"5.2.0","path":"C:/Program Files/Blender Foundation/Blender 5.2/blender.exe","detail":"Blender 5.2.0 LTS (hash fbe6228777e7 built 2026-07-14 01:35:40) found.","action":"","link":"","affects":[]},{"id":"library_folder","name":"Library folder","required":true,"state":"found","version":null,"path":"D:/Demo/Library","detail":"The library is ready.","action":"","link":"","affects":[]},{"id":"graphics_driver","name":"Graphics driver","required":true,"state":"not_checked","version":null,"path":null,"detail":"Checked once the 3D preview is added.","action":"","link":"","affects":[]},{"id":"addon_blenderkit","name":"BlenderKit add-on","required":false,"state":"not_checked","version":null,"path":null,"detail":"Add-ons were not checked this time.","action":"","link":"https://www.blenderkit.com/","affects":["importing assets from BlenderKit"]}],"blender_installs":[{"path":"C:/Program Files/Blender Foundation/Blender 5.2/blender.exe","version":"5.2.0","version_text":"Blender 5.2.0 LTS (hash fbe6228777e7 built 2026-07-14 01:35:40)","support":"supported","sources":["program_folder","registry"],"selected":true,"problem":null}]}}
+{"ok":true,"command":"doctor","result":{"ready":true,"first_run":false,"updated":true,"probed":false,"items":[{"id":"blender","name":"Blender","required":true,"state":"found","version":"5.2.0","path":"C:/Program Files/Blender Foundation/Blender 5.2/blender.exe","detail":"Blender 5.2.0 LTS (hash fbe6228777e7 built 2026-07-14 01:35:40) found.","action":"","link":"","affects":[]},{"id":"library_folder","name":"Library folder","required":true,"state":"found","version":null,"path":"D:/Demo/Library","detail":"The library is ready.","action":"","link":"","affects":[]},{"id":"graphics_driver","name":"Graphics driver","required":true,"state":"not_checked","version":null,"path":null,"detail":"Checked by the app when it starts the 3D preview.","action":"","link":"","affects":[]},{"id":"addon_blenderkit","name":"BlenderKit add-on","required":false,"state":"not_checked","version":null,"path":null,"detail":"Add-ons were not checked this time.","action":"","link":"https://www.blenderkit.com/","affects":["importing assets from BlenderKit"]}],"blender_installs":[{"path":"C:/Program Files/Blender Foundation/Blender 5.2/blender.exe","version":"5.2.0","version_text":"Blender 5.2.0 LTS (hash fbe6228777e7 built 2026-07-14 01:35:40)","support":"supported","sources":["program_folder","registry"],"selected":true,"problem":null}]}}
 ```
 
 The example is shortened. The real answer lists every item, in this order: `blender`, `blender_version`, `library_folder`, `projects_folder`, `graphics_driver`, then the add-ons `addon_blenderkit`, `addon_archimesh`, `addon_home_builder`, `addon_bool_tool`, `addon_asset_optimizer`, `addon_bagapie`.
@@ -1330,7 +1434,7 @@ plynth settings show
 ```
 
 ```json
-{"ok":true,"command":"settings show","result":{"file":"D:/Demo/config/settings.json","exists":true,"settings":{"library":"D:/Demo/Library","projects":"D:/Demo/Projects","blender":null,"keep_imported_zips":false,"thumbnail_engine":"eevee","triangle_warning":500000,"setup_checked_version":null,"recent_projects":[]}}}
+{"ok":true,"command":"settings show","result":{"file":"D:/Demo/config/settings.json","exists":true,"settings":{"library":"D:/Demo/Library","projects":"D:/Demo/Projects","blender":null,"keep_imported_zips":false,"triangle_warning":500000,"setup_checked_version":null,"recent_projects":[]}}}
 ```
 
 `recent_projects` is the list `project recent` prints, with its own `path`, `name` and `last_opened`. `exists` is false until something has been saved, and the settings then show their defaults. `library`, `projects` and `blender` are `null` when not set. `blender` null means Plynth uses the newest supported Blender it finds.
@@ -1341,7 +1445,7 @@ Changes one or more settings. Each option is checked before anything is saved. I
 
 ```
 plynth settings set --projects D:\Demo\Projects
-plynth settings set --keep-zips true --thumbnail-engine cycles
+plynth settings set --keep-zips true --triangle-warning 800000
 plynth settings set --blender none
 ```
 
@@ -1351,10 +1455,11 @@ Options (give at least one):
 - `--projects <folder|none>`: where new projects go and where the built-in terminal starts. The folder must exist.
 - `--blender <file|none>`: the `blender.exe` to use. It must run and be version 4.2 or newer. `none` goes back to the newest one found.
 - `--keep-zips <true|false>`: keep a zip after its asset was imported instead of moving it to the Recycle Bin.
-- `--thumbnail-engine <eevee|cycles>`: how thumbnails are rendered.
 - `--triangle-warning <n>`: imports with more triangles than this get the `high_polycount` warning.
 
 The answer is the same as `settings show`. A library folder that is not a library gives `no_library`. A projects folder that does not exist gives `not_found`. A Blender that is missing or too old gives `blender_not_found`.
+
+There is no thumbnail engine setting any more. Thumbnails are always drawn with Eevee, and `--thumbnail-engine` is refused as an unknown option (`bad_arguments`). A settings file from an older Plynth that still has `thumbnail_engine` is read, and saved again as version 3 without it.
 
 ```json
 {"ok":false,"command":"settings set","error":{"code":"blender_not_found","message":"There is no program at C:/nope/blender.exe."}}
@@ -1434,7 +1539,7 @@ Problems with the model are warnings in the top level `warnings` list. The impor
 "warnings":[{"code":"scale_suspicious","message":"The largest side is 0.0090 m, which is very small. The file may use other units. Import with a scale (for example --scale 100)."}]
 ```
 
-Cleanup warning codes: `high_polycount` (more triangles than the limit in the settings), `scale_suspicious` (largest side above 30 m or below 0.02 m), `missing_texture` (a texture file could not be found), `removed_objects` (cameras, lights or empties were removed), `unsupported_object`, `eevee_failed` (the thumbnail was rendered by Cycles instead).
+Cleanup warning codes: `high_polycount` (more triangles than the limit in the settings), `scale_suspicious` (largest side above 30 m or below 0.02 m), `missing_texture` (a texture file could not be found), `removed_objects` (cameras, lights or empties were removed), `unsupported_object`, `fbx_failed` (`asset.fbx`, which the app uses for the live 3D preview of the asset, could not be written; the asset itself is fine).
 
 Refusals: an ending no importer reads is `invalid_value` and names the endings. A rotation that is not 0, 90, 180 or 270 is `invalid_value`. A file that Blender cannot turn into a model is `blender_failed` with the reason. No Blender is `blender_not_found`. No library is `no_library`. Nothing is left in the library after a failed import.
 
@@ -1728,7 +1833,8 @@ An answer can have a top level `warnings` list next to `result`. It appears only
 Codes in use:
 
 - `image_missing`: a plan image of the project could not be found. Edits are still saved and the image path is kept. Put the file back, or set another image.
-- The cleanup codes listed under `assets import`: `high_polycount`, `scale_suspicious`, `missing_texture`, `removed_objects`, `unsupported_object`, `eevee_failed`.
+- The cleanup codes listed under `assets import`: `high_polycount`, `scale_suspicious`, `missing_texture`, `removed_objects`, `unsupported_object`, `fbx_failed`.
+- The build codes listed under `build`. `build` puts one warning in the list for every problem it found, whether its severity is `error` or `warning`.
 - The furniture codes listed under "Furniture items": `no_room`, `outside_room`, `overlaps_item`, `overlaps_wall`, `overlaps_opening`, `off_wall`, `too_tall`, `missing_asset`, `size_changed`. `place` and the `item` commands that change an item give the problems of that item. With `--strict` they are refused instead.
 
 A project whose plan image was deleted, after `scale set`:
@@ -1844,7 +1950,7 @@ Save or discard in the app, then run `session begin` again.
 
 If the app does not have the project open, editing commands just run. A session is still allowed and harmless, so a script can always begin one.
 
-Read only commands such as `project info`, `point list`, `wall list`, `opening list`, `opening shapes`, `floor list`, `room list`, `room find` and `detect` without `--apply` are never refused.
+Read only commands such as `project info`, `point list`, `wall list`, `opening list`, `opening shapes`, `floor list`, `room list`, `room find`, `build` and `detect` without `--apply` are never refused. `build` only writes into the project's `build` folder and never changes the plan.
 
 ### Expiry
 

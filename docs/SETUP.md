@@ -30,7 +30,7 @@ Press **Check again** after you change something outside Plynth, for example aft
 
 ### Blender
 
-Plynth uses Blender in the background to clean up the models you import and to draw their thumbnails. You never see its window.
+Plynth uses Blender in the background to clean up the models you import, to draw their thumbnails and to build your building. You never see its window.
 
 Plynth looks for Blender in the places Windows normally puts it: the Program Files folder, your local programs folder, the list of installed programs, the Microsoft Store, Steam, and your PATH. If it finds several, it picks the newest supported one and lists all of them in a drop-down so you can pick another.
 
@@ -80,7 +80,9 @@ New projects are saved here, and the built-in terminal starts here when no proje
 
 ### Graphics driver
 
-For now this row says Not checked, and it never blocks. It will check that your graphics driver can run the 3D preview once the preview is added in a later release.
+The app checks when it starts that your graphics card can run the 3D view. The row says Found with the name of the card and the graphics interface it uses (Direct3D 11). If it says Missing, the 3D view cannot draw. Update your graphics driver, restart Plynth and check again. The row is required, so while it is Missing the Build button opens the setup check instead of building. See "If the 3D view stays empty" in the [User guide](USER_GUIDE.md).
+
+`plynth doctor` has no window to draw in, so it says Not checked for this row. That never blocks the command line, and `plynth build` still runs.
 
 ### Add-ons
 
@@ -109,7 +111,7 @@ Your choices are saved in one file for your Windows account:
 %APPDATA%\Plynth\settings.json
 ```
 
-That is usually `C:\Users\<you>\AppData\Roaming\Plynth\settings.json`. It holds the library folder, the projects folder, the Blender you chose, whether to keep imported zips, the thumbnail render engine, the triangle warning limit and the Plynth version whose setup check last passed. You can read it in any text editor. The usual way to change it is the setup check or `plynth settings set`.
+That is usually `C:\Users\<you>\AppData\Roaming\Plynth\settings.json`. It holds the library folder, the projects folder, the Blender you chose, whether to keep imported zips, the triangle warning limit and the Plynth version whose setup check last passed. You can read it in any text editor. The usual way to change it is the setup check or `plynth settings set`.
 
 Settings belong to the computer, not to a project, so they are not saved in your project folders.
 
