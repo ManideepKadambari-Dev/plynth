@@ -2,6 +2,7 @@
 #include "SampleProject.h"
 #include "SettingsGuard.h"
 
+#include <plynth/core/ProjectFiles.h>
 #include <plynth/core/Settings.h>
 
 #include <catch2/catch_test_macros.hpp>
@@ -22,6 +23,13 @@ using plynth::cli::testing::utf8;
 namespace {
 
 using SettingsReset = plynth::cli::testing::GuardedSettingsReset;
+
+// True when a path reported as text is the same file as the expected one, whatever its spelling: the temp
+// folder can be named through a short (8.3) name or a link, and the report may spell it another way.
+bool samePath(const nlohmann::json& reported, const std::filesystem::path& expected) {
+    std::error_code ec;
+    return std::filesystem::equivalent(plynth::pathFromUtf8(reported.get<std::string>()), expected, ec);
+}
 
 // Checks a doctor result against schema/setup-report.schema.json.
 void validateReport(const nlohmann::json& result) {
@@ -87,7 +95,7 @@ TEST_CASE("doctor with the fake Blender, folders set and add-ons skipped is read
     CHECK(result.at("ready") == true);
     CHECK(result.at("probed") == false);
     CHECK(item(result, "blender").at("state") == "found");
-    CHECK(item(result, "blender").at("path") == utf8(fake));
+    CHECK(samePath(item(result, "blender").at("path"), fake));
     CHECK(item(result, "blender_version").at("state") == "found");
     CHECK(item(result, "library_folder").at("state") == "found");
     CHECK(item(result, "projects_folder").at("state") == "found");
@@ -127,7 +135,7 @@ TEST_CASE("doctor --blender beats PLYNTH_BLENDER and starts only the named Blend
     REQUIRE(outcome.exitCode == kExitOk);
     const auto& result = outcome.answer.at("result");
     validateReport(result);
-    CHECK(item(result, "blender").at("path") == utf8(named));
+    CHECK(samePath(item(result, "blender").at("path"), named));
     CHECK(std::filesystem::exists(temp.path() / "named" / "fake_args.log"));
     CHECK_FALSE(std::filesystem::exists(temp.path() / "other" / "fake_args.log"));
     CHECK(result.at("blender_installs").size() == 1);
@@ -181,7 +189,7 @@ TEST_CASE("settings set --blender refuses a Blender that is too old and leaves t
 
     const auto accepted = runChecked({"settings", "set", "--blender", utf8(good)});
     REQUIRE(accepted.exitCode == kExitOk);
-    CHECK(accepted.answer.at("result").at("settings").at("blender") == utf8(good));
+    CHECK(samePath(accepted.answer.at("result").at("settings").at("blender"), good));
 }
 
 TEST_CASE("doctor on this machine finds the real Blender", "[cli][doctor][.blender]") {

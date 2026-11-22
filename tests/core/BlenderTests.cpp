@@ -180,7 +180,7 @@ TEST_CASE("chooseBlender", "[core][blender]") {
         s.blender = old;
         const BlenderChoice c = chooseBlender(std::nullopt, s);
         plynth::test::requireOk(c.status);
-        REQUIRE(c.install.executable == fs::weakly_canonical(good));
+        REQUIRE(fs::equivalent(c.install.executable, good));
     }
     SECTION("the settings are used when nothing else is given") {
         MachineSettings s;
@@ -233,7 +233,7 @@ TEST_CASE("a named Blender is the only one started", "[core][blender][choice]") 
         plynth::test::ScopedEnv env("PLYNTH_BLENDER", pathToUtf8(old));
         const BlenderChoice c = chooseBlender(good, settings);
         plynth::test::requireOk(c.status);
-        REQUIRE(c.install.executable == fs::weakly_canonical(good));
+        REQUIRE(fs::equivalent(c.install.executable, good));
         REQUIRE_FALSE(wasStarted(old));
     }
     SECTION("the variable beats the settings") {
