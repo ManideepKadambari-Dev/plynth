@@ -13,7 +13,8 @@ from plynth.quality import collision
 from schema_check import load_schema, validate
 
 SURFACES = {"SM_f1_r1_Floor", "SM_f1_r1_Ceiling", "SM_f1_Thresholds"}
-STEPS = ["open_blend", "prepare", "name_objects", "textures", "checks", "write_fbx", "file_checks"]
+STEPS = ["open_blend", "prepare", "name_objects", "kit_pieces", "textures", "checks", "write_fbx", "write_kit",
+         "file_checks"]
 
 
 # Reads an FBX file into an empty scene and returns the sorted names of its mesh objects and the objects.

@@ -13,7 +13,8 @@ from export_helpers import ExportTest, fixture_project
 from plynth import quality, registry, scene
 from schema_check import load_schema, validate
 
-STEPS = ["open_blend", "prepare", "name_objects", "textures", "checks", "write_fbx", "file_checks"]
+STEPS = ["open_blend", "prepare", "name_objects", "kit_pieces", "textures", "checks", "write_fbx", "write_kit",
+         "file_checks"]
 
 
 # Returns the SHA 256 of a file.
@@ -321,7 +322,7 @@ class ExportTests(ExportTest):
         lines = [json.loads(line[len("PLYNTH:"):])["progress"] for line in self.printed.splitlines()
                  if line.startswith("PLYNTH:")]
         self.assertEqual([p["step"] for p in lines], STEPS)
-        self.assertEqual([p["index"] for p in lines], list(range(1, 8)))
+        self.assertEqual([p["index"] for p in lines], list(range(1, len(STEPS) + 1)))
 
     # Groups that take only some kinds split the objects, and a collision mesh follows its object.
     def test_groups(self):

@@ -143,7 +143,7 @@ class FromCoreExportTests(helpers.TempFolderTest):
         self.assertEqual(validate(result, load_schema("blender-result")), [])
         output = result["output"]
         statuses = {c["id"]: c["status"] for c in output["checks"]}
-        self.assertEqual(len(output["checks"]), 12)
+        self.assertEqual(len(output["checks"]), 13)
         self.assertEqual([i for i, s in statuses.items() if s == "fail"], [])
         self.assertEqual([i for i, s in statuses.items() if s == "warning"], ["uvs"])
         self.assertEqual(statuses["fbx_scale"], "pass")
