@@ -50,6 +50,8 @@ add_library(plynth_core STATIC
     src/Exporter.cpp
     src/ExportJob.cpp
     src/Export.cpp
+    src/ExportGroups.cpp
+    src/Kit.cpp
     src/openings/OpeningShapes.cpp
     src/openings/ShapeFiles.cpp
     src/commands/FloorCommands.cpp

@@ -56,6 +56,9 @@ add_executable(plynth_core_tests
     core/MaterialSlotsTests.cpp
     core/ExportTests.cpp
     core/ExportJobTests.cpp
+    core/ExportGroupsTests.cpp
+    core/ExportOptionsTests.cpp
+    core/KitTests.cpp
     core/BuildAssetMapsTests.cpp
     core/SnappingTests.cpp
     core/RoomTypesTests.cpp
