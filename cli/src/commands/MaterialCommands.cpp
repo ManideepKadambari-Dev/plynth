@@ -5,6 +5,8 @@
 #include <plynth/core/Materials.h>
 #include <plynth/core/Plan.h>
 #include <plynth/core/commands/MaterialCommands.h>
+#include <plynth/core/commands/RoofCommands.h>
+#include <plynth/core/commands/StairCommands.h>
 
 #include <memory>
 #include <optional>
@@ -73,18 +75,46 @@ std::optional<std::string> markedMaterial(const Project& project, const Material
         case RoomSurface::Ceiling:
             return room->ceilingMaterial;
         }
+        break;
+    }
+    case MaterialTarget::Kind::Stair: {
+        for (const Floor& floor : project.plan.floors) {
+            if (const Stair* stair = findStair(floor, target.object)) {
+                return stair->material;
+            }
+        }
+        return std::nullopt;
+    }
+    case MaterialTarget::Kind::Roof: {
+        const RoofSection* entry = findRoofSection(project.plan, target.object);
+        return entry ? entry->material : std::nullopt;
     }
     }
     return std::nullopt;
 }
 
 // The command that sets a target.
-std::unique_ptr<Command> makeSetCommand(const MaterialTarget& target, std::optional<std::string> material) {
+std::unique_ptr<Command> makeSetCommand(const Plan& plan, const MaterialTarget& target,
+                                        std::optional<std::string> material) {
     switch (target.kind) {
     case MaterialTarget::Kind::Default:
         return std::make_unique<SetDefaultMaterialCommand>(target.surface, std::move(material));
     case MaterialTarget::Kind::Wall:
         return std::make_unique<SetWallMaterialCommand>(target.object, target.wallFace, std::move(material));
+    case MaterialTarget::Kind::Stair:
+        for (const Floor& floor : plan.floors) {
+            if (const Stair* stair = findStair(floor, target.object)) {
+                Stair values = *stair;
+                values.material = std::move(material);
+                return std::make_unique<SetStairCommand>(target.object, std::move(values));
+            }
+        }
+        break;
+    case MaterialTarget::Kind::Roof:
+        if (const RoofSection* entry = findRoofSection(plan, target.object)) {
+            return std::make_unique<SetRoofSectionCommand>(target.object, entry->settings, std::move(material));
+        }
+        break;
     case MaterialTarget::Kind::Room:
         break;
     }
@@ -118,7 +148,7 @@ Answer materialSet(const RunContext& context, const SetOptions& options) {
         }
         const std::optional<std::string> previous = markedMaterial(document.project(), parsed.target);
         Answer failed;
-        if (!runCommand(name, document, makeSetCommand(parsed.target, material), failed)) {
+        if (!runCommand(name, document, makeSetCommand(document.plan(), parsed.target, material), failed)) {
             return failed;
         }
         Json result = Json::object();

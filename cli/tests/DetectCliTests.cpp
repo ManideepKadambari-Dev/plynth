@@ -401,3 +401,22 @@ TEST_CASE("detect --no-openings --apply adds no openings", "[cli][detect][sample
     CHECK(applied.answer.at("result").at("applied").at("openings").empty());
     CHECK(sample.run({"opening", "list"}).answer.at("result").at("openings").empty());
 }
+
+TEST_CASE("detect on a floor with an image offset lists and applies positions shifted by the offset", "[cli][detect]") {
+    REQUIRE(loaderWorks());
+    Sample sample("detect-offset");
+    setScale(sample);
+    REQUIRE(sample.run({"floor", "set", "--image-offset", "1,0"}).exitCode == kExitOk);
+
+    const auto listed = detectFixed(sample);
+    REQUIRE(listed.exitCode == kExitOk);
+    CHECK(listed.answer.at("result").at("points").at(0).at("x") == 2.0);
+    CHECK(listed.answer.at("result").at("points").at(0).at("y") == 1.0);
+
+    REQUIRE(detectFixed(sample, {"--apply"}).exitCode == kExitOk);
+    const auto points = sample.run({"point", "list"}).answer.at("result").at("points");
+    CHECK(points.at(0).at("x") == 2.0);
+    CHECK(points.at(0).at("y") == 1.0);
+    const auto again = detectFixed(sample);
+    CHECK(again.answer.at("result").at("counts").at("new_walls") == 0);
+}
