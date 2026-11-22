@@ -94,10 +94,20 @@ Skip this until the first floor builds well.
 
 See "Floors", "Stairs" and "Roofs" in the [User guide](USER_GUIDE.md).
 
+## 11. Export for Unreal
+
+1. Press Ctrl+Shift+E, or **Check** in the **Export** tab, to run the quality checks without writing anything. The tab lists each check. Blue means it passed.
+2. Press Ctrl+E, or **Export**. Plynth checks the last build again and then writes the project's `export` folder: `<Name>.fbx`, a `Textures` folder and `export_report.json`.
+3. Press **Open folder** in the tab to see it. The textures are found by relative paths, so you can copy the whole folder somewhere else.
+
+If a check fails, the tab says "Export blocked" and names it. Click a finding to see it on the plan. Fix it, build again and export. **Export anyway...** writes the files past a failed check, after asking. The export never builds, so build again after you change the plan. In Unreal, import the FBX with Combine Meshes off and keep `Textures` beside it.
+
+See "Exporting for Unreal", "The quality gate", "Collision" and "Importing into Unreal" in the [User guide](USER_GUIDE.md).
+
 ## Where to go next
 
 - [User guide](USER_GUIDE.md): every screen and feature.
 - [Keyboard shortcuts](SHORTCUTS.md): the full list of keys and mouse actions.
-- [Command line guide](CLI_GUIDE.md): do all of this from a terminal or a script. For example, `plynth place sofa --room living` places the sofa from step 7, and `plynth materials import samples\materials\*` does step 8, and `plynth build` does step 9. Step 10 is `plynth floor add`, `plynth stair add` and `plynth roof set`.
+- [Command line guide](CLI_GUIDE.md): do all of this from a terminal or a script. For example, `plynth place sofa --room living` places the sofa from step 7, and `plynth materials import samples\materials\*` does step 8, `plynth build` does step 9, `plynth floor add`, `plynth stair add` and `plynth roof set` do step 10, and `plynth export` does step 11.
 - [Setting up Plynth](SETUP.md): what each item of the setup check means.
 - [Writing generators](GENERATORS.md): add your own opening shapes, importers and material importers.

@@ -99,7 +99,7 @@ public:
         }
         const bool selected = option.state & QStyle::State_Selected;
         p->setBrush(Qt::NoBrush);
-        p->setPen(QPen(selected ? t.signalBlue() : t.line(), selected ? 2 : 1));
+        p->setPen(QPen(selected ? t.signalAmber() : t.line(), selected ? 2 : 1));
         p->drawRoundedRect(QRectF(image).adjusted(0.5, 0.5, -0.5, -0.5), t.radius(), t.radius());
 
         const QRect nameRect(cell.left() + t.unit() / 2, image.bottom() + t.unit() * 2, cell.width() - t.unit(),
@@ -622,15 +622,24 @@ void MaterialsPanel::fillGroupFilter()
     updateGroupButtons();
 }
 
-// Turns Rename and Remove on only while a real group is chosen in the filter.
+// Turns Rename and Remove on only while a real group that is not built in is chosen in the filter.
 void MaterialsPanel::updateGroupButtons()
 {
     if (!group_ || !renameGroup_)
         return;
     const QString id = group_->currentData().toString();
     const bool real = !id.isEmpty() && id != kAllGroups && id != kUncategorized;
-    renameGroup_->setEnabled(real);
-    removeGroup_->setEnabled(real);
+    bool builtIn = false;
+    if (real && host_.materialCatalog())
+        for (const plynth::MaterialGroupEntry& entry : host_.materialCatalog()->groups())
+            if (fromCore(entry.id) == id)
+                builtIn = entry.builtIn;
+    renameGroup_->setEnabled(real && !builtIn);
+    removeGroup_->setEnabled(real && !builtIn);
+    const QString why = tr("Built-in groups cannot be renamed or removed.");
+    renameGroup_->setToolTip(builtIn ? why : tr("Change the name of the group shown in the filter above"));
+    removeGroup_->setToolTip(builtIn ? why
+                                     : tr("Delete the group shown in the filter above. The materials stay but lose the group"));
 }
 
 // Asks for a name and adds a group with an id made from it.

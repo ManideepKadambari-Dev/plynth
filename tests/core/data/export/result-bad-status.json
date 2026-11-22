@@ -1,0 +1,84 @@
+{
+  "format": "plynth-blender-result",
+  "version": 1,
+  "task": "export",
+  "job_id": "export-00000001",
+  "ok": true,
+  "error": null,
+  "blender_version": "5.2.0",
+  "warnings": [],
+  "elapsed_ms": 5200,
+  "output": {
+    "written": true,
+    "files": [
+      {
+        "group": "building",
+        "file": "Flat.fbx",
+        "objects": 40,
+        "triangles": 18200
+      }
+    ],
+    "textures": [
+      "T_OakPlanks_BaseColor.jpg",
+      "T_PaintA_Normal.png"
+    ],
+    "objects": 40,
+    "triangles": 18200,
+    "collision_objects": 31,
+    "checks": [
+      {
+        "id": "build_current",
+        "name": "Build is up to date",
+        "phase": "scene",
+        "status": "pass",
+        "message": "The build matches the plan.",
+        "findings": []
+      },
+      {
+        "id": "naming",
+        "name": "Naming",
+        "phase": "scene",
+        "status": "maybe",
+        "message": "2 names break the rules.",
+        "findings": [
+          {
+            "object": "SM_f1_Walls",
+            "plan_id": "w3",
+            "message": "The name has a space."
+          },
+          {
+            "object": null,
+            "plan_id": null,
+            "message": "A slot name repeats."
+          }
+        ]
+      },
+      {
+        "id": "triangles",
+        "name": "Triangle counts",
+        "phase": "scene",
+        "status": "warning",
+        "message": "One mesh is large.",
+        "findings": []
+      },
+      {
+        "id": "fbx_scale",
+        "name": "File scale",
+        "phase": "file",
+        "status": "skipped",
+        "message": "Nothing was written.",
+        "findings": []
+      }
+    ],
+    "steps": [
+      {
+        "step": "open_blend",
+        "ms": 410
+      },
+      {
+        "step": "write_fbx",
+        "ms": 2900
+      }
+    ]
+  }
+}

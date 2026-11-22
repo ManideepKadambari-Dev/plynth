@@ -109,6 +109,8 @@ bool Theme::load(const QString& resourcePath)
     itemLabelMinPixels_ = spacing["itemLabelMinPixels"].toInt(itemLabelMinPixels_);
     buildBarHeight_ = spacing["buildBarHeight"].toInt(buildBarHeight_);
     problemMarker_ = spacing["problemMarker"].toInt(problemMarker_);
+    qualityMark_ = spacing["qualityMark"].toInt(qualityMark_);
+    markStroke_ = spacing["markStroke"].toDouble(markStroke_);
     previewButton_ = spacing["previewButton"].toInt(previewButton_);
 
     const QJsonObject opacity = root["opacity"].toObject();

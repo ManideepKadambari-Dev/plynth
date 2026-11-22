@@ -1,0 +1,378 @@
+{
+ "format": "plynth-blender-job",
+ "version": 1,
+ "task": "build",
+ "job_id": "fixture-1",
+ "result_file": "result.json",
+ "params": {
+  "project": {
+   "name": "fixture",
+   "folder": "project"
+  },
+  "output_folder": "build",
+  "blend_file": "building.blend",
+  "fbx_file": "building.fbx",
+  "materials_file": "materials.json",
+  "textures_folder": "textures",
+  "plan": {
+   "version": 1
+  },
+  "settings": {
+   "bevel_width": 0.0,
+   "bevel_segments": 2,
+   "fill_openings": true
+  },
+  "assets": [],
+  "materials": [],
+  "floors": [
+   {
+    "id": "f1",
+    "elevation": 0.0,
+    "ceiling_height": 3.0,
+    "wall_solids": [
+     {
+      "height": 3.0,
+      "top_material": null,
+      "outline": {
+       "points": [
+        [
+         -0.1,
+         0.1
+        ],
+        [
+         -0.1,
+         -4.1
+        ],
+        [
+         4.1,
+         -4.1
+        ],
+        [
+         4.1,
+         0.1
+        ]
+       ],
+       "edges": [
+        {
+         "wall": "w4",
+         "side": "right",
+         "room": null,
+         "material": null,
+         "slot": "Exterior_Wall"
+        },
+        {
+         "wall": "w3",
+         "side": "right",
+         "room": null,
+         "material": null,
+         "slot": "Exterior_Wall"
+        },
+        {
+         "wall": "w2",
+         "side": "right",
+         "room": null,
+         "material": null,
+         "slot": "Exterior_Wall"
+        },
+        {
+         "wall": "w1",
+         "side": "right",
+         "room": null,
+         "material": null,
+         "slot": "Exterior_Wall"
+        }
+       ]
+      },
+      "holes": [
+       {
+        "points": [
+         [
+          0.1,
+          -0.1
+         ],
+         [
+          3.9,
+          -0.1
+         ],
+         [
+          3.9,
+          -3.9
+         ],
+         [
+          0.1,
+          -3.9
+         ]
+        ],
+        "edges": [
+         {
+          "wall": "w1",
+          "side": "left",
+          "room": "r1",
+          "material": null,
+          "slot": "Living_Wall"
+         },
+         {
+          "wall": "w2",
+          "side": "left",
+          "room": "r1",
+          "material": null,
+          "slot": "Living_Wall"
+         },
+         {
+          "wall": "w3",
+          "side": "left",
+          "room": "r1",
+          "material": null,
+          "slot": "Living_Wall"
+         },
+         {
+          "wall": "w4",
+          "side": "left",
+          "room": "r1",
+          "material": null,
+          "slot": "Living_Wall"
+         }
+        ]
+       }
+      ],
+      "top_slot": "Wall_Top"
+     }
+    ],
+    "openings": [],
+    "rooms": [
+     {
+      "id": "r1",
+      "type": "living",
+      "area": 14.44,
+      "floor_z": 0.0,
+      "ceiling_z": 3.0,
+      "polygons": [
+       {
+        "outline": [
+         [
+          0.1,
+          -0.1
+         ],
+         [
+          0.1,
+          -3.9
+         ],
+         [
+          3.9,
+          -3.9
+         ],
+         [
+          3.9,
+          -0.1
+         ]
+        ],
+        "holes": []
+       }
+      ],
+      "floor_material": null,
+      "ceiling_material": null,
+      "floor_slot": "Living_Floor",
+      "ceiling_slot": "Living_Ceiling",
+      "ceiling_polygons": [
+       {
+        "outline": [
+         [
+          0.1,
+          -0.1
+         ],
+         [
+          0.1,
+          -3.9
+         ],
+         [
+          3.9,
+          -3.9
+         ],
+         [
+          3.9,
+          -0.1
+         ]
+        ],
+        "holes": []
+       }
+      ]
+     }
+    ],
+    "items": [],
+    "collision": [
+     {
+      "target": {
+       "kind": "walls",
+       "id": "f1"
+      },
+      "pieces": [
+       {
+        "outline": [
+         [
+          -0.1,
+          -4.1
+         ],
+         [
+          0.1,
+          -4.1
+         ],
+         [
+          0.1,
+          0.1
+         ],
+         [
+          -0.1,
+          0.1
+         ]
+        ],
+        "bottom": 0.0,
+        "top": 3.0
+       },
+       {
+        "outline": [
+         [
+          0.1,
+          -4.1
+         ],
+         [
+          4.1,
+          -4.1
+         ],
+         [
+          4.1,
+          -3.9
+         ],
+         [
+          0.1,
+          -3.9
+         ]
+        ],
+        "bottom": 0.0,
+        "top": 3.0
+       },
+       {
+        "outline": [
+         [
+          3.9,
+          -3.9
+         ],
+         [
+          4.1,
+          -3.9
+         ],
+         [
+          4.1,
+          0.1
+         ],
+         [
+          3.9,
+          0.1
+         ]
+        ],
+        "bottom": 0.0,
+        "top": 3.0
+       },
+       {
+        "outline": [
+         [
+          0.1,
+          -0.1
+         ],
+         [
+          3.9,
+          -0.1
+         ],
+         [
+          3.9,
+          0.1
+         ],
+         [
+          0.1,
+          0.1
+         ]
+        ],
+        "bottom": 0.0,
+        "top": 3.0
+       }
+      ]
+     },
+     {
+      "target": {
+       "kind": "floor",
+       "id": "r1"
+      },
+      "pieces": [
+       {
+        "outline": [
+         [
+          0.1,
+          -3.9
+         ],
+         [
+          3.9,
+          -3.9
+         ],
+         [
+          3.9,
+          -0.1
+         ],
+         [
+          0.1,
+          -0.1
+         ]
+        ],
+        "bottom": -0.1,
+        "top": 0.0
+       }
+      ]
+     }
+    ],
+    "slab": {
+     "bottom": 0.0,
+     "top": 0.0,
+     "polygons": [],
+     "undersides": [],
+     "sides": [],
+     "tops": [],
+     "materials": {
+      "edge": null,
+      "well": null,
+      "underside": null
+     }
+    },
+    "stairs": [],
+    "roofs": []
+   }
+  ],
+  "preview_textures_folder": "preview_textures",
+  "preview_texture_size": 1024,
+  "slots": [
+   {
+    "name": "Exterior_Wall",
+    "material": null,
+    "surface": "Wall_Outside"
+   },
+   {
+    "name": "Living_Ceiling",
+    "material": null,
+    "surface": "Ceiling"
+   },
+   {
+    "name": "Living_Floor",
+    "material": null,
+    "surface": "Floor"
+   },
+   {
+    "name": "Living_Wall",
+    "material": null,
+    "surface": "Wall_Inside"
+   },
+   {
+    "name": "Wall_Top",
+    "material": null,
+    "surface": "Wall_Top"
+   }
+  ],
+  "preview_folder": null
+ }
+}

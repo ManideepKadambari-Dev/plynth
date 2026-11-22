@@ -23,6 +23,7 @@ add_library(plynth_cli STATIC
     src/commands/PointCommands.cpp
     src/commands/DetectCommands.cpp
     src/commands/DoctorCommands.cpp
+    src/commands/ExportCommands.cpp
     src/commands/HelpCommand.cpp
     src/commands/ImportCommands.cpp
     src/commands/ItemCommands.cpp

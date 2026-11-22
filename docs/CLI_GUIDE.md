@@ -81,7 +81,7 @@ The app itself, when you give it `--screenshot`, uses its own codes. 0 means the
 | `invalid_value` | A number or name is out of range, for example a scale of 0. Also used when an opening does not fit its wall, a wall is bent too far, or a height would leave an opening sticking out. The message says what is wrong. |
 | `not_found` | A floor, point, wall, room, opening or file does not exist, or there is no closed area at the position given to `room add`, or there is no wall at the position given to `opening add`. |
 | `already_exists` | The thing to create is already there, for example `project new` in a folder that holds a project, a wall between two points that already have one, or a room where one already is. |
-| `in_use` | Removing something would leave another item pointing at nothing, for example a wall that a room uses. Add `--cascade` to remove what depends on it as well (see `point remove`). Also used by `build` when another build of the same project is already running. |
+| `in_use` | Removing something would leave another item pointing at nothing, for example a wall that a room uses. Add `--cascade` to remove what depends on it as well (see `point remove`). Also used by `build` when another build of the same project is already running, and by `export` when a build or an export is running. |
 | `not_a_project` | The folder has no `project.json`. |
 | `cannot_read` | A file or folder could not be opened. |
 | `cannot_write` | A file or folder could not be written. |
@@ -93,6 +93,7 @@ The app itself, when you give it `--screenshot`, uses its own codes. 0 means the
 | `no_library` | No library folder is set, or the folder given is not a library. The message names `plynth library init`. |
 | `blender_not_found` | No usable Blender: none is installed, the one asked for is missing, or it is older than 4.2. Install Blender from blender.org yourself and run `plynth doctor`. |
 | `blender_failed` | Blender ran but the job failed, crashed or gave no result. The message says why, with the end of Blender's log when there is one. |
+| `quality_failed` | `export` found a failed quality check and `--force` was not given. Exit 1. The report is still written. |
 | `cancelled` | The job was stopped before it finished. Nothing is kept. |
 | `database_error` | The catalog database could not be opened or written. `assets rescan` rebuilds it from the folders. |
 | `internal_error` | Something unexpected went wrong inside Plynth. Exit 1. The message says what. |
@@ -1573,7 +1574,7 @@ The `build` word is a command, so a project folder named `build` has to be given
 {"progress":{"stage":"done","step":"","index":0,"count":0,"message":"Done"}}
 ```
 
-The stages are `preparing`, `blender` (one line per step, `index` counting from 1 up to `count`), `finishing` and `done`. The steps are the registered build steps, in order: `prepare_scene`, `walls`, `openings`, `bevel`, `triangulate`, `opening_fills`, `floors`, `slabs`, `stairs`, `roofs`, `assets`, `materials`, `save_blend`, `export_fbx`, `preview_parts`. Adding a step adds a line.
+The stages are `preparing`, `blender` (one line per step, `index` counting from 1 up to `count`), `finishing` and `done`. The steps are the registered build steps, in order: `prepare_scene`, `walls`, `openings`, `bevel`, `triangulate`, `opening_fills`, `floors`, `slabs`, `stairs`, `roofs`, `assets`, `materials`, `collision`, `save_blend`, `export_fbx`, `preview_parts`. Adding a step adds a line.
 
 **The answer.** An example, shortened. The real lists hold every step and every problem.
 
@@ -1583,7 +1584,7 @@ The stages are `preparing`, `blender` (one line per step, `index` counting from 
 
 - The `result` is the build report, the same text that is saved as `build\build.json` (`schema/build-report.schema.json`). Paths are absolute with forward slashes.
 - The `ok` inside the report means the build ran and finished. It does not mean there were no problems. Problems with severity `error` can still be listed next to `"ok":true`, so a script that needs a clean building must also test `error_count`.
-- `counts` says how many wall solids, openings, doors and windows, rooms, items, slabs, stairs, roofs and materials were made. `slabs` is the number of floors that got a slab, `stairs` the number of stairs and `roofs` the number of roof sections. A report from before floors, stairs and roofs still reads, with those three at 0. `materials` is how many catalog materials were built into the file (neutral looks are not counted). `outputs.materials_file` is the path of `materials.json`, and it is `null` when no FBX was written. A report from before materials still reads, with `materials` 0.
+- `counts` says how many wall solids, openings, doors and windows, rooms, items, slabs, stairs, roofs and materials were made. `slabs` is the number of floors that got a slab, `stairs` the number of stairs and `roofs` the number of roof sections. A report from before floors, stairs and roofs still reads, with those three at 0. `materials` is how many catalog materials were built into the file (neutral looks are not counted). `outputs.materials_file` is the path of `materials.json`, and it is `null` when no FBX was written. A report from before materials still reads, with `materials` 0. `collision` is the number of collision meshes (`UCX_...`) made, and a report from before collision reads with `collision` 0. The collision meshes are in `building.blend` and in the export, not in `building.fbx`.
 
 `openings_cut` and `fills` count what was built, so an opening that did not fit is not in them. `objects` and `triangles` are what went into the FBX.
 - `steps` lists the time of each step in milliseconds. `check` is the work core does before Blender starts.
@@ -1654,6 +1655,57 @@ Blender writes the two model files under a temporary name and renames them at th
 Two builds of one project at the same time are not allowed: the second gets `in_use`. A build that was killed leaves a `build.lock` behind. The next build takes it over when the process in it has ended or the lock is older than 30 minutes.
 
 `plynth build` has no stop signal of its own. Ctrl+C ends the process at once, and the lock file is left for the next build to take over by the process check or the timeout. The app's Cancel button, which does stop a build cleanly, is the way to stop one from the window.
+
+### export
+
+Exports the last build for Unreal: runs the quality checks, then writes `export\<Name>.fbx`, `export\Textures\` and `export\export_report.json`. The app's Export tab does the same thing, so both give the same result. `export` never builds. It uses `build\building.blend` as it is, hand edits included, and it never changes the plan, the project settings or `building.blend`. It runs while the app has the project open, with no edit session.
+
+```
+plynth export
+plynth export --check
+plynth export --force
+plynth export --project D:\Plans\MyApartment --quiet
+plynth export report
+```
+
+| Option | Meaning |
+|---|---|
+| `--project <folder>` | The project. Default: the current folder. |
+| `--blender <exe>` | Use this Blender instead of the one the setup check chooses. |
+| `--check` | Run the quality checks and write no FBX and no textures. The report is still written. |
+| `--force` | Write the files even when a check failed. The report records it. |
+| `--quiet` | Write no progress lines to standard error. |
+
+`<Name>` is the project name with spaces and odd characters turned into `_`, for example `My_Flat_2`. The FBX holds only relative texture paths, so the `export` folder can be moved. `Textures` holds only the textures the FBX uses, named `T_<Material>_<Channel>`. Materials are named by slot, for example `Living_Floor` and `Exterior_Wall`. Collision shapes are meshes named `UCX_...`. See "Exporting for Unreal", "Collision" and "Material slot names" in the [User guide](USER_GUIDE.md).
+
+**Progress** is written to standard error as for `build`, with the stages `preparing`, `blender`, `finishing` and `done`. The Blender steps are `open_blend`, `prepare`, `name_objects`, `textures`, `checks`, `write_fbx` and `file_checks`.
+
+**The answer** is the export report, the same text that is saved as `export\export_report.json` (`schema/export-report.schema.json`). An example, shortened:
+
+```json
+{"ok":true,"command":"export","result":{"format":"plynth-export-report","version":1,"ok":true,"error":null,"exported":true,"checked_only":false,"forced":false,"overridden":[],"job_id":"export-3f9a07c1","elapsed_ms":9100,"exporter":"single","objects":58,"triangles":21400,"collision_objects":31,"outputs":{"files":[{"group":"building","file":"MyApartment.fbx","objects":58,"triangles":21400}],"textures_folder":"D:/Plans/MyApartment/export/Textures","texture_count":14,"report_file":"D:/Plans/MyApartment/export/export_report.json","log_file":"D:/Plans/MyApartment/build/export_work/blender.log"},"quality":{"passed":true,"fail_count":0,"warning_count":0,"checks":[{"id":"naming","name":"Naming","phase":"scene","status":"pass","message":"All names are valid.","findings":[]}]}},"warnings":[]}
+```
+
+- `exported` is true when the files were written. `checked_only` is true for `--check`. `forced` is true when `--force` was used, and `overridden` lists the ids of the failed checks it went past.
+- `quality.checks` has one entry for each check, in the order they ran. `status` is `pass`, `warning`, `fail` or `skipped`. `findings` holds at most 50 entries, and each one may name a plan id in `plan_id`.
+- The eleven checks are `build_current`, `build_complete`, `scale`, `transforms`, `naming`, `uvs`, `texel_density`, `triangles`, `materials`, `collision` and `fbx_scale`. They are explained in "The quality gate" in the [User guide](USER_GUIDE.md).
+- With `--check`, a failed check does not make the command fail. The answer is ok, and the top level `warnings` list has one entry with the code `quality_failed` for each failed check, for example "The check 'naming' failed." A script can read it to know what to fix.
+- A blocked export replaces nothing. The files of the last good export stay, and the report says `exported` is false.
+
+| Code | When |
+|---|---|
+| `not_a_project` | The folder has no `project.json`. |
+| `not_found` | There is no `build\building.blend`. The message is "Build the project first." |
+| `invalid_value` | The project's export mode is grouped. The message is "Grouped export is not available yet." This stays until grouped export is added. |
+| `in_use` | A build or another export of the project is running. |
+| `blender_not_found` | No usable Blender. |
+| `blender_failed` | The worker failed. The message names the log file. |
+| `quality_failed` | A check failed and `--force` was not given. Exit 1. The message names the failed checks, for example "The quality gate failed: naming, collision. See D:/Plans/MyApartment/export/export_report.json, or export with --force." The report is written. |
+| `cancelled` | The export was stopped. Nothing is kept. |
+
+#### export report
+
+Answers with the last report of the project, read from `export\export_report.json`, in the same shape. It is `not_found` when the project has never been exported or checked. It takes only `--project`.
 
 ### session begin
 
@@ -1804,6 +1856,23 @@ Option: `--use` also saves the folder as the library in the settings.
 ```json
 {"ok":true,"command":"library init","result":{"root":"D:/Demo/Library","free_bytes":440542654464,"assets":{"db":"D:/Demo/Library/assets/assets.db","items":0,"uncategorized":0,"inbox_waiting":0},"materials":{"db":"D:/Demo/Library/materials/materials.db","items":0},"shapes":[]}}
 ```
+
+### library add-sample-shapes
+
+Copies the sample opening shapes, such as `keyhole.shape.json`, into the library's `shapes` folder. `library init` already does this for a new library, so this command is for a library made before. A file that is already there is never replaced.
+
+```
+plynth library add-sample-shapes
+plynth library add-sample-shapes --from D:\MyShapes
+```
+
+Options: `--library <folder>`, and `--from <folder>` for another folder of `.shape.json` files. The default is the `samples\shapes` folder next to the program.
+
+```json
+{"ok":true,"command":"library add-sample-shapes","result":{"folder":"D:/Demo/Library/shapes","copied":["keyhole.shape.json"],"skipped":[]}}
+```
+
+`copied` lists the files added and `skipped` the ones already there. A `--from` folder that does not exist is `not_found`. A shape added this way is listed by `opening shapes` the next time a command runs.
 
 ### library info
 
@@ -2309,7 +2378,7 @@ plynth materials group set stone --name "Natural stone"
 plynth materials group remove stone
 ```
 
-`group add <id> <name>` makes a group. `group set <id> --name <text>` renames it, and the id stays. `group remove <id>` removes it from the list and from every material that has it. The first two answer with the group entry, as in `materials groups`. The last answers:
+`group add <id> <name>` makes a group. `group set <id> --name <text>` renames it, and the id stays. `group remove <id>` removes it from the list and from every material that has it. The eight built-in groups (`floor`, `wall`, `ceiling`, `exterior`, `trim`, `door`, `glass` and `metal`) cannot be renamed or removed. Both commands answer `invalid_value` and change nothing. The first two answer with the group entry, as in `materials groups`. The last answers:
 
 ```json
 {"ok":true,"command":"materials group remove","result":{"removed":"stone","materials_changed":["red_brick"]}}

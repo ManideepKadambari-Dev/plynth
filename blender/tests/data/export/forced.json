@@ -1,0 +1,52 @@
+{
+ "format": "plynth-blender-job",
+ "version": 1,
+ "task": "export",
+ "job_id": "export-1",
+ "result_file": "result.json",
+ "params": {
+  "project": {
+   "name": "Square",
+   "folder": "project"
+  },
+  "blend_file": "project/build/building.blend",
+  "output_folder": "project/export/.staging",
+  "textures_folder": "Textures",
+  "groups": [
+   {
+    "id": "building",
+    "file": "Square.fbx",
+    "kinds": [],
+    "ids": []
+   }
+  ],
+  "materials": [],
+  "expected_bounds": {
+   "min": [
+    -0.1,
+    -4.1,
+    0.0
+   ],
+   "max": [
+    4.1,
+    0.1,
+    3.0
+   ]
+  },
+  "build": {
+   "report_found": true,
+   "plan_changed": false,
+   "problems": []
+  },
+  "limits": {
+   "object_triangles": 1000000,
+   "total_triangles": 10000000,
+   "low_texel_density": 256,
+   "texel_warning_ratio": 0.5,
+   "texel_fail_ratio": 0.25,
+   "bounds_tolerance": 0.001
+  },
+  "force": true,
+  "write": true
+ }
+}

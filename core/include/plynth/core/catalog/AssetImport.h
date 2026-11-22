@@ -86,8 +86,12 @@ ImportOutcome importInboxEntry(AssetCatalog& catalog, const ImportContext& conte
 
 // Measures an asset again, renders its thumbnail and writes asset.fbx (the render_thumbnail job with measure
 // true and fbx_file set), then updates info.json and the index: used for the retry button and for assets
-// that rescan lists in needsRefresh. asset.blend is never changed. A failed asset.fbx is a warning only. NotFound for an unknown asset. When only the render fails the
-// status is BlenderFailed and the asset is left Failed with the reason.
+// that rescan lists in needsRefresh. asset.blend is not changed by that job. An asset without material maps
+// (hasMaterialMaps false, every asset cleaned before milestone 10) is instead cleaned again: the cleanup_asset
+// job with its own asset.blend as the source (format blend, scale 1, no turn) into a staging folder, whose
+// asset.blend, asset.fbx, textures/ and thumb.png then replace the item's; name, categories, tags, license and
+// source stay. A failed asset.fbx is a warning only. NotFound for an unknown asset. When only the render fails
+// the status is BlenderFailed and the asset is left Failed with the reason.
 ImportOutcome refreshAsset(AssetCatalog& catalog, const ImportContext& context, std::string_view assetId,
                            const std::function<void(const ImportProgress&)>& onProgress = {},
                            std::stop_token stop = {});

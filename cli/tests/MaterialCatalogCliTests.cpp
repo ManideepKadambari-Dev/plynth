@@ -167,13 +167,20 @@ TEST_CASE("materials groups can be added, renamed and removed", "[cli][materials
     CHECK(renamed.answer.at("result").at("name") == "Cloth");
     CHECK(errorCode(runChecked({"materials", "group", "set", "fabric"})) == "bad_arguments");
 
-    const auto removed = runChecked({"materials", "group", "remove", "floor"});
+    const auto before = runChecked({"materials", "groups"}).answer.at("result");
+    const auto renameBuiltIn = runChecked({"materials", "group", "set", "floor", "--name", "X"});
+    CHECK(errorCode(renameBuiltIn) == "invalid_value");
+    CHECK(renameBuiltIn.answer.at("error").at("message") == "The built-in group Floor cannot be renamed.");
+    const auto removeBuiltIn = runChecked({"materials", "group", "remove", "floor"});
+    CHECK(errorCode(removeBuiltIn) == "invalid_value");
+    CHECK(removeBuiltIn.answer.at("error").at("message") == "The built-in group Floor cannot be removed.");
+    CHECK(runChecked({"materials", "groups"}).answer.at("result") == before);
+    CHECK(readFile(library.item("oak_planks") / "info.json").find("\"floor\"") != std::string::npos);
+
+    const auto removed = runChecked({"materials", "group", "remove", "fabric"});
     REQUIRE(removed.exitCode == kExitOk);
-    CHECK(removed.answer.at("result").at("removed") == "floor");
-    CHECK(ids(removed.answer.at("result").at("materials_changed")) ==
-          std::vector<std::string>{"grey_tile", "oak_planks"});
-    CHECK(readFile(library.item("oak_planks") / "info.json").find("\"floor\"") == std::string::npos);
-    CHECK(errorCode(runChecked({"materials", "group", "remove", "floor"})) == "not_found");
+    CHECK(removed.answer.at("result").at("removed") == "fabric");
+    CHECK(errorCode(runChecked({"materials", "group", "remove", "fabric"})) == "not_found");
 }
 
 TEST_CASE("materials licenses lists the built in licenses", "[cli][materials]") {

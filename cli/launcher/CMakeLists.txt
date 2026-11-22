@@ -24,5 +24,5 @@ if(PLYNTH_BUILD_TESTS)
     target_compile_definitions(plynth_launcher_tests PRIVATE
         PLYNTH_LAUNCHER_FILE="$<TARGET_FILE:plynth_launcher>"
         PLYNTH_FAKE_CHILD="$<TARGET_FILE:plynth_fake_child>")
-    catch_discover_tests(plynth_launcher_tests)
+    catch_discover_tests(plynth_launcher_tests DISCOVERY_MODE PRE_TEST)
 endif()

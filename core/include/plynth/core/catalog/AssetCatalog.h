@@ -199,8 +199,9 @@ public:
     // are skipped; a folder with asset.blend but no info.json gets a new info.json (uncategorized, measured
     // later, so it is listed in needsRefresh); a folder whose asset.blend size or write time differs from
     // info.json is NeedsRefresh; a folder with asset.blend but no asset.fbx is listed in needsRefresh and keeps
-    // its state, so refreshAsset writes the preview file; rows without a folder are removed. Runs no Blender
-    // and never deletes files.
+    // its state, so refreshAsset writes the preview file; a folder whose info.json has no material maps
+    // (hasMaterialMaps false) is listed in needsRefresh the same way, so every asset gets its maps once; rows
+    // without a folder are removed. Runs no Blender and never deletes files.
     RescanReport rescan();
 
     // Opens the catalog and hands its room types to useRoomTypes. Used by the app when the library opens and

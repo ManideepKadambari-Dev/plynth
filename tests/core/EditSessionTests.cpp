@@ -114,6 +114,7 @@ TEST_CASE("state names are stable", "[core][session]") {
     REQUIRE(errorCodeName(ErrorCode::BlenderFailed) == "blender_failed");
     REQUIRE(errorCodeName(ErrorCode::Cancelled) == "cancelled");
     REQUIRE(errorCodeName(ErrorCode::DatabaseError) == "database_error");
+    REQUIRE(errorCodeName(ErrorCode::QualityFailed) == "quality_failed");
 }
 
 TEST_CASE("readSession gives none when there is no lock", "[core][session]") {

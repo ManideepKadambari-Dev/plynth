@@ -612,7 +612,10 @@ When a build finishes, the 3D view opens by itself and the bar says "Built at 10
 - **Roofs** on every part of a floor with nothing above it, each section by its type.
 - **Upper floors** stacked on their slabs. A floor starts at the level below plus that floor's ceiling height plus its slab.
 
-The 3D view shows the materials, metal and see-through glass included. See "Materials in the 3D view". Furniture keeps the look its own model has, and its metal and see-through parts do not show in the 3D view yet.
+The 3D view shows the materials, metal and see-through glass included, on furniture too. See "Materials in the 3D view" and "Furniture materials".
+
+- **Collision.** Closed convex shapes for walls, floors, ceilings and furniture, named `UCX_...`. See "Collision". They are in `building.blend` and in the export.
+- **Slot names.** Materials are named for the surface, such as `Living_Floor`. See "Material slot names".
 
 ### Where the files go
 
@@ -623,6 +626,9 @@ Everything is written into the project's `build` folder:
 - `preview`, a folder with one file for each floor and one for each floor's roofs, and `parts.json` that lists them. The 3D view loads these so it can hide roofs and floors. They are written after `building.fbx`. If they cannot be written, the 3D view loads `building.fbx` instead.
 - `materials.json`, written next to the FBX. It tells the 3D view which image maps each material uses.
 - `textures`, the plain neutral images for surfaces that have no material.
+- `preview_textures`, copies of textures larger than 1024 pixels, scaled down for the 3D view.
+- `built-plan.json`, the plan of the last successful build. "Build is up to date" is judged against it.
+- `export_work`, the files of the last export job.
 - `build.json`, the report of the last build, which fills the Build tab when you open the project again.
 - `job.json`, `result.json` and `blender.log`, for finding out what went wrong.
 
@@ -691,7 +697,7 @@ Problems do not stop a build. Fix what you care about and press Build again.
 
 **View > 3D overlay on plan** (Alt+3) draws the top view of the built building over the plan image, so you can check that the walls sit on the walls of the drawing. It needs a build and a scale. It is drawn a little see-through, over the plan image and under the marks and handles, and it pans and zooms with the plan. It is redrawn after each build.
 
-The plan view draws wall ends square, while the built building cuts a corner of two walls on the diagonal. At an outer corner of two walls of different thickness the overlay can therefore differ from the plan's outline by up to half a wall thickness. The walls themselves are in the right place.
+The plan view draws the same mitred corners as the build, so the overlay lines up with the plan's walls at corners and at T junctions.
 
 ## The live asset preview
 
@@ -842,7 +848,7 @@ Open it with **Catalog > Materials catalog** (Ctrl+Shift+M), or click the **Mate
 ### Finding materials
 
 - **Search materials.** Type part of a name, tag or group. The grid filters as you type. Several words must all match.
-- **Group.** "All groups", "Uncategorized", or one group. The built-in groups are floor, wall, ceiling, exterior, trim, door, glass and metal. **Add group**, **Rename** and **Remove** change the list. Removing a group takes it off every material that has it. The materials stay.
+- **Group.** "All groups", "Uncategorized", or one group. The built-in groups are floor, wall, ceiling, exterior, trim, door, glass and metal. **Add group**, **Rename** and **Remove** change the list. The eight built-in groups cannot be renamed or removed (the tooltip says "Built-in groups cannot be renamed or removed."). Your own groups can, and a material can still be moved between groups. Removing a group takes it off every material that has it. The materials stay.
 
 A count under the controls says how many materials match. Each tile shows the thumbnail and the name.
 
@@ -1014,7 +1020,112 @@ After a build, the 3D view shows each material with its color, bumps, shine, met
 
 The FBX file does not carry metal, roughness and see-through values, so the build writes a second file, `build\materials.json`, next to it. The 3D view reads it and gives each surface its maps. Every built material has its own base color image, so the view can tell the materials apart. If `materials.json` is missing, for example after you copied only the FBX, the view shows the FBX's own plain colors.
 
-The texture paths in the file point into your library. If you move the library, build again so the paths are written again. Furniture keeps the look its model has. Its metal and see-through parts do not show in the 3D view yet.
+The texture paths in the file point into your library. If you move the library, build again so the paths are written again. Furniture materials are in the file too, so a metal or glass part of a chair shows as it will in Unreal. To keep the view fast, it loads copies of textures no larger than 1024 pixels. The export keeps the full size.
+
+## Exporting for Unreal
+
+Exporting turns the last build into one FBX file that Unreal can import, with its textures and its collision shapes. It does not build. It takes `build\building.blend` as it is, hand edits included, so build first.
+
+**To export**, open the **Export** tab in the right panel, press **Export** or Ctrl+E, or use **Build > Export**. First the quality checks run (see "The quality gate"). If none failed, the files are written. If the project has not been built, the tab says "Build the project first." and has a **Build** button.
+
+**Check export** (Ctrl+Shift+E, or the **Check** button) runs the same checks and writes no FBX and no textures. Use it to see what is wrong before you export.
+
+The export runs in the background with a progress bar and a **Cancel** button. It cannot start while a build is running, and a build cannot start while it runs.
+
+### What is in the export folder
+
+Everything goes into the project's `export` folder:
+
+- `<Name>.fbx`, named after the project. A project called "My Flat 2" gives `My_Flat_2.fbx`. Walls, floors, ceilings, doors, windows and furniture are all in it. The collision shapes go in the same file.
+- `Textures`, the images the FBX uses and no others. The names are `T_<Material>_<Channel>`, for example `T_OakPlanks_BaseColor.jpg` and `T_OakPlanks_Normal.png`. A surface with no material gets a plain image named after its slot.
+- `export_report.json`, the report of the last export. It lists the checks, the files and the time.
+
+The FBX holds only relative texture paths. You can copy or move the whole `export` folder anywhere, and the textures are still found as long as `Textures` stays beside the FBX. Textures keep their full size. Only the 3D view uses smaller copies.
+
+**Open folder** in the Export tab, or **Build > Open export folder**, shows the folder in Explorer. The folder can be deleted at any time. A new export replaces the old files. An export that is blocked by a failed check leaves the old files exactly as they were, so check the time in the tab to know which export is on disk.
+
+The Export tab shows the last export: when it ran, how long it took, the result, the number of objects, triangles and collision meshes, and the file paths. If the plan changed after the last build, the "Build is up to date" check fails. Build again, then export.
+
+Grouped projects cannot be exported yet. The tab says "Grouped export is not available yet." and the buttons are greyed. Set the project's export mode back to single to export.
+
+### Export anyway
+
+When a check fails, the tab says "Export blocked: 2 checks failed." and shows **Export anyway...**. Pressing it asks first. If you confirm, the files are written even though the checks failed. The report records that the export was forced and names the failed checks it went past, so you can see later what was ignored. Warnings never block an export.
+
+## The quality gate
+
+The checks look at the real objects that go into the FBX. The Export tab lists them in a column. Each row has the check's name, a sentence and a mark: blue for pass, an amber outline for a warning, filled amber for a fail, grey for skipped. Click a row to see what it found. Click a finding that names something on the plan, and Plynth switches to the plan and selects it.
+
+"Build is up to date" is judged against the plan of the last successful build, saved in `build\built-plan.json`. A build that failed does not change what counts as built.
+
+| Check | What it looks at | How to fix a fail |
+|---|---|---|
+| Build is up to date | The plan has not changed since the last successful build. | Press Build, then export. |
+| Build is complete | The last build left nothing out: no missing assets, no openings that were not cut, no rooms that do not close. Each finding names the item. | Fix the problems on the Build tab, then build again. |
+| Scale and units | The scene is in metres with scale 1, and the walls are the size the plan says, within 1 mm. | Do not change the scale in `building.blend`. Build again. |
+| Pivots and applied transforms | Every object sits at the building's origin with no rotation, scale or parent. | The export does this itself. A fail means a hand edit made a parent. Remove it. |
+| Naming | Every mesh is called `SM_...` or `UCX_...`, names are not repeated, and names use only letters, digits and `_`. | Rename the object in `building.blend`. |
+| UVs | Every textured mesh has UVs. A face whose UVs have no area, or furniture whose UVs overlap, is a warning. | Add UVs in Blender. Walls, floors and ceilings always have them. |
+| Texture sharpness | How many pixels of texture each metre of surface gets. A warning below half the median of the building or below 256 pixels per metre. A fail below a quarter of the median. | Use a bigger texture, or a smaller tile size, for the material the finding names. |
+| Triangle counts | A mesh with no triangles fails. A warning above 1,000,000 triangles in one mesh or 10,000,000 in all. | Remove the empty mesh, or use lighter furniture. |
+| Materials and textures | Every mesh has materials, every slot has a real material, every image file exists, and every base color is an image. An unassigned material blocks the export. | Pick a material for the surface. |
+| Collision | Every wall, floor, ceiling and furniture item has a `UCX_` mesh, and each one is closed and convex. Door leaves and window glass need none. | Build again. |
+| FBX scale | After writing, Plynth reads the FBX back and checks the walls' size and the object count. Skipped when nothing was written. | Report it. It means the file is wrong. |
+
+A ceiling set to "No material" fails the Materials check. Choose a material for it, or use **Export anyway...** if you want it plain.
+
+## Collision
+
+Unreal needs simple shapes to stop the player walking through things. Plynth makes them for you. Each is a closed convex mesh named `UCX_<mesh name>_<number>`, for example `UCX_SM_f1_Walls_00`, and Unreal uses it as the collision of the mesh with that name.
+
+- **Walls** are cut into pieces. A piece is convex, so a wall with a doorway becomes a piece left of the door, a piece right of it and a piece over it. You can walk through the doorway. A plain opening gets a piece under it. A **window** does not cut the wall: the glass area stays blocked.
+- **Floors and ceilings** get a slab 10 cm thick, under the floor and above the ceiling. Rooms that are not rectangles are split into several slabs. Columns and holes stay open.
+- **Door thresholds** get a slab too.
+- **Door leaves and window fills** get none.
+- **Furniture** gets one convex hull around each item.
+
+The collision meshes are in `building.blend` and in the export, and not in `building.fbx`, which the 3D view loads. If you import the exported FBX into Blender you will see a closed top over the building. That is the backs of the ceilings and the collision slabs. Unreal hides collision meshes and does not draw them.
+
+## Material slot names
+
+Every surface in the FBX has a material named for what the surface is, so you can give each one your own Unreal material. These are the slot names:
+
+| Surface | Slot |
+|---|---|
+| A wall face inside a room | `<RoomType>_Wall`, for example `Living_Wall` |
+| A wall face outside | `Exterior_Wall` |
+| Top and bottom of walls | `Wall_Top` |
+| A room's floor | `<RoomType>_Floor`, for example `Living_Floor` |
+| A room's ceiling | `<RoomType>_Ceiling` |
+| Door and window reveals | The slot of the wall face they follow |
+| A doorway's floor strip | The floor slot it follows |
+| Door leaf, frame, glass, handle | `Door`, `Frame`, `Glass`, `Handle` |
+
+The room type is written with a capital at each word: `guest_room` gives `GuestRoom`. A room with no type uses `Room`. Rooms of one type share slots across the whole building.
+
+If one slot would show two different materials, each gets the material added. With oak floors in one bedroom and tiles in another, you get `Bedroom_Floor_OakPlanks` and `Bedroom_Floor_GreyTile`. A surface with no material gets `_Neutral`. Furniture materials are named `<Asset>_<Material>`, for example `Sofa_Fabric`.
+
+The same names are used in `building.blend` and in `building.fbx`. Builds from earlier versions used the catalog ids as material names, such as `oak_planks`. Build again to get the slot names, and assign your Unreal materials again once.
+
+## Importing into Unreal
+
+This is advice, since Plynth does not run Unreal. Import `<Name>.fbx` with these settings in the import dialog:
+
+- Turn **Combine Meshes** off, so each `SM_` mesh stays its own static mesh and picks up the `UCX_` collision that has its name.
+- Keep the `Textures` folder beside the FBX when you import, so Unreal finds the images.
+- Turn on **Generate Lightmap UVs** if you will use baked lighting. Plynth does not make a second UV set.
+
+Repeated furniture becomes separate meshes in the FBX. Ten identical chairs are ten meshes.
+
+## Furniture materials
+
+When you import a model, Plynth gives each of its materials the same image maps a catalog material has: base color, normal, roughness, metallic and opacity. Metal and glass on furniture then show in the 3D view and in Unreal. Images the model already used are copied as they are. A material made of nodes, such as noise, is drawn into an image over one square. A material that depends on the object's own coordinates looks a little different once drawn, and the import warns "material approximated".
+
+Assets imported in earlier versions have no maps. Rescan lists them, and Plynth makes the maps once, in the background, from the asset's own model file. Hand edits you made to the asset stay.
+
+## Add the sample shapes
+
+Plynth comes with sample opening shapes, such as a keyhole, in `samples\shapes`. A new library gets copies in its `shapes` folder. For a library you made earlier, use **Catalog > Add the sample shapes**. The status bar says how many were added. Files already there are never replaced. The shapes then show in the opening shape picker. See "Shapes".
 
 ## When a plan image is missing
 

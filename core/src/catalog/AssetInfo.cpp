@@ -111,11 +111,87 @@ void require(const Status& status, const std::string& where)
     if (!status.ok()) throw ReadProblem{where, status.message};
 }
 
+// Says whether a map file is an image under textures/maps/ or textures/preview/ with a plain relative path.
+bool isAssetMapFile(const std::string& file)
+{
+    const std::string maps = std::string(kAssetMapsFolder) + "/";
+    const std::string preview = std::string(kAssetPreviewFolder) + "/";
+    if (file.rfind(maps, 0) != 0 && file.rfind(preview, 0) != 0) return false;
+    for (const char c : file) {
+        if (!isLower(c) && !(c >= 'A' && c <= 'Z') && !isDigit(c) && c != '_' && c != '.' && c != '/' && c != '-') return false;
+    }
+    std::size_t start = 0;
+    while (start <= file.size()) {
+        std::size_t end = file.find('/', start);
+        if (end == std::string::npos) end = file.size();
+        const std::string part = file.substr(start, end - start);
+        if (part.empty() || part == "." || part == "..") return false;
+        start = end + 1;
+    }
+    const std::size_t dot = file.rfind('.');
+    if (dot == std::string::npos) return false;
+    const std::string ext = file.substr(dot + 1);
+    return ext == "png" || ext == "jpg" || ext == "jpeg";
+}
+
+// Reads one map of a material inside an asset.
+MaterialMap assetMapAt(const Json& maps, MapChannel channel, const std::string& base)
+{
+    const std::string name(mapChannelName(channel));
+    const std::string where = base + "/" + name;
+    if (!maps.contains(name)) throw ReadProblem{base, "Missing field \"" + name + "\"."};
+    const Json& json = objectAt(maps.at(name), where, {"file", "from", "detail"});
+    MaterialMap map;
+    const auto origin = mapOriginFromName(textAt(json, "from", where));
+    if (!origin) throw ReadProblem{where + "/from", "Must be file, value, baked or none."};
+    map.origin = *origin;
+    map.detail = textAt(json, "detail", where);
+    const Json& file = json.at("file");
+    if (map.origin == MapOrigin::None) {
+        const bool required = channel != MapChannel::Opacity && channel != MapChannel::Occlusion;
+        if (required) throw ReadProblem{where + "/from", "The " + name + " map must have a file."};
+        if (!file.is_null()) throw ReadProblem{where + "/file", "A map with origin none has no file."};
+        return map;
+    }
+    if (!file.is_string()) throw ReadProblem{where + "/file", "Must be the path of the map file."};
+    map.file = file.get<std::string>();
+    if (!isAssetMapFile(map.file)) {
+        throw ReadProblem{where + "/file", "Must be an image in textures/maps/ or textures/preview/."};
+    }
+    return map;
+}
+
+// Reads the six maps of one set.
+MaterialMaps assetMapsAt(const Json& json, const std::string& base)
+{
+    objectAt(json, base, {"base_color", "normal", "roughness", "metallic", "opacity", "occlusion"});
+    MaterialMaps maps;
+    for (const MapChannel channel : allMapChannels()) materialMap(maps, channel) = assetMapAt(json, channel, base);
+    return maps;
+}
+
+// One map as it is written to info.json.
+Json assetMapToJson(const MaterialMap& map)
+{
+    return Json{{"file", map.file.empty() ? Json(nullptr) : Json(map.file)},
+                {"from", std::string(mapOriginName(map.origin))},
+                {"detail", map.detail}};
+}
+
+// The six maps of one set as written to info.json.
+Json assetMapsToJson(const MaterialMaps& maps)
+{
+    Json json = Json::object();
+    for (const MapChannel channel : allMapChannels()) json[std::string(mapChannelName(channel))] = assetMapToJson(materialMap(maps, channel));
+    return json;
+}
+
 // Reads the checked fields of info.json into an AssetInfo.
 AssetInfo parseInfo(const Json& json, std::string_view folderName)
 {
     objectAt(json, "", {"format", "version", "id", "name", "categories", "tags", "license", "source", "size",
-                        "triangles", "objects", "materials", "textures", "blend", "thumbnail", "cleanup"});
+                        "triangles", "objects", "materials", "textures", "blend", "thumbnail", "cleanup"},
+              {"material_maps"});
     if (!json.at("format").is_string() || json.at("format").get<std::string>() != kAssetInfoFormat) {
         throw ReadProblem{"/format", "This is not a Plynth asset file."};
     }
@@ -167,6 +243,20 @@ AssetInfo parseInfo(const Json& json, std::string_view folderName)
     info.objects = static_cast<int>(countAt(json, "objects", ""));
     info.materials = textListAt(json, "materials", "");
     info.textures = textListAt(json, "textures", "");
+    if (json.contains("material_maps")) {
+        const Json& list = json.at("material_maps");
+        if (!list.is_array()) throw ReadProblem{"/material_maps", "Must be a list."};
+        for (std::size_t i = 0; i < list.size(); ++i) {
+            const std::string where = "/material_maps/" + std::to_string(i);
+            const Json& entry = objectAt(list[i], where, {"name", "maps", "preview_maps"});
+            AssetMaterial material;
+            material.name = textAt(entry, "name", where);
+            if (material.name.empty()) throw ReadProblem{where + "/name", "The name is empty."};
+            material.maps = assetMapsAt(entry.at("maps"), where + "/maps");
+            material.previewMaps = assetMapsAt(entry.at("preview_maps"), where + "/preview_maps");
+            info.materialMaps.push_back(std::move(material));
+        }
+    }
 
     const Json& blend = objectAt(json.at("blend"), "/blend", {"file", "bytes", "modified"});
     if (textAt(blend, "file", "/blend") != kAssetBlendFileName) {
@@ -249,6 +339,16 @@ bool isMeasured(const AssetSize& size)
         && size.depth > 0.0 && size.height > 0.0;
 }
 
+// Says whether every material of the asset has its maps.
+bool hasMaterialMaps(const AssetInfo& info)
+{
+    if (info.materialMaps.size() != info.materials.size()) return false;
+    for (std::size_t i = 0; i < info.materials.size(); ++i) {
+        if (info.materialMaps[i].name != info.materials[i]) return false;
+    }
+    return true;
+}
+
 // Writes info.json through a temporary file and a rename.
 Status writeAssetInfo(const fs::path& file, const AssetInfo& info)
 {
@@ -267,6 +367,11 @@ Status writeAssetInfo(const fs::path& file, const AssetInfo& info)
     json["triangles"] = info.triangles;
     json["objects"] = info.objects;
     json["materials"] = info.materials;
+    Json materialMaps = Json::array();
+    for (const AssetMaterial& m : info.materialMaps) {
+        materialMaps.push_back(Json{{"name", m.name}, {"maps", assetMapsToJson(m.maps)}, {"preview_maps", assetMapsToJson(m.previewMaps)}});
+    }
+    json["material_maps"] = std::move(materialMaps);
     json["textures"] = info.textures;
     json["blend"] = Json{{"file", std::string(kAssetBlendFileName)},
                          {"bytes", info.blendBytes},

@@ -52,6 +52,7 @@ inline constexpr std::string_view kCleanupAssetTask = "cleanup_asset";     // se
 inline constexpr std::string_view kRenderThumbnailTask = "render_thumbnail"; // see catalog/AssetJobs.h
 inline constexpr std::string_view kBuildTask = "build";                    // see BuildJob.h
 inline constexpr std::string_view kCleanupMaterialTask = "cleanup_material"; // see catalog/MaterialJobs.h
+inline constexpr std::string_view kExportTask = "export";                  // see ExportJob.h
 
 // Makes a job: format, version, task, job_id, result_file and params, in that order.
 Json makeBlenderJob(std::string_view task, std::string_view jobId, const std::filesystem::path& resultFile,
@@ -62,7 +63,8 @@ std::string newJobId(std::string_view stem);
 
 // A note from the worker that did not stop the job, for example {"code": "high_polycount", ...}.
 // Codes: high_polycount, scale_suspicious, missing_texture, removed_objects, unsupported_object,
-// fbx_failed (asset.fbx for the live preview could not be written; the asset itself is fine).
+// fbx_failed (asset.fbx for the live preview could not be written; the asset itself is fine),
+// material_approximated (an asset material's maps could not show it exactly, see catalog/AssetJobs.h).
 // Material codes (catalog/MaterialJobs.h): ambiguous_map, unused_image, map_size_mismatch, visible_seams,
 // low_resolution.
 struct BlenderWarning {

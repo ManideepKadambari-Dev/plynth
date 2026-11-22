@@ -2,6 +2,7 @@
 
 #include <plynth/core/catalog/AssetCatalog.h>
 
+#include <QVariantList>
 #include <QWidget>
 
 class QLabel;
@@ -29,6 +30,7 @@ public:
 
 private:
     void ensureView();
+    static QVariantList assetMaterials(const plynth::AssetRecord& record);
 
     bool interactive_;
     QLabel* thumb_ = nullptr;

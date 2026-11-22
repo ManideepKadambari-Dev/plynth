@@ -57,14 +57,14 @@ def add_box(bm, place, u0, v0, w0, u1, v1, w1, slot):
     meshes.add_prism_uv(bm, outline, [], w0, w1, place, slot)
 
 
-# Works out the slots of a fill from its parts, each a (surface, key) pair: the key picks the opening's material.
-# Returns the unique slot names in order and the slot index of every part. Parts with the same material share
-# one slot.
+# Works out the slots of a fill from its parts, each a (surface, key) pair: the key picks the opening's slot.
+# Returns the unique slot names in order and the slot index of every part. Parts with the same slot share
+# one material.
 def part_slots(ctx, opening, parts):
     names = []
     indices = []
-    for surface, key in parts:
-        name = slot_name(ctx, opening["materials"][key], surface)
+    for _, key in parts:
+        name = slot_name(ctx, opening["slots"][key])
         if name not in names:
             names.append(name)
         indices.append(names.index(name))

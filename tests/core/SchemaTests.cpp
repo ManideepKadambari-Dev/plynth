@@ -1,6 +1,7 @@
 #include "SchemaSupport.h"
 #include "TestSupport.h"
 
+#include <plynth/core/Export.h>
 #include <plynth/core/ProjectJson.h>
 
 #include <catch2/catch_test_macros.hpp>
@@ -41,7 +42,7 @@ TEST_CASE("the schema files are valid schemas", "[core][schema]") {
     for (const char* file : {"plan.schema.json", "project.schema.json", "plan.v1.schema.json", "project.v1.schema.json", "plan.v2.schema.json",
                              "project.v2.schema.json", "plan.v3.schema.json", "project.v3.schema.json", "plan.v4.schema.json", "project.v4.schema.json",
                              "settings.schema.json", "settings.v1.schema.json",
-                             "settings.v2.schema.json"}) {
+                             "settings.v2.schema.json", "export-report.schema.json"}) {
         INFO(file);
         // An empty object is not a plan or a project, so a working validator complains about it
         // with a message about the instance, not about reading or loading the schema.
@@ -265,4 +266,58 @@ TEST_CASE("a plan with stairs and roof entries validates", "[core][schema]") {
     const nlohmann::json j = plain(planToJson(plan));
     REQUIRE(schemaProblem("plan.schema.json", j).empty());
     REQUIRE(j["roof_sections"][0]["settings"]["type"] == "gable");
+}
+
+TEST_CASE("written export reports validate against the export report schema", "[core][schema][export]") {
+    ExportReport report;
+    report.jobId = "export-3f9a07c1";
+    report.startedAt = sessionNow();
+    report.exporter = "single";
+    report.planFingerprint = "0123456789abcdef";
+    report.buildFingerprint = "0123456789abcdef";
+    report.exported = true;
+    report.forced = true;
+    report.overridden = {"naming"};
+    report.files = {"D:/Flat/export/Flat.fbx"};
+    report.fileOutputs = {{"building", "Flat.fbx", 40, 18200}};
+    report.texturesFolder = "D:/Flat/export/Textures";
+    report.textureCount = 2;
+    report.reportFile = "D:/Flat/export/export_report.json";
+    report.logFile = "D:/Flat/build/export_work/blender.log";
+    report.objects = 40;
+    report.triangles = 18200;
+    report.collisionObjects = 31;
+    report.blenderVersion = "5.2.0";
+    QualityCheckResult naming;
+    naming.id = "naming";
+    naming.name = "Naming";
+    naming.status = QualityStatus::Fail;
+    naming.message = "One name breaks the rules.";
+    naming.findings = {{"SM_f1_Walls", "w3", "The name has a space."}, {"", "", "A slot name repeats."}};
+    QualityCheckResult scale;
+    scale.id = "fbx_scale";
+    scale.name = "File scale";
+    scale.phase = QualityPhase::File;
+    scale.status = QualityStatus::Skipped;
+    scale.message = "Nothing was written.";
+    report.checks = {naming, scale};
+    report.steps = {{"prepare", 3}, {"open_blend", 410}};
+
+    REQUIRE(schemaProblem("export-report.schema.json", plain(exportReportToJson(report))).empty());
+
+    ExportReport blocked = report;
+    blocked.status = fail(ErrorCode::QualityFailed, "The export was blocked.");
+    blocked.exported = false;
+    blocked.forced = false;
+    blocked.overridden.clear();
+    blocked.files.clear();
+    blocked.fileOutputs.clear();
+    blocked.texturesFolder.clear();
+    blocked.textureCount = 0;
+    blocked.buildFingerprint.clear();
+    REQUIRE(schemaProblem("export-report.schema.json", plain(exportReportToJson(blocked))).empty());
+
+    nlohmann::json bad = plain(exportReportToJson(report));
+    bad["quality"]["checks"][0]["status"] = "maybe";
+    REQUIRE_FALSE(schemaProblem("export-report.schema.json", bad).empty());
 }

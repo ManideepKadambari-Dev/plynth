@@ -1,0 +1,38 @@
+{
+  "format": "plynth-build-materials",
+  "version": 1,
+  "materials": [
+    {
+      "name": "Living_Wall",
+      "material": "white_paint",
+      "surface": null,
+      "maps": {
+        "base_color": "D:/Library/materials/items/white_paint/textures/base_color.png",
+        "normal": "D:/Library/materials/items/white_paint/textures/normal.png",
+        "roughness": "D:/Library/materials/items/white_paint/textures/roughness.png",
+        "metallic": "D:/Library/materials/items/white_paint/textures/metallic.png",
+        "opacity": null,
+        "occlusion": null
+      },
+      "alpha_mode": "opaque"
+    },
+    {
+      "name": "Glass.001",
+      "material": null,
+      "surface": null,
+      "asset": "sofa",
+      "maps": {
+        "base_color": "D:/Library/assets/items/sofa/textures/maps/glass_001/base_color.png",
+        "normal": "D:/Library/assets/items/sofa/textures/maps/glass_001/normal.png",
+        "roughness": "D:/Library/assets/items/sofa/textures/maps/glass_001/roughness.png",
+        "metallic": "D:/Library/assets/items/sofa/textures/maps/glass_001/metallic.png",
+        "opacity": "D:/Library/assets/items/sofa/textures/maps/glass_001/opacity.png",
+        "occlusion": null
+      },
+      "alpha_mode": "blend"
+    }
+  ],
+  "objects": [
+    { "name": "SM_f1_Walls", "slots": ["Living_Wall"] }
+  ]
+}

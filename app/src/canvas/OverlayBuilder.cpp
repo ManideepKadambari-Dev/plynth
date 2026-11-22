@@ -139,7 +139,7 @@ OverlayData buildOverlay(const plynth::Plan& plan, const std::string& floorId, c
     if (const plynth::Floor* below = plynth::floorBelow(plan, floorId)) {
         overlay.below.setFillRule(Qt::WindingFill);
         for (const plynth::Wall& wall : below->walls)
-            for (const std::vector<plynth::Vec2>& ring : plynth::wallBand(*below, wall)) {
+            for (const std::vector<plynth::Vec2>& ring : plynth::wallOutline(*below, wall)) {
                 overlay.below.addPolygon(toPolygon(ring, ppm));
                 overlay.below.closeSubpath();
             }
@@ -180,6 +180,11 @@ OverlayData buildOverlay(const plynth::Plan& plan, const std::string& floorId, c
         for (const std::vector<plynth::Vec2>& ring : plynth::wallBand(floor, wall)) {
             entry.band.addPolygon(toPolygon(ring, ppm));
             entry.band.closeSubpath();
+        }
+        entry.outline.setFillRule(Qt::WindingFill);
+        for (const std::vector<plynth::Vec2>& ring : plynth::wallOutline(floor, wall)) {
+            entry.outline.addPolygon(toPolygon(ring, ppm));
+            entry.outline.closeSubpath();
         }
         if (!entry.band.isEmpty())
             overlay.walls.append(entry);

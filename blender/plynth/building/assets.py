@@ -1,8 +1,10 @@
 import os
+import re
 
 import bpy
 
 from . import Step, count, report
+from .. import shading
 from ..registry import BUILD_STEPS
 
 ORDER = 60
@@ -21,6 +23,8 @@ def run(ctx):
         else:
             loaded[asset["id"]] = collection
     ctx.state["asset_collections"] = loaded
+    ctx.state["asset_materials"] = [entry for asset in ctx.params["assets"] if asset["id"] in loaded
+                                    for entry in prepare_materials(ctx, asset, loaded[asset["id"]])]
     for floor in ctx.params["floors"]:
         for item in floor["items"]:
             collection = loaded.get(item["asset"])
@@ -31,6 +35,35 @@ def run(ctx):
                 continue
             place(ctx, floor, item, collection)
             count(ctx, "items")
+
+
+# Gives every material of an appended asset that the job lists the image maps of the job, so each one has image
+# nodes with absolute full size paths whatever the asset file held. The appended material may carry a number
+# suffix when another asset had the same name. Returns one entry for the materials file per material.
+def prepare_materials(ctx, asset, collection):
+    wanted = {entry["name"]: entry["maps"] for entry in asset.get("materials", [])}
+    found = []
+    for obj in collection.all_objects:
+        if obj.type != "MESH":
+            continue
+        for mat in obj.data.materials:
+            if mat is not None and mat not in found:
+                found.append(mat)
+    entries = []
+    for mat in found:
+        name = mat.name if mat.name in wanted else re.sub(r"\.\d{3}$", "", mat.name)
+        if name not in wanted:
+            continue
+        maps = {k: (v.replace("\\", "/") if v else None) for k, v in wanted[name].items()}
+        try:
+            shading.apply_maps(mat, maps)
+        except shading.MapError as error:
+            report(ctx, "material_failed", "warning", "The material %s of asset %s could not be loaded: %s" % (
+                name, asset["id"], error), None, None)
+            continue
+        entries.append({"name": mat.name, "material": None, "surface": None, "asset": asset["id"], "maps": maps,
+                        "alpha_mode": "blend" if maps.get("opacity") else "opaque"})
+    return entries
 
 
 # Appends the collection of one asset from its blend file. Returns the collection and an empty reason, or None

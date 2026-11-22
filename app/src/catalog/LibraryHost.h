@@ -42,6 +42,10 @@ public:
     // A sentence about a custom shape file that was refused when the library opened, or empty.
     const QString& shapeNotice() const { return shapeNotice_; }
 
+    // Copies the sample opening shapes into the library's shapes folder, registers the new ones and tells the
+    // views. Returns one sentence for the status bar.
+    QString addSampleShapes();
+
     // The folder New project and the terminal start in: the projects setting, else Documents.
     QString projectsFolder() const;
 

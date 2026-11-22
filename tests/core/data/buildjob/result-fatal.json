@@ -23,7 +23,8 @@
       "materials": 6,
       "slabs": 2,
       "stairs": 1,
-      "roofs": 3
+      "roofs": 3,
+      "collision": 31
     },
     "steps": [
       {

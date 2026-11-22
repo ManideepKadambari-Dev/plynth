@@ -58,25 +58,29 @@
          "wall": "w4",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "w3",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "w2",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "w1",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         }
        ]
       },
@@ -105,29 +109,34 @@
           "wall": "w1",
           "side": "left",
           "room": "r1",
-          "material": null
+          "material": null,
+          "slot": "Living_Wall"
          },
          {
           "wall": "w2",
           "side": "left",
           "room": "r1",
-          "material": null
+          "material": null,
+          "slot": "Living_Wall"
          },
          {
           "wall": "w3",
           "side": "left",
           "room": "r1",
-          "material": null
+          "material": null,
+          "slot": "Living_Wall"
          },
          {
           "wall": "w4",
           "side": "left",
           "room": "r1",
-          "material": null
+          "material": null,
+          "slot": "Living_Wall"
          }
         ]
        }
-      ]
+      ],
+      "top_slot": "Wall_Top"
      }
     ],
     "openings": [
@@ -749,6 +758,14 @@
        "frame": null,
        "glass": null,
        "handle": null
+      },
+      "slots": {
+       "reveal": "Living_Wall",
+       "threshold": "Living_Floor",
+       "door": "Door",
+       "frame": "Frame",
+       "glass": "Glass",
+       "handle": "Handle"
       }
      }
     ],
@@ -761,6 +778,8 @@
       "ceiling_z": 3.0,
       "floor_material": null,
       "ceiling_material": null,
+      "floor_slot": "Living_Floor",
+      "ceiling_slot": "Living_Ceiling",
       "polygons": [
        {
         "outline": [
@@ -810,6 +829,7 @@
      }
     ],
     "items": [],
+    "collision": [],
     "slab": {
      "bottom": 0.0,
      "top": 0.0,
@@ -825,6 +845,55 @@
     },
     "stairs": [],
     "roofs": []
+   }
+  ],
+  "preview_textures_folder": "preview_textures",
+  "preview_texture_size": 1024,
+  "slots": [
+   {
+    "name": "Door",
+    "material": null,
+    "surface": "Door"
+   },
+   {
+    "name": "Exterior_Wall",
+    "material": null,
+    "surface": "Wall_Outside"
+   },
+   {
+    "name": "Frame",
+    "material": null,
+    "surface": "Frame"
+   },
+   {
+    "name": "Glass",
+    "material": null,
+    "surface": "Glass"
+   },
+   {
+    "name": "Handle",
+    "material": null,
+    "surface": "Handle"
+   },
+   {
+    "name": "Living_Ceiling",
+    "material": null,
+    "surface": "Ceiling"
+   },
+   {
+    "name": "Living_Floor",
+    "material": null,
+    "surface": "Floor"
+   },
+   {
+    "name": "Living_Wall",
+    "material": null,
+    "surface": "Wall_Inside"
+   },
+   {
+    "name": "Wall_Top",
+    "material": null,
+    "surface": "Wall_Top"
    }
   ]
  }

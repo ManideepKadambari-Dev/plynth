@@ -2,6 +2,8 @@
 
 #include "BlenderJob.h"
 #include "BuildGeometry.h"
+#include "Collision.h"
+#include "MaterialSlots.h"
 #include "Materials.h"
 #include "Plan.h"
 #include "Project.h"
@@ -30,37 +32,51 @@ using Json = nlohmann::ordered_json;
 //    "output_folder": "D:/Projects/Flat/build", "blend_file": "building.blend", "fbx_file": "building.fbx",
 //    "plan": {...plan.json...},
 //    "materials_file": "materials.json", "textures_folder": "textures",
+//    "preview_textures_folder": "preview_textures", "preview_texture_size": 1024,
 //    "settings": {"bevel_width": 0.01, "bevel_segments": 2, "fill_openings": true},
-//    "assets": [{"id": "sofa", "blend_file": "D:/Library/assets/items/sofa/asset.blend", "collection": "sofa"}],
+//    "assets": [{"id": "sofa", "blend_file": "D:/Library/assets/items/sofa/asset.blend", "collection": "sofa",
+//                "materials": [{"name": "Fabric", "maps": {"base_color": "D:/Library/assets/items/sofa/
+//                               textures/maps/fabric/base_color.png", ..., "opacity": null, "occlusion": null}}]}],
 //    "materials": [{"id": "oak_planks", "tile_size": {"width": 2.0, "height": 2.0},
 //                   "maps": {"base_color": "D:/Library/materials/items/oak_planks/textures/base_color.jpg",
 //                            "normal": "...", "roughness": "...", "metallic": "...",
 //                            "opacity": null, "occlusion": null}}],
 //    "preview_folder": "preview",
+//    "slots": [{"name": "Living_Floor", "material": "oak_planks", "surface": "Floor"}, ...],
 //    "floors": [{"id": "f1", "elevation": 0.0, "ceiling_height": 3.0,
-//                "wall_solids": [{"height": 3.0, "top_material": "white_paint", "outline": ring, "holes": [ring, ...]}],
+//                "wall_solids": [{"height": 3.0, "top_material": "white_paint", "top_slot": "Wall_Top",
+//                                 "outline": ring, "holes": [ring, ...]}],
 //                "openings": [opening, ...], "rooms": [room, ...], "items": [item, ...],
-//                "slab": slab, "stairs": [stair, ...], "roofs": [roof, ...]}]}
+//                "slab": slab, "stairs": [stair, ...], "roofs": [roof, ...],
+//                "collision": [{"target": {"kind": "walls", "id": "f1"},
+//                               "pieces": [{"outline": [[x, y], ...], "bottom": 0.0, "top": 3.0}]}, ...]}]}
 //   ring: {"points": [[x, y], ...],
-//          "edges": [{"wall": "w1", "side": "right", "room": "r1", "material": "white_paint"}, ...]}
+//          "edges": [{"wall": "w1", "side": "right", "room": "r1", "material": "white_paint",
+//                     "slot": "Living_Wall"}, ...]}
 //         side is "left", "right" or null (an end face); room is null outside.
 //   opening: {"id", "wall", "type", "shape", "width", "height", "sill", "hinge", "swing", "frame",
 //             "centre": [x, y], "tangent": [x, y], "right": [x, y], "thickness", "curved",
 //             "outline": [[u, v], ...], "inner_outline": [[u, v], ...],
 //             "cutter": {"right": [[x, y, z], ...], "left": [[x, y, z], ...]}, "threshold": [[x, y], ...],
-//             "materials": {"reveal", "threshold", "door", "frame", "glass", "handle"}}
+//             "materials": {"reveal", "threshold", "door", "frame", "glass", "handle"},
+//             "slots": {"reveal", "threshold", "door", "frame", "glass", "handle"}}
 //   room: {"id", "type", "area", "floor_z", "ceiling_z", "floor_material", "ceiling_material",
+//          "floor_slot", "ceiling_slot",
 //          "polygons": [{"outline": [[x, y], ...], "holes": [[[x, y], ...], ...]}], "ceiling_polygons": [...]}
 //   item: {"id", "asset", "location": [x, y, z], "rotation_z", "size": {"width", "depth", "height"}, "wall"}
 //   slab: {"bottom", "top", "polygons": [polygon, ...], "undersides": [polygon, ...],
 //          "sides": [{"outline": ["edge", "well", ...], "holes": [["edge", ...], ...]}, ...],
-//          "tops": [polygon, ...], "materials": {"edge", "well", "underside"}}
+//          "tops": [polygon, ...], "materials": {"edge", "well", "underside"},
+//          "slots": {"edge", "well", "underside"}}
 //         sides has one entry per polygon and one name per ring edge (SlabPolygonSides); tops are the ledges,
-//         faces at top with the edge material.
-//   stair: {"id", "type", "to_floor", "rise", "riser_count", "riser", "material",
+//         faces at top with the edge material and the edge slot.
+//   stair: {"id", "type", "to_floor", "rise", "riser_count", "riser", "material", "slot",
 //           "steps": [{"part": "step", "outline": [[x, y], ...], "bottom", "top"}], "hole": polygon}
 //   roof: {"index", "section", "type", "faces": [{"part": "covering", "outline": [[x, y, z], ...],
-//          "holes": [[[x, y, z], ...], ...], "material"}]}
+//          "holes": [[[x, y, z], ...], ...], "material", "slot"}]}
+//   collision entry: {"target": {"kind", "id"}, "index", "pieces": [piece, ...],
+//                     "hulls": [[[x, y, z], ...], ...]}
+//         index is the roof's, 0 for other kinds; hulls are point sets, [] for all but roofs.
 //   polygon: {"outline": [[x, y], ...], "holes": [[[x, y], ...], ...]}
 // Slab, stair and roof objects: SM_<floor>_Slab (plynth_kind "slab", plynth_id the floor),
 // SM_<floor>_<stair>_Stair ("stair", the stair id), SM_<floor>_Roof_<NN> ("roof", the floor id, NN the index
@@ -72,15 +88,24 @@ using Json = nlohmann::ordered_json;
 // floor, one for the slab above it and one for its roofs into build/preview/, with the same profile, materials
 // and images as building.fbx, and parts.json listing them (BuildPreview.h), so the 3D view can hide roofs, cut
 // the building at a floor and the plan overlay shows one floor.
-// The fields mean what the structs in BuildGeometry.h say; positions are world coordinates. Every material
-// field is the id of an entry of "materials", or null: the surface then gets its neutral look (the material
-// is unset, missing from the library or broken, and core has reported it). Materials follow Materials.h.
+// The fields mean what the structs in BuildGeometry.h and Collision.h say; positions are world coordinates.
+// Every material field is the id of an entry of "materials", or null: the surface then gets its neutral look
+// (the material is unset, missing from the library or broken, and core has reported it). Materials follow
+// Materials.h. Every slot field names an entry of "slots" (MaterialSlots.h); the Blender material of the face
+// is named after the slot, and the slot's material is always the same as the material field beside it.
+// "surface" in a slot is the neutral surface whose look the slot gets when its material is null (Wall_Inside,
+// Wall_Outside, Wall_Top, Reveal, Threshold, Floor, Ceiling, Door, Frame, Glass, Handle, Stair, Roof, Flat_Roof,
+// Soffit, Fascia).
+// "collision" lists the pieces and hulls of floorCollision; the build turns each into a convex mesh
+// UCX_<target object name>_<NN> (the pieces, then the hulls), and adds one convex hull per item
+// (UCX_<item object name>_00). The target is the object with that plynth_kind and plynth_id, and for a roof
+// with that plynth_roof_index.
 //
 // Output in the result, schema/blender-result.schema.json "buildOutput":
 //   {"blend_file": "building.blend", "fbx_file": "building.fbx", "materials_file": "materials.json" or null,
 //    "objects": 42, "triangles": 18200,
 //    "counts": {"wall_solids": 1, "openings_cut": 9, "fills": 7, "rooms": 5, "items": 4, "materials": 6,
-//               "slabs": 2, "stairs": 1, "roofs": 3},
+//               "collision": 31, "slabs": 2, "stairs": 1, "roofs": 3},
 //    "steps": [{"step": "walls", "ms": 120}, ...],
 //    "problems": [{"code": "cut_failed", "severity": "error", "message": "...", "floor": "f1",
 //                  "object": "o3", "step": "openings"}]}
@@ -91,10 +116,22 @@ using Json = nlohmann::ordered_json;
 // 3D preview (owner, milestone 8). The neutral looks of surfaces without a material are written as constant
 // images into build/textures/.
 //
+// Preview textures (owner, milestone 10): building.fbx is only for the app's 3D preview, so before it is
+// written the export_fbx step points every image larger than preview_texture_size on a side at a scaled copy
+// in build/preview_textures/ (named <material or asset>_<channel>, one copy per source file), and
+// materials.json lists the same files the FBX uses. building.blend is saved before that and keeps the full
+// size images, which is what the export reads. materials.json also lists every asset material, with "asset"
+// set to the asset id, so metal and see-through parts of furniture show in the preview.
+//
+// Collision (step "collision", order 110): one closed convex mesh per piece, hull and item, plynth_kind
+// "collision", custom property plynth_collision_for holding the target object's name, in a collection named
+// "Collision". building.blend keeps them; building.fbx and materials.json leave them out, so the 3D preview
+// never shows them; the export (ExportJob.h) writes them.
+//
 // Surfaces and UVs (the "materials" step and the steps that make meshes):
-// - a built face's Blender material is named after its catalog material id, or after its neutral surface
-//   (Wall_Inside, Wall_Outside, Wall_Top, Reveal, Threshold, Floor, Ceiling, Door, Frame, Glass, Handle,
-//   Stair, Roof, Flat_Roof, Soffit, Fascia) when it has none; furniture keeps the materials of its asset
+// - a built face's Blender material is named after its slot (MaterialSlots.h); slots that show the same
+//   catalog material use the same image files, which is fine for the 3D preview because their looks are the
+//   same; furniture keeps the materials of its asset
 // - UVs are in metres divided by the material's tile size (neutral surfaces: 1 m): wall side faces u along
 //   their ring from its first point and v up from the floor's level; wall tops, floors and thresholds world
 //   (X, Y); ceilings (X, -Y); the faces a cut makes, fills and anything else are projected on the world plane
@@ -105,6 +142,7 @@ inline constexpr std::string_view kBuildBlendFileName = "building.blend";
 inline constexpr std::string_view kBuildFbxFileName = "building.fbx";
 inline constexpr std::string_view kBuildMaterialsFileName = "materials.json";
 inline constexpr std::string_view kBuildTexturesFolder = "textures";
+inline constexpr std::string_view kBuildPreviewTexturesFolder = "preview_textures";
 
 // The finished-look settings of DESIGN.md section 7.13a that are fixed for now.
 inline constexpr double kBuildBevelWidth = 0.01; // metres; 0 turns the bevel off
@@ -144,7 +182,8 @@ std::optional<BuildSeverity> buildSeverityFromName(std::string_view name);
 //   material and there is no library.
 // Codes the worker steps report: cut_failed (error), fill_failed (warning, the opening is cut but empty),
 // asset_load_failed (error), bevel_failed (warning, the walls are left sharp), material_failed (warning, a
-// map could not be loaded and the surface got its neutral look). New steps may add codes.
+// map could not be loaded and the surface got its neutral look), collision_failed (warning, a collision piece
+// or a hull could not be made; object is the room, floor, stair or item). New steps may add codes.
 // Also found by core: the StairProblem codes of Stairs.h (object the stair) and the RoofProblem codes
 // of Roofs.h (object the roof section entry, or empty). Found by the worker: slab_failed, stair_failed,
 // roof_failed (warnings: a mesh could not be made; object the floor, stair or entry), preview_failed (warning:
@@ -162,11 +201,26 @@ struct BuildProblem {
     bool operator==(const BuildProblem&) const = default;
 };
 
+// The maps of one material inside an asset, absolute paths (AssetInfo.h). opacity and occlusion are empty
+// when it has none. Full size; the build makes its own preview copies.
+struct BuildAssetMaterial {
+    std::string name; // the material's name in asset.blend
+    std::filesystem::path baseColor;
+    std::filesystem::path normal;
+    std::filesystem::path roughness;
+    std::filesystem::path metallic;
+    std::filesystem::path opacity;
+    std::filesystem::path occlusion;
+
+    bool operator==(const BuildAssetMaterial&) const = default;
+};
+
 // What the build needs to know about one asset from the library.
 struct BuildAssetState {
     std::filesystem::path blendFile; // items/<id>/asset.blend
     bool broken = false;             // AssetState::Broken, or asset.blend is not there
     std::string problem;             // why, when broken
+    std::vector<BuildAssetMaterial> materials; // AssetInfo::materialMaps; empty before the asset is refreshed
 };
 
 // Says what the library has for an asset id. Empty when the asset is not in the library.
@@ -176,6 +230,7 @@ using BuildAssetSource = std::function<std::optional<BuildAssetState>(std::strin
 struct BuildAsset {
     std::string id;
     std::filesystem::path blendFile;
+    std::vector<BuildAssetMaterial> materials;
 
     bool operator==(const BuildAsset&) const = default;
 };
@@ -204,17 +259,28 @@ struct BuildMaterialState {
 // Says what the library has for a material id. Empty when the material is not in the library.
 using BuildMaterialSource = std::function<std::optional<BuildMaterialState>(std::string_view materialId)>;
 
+// One material slot of the build (MaterialSlots.h).
+struct BuildSlot {
+    std::string name;     // for example "Living_Floor"
+    std::string material; // the catalog id it shows; empty for the neutral look
+    std::string surface;  // the neutral surface whose look it gets when material is empty, for example "Floor"
+
+    bool operator==(const BuildSlot&) const = default;
+};
+
 // The material of the wall faces of one wall that look into one room (room empty: outside). material is empty
-// for the neutral look.
+// for the neutral look. slot is the name of its BuildSlot.
 struct WallFaceMaterial {
     Id wall;
     Id room;
     std::string material;
+    std::string slot;
 
     bool operator==(const WallFaceMaterial&) const = default;
 };
 
-// The materials of one opening that is built; empty strings get the neutral look.
+// The materials of one opening that is built; empty strings get the neutral look. The *Slot fields name the
+// BuildSlot of each part.
 struct OpeningMaterialIds {
     Id opening;
     std::string reveal;
@@ -223,6 +289,12 @@ struct OpeningMaterialIds {
     std::string frame;
     std::string glass;
     std::string handle;
+    std::string revealSlot;
+    std::string thresholdSlot;
+    std::string doorSlot;
+    std::string frameSlot;
+    std::string glassSlot;
+    std::string handleSlot;
 
     bool operator==(const OpeningMaterialIds&) const = default;
 };
@@ -232,6 +304,8 @@ struct RoomMaterialIds {
     Id room;
     std::string floor;
     std::string ceiling;
+    std::string floorSlot;
+    std::string ceilingSlot;
 
     bool operator==(const RoomMaterialIds&) const = default;
 };
@@ -240,6 +314,7 @@ struct RoomMaterialIds {
 struct StairMaterialId {
     Id stair;
     std::string material;
+    std::string slot; // the name of its BuildSlot
 
     bool operator==(const StairMaterialId&) const = default;
 };
@@ -253,6 +328,13 @@ struct RoofMaterialIds {
     std::string gable;
     std::string parapet;
     std::string glazing;
+    // The BuildSlot of each part.
+    std::string coveringSlot;
+    std::string undersideSlot;
+    std::string edgeSlot;
+    std::string gableSlot;
+    std::string parapetSlot;
+    std::string glazingSlot;
 
     bool operator==(const RoofMaterialIds&) const = default;
 };
@@ -262,6 +344,10 @@ struct SlabMaterialIds {
     std::string edge;
     std::string well;
     std::string underside;
+    // The BuildSlot of each part.
+    std::string edgeSlot; // ledge tops too
+    std::string wellSlot;
+    std::string undersideSlot;
 
     bool operator==(const SlabMaterialIds&) const = default;
 };
@@ -276,6 +362,7 @@ struct FloorMaterials {
     SlabMaterialIds slab;
     std::vector<StairMaterialId> stairs;      // in the order of FloorBuild::stairs
     std::vector<RoofMaterialIds> roofs;       // in the order of FloorBuild::roofs
+    std::string wallTopSlot;
 
     bool operator==(const FloorMaterials&) const = default;
 };
@@ -289,6 +376,10 @@ struct BuildPlan {
     // In floor order, then walls, openings, rooms, items, each in plan order; then the material problems,
     // sorted by material id and object.
     std::vector<BuildProblem> problems;
+    // Every slot a built surface uses, once, sorted by name. (Not called "slots": Qt defines that word as a
+    // macro, and the app includes this header.)
+    std::vector<BuildSlot> materialSlots;
+    std::vector<std::vector<CollisionShape>> collision; // floorCollision of each entry of floors, same order
 
     bool operator==(const BuildPlan&) const = default;
 };
@@ -303,7 +394,8 @@ struct BuildPlan {
 // Then the materials of every built surface by Materials.h, each checked with the materials source
 // (missing_material, material_broken; such a surface gets the neutral look). An empty materials source means
 // there is no library: every surface gets the neutral look, and no_library is reported once in all when the
-// plan uses a material.
+// plan uses a material. Then the slot of every surface by MaterialSlots.h, after the library check (so a
+// missing material counts as the neutral look when names are compared), and floorCollision of every floor.
 BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets,
                         const BuildMaterialSource& materials = {});
 
@@ -338,17 +430,18 @@ struct BuildCounts {
     int fills = 0;
     int rooms = 0;
     int items = 0;
-    int materials = 0; // Blender materials made for built surfaces, library and neutral
+    int materials = 0; // Blender materials made for built surfaces, library and neutral: one per slot
     int slabs = 0;     // slab meshes made
     int stairs = 0;    // stair meshes made
     int roofs = 0;     // roof section meshes made
+    int collision = 0; // UCX_ collision meshes made: pieces, hulls and item hulls
 
     bool operator==(const BuildCounts&) const = default;
 };
 
-// The build task's result, read and checked. BadFile when a field is missing (counts.slabs, stairs and roofs
-// included) or has the wrong type, or a severity is unknown. An older build report without those counts reads
-// with them 0.
+// The build task's result, read and checked. BadFile when a field is missing (counts.collision, slabs, stairs
+// and roofs included) or has the wrong type, or a severity is unknown. An older build report without those
+// counts reads with them 0.
 struct BuildWorkerOutput {
     BlenderResultHeader header;
     std::string blendFile;  // file name inside the output folder

@@ -7,6 +7,7 @@
 #include <nlohmann/json.hpp>
 
 #include <filesystem>
+#include <functional>
 #include <set>
 #include <string>
 
@@ -19,6 +20,23 @@ namespace {
 fs::path dataFile(const std::string& name)
 {
     return fs::path(PLYNTH_TEST_DATA_DIR) / name;
+}
+
+// The maps of a material: files for the four required channels, a constant roughness, no opacity or occlusion.
+// The base color preview is a scaled copy.
+AssetMaterial materialWithMaps(const std::string& name, const std::string& key)
+{
+    AssetMaterial material;
+    material.name = name;
+    for (const MapChannel channel : {MapChannel::BaseColor, MapChannel::Normal, MapChannel::Roughness, MapChannel::Metallic}) {
+        const std::string file = "textures/maps/" + key + "/" + std::string(mapChannelName(channel)) + ".png";
+        materialMap(material.maps, channel) = {file, MapOrigin::File, key + ".png"};
+        materialMap(material.previewMaps, channel) = {file, MapOrigin::File, key + ".png"};
+    }
+    materialMap(material.maps, MapChannel::Roughness) = {"textures/maps/" + key + "/roughness.png", MapOrigin::Value, "0.3"};
+    materialMap(material.previewMaps, MapChannel::Roughness) = materialMap(material.maps, MapChannel::Roughness);
+    materialMap(material.previewMaps, MapChannel::BaseColor) = {"textures/preview/" + key + "_base_color.png", MapOrigin::File, key + ".png"};
+    return material;
 }
 
 // An info with every field set.
@@ -35,7 +53,8 @@ AssetInfo fullInfo()
     info.triangles = 72;
     info.objects = 6;
     info.materials = {"Fabric", "Wood"};
-    info.textures = {"textures/a.png"};
+    info.textures = {"textures/maps/fabric/base_color.png", "textures/maps/wood/base_color.png"};
+    info.materialMaps = {materialWithMaps("Fabric", "fabric"), materialWithMaps("Wood", "wood")};
     info.blendBytes = 4096;
     info.blendModified = *parseSessionTime("2026-11-21T10:00:05Z");
     info.thumbnail.rendered = true;
@@ -50,6 +69,17 @@ AssetInfo fullInfo()
 std::string schemaProblemFor(const fs::path& file)
 {
     return plynth::test::schemaProblem("asset-info.schema.json", nlohmann::json::parse(plynth::test::readTextFile(file)));
+}
+
+// Writes an info, changes its JSON, and reads it back.
+AssetInfoRead readChanged(const fs::path& folder, const std::function<void(nlohmann::json&)>& change)
+{
+    const fs::path file = folder / "info.json";
+    plynth::test::requireOk(writeAssetInfo(file, fullInfo()));
+    nlohmann::json json = nlohmann::json::parse(plynth::test::readTextFile(file));
+    change(json);
+    plynth::test::writeBytes(file, json.dump(2));
+    return readAssetInfo(file);
 }
 
 }
@@ -198,4 +228,98 @@ TEST_CASE("id, tag and name rules each say what is wrong", "[core][assetinfo]") 
     std::string accents;
     for (int i = 0; i < 120; ++i) accents += "ü";
     REQUIRE(checkCatalogName(accents).ok());
+}
+
+TEST_CASE("material maps are written in order and validate", "[core][assetinfo][schema]") {
+    plynth::test::TempDir tmp("info-maps");
+    const fs::path file = tmp.path() / "info.json";
+    plynth::test::requireOk(writeAssetInfo(file, fullInfo()));
+    const nlohmann::json json = nlohmann::json::parse(plynth::test::readTextFile(file));
+    REQUIRE(json["material_maps"].size() == 2);
+    REQUIRE(json["material_maps"][1]["name"] == "Wood");
+    REQUIRE(json["material_maps"][0]["maps"]["roughness"]["from"] == "value");
+    REQUIRE(json["material_maps"][0]["maps"]["roughness"]["detail"] == "0.3");
+    REQUIRE(json["material_maps"][0]["maps"]["opacity"]["file"].is_null());
+    REQUIRE(json["material_maps"][0]["preview_maps"]["base_color"]["file"] == "textures/preview/fabric_base_color.png");
+    REQUIRE(schemaProblemFor(file).empty());
+}
+
+TEST_CASE("an info.json from before milestone 10 reads with empty maps", "[core][assetinfo]") {
+    const AssetInfoRead old = readAssetInfo(dataFile("asset-info-valid.json"), "chair");
+    plynth::test::requireOk(old.status);
+    REQUIRE(old.info.materials.size() == 2);
+    REQUIRE(old.info.materialMaps.empty());
+    REQUIRE_FALSE(hasMaterialMaps(old.info));
+    REQUIRE(schemaProblemFor(dataFile("asset-info-valid.json")).empty());
+}
+
+TEST_CASE("hasMaterialMaps matches materials by name and order", "[core][assetinfo]") {
+    AssetInfo info = fullInfo();
+    REQUIRE(hasMaterialMaps(info));
+    AssetInfo swapped = info;
+    std::swap(swapped.materialMaps[0], swapped.materialMaps[1]);
+    REQUIRE_FALSE(hasMaterialMaps(swapped));
+    AssetInfo fewer = info;
+    fewer.materialMaps.pop_back();
+    REQUIRE_FALSE(hasMaterialMaps(fewer));
+    AssetInfo extra = info;
+    extra.materials.push_back("Glass");
+    REQUIRE_FALSE(hasMaterialMaps(extra));
+    REQUIRE(hasMaterialMaps(AssetInfo{}));
+}
+
+TEST_CASE("bad material maps are bad_file at the value", "[core][assetinfo]") {
+    plynth::test::TempDir tmp("info-bad-maps");
+    struct Case {
+        const char* what;
+        std::function<void(nlohmann::json&)> change;
+        const char* where;
+    };
+    const Case cases[] = {
+        {"outside textures", [](nlohmann::json& j) { j["material_maps"][0]["maps"]["normal"]["file"] = "elsewhere/normal.png"; },
+         "/material_maps/0/maps/normal/file"},
+        {"in textures but not in maps or preview", [](nlohmann::json& j) { j["material_maps"][0]["maps"]["normal"]["file"] = "textures/normal.png"; },
+         "/material_maps/0/maps/normal/file"},
+        {"going up", [](nlohmann::json& j) { j["material_maps"][1]["preview_maps"]["metallic"]["file"] = "textures/maps/../../x.png"; },
+         "/material_maps/1/preview_maps/metallic/file"},
+        {"not an image", [](nlohmann::json& j) { j["material_maps"][0]["maps"]["normal"]["file"] = "textures/maps/wood/normal.exr"; },
+         "/material_maps/0/maps/normal/file"},
+        {"required map without a file", [](nlohmann::json& j) {
+             j["material_maps"][0]["maps"]["base_color"] = {{"file", nullptr}, {"from", "none"}, {"detail", ""}}; },
+         "/material_maps/0/maps/base_color/from"},
+        {"none with a file", [](nlohmann::json& j) { j["material_maps"][0]["maps"]["opacity"]["file"] = "textures/maps/a/opacity.png"; },
+         "/material_maps/0/maps/opacity/file"},
+        {"unknown origin", [](nlohmann::json& j) { j["material_maps"][0]["maps"]["normal"]["from"] = "guessed"; },
+         "/material_maps/0/maps/normal/from"},
+        {"missing channel", [](nlohmann::json& j) { j["material_maps"][0]["maps"].erase("occlusion"); }, "/material_maps/0/maps"},
+        {"unknown field", [](nlohmann::json& j) { j["material_maps"][0]["extra"] = 1; }, "/material_maps/0/extra"},
+        {"not a list", [](nlohmann::json& j) { j["material_maps"] = 3; }, "/material_maps"},
+    };
+    int n = 0;
+    for (const Case& c : cases) {
+        INFO(c.what);
+        const AssetInfoRead read = readChanged(tmp.path() / std::to_string(n++), c.change);
+        REQUIRE(read.status.code == ErrorCode::BadFile);
+        REQUIRE(read.status.where == c.where);
+    }
+}
+
+TEST_CASE("an info.json with material maps from a data file", "[core][assetinfo]") {
+    const fs::path file = dataFile("assets/info-material-maps.json");
+    const AssetInfoRead read = readAssetInfo(file, "armchair");
+    plynth::test::requireOk(read.status);
+    REQUIRE(schemaProblemFor(file).empty());
+    REQUIRE(hasMaterialMaps(read.info));
+    REQUIRE(read.info.warnings[0].code == "material_approximated");
+    const AssetMaterial& paint = read.info.materialMaps[1];
+    REQUIRE(paint.name == "Paint");
+    REQUIRE(paint.maps.baseColor.origin == MapOrigin::Value);
+    REQUIRE(paint.maps.baseColor.detail == "0.70, 0.38, 0.35");
+    REQUIRE(paint.maps.normal.detail == "flat");
+    REQUIRE(paint.maps.roughness.origin == MapOrigin::Baked);
+    REQUIRE(paint.maps.opacity.file == "textures/maps/paint/opacity.png");
+    REQUIRE(paint.maps.occlusion.origin == MapOrigin::None);
+    const AssetMaterial& fabric = read.info.materialMaps[0];
+    REQUIRE(fabric.previewMaps.baseColor.file == "textures/preview/fabric_base_color.png");
+    REQUIRE(fabric.maps.baseColor.file == "textures/maps/fabric/base_color.png");
 }

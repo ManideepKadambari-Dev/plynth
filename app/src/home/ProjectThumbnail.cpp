@@ -39,7 +39,7 @@ QImage renderProjectThumbnail(const plynth::Plan& plan, const QImage& planImage,
     wall.setAlpha(t.overlayAlpha());
     painter.setBrush(wall);
     for (const OverlayWall& band : overlay.walls)
-        painter.drawPath(band.band);
+        painter.drawPath(band.outline);
     painter.end();
     return out;
 }

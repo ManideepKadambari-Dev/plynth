@@ -38,7 +38,7 @@ class SquareRoomTests(BuildTest):
         self.assert_result_valid(self.result)
         steps = [s["step"] for s in self.result["output"]["steps"]]
         self.assertEqual(steps, ["prepare_scene", "walls", "openings", "bevel", "triangulate", "opening_fills", "floors", "slabs", "stairs", "roofs",
-                         "assets", "materials", "save_blend", "export_fbx", "preview_parts"])
+                         "assets", "materials", "collision", "save_blend", "export_fbx", "preview_parts"])
         counts = self.result["output"]["counts"]
         self.assertEqual((counts["wall_solids"], counts["rooms"]), (1, 1))
 
@@ -72,7 +72,7 @@ class SquareRoomTests(BuildTest):
         self.assertEqual(len(side_faces), 8)
         for polygon in side_faces:
             inside = room_values[polygon.index] == 0
-            wanted = "Wall_Inside" if inside else "Wall_Outside"
+            wanted = "Living_Wall" if inside else "Exterior_Wall"
             self.assertEqual(names[polygon.material_index], wanted)
         for polygon in obj.data.polygons:
             if sides[polygon.index] == 3:
@@ -116,7 +116,7 @@ class SquareRoomTests(BuildTest):
     # Neutral looks are applied as constant images in build/textures.
     def test_materials(self):
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
-        mat = bpy.data.materials["Wall_Inside"]
+        mat = bpy.data.materials["Living_Wall"]
         images = {n.label: n.image for n in mat.node_tree.nodes if n.type == "TEX_IMAGE"}
         self.assertEqual(sorted(images), ["base_color", "metallic", "normal", "roughness"])
         roughness = images["roughness"]
