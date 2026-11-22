@@ -1,6 +1,15 @@
-"""Draws the nine sample materials of Plynth into the folders next to this file.
+r"""Draws the nine sample materials of Plynth into the folders next to this file.
 
-Run it with Blender in the background:
+Run it with Blender in the background. First point all five user variables at a private folder, so the run
+cannot touch your own Blender settings or add-ons (PowerShell):
+    $p = "$env:TEMP\plynth-blender-private"
+    foreach ($d in "", "config", "scripts", "extensions", "datafiles") { New-Item -ItemType Directory -Force "$p\$d" | Out-Null }
+    $env:BLENDER_USER_RESOURCES = $p
+    $env:BLENDER_USER_CONFIG = "$p\config"
+    $env:BLENDER_USER_SCRIPTS = "$p\scripts"
+    $env:BLENDER_USER_EXTENSIONS = "$p\extensions"
+    $env:BLENDER_USER_DATAFILES = "$p\datafiles"
+Then:
     blender --background --factory-startup --python samples/materials/make_sample_materials.py
     blender --background --factory-startup --python samples/materials/make_sample_materials.py -- roof_tiles concrete
 

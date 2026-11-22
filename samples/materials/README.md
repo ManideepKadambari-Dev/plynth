@@ -18,6 +18,16 @@ groups, tags, license (`own_work`) and tile size.
 
 The file names use different styles on purpose, so the name matching of the importer is exercised.
 
+Blender must not use your own settings folders for these commands. Set all five user variables to a folder you can throw away first (PowerShell):
+
+    $p = "$env:TEMP\plynth-blender-private"
+    foreach ($d in "", "config", "scripts", "extensions", "datafiles") { New-Item -ItemType Directory -Force "$p\$d" | Out-Null }
+    $env:BLENDER_USER_RESOURCES = $p
+    $env:BLENDER_USER_CONFIG = "$p\config"
+    $env:BLENDER_USER_SCRIPTS = "$p\scripts"
+    $env:BLENDER_USER_EXTENSIONS = "$p\extensions"
+    $env:BLENDER_USER_DATAFILES = "$p\datafiles"
+
 To draw them again:
 
     blender --background --factory-startup --python samples/materials/make_sample_materials.py
