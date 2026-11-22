@@ -6,7 +6,7 @@
  "result_file": "@PROJECT@/build/export_work/result.json",
  "params": {
   "project": {
-   "name": "m12b",
+   "name": "m12c",
    "folder": "@PROJECT@"
   },
   "blend_file": "@PROJECT@/build/building.blend",
@@ -15,7 +15,7 @@
   "groups": [
    {
     "id": "building",
-    "file": "m12b.fbx",
+    "file": "m12c.fbx",
     "kinds": [],
     "ids": []
    }

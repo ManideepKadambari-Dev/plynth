@@ -141,12 +141,12 @@ class FromCoreTests(BuildTest):
                          ["building.blend", "building.fbx", "materials.json", "preview", "textures"])
 
     # The slab's ledges are built as upward faces at the top, with the area core gave them, and every side face
-    # takes its side's material slot.
+    # takes its side's material slot. With the mitred wall outline this job has no ledge (the rounded corner left
+    # slivers before), so the slab must have no upward face; ledges themselves are tested in SlabFaceTests.
     def test_slab_tops(self):
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
         slab = self.params["floors"][0]["slab"]
         wanted = sum(plain_area(t["outline"]) - sum(plain_area(h) for h in t["holes"]) for t in slab["tops"])
-        self.assertGreater(len(slab["tops"]), 0)
         obj = bpy.data.objects["SM_%s_Slab" % self.params["floors"][0]["id"]]
         ups = [p for p in obj.data.polygons if p.normal.z > 0.5]
         self.assertAlmostEqual(sum(p.area for p in ups), wanted, delta=1e-6)
