@@ -8,6 +8,7 @@
 #include <plynth/core/ProjectFiles.h>
 #include <plynth/core/ProjectJson.h>
 
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <nlohmann/json.hpp>
 
@@ -18,6 +19,7 @@
 
 using namespace plynth;
 using namespace plynth::test;
+using Catch::Approx;
 namespace fs = std::filesystem;
 
 namespace {
@@ -99,8 +101,8 @@ TEST_CASE("makeBuildPlan stacks floors by elevation", "[core][build]") {
     REQUIRE(plan.floors.size() == 2);
     REQUIRE(plan.floors[0].elevation == 0.0);
     REQUIRE(plan.floors[1].id == "f2");
-    REQUIRE(plan.floors[1].elevation == 3.0);
-    REQUIRE(plan.floors[1].rooms[0].floorZ == 3.0);
+    REQUIRE(plan.floors[1].elevation == 3.2);
+    REQUIRE(plan.floors[1].rooms[0].floorZ == 3.2);
 }
 
 TEST_CASE("an empty asset source means no library", "[core][build]") {
@@ -305,7 +307,7 @@ TEST_CASE("makeBuildPlan lists each usable material once and reports the others"
 
     std::vector<std::string> ids;
     for (const BuildMaterial& m : plan.materials) ids.push_back(m.id);
-    REQUIRE(ids == std::vector<std::string>{"brushed_steel", "clear_glass", "oak_planks", "painted_wood", "tile", "white_paint"});
+    REQUIRE(ids == std::vector<std::string>{"brushed_steel", "clear_glass", "concrete", "oak_planks", "painted_wood", "tile", "white_paint"});
     REQUIRE(plan.materials[1].tileSize == TileSize{2.0, 1.0});
     REQUIRE(plan.materials[1].baseColor == fs::path("D:/Library/materials/items/clear_glass/textures/base_color.png"));
     REQUIRE_FALSE(plan.materials[1].opacity.empty());
@@ -444,7 +446,7 @@ TEST_CASE("the job lists map paths as absolute with forward slashes and a null m
     const Json& params = job["params"];
     REQUIRE(params["materials_file"] == "materials.json");
     REQUIRE(params["textures_folder"] == "textures");
-    REQUIRE(params["materials"].size() == 6);
+    REQUIRE(params["materials"].size() == 7);
     for (const Json& m : params["materials"]) {
         for (const auto& [channel, value] : m["maps"].items()) {
             if (value.is_null()) continue;
@@ -510,7 +512,8 @@ TEST_CASE("the job carries the preview folder, slab, stairs, roofs and ceiling p
     REQUIRE(floor["slab"]["undersides"].empty());
     REQUIRE(floor["slab"]["materials"]["edge"].is_null());
     REQUIRE(floor["stairs"].empty());
-    REQUIRE(floor["roofs"].empty());
+    REQUIRE(floor["roofs"].size() == 1);
+    REQUIRE(floor["roofs"][0]["faces"].size() >= 2);
     const Json& room = floor["rooms"][0];
     REQUIRE_FALSE(room["polygons"].empty());
     REQUIRE(room["ceiling_polygons"] == room["polygons"]);
@@ -520,4 +523,170 @@ TEST_CASE("the job carries the preview folder, slab, stairs, roofs and ceiling p
     const Json bare = makeBuildJob(project, plan, noFbx, tmp.path(), "build-1a2b3c4d", tmp.path() / "result.json");
     REQUIRE(jobProblem(bare).empty());
     REQUIRE(bare["params"]["preview_folder"].is_null());
+}
+
+namespace {
+
+// The area of a world polygon with holes.
+double worldArea(const WorldPolygon& p)
+{
+    double a = signedArea(p.outline);
+    for (const std::vector<Vec2>& h : p.holes) a += signedArea(h);
+    return a;
+}
+
+double worldArea(const std::vector<WorldPolygon>& list)
+{
+    double a = 0.0;
+    for (const WorldPolygon& p : list) a += worldArea(p);
+    return a;
+}
+
+// Two floors of the square room r1, ceilings 3.0 and slabs 0.2, a U shaped stair on f1 inside the room.
+Project stairProject()
+{
+    Project project = buildProject();
+    Floor& f1 = project.plan.floors[0];
+    f1.openings.clear();
+    f1.items.clear();
+    f1.rooms.resize(1);
+    Floor upstairs = f1;
+    upstairs.id = "f2";
+    upstairs.name = "Floor 2";
+    for (Point& p : upstairs.points) p.id += "u";
+    for (Wall& w : upstairs.walls) {
+        w.id += "u";
+        w.from += "u";
+        w.to += "u";
+    }
+    for (Room& r : upstairs.rooms) {
+        r.id += "u";
+        for (Id& w : r.walls) w += "u";
+    }
+    project.plan.floors.push_back(upstairs);
+    Stair stair;
+    stair.id = "s1";
+    stair.type = "u_shape";
+    stair.x = 2.0;
+    stair.y = 0.5;
+    project.plan.floors[0].stairs.push_back(stair);
+    return project;
+}
+
+}
+
+TEST_CASE("the build plan has a stair, its holes and the slab on a two floor plan", "[core][build][stairs]") {
+    const Project project = stairProject();
+    const BuildPlan plan = makeBuildPlan(project, {});
+    REQUIRE(plan.floors.size() == 2);
+    const FloorBuild& f1 = plan.floors[0];
+    const FloorBuild& f2 = plan.floors[1];
+    REQUIRE(f2.elevation == 3.2);
+
+    REQUIRE(f1.stairs.size() == 1);
+    REQUIRE(f1.stairs[0].riserCount == 17);
+    REQUIRE(f1.stairs[0].type == "u_shape");
+    REQUIRE(f1.stairs[0].toFloor == "f2");
+    REQUIRE(f1.stairs[0].steps.front().bottom == 0.0);
+    REQUIRE(f2.stairs.empty());
+    for (const StairStepBuild& step : f1.stairs[0].steps) REQUIRE(signedArea(step.outline) > 0.0);
+    const double holeArea = worldArea(f1.stairs[0].hole);
+    REQUIRE(holeArea > 2.0);
+
+    const double whole = worldArea(plan.floors[0].rooms[0].polygons);
+    REQUIRE(worldArea(f1.rooms[0].ceilingPolygons) == Approx(whole - holeArea).margin(1e-6));
+    REQUIRE(worldArea(f1.rooms[0].polygons) == Approx(whole).margin(1e-6));
+    REQUIRE(worldArea(f2.rooms[0].polygons) == Approx(whole - holeArea).margin(1e-6));
+    REQUIRE(worldArea(f2.rooms[0].ceilingPolygons) == Approx(whole).margin(1e-6));
+
+    REQUIRE(f1.slab.bottom == 3.0);
+    REQUIRE(f1.slab.top == Approx(3.2));
+    REQUIRE(f1.slab.polygons.size() == 1);
+    REQUIRE(f1.slab.polygons[0].holes.size() == 1);
+    REQUIRE(f1.slab.undersides.empty());
+
+    REQUIRE(f1.roofs.empty());
+    REQUIRE(f2.roofs.size() == 1);
+    REQUIRE(plan.problems.empty());
+}
+
+TEST_CASE("a stair on the top floor is an error and is not built", "[core][build][stairs]") {
+    Project project = stairProject();
+    Stair stair;
+    stair.id = "s2";
+    stair.x = 2.0;
+    stair.y = 0.5;
+    project.plan.floors[1].stairs.push_back(stair);
+    const BuildPlan plan = makeBuildPlan(project, {});
+    REQUIRE(plan.floors[1].stairs.empty());
+    REQUIRE(plan.floors[0].stairs.size() == 1);
+    bool found = false;
+    for (const BuildProblem& p : plan.problems) {
+        if (p.code != "stair_no_floor_above") continue;
+        found = true;
+        REQUIRE(p.severity == BuildSeverity::Error);
+        REQUIRE(p.floor == "f2");
+        REQUIRE(p.object == "s2");
+    }
+    REQUIRE(found);
+}
+
+TEST_CASE("the roofs follow what lies above each floor", "[core][build][roofs]") {
+    Project project = stairProject();
+    project.plan.floors[0].stairs.clear();
+    REQUIRE(makeBuildPlan(project, {}).floors[0].roofs.empty());
+
+    for (Point& p : project.plan.floors[1].points) p.x -= 2.0;
+    const BuildPlan half = makeBuildPlan(project, {});
+    REQUIRE(half.floors[0].roofs.size() == 1);
+    REQUIRE(half.floors[1].roofs.size() == 1);
+}
+
+TEST_CASE("materials of stairs, slabs and roofs follow the rules and a missing one is reported once", "[core][build][materials]") {
+    Project project = stairProject();
+    project.settings.materials = MaterialDefaults{};
+    const BuildPlan plan = makeBuildPlan(project, {}, [](std::string_view id) -> std::optional<BuildMaterialState> {
+        if (id == "roof_tiles") return std::nullopt;
+        BuildMaterialState state;
+        state.material.id = std::string(id);
+        state.material.baseColor = "D:/Library/" + std::string(id) + ".png";
+        return state;
+    });
+    REQUIRE(plan.floorMaterials[0].stairs.size() == 1);
+    REQUIRE(plan.floorMaterials[0].stairs[0].material == "oak_planks");
+    REQUIRE(plan.floorMaterials[0].slab.edge == "red_brick");
+    REQUIRE(plan.floorMaterials[0].slab.well == "white_paint");
+    REQUIRE(plan.floorMaterials[0].slab.underside == "white_paint");
+    REQUIRE(plan.floorMaterials[1].roofs.size() == 1);
+    REQUIRE(plan.floorMaterials[1].roofs[0].covering == "concrete");
+    REQUIRE(plan.problems.empty());
+
+    project.plan.roof.type = "gable";
+    const BuildPlan gable = makeBuildPlan(project, {}, [](std::string_view id) -> std::optional<BuildMaterialState> {
+        if (id == "roof_tiles") return std::nullopt;
+        BuildMaterialState state;
+        state.material.id = std::string(id);
+        state.material.baseColor = "D:/Library/" + std::string(id) + ".png";
+        return state;
+    });
+    REQUIRE(gable.floorMaterials[1].roofs[0].covering.empty());
+    int missing = 0;
+    for (const BuildProblem& p : gable.problems) missing += p.code == "missing_material" ? 1 : 0;
+    REQUIRE(missing == 1);
+}
+
+TEST_CASE("the job with a stair, slab and roof validates", "[core][build][stairs]") {
+    plynth::test::TempDir tmp("job-stairs");
+    const Project project = stairProject();
+    const BuildPlan plan = makeBuildPlan(project, {});
+    const Json job = makeBuildJob(project, plan, BuildSettings{}, tmp.path(), "build-1a2b3c4d", tmp.path() / "result.json");
+    INFO(jobProblem(job));
+    REQUIRE(jobProblem(job).empty());
+    const Json& f1 = job["params"]["floors"][0];
+    REQUIRE(f1["stairs"].size() == 1);
+    REQUIRE(f1["stairs"][0]["riser_count"] == 17);
+    REQUIRE(f1["slab"]["polygons"][0]["holes"].size() == 1);
+    REQUIRE(f1["rooms"][0]["ceiling_polygons"][0]["holes"].size() == 1);
+    REQUIRE(job["params"]["floors"][1]["rooms"][0]["polygons"][0]["holes"].size() == 1);
+    REQUIRE(job["params"]["floors"][1]["roofs"].size() == 1);
 }

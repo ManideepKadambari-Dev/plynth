@@ -243,6 +243,7 @@ BuildMaterialSource buildMaterialSourceFor(const MaterialCatalog& catalog)
 std::optional<Vec2> problemPosition(const Plan& plan, const BuildProblem& problem)
 {
     if (problem.object.empty()) return std::nullopt;
+    if (const RoofSection* entry = findRoofSection(plan, problem.object)) return Vec2{entry->x, entry->y};
     const Floor* floor = findFloorContaining(plan, problem.object);
     if (!floor) return std::nullopt;
 
@@ -254,6 +255,7 @@ std::optional<Vec2> problemPosition(const Plan& plan, const BuildProblem& proble
         return placement.centre;
     }
     if (const Item* i = findItem(*floor, problem.object)) return Vec2{i->x, i->y};
+    if (const Stair* st = findStair(*floor, problem.object)) return Vec2{st->x, st->y};
     if (const Room* r = findRoom(*floor, problem.object)) {
         const RoomShape shape = roomShape(*floor, *r);
         if (shape.closed) return shape.labelPoint;

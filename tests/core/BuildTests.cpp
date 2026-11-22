@@ -105,7 +105,7 @@ TEST_CASE("runBuild through the fake Blender writes the files and the report", "
     REQUIRE(report.logFile == f.projectFolder / "build" / "blender.log");
     REQUIRE_FALSE(fs::exists(f.lockFile()));
 
-    REQUIRE(report.counts == BuildCounts{1, 1, 1, 1, 2, 1});
+    REQUIRE(report.counts == BuildCounts{1, 1, 1, 1, 2, 1, 1, 0, 1});
     REQUIRE(report.objects == 1 + 1 + 2 + 2);
     REQUIRE(report.steps.size() == 9);
     REQUIRE(report.steps[0].step == "check");
@@ -557,14 +557,35 @@ TEST_CASE("a build through the fake writes a report with the slab, stair and roo
     const BuildReport report = runBuild(f.request);
     plynth::test::requireOk(report.status);
     REQUIRE(reportProblem(f.reportFile()).empty());
-    REQUIRE(report.counts.slabs == 0);
+    REQUIRE(report.counts.slabs == 1);
     REQUIRE(report.counts.stairs == 0);
-    REQUIRE(report.counts.roofs == 0);
+    REQUIRE(report.counts.roofs == 1);
     const nlohmann::json json = nlohmann::json::parse(plynth::test::readTextFile(f.reportFile()));
-    REQUIRE(json["counts"]["roofs"] == 0);
+    REQUIRE(json["counts"]["roofs"] == 1);
     const fs::path parts = f.projectFolder / "build" / "preview" / "parts.json";
     REQUIRE(fs::exists(parts));
     REQUIRE(plynth::test::schemaProblem("build-preview.schema.json", nlohmann::json::parse(plynth::test::readTextFile(parts))).empty());
     REQUIRE(fs::exists(f.projectFolder / "build" / "preview" / "f1.fbx"));
-    REQUIRE_FALSE(fs::exists(f.projectFolder / "build" / "preview" / "f1_roof.fbx"));
+    REQUIRE(fs::exists(f.projectFolder / "build" / "preview" / "f1_roof.fbx"));
+}
+
+TEST_CASE("problemPosition finds a stair and a roof section entry", "[core][build]") {
+    Plan plan = makeEmptyPlan();
+    plan.floors.push_back(Floor{.id = "f2", .name = "Upper"});
+    Stair stair;
+    stair.id = "s1";
+    stair.x = 1.5;
+    stair.y = 2.5;
+    plan.floors[0].stairs.push_back(stair);
+    RoofSection entry;
+    entry.id = "rf1";
+    entry.floor = "f2";
+    entry.x = 3.0;
+    entry.y = 4.0;
+    plan.roofSections.push_back(entry);
+    BuildProblem p;
+    p.object = "s1";
+    REQUIRE(problemPosition(plan, p) == Vec2{1.5, 2.5});
+    p.object = "rf1";
+    REQUIRE(problemPosition(plan, p) == Vec2{3.0, 4.0});
 }

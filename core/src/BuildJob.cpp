@@ -6,6 +6,9 @@
 #include "plynth/core/Materials.h"
 #include "plynth/core/ProjectFiles.h"
 #include "plynth/core/ProjectJson.h"
+#include "plynth/core/Roofs.h"
+#include "plynth/core/Stairs.h"
+#include "plynth/core/Storeys.h"
 
 #include <algorithm>
 #include <map>
@@ -382,6 +385,8 @@ public:
         std::string who;
         if (resolved.origin == MaterialOrigin::Wall) who = "Wall " + resolved.from;
         else if (resolved.origin == MaterialOrigin::Room) who = "Room " + resolved.from;
+        else if (resolved.origin == MaterialOrigin::Stair) who = "Stair " + resolved.from;
+        else if (resolved.origin == MaterialOrigin::Roof) who = "Roof section " + resolved.from;
         else who = "The project default for " + std::string(surfaceName(resolved.surface));
         if (!state) {
             p.code = "missing_material";
@@ -467,6 +472,37 @@ FloorMaterials floorMaterials(const Project& project, const Floor& floor, const 
         }
         out.rooms.push_back(std::move(ids));
     }
+
+    const SlabMaterials slab = slabMaterials(project);
+    out.slab.edge = checker.use(slab.edge, floor.id);
+    out.slab.well = checker.use(slab.well, floor.id);
+    out.slab.underside = checker.use(slab.underside, floor.id);
+
+    for (const StairBuild& built : build.stairs) {
+        const Stair* stair = findStair(floor, built.id);
+        StairMaterialId ids;
+        ids.stair = built.id;
+        if (stair) ids.material = checker.use(stairMaterial(project, *stair), floor.id);
+        out.stairs.push_back(std::move(ids));
+    }
+
+    const std::vector<RoofArea> areas = roofAreasOf(project.plan, floor.id);
+    for (const RoofBuild& built : build.roofs) {
+        RoofMaterialIds ids;
+        ids.index = built.index;
+        const auto area = std::find_if(areas.begin(), areas.end(), [&](const RoofArea& a) { return a.index == built.index; });
+        if (area != areas.end()) {
+            RoofArea resolved = *area;
+            resolved.settings.type = built.type;
+            ids.covering = checker.use(roofPartMaterial(project, resolved, RoofPart::Covering), floor.id);
+            ids.underside = checker.use(roofPartMaterial(project, resolved, RoofPart::Underside), floor.id);
+            ids.edge = checker.use(roofPartMaterial(project, resolved, RoofPart::Edge), floor.id);
+            ids.gable = checker.use(roofPartMaterial(project, resolved, RoofPart::Gable), floor.id);
+            ids.parapet = checker.use(roofPartMaterial(project, resolved, RoofPart::Parapet), floor.id);
+            ids.glazing = checker.use(roofPartMaterial(project, resolved, RoofPart::Glazing), floor.id);
+        }
+        out.roofs.push_back(std::move(ids));
+    }
     return out;
 }
 
@@ -526,6 +562,32 @@ BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, 
         build.ceilingHeight = floor.ceilingHeight;
         build.wallSolids = wallSolids(floor);
 
+        std::vector<BuildProblem> stairProblemList;
+        {
+            std::set<Id> refused;
+            for (const StairProblem& problem : stairProblems(project.plan, floor)) {
+                if (problem.error) refused.insert(problem.stair);
+                stairProblemList.push_back(checkProblem(problem.code, problem.error ? BuildSeverity::Error : BuildSeverity::Warning,
+                                                        problem.message, floor.id, problem.stair));
+            }
+            for (const Stair& stair : floor.stairs) {
+                if (refused.count(stair.id)) continue;
+                const StairLayout layout = stairLayout(project.plan, floor, stair);
+                if (!layout.status.ok()) continue;
+                StairBuild built = stairBuild(layout, level);
+                built.type = stair.type;
+                build.stairs.push_back(std::move(built));
+            }
+        }
+        std::vector<WorldPolygon> floorHoles;
+        if (!plan.floors.empty()) {
+            for (const StairBuild& below : plan.floors.back().stairs) {
+                if (below.toFloor == floor.id) floorHoles.push_back(below.hole);
+            }
+        }
+        std::vector<WorldPolygon> ceilingHoles;
+        for (const StairBuild& own : build.stairs) ceilingHoles.push_back(own.hole);
+
         for (const Opening& opening : floor.openings) {
             OpeningBuildResult made = openingBuild(floor, opening, level);
             if (!made.status.ok()) {
@@ -537,7 +599,7 @@ BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, 
         }
 
         for (const Room& room : floor.rooms) {
-            std::optional<RoomBuild> made = roomBuild(floor, room, level);
+            std::optional<RoomBuild> made = roomBuild(floor, room, level, floorHoles, ceilingHoles);
             if (!made) {
                 plan.problems.push_back(checkProblem("room_not_closed", BuildSeverity::Error,
                                                      "Room " + room.id + " is not closed by its walls, so it has no floor or ceiling.",
@@ -583,6 +645,14 @@ BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, 
                 plan.problems.push_back(checkProblem(std::string(itemProblemName(problem.kind)), BuildSeverity::Warning,
                                                      problem.message, floor.id, item.id));
             }
+        }
+        for (BuildProblem& problem : stairProblemList) plan.problems.push_back(std::move(problem));
+
+        build.slab = slabBuild(project.plan, index, levels);
+        FloorRoofs roofs = floorRoofs(project.plan, index, levels);
+        build.roofs = std::move(roofs.roofs);
+        for (const RoofProblem& problem : roofs.problems) {
+            plan.problems.push_back(checkProblem(problem.code, BuildSeverity::Warning, problem.message, floor.id, problem.object));
         }
         plan.floorMaterials.push_back(floorMaterials(project, floor, build, checker));
         plan.floors.push_back(std::move(build));
