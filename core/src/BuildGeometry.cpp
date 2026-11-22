@@ -594,8 +594,10 @@ std::vector<WorldPolygon> withoutHoles(const std::vector<WorldPolygon>& polygons
     }
     Clipper2Lib::PathsD clip;
     for (const WorldPolygon& c : cuts) clip.push_back(toPath(c.outline));
+    // Overlapping cuts are joined first, so where two footprints overlap the material stays removed.
+    const Clipper2Lib::PathsD cutUnion = Clipper2Lib::Union(clip, Clipper2Lib::FillRule::NonZero, kPrecision);
     const Clipper2Lib::PathsD result =
-        Clipper2Lib::Difference(subject, clip, Clipper2Lib::FillRule::EvenOdd, kPrecision);
+        Clipper2Lib::Difference(subject, cutUnion, Clipper2Lib::FillRule::EvenOdd, kPrecision);
 
     std::vector<AreaRing> outers;
     std::vector<AreaRing> holes;

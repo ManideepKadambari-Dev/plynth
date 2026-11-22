@@ -492,6 +492,37 @@ TEST_CASE("roomBuild gives the floor polygon, the levels and nothing for an open
     REQUIRE_FALSE(roomBuild(open, open.rooms[0], 0.0).has_value());
 }
 
+TEST_CASE("overlapping stair holes cut the union out of the floor and the ceiling", "[core][build]") {
+    const Floor f = squareWithRoom();
+    const std::optional<RoomBuild> whole = roomBuild(f, f.rooms[0], 0.0);
+    REQUIRE(whole.has_value());
+    double minX = 1e9, minY = 1e9;
+    for (const Vec2& p : whole->polygons[0].outline) {
+        minX = std::min(minX, p.x);
+        minY = std::min(minY, p.y);
+    }
+    const auto box = [&](double x0, double y0, double x1, double y1) {
+        WorldPolygon w;
+        w.outline = {{minX + x0, minY + y0}, {minX + x1, minY + y0}, {minX + x1, minY + y1}, {minX + x0, minY + y1}};
+        return w;
+    };
+    // Two 1 x 2 holes that share a 0.5 x 1 overlap: the union is 3 square metres.
+    const std::vector<WorldPolygon> holes = {box(1.0, 1.0, 2.0, 3.0), box(1.5, 2.0, 2.5, 3.5)};
+    const std::optional<RoomBuild> cut = roomBuild(f, f.rooms[0], 0.0, holes, holes);
+    REQUIRE(cut.has_value());
+    const auto area = [](const std::vector<WorldPolygon>& polys) {
+        double sum = 0.0;
+        for (const WorldPolygon& p : polys) {
+            sum += ringArea(p.outline);
+            for (const std::vector<Vec2>& h : p.holes) sum += ringArea(h);
+        }
+        return sum;
+    };
+    const double expected = 14.44 - 3.0;
+    REQUIRE(area(cut->polygons) == Approx(expected).margin(1e-6));
+    REQUIRE(area(cut->ceilingPolygons) == Approx(expected).margin(1e-6));
+}
+
 TEST_CASE("itemPlacement turns an item into Blender's axes", "[core][build]") {
     Item item;
     item.id = "i1";
