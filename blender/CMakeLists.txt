@@ -27,7 +27,10 @@ if(PLYNTH_BLENDER AND EXISTS "${PLYNTH_BLENDER}")
         COMMAND "${PLYNTH_BLENDER}" --background --factory-startup -noaudio --python-exit-code 3
                 --python "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_tests.py"
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
-    set_tests_properties(blender_python PROPERTIES LABELS blender TIMEOUT 900)
+    # Factory startup does not protect the user's Blender folders, so the test gets a private one.
+    file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/blender-private")
+    set_tests_properties(blender_python PROPERTIES LABELS blender TIMEOUT 900
+        ENVIRONMENT "BLENDER_USER_RESOURCES=${CMAKE_BINARY_DIR}/blender-private")
 else()
     message(STATUS "Blender not found, the worker Python tests are not added")
 endif()
