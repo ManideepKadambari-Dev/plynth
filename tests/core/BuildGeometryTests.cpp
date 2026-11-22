@@ -90,6 +90,7 @@ TEST_CASE("planToWorld flips y and floorElevations stacks the ceilings", "[core]
     Floor second = plan.floors[0];
     second.id = "f2";
     second.ceilingHeight = 2.8;
+    second.slabThickness = 0.25;
     plan.floors.push_back(second);
     second.id = "f3";
     second.ceilingHeight = 3.2;
@@ -97,8 +98,8 @@ TEST_CASE("planToWorld flips y and floorElevations stacks the ceilings", "[core]
     const std::vector<double> levels = floorElevations(plan);
     REQUIRE(levels.size() == 3);
     REQUIRE(levels[0] == Approx(0.0).margin(1e-9));
-    REQUIRE(levels[1] == Approx(3.0).margin(1e-9));
-    REQUIRE(levels[2] == Approx(5.8).margin(1e-9));
+    REQUIRE(levels[1] == Approx(3.2).margin(1e-9));
+    REQUIRE(levels[2] == Approx(6.25).margin(1e-9));
 }
 
 TEST_CASE("wallSolids of the square is one solid with a hole", "[core][build]") {
