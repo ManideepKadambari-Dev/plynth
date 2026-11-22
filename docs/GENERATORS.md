@@ -302,7 +302,7 @@ One file for each check in `plynth/checks/`, run by the `run_checks` step. A che
 C++ and Python talk through files, described in `schema/blender-job.schema.json` and `schema/blender-result.schema.json`.
 
 - Plynth writes `job.json`: `format`, `version`, `task`, `job_id`, `result_file` and `params`. The folder holding `result_file` is the job's work folder.
-- It starts `blender --background --factory-startup -noaudio --python-exit-code 3 --python plynth_worker.py -- --job <file>`. The entry point `plynth_worker.py` reads the job, finds the task in the registry and runs it.
+- It starts `blender --background --factory-startup -noaudio --python-exit-code 3 --python plynth_worker.py -- --job <file>`, with Blender's user folders (`BLENDER_USER_RESOURCES`, `_CONFIG`, `_SCRIPTS`, `_EXTENSIONS`, `_DATAFILES`) set to a private folder of Plynth's, so a job never reads or writes your own Blender folders. The entry point `plynth_worker.py` reads the job, finds the task in the registry and runs it.
 - While running, the worker prints progress lines: `PLYNTH:{"progress":{"step":"set_pivot","index":4,"count":11,"message":"Setting the pivot"}}`. Use `jobs.progress(...)`.
 - At the end it writes `result.json` through a temporary file and a rename: `ok`, `error`, `blender_version`, `warnings`, `elapsed_ms` and `output`. The worker never lets an exception escape without trying to write a result. An uncaught error exits with code 3 and C++ reports `blender_failed` with the end of the log.
 
@@ -483,7 +483,19 @@ An exporter is one file in `blender/plynth/exporters/` that registers an `Export
 
 ### Testing
 
-The Python tests run inside Blender: `blender -b --factory-startup --python blender/tests/run_tests.py -- [pattern]`. `ctest -L blender` runs them when Blender is found. Every registry has a test that refuses a duplicate id. The sample chair in `samples/models/chair` is the model most tests use.
+The Python tests run inside Blender: `blender -b --factory-startup --python blender/tests/run_tests.py -- [pattern]`. `ctest -L blender` runs them when Blender is found and gives Blender a scratch folder as its user folders. `--factory-startup` alone does not keep Blender away from your own folders, so when you run the command by hand, first point the five user variables at an empty scratch folder (PowerShell):
+
+```
+$s = "$env:TEMP\plynth-blender-scratch"
+New-Item -ItemType Directory -Force $s | Out-Null
+$env:BLENDER_USER_RESOURCES = $s
+$env:BLENDER_USER_CONFIG = $s
+$env:BLENDER_USER_SCRIPTS = $s
+$env:BLENDER_USER_EXTENSIONS = $s
+$env:BLENDER_USER_DATAFILES = $s
+```
+
+Set these in the same window, and use the same window to run the command. Every registry has a test that refuses a duplicate id. The sample chair in `samples/models/chair` is the model most tests use.
 
 ## Other things you will be able to add
 

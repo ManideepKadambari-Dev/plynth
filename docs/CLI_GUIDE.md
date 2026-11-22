@@ -673,7 +673,7 @@ plynth stair add --floor f1 --x 1 --y 1
 | `arrival` | Where the stair reaches the upper floor. |
 | `problems` | What the build would report for this stair. Each has `code`, `severity` and `message`. See below. |
 
-A stair that has a problem with severity `warning` is still added. Refusals, with nothing changed: `invalid_value` for a stair on the top floor ("Add a floor above before placing a stair."), for a width outside 0.6 to 3 and for an unknown type (the message lists the known ones). A rotation outside 0 to 360 is not refused. It is turned into that range, so `--rot 450` is stored as 90; `not_found` for an unknown floor or an unknown material; `bad_arguments` for a missing `--x` or `--y`.
+A stair that has a problem with severity `warning` is still added. Refusals, with nothing changed: `invalid_value` for a stair on the top floor ("Add a floor above before placing a stair."), for a width outside 0.6 to 3 and for an unknown type (the message lists the known ones). A rotation outside 0 to 360 is not refused. It is turned into that range, so `--rot 450` is stored as 90. `not_found` is returned for an unknown floor or an unknown material, and `bad_arguments` for a missing `--x` or `--y`.
 
 **Stair problem codes.** They appear in `problems` and in the build report.
 
@@ -743,7 +743,7 @@ A type that is added to Plynth later shows up here with no other change. See "Ad
 
 ### roof list
 
-Lists the roof default and every roof section. Roof sections are not drawn. They are worked out from the floors: each part of a floor with no floor above it is a section. `--floor <id>` lists one floor only.
+Lists the roof default and every roof section. Roof sections are not drawn. They are worked out from the floors: each part of a floor with no floor above it is a section. A part narrower than 0.2 m has no roof. The build gives it a plain flat top in the outside wall material instead. `--floor <id>` lists one floor only.
 
 ```
 plynth roof list
@@ -1705,7 +1705,9 @@ plynth session status
 
 These commands are about your computer, not about one project. They never open a project, so they do not take `--project` and the edit lock never refuses them. They work while the app has a project open.
 
-All of them read the machine settings file. `settings show` tells you where it is. By default it is `%APPDATA%\Plynth\settings.json`. Set the environment variable `PLYNTH_CONFIG_DIR` to a folder to use another settings file, which is how scripts and tests keep away from the real one. `PLYNTH_BLENDER` names a `blender.exe` to use when none is chosen in the settings.
+All of them read the machine settings file. `settings show` tells you where it is. By default it is `%APPDATA%\Plynth\settings.json`. Set the environment variable `PLYNTH_CONFIG_DIR` to a folder to use another settings file, which is how scripts and tests keep away from the real one. `PLYNTH_BLENDER` names a `blender.exe` (or the folder that holds it).
+
+**Which Blender is used.** Plynth takes the first of these that is set: the `--blender <exe>` option, the `PLYNTH_BLENDER` variable (when not empty), the Blender saved in the settings, and last the search of the usual install places. A Blender you name with the option or the variable is the only one that is started. If it is missing or cannot be used, the command says so and stops. It does not fall back to another install.
 
 Commands that use the library take `--library <folder>` to use another library than the one in the settings. Commands that run Blender (`assets import`, `assets inbox`, `assets rescan`, `assets thumbnail`, `library rescan`) take `--blender <exe>` to use another Blender than the one the setup check chooses. Ids (`chair`, `living`) use lower case letters, digits and `_`, start with a letter, and are at most 64 characters. Tags use lower case letters, digits, `_` and `-`.
 
@@ -1724,9 +1726,9 @@ plynth doctor --blender "C:\Program Files\Blender Foundation\Blender 5.2\blender
 Options:
 
 - `--no-addons`: do not start Blender to ask about add-ons. The add-on items then say `not_checked`, and `probed` is false. This is faster.
-- `--blender <file>`: check this `blender.exe` as if it were the chosen one. Nothing is saved.
+- `--blender <file>`: check this `blender.exe` and no other. It beats `PLYNTH_BLENDER` and the saved setting. Nothing is saved.
 
-Without `--no-addons`, doctor starts Blender once in the background, which takes a few seconds. The answer always has `ok` true and exit code 0, even when something is missing. A script reads `ready`, which is true when no required item is missing or too old.
+Without `--no-addons`, doctor starts Blender once in the background, which takes a few seconds. That run uses Blender's factory settings and a private folder of Plynth's, so it does not load your add-ons or touch your Blender folders. To tell you which add-ons are on and whether BlenderKit has a sign-in, the check reads your saved Blender preferences file as plain data, and only reads it. It never starts an add-on, never changes or copies the file, and never shows the key. It only learns whether a key exists. If the preferences file cannot be understood (for example a Blender version Plynth does not know), the add-on items say `not_checked`. The answer always has `ok` true and exit code 0, even when something is missing. A script reads `ready`, which is true when no required item is missing or too old.
 
 ```json
 {"ok":true,"command":"doctor","result":{"ready":true,"first_run":false,"updated":true,"probed":false,"items":[{"id":"blender","name":"Blender","required":true,"state":"found","version":"5.2.0","path":"C:/Program Files/Blender Foundation/Blender 5.2/blender.exe","detail":"Blender 5.2.0 LTS (hash fbe6228777e7 built 2026-07-14 01:35:40) found.","action":"","link":"","affects":[]},{"id":"library_folder","name":"Library folder","required":true,"state":"found","version":null,"path":"D:/Demo/Library","detail":"The library is ready.","action":"","link":"","affects":[]},{"id":"graphics_driver","name":"Graphics driver","required":true,"state":"not_checked","version":null,"path":null,"detail":"Checked by the app when it starts the 3D preview.","action":"","link":"","affects":[]},{"id":"addon_blenderkit","name":"BlenderKit add-on","required":false,"state":"not_checked","version":null,"path":null,"detail":"Add-ons were not checked this time.","action":"","link":"https://www.blenderkit.com/","affects":["importing assets from BlenderKit"]}],"blender_installs":[{"path":"C:/Program Files/Blender Foundation/Blender 5.2/blender.exe","version":"5.2.0","version_text":"Blender 5.2.0 LTS (hash fbe6228777e7 built 2026-07-14 01:35:40)","support":"supported","sources":["program_folder","registry"],"selected":true,"problem":null}]}}

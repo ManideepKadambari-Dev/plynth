@@ -447,7 +447,7 @@ The Properties panel lists the problems of a stair, and the Build tab shows them
 
 ## Roofs
 
-You do not draw a roof. Plynth works it out. Every part of a floor that has nothing above it is a **roof section**. A house with one floor has one section. An upper floor over half of the ground floor leaves the other half as a section of the ground floor, and the top of the upper floor is a second one. When you move a wall, the sections follow.
+You do not draw a roof. Plynth works it out. Every part of a floor that has nothing above it is a **roof section**. A house with one floor has one section. An upper floor over half of the ground floor leaves the other half as a section of the ground floor, and the top of the upper floor is a second one. When you move a wall, the sections follow. A part narrower than 0.2 m, such as a thin strip left beside the floor above, gets no roof. Plynth gives it a plain flat top in the outside wall material instead.
 
 Each section takes its settings from the **roof default**, unless it has settings of its own. A new project's default is a flat roof with a 0.6 m parapet. A pitch of 30 degrees and an overhang of 0.3 m are kept ready for when you switch to a pitched type.
 
@@ -480,7 +480,7 @@ Roofs are 15 cm thick. A pitched roof that rises against a taller storey can cov
 
 Change a section that follows the default and it gets settings of its own, tied to a point inside it. The roof section also has a **Covering** material. **Use the default** takes the settings away again, and the section follows the default.
 
-If you later change the walls so that the point is no longer in that section, the settings are kept but have no effect, and the Build tab says "The roof entry rf1 is not in any roof section, so it has no effect." (with the id of the entry). Remove them with `plynth roof clear`, or redraw the walls.
+If you later change the walls so that the point is no longer in that section, the settings are kept but have no effect, and the Build tab says "The roof entry rf1 is not in any roof section, so it has no effect." (with the id of the entry). Remove them in the app: with nothing selected, open the **Roof default** group in the Properties panel and press **Remove** next to the unused entry. Or use `plynth roof clear`, or redraw the walls.
 
 ### Materials
 
