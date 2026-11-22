@@ -1609,7 +1609,7 @@ The stages are `preparing`, `blender` (one line per step, `index` counting from 
 | `bevel_failed` | warning | The wall edges could not be rounded, so they stay sharp. |
 | `stair_overlaps_wall`, `stair_outside_floor`, `stair_arrival_outside_room`, `stair_no_floor_above`, `stair_type_unknown` | warning, error for the last two | The stair problems listed under `stair add`. The `object` is the stair. |
 | `roof_type_fallback`, `roof_type_unknown`, `roof_section_unused` | warning | The roof problems listed under `roof types`. The `object` is the roof entry, when there is one. |
-| `slab_failed`, `stair_failed`, `roof_failed` | warning | Blender could not make that slab, stair or roof from its outline. The `object` is the floor, stair or roof entry. The rest of the building is built. |
+| `slab_failed`, `stair_failed`, `roof_failed` | error | Blender could not make that slab, stair or roof from its outline, so it is left out. The `object` is the floor, stair or roof entry. The rest of the building is built, but `build_complete` fails and the export is blocked. |
 | `preview_failed` | warning | The preview parts could not be written, so `build\preview\parts.json` is removed and the 3D view loads `building.fbx`. |
 | `no_room`, `outside_room`, `overlaps_item`, `overlaps_wall`, `overlaps_opening`, `off_wall`, `too_tall`, `size_changed` | warning | The furniture warnings of the item (see "Furniture items"). They are shown again here because the build marks them on the plan. |
 
@@ -1643,7 +1643,7 @@ Blender can find more problems while it builds (`cut_failed`, `fill_failed`, `as
 |---|---|
 | `building.blend` | The Blender file. Open it in Blender, edit it, render it. Items are instances of their asset. |
 | `building.fbx` | The whole building in one file. Items are real objects that share their mesh. |
-| `preview\` | One FBX for each floor and one for each floor's roofs (`f1.fbx`, `f2_roof.fbx`), and `parts.json` that lists them (`schema/build-preview.schema.json`). The 3D view loads these so it can hide roofs and floors. Written after `building.fbx`. Not written, and `parts.json` removed, when it fails. |
+| `preview\` | One FBX for each floor, one for the slab above it and one for its roofs (`f1.fbx`, `f1_slab.fbx`, `f2_roof.fbx`), and `parts.json` that lists them (`schema/build-preview.schema.json`). The 3D view loads these so it can hide roofs and floors. Written after `building.fbx`. Not written, and `parts.json` removed, when it fails. |
 | `materials.json` | Written with the FBX, never without it. For each built material, its image maps (absolute paths) and alpha mode, and for each built object its material slots in order (`schema/build-materials.schema.json`). The 3D view reads it to show metal, roughness and see-through parts. |
 | `textures\` | Small constant images for surfaces with no material, such as `Wall_Outside_base_color.png`. |
 | `build.json` | The report of the last build. |

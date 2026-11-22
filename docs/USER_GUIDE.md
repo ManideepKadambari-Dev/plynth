@@ -603,7 +603,7 @@ When a build finishes, the 3D view opens by itself and the bar says "Built at 10
 - **Corners.** Where exactly two walls of the same height meet at a corner, both ends are cut on the diagonal so the outer faces join cleanly. T junctions, rounded corners, very sharp angles (under 25 degrees), walls of different heights and very short walls keep square ends.
 - **Openings**, cut in their exact shape: an arch is round, a keyhole is a keyhole.
 - **Doors and windows.** A door gets a frame, a closed leaf and a handle on both faces, on the side away from the hinge. A window gets a frame and a thin pane of glass. A plain opening stays empty. A doorway that reaches the floor also gets a strip of floor through the wall.
-- **Floors and ceilings**, one flat face for each closed room. They have no thickness yet. A room whose walls do not close gets none. The ceilings are not drawn when you look from above, so the top view shows the floors.
+- **Floors and ceilings**, one flat face for each closed room. A room whose walls do not close gets none. The ceilings are not drawn when you look from above, so the top view shows the floors.
 - **Furniture** at its marker, turned the way the plan shows, as a copy of the asset's own model. An item whose asset is missing is left out, with a problem at its marker. Plynth never puts a placeholder box there.
 - **Edges** rounded by 1 cm, so they catch the light.
 - **Materials.** Every wall face, floor, ceiling, door leaf, frame, glass pane and handle gets a material from your materials catalog, by the rules in "Materials on walls, rooms and the project". A surface with no material, or whose material is missing, gets a plain neutral color. Inside wall faces are a little lighter than outside faces, so you can tell them apart.
@@ -623,7 +623,7 @@ Everything is written into the project's `build` folder:
 
 - `building.blend`, the Blender file. Open it in Blender with **Build > Open building.blend in Blender**, edit it, render it.
 - `building.fbx`, the whole building in one file.
-- `preview`, a folder with one file for each floor and one for each floor's roofs, and `parts.json` that lists them. The 3D view loads these so it can hide roofs and floors. They are written after `building.fbx`. If they cannot be written, the 3D view loads `building.fbx` instead.
+- `preview`, a folder with one file for each floor, one for the slab above it and one for its roofs, and `parts.json` that lists them. The 3D view loads these so it can hide roofs and floors. They are written after `building.fbx`. If they cannot be written, the 3D view loads `building.fbx` instead.
 - `materials.json`, written next to the FBX. It tells the 3D view which image maps each material uses.
 - `textures`, the plain neutral images for surfaces that have no material.
 - `preview_textures`, copies of textures larger than 1024 pixels, scaled down for the 3D view.
@@ -655,7 +655,7 @@ The background is the theme's ground color, the same as behind the plan, and the
 
 The overlay on the plan draws only the shown floor.
 
-Before the first build the 3D view says "Build the plan to see it in 3D. (Ctrl+B)". That is not an error. When a project is opened again, the 3D view loads the last `building.fbx` if it is there.
+Before the first build the 3D view says "Build the plan to see it in 3D. (Ctrl+B)". That is not an error. When a project is opened again, the 3D view shows the last build, with the files in `preview` when they are there and `building.fbx` when they are not.
 
 ## Build problems
 
@@ -683,7 +683,7 @@ What the problems mean:
 | A hip roof needs a section without holes or inward corners | warning | A hip roof was asked for on a section that is not convex or has a hole, so it was built as a gable. Pick another type or reshape the walls. |
 | The roof entry is not in any roof section | warning | A roof entry's point lies in no roof section, or in a section another entry already governs. It has no effect. |
 | Unknown roof type | warning | The plan names a roof type this copy of Plynth does not have, so the section is built flat. |
-| Could not build a slab, stair or roof | warning | Blender could not make that part from its outline. The rest of the building is fine. Check the walls round it. |
+| Could not build a slab, stair or roof | error | Blender could not make that part from its outline, so it is left out and the building is incomplete. The export is blocked until it is fixed. The rest of the building is built. Check the walls round it. |
 | Could not write the preview parts | warning | The 3D view loads the whole building file instead, so Show roofs and Cut at the shown floor do nothing until the next good build. |
 | Furniture warnings | warning | Not in any room, overlaps a wall and the others in "Furniture warnings" are shown here too. |
 | Missing material | warning | A wall, room or project default names a material that is not in the library. The surface got the neutral look. Import the material again or pick another. For a project default the problem has no object, so there is no marker. |
@@ -1036,7 +1036,7 @@ The export runs in the background with a progress bar and a **Cancel** button. I
 
 Everything goes into the project's `export` folder:
 
-- `<Name>.fbx`, named after the project. A project called "My Flat 2" gives `My_Flat_2.fbx`. Walls, floors, ceilings, doors, windows and furniture are all in it. The collision shapes go in the same file.
+- `<Name>.fbx`, named after the project. A project called "My Flat 2" gives `My_Flat_2.fbx`. Walls, floors, ceilings, slabs, stairs, roofs, doors, windows and furniture are all in it. The collision shapes go in the same file.
 - `Textures`, the images the FBX uses and no others. The names are `T_<Material>_<Channel>`, for example `T_OakPlanks_BaseColor.jpg` and `T_OakPlanks_Normal.png`. A surface with no material gets a plain image named after its slot.
 - `export_report.json`, the report of the last export. It lists the checks, the files and the time.
 
@@ -1061,7 +1061,7 @@ The checks look at the real objects that go into the FBX. The Export tab lists t
 | Check | What it looks at | How to fix a fail |
 |---|---|---|
 | Build is up to date | The plan has not changed since the last successful build. | Press Build, then export. |
-| Build is complete | The last build left nothing out: no missing assets, no openings that were not cut, no rooms that do not close. Each finding names the item. | Fix the problems on the Build tab, then build again. |
+| Build is complete | The last build left nothing out: no missing assets, no openings that were not cut, no rooms that do not close, no slab, stair or roof that could not be built. Each finding names the item. | Fix the problems on the Build tab, then build again. |
 | Scale and units | The scene is in metres with scale 1, and the walls are the size the plan says, within 1 mm. | Do not change the scale in `building.blend`. Build again. |
 | Pivots and applied transforms | Every object sits at the building's origin with no rotation, scale or parent. | The export does this itself. A fail means a hand edit made a parent. Remove it. |
 | Naming | Every mesh is called `SM_...` or `UCX_...`, names are not repeated, and names use only letters, digits and `_`. | Rename the object in `building.blend`. |
@@ -1069,7 +1069,7 @@ The checks look at the real objects that go into the FBX. The Export tab lists t
 | Texture sharpness | How many pixels of texture each metre of surface gets. A warning below half the median of the building or below 256 pixels per metre. A fail below a quarter of the median. | Use a bigger texture, or a smaller tile size, for the material the finding names. |
 | Triangle counts | A mesh with no triangles fails. A warning above 1,000,000 triangles in one mesh or 10,000,000 in all. | Remove the empty mesh, or use lighter furniture. |
 | Materials and textures | Every mesh has materials, every slot has a real material, every image file exists, and every base color is an image. An unassigned material blocks the export. | Pick a material for the surface. |
-| Collision | Every wall, floor, ceiling and furniture item has a `UCX_` mesh, and each one is closed and convex. Door leaves and window glass need none. | Build again. |
+| Collision | Every wall, floor, slab, stair, roof and furniture item has a `UCX_` mesh, and each one is closed and convex. Ceilings, door leaves and window glass need none. | Build again. |
 | FBX scale | After writing, Plynth reads the FBX back and checks the walls' size and the object count. Skipped when nothing was written. | Report it. It means the file is wrong. |
 
 A ceiling set to "No material" fails the Materials check. Choose a material for it, or use **Export anyway...** if you want it plain.
@@ -1079,8 +1079,11 @@ A ceiling set to "No material" fails the Materials check. Choose a material for 
 Unreal needs simple shapes to stop the player walking through things. Plynth makes them for you. Each is a closed convex mesh named `UCX_<mesh name>_<number>`, for example `UCX_SM_f1_Walls_00`, and Unreal uses it as the collision of the mesh with that name.
 
 - **Walls** are cut into pieces. A piece is convex, so a wall with a doorway becomes a piece left of the door, a piece right of it and a piece over it. You can walk through the doorway. A plain opening gets a piece under it. A **window** does not cut the wall: the glass area stays blocked.
-- **Floors and ceilings** get a slab 10 cm thick, under the floor and above the ceiling. Rooms that are not rectangles are split into several slabs. Columns and holes stay open.
+- **Floors and ceilings** get a collision slab 10 cm thick, under the floor and above the ceiling, or as thin as the slab between the floors when that is thinner, so nothing pokes into the next floor. Rooms that are not rectangles are split into several slabs. Columns and holes stay open.
 - **Door thresholds** get a slab too.
+- **Slabs** between the floors get closed convex pieces from the bottom of the slab to its top. The hole for a stair stays open.
+- **Stairs** get one piece for each step, landing and column.
+- **Roofs** get sloped convex shapes under the covering, so you can walk on a roof. A flat roof's parapet gets a piece for each face that looks up. Gables and glazing get none.
 - **Door leaves and window fills** get none.
 - **Furniture** gets one convex hull around each item.
 
@@ -1100,6 +1103,15 @@ Every surface in the FBX has a material named for what the surface is, so you ca
 | Door and window reveals | The slot of the wall face they follow |
 | A doorway's floor strip | The floor slot it follows |
 | Door leaf, frame, glass, handle | `Door`, `Frame`, `Glass`, `Handle` |
+| Slab edges and ledge tops | `Exterior_Wall` |
+| Slab and roof undersides | `Soffit` |
+| The sides of a stair well | `Stair_Well` |
+| Every part of a stair | `Stair` |
+| A pitched roof's covering | `Roof` |
+| A flat roof's covering | `Flat_Roof` |
+| Roof edges | `Fascia` |
+| Gables and parapets | `Exterior_Wall` |
+| Sawtooth glazing | `Glass` |
 
 The room type is written with a capital at each word: `guest_room` gives `GuestRoom`. A room with no type uses `Room`. Rooms of one type share slots across the whole building.
 
