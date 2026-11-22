@@ -29,6 +29,7 @@
 #include <filesystem>
 #include <numbers>
 #include <regex>
+#include <map>
 #include <set>
 #include <string>
 #include <vector>
@@ -981,4 +982,175 @@ TEST_CASE("a door in a 45 degree corner keeps its piece names as the room moves 
         INFO("shift " << shift);
         requireSamePieces(base, kitOf(build(shift, shift * 0.61, k % 2 == 1)));
     }
+}
+
+namespace {
+
+// How long the visible faces of the walls are, per slot, as the build's solids have them.
+std::map<std::string, double> buildFaceLengths(const BuildPlan& plan)
+{
+    std::map<std::string, double> out;
+    for (std::size_t i = 0; i < plan.floors.size(); ++i) {
+        const FloorMaterials& m = plan.floorMaterials[i];
+        const auto add = [&](const WallRing& ring) {
+            for (std::size_t k = 0; k < ring.points.size(); ++k) {
+                const WallEdge& e = ring.edges[k];
+                std::string slot = m.wallTopSlot;
+                if (e.side) {
+                    slot = "Exterior_Wall";
+                    for (const WallFaceMaterial& f : m.wallFaces) {
+                        if (f.wall == e.wall && f.room == e.room) slot = f.slot;
+                    }
+                }
+                out[slot] += distance(ring.points[k], ring.points[(k + 1) % ring.points.size()]);
+            }
+        };
+        for (const WallSolid& solid : plan.floors[i].wallSolids) {
+            add(solid.outline);
+            for (const WallRing& h : solid.holes) add(h);
+        }
+    }
+    return out;
+}
+
+// The same from the kit: every placed piece's faces that are not kit cuts.
+std::map<std::string, double> kitFaceLengths(const ModularKit& kit)
+{
+    std::map<std::string, double> out;
+    for (const KitPlacement& at : kit.placements) {
+        const KitPiece* piece = pieceById(kit, at.piece);
+        REQUIRE(piece);
+        for (const KitSolid& solid : piece->solids) {
+            std::vector<const KitRing*> rings{&solid.outline};
+            for (const KitRing& h : solid.holes) rings.push_back(&h);
+            for (const KitRing* ring : rings) {
+                for (std::size_t k = 0; k < ring->points.size(); ++k) {
+                    if (ring->edges[k].cut) continue;
+                    out[ring->edges[k].slot] += distance(ring->points[k], ring->points[(k + 1) % ring->points.size()]);
+                }
+            }
+        }
+    }
+    return out;
+}
+
+// Every visible wall face of the build must be in the kit, with its own slot, and nothing but cut faces may be new.
+void requireFacesKept(const BuildPlan& plan, const ModularKit& kit, double tolerance = 1e-5)
+{
+    const std::map<std::string, double> want = buildFaceLengths(plan);
+    const std::map<std::string, double> got = kitFaceLengths(kit);
+    for (const auto& [slot, length] : want) {
+        INFO("slot " << slot);
+        REQUIRE(got.count(slot) == 1);
+        REQUIRE(std::fabs(got.at(slot) - length) < tolerance);
+    }
+    for (const auto& [slot, length] : got) {
+        INFO("slot " << slot);
+        REQUIRE(want.count(slot) == 1);
+    }
+}
+
+// Walls meeting at a point o: a main wall of 0.3 m through it, and a partition across it (both halves when
+// cross), turned by an angle and moved.
+Project junctionProject(double angleDegrees, double partition, bool cross, double dx, double dy)
+{
+    Project p = makeNewProject();
+    Floor f;
+    f.id = "f1";
+    const double a0 = angleDegrees * std::numbers::pi / 180.0;
+    f.points.push_back({"o", dx, dy, 0.0});
+    const int arms = cross ? 4 : 3;
+    for (int k = 0; k < arms; ++k) {
+        const double a = a0 + k * std::numbers::pi / 2.0;
+        const std::string id = "e" + std::to_string(k);
+        f.points.push_back({id, dx + 2.0 * std::cos(a), dy + 2.0 * std::sin(a), 0.0});
+        Wall w;
+        w.id = "w" + std::to_string(k + 1);
+        w.from = id;
+        w.to = "o";
+        w.thickness = (k == 0 || k == 2) ? 0.3 : partition;
+        f.walls.push_back(w);
+    }
+    p.plan.floors[0] = f;
+    clearMaterialDefaults(p);
+    return p;
+}
+
+// A square room of 4 m, turned about its first corner, with one wall of half height.
+Project turnedRoom(double angleDegrees, bool halfWall)
+{
+    Project p = squareRoom();
+    Floor& f = p.plan.floors[0];
+    const double a = angleDegrees * std::numbers::pi / 180.0;
+    for (Point& pt : f.points) {
+        const double x = pt.x;
+        const double y = pt.y;
+        pt.x = x * std::cos(a) - y * std::sin(a) + 3.0;
+        pt.y = x * std::sin(a) + y * std::cos(a) + 3.0;
+    }
+    if (halfWall) f.walls[0].height = 1.0;
+    return p;
+}
+
+}
+
+TEST_CASE("T and cross junctions of unequal walls keep every visible face", "[kit][faces]") {
+    for (const double angle : {0.0, 30.0, 45.0}) {
+        for (const double partition : {0.12, 0.125}) {
+            for (const bool cross : {false, true}) {
+                INFO("angle " << angle << " partition " << partition << " cross " << cross);
+                const Project base = junctionProject(angle, partition, cross, 0.0, 0.0);
+                const BuildPlan plan = planOf(base);
+                const ModularKit kit = modularKit(base, plan);
+                requireFacesKept(plan, kit);
+                requireCovers(plan, kit, 1e-5);
+
+                int atCentre = 0;
+                for (const KitPlacement& at : kit.placements) {
+                    if (at.point != "o") continue;
+                    ++atCentre;
+                    const KitPiece* piece = pieceById(kit, at.piece);
+                    REQUIRE(piece);
+                    REQUIRE(piece->kind == KitPieceKind::Corner);
+                    REQUIRE(cutEdges(*piece) == (cross ? 4 : 3));
+                    for (const KitSolid& s : piece->solids) {
+                        for (const KitEdge& e : s.outline.edges) {
+                            if (!e.cut) REQUIRE(e.edge.side.has_value());
+                        }
+                    }
+                }
+                REQUIRE(atCentre == 1);
+
+                for (const auto& shift : {std::pair{0.37, 0.2257}, std::pair{5.55, 3.1}, std::pair{12.35, 40.7}}) {
+                    requireSamePieces(kit, kitOf(junctionProject(angle, partition, cross, shift.first, shift.second)));
+                }
+            }
+        }
+    }
+}
+
+TEST_CASE("a half wall keeps every visible face, straight and on a diagonal", "[kit][faces]") {
+    for (const double angle : {0.0, 30.0, 45.0}) {
+        for (const bool half : {false, true}) {
+            INFO("angle " << angle << " half " << half);
+            const Project p = turnedRoom(angle, half);
+            const BuildPlan plan = planOf(p);
+            const ModularKit kit = modularKit(p, plan);
+            requireFacesKept(plan, kit);
+            requireCovers(plan, kit, 1e-5);
+        }
+    }
+}
+
+TEST_CASE("the kit of the sample apartment keeps every visible face", "[kit][faces][sample]") {
+    const GrayImageLoad load = loadGrayImage(std::filesystem::path(PLYNTH_SAMPLES_DIR) / "plans" / "apartment-01.png");
+    REQUIRE(load.status.ok());
+    const DetectionResult found = runDetection("orthogonal", *load.image, 100.0, {});
+    Project p = makeNewProject();
+    ApplyDetectionCommand apply("f1", found);
+    REQUIRE(apply.apply(p).ok());
+    clearMaterialDefaults(p);
+    const BuildPlan plan = planOf(p);
+    // Pieces that match within a millimetre share one mesh, so the lengths agree to a few millimetres in all.
+    requireFacesKept(plan, modularKit(p, plan), 0.02);
 }

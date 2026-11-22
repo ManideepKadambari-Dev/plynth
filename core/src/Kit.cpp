@@ -235,7 +235,27 @@ bool sameLook(const KitEdge& a, const KitEdge& b)
 KitRing makeKitRing(const std::vector<Vec2>& input, const std::vector<SourceEdge>& source, const KitEdge& cut)
 {
     KitRing ring;
-    ring.points = withoutRepeats(input);
+    // Every edge is split at the build's own vertices that lie on it, so a face the piece shares only in part
+    // (a strip beside a partition) is found even when rounding dropped the vertex that bounded it.
+    const std::vector<Vec2> cleaned = withoutRepeats(input);
+    for (std::size_t i = 0; i < cleaned.size(); ++i) {
+        const Vec2 a = cleaned[i];
+        const Vec2 b = cleaned[(i + 1) % cleaned.size()];
+        ring.points.push_back(a);
+        const double length = distance(a, b);
+        std::vector<std::pair<double, Vec2>> on;
+        for (const SourceEdge& s : source) {
+            const SegmentProjection hit = projectOntoSegment(s.a, a, b);
+            if (hit.distance < kClose && hit.offset > kClose && hit.offset < length - kClose) on.emplace_back(hit.offset, s.a);
+        }
+        std::sort(on.begin(), on.end(), [](const auto& x, const auto& y) { return x.first < y.first; });
+        double last = 0.0;
+        for (const auto& [offset, v] : on) {
+            if (offset - last < kClose) continue;
+            ring.points.push_back(v);
+            last = offset;
+        }
+    }
     const std::size_t n = ring.points.size();
     for (std::size_t i = 0; i < n; ++i) {
         const Vec2 a = ring.points[i];
@@ -256,10 +276,11 @@ KitRing makeKitRing(const std::vector<Vec2>& input, const std::vector<SourceEdge
         for (std::size_t i = 0; i < count; ++i) {
             const std::size_t prev = (i + count - 1) % count;
             const std::size_t next = (i + 1) % count;
-            const Vec2 d1 = detail::unit({ring.points[i].x - ring.points[prev].x, ring.points[i].y - ring.points[prev].y});
-            const Vec2 d2 = detail::unit({ring.points[next].x - ring.points[i].x, ring.points[next].y - ring.points[i].y});
-            if (std::fabs(d1.x * d2.y - d1.y * d2.x) < 1e-6 && detail::dot(d1, d2) > 0.0 &&
-                sameLook(ring.edges[prev], ring.edges[i])) {
+            const Vec2 d1{ring.points[i].x - ring.points[prev].x, ring.points[i].y - ring.points[prev].y};
+            const Vec2 d2{ring.points[next].x - ring.points[i].x, ring.points[next].y - ring.points[i].y};
+            // On the straight line between its neighbours, by distance, so a very short edge still counts.
+            const bool onLine = projectOntoSegment(ring.points[i], ring.points[prev], ring.points[next]).distance < kClose;
+            if (onLine && detail::dot(d1, d2) > 0.0 && sameLook(ring.edges[prev], ring.edges[i])) {
                 ring.points.erase(ring.points.begin() + static_cast<std::ptrdiff_t>(i));
                 ring.edges.erase(ring.edges.begin() + static_cast<std::ptrdiff_t>(i));
                 changed = true;
@@ -732,10 +753,12 @@ std::vector<Cand> cornerCands(const FloorCtx& ctx, const PathsD& taken)
         if (!taken.empty()) {
             // Pieces cut along a diagonal leave hairline gaps between them. They join the real corner parts into
             // long thin tails, so thin channels are removed: shrink a little, then grow back with sharp corners.
-            left = Clipper2Lib::InflatePaths(left, -kHairline, Clipper2Lib::JoinType::Miter, Clipper2Lib::EndType::Polygon, 10.0,
-                                             kPrecision);
-            left = Clipper2Lib::InflatePaths(left, kHairline, Clipper2Lib::JoinType::Miter, Clipper2Lib::EndType::Polygon, 10.0,
-                                             kPrecision);
+            // The opened shape only decides what stays; the solid itself is clipped to it, so its own vertices are kept.
+            PathsD opened = Clipper2Lib::InflatePaths(left, -kHairline, Clipper2Lib::JoinType::Miter, Clipper2Lib::EndType::Polygon,
+                                                      10.0, kPrecision);
+            opened = Clipper2Lib::InflatePaths(opened, kHairline, Clipper2Lib::JoinType::Miter, Clipper2Lib::EndType::Polygon, 10.0,
+                                               kPrecision);
+            left = Clipper2Lib::Intersect(left, opened, Clipper2Lib::FillRule::NonZero, kPrecision);
         }
         for (Poly& poly : polysFrom(left, kAreaEps)) rems.push_back({si, std::move(poly)});
     }
@@ -952,7 +975,7 @@ struct OpeningKey {
     int hingeSide = 0;  // which way along the opening's own direction the hinge jamb lies
     int swingSide = 0;  // which way the leaf opens, by the main direction of the opening's right side
     std::vector<Vec3> cutter;   // every cutter point, in a fixed order
-    std::vector<Vec2> outline;  // the outline with u counted along the piece's X, in a fixed order
+    std::vector<Vec2> outline;  // the outline with u counted along the opening's main direction, in a fixed order
 };
 
 // The key of an opening in a piece's coordinates.
