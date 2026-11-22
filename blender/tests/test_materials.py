@@ -394,21 +394,25 @@ class ThumbnailTests(MaterialTest):
         self.assertGreater(glass_picture[tile][:, :, :3].std(), 12.0)
         self.assertLess(paint_picture[tile][:, :, :3].std() * 2.0, glass_picture[tile][:, :, :3].std())
 
-    # The flat tile shows exactly one texture repeat whatever the tile size, and the sphere goes round in whole repeats.
+    # The 1 m flat tile shows 1 m of real surface: a 2 m tile gives half a repeat, a 0.5 m tile gives two.
     def test_thumbnail_uv_scale(self):
         import bpy
         from plynth.materials import thumbnail as material_thumbnail
         material = bpy.data.materials.new("uv_check")
-        tile = material_thumbnail.make_tile(material)
-        sphere = material_thumbnail.make_sphere(material)
-        try:
-            uvs = [tile.data.uv_layers.active.data[i].uv[0] for i in range(4)]
-            self.assertAlmostEqual(max(uvs) - min(uvs), 1.0)
-            around = [uv.uv[0] for uv in sphere.data.uv_layers.active.data]
-            self.assertAlmostEqual(max(around), round(max(around)))
-        finally:
-            bpy.data.objects.remove(tile)
-            bpy.data.objects.remove(sphere)
+        for size, repeats in ((2.0, 0.5), (0.5, 2.0), (1.0, 1.0)):
+            tile_size = {"width": size, "height": size}
+            tile = material_thumbnail.make_tile(material, tile_size)
+            sphere = material_thumbnail.make_sphere(material, tile_size)
+            try:
+                uvs = [tile.data.uv_layers.active.data[i].uv for i in range(4)]
+                self.assertAlmostEqual(max(uv[0] for uv in uvs) - min(uv[0] for uv in uvs), repeats)
+                self.assertAlmostEqual(max(uv[1] for uv in uvs) - min(uv[1] for uv in uvs), repeats)
+                around = [uv.uv[0] for uv in sphere.data.uv_layers.active.data]
+                self.assertAlmostEqual(max(around), round(max(around)))
+                self.assertAlmostEqual(max(around), max(1, round(3.14159265 / size)))
+            finally:
+                bpy.data.objects.remove(tile)
+                bpy.data.objects.remove(sphere)
 
     # render false gives no thumbnail and no error.
     def test_no_thumbnail_wanted(self):
