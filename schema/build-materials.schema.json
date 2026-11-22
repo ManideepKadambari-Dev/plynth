@@ -20,7 +20,7 @@
           "material": { "description": "The catalog material id, or null for a neutral look.", "oneOf": [{ "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }, { "type": "null" }] },
           "surface": {
             "description": "The neutral surface, or null for a catalog material.",
-            "enum": ["Wall_Inside", "Wall_Outside", "Wall_Top", "Reveal", "Threshold", "Floor", "Ceiling", "Door", "Frame", "Glass", "Handle", null]
+            "enum": ["Wall_Inside", "Wall_Outside", "Wall_Top", "Reveal", "Threshold", "Floor", "Ceiling", "Door", "Frame", "Glass", "Handle", "Stair", "Roof", "Flat_Roof", "Soffit", "Fascia", null]
           },
           "maps": {
             "type": "object",
