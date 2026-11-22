@@ -91,6 +91,26 @@ class PreviewPartsTests(BuildTest):
                     self.assertTrue(os.path.isfile(path))
 
 
+class PreviewSlabTests(BuildTest):
+    # The slab has its own part between storey and roof, the storey has no slab object and a floor without a slab
+    # lists none.
+    def test_slab_part(self):
+        result = self.build(load_params("two_floors_stair"), preview_folder="preview")
+        self.assertTrue(result["ok"], result["error"])
+        self.assertEqual(result_problems(result), [])
+        folder = self.path("build", "preview")
+        with open(os.path.join(folder, "parts.json"), "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+        self.assertEqual(validate(data, load_schema("build-preview")), [])
+        listed = [(p["floor"], p["kind"], p["file"]) for p in data["parts"]]
+        self.assertEqual(listed[:2], [("f1", "storey", "f1.fbx"), ("f1", "slab", "f1_slab.fbx")])
+        self.assertNotIn("f2_slab.fbx", [p[2] for p in listed])
+        self.assertEqual([o.name for o in import_parts(os.path.join(folder, "f1_slab.fbx"))], ["SM_f1_Slab"])
+        names = [o.name for o in import_parts(os.path.join(folder, "f1.fbx"))]
+        self.assertTrue(names)
+        self.assertFalse([n for n in names if "Slab" in n])
+
+
 class PreviewOffTests(BuildTest):
     # With no preview folder nothing is written and the step does nothing.
     def test_null_folder(self):

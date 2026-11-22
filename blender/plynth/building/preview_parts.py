@@ -10,9 +10,10 @@ ORDER = 135
 HIDDEN_KINDS = ("roof", "collision")
 
 
-# Writes the preview parts: for every floor one FBX with everything of the floor but its roofs, and one with its
-# roofs when it has any, then parts.json that lists them. Skipped when the job has no preview folder. When
-# anything fails the folder keeps no parts.json, preview_failed is reported and the build carries on.
+# Writes the preview parts: for every floor one FBX with everything of the floor but its slab and roofs, one with
+# its slab and one with its roofs when it has any, then parts.json that lists them. Skipped when the job has no
+# preview folder. When anything fails the folder keeps no parts.json, preview_failed is reported and the build
+# carries on.
 def run(ctx):
     name = ctx.params.get("preview_folder")
     if not name:
@@ -32,16 +33,20 @@ def remove_listing(folder):
         os.remove(path)
 
 
-# Returns the objects of the floor's collection that are not roofs, and the roof objects, each in name order.
+# Returns the objects of the floor's collection as storey, slab and roof objects, each in name order.
 def split_objects(collection):
     storey = []
+    slabs = []
     roofs = []
     for obj in sorted(collection.objects, key=lambda o: o.name):
-        if obj.get("plynth_kind") == "roof":
+        kind = obj.get("plynth_kind")
+        if kind == "roof":
             roofs.append(obj)
-        elif obj.get("plynth_kind") not in HIDDEN_KINDS:
+        elif kind == "slab":
+            slabs.append(obj)
+        elif kind not in HIDDEN_KINDS:
             storey.append(obj)
-    return storey, roofs
+    return storey, slabs, roofs
 
 
 # Writes every part file and parts.json into the folder.
@@ -52,8 +57,9 @@ def write_parts(ctx, folder):
             os.remove(os.path.join(folder, old))
     parts = []
     for floor in ctx.params["floors"]:
-        storey, roofs = split_objects(ctx.state["collections"][floor["id"]])
+        storey, slabs, roofs = split_objects(ctx.state["collections"][floor["id"]])
         for kind, objects, file in (("storey", storey, "%s.fbx" % floor["id"]),
+                                    ("slab", slabs, "%s_slab.fbx" % floor["id"]),
                                     ("roof", roofs, "%s_roof.fbx" % floor["id"])):
             if not objects:
                 continue
