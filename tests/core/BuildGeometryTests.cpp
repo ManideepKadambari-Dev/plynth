@@ -569,19 +569,28 @@ double shortestEdge(const WallRing& ring)
     return shortest;
 }
 
-// Whether a ring goes along a line and straight back over it: a spike with no width.
-bool hasSpike(const WallRing& ring)
+// Whether a list of points taken as a ring runs back over itself in a spike too thin to keep, seen from either edge.
+bool spikeIn(const std::vector<Vec2>& ring)
 {
-    const std::size_t n = ring.points.size();
-    for (std::size_t i = 0; i < n; ++i) {
-        const Vec2 a = ring.points[i];
-        const Vec2 b = ring.points[(i + 1) % n];
-        const Vec2 c = ring.points[(i + 2) % n];
-        const Vec2 u = detail::unit({b.x - a.x, b.y - a.y});
-        const Vec2 v = detail::unit({c.x - b.x, c.y - b.y});
-        if (std::fabs(u.x * v.y - u.y * v.x) < 1e-6 && detail::dot(u, v) < 0.0) return true;
+    for (std::size_t i = 0; i < ring.size(); ++i) {
+        const Vec2 a = ring[i];
+        const Vec2 b = ring[(i + 1) % ring.size()];
+        const Vec2 c = ring[(i + 2) % ring.size()];
+        const Vec2 u{b.x - a.x, b.y - a.y};
+        const Vec2 v{c.x - b.x, c.y - b.y};
+        const double first = std::hypot(u.x, u.y);
+        const double second = std::hypot(v.x, v.y);
+        if (first <= 0.0 || second <= 0.0 || u.x * v.x + u.y * v.y >= 0.0) continue;
+        const double twiceArea = std::fabs(u.x * v.y - u.y * v.x);
+        if (std::min(twiceArea / first, twiceArea / second) < detail::kRingClose) return true;
     }
     return false;
+}
+
+// Whether a wall ring has a spike too thin to keep.
+bool hasSpike(const WallRing& ring)
+{
+    return spikeIn(ring.points);
 }
 
 }
@@ -617,21 +626,6 @@ double shortestEdgeOf(const std::vector<Vec2>& ring)
     double shortest = 1e300;
     for (std::size_t i = 0; i < ring.size(); ++i) shortest = std::min(shortest, distance(ring[i], ring[(i + 1) % ring.size()]));
     return shortest;
-}
-
-// Whether a list of points taken as a ring has a point where it runs back over the edge before.
-bool spikeIn(const std::vector<Vec2>& ring)
-{
-    for (std::size_t i = 0; i < ring.size(); ++i) {
-        const Vec2 a = ring[i];
-        const Vec2 b = ring[(i + 1) % ring.size()];
-        const Vec2 c = ring[(i + 2) % ring.size()];
-        const Vec2 u{b.x - a.x, b.y - a.y};
-        const Vec2 v{c.x - b.x, c.y - b.y};
-        const double length = std::hypot(u.x, u.y);
-        if (length > 0.0 && u.x * v.x + u.y * v.y < 0.0 && std::fabs(u.x * v.y - u.y * v.x) / length < detail::kRingClose) return true;
-    }
-    return false;
 }
 
 // A 4 m square with a slit of a width cut up from the middle of its bottom edge, one metre deep.

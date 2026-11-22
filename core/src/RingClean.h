@@ -2,8 +2,10 @@
 
 #include "plynth/core/Geometry.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <tuple>
 #include <vector>
 
 namespace plynth::detail {
@@ -22,43 +24,48 @@ inline std::vector<Vec2> withoutRepeats(const std::vector<Vec2>& ring)
     return out;
 }
 
-// The ring without spikes: a point where it runs along a line and straight back over it. Rounding in the union
-// can leave one where two bands of different heights meet at a diagonal, with no width and no area. Taking one
-// out can leave its two neighbours on top of each other, so this alone does not leave a clean ring.
-inline std::vector<Vec2> withoutSpikes(std::vector<Vec2> ring)
+// How wide the turn at b is: the smaller of how far c is from line ab and how far a is from line bc. It is the
+// same when the ring runs the other way.
+inline double turnWidth(Vec2 a, Vec2 b, Vec2 c)
 {
-    bool changed = true;
-    while (changed && ring.size() > 3) {
-        changed = false;
-        for (std::size_t i = 0; i < ring.size(); ++i) {
-            const Vec2 a = ring[(i + ring.size() - 1) % ring.size()];
-            const Vec2 b = ring[i];
-            const Vec2 c = ring[(i + 1) % ring.size()];
-            const double ab = distance(a, b);
-            const Vec2 u{b.x - a.x, b.y - a.y};
-            const Vec2 v{c.x - b.x, c.y - b.y};
-            if (ab < kRingClose || (u.x * v.x + u.y * v.y) >= 0.0) continue;
-            if (std::fabs(u.x * v.y - u.y * v.x) / ab < kRingClose) {
-                ring.erase(ring.begin() + static_cast<std::ptrdiff_t>(i));
-                changed = true;
-                break;
-            }
-        }
-    }
-    return ring;
+    const double longer = (std::max)(distance(a, b), distance(b, c));
+    if (longer <= 0.0) return 0.0;
+    return std::fabs((b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x)) / longer;
 }
 
-// A ring from a union with repeated points and spikes taken out until neither is left: no edge shorter than
-// kRingClose and no spike.
+// Whether b can go: it sits on a neighbour, or the ring runs back over itself there in a spike too thin to keep.
+inline bool canGo(Vec2 a, Vec2 b, Vec2 c)
+{
+    if (distance(a, b) < kRingClose || distance(b, c) < kRingClose) return true;
+    const bool back = (b.x - a.x) * (c.x - b.x) + (b.y - a.y) * (c.y - b.y) < 0.0;
+    return back && turnWidth(a, b, c) < kRingClose;
+}
+
+// A ring from a union with no edge shorter than kRingClose and no spike, or fewer than three points when the
+// ring was nothing more than that. Rounding in the union can leave a spike where bands of different heights
+// meet. The narrowest point goes first, so a corner outlasts a point beside it. Equally narrow ones go by x and
+// then y, so neither the first point nor the direction of the ring picks the point.
 inline std::vector<Vec2> cleanedWallRing(const std::vector<Vec2>& input)
 {
     std::vector<Vec2> ring = input;
-    for (;;) {
-        const std::size_t before = ring.size();
-        ring = withoutRepeats(ring);
-        ring = withoutSpikes(std::move(ring));
-        if (ring.size() == before) return ring;
+    while (ring.size() >= 3) {
+        const std::size_t n = ring.size();
+        std::size_t next = n;
+        std::tuple<double, double, double> least;
+        for (std::size_t i = 0; i < n; ++i) {
+            const Vec2 a = ring[(i + n - 1) % n];
+            const Vec2 b = ring[i];
+            const Vec2 c = ring[(i + 1) % n];
+            if (!canGo(a, b, c)) continue;
+            const std::tuple<double, double, double> order{turnWidth(a, b, c), b.x, b.y};
+            if (next < n && order >= least) continue;
+            next = i;
+            least = order;
+        }
+        if (next == n) break;
+        ring.erase(ring.begin() + static_cast<std::ptrdiff_t>(next));
     }
+    return ring;
 }
 
 }

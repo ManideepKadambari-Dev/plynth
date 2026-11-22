@@ -2,13 +2,13 @@
 
 #include "BandOutline.h"
 #include "ClipperInclude.h"
+#include "Fnv.h"
 
 #include "plynth/core/WallGeometry.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
-#include <cstdint>
 #include <cstdio>
 #include <numbers>
 #include <optional>
@@ -1233,17 +1233,6 @@ const char* kindWord(KitPieceKind kind)
     return "Wall";
 }
 
-// The 64 bit FNV-1a hash of some text.
-std::uint64_t fnv1a(const std::string& text)
-{
-    std::uint64_t hash = 1469598103934665603ULL;
-    for (const unsigned char c : text) {
-        hash ^= c;
-        hash *= 1099511628211ULL;
-    }
-    return hash;
-}
-
 // The pieces and placements found so far.
 struct Builder {
     std::vector<KitPiece> pieces;
@@ -1255,7 +1244,7 @@ struct Builder {
         for (int salt = 0;; ++salt) {
             const std::string hashed = salt == 0 ? text : text + "#" + std::to_string(salt);
             char digits[17];
-            std::snprintf(digits, sizeof digits, "%016llx", static_cast<unsigned long long>(fnv1a(hashed)));
+            std::snprintf(digits, sizeof digits, "%016llx", static_cast<unsigned long long>(detail::fnv1a(hashed)));
             const std::string id = std::string(kindWord(piece.kind)) + "_" + std::to_string(centimetres(piece.length)) + "x" +
                                    std::to_string(centimetres(piece.height)) + "x" +
                                    std::to_string(centimetres(piece.thickness)) + "_" + std::string(digits, 6);
