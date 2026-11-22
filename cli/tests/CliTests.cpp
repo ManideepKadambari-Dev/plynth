@@ -1,4 +1,5 @@
 #include "TestSupport.h"
+#include "SettingsGuard.h"
 
 #include <plynth/cli/Cli.h>
 
@@ -159,6 +160,7 @@ TEST_CASE("the launcher's unknown_command answer is byte for byte the CLI's", "[
     };
     for (const auto& args : cases) {
         std::ostringstream out;
+        plynth::cli::testing::requireSafeSettings("running a CLI command");
         const int code = plynth::cli::run(args, out, std::filesystem::current_path());
         CHECK(code == plynth::cli::kExitBadArguments);
         CHECK(out.str() == plynth::cli::unknownCommandAnswer(args));

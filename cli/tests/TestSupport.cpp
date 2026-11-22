@@ -1,5 +1,7 @@
 #include "TestSupport.h"
 
+#include "SettingsGuard.h"
+
 #include <plynth/cli/Cli.h>
 
 #include <catch2/catch_test_macros.hpp>
@@ -28,6 +30,7 @@ nlohmann::json_schema::json_validator& answerValidator() {
 }
 
 Outcome runChecked(const std::vector<std::string>& args, const std::filesystem::path& currentFolder) {
+    requireSafeSettings("running a CLI command");
     Outcome outcome;
     std::ostringstream out;
     std::ostringstream progress;

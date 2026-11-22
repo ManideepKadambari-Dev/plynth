@@ -1,5 +1,6 @@
 #include "FakeBlender.h"
 #include "SampleProject.h"
+#include "SettingsGuard.h"
 
 #include <plynth/core/Settings.h>
 
@@ -20,15 +21,7 @@ using plynth::cli::testing::utf8;
 
 namespace {
 
-// Clears the settings file when a test starts and when it ends.
-struct SettingsReset {
-    SettingsReset() { clear(); }
-    ~SettingsReset() { clear(); }
-    static void clear() {
-        std::error_code ignored;
-        std::filesystem::remove(plynth::settingsFile(), ignored);
-    }
-};
+using SettingsReset = plynth::cli::testing::GuardedSettingsReset;
 
 // A library in temp set in the settings, and a fake Blender. Returns the fake's path.
 std::filesystem::path setUp(const TempFolder& temp, const std::string& mode = "") {

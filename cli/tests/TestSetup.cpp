@@ -5,6 +5,9 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+
+#include "SettingsGuard.h"
+
 #include <crtdbg.h>
 #include <cstdlib>
 #include <filesystem>
@@ -27,18 +30,21 @@ struct NoDialogs {
     }
 } noDialogs;
 
-// Points the machine settings at a temporary folder, so no test touches the real settings file.
+// Points the machine settings at a temporary folder, so no test touches the real settings file. The variable is
+// set in both the Win32 and the C runtime environment, since code and tests read one or the other.
 struct TestConfigFolder {
     TestConfigFolder() {
-        path = std::filesystem::temp_directory_path() / ("plynth-cli-config-" + std::to_string(GetCurrentProcessId()));
+        path = plynth::cli::testing::testConfigFolder();
         std::filesystem::create_directories(path);
+        _wputenv_s(L"PLYNTH_CONFIG_DIR", path.wstring().c_str());
         SetEnvironmentVariableW(L"PLYNTH_CONFIG_DIR", path.wstring().c_str());
+        plynth::cli::testing::requireSafeSettings("starting the test program");
     }
     ~TestConfigFolder() {
         std::error_code ignored;
         std::filesystem::remove_all(path, ignored);
     }
     std::filesystem::path path;
-} testConfigFolder;
+} testConfigFolderSetup;
 
 }  // namespace
