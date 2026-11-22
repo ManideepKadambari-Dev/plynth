@@ -638,6 +638,16 @@ BuiltMaterialsRead readBuiltMaterials(const fs::path& projectFolder)
             if (mode == "opaque") built.alphaMode = AlphaMode::Opaque;
             else if (mode == "blend") built.alphaMode = AlphaMode::Blend;
             else throw std::string(where + "/alpha_mode");
+            if (m.contains("tile_size")) {
+                const Json& tile = m["tile_size"];
+                const auto number = [&](const char* key) -> double {
+                    if (!tile.is_object() || !tile.contains(key) || !tile[key].is_number() || !(tile[key].get<double>() > 0.0)) {
+                        throw std::string(where + "/tile_size/" + key);
+                    }
+                    return tile[key].get<double>();
+                };
+                built.tileSize = TileSize{number("width"), number("height")};
+            }
             result.materials.push_back(std::move(built));
         }
         const Json& objects = array(json, "objects");

@@ -11,6 +11,8 @@
 #include <nlohmann/json.hpp>
 
 #include <filesystem>
+#include <fstream>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -303,4 +305,42 @@ TEST_CASE("readExportResult reads a result with empty groups and a kit", "[core]
     result["output"]["kit"] = nullptr;
     result["output"]["empty_groups"] = Json::array({7});
     REQUIRE(readExportResult(result, "export-00000001").header.status.code == ErrorCode::BadFile);
+}
+
+TEST_CASE("readBuiltMaterials reads the tile size and makeExportJob prefers it", "[core][export]") {
+    TempDir tmp("exportjob-tile");
+    fs::create_directories(tmp.path() / "build");
+    fs::copy_file(dataFile("materials_tile.json"), tmp.path() / "build" / "materials.json", fs::copy_options::overwrite_existing);
+    const BuiltMaterialsRead read = readBuiltMaterials(tmp.path());
+    requireOk(read.status);
+    REQUIRE(read.materials[0].tileSize.has_value());
+    REQUIRE(read.materials[0].tileSize->width == Approx(2.0));
+    REQUIRE(read.materials[0].tileSize->height == Approx(3.0));
+    REQUIRE_FALSE(read.materials[1].tileSize.has_value());
+
+    Project project = squareProjectWithWalls();
+    const std::map<std::string, TileSize> library{{"oak_planks", TileSize{1.0, 0.5}}};
+    ExportGroup group;
+    group.id = "building";
+    group.file = "Flat.fbx";
+    const Json job = makeExportJob(project, {group}, read.materials, ExportBuildState{}, ExportSettings{}, tmp.path(), tmp.path() / "s", "export-1a2b3c4d",
+                                   tmp.path() / "r.json", nullptr, &library);
+    REQUIRE(jobProblem(job).empty());
+    REQUIRE(job["params"]["materials"][0]["tile_size"] == Json{{"width", 2.0}, {"height", 3.0}});
+    REQUIRE_FALSE(job["params"]["materials"][1].contains("tile_size"));
+
+    std::vector<BuiltMaterial> without = read.materials;
+    without[0].tileSize.reset();
+    const Json fromLibrary = makeExportJob(project, {group}, without, ExportBuildState{}, ExportSettings{}, tmp.path(), tmp.path() / "s",
+                                           "export-1a2b3c4d", tmp.path() / "r.json", nullptr, &library);
+    REQUIRE(fromLibrary["params"]["materials"][0]["tile_size"] == Json{{"width", 1.0}, {"height", 0.5}});
+}
+
+TEST_CASE("readBuiltMaterials refuses a bad tile size", "[core][export]") {
+    TempDir tmp("exportjob-bad-tile");
+    fs::create_directories(tmp.path() / "build");
+    Json file = readData("materials_tile.json");
+    file["materials"][0]["tile_size"] = Json{{"width", "wide"}, {"height", 1.0}};
+    std::ofstream(tmp.path() / "build" / "materials.json", std::ios::binary) << file.dump(2);
+    REQUIRE(readBuiltMaterials(tmp.path()).status.code == ErrorCode::BadFile);
 }

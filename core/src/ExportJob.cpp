@@ -344,7 +344,9 @@ Json makeExportJob(const Project& project, const std::vector<ExportGroup>& group
     Json materialList = Json::array();
     for (const BuiltMaterial& m : materials) {
         Json entry = materialJson(m);
-        if (tileSizes && !m.material.empty()) {
+        if (m.tileSize) {
+            entry["tile_size"] = Json{{"width", m.tileSize->width}, {"height", m.tileSize->height}};
+        } else if (tileSizes && !m.material.empty()) {
             if (const auto tile = tileSizes->find(m.material); tile != tileSizes->end()) {
                 entry["tile_size"] = Json{{"width", tile->second.width}, {"height", tile->second.height}};
             }

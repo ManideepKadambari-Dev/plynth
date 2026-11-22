@@ -309,7 +309,7 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
     const std::vector<BuiltMaterial> builtMaterials = materials.status.ok() ? materials.materials : std::vector<BuiltMaterial>{};
     if (catalog) {
         for (const BuiltMaterial& m : builtMaterials) {
-            if (m.material.empty() || tileSizes.count(m.material) != 0) continue;
+            if (m.tileSize || m.material.empty() || tileSizes.count(m.material) != 0) continue;
             if (const std::optional<MaterialRecord> record = catalog->material(m.material)) tileSizes[m.material] = record->tileSize;
         }
     }

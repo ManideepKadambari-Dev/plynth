@@ -99,6 +99,7 @@ ExportGroup* findGroup(std::vector<ExportGroup>& groups, std::string_view id)
     return nullptr;
 }
 
+// The same for a list that may not be changed.
 const ExportGroup* findGroup(const std::vector<ExportGroup>& groups, std::string_view id)
 {
     for (const ExportGroup& g : groups) {
@@ -161,6 +162,7 @@ bool registerExportGroupRule(std::unique_ptr<ExportGroupRule> rule)
     return true;
 }
 
+// Adds the rule to the registry when the program starts.
 ExportGroupRuleRegistrar::ExportGroupRuleRegistrar(std::unique_ptr<ExportGroupRule> rule)
 {
     registerExportGroupRule(std::move(rule));

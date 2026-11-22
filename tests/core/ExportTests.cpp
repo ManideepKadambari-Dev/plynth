@@ -946,3 +946,30 @@ TEST_CASE("a group named Kit does not take the kit file name", "[core][export][r
     REQUIRE(plynth::test::readTextFile(f.exportDir() / "Square_Kit_2.fbx") == "FAKEFBX");
     REQUIRE(fs::exists(f.exportDir() / "Square_Kit_layout.json"));
 }
+
+TEST_CASE("the built tile size wins over the library's", "[core][export][run]") {
+    MaterialTestLibrary lib("export-built-tile");
+    lib.add("oak_planks", "Oak Planks");
+    ExportFixture f("run-built-tile");
+    f.request.library = lib.paths;
+    fs::copy_file(fs::path(PLYNTH_TEST_DATA_DIR) / "export" / "materials_tile.json", f.projectFolder / "build" / "materials.json");
+    plynth::test::requireOk(runExport(f.request).status);
+    const Json job = lastJob(f);
+    REQUIRE(jobSchemaProblem(job).empty());
+    REQUIRE(job["params"]["materials"][0]["tile_size"] == Json{{"width", 2.0}, {"height", 3.0}});
+
+    // With the field and no library the job still has it.
+    f.request.library.reset();
+    plynth::test::requireOk(runExport(f.request).status);
+    REQUIRE(lastJob(f)["params"]["materials"][0]["tile_size"] == Json{{"width", 2.0}, {"height", 3.0}});
+}
+
+TEST_CASE("an entry without a built tile size gets the library's", "[core][export][run]") {
+    MaterialTestLibrary lib("export-no-built-tile");
+    lib.add("oak_planks", "Oak Planks");
+    ExportFixture f("run-no-built-tile");
+    f.request.library = lib.paths;
+    fs::copy_file(fs::path(PLYNTH_TEST_DATA_DIR) / "export" / "materials.json", f.projectFolder / "build" / "materials.json");
+    plynth::test::requireOk(runExport(f.request).status);
+    REQUIRE(lastJob(f)["params"]["materials"][0]["tile_size"] == Json{{"width", 1.0}, {"height", 0.5}});
+}
