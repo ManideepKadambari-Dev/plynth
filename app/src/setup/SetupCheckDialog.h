@@ -4,6 +4,7 @@
 
 #include <QDialog>
 
+#include <functional>
 #include <optional>
 #include <stop_token>
 #include <thread>
@@ -40,7 +41,7 @@ private:
     void showReport(const plynth::SetupReport& report);
     void addRow(const plynth::SetupItem& item);
     void updateSummary();
-    void applySettings(const plynth::MachineSettings& settings);
+    void applySettings(const std::function<void(plynth::MachineSettings&)>& change);
     void chooseFolder(bool library);
     void createFolder(bool library);
     void browseBlender();

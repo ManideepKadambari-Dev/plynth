@@ -30,13 +30,18 @@ LibraryHost::LibraryHost(QObject* parent) : QObject(parent)
     reopen();
 }
 
-// Saves the settings, then opens the library they name.
-plynth::Status LibraryHost::apply(const plynth::MachineSettings& settings)
+// Loads the settings fresh, applies the change, saves, then opens the library they name. A file that is
+// missing is a first run and starts from defaults. A file that cannot be read is never overwritten.
+plynth::Status LibraryHost::apply(const std::function<void(plynth::MachineSettings&)>& change)
 {
-    const plynth::Status status = plynth::saveSettings(settings);
+    plynth::SettingsLoad load = plynth::loadSettings();
+    if (!load.status.ok())
+        return load.status;
+    change(load.settings);
+    const plynth::Status status = plynth::saveSettings(load.settings);
     if (!status.ok())
         return status;
-    settings_ = settings;
+    settings_ = load.settings;
     settingsExisted_ = true;
     settingsProblem_.clear();
     reopen();
