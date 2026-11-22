@@ -30,6 +30,7 @@ struct ExportPanelState {
     bool folderExists = false; // the export folder is there to open
     bool grouped = false;      // the project exports one FBX for each group
     bool built = false;        // the project has a build, so its groups can be shown
+    bool kitEnabled = false;   // export-options.json switches the modular kit on
     bool readOnly = false;     // a CLI session holds the project, so the groups cannot be edited
     std::filesystem::path projectFolder;               // empty when the project is not saved
     const plynth::ExportGroupReview* review = nullptr; // copied by setReport; null without a project folder
@@ -46,6 +47,8 @@ public:
     void setReport(const plynth::ExportReport* report, const ExportPanelState& state);
     // For checks only: opens every group of the list, now and after each refresh.
     void setGroupsExpanded(bool expanded);
+    // For checks only: switches the modular kit on in the project's export options, as the checkbox does.
+    void setKitEnabled(bool enabled);
 
 protected:
     void showEvent(QShowEvent* event) override;
@@ -68,6 +71,8 @@ private:
     QPushButton* addButton(QWidget* row, const QString& text, const QString& tip, const QString& tourId, bool primary);
     void addChecks(const plynth::ExportReport& report);
     void addGroups(const ExportPanelState& state);
+    void addKitSwitch(const ExportPanelState& state);
+    void addKitReport(const plynth::ExportReport& report);
     void fitGroupsTree();
     void fitGroupsColumns();
     void watchFolder(const std::filesystem::path& folder);
@@ -82,6 +87,8 @@ private:
     QFileSystemWatcher* watcher_ = nullptr;
     QTimer* watchTimer_ = nullptr;
     std::filesystem::path watched_;
+    std::filesystem::path projectFolder_;
+    QString kitError_; // why the last change of the kit switch was not saved; empty when it was
 };
 
 }

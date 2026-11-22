@@ -5,6 +5,7 @@
 #include "theme/ElideLabel.h"
 #include "theme/Theme.h"
 
+#include <QCheckBox>
 #include <QDateTime>
 #include <QDir>
 #include <QFileSystemWatcher>
@@ -334,6 +335,68 @@ void ExportPanel::watchFolder(const std::filesystem::path& folder)
         watcher_->addPath(nativePath(folder));
 }
 
+// Writes the kit switch into the project's export options and asks for a new review.
+void ExportPanel::setKitEnabled(bool enabled)
+{
+    if (projectFolder_.empty())
+        return;
+    plynth::ExportOptionsRead read = plynth::readExportOptions(projectFolder_);
+    plynth::Status status = read.status;
+    if (status.ok() && read.options.kit.enabled != enabled) {
+        read.options.kit.enabled = enabled;
+        status = plynth::writeExportOptions(projectFolder_, read.options);
+    }
+    kitError_ = status.ok() ? QString() : fromCore(status.message);
+    // The new review puts the box back to what is saved.
+    emit refreshRequested();
+}
+
+// Adds the checkbox that switches the modular kit on for the next export.
+void ExportPanel::addKitSwitch(const ExportPanelState& state)
+{
+    const Theme& t = Theme::instance();
+    auto* box = new QCheckBox(tr("Also write the modular kit"), body_);
+    box->setFont(t.uiFont(t.sizeNormal()));
+    box->setChecked(state.kitEnabled);
+    box->setEnabled(!state.projectFolder.empty() && !state.readOnly);
+    box->setProperty("tourId", QStringLiteral("export-kit"));
+    box->setToolTip(tr("Also write every unique wall, corner and opening piece once, with collision, and a layout file "
+                       "that says where each copy goes. It needs a library."));
+    connect(box, &QCheckBox::clicked, this, [this](bool on) { setKitEnabled(on); });
+    column_->addWidget(box);
+    if (!kitError_.isEmpty()) {
+        auto* error = new QLabel(kitError_, body_);
+        error->setWordWrap(true);
+        error->setFont(t.uiFont(t.sizeSmall()));
+        error->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
+        error->setToolTip(tr("Why the modular kit switch was not saved"));
+        column_->addWidget(error);
+    }
+}
+
+// Adds what the last export did with the kit: its files and counts, or why it was left out.
+void ExportPanel::addKitReport(const plynth::ExportReport& report)
+{
+    const Theme& t = Theme::instance();
+    const plynth::ExportKitReport& kit = report.kit;
+    if (!kit.asked)
+        return;
+    QWidget* section = addSection(tr("Modular kit"));
+    if (kit.written) {
+        addRow(section, tr("Kit"), nativePath(kit.file), true);
+        addRow(section, tr("Layout"), nativePath(kit.layoutFile), true);
+        addRow(section, tr("Pieces"), QLocale().toString(kit.pieces), true);
+        addRow(section, tr("Placements"), QLocale().toString(kit.placements), true);
+    } else if (!kit.skipped.empty()) {
+        auto* line = new QLabel(fromCore(kit.skipped), body_);
+        line->setWordWrap(true);
+        line->setFont(t.uiFont(t.sizeNormal()));
+        line->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
+        line->setToolTip(tr("Why the kit was left out of the last export"));
+        column_->addWidget(line);
+    }
+}
+
 // Adds the Groups section for a grouped project, or the one line for a single project.
 void ExportPanel::addGroups(const ExportPanelState& state)
 {
@@ -467,6 +530,9 @@ void ExportPanel::setReport(const plynth::ExportReport* report, const ExportPane
         delete item;
     }
     watchFolder(state.projectFolder);
+    if (projectFolder_ != state.projectFolder)
+        kitError_.clear();
+    projectFolder_ = state.projectFolder;
 
     auto* buttons = new QWidget(body_);
     auto* buttonRow = new QHBoxLayout(buttons);
@@ -509,6 +575,7 @@ void ExportPanel::setReport(const plynth::ExportReport* report, const ExportPane
         note(state.error, t.signalAmber());
 
     addGroups(state);
+    addKitSwitch(state);
 
     if (report == nullptr) {
         if (state.notice.isEmpty() && state.error.isEmpty())
@@ -566,6 +633,8 @@ void ExportPanel::setReport(const plynth::ExportReport* report, const ExportPane
         addRow(summary, tr("Texture files"), locale.toString(report->textureCount), true);
     }
 
+
+    addKitReport(*report);
 
     if (report->exported || !report->reportFile.empty()) {
         QWidget* files = addSection(tr("Files"));

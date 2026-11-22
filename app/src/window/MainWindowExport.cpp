@@ -158,6 +158,10 @@ void MainWindow::updateExportUi()
     state.built = doc_.hasFolder() &&
                   std::filesystem::exists(plynth::buildFolder(doc_.folder()) / "building.blend", ignored);
     state.readOnly = doc_.isReadOnly();
+    if (doc_.hasFolder()) {
+        const plynth::ExportOptionsRead options = plynth::readExportOptions(doc_.folder());
+        state.kitEnabled = options.status.ok() && options.options.kit.enabled;
+    }
     plynth::ExportGroupReview review;
     if (state.grouped && doc_.hasFolder()) {
         state.projectFolder = doc_.folder();
