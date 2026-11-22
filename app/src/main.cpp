@@ -161,6 +161,14 @@ int main(int argc, char* argv[])
     QCommandLineOption exportCheckOption(QStringLiteral("export-check"),
                                          QStringLiteral("Run the export quality checks after opening the project and wait for the end. For checks only."));
     QCommandLineOption exportTabOption(QStringLiteral("export-tab"), QStringLiteral("Show the Export tab. For checks only."));
+    QCommandLineOption integrationsTabOption(QStringLiteral("integrations-tab"),
+                                             QStringLiteral("Show the Integrations tab. For checks only."));
+    QCommandLineOption blenderKitAddressOption(QStringLiteral("blenderkit-address"),
+                                               QStringLiteral("Fill the BlenderKit address field of the Integrations tab. For checks only."),
+                                               QStringLiteral("text"));
+    QCommandLineOption fabImportOption(QStringLiteral("fab-import"),
+                                       QStringLiteral("Open the Fab import dialog for this model zip. For checks only."),
+                                       QStringLiteral("zip"));
     QCommandLineOption homeOption(QStringLiteral("home"), QStringLiteral("Show the home screen. For checks only."));
     parser.addOption(zoomOption);
     parser.addOption(overlayOption);
@@ -172,6 +180,9 @@ int main(int argc, char* argv[])
     parser.addOption(viewOption);
     parser.addOption(cameraOption);
     parser.addOption(homeOption);
+    parser.addOption(integrationsTabOption);
+    parser.addOption(blenderKitAddressOption);
+    parser.addOption(fabImportOption);
     parser.addOption(alignImageOption);
     parser.addOption(roofSectionsOption);
     parser.addOption(selectRoofOption);
@@ -342,6 +353,14 @@ int main(int argc, char* argv[])
         window.showBuildTab();
     if (parser.isSet(exportTabOption))
         window.showExportTab();
+    if (parser.isSet(blenderKitAddressOption))
+        window.setBlenderKitAddress(parser.value(blenderKitAddressOption));
+    else if (parser.isSet(integrationsTabOption))
+        window.showIntegrationsTab();
+    if (parser.isSet(fabImportOption)) {
+        const QString zip = parser.value(fabImportOption);
+        QTimer::singleShot(0, &window, [&window, zip]() { window.showFabImport(zip); });
+    }
     if (parser.isSet(overlayOption))
         window.setOverlay3d(true);
     if (parser.isSet(zoomOption) && parser.value(zoomOption).toLower() == QStringLiteral("actual"))
@@ -418,6 +437,8 @@ int main(int argc, char* argv[])
             if ((!window.setupPictureReady() || !window.importPictureReady()) && !waited.hasExpired(kSetupWaitMs))
                 return;
             if (!window.materialsPictureReady() && !waited.hasExpired(kBuildWaitMs))
+                return;
+            if (!window.integrationsPictureReady() && !waited.hasExpired(kSetupWaitMs))
                 return;
             poll->stop();
             // Panels rebuilt just before need a few passes to show and lay out their rows.

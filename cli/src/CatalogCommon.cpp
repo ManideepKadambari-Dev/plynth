@@ -7,6 +7,7 @@
 #include <plynth/core/ProjectFiles.h>
 #include <plynth/core/RoomTypes.h>
 #include <plynth/core/catalog/AssetInfo.h>
+#include <plynth/core/catalog/BlenderKit.h>
 
 #include <algorithm>
 #include <set>
@@ -131,6 +132,79 @@ bool openMaterialCatalogIfAny(const std::string& command, const RunContext& cont
         return false;
     }
     found = true;
+    return true;
+}
+
+bool chooseLibraryFolder(const std::string& command, const RunContext& context, const std::string& libraryOption,
+                         MachineSettings& settings, LibraryPaths& paths, Answer& failed) {
+    const SettingsLoad loaded = loadSettings();
+    if (!loaded.status.ok()) {
+        failed = failure(command, loaded.status);
+        return false;
+    }
+    settings = loaded.settings;
+    std::optional<std::filesystem::path> option;
+    if (!libraryOption.empty()) {
+        option = userPath(context, libraryOption);
+    }
+    const LibraryChoice choice = chooseLibrary(option, settings);
+    if (!choice.status.ok()) {
+        failed = failure(command, choice.status);
+        return false;
+    }
+    paths = choice.paths;
+    return true;
+}
+
+bool isAddressArgument(const RunContext& context, const std::string& text) {
+    for (const char* prefix : {"http://", "https://", "asset_base_id:"}) {
+        if (text.starts_with(prefix)) {
+            return true;
+        }
+    }
+    if (!parseBlenderKitAddress(text).status.ok()) {
+        return false;
+    }
+    std::error_code ignored;
+    return !std::filesystem::exists(userPath(context, text), ignored);
+}
+
+bool parseOptionPairs(const std::string& command, const std::vector<std::string>& pairs, nlohmann::ordered_json& out,
+                      Answer& failed) {
+    out = nlohmann::ordered_json::object();
+    for (const std::string& pair : pairs) {
+        const std::size_t equals = pair.find('=');
+        const std::string key = pair.substr(0, equals);
+        const bool badKey = equals == std::string::npos || key.empty() || key.front() == '.' || key.back() == '.' ||
+                            key.find("..") != std::string::npos;
+        if (badKey) {
+            failed = failure(command, fail(ErrorCode::InvalidValue, "--option takes key=value, for example "
+                                                                    "quality=high. Got \"" + pair + "\"."));
+            return false;
+        }
+        const std::string text = pair.substr(equals + 1);
+        nlohmann::ordered_json value = nlohmann::ordered_json::parse(text, nullptr, false);
+        if (value.is_discarded()) {
+            value = text;
+        }
+        nlohmann::ordered_json* node = &out;
+        std::size_t start = 0;
+        while (true) {
+            const std::size_t dot = key.find('.', start);
+            const std::string part = key.substr(start, dot == std::string::npos ? std::string::npos : dot - start);
+            if (dot == std::string::npos) {
+                (*node)[part] = value;
+                break;
+            }
+            if (node->contains(part) && !(*node)[part].is_object()) {
+                failed = failure(command, fail(ErrorCode::InvalidValue, "--option " + key + " clashes with another "
+                                                                         "--option for the same key."));
+                return false;
+            }
+            node = &(*node)[part];
+            start = dot + 1;
+        }
+    }
     return true;
 }
 

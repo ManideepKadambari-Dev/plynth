@@ -44,6 +44,9 @@ class ExportPanel;
 class HomeScreen;
 class ImportQueue;
 class ImportQueueView;
+class IntegrationsPanel;
+class FabImportDialog;
+class StoreImports;
 class LibraryHost;
 class LibraryWatcher;
 class SetupCheckDialog;
@@ -133,6 +136,14 @@ public:
     // Closes the project after the save question and shows the home screen.
     void closeProject();
 
+    // For checks only: shows the Integrations tab.
+    void showIntegrationsTab();
+    // For checks only: fills the BlenderKit address field of the Integrations tab.
+    void setBlenderKitAddress(const QString& text);
+    // For checks only: opens the Fab import dialog for a zip without waiting for it.
+    void showFabImport(const QString& zip);
+    // For checks only: true when the Integrations tab was not asked for, or its check has ended.
+    bool integrationsPictureReady() const;
     // For checks only: shows the Assets tab.
     void showAssetsTab();
     // For checks only: selects an asset in the Assets tab. False when it is not listed.
@@ -142,6 +153,8 @@ public:
 
     // Shows the material import screen over the work area.
     void showMaterialImport();
+    // Shows the Integrations tab and puts the focus in the BlenderKit address field.
+    void importFromBlenderKit();
     // Queues every folder of samples/materials, skipping ids already in the library.
     void addSampleMaterials();
     // For checks only: takes a material of an asset into the materials catalog, as its button does.
@@ -334,12 +347,18 @@ private:
     QAction* rescanAction_ = nullptr;
     QAction* rescanMaterialsAction_ = nullptr;
     QAction* importMaterialsAction_ = nullptr;
+    QAction* importBlenderKitAction_ = nullptr;
+    QAction* importFabAction_ = nullptr;
     QAction* addSamplesAction_ = nullptr;
     QAction* addShapesAction_ = nullptr;
     ImportQueue* queue_ = nullptr;
     ImportQueueView* queueView_ = nullptr;
     LibraryWatcher* libraryWatcher_ = nullptr;
     QPointer<SetupCheckDialog> setupDialog_;
+    IntegrationsPanel* integrations_ = nullptr;
+    StoreImports* storeImports_ = nullptr;
+    QPointer<FabImportDialog> fabDialog_;
+    bool integrationsAsked_ = false;
     bool importAsked_ = false;
     QString setupScrollTo_;
     QSplitter* splitter_ = nullptr;

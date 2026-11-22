@@ -23,6 +23,9 @@ struct ProcessSpec {
     std::filesystem::path workingFolder; // empty: the current folder
     std::vector<std::pair<std::string, std::string>> environment; // added to, or replacing, the inherited ones
     std::chrono::milliseconds timeout{0}; // 0: no limit
+    // Let the program open a window, shown minimized and without taking focus, instead of
+    // starting it with no window. It still runs in the job object and its output is still read.
+    bool minimizedWindow = false;
 };
 
 // How much of the output is kept in ProcessResult::outputTail.
@@ -45,7 +48,7 @@ ProcessResult runProcess(const ProcessSpec& spec, const std::function<void(std::
                          std::stop_token stop = {});
 
 // Moves a file or folder to the Windows Recycle Bin, so the user can still get it back. Used for imported
-// zip files (DESIGN.md section 5 rule 4). CannotWrite when it fails; NotFound when it is not there.
+// zip files. CannotWrite when it fails; NotFound when it is not there.
 Status moveToRecycleBin(const std::filesystem::path& path);
 
 }

@@ -36,6 +36,8 @@
 namespace fs = std::filesystem;
 using Json = nlohmann::ordered_json;
 
+int runFakeStoreFetch(const Json& job, const std::string& jobPath, const std::vector<std::string>& args);
+
 namespace {
 
 // The folder that holds this program.
@@ -592,6 +594,7 @@ int main()
         log << job.dump() << "\n";
     }
 
+    if (job["task"] == "blenderkit_fetch") return runFakeStoreFetch(job, jobPath, args);
     if (job["task"].get<std::string>() == "probe") {
         const Json& given = job["params"];
         const Json folders = given.is_object() && given.contains("user_folders") ? given["user_folders"] : Json();

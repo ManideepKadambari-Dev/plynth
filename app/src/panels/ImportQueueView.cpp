@@ -26,7 +26,7 @@ ImportQueueView::ImportQueueView(ImportQueue& queue, QWidget* parent) : QWidget(
         std::vector<Row> rows;
         for (const QueueItem& item : queue.items())
             rows.push_back({item.id, item.title, item.stage, item.percent, item.state == QueueItem::State::Failed,
-                            item.kind == QueueItem::Kind::Refresh, item.message, item.workFolder});
+                            item.kind == QueueItem::Kind::Refresh, item.message, item.workFolder, item.pickable});
         return rows;
     };
     cancel_ = [&queue](int id) { queue.cancel(id); };
@@ -40,8 +40,10 @@ ImportQueueView::ImportQueueView(MaterialImportQueue& queue, QWidget* parent) : 
     rows_fn_ = [&queue]() {
         std::vector<Row> rows;
         for (const MaterialQueueItem& item : queue.items())
-            rows.push_back({item.id, item.title, item.stage, item.percent, item.state == MaterialQueueItem::State::Failed,
-                            false, item.message, item.workFolder});
+            rows.push_back({item.id,
+                            item.title.isEmpty() ? QString::fromStdString(item.request.source.url) : item.title,
+                            item.stage, item.percent, item.state == MaterialQueueItem::State::Failed, false,
+                            item.message, item.workFolder, false});
         return rows;
     };
     cancel_ = [&queue](int id) { queue.cancel(id); };
@@ -147,6 +149,14 @@ void ImportQueueView::rebuild()
         buttons->setSpacing(t.unit() * 2);
         buttons->addStretch(1);
         const int id = item.id;
+        if (item.canPick) {
+            auto* pick = new QPushButton(tr("Pick the model..."), row);
+            pick->setToolTip(tr("Choose which model of the zip to import"));
+            pick->setProperty("tourId", QStringLiteral("queue-pick-model"));
+            const int pickId = item.id;
+            connect(pick, &QPushButton::clicked, this, [this, pickId]() { emit pickModelRequested(pickId); });
+            buttons->addWidget(pick);
+        }
         if (failed && !item.workFolder.isEmpty()) {
             auto* log = new QPushButton(tr("Show log"), row);
             log->setToolTip(tr("Open the Blender log of this import"));

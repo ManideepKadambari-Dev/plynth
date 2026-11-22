@@ -6,7 +6,7 @@ include(Catch)
 
 add_executable(plynth_echo_lines tools/echo_lines/main.cpp)
 
-add_executable(plynth_fake_blender tools/fake_blender/main.cpp)
+add_executable(plynth_fake_blender tools/fake_blender/main.cpp tools/fake_blender/store_tasks.cpp)
 target_link_libraries(plynth_fake_blender PRIVATE nlohmann_json::nlohmann_json shell32)
 set_target_properties(plynth_fake_blender PROPERTIES OUTPUT_NAME fake_blender)
 
@@ -78,6 +78,14 @@ add_executable(plynth_core_tests
     core/GrayImageTests.cpp
     core/OrthogonalDetectorTests.cpp
     core/DetectionPerfTests.cpp
+    core/ZipListingTests.cpp
+    core/FabZipTests.cpp
+    core/FabImporterTests.cpp
+    core/IntegrationsTests.cpp
+    core/BlenderKitTests.cpp
+    core/StoreFetchTests.cpp
+    core/ImportPreviewTests.cpp
+    core/StoreImportTests.cpp
 )
 target_link_libraries(plynth_core_tests PRIVATE
     plynth::core

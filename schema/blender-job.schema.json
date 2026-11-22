@@ -43,6 +43,26 @@
       }
     },
     {
+      "if": { "properties": { "task": { "const": "blenderkit_fetch" } } },
+      "then": {
+        "properties": {
+          "params": {
+            "description": "Download one BlenderKit item through the BlenderKit add-on the user installed and signed in to (core/include/plynth/core/catalog/BlenderKit.h). Run without --factory-startup. The worker never calls a BlenderKit web address itself and never reads out the add-on's key.",
+            "type": "object",
+            "required": ["asset_base_id", "kind", "resolution", "output_folder", "wait_seconds"],
+            "additionalProperties": false,
+            "properties": {
+              "asset_base_id": { "type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" },
+              "kind": { "description": "What the import expects. Another kind fails with wrong_asset_kind.", "enum": ["model", "material"] },
+              "resolution": { "description": "Texture resolution to ask the add-on for, when its download operator offers one.", "enum": ["0.5k", "1k", "2k", "4k", "8k", "original"] },
+              "output_folder": { "description": "An empty folder. The worker copies the downloaded .blend and the files it uses into it.", "type": "string", "minLength": 1 },
+              "wait_seconds": { "description": "How long to wait for the download.", "type": "integer", "minimum": 60, "maximum": 3600 }
+            }
+          }
+        }
+      }
+    },
+    {
       "if": { "properties": { "task": { "const": "cleanup_asset" } } },
       "then": {
         "properties": {
@@ -57,7 +77,7 @@
                 "additionalProperties": false,
                 "properties": {
                   "file": { "type": "string", "minLength": 1 },
-                  "format": { "description": "An importer of the worker's importer registry (blender/plynth/importers/).", "enum": ["blend", "fbx", "obj", "gltf", "zip"] }
+                  "format": { "description": "An importer of the worker's importer registry (blender/plynth/importers/). fab: file is a Fab source file (schema/fab-source.schema.json).", "enum": ["blend", "fbx", "obj", "gltf", "zip", "fab"] }
                 }
               },
               "asset_id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 64 },
@@ -307,8 +327,8 @@
                 "required": ["kind", "path", "material", "maps", "values", "normal"],
                 "additionalProperties": false,
                 "properties": {
-                  "kind": { "description": "A source of the worker's material source registry (blender/plynth/materials/sources/).", "enum": ["texture_set", "blend"] },
-                  "path": { "description": "texture_set: a folder, a zip or one image file. blend: a .blend file, opened and never saved.", "type": "string", "minLength": 1 },
+                  "kind": { "description": "A source of the worker's material source registry (blender/plynth/materials/sources/).", "enum": ["texture_set", "blend", "fab"] },
+                  "path": { "description": "texture_set: a folder, a zip or one image file. blend: a .blend file, opened and never saved. fab: a Fab source file (schema/fab-source.schema.json) of kind material.", "type": "string", "minLength": 1 },
                   "material": { "description": "blend: the material's name, or null for the only one. Always null for texture_set.", "type": ["string", "null"], "minLength": 1 },
                   "maps": {
                     "description": "Absolute image files the user picked for channels. They win over names and material.json.",

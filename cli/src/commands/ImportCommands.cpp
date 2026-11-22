@@ -2,7 +2,11 @@
 #include "../Common.h"
 
 #include <plynth/core/ProjectFiles.h>
+#include <plynth/core/SetupCheck.h>
+#include <plynth/core/catalog/BlenderKit.h>
+#include <plynth/core/catalog/ImportPreview.h>
 #include <plynth/core/catalog/Importer.h>
+#include <plynth/core/catalog/Integrations.h>
 
 #include <memory>
 #include <optional>
@@ -23,6 +27,21 @@ struct ImportOptions {
     double scale = 1.0;
     int rotate = 0;
     bool keepOriginal = false;
+    std::string importer;
+    std::vector<std::string> optionPairs;
+    bool dryRun = false;
+};
+
+struct IntegrationsOptions {
+    std::string library;
+    std::string blender;
+    bool noAddons = false;
+};
+
+struct IntegrationOptions {
+    std::string library;
+    std::string id;
+    std::vector<std::string> optionPairs;
 };
 
 struct InboxOptions {
@@ -54,7 +73,7 @@ Json warningsJson(const std::vector<BlenderWarning>& warnings) {
     return list;
 }
 
-// Imports one file, folder or zip.
+// Imports one file, folder, zip or address, or with --dry-run shows what that would do.
 Answer assetsImport(const RunContext& context, const ImportOptions& options) {
     const std::string command = "assets import";
     if (!options.id.empty()) {
@@ -69,13 +88,20 @@ Answer assetsImport(const RunContext& context, const ImportOptions& options) {
     if (options.rotate != 0 && options.rotate != 90 && options.rotate != 180 && options.rotate != 270) {
         return failure(command, fail(ErrorCode::InvalidValue, "The rotation must be 0, 90, 180 or 270 degrees."));
     }
-    OpenedCatalog opened;
     Answer failed;
-    if (!openCatalog(command, context, options.library, opened, failed)) {
+    Json importerOptions;
+    if (!parseOptionPairs(command, options.optionPairs, importerOptions, failed)) {
         return failed;
     }
+    const bool address = isAddressArgument(context, options.path);
     ImportRequest request;
-    request.source.file = userPath(context, options.path);
+    if (address) {
+        request.source.url = options.path;
+    } else {
+        request.source.file = userPath(context, options.path);
+    }
+    request.importer = options.importer;
+    request.importerOptions = importerOptions;
     request.id = options.id;
     request.name = options.name;
     request.categories = options.categories;
@@ -86,7 +112,29 @@ Answer assetsImport(const RunContext& context, const ImportOptions& options) {
     if (options.keepOriginal) {
         request.keepOriginal = true;
     }
-    if (!pickImporter(request.source)) {
+    if (!options.importer.empty() && findImporter(options.importer) == nullptr) {
+        return failure(command, fail(ErrorCode::NotFound, "There is no importer called " + options.importer + "."));
+    }
+    if (options.dryRun) {
+        MachineSettings settings;
+        LibraryPaths paths;
+        if (!chooseLibraryFolder(command, context, options.library, settings, paths, failed)) {
+            return failed;
+        }
+        const ImportPreview preview = previewAssetImport(paths, request);
+        if (!preview.status.ok()) {
+            return failure(command, preview.status);
+        }
+        return success(command, importPreviewToJson(preview));
+    }
+    OpenedCatalog opened;
+    if (!openCatalog(command, context, options.library, opened, failed)) {
+        return failed;
+    }
+    if (options.importer.empty() && !pickImporter(request.source)) {
+        if (address) {
+            return failure(command, parseBlenderKitAddress(options.path).status);
+        }
         std::string endings;
         for (const std::string& suffix : importableSuffixes()) {
             endings += (endings.empty() ? "" : ", ") + suffix;
@@ -205,17 +253,171 @@ Answer assetsImporters() {
     return success("assets importers", std::move(result));
 }
 
+// The library of an integration command. found is false, and failed stays empty, when none is set and
+// allowNone is true.
+bool integrationLibrary(const std::string& command, const RunContext& context, const std::string& libraryOption,
+                        bool allowNone, MachineSettings& settings, LibraryPaths& paths, bool& found,
+                        Answer& failed) {
+    found = chooseLibraryFolder(command, context, libraryOption, settings, paths, failed);
+    if (found) {
+        return true;
+    }
+    if (allowNone && libraryOption.empty() && failed.code == "no_library") {
+        failed = Answer();
+        return true;
+    }
+    return false;
+}
+
+// The saved options of the library, or none when there is no library. A broken file is refused.
+bool savedOptions(const std::string& command, const LibraryPaths& paths, bool found, Json& saved, Answer& failed) {
+    saved = Json::object();
+    if (!found) {
+        return true;
+    }
+    const IntegrationOptionsRead read = readIntegrationOptions(paths);
+    if (!read.status.ok()) {
+        failed = failure(command, read.status);
+        return false;
+    }
+    saved = read.saved;
+    return true;
+}
+
+// One integration's entry: its state from the report and its options with the saved ones on top.
+Json integrationEntry(const Integration& integration, const SetupReport& report, const Json& saved) {
+    return integrationToJson(integration, integrationStatus(integration, &report),
+                             integrationOptions(integration, saved));
+}
+
+// The integration with this id, or null and a not_found answer.
+const Integration* integrationOrFail(const std::string& command, const std::string& id, Answer& failed) {
+    const Integration* integration = findIntegration(id);
+    if (integration == nullptr) {
+        failed = failure(command, fail(ErrorCode::NotFound, "There is no integration called " + id + "."));
+    }
+    return integration;
+}
+
+// The entry of one integration for show, set and reset. No add-on probe runs.
+Answer integrationAnswer(const std::string& command, const Integration& integration, const LibraryPaths& paths,
+                         bool found, const MachineSettings& settings) {
+    Json saved;
+    Answer failed;
+    if (!savedOptions(command, paths, found, saved, failed)) {
+        return failed;
+    }
+    return success(command, integrationEntry(integration, quickSetupCheck(settings, true), saved));
+}
+
+// Lists the integrations in order with their state and options.
+Answer libraryIntegrations(const RunContext& context, const IntegrationsOptions& options) {
+    const std::string command = "library integrations";
+    MachineSettings settings;
+    LibraryPaths paths;
+    bool found = false;
+    Answer failed;
+    if (!integrationLibrary(command, context, options.library, true, settings, paths, found, failed)) {
+        return failed;
+    }
+    Json saved;
+    if (!savedOptions(command, paths, found, saved, failed)) {
+        return failed;
+    }
+    const SettingsLoad loaded = loadSettings();
+    if (!loaded.status.ok()) {
+        return failure(command, loaded.status);
+    }
+    SetupCheckOptions check;
+    if (!options.blender.empty()) {
+        check.blender = userPath(context, options.blender);
+    }
+    check.probeAddons = !options.noAddons;
+    check.settingsExist = loaded.exists;
+    const SetupReport report = runSetupCheck(loaded.settings, check);
+    Json list = Json::array();
+    for (const Integration* integration : allIntegrations()) {
+        list.push_back(integrationEntry(*integration, report, saved));
+    }
+    Json result = Json::object();
+    result["integrations"] = std::move(list);
+    return success(command, std::move(result));
+}
+
+// Shows one integration.
+Answer integrationShow(const RunContext& context, const IntegrationOptions& options) {
+    const std::string command = "library integration show";
+    Answer failed;
+    const Integration* integration = integrationOrFail(command, options.id, failed);
+    if (integration == nullptr) {
+        return failed;
+    }
+    MachineSettings settings;
+    LibraryPaths paths;
+    bool found = false;
+    if (!integrationLibrary(command, context, options.library, true, settings, paths, found, failed)) {
+        return failed;
+    }
+    return integrationAnswer(command, *integration, paths, found, settings);
+}
+
+// Saves options for one integration.
+Answer integrationSet(const RunContext& context, const IntegrationOptions& options) {
+    const std::string command = "library integration set";
+    Answer failed;
+    const Integration* integration = integrationOrFail(command, options.id, failed);
+    if (integration == nullptr) {
+        return failed;
+    }
+    Json changes;
+    if (!parseOptionPairs(command, options.optionPairs, changes, failed)) {
+        return failed;
+    }
+    MachineSettings settings;
+    LibraryPaths paths;
+    bool found = false;
+    if (!integrationLibrary(command, context, options.library, false, settings, paths, found, failed)) {
+        return failed;
+    }
+    const Status status = setIntegrationOptions(paths, options.id, changes);
+    if (!status.ok()) {
+        return failure(command, status);
+    }
+    return integrationAnswer(command, *integration, paths, true, settings);
+}
+
+// Removes the saved options of one integration.
+Answer integrationReset(const RunContext& context, const IntegrationOptions& options) {
+    const std::string command = "library integration reset";
+    Answer failed;
+    const Integration* integration = integrationOrFail(command, options.id, failed);
+    if (integration == nullptr) {
+        return failed;
+    }
+    MachineSettings settings;
+    LibraryPaths paths;
+    bool found = false;
+    if (!integrationLibrary(command, context, options.library, false, settings, paths, found, failed)) {
+        return failed;
+    }
+    const Status status = resetIntegrationOptions(paths, options.id);
+    if (!status.ok()) {
+        return failure(command, status);
+    }
+    return integrationAnswer(command, *integration, paths, true, settings);
+}
+
 }
 
 std::vector<CommandSpec> importCommands() {
     CommandSpec import;
     import.words = {"assets", "import"};
-    import.description = "Import a model file, a zip or a folder into the library.";
+    import.description = "Import a model file, a zip, a folder or a BlenderKit address into the library.";
     import.setup = [](CLI::App& sub) -> Handler {
         auto options = std::make_shared<ImportOptions>();
         addLibraryOption(sub, options->library);
         addBlenderOption(sub, options->blender);
-        sub.add_option("path", options->path, "The file, zip or folder to import.")->type_name("path")->required();
+        sub.add_option("path", options->path, "The file, zip or folder to import, or a BlenderKit address.")->type_name("path")->required();
         sub.add_option("--id", options->id, "Id for the asset. Default: made from the file name.")->type_name("id");
         sub.add_option("--name", options->name, "Name for the asset. Default: made from the file name.")
             ->type_name("text");
@@ -226,6 +428,12 @@ std::vector<CommandSpec> importCommands() {
         sub.add_option("--rotate", options->rotate, "Turn the model around the vertical axis. Default: 0.")
             ->type_name("0|90|180|270");
         sub.add_flag("--keep-original", options->keepOriginal, "Keep a zip after it was imported.");
+        sub.add_option("--importer", options->importer, "Use this importer instead of the best match.")
+            ->type_name("id");
+        sub.add_option("--option", options->optionPairs,
+                       "An option for the importer, key=value. A dotted key makes nested options. Repeatable.")
+            ->type_name("key=value");
+        sub.add_flag("--dry-run", options->dryRun, "Show the importer, options and plan. Imports nothing.");
         return [options](const RunContext& context) { return assetsImport(context, *options); };
     };
 
@@ -268,7 +476,51 @@ std::vector<CommandSpec> importCommands() {
         return [](const RunContext&) { return assetsImporters(); };
     };
 
-    return {import, inbox, rescan, thumbnail, importers};
+    CommandSpec integrations;
+    integrations.words = {"library", "integrations"};
+    integrations.description = "List the sources assets and materials come from, with their state and options.";
+    integrations.setup = [](CLI::App& sub) -> Handler {
+        auto options = std::make_shared<IntegrationsOptions>();
+        addLibraryOption(sub, options->library);
+        addBlenderOption(sub, options->blender);
+        sub.add_flag("--no-addons", options->noAddons, "Do not ask Blender about its add-ons.");
+        return [options](const RunContext& context) { return libraryIntegrations(context, *options); };
+    };
+
+    CommandSpec show;
+    show.words = {"library", "integration", "show"};
+    show.description = "Show one integration with its options.";
+    show.setup = [](CLI::App& sub) -> Handler {
+        auto options = std::make_shared<IntegrationOptions>();
+        addLibraryOption(sub, options->library);
+        sub.add_option("id", options->id, "Id of the integration.")->type_name("id")->required();
+        return [options](const RunContext& context) { return integrationShow(context, *options); };
+    };
+
+    CommandSpec set;
+    set.words = {"library", "integration", "set"};
+    set.description = "Save options for an integration. They apply to every import from it.";
+    set.setup = [](CLI::App& sub) -> Handler {
+        auto options = std::make_shared<IntegrationOptions>();
+        addLibraryOption(sub, options->library);
+        sub.add_option("id", options->id, "Id of the integration.")->type_name("id")->required();
+        sub.add_option("--option", options->optionPairs, "An option to save, key=value. Repeatable.")
+            ->type_name("key=value")
+            ->required();
+        return [options](const RunContext& context) { return integrationSet(context, *options); };
+    };
+
+    CommandSpec reset;
+    reset.words = {"library", "integration", "reset"};
+    reset.description = "Remove the saved options of an integration, so its defaults apply.";
+    reset.setup = [](CLI::App& sub) -> Handler {
+        auto options = std::make_shared<IntegrationOptions>();
+        addLibraryOption(sub, options->library);
+        sub.add_option("id", options->id, "Id of the integration.")->type_name("id")->required();
+        return [options](const RunContext& context) { return integrationReset(context, *options); };
+    };
+
+    return {import, inbox, rescan, thumbnail, importers, integrations, show, set, reset};
 }
 
 }

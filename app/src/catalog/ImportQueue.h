@@ -30,6 +30,7 @@ struct QueueItem {
     int percent = 0;     // 0 to 100
     QString message;     // the failure, in plain words
     QString workFolder;  // set when a Blender failure kept its work folder for the log
+    bool pickable = false; // a Fab zip with several models failed, so the user can pick one and try again
     plynth::ImportRequest request;
     std::filesystem::path entry;
     std::stop_source stop;
@@ -45,12 +46,16 @@ public:
 
     // Adds a file or folder to import with default fields. Returns the item id.
     int enqueueImport(const QString& path);
+    // Adds an import with every field of the request: an address, a chosen importer, options.
+    int enqueueRequest(const plynth::ImportRequest& request);
     // Adds an entry of the library inbox.
     int enqueueInbox(const QString& path);
     // Adds a measure and thumbnail render of an asset. Does nothing when one is already waiting.
     int enqueueRefresh(const QString& assetId, const QString& assetName);
 
     const std::vector<QueueItem>& items() const { return items_; }
+    // The item with this id, or null.
+    const QueueItem* item(int id) const;
     // True while an item is waiting or running.
     bool busy() const;
     // Ids of the assets that have a render waiting or running.

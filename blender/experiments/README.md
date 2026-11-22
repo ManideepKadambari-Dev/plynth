@@ -1,6 +1,6 @@
 # BlenderKit background test
 
-This is an optional experiment for milestone 13. It does not block anything and it is not part of Plynth. It answers one question from `DESIGN.md` section 8: can the BlenderKit add-on download an asset when Blender runs with no window? If not, Plynth falls back to starting Blender with a minimized window.
+This is an optional experiment. It is not part of Plynth. It answers one question: can the BlenderKit add-on download an asset when Blender runs in the background (`blender -b`)? Plynth runs it only that way.
 
 ## What it tests
 
@@ -15,26 +15,20 @@ The script never calls a BlenderKit web address itself. It copies a downloaded `
 
 The downloaded asset is for your own use only. Do not add it to the Plynth repository or share it.
 
-## The two commands
+## The command
 
-Use your own Blender path if it differs. Run both from the Plynth repository folder. Use a different `--out` folder for each.
-
-No window (the case Plynth wants):
+Use your own Blender path if it differs. Run it from the Plynth repository folder.
 
 ```
 "C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" -b --python blender/experiments/blenderkit_background.py -- --asset-base-id <id> --out C:\temp\bk_background
 ```
 
-With a normal window (the fallback). Blender opens, runs the same steps and closes itself when done:
-
-```
-"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" --python blender/experiments/blenderkit_background.py -- --asset-base-id <id> --out C:\temp\bk_window
-```
+The script refuses to run in a Blender with a window. It runs the add-ons you have enabled with your own settings, so close other Blender windows first.
 
 Do not add `--factory-startup`: the add-on and your sign in live in your normal Blender settings. An optional `--timeout <seconds>` changes the 5 minute wait.
 
 ## What to send back
 
-Send both `report.json` files, and the text Blender printed in the console for the no window run. The `result` field in the report says what happened: `downloaded`, `timeout`, `failed`, `not_signed_in`, `addon_not_installed`, `addon_not_enabled`, `download_not_started` or `script_error`.
+Send the `report.json` file and the text Blender printed in the console. The `result` field in the report says what happened: `downloaded`, `timeout`, `failed`, `not_signed_in`, `addon_not_installed`, `addon_not_enabled`, `download_not_started` or `script_error`.
 
 The script never switches the add-on on. If it is not enabled in your normal Blender the report says `addon_not_enabled`; enable it in Preferences and run again.

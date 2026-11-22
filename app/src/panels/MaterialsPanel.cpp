@@ -205,7 +205,7 @@ MaterialsPanel::MaterialsPanel(LibraryHost& host, QWidget* parent) : QWidget(par
     connect(openSetup_, &QPushButton::clicked, this, &MaterialsPanel::setupRequested);
     emptyColumn->addWidget(openSetup_, 0, Qt::AlignLeft);
     samples_ = new QPushButton(tr("Add the sample materials"), empty);
-    samples_->setToolTip(tr("Import the seven sample materials that come with Plynth. New projects use them by default"));
+    samples_->setToolTip(tr("Import the nine sample materials that come with Plynth. New projects use them by default"));
     samples_->setProperty("tourId", QStringLiteral("materials-add-samples"));
     connect(samples_, &QPushButton::clicked, this, &MaterialsPanel::samplesRequested);
     emptyColumn->addWidget(samples_, 0, Qt::AlignLeft);

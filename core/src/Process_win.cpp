@@ -258,12 +258,16 @@ ProcessResult runProcess(const ProcessSpec& spec, const std::function<void(std::
     startup.StartupInfo.hStdError = writeEnd.get();
     startup.StartupInfo.hStdInput = nul.valid() ? nul.get() : nullptr;
     if (attributes.ready) startup.lpAttributeList = attributes.list;
+    if (spec.minimizedWindow) {
+        startup.StartupInfo.dwFlags |= STARTF_USESHOWWINDOW;
+        startup.StartupInfo.wShowWindow = SW_SHOWMINNOACTIVE;
+    }
 
     std::wstring env;
     if (!spec.environment.empty()) env = environmentBlock(spec.environment);
     const std::wstring workingFolder = spec.workingFolder.wstring();
 
-    DWORD flags = CREATE_NO_WINDOW | CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT;
+    DWORD flags = (spec.minimizedWindow ? CREATE_NEW_CONSOLE : CREATE_NO_WINDOW) | CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT;
     if (attributes.ready) flags |= EXTENDED_STARTUPINFO_PRESENT;
     PROCESS_INFORMATION info{};
     const BOOL started = CreateProcessW(spec.program.c_str(), commandLine.data(), nullptr, nullptr, TRUE, flags,

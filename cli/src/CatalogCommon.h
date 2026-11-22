@@ -9,6 +9,8 @@
 #include <plynth/core/catalog/AssetImport.h>
 #include <plynth/core/catalog/MaterialCatalog.h>
 
+#include <nlohmann/json.hpp>
+
 #include <memory>
 #include <string>
 #include <vector>
@@ -56,6 +58,21 @@ void registerLibraryShapes();
 // Makes the room types in use the library's list when the settings name a working library, and the built-in
 // list otherwise.
 void useSettingsRoomTypes();
+
+// Picks the library folder (the --library value, or the settings) without opening its databases. On error
+// the answer for command is returned in failed (no_library).
+bool chooseLibraryFolder(const std::string& command, const RunContext& context, const std::string& libraryOption,
+                         MachineSettings& settings, LibraryPaths& paths, Answer& failed);
+
+// True when an import argument is an address and not a file: it starts with http://, https:// or
+// asset_base_id:, or it is a bare BlenderKit id and no file or folder of that name exists.
+bool isAddressArgument(const RunContext& context, const std::string& text);
+
+// Reads repeated key=value options into one object. The value is read as JSON when it parses and is text
+// otherwise. A dotted key such as maps.*.base_color makes nested objects. On error the answer for command
+// is returned in failed (invalid_value).
+bool parseOptionPairs(const std::string& command, const std::vector<std::string>& pairs, nlohmann::ordered_json& out,
+                      Answer& failed);
 
 // Adds the --blender option, which names the blender.exe for a command that runs Blender. Without it the
 // settings and the search decide.

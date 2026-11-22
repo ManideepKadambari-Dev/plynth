@@ -21,7 +21,7 @@ namespace plynth {
 using Json = nlohmann::ordered_json;
 
 // Finding Blender on this machine, reading its version, and running a Plynth job in it in the background.
-// Plynth never links against Blender and never installs it (DESIGN.md sections 2 and 7.19b).
+// Plynth never links against Blender and never installs it.
 
 struct BlenderVersion {
     int major = 0;
@@ -115,7 +115,7 @@ BlenderInstall inspectBlender(const std::filesystem::path& executable, std::stop
 // be read come last, by path.
 std::vector<BlenderInstall> findBlenderInstalls(const BlenderSearch& search, std::stop_token stop = {});
 
-// The install to preselect (DESIGN.md section 7.19b): the chosen one when it is in the list and usable,
+// The install to preselect: the chosen one when it is in the list and usable,
 // otherwise the newest Supported one, otherwise the newest Untested one. Empty when none is usable.
 std::optional<std::size_t> preferredBlender(const std::vector<BlenderInstall>& installs,
                                             const std::optional<std::filesystem::path>& chosen);
@@ -169,7 +169,9 @@ struct BlenderProgress {
 
 struct BlenderRunOptions {
     // True so the user's startup file and add-ons cannot change the result and Blender is given Plynth's
-    // private folder as its user folder. The probe task always runs this way, whatever this says.
+    // private folder as its user folder. The probe task always runs this way, whatever this says. False only
+    // for a store fetch (catalog/StoreFetch.h), which needs the user's own add-on and sign in, so Blender
+    // starts in the background with the user's settings and runs the enabled add-ons.
     bool factoryStartup = true;
     std::chrono::seconds timeout{600};
     std::filesystem::path scriptsFolder; // empty: blenderScriptsFolder()
@@ -178,8 +180,8 @@ struct BlenderRunOptions {
 struct BlenderJobRun {
     // Ok when the worker wrote a result file with ok true. BlenderFailed when it wrote ok false (the message
     // is the worker's), when Blender exited without a result file, or when the result file is not valid
-    // (the message ends with the last lines of the log). Cancelled on stop or timeout. NotFound when the
-    // scripts folder is missing.
+    // (the message ends with the last lines of the log), and when the timeout passed. Cancelled on stop.
+    // NotFound when the scripts folder is missing.
     Status status;
     Json result;            // the parsed result file, when there was one
     std::string errorCode;  // the worker's error code, for example "import_failed", when it gave one

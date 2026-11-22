@@ -1,6 +1,6 @@
-"""Owner run test: can the BlenderKit add-on download an asset when Blender has no window?
+"""Owner run test: can the BlenderKit add-on download an asset when Blender runs in the background?
 
-Run it in Blender after signing in to BlenderKit once in a normal Blender window. It only uses the add-on's own
+Run it in Blender after signing in to BlenderKit once in a normal Blender session. It only uses the add-on's own
 operator and functions. It never calls a BlenderKit web address itself and never reads out the API key; the
 only thing it asks is whether a key is stored. See blender/experiments/README.md.
 """
@@ -171,7 +171,7 @@ class Experiment:
         self.step("start_download", "CANCELLED" not in result, "operator returned %s" % sorted(result))
         return "CANCELLED" not in result
 
-    # Runs the add-on's own timer functions once. In a window Blender runs them itself, in background mode it does not.
+    # Runs the add-on's own timer functions once. Blender does not run them in background mode.
     def pump(self):
         if not self.report["background"] or not self.report["signed_in"]:
             return
@@ -262,7 +262,7 @@ class Experiment:
         return True
 
 
-# Waits with a loop that runs the add-on's timer functions by hand, for Blender without a window.
+# Waits with a loop that runs the add-on's timer functions by hand.
 def run_background(experiment):
     # Gives the add-on's client a few seconds to start before the download is asked for.
     def settle():
@@ -277,27 +277,7 @@ def run_background(experiment):
         time.sleep(POLL_SECONDS)
 
 
-# Waits with a Blender timer, for Blender with a window. Quits Blender when done.
-def run_windowed(experiment):
-    state = {"begun": False}
-
-    # One timer tick: start after a short delay, then poll until finished.
-    def tick():
-        if not state["begun"]:
-            state["begun"] = True
-            if not experiment.begin():
-                bpy.ops.wm.quit_blender()
-                return None
-            return POLL_SECONDS
-        if experiment.poll():
-            return POLL_SECONDS
-        bpy.ops.wm.quit_blender()
-        return None
-
-    bpy.app.timers.register(tick, first_interval=START_DELAY_SECONDS)
-
-
-# Runs the experiment in the way that fits how Blender was started.
+# Runs the experiment. It only runs in background mode (blender -b); a Blender started with a window is refused.
 def main():
     options = parse_args()
     experiment = Experiment(options.asset_base_id, options.out, options.timeout)
@@ -305,7 +285,8 @@ def main():
         if bpy.app.background:
             run_background(experiment)
         else:
-            run_windowed(experiment)
+            experiment.error("Start Blender with -b. This experiment only runs in background mode.")
+            experiment.finish("script_error")
     except Exception as error:
         experiment.error("The experiment stopped on an error: %s" % error)
         experiment.finish("script_error")

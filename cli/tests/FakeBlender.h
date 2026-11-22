@@ -94,4 +94,24 @@ private:
     bool runtimeHad_ = false;
 };
 
+// Points every folder Blender or Plynth would use at temporary folders, so no test touches the user's own.
+struct PrivateUser {
+    explicit PrivateUser(const TempFolder& temp)
+        : appdata("APPDATA", utf8(temp.path() / "user" / "appdata")),
+          profile("USERPROFILE", utf8(temp.path() / "user" / "profile")),
+          privateFolder("PLYNTH_BLENDER_PRIVATE", utf8(temp.path() / "user" / "private")),
+          resources("BLENDER_USER_RESOURCES", utf8(temp.path() / "user" / "resources")),
+          config("BLENDER_USER_CONFIG", utf8(temp.path() / "user" / "config")),
+          scripts("BLENDER_USER_SCRIPTS", utf8(temp.path() / "user" / "scripts")),
+          extensions("BLENDER_USER_EXTENSIONS", utf8(temp.path() / "user" / "extensions")),
+          datafiles("BLENDER_USER_DATAFILES", utf8(temp.path() / "user" / "datafiles")),
+          xdgData("XDG_DATA_HOME", utf8(temp.path() / "user" / "xdg")) {
+        for (const char* name : {"appdata", "profile", "private", "resources", "config", "scripts", "extensions",
+                                 "datafiles", "xdg"}) {
+            std::filesystem::create_directories(temp.path() / "user" / name);
+        }
+    }
+    ScopedEnvironment appdata, profile, privateFolder, resources, config, scripts, extensions, datafiles, xdgData;
+};
+
 }

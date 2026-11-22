@@ -1761,7 +1761,7 @@ All of them read the machine settings file. `settings show` tells you where it i
 
 **Which Blender is used.** Plynth takes the first of these that is set: the `--blender <exe>` option, the `PLYNTH_BLENDER` variable (when not empty), the Blender saved in the settings, and last the search of the usual install places. A Blender you name with the option or the variable is the only one that is started. If it is missing or cannot be used, the command says so and stops. It does not fall back to another install.
 
-Commands that use the library take `--library <folder>` to use another library than the one in the settings. Commands that run Blender (`assets import`, `assets inbox`, `assets rescan`, `assets thumbnail`, `library rescan`) take `--blender <exe>` to use another Blender than the one the setup check chooses. Ids (`chair`, `living`) use lower case letters, digits and `_`, start with a letter, and are at most 64 characters. Tags use lower case letters, digits, `_` and `-`.
+Commands that use the library take `--library <folder>` to use another library than the one in the settings. Commands that run Blender (`assets import`, `assets inbox`, `assets rescan`, `assets thumbnail`, `library rescan`, `library integrations`) take `--blender <exe>` to use another Blender than the one the setup check chooses. Ids (`chair`, `living`) use lower case letters, digits and `_`, start with a letter, and are at most 64 characters. Tags use lower case letters, digits, `_` and `-`.
 
 The examples below ran against a fresh library in `D:\Demo`, with the sample chair from `samples\models\chair`.
 
@@ -1912,7 +1912,7 @@ plynth assets import D:\Demo\in\chair.obj --scale 0.01
 
 Options:
 
-- `<path>`: the file, zip or folder. Files ending `.blend`, `.fbx`, `.glb`, `.gltf`, `.obj` and `.zip` are read. A folder must hold one model. `assets importers` lists the endings.
+- `<path>`: the file, zip or folder, or the address of a BlenderKit item (see "Store imports" below). Files ending `.blend`, `.fbx`, `.glb`, `.gltf`, `.obj` and `.zip` are read. A folder must hold one model. `assets importers` lists the endings.
 - `--id <id>`: the asset id. Default: made from the file name (`Red Chair (2).obj` becomes `red_chair_2`). A taken default gets `_2`, `_3` and so on. An id you give that is taken is `already_exists`.
 - `--name <text>`: the name. Default: made from the file name.
 - `--category <id>`: a category. Repeat for several. An unknown one is `not_found`, and nothing is imported.
@@ -1921,6 +1921,9 @@ Options:
 - `--scale <number>`: multiply the size of the model. Use it when the file has other units, for example `--scale 0.01` for a model drawn in centimetres.
 - `--rotate <0|90|180|270>`: turn the model about the vertical axis. Use it when the front of the model does not face the way Plynth expects (see the user guide).
 - `--keep-original`: keep a zip after the import. Without it, an imported zip goes to the Windows Recycle Bin. Files and folders you point at are never touched, only zips.
+- `--importer <id>`: use this importer instead of the best match. `assets importers` lists the ids. An unknown id is `not_found`.
+- `--option <key=value>`: an option for the importer. Repeat for several. A dotted key makes nested options, so `maps.*.base_color=<entry>` sets one texture. A value that is valid JSON is read as JSON (`max_texture_size=2048`, `formats=["gltf","fbx"]`), anything else is text. A value without `=` is `invalid_value`. Options you do not give come from the saved ones (see `library integration set`).
+- `--dry-run`: show the importer, its options and its plan, and import nothing. No Blender runs and the library does not change. See "Store imports" below.
 
 ```json
 {"ok":true,"command":"assets import","result":{"asset":{"id":"chair","name":"Chair","categories":["chair"],"tags":["oak"],"license":"unknown","source":{"kind":"local_file","reference":"chair.obj","imported_at":"2026-11-21T16:40:56Z"},"size":{"width":0.45,"depth":0.5,"height":0.9},"triangles":72,"state":"ready","problem":null,"thumbnail":{"state":"ok","file":"D:/Demo/Library/assets/items/chair/thumb.png","error":null},"folder":"D:/Demo/Library/assets/items/chair"},"importer":"local_file","thumbnail_failed":false,"original_removed":false}}
@@ -1936,11 +1939,100 @@ Problems with the model are warnings in the top level `warnings` list. The impor
 
 Cleanup warning codes: `high_polycount` (more triangles than the limit in the settings), `scale_suspicious` (largest side above 30 m or below 0.02 m), `missing_texture` (a texture file could not be found), `removed_objects` (cameras, lights or empties were removed), `unsupported_object`, `fbx_failed` (`asset.fbx`, which the app uses for the live 3D preview of the asset, could not be written; the asset itself is fine).
 
-Refusals: an ending no importer reads is `invalid_value` and names the endings. A rotation that is not 0, 90, 180 or 270 is `invalid_value`. A file that Blender cannot turn into a model is `blender_failed` with the reason. No Blender is `blender_not_found`. No library is `no_library`. Nothing is left in the library after a failed import.
+Refusals: an ending no importer reads is `invalid_value` and names the endings. Text that is neither a file nor a BlenderKit address is `invalid_value` too. A rotation that is not 0, 90, 180 or 270 is `invalid_value`. A file that Blender cannot turn into a model is `blender_failed` with the reason. No Blender is `blender_not_found`. No library is `no_library`. Nothing is left in the library after a failed import.
 
 ```json
 {"ok":false,"command":"assets import","error":{"code":"invalid_value","message":"The rotation must be 0, 90, 180 or 270 degrees."}}
 ```
+
+### Store imports
+
+`assets import` and `materials import` also take the address of a BlenderKit item, and Fab zips you downloaded yourself. Each is one more importer, so the answers look the same as for your own files, with `importer` set to `blenderkit` or `fab_zip`. The app does the same from its Sources tab, and the user guide explains it for people.
+
+#### BlenderKit addresses
+
+```
+plynth assets import https://www.blenderkit.com/get-blenderkit/0c1d4a2e-1111-2222-3333-444455556666/
+plynth materials import asset_base_id:0c1d4a2e-1111-2222-3333-444455556666
+plynth assets import 0c1d4a2e-1111-2222-3333-444455556666 --dry-run
+```
+
+An address is an `https://` or `http://` address on `blenderkit.com`, the text `asset_base_id:<id>` or a bare id. The id is 8-4-4-4-12 hex digits. Spaces around the text are ignored. A bare id that is also the name of a file in the current folder is read as that file. These are refused as `invalid_value`: another site ("This is not a BlenderKit address.") and an address with no id or with two different ids ("The address does not name one BlenderKit item. Copy it from the item's page.").
+
+Plynth never talks to BlenderKit itself. It starts Blender in the background, and the BlenderKit add-on you installed and signed in to downloads the item. This run uses your own Blender settings and the add-ons you have enabled, not the clean start the other Blender jobs use. Blender never opens a window for it, and there is no option for one. The cleanup that follows is the usual one, with a clean start. The add-on's own download folder is not changed, and Plynth never shows, logs or copies your key. The item's name, author and license come from the add-on, and the license is filled in where you gave none.
+
+`--dry-run` answers without starting Blender:
+
+```json
+{"ok":true,"command":"assets import","result":{"importer":"blenderkit","integration":"blenderkit","options":{"resolution":"2k","wait_seconds":600},"plan":{"file":null,"format":null,"source_kind":"blenderkit","reference":"https://www.blenderkit.com/get-blenderkit/0c1d4a2e-1111-2222-3333-444455556666/","fetch":{"task":"blenderkit_fetch","kind":"model","params":{"asset_base_id":"0c1d4a2e-1111-2222-3333-444455556666","kind":"model","resolution":"2k","wait_seconds":600}},"details":{"asset_base_id":"0c1d4a2e-1111-2222-3333-444455556666"}}}}
+```
+
+The example is shortened to the keys that matter. `file` is null because the download brings it.
+
+The options are `resolution` (`0.5k`, `1k`, `2k`, `4k`, `8k` or `original`, default `2k`) and `wait_seconds` (60 to 3600, default 600). Save them with `library integration set blenderkit`. A single import takes no options: `--option` on a BlenderKit address is `invalid_value`. An older saved `blender_window` value is read and ignored.
+
+Refusals and failures:
+
+- `invalid_value`: the address is not a BlenderKit address (sentences above), or the item is the other kind. `assets import` says "This BlenderKit item is a material. Import it in the Materials tab or with plynth materials import." and `materials import` says "This BlenderKit item is a model. Import it in the Assets tab or with plynth assets import." Nothing is kept in the library.
+- `blender_failed`: the download did not work. The message gives the reason, and the work folder is kept for the log.
+- `blender_not_found`: no Blender.
+
+The reasons in a `blender_failed` message:
+
+- The add-on is missing: "The BlenderKit add-on is not installed. Install it in Blender from Preferences, Get Extensions, and sign in." or "The BlenderKit add-on is installed but not enabled. Open Blender, go to Preferences, Add-ons and enable BlenderKit."
+- Not signed in: "Sign in to BlenderKit inside Blender first: open Blender, go to Preferences, Add-ons, BlenderKit, and log in." When the add-on's saved settings file is damaged, Plynth leaves it exactly as it is and adds "The saved BlenderKit settings file could not be read and was left as it is." (or "... is not in the expected form and was left as it is."). Sign in inside Blender to fix it.
+- The add-on delivered nothing: "The BlenderKit add-on did not deliver the item", then what the add-on said and "Check the item in BlenderKit inside Blender."
+- Nothing arrived in time: "Nothing arrived from BlenderKit after 600 seconds" (the `wait_seconds` in use). Raise `wait_seconds` or check the item inside Blender.
+- Another kind of item, for example an HDR: "This BlenderKit item is a hdr. Only models and materials can be imported." naming its kind.
+
+Messages from the add-on name its version, because the add-on is not a published interface and an update can change how it behaves.
+
+#### Fab zips
+
+```
+plynth assets import Chair.zip --dry-run
+plynth assets import Chair.zip --option quality=high
+plynth assets import Pack.zip --option model=Chair/Chair_Medium.fbx
+plynth materials import Oak.zip --option max_texture_size=2048
+plynth assets import One.zip --importer fab_zip
+```
+
+Download the zip from fab.com in your browser first. Plynth reads the zip's file list without unpacking it, then picks one model and the textures that go with it. Blender unpacks only those files. A zip that looks like a Fab download (several versions of one model, a quality or LOD word in a name, or a folder named for a format) goes to `fab_zip` by itself. A plain zip with one model goes to `local_file`, and `--importer fab_zip` reads it as a Fab zip. For `materials import`, a zip of textures that come in several resolutions goes to `fab_zip`.
+
+How the model is picked: the first of `formats` that the zip has. Within it, the `quality` asked for, then the nearest other one (medium tries high, low, then raw). Then the lowest LOD, then the shortest name. Textures come from the folder next to the model, leaving out folders named for another quality or format. When they come in several resolutions, the largest up to `max_texture_size` is taken (the smallest when all are larger, the largest of all when it is `null`). Textures with no resolution in the name are always taken.
+
+`--dry-run` shows the pick. `details.picked` is the model, `details.models` lists every readable model, and the answer also lists the textures taken and every entry left out with its reason:
+
+```json
+{"ok":true,"command":"assets import","result":{"importer":"fab_zip","integration":"fab","options":{"formats":["fbx","gltf","obj","blend"],"quality":"medium","max_texture_size":4096,"normal":"auto","license":"royalty_free"},"plan":{"format":"fab","source_kind":"fab_zip","reference":"Chair.zip","default_name":"Chair","original_is_zip":true,"details":{"picked":"Chair/FBX/Medium/Chair_LOD0.fbx","models":[{"entry":"Chair/FBX/Medium/Chair_LOD0.fbx","format":"fbx","quality":"medium","lod":0,"stem":"chair"}],"textures":[],"texture_resolution":null,"metadata":null,"skipped":[],"other_models":[],"unreadable":[],"previews":[]}}}}
+```
+
+The example is shortened.
+
+The options of a Fab import. The first five can also be saved. The last two are for one import only, and saving them is `invalid_value`.
+
+| Option | Meaning |
+|---|---|
+| `formats` | The model formats in order of preference: `fbx`, `gltf`, `obj`, `blend`. At least one, no repeats. Default: all four in that order. |
+| `quality` | `low`, `medium`, `high` or `raw`. Default `medium`. |
+| `max_texture_size` | The largest texture to take, 256 to 16384, or `null` for no limit. Default 4096. |
+| `normal` | `auto`, `opengl` or `directx`. Default `auto`, which reads the file name and takes OpenGL when it says nothing. |
+| `license` | The license id for new items. Default `royalty_free`. |
+| `model` | The zip entry of the model to take. Needed for a pack that holds several models. |
+| `maps` | A texture by hand: `maps.<material or *>.<channel>=<zip entry>`. The channels are `base_color`, `normal`, `roughness`, `metallic`, `opacity` and `occlusion`. It wins over the file names. |
+
+Refusals, all `invalid_value`:
+
+- A zip that holds several models: "This zip holds several models: Chair, Table, Lamp. Pick one with the option model." It names at most 10, then "and N more".
+- "This zip holds no model Plynth can read (found: .uasset). Download the FBX or glTF version from Fab."
+- "This zip holds other zip files. Unzip it and import the zip inside."
+- "The zip has no model <entry>." for a `model` that is not a readable model of the zip.
+- "The zip has no texture <entry>." for a `maps` entry that is not in the zip.
+- "The zip holds <entry>, which cannot be unpacked safely." for an entry whose path leaves the folder, or an encrypted entry.
+- "This zip holds no texture images." for `materials import`.
+- A bad option, for example "Unknown Fab option: <key>." or "The option quality must be low, medium, high or raw."
+
+After a good import the zip goes to the Recycle Bin unless you give `--keep-original` (`--keep` for materials). Models are cleaned up with format `fab`, and the item's source says `fab_zip` with the zip's file name. Fab items are for your own use. Plynth never downloads from Fab.
 
 ### assets inbox
 
@@ -2211,14 +2303,14 @@ plynth assets licenses
 
 ### assets importers
 
-Lists the ways an asset can be imported. Today there is one, for your own files.
+Lists the ways an asset can be imported, by id: BlenderKit addresses, Fab zips and your own files.
 
 ```
 plynth assets importers
 ```
 
 ```json
-{"ok":true,"command":"assets importers","result":{"importers":[{"id":"local_file","name":"Own files","description":"Model files (.blend, .fbx, .obj, .gltf, .glb), zip files and folders that hold a model.","suffixes":[".blend",".fbx",".glb",".gltf",".obj",".zip"]}]}}
+{"ok":true,"command":"assets importers","result":{"importers":[{"id":"blenderkit","name":"BlenderKit","description":"A BlenderKit item address. Blender downloads the model through your own BlenderKit add-on.","suffixes":[]},{"id":"fab_zip","name":"Fab zip","description":"A zip file downloaded from fab.com. Picks the model version and the textures that go with it.","suffixes":[".zip"]},{"id":"local_file","name":"Own files","description":"Model files (.blend, .fbx, .obj, .gltf, .glb), zip files and folders that hold a model.","suffixes":[".blend",".fbx",".glb",".gltf",".obj",".zip"]}]}}
 ```
 
 ## The materials catalog
@@ -2240,7 +2332,7 @@ plynth materials import D:\Models\chair\asset.blend --material Wood --id chair_w
 
 Options:
 
-- `<path>`: a folder, zip, image file or `.blend`. Repeat for several. A path whose last part has `*` or `?` is expanded by Plynth, because PowerShell does not expand wildcards for programs. The match is sorted by name and holds folders and files some importer can read, so a README beside the materials is left out. A pattern that matches nothing is `not_found`.
+- `<path>`: a folder, zip, image file, `.blend` or BlenderKit address. Repeat for several. A path whose last part has `*` or `?` is expanded by Plynth, because PowerShell does not expand wildcards for programs. The match is sorted by name and holds folders and files some importer can read, so a README beside the materials is left out. A pattern that matches nothing is `not_found`.
 - `--id <id>`: the material id, for one path only (two paths with it is `bad_arguments`). Default: the `id` of the `material.json`, otherwise made from the name. A taken default gets `_2`, `_3` and so on. An id you give that is taken is `already_exists`.
 - `--name <text>`: the name. Default: `material.json`, or made from the file name.
 - `--group <id>`: a group. Repeat for several. An unknown one is `not_found`.
@@ -2254,6 +2346,7 @@ Options:
 - `--bake-size <pixels>`: the size of images drawn from a `.blend` material that is not plain image textures. Default 1024. A power of two from 256 to 4096.
 - `--keep`: keep a zip after the import. Without it the imported zip goes to the Windows Recycle Bin. Files and folders you point at are never touched.
 - `--skip-existing`: when the material's id is taken, skip it instead of making a new id.
+- `--importer <id>`, `--option <key=value>` and `--dry-run`: as for `assets import`. With `--dry-run` and one path the answer is the preview. With several paths it is `{"previews":[...]}` and each preview names its `source`.
 - `--blender <exe>`: use this Blender.
 - `--quiet`: no progress lines.
 
@@ -2263,9 +2356,9 @@ Paths are imported in order. The first failure stops the run, and its message en
 {"ok":true,"command":"materials import","result":{"imported":[{"id":"oak_planks","importer":"texture_set","skipped":false,"warnings":[],"thumbnail_failed":false,"original_removed":false}]}}
 ```
 
-`importer` is `texture_set` or `blend_material`. `skipped` is true when `--skip-existing` found the id taken, and nothing was done. `thumbnail_failed` is true when the render failed. The material is still imported, with its thumbnail state `failed`. Problems with the maps are in `warnings` and again in the top level `warnings` list: `ambiguous_map`, `unused_image`, `map_size_mismatch`, `visible_seams`, `low_resolution` and `picked_material`.
+`importer` is `texture_set`, `blend_material`, `blenderkit` or `fab_zip`. BlenderKit addresses and Fab zips work as described under "Store imports" in `assets import`, with the material sentence for an item of the wrong kind. `skipped` is true when `--skip-existing` found the id taken, and nothing was done. `thumbnail_failed` is true when the render failed. The material is still imported, with its thumbnail state `failed`. Problems with the maps are in `warnings` and again in the top level `warnings` list: `ambiguous_map`, `unused_image`, `map_size_mismatch`, `visible_seams`, `low_resolution` and `picked_material`.
 
-Refusals: `no_library`, `not_found` for a path or group that is not there, `invalid_value` for a bad `--tile`, `--map`, `--value` or `--normal` and for an ending no importer reads, `already_exists`, `blender_not_found`, and `blender_failed` with the reason when Blender cannot make the material, such as "no base color" (a set with no base color image or color), "several materials" (a `.blend` with more than one, listing them, when `--material` is not given) or a failed bake. Nothing is left in the library after a failed import.
+Refusals: `no_library`, `not_found` for a path, group or importer that is not there, `invalid_value` for a bad `--tile`, `--map`, `--value` or `--normal` and for an ending no importer reads, `already_exists`, `blender_not_found`, and `blender_failed` with the reason when Blender cannot make the material, such as "no base color" (a set with no base color image or color), "several materials" (a `.blend` with more than one, listing them, when `--material` is not given) or a failed bake. Nothing is left in the library after a failed import.
 
 ### materials inbox
 
@@ -2413,8 +2506,61 @@ plynth materials importers
 ```
 
 ```json
-{"ok":true,"command":"materials importers","result":{"importers":[{"id":"blend_material","name":"Material from a .blend file","description":"One material of a Blender file, made into texture maps.","suffixes":[".blend"]},{"id":"texture_set","name":"Texture set","description":"A folder, zip file or picture file of texture maps such as base color, normal and roughness.","suffixes":[".png",".jpg",".jpeg",".tga",".tif",".tiff",".bmp",".exr",".zip"]}]}}
+{"ok":true,"command":"materials importers","result":{"importers":[{"id":"blend_material","name":"Material from a .blend file","description":"One material of a Blender file, made into texture maps.","suffixes":[".blend"]},{"id":"blenderkit","name":"BlenderKit","description":"A BlenderKit material address. Blender downloads it through your own BlenderKit add-on.","suffixes":[]},{"id":"fab_zip","name":"Fab zip","description":"A zip file of texture maps downloaded from fab.com. Takes the largest resolution the options allow.","suffixes":[".zip"]},{"id":"texture_set","name":"Texture set","description":"A folder, zip file or picture file of texture maps such as base color, normal and roughness.","suffixes":[".png",".jpg",".jpeg",".tga",".tif",".tiff",".bmp",".exr",".zip"]}]}}
 ```
+
+## Integrations
+
+An integration is a source that assets and materials come from: your own files, BlenderKit and Fab. The Sources tab of the app shows the same list. Options are saved in the library, in `integrations.json` in the library folder, so the machine settings do not change. Only options you changed are saved. Every command takes `--library <folder>`.
+
+### library integrations
+
+Lists every integration in order (`local`, `blenderkit`, `fab`) with its state and options.
+
+```
+plynth library integrations
+plynth library integrations --no-addons
+```
+
+Options:
+
+- `--no-addons`: skip the add-on probe, so your saved preferences are not read. An integration that needs an add-on is then `not_checked`. Blender is still started briefly with `--version`.
+- `--blender <exe>`: check this Blender and no other. It beats `PLYNTH_BLENDER` and the saved setting. Nothing is saved.
+
+Without `--no-addons` the add-on check is the one of [doctor](#doctor). It runs none of your add-ons and only reads your saved preferences as data.
+
+```json
+{"ok":true,"command":"library integrations","result":{"integrations":[{"id":"blenderkit","name":"BlenderKit","description":"Models and materials from BlenderKit. Blender downloads them through the BlenderKit add-on, signed in with your own account.","order":20,"takes_addresses":true,"suffixes":[],"asset_importers":["blenderkit"],"material_importers":["blenderkit"],"note":"Downloads run Blender with your own settings and enabled add-ons.","site":"https://www.blenderkit.com/","state":"not_checked","detail":"Add-ons were not checked this time.","action":"","link":"https://www.blenderkit.com/","options":{"resolution":"2k","wait_seconds":600},"defaults":{"resolution":"2k","wait_seconds":600}}]}}
+```
+
+The example is shortened to one of the three entries. `note` is one plain sentence to show next to the entry. It is empty for `local` and `fab`. For BlenderKit it says that downloads run Blender with your own settings and enabled add-ons. `state` is `ready`, `needs_setup` (BlenderKit is not installed, not enabled or not signed in) or `not_checked` (the check was skipped, Blender could not be used or the saved preferences could not be read). `options` are the saved ones on top of the `defaults`. With no library set, the defaults are shown. A broken `integrations.json` is `bad_file` with the place of the problem.
+
+### library integration show
+
+```
+plynth library integration show fab
+```
+
+One entry as above, as the whole `result`. No add-on check runs, so BlenderKit says `not_checked` here. An unknown id is `not_found`.
+
+### library integration set
+
+Saves options for an integration. They apply to every later import from it.
+
+```
+plynth library integration set fab --option quality=high
+plynth library integration set blenderkit --option resolution=4k --option wait_seconds=900
+```
+
+`--option key=value` is required and can be repeated. Values are read as for `assets import`. The answer is the entry with the new options. A bad value, or an option that cannot be saved such as `model` for Fab, is `invalid_value` and nothing is written. An unknown integration is `not_found`. With no library the answer is `no_library`.
+
+### library integration reset
+
+```
+plynth library integration reset fab
+```
+
+Removes the saved options of one integration, so its defaults apply again. The answer is the entry. Nothing is written when nothing was saved.
 
 ## Warnings
 

@@ -20,12 +20,6 @@ inline std::string readFile(const std::filesystem::path& file) {
     return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
 }
 
-// A path as UTF-8 text.
-inline std::string utf8(const std::filesystem::path& path) {
-    const auto text = path.generic_u8string();
-    return std::string(text.begin(), text.end());
-}
-
 // The code of a failed answer.
 inline std::string errorCode(const Outcome& outcome) {
     return outcome.answer.at("error").at("code").get<std::string>();
