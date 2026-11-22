@@ -57,25 +57,29 @@
          "wall": "w4",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "w3",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "w2",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "w1",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         }
        ]
       },
@@ -104,29 +108,34 @@
           "wall": "w1",
           "side": "left",
           "room": "r1",
-          "material": null
+          "material": null,
+          "slot": "Living_Wall"
          },
          {
           "wall": "w2",
           "side": "left",
           "room": "r1",
-          "material": null
+          "material": null,
+          "slot": "Living_Wall"
          },
          {
           "wall": "w3",
           "side": "left",
           "room": "r1",
-          "material": null
+          "material": null,
+          "slot": "Living_Wall"
          },
          {
           "wall": "w4",
           "side": "left",
           "room": "r1",
-          "material": null
+          "material": null,
+          "slot": "Living_Wall"
          }
         ]
        }
-      ]
+      ],
+      "top_slot": "Wall_Top"
      }
     ],
     "openings": [],
@@ -161,7 +170,32 @@
        }
       ],
       "floor_material": null,
-      "ceiling_material": null
+      "ceiling_material": null,
+      "floor_slot": "Living_Floor",
+      "ceiling_slot": "Living_Ceiling",
+      "ceiling_polygons": [
+       {
+        "outline": [
+         [
+          0.1,
+          -0.1
+         ],
+         [
+          0.1,
+          -3.9
+         ],
+         [
+          3.9,
+          -3.9
+         ],
+         [
+          3.9,
+          -0.1
+         ]
+        ],
+        "holes": []
+       }
+      ]
      }
     ],
     "items": [],
@@ -189,7 +223,10 @@
        "height": 3.0
       },
       "room": null,
-      "wall": null
+      "wall": null,
+      "slots": {
+       "material": "Column_Material"
+      }
      },
      {
       "id": "i6",
@@ -212,9 +249,33 @@
        "height": 0.9
       },
       "room": null,
-      "wall": null
+      "wall": null,
+      "slots": {
+       "material": "Railing_Material"
+      }
      }
-    ]
+    ],
+    "collision": [],
+    "slab": {
+     "bottom": 0.0,
+     "top": 0.0,
+     "polygons": [],
+     "undersides": [],
+     "sides": [],
+     "tops": [],
+     "materials": {
+      "edge": null,
+      "well": null,
+      "underside": null
+     },
+     "slots": {
+      "edge": "Exterior_Wall",
+      "well": "Stair_Well",
+      "underside": "Soffit"
+     }
+    },
+    "stairs": [],
+    "roofs": []
    }
   ],
   "generators": [
@@ -228,6 +289,56 @@
     "file": "@GENERATORS@/railing.py",
     "addons": []
    }
-  ]
+  ],
+  "preview_textures_folder": "preview_textures",
+  "preview_texture_size": 1024,
+  "slots": [
+   {
+    "name": "Column_Material",
+    "material": "white_paint",
+    "surface": "Generated"
+   },
+   {
+    "name": "Exterior_Wall",
+    "material": null,
+    "surface": "Wall_Outside"
+   },
+   {
+    "name": "Living_Ceiling",
+    "material": null,
+    "surface": "Ceiling"
+   },
+   {
+    "name": "Living_Floor",
+    "material": null,
+    "surface": "Floor"
+   },
+   {
+    "name": "Living_Wall",
+    "material": null,
+    "surface": "Wall_Inside"
+   },
+   {
+    "name": "Railing_Material",
+    "material": "brushed_steel",
+    "surface": "Generated"
+   },
+   {
+    "name": "Soffit",
+    "material": null,
+    "surface": "Soffit"
+   },
+   {
+    "name": "Stair_Well",
+    "material": null,
+    "surface": "Wall_Inside"
+   },
+   {
+    "name": "Wall_Top",
+    "material": null,
+    "surface": "Wall_Top"
+   }
+  ],
+  "preview_folder": null
  }
 }
