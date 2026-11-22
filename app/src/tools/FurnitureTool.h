@@ -39,13 +39,18 @@ private:
     void disconnectPicker();
     void assetHovered(const QString& assetId);
     void assetChosen(const QString& assetId);
+    void generatorHovered(const QString& generatorId);
+    void generatorChosen(const QString& generatorId);
     void updatePreview();
 
     QMetaObject::Connection chosen_;
     QMetaObject::Connection hovered_;
+    QMetaObject::Connection generatorChosen_;
+    QMetaObject::Connection generatorHovered_;
     QMetaObject::Connection dismissed_;
     std::optional<plynth::Vec2> click_;
     QString hoveredAsset_;
+    QString hoveredGenerator_;
     std::optional<plynth::Item> preview_;
     bool previewProblem_ = false;
 };

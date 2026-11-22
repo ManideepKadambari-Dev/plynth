@@ -1,9 +1,11 @@
 #include "FurniturePicker.h"
 
 #include "AssetPreview.h"
+#include "GeneratorPreview.h"
 #include "catalog/LibraryHost.h"
 #include "theme/Theme.h"
 
+#include <plynth/core/Generators.h>
 #include <plynth/core/RoomTypes.h>
 #include <plynth/core/catalog/AssetCatalog.h>
 #include <plynth/core/catalog/ItemAssets.h>
@@ -36,6 +38,8 @@ constexpr int kLookBack = 2;
 constexpr int kLookNote = 3;
 
 const QString kAllRoomTypes = QStringLiteral("*all");
+const QString kGeneratorsKey = QStringLiteral("*generators");
+const QString kGeneratorPrefix = QStringLiteral("generator:");
 
 // Turns a core text into Qt text.
 QString fromCore(const std::string& text)
@@ -150,7 +154,7 @@ private:
 // Builds the frame and the preview panel. Nothing shows until openAt.
 FurniturePicker::FurniturePicker(LibraryHost& host, QWidget* parent) : QWidget(parent), host_(host)
 {
-    setToolTip(tr("Pick what to place: room type, then category, then asset"));
+    setToolTip(tr("Pick what to place: room type, then category, then asset, or one of the generators"));
     setProperty("tourId", QStringLiteral("furniture-picker"));
     setFocusPolicy(Qt::NoFocus);
     row_ = new QHBoxLayout(this);
@@ -159,6 +163,10 @@ FurniturePicker::FurniturePicker(LibraryHost& host, QWidget* parent) : QWidget(p
     preview_ = new AssetPreview(this);
     row_->addWidget(preview_);
     preview_->hide();
+    generatorPreview_ = new GeneratorPreview(this);
+    row_->addWidget(generatorPreview_);
+    generatorPreview_->hide();
+    connect(&host_, &LibraryHost::generatorsChanged, this, &FurniturePicker::refreshGenerators);
     hide();
 }
 
@@ -211,6 +219,8 @@ void FurniturePicker::dismiss()
 // Opens the path to an asset the way clicks would, then hovers it.
 bool FurniturePicker::hoverAsset(const QString& id)
 {
+    if (id.startsWith(kGeneratorPrefix))
+        return hoverGenerator(id.mid(kGeneratorPrefix.size()));
     plynth::AssetCatalog* catalog = host_.catalog();
     if (!open_ || !catalog)
         return false;
@@ -241,6 +251,51 @@ bool FurniturePicker::hoverAsset(const QString& id)
     return true;
 }
 
+// Lists the generators again after the library or the add-on check changed while the picker is open.
+void FurniturePicker::refreshGenerators()
+{
+    if (!open_)
+        return;
+    const QString keep = hoveredGenerator_;
+    for (const Column& column : columns_) {
+        if (column.kind == Kind::Generators) {
+            hoveredGenerator_.clear();
+            column.list->clear();
+            fillGenerators(column.list);
+            relayout();
+            setHoveredGenerator(keep);
+        } else if (column.kind != Kind::Assets && column.list->count() > 0) {
+            // The count on the Generators row of the first column.
+            for (int i = 0; i < column.list->count(); ++i)
+                if (column.list->item(i)->data(kKeyRole).toString() == kGeneratorsKey)
+                    column.list->item(i)->setData(kSubRole, QString::number(host_.generators().generators.size()));
+        }
+    }
+}
+
+// Opens the path to a generator the way clicks would, then hovers it.
+bool FurniturePicker::hoverGenerator(const QString& id)
+{
+    if (!open_ || host_.generators().find(toCore(id)) == nullptr)
+        return false;
+    trimColumns(0);
+    if (filtered_)
+        fillCategories(addColumn(Kind::Categories, roomType_), roomType_, true);
+    else
+        fillRoomTypes(addColumn(Kind::RoomTypes, QString()));
+    selectRow(0, kGeneratorsKey);
+    QListWidget* list = addColumn(Kind::Generators, kGeneratorsKey);
+    fillGenerators(list);
+    relayout();
+    for (int i = 0; i < list->count(); ++i)
+        if (list->item(i)->data(kKeyRole).toString() == id) {
+            list->setCurrentRow(i);
+            list->scrollToItem(list->item(i));
+        }
+    setHoveredGenerator(id);
+    return true;
+}
+
 // Watches the whole application while open: Escape closes, a press outside closes, a resize of the
 // parent closes, and leaving the asset column clears the hover.
 bool FurniturePicker::eventFilter(QObject* watched, QEvent* event)
@@ -268,6 +323,8 @@ bool FurniturePicker::eventFilter(QObject* watched, QEvent* event)
         for (const Column& column : columns_)
             if (column.kind == Kind::Assets && watched == column.list->viewport())
                 setHovered(QString());
+            else if (column.kind == Kind::Generators && watched == column.list->viewport())
+                setHoveredGenerator(QString());
         break;
     default:
         break;
@@ -291,7 +348,9 @@ void FurniturePicker::reset()
 {
     trimColumns(0);
     hovered_.clear();
+    hoveredGenerator_.clear();
     preview_->clear();
+    generatorPreview_->clear();
 }
 
 // Adds a column at the end, before the preview. The key is the room type of a categories column.
@@ -327,10 +386,16 @@ QListWidget* FurniturePicker::addColumn(Kind kind, const QString& key)
         list->setToolTip(tr("Assets. Click one to place it, hover one to see it"));
         list->setProperty("tourId", QStringLiteral("picker-assets"));
         break;
+    case Kind::Generators:
+        list->setToolTip(tr("Generators. Click one to place it, hover one to see its parameters"));
+        list->setProperty("tourId", QStringLiteral("picker-generators"));
+        break;
     }
     const int index = static_cast<int>(columns_.size());
     row_->insertWidget(index, list);
     columns_.push_back({kind, list});
+    if (open_)
+        list->show();
     connect(list, &QListWidget::itemClicked, this, [this, list](QListWidgetItem* item) {
         for (size_t i = 0; i < columns_.size(); ++i)
             if (columns_[i].list == list) {
@@ -341,6 +406,10 @@ QListWidget* FurniturePicker::addColumn(Kind kind, const QString& key)
     if (kind == Kind::Assets)
         connect(list, &QListWidget::itemEntered, this, [this](QListWidgetItem* item) {
             setHovered(item->data(kKeyRole).toString());
+        });
+    if (kind == Kind::Generators)
+        connect(list, &QListWidget::itemEntered, this, [this](QListWidgetItem* item) {
+            setHoveredGenerator(item->data(kKeyRole).toString());
         });
     return list;
 }
@@ -353,6 +422,8 @@ void FurniturePicker::trimColumns(int keep)
         columns_.pop_back();
         if (column.kind == Kind::Assets)
             setHovered(QString());
+        if (column.kind == Kind::Generators)
+            setHoveredGenerator(QString());
         row_->removeWidget(column.list);
         column.list->hide();
         column.list->deleteLater();
@@ -367,6 +438,24 @@ void FurniturePicker::fillRoomTypes(QListWidget* list)
         item->setData(kKeyRole, fromCore(type.id));
         item->setData(kSubmenuRole, true);
         item->setData(kLookRole, kLookPlain);
+    }
+    addGeneratorsRow(list);
+}
+
+// Adds the last row of the first column, which opens the generators.
+void FurniturePicker::addGeneratorsRow(QListWidget* list)
+{
+    const std::size_t count = host_.generators().generators.size();
+    auto* item = new QListWidgetItem(tr("Generators"), list);
+    item->setData(kKeyRole, kGeneratorsKey);
+    item->setData(kSubmenuRole, true);
+    item->setData(kLookRole, kLookPlain);
+    item->setData(kSubRole, QString::number(count));
+    if (count == 0) {
+        item->setData(kBlockedRole, tr("No generators in the library yet"));
+        item->setToolTip(tr("No generators in the library yet. Add the sample generators from the Catalog menu"));
+    } else {
+        item->setToolTip(tr("Shapes made by a script when the project is built, such as columns and railings"));
     }
 }
 
@@ -398,6 +487,7 @@ void FurniturePicker::fillCategories(QListWidget* list, const QString& roomType,
         note->setData(kLookRole, kLookNote);
         note->setData(kBlockedRole, tr("There are no categories"));
     }
+    addGeneratorsRow(list);
 }
 
 // Lists the assets of a category with their real sizes. Broken and unmeasured assets are blocked.
@@ -432,6 +522,35 @@ void FurniturePicker::fillAssets(QListWidget* list, const QString& category)
     }
 }
 
+// Lists the generators with their default sizes in mono. One whose add-on is known to be off is blocked and
+// says why in its tooltip.
+void FurniturePicker::fillGenerators(QListWidget* list)
+{
+    const plynth::GeneratorLibrary& library = host_.generators();
+    for (const plynth::GeneratorInfo& info : library.generators) {
+        auto* item = new QListWidgetItem(fromCore(info.name), list);
+        item->setData(kKeyRole, fromCore(info.id));
+        item->setData(kLookRole, kLookAsset);
+        const plynth::GeneratorSize size =
+            plynth::generatorSize(info, plynth::defaultGeneratorParams(info, plynth::kDefaultCeilingHeight));
+        item->setData(kSubRole, size.status.ok() ? GeneratorPreview::sizeText(size.size) : QString());
+        const plynth::GeneratorState state = plynth::generatorState(info, host_.addonCache());
+        if (state.availability == plynth::GeneratorAvailability::NeedsAddon) {
+            item->setData(kBlockedRole, fromCore(state.message));
+            item->setToolTip(fromCore(state.message));
+        } else if (state.availability == plynth::GeneratorAvailability::Unknown) {
+            item->setToolTip(tr("Click to place %1. %2").arg(fromCore(info.name), fromCore(state.message)));
+        } else {
+            item->setToolTip(tr("Click to place %1").arg(fromCore(info.name)));
+        }
+    }
+    if (library.generators.empty()) {
+        auto* note = new QListWidgetItem(tr("No generators"), list);
+        note->setData(kLookRole, kLookNote);
+        note->setData(kBlockedRole, tr("There are no generators here"));
+    }
+}
+
 // Handles a click on a row: opens the next column, goes back to the room types, or chooses the asset.
 void FurniturePicker::rowClicked(int column, QListWidgetItem* item)
 {
@@ -439,12 +558,19 @@ void FurniturePicker::rowClicked(int column, QListWidgetItem* item)
         return;
     const QString key = item->data(kKeyRole).toString();
     const Kind kind = columns_[static_cast<size_t>(column)].kind;
-    if (kind == Kind::Assets) {
-        emit assetChosen(key);
+    if (kind == Kind::Assets || kind == Kind::Generators) {
+        if (kind == Kind::Assets)
+            emit assetChosen(key);
+        else
+            emit generatorChosen(key);
         dismiss();
         return;
     }
-    if (kind == Kind::RoomTypes) {
+    if (key == kGeneratorsKey) {
+        trimColumns(column + 1);
+        fillGenerators(addColumn(Kind::Generators, key));
+        selectRow(column, key);
+    } else if (kind == Kind::RoomTypes) {
         trimColumns(column + 1);
         fillCategories(addColumn(Kind::Categories, key), key, false);
         selectRow(column, key);
@@ -491,6 +617,25 @@ void FurniturePicker::setHovered(const QString& id)
     emit assetHovered(placeable ? id : QString());
 }
 
+// Shows the preview of a generator, and tells the owner when it is one that can be placed.
+void FurniturePicker::setHoveredGenerator(const QString& id)
+{
+    if (id == hoveredGenerator_)
+        return;
+    hoveredGenerator_ = id;
+    const plynth::GeneratorInfo* info = id.isEmpty() ? nullptr : host_.generators().find(toCore(id));
+    if (info == nullptr) {
+        hoveredGenerator_.clear();
+        generatorPreview_->clear();
+        emit generatorHovered(QString());
+        return;
+    }
+    generatorPreview_->showGenerator(*info, host_.addonCache());
+    const bool placeable =
+        plynth::generatorState(*info, host_.addonCache()).availability != plynth::GeneratorAvailability::NeedsAddon;
+    emit generatorHovered(placeable ? id : QString());
+}
+
 // The readable name of a category id.
 QString FurniturePicker::categoryName(const QString& id) const
 {
@@ -507,7 +652,10 @@ void FurniturePicker::relayout()
     const Theme& t = Theme::instance();
     QWidget* parent = parentWidget();
     const bool hasAssets = !columns_.empty() && columns_.back().kind == Kind::Assets;
+    const bool hasGenerators = !columns_.empty() && columns_.back().kind == Kind::Generators;
     preview_->setVisible(hasAssets);
+    generatorPreview_->setVisible(hasGenerators);
+    const bool hasPreview = hasAssets || hasGenerators;
     const int previewHeight = t.thumbnailLarge() + t.unit() * 45;
     int rowsHeight = t.pickerRowHeight() * 8;
     for (const Column& column : columns_) {
@@ -517,8 +665,8 @@ void FurniturePicker::relayout()
         rowsHeight = qMax(rowsHeight, sum);
     }
     const int margin = t.unit() * 2;
-    const int wanted = qMax(rowsHeight, hasAssets ? previewHeight : 0) + 2;
-    const int width = 2 + static_cast<int>(columns_.size()) * t.pickerColumnWidth() + (hasAssets ? t.previewWidth() : 0);
+    const int wanted = qMax(rowsHeight, hasPreview ? previewHeight : 0) + 2;
+    const int width = 2 + static_cast<int>(columns_.size()) * t.pickerColumnWidth() + (hasPreview ? t.previewWidth() : 0);
     const int available = parent ? parent->height() - margin * 2 : wanted;
     const int height = qMin(wanted, qMax(available, t.pickerRowHeight() * 4));
     setFixedSize(width, height);

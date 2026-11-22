@@ -64,12 +64,14 @@ struct OverlayItem {
     QString id;
     QPolygonF footprint;
     QPointF front;
-    QString label;   // the asset name, or "Missing asset"
-    QString detail;  // the asset id of a missing asset, drawn in mono
+    QString label;   // the asset or generator name, "Missing asset", "Missing generator" or "Needs <add-on>"
+    QString detail;  // the id of a missing asset or generator, or the name of a generator that needs an add-on, in mono
     QString tip;     // the problem sentences, one per line
     bool wall = false;
     bool problem = false;
     bool missing = false;
+    bool unavailable = false;  // a generator item whose add-on is off
+    bool otherProblem = false; // a problem other than an unavailable generator
 };
 
 // One problem of the last build, drawn as an amber triangle over its object. position is in scene units.

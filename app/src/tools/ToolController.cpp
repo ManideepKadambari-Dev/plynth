@@ -14,6 +14,7 @@
 #include "tools/SelectTool.h"
 #include "tools/WallTool.h"
 
+#include <plynth/core/Generators.h>
 #include <plynth/core/Items.h>
 #include <plynth/core/Openings.h>
 #include <plynth/core/Snapping.h>
@@ -338,6 +339,58 @@ bool ToolController::placeAsset(const QString& assetId, plynth::Vec2 wanted, boo
     plynth::Item item;
     item.asset = assetId.toStdString();
     item.size = asset.size;
+    const plynth::Vec2 at = snapItem(item, wanted, free);
+    item.x = at.x;
+    item.y = at.y;
+    auto command = std::make_unique<plynth::PlaceItemCommand>(current->id, item);
+    const plynth::PlaceItemCommand* raw = command.get();
+    if (!run(std::move(command)).ok())
+        return false;
+    selection_->set(SelectionKind::Item, QString::fromStdString(raw->itemId()));
+    return true;
+}
+
+// Makes the item a generator item would be at the default values and the floor's ceiling height.
+std::optional<plynth::Item> ToolController::generatorItem(const QString& generatorId) const
+{
+    const plynth::Floor* current = floor();
+    if (current == nullptr || library_ == nullptr)
+        return std::nullopt;
+    const plynth::GeneratorInfo* info = library_->generators().find(generatorId.toStdString());
+    if (info == nullptr)
+        return std::nullopt;
+    const plynth::GeneratorPlacement placement =
+        plynth::makeGeneratorUse(*info, plynth::defaultGeneratorParams(*info, current->ceilingHeight));
+    if (!placement.status.ok())
+        return std::nullopt;
+    plynth::Item item;
+    item.generator = placement.use;
+    item.size = placement.size;
+    return item;
+}
+
+// Places a generator with its default values, snapped, through PlaceItemCommand, and selects it.
+bool ToolController::placeGenerator(const QString& generatorId, plynth::Vec2 wanted, bool free)
+{
+    const plynth::Floor* current = floor();
+    if (current == nullptr)
+        return false;
+    if (library_ == nullptr || library_->generators().find(generatorId.toStdString()) == nullptr) {
+        showMessage(tr("That generator is not in the library."));
+        return false;
+    }
+    const plynth::GeneratorInfo& info = *library_->generators().find(generatorId.toStdString());
+    const plynth::GeneratorState state = plynth::generatorState(info, library_->addonCache());
+    if (state.availability == plynth::GeneratorAvailability::NeedsAddon) {
+        showMessage(fromCore(state.message));
+        return false;
+    }
+    std::optional<plynth::Item> made = generatorItem(generatorId);
+    if (!made.has_value()) {
+        showMessage(tr("This generator cannot be placed with its default values."));
+        return false;
+    }
+    plynth::Item item = *made;
     const plynth::Vec2 at = snapItem(item, wanted, free);
     item.x = at.x;
     item.y = at.y;
