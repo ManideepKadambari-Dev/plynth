@@ -71,3 +71,7 @@ desktop.ini
 # Edit lock and app state files inside project folders
 samples/*/session.lock
 samples/*/app-state.json
+
+# Test data and sample models drawn for the project are source files.
+!tests/core/data/build/
+!samples/models/**/*.obj
