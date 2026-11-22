@@ -376,6 +376,27 @@ class PreviewTextureTests(ItemHullTests):
         self.assertTrue(result["ok"], result["error"])
         self.assertFalse(os.path.exists(self.path("build", "preview_textures")))
 
+    # A build removes the copies of an earlier build that are no longer used, and only image files.
+    def test_old_copies_are_cleared(self):
+        params = self.params(sizes=(2048, 512))
+        self.build(params)
+        folder = self.path("build", "preview_textures")
+        stale = os.path.join(folder, "gone_base_color.png")
+        keep = os.path.join(folder, "notes.txt")
+        for path in (stale, keep):
+            with open(path, "w") as handle:
+                handle.write("x")
+        result = self.build(params)
+        self.assertTrue(result["ok"], result["error"])
+        self.assertEqual(sorted(os.listdir(folder)),
+                         ["box_box_wood_base_color.png", "box_box_wood_normal.png", "notes.txt"])
+        os.remove(keep)
+        params["assets"][0]["materials"] = [
+            dict(m, maps=self.asset_maps(self.path("maps", "box"), m["name"], 512))
+            for m in params["assets"][0]["materials"]]
+        self.build(params)
+        self.assertFalse(os.path.exists(folder))
+
     # Library materials too: a catalog material with a 2048 px base color shared by two slots gets one copy.
     def test_catalog_material_copy_is_shared(self):
         folder = self.path("library", "paint_a")

@@ -35,18 +35,28 @@ def export(objects, filepath, path_mode):
             obj.select_set(False)
         for obj in objects:
             obj.select_set(True)
-    with relative_texture_names():
+    with relative_texture_names(path_mode):
         bpy.ops.export_scene.fbx(**options)
 
 
 # While active, the FBX exporter writes the relative texture path in both the absolute and the relative file
 # name fields. Its absolute field would otherwise name the folder the file was written into, which is a
-# staging folder that is renamed afterwards.
+# staging folder that is renamed afterwards. When the path mode is not RELATIVE or this Blender has no such
+# function to wrap, nothing is changed and a line is printed.
 @contextlib.contextmanager
-def relative_texture_names():
-    package = bpy.types.EXPORT_SCENE_OT_fbx.__module__
-    module = importlib.import_module(package + ".export_fbx_bin")
-    original = module._gen_vid_path
+def relative_texture_names(path_mode="RELATIVE"):
+    module = None
+    if path_mode == "RELATIVE":
+        try:
+            package = bpy.types.EXPORT_SCENE_OT_fbx.__module__
+            module = importlib.import_module(package + ".export_fbx_bin")
+            original = module._gen_vid_path
+        except (AttributeError, ImportError):
+            module = None
+            print("fbx export: texture path wrapper not available in this Blender, exporting without it")
+    if module is None:
+        yield
+        return
 
     def relative_only(img, scene_data):
         _, relative = original(img, scene_data)
