@@ -35,7 +35,7 @@ def export(objects, filepath, path_mode):
             obj.select_set(False)
         for obj in objects:
             obj.select_set(True)
-    with relative_texture_names(path_mode):
+    with relative_texture_names(path_mode), blank_native_file():
         bpy.ops.export_scene.fbx(**options)
 
 
@@ -67,6 +67,40 @@ def relative_texture_names(path_mode="RELATIVE"):
         yield
     finally:
         module._gen_vid_path = original
+
+
+# While active, the FBX header's "ApplicationNativeFile" field is written empty instead of holding the path of
+# the scratch .blend file, so the exported file does not reveal local folders. When this Blender has no such
+# function to wrap, nothing is changed and a line is printed.
+@contextlib.contextmanager
+def blank_native_file():
+    module = None
+    try:
+        package = bpy.types.EXPORT_SCENE_OT_fbx.__module__
+        module = importlib.import_module(package + ".export_fbx_bin")
+        original = module.elem_props_compound
+    except (AttributeError, ImportError):
+        module = None
+        print("fbx export: header path wrapper not available in this Blender, exporting without it")
+    if module is None:
+        yield
+        return
+
+    def blanking(elem, name, *args, **kwargs):
+        compound = original(elem, name, *args, **kwargs)
+
+        def set_property(prop_type, prop_name, value, *rest, **more):
+            if prop_name == b"ApplicationNativeFile":
+                value = ""
+            return compound(prop_type, prop_name, value, *rest, **more)
+
+        return set_property
+
+    module.elem_props_compound = blanking
+    try:
+        yield
+    finally:
+        module.elem_props_compound = original
 
 
 EXPORTERS.register("fbx", ExporterEntry(".fbx", export))
