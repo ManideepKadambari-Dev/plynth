@@ -7,7 +7,9 @@
 #include <plynth/core/EditSession.h>
 #include <plynth/core/Export.h>
 #include <plynth/core/Exporter.h>
+#include <plynth/core/ExportJob.h>
 #include <plynth/core/ProjectFiles.h>
+#include <plynth/core/ProjectJson.h>
 
 #include <catch2/catch_test_macros.hpp>
 #include <nlohmann/json.hpp>
@@ -369,6 +371,28 @@ TEST_CASE("the job carries what the last build says", "[core][export][run]") {
     REQUIRE(f.lastJobParams()["build"]["plan_changed"] == true);
     REQUIRE(changed.buildFingerprint == "0123456789abcdef");
     REQUIRE(reportProblem(f.reportFile()).empty());
+}
+
+TEST_CASE("the expected bounds come from the plan that was built", "[core][export][run]") {
+    ExportFixture f("run-built-bounds");
+    const Project built = f.request.project;
+    const std::optional<ExportBounds> builtBounds = expectedWallBounds(built);
+    REQUIRE(builtBounds.has_value());
+
+    Json envelope = Json::object();
+    envelope["params"] = Json{{"plan", planToJson(built.plan)}};
+    std::ofstream(f.projectFolder / "build" / "job.json", std::ios::binary) << envelope.dump();
+    f.writeBuildReport(planFingerprint(built));
+
+    f.request.project.plan.floors[0].points[0].x -= 0.1;
+    REQUIRE(planFingerprint(f.request.project) != planFingerprint(built));
+    REQUIRE(expectedWallBounds(f.request.project) != builtBounds);
+
+    plynth::test::requireOk(runExport(f.request).status);
+    const Json params = f.lastJobParams();
+    REQUIRE(params["build"]["plan_changed"] == true);
+    REQUIRE(params["expected_bounds"]["min"][0].get<double>() == builtBounds->min.x);
+    REQUIRE(params["expected_bounds"]["max"][0].get<double>() == builtBounds->max.x);
 }
 
 TEST_CASE("the job carries the materials of the build", "[core][export][run]") {

@@ -4,6 +4,7 @@
 
 #include "plynth/core/Build.h"
 #include "plynth/core/ProjectFiles.h"
+#include "plynth/core/ProjectJson.h"
 
 #include <nlohmann/json.hpp>
 
@@ -19,6 +20,7 @@
 #include <cctype>
 #include <chrono>
 #include <fstream>
+#include <optional>
 #include <sstream>
 
 namespace plynth {
@@ -42,6 +44,19 @@ bool createExclusive(const fs::path& file, const std::string& text)
     WriteFile(handle, text.data(), static_cast<DWORD>(text.size()), &written, nullptr);
     CloseHandle(handle);
     return true;
+}
+
+// The plan the last build was made from, read from build/job.json. Empty when the file is missing or unusable.
+std::optional<Plan> builtPlan(const fs::path& projectFolder)
+{
+    std::ifstream in(buildFolder(projectFolder) / pathFromUtf8(kJobFileName), std::ios::binary);
+    if (!in) return std::nullopt;
+    const Json job = Json::parse(in, nullptr, false);
+    if (!job.is_object() || !job.contains("params") || !job["params"].is_object()) return std::nullopt;
+    if (!job["params"].contains("plan")) return std::nullopt;
+    PlanRead read = planFromJson(job["params"]["plan"]);
+    if (!read.status.ok()) return std::nullopt;
+    return std::move(read.plan);
 }
 
 // Whether an existing lock still counts: younger than kBuildTimeout by its time and its write time, and, when it
@@ -287,7 +302,10 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
         finish(true);
         return report;
     }
-    const Json job = makeExportJob(request.project, groups, materials.status.ok() ? materials.materials : std::vector<BuiltMaterial>{},
+    // The scale check compares the built walls, so the expected bounds come from the plan that was built.
+    Project boundsSource = request.project;
+    if (const std::optional<Plan> plan = builtPlan(request.projectFolder)) boundsSource.plan = *plan;
+    const Json job = makeExportJob(boundsSource, groups, materials.status.ok() ? materials.materials : std::vector<BuiltMaterial>{},
                                    buildState, request.settings, request.projectFolder, staging, report.jobId,
                                    work / pathFromUtf8(kResultFileName));
     report.steps.push_back({"prepare", since(prepareStart)});
