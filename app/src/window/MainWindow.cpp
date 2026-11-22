@@ -19,6 +19,8 @@
 #include "dialogs/RoomTypesDialog.h"
 #include "home/HomeScreen.h"
 #include "home/ProjectThumbnail.h"
+#include "materials/MaterialImportQueue.h"
+#include "materials/MaterialImportScreen.h"
 #include "materials/MaterialRefresher.h"
 #include "panels/AssetsPanel.h"
 #include "panels/MaterialsPanel.h"
@@ -58,6 +60,7 @@
 #include <QDesktopServices>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QCoreApplication>
 #include <QDir>
 #include <QDragEnterEvent>
 #include <QDropEvent>
@@ -265,6 +268,20 @@ MainWindow::MainWindow(QWidget* parent)
     libraryWatcher_ = new LibraryWatcher(*host_, *queue_, this);
     materialRefresher_ = new MaterialRefresher(*host_, this);
     libraryWatcher_->setMaterialRefresher(materialRefresher_);
+    materialQueue_ = new MaterialImportQueue(*host_, this);
+    libraryWatcher_->setMaterialQueue(materialQueue_);
+    materials_->setQueueView(new ImportQueueView(*materialQueue_, materials_));
+    materialImport_ = new MaterialImportScreen(*host_, *materialQueue_, pages_);
+    pages_->addWidget(materialImport_);
+    connect(materialImport_, &MaterialImportScreen::backRequested, this, &MainWindow::showWork);
+    connect(host_, &LibraryHost::materialsChanged, materialImport_, &MaterialImportScreen::refreshLists);
+    connect(host_, &LibraryHost::libraryChanged, materialImport_, &MaterialImportScreen::refreshLists);
+    connect(materialQueue_, &MaterialImportQueue::finished, this, &MainWindow::materialImportFinished);
+    connect(materials_, &MaterialsPanel::importRequested, this, &MainWindow::showMaterialImport);
+    connect(materials_, &MaterialsPanel::samplesRequested, this, &MainWindow::addSampleMaterials);
+    connect(importMaterialsAction_, &QAction::triggered, this, &MainWindow::showMaterialImport);
+    connect(addSamplesAction_, &QAction::triggered, this, &MainWindow::addSampleMaterials);
+    connect(assets_, &AssetsPanel::addMaterialRequested, this, &MainWindow::addMaterialFromAsset);
     connect(materialRefresher_, &MaterialRefresher::busyChanged, this,
             [this]() { materials_->setBusyMaterials(materialRefresher_->busyIds()); });
     connect(materialRefresher_, &MaterialRefresher::finished, this,
@@ -301,6 +318,13 @@ MainWindow::MainWindow(QWidget* parent)
         rescanAction_->setEnabled(open);
         rescanMaterialsAction_->setEnabled(open);
         materials_->setRenderEnabled(open);
+        const bool materialsOpen = open && host_->materialCatalog() != nullptr;
+        materials_->setImportEnabled(materialsOpen, materialsOpen ? tr("Open the import screen for materials")
+                                                                  : tr("Set a library folder first"));
+        importMaterialsAction_->setEnabled(materialsOpen);
+        addSamplesAction_->setEnabled(materialsOpen);
+        materialImport_->setLibraryOpen(materialsOpen);
+        assets_->setMaterialImportEnabled(materialsOpen);
     };
     connect(host_, &LibraryHost::libraryChanged, this, syncImportState);
     syncImportState();
@@ -585,6 +609,11 @@ void MainWindow::buildCatalogMenu()
                                            QStringLiteral("materials-show"),
                                            {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_M)});
     connect(showMaterials, &QAction::triggered, this, [this]() { right_->showTab(RightPanel::Tab::Materials); });
+    importMaterialsAction_ = addMenuAction(menu, tr("Import &materials..."), tr("Open the screen that imports textures and .blend materials"),
+                                           QStringLiteral("materials-import-action"), {});
+    addSamplesAction_ = addMenuAction(menu, tr("Add the &sample materials"),
+                                      tr("Import the seven sample materials that come with Plynth"),
+                                      QStringLiteral("materials-samples-action"), {});
     rescanMaterialsAction_ = addMenuAction(menu, tr("Rescan m&aterials"),
                                            tr("Read the materials folder again and update the index"),
                                            QStringLiteral("materials-rescan-action"), {});
@@ -1201,6 +1230,101 @@ bool MainWindow::selectAsset(const QString& id)
 void MainWindow::showAssetCategories()
 {
     assets_->showCategories();
+}
+
+// Shows the material import screen over the work area.
+void MainWindow::showMaterialImport()
+{
+    if (!host_->hasLibrary())
+        return;
+    terminal_->close();
+    pages_->setCurrentWidget(materialImport_);
+    statusBar_->setHint(QString());
+}
+
+// Queues every folder of samples/materials, found by walking up from the program folder as the home screen does.
+void MainWindow::addSampleMaterials()
+{
+    if (!host_->hasLibrary())
+        return;
+    QDir dir(QCoreApplication::applicationDirPath());
+    QString folder;
+    for (int level = 0; level < 8 && folder.isEmpty(); ++level) {
+        if (QFileInfo(dir.filePath(QStringLiteral("samples/materials"))).isDir())
+            folder = dir.filePath(QStringLiteral("samples/materials"));
+        else if (!dir.cdUp())
+            break;
+    }
+    if (folder.isEmpty()) {
+        statusBar_->showMessage(tr("The sample materials folder was not found next to the program."));
+        return;
+    }
+    materialImportAsked_ = true;
+    right_->showTab(RightPanel::Tab::Materials);
+    int count = 0;
+    for (const QFileInfo& info : QDir(folder).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
+        plynth::MaterialImportRequest request;
+        request.source.file = std::filesystem::path(info.absoluteFilePath().toStdWString());
+        request.skipExisting = true;
+        materialQueue_->enqueueImport(request);
+        ++count;
+    }
+    statusBar_->showMessage(tr("Adding %1 sample materials.").arg(count), false);
+}
+
+// For checks only: adds a path to the import screen list.
+void MainWindow::addMaterialSource(const QString& path)
+{
+    materialImport_->addSources({path});
+}
+
+// For checks only: true when no material import was asked for, or everything has been imported and rendered.
+bool MainWindow::materialsPictureReady() const
+{
+    return !materialImportAsked_ || (!materialQueue_->busy() && !materialRefresher_->busy());
+}
+
+// Selects a new material and asks for its groups, or reports why an import failed.
+void MainWindow::materialImportFinished(bool ok, const QString& materialId, const QString& message, bool skipped,
+                                        bool thumbnailFailed)
+{
+    host_->materialsEdited();
+    if (!ok) {
+        statusBar_->showMessage(tr("Material import failed. %1").arg(message));
+        return;
+    }
+    if (skipped || materialId.isEmpty() || host_->materialCatalog() == nullptr)
+        return;
+    const std::optional<plynth::MaterialRecord> record = host_->materialCatalog()->material(materialId.toStdString());
+    if (!record)
+        return;
+    right_->showTab(RightPanel::Tab::Materials);
+    materials_->selectMaterial(materialId);
+    const QString name = fromCore(record->name);
+    if (record->groups.empty()) {
+        statusBar_->showMessage(tr("Imported %1. Pick its groups.").arg(name), false);
+        materials_->showGroups();
+    } else {
+        statusBar_->showMessage(thumbnailFailed ? tr("Imported %1. The thumbnail render failed.").arg(name)
+                                                : tr("Imported %1.").arg(name),
+                                thumbnailFailed);
+    }
+}
+
+// Takes one material of an asset asset.blend into the materials catalog.
+void MainWindow::addMaterialFromAsset(const QString& assetId, const QString& materialName)
+{
+    if (!host_->hasLibrary() || host_->catalog() == nullptr)
+        return;
+    const std::optional<plynth::AssetRecord> record = host_->catalog()->asset(assetId.toStdString());
+    if (!record)
+        return;
+    plynth::MaterialImportRequest request;
+    request.source.file = record->folder / "asset.blend";
+    request.blendMaterial = materialName.toUtf8().toStdString();
+    materialImportAsked_ = true;
+    materialQueue_->enqueueImport(request);
+    statusBar_->showMessage(tr("Adding the material %1 to the materials catalog.").arg(materialName), false);
 }
 
 // For checks only: shows the Materials tab.

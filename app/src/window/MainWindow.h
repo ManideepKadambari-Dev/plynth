@@ -28,6 +28,8 @@ class QTimer;
 namespace plynth::app {
 
 class AssetsPanel;
+class MaterialImportQueue;
+class MaterialImportScreen;
 class MaterialRefresher;
 class MaterialsPanel;
 class BuildBar;
@@ -120,6 +122,16 @@ public:
     // For checks only: scrolls the asset details to the category list.
     void showAssetCategories();
 
+    // Shows the material import screen over the work area.
+    void showMaterialImport();
+    // Queues every folder of samples/materials, skipping ids already in the library.
+    void addSampleMaterials();
+    // For checks only: takes a material of an asset into the materials catalog, as its button does.
+    void addAssetMaterialForCheck(const QString& assetId, const QString& materialName) { addMaterialFromAsset(assetId, materialName); }
+    // For checks only: adds a path to the import screen list.
+    void addMaterialSource(const QString& path);
+    // For checks only: true when no material import was asked for, or the queue and the renders are done.
+    bool materialsPictureReady() const;
     // For checks only: shows the Materials tab.
     void showMaterialsTab();
     // For checks only: selects a material in the Materials tab. False when it is not listed.
@@ -169,6 +181,8 @@ private:
     void openSetupCheck();
     void importDialog();
     void importPaths(const QStringList& paths);
+    void materialImportFinished(bool ok, const QString& materialId, const QString& message, bool skipped, bool thumbnailFailed);
+    void addMaterialFromAsset(const QString& assetId, const QString& materialName);
     void queueFinished(int kind, bool ok, const QString& assetId, const QString& message, bool thumbnailFailed);
     void editRoomTypes();
     void openLibraryFolder();
@@ -237,6 +251,9 @@ private:
     AssetsPanel* assets_ = nullptr;
     MaterialsPanel* materials_ = nullptr;
     MaterialRefresher* materialRefresher_ = nullptr;
+    MaterialImportQueue* materialQueue_ = nullptr;
+    MaterialImportScreen* materialImport_ = nullptr;
+    bool materialImportAsked_ = false;
     RightPanel* right_ = nullptr;
     LibraryHost* host_ = nullptr;
     QStackedWidget* pages_ = nullptr;
@@ -266,6 +283,8 @@ private:
     QAction* importAction_ = nullptr;
     QAction* rescanAction_ = nullptr;
     QAction* rescanMaterialsAction_ = nullptr;
+    QAction* importMaterialsAction_ = nullptr;
+    QAction* addSamplesAction_ = nullptr;
     ImportQueue* queue_ = nullptr;
     ImportQueueView* queueView_ = nullptr;
     LibraryWatcher* libraryWatcher_ = nullptr;

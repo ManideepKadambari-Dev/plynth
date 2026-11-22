@@ -2,9 +2,11 @@
 
 #include "ImportQueue.h"
 #include "LibraryHost.h"
+#include "materials/MaterialImportQueue.h"
 #include "materials/MaterialRefresher.h"
 
 #include <plynth/core/catalog/AssetImport.h>
+#include <plynth/core/catalog/MaterialImport.h>
 
 #include <QDir>
 #include <QDirIterator>
@@ -67,7 +69,8 @@ LibraryWatcher::LibraryWatcher(LibraryHost& host, ImportQueue& queue, QObject* p
         const QString materialItems = QDir::cleanPath(toQt(host_.paths().materialItems));
         if (clean == materialItems || clean.startsWith(materialItems + QLatin1Char('/')))
             materialsTimer_->start();
-        else if (clean == QDir::cleanPath(toQt(host_.paths().assetInbox)))
+        else if (clean == QDir::cleanPath(toQt(host_.paths().assetInbox)) ||
+                 clean == QDir::cleanPath(toQt(host_.paths().materialInbox)))
             inboxTimer_->start();
         else
             itemsTimer_->start();
@@ -95,6 +98,7 @@ void LibraryWatcher::follow()
         return;
     const plynth::LibraryPaths& paths = host_.paths();
     watcher_->addPath(toQt(paths.assetInbox));
+    watcher_->addPath(toQt(paths.materialInbox));
     watcher_->addPath(toQt(paths.assetItems));
     watcher_->addPath(toQt(paths.materialItems));
     int count = 0;
@@ -123,13 +127,20 @@ void LibraryWatcher::checkInbox()
         inboxTimer_->stop();
         return;
     }
-    const std::vector<std::filesystem::path> entries = plynth::inboxEntries(host_.paths());
+    std::vector<std::filesystem::path> entries = plynth::inboxEntries(host_.paths());
+    const size_t assetEntries = entries.size();
+    if (materialQueue_ != nullptr) {
+        const std::vector<std::filesystem::path> more = plynth::materialInboxEntries(host_.paths());
+        entries.insert(entries.end(), more.begin(), more.end());
+    }
     QSet<QString> present;
     const QDateTime now = QDateTime::currentDateTime();
+    size_t index = 0;
     for (const std::filesystem::path& entry : entries) {
+        const bool forMaterials = index++ >= assetEntries;
         const QString path = toQt(entry);
         present.insert(path);
-        if (queued_.contains(path) || queue_.hasEntry(path))
+        if (queued_.contains(path) || (forMaterials ? materialQueue_->hasEntry(path) : queue_.hasEntry(path)))
             continue;
         const qint64 bytes = totalBytes(path);
         Seen& seen = seen_[path];
@@ -140,7 +151,10 @@ void LibraryWatcher::checkInbox()
         }
         if (seen.since.msecsTo(now) >= kSettleMs) {
             queued_.insert(path);
-            queue_.enqueueInbox(path);
+            if (forMaterials)
+                materialQueue_->enqueueInbox(path);
+            else
+                queue_.enqueueInbox(path);
         }
     }
     for (auto it = seen_.begin(); it != seen_.end();)

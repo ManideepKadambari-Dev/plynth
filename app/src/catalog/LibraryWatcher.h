@@ -12,6 +12,7 @@ namespace plynth::app {
 
 class ImportQueue;
 class LibraryHost;
+class MaterialImportQueue;
 class MaterialRefresher;
 
 // Watches Library/assets/inbox and Library/assets/items. A file that lands in the inbox is queued once its
@@ -31,6 +32,8 @@ public:
     void rescanMaterialsNow();
     // Where changed materials go to be cleaned and rendered again. Without one they are only reindexed.
     void setMaterialRefresher(MaterialRefresher* refresher) { materialRefresher_ = refresher; }
+    // Where files that land in the materials inbox go to be imported.
+    void setMaterialQueue(MaterialImportQueue* queue) { materialQueue_ = queue; }
 
 signals:
     void message(const QString& text);
@@ -49,6 +52,7 @@ private:
     QTimer* itemsTimer_ = nullptr;
     QTimer* materialsTimer_ = nullptr;
     MaterialRefresher* materialRefresher_ = nullptr;
+    MaterialImportQueue* materialQueue_ = nullptr;
     struct Seen {
         qint64 bytes = -1;
         QDateTime since;

@@ -31,6 +31,10 @@ add_executable(plynth WIN32
     src/home/HomeScreen.cpp
     src/home/ProjectThumbnail.h
     src/home/ProjectThumbnail.cpp
+    src/materials/MaterialImportQueue.h
+    src/materials/MaterialImportQueue.cpp
+    src/materials/MaterialImportScreen.h
+    src/materials/MaterialImportScreen.cpp
     src/materials/MaterialPicker.h
     src/materials/MaterialPicker.cpp
     src/materials/MaterialPreview.h

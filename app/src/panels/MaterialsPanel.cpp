@@ -176,6 +176,7 @@ MaterialsPanel::MaterialsPanel(LibraryHost& host, QWidget* parent) : QWidget(par
     setToolTip(tr("The materials catalog: search, pick and edit the surface materials in the library"));
 
     auto* column = new QVBoxLayout(this);
+    column_ = column;
     column->setContentsMargins(t.unit() * 4, t.unit() * 3, t.unit() * 4, t.unit() * 3);
     column->setSpacing(t.unit() * 2);
     buildControls(column);
@@ -199,6 +200,11 @@ MaterialsPanel::MaterialsPanel(LibraryHost& host, QWidget* parent) : QWidget(par
     openSetup_->setProperty("tourId", QStringLiteral("materials-open-setup"));
     connect(openSetup_, &QPushButton::clicked, this, &MaterialsPanel::setupRequested);
     emptyColumn->addWidget(openSetup_, 0, Qt::AlignLeft);
+    samples_ = new QPushButton(tr("Add the sample materials"), empty);
+    samples_->setToolTip(tr("Import the seven sample materials that come with Plynth. New projects use them by default"));
+    samples_->setProperty("tourId", QStringLiteral("materials-add-samples"));
+    connect(samples_, &QPushButton::clicked, this, &MaterialsPanel::samplesRequested);
+    emptyColumn->addWidget(samples_, 0, Qt::AlignLeft);
     emptyColumn->addStretch(1);
     pages_->addWidget(empty);
 
@@ -297,9 +303,10 @@ void MaterialsPanel::buildControls(QVBoxLayout* column)
     connect(rescan_, &QPushButton::clicked, this, &MaterialsPanel::rescanRequested);
     import_ = new QPushButton(tr("Import"), controls_);
     import_->setDefault(true);
-    import_->setToolTip(tr("Import of materials is not available yet"));
+    import_->setToolTip(tr("Open the import screen for materials"));
     import_->setProperty("tourId", QStringLiteral("materials-import"));
     import_->setEnabled(false);
+    connect(import_, &QPushButton::clicked, this, &MaterialsPanel::importRequested);
     buttons->addWidget(rescan_);
     buttons->addStretch(1);
     buttons->addWidget(import_);
@@ -503,6 +510,29 @@ void MaterialsPanel::buildDetails()
     detailsScroll_->setWidget(body);
 }
 
+// Turns Import and the sample button on or off.
+void MaterialsPanel::setImportEnabled(bool enabled, const QString& tip)
+{
+    import_->setEnabled(enabled);
+    import_->setToolTip(tip);
+    samples_->setEnabled(enabled);
+}
+
+// Puts the import queue under the controls, so it shows over the empty state and over the grid alike.
+void MaterialsPanel::setQueueView(QWidget* view)
+{
+    column_->insertWidget(1, view);
+}
+
+// Scrolls the details to the group list and puts the focus on it.
+void MaterialsPanel::showGroups()
+{
+    if (!current_)
+        return;
+    detailsScroll_->ensureWidgetVisible(groups_);
+    groups_->setFocus();
+}
+
 // Reads the catalog again and rebuilds the filter, the grid and the details.
 void MaterialsPanel::refresh()
 {
@@ -516,6 +546,7 @@ void MaterialsPanel::refresh()
         emptyHelp_->clear();
         emptyHelp_->hide();
         openSetup_->show();
+        samples_->hide();
         pages_->setCurrentIndex(0);
         model_->clear();
         current_.reset();
@@ -529,6 +560,7 @@ void MaterialsPanel::refresh()
         emptyHelp_->setText(tr("Materials you add to the library show up here, with their thumbnails."));
         emptyHelp_->show();
         openSetup_->hide();
+        samples_->show();
         pages_->setCurrentIndex(0);
         model_->clear();
         current_.reset();

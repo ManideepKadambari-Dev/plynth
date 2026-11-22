@@ -45,8 +45,16 @@ public:
     void setBusyMaterials(const QStringList& ids);
     // Lets the window turn Retry on and off while no Blender job can start.
     void setRenderEnabled(bool enabled);
+    // Lets the window turn Import and the sample button on and off with the library.
+    void setImportEnabled(bool enabled, const QString& tip);
+    // Puts a widget (the import queue) between the grid and the details, and under the empty state text.
+    void setQueueView(QWidget* view);
+    // Scrolls the details to the group list and puts the focus on it.
+    void showGroups();
 
 signals:
+    void importRequested();
+    void samplesRequested();
     void rescanRequested();
     void setupRequested();
     void retryRequested(const QString& id);
@@ -78,6 +86,8 @@ private:
     QLabel* emptyText_ = nullptr;
     QLabel* emptyHelp_ = nullptr;
     QPushButton* openSetup_ = nullptr;
+    QPushButton* samples_ = nullptr;
+    QVBoxLayout* column_ = nullptr;
     QWidget* controls_ = nullptr;
     QSplitter* splitter_ = nullptr;
     QLabel* countLabel_ = nullptr;

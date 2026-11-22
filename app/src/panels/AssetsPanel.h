@@ -49,6 +49,8 @@ public:
     void setBusyAssets(const QStringList& ids);
     // Lets the window turn the buttons on and off while no import can start.
     void setImportEnabled(bool enabled, const QString& tip);
+    // Lets the window turn "Add to materials catalog" on and off with the library.
+    void setMaterialImportEnabled(bool enabled);
 
 signals:
     void importRequested();
@@ -56,6 +58,8 @@ signals:
     void setupRequested();
     void retryRequested(const QString& id);
     void filesDropped(const QStringList& paths);
+    // Take the material of this asset into the materials catalog.
+    void addMaterialRequested(const QString& assetId, const QString& materialName);
     void message(const QString& text);
 
 protected:
@@ -69,6 +73,7 @@ private:
     void fillCategoryFilter();
     void fillGrid();
     void showDetails();
+    void fillMaterials(const plynth::AssetRecord& record, const std::vector<std::string>& names);
     void applyEdit(const plynth::AssetEdit& edit);
     void removeSelected();
     QPixmap tilePixmap(const plynth::AssetRecord& record);
@@ -109,6 +114,10 @@ private:
     QListWidget* categories_ = nullptr;
     QLineEdit* tags_ = nullptr;
     QLabel* problems_ = nullptr;
+    QLabel* materialsTitle_ = nullptr;
+    QWidget* materialsBox_ = nullptr;
+    QVBoxLayout* materialsColumn_ = nullptr;
+    bool importMaterialsEnabled_ = false;
     QPushButton* retry_ = nullptr;
     QPushButton* openFolder_ = nullptr;
     QPushButton* remove_ = nullptr;
