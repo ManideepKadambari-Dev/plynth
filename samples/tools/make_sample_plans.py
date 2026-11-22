@@ -512,8 +512,9 @@ DIM_TOP, DIM_LEFT = 120, 400
 # The two floors of house-01, all in image pixels at 100 per metre. rect is the outer wall centre line box.
 # inner holds the inner wall centre lines already split at their junctions. rooms are centre line boxes.
 # gaps are (kind, axis, fixed coordinate, start, end, wall thickness) and doors add (hinge, toward the gap,
-# direction of the open leaf). The ground floor is 10 by 8 m. The upper floor covers its left two thirds and
-# reaches 1 m past it at the back (the top of the image); the left and front outer corners are the same pixels.
+# direction of the open leaf). The ground floor is 10 by 8 m. The upper floor covers all but the right 0.95 m of
+# it, which stays a one storey strip, and reaches 1 m past it at the back (the top of the image); the left and
+# front outer corners are the same pixels. The upper floor roofs the whole stair hall so the stair clears its walls.
 HOUSE = {
     "ground": {
         "image": "house-01-ground.png",
@@ -536,19 +537,21 @@ HOUSE = {
     },
     "upper": {
         "image": "house-01-upper.png",
-        "rect": (515, 215, 1155, 1085),
+        "rect": (515, 215, 1390, 1085),
         "inner": [(1000, 215, 1000, 500), (1000, 500, 1000, 660), (1000, 660, 1000, 1085),
-                  (515, 660, 1000, 660), (1000, 500, 1155, 500)],
-        "rooms": [(515, 215, 1000, 660), (515, 660, 1000, 1085), (1000, 215, 1155, 500), (1000, 500, 1155, 1085)],
+                  (515, 660, 1000, 660), (1000, 500, 1390, 500)],
+        "rooms": [(515, 215, 1000, 660), (515, 660, 1000, 1085), (1000, 215, 1390, 500), (1000, 500, 1390, 1085)],
         "gaps": [
             ("window", "h", 215, 650, 850, OUTER_T), ("window", "h", 215, 1040, 1120, OUTER_T),
+            ("window", "h", 215, 1200, 1300, OUTER_T),
             ("window", "v", 515, 320, 520, OUTER_T), ("window", "v", 515, 770, 970, OUTER_T),
-            ("window", "h", 1085, 650, 850, OUTER_T), ("window", "v", 1155, 720, 880, OUTER_T),
+            ("window", "h", 1085, 650, 850, OUTER_T), ("window", "h", 1085, 1100, 1300, OUTER_T),
+            ("window", "v", 1390, 320, 480, OUTER_T), ("window", "v", 1390, 720, 880, OUTER_T),
             ("door", "v", 1000, 540, 630, INNER_T, (1000, 630), (0, -1), (-1, 0)),
             ("door", "v", 1000, 900, 990, INNER_T, (1000, 990), (0, -1), (-1, 0)),
             ("door", "h", 500, 1040, 1130, INNER_T, (1130, 500), (-1, 0), (0, -1)),
         ],
-        "frame": (500, 200, 1170, 1100),
+        "frame": (500, 200, 1405, 1100),
     },
 }
 
