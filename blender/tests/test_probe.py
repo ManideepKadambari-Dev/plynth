@@ -8,7 +8,7 @@ import unittest
 
 import helpers
 from plynth.tasks import probe
-from test_userprefs import FAKE_KEY, MARKER_VARIABLE, fingerprint, variant, write_text
+from test_userprefs import FAKE_KEY, MARKER_VARIABLE, fingerprint, private_env, variant, write_text
 
 
 # Returns the content of every file under a folder joined together, for key searches.
@@ -180,12 +180,12 @@ class ProbeTests(helpers.TempFolderTest):
         private = tempfile.mkdtemp(prefix="plynth_private_")
         self.addCleanup(shutil.rmtree, private, True)
         job_file, result_file = self.write_job("probe", {"user_folders": fixture.user_folders})
-        env = {name: value for name, value in os.environ.items() if not name.startswith("BLENDER_USER_")}
+        env = private_env(private)
         env["BLENDER_USER_RESOURCES"] = private
         env[MARKER_VARIABLE] = fixture.marker
         before = fingerprint(fixture.root)
         done = subprocess.run(
-            [bpy.app.binary_path, "-t", "6", "--background", "--factory-startup", "-noaudio",
+            [bpy.app.binary_path, "-t", "6", "--offline-mode", "--background", "--factory-startup", "-noaudio",
              "--python-exit-code", "3", "--python", os.path.join(helpers.BLENDER_FOLDER, "plynth_worker.py"),
              "--", "--job", job_file],
             env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=180)
