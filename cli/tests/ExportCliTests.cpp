@@ -296,3 +296,125 @@ TEST_CASE("help lists export", "[cli][export]") {
     REQUIRE(outcome.exitCode == kExitOk);
     CHECK(outcome.text.find("\"export\"") != std::string::npos);
 }
+
+namespace {
+
+// The file in the export folder whose name ends with the suffix, or an empty path.
+fs::path exportedEnding(const ExportSample& flat, const std::string& suffix) {
+    for (const auto& name : entries(flat.exportFolder())) {
+        if (name.ends_with(suffix)) {
+            return flat.exportFolder() / name;
+        }
+    }
+    return {};
+}
+
+// Makes a library in the sample's folder and sets it in the settings.
+fs::path useLibrary(const ExportSample& flat) {
+    const fs::path library = flat.sample.temp.path() / "Library";
+    REQUIRE(plynth::cli::testing::runChecked({"library", "init", utf8(library), "--use"}).exitCode == kExitOk);
+    return library;
+}
+
+}
+
+TEST_CASE("export with the kit on writes the kit and its layout", "[cli][export][kit]") {
+    ExportSample flat("export-kit-on");
+    useLibrary(flat);
+    REQUIRE(flat.sample.run({"export", "kit", "on"}).exitCode == kExitOk);
+
+    const auto outcome = flat.exportWith();
+    REQUIRE(outcome.exitCode == kExitOk);
+    const auto& result = outcome.answer.at("result");
+    requireReport(result);
+    const auto& kit = result.at("kit");
+    CHECK(kit.at("asked") == true);
+    CHECK(kit.at("written") == true);
+    CHECK(kit.at("skipped").is_null());
+    CHECK(kit.at("pieces").get<int>() > 0);
+    CHECK(kit.at("placements").get<int>() >= kit.at("pieces").get<int>());
+
+    const fs::path kitFile = exportedEnding(flat, "_Kit.fbx");
+    const fs::path layoutFile = exportedEnding(flat, "_Kit_layout.json");
+    REQUIRE_FALSE(kitFile.empty());
+    REQUIRE_FALSE(layoutFile.empty());
+    CHECK(kit.at("file") == utf8(kitFile));
+    CHECK(kit.at("layout_file") == utf8(layoutFile));
+
+    std::ifstream schemaFile(fs::path(PLYNTH_SCHEMA_DIR) / "kit-layout.schema.json");
+    nlohmann::json_schema::json_validator validator;
+    validator.set_root_schema(nlohmann::json::parse(schemaFile));
+    CHECK_NOTHROW(validator.validate(nlohmann::json::parse(readFile(layoutFile))));
+    CHECK(fs::exists(flat.exportFolder() / "export_report.json"));
+}
+
+TEST_CASE("export with the kit on and no library skips the kit and still exits 0", "[cli][export][kit]") {
+    ExportSample flat("export-kit-nolibrary");
+    REQUIRE(flat.sample.run({"export", "kit", "on"}).exitCode == kExitOk);
+    REQUIRE(plynth::cli::testing::runChecked({"settings", "set", "--library", "none"}).exitCode == kExitOk);
+
+    const auto outcome = flat.exportWith();
+    REQUIRE(outcome.exitCode == kExitOk);
+    const auto& result = outcome.answer.at("result");
+    requireReport(result);
+    CHECK(result.at("exported") == true);
+    const auto& kit = result.at("kit");
+    CHECK(kit.at("asked") == true);
+    CHECK(kit.at("written") == false);
+    REQUIRE(kit.at("skipped").is_string());
+    CHECK_FALSE(kit.at("skipped").get<std::string>().empty());
+    CHECK(kit.at("file").is_null());
+    CHECK(kit.at("layout_file").is_null());
+    CHECK(exportedEnding(flat, "_Kit.fbx").empty());
+    CHECK(exportedEnding(flat, "_Kit_layout.json").empty());
+    CHECK_FALSE(exportedEnding(flat, ".fbx").empty());
+}
+
+TEST_CASE("export takes the kit library from --library", "[cli][export][kit]") {
+    ExportSample flat("export-kit-library-option");
+    const fs::path library = useLibrary(flat);
+    REQUIRE(plynth::cli::testing::runChecked({"settings", "set", "--library", "none"}).exitCode == kExitOk);
+    REQUIRE(flat.sample.run({"export", "kit", "on"}).exitCode == kExitOk);
+
+    const auto without = flat.exportWith();
+    REQUIRE(without.exitCode == kExitOk);
+    CHECK(without.answer.at("result").at("kit").at("written") == false);
+
+    const auto with = flat.exportWith({"--library", utf8(library)});
+    REQUIRE(with.exitCode == kExitOk);
+    requireReport(with.answer.at("result"));
+    CHECK(with.answer.at("result").at("kit").at("written") == true);
+    CHECK_FALSE(exportedEnding(flat, "_Kit.fbx").empty());
+}
+
+TEST_CASE("export kit off removes the kit files at the next export", "[cli][export][kit]") {
+    ExportSample flat("export-kit-off");
+    useLibrary(flat);
+    REQUIRE(flat.sample.run({"export", "kit", "on"}).exitCode == kExitOk);
+    REQUIRE(flat.exportWith().exitCode == kExitOk);
+    REQUIRE_FALSE(exportedEnding(flat, "_Kit.fbx").empty());
+    REQUIRE_FALSE(exportedEnding(flat, "_Kit_layout.json").empty());
+
+    REQUIRE(flat.sample.run({"export", "kit", "off"}).exitCode == kExitOk);
+    const auto outcome = flat.exportWith();
+    REQUIRE(outcome.exitCode == kExitOk);
+    const auto& result = outcome.answer.at("result");
+    requireReport(result);
+    CHECK(result.at("kit").at("asked") == false);
+    CHECK(result.at("kit").at("written") == false);
+    CHECK(exportedEnding(flat, "_Kit.fbx").empty());
+    CHECK(exportedEnding(flat, "_Kit_layout.json").empty());
+    CHECK_FALSE(exportedEnding(flat, ".fbx").empty());
+}
+
+TEST_CASE("the kit commands never change plan.json or project.json", "[cli][export][kit]") {
+    ExportSample flat("export-kit-files");
+    useLibrary(flat);
+    const std::string plan = readFile(flat.sample.folder / "plan.json");
+    const std::string project = readFile(flat.sample.folder / "project.json");
+    REQUIRE(flat.sample.run({"export", "kit", "on"}).exitCode == kExitOk);
+    REQUIRE(flat.exportWith().exitCode == kExitOk);
+    REQUIRE(flat.sample.run({"export", "kit", "off"}).exitCode == kExitOk);
+    CHECK(readFile(flat.sample.folder / "plan.json") == plan);
+    CHECK(readFile(flat.sample.folder / "project.json") == project);
+}
