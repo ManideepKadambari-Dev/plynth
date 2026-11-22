@@ -19,6 +19,19 @@ def built_objects():
             if o.type == "MESH" and "plynth_kind" in o and o["plynth_kind"] not in ("item", "collision")]
 
 
+# Deletes the neutral look images an earlier build wrote into the folder, so only the ones this build
+# needs are left. Files with other names are not touched.
+def clear_neutral_images(folder):
+    for surface in surfaces.LOOKS:
+        for channel in shading.CHANNELS:
+            path = os.path.join(folder, "%s_%s.png" % (surface, channel))
+            try:
+                if os.path.isfile(path):
+                    os.remove(path)
+            except OSError:
+                pass
+
+
 # Makes a Blender material for every slot the built objects use: the library material the slot shows, from its
 # image maps, or the neutral look of the slot's surface as constant images written to the textures folder.
 # A map that will not load gives material_failed and the neutral look. Then every UV is divided by the tile
@@ -38,6 +51,7 @@ def run(ctx):
         os.makedirs(folder, exist_ok=True)
     except OSError as error:
         raise WorkerError("save_failed", "The textures folder could not be made: %s" % error)
+    clear_neutral_images(folder)
     built = []
     tiles = {}
     for name in sorted(used):

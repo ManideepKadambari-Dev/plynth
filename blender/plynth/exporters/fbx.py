@@ -1,3 +1,6 @@
+import contextlib
+import importlib
+
 import bpy
 
 from . import ExporterEntry
@@ -32,7 +35,28 @@ def export(objects, filepath, path_mode):
             obj.select_set(False)
         for obj in objects:
             obj.select_set(True)
-    bpy.ops.export_scene.fbx(**options)
+    with relative_texture_names():
+        bpy.ops.export_scene.fbx(**options)
+
+
+# While active, the FBX exporter writes the relative texture path in both the absolute and the relative file
+# name fields. Its absolute field would otherwise name the folder the file was written into, which is a
+# staging folder that is renamed afterwards.
+@contextlib.contextmanager
+def relative_texture_names():
+    package = bpy.types.EXPORT_SCENE_OT_fbx.__module__
+    module = importlib.import_module(package + ".export_fbx_bin")
+    original = module._gen_vid_path
+
+    def relative_only(img, scene_data):
+        _, relative = original(img, scene_data)
+        return relative, relative
+
+    module._gen_vid_path = relative_only
+    try:
+        yield
+    finally:
+        module._gen_vid_path = original
 
 
 EXPORTERS.register("fbx", ExporterEntry(".fbx", export))

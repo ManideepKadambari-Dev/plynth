@@ -32,7 +32,8 @@ def stem_for(final, info, node, source):
     return "T_%s_%s" % (owner, channel or file_part)
 
 
-# Works out which source file gets which name. Returns a list of plan entries (source, name, nodes) in a fixed
+# Works out which source file gets which name. Only images wired into the material are planned: the FBX
+# writes those alone, so an occlusion map held in a loose node is not copied. Returns a list of plan entries (source, name, nodes) in a fixed
 # order and a list of missing files as (material name, path).
 def plan_textures(materials):
     taken = set()
@@ -46,6 +47,8 @@ def plan_textures(materials):
             continue
         for node in tree.nodes:
             if node.type != "TEX_IMAGE" or node.image is None or not node.image.filepath:
+                continue
+            if not any(output.is_linked for output in node.outputs):
                 continue
             source = bpy.path.abspath(node.image.filepath)
             if not os.path.isfile(source):

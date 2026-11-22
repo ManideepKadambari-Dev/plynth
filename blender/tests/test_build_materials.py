@@ -287,6 +287,18 @@ class MaterialNodeTests(MaterialBuildTest):
             self.assertTrue(os.path.basename(image.filepath).startswith("Wall_Outside_"))
         self.assertEqual(len(glob.glob(self.path("build", "textures", "Wall_Outside_*.png"))), 4)
 
+    # Neutral images left by an earlier build are removed, and other files in the folder are kept.
+    def test_stale_neutral_images_cleared(self):
+        folder = self.path("build", "textures")
+        os.makedirs(folder)
+        for name in ("Glass_base_color.png", "Glass_opacity.png", "keep_me.png"):
+            with open(os.path.join(folder, name), "wb") as handle:
+                handle.write(b"x")
+        self.build_open(self.with_materials(inside="paint_a", entries=[self.make_material("paint_a")]))
+        self.assertFalse(glob.glob(os.path.join(folder, "Glass_*.png")))
+        self.assertTrue(os.path.isfile(os.path.join(folder, "keep_me.png")))
+        self.assertEqual(len(glob.glob(os.path.join(folder, "Wall_Outside_*.png"))), 4)
+
     # A map file that is missing gives material_failed and the neutral look, built from images of its own.
     def test_missing_map(self):
         entry = self.make_material("paint_a")

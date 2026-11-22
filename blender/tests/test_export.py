@@ -1,4 +1,5 @@
 import hashlib
+import importlib
 import json
 import os
 import shutil
@@ -149,6 +150,51 @@ class ExportTests(ExportTest):
         for got, want in zip(list(low) + list(high), export_helpers.BOUNDS["min"] + export_helpers.BOUNDS["max"]):
             self.assertAlmostEqual(got, want, delta=1e-3)
         self.assertIn("UCX_SM_sofa_i1_00", [o.name for o in bpy.data.objects])
+
+    # Returns every texture path string written in an FBX file, absolute and relative ones alike.
+    def fbx_texture_paths(self, path):
+        parser = importlib.import_module(bpy.types.EXPORT_SCENE_OT_fbx.__module__ + ".parse_fbx")
+        root, _ = parser.parse(path)
+        found = []
+
+        def walk(elem):
+            for prop in elem.props:
+                if isinstance(prop, bytes):
+                    text = prop.decode("utf-8", "replace")
+                    if text.lower().endswith((".png", ".jpg", ".tga")):
+                        found.append(text)
+            for child in elem.elems:
+                walk(child)
+
+        walk(root)
+        return found
+
+    # After the staging folder is renamed and again after it is moved elsewhere, every texture path in the
+    # FBX, absolute or relative, resolves to a file of the moved Textures folder.
+    def test_fbx_paths_survive_rename(self):
+        self.export(clean=True)
+        final = self.path("export", "final")
+        os.rename(self.path("export", ".staging"), final)
+        moved = self.path("elsewhere2", "export")
+        shutil.copytree(final, moved)
+        shutil.rmtree(final)
+        paths = self.fbx_texture_paths(moved + "/Square.fbx")
+        self.assertTrue(paths)
+        textures = os.path.normcase(os.path.abspath(os.path.join(moved, "Textures")))
+        for text in paths:
+            self.assertNotIn(".staging", text)
+            full = text if os.path.isabs(text) else os.path.join(moved, text)
+            full = os.path.normcase(os.path.abspath(full))
+            self.assertTrue(os.path.isfile(full), text)
+            self.assertEqual(os.path.dirname(full), textures, text)
+
+    # Every file in Textures is named by the FBX, so no unused map (such as occlusion) is copied.
+    def test_only_used_textures_copied(self):
+        result = self.export(clean=True)
+        names = {os.path.basename(t) for t in self.fbx_texture_paths(self.path("export", ".staging", "Square.fbx"))}
+        self.assertEqual(sorted(os.listdir(self.path("export", ".staging", "Textures"))), sorted(names))
+        self.assertEqual(sorted(result["output"]["textures"]), sorted(names))
+        self.assertFalse([n for n in names if "Occlusion" in n])
 
     # building.blend is never changed.
     def test_blend_untouched(self):
