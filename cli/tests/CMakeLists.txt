@@ -20,6 +20,7 @@ add_executable(plynth_cli_tests
     ItemCliTests.cpp
     BuildCliTests.cpp
     ExportCliTests.cpp
+    ExportGroupsCliTests.cpp
     MaterialCliTests.cpp
     MaterialCatalogCliTests.cpp
     MaterialImportCliTests.cpp

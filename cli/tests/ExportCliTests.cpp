@@ -225,15 +225,10 @@ TEST_CASE("export without a build is not_found", "[cli][export]") {
           std::string::npos);
 }
 
-TEST_CASE("export refuses a grouped project", "[cli][export]") {
-    ExportSample flat("export-grouped");
-    const fs::path file = flat.sample.folder / "project.json";
-    nlohmann::json project = nlohmann::json::parse(readFile(file));
-    project["export_mode"] = "grouped";
-    std::ofstream(file, std::ios::binary | std::ios::trunc) << project.dump(2);
-    const auto outcome = flat.exportWith();
-    CHECK(outcome.exitCode == kExitFailed);
-    CHECK(errorCode(outcome) == "invalid_value");
+TEST_CASE("export takes the group options only for export groups", "[cli][export]") {
+    ExportSample flat("export-stray-option");
+    const auto outcome = flat.exportWith({"--name", "Hero"});
+    CHECK(outcome.exitCode != kExitOk);
     CHECK_FALSE(fs::exists(flat.exportFolder()));
 }
 
