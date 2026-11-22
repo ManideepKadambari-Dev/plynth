@@ -7,7 +7,7 @@ import bmesh
 import bpy
 import mathutils
 
-from .. import registry
+from .. import extensions, registry
 from ..generating import AddonUnavailable
 
 # What each bridge registers: the add-on short name, the short names its module may have, and the object that
@@ -28,8 +28,11 @@ def find_module(short_names):
 
 # Turns an installed add-on on for this Blender session and returns true when it is on. The add-on is
 # registered through the preferences list of this session only, and a background run never saves it. Without
-# that registration some add-ons (Bool Tool, Bagapie) fail to switch on.
+# that registration some add-ons (Bool Tool, Bagapie) fail to switch on. It refuses when Blender was not started
+# with a job-private extensions folder, so the user's shared folder is never touched.
 def enable_addon(short_names):
+    if not extensions.is_private():
+        return False
     name = find_module(short_names)
     if name is None:
         return False

@@ -1,5 +1,7 @@
 import addon_utils
 
+from .. import extensions
+
 
 # Returns the module name of the add-on whose last dotted part, in lower case, is short_name, or None.
 def find_module(short_name):
@@ -12,13 +14,17 @@ def find_module(short_name):
 
 
 # Turns the add-on on in this Blender session without saving it to the preferences. Returns true when it is on.
+# It refuses to run unless Blender was started with a job-private extensions folder, because enabling an add-on
+# from the shared folder can strip other extensions' libraries there.
 def enable(short_name):
+    if not extensions.is_private():
+        return False
     name = find_module(short_name)
     if name is None:
         return False
     try:
         if addon_utils.check(name)[1]:
             return True
-        return addon_utils.enable(name, default_set=False, persistent=False) is not None
+        return addon_utils.enable(name, default_set=True, persistent=False) is not None
     except Exception:
         return False

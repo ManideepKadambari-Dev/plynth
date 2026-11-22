@@ -5,7 +5,7 @@ import bmesh
 import bpy
 
 import helpers  # noqa: F401
-from plynth import bridges, registry
+from plynth import bridges, extensions, registry
 from plynth.generating import AddonUnavailable
 
 TOLERANCE = 0.01
@@ -272,6 +272,26 @@ class RegistryTests(unittest.TestCase):
                     text = handle.read()
                 self.assertNotIn("generate_lods", text)
                 self.assertNotIn("bake(", text)
+
+
+class SharedFolderTest(unittest.TestCase):
+    # Enables every add-on a bridge uses and checks the shared extension libraries keep the same file count.
+    def test_shared_libraries_untouched(self):
+        if not extensions.is_private():
+            self.skipTest("this run does not use a private extensions folder")
+        before = extensions.shared_library_count()
+        for short_names in (("archimesh",), ("asset_optimizer",), ("bagapie",), ("bool_tool",), ("home_builder_5",)):
+            bridges.enable_addon(short_names)
+        self.assertEqual(extensions.shared_library_count(), before)
+
+    # Checks an add-on is never enabled when the run does not use a private folder.
+    def test_refuses_without_private_folder(self):
+        saved = os.environ.pop(extensions.ENV_NAME, None)
+        try:
+            self.assertFalse(bridges.enable_addon(("bool_tool",)))
+        finally:
+            if saved is not None:
+                os.environ[extensions.ENV_NAME] = saved
 
 
 if __name__ == "__main__":
