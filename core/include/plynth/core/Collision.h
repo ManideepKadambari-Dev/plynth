@@ -22,12 +22,15 @@ namespace plynth {
 //               pieces, so the wall stays closed where the glass is. A curved wall gives one piece per arc
 //               segment (arcSegmentCount). An end that meets another wall reaches half that wall's thickness
 //               further, so corners have no gap.
-//   floors      per room, every convex piece of its floor polygons, kCollisionSlabThickness thick below the
-//               floor level
+//   floors      per room, every convex piece of its floor polygons, from the floor level down by the smaller
+//               of kCollisionSlabThickness and the slab below (FloorBuild::slabBelow), so none hangs below the
+//               ceiling of the floor below. The lowest floor has no slab below and always goes down by
+//               kCollisionSlabThickness.
 //   ceilings    per room, every convex piece of its ceilingPolygons, so a stair hole stays open, from the
 //               ceiling up by the smaller of kCollisionSlabThickness and Floor::slabThickness, so none reaches
 //               above the level of the next floor
-//   thresholds  per doorway with sill 0, the convex pieces of its threshold, as thick as a floor slab
+//   thresholds  per doorway with sill 0, the convex pieces of its threshold, from the floor level down as far
+//               as the floors' pieces
 //   slabs       every convex piece of each of SlabBuild::polygons, from its bottom to its top
 //   stairs      per stair, one piece per step, landing and column, in the order of StairBuild::steps: its
 //               outline from its bottom to its top

@@ -532,6 +532,9 @@ std::vector<CollisionShape> floorCollision(const Floor& floor, const FloorBuild&
     for (const Wall& wall : floor.walls) wallPieces(floor, build, wall, walls.pieces);
     if (!walls.pieces.empty()) shapes.push_back(std::move(walls));
 
+    const double down = std::min(kCollisionSlabThickness, build.slabBelow.value_or(kCollisionSlabThickness));
+    const double up = std::min(kCollisionSlabThickness, floor.slabThickness);
+
     for (const RoomBuild& room : build.rooms) {
         CollisionShape floorShape;
         floorShape.kind = CollisionTargetKind::Floor;
@@ -540,10 +543,10 @@ std::vector<CollisionShape> floorCollision(const Floor& floor, const FloorBuild&
         ceilingShape.kind = CollisionTargetKind::Ceiling;
         ceilingShape.id = room.id;
         for (const WorldPolygon& polygon : room.polygons) {
-            slabPieces(floorShape.pieces, polygon, room.floorZ - kCollisionSlabThickness, room.floorZ);
+            slabPieces(floorShape.pieces, polygon, room.floorZ - down, room.floorZ);
         }
         for (const WorldPolygon& polygon : room.ceilingPolygons) {
-            slabPieces(ceilingShape.pieces, polygon, room.ceilingZ, room.ceilingZ + kCollisionSlabThickness);
+            slabPieces(ceilingShape.pieces, polygon, room.ceilingZ, room.ceilingZ + up);
         }
         if (!floorShape.pieces.empty()) shapes.push_back(std::move(floorShape));
         if (!ceilingShape.pieces.empty()) shapes.push_back(std::move(ceilingShape));
@@ -557,7 +560,7 @@ std::vector<CollisionShape> floorCollision(const Floor& floor, const FloorBuild&
         WorldPolygon polygon;
         polygon.outline = opening.threshold;
         makeAnticlockwise(polygon.outline);
-        slabPieces(thresholds.pieces, polygon, build.elevation - kCollisionSlabThickness, build.elevation);
+        slabPieces(thresholds.pieces, polygon, build.elevation - down, build.elevation);
     }
     if (!thresholds.pieces.empty()) shapes.push_back(std::move(thresholds));
 

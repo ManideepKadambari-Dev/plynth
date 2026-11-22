@@ -1303,3 +1303,102 @@ TEST_CASE("the job writes the slots of slabs, stairs and roofs and validates", "
     }
     REQUIRE(roofShape);
 }
+
+namespace {
+
+// A floor's collision shapes of one kind.
+std::vector<const CollisionShape*> shapesOfKind(const std::vector<CollisionShape>& shapes, CollisionTargetKind kind)
+{
+    std::vector<const CollisionShape*> out;
+    for (const CollisionShape& s : shapes) {
+        if (s.kind == kind) out.push_back(&s);
+    }
+    return out;
+}
+
+// The stair plan with a third floor above the second and the given slab thickness under each floor.
+Project slabbedProject(double first, double second)
+{
+    Project project = stairProject();
+    Floor third = project.plan.floors[1];
+    third.id = "f3";
+    third.name = "Floor 3";
+    for (Point& p : third.points) p.id += "v";
+    for (Wall& w : third.walls) {
+        w.id += "v";
+        w.from += "v";
+        w.to += "v";
+    }
+    for (Room& r : third.rooms) {
+        r.id += "v";
+        for (Id& w : r.walls) w += "v";
+    }
+    project.plan.floors.push_back(third);
+    project.plan.floors[0].slabThickness = first;
+    project.plan.floors[1].slabThickness = second;
+    return project;
+}
+
+}
+
+TEST_CASE("no collision under a floor rises above the next level, whatever the slab", "[core][build][collision][stairs]") {
+    for (const double slab : {0.05, 0.1, 0.2}) {
+        DYNAMIC_SECTION("slab " << slab) {
+            const Project project = slabbedProject(slab, slab);
+            const BuildPlan plan = makeBuildPlan(project, {});
+            REQUIRE(plan.floors.size() == 3);
+            for (std::size_t i = 0; i + 1 < plan.floors.size(); ++i) {
+                const double nextLevel = plan.floors[i + 1].elevation;
+                const double ceilingZ = plan.floors[i].elevation + plan.floors[i].ceilingHeight;
+                for (const CollisionShape& shape : plan.collision[i]) {
+                    if (shape.kind == CollisionTargetKind::Walls || shape.kind == CollisionTargetKind::Stair ||
+                        shape.kind == CollisionTargetKind::Roof) {
+                        continue;
+                    }
+                    for (const CollisionPiece& piece : shape.pieces) REQUIRE(piece.top <= nextLevel + 1e-9);
+                }
+                for (const CollisionShape* ceiling : shapesOfKind(plan.collision[i], CollisionTargetKind::Ceiling)) {
+                    for (const CollisionPiece& piece : ceiling->pieces) {
+                        REQUIRE(piece.top == Approx(ceilingZ + std::min(kCollisionSlabThickness, slab)).margin(1e-9));
+                    }
+                }
+                for (const CollisionShape* shape : shapesOfKind(plan.collision[i + 1], CollisionTargetKind::Floor)) {
+                    for (const CollisionPiece& piece : shape->pieces) REQUIRE(piece.bottom >= ceilingZ - 1e-9);
+                }
+                for (const CollisionShape* shape : shapesOfKind(plan.collision[i + 1], CollisionTargetKind::Thresholds)) {
+                    for (const CollisionPiece& piece : shape->pieces) REQUIRE(piece.bottom >= ceilingZ - 1e-9);
+                }
+            }
+        }
+    }
+}
+
+TEST_CASE("each floor's pieces go down by the slab of the floor below, the lowest by 0.1", "[core][build][collision][stairs]") {
+    const Project project = slabbedProject(0.05, 0.2);
+    const BuildPlan plan = makeBuildPlan(project, {});
+    REQUIRE_FALSE(plan.floors[0].slabBelow.has_value());
+    REQUIRE(plan.floors[1].slabBelow == 0.05);
+    REQUIRE(plan.floors[2].slabBelow == 0.2);
+    const std::vector<double> depth = {kCollisionSlabThickness, 0.05, kCollisionSlabThickness};
+    for (std::size_t i = 0; i < plan.floors.size(); ++i) {
+        const auto floors = shapesOfKind(plan.collision[i], CollisionTargetKind::Floor);
+        REQUIRE_FALSE(floors.empty());
+        for (const CollisionShape* shape : floors) {
+            for (const CollisionPiece& piece : shape->pieces) {
+                REQUIRE(piece.top - piece.bottom == Approx(depth[i]).margin(1e-9));
+            }
+        }
+        for (const CollisionShape* shape : shapesOfKind(plan.collision[i], CollisionTargetKind::Thresholds)) {
+            for (const CollisionPiece& piece : shape->pieces) {
+                REQUIRE(piece.top - piece.bottom == Approx(depth[i]).margin(1e-9));
+            }
+        }
+        const auto ceilings = shapesOfKind(plan.collision[i], CollisionTargetKind::Ceiling);
+        const double up = i == 0 ? 0.05 : (i == 1 ? kCollisionSlabThickness : kCollisionSlabThickness);
+        for (const CollisionShape* shape : ceilings) {
+            for (const CollisionPiece& piece : shape->pieces) {
+                REQUIRE(piece.top - piece.bottom == Approx(up).margin(1e-9));
+            }
+        }
+    }
+}

@@ -392,6 +392,7 @@ struct BuildPlan {
 // for the rest as warnings. An empty assets source means there is no library: no_library and no items.
 // Each floor also gets its stairs (stairLayout; stairProblems, a stair with an error is left out and cuts no
 // hole), its slab (slabBuild) and its roofs (floorRoofs), and room floors and ceilings get the stair holes.
+// FloorBuild::slabBelow is set on every floor but the lowest, before floorCollision runs.
 // Problems of a floor are in the order walls, openings, rooms, items, stairs, roofs.
 // Then the materials of every built surface by Materials.h, each checked with the materials source
 // (missing_material, material_broken; such a surface gets the neutral look). An empty materials source means

@@ -302,6 +302,9 @@ struct FloorBuild {
     SlabBuild slab;                     // the slab above the floor
     std::vector<StairBuild> stairs;     // stairs that climb from this floor and can be built, in stair order
     std::vector<RoofBuild> roofs;       // the floor's roof sections, in index order
+    // The thickness of the slab this floor stands on: the Floor::slabThickness of the floor below it in the plan.
+    // Empty for the lowest floor. Not in the build job.
+    std::optional<double> slabBelow;
 
     bool operator==(const FloorBuild&) const = default;
 };

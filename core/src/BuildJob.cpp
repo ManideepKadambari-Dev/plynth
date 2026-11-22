@@ -909,6 +909,7 @@ BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, 
         }
         for (BuildProblem& problem : stairProblemList) plan.problems.push_back(std::move(problem));
 
+        if (index > 0) build.slabBelow = project.plan.floors[index - 1].slabThickness;
         build.slab = slabBuild(project.plan, index, levels);
         FloorRoofs roofs = floorRoofs(project.plan, index, levels);
         build.roofs = std::move(roofs.roofs);
