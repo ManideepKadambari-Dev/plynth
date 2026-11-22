@@ -247,9 +247,14 @@
                 ]
               },
               "materials": {
-                "description": "The materials list of build/materials.json (schema build-materials), so textures are named after their catalog material. Empty when the file is missing.",
+                "description": "The materials list of build/materials.json (schema build-materials), so textures are named after their catalog material. Empty when the file is missing. Core adds tile_size from the library for every catalog material it can look up, for the kit's UVs.",
                 "type": "array",
-                "items": { "type": "object" }
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "tile_size": { "$ref": "#/definitions/tileSize" }
+                  }
+                }
               },
               "expected_bounds": {
                 "description": "World bounds of every wall solid, worked out by core from the plan, for the scale checks. null when the plan has no walls.",
@@ -520,7 +525,7 @@
             "required": ["wall", "side", "room", "material", "slot"],
             "additionalProperties": false,
             "properties": {
-              "wall": { "$ref": "#/definitions/planId" },
+              "wall": { "description": "The wall the face belongs to. null only on a kit_cut face, which lies between two pieces.", "oneOf": [{ "$ref": "#/definitions/planId" }, { "type": "null" }] },
               "side": { "description": "The face of the wall this edge belongs to, or null for an end face across the wall.", "enum": ["left", "right", null] },
               "room": { "description": "The room the face looks into, or null when it looks into no room.", "oneOf": [{ "$ref": "#/definitions/planId" }, { "type": "null" }] },
               "material": { "description": "The material of the face: the wall's inside material for its room, or its outside one when room is null.", "$ref": "#/definitions/materialRef" },

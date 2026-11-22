@@ -1,4 +1,5 @@
 #include "CatalogSupport.h"
+#include "MaterialCatalogSupport.h"
 #include "FakeBlender.h"
 #include "SchemaSupport.h"
 #include "SquareFixtures.h"
@@ -879,4 +880,50 @@ TEST_CASE("a check only run makes no kit", "[core][export][run][kit]") {
     plynth::test::requireOk(runExport(f.request).status);
     REQUIRE(lastJob(f)["params"]["kit"].is_null());
     REQUIRE_FALSE(fs::exists(f.exportDir() / "Square_Kit.fbx"));
+}
+
+TEST_CASE("the job gives each library material its tile size", "[core][export][run]") {
+    MaterialTestLibrary lib("export-tile");
+    lib.add("oak_planks", "Oak Planks");
+    ExportFixture f("run-tile");
+    f.request.library = lib.paths;
+    fs::copy_file(fs::path(PLYNTH_TEST_DATA_DIR) / "export" / "materials.json", f.projectFolder / "build" / "materials.json");
+    plynth::test::requireOk(runExport(f.request).status);
+
+    const Json job = lastJob(f);
+    INFO(jobSchemaProblem(job));
+    REQUIRE(jobSchemaProblem(job).empty());
+    const Json& materials = job["params"]["materials"];
+    REQUIRE(materials.size() == 3);
+    REQUIRE(materials[0]["material"] == "oak_planks");
+    REQUIRE(materials[0]["tile_size"] == Json{{"width", 1.0}, {"height", 0.5}});
+    REQUIRE_FALSE(materials[1].contains("tile_size"));
+    REQUIRE_FALSE(materials[2].contains("tile_size"));
+
+    // Without a library there is nothing to look up.
+    f.request.library.reset();
+    plynth::test::requireOk(runExport(f.request).status);
+    REQUIRE_FALSE(lastJob(f)["params"]["materials"][0].contains("tile_size"));
+}
+
+TEST_CASE("kit cut faces have no wall in the job", "[core][export][run][kit]") {
+    TestLibrary lib("export-kit-null-wall");
+    ExportFixture f("run-kit-null-wall");
+    f.request.library = lib.paths;
+    switchKit(f.projectFolder, true);
+    plynth::test::requireOk(runExport(f.request).status);
+    const Json job = lastJob(f);
+    REQUIRE(jobSchemaProblem(job).empty());
+    int cuts = 0;
+    for (const Json& piece : job["params"]["kit"]["pieces"]) {
+        for (const Json& solid : piece["wall_solids"]) {
+            for (const Json& edge : solid["outline"]["edges"]) {
+                if (edge.contains("kit_cut")) {
+                    REQUIRE(edge["wall"].is_null());
+                    ++cuts;
+                }
+            }
+        }
+    }
+    REQUIRE(cuts > 0);
 }

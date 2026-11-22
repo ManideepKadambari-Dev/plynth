@@ -23,6 +23,7 @@
 #include <cctype>
 #include <chrono>
 #include <fstream>
+#include <map>
 #include <optional>
 #include <sstream>
 
@@ -297,28 +298,39 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
     for (ExportGroup& g : groups) {
         if (g.name.empty()) g.name = g.file.size() > 4 ? g.file.substr(0, g.file.size() - 4) : g.id;
     }
-    // The kit, when the options ask for it: it needs the library for the same slot names the build made.
+    // The materials catalog of the library gives the tile size of each material (for the kit UVs) and the slot
+    // names the kit needs, the same as the build made.
+    std::unique_ptr<MaterialCatalog> catalog;
+    if (request.library) {
+        Status opened;
+        catalog = MaterialCatalog::open(*request.library, opened);
+    }
+    std::map<std::string, TileSize> tileSizes;
+    const std::vector<BuiltMaterial> builtMaterials = materials.status.ok() ? materials.materials : std::vector<BuiltMaterial>{};
+    if (catalog) {
+        for (const BuiltMaterial& m : builtMaterials) {
+            if (m.material.empty() || tileSizes.count(m.material) != 0) continue;
+            if (const std::optional<MaterialRecord> record = catalog->material(m.material)) tileSizes[m.material] = record->tileSize;
+        }
+    }
+    // The kit, when the options ask for it.
     ModularKit kit;
     bool kitInJob = false;
     if (report.kit.asked && request.settings.write) {
         if (!request.library) {
             report.kit.skipped = "No library is set, so the kit was left out.";
+        } else if (!catalog) {
+            report.kit.skipped = "The library materials could not be opened, so the kit was left out.";
         } else {
-            Status opened;
-            const std::unique_ptr<MaterialCatalog> catalog = MaterialCatalog::open(*request.library, opened);
-            if (!catalog) {
-                report.kit.skipped = "The library materials could not be opened, so the kit was left out.";
-            } else {
-                const BuildPlan plan = makeBuildPlan(boundsSource, BuildAssetSource{}, buildMaterialSourceFor(*catalog));
-                kit = modularKit(boundsSource, plan);
-                kitInJob = !kit.pieces.empty();
-                if (!kitInJob) report.kit.skipped = "The plan has no walls, so there is no kit to make.";
-            }
+            const BuildPlan plan = makeBuildPlan(boundsSource, BuildAssetSource{}, buildMaterialSourceFor(*catalog));
+            kit = modularKit(boundsSource, plan);
+            kitInJob = !kit.pieces.empty();
+            if (!kitInJob) report.kit.skipped = "The plan has no walls, so there is no kit to make.";
         }
     }
-    const Json job = makeExportJob(boundsSource, groups, materials.status.ok() ? materials.materials : std::vector<BuiltMaterial>{},
-                                   buildState, request.settings, request.projectFolder, staging, report.jobId,
-                                   work / pathFromUtf8(kResultFileName), kitInJob ? &kit : nullptr);
+    const Json job = makeExportJob(boundsSource, groups, builtMaterials, buildState, request.settings, request.projectFolder, staging,
+                                   report.jobId, work / pathFromUtf8(kResultFileName), kitInJob ? &kit : nullptr,
+                                   catalog ? &tileSizes : nullptr);
     report.steps.push_back({"prepare", since(prepareStart)});
 
     progress(ExportStage::Blender);

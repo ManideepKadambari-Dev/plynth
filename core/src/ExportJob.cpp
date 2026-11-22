@@ -125,22 +125,13 @@ Json textOrNull(const std::string& value)
     return value.empty() ? Json(nullptr) : Json(value);
 }
 
-// A kit ring in the form of a build wall ring, with kit_cut on the faces that lie on a cut. The schema wants a
-// plan id on every edge, and a cut has none, so it names the first wall the ring (or failing that the piece)
-// has; the worker does not use the wall of a cut face.
-Json kitRingJson(const KitRing& ring, const std::string& pieceWall)
+// A kit ring in the form of a build wall ring, with kit_cut on the faces that lie on a cut. A cut has no wall.
+Json kitRingJson(const KitRing& ring)
 {
-    std::string ringWall = pieceWall;
-    for (const KitEdge& e : ring.edges) {
-        if (!e.edge.wall.empty()) {
-            ringWall = e.edge.wall;
-            break;
-        }
-    }
     Json edges = Json::array();
     for (const KitEdge& e : ring.edges) {
         Json edge = Json::object();
-        edge["wall"] = e.edge.wall.empty() ? ringWall : e.edge.wall;
+        edge["wall"] = textOrNull(e.edge.wall);
         edge["side"] = e.edge.side ? Json(std::string(wallSideName(*e.edge.side))) : Json(nullptr);
         edge["room"] = textOrNull(e.edge.room);
         edge["material"] = textOrNull(e.material);
@@ -191,21 +182,15 @@ Json kitOpeningJson(const KitOpening& k)
 // One kit piece in the form of the job's kitPiece definition.
 Json kitPieceJson(const KitPiece& piece)
 {
-    std::string pieceWall;
-    for (const KitSolid& s : piece.solids) {
-        for (const KitEdge& e : s.outline.edges) {
-            if (pieceWall.empty()) pieceWall = e.edge.wall;
-        }
-    }
     Json solids = Json::array();
     for (const KitSolid& s : piece.solids) {
         Json holes = Json::array();
-        for (const KitRing& h : s.holes) holes.push_back(kitRingJson(h, pieceWall));
+        for (const KitRing& h : s.holes) holes.push_back(kitRingJson(h));
         Json solid = Json::object();
         solid["height"] = s.height;
         solid["top_material"] = textOrNull(s.topMaterial);
         solid["top_slot"] = s.topSlot;
-        solid["outline"] = kitRingJson(s.outline, pieceWall);
+        solid["outline"] = kitRingJson(s.outline);
         solid["holes"] = std::move(holes);
         solids.push_back(std::move(solid));
     }
@@ -313,7 +298,8 @@ std::optional<ExportBounds> expectedWallBounds(const Project& project)
 Json makeExportJob(const Project& project, const std::vector<ExportGroup>& groups,
                    const std::vector<BuiltMaterial>& materials, const ExportBuildState& build,
                    const ExportSettings& settings, const fs::path& projectFolder, const fs::path& stagingFolder,
-                   std::string_view jobId, const fs::path& resultFile, const ModularKit* kit)
+                   std::string_view jobId, const fs::path& resultFile, const ModularKit* kit,
+                   const std::map<std::string, TileSize>* tileSizes)
 {
     Json params = Json::object();
     Json info = Json::object();
@@ -356,7 +342,15 @@ Json makeExportJob(const Project& project, const std::vector<ExportGroup>& group
     }
 
     Json materialList = Json::array();
-    for (const BuiltMaterial& m : materials) materialList.push_back(materialJson(m));
+    for (const BuiltMaterial& m : materials) {
+        Json entry = materialJson(m);
+        if (tileSizes && !m.material.empty()) {
+            if (const auto tile = tileSizes->find(m.material); tile != tileSizes->end()) {
+                entry["tile_size"] = Json{{"width", tile->second.width}, {"height", tile->second.height}};
+            }
+        }
+        materialList.push_back(std::move(entry));
+    }
     params["materials"] = std::move(materialList);
 
     if (const std::optional<ExportBounds> bounds = expectedWallBounds(project)) {

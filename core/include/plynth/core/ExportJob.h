@@ -6,11 +6,13 @@
 #include "BuildJob.h"
 #include "Exporter.h"
 #include "Kit.h"
+#include "catalog/MaterialInfo.h"
 #include "Project.h"
 
 #include <nlohmann/json.hpp>
 
 #include <filesystem>
+#include <map>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -211,12 +213,14 @@ struct ExportSettings {
 // Makes the export job: the envelope of makeBlenderJob with task kExportTask and the params above. blend_file is
 // projectFolder/build/building.blend, output_folder is stagingFolder. Paths are absolute, UTF-8, forward
 // slashes. kit null writes "kit": null; otherwise kit.file is exportFileStem(project name) + kKitFileSuffix,
-// fill_openings and bevel are the build's defaults (BuildSettings).
+// fill_openings and bevel are the build's defaults (BuildSettings). tileSizes (catalog material id to tile size in
+// metres, from the library) adds "tile_size" to each materials entry whose catalog id is in it, for the kit UVs.
 Json makeExportJob(const Project& project, const std::vector<ExportGroup>& groups,
                    const std::vector<BuiltMaterial>& materials, const ExportBuildState& build,
                    const ExportSettings& settings, const std::filesystem::path& projectFolder,
                    const std::filesystem::path& stagingFolder, std::string_view jobId,
-                   const std::filesystem::path& resultFile, const ModularKit* kit = nullptr);
+                   const std::filesystem::path& resultFile, const ModularKit* kit = nullptr,
+                   const std::map<std::string, TileSize>* tileSizes = nullptr);
 
 // One file the worker wrote.
 struct ExportFileOutput {
