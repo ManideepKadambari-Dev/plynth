@@ -89,6 +89,7 @@ bool kitLibrary(const std::string& command, const RunContext& context, const std
             return false;
         }
         library = opened.paths;
+        registerShapesOf(*library);
         return true;
     }
     const SettingsLoad loaded = loadSettings();
@@ -98,6 +99,7 @@ bool kitLibrary(const std::string& command, const RunContext& context, const std
     }
     if (loaded.settings.library) {
         library = libraryPaths(*loaded.settings.library);
+        registerShapesOf(*library);
     }
     return true;
 }
