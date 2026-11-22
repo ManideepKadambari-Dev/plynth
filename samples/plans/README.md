@@ -23,7 +23,7 @@ The plans are drawn by `samples/tools/make_sample_plans.py`, so they belong to t
 Two 1800 x 1300 plans of one house at 100 pixels per metre, in the style of apartment-01 (outer walls 30 px, inner walls 12 px, doors with arcs, windows as double thin lines, one opening without a symbol, dimension lines). They are meant for the floor tabs: both are placed with the offset (0, 0).
 
 - `house-01-ground.png`: the ground floor, 10 by 8 m (outer faces from x 500 to 1500 and y 300 to 1100). Four rooms: two on the left, a kitchen at the back right and, at the front right, the stair hall with the front door.
-- `house-01-upper.png`: the upper floor over the left two thirds of the ground floor (x 500 to 1170) and reaching 1 m past it at the back (y 200 to 1100). Its left and front outer corners are the same pixels as the ground floor's. Two bedrooms, a small bathroom and the landing above the stair hall.
+- `house-01-upper.png`: the upper floor, 9.05 by 9 m, over the left nine tenths of the ground floor (outer faces from x 500 to 1405) and reaching 1 m past it at the back (y 200 to 1100), so it leaves a strip 0.95 m wide of the ground floor open at the right. Its left and front outer corners are the same pixels as the ground floor's. Two bedrooms, a small bathroom and the landing above the stair hall.
 
 ## Expected results
 

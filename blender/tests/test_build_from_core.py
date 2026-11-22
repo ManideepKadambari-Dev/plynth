@@ -225,12 +225,13 @@ class FromCoreHouseTests(LibraryBuildTest):
         self.assertEqual(counts["rooms"], sum(len(f["rooms"]) for f in self.floors))
         self.assertEqual(counts["wall_solids"], sum(len(f["wall_solids"]) for f in self.floors))
 
-    # Every room's floor and ceiling area plus its hole areas is the area core gave the room, except where a stair
-    # cuts into the edge of the room: core then notches the outline and the missing part is within the stair's hole.
+    # Every room's floor and ceiling area plus its hole areas is the area core gave the room. The stair of the house
+    # clears the walls, so no room is notched by it; a notch would still be accepted if it stayed within the well.
     def test_room_areas(self):
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
         well = max(plain_area(s["hole"]["outline"]) for f in self.floors for s in f["stairs"])
         cut = 0
+        holed = 0
         for floor in self.floors:
             for room in floor["rooms"]:
                 for kind, key in (("Floor", "polygons"), ("Ceiling", "ceiling_polygons")):
@@ -240,13 +241,15 @@ class FromCoreHouseTests(LibraryBuildTest):
                     outlines = sum(plain_area(polygon["outline"]) for polygon in polygons)
                     self.assertAlmostEqual(meshes.area(obj), outlines - holes, delta=1e-3, msg=obj.name)
                     if holes > 0:
+                        holed += 1
                         self.assertAlmostEqual(meshes.area(obj) + holes, room["area"], delta=1e-3, msg=obj.name)
                     elif room["area"] - outlines > 1e-3:
                         cut += 1
                         self.assertLess(room["area"] - outlines, well + 1e-3, obj.name)
                     else:
                         self.assertAlmostEqual(meshes.area(obj), room["area"], delta=1e-3, msg=obj.name)
-        self.assertEqual(cut, 1)
+        self.assertEqual(cut, 0)
+        self.assertGreater(holed, 0)
 
     # Each floor has one slab, its top where core put it and its footprint the area of the job's polygons less the
     # holes (seen from above, the top face is never built, so the bottom faces carry the area).
