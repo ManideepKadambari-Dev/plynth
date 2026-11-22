@@ -1,0 +1,2002 @@
+{
+  "format": "plynth-kit-layout",
+  "version": 1,
+  "project": "m11",
+  "kit_file": "m11_Kit.fbx",
+  "coordinates": "blender_world_metres",
+  "floors": [
+    {
+      "id": "f1",
+      "elevation": 0.0,
+      "grid_size": 0.5
+    }
+  ],
+  "pieces": [
+    {
+      "id": "Corner_12x300x12_7925ff",
+      "mesh": "SM_Kit_Corner_12x300x12_7925ff",
+      "kind": "corner",
+      "length": 0.12,
+      "height": 3.0,
+      "thickness": 0.12,
+      "count": 3
+    },
+    {
+      "id": "Corner_30x300x30_b37ab0",
+      "mesh": "SM_Kit_Corner_30x300x30_b37ab0",
+      "kind": "corner",
+      "length": 0.3,
+      "height": 3.0,
+      "thickness": 0.3,
+      "count": 4
+    },
+    {
+      "id": "Corner_30x300x30_ec9a75",
+      "mesh": "SM_Kit_Corner_30x300x30_ec9a75",
+      "kind": "corner",
+      "length": 0.3,
+      "height": 3.0,
+      "thickness": 0.3,
+      "count": 5
+    },
+    {
+      "id": "Opening_150x300x12_63c209",
+      "mesh": "SM_Kit_Opening_150x300x12_63c209",
+      "kind": "opening",
+      "length": 1.5,
+      "height": 3.0,
+      "thickness": 0.12,
+      "count": 1
+    },
+    {
+      "id": "Opening_150x300x12_c925e9",
+      "mesh": "SM_Kit_Opening_150x300x12_c925e9",
+      "kind": "opening",
+      "length": 1.5,
+      "height": 3.0,
+      "thickness": 0.12,
+      "count": 1
+    },
+    {
+      "id": "Opening_150x300x30_a5e8a4",
+      "mesh": "SM_Kit_Opening_150x300x30_a5e8a4",
+      "kind": "opening",
+      "length": 1.5,
+      "height": 3.0,
+      "thickness": 0.3,
+      "count": 1
+    },
+    {
+      "id": "Opening_200x300x30_9f11ae",
+      "mesh": "SM_Kit_Opening_200x300x30_9f11ae",
+      "kind": "opening",
+      "length": 2.0,
+      "height": 3.0,
+      "thickness": 0.3,
+      "count": 1
+    },
+    {
+      "id": "Opening_250x300x30_6b9b3e",
+      "mesh": "SM_Kit_Opening_250x300x30_6b9b3e",
+      "kind": "opening",
+      "length": 2.5,
+      "height": 3.0,
+      "thickness": 0.3,
+      "count": 1
+    },
+    {
+      "id": "Opening_250x300x30_fd1001",
+      "mesh": "SM_Kit_Opening_250x300x30_fd1001",
+      "kind": "opening",
+      "length": 2.5,
+      "height": 3.0,
+      "thickness": 0.3,
+      "count": 1
+    },
+    {
+      "id": "Opening_300x300x12_562d9f",
+      "mesh": "SM_Kit_Opening_300x300x12_562d9f",
+      "kind": "opening",
+      "length": 3.0,
+      "height": 3.0,
+      "thickness": 0.12,
+      "count": 1
+    },
+    {
+      "id": "Opening_300x300x30_bda4df",
+      "mesh": "SM_Kit_Opening_300x300x30_bda4df",
+      "kind": "opening",
+      "length": 3.0,
+      "height": 3.0,
+      "thickness": 0.3,
+      "count": 1
+    },
+    {
+      "id": "Opening_88x300x12_2ab764",
+      "mesh": "SM_Kit_Opening_88x300x12_2ab764",
+      "kind": "opening",
+      "length": 0.880234,
+      "height": 3.0,
+      "thickness": 0.12,
+      "count": 1
+    },
+    {
+      "id": "Wall_14x300x30_9526f2",
+      "mesh": "SM_Kit_Wall_14x300x30_9526f2",
+      "kind": "wall",
+      "length": 0.14,
+      "height": 3.0,
+      "thickness": 0.3,
+      "count": 1
+    },
+    {
+      "id": "Wall_20x300x12_b40282",
+      "mesh": "SM_Kit_Wall_20x300x12_b40282",
+      "kind": "wall",
+      "length": 0.2,
+      "height": 3.0,
+      "thickness": 0.12,
+      "count": 3
+    },
+    {
+      "id": "Wall_20x300x30_dea18f",
+      "mesh": "SM_Kit_Wall_20x300x30_dea18f",
+      "kind": "wall",
+      "length": 0.2,
+      "height": 3.0,
+      "thickness": 0.3,
+      "count": 5
+    },
+    {
+      "id": "Wall_26x300x30_be97b3",
+      "mesh": "SM_Kit_Wall_26x300x30_be97b3",
+      "kind": "wall",
+      "length": 0.26,
+      "height": 3.0,
+      "thickness": 0.3,
+      "count": 2
+    },
+    {
+      "id": "Wall_29x300x12_56c477",
+      "mesh": "SM_Kit_Wall_29x300x12_56c477",
+      "kind": "wall",
+      "length": 0.289766,
+      "height": 3.0,
+      "thickness": 0.12,
+      "count": 1
+    },
+    {
+      "id": "Wall_29x300x30_fd9215",
+      "mesh": "SM_Kit_Wall_29x300x30_fd9215",
+      "kind": "wall",
+      "length": 0.29,
+      "height": 3.0,
+      "thickness": 0.3,
+      "count": 1
+    },
+    {
+      "id": "Wall_35x300x12_d0236c",
+      "mesh": "SM_Kit_Wall_35x300x12_d0236c",
+      "kind": "wall",
+      "length": 0.35,
+      "height": 3.0,
+      "thickness": 0.12,
+      "count": 3
+    },
+    {
+      "id": "Wall_35x300x30_9108f7",
+      "mesh": "SM_Kit_Wall_35x300x30_9108f7",
+      "kind": "wall",
+      "length": 0.35,
+      "height": 3.0,
+      "thickness": 0.3,
+      "count": 9
+    },
+    {
+      "id": "Wall_38x300x12_0467fb",
+      "mesh": "SM_Kit_Wall_38x300x12_0467fb",
+      "kind": "wall",
+      "length": 0.38,
+      "height": 3.0,
+      "thickness": 0.12,
+      "count": 1
+    },
+    {
+      "id": "Wall_44x300x12_49c308",
+      "mesh": "SM_Kit_Wall_44x300x12_49c308",
+      "kind": "wall",
+      "length": 0.44,
+      "height": 3.0,
+      "thickness": 0.12,
+      "count": 4
+    },
+    {
+      "id": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "kind": "wall",
+      "length": 0.5,
+      "height": 3.0,
+      "thickness": 0.12,
+      "count": 30
+    },
+    {
+      "id": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "kind": "wall",
+      "length": 0.5,
+      "height": 3.0,
+      "thickness": 0.3,
+      "count": 55
+    }
+  ],
+  "placements": [
+    {
+      "piece": "Wall_35x300x30_9108f7",
+      "mesh": "SM_Kit_Wall_35x300x30_9108f7",
+      "floor": "f1",
+      "wall": "w1",
+      "point": null,
+      "location": [
+        5.3,
+        -3.15,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w1",
+      "point": null,
+      "location": [
+        5.65,
+        -3.15,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Opening_250x300x30_fd1001",
+      "mesh": "SM_Kit_Opening_250x300x30_fd1001",
+      "floor": "f1",
+      "wall": "w1",
+      "point": null,
+      "location": [
+        6.15,
+        -3.15,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w1",
+      "point": null,
+      "location": [
+        8.65,
+        -3.15,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w1",
+      "point": null,
+      "location": [
+        9.15,
+        -3.15,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_26x300x30_be97b3",
+      "mesh": "SM_Kit_Wall_26x300x30_be97b3",
+      "floor": "f1",
+      "wall": "w1",
+      "point": null,
+      "location": [
+        9.65,
+        -3.15,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_35x300x30_9108f7",
+      "mesh": "SM_Kit_Wall_35x300x30_9108f7",
+      "floor": "f1",
+      "wall": "w2",
+      "point": null,
+      "location": [
+        10.21,
+        -3.15,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w2",
+      "point": null,
+      "location": [
+        10.56,
+        -3.15,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w2",
+      "point": null,
+      "location": [
+        11.06,
+        -3.15,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w2",
+      "point": null,
+      "location": [
+        11.56,
+        -3.15,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w2",
+      "point": null,
+      "location": [
+        12.06,
+        -3.15,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w2",
+      "point": null,
+      "location": [
+        12.56,
+        -3.15,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w2",
+      "point": null,
+      "location": [
+        13.06,
+        -3.15,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_29x300x30_fd9215",
+      "mesh": "SM_Kit_Wall_29x300x30_fd9215",
+      "floor": "f1",
+      "wall": "w2",
+      "point": null,
+      "location": [
+        13.56,
+        -3.15,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_35x300x30_9108f7",
+      "mesh": "SM_Kit_Wall_35x300x30_9108f7",
+      "floor": "f1",
+      "wall": "w3",
+      "point": null,
+      "location": [
+        14.15,
+        -3.15,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Opening_300x300x30_bda4df",
+      "mesh": "SM_Kit_Opening_300x300x30_bda4df",
+      "floor": "f1",
+      "wall": "w3",
+      "point": null,
+      "location": [
+        14.5,
+        -3.15,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w3",
+      "point": null,
+      "location": [
+        17.5,
+        -3.15,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w3",
+      "point": null,
+      "location": [
+        18.0,
+        -3.15,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_20x300x30_dea18f",
+      "mesh": "SM_Kit_Wall_20x300x30_dea18f",
+      "floor": "f1",
+      "wall": "w3",
+      "point": null,
+      "location": [
+        18.5,
+        -3.15,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_35x300x12_d0236c",
+      "mesh": "SM_Kit_Wall_35x300x12_d0236c",
+      "floor": "f1",
+      "wall": "w4",
+      "point": null,
+      "location": [
+        5.3,
+        -8.000234,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "floor": "f1",
+      "wall": "w4",
+      "point": null,
+      "location": [
+        5.65,
+        -8.000234,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "floor": "f1",
+      "wall": "w4",
+      "point": null,
+      "location": [
+        6.15,
+        -8.000234,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "floor": "f1",
+      "wall": "w4",
+      "point": null,
+      "location": [
+        6.65,
+        -8.000234,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "floor": "f1",
+      "wall": "w4",
+      "point": null,
+      "location": [
+        7.15,
+        -8.000234,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "floor": "f1",
+      "wall": "w4",
+      "point": null,
+      "location": [
+        7.65,
+        -8.000234,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "floor": "f1",
+      "wall": "w4",
+      "point": null,
+      "location": [
+        8.15,
+        -8.000234,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "floor": "f1",
+      "wall": "w4",
+      "point": null,
+      "location": [
+        8.65,
+        -8.000234,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "floor": "f1",
+      "wall": "w4",
+      "point": null,
+      "location": [
+        9.15,
+        -8.000234,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_35x300x12_d0236c",
+      "mesh": "SM_Kit_Wall_35x300x12_d0236c",
+      "floor": "f1",
+      "wall": "w4",
+      "point": null,
+      "location": [
+        9.65,
+        -8.000234,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_35x300x30_9108f7",
+      "mesh": "SM_Kit_Wall_35x300x30_9108f7",
+      "floor": "f1",
+      "wall": "w5",
+      "point": null,
+      "location": [
+        5.65,
+        -12.85,
+        0.0
+      ],
+      "rotation_z_degrees": 180.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w5",
+      "point": null,
+      "location": [
+        6.15,
+        -12.85,
+        0.0
+      ],
+      "rotation_z_degrees": 180.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w5",
+      "point": null,
+      "location": [
+        6.65,
+        -12.85,
+        0.0
+      ],
+      "rotation_z_degrees": 180.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w5",
+      "point": null,
+      "location": [
+        7.15,
+        -12.85,
+        0.0
+      ],
+      "rotation_z_degrees": 180.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w5",
+      "point": null,
+      "location": [
+        7.65,
+        -12.85,
+        0.0
+      ],
+      "rotation_z_degrees": 180.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w5",
+      "point": null,
+      "location": [
+        8.15,
+        -12.85,
+        0.0
+      ],
+      "rotation_z_degrees": 180.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w5",
+      "point": null,
+      "location": [
+        8.65,
+        -12.85,
+        0.0
+      ],
+      "rotation_z_degrees": 180.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w5",
+      "point": null,
+      "location": [
+        9.15,
+        -12.85,
+        0.0
+      ],
+      "rotation_z_degrees": 180.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w5",
+      "point": null,
+      "location": [
+        9.65,
+        -12.85,
+        0.0
+      ],
+      "rotation_z_degrees": 180.0
+    },
+    {
+      "piece": "Wall_26x300x30_be97b3",
+      "mesh": "SM_Kit_Wall_26x300x30_be97b3",
+      "floor": "f1",
+      "wall": "w5",
+      "point": null,
+      "location": [
+        9.91,
+        -12.85,
+        0.0
+      ],
+      "rotation_z_degrees": 180.0
+    },
+    {
+      "piece": "Wall_35x300x30_9108f7",
+      "mesh": "SM_Kit_Wall_35x300x30_9108f7",
+      "floor": "f1",
+      "wall": "w6",
+      "point": null,
+      "location": [
+        10.56,
+        -12.85,
+        0.0
+      ],
+      "rotation_z_degrees": 180.0
+    },
+    {
+      "piece": "Opening_150x300x30_a5e8a4",
+      "mesh": "SM_Kit_Opening_150x300x30_a5e8a4",
+      "floor": "f1",
+      "wall": "w6",
+      "point": null,
+      "location": [
+        10.56,
+        -12.85,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w6",
+      "point": null,
+      "location": [
+        12.56,
+        -12.85,
+        0.0
+      ],
+      "rotation_z_degrees": 180.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w6",
+      "point": null,
+      "location": [
+        13.06,
+        -12.85,
+        0.0
+      ],
+      "rotation_z_degrees": 180.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w6",
+      "point": null,
+      "location": [
+        13.56,
+        -12.85,
+        0.0
+      ],
+      "rotation_z_degrees": 180.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w6",
+      "point": null,
+      "location": [
+        14.06,
+        -12.85,
+        0.0
+      ],
+      "rotation_z_degrees": 180.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w6",
+      "point": null,
+      "location": [
+        14.56,
+        -12.85,
+        0.0
+      ],
+      "rotation_z_degrees": 180.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w6",
+      "point": null,
+      "location": [
+        15.06,
+        -12.85,
+        0.0
+      ],
+      "rotation_z_degrees": 180.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w6",
+      "point": null,
+      "location": [
+        15.56,
+        -12.85,
+        0.0
+      ],
+      "rotation_z_degrees": 180.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w6",
+      "point": null,
+      "location": [
+        16.06,
+        -12.85,
+        0.0
+      ],
+      "rotation_z_degrees": 180.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w6",
+      "point": null,
+      "location": [
+        16.56,
+        -12.85,
+        0.0
+      ],
+      "rotation_z_degrees": 180.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w6",
+      "point": null,
+      "location": [
+        17.06,
+        -12.85,
+        0.0
+      ],
+      "rotation_z_degrees": 180.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w6",
+      "point": null,
+      "location": [
+        17.56,
+        -12.85,
+        0.0
+      ],
+      "rotation_z_degrees": 180.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w6",
+      "point": null,
+      "location": [
+        18.06,
+        -12.85,
+        0.0
+      ],
+      "rotation_z_degrees": 180.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w6",
+      "point": null,
+      "location": [
+        18.56,
+        -12.85,
+        0.0
+      ],
+      "rotation_z_degrees": 180.0
+    },
+    {
+      "piece": "Wall_14x300x30_9526f2",
+      "mesh": "SM_Kit_Wall_14x300x30_9526f2",
+      "floor": "f1",
+      "wall": "w6",
+      "point": null,
+      "location": [
+        18.56,
+        -12.85,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_44x300x12_49c308",
+      "mesh": "SM_Kit_Wall_44x300x12_49c308",
+      "floor": "f1",
+      "wall": "w7",
+      "point": null,
+      "location": [
+        10.12,
+        -7.0,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Opening_150x300x12_63c209",
+      "mesh": "SM_Kit_Opening_150x300x12_63c209",
+      "floor": "f1",
+      "wall": "w7",
+      "point": null,
+      "location": [
+        10.56,
+        -7.0,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "floor": "f1",
+      "wall": "w7",
+      "point": null,
+      "location": [
+        12.06,
+        -7.0,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "floor": "f1",
+      "wall": "w7",
+      "point": null,
+      "location": [
+        12.56,
+        -7.0,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "floor": "f1",
+      "wall": "w7",
+      "point": null,
+      "location": [
+        13.06,
+        -7.0,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_38x300x12_0467fb",
+      "mesh": "SM_Kit_Wall_38x300x12_0467fb",
+      "floor": "f1",
+      "wall": "w7",
+      "point": null,
+      "location": [
+        13.56,
+        -7.0,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_44x300x12_49c308",
+      "mesh": "SM_Kit_Wall_44x300x12_49c308",
+      "floor": "f1",
+      "wall": "w8",
+      "point": null,
+      "location": [
+        14.06,
+        -7.0,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "floor": "f1",
+      "wall": "w8",
+      "point": null,
+      "location": [
+        14.5,
+        -7.0,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "floor": "f1",
+      "wall": "w8",
+      "point": null,
+      "location": [
+        15.0,
+        -7.0,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Opening_300x300x12_562d9f",
+      "mesh": "SM_Kit_Opening_300x300x12_562d9f",
+      "floor": "f1",
+      "wall": "w8",
+      "point": null,
+      "location": [
+        15.5,
+        -7.0,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_20x300x12_b40282",
+      "mesh": "SM_Kit_Wall_20x300x12_b40282",
+      "floor": "f1",
+      "wall": "w8",
+      "point": null,
+      "location": [
+        18.5,
+        -7.0,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Wall_20x300x30_dea18f",
+      "mesh": "SM_Kit_Wall_20x300x30_dea18f",
+      "floor": "f1",
+      "wall": "w9",
+      "point": null,
+      "location": [
+        5.15,
+        -3.500234,
+        0.0
+      ],
+      "rotation_z_degrees": 90.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w9",
+      "point": null,
+      "location": [
+        5.15,
+        -4.000234,
+        0.0
+      ],
+      "rotation_z_degrees": 90.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w9",
+      "point": null,
+      "location": [
+        5.15,
+        -4.500234,
+        0.0
+      ],
+      "rotation_z_degrees": 90.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w9",
+      "point": null,
+      "location": [
+        5.15,
+        -5.000234,
+        0.0
+      ],
+      "rotation_z_degrees": 90.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w9",
+      "point": null,
+      "location": [
+        5.15,
+        -5.500234,
+        0.0
+      ],
+      "rotation_z_degrees": 90.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w9",
+      "point": null,
+      "location": [
+        5.15,
+        -6.000234,
+        0.0
+      ],
+      "rotation_z_degrees": 90.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w9",
+      "point": null,
+      "location": [
+        5.15,
+        -6.500234,
+        0.0
+      ],
+      "rotation_z_degrees": 90.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w9",
+      "point": null,
+      "location": [
+        5.15,
+        -7.000234,
+        0.0
+      ],
+      "rotation_z_degrees": 90.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w9",
+      "point": null,
+      "location": [
+        5.15,
+        -7.500234,
+        0.0
+      ],
+      "rotation_z_degrees": 90.0
+    },
+    {
+      "piece": "Wall_35x300x30_9108f7",
+      "mesh": "SM_Kit_Wall_35x300x30_9108f7",
+      "floor": "f1",
+      "wall": "w9",
+      "point": null,
+      "location": [
+        5.15,
+        -7.850234,
+        0.0
+      ],
+      "rotation_z_degrees": 90.0
+    },
+    {
+      "piece": "Wall_20x300x30_dea18f",
+      "mesh": "SM_Kit_Wall_20x300x30_dea18f",
+      "floor": "f1",
+      "wall": "w10",
+      "point": null,
+      "location": [
+        5.15,
+        -8.35,
+        0.0
+      ],
+      "rotation_z_degrees": 90.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w10",
+      "point": null,
+      "location": [
+        5.15,
+        -8.85,
+        0.0
+      ],
+      "rotation_z_degrees": 90.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w10",
+      "point": null,
+      "location": [
+        5.15,
+        -9.35,
+        0.0
+      ],
+      "rotation_z_degrees": 90.0
+    },
+    {
+      "piece": "Opening_250x300x30_6b9b3e",
+      "mesh": "SM_Kit_Opening_250x300x30_6b9b3e",
+      "floor": "f1",
+      "wall": "w10",
+      "point": null,
+      "location": [
+        5.15,
+        -9.35,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w10",
+      "point": null,
+      "location": [
+        5.15,
+        -12.35,
+        0.0
+      ],
+      "rotation_z_degrees": 90.0
+    },
+    {
+      "piece": "Wall_35x300x30_9108f7",
+      "mesh": "SM_Kit_Wall_35x300x30_9108f7",
+      "floor": "f1",
+      "wall": "w10",
+      "point": null,
+      "location": [
+        5.15,
+        -12.7,
+        0.0
+      ],
+      "rotation_z_degrees": 90.0
+    },
+    {
+      "piece": "Wall_20x300x12_b40282",
+      "mesh": "SM_Kit_Wall_20x300x12_b40282",
+      "floor": "f1",
+      "wall": "w11",
+      "point": null,
+      "location": [
+        10.06,
+        -3.3,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "floor": "f1",
+      "wall": "w11",
+      "point": null,
+      "location": [
+        10.06,
+        -3.5,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "floor": "f1",
+      "wall": "w11",
+      "point": null,
+      "location": [
+        10.06,
+        -4.0,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "floor": "f1",
+      "wall": "w11",
+      "point": null,
+      "location": [
+        10.06,
+        -4.5,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "floor": "f1",
+      "wall": "w11",
+      "point": null,
+      "location": [
+        10.06,
+        -5.0,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "floor": "f1",
+      "wall": "w11",
+      "point": null,
+      "location": [
+        10.06,
+        -5.5,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "floor": "f1",
+      "wall": "w11",
+      "point": null,
+      "location": [
+        10.06,
+        -6.0,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_44x300x12_49c308",
+      "mesh": "SM_Kit_Wall_44x300x12_49c308",
+      "floor": "f1",
+      "wall": "w11",
+      "point": null,
+      "location": [
+        10.06,
+        -6.5,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Opening_88x300x12_2ab764",
+      "mesh": "SM_Kit_Opening_88x300x12_2ab764",
+      "floor": "f1",
+      "wall": "w12",
+      "point": null,
+      "location": [
+        10.06,
+        -7.06,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_29x300x12_56c477",
+      "mesh": "SM_Kit_Wall_29x300x12_56c477",
+      "floor": "f1",
+      "wall": "w13",
+      "point": null,
+      "location": [
+        10.06,
+        -8.060234,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "floor": "f1",
+      "wall": "w13",
+      "point": null,
+      "location": [
+        10.06,
+        -8.35,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "floor": "f1",
+      "wall": "w13",
+      "point": null,
+      "location": [
+        10.06,
+        -8.85,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "floor": "f1",
+      "wall": "w13",
+      "point": null,
+      "location": [
+        10.06,
+        -9.35,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Opening_150x300x12_c925e9",
+      "mesh": "SM_Kit_Opening_150x300x12_c925e9",
+      "floor": "f1",
+      "wall": "w13",
+      "point": null,
+      "location": [
+        10.06,
+        -9.85,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "floor": "f1",
+      "wall": "w13",
+      "point": null,
+      "location": [
+        10.06,
+        -11.35,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "floor": "f1",
+      "wall": "w13",
+      "point": null,
+      "location": [
+        10.06,
+        -11.85,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_35x300x12_d0236c",
+      "mesh": "SM_Kit_Wall_35x300x12_d0236c",
+      "floor": "f1",
+      "wall": "w13",
+      "point": null,
+      "location": [
+        10.06,
+        -12.35,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_20x300x12_b40282",
+      "mesh": "SM_Kit_Wall_20x300x12_b40282",
+      "floor": "f1",
+      "wall": "w14",
+      "point": null,
+      "location": [
+        14.0,
+        -3.3,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "floor": "f1",
+      "wall": "w14",
+      "point": null,
+      "location": [
+        14.0,
+        -3.5,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "floor": "f1",
+      "wall": "w14",
+      "point": null,
+      "location": [
+        14.0,
+        -4.0,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "floor": "f1",
+      "wall": "w14",
+      "point": null,
+      "location": [
+        14.0,
+        -4.5,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "floor": "f1",
+      "wall": "w14",
+      "point": null,
+      "location": [
+        14.0,
+        -5.0,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "floor": "f1",
+      "wall": "w14",
+      "point": null,
+      "location": [
+        14.0,
+        -5.5,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_50x300x12_dbc004",
+      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "floor": "f1",
+      "wall": "w14",
+      "point": null,
+      "location": [
+        14.0,
+        -6.0,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_44x300x12_49c308",
+      "mesh": "SM_Kit_Wall_44x300x12_49c308",
+      "floor": "f1",
+      "wall": "w14",
+      "point": null,
+      "location": [
+        14.0,
+        -6.5,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_20x300x30_dea18f",
+      "mesh": "SM_Kit_Wall_20x300x30_dea18f",
+      "floor": "f1",
+      "wall": "w15",
+      "point": null,
+      "location": [
+        18.85,
+        -3.3,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w15",
+      "point": null,
+      "location": [
+        18.85,
+        -3.5,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Opening_200x300x30_9f11ae",
+      "mesh": "SM_Kit_Opening_200x300x30_9f11ae",
+      "floor": "f1",
+      "wall": "w15",
+      "point": null,
+      "location": [
+        18.85,
+        -4.0,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w15",
+      "point": null,
+      "location": [
+        18.85,
+        -6.0,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_35x300x30_9108f7",
+      "mesh": "SM_Kit_Wall_35x300x30_9108f7",
+      "floor": "f1",
+      "wall": "w15",
+      "point": null,
+      "location": [
+        18.85,
+        -6.5,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_20x300x30_dea18f",
+      "mesh": "SM_Kit_Wall_20x300x30_dea18f",
+      "floor": "f1",
+      "wall": "w16",
+      "point": null,
+      "location": [
+        18.85,
+        -7.15,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w16",
+      "point": null,
+      "location": [
+        18.85,
+        -7.35,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w16",
+      "point": null,
+      "location": [
+        18.85,
+        -7.85,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w16",
+      "point": null,
+      "location": [
+        18.85,
+        -8.35,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w16",
+      "point": null,
+      "location": [
+        18.85,
+        -8.85,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w16",
+      "point": null,
+      "location": [
+        18.85,
+        -9.35,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w16",
+      "point": null,
+      "location": [
+        18.85,
+        -9.85,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w16",
+      "point": null,
+      "location": [
+        18.85,
+        -10.35,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w16",
+      "point": null,
+      "location": [
+        18.85,
+        -10.85,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w16",
+      "point": null,
+      "location": [
+        18.85,
+        -11.35,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_50x300x30_8dd185",
+      "mesh": "SM_Kit_Wall_50x300x30_8dd185",
+      "floor": "f1",
+      "wall": "w16",
+      "point": null,
+      "location": [
+        18.85,
+        -11.85,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Wall_35x300x30_9108f7",
+      "mesh": "SM_Kit_Wall_35x300x30_9108f7",
+      "floor": "f1",
+      "wall": "w16",
+      "point": null,
+      "location": [
+        18.85,
+        -12.35,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Corner_30x300x30_b37ab0",
+      "mesh": "SM_Kit_Corner_30x300x30_b37ab0",
+      "floor": "f1",
+      "wall": null,
+      "point": "p1",
+      "location": [
+        5.15,
+        -3.15,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Corner_30x300x30_ec9a75",
+      "mesh": "SM_Kit_Corner_30x300x30_ec9a75",
+      "floor": "f1",
+      "wall": null,
+      "point": "p2",
+      "location": [
+        10.06,
+        -3.15,
+        0.0
+      ],
+      "rotation_z_degrees": 180.0
+    },
+    {
+      "piece": "Corner_30x300x30_b37ab0",
+      "mesh": "SM_Kit_Corner_30x300x30_b37ab0",
+      "floor": "f1",
+      "wall": null,
+      "point": "p7",
+      "location": [
+        5.15,
+        -12.85,
+        0.0
+      ],
+      "rotation_z_degrees": 90.0
+    },
+    {
+      "piece": "Corner_30x300x30_ec9a75",
+      "mesh": "SM_Kit_Corner_30x300x30_ec9a75",
+      "floor": "f1",
+      "wall": null,
+      "point": "p5",
+      "location": [
+        5.15,
+        -8.000234,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Corner_12x300x12_7925ff",
+      "mesh": "SM_Kit_Corner_12x300x12_7925ff",
+      "floor": "f1",
+      "wall": null,
+      "point": "p10",
+      "location": [
+        10.06,
+        -7.0,
+        0.0
+      ],
+      "rotation_z_degrees": 90.0
+    },
+    {
+      "piece": "Corner_12x300x12_7925ff",
+      "mesh": "SM_Kit_Corner_12x300x12_7925ff",
+      "floor": "f1",
+      "wall": null,
+      "point": "p6",
+      "location": [
+        10.06,
+        -8.000234,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Corner_30x300x30_ec9a75",
+      "mesh": "SM_Kit_Corner_30x300x30_ec9a75",
+      "floor": "f1",
+      "wall": null,
+      "point": "p8",
+      "location": [
+        10.06,
+        -12.85,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Corner_12x300x12_7925ff",
+      "mesh": "SM_Kit_Corner_12x300x12_7925ff",
+      "floor": "f1",
+      "wall": null,
+      "point": "p11",
+      "location": [
+        14.0,
+        -7.0,
+        0.0
+      ],
+      "rotation_z_degrees": 180.0
+    },
+    {
+      "piece": "Corner_30x300x30_ec9a75",
+      "mesh": "SM_Kit_Corner_30x300x30_ec9a75",
+      "floor": "f1",
+      "wall": null,
+      "point": "p3",
+      "location": [
+        14.0,
+        -3.15,
+        0.0
+      ],
+      "rotation_z_degrees": 180.0
+    },
+    {
+      "piece": "Corner_30x300x30_ec9a75",
+      "mesh": "SM_Kit_Corner_30x300x30_ec9a75",
+      "floor": "f1",
+      "wall": null,
+      "point": "p12",
+      "location": [
+        18.85,
+        -7.0,
+        0.0
+      ],
+      "rotation_z_degrees": 90.0
+    },
+    {
+      "piece": "Corner_30x300x30_b37ab0",
+      "mesh": "SM_Kit_Corner_30x300x30_b37ab0",
+      "floor": "f1",
+      "wall": null,
+      "point": "p4",
+      "location": [
+        18.85,
+        -3.15,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Corner_30x300x30_b37ab0",
+      "mesh": "SM_Kit_Corner_30x300x30_b37ab0",
+      "floor": "f1",
+      "wall": null,
+      "point": "p9",
+      "location": [
+        18.85,
+        -12.85,
+        0.0
+      ],
+      "rotation_z_degrees": 180.0
+    }
+  ]
+}
