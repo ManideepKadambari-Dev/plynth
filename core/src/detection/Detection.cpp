@@ -260,6 +260,22 @@ bool placeCovered(const std::vector<ExistingSegment>& existing, Vec2 place, Vec2
 
 }
 
+// Copies a detected result into plan coordinates by adding the floor's image offset to every position.
+DetectionResult proposalsOnPlan(const Floor& floor, DetectionResult detected)
+{
+    if (floor.imageOffset == ImageOffset{}) return detected;
+    const double ppm = detected.pixelsPerMetre > 0.0 ? detected.pixelsPerMetre : 1.0;
+    const auto move = [&](Vec2& p) { p = imageToPlan(floor, ppm, {p.x * ppm, p.y * ppm}); };
+    for (Vec2& p : detected.points) move(p);
+    for (ProposedRoom& room : detected.rooms) {
+        move(room.inside);
+        for (std::vector<Vec2>& ring : room.rings) {
+            for (Vec2& p : ring) move(p);
+        }
+    }
+    return detected;
+}
+
 // Marks every proposed wall and room against what the floor already has.
 void markExisting(const Floor& floor, DetectionResult& result)
 {
