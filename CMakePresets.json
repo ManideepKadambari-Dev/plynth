@@ -25,17 +25,17 @@
     }
   ],
   "buildPresets": [
-    { "name": "debug", "displayName": "Debug", "configurePreset": "msvc", "configuration": "Debug" },
-    { "name": "release", "displayName": "Release", "configurePreset": "msvc", "configuration": "Release" }
+    { "name": "debug", "displayName": "Debug", "configurePreset": "msvc", "configuration": "Debug", "jobs": 4 },
+    { "name": "release", "displayName": "Release", "configurePreset": "msvc", "configuration": "Release", "jobs": 4 }
   ],
   "testPresets": [
     {
       "name": "debug", "displayName": "Debug", "configurePreset": "msvc", "configuration": "Debug",
-      "output": { "outputOnFailure": true }
+      "output": { "outputOnFailure": true }, "execution": { "jobs": 1 }
     },
     {
       "name": "release", "displayName": "Release", "configurePreset": "msvc", "configuration": "Release",
-      "output": { "outputOnFailure": true }
+      "output": { "outputOnFailure": true }, "execution": { "jobs": 1 }
     }
   ]
 }
