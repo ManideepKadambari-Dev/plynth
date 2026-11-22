@@ -130,7 +130,7 @@ TEST_CASE("version 1 files pass the version 1 schemas and upgrade", "[core][sche
     plynth::test::requireOk(r.status);
     REQUIRE(r.migrated);
     const nlohmann::json upgraded = plain(planToJson(r.plan));
-    REQUIRE(upgraded["version"] == 4);
+    REQUIRE(upgraded["version"] == 6);
     REQUIRE(schemaProblem("plan.schema.json", upgraded).empty());
 
     const nlohmann::json project = nlohmann::json::parse(plynth::test::readTextFile(dir / "v1-project.json"));
@@ -178,7 +178,7 @@ TEST_CASE("version 3 files pass the version 3 schemas and upgrade", "[core][sche
             for (const Room& room : floor.rooms) REQUIRE_FALSE(room.wallMaterial.has_value());
         }
         const nlohmann::json saved = plain(planToJson(r.plan));
-        REQUIRE(saved["version"] == 4);
+        REQUIRE(saved["version"] == 6);
         REQUIRE(schemaProblem("plan.schema.json", saved).empty());
         REQUIRE_FALSE(schemaProblem("plan.v3.schema.json", saved).empty());
     }
@@ -200,8 +200,8 @@ TEST_CASE("version 3 files pass the version 3 schemas and upgrade", "[core][sche
     }
 }
 
-TEST_CASE("a version 5 plan is unsupported", "[core][schema]") {
-    const std::string text = plynth::test::readTextFile(std::filesystem::path(PLYNTH_TEST_DATA_DIR) / "invalid-version-5.json");
+TEST_CASE("a version 7 plan is unsupported", "[core][schema]") {
+    const std::string text = plynth::test::readTextFile(std::filesystem::path(PLYNTH_TEST_DATA_DIR) / "invalid-version-7.json");
     REQUIRE(planFromJson(Json::parse(text)).status.code == ErrorCode::UnsupportedVersion);
 }
 
@@ -212,4 +212,39 @@ TEST_CASE("a plan with items and a wall item centre validate", "[core][schema]")
     const nlohmann::json plan = plain(planToJson(fullPlan()));
     REQUIRE(plan["floors"][0]["items"].size() == 2);
     REQUIRE(schemaProblem("plan.schema.json", plan).empty());
+}
+
+TEST_CASE("a plan with an asset item and a generator item validates", "[core][schema][generator]") {
+    Plan plan = fullPlan();
+    Item g;
+    g.id = "i9";
+    g.x = 2.0;
+    g.y = 2.0;
+    g.size = ItemSize{0.3, 0.3, 2.7};
+    GeneratorUse use;
+    use.name = "column";
+    use.params = {{"diameter", GeneratorValue{0.3}},
+                  {"material", GeneratorValue{std::string()}},
+                  {"plinth", GeneratorValue{true}},
+                  {"shape", GeneratorValue{std::string("round")}}};
+    g.generator = use;
+    plan.floors[0].items.push_back(g);
+    const nlohmann::json written = plain(planToJson(plan));
+    REQUIRE(schemaProblem("plan.schema.json", written).empty());
+    const PlanRead r = planFromJson(Json::parse(written.dump()));
+    plynth::test::requireOk(r.status);
+    REQUIRE(r.plan == plan);
+
+    nlohmann::json both = written;
+    both["floors"][0]["items"][2]["asset"] = "sofa";
+    REQUIRE_FALSE(schemaProblem("plan.schema.json", both).empty());
+    nlohmann::json neither = written;
+    neither["floors"][0]["items"][2]["generator"] = nullptr;
+    REQUIRE_FALSE(schemaProblem("plan.schema.json", neither).empty());
+    nlohmann::json badId = written;
+    badId["floors"][0]["items"][2]["generator"]["params"]["Bad"] = 1;
+    REQUIRE_FALSE(schemaProblem("plan.schema.json", badId).empty());
+    nlohmann::json badValue = written;
+    badValue["floors"][0]["items"][2]["generator"]["params"]["diameter"] = nlohmann::json::array({1});
+    REQUIRE_FALSE(schemaProblem("plan.schema.json", badValue).empty());
 }

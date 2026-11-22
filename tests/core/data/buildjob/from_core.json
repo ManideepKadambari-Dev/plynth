@@ -16,7 +16,7 @@
     "textures_folder": "textures",
     "plan": {
       "format": "plynth-plan",
-      "version": 4,
+      "version": 6,
       "scale": {
         "pixels_per_metre": null
       },

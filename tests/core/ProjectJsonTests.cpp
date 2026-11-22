@@ -6,6 +6,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -24,7 +25,7 @@ PlanRead readPlanText(const std::string& text)
 // A tiny valid plan file as JSON, ready to be broken by a test.
 Json minimalPlanJson()
 {
-    return Json::parse(R"({"format":"plynth-plan","version":4,"floors":[{"id":"f1"}]})");
+    return Json::parse(R"({"format":"plynth-plan","version":6,"floors":[{"id":"f1"}]})");
 }
 
 // Expects planFromJson to refuse the JSON with a given code and pointer.
@@ -45,7 +46,7 @@ TEST_CASE("plan JSON round trip", "[core][json]") {
     const PlanRead r = planFromJson(planToJson(plan));
     plynth::test::requireOk(r.status);
     REQUIRE(r.plan == plan);
-    REQUIRE(r.fileVersion == 4);
+    REQUIRE(r.fileVersion == 6);
     REQUIRE_FALSE(r.migrated);
 }
 
@@ -192,10 +193,10 @@ TEST_CASE("the reader refuses what breaks the format", "[core][json]") {
     }
     SECTION("a newer version") {
         Json j = minimalPlanJson();
-        j["version"] = 5;
+        j["version"] = 7;
         const PlanRead r = planFromJson(j);
         REQUIRE(r.status.code == ErrorCode::UnsupportedVersion);
-        REQUIRE(r.fileVersion == 5);
+        REQUIRE(r.fileVersion == 7);
     }
     SECTION("a bad opening type, hinge or swing") {
         Json j = planToJson(fullPlan());
@@ -408,10 +409,12 @@ TEST_CASE("migrateJson stops at a failing step and reports a missing step", "[co
     REQUIRE(migrateJson(text, 3, steps).code == ErrorCode::BadFile);
 }
 
-TEST_CASE("the current format versions are 4", "[core][json][migrate]") {
-    REQUIRE(kPlanFormatVersion == 4);
+TEST_CASE("the current format versions are 6 and 4", "[core][json][migrate]") {
+    REQUIRE(kPlanFormatVersion == 6);
     REQUIRE(kProjectFormatVersion == 4);
-    REQUIRE(planMigrations().size() == 3);
+    REQUIRE(planMigrations().size() == 5);
+    REQUIRE(planMigrations()[3].fromVersion == 4);
+    REQUIRE(planMigrations()[4].fromVersion == 5);
     REQUIRE(planMigrations()[0].fromVersion == 1);
     REQUIRE(planMigrations()[1].fromVersion == 2);
     REQUIRE(planMigrations()[2].fromVersion == 3);
@@ -429,7 +432,7 @@ TEST_CASE("a version 2 plan upgrades with empty item lists", "[core][json][migra
     REQUIRE(r.migrated);
     for (const Floor& f : r.plan.floors) REQUIRE(f.items.empty());
     const Json written = planToJson(r.plan);
-    REQUIRE(written["version"] == 4);
+    REQUIRE(written["version"] == 6);
     REQUIRE(written["floors"][0]["items"].is_array());
     REQUIRE(written["floors"][0]["items"].empty());
     REQUIRE(written["floors"][1]["items"].empty());
@@ -454,7 +457,7 @@ TEST_CASE("items round trip and are written in schema order", "[core][json]") {
     const Json j = planToJson(plan);
     std::vector<std::string> keys;
     for (auto it = j["floors"][0]["items"][0].begin(); it != j["floors"][0]["items"][0].end(); ++it) keys.push_back(it.key());
-    REQUIRE(keys == std::vector<std::string>{"id", "asset", "room", "x", "y", "z", "rotation", "wall", "size"});
+    REQUIRE(keys == std::vector<std::string>{"id", "asset", "room", "x", "y", "z", "rotation", "wall", "size", "generator"});
     REQUIRE(j["floors"][0]["items"][0]["wall"].is_null());
     REQUIRE(j["floors"][0]["items"][1]["wall"] == "w3");
     const PlanRead r = planFromJson(Json::parse(j.dump()));
@@ -503,7 +506,7 @@ TEST_CASE("a version 1 plan upgrades with hinge start and swing right", "[core][
         REQUIRE(o.swing == WallSide::Right);
     }
     const Json written = planToJson(r.plan);
-    REQUIRE(written["version"] == 4);
+    REQUIRE(written["version"] == 6);
     REQUIRE(written["floors"][0]["openings"][0]["hinge"] == "start");
     REQUIRE(written["floors"][0]["openings"][0]["swing"] == "right");
 }
@@ -586,4 +589,122 @@ TEST_CASE("the wall side and hinge end names", "[core]") {
     REQUIRE_FALSE(hingeEndFromName("middle"));
     REQUIRE(otherEnd(HingeEnd::Start) == HingeEnd::End);
     REQUIRE(otherEnd(HingeEnd::End) == HingeEnd::Start);
+}
+
+namespace {
+
+// A plan with the full plan's asset items plus a generator item.
+Plan planWithGenerator()
+{
+    Plan plan = fullPlan();
+    Item g;
+    g.id = "i9";
+    g.x = 2.0;
+    g.y = 2.0;
+    g.size = ItemSize{0.3, 0.3, 2.7};
+    GeneratorUse use;
+    use.name = "column";
+    use.params = {{"diameter", GeneratorValue{0.3}},
+                  {"height", GeneratorValue{2.7}},
+                  {"material", GeneratorValue{std::string()}},
+                  {"plinth", GeneratorValue{true}},
+                  {"shape", GeneratorValue{std::string("round")}},
+                  {"sides", GeneratorValue{24.0}}};
+    g.generator = use;
+    plan.floors[0].items.push_back(g);
+    return plan;
+}
+
+Json jsonWithGenerator(const std::string& generator, const std::string& asset = "null")
+{
+    return Json::parse(R"({"format":"plynth-plan","version":6,"floors":[{"id":"f1","items":[{"id":"i1","asset":)" + asset +
+                       R"(,"x":1,"y":1,"size":{"width":1,"depth":1,"height":1},"generator":)" + generator + "}]}]}");
+}
+
+}
+
+TEST_CASE("a generator item round trips and writes null asset", "[core][json][generator]") {
+    const Plan plan = planWithGenerator();
+    plynth::test::requireOk(checkPlan(plan));
+    const Json j = planToJson(plan);
+    const Json& item = j["floors"][0]["items"][2];
+    REQUIRE(item["asset"].is_null());
+    REQUIRE(item["generator"]["name"] == "column");
+    REQUIRE(item["generator"]["params"]["material"].is_null());
+    REQUIRE(item["generator"]["params"]["plinth"] == true);
+    REQUIRE(item["generator"]["params"]["shape"] == "round");
+    REQUIRE(j["floors"][0]["items"][0]["generator"].is_null());
+    REQUIRE(j["floors"][0]["items"][0]["asset"].is_string());
+    const PlanRead r = planFromJson(Json::parse(j.dump()));
+    plynth::test::requireOk(r.status);
+    REQUIRE(r.plan == plan);
+    REQUIRE(isGeneratorItem(r.plan.floors[0].items[2]));
+    REQUIRE_FALSE(isGeneratorItem(r.plan.floors[0].items[0]));
+}
+
+TEST_CASE("generator params are written sorted", "[core][json][generator]") {
+    Plan plan = planWithGenerator();
+    auto& params = plan.floors[0].items[2].generator->params;
+    std::reverse(params.begin(), params.end());
+    const Json j = planToJson(plan);
+    std::vector<std::string> keys;
+    const Json& written = j["floors"][0]["items"][2]["generator"]["params"];
+    for (auto it = written.begin(); it != written.end(); ++it) keys.push_back(it.key());
+    REQUIRE(std::is_sorted(keys.begin(), keys.end()));
+    REQUIRE(keys.size() == 6);
+}
+
+TEST_CASE("generator values read as numbers, flags and text", "[core][json][generator]") {
+    const PlanRead r = planFromJson(jsonWithGenerator(R"({"name":"column","params":{"a":2,"b":0.5,"c":false,"d":"x","e":null}})"));
+    plynth::test::requireOk(r.status);
+    const auto& p = r.plan.floors[0].items[0].generator->params;
+    REQUIRE(p.size() == 5);
+    REQUIRE(std::get<double>(p[0].value) == 2.0);
+    REQUIRE(std::get<double>(p[1].value) == 0.5);
+    REQUIRE(std::get<bool>(p[2].value) == false);
+    REQUIRE(std::get<std::string>(p[3].value) == "x");
+    REQUIRE(std::get<std::string>(p[4].value).empty());
+}
+
+TEST_CASE("a generator item with both or neither is refused", "[core][json][generator]") {
+    const std::string use = R"({"name":"column","params":{}})";
+    expectPlanRefused(jsonWithGenerator(use, "\"sofa\""), ErrorCode::BadFile, "/floors/0/items/0/generator");
+    expectPlanRefused(jsonWithGenerator("null"), ErrorCode::BadFile, "/floors/0/items/0/asset");
+}
+
+TEST_CASE("a bad generator is refused with a pointer", "[core][json][generator]") {
+    expectPlanRefused(jsonWithGenerator(R"({"name":"Bad Name","params":{}})"), ErrorCode::BadFile,
+                      "/floors/0/items/0/generator/name");
+    expectPlanRefused(jsonWithGenerator(R"({"name":"column","params":{"Bad":1}})"), ErrorCode::BadFile,
+                      "/floors/0/items/0/generator/params/Bad");
+    expectPlanRefused(jsonWithGenerator(R"({"name":"column","params":{"a":[1]}})"), ErrorCode::BadFile,
+                      "/floors/0/items/0/generator/params/a");
+    expectPlanRefused(jsonWithGenerator(R"({"name":"column"})"), ErrorCode::BadFile, "/floors/0/items/0/generator/params");
+    expectPlanRefused(jsonWithGenerator(R"({"name":"column","params":{},"x":1})"), ErrorCode::BadFile,
+                      "/floors/0/items/0/generator/x");
+}
+
+TEST_CASE("a version 4 plan upgrades to 6 with no generators", "[core][json][migrate][generator]") {
+    for (const char* name : {"v4-full.json", "v4-minimal.json"}) {
+        INFO(name);
+        const std::string text = plynth::test::readTextFile(std::filesystem::path(PLYNTH_TEST_DATA_DIR) / name);
+        const PlanRead r = planFromJson(Json::parse(text));
+        plynth::test::requireOk(r.status);
+        REQUIRE(r.fileVersion == 4);
+        REQUIRE(r.migrated);
+        for (const Floor& f : r.plan.floors) {
+            for (const Item& it : f.items) REQUIRE_FALSE(it.generator.has_value());
+        }
+        REQUIRE(planToJson(r.plan)["version"] == 6);
+    }
+}
+
+TEST_CASE("a version 5 plan upgrades to 6", "[core][json][migrate][generator]") {
+    Json j = Json::parse(R"({"format":"plynth-plan","version":5,"floors":[{"id":"f1","items":[
+        {"id":"i1","asset":"sofa","x":1,"y":1,"size":{"width":1,"depth":1,"height":1}}]}]})");
+    const PlanRead r = planFromJson(j);
+    plynth::test::requireOk(r.status);
+    REQUIRE(r.fileVersion == 5);
+    REQUIRE(r.migrated);
+    REQUIRE_FALSE(r.plan.floors[0].items[0].generator.has_value());
 }
