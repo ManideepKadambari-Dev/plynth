@@ -3,6 +3,7 @@
 #include "BuildBar.h"
 #include "building/BuildController.h"
 #include "building/BuildPanel.h"
+#include "building/ExportController.h"
 #include "TitleBar.h"
 #include "StatusBar.h"
 #include "canvas/OverlayBuilder.h"
@@ -23,6 +24,7 @@
 #include "materials/MaterialImportScreen.h"
 #include "materials/MaterialRefresher.h"
 #include "panels/AssetsPanel.h"
+#include "panels/ExportPanel.h"
 #include "panels/MaterialsPanel.h"
 #include "panels/PropertiesPanel.h"
 #include "panels/RightPanel.h"
@@ -177,7 +179,8 @@ MainWindow::MainWindow(QWidget* parent)
     centreColumn->addWidget(centreStack_, 1);
     row->addWidget(centre, 1);
     buildPanel_ = new BuildPanel(work);
-    right_ = new RightPanel(panel_, assets_, materials_, buildPanel_, work);
+    exportPanel_ = new ExportPanel(work);
+    right_ = new RightPanel(panel_, assets_, materials_, buildPanel_, exportPanel_, work);
     row->addWidget(right_);
     work_ = work;
     pages_ = new QStackedWidget(central);
@@ -210,12 +213,25 @@ MainWindow::MainWindow(QWidget* parent)
         updateBuildUi();
     });
     connect(builder_, &BuildController::finished, this, &MainWindow::buildFinished);
+    exporter_ = new ExportController(this);
+    connect(exporter_, &ExportController::progress, this, [this](const QString& text, int percent) {
+        buildProgressText_ = text;
+        buildProgressPercent_ = percent;
+        updateBuildUi();
+    });
+    connect(exporter_, &ExportController::finished, this, &MainWindow::exportFinished);
     connect(buildBar_, &BuildBar::buildRequested, this, &MainWindow::startBuild);
-    connect(buildBar_, &BuildBar::cancelRequested, builder_, &BuildController::cancel);
+    connect(buildBar_, &BuildBar::cancelRequested, this, &MainWindow::cancelWork);
     connect(buildBar_, &BuildBar::problemsRequested, this, [this]() { right_->showTab(RightPanel::Tab::Build); });
     connect(buildPanel_, &BuildPanel::problemActivated, this, &MainWindow::showProblem);
     connect(buildPanel_, &BuildPanel::openFolderRequested, this, &MainWindow::openBuildFolder);
     connect(buildPanel_, &BuildPanel::openBlenderRequested, this, &MainWindow::openInBlender);
+    connect(exportPanel_, &ExportPanel::exportRequested, this, [this]() { startExport(true, false); });
+    connect(exportPanel_, &ExportPanel::checkRequested, this, [this]() { startExport(false, false); });
+    connect(exportPanel_, &ExportPanel::exportAnywayRequested, this, &MainWindow::exportAnyway);
+    connect(exportPanel_, &ExportPanel::buildRequested, this, &MainWindow::startBuild);
+    connect(exportPanel_, &ExportPanel::openFolderRequested, this, &MainWindow::openExportFolder);
+    connect(exportPanel_, &ExportPanel::findingActivated, this, &MainWindow::showProblem);
     connect(buildBar_, &BuildBar::viewRequested, this,
             [this](BuildBar::View view) { showCentreView(view == BuildBar::View::Scene3d); });
     connect(home_, &HomeScreen::newProjectRequested, this, &MainWindow::newProject);
@@ -323,6 +339,7 @@ MainWindow::MainWindow(QWidget* parent)
                                                                   : tr("Set a library folder first"));
         importMaterialsAction_->setEnabled(materialsOpen);
         addSamplesAction_->setEnabled(materialsOpen);
+        addShapesAction_->setEnabled(open);
         materialImport_->setLibraryOpen(materialsOpen);
         assets_->setMaterialImportEnabled(materialsOpen);
     };
@@ -570,7 +587,7 @@ void MainWindow::buildMenus()
     connect(buildAction_, &QAction::triggered, this, &MainWindow::startBuild);
     cancelBuildAction_ = addMenuAction(build, tr("&Cancel build"), tr("Stop the running build"),
                                        QStringLiteral("build-cancel-action"), {});
-    connect(cancelBuildAction_, &QAction::triggered, builder_, &BuildController::cancel);
+    connect(cancelBuildAction_, &QAction::triggered, this, &MainWindow::cancelWork);
     build->addSeparator();
     reportAction_ = addMenuAction(build, tr("Show build &report"), tr("Show the last build in the Build tab"),
                                   QStringLiteral("build-report"), {});
@@ -582,6 +599,21 @@ void MainWindow::buildMenus()
                                        tr("Open the built Blender file in Blender"),
                                        QStringLiteral("build-open-blender-action"), {});
     connect(openBlenderAction_, &QAction::triggered, this, &MainWindow::openInBlender);
+    build->addSeparator();
+    exportAction_ = addMenuAction(build, tr("&Export"), tr("Write the FBX and textures for Unreal (Ctrl+E)"),
+                                  QStringLiteral("export-run-action"), {QKeySequence(Qt::CTRL | Qt::Key_E)});
+    connect(exportAction_, &QAction::triggered, this, [this]() { startExport(true, false); });
+    checkExportAction_ = addMenuAction(build, tr("C&heck export"), tr("Run the quality checks and write nothing (Ctrl+Shift+E)"),
+                                       QStringLiteral("export-check-action"),
+                                       {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E)});
+    connect(checkExportAction_, &QAction::triggered, this, [this]() { startExport(false, false); });
+    exportAnywayAction_ = addMenuAction(build, tr("Export &anyway..."),
+                                        tr("Export with the failed checks of the last export left as they are. Asks first"),
+                                        QStringLiteral("export-anyway-action"), {});
+    connect(exportAnywayAction_, &QAction::triggered, this, &MainWindow::exportAnyway);
+    exportFolderAction_ = addMenuAction(build, tr("Open e&xport folder"), tr("Open the export folder of the project in Explorer"),
+                                        QStringLiteral("export-open-folder-action"), {});
+    connect(exportFolderAction_, &QAction::triggered, this, &MainWindow::openExportFolder);
 
     QAction* setupAction = addMenuAction(titleBar_->helpMenu(), tr("&Setup check"),
                                          tr("Check that Blender, the library and the projects folder are ready"),
@@ -618,6 +650,11 @@ void MainWindow::buildCatalogMenu()
                                            tr("Read the materials folder again and update the index"),
                                            QStringLiteral("materials-rescan-action"), {});
     menu->addSeparator();
+    addShapesAction_ = addMenuAction(menu, tr("Add the sample &shapes"),
+                                     tr("Copy the sample opening shapes, such as the keyhole, into the library"),
+                                     QStringLiteral("catalog-sample-shapes"), {});
+    connect(addShapesAction_, &QAction::triggered, this,
+            [this]() { statusBar_->showMessage(host_->addSampleShapes(), false); });
     QAction* rooms = addMenuAction(menu, tr("Room &types and categories..."),
                                    tr("Edit the room types and the categories of the catalog"),
                                    QStringLiteral("catalog-room-types"), {});
@@ -855,7 +892,7 @@ void MainWindow::setPreviewCamera(const QString& name)
 // For checks only: true when the 3D page and the asset previews have drawn their models, or have none.
 bool MainWindow::previewPictureReady() const
 {
-    return !builder_->running() && !overlayRenderer_->busy() && (centreStack_->currentWidget() != preview_ || preview_->pictureReady()) &&
+    return !builder_->running() && !exporter_->running() && !overlayRenderer_->busy() && (centreStack_->currentWidget() != preview_ || preview_->pictureReady()) &&
            assets_->pictureReady() &&
            tools_->pickerPreviewReady();
 }
@@ -915,6 +952,7 @@ void MainWindow::onDocumentChanged(unsigned changes)
     panel_->refresh();
     if (changes & plynth::Change::Folder) {
         refreshPreview();
+        loadExportReport();
         recoveryPending_ = false;
         terminal_->setWorkingFolder(doc_.hasFolder() ? QString::fromStdWString(doc_.folder().wstring())
                                                      : host_->projectsFolder());

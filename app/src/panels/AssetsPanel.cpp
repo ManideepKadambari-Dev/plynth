@@ -138,7 +138,7 @@ public:
         }
         const bool selected = option.state & QStyle::State_Selected;
         p->setBrush(Qt::NoBrush);
-        p->setPen(QPen(selected ? t.signalBlue() : t.line(), selected ? 2 : 1));
+        p->setPen(QPen(selected ? t.signalAmber() : t.line(), selected ? 2 : 1));
         p->drawRoundedRect(QRectF(image).adjusted(0.5, 0.5, -0.5, -0.5), t.radius(), t.radius());
 
         const QRect nameRect(cell.left() + t.unit(), image.bottom() + t.unit() * 2, cell.width() - t.unit() * 2,

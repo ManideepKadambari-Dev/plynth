@@ -20,7 +20,8 @@
       "fills": 7,
       "rooms": 5,
       "items": 4,
-      "materials": 6
+      "materials": 6,
+      "collision": 31
     },
     "steps": [
       {

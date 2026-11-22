@@ -51,6 +51,20 @@
     "triangles": { "type": "integer", "minimum": 0 },
     "objects": { "type": "integer", "minimum": 0 },
     "materials": { "type": "array", "items": { "type": "string" } },
+    "material_maps": {
+      "description": "The image maps of each material, one per entry of materials, in the same order (milestone 10). Missing in files written before; such an asset is cleaned once more when it is refreshed. maps are full size under textures/maps/; preview_maps are what asset.fbx uses (scaled copies under textures/preview/ for images larger than 1024 px).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "maps", "preview_maps"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "maps": { "$ref": "#/definitions/maps" },
+          "preview_maps": { "$ref": "#/definitions/maps" }
+        }
+      }
+    },
     "textures": {
       "description": "Paths relative to the item folder, for example textures/wood.png.",
       "type": "array",
@@ -100,6 +114,30 @@
     }
   },
   "definitions": {
+    "map": {
+      "description": "from: file (detail is the source image's name), value (detail is the number), baked (rendered with Eevee), none (no map, file null).",
+      "type": "object",
+      "required": ["file", "from", "detail"],
+      "additionalProperties": false,
+      "properties": {
+        "file": { "oneOf": [{ "type": "string", "pattern": "^textures/(maps|preview)/[A-Za-z0-9_./-]+\\.(png|jpg|jpeg)$" }, { "type": "null" }] },
+        "from": { "enum": ["file", "value", "baked", "none"] },
+        "detail": { "type": "string" }
+      }
+    },
+    "maps": {
+      "type": "object",
+      "required": ["base_color", "normal", "roughness", "metallic", "opacity", "occlusion"],
+      "additionalProperties": false,
+      "properties": {
+        "base_color": { "$ref": "#/definitions/map" },
+        "normal": { "$ref": "#/definitions/map" },
+        "roughness": { "$ref": "#/definitions/map" },
+        "metallic": { "$ref": "#/definitions/map" },
+        "opacity": { "$ref": "#/definitions/map" },
+        "occlusion": { "$ref": "#/definitions/map" }
+      }
+    },
     "catalogId": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 64 },
     "time": {
       "description": "UTC, ISO 8601 with whole seconds, for example 2026-11-21T10:00:00Z.",

@@ -34,7 +34,7 @@
         "required": ["code", "message"],
         "additionalProperties": false,
         "properties": {
-          "code": { "enum": ["high_polycount", "scale_suspicious", "missing_texture", "removed_objects", "unsupported_object", "fbx_failed", "ambiguous_map", "unused_image", "map_size_mismatch", "visible_seams", "low_resolution"] },
+          "code": { "enum": ["high_polycount", "scale_suspicious", "missing_texture", "removed_objects", "unsupported_object", "fbx_failed", "ambiguous_map", "unused_image", "map_size_mismatch", "visible_seams", "low_resolution", "material_approximated"] },
           "message": { "type": "string", "minLength": 1 }
         }
       }
@@ -67,6 +67,10 @@
     {
       "if": { "properties": { "ok": { "const": true }, "task": { "const": "cleanup_material" } } },
       "then": { "properties": { "output": { "$ref": "#/definitions/cleanupMaterialOutput" } } }
+    },
+    {
+      "if": { "properties": { "ok": { "const": true }, "task": { "const": "export" } } },
+      "then": { "properties": { "output": { "$ref": "#/definitions/exportOutput" } } }
     }
   ],
   "definitions": {
@@ -135,9 +139,14 @@
     },
     "cleanupOutput": {
       "type": "object",
-      "required": ["blend_file", "fbx_file", "picked_file", "size", "triangles", "objects", "materials", "textures", "missing_textures", "thumbnail"],
+      "required": ["blend_file", "fbx_file", "picked_file", "size", "triangles", "objects", "materials", "textures", "missing_textures", "material_maps", "thumbnail"],
       "additionalProperties": false,
       "properties": {
+        "material_maps": {
+          "description": "The image maps of each material, one per entry of materials, in the same order (core/include/plynth/core/catalog/AssetJobs.h).",
+          "type": "array",
+          "items": { "$ref": "#/definitions/assetMaterialMaps" }
+        },
         "blend_file": { "const": "asset.blend" },
         "fbx_file": { "description": "asset.fbx for the live preview, or null when its export failed (warning fbx_failed).", "enum": ["asset.fbx", null] },
         "picked_file": { "description": "The model used from inside a zip, relative to the zip. Null for other sources.", "type": ["string", "null"] },
@@ -190,7 +199,7 @@
         "triangles": { "type": "integer", "minimum": 0 },
         "counts": {
           "type": "object",
-          "required": ["wall_solids", "openings_cut", "fills", "rooms", "items", "materials"],
+          "required": ["wall_solids", "openings_cut", "fills", "rooms", "items", "materials", "collision"],
           "additionalProperties": false,
           "properties": {
             "wall_solids": { "type": "integer", "minimum": 0 },
@@ -198,7 +207,8 @@
             "fills": { "type": "integer", "minimum": 0 },
             "rooms": { "type": "integer", "minimum": 0 },
             "items": { "type": "integer", "minimum": 0 },
-            "materials": { "description": "Blender materials made for built surfaces, from the library and neutral.", "type": "integer", "minimum": 0 }
+            "materials": { "description": "Blender materials made for built surfaces, one per slot.", "type": "integer", "minimum": 0 },
+            "collision": { "description": "UCX_ collision meshes made: pieces and item hulls.", "type": "integer", "minimum": 0 }
           }
         },
         "steps": {
@@ -241,6 +251,119 @@
         { "$ref": "#/definitions/materialMap" },
         { "properties": { "from": { "enum": ["file", "value", "baked"] } } }
       ]
+    },
+    "assetMapFile": {
+      "description": "Relative to the asset's item folder: textures/maps/<key>/<channel>.<ext>, or a scaled copy textures/preview/<name>.<ext>.",
+      "type": "string",
+      "pattern": "^textures/(maps|preview)/[A-Za-z0-9_./-]+\\.(png|jpg|jpeg)$"
+    },
+    "assetMap": {
+      "type": "object",
+      "required": ["file", "from", "detail"],
+      "additionalProperties": false,
+      "properties": {
+        "file": { "oneOf": [{ "$ref": "#/definitions/assetMapFile" }, { "type": "null" }] },
+        "from": { "enum": ["file", "value", "baked", "none"] },
+        "detail": { "type": "string" }
+      },
+      "if": { "properties": { "from": { "const": "none" } } },
+      "then": { "properties": { "file": { "type": "null" } } },
+      "else": { "properties": { "file": { "$ref": "#/definitions/assetMapFile" } } }
+    },
+    "assetMaps": {
+      "type": "object",
+      "required": ["base_color", "normal", "roughness", "metallic", "opacity", "occlusion"],
+      "additionalProperties": false,
+      "properties": {
+        "base_color": { "allOf": [{ "$ref": "#/definitions/assetMap" }, { "properties": { "from": { "enum": ["file", "value", "baked"] } } }] },
+        "normal": { "allOf": [{ "$ref": "#/definitions/assetMap" }, { "properties": { "from": { "enum": ["file", "value", "baked"] } } }] },
+        "roughness": { "allOf": [{ "$ref": "#/definitions/assetMap" }, { "properties": { "from": { "enum": ["file", "value", "baked"] } } }] },
+        "metallic": { "allOf": [{ "$ref": "#/definitions/assetMap" }, { "properties": { "from": { "enum": ["file", "value", "baked"] } } }] },
+        "opacity": { "$ref": "#/definitions/assetMap" },
+        "occlusion": { "$ref": "#/definitions/assetMap" }
+      }
+    },
+    "assetMaterialMaps": {
+      "description": "maps are the full size files under textures/maps/; preview_maps are what asset.fbx uses: the same file when it is no larger than 1024 px on a side, otherwise its scaled copy under textures/preview/.",
+      "type": "object",
+      "required": ["name", "maps", "preview_maps"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "maps": { "$ref": "#/definitions/assetMaps" },
+        "preview_maps": { "$ref": "#/definitions/assetMaps" }
+      }
+    },
+    "qualityCheck": {
+      "description": "One quality check of the export (core/include/plynth/core/ExportJob.h). fail blocks the export unless it is forced.",
+      "type": "object",
+      "required": ["id", "name", "phase", "status", "message", "findings"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "name": { "type": "string", "minLength": 1 },
+        "phase": { "enum": ["scene", "file"] },
+        "status": { "enum": ["pass", "warning", "fail", "skipped"] },
+        "message": { "type": "string", "minLength": 1 },
+        "findings": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "required": ["object", "plan_id", "message"],
+            "additionalProperties": false,
+            "properties": {
+              "object": { "description": "The exported object or slot, or null.", "type": ["string", "null"] },
+              "plan_id": { "description": "The plan id the app can select, or null.", "type": ["string", "null"] },
+              "message": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "exportOutput": {
+      "type": "object",
+      "required": ["written", "files", "textures", "objects", "triangles", "collision_objects", "checks", "steps"],
+      "additionalProperties": false,
+      "properties": {
+        "written": { "description": "The group files and Textures/ are in the job's output_folder.", "type": "boolean" },
+        "files": {
+          "description": "Empty when written is false.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["group", "file", "objects", "triangles"],
+            "additionalProperties": false,
+            "properties": {
+              "group": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+              "file": { "type": "string", "pattern": "^[A-Za-z0-9_-]+\\.fbx$" },
+              "objects": { "type": "integer", "minimum": 0 },
+              "triangles": { "type": "integer", "minimum": 0 }
+            }
+          }
+        },
+        "textures": {
+          "description": "File names inside Textures/. Empty when written is false.",
+          "type": "array",
+          "items": { "type": "string", "pattern": "^T_[A-Za-z0-9_]+\\.(png|jpg|jpeg|tga|tif|tiff|bmp|exr)$" }
+        },
+        "objects": { "description": "Exported meshes, collision included.", "type": "integer", "minimum": 0 },
+        "triangles": { "type": "integer", "minimum": 0 },
+        "collision_objects": { "type": "integer", "minimum": 0 },
+        "checks": { "type": "array", "items": { "$ref": "#/definitions/qualityCheck" } },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["step", "ms"],
+            "additionalProperties": false,
+            "properties": {
+              "step": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+              "ms": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
     },
     "cleanupMaterialOutput": {
       "type": "object",

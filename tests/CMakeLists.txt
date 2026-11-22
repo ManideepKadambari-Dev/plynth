@@ -52,6 +52,11 @@ add_executable(plynth_core_tests
     core/BuildGeometryTests.cpp
     core/BuildJobTests.cpp
     core/BuildTests.cpp
+    core/CollisionTests.cpp
+    core/MaterialSlotsTests.cpp
+    core/ExportTests.cpp
+    core/ExportJobTests.cpp
+    core/BuildAssetMapsTests.cpp
     core/SnappingTests.cpp
     core/RoomTypesTests.cpp
     core/WallCommandTests.cpp
@@ -77,9 +82,18 @@ target_compile_definitions(plynth_core_tests PRIVATE
     PLYNTH_SAMPLES_DIR="${PROJECT_SOURCE_DIR}/samples"
     PLYNTH_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/core/data")
 
+if(PLYNTH_DEV_SAMPLES STREQUAL "ON")
+    set(PLYNTH_TEST_DEV_SAMPLES 1)
+elseif(PLYNTH_DEV_SAMPLES STREQUAL "OFF")
+    set(PLYNTH_TEST_DEV_SAMPLES 0)
+else()
+    set(PLYNTH_TEST_DEV_SAMPLES "$<CONFIG:Debug>")
+endif()
+target_compile_definitions(plynth_core_tests PRIVATE PLYNTH_DEV_SAMPLES=${PLYNTH_TEST_DEV_SAMPLES})
+
 add_dependencies(plynth_core_tests plynth_echo_lines plynth_fake_blender)
 target_compile_definitions(plynth_core_tests PRIVATE
     PLYNTH_ECHO_LINES="$<TARGET_FILE:plynth_echo_lines>"
     PLYNTH_FAKE_BLENDER="$<TARGET_FILE:plynth_fake_blender>")
 
-catch_discover_tests(plynth_core_tests)
+catch_discover_tests(plynth_core_tests DISCOVERY_MODE PRE_TEST)

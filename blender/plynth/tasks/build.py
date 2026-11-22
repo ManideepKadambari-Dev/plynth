@@ -16,7 +16,7 @@ def check_params(params):
     for key in ("settings", "plan"):
         if not isinstance(params.get(key), dict):
             raise WorkerError("bad_job", "The job has no %s." % key)
-    for key in ("assets", "floors"):
+    for key in ("assets", "floors", "slots"):
         if not isinstance(params.get(key), list):
             raise WorkerError("bad_job", "The job has no %s list." % key)
 
@@ -27,7 +27,8 @@ def run(ctx):
     registry.discover(building_package)
     steps = sorted(registry.BUILD_STEPS.all(), key=lambda pair: pair[1].order)
     ctx.state["problems"] = []
-    ctx.state["counts"] = {"wall_solids": 0, "openings_cut": 0, "fills": 0, "rooms": 0, "items": 0, "materials": 0}
+    ctx.state["counts"] = {"wall_solids": 0, "openings_cut": 0, "fills": 0, "rooms": 0, "items": 0, "materials": 0,
+                            "collision": 0}
     timings = []
     for index, (step_id, step) in enumerate(steps, start=1):
         progress(step_id, index, len(steps), step.message)

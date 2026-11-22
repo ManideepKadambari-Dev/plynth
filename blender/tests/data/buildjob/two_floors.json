@@ -57,25 +57,29 @@
          "wall": "w4",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "w3",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "w2",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "w1",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         }
        ]
       },
@@ -104,29 +108,34 @@
           "wall": "w1",
           "side": "left",
           "room": "r1",
-          "material": null
+          "material": null,
+          "slot": "Living_Wall"
          },
          {
           "wall": "w2",
           "side": "left",
           "room": "r1",
-          "material": null
+          "material": null,
+          "slot": "Living_Wall"
          },
          {
           "wall": "w3",
           "side": "left",
           "room": "r1",
-          "material": null
+          "material": null,
+          "slot": "Living_Wall"
          },
          {
           "wall": "w4",
           "side": "left",
           "room": "r1",
-          "material": null
+          "material": null,
+          "slot": "Living_Wall"
          }
         ]
        }
-      ]
+      ],
+      "top_slot": "Wall_Top"
      }
     ],
     "openings": [],
@@ -161,10 +170,13 @@
        }
       ],
       "floor_material": null,
-      "ceiling_material": null
+      "ceiling_material": null,
+      "floor_slot": "Living_Floor",
+      "ceiling_slot": "Living_Ceiling"
      }
     ],
-    "items": []
+    "items": [],
+    "collision": []
    },
    {
     "id": "f2",
@@ -198,25 +210,29 @@
          "wall": "w4",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "w3",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "w2",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         },
         {
          "wall": "w1",
          "side": "right",
          "room": null,
-         "material": null
+         "material": null,
+         "slot": "Exterior_Wall"
         }
        ]
       },
@@ -245,29 +261,34 @@
           "wall": "w1",
           "side": "left",
           "room": "r1",
-          "material": null
+          "material": null,
+          "slot": "Living_Wall"
          },
          {
           "wall": "w2",
           "side": "left",
           "room": "r1",
-          "material": null
+          "material": null,
+          "slot": "Living_Wall"
          },
          {
           "wall": "w3",
           "side": "left",
           "room": "r1",
-          "material": null
+          "material": null,
+          "slot": "Living_Wall"
          },
          {
           "wall": "w4",
           "side": "left",
           "room": "r1",
-          "material": null
+          "material": null,
+          "slot": "Living_Wall"
          }
         ]
        }
-      ]
+      ],
+      "top_slot": "Wall_Top"
      }
     ],
     "openings": [],
@@ -302,10 +323,42 @@
        }
       ],
       "floor_material": null,
-      "ceiling_material": null
+      "ceiling_material": null,
+      "floor_slot": "Living_Floor",
+      "ceiling_slot": "Living_Ceiling"
      }
     ],
-    "items": []
+    "items": [],
+    "collision": []
+   }
+  ],
+  "preview_textures_folder": "preview_textures",
+  "preview_texture_size": 1024,
+  "slots": [
+   {
+    "name": "Exterior_Wall",
+    "material": null,
+    "surface": "Wall_Outside"
+   },
+   {
+    "name": "Living_Ceiling",
+    "material": null,
+    "surface": "Ceiling"
+   },
+   {
+    "name": "Living_Floor",
+    "material": null,
+    "surface": "Floor"
+   },
+   {
+    "name": "Living_Wall",
+    "material": null,
+    "surface": "Wall_Inside"
+   },
+   {
+    "name": "Wall_Top",
+    "material": null,
+    "surface": "Wall_Top"
    }
   ]
  }

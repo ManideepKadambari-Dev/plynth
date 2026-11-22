@@ -26,6 +26,7 @@ enum class ErrorCode {
     BlenderFailed,      // "blender_failed": Blender ran but the job failed, crashed or ran out of time
     Cancelled,          // "cancelled": the user or the caller stopped the work
     DatabaseError,      // "database_error": a catalog index could not be read or written
+    QualityFailed,      // "quality_failed": a quality check failed, so the export was not written (Export.h)
 };
 
 // The outcome of an operation: ok, or an error code with one plain sentence saying why.

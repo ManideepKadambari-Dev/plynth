@@ -5,6 +5,7 @@
 #include <plynth/core/Build.h>
 #include <plynth/core/Document.h>
 #include <plynth/core/EditSession.h>
+#include <plynth/core/Export.h>
 #include <plynth/core/ProjectFiles.h>
 
 #include <QImage>
@@ -36,6 +37,8 @@ class BuildBar;
 class BuildController;
 class BuildPanel;
 class DocumentBridge;
+class ExportController;
+class ExportPanel;
 class HomeScreen;
 class ImportQueue;
 class ImportQueueView;
@@ -154,6 +157,10 @@ public:
     void setOverlay3d(bool on);
     // For checks only: shows the Build tab.
     void showBuildTab();
+    // Starts an export of the last build, or only its quality checks when write is false. Force goes past failed checks.
+    void startExport(bool write, bool force);
+    // For checks only: shows the Export tab.
+    void showExportTab();
     // For checks only: shows the 3D page ("3d") or the plan ("plan").
     void showView(const QString& name);
     // For checks only: sets the camera of the 3D page: "three-quarter" or "top".
@@ -212,6 +219,13 @@ private:
     void openBuildFolder();
     void openInBlender();
     bool buildBlocked(QString* reason) const;
+    QString exportNotice(bool* offerBuild) const;
+    void exportFinished(const plynth::ExportReport& report);
+    void exportAnyway();
+    void loadExportReport();
+    void updateExportUi();
+    void openExportFolder();
+    void cancelWork();
     void showCentreView(bool scene3d);
     void refreshSelection();
     void deleteSelection();
@@ -266,6 +280,14 @@ private:
     QAction* overlay3dAction_ = nullptr;
     QAction* problemsOnPlanAction_ = nullptr;
     BuildPanel* buildPanel_ = nullptr;
+    ExportController* exporter_ = nullptr;
+    ExportPanel* exportPanel_ = nullptr;
+    QAction* exportAction_ = nullptr;
+    QAction* checkExportAction_ = nullptr;
+    QAction* exportAnywayAction_ = nullptr;
+    QAction* exportFolderAction_ = nullptr;
+    std::optional<plynth::ExportReport> exportReport_;
+    QString exportError_;
     QAction* buildAction_ = nullptr;
     QAction* cancelBuildAction_ = nullptr;
     QAction* reportAction_ = nullptr;
@@ -285,6 +307,7 @@ private:
     QAction* rescanMaterialsAction_ = nullptr;
     QAction* importMaterialsAction_ = nullptr;
     QAction* addSamplesAction_ = nullptr;
+    QAction* addShapesAction_ = nullptr;
     ImportQueue* queue_ = nullptr;
     ImportQueueView* queueView_ = nullptr;
     LibraryWatcher* libraryWatcher_ = nullptr;

@@ -2,9 +2,9 @@
 
 #include "plynth/core/Items.h"
 #include "plynth/core/Materials.h"
-#include "plynth/core/Materials.h"
 #include "plynth/core/ProjectFiles.h"
 #include "plynth/core/ProjectJson.h"
+#include "plynth/core/catalog/AssetInfo.h"
 
 #include <algorithm>
 #include <map>
@@ -103,6 +103,17 @@ std::string edgeMaterial(const WallEdge& edge, const FloorMaterials* materials)
     return {};
 }
 
+// The slot of a ring edge: the wall's face slot for a side face, the wall top slot for an end face.
+std::string edgeSlot(const WallEdge& edge, const FloorMaterials* materials)
+{
+    if (!materials) return std::string(edge.side ? kExteriorWallSlot : kWallTopSlot);
+    if (!edge.side) return materials->wallTopSlot;
+    for (const WallFaceMaterial& face : materials->wallFaces) {
+        if (face.wall == edge.wall && face.room == edge.room) return face.slot;
+    }
+    return std::string(kExteriorWallSlot);
+}
+
 // A wall solid ring.
 Json ringJson(const WallRing& ring, const FloorMaterials* materials)
 {
@@ -113,6 +124,7 @@ Json ringJson(const WallRing& ring, const FloorMaterials* materials)
         edge["side"] = e.side ? Json(std::string(wallSideName(*e.side))) : Json(nullptr);
         edge["room"] = textOrNull(e.room);
         edge["material"] = textOrNull(edgeMaterial(e, materials));
+        edge["slot"] = edgeSlot(e, materials);
         edges.push_back(std::move(edge));
     }
     Json json = Json::object();
@@ -155,6 +167,17 @@ Json openingJson(const OpeningBuild& o, const OpeningMaterialIds& ids)
     materials["glass"] = textOrNull(ids.glass);
     materials["handle"] = textOrNull(ids.handle);
     json["materials"] = std::move(materials);
+    const auto slot = [](const std::string& name, std::string_view fallback) {
+        return name.empty() ? std::string(fallback) : name;
+    };
+    Json slots = Json::object();
+    slots["reveal"] = slot(ids.revealSlot, kExteriorWallSlot);
+    slots["threshold"] = slot(ids.thresholdSlot, kThresholdSlot);
+    slots["door"] = slot(ids.doorSlot, kDoorSlot);
+    slots["frame"] = slot(ids.frameSlot, kFrameSlot);
+    slots["glass"] = slot(ids.glassSlot, kGlassSlot);
+    slots["handle"] = slot(ids.handleSlot, kHandleSlot);
+    json["slots"] = std::move(slots);
     return json;
 }
 
@@ -178,6 +201,8 @@ Json roomJson(const RoomBuild& r, const RoomMaterialIds& ids)
     json["ceiling_z"] = r.ceilingZ;
     json["floor_material"] = textOrNull(ids.floor);
     json["ceiling_material"] = textOrNull(ids.ceiling);
+    json["floor_slot"] = ids.floorSlot.empty() ? std::string(kNoRoomTypeLabel) + "_Floor" : ids.floorSlot;
+    json["ceiling_slot"] = ids.ceilingSlot.empty() ? std::string(kNoRoomTypeLabel) + "_Ceiling" : ids.ceilingSlot;
     json["polygons"] = std::move(polygons);
     return json;
 }
@@ -199,8 +224,33 @@ Json itemJson(const ItemBuild& i)
     return json;
 }
 
+// The collision shapes of one floor.
+Json collisionJson(const std::vector<CollisionShape>* shapes)
+{
+    Json list = Json::array();
+    if (!shapes) return list;
+    for (const CollisionShape& shape : *shapes) {
+        Json pieces = Json::array();
+        for (const CollisionPiece& piece : shape.pieces) {
+            Json p = Json::object();
+            p["outline"] = xyList(piece.outline);
+            p["bottom"] = piece.bottom;
+            p["top"] = piece.top;
+            pieces.push_back(std::move(p));
+        }
+        Json target = Json::object();
+        target["kind"] = std::string(collisionTargetKindName(shape.kind));
+        target["id"] = shape.id;
+        Json entry = Json::object();
+        entry["target"] = std::move(target);
+        entry["pieces"] = std::move(pieces);
+        list.push_back(std::move(entry));
+    }
+    return list;
+}
+
 // One floor as the worker reads it.
-Json floorJson(const FloorBuild& f, const FloorMaterials* materials)
+Json floorJson(const FloorBuild& f, const FloorMaterials* materials, const std::vector<CollisionShape>* collision)
 {
     Json solids = Json::array();
     for (const WallSolid& s : f.wallSolids) {
@@ -209,6 +259,7 @@ Json floorJson(const FloorBuild& f, const FloorMaterials* materials)
         Json solid = Json::object();
         solid["height"] = s.height;
         solid["top_material"] = textOrNull(materials ? materials->wallTop : std::string());
+        solid["top_slot"] = materials ? materials->wallTopSlot : std::string(kWallTopSlot);
         solid["outline"] = ringJson(s.outline, materials);
         solid["holes"] = std::move(holes);
         solids.push_back(std::move(solid));
@@ -234,6 +285,7 @@ Json floorJson(const FloorBuild& f, const FloorMaterials* materials)
     json["openings"] = std::move(openings);
     json["rooms"] = std::move(rooms);
     json["items"] = std::move(items);
+    json["collision"] = collisionJson(collision);
     return json;
 }
 
@@ -315,12 +367,62 @@ private:
     bool planUsesMaterial_ = false;
 };
 
-// The materials of every built surface of one floor.
-FloorMaterials floorMaterials(const Project& project, const Floor& floor, const FloorBuild& build, MaterialChecker& checker)
+// Works out slot names. Every surface first registers its base name, material and neutral surface; a base name
+// that shows more than one material then gets the material added to each use (MaterialSlots.h).
+class SlotNamer {
+public:
+    // Registers a use and returns its base name for now.
+    std::string use(std::string base, const std::string& material, std::string_view surface)
+    {
+        uses_[base].emplace(material, std::string(surface));
+        return base;
+    }
+
+    // The final name of a base with its material. A base that was never registered (a part the opening does
+    // not have) keeps its name.
+    std::string name(const std::string& base, const std::string& material) const
+    {
+        const auto found = uses_.find(base);
+        if (found == uses_.end() || found->second.size() < 2) return base;
+        return slotNameWithMaterial(base, material);
+    }
+
+    // Every registered slot by final name.
+    std::vector<BuildSlot> table() const
+    {
+        std::vector<BuildSlot> out;
+        for (const auto& [base, materials] : uses_) {
+            for (const auto& [material, surface] : materials) {
+                out.push_back({materials.size() < 2 ? base : slotNameWithMaterial(base, material), material, surface});
+            }
+        }
+        return out;
+    }
+
+private:
+    std::map<std::string, std::map<std::string, std::string>> uses_;
+};
+
+// The base slot of the wall faces that look into a room, or into no room.
+std::string wallFaceBase(const Room* room)
+{
+    return room ? roomSlotLabel(*room) + "_Wall" : std::string(kExteriorWallSlot);
+}
+
+// The neutral surface of those faces.
+std::string_view wallFaceSurface(const Room* room)
+{
+    return room ? "Wall_Inside" : "Wall_Outside";
+}
+
+// The materials and slots of every built surface of one floor.
+FloorMaterials floorMaterials(const Project& project, const Floor& floor, const FloorBuild& build, MaterialChecker& checker,
+                              SlotNamer& namer)
 {
     FloorMaterials out;
     out.floor = floor.id;
     out.wallTop = checker.use(surfaceDefaultMaterial(project, Surface::WallTop), floor.id);
+    out.wallTopSlot = namer.use(std::string(kWallTopSlot), out.wallTop, "Wall_Top");
 
     std::set<std::pair<Id, Id>> faces;
     for (const WallSolid& solid : build.wallSolids) {
@@ -336,7 +438,9 @@ FloorMaterials floorMaterials(const Project& project, const Floor& floor, const 
         const Wall* wall = findWall(floor, wallId);
         if (!wall) continue;
         const Room* room = roomId.empty() ? nullptr : findRoom(floor, roomId);
-        out.wallFaces.push_back({wallId, roomId, checker.use(wallFaceMaterial(project, *wall, room), floor.id)});
+        std::string material = checker.use(wallFaceMaterial(project, *wall, room), floor.id);
+        std::string slot = namer.use(wallFaceBase(room), material, wallFaceSurface(room));
+        out.wallFaces.push_back({wallId, roomId, std::move(material), std::move(slot)});
     }
 
     for (const OpeningBuild& built : build.openings) {
@@ -345,14 +449,34 @@ FloorMaterials floorMaterials(const Project& project, const Floor& floor, const 
         ids.opening = built.id;
         if (opening) {
             const OpeningMaterials m = openingMaterials(project, floor, *opening);
+            const OpeningRooms sides = openingRooms(floor, *opening);
+            const Room* left = sides.left ? findRoom(floor, *sides.left) : nullptr;
+            const Room* right = sides.right ? findRoom(floor, *sides.right) : nullptr;
+            const Room* revealRoom = right ? right : left;
             ids.reveal = checker.use(m.reveal, floor.id);
-            if (built.sill == 0.0) ids.threshold = checker.use(m.threshold, floor.id);
+            ids.revealSlot = namer.use(wallFaceBase(revealRoom), ids.reveal, wallFaceSurface(revealRoom));
+            if (built.sill == 0.0) {
+                ids.threshold = checker.use(m.threshold, floor.id);
+                const Room* swingInto = opening->swing == WallSide::Right ? right : left;
+                const Room* other = opening->swing == WallSide::Right ? left : right;
+                const Room* follows = swingInto ? swingInto : other;
+                if (follows) ids.thresholdSlot = namer.use(roomSlotLabel(*follows) + "_Floor", ids.threshold, "Floor");
+                else ids.thresholdSlot = namer.use(std::string(kThresholdSlot), ids.threshold, "Threshold");
+            }
             if (built.type == OpeningType::Door) {
                 ids.door = checker.use(m.door, floor.id);
                 ids.handle = checker.use(m.handle, floor.id);
+                ids.doorSlot = namer.use(std::string(kDoorSlot), ids.door, "Door");
+                ids.handleSlot = namer.use(std::string(kHandleSlot), ids.handle, "Handle");
             }
-            if (built.type == OpeningType::Window) ids.glass = checker.use(m.glass, floor.id);
-            if (built.type != OpeningType::Plain) ids.frame = checker.use(m.frame, floor.id);
+            if (built.type == OpeningType::Window) {
+                ids.glass = checker.use(m.glass, floor.id);
+                ids.glassSlot = namer.use(std::string(kGlassSlot), ids.glass, "Glass");
+            }
+            if (built.type != OpeningType::Plain) {
+                ids.frame = checker.use(m.frame, floor.id);
+                ids.frameSlot = namer.use(std::string(kFrameSlot), ids.frame, "Frame");
+            }
         }
         out.openings.push_back(std::move(ids));
     }
@@ -364,10 +488,44 @@ FloorMaterials floorMaterials(const Project& project, const Floor& floor, const 
         if (room) {
             ids.floor = checker.use(roomFloorMaterial(project, *room), floor.id);
             ids.ceiling = checker.use(roomCeilingMaterial(project, *room), floor.id);
+            ids.floorSlot = namer.use(roomSlotLabel(*room) + "_Floor", ids.floor, "Floor");
+            ids.ceilingSlot = namer.use(roomSlotLabel(*room) + "_Ceiling", ids.ceiling, "Ceiling");
         }
         out.rooms.push_back(std::move(ids));
     }
     return out;
+}
+
+// Gives every slot field its final name and fills the plan's slot table. A part an opening or room does not
+// have gets a fixed name and a neutral entry of its own.
+void finishSlots(BuildPlan& plan, const SlotNamer& namer)
+{
+    std::vector<BuildSlot> table = namer.table();
+    std::set<std::string> known;
+    for (const BuildSlot& slot : table) known.insert(slot.name);
+    const auto fix = [&](std::string& slot, std::string_view fallback, const std::string& material, std::string_view surface) {
+        if (slot.empty()) slot = std::string(fallback);
+        slot = namer.name(slot, material);
+        if (known.insert(slot).second) table.push_back({slot, std::string(), std::string(surface)});
+    };
+    for (FloorMaterials& floor : plan.floorMaterials) {
+        fix(floor.wallTopSlot, kWallTopSlot, floor.wallTop, "Wall_Top");
+        for (WallFaceMaterial& face : floor.wallFaces) fix(face.slot, kExteriorWallSlot, face.material, "Wall_Inside");
+        for (OpeningMaterialIds& o : floor.openings) {
+            fix(o.revealSlot, kExteriorWallSlot, o.reveal, "Wall_Inside");
+            fix(o.thresholdSlot, kThresholdSlot, o.threshold, "Threshold");
+            fix(o.doorSlot, kDoorSlot, o.door, "Door");
+            fix(o.frameSlot, kFrameSlot, o.frame, "Frame");
+            fix(o.glassSlot, kGlassSlot, o.glass, "Glass");
+            fix(o.handleSlot, kHandleSlot, o.handle, "Handle");
+        }
+        for (RoomMaterialIds& r : floor.rooms) {
+            fix(r.floorSlot, "Room_Floor", r.floor, "Floor");
+            fix(r.ceilingSlot, "Room_Ceiling", r.ceiling, "Ceiling");
+        }
+    }
+    std::sort(table.begin(), table.end(), [](const BuildSlot& a, const BuildSlot& b) { return a.name < b.name; });
+    plan.materialSlots = std::move(table);
 }
 
 // Reads one problem of a result.
@@ -407,6 +565,7 @@ BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, 
 {
     BuildPlan plan;
     MaterialChecker checker(materials);
+    SlotNamer namer;
     const std::vector<double> levels = floorElevations(project.plan);
 
     bool anyItems = false;
@@ -469,7 +628,7 @@ BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, 
                 plan.problems.push_back(checkProblem("asset_broken", BuildSeverity::Error, message, floor.id, item.id));
                 continue;
             }
-            used.emplace(item.asset, BuildAsset{item.asset, state->blendFile});
+            used.emplace(item.asset, BuildAsset{item.asset, state->blendFile, state->materials});
             const ItemPlacement placement = itemPlacement(item, level);
             ItemBuild built;
             built.id = item.id;
@@ -484,7 +643,8 @@ BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, 
                                                      problem.message, floor.id, item.id));
             }
         }
-        plan.floorMaterials.push_back(floorMaterials(project, floor, build, checker));
+        plan.floorMaterials.push_back(floorMaterials(project, floor, build, checker, namer));
+        plan.collision.push_back(floorCollision(floor, build));
         plan.floors.push_back(std::move(build));
     }
     for (auto& [id, asset] : used) plan.assets.push_back(std::move(asset));
@@ -492,6 +652,7 @@ BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, 
                                        [](const BuildProblem& p) { return p.code == "no_library"; });
     // A caller that gives an assets source has a library; the materials source then speaks for itself.
     checker.finish(plan, noLibrary || static_cast<bool>(assets));
+    finishSlots(plan, namer);
     return plan;
 }
 
@@ -532,6 +693,8 @@ Json makeBuildJob(const Project& project, const BuildPlan& plan, const BuildSett
     params["fbx_file"] = settings.writeFbx ? Json(std::string(kBuildFbxFileName)) : Json(nullptr);
     params["materials_file"] = settings.writeFbx ? Json(std::string(kBuildMaterialsFileName)) : Json(nullptr);
     params["textures_folder"] = std::string(kBuildTexturesFolder);
+    params["preview_textures_folder"] = std::string(kBuildPreviewTexturesFolder);
+    params["preview_texture_size"] = kPreviewTextureSize;
     params["plan"] = planToJson(project.plan);
     Json set = Json::object();
     set["bevel_width"] = settings.bevelWidth;
@@ -544,6 +707,21 @@ Json makeBuildJob(const Project& project, const BuildPlan& plan, const BuildSett
         asset["id"] = a.id;
         asset["blend_file"] = pathToUtf8(a.blendFile);
         asset["collection"] = a.id;
+        Json assetMaterials = Json::array();
+        for (const BuildAssetMaterial& m : a.materials) {
+            Json maps = Json::object();
+            maps["base_color"] = absolutePath(m.baseColor);
+            maps["normal"] = absolutePath(m.normal);
+            maps["roughness"] = absolutePath(m.roughness);
+            maps["metallic"] = absolutePath(m.metallic);
+            maps["opacity"] = m.opacity.empty() ? Json(nullptr) : Json(absolutePath(m.opacity));
+            maps["occlusion"] = m.occlusion.empty() ? Json(nullptr) : Json(absolutePath(m.occlusion));
+            Json material = Json::object();
+            material["name"] = m.name;
+            material["maps"] = std::move(maps);
+            assetMaterials.push_back(std::move(material));
+        }
+        asset["materials"] = std::move(assetMaterials);
         assetList.push_back(std::move(asset));
     }
     params["assets"] = std::move(assetList);
@@ -566,11 +744,18 @@ Json makeBuildJob(const Project& project, const BuildPlan& plan, const BuildSett
         materialList.push_back(std::move(material));
     }
     params["materials"] = std::move(materialList);
+    Json slotList = Json::array();
+    for (const BuildSlot& slot : plan.materialSlots) {
+        slotList.push_back(Json{{"name", slot.name}, {"material", textOrNull(slot.material)}, {"surface", slot.surface}});
+    }
+    params["slots"] = std::move(slotList);
     Json floors = Json::array();
-    for (const FloorBuild& f : plan.floors) {
+    for (std::size_t index = 0; index < plan.floors.size(); ++index) {
+        const FloorBuild& f = plan.floors[index];
         const auto it = std::find_if(plan.floorMaterials.begin(), plan.floorMaterials.end(),
                                      [&f](const FloorMaterials& m) { return m.floor == f.id; });
-        floors.push_back(floorJson(f, it == plan.floorMaterials.end() ? nullptr : &*it));
+        const std::vector<CollisionShape>* collision = index < plan.collision.size() ? &plan.collision[index] : nullptr;
+        floors.push_back(floorJson(f, it == plan.floorMaterials.end() ? nullptr : &*it, collision));
     }
     params["floors"] = std::move(floors);
     return makeBlenderJob(kBuildTask, jobId, resultFile, std::move(params));
@@ -597,6 +782,7 @@ BuildWorkerOutput readBuildResult(const Json& result, std::string_view jobId)
         out.counts.rooms = static_cast<int>(count(counts, "rooms", "/output/counts"));
         out.counts.items = static_cast<int>(count(counts, "items", "/output/counts"));
         out.counts.materials = static_cast<int>(count(counts, "materials", "/output/counts"));
+        out.counts.collision = static_cast<int>(count(counts, "collision", "/output/counts"));
         const Json& steps = field(output, "steps", "/output");
         if (!steps.is_array()) throw Problem{"/output/steps", "Must be a list."};
         for (std::size_t i = 0; i < steps.size(); ++i) {

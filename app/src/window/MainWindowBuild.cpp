@@ -4,6 +4,8 @@
 #include "StatusBar.h"
 #include "building/BuildController.h"
 #include "building/BuildPanel.h"
+#include "building/ExportController.h"
+#include "panels/ExportPanel.h"
 #include "canvas/PlanCanvas.h"
 #include "catalog/LibraryHost.h"
 #include "panels/RightPanel.h"
@@ -52,7 +54,7 @@ bool MainWindow::buildBlocked(QString* reason) const
 // Starts a build of the project as it is in memory.
 void MainWindow::startBuild()
 {
-    if (builder_->running())
+    if (builder_->running() || exporter_->running())
         return;
     QString reason;
     if (buildBlocked(&reason)) {
@@ -115,7 +117,7 @@ void MainWindow::loadBuildReport()
 // Shows the state of the last build and of the Build button in the bar, the menu and the Build tab.
 void MainWindow::updateBuildUi()
 {
-    const bool running = builder_ != nullptr && builder_->running();
+    const bool running = (builder_ != nullptr && builder_->running()) || (exporter_ != nullptr && exporter_->running());
     const bool stale = report_ && report_->status.ok() && doc_.hasFolder() &&
                        plynth::planFingerprint(doc_.project()) != report_->planFingerprint;
     if (running) {
@@ -145,6 +147,7 @@ void MainWindow::updateBuildUi()
     buildFolderAction_->setEnabled(doc_.hasFolder());
     openBlenderAction_->setEnabled(files);
     buildPanel_->setReport(report_ ? &*report_ : nullptr, stale);
+    updateExportUi();
     refreshProblemMarkers();
 }
 

@@ -80,6 +80,26 @@ void LibraryHost::reopen()
     emit roomTypesChanged();
 }
 
+// Copies the sample shapes into the library, registers the folder again (shapes already known are skipped
+// by core) and tells the views so the opening shape lists fill again.
+QString LibraryHost::addSampleShapes()
+{
+    if (!hasLibrary())
+        return QObject::tr("Open a library first.");
+    const std::filesystem::path from = plynth::sampleShapesFolder();
+    if (from.empty())
+        return QObject::tr("The sample shapes folder was not found next to the program.");
+    const plynth::SampleShapesCopy copy = plynth::addSampleShapes(paths_, from);
+    if (!copy.status.ok())
+        return fromCore(copy.status.message);
+    plynth::registerShapeFolder(paths_.shapes);
+    emit libraryChanged();
+    if (copy.copied.empty())
+        return QObject::tr("All %n sample shape(s) are already in the library.", nullptr, int(copy.skipped.size()));
+    return QObject::tr("Added %n sample shape(s). %1 already there.", nullptr, int(copy.copied.size()))
+        .arg(copy.skipped.size());
+}
+
 // Opens materials.db. An empty index next to folders in materials/items is rebuilt once, so a library filled
 // by hand or by an older run shows its materials.
 void LibraryHost::openMaterials()

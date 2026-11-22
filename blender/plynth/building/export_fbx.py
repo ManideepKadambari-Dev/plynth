@@ -3,7 +3,7 @@ import os
 
 import bpy
 
-from . import Step
+from . import Step, preview_textures
 from .. import exporters, scene
 from ..exporters import fbx  # noqa: F401
 from ..jobs import WorkerError
@@ -37,21 +37,34 @@ def realize_instances():
     bpy.context.view_layer.update()
 
 
-# Makes instances real, exports the whole scene to building.fbx under a temporary name and renames it. The
-# export is skipped when the job has no fbx_file. Counts the objects and triangles that went into it.
+# Returns the objects building.fbx holds: everything in the scene except the collision meshes.
+def fbx_objects():
+    return [o for o in scene.scene_objects() if o.get("plynth_kind") != "collision"]
+
+
+# Makes instances real, points big images at preview copies, exports the scene without the collision meshes to
+# building.fbx under a temporary name and renames it. The export is skipped when the job has no fbx_file.
+# Counts the objects and triangles that went into it. building.blend was saved before this step, so it keeps
+# the instances and the full size images.
 def run(ctx):
     realize_instances()
-    objects = scene.mesh_objects(scene.scene_objects())
-    ctx.state["objects"] = len(objects)
-    ctx.state["triangles"] = scene.triangle_count(objects)
+    objects = fbx_objects()
+    meshes = scene.mesh_objects(objects)
+    ctx.state["objects"] = len(meshes)
+    ctx.state["triangles"] = scene.triangle_count(meshes)
     name = ctx.params.get("fbx_file")
     if not name:
         ctx.state["fbx_file"] = None
         ctx.state["materials_file"] = None
         return
+    try:
+        copies = preview_textures.make_preview_copies(ctx, meshes)
+    except Exception as error:
+        raise WorkerError("export_failed", "The preview textures could not be made: %s" % error)
+    ctx.state["preview_copies"] = copies
     target = os.path.join(ctx.params["output_folder"], name)
     try:
-        exporters.write_file("fbx", None, target, "ABSOLUTE")
+        exporters.write_file("fbx", objects, target, "ABSOLUTE")
     except Exception as error:
         raise WorkerError("export_failed", "building.fbx could not be written: %s" % error)
     ctx.state["fbx_file"] = name
@@ -64,7 +77,10 @@ def write_materials(ctx):
     name = ctx.params.get("materials_file") or "materials.json"
     target = os.path.join(ctx.params["output_folder"], name)
     temporary = os.path.join(ctx.params["output_folder"], "materials.part.json")
-    data = {"format": "plynth-build-materials", "version": 1, "materials": ctx.state.get("built_materials", []),
+    copies = ctx.state.get("preview_copies", {})
+    entries = ctx.state.get("built_materials", []) + ctx.state.get("asset_materials", [])
+    listed = [dict(entry, maps=preview_textures.repoint_maps(entry["maps"], copies)) for entry in entries]
+    data = {"format": "plynth-build-materials", "version": 1, "materials": listed,
             "objects": ctx.state.get("built_objects", [])}
     try:
         with open(temporary, "w", encoding="utf-8") as handle:

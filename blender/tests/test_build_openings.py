@@ -139,7 +139,7 @@ class OpeningTests(BuildTest):
         reveal = [p for p in walls.data.polygons if sides[p.index] == 4]
         self.assertGreater(len(reveal), 0)
         for polygon in reveal:
-            self.assertEqual(names[polygon.material_index], "Reveal")
+            self.assertEqual(names[polygon.material_index], "Living_Wall")
 
     # With the bevel width 0 no bevel runs and the vertex count stays.
     def test_bevel_off(self):

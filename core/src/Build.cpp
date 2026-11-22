@@ -1,5 +1,6 @@
 #include "plynth/core/Build.h"
 
+#include "BuildLockFiles.h"
 #include "FileIo.h"
 
 #include "plynth/core/Openings.h"
@@ -34,41 +35,9 @@ namespace fs = std::filesystem;
 
 namespace {
 
-// Seconds since 1970 now.
-long long epochSeconds()
-{
-    return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-}
-
-// Makes the lock file only when it does not exist yet. False when it exists or cannot be made.
-bool createExclusive(const fs::path& file, const std::string& text)
-{
-    const HANDLE handle = CreateFileW(file.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (handle == INVALID_HANDLE_VALUE) return false;
-    DWORD written = 0;
-    WriteFile(handle, text.data(), static_cast<DWORD>(text.size()), &written, nullptr);
-    CloseHandle(handle);
-    return true;
-}
-
-// Whether an existing lock still counts: younger than kBuildTimeout, by the time it holds and by the file's
-// own write time, and, when it names a process, that process is still running. A lock whose content cannot
-// be read counts by its write time alone.
-bool lockIsLive(const fs::path& file)
-{
-    std::error_code ec;
-    const auto written = fs::last_write_time(file, ec);
-    if (!ec && fs::file_time_type::clock::now() - written > kBuildTimeout) return false;
-
-    std::ifstream in(file, std::ios::binary);
-    ProcessIdentity who;
-    long long started = 0;
-    if (in >> who.pid >> who.startKey >> started) {
-        if (epochSeconds() - started > kBuildTimeout.count()) return false;
-        return isProcessRunning(who);
-    }
-    return true;
-}
+using lockfile::createExclusive;
+using lockfile::epochSeconds;
+using lockfile::lockIsLive;
 
 // Holds build.lock while a build runs and removes it at the end.
 class BuildLock {
@@ -170,6 +139,34 @@ std::string planFingerprint(const Project& project)
     return out;
 }
 
+// The maps of every material inside an asset, as absolute paths. Empty when info.json cannot be read or has no
+// material maps yet.
+namespace {
+
+std::vector<BuildAssetMaterial> assetMaterialsOf(const fs::path& folder)
+{
+    std::vector<BuildAssetMaterial> out;
+    const AssetInfoRead read = readAssetInfo(folder / pathFromUtf8(kAssetInfoFileName), pathToUtf8(folder.filename()));
+    if (!read.status.ok()) return out;
+    const auto file = [&folder](const MaterialMap& map) {
+        return map.file.empty() ? fs::path() : folder / pathFromUtf8(map.file);
+    };
+    for (const AssetMaterial& m : read.info.materialMaps) {
+        BuildAssetMaterial material;
+        material.name = m.name;
+        material.baseColor = file(m.maps.baseColor);
+        material.normal = file(m.maps.normal);
+        material.roughness = file(m.maps.roughness);
+        material.metallic = file(m.maps.metallic);
+        material.opacity = file(m.maps.opacity);
+        material.occlusion = file(m.maps.occlusion);
+        out.push_back(std::move(material));
+    }
+    return out;
+}
+
+}
+
 // A BuildAssetSource that asks the catalog.
 BuildAssetSource buildAssetSourceFor(const AssetCatalog& catalog)
 {
@@ -186,6 +183,7 @@ BuildAssetSource buildAssetSourceFor(const AssetCatalog& catalog)
             state.broken = true;
             state.problem = "asset.blend is missing.";
         }
+        if (!state.broken) state.materials = assetMaterialsOf(record->folder);
         return state;
     };
 }
@@ -397,6 +395,14 @@ BuildReport runBuild(const BuildRequest& request, const std::function<void(const
     report.problems.insert(report.problems.end(), out.problems.begin(), out.problems.end());
     report.elapsedMs = since(started);
 
+    Json built = Json::object();
+    built["plan_fingerprint"] = report.planFingerprint;
+    built["plan"] = planToJson(request.project.plan);
+    const std::string planText = built.dump(2, ' ', false, Json::error_handler_t::replace) + "\n";
+    if (Status written = fileio::writeAtomic(folder / pathFromUtf8(kBuiltPlanFileName), planText); !written.ok()) {
+        report.status = written;
+        return report;
+    }
     if (Status written = writeReport(folder, report); !written.ok()) {
         report.status = written;
         return report;
@@ -441,6 +447,7 @@ Json buildReportToJson(const BuildReport& report)
     counts["rooms"] = report.counts.rooms;
     counts["items"] = report.counts.items;
     counts["materials"] = report.counts.materials;
+    counts["collision"] = report.counts.collision;
     json["counts"] = std::move(counts);
     Json steps = Json::array();
     for (const BuildStepTime& s : report.steps) steps.push_back(Json{{"step", s.step}, {"ms", s.ms}});
@@ -535,6 +542,7 @@ BuildReportRead readBuildReport(const fs::path& projectFolder)
         report.counts.rooms = static_cast<int>(whole(counts, "rooms", "/counts"));
         report.counts.items = static_cast<int>(whole(counts, "items", "/counts"));
         if (counts.contains("materials")) report.counts.materials = static_cast<int>(whole(counts, "materials", "/counts"));
+        if (counts.contains("collision")) report.counts.collision = static_cast<int>(whole(counts, "collision", "/counts"));
         if (!json.contains("steps") || !json["steps"].is_array()) throw std::string("/steps");
         for (std::size_t i = 0; i < json["steps"].size(); ++i) {
             const std::string where = "/steps/" + std::to_string(i);
@@ -622,6 +630,7 @@ BuiltMaterialsRead readBuiltMaterials(const fs::path& projectFolder)
             built.metallic = pathFromUtf8(text(maps, "metallic", mapsWhere));
             built.opacity = pathFromUtf8(optionalText(maps, "opacity", mapsWhere));
             built.occlusion = pathFromUtf8(optionalText(maps, "occlusion", mapsWhere));
+            if (m.contains("asset")) built.asset = optionalText(m, "asset", where);
             const std::string mode = text(m, "alpha_mode", where);
             if (mode == "opaque") built.alphaMode = AlphaMode::Opaque;
             else if (mode == "blend") built.alphaMode = AlphaMode::Blend;

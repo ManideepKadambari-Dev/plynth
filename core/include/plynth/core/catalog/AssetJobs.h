@@ -50,6 +50,20 @@ struct ThumbnailSpec {
 //          "size": {"width": 0.45, "depth": 0.5, "height": 0.9}, "triangles": 1200, "objects": 2,
 //          "materials": ["Wood"], "textures": ["textures/wood.png"], "missing_textures": ["oak.png"],
 //          "thumbnail": {"file": "thumb.png", "engine": "eevee", "error": null}}
+//          "bake_size": 1024,
+//          "material_maps": [{"name": "Wood",
+//                             "maps": {"base_color": {"file": "textures/maps/wood/base_color.png",
+//                                                     "from": "file", "detail": "wood.png"}, ...},
+//                             "preview_maps": {"base_color": {"file": "textures/preview/wood_base_color.png",
+//                                                             "from": "file", "detail": "wood.png"}, ...}}]
+// (bake_size is a param; material_maps is in the output, one per entry of materials, in the same order.)
+// Material maps (owner, milestone 10): before asset.blend is saved, the step "material_maps" makes the maps of
+// every material with the material bakers of catalog/MaterialJobs.h ("direct", then "eevee_render" over the
+// material's own UV square, one tile 1 m across, at bake_size), writes them under kAssetMapsFolder, rebuilds
+// the material from them, and writes a scaled copy under kAssetPreviewFolder of any map larger than
+// kPreviewTextureSize, which asset.fbx uses. A material whose nodes use object or generated coordinates looks
+// different once baked over its UV square (warning material_approximated); one that cannot be baked at all
+// keeps a constant image of its base color value (warning material_approximated too). Never fails the job.
 // A failed render does not fail the job: thumbnail.file is null and thumbnail.error says why. A failed
 // asset.fbx does not fail it either: fbx_file is null with the warning fbx_failed.
 // Thumbnails are rendered with Eevee only (DESIGN.md section 7.11). There is no engine choice and no other
@@ -63,6 +77,7 @@ struct CleanupJob {
     int rotateZ = 0;    // degrees, 0, 90, 180 or 270, turned before the pivot is set
     long long triangleWarning = kDefaultTriangleWarning;
     ThumbnailSpec thumbnail;
+    int bakeSize = 1024; // pixels across a baked material map; the same limits as kDefaultBakeSize in MaterialJobs.h
 };
 
 // render_thumbnail: open an existing asset.blend without changing it, measure it when asked, render
@@ -101,6 +116,8 @@ struct AssetJobOutput {
     std::vector<std::string> materials;
     std::vector<std::string> textures;
     std::vector<std::string> missingTextures;
+    std::vector<AssetMaterial> materialMaps; // cleanup only; BadFile when a required map has no file or a file
+                                             // is outside textures/
     bool thumbnailRendered = false;
     std::string thumbnailEngine;
     std::string thumbnailError;

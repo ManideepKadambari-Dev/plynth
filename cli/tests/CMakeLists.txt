@@ -14,10 +14,12 @@ add_executable(plynth_cli_tests
     OpeningEditCliTests.cpp
     SettingsCliTests.cpp
     AssetCliTests.cpp
+    LibraryCliTests.cpp
     DoctorCliTests.cpp
     ImportCliTests.cpp
     ItemCliTests.cpp
     BuildCliTests.cpp
+    ExportCliTests.cpp
     MaterialCliTests.cpp
     MaterialCatalogCliTests.cpp
     MaterialImportCliTests.cpp
@@ -35,4 +37,4 @@ target_compile_definitions(plynth_cli_tests PRIVATE
     PLYNTH_FAKE_BLENDER="$<TARGET_FILE:plynth_fake_blender>")
 add_dependencies(plynth_cli_tests plynth_fake_blender)
 
-catch_discover_tests(plynth_cli_tests)
+catch_discover_tests(plynth_cli_tests DISCOVERY_MODE PRE_TEST)

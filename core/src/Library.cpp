@@ -9,6 +9,15 @@
 
 #include "plynth/core/ProjectFiles.h"
 
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+
+#include <algorithm>
 #include <system_error>
 
 namespace plynth {
@@ -96,7 +105,81 @@ Status initLibrary(const fs::path& root)
 
     staging::clearIdle(p.assetStaging);
     staging::clearIdle(p.materialStaging);
-    return ensureLibraryDatabases(p);
+    if (Status s = ensureLibraryDatabases(p); !s.ok()) return s;
+
+    const fs::path samples = sampleShapesFolder();
+    if (samples.empty()) return {};
+    return addSampleShapes(p, samples).status;
+}
+
+// Looks for the sample opening shapes.
+fs::path sampleShapesFolder()
+{
+    const auto holdsShapes = [](const fs::path& folder) {
+        std::error_code ec;
+        return !folder.empty() && fs::is_directory(folder, ec);
+    };
+    wchar_t value[MAX_PATH];
+    const std::wstring name(kSamplesVariable.begin(), kSamplesVariable.end());
+    const DWORD length = GetEnvironmentVariableW(name.c_str(), value, static_cast<DWORD>(std::size(value)));
+    if (length > 0 && length < std::size(value)) {
+        const fs::path fromEnv = fs::path(value) / L"shapes";
+        if (holdsShapes(fromEnv)) return fromEnv;
+    }
+    wchar_t program[MAX_PATH];
+    const DWORD got = GetModuleFileNameW(nullptr, program, static_cast<DWORD>(std::size(program)));
+    if (got > 0 && got < std::size(program)) {
+        const fs::path beside = fs::path(program).parent_path() / L"samples" / L"shapes";
+        if (holdsShapes(beside)) return beside;
+    }
+#if defined(PLYNTH_DEV_SAMPLES) && PLYNTH_DEV_SAMPLES
+    // A developer build finds the source tree through the path of this file. Release builds do not carry it.
+    const fs::path source = fs::path(__FILE__).parent_path().parent_path().parent_path() / L"samples" / L"shapes";
+    if (holdsShapes(source)) return source;
+#endif
+    return {};
+}
+
+// Copies the sample shape files that are not in the library yet.
+SampleShapesCopy addSampleShapes(const LibraryPaths& library, const fs::path& from)
+{
+    SampleShapesCopy out;
+    std::error_code ec;
+    if (!fs::is_directory(from, ec)) {
+        out.status = fail(ErrorCode::NotFound, "The folder " + pathToUtf8(from) + " does not exist.");
+        return out;
+    }
+    constexpr std::string_view suffix = ".shape.json";
+    std::vector<fs::path> files;
+    for (fs::directory_iterator it(from, ec), end; !ec && it != end; it.increment(ec)) {
+        std::error_code fileEc;
+        if (!it->is_regular_file(fileEc)) continue;
+        const std::string name = pathToUtf8(it->path().filename());
+        if (name.size() > suffix.size() && name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0) {
+            files.push_back(it->path());
+        }
+    }
+    std::sort(files.begin(), files.end(), [](const fs::path& a, const fs::path& b) {
+        return pathToUtf8(a.filename()) < pathToUtf8(b.filename());
+    });
+    if (Status s = makeFolder(library.shapes); !s.ok()) {
+        out.status = s;
+        return out;
+    }
+    for (const fs::path& file : files) {
+        const std::string name = pathToUtf8(file.filename());
+        const fs::path target = library.shapes / file.filename();
+        if (fs::exists(target, ec)) {
+            out.skipped.push_back(name);
+            continue;
+        }
+        if (!fs::copy_file(file, target, fs::copy_options::skip_existing, ec) || ec) {
+            out.status = fail(ErrorCode::CannotWrite, "The file " + pathToUtf8(target) + " could not be written.");
+            return out;
+        }
+        out.copied.push_back(name);
+    }
+    return out;
 }
 
 // Makes the folders that are missing.

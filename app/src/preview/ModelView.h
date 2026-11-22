@@ -54,6 +54,14 @@ public:
     // Makes the view read build/materials.json from the project folder each time the model loads, and show the
     // building with those materials. Off by default, so asset models keep their own look.
     void useBuiltMaterials(bool on) { useMaterials_ = on; }
+    // Shows an asset model with the materials of its info.json (the preview maps), instead of the ones the FBX
+    // loader makes. Call before setModel. An empty list leaves the FBX look.
+    void setAssetMaterials(const QVariantList& list);
+    // The entry of one material as the QML wants it, from absolute image paths (empty when none).
+    static QVariantMap materialEntry(const std::filesystem::path& baseColor, const std::filesystem::path& normal,
+                                     const std::filesystem::path& roughness, const std::filesystem::path& metallic,
+                                     const std::filesystem::path& opacity, const std::filesystem::path& occlusion,
+                                     bool blend);
     // One map per built material: key, baseColor, normal, roughness, metallic, opacity, occlusion (urls, empty
     // when none) and blend. Empty when there is no materials.json.
     QVariantList builtMaterials() const { return materials_; }
@@ -108,6 +116,7 @@ private:
     State state_ = State::Empty;
     int framesSinceLoad_ = 0;
     bool useMaterials_ = false;
+    bool assetMaterials_ = false;
     QVariantList materials_;
 };
 

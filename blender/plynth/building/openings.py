@@ -66,7 +66,7 @@ def make_cutter(ctx, opening, walls):
     mesh = bpy.data.meshes.new("plynth_cutter")
     bm.to_mesh(mesh)
     bm.free()
-    mesh.materials.append(surfaces.material(slot_name(ctx, opening["materials"]["reveal"], "Reveal")))
+    mesh.materials.append(surfaces.material(slot_name(ctx, opening["slots"]["reveal"])))
     cutter = bpy.data.objects.new("plynth_cutter", mesh)
     bpy.context.scene.collection.objects.link(cutter)
     return cutter
@@ -155,7 +155,7 @@ def make_thresholds(ctx, floor, openings):
     bm = bmesh.new()
     names = []
     for opening in openings:
-        name = slot_name(ctx, opening["materials"]["threshold"], "Threshold")
+        name = slot_name(ctx, opening["slots"]["threshold"])
         if name not in names:
             names.append(name)
         faces = meshes.add_flat(bm, opening["threshold"], [], floor["elevation"], True)

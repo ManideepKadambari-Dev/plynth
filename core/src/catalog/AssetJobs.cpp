@@ -62,6 +62,84 @@ long long count(const Json& object, const char* key, const std::string& where)
     return v.get<long long>();
 }
 
+// Says whether a map file is an image under textures/maps/ or textures/preview/ with a plain relative path.
+bool isMapFile(const std::string& file)
+{
+    const std::string maps = std::string(kAssetMapsFolder) + "/";
+    const std::string preview = std::string(kAssetPreviewFolder) + "/";
+    if (file.rfind(maps, 0) != 0 && file.rfind(preview, 0) != 0) return false;
+    for (const char c : file) {
+        const bool plain = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' ||
+                           c == '.' || c == '/' || c == '-';
+        if (!plain) return false;
+    }
+    std::size_t start = 0;
+    while (start <= file.size()) {
+        std::size_t end = file.find('/', start);
+        if (end == std::string::npos) end = file.size();
+        const std::string part = file.substr(start, end - start);
+        if (part.empty() || part == "." || part == "..") return false;
+        start = end + 1;
+    }
+    const std::size_t dot = file.rfind('.');
+    if (dot == std::string::npos) return false;
+    const std::string ext = file.substr(dot + 1);
+    return ext == "png" || ext == "jpg" || ext == "jpeg";
+}
+
+// Reads one map of a material.
+MaterialMap readMap(const Json& maps, MapChannel channel, const std::string& base)
+{
+    const std::string name(mapChannelName(channel));
+    const std::string where = base + "/" + name;
+    const Json& json = field(maps, name.c_str(), base);
+    const Json& from = field(json, "from", where);
+    const Json& file = field(json, "file", where);
+    const Json& detail = field(json, "detail", where);
+    if (!from.is_string()) throw Problem{where + "/from", "Must be text."};
+    const auto origin = mapOriginFromName(from.get<std::string>());
+    if (!origin) throw Problem{where + "/from", "Must be file, value, baked or none."};
+    if (!detail.is_string()) throw Problem{where + "/detail", "Must be text."};
+    const bool required = channel != MapChannel::Opacity && channel != MapChannel::Occlusion;
+
+    MaterialMap map;
+    map.origin = *origin;
+    map.detail = detail.get<std::string>();
+    if (*origin == MapOrigin::None) {
+        if (required) throw Problem{where + "/from", "The " + name + " map must have a file."};
+        if (!file.is_null()) throw Problem{where + "/file", "A map with origin none has no file."};
+        return map;
+    }
+    if (!file.is_string() || !isMapFile(file.get<std::string>())) {
+        throw Problem{where + "/file", "Must be an image in textures/maps/ or textures/preview/."};
+    }
+    map.file = file.get<std::string>();
+    return map;
+}
+
+// Reads the material maps of a cleanup output.
+std::vector<AssetMaterial> readMaterialMaps(const Json& list)
+{
+    if (!list.is_array()) throw Problem{"/output/material_maps", "Must be a list."};
+    std::vector<AssetMaterial> out;
+    for (std::size_t i = 0; i < list.size(); ++i) {
+        const std::string where = "/output/material_maps/" + std::to_string(i);
+        const Json& entry = list[i];
+        const Json& name = field(entry, "name", where);
+        if (!name.is_string() || name.get<std::string>().empty()) throw Problem{where + "/name", "Must be the material's name."};
+        AssetMaterial material;
+        material.name = name.get<std::string>();
+        const Json& maps = field(entry, "maps", where);
+        const Json& preview = field(entry, "preview_maps", where);
+        for (const MapChannel channel : allMapChannels()) {
+            materialMap(material.maps, channel) = readMap(maps, channel, where + "/maps");
+            materialMap(material.previewMaps, channel) = readMap(preview, channel, where + "/preview_maps");
+        }
+        out.push_back(std::move(material));
+    }
+    return out;
+}
+
 // Reads the thumbnail part of an output.
 void readThumbnailPart(const Json& output, AssetJobOutput& out)
 {
@@ -110,6 +188,7 @@ Json makeCleanupJob(const CleanupJob& job, std::string_view jobId, const std::fi
     params["scale"] = job.scale;
     params["rotate_z"] = job.rotateZ;
     params["triangle_warning"] = job.triangleWarning;
+    params["bake_size"] = job.bakeSize;
     params["thumbnail"] = thumbnailJson(job.thumbnail);
     return makeBlenderJob(kCleanupAssetTask, jobId, resultFile, std::move(params));
 }
@@ -144,6 +223,7 @@ AssetJobOutput readCleanupResult(const Json& result, std::string_view jobId)
         readMeasures(output, out);
         out.measured = true;
         out.missingTextures = textList(field(output, "missing_textures", "/output"), "/output/missing_textures");
+        out.materialMaps = readMaterialMaps(field(output, "material_maps", "/output"));
         readThumbnailPart(output, out);
     } catch (const Problem& p) {
         out.header.status = fail(ErrorCode::BadFile, "The Blender result is not valid: " + p.message, p.where);

@@ -19,13 +19,13 @@ constexpr int kBorderWidth = 1;
 QPushButton* makeTab(const QString& text, const QString& tip, const QString& tourId, QWidget* parent)
 {
     const Theme& t = Theme::instance();
-    return makeTabButton(text, tip, tourId, parent, t.unit() * 2, t.unit() * 2);
+    return makeTabButton(text, tip, tourId, parent, t.unit() * 2, t.unit());
 }
 
 }
 
 // Builds the tabs over a stack holding their pages.
-RightPanel::RightPanel(QWidget* properties, QWidget* assets, QWidget* materials, QWidget* build, QWidget* parent) : QWidget(parent)
+RightPanel::RightPanel(QWidget* properties, QWidget* assets, QWidget* materials, QWidget* build, QWidget* exportPage, QWidget* parent) : QWidget(parent)
 {
     const Theme& t = Theme::instance();
     setProperty("tourId", QStringLiteral("panel-right"));
@@ -45,7 +45,10 @@ RightPanel::RightPanel(QWidget* properties, QWidget* assets, QWidget* materials,
     tabs->addWidget(propertiesButton_, 1);
     tabs->addWidget(assetsButton_, 1);
     tabs->addWidget(materialsButton_, 1);
+    exportButton_ = makeTab(tr("Export"), tr("Export for Unreal. Ctrl+E exports, Ctrl+Shift+E checks."),
+                            QStringLiteral("tab-export"), this);
     tabs->addWidget(buildButton_, 1);
+    tabs->addWidget(exportButton_, 1);
     column->addLayout(tabs);
 
     pages_ = new QStackedWidget(this);
@@ -53,20 +56,23 @@ RightPanel::RightPanel(QWidget* properties, QWidget* assets, QWidget* materials,
     assets->setParent(pages_);
     materials->setParent(pages_);
     build->setParent(pages_);
+    exportPage->setParent(pages_);
     pages_->addWidget(properties);
     pages_->addWidget(assets);
     pages_->addWidget(materials);
     pages_->addWidget(build);
+    pages_->addWidget(exportPage);
     column->addWidget(pages_, 1);
 
     connect(propertiesButton_, &QPushButton::clicked, this, [this]() { showTab(Tab::Properties); });
     connect(assetsButton_, &QPushButton::clicked, this, [this]() { showTab(Tab::Assets); });
     connect(materialsButton_, &QPushButton::clicked, this, [this]() { showTab(Tab::Materials); });
     connect(buildButton_, &QPushButton::clicked, this, [this]() { showTab(Tab::Build); });
+    connect(exportButton_, &QPushButton::clicked, this, [this]() { showTab(Tab::Export); });
     showTab(Tab::Properties);
 }
 
-// Shows one tab and sets the width of the panel for it.
+// Shows one tab; the panel keeps one width so all tab labels fit.
 void RightPanel::showTab(Tab tab)
 {
     const Theme& t = Theme::instance();
@@ -75,8 +81,9 @@ void RightPanel::showTab(Tab tab)
     assetsButton_->setChecked(tab == Tab::Assets);
     materialsButton_->setChecked(tab == Tab::Materials);
     buildButton_->setChecked(tab == Tab::Build);
+    exportButton_->setChecked(tab == Tab::Export);
     pages_->setCurrentIndex(static_cast<int>(tab));
-    setFixedWidth(tab == Tab::Properties ? t.propertiesWidth() : t.assetsWidth());
+    setFixedWidth(t.assetsWidth());
 }
 
 // Paints the Panel background with the Line border on its left edge.

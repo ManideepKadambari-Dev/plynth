@@ -391,6 +391,12 @@ std::vector<std::vector<Vec2>> wallBand(const Floor& floor, const Wall& wall)
     return detail::wallBandWith(floor, wall, false);
 }
 
+// The outline of a wall's band as the build makes it, with mitred ends where two walls meet.
+std::vector<std::vector<Vec2>> wallOutline(const Floor& floor, const Wall& wall)
+{
+    return detail::wallBandWith(floor, wall, true);
+}
+
 // The band with its ends square or, when mitre is set, cut on the mitre where exactly two walls meet.
 std::vector<std::vector<Vec2>> detail::wallBandWith(const Floor& floor, const Wall& wall, bool mitre)
 {

@@ -4,6 +4,7 @@
 #include "../EditSession.h"
 #include "../Status.h"
 #include "AssetInfo.h"
+#include "MaterialMaps.h"
 
 #include <filesystem>
 #include <optional>
@@ -56,48 +57,8 @@ inline constexpr std::string_view kSourceTextureSet = "texture_set"; // a folder
 inline constexpr std::string_view kSourceBlendMaterial = "blend_material"; // a material inside a .blend
 // Fab zips (kSourceFabZip in AssetInfo.h) come in milestone 13.
 
-enum class MapChannel { BaseColor, Normal, Roughness, Metallic, Opacity, Occlusion };
-
-// Every channel in the order above.
-std::span<const MapChannel> allMapChannels();
-
-// "base_color", "normal", "roughness", "metallic", "opacity", "occlusion", and back. Empty for an unknown name.
-std::string_view mapChannelName(MapChannel channel);
-std::optional<MapChannel> mapChannelFromName(std::string_view name);
-
-// How a map was made.
-enum class MapOrigin {
-    File,  // "file": from an image of the source; detail is its file name
-    Value, // "value": a constant image from a single value; detail is the value, for example "0.85"
-    Baked, // "baked": rendered from a Blender material's nodes with Eevee
-    None,  // "none": there is no map (opacity of an opaque material, a missing occlusion)
-};
-
-std::string_view mapOriginName(MapOrigin origin);
-std::optional<MapOrigin> mapOriginFromName(std::string_view name);
-
-struct MaterialMap {
-    std::string file; // relative to the item folder with forward slashes, "textures/normal.png";
-                      // empty when origin is None
-    MapOrigin origin = MapOrigin::None;
-    std::string detail;
-
-    bool operator==(const MaterialMap&) const = default;
-};
-
-struct MaterialMaps {
-    MaterialMap baseColor;
-    MaterialMap normal;
-    MaterialMap roughness;
-    MaterialMap metallic;
-    MaterialMap opacity;
-    MaterialMap occlusion;
-
-    bool operator==(const MaterialMaps&) const = default;
-};
-
-const MaterialMap& materialMap(const MaterialMaps& maps, MapChannel channel);
-MaterialMap& materialMap(MaterialMaps& maps, MapChannel channel);
+// MapChannel, MapOrigin, MaterialMap and MaterialMaps are in MaterialMaps.h (shared with assets); they are
+// still implemented in MaterialInfo.cpp.
 
 struct TileSize {
     double width = kDefaultTileSize;

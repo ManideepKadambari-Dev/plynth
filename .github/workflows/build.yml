@@ -1,0 +1,126 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  VCPKG_ROOT: C:\vcpkg
+  VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}\vcpkg-binary-cache
+  VCPKG_DISABLE_METRICS: 1
+  QT_QPA_PLATFORM: offscreen
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 150
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: 6.8.3
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+          modules: qtquick3d qtshadertools
+          cache: true
+
+      - name: Point the presets at Qt
+        shell: pwsh
+        run: |
+          "QTDIR=$env:QT_ROOT_DIR" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Load the MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Prepare vcpkg
+        shell: pwsh
+        run: |
+          # The manifest baseline needs the full vcpkg history.
+          if ((git -C $env:VCPKG_ROOT rev-parse --is-shallow-repository) -eq 'true') {
+            git -C $env:VCPKG_ROOT fetch --unshallow
+          }
+          git -C $env:VCPKG_ROOT pull --ff-only
+          & "$env:VCPKG_ROOT\bootstrap-vcpkg.bat" -disableMetrics
+          New-Item -ItemType Directory -Force $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+          "VCPKG_BINARY_SOURCES=clear;files,$env:VCPKG_DEFAULT_BINARY_CACHE,readwrite" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Restore the vcpkg binary cache
+        id: vcpkg-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: vcpkg-binary-cache
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'ports/**') }}-${{ github.run_id }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'ports/**') }}-
+            vcpkg-${{ runner.os }}-
+
+      - name: Count cached packages
+        id: before
+        shell: pwsh
+        run: |
+          $n = (Get-ChildItem -Recurse -File $env:VCPKG_DEFAULT_BINARY_CACHE | Measure-Object).Count
+          "count=$n" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Configure
+        shell: pwsh
+        run: cmake --preset msvc
+
+      - name: Check for new packages
+        if: always()
+        id: after
+        shell: pwsh
+        run: |
+          $n = (Get-ChildItem -Recurse -File $env:VCPKG_DEFAULT_BINARY_CACHE | Measure-Object).Count
+          $changed = if ($n -ne [int]'${{ steps.before.outputs.count }}') { 'true' } else { 'false' }
+          "changed=$changed" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Save the vcpkg binary cache
+        if: always() && steps.after.outputs.changed == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: vcpkg-binary-cache
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'ports/**') }}-${{ github.run_id }}
+
+      - name: Build Debug
+        shell: pwsh
+        run: cmake --build --preset debug
+
+      - name: Test Debug
+        shell: pwsh
+        run: ctest --preset debug -LE "blender|gpu" --timeout 600 --output-log ctest-debug.log
+
+      - name: Build Release
+        shell: pwsh
+        run: cmake --build --preset release
+
+      - name: Test Release
+        shell: pwsh
+        run: ctest --preset release -LE "blender|gpu" --timeout 600 --output-log ctest-release.log
+
+      - name: Upload test logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: |
+            ctest-debug.log
+            ctest-release.log
+            out/build/msvc/Testing/Temporary/*.log
+            out/build/msvc/vcpkg-manifest-install.log
+            out/build/msvc/CMakeFiles/CMakeConfigureLog.yaml
+          if-no-files-found: ignore
+          retention-days: 7

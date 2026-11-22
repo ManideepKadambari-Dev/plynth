@@ -896,3 +896,69 @@ TEST_CASE("a thick wall on a tight arc has a clean band", "[core][wallgeometry]"
         }
     }
 }
+
+namespace {
+
+// Floor with an L of two walls: w1 from (0,0) to (4,0) and w2 from (4,0) to (4,4), both 0.2 thick.
+Floor cornerOfTwoWalls()
+{
+    Floor f;
+    f.id = "f1";
+    f.points = {{"p1", 0.0, 0.0, 0.0}, {"p2", 4.0, 0.0, 0.0}, {"p3", 4.0, 4.0, 0.0}};
+    for (int i = 0; i < 2; ++i) {
+        Wall w;
+        w.id = "w" + std::to_string(i + 1);
+        w.from = "p" + std::to_string(i + 1);
+        w.to = "p" + std::to_string(i + 2);
+        w.thickness = 0.2;
+        f.walls.push_back(w);
+    }
+    return f;
+}
+
+bool hasVertex(const std::vector<Vec2>& ring, Vec2 p)
+{
+    return std::any_of(ring.begin(), ring.end(), [&](Vec2 q) { return distance(p, q) < 1e-6; });
+}
+
+}
+
+TEST_CASE("wallOutline mitres the ends of two walls at a right angle", "[core][wallgeometry]") {
+    const Floor f = cornerOfTwoWalls();
+    const auto first = wallOutline(f, f.walls[0]);
+    const auto second = wallOutline(f, f.walls[1]);
+    REQUIRE(first.size() == 1);
+    REQUIRE(second.size() == 1);
+    REQUIRE(signedArea(first[0]) > 0.0);
+    REQUIRE(signedArea(second[0]) > 0.0);
+
+    REQUIRE(hasVertex(first[0], {4.1, -0.1}));
+    REQUIRE(hasVertex(second[0], {4.1, -0.1}));
+    REQUIRE(hasVertex(first[0], {3.9, 0.1}));
+    REQUIRE(hasVertex(second[0], {3.9, 0.1}));
+    REQUIRE_FALSE(hasVertex(first[0], {4.1, 0.1}));
+    REQUIRE(signedArea(first[0]) == Approx(0.82).margin(1e-9));
+
+    const auto square = wallBand(f, f.walls[0]);
+    REQUIRE(hasVertex(square[0], {4.1, 0.1}));
+}
+
+TEST_CASE("wallOutline equals wallBand at a T junction and for walls of different heights", "[core][wallgeometry]") {
+    Floor t;
+    t.id = "f1";
+    t.points = {{"p1", 0.0, 0.0, 0.0}, {"p2", 4.0, 0.0, 0.0}, {"p3", 2.0, 0.0, 0.0}, {"p4", 2.0, 3.0, 0.0}};
+    const char* ends[3][2] = {{"p1", "p3"}, {"p3", "p2"}, {"p3", "p4"}};
+    for (int i = 0; i < 3; ++i) {
+        Wall w;
+        w.id = "w" + std::to_string(i + 1);
+        w.from = ends[i][0];
+        w.to = ends[i][1];
+        t.walls.push_back(w);
+    }
+    for (const Wall& w : t.walls) REQUIRE(wallOutline(t, w) == wallBand(t, w));
+
+    Floor corner = cornerOfTwoWalls();
+    corner.walls[1].height = 2.0;
+    REQUIRE(wallOutline(corner, corner.walls[0]) == wallBand(corner, corner.walls[0]));
+    REQUIRE(wallOutline(corner, corner.walls[1]) == wallBand(corner, corner.walls[1]));
+}

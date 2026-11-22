@@ -59,20 +59,14 @@ def make_walls(ctx, floor):
         points = [ring["points"] for ring in rings]
         edges = [edge for ring in rings for edge in ring["edges"]]
         distances = ring_distances(rings)
-        top_name = slot_name(ctx, solid["top_material"], "Wall_Top")
+        top_name = slot_name(ctx, solid["top_slot"])
         for face, kind, edge_index in meshes.add_prism(bm, points, elevation, elevation + solid["height"]):
             if kind == "side":
                 edge = edges[edge_index]
                 face[wall_layer] = index_of(walls, edge["wall"])
                 face[room_layer] = index_of(rooms, edge["room"])
                 face[side_layer] = SIDE_CODES[edge["side"]]
-                if edge["side"] is None:
-                    surface = "Wall_Top"
-                elif edge["room"] is not None:
-                    surface = "Wall_Inside"
-                else:
-                    surface = "Wall_Outside"
-                name = slot_name(ctx, edge["material"], surface)
+                name = slot_name(ctx, edge["slot"])
                 along, length = distances[edge_index]
                 for k, loop in enumerate(face.loops):
                     u = along if k in (0, 3) else along + length

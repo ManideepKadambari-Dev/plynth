@@ -25,7 +25,7 @@
         "properties": {
           "params": {
             "type": "object",
-            "required": ["source", "asset_id", "output_folder", "scale", "rotate_z", "triangle_warning", "thumbnail"],
+            "required": ["source", "asset_id", "output_folder", "scale", "rotate_z", "triangle_warning", "bake_size", "thumbnail"],
             "additionalProperties": false,
             "properties": {
               "source": {
@@ -42,6 +42,7 @@
               "scale": { "type": "number", "exclusiveMinimum": 0 },
               "rotate_z": { "enum": [0, 90, 180, 270] },
               "triangle_warning": { "type": "integer", "minimum": 1 },
+              "bake_size": { "description": "Pixels across a material map rendered with Eevee over the material's UV square (catalog/AssetJobs.h, step material_maps).", "enum": [256, 512, 1024, 2048, 4096] },
               "thumbnail": { "$ref": "#/definitions/thumbnail" }
             }
           }
@@ -74,7 +75,7 @@
           "params": {
             "description": "Everything the build needs. plan is plan.json as saved; floors holds the shapes core worked out from it (core/include/plynth/core/BuildGeometry.h). All positions are Blender world coordinates in metres: X = plan x, Y = -plan y, Z up from the first floor's level. Outer rings run anticlockwise seen from above, holes clockwise, the first point not repeated.",
             "type": "object",
-            "required": ["project", "output_folder", "blend_file", "fbx_file", "materials_file", "textures_folder", "plan", "settings", "assets", "materials", "floors"],
+            "required": ["project", "output_folder", "blend_file", "fbx_file", "materials_file", "textures_folder", "preview_textures_folder", "preview_texture_size", "plan", "settings", "assets", "materials", "slots", "floors"],
             "additionalProperties": false,
             "properties": {
               "project": {
@@ -91,6 +92,8 @@
               "fbx_file": { "description": "The FBX the 3D preview loads, or null for none.", "enum": ["building.fbx", null] },
               "materials_file": { "description": "Written with the FBX into output_folder (schema/build-materials.schema.json): the images of every channel of each built material, for the 3D preview. null exactly when fbx_file is null.", "enum": ["materials.json", null] },
               "textures_folder": { "description": "The folder in output_folder for the constant images of the neutral looks.", "const": "textures" },
+              "preview_textures_folder": { "description": "The folder in output_folder for scaled copies of images larger than preview_texture_size, which building.fbx and materials.json use instead. building.blend keeps the full size images.", "const": "preview_textures" },
+              "preview_texture_size": { "description": "The longest side of an image the 3D preview loads.", "const": 1024 },
               "plan": { "description": "plan.json as saved, schema/plan.schema.json.", "type": "object" },
               "settings": {
                 "type": "object",
@@ -107,12 +110,25 @@
                 "type": "array",
                 "items": {
                   "type": "object",
-                  "required": ["id", "blend_file", "collection"],
+                  "required": ["id", "blend_file", "collection", "materials"],
                   "additionalProperties": false,
                   "properties": {
                     "id": { "$ref": "#/definitions/catalogId" },
                     "blend_file": { "type": "string", "minLength": 1 },
-                    "collection": { "description": "The collection in blend_file that holds the asset, named after its id.", "$ref": "#/definitions/catalogId" }
+                    "collection": { "description": "The collection in blend_file that holds the asset, named after its id.", "$ref": "#/definitions/catalogId" },
+                    "materials": {
+                      "description": "The image maps of each material inside the asset (asset info.json material_maps), full size, absolute. Empty for an asset cleaned before milestone 10 that was not refreshed yet.",
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": ["name", "maps"],
+                        "additionalProperties": false,
+                        "properties": {
+                          "name": { "description": "The material's name in asset.blend.", "type": "string", "minLength": 1 },
+                          "maps": { "$ref": "#/definitions/absoluteMaps" }
+                        }
+                      }
+                    }
                   }
                 }
               },
@@ -143,7 +159,110 @@
                   }
                 }
               },
+              "slots": {
+                "description": "Every material slot the built surfaces use, once, sorted by name (core/include/plynth/core/MaterialSlots.h). The Blender material of a face is named after its slot. Every slot field of the floors names one of these.",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["name", "material", "surface"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": { "$ref": "#/definitions/slotName" },
+                    "material": { "description": "The library material the slot shows, or null for the neutral look of surface.", "$ref": "#/definitions/materialRef" },
+                    "surface": { "$ref": "#/definitions/surfaceName" }
+                  }
+                }
+              },
               "floors": { "type": "array", "items": { "$ref": "#/definitions/buildFloor" } }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "task": { "const": "export" } } },
+      "then": {
+        "properties": {
+          "params": {
+            "description": "Export the last build for Unreal (core/include/plynth/core/ExportJob.h): open blend_file without saving it, make every object ready, run the quality checks, and write the groups and Textures/ into output_folder.",
+            "type": "object",
+            "required": ["project", "blend_file", "output_folder", "textures_folder", "groups", "materials", "expected_bounds", "build", "limits", "force", "write"],
+            "additionalProperties": false,
+            "properties": {
+              "project": {
+                "type": "object",
+                "required": ["name", "folder"],
+                "additionalProperties": false,
+                "properties": {
+                  "name": { "type": "string" },
+                  "folder": { "type": "string", "minLength": 1 }
+                }
+              },
+              "blend_file": { "description": "build/building.blend. Opened and never saved.", "type": "string", "minLength": 1 },
+              "output_folder": { "description": "An empty staging folder, export/.staging. The worker writes the group files and textures_folder into it.", "type": "string", "minLength": 1 },
+              "textures_folder": { "const": "Textures" },
+              "groups": {
+                "description": "The files to write, from the project's exporter. A UCX_ collision mesh goes into the file of the object it belongs to.",
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": ["id", "file", "kinds", "ids"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+                    "file": { "type": "string", "pattern": "^[A-Za-z0-9_-]+\\.fbx$" },
+                    "kinds": { "description": "plynth_kind values the group takes; empty takes every kind.", "type": "array", "items": { "type": "string", "minLength": 1 } },
+                    "ids": { "description": "plynth_id values the group takes; empty takes every id.", "type": "array", "items": { "$ref": "#/definitions/planId" } }
+                  }
+                }
+              },
+              "materials": {
+                "description": "The materials list of build/materials.json (schema build-materials), so textures are named after their catalog material. Empty when the file is missing.",
+                "type": "array",
+                "items": { "type": "object" }
+              },
+              "expected_bounds": {
+                "description": "World bounds of every wall solid, worked out by core from the plan, for the scale checks. null when the plan has no walls.",
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "required": ["min", "max"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "min": { "$ref": "#/definitions/xyz" },
+                      "max": { "$ref": "#/definitions/xyz" }
+                    }
+                  },
+                  { "type": "null" }
+                ]
+              },
+              "build": {
+                "description": "What the last build report says, for the build_current and build_complete checks.",
+                "type": "object",
+                "required": ["report_found", "plan_changed", "problems"],
+                "additionalProperties": false,
+                "properties": {
+                  "report_found": { "type": "boolean" },
+                  "plan_changed": { "description": "True when the plan or project settings changed since the build, or there is no report.", "type": "boolean" },
+                  "problems": { "description": "The problems of build/build.json, in its form.", "type": "array", "items": { "type": "object" } }
+                }
+              },
+              "limits": {
+                "type": "object",
+                "required": ["object_triangles", "total_triangles", "low_texel_density", "texel_warning_ratio", "texel_fail_ratio", "bounds_tolerance"],
+                "additionalProperties": false,
+                "properties": {
+                  "object_triangles": { "type": "integer", "minimum": 1 },
+                  "total_triangles": { "type": "integer", "minimum": 1 },
+                  "low_texel_density": { "description": "Base color pixels per metre below which a surface gets a warning.", "type": "number", "exclusiveMinimum": 0 },
+                  "texel_warning_ratio": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+                  "texel_fail_ratio": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+                  "bounds_tolerance": { "description": "Metres.", "type": "number", "exclusiveMinimum": 0 }
+                }
+              },
+              "force": { "description": "Write the files even when a scene check fails.", "type": "boolean" },
+              "write": { "description": "false runs the scene checks only and writes nothing.", "type": "boolean" }
             }
           }
         }
@@ -227,6 +346,66 @@
       "description": "The id of an entry of the build's materials list, or null for the neutral look of the surface.",
       "oneOf": [{ "$ref": "#/definitions/catalogId" }, { "type": "null" }]
     },
+    "absoluteMaps": {
+      "description": "Absolute paths. base_color is sRGB, the rest linear; grey maps are read from the red channel; normal is OpenGL.",
+      "type": "object",
+      "required": ["base_color", "normal", "roughness", "metallic", "opacity", "occlusion"],
+      "additionalProperties": false,
+      "properties": {
+        "base_color": { "type": "string", "minLength": 1 },
+        "normal": { "type": "string", "minLength": 1 },
+        "roughness": { "type": "string", "minLength": 1 },
+        "metallic": { "type": "string", "minLength": 1 },
+        "opacity": { "description": "null for an opaque material.", "type": ["string", "null"], "minLength": 1 },
+        "occlusion": { "type": ["string", "null"], "minLength": 1 }
+      }
+    },
+    "slotName": {
+      "description": "A material slot name, for example Living_Floor or Exterior_Wall: letters, digits and _.",
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_]*$",
+      "maxLength": 128
+    },
+    "slotRef": {
+      "description": "The name of an entry of the build's slots list. Its material is the same as the material field beside it.",
+      "$ref": "#/definitions/slotName"
+    },
+    "surfaceName": {
+      "description": "The neutral surface whose look a slot gets when it has no material.",
+      "enum": ["Wall_Inside", "Wall_Outside", "Wall_Top", "Reveal", "Threshold", "Floor", "Ceiling", "Door", "Frame", "Glass", "Handle"]
+    },
+    "collisionShape": {
+      "description": "Convex pieces for one built object (core/include/plynth/core/Collision.h). Each piece becomes a closed convex mesh UCX_<object name>_<NN>, numbered from 00 in this order.",
+      "type": "object",
+      "required": ["target", "pieces"],
+      "additionalProperties": false,
+      "properties": {
+        "target": {
+          "description": "The built object: the one whose plynth_kind is kind and plynth_id is id (the floor for walls and thresholds, the room for floor and ceiling).",
+          "type": "object",
+          "required": ["kind", "id"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "enum": ["walls", "floor", "ceiling", "thresholds"] },
+            "id": { "$ref": "#/definitions/planId" }
+          }
+        },
+        "pieces": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["outline", "bottom", "top"],
+            "additionalProperties": false,
+            "properties": {
+              "outline": { "description": "Convex, anticlockwise seen from above, world X and Y.", "$ref": "#/definitions/points" },
+              "bottom": { "description": "World Z.", "type": "number" },
+              "top": { "description": "World Z, above bottom.", "type": "number" }
+            }
+          }
+        }
+      }
+    },
     "tileSize": {
       "description": "The real world size of one tile in metres: width along U, height along V.",
       "type": "object",
@@ -254,13 +433,14 @@
           "minItems": 3,
           "items": {
             "type": "object",
-            "required": ["wall", "side", "room", "material"],
+            "required": ["wall", "side", "room", "material", "slot"],
             "additionalProperties": false,
             "properties": {
               "wall": { "$ref": "#/definitions/planId" },
               "side": { "description": "The face of the wall this edge belongs to, or null for an end face across the wall.", "enum": ["left", "right", null] },
               "room": { "description": "The room the face looks into, or null when it looks into no room.", "oneOf": [{ "$ref": "#/definitions/planId" }, { "type": "null" }] },
-              "material": { "description": "The material of the face: the wall's inside material for its room, or its outside one when room is null.", "$ref": "#/definitions/materialRef" }
+              "material": { "description": "The material of the face: the wall's inside material for its room, or its outside one when room is null.", "$ref": "#/definitions/materialRef" },
+              "slot": { "description": "<Room label>_Wall when room is set, Exterior_Wall otherwise (or the same with the material added, see MaterialSlots.h).", "$ref": "#/definitions/slotRef" }
             }
           }
         }
@@ -268,7 +448,7 @@
     },
     "buildFloor": {
       "type": "object",
-      "required": ["id", "elevation", "ceiling_height", "wall_solids", "openings", "rooms", "items"],
+      "required": ["id", "elevation", "ceiling_height", "wall_solids", "openings", "rooms", "items", "collision"],
       "additionalProperties": false,
       "properties": {
         "id": { "$ref": "#/definitions/planId" },
@@ -279,11 +459,12 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["height", "top_material", "outline", "holes"],
+            "required": ["height", "top_material", "top_slot", "outline", "holes"],
             "additionalProperties": false,
             "properties": {
               "height": { "description": "Above the floor's level.", "type": "number", "exclusiveMinimum": 0 },
               "top_material": { "description": "The material of the solid's top and bottom faces.", "$ref": "#/definitions/materialRef" },
+              "top_slot": { "$ref": "#/definitions/slotRef" },
               "outline": { "$ref": "#/definitions/wallRing" },
               "holes": { "type": "array", "items": { "$ref": "#/definitions/wallRing" } }
             }
@@ -295,13 +476,15 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["id", "type", "area", "floor_z", "ceiling_z", "floor_material", "ceiling_material", "polygons"],
+            "required": ["id", "type", "area", "floor_z", "ceiling_z", "floor_material", "ceiling_material", "floor_slot", "ceiling_slot", "polygons"],
             "additionalProperties": false,
             "properties": {
               "id": { "$ref": "#/definitions/planId" },
               "type": { "type": ["string", "null"] },
               "floor_material": { "$ref": "#/definitions/materialRef" },
               "ceiling_material": { "$ref": "#/definitions/materialRef" },
+              "floor_slot": { "$ref": "#/definitions/slotRef" },
+              "ceiling_slot": { "$ref": "#/definitions/slotRef" },
               "area": { "description": "Square metres, the same area the app shows.", "type": "number", "minimum": 0 },
               "floor_z": { "type": "number" },
               "ceiling_z": { "type": "number" },
@@ -345,13 +528,18 @@
               "wall": { "oneOf": [{ "$ref": "#/definitions/planId" }, { "type": "null" }] }
             }
           }
+        },
+        "collision": {
+          "description": "The floor's collision pieces: walls first, then each room's floor and ceiling, then the thresholds. Items get a convex hull made by the build and are not listed.",
+          "type": "array",
+          "items": { "$ref": "#/definitions/collisionShape" }
         }
       }
     },
     "buildOpening": {
       "description": "An opening that fits its wall. The opening's own box: u along the wall from -width/2 (Start jamb) to width/2, v up from 0 at the sill. Point (u, v, w), w across the wall toward its right side, is at centre + tangent * u + right * w in X and Y and at Z = floor level + sill + v.",
       "type": "object",
-      "required": ["id", "wall", "type", "shape", "width", "height", "sill", "hinge", "swing", "frame", "centre", "tangent", "right", "thickness", "curved", "outline", "inner_outline", "cutter", "threshold", "materials"],
+      "required": ["id", "wall", "type", "shape", "width", "height", "sill", "hinge", "swing", "frame", "centre", "tangent", "right", "thickness", "curved", "outline", "inner_outline", "cutter", "threshold", "materials", "slots"],
       "additionalProperties": false,
       "properties": {
         "id": { "$ref": "#/definitions/planId" },
@@ -402,6 +590,20 @@
             "frame": { "$ref": "#/definitions/materialRef" },
             "glass": { "$ref": "#/definitions/materialRef" },
             "handle": { "$ref": "#/definitions/materialRef" }
+          }
+        },
+        "slots": {
+          "description": "The slot of each part. reveal is the slot of the wall face whose material it follows; threshold the floor slot of the room it follows, or Threshold; the fill parts Door, Frame, Glass and Handle.",
+          "type": "object",
+          "required": ["reveal", "threshold", "door", "frame", "glass", "handle"],
+          "additionalProperties": false,
+          "properties": {
+            "reveal": { "$ref": "#/definitions/slotRef" },
+            "threshold": { "$ref": "#/definitions/slotRef" },
+            "door": { "$ref": "#/definitions/slotRef" },
+            "frame": { "$ref": "#/definitions/slotRef" },
+            "glass": { "$ref": "#/definitions/slotRef" },
+            "handle": { "$ref": "#/definitions/slotRef" }
           }
         }
       }

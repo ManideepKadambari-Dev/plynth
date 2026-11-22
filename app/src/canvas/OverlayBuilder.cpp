@@ -52,6 +52,11 @@ OverlayData buildOverlay(const plynth::Plan& plan, const plynth::AssetCatalog* c
             entry.band.addPolygon(toPolygon(ring, ppm));
             entry.band.closeSubpath();
         }
+        entry.outline.setFillRule(Qt::WindingFill);
+        for (const std::vector<plynth::Vec2>& ring : plynth::wallOutline(floor, wall)) {
+            entry.outline.addPolygon(toPolygon(ring, ppm));
+            entry.outline.closeSubpath();
+        }
         if (!entry.band.isEmpty())
             overlay.walls.append(entry);
     }

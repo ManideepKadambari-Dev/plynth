@@ -12,6 +12,7 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -210,7 +211,7 @@ TEST_CASE("readBuildResult reads a valid result", "[core][build]") {
     REQUIRE(out.fbxFile == "building.fbx");
     REQUIRE(out.objects == 42);
     REQUIRE(out.triangles == 18200);
-    REQUIRE(out.counts == BuildCounts{1, 9, 7, 5, 4, 6});
+    REQUIRE(out.counts == BuildCounts{1, 9, 7, 5, 4, 6, 31});
     REQUIRE(out.steps.size() == 3);
     REQUIRE(out.steps[2].step == "openings");
     REQUIRE(out.steps[2].ms == 3400);
@@ -469,7 +470,7 @@ TEST_CASE("readBuildResult reads materials_file and counts.materials", "[core][b
     plynth::test::requireOk(out.header.status);
     REQUIRE(out.materialsFile == "materials.json");
     REQUIRE(out.counts.materials == 6);
-    REQUIRE(out.counts == BuildCounts{1, 9, 7, 5, 4, 6});
+    REQUIRE(out.counts == BuildCounts{1, 9, 7, 5, 4, 6, 31});
 
     Json noFbx = readData("result-valid.json");
     noFbx["output"]["fbx_file"] = nullptr;
@@ -484,4 +485,319 @@ TEST_CASE("readBuildResult reads materials_file and counts.materials", "[core][b
     REQUIRE(bad.header.status.code == ErrorCode::BadFile);
     REQUIRE(bad.header.status.where == "/output/counts/materials");
     REQUIRE(plynth::test::schemaProblem("blender-result.schema.json", nlohmann::json::parse(missing.dump())).size() > 0);
+}
+
+namespace {
+
+// The materials plan with r1 a living room and r2 a bedroom.
+Project typedRoomsProject()
+{
+    Project project = materialsProject();
+    Floor& f = project.plan.floors[0];
+    findRoom(f, "r1")->type = "living";
+    findRoom(f, "r2")->type = "bedroom";
+    return project;
+}
+
+// The slot table of a job by name.
+std::map<std::string, Json> slotTable(const Json& job)
+{
+    std::map<std::string, Json> out;
+    for (const Json& slot : job["params"]["slots"]) out.emplace(slot["name"].get<std::string>(), slot);
+    return out;
+}
+
+// Makes the job of a project with the sample libraries.
+Json jobOf(const Project& project, const std::filesystem::path& folder)
+{
+    const BuildPlan plan = makeBuildPlan(project, sampleAssetSource(), sampleMaterialSource());
+    return makeBuildJob(project, plan, BuildSettings{}, folder, "build-1a2b3c4d", folder / "result.json");
+}
+
+}
+
+TEST_CASE("every slot field of the job names one slot with the material beside it", "[core][build][slots]") {
+    plynth::test::TempDir tmp("build-job-slots");
+    const Json job = jobOf(typedRoomsProject(), tmp.path());
+    INFO(jobProblem(job));
+    REQUIRE(jobProblem(job).empty());
+    const std::map<std::string, Json> table = slotTable(job);
+
+    std::vector<std::string> names;
+    for (const Json& slot : job["params"]["slots"]) names.push_back(slot["name"].get<std::string>());
+    REQUIRE(std::is_sorted(names.begin(), names.end()));
+    REQUIRE(std::adjacent_find(names.begin(), names.end()) == names.end());
+
+    const auto agrees = [&](const Json& slot, const Json& material) {
+        REQUIRE(table.count(slot.get<std::string>()) == 1);
+        REQUIRE(table.at(slot.get<std::string>())["material"] == material);
+    };
+    const Json& floorJson = job["params"]["floors"][0];
+    for (const Json& ring : rings(job)) {
+        for (const Json& edge : ring["edges"]) agrees(edge["slot"], edge["material"]);
+    }
+    for (const Json& solid : floorJson["wall_solids"]) agrees(solid["top_slot"], solid["top_material"]);
+    for (const Json& room : floorJson["rooms"]) {
+        agrees(room["floor_slot"], room["floor_material"]);
+        agrees(room["ceiling_slot"], room["ceiling_material"]);
+    }
+    for (const Json& opening : floorJson["openings"]) {
+        for (const char* part : {"reveal", "threshold", "door", "frame", "glass", "handle"}) {
+            const Json& material = opening["materials"][part];
+            if (!material.is_null()) agrees(opening["slots"][part], material);
+            else REQUIRE(table.count(opening["slots"][part].get<std::string>()) == 1);
+        }
+    }
+}
+
+TEST_CASE("the job ring edges name their slots by room type", "[core][build][slots]") {
+    plynth::test::TempDir tmp("build-job-slots-edges");
+    const Json job = jobOf(typedRoomsProject(), tmp.path());
+    int living = 0;
+    int bedroom = 0;
+    int exterior = 0;
+    for (const Json& ring : rings(job)) {
+        for (const Json& edge : ring["edges"]) {
+            if (edge["side"].is_null()) {
+                REQUIRE(edge["slot"] == "Wall_Top");
+                REQUIRE(edge["material"] == "white_paint");
+            } else if (edge["room"].is_null()) {
+                REQUIRE(edge["slot"] == "Exterior_Wall");
+                ++exterior;
+            } else if (edge["room"] == "r1") {
+                REQUIRE(edge["slot"] == "Living_Wall");
+                ++living;
+            } else {
+                REQUIRE(edge["slot"] == "Bedroom_Wall");
+                ++bedroom;
+            }
+        }
+    }
+    REQUIRE(living > 0);
+    REQUIRE(bedroom > 0);
+    REQUIRE(exterior > 0);
+    REQUIRE(job["params"]["floors"][0]["wall_solids"][0]["top_slot"] == "Wall_Top");
+
+    const std::map<std::string, Json> table = slotTable(job);
+    REQUIRE(table.at("Living_Wall")["material"] == "white_paint");
+    REQUIRE(table.at("Living_Wall")["surface"] == "Wall_Inside");
+    REQUIRE(table.at("Bedroom_Wall")["material"] == "tile");
+    REQUIRE(table.at("Exterior_Wall")["material"].is_null());
+    REQUIRE(table.at("Exterior_Wall")["surface"] == "Wall_Outside");
+    REQUIRE(table.at("Wall_Top")["surface"] == "Wall_Top");
+}
+
+TEST_CASE("the end faces of a free wall use the wall top slot and material", "[core][build][slots]") {
+    plynth::test::TempDir tmp("build-job-slots-ends");
+    Project project = makeNewProject();
+    Floor f;
+    f.id = "f1";
+    f.name = "Floor 1";
+    f.points = {{"p1", 0.0, 0.0, 0.0}, {"p2", 3.0, 0.0, 0.0}};
+    Wall w;
+    w.id = "w1";
+    w.from = "p1";
+    w.to = "p2";
+    w.thickness = 0.2;
+    f.walls.push_back(w);
+    project.plan.floors[0] = f;
+    const Json job = jobOf(project, tmp.path());
+    INFO(jobProblem(job));
+    REQUIRE(jobProblem(job).empty());
+    int ends = 0;
+    for (const Json& ring : rings(job)) {
+        for (const Json& edge : ring["edges"]) {
+            if (edge["side"].is_null()) {
+                ++ends;
+                REQUIRE(edge["slot"] == "Wall_Top");
+                REQUIRE(edge["slot"] == job["params"]["floors"][0]["wall_solids"][0]["top_slot"]);
+                REQUIRE(edge["material"] == job["params"]["floors"][0]["wall_solids"][0]["top_material"]);
+            } else {
+                REQUIRE(edge["slot"] == "Exterior_Wall");
+            }
+        }
+    }
+    REQUIRE(ends == 2);
+}
+
+TEST_CASE("the job opening and room slots follow the slot rules", "[core][build][slots]") {
+    plynth::test::TempDir tmp("build-job-slots-openings");
+    const Project project = typedRoomsProject();
+    const Floor& floor = project.plan.floors[0];
+    const Json job = jobOf(project, tmp.path());
+    const Json& floorJson = job["params"]["floors"][0];
+
+    const OpeningRooms doorRooms = openingRooms(floor, floor.openings[0]);
+    REQUIRE(doorRooms.right);
+    const Json& door = floorJson["openings"][0]["slots"];
+    const std::string rightLabel = roomSlotLabel(*findRoom(floor, *doorRooms.right));
+    REQUIRE(door["reveal"] == rightLabel + "_Wall");
+    REQUIRE(door["threshold"] == rightLabel + "_Floor");
+    REQUIRE(door["door"] == "Door");
+    REQUIRE(door["frame"] == "Frame");
+    REQUIRE(door["glass"] == "Glass");
+    REQUIRE(door["handle"] == "Handle");
+
+    const Json& window = floorJson["openings"][1]["slots"];
+    REQUIRE(window["reveal"] == "Bedroom_Wall");
+    REQUIRE(window["glass"] == "Glass");
+    REQUIRE(window["frame"] == "Frame");
+
+    REQUIRE(floorJson["rooms"][0]["floor_slot"] == "Living_Floor");
+    REQUIRE(floorJson["rooms"][0]["ceiling_slot"] == "Living_Ceiling");
+    REQUIRE(floorJson["rooms"][1]["floor_slot"] == "Bedroom_Floor");
+    REQUIRE(floorJson["rooms"][1]["ceiling_slot"] == "Bedroom_Ceiling");
+
+    const std::map<std::string, Json> table = slotTable(job);
+    REQUIRE(table.at("Door")["material"] == "painted_wood");
+    REQUIRE(table.at("Door")["surface"] == "Door");
+    REQUIRE(table.at("Glass")["material"] == "clear_glass");
+    REQUIRE(table.at("Handle")["material"] == "brushed_steel");
+    REQUIRE(table.at("Frame")["material"] == "white_paint");
+    REQUIRE(table.at("Living_Floor")["surface"] == "Floor");
+    REQUIRE(table.at("Bedroom_Ceiling")["surface"] == "Ceiling");
+}
+
+TEST_CASE("a threshold with no room on either side uses the Threshold slot", "[core][build][slots]") {
+    plynth::test::TempDir tmp("build-job-slots-threshold");
+    Project project = typedRoomsProject();
+    Floor& f = project.plan.floors[0];
+    f.rooms.clear();
+    f.openings.erase(f.openings.begin() + 1);
+    const Json job = jobOf(project, tmp.path());
+    INFO(jobProblem(job));
+    REQUIRE(jobProblem(job).empty());
+    REQUIRE(job["params"]["floors"][0]["openings"].size() == 1);
+    const Json& slots = job["params"]["floors"][0]["openings"][0]["slots"];
+    REQUIRE(slots["threshold"] == "Threshold");
+    REQUIRE(slots["reveal"] == "Exterior_Wall");
+    REQUIRE(slotTable(job).at("Threshold")["surface"] == "Threshold");
+}
+
+TEST_CASE("rooms of one type with different floors get the material in the slot name", "[core][build][slots]") {
+    plynth::test::TempDir tmp("build-job-slots-clash");
+    Project project = typedRoomsProject();
+    Floor& f = project.plan.floors[0];
+    findRoom(f, "r1")->type = "bedroom";
+    findRoom(f, "r1")->floorMaterial = "oak_planks";
+    findRoom(f, "r2")->floorMaterial = "tile";
+    const Json job = jobOf(project, tmp.path());
+    INFO(jobProblem(job));
+    REQUIRE(jobProblem(job).empty());
+    const Json& rooms = job["params"]["floors"][0]["rooms"];
+    REQUIRE(rooms[0]["floor_slot"] == "Bedroom_Floor_OakPlanks");
+    REQUIRE(rooms[1]["floor_slot"] == "Bedroom_Floor_Tile");
+    const std::map<std::string, Json> table = slotTable(job);
+    REQUIRE(table.count("Bedroom_Floor") == 0);
+    REQUIRE(table.at("Bedroom_Floor_OakPlanks")["material"] == "oak_planks");
+    REQUIRE(table.at("Bedroom_Floor_Tile")["material"] == "tile");
+    REQUIRE(rooms[0]["ceiling_slot"] == "Bedroom_Ceiling");
+    REQUIRE(rooms[1]["ceiling_slot"] == "Bedroom_Ceiling");
+}
+
+TEST_CASE("a missing or broken material counts as the neutral look when slot names are compared", "[core][build][slots]") {
+    plynth::test::TempDir tmp("build-job-slots-neutral");
+    Project project = typedRoomsProject();
+    Floor& f = project.plan.floors[0];
+    findRoom(f, "r1")->type = "bedroom";
+    findRoom(f, "r1")->floorMaterial = "plaster";
+    findRoom(f, "r2")->floorMaterial = "no_such_material";
+    Json job = jobOf(project, tmp.path());
+    Json rooms = job["params"]["floors"][0]["rooms"];
+    REQUIRE(rooms[0]["floor_slot"] == "Bedroom_Floor");
+    REQUIRE(rooms[1]["floor_slot"] == "Bedroom_Floor");
+    REQUIRE(slotTable(job).at("Bedroom_Floor")["material"].is_null());
+
+    findRoom(f, "r2")->floorMaterial = "oak_planks";
+    job = jobOf(project, tmp.path());
+    rooms = job["params"]["floors"][0]["rooms"];
+    REQUIRE(rooms[0]["floor_slot"] == "Bedroom_Floor_Neutral");
+    REQUIRE(rooms[1]["floor_slot"] == "Bedroom_Floor_OakPlanks");
+    REQUIRE(jobProblem(job).empty());
+}
+
+TEST_CASE("the collision in the job equals floorCollision of every floor", "[core][build][collision]") {
+    plynth::test::TempDir tmp("build-job-collision");
+    const Project project = typedRoomsProject();
+    const BuildPlan plan = makeBuildPlan(project, sampleAssetSource(), sampleMaterialSource());
+    REQUIRE(plan.collision.size() == plan.floors.size());
+    for (std::size_t i = 0; i < plan.floors.size(); ++i) {
+        REQUIRE(plan.collision[i] == floorCollision(project.plan.floors[i], plan.floors[i]));
+    }
+    const Json job = makeBuildJob(project, plan, BuildSettings{}, tmp.path(), "build-1a2b3c4d", tmp.path() / "result.json");
+    REQUIRE(jobProblem(job).empty());
+
+    const Json& list = job["params"]["floors"][0]["collision"];
+    REQUIRE(list.size() == plan.collision[0].size());
+    REQUIRE(list.size() > 0);
+    for (std::size_t i = 0; i < list.size(); ++i) {
+        const CollisionShape& shape = plan.collision[0][i];
+        REQUIRE(list[i]["target"]["kind"] == std::string(collisionTargetKindName(shape.kind)));
+        REQUIRE(list[i]["target"]["id"] == shape.id);
+        REQUIRE(list[i]["pieces"].size() == shape.pieces.size());
+        for (std::size_t p = 0; p < shape.pieces.size(); ++p) {
+            REQUIRE(list[i]["pieces"][p]["bottom"] == shape.pieces[p].bottom);
+            REQUIRE(list[i]["pieces"][p]["top"] == shape.pieces[p].top);
+            REQUIRE(list[i]["pieces"][p]["outline"].size() == shape.pieces[p].outline.size());
+        }
+    }
+    REQUIRE(list[0]["target"]["kind"] == "walls");
+}
+
+TEST_CASE("the job carries the preview texture settings", "[core][build][preview]") {
+    plynth::test::TempDir tmp("build-job-preview");
+    const Json job = jobOf(typedRoomsProject(), tmp.path());
+    REQUIRE(job["params"]["preview_textures_folder"] == std::string(kBuildPreviewTexturesFolder));
+    REQUIRE(job["params"]["preview_texture_size"] == 1024);
+}
+
+TEST_CASE("the job lists the maps of every asset material", "[core][build][assets]") {
+    plynth::test::TempDir tmp("build-job-asset-materials");
+    const Project project = buildProject();
+    const BuildAssetSource source = [](std::string_view id) -> std::optional<BuildAssetState> {
+        if (id != "sofa") return std::nullopt;
+        BuildAssetState state;
+        state.blendFile = "D:/Library/assets/items/sofa/asset.blend";
+        BuildAssetMaterial fabric;
+        fabric.name = "Fabric";
+        fabric.baseColor = "D:/Library/assets/items/sofa/textures/maps/fabric/base_color.png";
+        fabric.normal = "D:/Library/assets/items/sofa/textures/maps/fabric/normal.png";
+        fabric.roughness = "D:/Library/assets/items/sofa/textures/maps/fabric/roughness.png";
+        fabric.metallic = "D:/Library/assets/items/sofa/textures/maps/fabric/metallic.png";
+        BuildAssetMaterial glass = fabric;
+        glass.name = "Glass.001";
+        glass.opacity = "D:/Library/assets/items/sofa/textures/maps/glass_001/opacity.png";
+        state.materials = {fabric, glass};
+        return state;
+    };
+    const BuildPlan plan = makeBuildPlan(project, source, sampleMaterialSource());
+    REQUIRE(plan.assets.size() == 1);
+    REQUIRE(plan.assets[0].materials.size() == 2);
+    const Json job = makeBuildJob(project, plan, BuildSettings{}, tmp.path(), "build-1a2b3c4d", tmp.path() / "result.json");
+    INFO(jobProblem(job));
+    REQUIRE(jobProblem(job).empty());
+    const Json& materials = job["params"]["assets"][0]["materials"];
+    REQUIRE(materials.size() == 2);
+    REQUIRE(materials[0]["name"] == "Fabric");
+    REQUIRE(materials[0]["maps"]["base_color"] == "D:/Library/assets/items/sofa/textures/maps/fabric/base_color.png");
+    REQUIRE(materials[0]["maps"]["opacity"].is_null());
+    REQUIRE(materials[0]["maps"]["occlusion"].is_null());
+    REQUIRE(materials[1]["name"] == "Glass.001");
+    REQUIRE(materials[1]["maps"]["opacity"] == "D:/Library/assets/items/sofa/textures/maps/glass_001/opacity.png");
+
+    const BuildPlan noMaps = makeBuildPlan(project, sampleAssetSource(), sampleMaterialSource());
+    const Json bare = makeBuildJob(project, noMaps, BuildSettings{}, tmp.path(), "build-1a2b3c4d", tmp.path() / "result.json");
+    REQUIRE(bare["params"]["assets"][0]["materials"].is_array());
+    REQUIRE(bare["params"]["assets"][0]["materials"].empty());
+    REQUIRE(jobProblem(bare).empty());
+}
+
+TEST_CASE("readBuildResult without counts.collision is BadFile", "[core][build][collision]") {
+    Json result = readData("result-valid.json");
+    REQUIRE(readBuildResult(result, "build-00000001").counts.collision == 31);
+    result["output"]["counts"].erase("collision");
+    const BuildWorkerOutput bad = readBuildResult(result, "build-00000001");
+    REQUIRE(bad.header.status.code == ErrorCode::BadFile);
+    REQUIRE(bad.header.status.where == "/output/counts/collision");
+    REQUIRE(plynth::test::schemaProblem("blender-result.schema.json", nlohmann::json::parse(result.dump())).size() > 0);
 }

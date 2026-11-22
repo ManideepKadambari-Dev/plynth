@@ -27,6 +27,7 @@ class CleanupTest(helpers.TempFolderTest):
             "scale": 1.0,
             "rotate_z": 0,
             "triangle_warning": 500000,
+            "bake_size": 256,
             "thumbnail": {"render": False, "size": 64, "background": BACKGROUND},
         }
         params.update(overrides)

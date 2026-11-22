@@ -102,8 +102,12 @@ public:
     std::vector<MaterialGroupEntry> groups() const;
     // InvalidValue for a bad id or name, AlreadyExists for a taken id. New ones go last.
     Status addGroup(std::string_view id, std::string_view name);
+    // The eight built-in groups are protected (owner, milestone 10): renaming or removing one is InvalidValue
+    // "The built-in group <name> cannot be renamed." (or "removed."), and nothing changes. Moving them is
+    // allowed.
     Status renameGroup(std::string_view id, std::string_view name);
-    // Takes the group off every material that had it (rewriting their info.json). NotFound when unknown.
+    // Takes the group off every material that had it (rewriting their info.json). NotFound when unknown,
+    // InvalidValue for a built-in group.
     Status removeGroup(std::string_view id);
     // Moves a group to a place in the order, 0 based, clamped to the list.
     Status moveGroup(std::string_view id, int position);

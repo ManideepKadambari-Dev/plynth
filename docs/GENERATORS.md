@@ -1,6 +1,6 @@
 # Writing generators
 
-This page explains how to add to Plynth without changing the program. Today it covers opening shapes, importers, the Blender worker registries, build steps and opening fills. Generators and roof types are added to this page in later releases.
+This page explains how to add to Plynth without changing the program. Today it covers opening shapes, importers, exporters, the Blender worker registries, build steps, opening fills, export steps and quality checks. Generators and roof types are added to this page in later releases.
 
 For the commands see the [Command line guide](CLI_GUIDE.md). For the screens see the [User guide](USER_GUIDE.md).
 
@@ -191,13 +191,13 @@ Blender does the heavy work in the background. Its side is Python, in `blender/p
 
 ### How a file registers itself
 
-`blender/plynth/registry.py` has a small `Registry` class and ten registries: `TASKS`, `IMPORTERS`, `CLEANUP_STEPS`, `CHECKS`, `EXPORTERS`, `BUILD_STEPS`, `OPENING_FILLS`, `MATERIAL_SOURCES`, `BAKERS` and `MATERIAL_CHECKS`. Each has `register(id, thing)`, which refuses a duplicate id, plus `get`, `all` and `ids`.
+`blender/plynth/registry.py` has a small `Registry` class and twelve registries: `TASKS`, `IMPORTERS`, `CLEANUP_STEPS`, `CHECKS`, `EXPORTERS`, `BUILD_STEPS`, `OPENING_FILLS`, `MATERIAL_SOURCES`, `BAKERS`, `MATERIAL_CHECKS`, `EXPORT_STEPS` and `QUALITY_CHECKS`. Each has `register(id, thing)`, which refuses a duplicate id, plus `get`, `all` and `ids`.
 
-Each package (`tasks/`, `importers/`, `cleanup/`, `checks/`, `exporters/`, `building/`, `fills/`) is loaded with `discover(package)`, which imports every module in the folder in name order. A module registers itself on its last line as it is imported. So adding an entry is adding one file. Nothing else is edited: no list, no import. Only the Python standard library and `bpy` are used.
+Each package (`tasks/`, `importers/`, `cleanup/`, `checks/`, `exporters/`, `building/`, `fills/`, `exporting/`, `quality/`) is loaded with `discover(package)`, which imports every module in the folder in name order. A module registers itself on its last line as it is imported. So adding an entry is adding one file. Nothing else is edited: no list, no import. Only the Python standard library and `bpy` are used.
 
 ### Tasks
 
-A task is what a job asks for. Files in `plynth/tasks/`: `probe`, `cleanup_asset`, `render_thumbnail`, `build`, `cleanup_material`. A task is a function `run(ctx)` registered with `TASKS.register("name", run)`. It reads `ctx.params`, fills `ctx.output`, adds warnings with `ctx.warn(code, message)`, and raises `WorkerError(code, message)` to fail with a named error. The C++ side must also know the task name and its parameters and output: see `core/include/plynth/core/BlenderJob.h` and `catalog/AssetJobs.h`.
+A task is what a job asks for. Files in `plynth/tasks/`: `probe`, `cleanup_asset`, `render_thumbnail`, `build`, `cleanup_material`, `export`. A task is a function `run(ctx)` registered with `TASKS.register("name", run)`. It reads `ctx.params`, fills `ctx.output`, adds warnings with `ctx.warn(code, message)`, and raises `WorkerError(code, message)` to fail with a named error. The C++ side must also know the task name and its parameters and output: see `core/include/plynth/core/BlenderJob.h` and `catalog/AssetJobs.h`.
 
 ### File format importers
 
@@ -304,7 +304,7 @@ The order numbers. The gaps are for new steps, and the reserved ones belong to l
 | 80 | `materials` | The library material of every surface, built from its image maps, with UVs at the material's tile size. A surface without one gets its neutral look |
 | 90 | reserved | Trim |
 | 100 | reserved | Set dressing |
-| 110 | reserved | Collision |
+| 110 | `collision` | A closed convex `UCX_` mesh for each collision shape core worked out, and one convex hull for each furniture item. They go in a `Collision` collection and are left out of `building.fbx` |
 | 120 | `save_blend` | Saves `building.blend` |
 | 130 | `export_fbx` | Makes the item copies real objects, exports `building.fbx` and writes `materials.json` beside it |
 
@@ -421,7 +421,73 @@ Worker codes of this task: errors `import_failed`, `no_base_color`, `several_mat
 
 ### Adding an exporter
 
-An exporter is one file in `blender/plynth/exporters/` that registers an `ExporterEntry(extension, export)`. `export(objects, filepath, path_mode)` writes the given objects, or the whole scene when `objects` is `None`. `exporters/__init__.py` has `write_file`, which writes under a temporary name and renames the result, so a failed export leaves nothing behind. `fbx.py` is the one profile Plynth uses for `asset.fbx` and `building.fbx`.
+An exporter decides which FBX files an export writes and which built objects go into each. It lives in core, because core knows the project. It is one file, and nothing else is edited.
+
+1. Make one new file in `core/src/exporters/`, for example `GroupedExporter.cpp`. CMake finds every `.cpp` in that folder and builds it into the OBJECT library `plynth_exporters`, so you do not edit `CMakeLists.txt`.
+2. In it, write a class that derives from `Exporter` (`core/include/plynth/core/Exporter.h`) and implements `id()`, `name()`, `description()` and `groups(project, out)`. The id is the project's export mode name, so `single` serves the single mode. `groups` fills a list of `ExportGroup`, one for each file: its `id`, its `file` name, and which kinds of objects or plan ids it takes. An empty list of kinds takes everything. When the project cannot be exported this way, return `InvalidValue` with a plain sentence.
+3. At the bottom of the file, register it:
+
+```cpp
+const ExporterRegistrar registrar(std::make_unique<GroupedExporter>());
+```
+
+`SingleExporter.cpp` is the worked example, about twenty lines. `exportFileStem(name)` turns a project name into a safe file name. The export runs the exporter's groups through the same Blender task and the same checks, and every group is written with the same FBX profile.
+
+On the Blender side, the file format is a registry too. One file in `blender/plynth/exporters/` registers an `ExporterEntry(extension, export)`. `export(objects, filepath, path_mode)` writes the given objects, or the whole scene when `objects` is `None`. `exporters/__init__.py` has `write_file`, which writes under a temporary name and renames the result, so a failed export leaves nothing behind. `fbx.py` is the one profile Plynth uses for `asset.fbx`, `building.fbx` and the export.
+
+### Adding a quality check
+
+A quality check is one file in `blender/plynth/quality/`. It has an `ORDER`, a phase, a name shown in the Export tab, and `run(ctx)`. The export task finds every file, so nothing else is edited.
+
+```python
+from . import QualityCheck, finding, result
+from ..registry import QUALITY_CHECKS
+
+ORDER = 95
+
+
+# Fails for a mesh with more than 100 materials.
+def run(ctx):
+    findings = []
+    for obj in ctx.state["meshes"]:
+        if len(obj.data.materials) > 100:
+            findings.append(finding("%s has too many materials." % obj.name, obj.name, obj.get("plynth_id")))
+    if findings:
+        return result("fail", "Some meshes have too many materials.", findings)
+    return result("pass", "No mesh has too many materials.")
+
+
+QUALITY_CHECKS.register("material_count", QualityCheck(ORDER, "scene", "Material count", run))
+```
+
+- The phase is `"scene"` for a check that looks at the objects before the FBX is written, or `"file"` for one that reads the written files back.
+- `result(status, message, findings)` gives the answer. The status is `pass`, `warning`, `fail` or `skipped`. Only `fail` blocks an export, and only when it is not forced. At most 50 findings are kept.
+- `finding(message, object, plan_id)` makes one finding. The plan id is what the app selects when you click the finding, so give one when the object comes from the plan.
+- `ctx.state["meshes"]` holds the building and furniture objects, `ctx.state["collision"]` the `UCX_` objects. `ctx.params` is the export job, with the `limits` and the `expected_bounds` that core worked out.
+- A check never stops the export. Do not raise an error for a problem you can report.
+
+Look at `naming.py` for a bigger one. A new check shows up in the Export tab and in the report at once. Core only needs a change if the check needs a number it does not pass yet.
+
+### Adding an export step
+
+The `export` task, like the build, only runs steps in order. Each step is one file in `blender/plynth/exporting/`. The steps are `open_blend` (10), `prepare` (20), `name_objects` (30), `textures` (40), `checks` (50), `write_fbx` (60) and `file_checks` (70).
+
+```python
+from . import Step
+from ..registry import EXPORT_STEPS
+
+ORDER = 45
+
+
+# Does one thing between collecting textures and running the checks.
+def run(ctx):
+    ctx.state["my_note"] = len(ctx.state["meshes"])
+
+
+EXPORT_STEPS.register("my_step", Step(ORDER, "Doing my step", run))
+```
+
+Drop the file in `exporting/` and the step runs between `textures` (40) and `checks` (50). The sentence is shown as progress. `ctx.state` is shared between the steps. A step may fail the whole job by raising `WorkerError`, which is meant for real errors such as a missing file. A quality problem is a check, not a step. The export never saves `building.blend`.
 
 ### Testing
 

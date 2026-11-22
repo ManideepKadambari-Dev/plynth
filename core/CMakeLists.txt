@@ -45,6 +45,11 @@ add_library(plynth_core STATIC
     src/Build.cpp
     src/MaterialDefaults.cpp
     src/Materials.cpp
+    src/Collision.cpp
+    src/MaterialSlots.cpp
+    src/Exporter.cpp
+    src/ExportJob.cpp
+    src/Export.cpp
     src/openings/OpeningShapes.cpp
     src/openings/ShapeFiles.cpp
     src/commands/FloorCommands.cpp
@@ -74,6 +79,18 @@ target_compile_features(plynth_core PUBLIC cxx_std_20)
 target_link_libraries(plynth_core PUBLIC nlohmann_json::nlohmann_json)
 set_source_files_properties(src/Blender.cpp PROPERTIES
     COMPILE_DEFINITIONS PLYNTH_SOURCE_BLENDER_DIR="${PROJECT_SOURCE_DIR}/blender")
+# AUTO looks for the samples in the source tree in Debug builds only. ON or OFF forces it for every build type.
+set(PLYNTH_DEV_SAMPLES AUTO CACHE STRING "Find samples through the source path: AUTO (Debug only), ON or OFF")
+set_property(CACHE PLYNTH_DEV_SAMPLES PROPERTY STRINGS AUTO ON OFF)
+if(PLYNTH_DEV_SAMPLES STREQUAL "ON")
+    set(PLYNTH_DEV_SAMPLES_VALUE 1)
+elseif(PLYNTH_DEV_SAMPLES STREQUAL "OFF")
+    set(PLYNTH_DEV_SAMPLES_VALUE 0)
+else()
+    set(PLYNTH_DEV_SAMPLES_VALUE "$<CONFIG:Debug>")
+endif()
+set_source_files_properties(src/Library.cpp PROPERTIES
+    COMPILE_DEFINITIONS PLYNTH_DEV_SAMPLES=${PLYNTH_DEV_SAMPLES_VALUE})
 set_source_files_properties(src/Version.cpp PROPERTIES
     COMPILE_DEFINITIONS PLYNTH_VERSION_STRING="${PROJECT_VERSION}")
 find_package(unofficial-sqlite3 CONFIG REQUIRED)
@@ -128,4 +145,14 @@ if(PLYNTH_IMPORTER_SOURCES)
     target_compile_features(plynth_importers PUBLIC cxx_std_20)
     target_link_libraries(plynth_importers PRIVATE nlohmann_json::nlohmann_json)
     target_sources(plynth_core INTERFACE $<TARGET_OBJECTS:plynth_importers>)
+endif()
+
+# Exporters register themselves the same way, so they are built as an object library too.
+file(GLOB PLYNTH_EXPORTER_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/exporters/*.cpp)
+if(PLYNTH_EXPORTER_SOURCES)
+    add_library(plynth_exporters OBJECT ${PLYNTH_EXPORTER_SOURCES})
+    target_include_directories(plynth_exporters PRIVATE include src)
+    target_compile_features(plynth_exporters PUBLIC cxx_std_20)
+    target_link_libraries(plynth_exporters PRIVATE nlohmann_json::nlohmann_json)
+    target_sources(plynth_core INTERFACE $<TARGET_OBJECTS:plynth_exporters>)
 endif()
