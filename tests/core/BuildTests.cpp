@@ -107,11 +107,11 @@ TEST_CASE("runBuild through the fake Blender writes the files and the report", "
     REQUIRE(report.logFile == f.projectFolder / "build" / "blender.log");
     REQUIRE_FALSE(fs::exists(f.lockFile()));
 
-    // The fake counts every collision piece of the job and one hull per item.
+    // The fake counts every collision piece and hull of the job and one hull per item.
     const nlohmann::json sentJob = nlohmann::json::parse(plynth::test::readTextFile(f.projectFolder / "build" / "job.json"));
     int pieces = 0;
     for (const auto& floor : sentJob["params"]["floors"]) {
-        for (const auto& shape : floor["collision"]) pieces += static_cast<int>(shape["pieces"].size());
+        for (const auto& shape : floor["collision"]) pieces += static_cast<int>(shape["pieces"].size() + shape["hulls"].size());
     }
     REQUIRE(pieces > 4);
     REQUIRE(report.counts == BuildCounts{1, 1, 1, 1, 2, 1, 1, 0, 1, pieces + 2});

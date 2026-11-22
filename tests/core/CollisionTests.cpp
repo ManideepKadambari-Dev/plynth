@@ -125,11 +125,15 @@ void requireAllConvex(const std::vector<CollisionPiece>& pieces)
 
 TEST_CASE("collision kind names round trip", "[collision]") {
     for (const CollisionTargetKind kind : {CollisionTargetKind::Walls, CollisionTargetKind::Floor,
-                                           CollisionTargetKind::Ceiling, CollisionTargetKind::Thresholds}) {
+                                           CollisionTargetKind::Ceiling, CollisionTargetKind::Thresholds,
+                                           CollisionTargetKind::Slab, CollisionTargetKind::Stair, CollisionTargetKind::Roof}) {
         REQUIRE(collisionTargetKindFromName(collisionTargetKindName(kind)) == kind);
     }
     REQUIRE(collisionTargetKindName(CollisionTargetKind::Walls) == "walls");
     REQUIRE(collisionTargetKindName(CollisionTargetKind::Floor) == "floor");
+    REQUIRE(collisionTargetKindName(CollisionTargetKind::Slab) == "slab");
+    REQUIRE(collisionTargetKindName(CollisionTargetKind::Stair) == "stair");
+    REQUIRE(collisionTargetKindName(CollisionTargetKind::Roof) == "roof");
     REQUIRE_FALSE(collisionTargetKindFromName("furniture").has_value());
 }
 

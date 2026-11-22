@@ -430,7 +430,7 @@ Json buildOutput(const Json& params, const std::string& mode)
     int collision = items;
     for (const Json& floor : floors) {
         if (!floor.contains("collision")) continue;
-        for (const Json& shape : floor["collision"]) collision += static_cast<int>(shape["pieces"].size());
+        for (const Json& shape : floor["collision"]) collision += static_cast<int>(shape["pieces"].size() + (shape.contains("hulls") ? shape["hulls"].size() : 0));
     }
     int fills = 0;
     const bool fill = params["settings"]["fill_openings"].get<bool>();

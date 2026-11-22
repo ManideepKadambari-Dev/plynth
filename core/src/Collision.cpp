@@ -1,5 +1,6 @@
 #include "plynth/core/Collision.h"
 
+#include "plynth/core/Roofs.h"
 #include "plynth/core/WallGeometry.h"
 
 #include "BandOutline.h"
@@ -287,6 +288,88 @@ void slabPieces(std::vector<CollisionPiece>& out, const WorldPolygon& polygon, d
     for (std::vector<Vec2>& ring : convexPieces(polygon)) out.push_back({std::move(ring), bottom, top});
 }
 
+// The plane of a roof face as height over x and y, from the face's normal. Not valid for a vertical face.
+struct FacePlane {
+    bool valid = false;
+    Vec3 origin;
+    double slopeX = 0.0;
+    double slopeY = 0.0;
+
+    double heightAt(double x, double y) const { return origin.z + slopeX * (x - origin.x) + slopeY * (y - origin.y); }
+};
+
+FacePlane planeOf(const std::vector<Vec3>& ring)
+{
+    FacePlane plane;
+    if (ring.size() < 3) return plane;
+    double nx = 0.0;
+    double ny = 0.0;
+    double nz = 0.0;
+    Vec3 mean{0.0, 0.0, 0.0};
+    for (std::size_t i = 0; i < ring.size(); ++i) {
+        const Vec3& a = ring[i];
+        const Vec3& b = ring[(i + 1) % ring.size()];
+        nx += (a.y - b.y) * (a.z + b.z);
+        ny += (a.z - b.z) * (a.x + b.x);
+        nz += (a.x - b.x) * (a.y + b.y);
+        mean.x += a.x;
+        mean.y += a.y;
+        mean.z += a.z;
+    }
+    if (std::fabs(nz) < 1e-9) return plane;
+    const double count = static_cast<double>(ring.size());
+    plane.valid = true;
+    plane.origin = {mean.x / count, mean.y / count, mean.z / count};
+    plane.slopeX = -nx / nz;
+    plane.slopeY = -ny / nz;
+    return plane;
+}
+
+// A face seen from above: its outline and holes in x and y.
+WorldPolygon seenFromAbove(const RoofFace& face)
+{
+    WorldPolygon polygon;
+    for (const Vec3& p : face.outline) polygon.outline.push_back({p.x, p.y});
+    makeAnticlockwise(polygon.outline);
+    for (const std::vector<Vec3>& hole : face.holes) {
+        std::vector<Vec2> ring;
+        for (const Vec3& p : hole) ring.push_back({p.x, p.y});
+        polygon.holes.push_back(std::move(ring));
+    }
+    return polygon;
+}
+
+// Adds the hulls of a covering face and the pieces of a parapet face to a roof's shape.
+void roofFaceCollision(CollisionShape& shape, const RoofFace& face, double parapetBottom)
+{
+    const FacePlane plane = planeOf(face.outline);
+    if (!plane.valid) return;
+    const WorldPolygon polygon = seenFromAbove(face);
+    if (face.part == RoofPart::Covering) {
+        for (const std::vector<Vec2>& piece : convexPieces(polygon)) {
+            std::vector<Vec3> hull;
+            for (const Vec2& p : piece) hull.push_back({p.x, p.y, plane.heightAt(p.x, p.y)});
+            for (const Vec2& p : piece) hull.push_back({p.x, p.y, plane.heightAt(p.x, p.y) - kRoofThickness});
+            shape.hulls.push_back(std::move(hull));
+        }
+    } else if (face.part == RoofPart::Parapet && std::fabs(plane.slopeX) < 1e-9 && std::fabs(plane.slopeY) < 1e-9) {
+        const double top = plane.origin.z;
+        if (top <= parapetBottom + kLevelEps) return;
+        slabPieces(shape.pieces, polygon, parapetBottom, top);
+    }
+}
+
+// The lowest Z of the parapet faces of a roof, or a large number when it has none.
+double lowestParapet(const RoofBuild& roof)
+{
+    double lowest = 1e300;
+    for (const RoofFace& face : roof.faces) {
+        if (face.part != RoofPart::Parapet) continue;
+        for (const Vec3& p : face.outline) lowest = std::min(lowest, p.z);
+    }
+    return lowest;
+}
+
 }
 
 // The name of a collision target kind.
@@ -297,6 +380,9 @@ std::string_view collisionTargetKindName(CollisionTargetKind kind)
     case CollisionTargetKind::Floor: return "floor";
     case CollisionTargetKind::Ceiling: return "ceiling";
     case CollisionTargetKind::Thresholds: return "thresholds";
+    case CollisionTargetKind::Slab: return "slab";
+    case CollisionTargetKind::Stair: return "stair";
+    case CollisionTargetKind::Roof: return "roof";
     }
     return "walls";
 }
@@ -305,7 +391,8 @@ std::string_view collisionTargetKindName(CollisionTargetKind kind)
 std::optional<CollisionTargetKind> collisionTargetKindFromName(std::string_view name)
 {
     for (const CollisionTargetKind kind : {CollisionTargetKind::Walls, CollisionTargetKind::Floor,
-                                           CollisionTargetKind::Ceiling, CollisionTargetKind::Thresholds}) {
+                                           CollisionTargetKind::Ceiling, CollisionTargetKind::Thresholds,
+                                           CollisionTargetKind::Slab, CollisionTargetKind::Stair, CollisionTargetKind::Roof}) {
         if (collisionTargetKindName(kind) == name) return kind;
     }
     return std::nullopt;
@@ -454,6 +541,8 @@ std::vector<CollisionShape> floorCollision(const Floor& floor, const FloorBuild&
         ceilingShape.id = room.id;
         for (const WorldPolygon& polygon : room.polygons) {
             slabPieces(floorShape.pieces, polygon, room.floorZ - kCollisionSlabThickness, room.floorZ);
+        }
+        for (const WorldPolygon& polygon : room.ceilingPolygons) {
             slabPieces(ceilingShape.pieces, polygon, room.ceilingZ, room.ceilingZ + kCollisionSlabThickness);
         }
         if (!floorShape.pieces.empty()) shapes.push_back(std::move(floorShape));
@@ -471,6 +560,30 @@ std::vector<CollisionShape> floorCollision(const Floor& floor, const FloorBuild&
         slabPieces(thresholds.pieces, polygon, build.elevation - kCollisionSlabThickness, build.elevation);
     }
     if (!thresholds.pieces.empty()) shapes.push_back(std::move(thresholds));
+
+    CollisionShape slab;
+    slab.kind = CollisionTargetKind::Slab;
+    slab.id = floor.id;
+    for (const WorldPolygon& polygon : build.slab.polygons) slabPieces(slab.pieces, polygon, build.slab.bottom, build.slab.top);
+    if (!slab.pieces.empty()) shapes.push_back(std::move(slab));
+
+    for (const StairBuild& built : build.stairs) {
+        CollisionShape stair;
+        stair.kind = CollisionTargetKind::Stair;
+        stair.id = built.id;
+        for (const StairStepBuild& step : built.steps) addPieces(stair.pieces, step.outline, step.bottom, step.top);
+        if (!stair.pieces.empty()) shapes.push_back(std::move(stair));
+    }
+
+    for (const RoofBuild& built : build.roofs) {
+        CollisionShape roof;
+        roof.kind = CollisionTargetKind::Roof;
+        roof.id = floor.id;
+        roof.index = built.index;
+        const double parapetBottom = lowestParapet(built);
+        for (const RoofFace& face : built.faces) roofFaceCollision(roof, face, parapetBottom);
+        if (!roof.pieces.empty() || !roof.hulls.empty()) shapes.push_back(std::move(roof));
+    }
     return shapes;
 }
 

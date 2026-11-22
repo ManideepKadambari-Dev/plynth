@@ -4,6 +4,8 @@
 #include "TestSupport.h"
 
 #include <plynth/core/BuildJob.h>
+#include <plynth/core/Collision.h>
+#include <plynth/core/Roofs.h>
 #include <plynth/core/Materials.h>
 #include <plynth/core/ProjectFiles.h>
 #include <plynth/core/ProjectJson.h>
@@ -15,6 +17,7 @@
 #include <algorithm>
 #include <map>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -657,7 +660,7 @@ TEST_CASE("materials of stairs, slabs and roofs follow the rules and a missing o
     REQUIRE(plan.floorMaterials[0].stairs[0].material == "oak_planks");
     REQUIRE(plan.floorMaterials[0].slab.edge == "red_brick");
     REQUIRE(plan.floorMaterials[0].slab.well == "white_paint");
-    REQUIRE(plan.floorMaterials[0].slab.underside == "white_paint");
+    REQUIRE(plan.floorMaterials[0].slab.underside.empty()); // no undersides are built, so no material
     REQUIRE(plan.floorMaterials[1].roofs.size() == 1);
     REQUIRE(plan.floorMaterials[1].roofs[0].covering == "concrete");
     REQUIRE(plan.problems.empty());
@@ -1066,4 +1069,237 @@ TEST_CASE("readBuildResult without counts.collision is BadFile", "[core][build][
     REQUIRE(bad.header.status.code == ErrorCode::BadFile);
     REQUIRE(bad.header.status.where == "/output/counts/collision");
     REQUIRE(plynth::test::schemaProblem("blender-result.schema.json", nlohmann::json::parse(result.dump())).size() > 0);
+}
+
+namespace {
+
+// The shape of a kind in a floor's collision, or null.
+const CollisionShape* shapeOf(const std::vector<CollisionShape>& shapes, CollisionTargetKind kind, const Id& id = {})
+{
+    for (const CollisionShape& s : shapes) {
+        if (s.kind == kind && (id.empty() || s.id == id)) return &s;
+    }
+    return nullptr;
+}
+
+// The area of the pieces of a shape.
+double pieceArea(const CollisionShape& shape)
+{
+    double sum = 0.0;
+    for (const CollisionPiece& p : shape.pieces) sum += signedArea(p.outline);
+    return sum;
+}
+
+// A material source that has every id.
+BuildMaterialSource anyMaterial()
+{
+    return [](std::string_view id) -> std::optional<BuildMaterialState> {
+        BuildMaterialState state;
+        state.material.id = std::string(id);
+        state.material.baseColor = "D:/Library/" + std::string(id) + ".png";
+        return state;
+    };
+}
+
+}
+
+TEST_CASE("the slab and stair collision of a two floor plan", "[core][build][collision][stairs]") {
+    const Project project = stairProject();
+    const BuildPlan plan = makeBuildPlan(project, {});
+    const FloorBuild& f1 = plan.floors[0];
+    const std::vector<CollisionShape>& shapes = plan.collision[0];
+
+    const CollisionShape* slab = shapeOf(shapes, CollisionTargetKind::Slab, "f1");
+    REQUIRE(slab);
+    REQUIRE(pieceArea(*slab) == Approx(worldArea(f1.slab.polygons)).margin(1e-6));
+    for (const CollisionPiece& p : slab->pieces) {
+        REQUIRE(isConvexRing(p.outline));
+        REQUIRE(p.bottom == Approx(f1.slab.bottom));
+        REQUIRE(p.top == Approx(f1.slab.top));
+    }
+
+    const CollisionShape* stair = shapeOf(shapes, CollisionTargetKind::Stair, "s1");
+    REQUIRE(stair);
+    REQUIRE(stair->pieces.size() == f1.stairs[0].steps.size());
+    for (std::size_t i = 0; i < stair->pieces.size(); ++i) {
+        REQUIRE(stair->pieces[i].bottom == Approx(f1.stairs[0].steps[i].bottom));
+        REQUIRE(stair->pieces[i].top == Approx(f1.stairs[0].steps[i].top));
+        REQUIRE(isConvexRing(stair->pieces[i].outline));
+    }
+    REQUIRE(stair->hulls.empty());
+}
+
+TEST_CASE("the ceiling collision leaves the stair hole open", "[core][build][collision][stairs]") {
+    const Project project = stairProject();
+    const BuildPlan plan = makeBuildPlan(project, {});
+    const FloorBuild& f1 = plan.floors[0];
+    const CollisionShape* ceiling = shapeOf(plan.collision[0], CollisionTargetKind::Ceiling, f1.rooms[0].id);
+    REQUIRE(ceiling);
+    REQUIRE(pieceArea(*ceiling) == Approx(worldArea(f1.rooms[0].ceilingPolygons)).margin(1e-6));
+    REQUIRE(pieceArea(*ceiling) < worldArea(f1.rooms[0].polygons) - 2.0);
+    const CollisionShape* floorShape = shapeOf(plan.collision[0], CollisionTargetKind::Floor, f1.rooms[0].id);
+    REQUIRE(floorShape);
+    REQUIRE(pieceArea(*floorShape) == Approx(worldArea(f1.rooms[0].polygons)).margin(1e-6));
+}
+
+TEST_CASE("a flat roof has a hull per covering piece and prisms for its parapet", "[core][build][collision][roofs]") {
+    const Project project = stairProject();
+    const BuildPlan plan = makeBuildPlan(project, {});
+    const CollisionShape* roof = shapeOf(plan.collision[1], CollisionTargetKind::Roof, "f2");
+    REQUIRE(roof);
+    REQUIRE(roof->index == plan.floors[1].roofs[0].index);
+    REQUIRE_FALSE(roof->hulls.empty());
+    REQUIRE_FALSE(roof->pieces.empty());
+    for (const std::vector<Vec3>& hull : roof->hulls) {
+        REQUIRE(hull.size() >= 6);
+        const std::size_t half = hull.size() / 2;
+        for (std::size_t i = 0; i < half; ++i) {
+            REQUIRE(hull[i].z - hull[i + half].z == Approx(kRoofThickness).margin(1e-9));
+        }
+    }
+    for (const CollisionPiece& p : roof->pieces) {
+        REQUIRE(isConvexRing(p.outline));
+        REQUIRE(p.top > p.bottom);
+    }
+    REQUIRE(shapeOf(plan.collision[0], CollisionTargetKind::Roof) == nullptr);
+}
+
+TEST_CASE("the hulls of a gable roof lie on the covering planes", "[core][build][collision][roofs]") {
+    Project project = stairProject();
+    project.plan.roof.type = "gable";
+    const BuildPlan plan = makeBuildPlan(project, {});
+    const FloorBuild& f2 = plan.floors[1];
+    REQUIRE(f2.roofs.size() == 1);
+    const CollisionShape* roof = shapeOf(plan.collision[1], CollisionTargetKind::Roof, "f2");
+    REQUIRE(roof);
+    REQUIRE(roof->pieces.empty());
+    REQUIRE(roof->hulls.size() >= 2);
+    for (const std::vector<Vec3>& hull : roof->hulls) {
+        const std::size_t half = hull.size() / 2;
+        bool onSome = false;
+        for (const RoofFace& face : f2.roofs[0].faces) {
+            if (face.part != RoofPart::Covering || face.outline.size() < 3) continue;
+            const Vec3& a = face.outline[0];
+            const Vec3& b = face.outline[1];
+            const Vec3& c = face.outline[2];
+            const Vec3 u{b.x - a.x, b.y - a.y, b.z - a.z};
+            const Vec3 v{c.x - a.x, c.y - a.y, c.z - a.z};
+            const Vec3 n{u.y * v.z - u.z * v.y, u.z * v.x - u.x * v.z, u.x * v.y - u.y * v.x};
+            const double length = std::sqrt(n.x * n.x + n.y * n.y + n.z * n.z);
+            if (length < 1e-9) continue;
+            bool all = true;
+            for (std::size_t i = 0; i < half; ++i) {
+                const double d = ((hull[i].x - a.x) * n.x + (hull[i].y - a.y) * n.y + (hull[i].z - a.z) * n.z) / length;
+                if (std::fabs(d) > 1e-6) all = false;
+            }
+            if (all) onSome = true;
+        }
+        REQUIRE(onSome);
+    }
+}
+
+TEST_CASE("the slots of stairs, slabs and roofs follow MaterialSlots.h", "[core][build][slots][stairs]") {
+    Project project = stairProject();
+    project.settings.materials = MaterialDefaults{};
+    const BuildPlan flat = makeBuildPlan(project, {}, anyMaterial());
+    REQUIRE(flat.floorMaterials[0].stairs[0].slot == "Stair");
+    REQUIRE(flat.floorMaterials[0].slab.wellSlot == "Stair_Well");
+    REQUIRE(flat.floorMaterials[1].roofs[0].coveringSlot == "Flat_Roof");
+    REQUIRE(flat.floorMaterials[1].roofs[0].parapetSlot == "Exterior_Wall");
+    REQUIRE_FALSE(flat.floorMaterials[1].roofs[0].parapet.empty());
+
+    project.plan.roof.type = "gable";
+    const BuildPlan gable = makeBuildPlan(project, {}, anyMaterial());
+    const RoofMaterialIds& roof = gable.floorMaterials[1].roofs[0];
+    REQUIRE(roof.coveringSlot == "Roof");
+    REQUIRE_FALSE(roof.gable.empty());
+    REQUIRE(roof.gableSlot == "Exterior_Wall");
+    REQUIRE(roof.parapet.empty());
+    REQUIRE(roof.glazing.empty());
+
+    std::map<std::string, BuildSlot> table;
+    for (const BuildSlot& slot : gable.materialSlots) table[slot.name] = slot;
+    REQUIRE(table.count("Stair") == 1);
+    REQUIRE(table.at("Stair").surface == "Stair");
+    REQUIRE(table.at("Stair_Well").surface == "Wall_Inside");
+    REQUIRE(table.at("Roof").surface == "Roof");
+    for (const FloorMaterials& floor : gable.floorMaterials) {
+        for (const StairMaterialId& stair : floor.stairs) REQUIRE(table.count(stair.slot) == 1);
+        for (const RoofMaterialIds& r : floor.roofs) {
+            for (const std::string* slot : {&r.coveringSlot, &r.undersideSlot, &r.edgeSlot, &r.gableSlot, &r.parapetSlot, &r.glazingSlot}) {
+                REQUIRE(table.count(*slot) == 1);
+            }
+        }
+        for (const std::string* slot : {&floor.slab.edgeSlot, &floor.slab.wellSlot, &floor.slab.undersideSlot}) {
+            REQUIRE(table.count(*slot) == 1);
+        }
+    }
+}
+
+TEST_CASE("a part that is not built names no material", "[core][build][slots][stairs]") {
+    Project project = stairProject();
+    project.plan.floors[0].stairs.clear();
+    const BuildPlan plan = makeBuildPlan(project, {}, anyMaterial());
+    REQUIRE(plan.floorMaterials[0].slab.well.empty());
+    REQUIRE(plan.floorMaterials[0].stairs.empty());
+    for (const BuildSlot& slot : plan.materialSlots) REQUIRE(slot.name.rfind("Stair_Well_", 0) != 0);
+}
+
+TEST_CASE("two stairs with different materials get the material in the slot name", "[core][build][slots][stairs]") {
+    Project project = stairProject();
+    Stair second = project.plan.floors[0].stairs[0];
+    second.id = "s2";
+    second.type = "straight";
+    second.x = 0.6;
+    second.y = 0.4;
+    second.material = "concrete";
+    project.plan.floors[0].stairs[0].material = "oak_planks";
+    project.plan.floors[0].stairs.push_back(second);
+    const BuildPlan plan = makeBuildPlan(project, {}, anyMaterial());
+    REQUIRE(plan.floors[0].stairs.size() == 2);
+    REQUIRE(plan.floorMaterials[0].stairs[0].slot == "Stair_OakPlanks");
+    REQUIRE(plan.floorMaterials[0].stairs[1].slot == "Stair_Concrete");
+    std::set<std::string> names;
+    for (const BuildSlot& slot : plan.materialSlots) names.insert(slot.name);
+    REQUIRE(names.count("Stair") == 0);
+    REQUIRE(names.count("Stair_OakPlanks") == 1);
+}
+
+TEST_CASE("the job writes the slots of slabs, stairs and roofs and validates", "[core][build][slots][stairs]") {
+    plynth::test::TempDir tmp("job-slots-m12");
+    Project project = stairProject();
+    project.plan.roof.type = "gable";
+    const BuildPlan plan = makeBuildPlan(project, {}, anyMaterial());
+    const Json job = makeBuildJob(project, plan, BuildSettings{}, tmp.path(), "build-1a2b3c4d", tmp.path() / "result.json");
+    INFO(jobProblem(job));
+    REQUIRE(jobProblem(job).empty());
+    const Json& f1 = job["params"]["floors"][0];
+    REQUIRE(f1["stairs"][0]["slot"] == "Stair");
+    REQUIRE(f1["slab"]["slots"]["well"] == "Stair_Well");
+    REQUIRE(f1["slab"]["slots"]["edge"] == "Exterior_Wall");
+    const Json& f2 = job["params"]["floors"][1];
+    for (const Json& face : f2["roofs"][0]["faces"]) REQUIRE(face.contains("slot"));
+    REQUIRE(f2["roofs"][0]["faces"][0]["slot"] == "Roof");
+
+    std::set<std::string> table;
+    for (const Json& slot : job["params"]["slots"]) table.insert(slot["name"].get<std::string>());
+    REQUIRE(table.count("Stair") == 1);
+    REQUIRE(table.count(f1["slab"]["slots"]["underside"].get<std::string>()) == 1);
+
+    bool slabShape = false;
+    bool stairShape = false;
+    for (const Json& shape : f1["collision"]) {
+        if (shape["target"]["kind"] == "slab") slabShape = true;
+        if (shape["target"]["kind"] == "stair") stairShape = true;
+    }
+    REQUIRE(slabShape);
+    REQUIRE(stairShape);
+    bool roofShape = false;
+    for (const Json& shape : f2["collision"]) {
+        if (shape["target"]["kind"] != "roof") continue;
+        roofShape = true;
+        REQUIRE(shape["index"] == 0);
+        REQUIRE_FALSE(shape["hulls"].empty());
+    }
+    REQUIRE(roofShape);
 }

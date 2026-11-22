@@ -249,6 +249,10 @@ Json slabJson(const SlabBuild& s, const SlabMaterialIds& ids)
     materials["edge"] = textOrNull(ids.edge);
     materials["well"] = textOrNull(ids.well);
     materials["underside"] = textOrNull(ids.underside);
+    Json slots = Json::object();
+    slots["edge"] = ids.edgeSlot.empty() ? std::string(kExteriorWallSlot) : ids.edgeSlot;
+    slots["well"] = ids.wellSlot.empty() ? std::string(kStairWellSlot) : ids.wellSlot;
+    slots["underside"] = ids.undersideSlot.empty() ? std::string(kSoffitSlot) : ids.undersideSlot;
     Json json = Json::object();
     json["bottom"] = s.bottom;
     json["top"] = s.top;
@@ -257,6 +261,7 @@ Json slabJson(const SlabBuild& s, const SlabMaterialIds& ids)
     json["sides"] = slabSidesJson(s.sides);
     json["tops"] = polygonsJson(s.tops);
     json["materials"] = std::move(materials);
+    json["slots"] = std::move(slots);
     return json;
 }
 
@@ -280,6 +285,7 @@ Json stairJson(const StairBuild& s, const StairMaterialId* material)
     json["riser_count"] = s.riserCount;
     json["riser"] = s.riser;
     json["material"] = textOrNull(material ? material->material : std::string());
+    json["slot"] = material && !material->slot.empty() ? material->slot : std::string(kStairSlot);
     json["steps"] = std::move(steps);
     json["hole"] = polygonJson(s.hole);
     return json;
@@ -299,6 +305,32 @@ const std::string& roofPartMaterialId(const RoofMaterialIds& ids, RoofPart part)
     return ids.covering;
 }
 
+// The slot of a roof part.
+std::string roofPartSlotName(const RoofMaterialIds* ids, const std::string& type, RoofPart part)
+{
+    if (ids) {
+        const std::string* slot = &ids->coveringSlot;
+        switch (part) {
+        case RoofPart::Covering: slot = &ids->coveringSlot; break;
+        case RoofPart::Underside: slot = &ids->undersideSlot; break;
+        case RoofPart::Edge: slot = &ids->edgeSlot; break;
+        case RoofPart::Gable: slot = &ids->gableSlot; break;
+        case RoofPart::Parapet: slot = &ids->parapetSlot; break;
+        case RoofPart::Glazing: slot = &ids->glazingSlot; break;
+        }
+        if (!slot->empty()) return *slot;
+    }
+    switch (part) {
+    case RoofPart::Covering: return std::string(type == "flat" ? kFlatRoofSlot : kRoofSlot);
+    case RoofPart::Underside: return std::string(kSoffitSlot);
+    case RoofPart::Edge: return std::string(kFasciaSlot);
+    case RoofPart::Gable:
+    case RoofPart::Parapet: return std::string(kExteriorWallSlot);
+    case RoofPart::Glazing: return std::string(kGlassSlot);
+    }
+    return std::string(kRoofSlot);
+}
+
 // A roof section as the worker reads it.
 Json roofJson(const RoofBuild& r, const RoofMaterialIds* ids)
 {
@@ -311,6 +343,7 @@ Json roofJson(const RoofBuild& r, const RoofMaterialIds* ids)
         jf["outline"] = xyzList(f.outline);
         jf["holes"] = std::move(holes);
         jf["material"] = textOrNull(ids ? roofPartMaterialId(*ids, f.part) : std::string());
+        jf["slot"] = roofPartSlotName(ids, r.type, f.part);
         faces.push_back(std::move(jf));
     }
     Json json = Json::object();
@@ -358,6 +391,10 @@ Json collisionJson(const std::vector<CollisionShape>* shapes)
         Json entry = Json::object();
         entry["target"] = std::move(target);
         entry["pieces"] = std::move(pieces);
+        entry["index"] = shape.index;
+        Json hulls = Json::array();
+        for (const std::vector<Vec3>& hull : shape.hulls) hulls.push_back(xyzList(hull));
+        entry["hulls"] = std::move(hulls);
         list.push_back(std::move(entry));
     }
     return list;
@@ -622,15 +659,36 @@ FloorMaterials floorMaterials(const Project& project, const Floor& floor, const 
     }
 
     const SlabMaterials slab = slabMaterials(project);
-    out.slab.edge = checker.use(slab.edge, floor.id);
-    out.slab.well = checker.use(slab.well, floor.id);
-    out.slab.underside = checker.use(slab.underside, floor.id);
+    bool hasEdge = !build.slab.tops.empty();
+    bool hasWell = false;
+    for (const SlabPolygonSides& sides : build.slab.sides) {
+        const auto look = [&](const std::vector<SlabSide>& ring) {
+            for (SlabSide side : ring) (side == SlabSide::Well ? hasWell : hasEdge) = true;
+        };
+        look(sides.outline);
+        for (const std::vector<SlabSide>& hole : sides.holes) look(hole);
+    }
+    if (hasEdge) {
+        out.slab.edge = checker.use(slab.edge, floor.id);
+        out.slab.edgeSlot = namer.use(std::string(kExteriorWallSlot), out.slab.edge, "Wall_Outside");
+    }
+    if (hasWell) {
+        out.slab.well = checker.use(slab.well, floor.id);
+        out.slab.wellSlot = namer.use(std::string(kStairWellSlot), out.slab.well, "Wall_Inside");
+    }
+    if (!build.slab.undersides.empty()) {
+        out.slab.underside = checker.use(slab.underside, floor.id);
+        out.slab.undersideSlot = namer.use(std::string(kSoffitSlot), out.slab.underside, "Soffit");
+    }
 
     for (const StairBuild& built : build.stairs) {
         const Stair* stair = findStair(floor, built.id);
         StairMaterialId ids;
         ids.stair = built.id;
-        if (stair) ids.material = checker.use(stairMaterial(project, *stair), floor.id);
+        if (stair) {
+            ids.material = checker.use(stairMaterial(project, *stair), floor.id);
+            ids.slot = namer.use(std::string(kStairSlot), ids.material, "Stair");
+        }
         out.stairs.push_back(std::move(ids));
     }
 
@@ -642,12 +700,22 @@ FloorMaterials floorMaterials(const Project& project, const Floor& floor, const 
         if (area != areas.end()) {
             RoofArea resolved = *area;
             resolved.settings.type = built.type;
-            ids.covering = checker.use(roofPartMaterial(project, resolved, RoofPart::Covering), floor.id);
-            ids.underside = checker.use(roofPartMaterial(project, resolved, RoofPart::Underside), floor.id);
-            ids.edge = checker.use(roofPartMaterial(project, resolved, RoofPart::Edge), floor.id);
-            ids.gable = checker.use(roofPartMaterial(project, resolved, RoofPart::Gable), floor.id);
-            ids.parapet = checker.use(roofPartMaterial(project, resolved, RoofPart::Parapet), floor.id);
-            ids.glazing = checker.use(roofPartMaterial(project, resolved, RoofPart::Glazing), floor.id);
+            const auto has = [&](RoofPart part) {
+                return std::any_of(built.faces.begin(), built.faces.end(), [&](const RoofFace& f) { return f.part == part; });
+            };
+            const std::string covering = built.type == "flat" ? std::string(kFlatRoofSlot) : std::string(kRoofSlot);
+            const auto add = [&](RoofPart part, std::string& material, std::string& slot, const std::string& base,
+                                 std::string_view surface) {
+                if (!has(part)) return;
+                material = checker.use(roofPartMaterial(project, resolved, part), floor.id);
+                slot = namer.use(base, material, surface);
+            };
+            add(RoofPart::Covering, ids.covering, ids.coveringSlot, covering, covering);
+            add(RoofPart::Underside, ids.underside, ids.undersideSlot, std::string(kSoffitSlot), "Soffit");
+            add(RoofPart::Edge, ids.edge, ids.edgeSlot, std::string(kFasciaSlot), "Fascia");
+            add(RoofPart::Gable, ids.gable, ids.gableSlot, std::string(kExteriorWallSlot), "Wall_Outside");
+            add(RoofPart::Parapet, ids.parapet, ids.parapetSlot, std::string(kExteriorWallSlot), "Wall_Outside");
+            add(RoofPart::Glazing, ids.glazing, ids.glazingSlot, std::string(kGlassSlot), "Glass");
         }
         out.roofs.push_back(std::move(ids));
     }
@@ -680,6 +748,18 @@ void finishSlots(BuildPlan& plan, const SlotNamer& namer)
         for (RoomMaterialIds& r : floor.rooms) {
             fix(r.floorSlot, "Room_Floor", r.floor, "Floor");
             fix(r.ceilingSlot, "Room_Ceiling", r.ceiling, "Ceiling");
+        }
+        fix(floor.slab.edgeSlot, kExteriorWallSlot, floor.slab.edge, "Wall_Outside");
+        fix(floor.slab.wellSlot, kStairWellSlot, floor.slab.well, "Wall_Inside");
+        fix(floor.slab.undersideSlot, kSoffitSlot, floor.slab.underside, "Soffit");
+        for (StairMaterialId& stair : floor.stairs) fix(stair.slot, kStairSlot, stair.material, "Stair");
+        for (RoofMaterialIds& roof : floor.roofs) {
+            fix(roof.coveringSlot, kRoofSlot, roof.covering, "Roof");
+            fix(roof.undersideSlot, kSoffitSlot, roof.underside, "Soffit");
+            fix(roof.edgeSlot, kFasciaSlot, roof.edge, "Fascia");
+            fix(roof.gableSlot, kExteriorWallSlot, roof.gable, "Wall_Outside");
+            fix(roof.parapetSlot, kExteriorWallSlot, roof.parapet, "Wall_Outside");
+            fix(roof.glazingSlot, kGlassSlot, roof.glazing, "Glass");
         }
     }
     std::sort(table.begin(), table.end(), [](const BuildSlot& a, const BuildSlot& b) { return a.name < b.name; });
