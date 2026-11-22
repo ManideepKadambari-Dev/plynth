@@ -56,6 +56,8 @@ enum class WallSide { Left, Right };
 // bulge bends the wall into a circular arc: the signed distance in metres from the middle of the straight
 // line to the middle of the arc. Positive bends it to the right side (see WallSide). 0 is straight.
 // height empty means the floor's ceiling height.
+// materialInside is used on every face of the wall that looks into a room (both faces of a wall between two
+// rooms), materialOutside on every face that looks into no room. Empty: see Materials.h for what is used.
 struct Wall {
     Id id;
     Id from;
@@ -70,11 +72,14 @@ struct Wall {
 };
 
 // An enclosed area bounded by walls, with a room type such as "kitchen" once the user picks one.
+// wallMaterial is used on the wall faces that look into this room when the wall itself names no inside
+// material (plan format 4). Materials are catalog ids; the plan keeps them even when the library lacks them.
 struct Room {
     Id id;
     std::optional<std::string> type;
     std::vector<Id> walls;
     std::optional<std::string> floorMaterial;
+    std::optional<std::string> wallMaterial;
     std::optional<std::string> ceilingMaterial;
 
     bool operator==(const Room&) const = default;

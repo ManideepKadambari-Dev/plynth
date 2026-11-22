@@ -8,6 +8,7 @@
 #include "Project.h"
 #include "Status.h"
 #include "catalog/AssetCatalog.h"
+#include "catalog/MaterialCatalog.h"
 
 #include <nlohmann/json.hpp>
 
@@ -28,6 +29,8 @@ using Json = nlohmann::ordered_json;
 // use. It writes into the project's build/ folder (DESIGN.md section 5), which can always be deleted:
 //   build/building.blend   the Blender file, a normal file the user can open and edit
 //   build/building.fbx     what the 3D preview loads
+//   build/materials.json   which image goes into which channel of each built material, for the 3D preview
+//   build/textures/        constant images of the neutral looks
 //   build/build.json       the report of the last build, schema/build-report.schema.json
 //   build/job.json, build/result.json, build/blender.log   the last job, its result and Blender's output
 //   build/build.lock       while a build runs
@@ -51,6 +54,10 @@ std::string planFingerprint(const Project& project);
 
 // A BuildAssetSource that asks the catalog. The catalog must outlive it.
 BuildAssetSource buildAssetSourceFor(const AssetCatalog& catalog);
+
+// A BuildMaterialSource that asks the catalog and reads each material's info.json once. The catalog must
+// outlive it.
+BuildMaterialSource buildMaterialSourceFor(const MaterialCatalog& catalog);
 
 // Where on the plan a problem's object is, for the marker the app draws: a point's position, the middle of a
 // wall's curve, an opening's centre, a room's label point, an item's centre. Plan coordinates. Empty when the
@@ -94,6 +101,7 @@ struct BuildReport {
     std::string planFingerprint;
     std::filesystem::path blendFile; // absolute; empty when the build failed
     std::filesystem::path fbxFile;   // absolute; empty when the build failed or none was asked for
+    std::filesystem::path materialsFile; // build/materials.json, absolute; empty when fbxFile is
     std::filesystem::path logFile;   // build/blender.log, once Blender ran
     long long objects = 0;
     long long triangles = 0;
@@ -108,7 +116,7 @@ struct BuildReport {
 
 // Builds a project: checkBuildable, takes build/build.lock (InUse while another build holds a lock that is
 // younger than kBuildTimeout and whose process still runs; a stale lock is taken over), makeBuildPlan with
-// the library's catalog, makeBuildJob, runBlenderJob in build/, readBuildResult, then writes build/build.json
+// the library's assets and materials catalogs, makeBuildJob, runBlenderJob in build/, readBuildResult, then writes build/build.json
 // and removes the lock, also after a failure. A report is written for every build that got past the lock,
 // failed or not. Blocks; the app runs it on a worker thread and passes stop for its Cancel button.
 BuildReport runBuild(const BuildRequest& request, const std::function<void(const BuildProgress&)>& onProgress = {},
@@ -122,7 +130,51 @@ struct BuildReportRead {
     BuildReport report;
 };
 
-// Reads projectFolder/build/build.json, for the app when it opens a project.
+// Reads projectFolder/build/build.json, for the app when it opens a project. A report written before milestone
+// 9 has no materials count and no materials_file; they read as 0 and empty.
 BuildReportRead readBuildReport(const std::filesystem::path& projectFolder);
+
+// build/materials.json, schema/build-materials.schema.json: for each Blender material of the built surfaces,
+// the images of its channels, and for each built object the material of each of its slots in order. The 3D
+// preview replaces the materials the FBX loader made with these, matched by material name, or by object name
+// and slot order when the loader keeps no names.
+inline constexpr std::string_view kBuildMaterialsFormat = "plynth-build-materials";
+inline constexpr int kBuildMaterialsVersion = 1;
+
+enum class AlphaMode {
+    Opaque, // "opaque"
+    Blend,  // "blend": the opacity map is used
+};
+
+struct BuiltMaterial {
+    std::string name;                 // the Blender and FBX material name
+    std::string material;             // the catalog id; empty for a neutral look
+    std::string surface;              // the neutral surface name (for example "Glass"); empty for a catalog one
+    std::filesystem::path baseColor;  // absolute
+    std::filesystem::path normal;
+    std::filesystem::path roughness;
+    std::filesystem::path metallic;
+    std::filesystem::path opacity;    // empty when opaque
+    std::filesystem::path occlusion;  // empty when there is none
+    AlphaMode alphaMode = AlphaMode::Opaque;
+
+    bool operator==(const BuiltMaterial&) const = default;
+};
+
+struct BuiltObjectSlots {
+    std::string object;              // the Blender and FBX object name, for example "SM_f1_Walls"
+    std::vector<std::string> slotNames; // BuiltMaterial names in slot order
+
+    bool operator==(const BuiltObjectSlots&) const = default;
+};
+
+struct BuiltMaterialsRead {
+    Status status; // NotFound when there is no materials.json, BadFile when it is not valid
+    std::vector<BuiltMaterial> materials;
+    std::vector<BuiltObjectSlots> objects;
+};
+
+// Reads projectFolder/build/materials.json.
+BuiltMaterialsRead readBuiltMaterials(const std::filesystem::path& projectFolder);
 
 }

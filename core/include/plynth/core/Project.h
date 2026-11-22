@@ -1,5 +1,6 @@
 #pragma once
 
+#include "MaterialDefaults.h"
 #include "Plan.h"
 #include "Status.h"
 
@@ -54,6 +55,7 @@ struct ProjectSettings {
     ExportMode exportMode = ExportMode::Single;
     double gridSize = kDefaultGridSize;
     DefaultSizes defaults;
+    MaterialDefaults materials; // project.json "materials" (format 4)
 
     bool operator==(const ProjectSettings&) const = default;
 };

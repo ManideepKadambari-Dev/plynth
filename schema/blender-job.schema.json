@@ -74,7 +74,7 @@
           "params": {
             "description": "Everything the build needs. plan is plan.json as saved; floors holds the shapes core worked out from it (core/include/plynth/core/BuildGeometry.h). All positions are Blender world coordinates in metres: X = plan x, Y = -plan y, Z up from the first floor's level. Outer rings run anticlockwise seen from above, holes clockwise, the first point not repeated.",
             "type": "object",
-            "required": ["project", "output_folder", "blend_file", "fbx_file", "plan", "settings", "assets", "floors"],
+            "required": ["project", "output_folder", "blend_file", "fbx_file", "materials_file", "textures_folder", "plan", "settings", "assets", "materials", "floors"],
             "additionalProperties": false,
             "properties": {
               "project": {
@@ -89,6 +89,8 @@
               "output_folder": { "description": "The project's build folder. The worker writes blend_file and fbx_file into it, each under a temporary name first and renamed at the end.", "type": "string", "minLength": 1 },
               "blend_file": { "const": "building.blend" },
               "fbx_file": { "description": "The FBX the 3D preview loads, or null for none.", "enum": ["building.fbx", null] },
+              "materials_file": { "description": "Written with the FBX into output_folder (schema/build-materials.schema.json): the images of every channel of each built material, for the 3D preview. null exactly when fbx_file is null.", "enum": ["materials.json", null] },
+              "textures_folder": { "description": "The folder in output_folder for the constant images of the neutral looks.", "const": "textures" },
               "plan": { "description": "plan.json as saved, schema/plan.schema.json.", "type": "object" },
               "settings": {
                 "type": "object",
@@ -114,7 +116,88 @@
                   }
                 }
               },
+              "materials": {
+                "description": "Each library material the built surfaces use, once, sorted by id. Every material field of the floors names one of these or is null (the neutral look).",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["id", "tile_size", "maps"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": { "$ref": "#/definitions/catalogId" },
+                    "tile_size": { "$ref": "#/definitions/tileSize" },
+                    "maps": {
+                      "description": "Absolute paths. base_color is sRGB, the rest linear; grey maps are read from the red channel; normal is OpenGL.",
+                      "type": "object",
+                      "required": ["base_color", "normal", "roughness", "metallic", "opacity", "occlusion"],
+                      "additionalProperties": false,
+                      "properties": {
+                        "base_color": { "type": "string", "minLength": 1 },
+                        "normal": { "type": "string", "minLength": 1 },
+                        "roughness": { "type": "string", "minLength": 1 },
+                        "metallic": { "type": "string", "minLength": 1 },
+                        "opacity": { "description": "null for an opaque material.", "type": ["string", "null"], "minLength": 1 },
+                        "occlusion": { "type": ["string", "null"], "minLength": 1 }
+                      }
+                    }
+                  }
+                }
+              },
               "floors": { "type": "array", "items": { "$ref": "#/definitions/buildFloor" } }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "task": { "const": "cleanup_material" } } },
+      "then": {
+        "properties": {
+          "params": {
+            "description": "Make every map of one material into output_folder/textures/ and render output_folder/thumb.png (core/include/plynth/core/catalog/MaterialJobs.h). Blender's own baking is never used: it needs Cycles.",
+            "type": "object",
+            "required": ["source", "output_folder", "tile_size", "bake_size", "thumbnail"],
+            "additionalProperties": false,
+            "properties": {
+              "source": {
+                "type": "object",
+                "required": ["kind", "path", "material", "maps", "values", "normal"],
+                "additionalProperties": false,
+                "properties": {
+                  "kind": { "description": "A source of the worker's material source registry (blender/plynth/materials/sources/).", "enum": ["texture_set", "blend"] },
+                  "path": { "description": "texture_set: a folder, a zip or one image file. blend: a .blend file, opened and never saved.", "type": "string", "minLength": 1 },
+                  "material": { "description": "blend: the material's name, or null for the only one. Always null for texture_set.", "type": ["string", "null"], "minLength": 1 },
+                  "maps": {
+                    "description": "Absolute image files the user picked for channels. They win over names and material.json.",
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "base_color": { "type": "string", "minLength": 1 },
+                      "normal": { "type": "string", "minLength": 1 },
+                      "roughness": { "type": "string", "minLength": 1 },
+                      "metallic": { "type": "string", "minLength": 1 },
+                      "opacity": { "type": "string", "minLength": 1 },
+                      "occlusion": { "type": "string", "minLength": 1 }
+                    }
+                  },
+                  "values": {
+                    "description": "Single values for channels without an image. They win over material.json.",
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "roughness": { "$ref": "#/definitions/unit" },
+                      "metallic": { "$ref": "#/definitions/unit" },
+                      "opacity": { "$ref": "#/definitions/unit" },
+                      "occlusion": { "$ref": "#/definitions/unit" }
+                    }
+                  },
+                  "normal": { "description": "auto reads the convention from the normal map's name (gl or opengl, dx or directx) and takes OpenGL otherwise. DirectX maps get their green channel flipped.", "enum": ["auto", "opengl", "directx"] }
+                }
+              },
+              "output_folder": { "description": "An empty folder. The worker writes textures/<channel>.<ext> and thumb.png into it.", "type": "string", "minLength": 1 },
+              "tile_size": { "description": "null: material.json's, otherwise 1 m square.", "oneOf": [{ "$ref": "#/definitions/tileSize" }, { "type": "null" }] },
+              "bake_size": { "description": "Pixels across a channel rendered with Eevee.", "enum": [256, 512, 1024, 2048, 4096] },
+              "thumbnail": { "$ref": "#/definitions/thumbnail" }
             }
           }
         }
@@ -123,7 +206,7 @@
   ],
   "definitions": {
     "thumbnail": {
-      "description": "Three quarter view from the front right, 25 degrees up, 50 mm lens, framed with an 8 percent margin, neutral studio lights, a plain background of this color, Standard view transform, square 8 bit RGB PNG, rendered with Eevee. There is no other engine.",
+      "description": "Assets: three quarter view from the front right, 25 degrees up, 50 mm lens, framed with an 8 percent margin. Materials: a sphere 1 m across and a flat tile 1 m square side by side at real world size. Both: neutral studio lights, a plain background of this color, Standard view transform, square 8 bit RGB PNG, rendered with Eevee. There is no other engine.",
       "type": "object",
       "required": ["render", "size", "background"],
       "additionalProperties": false,
@@ -140,6 +223,21 @@
       }
     },
     "catalogId": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 64 },
+    "materialRef": {
+      "description": "The id of an entry of the build's materials list, or null for the neutral look of the surface.",
+      "oneOf": [{ "$ref": "#/definitions/catalogId" }, { "type": "null" }]
+    },
+    "tileSize": {
+      "description": "The real world size of one tile in metres: width along U, height along V.",
+      "type": "object",
+      "required": ["width", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "width": { "type": "number", "minimum": 0.01, "maximum": 100 },
+        "height": { "type": "number", "minimum": 0.01, "maximum": 100 }
+      }
+    },
+    "unit": { "type": "number", "minimum": 0, "maximum": 1 },
     "planId": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]*$" },
     "xy": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
     "xyz": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
@@ -156,12 +254,13 @@
           "minItems": 3,
           "items": {
             "type": "object",
-            "required": ["wall", "side", "room"],
+            "required": ["wall", "side", "room", "material"],
             "additionalProperties": false,
             "properties": {
               "wall": { "$ref": "#/definitions/planId" },
               "side": { "description": "The face of the wall this edge belongs to, or null for an end face across the wall.", "enum": ["left", "right", null] },
-              "room": { "description": "The room the face looks into, or null when it looks into no room.", "oneOf": [{ "$ref": "#/definitions/planId" }, { "type": "null" }] }
+              "room": { "description": "The room the face looks into, or null when it looks into no room.", "oneOf": [{ "$ref": "#/definitions/planId" }, { "type": "null" }] },
+              "material": { "description": "The material of the face: the wall's inside material for its room, or its outside one when room is null.", "$ref": "#/definitions/materialRef" }
             }
           }
         }
@@ -180,10 +279,11 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["height", "outline", "holes"],
+            "required": ["height", "top_material", "outline", "holes"],
             "additionalProperties": false,
             "properties": {
               "height": { "description": "Above the floor's level.", "type": "number", "exclusiveMinimum": 0 },
+              "top_material": { "description": "The material of the solid's top and bottom faces.", "$ref": "#/definitions/materialRef" },
               "outline": { "$ref": "#/definitions/wallRing" },
               "holes": { "type": "array", "items": { "$ref": "#/definitions/wallRing" } }
             }
@@ -195,11 +295,13 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["id", "type", "area", "floor_z", "ceiling_z", "polygons"],
+            "required": ["id", "type", "area", "floor_z", "ceiling_z", "floor_material", "ceiling_material", "polygons"],
             "additionalProperties": false,
             "properties": {
               "id": { "$ref": "#/definitions/planId" },
               "type": { "type": ["string", "null"] },
+              "floor_material": { "$ref": "#/definitions/materialRef" },
+              "ceiling_material": { "$ref": "#/definitions/materialRef" },
               "area": { "description": "Square metres, the same area the app shows.", "type": "number", "minimum": 0 },
               "floor_z": { "type": "number" },
               "ceiling_z": { "type": "number" },
@@ -249,7 +351,7 @@
     "buildOpening": {
       "description": "An opening that fits its wall. The opening's own box: u along the wall from -width/2 (Start jamb) to width/2, v up from 0 at the sill. Point (u, v, w), w across the wall toward its right side, is at centre + tangent * u + right * w in X and Y and at Z = floor level + sill + v.",
       "type": "object",
-      "required": ["id", "wall", "type", "shape", "width", "height", "sill", "hinge", "swing", "frame", "centre", "tangent", "right", "thickness", "curved", "outline", "inner_outline", "cutter", "threshold"],
+      "required": ["id", "wall", "type", "shape", "width", "height", "sill", "hinge", "swing", "frame", "centre", "tangent", "right", "thickness", "curved", "outline", "inner_outline", "cutter", "threshold", "materials"],
       "additionalProperties": false,
       "properties": {
         "id": { "$ref": "#/definitions/planId" },
@@ -287,6 +389,20 @@
           "description": "The cut through the wall band at floor level when the sill is 0, so the floor carries on through. Empty otherwise.",
           "type": "array",
           "items": { "$ref": "#/definitions/xy" }
+        },
+        "materials": {
+          "description": "reveal: the faces the cut makes. threshold: the threshold face (when there is one). door, frame, glass, handle: the parts of the fill.",
+          "type": "object",
+          "required": ["reveal", "threshold", "door", "frame", "glass", "handle"],
+          "additionalProperties": false,
+          "properties": {
+            "reveal": { "$ref": "#/definitions/materialRef" },
+            "threshold": { "$ref": "#/definitions/materialRef" },
+            "door": { "$ref": "#/definitions/materialRef" },
+            "frame": { "$ref": "#/definitions/materialRef" },
+            "glass": { "$ref": "#/definitions/materialRef" },
+            "handle": { "$ref": "#/definitions/materialRef" }
+          }
         }
       }
     }

@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:material-source:1",
+  "title": "Plynth material source file, version 1",
+  "description": "An optional material.json next to the images of a texture set (in the folder, or at the top of the zip) that says what the set is. The sample materials in samples/materials/ each have one. When a material is imported, what the user gives wins, then this file, then what Plynth works out from the file names. Every field but format and version may be left out.",
+  "type": "object",
+  "required": ["format", "version"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "plynth-material-source" },
+    "version": { "const": 1 },
+    "id": { "description": "The id the material should get. A taken id gets a number added, unless the import skips existing ids.", "$ref": "#/definitions/catalogId" },
+    "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "groups": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/definitions/catalogId" } },
+    "tags": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$", "maxLength": 40 } },
+    "license": { "$ref": "#/definitions/catalogId" },
+    "tile_size": {
+      "description": "Metres: width along U, height along V.",
+      "type": "object",
+      "required": ["width", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "width": { "type": "number", "minimum": 0.01, "maximum": 100 },
+        "height": { "type": "number", "minimum": 0.01, "maximum": 100 }
+      }
+    },
+    "maps": {
+      "description": "Image files for channels, relative to this file, when their names would not be matched.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "base_color": { "type": "string", "minLength": 1 },
+        "normal": { "type": "string", "minLength": 1 },
+        "roughness": { "type": "string", "minLength": 1 },
+        "metallic": { "type": "string", "minLength": 1 },
+        "opacity": { "type": "string", "minLength": 1 },
+        "occlusion": { "type": "string", "minLength": 1 }
+      }
+    },
+    "values": {
+      "description": "Single values from 0 to 1 for channels that have no image.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "roughness": { "$ref": "#/definitions/unit" },
+        "metallic": { "$ref": "#/definitions/unit" },
+        "opacity": { "$ref": "#/definitions/unit" },
+        "occlusion": { "$ref": "#/definitions/unit" }
+      }
+    },
+    "base_color_value": {
+      "description": "sRGB 0 to 1, for a set without a base color image.",
+      "type": "array", "minItems": 3, "maxItems": 3, "items": { "$ref": "#/definitions/unit" }
+    },
+    "normal": { "description": "The convention of the normal map.", "enum": ["auto", "opengl", "directx"] }
+  },
+  "definitions": {
+    "catalogId": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 64 },
+    "unit": { "type": "number", "minimum": 0, "maximum": 1 }
+  }
+}

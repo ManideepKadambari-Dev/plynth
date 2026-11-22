@@ -1,0 +1,149 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:material-info:1",
+  "title": "Plynth material info, version 1",
+  "description": "Library/materials/items/<id>/info.json. Describes one cleaned material: one image per channel in textures/, covering one tile of tile_size metres. base_color is sRGB; every other map is linear data, and roughness, metallic, opacity and occlusion are grey. Normal maps use the OpenGL convention (green up). base_color, normal, roughness and metallic always have a file; opacity only when the material is not fully opaque, occlusion only when the source had one. Written by Plynth only; the files in items/ are the truth and materials.db is rebuilt from them.",
+  "type": "object",
+  "required": ["format", "version", "id", "name", "groups", "tags", "license", "source", "tile_size", "maps", "texture_size", "files", "thumbnail", "cleanup"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "plynth-material" },
+    "version": { "const": 1 },
+    "id": {
+      "description": "Equal to the folder name. Plans and project.json point to materials by this id.",
+      "$ref": "#/definitions/catalogId"
+    },
+    "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "groups": {
+      "description": "Material group ids, for example floor or wall. Empty means uncategorized.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/definitions/catalogId" }
+    },
+    "tags": {
+      "description": "Sorted, no repeats.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$", "maxLength": 40 }
+    },
+    "license": { "description": "A license id of the materials catalog, for example unknown, cc0 or own_work.", "$ref": "#/definitions/catalogId" },
+    "source": {
+      "type": "object",
+      "required": ["kind", "reference", "imported_at"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "description": "texture_set or blend_material, later fab_zip.", "$ref": "#/definitions/catalogId" },
+        "reference": { "description": "The original folder, file or zip name without its folder, or the address it came from.", "type": "string" },
+        "imported_at": { "$ref": "#/definitions/time" }
+      }
+    },
+    "tile_size": {
+      "description": "The real world size of one tile in metres: width along U, height along V.",
+      "type": "object",
+      "required": ["width", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "width": { "type": "number", "minimum": 0.01, "maximum": 100 },
+        "height": { "type": "number", "minimum": 0.01, "maximum": 100 }
+      }
+    },
+    "maps": {
+      "type": "object",
+      "required": ["base_color", "normal", "roughness", "metallic", "opacity", "occlusion"],
+      "additionalProperties": false,
+      "properties": {
+        "base_color": { "$ref": "#/definitions/requiredMap" },
+        "normal": { "$ref": "#/definitions/requiredMap" },
+        "roughness": { "$ref": "#/definitions/requiredMap" },
+        "metallic": { "$ref": "#/definitions/requiredMap" },
+        "opacity": { "$ref": "#/definitions/map" },
+        "occlusion": { "$ref": "#/definitions/map" }
+      }
+    },
+    "texture_size": {
+      "description": "Pixel size of the base color map.",
+      "type": "object",
+      "required": ["width", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "width": { "type": "integer", "minimum": 1 },
+        "height": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "files": {
+      "description": "The map files as they were last measured: the sum of their sizes and the latest write time. A difference on disk means a map changed, and the material is cleaned and rendered again.",
+      "type": "object",
+      "required": ["bytes", "modified"],
+      "additionalProperties": false,
+      "properties": {
+        "bytes": { "type": "integer", "minimum": 0 },
+        "modified": { "$ref": "#/definitions/time" }
+      }
+    },
+    "thumbnail": {
+      "description": "thumb.png: a sphere 1 m across and a flat tile 1 m square side by side at the material's real world size, rendered with Eevee.",
+      "type": "object",
+      "required": ["file", "error", "engine", "rendered_at"],
+      "additionalProperties": false,
+      "properties": {
+        "file": { "enum": ["thumb.png", null] },
+        "error": { "type": ["string", "null"] },
+        "engine": { "enum": ["eevee", null] },
+        "rendered_at": { "oneOf": [{ "$ref": "#/definitions/time" }, { "type": "null" }] }
+      }
+    },
+    "cleanup": {
+      "type": "object",
+      "required": ["blender_version", "warnings"],
+      "additionalProperties": false,
+      "properties": {
+        "blender_version": { "type": "string" },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["code", "message"],
+            "additionalProperties": false,
+            "properties": {
+              "code": { "type": "string", "pattern": "^[a-z_]+$" },
+              "message": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "catalogId": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 64 },
+    "time": {
+      "description": "UTC, ISO 8601 with whole seconds, for example 2026-11-21T10:00:00Z.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "mapFile": {
+      "description": "Relative to the item folder: textures/<channel>.<ext>, for example textures/normal.png.",
+      "type": "string",
+      "pattern": "^textures/(base_color|normal|roughness|metallic|opacity|occlusion)\\.(png|jpg|jpeg)$"
+    },
+    "map": {
+      "description": "from says how the map was made: file (detail is the source image's name), value (detail is the number), baked (rendered from a Blender material with Eevee) or none (no map, file null).",
+      "type": "object",
+      "required": ["file", "from", "detail"],
+      "additionalProperties": false,
+      "properties": {
+        "file": { "oneOf": [{ "$ref": "#/definitions/mapFile" }, { "type": "null" }] },
+        "from": { "enum": ["file", "value", "baked", "none"] },
+        "detail": { "type": "string" }
+      },
+      "if": { "properties": { "from": { "const": "none" } } },
+      "then": { "properties": { "file": { "type": "null" } } },
+      "else": { "properties": { "file": { "$ref": "#/definitions/mapFile" } } }
+    },
+    "requiredMap": {
+      "allOf": [
+        { "$ref": "#/definitions/map" },
+        { "properties": { "from": { "enum": ["file", "value", "baked"] } } }
+      ]
+    }
+  }
+}
