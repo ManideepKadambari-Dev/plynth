@@ -2,6 +2,7 @@
 
 #include "ClipperInclude.h"
 #include "plynth/core/Rooms.h"
+#include "plynth/core/Stairs.h"
 #include "plynth/core/WallGeometry.h"
 
 #include <algorithm>
@@ -148,6 +149,51 @@ std::vector<PlanArea> overhangArea(const Plan& plan, std::size_t floorIndex)
     const std::vector<PlanArea> above = floorFootprint(plan.floors[floorIndex + 1]);
     if (above.empty()) return {};
     return run(Clipper2Lib::ClipType::Difference, pathsOf(above), pathsOf(floorFootprint(plan.floors[floorIndex])));
+}
+
+// The slab above floor i: the footprint of the floor and of the floor above, without the stair wells.
+SlabBuild slabBuild(const Plan& plan, std::size_t floorIndex, const std::vector<double>& levels)
+{
+    SlabBuild slab;
+    if (floorIndex >= plan.floors.size()) return slab;
+    const Floor& floor = plan.floors[floorIndex];
+    slab.floor = floor.id;
+    slab.bottom = (floorIndex < levels.size() ? levels[floorIndex] : 0.0) + floor.ceilingHeight;
+    slab.top = slab.bottom + floor.slabThickness;
+
+    Clipper2Lib::PathsD holes;
+    for (const Stair& stair : floor.stairs) {
+        const StairLayout layout = stairLayout(plan, floor, stair);
+        if (layout.status.ok() && layout.footprint.size() >= 3) holes.push_back(toPath(layout.footprint));
+    }
+
+    std::vector<PlanArea> own = floorFootprint(floor);
+    Clipper2Lib::PathsD cover = pathsOf(own);
+    if (floorIndex + 1 < plan.floors.size()) {
+        for (const PlanArea& a : floorFootprint(plan.floors[floorIndex + 1])) addPaths(a, cover);
+    }
+    const std::vector<PlanArea> covered = cover.empty() ? std::vector<PlanArea>{}
+                                                         : run(Clipper2Lib::ClipType::Union, cover, {});
+    const std::vector<PlanArea> hanging = overhangArea(plan, floorIndex);
+
+    // A plan area as a world polygon: y turned into -y, points reversed to keep the turning direction.
+    auto toWorld = [](const PlanArea& a) {
+        auto ring = [](const std::vector<Vec2>& r) {
+            std::vector<Vec2> out;
+            for (auto it = r.rbegin(); it != r.rend(); ++it) out.push_back({it->x, -it->y});
+            return out;
+        };
+        WorldPolygon w;
+        w.outline = ring(a.outline);
+        for (const std::vector<Vec2>& h : a.holes) w.holes.push_back(ring(h));
+        return w;
+    };
+    const auto cut = [&](const std::vector<PlanArea>& areas) {
+        return holes.empty() || areas.empty() ? areas : run(Clipper2Lib::ClipType::Difference, pathsOf(areas), holes);
+    };
+    for (const PlanArea& a : cut(covered)) slab.polygons.push_back(toWorld(a));
+    for (const PlanArea& a : cut(hanging)) slab.undersides.push_back(toWorld(a));
+    return slab;
 }
 
 }
