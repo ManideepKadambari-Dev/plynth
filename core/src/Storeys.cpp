@@ -221,12 +221,13 @@ std::vector<PlanArea> floorFootprint(const Floor& floor)
 {
     Clipper2Lib::PathsD paths;
     for (const Wall& wall : floor.walls) {
-        for (const std::vector<Vec2>& ring : wallBand(floor, wall)) paths.push_back(toPath(ring));
+        for (const std::vector<Vec2>& ring : wallOutline(floor, wall)) paths.push_back(toPath(ring));
     }
     for (const Room& room : floor.rooms) {
         const RoomShape shape = roomShape(floor, room);
         if (!shape.closed) continue;
-        for (const std::vector<Vec2>& ring : shape.floorArea) paths.push_back(toPath(ring));
+        // The whole area inside the centre lines: the outer ring turned positive, the islands negative.
+        for (std::size_t i = 0; i < shape.rings.size(); ++i) paths.push_back(toPath(turned(shape.rings[i], i == 0)));
     }
     if (paths.empty()) return {};
     return run(Clipper2Lib::ClipType::Union, paths, {});

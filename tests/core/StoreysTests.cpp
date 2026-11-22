@@ -1,11 +1,17 @@
 #include "RoomFixtures.h"
 #include "TestSupport.h"
 
+#include <plynth/core/BuildGeometry.h>
 #include <plynth/core/Roofs.h>
+#include <plynth/core/Rooms.h>
 #include <plynth/core/Storeys.h>
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+
+#include <algorithm>
+#include <cmath>
+#include <numbers>
 
 using namespace plynth;
 using namespace plynth::test;
@@ -435,4 +441,155 @@ TEST_CASE("an anchor on a ledge is unused", "[storeys]")
     CHECK(unusedRoofSections(plan) == std::vector<Id>{"rf1"});
     CHECK(roofAreasOf(plan, "f1").empty());
     CHECK(roofAreasOf(plan, "f2").size() == 1);
+}
+
+namespace {
+
+// The distance from a point to the nearest segment of a ring.
+double distanceToRing(const std::vector<Vec2>& ring, Vec2 p)
+{
+    double best = 1e18;
+    for (std::size_t i = 0; i < ring.size(); ++i) {
+        const Vec2 a = ring[i];
+        const Vec2 b = ring[(i + 1) % ring.size()];
+        const double dx = b.x - a.x;
+        const double dy = b.y - a.y;
+        const double len2 = dx * dx + dy * dy;
+        const double t = len2 > 0.0 ? std::clamp(((p.x - a.x) * dx + (p.y - a.y) * dy) / len2, 0.0, 1.0) : 0.0;
+        best = std::min(best, std::hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy)));
+    }
+    return best;
+}
+
+// Checks that the footprint of the floor is one piece whose outer ring lies on the outer ring of the biggest
+// wall solid (within 1e-6, both ways, with the same area) and has the given number of holes.
+void requireFootprintOnWalls(const Floor& floor, std::size_t holes)
+{
+    const std::vector<PlanArea> footprint = floorFootprint(floor);
+    REQUIRE(footprint.size() == 1);
+    CHECK(footprint[0].holes.size() == holes);
+
+    const std::vector<WallSolid> solids = wallSolids(floor);
+    REQUIRE_FALSE(solids.empty());
+    std::vector<Vec2> outer;
+    double biggest = 0.0;
+    for (const WallSolid& solid : solids) {
+        std::vector<Vec2> ring;
+        for (const Vec2& w : solid.outline.points) ring.push_back({w.x, -w.y});
+        if (std::abs(signedArea(ring)) > biggest) {
+            biggest = std::abs(signedArea(ring));
+            outer = ring;
+        }
+    }
+    CHECK(signedArea(footprint[0].outline) == Approx(biggest).margin(1e-6));
+    for (const Vec2& p : footprint[0].outline) CHECK(distanceToRing(outer, p) < 1e-6);
+    for (const Vec2& p : outer) CHECK(distanceToRing(footprint[0].outline, p) < 1e-6);
+}
+
+// A closed room on points around a ring, with walls of one thickness. Points p<n>1 up, walls w<n>1 up.
+void addPolygonRoom(Floor& f, int n, const std::vector<Vec2>& corners, double thickness, const std::string& room)
+{
+    const std::string s = std::to_string(n);
+    Room r;
+    r.id = room;
+    for (std::size_t i = 0; i < corners.size(); ++i) addPoint(f, "p" + s + std::to_string(i + 1), corners[i].x, corners[i].y);
+    for (std::size_t i = 0; i < corners.size(); ++i) {
+        const std::string id = "w" + s + std::to_string(i + 1);
+        addWall(f, id, "p" + s + std::to_string(i + 1), "p" + s + std::to_string((i + 1) % corners.size() + 1), thickness);
+        r.walls.push_back(id);
+    }
+    f.rooms.push_back(r);
+}
+
+}
+
+TEST_CASE("the footprint of an octagon lies on its wall solids", "[storeys][footprint]")
+{
+    Floor f;
+    f.id = "f1";
+    std::vector<Vec2> corners;
+    for (int i = 0; i < 8; ++i) corners.push_back({4.0 + 3.0 * std::cos(i * std::numbers::pi / 4.0), 4.0 + 3.0 * std::sin(i * std::numbers::pi / 4.0)});
+    addPolygonRoom(f, 1, corners, 0.3, "r1");
+    requireFootprintOnWalls(f, 0);
+}
+
+TEST_CASE("the footprint of a 60 degree corner lies on its wall solids", "[storeys][footprint]")
+{
+    Floor f;
+    f.id = "f1";
+    addPolygonRoom(f, 1, {{0.0, 0.0}, {6.0, 0.0}, {3.0, 3.0 * std::sqrt(3.0)}}, 0.3, "r1");
+    requireFootprintOnWalls(f, 0);
+}
+
+TEST_CASE("the footprint of a concave 135 degree corner lies on its wall solids", "[storeys][footprint]")
+{
+    Floor f;
+    f.id = "f1";
+    addPolygonRoom(f, 1, {{0.0, 0.0}, {6.0, 0.0}, {6.0, 3.0}, {3.0, 3.0}, {0.0, 6.0}}, 0.3, "r1");
+    requireFootprintOnWalls(f, 0);
+}
+
+TEST_CASE("the footprint of walls of unequal thickness in line lies on its wall solids", "[storeys][footprint]")
+{
+    Floor f;
+    f.id = "f1";
+    addPoint(f, "a", 0, 0);
+    addPoint(f, "b", 4, 0);
+    addPoint(f, "c", 8, 0);
+    addPoint(f, "d", 8, 5);
+    addPoint(f, "e", 0, 5);
+    addWall(f, "w1", "a", "b", 0.3);
+    addWall(f, "w2", "b", "c", 0.2);
+    addWall(f, "w3", "c", "d", 0.2);
+    addWall(f, "w4", "d", "e", 0.3);
+    addWall(f, "w5", "e", "a", 0.3);
+    Room r;
+    r.id = "r1";
+    r.walls = {"w1", "w2", "w3", "w4", "w5"};
+    f.rooms.push_back(r);
+    requireFootprintOnWalls(f, 0);
+}
+
+TEST_CASE("the footprint of a room with an island keeps only the island's inside as a hole", "[storeys][footprint]")
+{
+    Floor f;
+    f.id = "f1";
+    addRectangle(f, 1, 0, 0, 8, 8, 0.3);
+    addRectangle(f, 2, 3, 3, 5, 5, 0.2);
+    Room r;
+    r.id = "r1";
+    r.walls = {"w11", "w12", "w13", "w14", "w21", "w22", "w23", "w24"};
+    f.rooms.push_back(r);
+    const RoomShape shape = roomShape(f, f.rooms[0]);
+    REQUIRE(shape.closed);
+    REQUIRE(shape.rings.size() == 2);
+    requireFootprintOnWalls(f, 1);
+    const std::vector<PlanArea> footprint = floorFootprint(f);
+    CHECK(planAreaSize(footprint[0]) == Approx(8.3 * 8.3 - 1.8 * 1.8).margin(1e-6));
+}
+
+TEST_CASE("the footprint of the curved wall fixture lies on its wall solids", "[storeys][footprint]")
+{
+    Floor f;
+    f.id = "f1";
+    f.points = {{"p1", 0.0, 0.0, 0.6}, {"p2", 4.0, 0.0, 0.0}, {"p3", 8.0, 0.0, 0.0},
+                {"p4", 8.0, 4.0, 0.0}, {"p5", 4.0, 4.0, 0.0}, {"p6", 0.0, 4.0, 0.0}};
+    const char* ends[7][2] = {{"p1", "p2"}, {"p2", "p3"}, {"p3", "p4"}, {"p4", "p5"}, {"p5", "p6"}, {"p6", "p1"}, {"p2", "p5"}};
+    for (int i = 0; i < 7; ++i) {
+        Wall w;
+        w.id = "w" + std::to_string(i + 1);
+        w.from = ends[i][0];
+        w.to = ends[i][1];
+        w.thickness = 0.2;
+        if (w.id == "w3") w.bulge = -0.5;
+        f.walls.push_back(w);
+    }
+    Room left;
+    left.id = "r1";
+    left.walls = {"w1", "w7", "w5", "w6"};
+    Room right;
+    right.id = "r2";
+    right.walls = {"w2", "w3", "w4", "w7"};
+    f.rooms = {left, right};
+    requireFootprintOnWalls(f, 0);
 }
