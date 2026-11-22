@@ -151,9 +151,12 @@ void DetectionSession::remark()
 {
     if (raw_ == nullptr)
         return;
-    marked_ = *raw_;
-    if (const plynth::Floor* floor = host_.floor())
+    if (const plynth::Floor* floor = host_.floor()) {
+        marked_ = plynth::proposalsOnPlan(*floor, *raw_);
         plynth::markExisting(*floor, marked_);
+    } else {
+        marked_ = *raw_;
+    }
     const plynth::ProposalCounts counts = plynth::countProposals(marked_);
 
     QStringList found;
@@ -195,7 +198,8 @@ bool DetectionSession::accept()
     const plynth::Floor* floor = host_.floor();
     if (!canAccept() || floor == nullptr)
         return false;
-    auto command = std::make_unique<plynth::ApplyDetectionCommand>(floor->id, marked_, marked_.params.rooms);
+    // The command moves the proposals onto the plan itself, so it gets the detected result, not marked_.
+    auto command = std::make_unique<plynth::ApplyDetectionCommand>(floor->id, *raw_, marked_.params.rooms);
     const plynth::ApplyDetectionCommand* raw = command.get();
     if (!host_.run(std::move(command)).ok())
         return false;
@@ -213,11 +217,7 @@ ProposalOverlay DetectionSession::overlay() const
     if (!active_ || state_ == State::Failed || raw_ == nullptr)
         return out;
     const double ppm = marked_.pixelsPerMetre;
-    const plynth::Floor* floor = host_.floor();
-    const plynth::ImageOffset offset = floor != nullptr ? floor->imageOffset : plynth::ImageOffset{};
-    const auto at = [ppm, offset](const plynth::Vec2& p) {
-        return QPointF((p.x + offset.x) * ppm, (p.y + offset.y) * ppm);
-    };
+    const auto at = [ppm](const plynth::Vec2& p) { return QPointF(p.x * ppm, p.y * ppm); };
 
     std::set<std::size_t> used;
     for (const plynth::ProposedWall& wall : marked_.walls) {
