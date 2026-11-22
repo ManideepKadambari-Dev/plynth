@@ -105,7 +105,14 @@ TEST_CASE("runBuild through the fake Blender writes the files and the report", "
     REQUIRE(report.logFile == f.projectFolder / "build" / "blender.log");
     REQUIRE_FALSE(fs::exists(f.lockFile()));
 
-    REQUIRE(report.counts == BuildCounts{1, 1, 1, 1, 2, 1});
+    // The fake counts every collision piece of the job and one hull per item.
+    const nlohmann::json sentJob = nlohmann::json::parse(plynth::test::readTextFile(f.projectFolder / "build" / "job.json"));
+    int pieces = 0;
+    for (const auto& floor : sentJob["params"]["floors"]) {
+        for (const auto& shape : floor["collision"]) pieces += static_cast<int>(shape["pieces"].size());
+    }
+    REQUIRE(pieces > 4);
+    REQUIRE(report.counts == BuildCounts{1, 1, 1, 1, 2, 1, pieces + 2});
     REQUIRE(report.objects == 1 + 1 + 2 + 2);
     REQUIRE(report.steps.size() == 9);
     REQUIRE(report.steps[0].step == "check");
@@ -535,4 +542,49 @@ TEST_CASE("readBuiltMaterials says not_found and bad_file", "[core][build][mater
 
     std::ofstream(file, std::ios::trunc) << "{not json";
     REQUIRE(readBuiltMaterials(f.projectFolder).status.code == ErrorCode::BadFile);
+}
+
+TEST_CASE("a report written by milestone 9 reads with collision 0", "[core][build][collision]") {
+    plynth::test::TempDir tmp("build-report-m9");
+    fs::create_directories(tmp.path() / "build");
+    fs::copy_file(fs::path(PLYNTH_TEST_DATA_DIR) / "build" / "build-m9.json", tmp.path() / "build" / "build.json");
+    REQUIRE(plynth::test::schemaProblem("build-report.schema.json",
+                                        nlohmann::json::parse(plynth::test::readTextFile(tmp.path() / "build" / "build.json")))
+                .empty());
+    const BuildReportRead read = readBuildReport(tmp.path());
+    plynth::test::requireOk(read.status);
+    REQUIRE(read.report.counts.materials == 3);
+    REQUIRE(read.report.counts.collision == 0);
+}
+
+TEST_CASE("the build report keeps counts.collision", "[core][build][collision][run]") {
+    BuildFixture f("run-collision-count");
+    const BuildReport report = runBuild(f.request);
+    plynth::test::requireOk(report.status);
+    REQUIRE(report.counts.collision > 0);
+    REQUIRE(reportProblem(f.reportFile()).empty());
+    const BuildReportRead read = readBuildReport(f.projectFolder);
+    plynth::test::requireOk(read.status);
+    REQUIRE(read.report.counts.collision == report.counts.collision);
+    const nlohmann::json written = nlohmann::json::parse(plynth::test::readTextFile(f.reportFile()));
+    REQUIRE(written["counts"]["collision"] == report.counts.collision);
+}
+
+TEST_CASE("readBuiltMaterials reads the asset of a furniture material", "[core][build][materials]") {
+    plynth::test::TempDir tmp("built-materials-asset");
+    fs::create_directories(tmp.path() / "build");
+    fs::copy_file(fs::path(PLYNTH_TEST_DATA_DIR) / "build" / "materials-asset.json", tmp.path() / "build" / "materials.json");
+    REQUIRE(plynth::test::schemaProblem("build-materials.schema.json",
+                                        nlohmann::json::parse(plynth::test::readTextFile(tmp.path() / "build" / "materials.json")))
+                .empty());
+    const BuiltMaterialsRead read = readBuiltMaterials(tmp.path());
+    plynth::test::requireOk(read.status);
+    REQUIRE(read.materials.size() == 2);
+    REQUIRE(read.materials[0].asset.empty());
+    REQUIRE(read.materials[0].material == "white_paint");
+    REQUIRE(read.materials[1].asset == "sofa");
+    REQUIRE(read.materials[1].name == "Glass.001");
+    REQUIRE(read.materials[1].material.empty());
+    REQUIRE(read.materials[1].surface.empty());
+    REQUIRE(read.materials[1].alphaMode == AlphaMode::Blend);
 }

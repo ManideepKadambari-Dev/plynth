@@ -170,6 +170,34 @@ std::string planFingerprint(const Project& project)
     return out;
 }
 
+// The maps of every material inside an asset, as absolute paths. Empty when info.json cannot be read or has no
+// material maps yet.
+namespace {
+
+std::vector<BuildAssetMaterial> assetMaterialsOf(const fs::path& folder)
+{
+    std::vector<BuildAssetMaterial> out;
+    const AssetInfoRead read = readAssetInfo(folder / pathFromUtf8(kAssetInfoFileName), pathToUtf8(folder.filename()));
+    if (!read.status.ok()) return out;
+    const auto file = [&folder](const MaterialMap& map) {
+        return map.file.empty() ? fs::path() : folder / pathFromUtf8(map.file);
+    };
+    for (const AssetMaterial& m : read.info.materialMaps) {
+        BuildAssetMaterial material;
+        material.name = m.name;
+        material.baseColor = file(m.maps.baseColor);
+        material.normal = file(m.maps.normal);
+        material.roughness = file(m.maps.roughness);
+        material.metallic = file(m.maps.metallic);
+        material.opacity = file(m.maps.opacity);
+        material.occlusion = file(m.maps.occlusion);
+        out.push_back(std::move(material));
+    }
+    return out;
+}
+
+}
+
 // A BuildAssetSource that asks the catalog.
 BuildAssetSource buildAssetSourceFor(const AssetCatalog& catalog)
 {
@@ -186,6 +214,7 @@ BuildAssetSource buildAssetSourceFor(const AssetCatalog& catalog)
             state.broken = true;
             state.problem = "asset.blend is missing.";
         }
+        if (!state.broken) state.materials = assetMaterialsOf(record->folder);
         return state;
     };
 }
@@ -441,6 +470,7 @@ Json buildReportToJson(const BuildReport& report)
     counts["rooms"] = report.counts.rooms;
     counts["items"] = report.counts.items;
     counts["materials"] = report.counts.materials;
+    counts["collision"] = report.counts.collision;
     json["counts"] = std::move(counts);
     Json steps = Json::array();
     for (const BuildStepTime& s : report.steps) steps.push_back(Json{{"step", s.step}, {"ms", s.ms}});
@@ -535,6 +565,7 @@ BuildReportRead readBuildReport(const fs::path& projectFolder)
         report.counts.rooms = static_cast<int>(whole(counts, "rooms", "/counts"));
         report.counts.items = static_cast<int>(whole(counts, "items", "/counts"));
         if (counts.contains("materials")) report.counts.materials = static_cast<int>(whole(counts, "materials", "/counts"));
+        if (counts.contains("collision")) report.counts.collision = static_cast<int>(whole(counts, "collision", "/counts"));
         if (!json.contains("steps") || !json["steps"].is_array()) throw std::string("/steps");
         for (std::size_t i = 0; i < json["steps"].size(); ++i) {
             const std::string where = "/steps/" + std::to_string(i);
@@ -622,6 +653,7 @@ BuiltMaterialsRead readBuiltMaterials(const fs::path& projectFolder)
             built.metallic = pathFromUtf8(text(maps, "metallic", mapsWhere));
             built.opacity = pathFromUtf8(optionalText(maps, "opacity", mapsWhere));
             built.occlusion = pathFromUtf8(optionalText(maps, "occlusion", mapsWhere));
+            if (m.contains("asset")) built.asset = optionalText(m, "asset", where);
             const std::string mode = text(m, "alpha_mode", where);
             if (mode == "opaque") built.alphaMode = AlphaMode::Opaque;
             else if (mode == "blend") built.alphaMode = AlphaMode::Blend;

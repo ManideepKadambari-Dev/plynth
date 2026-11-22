@@ -1,0 +1,24 @@
+{
+  "format": "plynth-build-report",
+  "version": 1,
+  "ok": true,
+  "error": null,
+  "job_id": "build-0a1b2c3d",
+  "started_at": "2026-10-01T09:30:00Z",
+  "elapsed_ms": 8200,
+  "blender_version": "5.2.0",
+  "plan_fingerprint": "0123456789abcdef",
+  "outputs": {
+    "blend_file": "D:/Projects/Flat/build/building.blend",
+    "fbx_file": "D:/Projects/Flat/build/building.fbx",
+    "materials_file": "D:/Projects/Flat/build/materials.json",
+    "log_file": "D:/Projects/Flat/build/blender.log"
+  },
+  "objects": 12,
+  "triangles": 4000,
+  "counts": { "wall_solids": 1, "openings_cut": 2, "fills": 2, "rooms": 2, "items": 1, "materials": 3 },
+  "steps": [{ "step": "check", "ms": 2 }, { "step": "walls", "ms": 40 }],
+  "problems": [],
+  "error_count": 0,
+  "warning_count": 0
+}

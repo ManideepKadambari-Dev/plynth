@@ -14,7 +14,7 @@
     "materials_file": "materials.json",
     "objects": 42,
     "triangles": 18200,
-    "counts": { "wall_solids": 1, "openings_cut": 9, "fills": 7, "rooms": 5, "items": 4, "materials": 6 },
+    "counts": { "wall_solids": 1, "openings_cut": 9, "fills": 7, "rooms": 5, "items": 4, "materials": 6, "collision": 31 },
     "steps": [
       { "step": "prepare_scene", "ms": 12 },
       { "step": "walls", "ms": 120 },
