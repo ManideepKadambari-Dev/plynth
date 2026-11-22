@@ -37,40 +37,60 @@ namespace plynth::app {
 
 namespace {
 
-// Finds the spot nearest to a wanted box where it fits inside the region and touches none of the obstacles.
+// Finds a spot close to a wanted box where it fits inside the region and touches none of the obstacles. The wanted
+// spot is tried first, then rings of growing size. A fine pass covers the near surroundings and a coarse pass,
+// sized from the region, covers the rest, so the work has a fixed upper bound at any zoom.
 // Returns false when there is no such spot.
 bool findFreeSpot(const QRectF& want, const QPainterPath& region, const QVector<QPainterPath>& obstacles,
                   QRectF* result)
 {
+    constexpr double kFineStep = 6.0;
+    constexpr int kMaxRings = 40;
+    const QRectF regionBox = region.isEmpty() ? want.adjusted(-200, -200, 200, 200) : region.boundingRect();
+    const double coarseStep = std::max(kFineStep, std::max(regionBox.width(), regionBox.height()) / kMaxRings);
+    const double reach = coarseStep * kMaxRings;
+    QVector<const QPainterPath*> near;
+    for (const QPainterPath& obstacle : obstacles)
+        if (obstacle.boundingRect().intersects(want.adjusted(-reach, -reach, reach, reach)))
+            near.append(&obstacle);
     const auto fits = [&](const QRectF& box) {
-        if (!region.isEmpty() && !region.contains(box))
+        if (!region.isEmpty() && (!regionBox.contains(box) || !region.contains(box)))
             return false;
-        for (const QPainterPath& obstacle : obstacles)
-            if (obstacle.intersects(box))
+        for (const QPainterPath* obstacle : near)
+            if (obstacle->intersects(box))
                 return false;
         return true;
     };
-    constexpr double kSpotStep = 6.0;
-    const QRectF reach = region.isEmpty() ? want.adjusted(-200, -200, 200, 200) : region.boundingRect();
-    const int rings = static_cast<int>(std::max(reach.width(), reach.height()) / kSpotStep) + 1;
-    QRectF best;
-    double bestDistance = 1e300;
-    for (int ix = -rings; ix <= rings; ++ix) {
-        for (int iy = -rings; iy <= rings; ++iy) {
-            const double distance = std::hypot(ix * kSpotStep, iy * kSpotStep);
-            if (distance >= bestDistance)
-                continue;
-            const QRectF box = want.translated(ix * kSpotStep, iy * kSpotStep);
-            if (!fits(box))
-                continue;
-            best = box;
-            bestDistance = distance;
-        }
+    if (fits(want)) {
+        *result = want;
+        return true;
     }
-    if (bestDistance >= 1e300)
-        return false;
-    *result = best;
-    return true;
+    for (const double step : {kFineStep, coarseStep}) {
+        for (int ring = 1; ring <= kMaxRings; ++ring) {
+            QRectF best;
+            double bestDistance = 1e300;
+            for (int ix = -ring; ix <= ring; ++ix) {
+                const bool edgeColumn = ix == -ring || ix == ring;
+                for (int iy = -ring; iy <= ring; iy += edgeColumn ? 1 : 2 * ring) {
+                    const double distance = std::hypot(ix * step, iy * step);
+                    if (distance >= bestDistance)
+                        continue;
+                    const QRectF box = want.translated(ix * step, iy * step);
+                    if (!fits(box))
+                        continue;
+                    best = box;
+                    bestDistance = distance;
+                }
+            }
+            if (bestDistance < 1e300) {
+                *result = best;
+                return true;
+            }
+        }
+        if (coarseStep <= kFineStep)
+            break;
+    }
+    return false;
 }
 
 constexpr double kMinZoom = 0.02;
@@ -633,6 +653,8 @@ void PlanCanvas::paintRoofLabels(QPainter* painter)
     const Theme& t = Theme::instance();
     const QFont font = t.monoFont(t.sizeSmall());
     const QFontMetrics metrics(font);
+    QVector<QPainterPath> walls;
+    bool wallsBuilt = false;
     for (const OverlayRoof& roof : overlay_.roofs) {
         const bool selected = selectionKind_ == SelectionKind::RoofSection && roof.id == selectionId_;
         const QColor accent = selected ? t.signalAmber() : t.signalBlue();
@@ -664,9 +686,13 @@ void PlanCanvas::paintRoofLabels(QPainter* painter)
         const int pad = t.unit();
         QRectF pill(0, 0, metrics.horizontalAdvance(roof.label) + pad * 2.0, metrics.height() + pad);
         pill.moveCenter(mapFromScene(roof.labelPoint));
-        QVector<QPainterPath> walls;
-        for (const OverlayWall& wall : overlay_.walls)
-            walls.append(mapFromScene(wall.band));
+        if (!QRectF(viewport()->rect().adjusted(-200, -200, 200, 200)).intersects(pill))
+            continue;
+        if (!wallsBuilt) {
+            for (const OverlayWall& wall : overlay_.walls)
+                walls.append(mapFromScene(wall.band));
+            wallsBuilt = true;
+        }
         QRectF clear;
         if (findFreeSpot(pill, mapFromScene(roof.area), walls, &clear))
             pill = clear;
@@ -921,6 +947,8 @@ QVector<PlanCanvas::RoomChip> PlanCanvas::roomChips() const
         const int areaWidth = areaMetrics.horizontalAdvance(room.area);
         const double width = std::max(nameWidth, areaWidth);
         const QRectF roomBox = mapFromScene(room.floor.boundingRect()).boundingRect();
+        if (!QRectF(viewport()->rect().adjusted(-200, -200, 200, 200)).intersects(roomBox))
+            continue;
         if (width + t.unit() * 2 > roomBox.width())
             continue;
         const int height = nameMetrics.height() + areaMetrics.height();
