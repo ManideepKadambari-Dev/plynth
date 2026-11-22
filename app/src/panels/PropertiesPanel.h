@@ -84,6 +84,7 @@ private:
     void refreshStair();
     void editStair(const std::function<void(plynth::Stair&)>& change);
     void buildFloorSection(QGridLayout* grid);
+    void refreshUnusedRoofEntries();
     // The widgets of one roof settings group: the Roof default on the project page and the page of a section.
     struct RoofEditor {
         QComboBox* type = nullptr;
@@ -257,6 +258,8 @@ private:
     QLabel* stairProblems_ = nullptr;
 
     RoofEditor roofDefault_;
+    QWidget* unusedRoofBox_ = nullptr;
+    std::string shownFloorId_;
     RoofEditor roofSection_;
     QLabel* roofFloor_ = nullptr;
     QLabel* roofArea_ = nullptr;

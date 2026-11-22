@@ -260,6 +260,11 @@ void PropertiesPanel::buildNothingPage()
 
     addMaterialSection(grid, tr("Roof default"));
     buildRoofEditor(grid, roofDefault_, false);
+    unusedRoofBox_ = new QWidget(grid->parentWidget());
+    auto* unusedLayout = new QVBoxLayout(unusedRoofBox_);
+    unusedLayout->setContentsMargins(0, 0, 0, 0);
+    unusedLayout->setSpacing(Theme::instance().unit() * 2);
+    grid->addWidget(unusedRoofBox_, grid->rowCount(), 0, 1, 2);
 
     addMaterialSection(grid, tr("Default materials"));
     struct DefaultRow {
@@ -1451,6 +1456,57 @@ void PropertiesPanel::refresh()
     refreshing_ = false;
 }
 
+// Lists the roof entries that govern no section, each with a Remove button that runs RemoveRoofSectionCommand.
+void PropertiesPanel::refreshUnusedRoofEntries()
+{
+    const Theme& t = Theme::instance();
+    auto* layout = static_cast<QVBoxLayout*>(unusedRoofBox_->layout());
+    while (QLayoutItem* item = layout->takeAt(0)) {
+        if (QWidget* widget = item->widget()) {
+            widget->hide();
+            widget->deleteLater();
+        }
+        delete item;
+    }
+    const plynth::Plan& plan = document_.plan();
+    const std::vector<plynth::Id> unused = plynth::unusedRoofSections(plan);
+    unusedRoofBox_->setVisible(!unused.empty());
+    if (unused.empty())
+        return;
+    auto* title = new QLabel(tr("Unused roof entries"), unusedRoofBox_);
+    title->setFont(t.uiFont(t.sizeSmall(), QFont::DemiBold));
+    title->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
+    title->setToolTip(tr("Settings kept for a roof section that no longer exists at that spot. Remove them to clear the warning."));
+    layout->addWidget(title);
+    for (const plynth::Id& id : unused) {
+        const plynth::RoofSection* entry = nullptr;
+        for (const plynth::RoofSection& candidate : plan.roofSections)
+            if (candidate.id == id)
+                entry = &candidate;
+        if (entry == nullptr)
+            continue;
+        auto* row = new QWidget(unusedRoofBox_);
+        auto* rowLayout = new QHBoxLayout(row);
+        rowLayout->setContentsMargins(0, 0, 0, 0);
+        auto* text = new QLabel(fromCore(entry->id) + QStringLiteral("  ") + fromCore(entry->floor) +
+                                    QStringLiteral(" (%1, %2)").arg(entry->x, 0, 'f', 2).arg(entry->y, 0, 'f', 2),
+                                row);
+        text->setFont(t.monoFont(t.sizeNormal()));
+        text->setToolTip(tr("A roof entry on this floor whose spot holds no roof section"));
+        rowLayout->addWidget(text, 1);
+        auto* remove = new QPushButton(tr("Remove"), row);
+        remove->setToolTip(tr("Remove this unused roof entry. Undo brings it back."));
+        remove->setProperty("tourId", QStringLiteral("panel-roof-unused-remove"));
+        remove->setEnabled(!document_.isReadOnly());
+        rowLayout->addWidget(remove);
+        connect(remove, &QPushButton::clicked, this, [this, id]() {
+            if (!refreshing_)
+                controller_.run(std::make_unique<plynth::RemoveRoofSectionCommand>(id));
+        });
+        layout->addWidget(row);
+    }
+}
+
 // Fills the page for nothing selected.
 void PropertiesPanel::refreshNothing()
 {
@@ -1466,6 +1522,20 @@ void PropertiesPanel::refreshNothing()
     scaleHint_->setVisible(!scaleHint_->text().isEmpty());
     setSpin(gridSpin_, document_.project().settings.gridSize);
     const plynth::Floor* floor = controller_.floor();
+    const bool otherFloor = floor != nullptr && floor->id != shownFloorId_;
+    if (floor != nullptr)
+        shownFloorId_ = floor->id;
+    if (otherFloor) {
+        // Text typed for the floor that was shown must not be committed to this one when focus leaves.
+        floorName_->setText(fromCore(floor->name));
+        for (QDoubleSpinBox* spin : {ceilingSpin_, slabSpin_, offsetX_, offsetY_}) {
+            const double now = spin->value();
+            const bool before = spin->blockSignals(true);
+            spin->setValue(now == spin->minimum() ? now + spin->singleStep() : now - spin->singleStep());
+            spin->setValue(now);
+            spin->blockSignals(before);
+        }
+    }
     setSpin(ceilingSpin_, floor ? floor->ceilingHeight : 0.0);
     setSpin(slabSpin_, floor ? floor->slabThickness : plynth::kDefaultSlabThickness);
     setSpin(offsetX_, floor ? floor->imageOffset.x : 0.0);
@@ -1477,6 +1547,7 @@ void PropertiesPanel::refreshNothing()
     wallCount_->setText(QString::number(floor ? floor->walls.size() : 0));
     roomCount_->setText(QString::number(floor ? floor->rooms.size() : 0));
     fillRoofEditor(roofDefault_, document_.plan().roof);
+    refreshUnusedRoofEntries();
     setSpin(newWallSpin_, controller_.newWallThickness());
     const bool wallTool = controller_.active() == ToolId::Wall;
     newWallSpin_->setVisible(wallTool);
