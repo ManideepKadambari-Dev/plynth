@@ -54,15 +54,6 @@ def read_names(path):
     return sorted(o.name for o in bpy.data.objects if o.type == "MESH")
 
 
-# Puts the tile size of each catalog material, from the matching build job, into the export job's material
-# entries. The core made export job does not carry it yet, and the build divides UVs by it.
-def add_tile_sizes(params):
-    tiles = {m["id"]: m["tile_size"] for m in base.load_job("from_core_kit_build")["params"]["materials"]}
-    for entry in params["materials"]:
-        if entry.get("material") in tiles:
-            entry["tile_size"] = tiles[entry["material"]]
-
-
 # Returns the metres per UV unit of the faces of the objects, by (material, side or top and bottom), and the
 # face area behind each number.
 def density(objects):
@@ -90,7 +81,6 @@ class FromCoreKitTests(helpers.TempFolderTest):
     def job(self, write=True):
         project, library = shared_project()
         job = base.fill(base.load_job("from_core_kit_export"), project, library)
-        add_tile_sizes(job["params"])
         job["params"]["output_folder"] = self.path("export", ".staging")
         job["params"]["write"] = write
         job["result_file"] = self.path("work", "result.json")
@@ -112,6 +102,11 @@ class FromCoreKitTests(helpers.TempFolderTest):
         kit = job["params"]["kit"]
         self.assertEqual(kit["file"], KIT_FILE)
         self.assertEqual(sorted({p["kind"] for p in kit["pieces"]}), ["corner", "opening", "wall"])
+        cuts = [e for p in kit["pieces"] for so in p["wall_solids"] for ring in [so["outline"]] + so["holes"]
+                for e in ring["edges"] if e.get("kit_cut")]
+        self.assertTrue(cuts)
+        self.assertEqual({e["wall"] for e in cuts}, {None}, "core sends no wall on a kit cut")
+        self.assertTrue(all(m["tile_size"] for m in job["params"]["materials"] if m["material"]))
         with open(os.path.join(DATA_FOLDER, "from_core_kit_layout.json"), "r", encoding="utf-8") as handle:
             layout = json.load(handle)
         self.assertEqual(validate(layout, load_schema("kit-layout")), [])

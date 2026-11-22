@@ -212,8 +212,10 @@ class ExportKitTests(ExportTest):
         door, _ = self.piece_objects("SM_Kit_" + OPENING)
         self.assertFalse({"Door", "Frame", "Handle"} & {m.name for m in door.data.materials})
 
-    # Slots are the blend's materials and the UVs follow the kit rules.
+    # Slots are the blend's materials and the UVs follow the kit rules, divided by the material's tile size.
     def test_materials_and_uvs(self):
+        entry = next(m for m in self.with_kit()["materials"] if m["name"] == "Living_Wall")
+        tile = entry["tile_size"]
         self.run_kit()
         obj, _ = self.piece_objects("SM_Kit_" + WALL)
         self.assertEqual({m.name for m in obj.data.materials}, {"Living_Wall", "Exterior_Wall", "Wall_Top"})
@@ -228,16 +230,16 @@ class ExportKitTests(ExportTest):
                 co = mesh.vertices[mesh.loops[index].vertex_index].co
                 u, v = uv[index].uv
                 if abs(normal.y + 1.0) < 1e-4:
-                    self.assertAlmostEqual(u, co.x, delta=1e-5)
-                    self.assertAlmostEqual(v, co.z, delta=1e-5)
+                    self.assertAlmostEqual(u * tile["width"], co.x, delta=1e-5)
+                    self.assertAlmostEqual(v * tile["height"], co.z, delta=1e-5)
                     checked += 1
                 elif abs(normal.y - 1.0) < 1e-4:
-                    self.assertAlmostEqual(u, -co.x, delta=1e-5)
-                    self.assertAlmostEqual(v, co.z, delta=1e-5)
+                    self.assertAlmostEqual(u * tile["width"], -co.x, delta=1e-5)
+                    self.assertAlmostEqual(v * tile["height"], co.z, delta=1e-5)
                     checked += 1
                 elif abs(abs(normal.z) - 1.0) < 1e-4:
-                    self.assertAlmostEqual(u, co.x, delta=1e-5)
-                    self.assertAlmostEqual(v, co.y, delta=1e-5)
+                    self.assertAlmostEqual(u * tile["width"], co.x, delta=1e-5)
+                    self.assertAlmostEqual(v * tile["height"], co.y, delta=1e-5)
                     checked += 1
         self.assertGreater(checked, 12)
 

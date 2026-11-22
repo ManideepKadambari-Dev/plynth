@@ -36,7 +36,8 @@ def clear_neutral_images(folder):
 # image maps, or the neutral look of the slot's surface as constant images written to the textures folder.
 # A map that will not load gives material_failed and the neutral look. Then every UV is divided by the tile
 # size of its material, so a tile is one repeat of the image. The result is kept in ctx.state for the
-# materials file.
+# materials file, with the tile size of every library material, so the kit uses the size the walls were built
+# with.
 def run(ctx):
     library = {m["id"]: m for m in ctx.params.get("materials", [])}
     slots = slot_table(ctx)
@@ -74,13 +75,16 @@ def run(ctx):
             surface = slot["surface"] if slot["surface"] in surfaces.LOOKS else "Wall_Inside"
             maps = shading.apply_neutral(mat, surface, folder)
         tiles[name] = tile
-        built.append({
+        entry_out = {
             "name": name,
             "material": slot["material"] if surface is None else None,
             "surface": surface,
             "maps": maps,
             "alpha_mode": "blend" if maps.get("opacity") else "opaque",
-        })
+        }
+        if surface is None:
+            entry_out["tile_size"] = {"width": tile[0], "height": tile[1]}
+        built.append(entry_out)
         count(ctx, "materials")
     scale_uvs(objects, tiles)
     ctx.state["built_materials"] = built
