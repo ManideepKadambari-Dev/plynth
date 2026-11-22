@@ -6,6 +6,7 @@
 #include <plynth/core/Plan.h>
 #include <plynth/core/commands/MaterialCommands.h>
 #include <plynth/core/commands/RoofCommands.h>
+#include <plynth/core/Roofs.h>
 #include <plynth/core/commands/StairCommands.h>
 
 #include <memory>
@@ -227,10 +228,31 @@ Answer materialList(const RunContext& context, const ListOptions& options) {
             rooms.push_back(std::move(entry));
         }
     }
+    Json stairs = Json::array();
+    for (const Floor& floor : project.plan.floors) {
+        for (const Stair& stair : floor.stairs) {
+            Json entry = Json::object();
+            entry["id"] = stair.id;
+            entry["floor"] = floor.id;
+            entry["material"] = resolvedJson(stairMaterial(project, stair));
+            stairs.push_back(std::move(entry));
+        }
+    }
+    Json roofs = Json::array();
+    for (const RoofArea& area : roofAreas(project.plan)) {
+        Json entry = Json::object();
+        entry["floor"] = area.floor;
+        entry["index"] = area.index;
+        entry["section"] = area.section.empty() ? Json(nullptr) : Json(area.section);
+        entry["material"] = resolvedJson(roofPartMaterial(project, area, RoofPart::Covering));
+        roofs.push_back(std::move(entry));
+    }
     Json result = Json::object();
     result["defaults"] = defaultsJson(project.settings.materials);
     result["walls"] = std::move(walls);
     result["rooms"] = std::move(rooms);
+    result["stairs"] = std::move(stairs);
+    result["roofs"] = std::move(roofs);
     const std::vector<std::string> used = materialsUsed(project);
     Json missing = Json::array();
     if (haveLibrary) {
@@ -254,7 +276,7 @@ std::vector<CommandSpec> materialCommands() {
     CommandSpec set;
     set.words = {"material", "set"};
     set.description = "Set or clear the material of a wall face, a room surface or a project default. "
-                      "Targets: w3.inside, w3.outside, r1.floor, r1.wall, r1.ceiling, hall.floor, "
+                      "Targets: w3.inside, w3.outside, r1.floor, r1.wall, r1.ceiling, s1, rf1, hall.floor, "
                       "default.wall_outside.";
     set.setup = [](CLI::App& sub) -> Handler {
         auto options = std::make_shared<SetOptions>();
@@ -267,8 +289,8 @@ std::vector<CommandSpec> materialCommands() {
 
     CommandSpec list;
     list.words = {"material", "list"};
-    list.description = "List the default materials, the material of every wall face and room surface, and the "
-                       "materials in use.";
+    list.description = "List the default materials, the material of every wall face, room surface, stair and "
+                       "roof section, and the materials in use.";
     list.setup = [](CLI::App& sub) -> Handler {
         auto options = std::make_shared<ListOptions>();
         addProjectOption(sub, options->project);

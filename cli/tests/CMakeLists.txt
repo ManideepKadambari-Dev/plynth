@@ -20,6 +20,7 @@ add_executable(plynth_cli_tests
     BuildCliTests.cpp
     FloorCliTests.cpp
     StairCliTests.cpp
+    RoofCliTests.cpp
     MaterialCliTests.cpp
     MaterialCatalogCliTests.cpp
     MaterialImportCliTests.cpp
