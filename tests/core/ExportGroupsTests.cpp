@@ -1,6 +1,8 @@
 #include "RoomFixtures.h"
 #include "TestSupport.h"
 
+#include <plynth/core/BuildJob.h>
+#include <plynth/core/Collision.h>
 #include <plynth/core/ExportGroups.h>
 #include <plynth/core/Exporter.h>
 #include <plynth/core/ProjectFiles.h>
@@ -660,4 +662,88 @@ TEST_CASE("the review carries the plan its member labels come from", "[core][exp
     CHECK_FALSE(review.fromBuild);
     CHECK(exportMemberLabel(review.plan, floorOfR1) == "Floor of Kitchen r1");
     CHECK(exportMemberLabel(review.plan, walls) == "Walls, Ground");
+}
+
+namespace {
+
+// A house of two floors with a room on each and a stair between them. The upper floor is smaller, so both floors
+// have a roof.
+Project houseProject()
+{
+    Project project = makeNewProject();
+    Floor& ground = project.plan.floors[0];
+    plynth::test::addRectangle(ground, 1, 0.0, 0.0, 8.0, 6.0, 0.2);
+    Room lower;
+    lower.id = "r1";
+    lower.walls = {"w11", "w12", "w13", "w14"};
+    ground.rooms.push_back(lower);
+    Stair stair;
+    stair.id = "s1";
+    stair.type = "u_shape";
+    stair.x = 2.0;
+    stair.y = 1.0;
+    ground.stairs.push_back(stair);
+
+    Floor upper;
+    upper.id = "f2";
+    upper.name = "Floor 2";
+    plynth::test::addRectangle(upper, 2, 0.0, 0.0, 5.0, 6.0, 0.2);
+    Room above;
+    above.id = "r2";
+    above.walls = {"w21", "w22", "w23", "w24"};
+    upper.rooms.push_back(above);
+    project.plan.floors.push_back(upper);
+    return project;
+}
+
+// The groups that list an object, by its exact member or by the member of its whole kind.
+std::vector<std::string> groupsListing(const std::vector<ExportGroup>& groups, const std::string& kind, const std::string& id)
+{
+    std::vector<std::string> found;
+    for (const ExportGroup& g : groups) {
+        if (holds(g, kind, id) || holds(g, kind, "")) found.push_back(g.id);
+    }
+    return found;
+}
+
+}
+
+TEST_CASE("every slab, stair, roof and collision target of a house is in exactly one group", "[core][exportgroups]") {
+    const Project house = houseProject();
+    const BuildPlan plan = makeBuildPlan(house, BuildAssetSource{});
+    const std::vector<ExportGroup> groups = automaticExportGroups(house);
+    const std::vector<std::string> surfaces{"surfaces"};
+
+    int slabs = 0;
+    int stairs = 0;
+    int roofs = 0;
+    for (const FloorBuild& floor : plan.floors) {
+        if (!floor.slab.polygons.empty()) {
+            ++slabs;
+            CHECK(groupsListing(groups, "slab", floor.id) == surfaces);
+        }
+        for (const StairBuild& stair : floor.stairs) {
+            ++stairs;
+            CHECK(groupsListing(groups, "stair", stair.id) == surfaces);
+        }
+        if (!floor.roofs.empty()) {
+            ++roofs;
+            CHECK(groupsListing(groups, "roof", floor.id) == surfaces);
+        }
+    }
+    CHECK(slabs == 2);
+    CHECK(stairs == 1);
+    CHECK(roofs == 2);
+
+    // A UCX_ mesh follows its target, so each target needs its one group.
+    std::set<std::string> kinds;
+    for (const std::vector<CollisionShape>& shapes : plan.collision) {
+        for (const CollisionShape& shape : shapes) {
+            const std::string kind(collisionTargetKindName(shape.kind));
+            INFO(kind << " " << shape.id);
+            kinds.insert(kind);
+            CHECK(groupsListing(groups, kind, shape.id).size() == 1);
+        }
+    }
+    for (const char* kind : {"slab", "stair", "roof"}) CHECK(kinds.count(kind) == 1);
 }

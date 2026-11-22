@@ -723,11 +723,12 @@ TEST_CASE("two floors share pieces and sit at their own levels", "[kit]") {
     p.plan.floors.push_back(upper);
     const BuildPlan plan = planOf(p);
     const ModularKit kit = modularKit(p, plan);
+    const double level = p.plan.floors[0].ceilingHeight + p.plan.floors[0].slabThickness;
     REQUIRE(kit.floors.size() == 2);
-    REQUIRE(kit.floors[1].elevation == Approx(3.0));
+    REQUIRE(kit.floors[1].elevation == Approx(level));
     REQUIRE(kit.pieces.size() == 3);
     REQUIRE(kit.placements.size() == 72);
-    for (const KitPlacement& at : kit.placements) REQUIRE(at.location.z == Approx(at.floor == "f1" ? 0.0 : 3.0));
+    for (const KitPlacement& at : kit.placements) REQUIRE(at.location.z == Approx(at.floor == "f1" ? 0.0 : level));
 }
 
 TEST_CASE("the kit of the sample apartment covers its walls", "[kit][sample]") {
@@ -1153,4 +1154,59 @@ TEST_CASE("the kit of the sample apartment keeps every visible face", "[kit][fac
     const BuildPlan plan = planOf(p);
     // Pieces that match within a millimetre share one mesh, so the lengths agree to a few millimetres in all.
     requireFacesKept(plan, modularKit(p, plan), 0.02);
+}
+
+TEST_CASE("the kit leaves slabs, stairs and roofs out and takes the slot names they share with the walls", "[kit][faces]") {
+    Project p = squareRoom();
+    Floor upper = p.plan.floors[0];
+    upper.id = "f2";
+    for (Point& pt : upper.points) pt.id = "u" + pt.id;
+    for (Wall& w : upper.walls) {
+        w.id = "u" + w.id;
+        w.from = "u" + w.from;
+        w.to = "u" + w.to;
+    }
+    for (Room& r : upper.rooms) {
+        r.id = "u" + r.id;
+        for (Id& w : r.walls) w = "u" + w;
+    }
+    p.plan.floors.push_back(upper);
+    Stair stair;
+    stair.id = "s1";
+    stair.type = "u_shape";
+    stair.x = 2.0;
+    stair.y = 0.5;
+    p.plan.floors[0].stairs.push_back(stair);
+    // The walls show tile outside and the slab edge has no material, so the name they share gets the material added.
+    for (Floor& f : p.plan.floors) {
+        for (Wall& w : f.walls) w.materialOutside = "tile";
+    }
+
+    const BuildPlan plan = planOf(p);
+    REQUIRE(plan.floors.size() == 2);
+    REQUIRE_FALSE(plan.floors[0].slab.polygons.empty());
+    REQUIRE_FALSE(plan.floors[0].stairs.empty());
+    REQUIRE_FALSE(plan.floors[1].roofs.empty());
+    REQUIRE(plan.floorMaterials[0].slab.edgeSlot != "Exterior_Wall");
+
+    const ModularKit kit = modularKit(p, plan);
+    requireCovers(plan, kit);
+    requireFacesKept(plan, kit);
+    std::set<std::string> slots;
+    for (const BuildSlot& slot : plan.materialSlots) slots.insert(slot.name);
+    int outside = 0;
+    for (const KitPiece& piece : kit.pieces) {
+        REQUIRE(piece.height == Approx(3.0));
+        for (const KitSolid& solid : piece.solids) {
+            REQUIRE(slots.count(solid.topSlot) == 1);
+            for (const KitEdge& e : solid.outline.edges) {
+                if (e.cut) continue;
+                INFO("slot " << e.slot);
+                REQUIRE(slots.count(e.slot) == 1);
+                REQUIRE(e.slot != plan.floorMaterials[0].slab.edgeSlot);
+                if (e.slot.rfind("Exterior_Wall_", 0) == 0) ++outside;
+            }
+        }
+    }
+    REQUIRE(outside > 0);
 }

@@ -198,7 +198,8 @@ class FromCoreKitTests(helpers.TempFolderTest):
     # The kit pieces show each material at the size the walls do: the same metres per UV unit for every slot.
     def test_texture_density_matches_walls(self):
         self.assertTrue(self.export(self.job())["ok"])
-        walls = [o for o in bpy.data.objects if o.name.startswith("SM_f1_") and o.type == "MESH"]
+        walls = [o for o in bpy.data.objects if o.name.startswith("SM_f1_") and o.type == "MESH"
+                 and o.get("plynth_kind") not in ("slab", "stair", "roof")]
         pieces = [o for o in bpy.data.objects if o.name.startswith("SM_Kit_")]
         self.assertTrue(walls and pieces)
         wanted = density(walls)

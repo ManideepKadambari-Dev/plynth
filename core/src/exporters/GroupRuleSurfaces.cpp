@@ -13,7 +13,7 @@ bool hasThreshold(const Floor& floor)
     return false;
 }
 
-// Floors, ceilings and thresholds, plus every object of the kinds other milestones add.
+// Floors, ceilings and thresholds, plus every slab, stair, roof and light.
 class SurfacesRule final : public ExportGroupRule {
 public:
     std::string_view id() const override { return "surfaces"; }

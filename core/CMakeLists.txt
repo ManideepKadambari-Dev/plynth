@@ -45,6 +45,10 @@ add_library(plynth_core STATIC
     src/Build.cpp
     src/MaterialDefaults.cpp
     src/Materials.cpp
+    src/Stairs.cpp
+    src/Storeys.cpp
+    src/Roofs.cpp
+    src/BuildPreview.cpp
     src/Collision.cpp
     src/MaterialSlots.cpp
     src/Exporter.cpp
@@ -63,6 +67,8 @@ add_library(plynth_core STATIC
     src/commands/OpeningCommands.cpp
     src/commands/ItemCommands.cpp
     src/commands/MaterialCommands.cpp
+    src/commands/StairCommands.cpp
+    src/commands/RoofCommands.cpp
     src/commands/DetectionCommands.cpp
     src/detection/Detection.cpp
     src/detection/Detector.cpp
@@ -147,6 +153,25 @@ if(PLYNTH_IMPORTER_SOURCES)
     target_compile_features(plynth_importers PUBLIC cxx_std_20)
     target_link_libraries(plynth_importers PRIVATE nlohmann_json::nlohmann_json)
     target_sources(plynth_core INTERFACE $<TARGET_OBJECTS:plynth_importers>)
+endif()
+
+# Stair types and roof types register themselves the same way, so each set is an object library too.
+file(GLOB PLYNTH_STAIR_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/stairs/types/*.cpp)
+if(PLYNTH_STAIR_SOURCES)
+    add_library(plynth_stair_types OBJECT ${PLYNTH_STAIR_SOURCES})
+    target_include_directories(plynth_stair_types PRIVATE include src)
+    target_compile_features(plynth_stair_types PUBLIC cxx_std_20)
+    target_link_libraries(plynth_stair_types PRIVATE nlohmann_json::nlohmann_json Clipper2::Clipper2)
+    target_sources(plynth_core INTERFACE $<TARGET_OBJECTS:plynth_stair_types>)
+endif()
+
+file(GLOB PLYNTH_ROOF_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/roofs/types/*.cpp)
+if(PLYNTH_ROOF_SOURCES)
+    add_library(plynth_roof_types OBJECT ${PLYNTH_ROOF_SOURCES})
+    target_include_directories(plynth_roof_types PRIVATE include src)
+    target_compile_features(plynth_roof_types PUBLIC cxx_std_20)
+    target_link_libraries(plynth_roof_types PRIVATE nlohmann_json::nlohmann_json Clipper2::Clipper2)
+    target_sources(plynth_core INTERFACE $<TARGET_OBJECTS:plynth_roof_types>)
 endif()
 
 # Exporters register themselves the same way, so they are built as an object library too.

@@ -14,6 +14,7 @@
   "fbx_file": "building.fbx",
   "materials_file": "materials.json",
   "textures_folder": "textures",
+  "preview_folder": null,
   "plan": {
    "version": 1
   },
@@ -1414,7 +1415,27 @@
     ],
     "rooms": [],
     "items": [],
-    "collision": []
+    "collision": [],
+    "slab": {
+     "bottom": 0.0,
+     "top": 0.0,
+     "polygons": [],
+     "undersides": [],
+     "sides": [],
+     "tops": [],
+     "materials": {
+      "edge": null,
+      "well": null,
+      "underside": null
+     },
+     "slots": {
+      "edge": "Exterior_Wall",
+      "well": "Stair_Well",
+      "underside": "Soffit"
+     }
+    },
+    "stairs": [],
+    "roofs": []
    }
   ],
   "preview_textures_folder": "preview_textures",
@@ -1444,6 +1465,16 @@
     "name": "Handle",
     "material": null,
     "surface": "Handle"
+   },
+   {
+    "name": "Soffit",
+    "material": null,
+    "surface": "Soffit"
+   },
+   {
+    "name": "Stair_Well",
+    "material": null,
+    "surface": "Wall_Inside"
    },
    {
     "name": "Threshold",

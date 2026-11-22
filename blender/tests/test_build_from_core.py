@@ -12,6 +12,7 @@ from plynth import meshes
 from schema_check import load_schema, validate
 
 LIBRARY_MATERIALS = ("grey_tile", "red_brick", "white_paint")
+HOUSE_MATERIALS = ("concrete", "oak_planks", "roof_tiles")
 
 
 # Returns the area of a ring of points, positive when anticlockwise.
@@ -19,8 +20,20 @@ def ring_area(ring):
     return meshes.polygon_area([tuple(p) for p in ring["points"]])
 
 
+# Returns the area of a plain ring of plan points, without its sign.
+def plain_area(points):
+    return abs(meshes.polygon_area([tuple(p) for p in points]))
+
+
+# Returns the problems of a materials.json against its schema.
+def materials_problems(data):
+    return validate(data, load_schema("build-materials"))
+
+
 TARGET_NAMES = {"walls": "SM_%(floor)s_Walls", "floor": "SM_%(floor)s_%(id)s_Floor",
-                "ceiling": "SM_%(floor)s_%(id)s_Ceiling", "thresholds": "SM_%(floor)s_Thresholds"}
+                "ceiling": "SM_%(floor)s_%(id)s_Ceiling", "thresholds": "SM_%(floor)s_Thresholds",
+                "slab": "SM_%(floor)s_Slab", "stair": "SM_%(floor)s_%(id)s_Stair",
+                "roof": "SM_%(floor)s_Roof_%(index)02d"}
 
 
 # Returns the UCX object names the job's collision lists ask for, in order.
@@ -28,8 +41,8 @@ def expected_collision_names(floor):
     names = []
     for entry in floor["collision"]:
         target = entry["target"]
-        base = TARGET_NAMES[target["kind"]] % {"floor": floor["id"], "id": target["id"]}
-        names += ["UCX_%s_%02d" % (base, n) for n in range(len(entry["pieces"]))]
+        base = TARGET_NAMES[target["kind"]] % {"floor": floor["id"], "id": target["id"], "index": entry["index"]}
+        names += ["UCX_%s_%02d" % (base, n) for n in range(len(entry["pieces"]) + len(entry["hulls"]))]
     return names
 
 
@@ -57,6 +70,37 @@ def check_slots(test, floor, slots):
     for opening in floor["openings"]:
         for slot in opening["slots"].values():
             test.assertIn(slot, surface)
+    check_part_slots(test, floor, surface)
+
+
+# Checks the slot names of the slab, stairs and roof faces of a floor against MaterialSlots.h.
+def check_part_slots(test, floor, surface):
+    slab = floor["slab"]["slots"]
+    for part, base, look in (("edge", "Exterior_Wall", "Wall_Outside"), ("well", "Stair_Well", "Wall_Inside"),
+                             ("underside", "Soffit", "Soffit")):
+        test.assertTrue(slab[part].startswith(base), slab[part])
+        test.assertEqual(surface[slab[part]], look)
+    for stair in floor["stairs"]:
+        test.assertTrue(stair["slot"].startswith("Stair"))
+        test.assertEqual(surface[stair["slot"]], "Stair")
+    looks = {"underside": "Soffit", "edge": "Fascia", "gable": "Wall_Outside", "parapet": "Wall_Outside",
+             "glazing": "Glass"}
+    for roof in floor["roofs"]:
+        for face in roof["faces"]:
+            if face["part"] == "covering":
+                test.assertEqual(surface[face["slot"]], "Flat_Roof" if roof["type"] == "flat" else "Roof")
+            else:
+                test.assertEqual(surface[face["slot"]], looks[face["part"]])
+
+
+# Returns true when every vertex of the object lies on the inner side of every face plane.
+def is_convex(obj):
+    vertices = [v.co for v in obj.data.vertices]
+    for polygon in obj.data.polygons:
+        origin = polygon.center
+        if any((v - origin).dot(polygon.normal) > 1e-5 for v in vertices):
+            return False
+    return True
 
 
 # Checks that the built file has one closed UCX object for each collision piece the job lists and no others.
@@ -69,6 +113,7 @@ def check_collision(test, floor, counts):
     test.assertEqual(len([n for n in wanted if n.startswith("UCX_SM_%s_Walls_" % floor["id"])]), walls)
     for name in wanted:
         test.assertTrue(meshes.is_manifold(bpy.data.objects[name]), name)
+        test.assertTrue(is_convex(bpy.data.objects[name]), name)
 
 
 class FromCoreTests(BuildTest):
@@ -93,7 +138,21 @@ class FromCoreTests(BuildTest):
         fills = len([o for o in floor["openings"] if o["type"] in ("door", "window")])
         self.assertEqual(counts["fills"], fills)
         self.assertEqual(sorted(os.listdir(self.path("build"))),
-                         ["building.blend", "building.fbx", "materials.json", "textures"])
+                         ["building.blend", "building.fbx", "materials.json", "preview", "textures"])
+
+    # The slab's ledges are built as upward faces at the top, with the area core gave them, and every side face
+    # takes its side's material slot. With the mitred wall outline this job has no ledge (the rounded corner left
+    # slivers before), so the slab must have no upward face; ledges themselves are tested in SlabFaceTests.
+    def test_slab_tops(self):
+        bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
+        slab = self.params["floors"][0]["slab"]
+        wanted = sum(plain_area(t["outline"]) - sum(plain_area(h) for h in t["holes"]) for t in slab["tops"])
+        obj = bpy.data.objects["SM_%s_Slab" % self.params["floors"][0]["id"]]
+        ups = [p for p in obj.data.polygons if p.normal.z > 0.5]
+        self.assertAlmostEqual(sum(p.area for p in ups), wanted, delta=1e-6)
+        self.assertTrue(all(abs(obj.data.vertices[i].co.z - slab["top"]) < 1e-5 for p in ups for i in p.vertices))
+        sides = [p for p in obj.data.polygons if abs(p.normal.z) < 1e-3]
+        self.assertEqual(len(sides), sum(len(e["outline"]) + sum(len(h) for h in e["holes"]) for e in slab["sides"]))
 
     # Every room floor has the area core gave it, and the walls lost the volume of the openings.
     def test_geometry(self):
@@ -127,10 +186,10 @@ class FromCoreTests(BuildTest):
         self.assertEqual(o7["slots"]["reveal"], "Living_Wall")
         self.assertEqual(o7["slots"]["threshold"], "Living_Floor")
 
-    # One UCX object for each wall piece and room slab, and nothing else.
+    # One UCX object for each wall piece, room slab, slab piece and roof hull, and nothing else.
     def test_collision(self):
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
-        self.assertEqual(len(self.params["floors"][0]["collision"]), 6)
+        self.assertEqual(len(self.params["floors"][0]["collision"]), 8)
         check_collision(self, self.params["floors"][0], self.result["output"]["counts"])
 
     # With the default bevel the build still has no problems and the walls stay closed.
@@ -143,12 +202,12 @@ class FromCoreTests(BuildTest):
         self.assertTrue(meshes.is_manifold(bpy.data.objects["SM_f1_Walls"]))
 
 
-class FromCoreMaterialsTests(material_helpers.MaterialTest, BuildTest):
-    # Cleans three sample materials into a scratch library the way the catalog stores them and returns its folder.
-    def make_library(self):
+class LibraryBuildTest(material_helpers.MaterialTest, BuildTest):
+    # Cleans sample materials into a scratch library the way the catalog stores them and returns its folder.
+    def make_library(self, names):
         library = self.path("library")
         now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        for material_id in LIBRARY_MATERIALS:
+        for material_id in names:
             folder = self.path("library", "materials", "items", material_id)
             params = self.clean_params(os.path.join(material_helpers.SAMPLES, material_id), output_folder=folder)
             result = self.run_task("cleanup_material", params, job_id="clean-" + material_id)
@@ -168,21 +227,22 @@ class FromCoreMaterialsTests(material_helpers.MaterialTest, BuildTest):
                 json.dump(info, handle)
         return library
 
-    # Returns the materials job with its project folder and library folder filled in.
-    def make_params(self):
-        library = self.make_library()
-        path = os.path.join(helpers_data(), "from_core_materials.json")
+    # Returns the params of a job fixture with its project folder and library folder filled in.
+    def make_params(self, name, materials):
+        library = self.make_library(materials)
+        path = os.path.join(helpers_data(), name + ".json")
         with open(path, "r", encoding="utf-8") as handle:
             text = handle.read().replace("@LIBRARY@", library).replace("@PROJECT@", self.path("project"))
         return json.loads(text)["params"]
 
+
+class FromCoreMaterialsTests(LibraryBuildTest):
     # Builds the job, which uses white paint inside, red brick outside and grey tile floors, with the bevel off.
     def setUp(self):
         super().setUp()
-        self.params = self.make_params()
+        self.params = self.make_params("from_core_materials", LIBRARY_MATERIALS)
         self.params["settings"]["bevel_width"] = 0.0
         self.result = self.build(self.params)
-
     # The build has no problems and every map file of the job exists.
     def test_build(self):
         self.assertTrue(self.result["ok"], self.result["error"])
@@ -234,7 +294,7 @@ class FromCoreMaterialsTests(material_helpers.MaterialTest, BuildTest):
     # materials.json validates and names the three library materials.
     def test_materials_file(self):
         data = self.read_materials()
-        self.assertEqual(validate(data, load_schema("build-materials")), [])
+        self.assertEqual(materials_problems(data), [])
         shown = {m["material"] for m in data["materials"]}
         self.assertTrue(set(LIBRARY_MATERIALS) <= shown, shown)
 
@@ -242,6 +302,134 @@ class FromCoreMaterialsTests(material_helpers.MaterialTest, BuildTest):
     def read_materials(self):
         with open(self.path("build", "materials.json"), "r", encoding="utf-8") as handle:
             return json.load(handle)
+
+
+class FromCoreHouseTests(LibraryBuildTest):
+    # Builds the two floor house core made (a stair, a gable roof on the upper floor, flat roofs below). Only the
+    # roof, floor and stair materials are in the scratch library.
+    def setUp(self):
+        super().setUp()
+        self.params = self.make_params("from_core_house", HOUSE_MATERIALS)
+        self.result = self.build(self.params)
+        self.floors = self.params["floors"]
+
+    # The build succeeds and has no problems but the materials missing from the scratch library, which fail to load.
+    def test_build(self):
+        self.assertTrue(self.result["ok"], self.result["error"])
+        self.assert_result_valid(self.result)
+        output = self.result["output"]
+        self.assertEqual([p for p in output["problems"] if p["code"] != "material_failed"], [])
+        missing = {p["message"].split()[2] for p in output["problems"]}
+        used = {m["id"] for m in self.params["materials"]}
+        self.assertEqual(missing, used - set(HOUSE_MATERIALS))
+        counts = output["counts"]
+        self.assertEqual(counts["slabs"], len(self.floors))
+        self.assertEqual(counts["stairs"], sum(len(f["stairs"]) for f in self.floors))
+        self.assertEqual(counts["roofs"], sum(len(f["roofs"]) for f in self.floors))
+        self.assertEqual(counts["rooms"], sum(len(f["rooms"]) for f in self.floors))
+        self.assertEqual(counts["wall_solids"], sum(len(f["wall_solids"]) for f in self.floors))
+
+    # Every room's floor and ceiling area plus its hole areas is the area core gave the room. The stair of the house
+    # clears the walls, so no room is notched by it and a room without a hole keeps its whole area.
+    def test_room_areas(self):
+        bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
+        holed = 0
+        for floor in self.floors:
+            for room in floor["rooms"]:
+                for kind, key in (("Floor", "polygons"), ("Ceiling", "ceiling_polygons")):
+                    obj = bpy.data.objects["SM_%s_%s_%s" % (floor["id"], room["id"], kind)]
+                    polygons = room[key]
+                    holes = sum(plain_area(h) for polygon in polygons for h in polygon["holes"])
+                    outlines = sum(plain_area(polygon["outline"]) for polygon in polygons)
+                    self.assertAlmostEqual(meshes.area(obj), outlines - holes, delta=1e-3, msg=obj.name)
+                    if holes > 0:
+                        holed += 1
+                        self.assertAlmostEqual(meshes.area(obj) + holes, room["area"], delta=1e-3, msg=obj.name)
+                    else:
+                        self.assertAlmostEqual(meshes.area(obj), room["area"], delta=1e-3, msg=obj.name)
+        self.assertGreater(holed, 0)
+
+    # Each floor has one slab, its top where core put it and its footprint the area of the job's polygons less the
+    # holes (seen from above, the top face is never built, so the bottom faces carry the area).
+    def test_slabs(self):
+        bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
+        slabs = [o for o in bpy.data.objects if o.get("plynth_kind") == "slab"]
+        self.assertEqual(sorted(o.name for o in slabs), sorted("SM_%s_Slab" % f["id"] for f in self.floors))
+        for floor in self.floors:
+            obj = bpy.data.objects["SM_%s_Slab" % floor["id"]]
+            top = max(v.co.z for v in obj.data.vertices)
+            self.assertAlmostEqual(top, floor["slab"]["top"], delta=1e-4)
+            bottom = min(v.co.z for v in obj.data.vertices)
+            self.assertAlmostEqual(bottom, floor["slab"]["bottom"], delta=1e-4)
+
+    # The stair is one object on its floor and its top step is at the height core gave it.
+    def test_stair(self):
+        bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
+        for floor in self.floors:
+            for stair in floor["stairs"]:
+                obj = bpy.data.objects["SM_%s_%s_Stair" % (floor["id"], stair["id"])]
+                top = max(v.co.z for v in obj.data.vertices)
+                self.assertAlmostEqual(top, floor["elevation"] + stair["steps"][-1]["top"], delta=1e-4)
+
+    # The slab, stair and roof slots of the house are the ones MaterialSlots.h gives, and each is in the table.
+    def test_part_slots(self):
+        surface = {s["name"]: s["surface"] for s in self.params["slots"]}
+        for floor in self.floors:
+            check_part_slots(self, floor, surface)
+
+    # Every slab, stair and roof of the house has closed convex UCX objects, numbered pieces first and then hulls, and
+    # the roof hulls are the ones core listed.
+    def test_part_collision(self):
+        bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
+        counts = self.result["output"]["counts"]
+        wanted = [name for floor in self.floors for name in expected_collision_names(floor)]
+        found = sorted(o.name for o in bpy.data.objects if o.name.startswith("UCX_"))
+        self.assertEqual(found, sorted(wanted))
+        self.assertEqual(counts["collision"], len(wanted))
+        for floor in self.floors:
+            for entry in floor["collision"]:
+                if entry["target"]["kind"] not in ("slab", "stair", "roof"):
+                    continue
+                self.assertGreater(len(entry["pieces"]) + len(entry["hulls"]), 0)
+        for name in wanted:
+            obj = bpy.data.objects[name]
+            self.assertTrue(meshes.is_manifold(obj), name)
+            self.assertTrue(is_convex(obj), name)
+            self.assertEqual(obj["plynth_kind"], "collision")
+        for kind in ("slab", "stair", "roof"):
+            targets = [o for o in bpy.data.objects if o.get("plynth_kind") == kind]
+            self.assertTrue(targets, kind)
+            for target in targets:
+                self.assertTrue([o for o in bpy.data.objects if o.get("plynth_collision_for") == target.name], target.name)
+
+    # Every roof section has an object on its floor, and the gable and the flat roofs take their job's materials.
+    def test_roofs(self):
+        bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
+        for floor in self.floors:
+            for roof in floor["roofs"]:
+                obj = bpy.data.objects["SM_%s_Roof_%02d" % (floor["id"], roof["index"])]
+                self.assertEqual(obj["plynth_roof_index"], roof["index"])
+                self.assertEqual([c.name for c in obj.users_collection], [floor["id"]])
+        shown = {s["name"]: s["material"] for s in self.params["slots"]}
+        self.assertEqual(shown["Roof"], "roof_tiles")
+        self.assertEqual(shown["Flat_Roof"], "concrete")
+        self.assertIn("Roof", [m.name for m in bpy.data.objects["SM_f2_Roof_00"].data.materials])
+        self.assertIn("Flat_Roof", [m.name for m in bpy.data.objects["SM_f1_Roof_00"].data.materials])
+
+    # The preview parts are written, one for each floor and one for each roof.
+    def test_preview(self):
+        names = sorted(os.listdir(self.path("build", "preview")))
+        for floor in self.floors:
+            self.assertIn("%s.fbx" % floor["id"], names)
+        self.assertIn("parts.json", names)
+
+    # materials.json validates and shows the roof, floor and stair materials.
+    def test_materials_file(self):
+        with open(self.path("build", "materials.json"), "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+        self.assertEqual(materials_problems(data), [])
+        shown = {m["material"] for m in data["materials"]}
+        self.assertTrue(set(HOUSE_MATERIALS) <= shown, shown)
 
 
 # Returns the folder of the job fixtures.

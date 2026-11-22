@@ -21,6 +21,9 @@
       "rooms": 5,
       "items": 4,
       "materials": 6,
+      "slabs": 2,
+      "stairs": 1,
+      "roofs": 3,
       "collision": 31
     },
     "steps": [

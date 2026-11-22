@@ -85,6 +85,8 @@ Item {
     }
 
     property var madeObjects: []
+    property var partList: []
+    property bool applied: false
 
     Component { id: textureComponent; Texture { } }
     Component { id: materialComponent; PrincipledMaterial { } }
@@ -99,7 +101,7 @@ Item {
     }
 
     function makeTexture(url) {
-        var t = textureComponent.createObject(loader, {
+        var t = textureComponent.createObject(root, {
             source: url,
             generateMipmaps: true,
             mipFilter: Texture.Linear,
@@ -113,7 +115,7 @@ Item {
     // Makes the material of one entry of materials.json: factors are 1 because the maps carry the values, and
     // roughness, metalness, opacity and occlusion are read from the red channel of their maps.
     function makeMaterial(e) {
-        var m = materialComponent.createObject(loader, { baseColor: "white", roughness: 1, metalness: 1 })
+        var m = materialComponent.createObject(root, { baseColor: "white", roughness: 1, metalness: 1 })
         root.madeObjects.push(m)
         m.baseColorMap = makeTexture(e.baseColor)
         m.normalMap = makeTexture(e.normal)
@@ -135,6 +137,37 @@ Item {
         return m
     }
 
+    // Looks at every part loader: an error shows at once, and when all have loaded the built materials go on.
+    function checkParts() {
+        var count = partLoaders.count
+        var ready = 0
+        for (var i = 0; i < count; i++) {
+            var item = partLoaders.objectAt(i)
+            if (!item)
+                continue
+            if (item.status === RuntimeLoader.Error) {
+                scene.reportStatus(2, item.errorString)
+                return
+            }
+            if (item.status === RuntimeLoader.Success)
+                ready++
+        }
+        if (count > 0 && ready === count) {
+            if (!root.applied) {
+                root.applied = true
+                destroyMade()
+                var list = scene.builtMaterials
+                if (list.length > 0) {
+                    for (var j = 0; j < count; j++)
+                        replaceIn(partLoaders.objectAt(j), list)
+                }
+            }
+            scene.reportStatus(1, "")
+        } else {
+            scene.reportStatus(0, "")
+        }
+    }
+
     function destroyMade() {
         for (var i = 0; i < root.madeObjects.length; i++)
             root.madeObjects[i].destroy()
@@ -142,14 +175,6 @@ Item {
     }
 
     // Swaps the loaded materials for the built ones. A material with no entry keeps the FBX look.
-    function applyMaterials(node) {
-        destroyMade()
-        var list = scene.builtMaterials
-        if (list.length === 0)
-            return
-        replaceIn(node, list)
-    }
-
     function replaceIn(node, list) {
         if (node instanceof Model) {
             var swapped = []
@@ -172,16 +197,24 @@ Item {
 
     onWidthChanged: if (!root.userMoved) Qt.callLater(fit)
     onHeightChanged: if (!root.userMoved) Qt.callLater(fit)
-    Component.onCompleted: applyPreset()
+    Component.onCompleted: {
+        root.partList = scene.parts
+        applyPreset()
+    }
 
     Connections {
         target: scene
         function onPresetChanged() { root.applyPreset() }
         function onFitRequested() { root.fit() }
         function onBoundsChanged() { root.fit() }
+        function onPartsChanged() {
+            root.applied = false
+            root.partList = scene.parts
+        }
         function onReloadRequested() {
-            loader.source = ""
-            Qt.callLater(function() { loader.source = scene.modelFile })
+            root.applied = false
+            root.partList = []
+            Qt.callLater(function() { root.partList = scene.parts })
         }
     }
 
@@ -249,18 +282,16 @@ Item {
             shadowBias: root.shadowBias
         }
 
-        RuntimeLoader {
-            id: loader
-            source: scene.modelFile
-            scale: Qt.vector3d(root.fbxUnit, root.fbxUnit, root.fbxUnit)
-            onStatusChanged: {
-                if (status === RuntimeLoader.Success) {
-                    root.applyMaterials(loader)
-                    scene.reportStatus(1, "")
-                } else if (status === RuntimeLoader.Error)
-                    scene.reportStatus(2, errorString)
-                else
-                    scene.reportStatus(0, "")
+        Repeater3D {
+            id: partLoaders
+            model: root.partList
+            RuntimeLoader {
+                required property var modelData
+                required property int index
+                source: modelData
+                visible: scene.partVisible[index] !== false
+                scale: Qt.vector3d(root.fbxUnit, root.fbxUnit, root.fbxUnit)
+                onStatusChanged: Qt.callLater(root.checkParts)
             }
         }
     }

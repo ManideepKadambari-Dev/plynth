@@ -66,8 +66,9 @@ BuildAssetSource buildAssetSourceFor(const AssetCatalog& catalog);
 BuildMaterialSource buildMaterialSourceFor(const MaterialCatalog& catalog);
 
 // Where on the plan a problem's object is, for the marker the app draws: a point's position, the middle of a
-// wall's curve, an opening's centre, a room's label point, an item's centre. Plan coordinates. Empty when the
-// problem has no object or the object is not in the plan.
+// wall's curve, an opening's centre, a room's label point, an item's centre, a stair's bottom step (x, y), a
+// roof section entry's anchor. Plan coordinates. Empty when the problem has no object or the object is not
+// in the plan.
 std::optional<Vec2> problemPosition(const Plan& plan, const BuildProblem& problem);
 
 struct BuildRequest {

@@ -1,7 +1,19 @@
-"""Draws the seven sample materials of Plynth into the folders next to this file.
+r"""Draws the nine sample materials of Plynth into the folders next to this file.
 
-Run it with Blender in the background:
+Run it with Blender in the background. First point all five user variables at a private folder, so the run
+cannot touch your own Blender settings or add-ons (PowerShell):
+    $p = "$env:TEMP\plynth-blender-private"
+    foreach ($d in "", "config", "scripts", "extensions", "datafiles") { New-Item -ItemType Directory -Force "$p\$d" | Out-Null }
+    $env:BLENDER_USER_RESOURCES = $p
+    $env:BLENDER_USER_CONFIG = "$p\config"
+    $env:BLENDER_USER_SCRIPTS = "$p\scripts"
+    $env:BLENDER_USER_EXTENSIONS = "$p\extensions"
+    $env:BLENDER_USER_DATAFILES = "$p\datafiles"
+Then:
     blender --background --factory-startup --python samples/materials/make_sample_materials.py
+    blender --background --factory-startup --python samples/materials/make_sample_materials.py -- roof_tiles concrete
+
+Ids after "--" draw only those materials; without them every material is drawn again.
 
 Everything is made from numbers: tileable noise and simple shapes. The output is the same every time. Nothing
 is downloaded and nothing comes from a store. The file names mix styles on purpose, so the name matching of
@@ -249,6 +261,59 @@ def white_paint(folder):
     save_rgb(os.path.join(folder, "paint.png"), color)
 
 
+# Clay roof tiles: a tile 1 m square with four rounded pan tiles across and five courses. Each tile is convex
+# across its width and dips under the tile above it at the lower end. The image edges fall in the middle of
+# tiles, so the repeat shows no line.
+def roof_tiles(folder):
+    size = 512
+    rng = np.random.RandomState(71)
+    x = (np.arange(size) + 0.5) / size
+    y = (np.arange(size) + 0.5) / size
+    courses, columns = 5, 4
+    row = np.floor(y * courses + 0.5).astype(int) % courses
+    column = np.floor(x * columns + 0.5).astype(int) % columns
+    across = (x * columns + 0.5) % 1.0
+    down = ((y * courses + 0.5) % 1.0)[:, None] * np.ones((1, size))
+    tone = rng.rand(courses, columns)
+    per_tile = tone[row[:, None] * np.ones((1, size), dtype=int), column[None, :] * np.ones((size, 1), dtype=int)]
+    wear = fbm(rng, size, 16, 16, 4)
+    fine = fbm(rng, size, 90, 90, 2)
+    rib = np.sin(np.pi * across)[None, :] * np.ones((size, 1))
+    lap = smoothstep(0.0, 0.30, down)
+    end = 1.0 - smoothstep(0.0, 0.025, down)
+    channel = 1.0 - smoothstep(0.0, 0.06, np.minimum(across, 1.0 - across))[None, :] * np.ones((size, 1))
+    height = (0.30 + 0.55 * rib) * (0.30 + 0.70 * lap) - 0.35 * end + 0.03 * fine
+    shade = (0.62 + 0.30 * rib) * (0.55 + 0.45 * lap) * (1.0 - 0.45 * end) * (1.0 - 0.25 * channel)
+    base = np.stack([0.66 + 0.16 * per_tile, 0.29 + 0.08 * per_tile, 0.17 + 0.05 * per_tile], axis=2)
+    moss = smoothstep(0.66, 0.82, wear)[:, :, None] * np.array([-0.16, -0.01, -0.07])[None, None, :]
+    color = (base + moss + 0.05 * (fine[:, :, None] - 0.5)) * shade[:, :, None]
+    roughness = 0.60 + 0.22 * wear + 0.10 * (1.0 - lap)
+    save_jpeg(os.path.join(folder, "roof_tiles_basecolor.jpg"), np.clip(color, 0, 1))
+    save_rgb(os.path.join(folder, "roof_tiles_normal.png"), normal_from_height(blur(height, 1), 7.0))
+    save_grey(os.path.join(folder, "roof_tiles_roughness.png"), np.clip(roughness, 0, 1))
+
+
+# Cast concrete: a tile 2 m square of mottled grey with small pores and a shallow joint between panels 1 m
+# apart.
+def concrete(folder):
+    size = 1024
+    rng = np.random.RandomState(83)
+    coord = (np.arange(size) + 0.5) / size * 2.0
+    soft = fbm(rng, size, 5, 5, 4)
+    mid = fbm(rng, size, 40, 40, 3)
+    fine = fbm(rng, size, 160, 160, 2)
+    pores = blur(smoothstep(0.74, 0.86, fbm(rng, size, 130, 130, 3)), 1)
+    distance = np.minimum(coord % 1.0, 1.0 - coord % 1.0)
+    joint_1d = 1.0 - smoothstep(0.002, 0.006, distance)
+    joint = np.maximum(joint_1d[:, None], joint_1d[None, :])
+    tone = 0.52 + 0.10 * soft + 0.05 * mid + 0.025 * fine
+    tone = tone * (1.0 - 0.22 * pores) * (1.0 - 0.45 * joint)
+    color = np.stack([tone, tone * 1.005, tone * 1.01], axis=2)
+    roughness = 0.80 + 0.10 * mid + 0.08 * pores
+    save_jpeg(os.path.join(folder, "concrete_color.jpg"), np.clip(color, 0, 1))
+    save_grey(os.path.join(folder, "concrete_roughness.png"), np.clip(roughness, 0, 1))
+
+
 # Clear glass has no images, only values in material.json.
 def clear_glass(folder):
     pass
@@ -278,12 +343,21 @@ MATERIALS = [
         "name": "Clear glass", "groups": ["glass"], "tags": ["clear", "glass"],
         "tile_size": {"width": 1.0, "height": 1.0}, "base_color_value": [0.82, 0.9, 0.93],
         "values": {"roughness": 0.05, "opacity": 0.2}}),
+    ("roof_tiles", roof_tiles, {
+        "name": "Roof tiles", "groups": ["exterior"], "tags": ["clay", "roof", "tiles"],
+        "tile_size": {"width": 1.0, "height": 1.0}}),
+    ("concrete", concrete, {
+        "name": "Concrete", "groups": ["exterior", "floor", "wall"], "tags": ["cast", "concrete", "grey"],
+        "tile_size": {"width": 2.0, "height": 2.0}}),
 ]
 
 
 # Draws every sample into its own folder with its material.json.
 def main():
+    wanted = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     for material_id, draw, info in MATERIALS:
+        if wanted and material_id not in wanted:
+            continue
         folder = os.path.join(HERE, material_id)
         shutil.rmtree(folder, ignore_errors=True)
         os.makedirs(folder)

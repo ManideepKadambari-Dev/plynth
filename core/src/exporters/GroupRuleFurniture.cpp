@@ -82,8 +82,8 @@ public:
     }
 
 private:
-    // Adds one member for each item. An item is an asset (kind "item"); the generator kind is for the generator
-    // items of milestone 14, which will name that kind instead when the item has a generator.
+    // Adds one member for each item. An item is an asset (kind "item"); the generator kind is for items that a
+    // generator makes, which will name that kind instead.
     static void addItems(ExportGroup& group, const std::vector<const Item*>& items)
     {
         for (const Item* item : items) group.members.push_back({std::string(kKindItem), item->id});

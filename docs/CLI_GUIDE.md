@@ -2,9 +2,9 @@
 
 Plynth can be driven from a terminal, a script or a coding assistant. Every command prints one JSON answer, so a program can read the result without parsing text meant for people.
 
-This page covers the commands that exist today: version, help, creating and reading a project, setting the scale, grid and default sizes, floors, points, walls (straight and curved), rounded corners, doors, windows and other openings, rooms, placing furniture with `place` and `item`, finding walls and openings in the plan image with `detect`, building the project in Blender with `build`, the edit session that keeps the app and the command line from overwriting each other, and the machine commands: `doctor`, `settings`, `library` and `assets`. More commands arrive in later releases.
+This page covers the commands that exist today: version, help, creating and reading a project, setting the scale, grid and default sizes, floors, stairs, roofs, points, walls (straight and curved), rounded corners, doors, windows and other openings, rooms, placing furniture with `place` and `item`, finding walls and openings in the plan image with `detect`, building the project in Blender with `build`, the edit session that keeps the app and the command line from overwriting each other, and the machine commands: `doctor`, `settings`, `library` and `assets`. More commands arrive in later releases.
 
-The plan and project files are now at format version 4. Older projects open and upgrade by themselves. See "File format version 4" below.
+The plan and project files are now at format version 5. Older projects open and upgrade by themselves. See "File format version 5" below.
 
 ## Running a command
 
@@ -563,34 +563,70 @@ plynth wall list
 
 ### floor list
 
-Lists the floors of the project and their ceiling heights. It needs no `--floor` option.
+Lists the floors of the project, lowest first. It needs no `--floor` option.
 
 ```
 plynth floor list
 ```
 
 ```json
-{"ok":true,"command":"floor list","result":{"floors":[{"id":"f1","name":"Floor 1","image":"plans/apartment-01.png","ceiling_height":2.8}]}}
+{"ok":true,"command":"floor list","result":{"floors":[{"id":"f1","name":"Floor 1","image":"plans/ground.png","ceiling_height":3.0,"slab_thickness":0.2,"image_offset":{"x":0.0,"y":0.0},"elevation":0.0,"rise":3.2,"stairs":["s1"],"roof_sections":1},{"id":"f2","name":"Upper floor","image":"plans/upper.png","ceiling_height":3.0,"slab_thickness":0.2,"image_offset":{"x":0.0,"y":0.0},"elevation":3.2,"rise":3.2,"stairs":[],"roof_sections":1}]}}
 ```
 
-`image` is `null` for a floor with no plan image. Every other command that takes `--floor` uses the ids from this list.
+| Field | Meaning |
+|---|---|
+| `image` | The plan image, or `null` for a floor with none. |
+| `ceiling_height`, `slab_thickness` | In metres. The slab is the thick floor above the ceiling of this floor. |
+| `image_offset` | Where the plan image sits on the plan, in metres. See `floor set`. |
+| `elevation` | The level of the floor: the level below, plus that floor's ceiling height, plus its slab. The lowest floor is at 0. |
+| `rise` | Ceiling height plus slab. The distance from this floor's level to the next floor's level. |
+| `stairs` | The ids of the stairs that start on this floor. |
+| `roof_sections` | How many roof sections the floor has now. 0 when it is fully covered by the floor above. |
 
-### floor set
+Every other command that takes `--floor` uses the ids from this list. The floor entry is the answer of `floor add` and `floor set` too.
 
-Sets the ceiling height of a floor. Walls without their own height follow it.
+### floor add
+
+Adds an empty floor. By default it goes on top of the others. It gets the next free id, such as `f2`.
 
 | Option | Meaning |
 |---|---|
-| `--ceiling-height <metres>` | Required. Above zero. |
-| `--floor <id>` | Default: the first floor. |
+| `--name <text>` | Default: "Floor N", N being the number of floors after adding. |
+| `--ceiling-height <metres>` | Default: the project's new floor height. |
+| `--slab-thickness <metres>` | From 0.05 to 1. Default 0.2. |
+| `--image <file>` | A plan image for the floor (PNG, JPEG or BMP). A file from outside the project is copied into `plans/` when the project is saved. |
+| `--below <floor id>` | Put the new floor right below that floor instead of on top. |
 
 ```
-plynth floor set --ceiling-height 2.8
+plynth floor add --name "Upper floor" --image samples\plans\house-01-upper.png
 ```
 
 ```json
-{"ok":true,"command":"floor set","result":{"id":"f1","name":"Floor 1","image":"plans/apartment-01.png","ceiling_height":2.8}}
+{"ok":true,"command":"floor add","result":{"id":"f2","name":"Upper floor","image":"plans/house-01-upper.png","ceiling_height":3.0,"slab_thickness":0.2,"image_offset":{"x":0.0,"y":0.0},"elevation":3.2,"rise":3.2,"stairs":[],"roof_sections":0}}
 ```
+
+Refusals, with nothing changed: `not_found` for an unknown `--below` floor, `invalid_value` for a ceiling height of 0 or less or a slab outside 0.05 to 1, `image_error` for an image that is missing or cannot be read.
+
+### floor set
+
+Changes the name, the heights, the plan image or the image offset of a floor, all in one undo step. Give at least one option.
+
+| Option | Meaning |
+|---|---|
+| `--floor <id>` | Default: the first floor. |
+| `--name <text>` | A new name. |
+| `--ceiling-height <metres>` | Above zero. Walls without their own height follow it. |
+| `--slab-thickness <metres>` | From 0.05 to 1. |
+| `--image <file or none>` | Set the plan image, or clear it with `none`. |
+| `--image-offset <x,y>` | Move the plan image to this offset, in metres. The floor's marks (points, walls, rooms, openings, items and stairs) move with it. |
+| `--keep-marks` | With `--image-offset`, leave the marks where they are and move only the image. |
+
+```
+plynth floor set --floor f2 --image-offset 0.15,-0.05
+plynth floor set --floor f2 --slab-thickness 0.3
+```
+
+The scale is one for the whole plan, so `--image-offset` is how you line the image of an upper floor up with the floor below. A point at (2, 2) on a floor whose offset goes from (0, 0) to (1, 0) ends up at (3, 2). Detection on a floor with an offset puts its proposals in the right place, by adding the offset.
 
 A ceiling height that would leave an opening above the top of a wall is refused with `invalid_value`. The message names the first opening that would not fit, and nothing is changed:
 
@@ -598,7 +634,222 @@ A ceiling height that would leave an opening above the top of a wall is refused 
 {"ok":false,"command":"floor set","error":{"code":"invalid_value","message":"The opening o1 would reach above the wall w2, which would be 2.00 m high."}}
 ```
 
-A wall that has its own height is not affected by the ceiling height. To change the height for new floors, use `project set --new-floor-height`.
+A wall that has its own height is not affected by the ceiling height. To change the height for new floors, use `project set --new-floor-height`. Other refusals: `not_found` for an unknown floor, `bad_arguments` (exit code 2) for no option at all or an offset that is not two numbers.
+
+### floor remove
+
+Removes a floor with everything on it: its walls, rooms, openings, items, stairs and roof settings. Because that cannot be recovered by this command, `--yes` is required.
+
+```
+plynth floor remove f2 --yes
+```
+
+```json
+{"ok":true,"command":"floor remove","result":{"removed":"f2","stairs_without_floor":["s1"]}}
+```
+
+`stairs_without_floor` lists the stairs on the floor below that now have no floor above them. They stay in the plan, and `stair list` and `build` report them as `stair_no_floor_above`. Remove them with `stair remove`, or add a floor on top again. The only floor of a project is refused with `invalid_value`. Without `--yes` the answer is `bad_arguments`.
+
+### stair add
+
+Adds a stair to a floor. It climbs to the next floor up in the plan, and its steps are worked out from the floor heights.
+
+| Option | Meaning |
+|---|---|
+| `--floor <id>` | The floor the stair starts on. Default: the first floor. |
+| `--x <metres>`, `--y <metres>` | Required. The middle of the front edge of the bottom step. |
+| `--rot <degrees>` | The direction of the climb, clockwise from down the plan. 0 climbs toward the bottom of the plan, 90 toward the left. Any number is accepted and turned into 0 up to 360. Default 0. |
+| `--type <id>` | `straight`, `l_shape`, `u_shape` or `spiral`. See `stair types`. Default `straight`. |
+| `--width <metres>` | From 0.6 to 3. Default 1. |
+| `--turn left\|right` | Which way an L, U or spiral stair turns, as you climb. Default `right`. Types without a turn ignore it. |
+| `--material <id>` | The material of the steps. Default: none, so the project default for stairs applies. |
+
+```
+plynth stair add --floor f1 --x 1 --y 1
+```
+
+```json
+{"ok":true,"command":"stair add","result":{"id":"s1","floor":"f1","to_floor":"f2","type":"straight","x":1.0,"y":1.0,"rotation":0.0,"width":1.0,"turn":"right","material":null,"rise":3.2,"riser_count":17,"riser":0.18824,"going":0.27,"length":4.32,"footprint":[[0.5,1.0],[1.5,1.0],[1.5,5.32],[0.5,5.32]],"arrival":[1.0,5.32],"problems":[]}}
+```
+
+| Field | Meaning |
+|---|---|
+| `to_floor` | The floor the stair reaches. `null` when there is none. |
+| `rise` | The height climbed, from one level to the next. |
+| `riser_count`, `riser` | The number of steps up and the height of each. A riser is at most 0.19 m and all are equal. |
+| `going` | The depth of a tread, 0.27 m. |
+| `length` | The walk line from the bottom step to the upper floor. |
+| `footprint` | The outline of the whole stair on the plan, in metres. This is the hole cut in the slab, the ceilings below and the floors above. |
+| `arrival` | Where the stair reaches the upper floor. |
+| `problems` | What the build would report for this stair. Each has `code`, `severity` and `message`. See below. |
+
+A stair that has a problem with severity `warning` is still added. Refusals, with nothing changed: `invalid_value` for a stair on the top floor ("Add a floor above before placing a stair."), for a width outside 0.6 to 3 and for an unknown type (the message lists the known ones). A rotation outside 0 to 360 is not refused. It is turned into that range, so `--rot 450` is stored as 90. `not_found` is returned for an unknown floor or an unknown material, and `bad_arguments` for a missing `--x` or `--y`.
+
+**Stair problem codes.** They appear in `problems` and in the build report.
+
+| Code | Severity | Meaning |
+|---|---|---|
+| `stair_overlaps_wall` | warning | The footprint crosses a wall on the stair's floor or on the floor above. The message names the wall. |
+| `stair_outside_floor` | warning | Part of the footprint is outside the walls and rooms of the floor. |
+| `stair_arrival_outside_room` | warning | The arrival point is not in any room of the floor above. |
+| `stair_no_floor_above` | error | There is no floor above. The stair is left out of the build. |
+| `stair_type_unknown` | error | The type is not registered. The stair is left out of the build. |
+
+### stair set
+
+Changes a stair. Give the id and at least one option. Everything not given stays as it is.
+
+| Option | Meaning |
+|---|---|
+| `<id>` | The stair. |
+| `--x`, `--y`, `--rot`, `--type`, `--width`, `--turn` | As for `stair add`. |
+| `--material <id or none>` | Set the material of the steps, or clear it with `none`. |
+
+```
+plynth stair set s1 --type spiral --turn left
+```
+
+The answer is the stair entry, as for `stair add`. A stair is not moved between floors: to do that, remove it and add it again. Refusals: `not_found` for an unknown stair or material, `invalid_value` for a bad value, `bad_arguments` when no option is given.
+
+### stair remove
+
+Removes a stair. The hole it cut is filled again at the next build.
+
+```
+plynth stair remove s1
+```
+
+```json
+{"ok":true,"command":"stair remove","result":{"removed":"s1"}}
+```
+
+### stair list
+
+Lists the stairs of one floor (`--floor <id>`) or of every floor, each as the stair entry above, with its problems.
+
+```
+plynth stair list --floor f1
+```
+
+```json
+{"ok":true,"command":"stair list","result":{"stairs":[{"id":"s1","floor":"f1","to_floor":"f2","type":"straight","x":1.0,"y":1.0,"rotation":0.0,"width":1.0,"turn":"right","material":null,"rise":3.2,"riser_count":17,"riser":0.18824,"going":0.27,"length":4.32,"footprint":[[0.5,1.0],[1.5,1.0],[1.5,5.32],[0.5,5.32]],"arrival":[1.0,5.32],"problems":[]}]}}
+```
+
+An unknown `--floor` is `not_found`.
+
+### stair types
+
+Lists the stair types. It needs no project.
+
+```
+plynth stair types
+```
+
+```json
+{"ok":true,"command":"stair types","result":{"types":[{"id":"straight","name":"Straight","uses_turn":false},{"id":"l_shape","name":"L shape","uses_turn":true},{"id":"u_shape","name":"U shape","uses_turn":true},{"id":"spiral","name":"Spiral","uses_turn":true}]}}
+```
+
+A type that is added to Plynth later shows up here with no other change. See "Adding a stair type" in [Writing generators](GENERATORS.md).
+
+### roof list
+
+Lists the roof default and every roof section. Roof sections are not drawn. They are worked out from the floors: each part of a floor with no floor above it is a section. A part narrower than 0.2 m has no roof. The build gives it a plain flat top in the outside wall material instead. `--floor <id>` lists one floor only.
+
+```
+plynth roof list
+```
+
+```json
+{"ok":true,"command":"roof list","result":{"default":{"type":"flat","pitch":30.0,"overhang":0.3,"parapet":0.6,"direction":null},"sections":[{"floor":"f1","index":0,"area":24.0,"label":[3.0,2.0],"section":null,"settings":{"type":"flat","pitch":30.0,"overhang":0.3,"parapet":0.6,"direction":null},"type_built":"flat","material":{"material":"concrete","origin":"default","from":null},"outline":[[0.0,0.0],[6.0,0.0],[6.0,4.0],[0.0,4.0]]}],"unused":[]}}
+```
+
+| Field | Meaning |
+|---|---|
+| `default` | The roof settings every section without its own uses. `direction` is `null` for automatic. |
+| `sections[].floor`, `index` | The floor, and the place of the section among that floor's sections. |
+| `area` | Square metres. |
+| `label` | A point well inside the section. `roof set --at` takes a point like it. |
+| `section` | The id of the roof entry (such as `rf1`) that governs this section, or `null` when the default does. |
+| `settings` | The settings that apply: `type`, `pitch`, `overhang`, `parapet`, `direction`. |
+| `type_built` | The type the build makes. It differs from `settings.type` when a hip roof falls back to gable. |
+| `material` | The covering material that applies, with its `origin` (`roof` for an entry's own material, otherwise `default`) and `from`. |
+| `outline` | The section's outline on the plan. A section can also have holes, which are not listed. |
+| `unused` | The ids of roof entries that govern no section. See below. |
+
+### roof set
+
+Changes the roof default, one roof entry, or the section at a point. Give at least one setting option.
+
+| Form | What it changes |
+|---|---|
+| `roof set default ...` | The roof default. |
+| `roof set rf1 ...` | The roof entry `rf1`. |
+| `roof set --floor f1 --at 3,2 ...` | The section of floor `f1` that contains the point. An entry is added when the section has none, starting from the settings that apply to it now. Without `--floor`, the first floor. |
+
+| Option | Meaning |
+|---|---|
+| `--type <id>` | A roof type. See `roof types`. |
+| `--pitch <degrees>` | The slope. A pitched type needs 5 to 75. |
+| `--overhang <metres>` | How far the roof reaches past the outer walls, 0 to 2. |
+| `--parapet <metres>` | The height of the low wall round a flat roof, 0 to 3. 0 for none. |
+| `--direction <degrees or auto>` | From 0 up to 360, clockwise on the plan from +x. The ridge direction of a gable or sawtooth roof, the way a shed roof falls. `auto` stores nothing, so the type picks it from the shape of the section. |
+| `--material <id or none>` | The covering material of an entry. Not for `default`. |
+
+```
+plynth roof set default --type gable --pitch 35 --direction 90
+plynth roof set --floor f1 --at 3,2 --type hip
+plynth roof set rf1 --pitch 40 --material grey_tile
+```
+
+```json
+{"ok":true,"command":"roof set","result":{"type":"gable","pitch":35.0,"overhang":0.3,"parapet":0.6,"direction":90.0}}
+```
+
+The answer of `roof set default` is the settings. The answer of the other two is the section entry as in `roof list`. When an entry's point is no longer inside any section, the answer has only `floor`, `index` (`null`), `section`, `settings` and `material`.
+
+Refusals, with nothing changed:
+
+| Code | When |
+|---|---|
+| `invalid_value` | An unknown type, a number out of range, a pitched type with a pitch below 5, or `--at` with a point that is in no roof section. |
+| `not_found` | An unknown roof entry, floor or material. |
+| `bad_arguments` | No setting option; no target; both an id and `--at`; a `--direction` that is not a number or `auto`; `--at` that is not `x,y`; `--material`, `--floor` or `--at` with `default`. Exit code 2. |
+
+### roof clear
+
+Removes a roof entry, so its section follows the default again. The unused entries listed by `roof list` are removed the same way.
+
+```
+plynth roof clear rf1
+```
+
+```json
+{"ok":true,"command":"roof clear","result":{"removed":"rf1"}}
+```
+
+An unknown id is `not_found`.
+
+### roof types
+
+Lists the roof types and the settings each one uses. It needs no project.
+
+```
+plynth roof types
+```
+
+```json
+{"ok":true,"command":"roof types","result":{"types":[{"id":"flat","name":"Flat","uses":["overhang","parapet"]},{"id":"gable","name":"Gable","uses":["pitch","direction","overhang"]},{"id":"hip","name":"Hip","uses":["pitch","overhang"]},{"id":"shed","name":"Shed","uses":["pitch","direction","overhang"]},{"id":"sawtooth","name":"Sawtooth","uses":["pitch","direction","overhang"]}]}}
+```
+
+A setting a type does not use is kept but has no effect on it. A flat roof with a parapet above 0 has no overhang. A hip roof needs a convex section. On any other section the build makes a gable roof and reports `roof_type_fallback`.
+
+**Roof problem codes.**
+
+| Code | Severity | Meaning |
+|---|---|---|
+| `roof_type_fallback` | warning | The type does not fit the section (a hip roof on a section with an inward corner), so the build used the fallback type. The message says why. |
+| `roof_type_unknown` | warning | The type is not registered, so the section is built flat. |
+| `roof_section_unused` | warning | The entry's point lies in no section of its floor, or in a section another entry already governs. It has no effect. The `object` is the entry. |
 
 ### Left and right
 
@@ -1257,9 +1508,13 @@ The first argument is the **target**:
 | `r1.floor` | The floor of room `r1`. |
 | `r1.wall` | The wall faces that look into room `r1`, unless a wall names its own inside material. |
 | `r1.ceiling` | The ceiling of room `r1`. |
-| `default.<surface>` | A project default. The surfaces are `wall_inside`, `wall_outside`, `wall_top`, `floor`, `ceiling`, `door`, `frame`, `glass` and `handle`. |
+| `s2` | The material of the steps of stair `s2`. |
+| `rf1` | The covering material of roof entry `rf1`. |
+| `default.<surface>` | A project default. The surfaces are `wall_inside`, `wall_outside`, `wall_top`, `floor`, `ceiling`, `door`, `frame`, `glass`, `handle`, `roof` (pitched roofs), `flat_roof` and `stair`. |
 
 For a room, the part before the dot may also be a room type when exactly one room has it, such as `hall.floor`. With two halls the command is refused and names both ids.
+
+A stair or a roof entry has one material. A roof entry exists only after `roof set` has given a section its own settings, so `rf1` is `not_found` until then. `none` clears the stair's or the entry's own material, and the project default for that surface applies again.
 
 The second argument is a material id, or `none` to clear the setting. `none` needs no library. Any other id is checked against the materials catalog of the library (`--library` or the one in the settings), and the check is why the library is needed.
 
@@ -1267,7 +1522,7 @@ The second argument is a material id, or `none` to clear the setting. `none` nee
 {"ok":true,"command":"material set","result":{"target":"r3.floor","material":"oak_planks","previous":null,"resolved":{"material":"oak_planks","origin":"room","from":"r3"}}}
 ```
 
-`material` is what you set (`null` for none), `previous` is what the target named before, and `resolved` is what the target shows now after the rules are applied. `origin` is `wall`, `room`, `default` or `none`, and `from` is the wall or room that names it, or `null` for a default or none. Clearing `w3.outside` shows `red_brick` with origin `default`.
+`material` is what you set (`null` for none), `previous` is what the target named before, and `resolved` is what the target shows now after the rules are applied. `origin` is `wall`, `room`, `stair`, `roof`, `default` or `none`, and `from` is the wall or room that names it, or `null` for a default or none. Clearing `w3.outside` shows `red_brick` with origin `default`.
 
 Refusals:
 
@@ -1292,11 +1547,11 @@ plynth material list
 {"ok":true,"command":"material list","result":{"defaults":{"wall_inside":"white_paint","wall_outside":"red_brick","wall_top":"white_paint","floor":"oak_planks","ceiling":null,"door":"painted_wood","frame":"white_paint","glass":"clear_glass","handle":"brushed_steel"},"walls":[{"id":"w3","floor":"f1","inside":[{"material":"grey_tile","origin":"room","from":"r2","room":"r2"}],"outside":{"material":"red_brick","origin":"default","from":null}}],"rooms":[{"id":"r2","floor":"f1","type":"bathroom","materials":{"floor":{"material":"grey_tile","origin":"room","from":"r2"},"wall":{"material":"grey_tile","origin":"room","from":"r2"},"ceiling":{"material":null,"origin":"none","from":null}}}],"used":["brushed_steel","clear_glass","grey_tile","oak_planks","painted_wood","red_brick","white_paint"],"missing":[],"library":"D:/Demo/Library"}}
 ```
 
-The lists are shortened. `walls` has one entry per wall with an `inside` entry for each room the wall belongs to, and `rooms` one entry per room. `used` is sorted and has no repeats. `missing` lists the used ids the library does not have. With no library, `library` is `null` and `missing` is empty. Both commands take `--project` and `--library`.
+The lists are shortened. `walls` has one entry per wall with an `inside` entry for each room the wall belongs to, and `rooms` one entry per room. `stairs` has one entry per stair, `{"id", "floor", "material"}`, and `roofs` one per roof section, `{"floor", "index", "section", "material"}`, each material resolved as `{material, origin, from}`. `defaults` also has `roof`, `flat_roof` and `stair`. `used` is sorted and has no repeats. `missing` lists the used ids the library does not have. With no library, `library` is `null` and `missing` is empty. Both commands take `--project` and `--library`.
 
 ### build
 
-Builds the project in Blender: the walls with their thickness, every opening cut in its exact shape, a door or window fitted in each door and window opening, a floor and a ceiling in every closed room, every surface with its material, and every placed item as a copy of its asset. It saves `build\building.blend`, `build\building.fbx` and `build\materials.json`. The app's Build button does the same thing, so both give the same result.
+Builds the project in Blender: the walls with their thickness, every opening cut in its exact shape, a door or window fitted in each door and window opening, a floor and a ceiling in every closed room, a slab between the floors, every stair, a roof on every part of a floor with nothing above it, every surface with its material, and every placed item as a copy of its asset. It saves `build\building.blend`, `build\building.fbx` and `build\materials.json`, and writes the parts the 3D view loads into `build\preview`. The app's Build button does the same thing, so both give the same result.
 
 ```
 plynth build
@@ -1321,14 +1576,14 @@ The `build` word is a command, so a project folder named `build` has to be given
 
 ```
 {"progress":{"stage":"preparing","step":"","index":0,"count":0,"message":"Checking the plan"}}
-{"progress":{"stage":"blender","step":"prepare_scene","index":1,"count":11,"message":"Preparing the scene"}}
-{"progress":{"stage":"blender","step":"walls","index":2,"count":11,"message":"Raising walls"}}
-{"progress":{"stage":"blender","step":"openings","index":3,"count":11,"message":"Cutting openings"}}
+{"progress":{"stage":"blender","step":"prepare_scene","index":1,"count":15,"message":"Preparing the scene"}}
+{"progress":{"stage":"blender","step":"walls","index":2,"count":15,"message":"Raising walls"}}
+{"progress":{"stage":"blender","step":"openings","index":3,"count":15,"message":"Cutting openings"}}
 {"progress":{"stage":"finishing","step":"","index":0,"count":0,"message":"Writing the report"}}
 {"progress":{"stage":"done","step":"","index":0,"count":0,"message":"Done"}}
 ```
 
-The stages are `preparing`, `blender` (one line per step, `index` counting from 1 up to `count`), `finishing` and `done`. The steps are the registered build steps, in order: `prepare_scene`, `walls`, `openings`, `bevel`, `triangulate`, `opening_fills`, `floors`, `assets`, `materials`, `collision`, `save_blend`, `export_fbx`. Adding a step adds a line.
+The stages are `preparing`, `blender` (one line per step, `index` counting from 1 up to `count`), `finishing` and `done`. The steps are the registered build steps, in order: `prepare_scene`, `walls`, `openings`, `bevel`, `triangulate`, `opening_fills`, `floors`, `slabs`, `stairs`, `roofs`, `assets`, `materials`, `collision`, `save_blend`, `export_fbx`, `preview_parts`. Adding a step adds a line.
 
 **The answer.** An example, shortened. The real lists hold every step and every problem.
 
@@ -1338,7 +1593,7 @@ The stages are `preparing`, `blender` (one line per step, `index` counting from 
 
 - The `result` is the build report, the same text that is saved as `build\build.json` (`schema/build-report.schema.json`). Paths are absolute with forward slashes.
 - The `ok` inside the report means the build ran and finished. It does not mean there were no problems. Problems with severity `error` can still be listed next to `"ok":true`, so a script that needs a clean building must also test `error_count`.
-- `counts` says how many wall solids, openings, doors and windows, rooms, items and materials were made. `materials` is how many catalog materials were built into the file (neutral looks are not counted). `outputs.materials_file` is the path of `materials.json`, and it is `null` when no FBX was written. A report from before materials still reads, with `materials` 0. `collision` is the number of collision meshes (`UCX_...`) made, and a report from before collision reads with `collision` 0. The collision meshes are in `building.blend` and in the export, not in `building.fbx`.
+- `counts` says how many wall solids, openings, doors and windows, rooms, items, slabs, stairs, roofs and materials were made. `slabs` is the number of floors that got a slab, `stairs` the number of stairs and `roofs` the number of roof sections. A report from before floors, stairs and roofs still reads, with those three at 0. `materials` is how many catalog materials were built into the file (neutral looks are not counted). `outputs.materials_file` is the path of `materials.json`, and it is `null` when no FBX was written. A report from before materials still reads, with `materials` 0. `collision` is the number of collision meshes (`UCX_...`) made, and a report from before collision reads with `collision` 0. The collision meshes are in `building.blend` and in the export, not in `building.fbx`.
 
 `openings_cut` and `fills` count what was built, so an opening that did not fit is not in them. `objects` and `triangles` are what went into the FBX.
 - `steps` lists the time of each step in milliseconds. `check` is the work core does before Blender starts.
@@ -1361,6 +1616,10 @@ The stages are `preparing`, `blender` (one line per step, `index` counting from 
 | `fill_failed` | warning | The opening was cut, but the door or window could not be made, for example because the opening is too small for a frame. The hole stays empty. |
 | `asset_load_failed` | error | Blender could not load the asset's `asset.blend`. The item is left out. |
 | `bevel_failed` | warning | The wall edges could not be rounded, so they stay sharp. |
+| `stair_overlaps_wall`, `stair_outside_floor`, `stair_arrival_outside_room`, `stair_no_floor_above`, `stair_type_unknown` | warning, error for the last two | The stair problems listed under `stair add`. The `object` is the stair. |
+| `roof_type_fallback`, `roof_type_unknown`, `roof_section_unused` | warning | The roof problems listed under `roof types`. The `object` is the roof entry, when there is one. |
+| `slab_failed`, `stair_failed`, `roof_failed` | error | Blender could not make that slab, stair or roof from its outline, so it is left out. The `object` is the floor, stair or roof entry. The rest of the building is built, but `build_complete` fails and the export is blocked. |
+| `preview_failed` | warning | The preview parts could not be written, so `build\preview\parts.json` is removed and the 3D view loads `building.fbx`. |
 | `no_room`, `outside_room`, `overlaps_item`, `overlaps_wall`, `overlaps_opening`, `off_wall`, `too_tall`, `size_changed` | warning | The furniture warnings of the item (see "Furniture items"). They are shown again here because the build marks them on the plan. |
 
 If an asset's folder was removed or renamed by hand, the code depends on what the catalog says. While the catalog still lists the asset, it is `asset_broken`. When the catalog does not know the asset at all, it is `missing_asset`.
@@ -1375,7 +1634,7 @@ plynth build --check
 {"ok":true,"command":"build","result":{"problems":[{"code":"opening_does_not_fit","severity":"error","message":"Window o4 does not fit its wall: it reaches 0.12 m past the corner.","floor":"f1","object":"o4","step":"check"}],"error_count":1,"warning_count":0,"plan_fingerprint":"9c41d0e27ab35f18"}}
 ```
 
-Blender can find more problems while it builds (`cut_failed`, `fill_failed`, `asset_load_failed`, `bevel_failed`, `material_failed`), so a clean `--check` does not promise a clean build.
+Blender can find more problems while it builds (`cut_failed`, `fill_failed`, `asset_load_failed`, `bevel_failed`, `material_failed`, `slab_failed`, `stair_failed`, `roof_failed`, `preview_failed`), so a clean `--check` does not promise a clean build.
 
 **Refusals.** All have exit code 1 and write nothing, except where said.
 
@@ -1392,7 +1651,8 @@ Blender can find more problems while it builds (`cut_failed`, `fill_failed`, `as
 | File | What it is |
 |---|---|
 | `building.blend` | The Blender file. Open it in Blender, edit it, render it. Items are instances of their asset. |
-| `building.fbx` | What the 3D view loads. Items are real objects that share their mesh. |
+| `building.fbx` | The whole building in one file. Items are real objects that share their mesh. |
+| `preview\` | One FBX for each floor, one for the slab above it and one for its roofs (`f1.fbx`, `f1_slab.fbx`, `f2_roof.fbx`), and `parts.json` that lists them (`schema/build-preview.schema.json`). The 3D view loads these so it can hide roofs and floors. Written after `building.fbx`. Not written, and `parts.json` removed, when it fails. |
 | `materials.json` | Written with the FBX, never without it. For each built material, its image maps (absolute paths) and alpha mode, and for each built object its material slots in order (`schema/build-materials.schema.json`). The 3D view reads it to show metal, roughness and see-through parts. |
 | `textures\` | Small constant images for surfaces with no material, such as `Wall_Outside_base_color.png`. |
 | `build.json` | The report of the last build. |
@@ -1638,7 +1898,9 @@ plynth session status
 
 These commands are about your computer, not about one project. They never open a project, so they do not take `--project` and the edit lock never refuses them. They work while the app has a project open.
 
-All of them read the machine settings file. `settings show` tells you where it is. By default it is `%APPDATA%\Plynth\settings.json`. Set the environment variable `PLYNTH_CONFIG_DIR` to a folder to use another settings file, which is how scripts and tests keep away from the real one. `PLYNTH_BLENDER` names a `blender.exe` to use when none is chosen in the settings.
+All of them read the machine settings file. `settings show` tells you where it is. By default it is `%APPDATA%\Plynth\settings.json`. Set the environment variable `PLYNTH_CONFIG_DIR` to a folder to use another settings file, which is how scripts and tests keep away from the real one. `PLYNTH_BLENDER` names a `blender.exe` (or the folder that holds it).
+
+**Which Blender is used.** Plynth takes the first of these that is set: the `--blender <exe>` option, the `PLYNTH_BLENDER` variable (when not empty), the Blender saved in the settings, and last the search of the usual install places. A Blender you name with the option or the variable is the only one that is started. If it is missing or cannot be used, the command says so and stops. It does not fall back to another install.
 
 Commands that use the library take `--library <folder>` to use another library than the one in the settings. Commands that run Blender (`assets import`, `assets inbox`, `assets rescan`, `assets thumbnail`, `library rescan`) take `--blender <exe>` to use another Blender than the one the setup check chooses. Ids (`chair`, `living`) use lower case letters, digits and `_`, start with a letter, and are at most 64 characters. Tags use lower case letters, digits, `_` and `-`.
 
@@ -1656,10 +1918,10 @@ plynth doctor --blender "C:\Program Files\Blender Foundation\Blender 5.2\blender
 
 Options:
 
-- `--no-addons`: do not start Blender to ask about add-ons. The add-on items then say `not_checked`, and `probed` is false. This is faster.
-- `--blender <file>`: check this `blender.exe` as if it were the chosen one. Nothing is saved.
+- `--no-addons`: skip the add-on probe, so your saved preferences are not read. The add-on items then say `not_checked`, and `probed` is false. This is faster. Blender is still started briefly with `--version` to read its version.
+- `--blender <file>`: check this `blender.exe` and no other. It beats `PLYNTH_BLENDER` and the saved setting. Nothing is saved.
 
-Without `--no-addons`, doctor starts Blender once in the background, which takes a few seconds. The answer always has `ok` true and exit code 0, even when something is missing. A script reads `ready`, which is true when no required item is missing or too old.
+Without `--no-addons`, doctor starts Blender once in the background, which takes a few seconds. That run uses Blender's factory settings and a private folder of Plynth's, so it does not load your add-ons or touch your Blender folders. To tell you which add-ons are on and whether BlenderKit has a sign-in, the check reads your saved Blender preferences file (`userpref.blend`) as plain data, and only reads it. When BlenderKit is on and that file holds no key, it may also read BlenderKit's `config\preferences.json`, only to see whether a sign in exists. It never starts an add-on, never changes or copies the file, and never shows the key. It only learns whether a key exists. If the preferences file cannot be understood (for example a Blender version Plynth does not know), the add-on items say `not_checked`. The answer always has `ok` true and exit code 0, even when something is missing. A script reads `ready`, which is true when no required item is missing or too old.
 
 ```json
 {"ok":true,"command":"doctor","result":{"ready":true,"first_run":false,"updated":true,"probed":false,"items":[{"id":"blender","name":"Blender","required":true,"state":"found","version":"5.2.0","path":"C:/Program Files/Blender Foundation/Blender 5.2/blender.exe","detail":"Blender 5.2.0 LTS (hash fbe6228777e7 built 2026-07-14 01:35:40) found.","action":"","link":"","affects":[]},{"id":"library_folder","name":"Library folder","required":true,"state":"found","version":null,"path":"D:/Demo/Library","detail":"The library is ready.","action":"","link":"","affects":[]},{"id":"graphics_driver","name":"Graphics driver","required":true,"state":"not_checked","version":null,"path":null,"detail":"Checked by the app when it starts the 3D preview.","action":"","link":"","affects":[]},{"id":"addon_blenderkit","name":"BlenderKit add-on","required":false,"state":"not_checked","version":null,"path":null,"detail":"Add-ons were not checked this time.","action":"","link":"https://www.blenderkit.com/","affects":["importing assets from BlenderKit"]}],"blender_installs":[{"path":"C:/Program Files/Blender Foundation/Blender 5.2/blender.exe","version":"5.2.0","version_text":"Blender 5.2.0 LTS (hash fbe6228777e7 built 2026-07-14 01:35:40)","support":"supported","sources":["program_folder","registry"],"selected":true,"problem":null}]}}
@@ -2304,7 +2566,7 @@ Codes in use:
 - `image_missing`: a plan image of the project could not be found. Edits are still saved and the image path is kept. Put the file back, or set another image.
 - The cleanup codes listed under `assets import`: `high_polycount`, `scale_suspicious`, `missing_texture`, `removed_objects`, `unsupported_object`, `fbx_failed`.
 - The material import codes listed under `materials import`: `ambiguous_map`, `unused_image`, `map_size_mismatch`, `visible_seams`, `low_resolution`, `picked_material`.
-- The build codes listed under `build`, including `missing_material`, `material_broken` and `material_failed`. `build` puts one warning in the list for every problem it found, whether its severity is `error` or `warning`.
+- The build codes listed under `build`, including `missing_material`, `material_broken`, `material_failed`, the stair and roof codes. `build` puts one warning in the list for every problem it found, whether its severity is `error` or `warning`.
 - The furniture codes listed under "Furniture items": `no_room`, `outside_room`, `overlaps_item`, `overlaps_wall`, `overlaps_opening`, `off_wall`, `too_tall`, `missing_asset`, `size_changed`. `place` and the `item` commands that change an item give the problems of that item. With `--strict` they are refused instead.
 
 A project whose plan image was deleted, after `scale set`:
@@ -2324,24 +2586,39 @@ For a script on a new machine:
 3. `plynth doctor` again. `ready` should now be true.
 4. `plynth assets import <file>` for each model. Add `--category` and `--tag` so you do not have to edit afterwards.
 5. `plynth assets search <words>` to find the ids you need.
-6. `plynth materials import samples\materials\*` to add the seven sample materials, which new projects use by default. Add `--skip-existing` to run it again safely. Then `plynth materials search <words>` finds material ids.
+6. `plynth materials import samples\materials\*` to add the nine sample materials, which new projects use by default. Add `--skip-existing` to run it again safely. Then `plynth materials search <words>` finds material ids.
+
+## File format version 5
+
+`plan.json` and `project.json` are now at format version 5. What changed:
+
+- Every floor in `plan.json` has `slab_thickness` (metres, 0.05 to 1, default 0.2), `image_offset` (`{"x", "y"}` in metres, default 0, 0) and `stairs` (a list). A stair has `id`, `type`, `x`, `y`, `rotation`, `width`, `turn` (`left` or `right`) and `material` (`null` for the project default).
+- `plan.json` has `roof`, the roof default (`type`, `pitch`, `overhang`, `parapet`, `direction`, which is `null` for automatic), and `roof_sections`, a list of entries with an `id` (`rf1`), a `floor`, an anchor point `x`, `y`, their own settings and a `material`. Roof sections themselves are not saved. They are worked out from the floors, and an entry belongs to the section that holds its anchor point.
+- `project.json` has three more default materials: `roof`, `flat_roof` and `stair`.
+- Floors now stack on slabs, so the level of a floor is the level below plus its ceiling height plus its slab thickness. A version 4 project with several floors has each upper floor 0.2 m higher for every floor below it.
+
+**Older projects upgrade by themselves.** A version 4 plan gets a slab of 0.2 m on every floor, an offset of 0, no stairs, the default roof (flat, pitch 30, overhang 0.3, parapet 0.6) and no entries. A version 4 project gets `roof_tiles`, `concrete` and `oak_planks` as the three new defaults. Nothing is written when you only read. The next command that edits and saves writes both files as version 5, as the app does.
+
+**Older programs refuse the new files** with `unsupported_version`. The shape of each version is in `schema/plan.schema.json` and `schema/project.schema.json` (version 5), and `schema/plan.v4.schema.json` and `schema/project.v4.schema.json` (version 4, kept as it was).
+
+The sections below describe version 4, which version 5 only adds to.
 
 ## File format version 4
 
-`plan.json` and `project.json` are now at format version 4. What changed:
+`plan.json` and `project.json` were at format version 4 before floors, stairs and roofs. What changed:
 
 - Every room in `plan.json` has `wall_material`, the material of the wall faces that look into it (`null` when not set). Walls already had `material_inside` and `material_outside`, and rooms `floor_material` and `ceiling_material`.
 - `project.json` has `materials`, the default material of each of the nine surfaces (`wall_inside`, `wall_outside`, `wall_top`, `floor`, `ceiling`, `door`, `frame`, `glass`, `handle`). A value is a material id, or `null` for none.
 
 **Older projects upgrade by themselves**, as described under "File format version 3" below. A version 3 plan gets `"wall_material": null` on every room, and a version 3 project gets the sample materials as its defaults: `white_paint`, `red_brick`, `white_paint`, `oak_planks`, `white_paint`, `painted_wood`, `white_paint`, `clear_glass` and `brushed_steel`, in the order above. Nothing is written when you only read. The next command that edits and saves writes both files as version 4. The app does the same.
 
-**Older programs refuse the new files** with `unsupported_version`, as for version 3. The shape of each version is in `schema/plan.schema.json` and `schema/project.schema.json` (version 4), and `schema/plan.v3.schema.json` and `schema/project.v3.schema.json` (version 3, kept as it was).
+**Older programs refuse the new files** with `unsupported_version`, as for version 3. The shape of each version is in `schema/plan.v4.schema.json` and `schema/project.v4.schema.json` (version 4), and `schema/plan.v3.schema.json` and `schema/project.v3.schema.json` (version 3, both kept as they were).
 
 The sections below describe version 3, which version 4 only adds to.
 
 ## File format version 3
 
-Version 3 is what `plan.json` and `project.json` were before materials. Today they are saved as version 4, and the numbers in this section are the ones of that earlier release. What version 3 changed:
+Version 3 is what `plan.json` and `project.json` were before materials. Today they are saved as version 5, and the numbers in this section are the ones of that earlier release. What version 3 changed:
 
 - Every floor in `plan.json` has `items`, the furniture placed on it. Each item has `id`, `asset`, `room`, `x`, `y`, `z`, `rotation`, `wall` and `size`. See "Furniture items".
 - `project.json` has `wall_item_centre` in `defaults`, the height of the middle of a newly mounted wall item (see `project set`).
@@ -2373,7 +2650,8 @@ A script builds a plan in this order, because each step needs the one before it:
 5. Openings: `opening add`, then `opening set` for shape, hinge and swing.
 6. Room types: `room set <id> --type living`, so `place --room living` can find the room.
 7. Furniture: `place`, then `item move`, `item rotate`, `item attach`. Mount wall items after the openings, so the overlap with a window is checked.
-8. Check: `opening list` and read `problems`, `room list` and read the areas, `item list` and read `problems` and `asset_state`.
+8. More floors, stairs and roofs: `floor add` with its plan image, then `detect --floor f2 --apply` or the wall commands with `--floor f2`, then `stair add` on the lower floor, then `roof set`. A stair needs the floor above to exist, so add the floors first.
+9. Check: `opening list` and read `problems`, `room list` and read the areas, `item list` and read `problems` and `asset_state`.
 
 Bend and round before you place openings. Curves change a wall's length and corners change its free part, so an opening placed first may stop fitting. Set the ceiling height before placing tall openings, and lower a wall only after you have checked what stands on it.
 
@@ -2397,6 +2675,21 @@ plynth opening list --project D:\scratch\m5b
 ```
 
 The room is a 4 m by 4 m square of 0.2 m walls (14.44 square metres) before `wall set w1 --bulge -2` bends its top wall into a half circle bulging out of the room, and `point set p3 --corner-radius 1` rounds one corner. `room list` then reports an area of 20.2956, because the half circle adds area and the rounded corner takes a little off. `w2` runs south, so its right side is west, which is inside the room, and the door swings into the room.
+
+A second floor with a stair and a pitched roof goes like this. Every command takes the same `--project` option as above.
+
+```
+plynth floor add --name "Upper floor" --image samples\plans\house-01-upper.png
+plynth detect --floor f2 --apply
+plynth floor set --floor f2 --image-offset 0.05,0
+plynth stair add --floor f1 --x 4.2 --y 2.1 --rot 90 --type u_shape
+plynth stair list
+plynth roof set --floor f2 --at 3,2 --type gable --pitch 35
+plynth roof list
+plynth build
+```
+
+Read `problems` in `stair list` before building: a stair that crosses a wall or arrives outside a room says so there. `roof list` shows what the build will make, including `type_built` when a hip roof had to fall back to a gable. `build` reports `slabs`, `stairs` and `roofs` in its counts.
 
 ## Working while the app is open
 
@@ -2434,7 +2727,7 @@ Save or discard in the app, then run `session begin` again.
 
 If the app does not have the project open, editing commands just run. A session is still allowed and harmless, so a script can always begin one.
 
-Read only commands such as `project info`, `point list`, `wall list`, `opening list`, `opening shapes`, `floor list`, `room list`, `room find`, `build` and `detect` without `--apply` are never refused. `build` only writes into the project's `build` folder and never changes the plan.
+Read only commands such as `project info`, `point list`, `wall list`, `opening list`, `opening shapes`, `floor list`, `stair list`, `stair types`, `roof list`, `roof types`, `room list`, `room find`, `build` and `detect` without `--apply` are never refused. `floor add`, `floor set`, `floor remove`, `stair add`, `stair set`, `stair remove`, `roof set` and `roof clear` change the plan, so they follow the rules above. `build` only writes into the project's `build` folder and never changes the plan.
 
 ### Expiry
 

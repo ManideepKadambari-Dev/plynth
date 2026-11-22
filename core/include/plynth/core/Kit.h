@@ -24,7 +24,8 @@ using Json = nlohmann::ordered_json;
 // the project's export options (ExportGroups.h). Written into export/ next to the group files:
 //   export/<Stem>_Kit.fbx           every unique piece once, each at its own origin, with its UCX_ collision
 //   export/<Stem>_Kit_layout.json   where each piece goes (schema/kit-layout.schema.json), written by core
-// Stem is exportFileStem of the project name. Floors, ceilings, thresholds and furniture are not in the kit.
+// Stem is exportFileStem of the project name. Floors, ceilings, thresholds, slabs, stairs, roofs and furniture are
+// not in the kit.
 //
 // The kit grid is fixed per project and is the project's grid size (ProjectSettings::gridSize, the wall snap
 // grid), so every floor is cut on the same grid. kitGridSize is the only place that reads it.

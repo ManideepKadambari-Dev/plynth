@@ -204,8 +204,11 @@ Answer detect(const RunContext& context, const DetectOptions& given) {
     if (!result.status.ok()) {
         return failure(name, result.status);
     }
-    markExisting(*floor, result);
-    const ProposalCounts counts = countProposals(result);
+    // The listed positions and the comparison with existing walls use plan positions. Accepting takes the
+    // detected result, which the command moves itself.
+    DetectionResult shown = proposalsOnPlan(*floor, result);
+    markExisting(*floor, shown);
+    const ProposalCounts counts = countProposals(shown);
 
     Json json = Json::object();
     json["floor"] = floor->id;
@@ -219,7 +222,7 @@ Answer detect(const RunContext& context, const DetectOptions& given) {
     json["params"] = paramsJson(result.params);
     json["elapsed_ms"] = rounded(result.elapsedMs, 10.0);
     json["counts"] = countsJson(counts);
-    addProposalLists(json, result);
+    addProposalLists(json, shown);
 
     if (!options.apply) {
         return success(name, std::move(json));

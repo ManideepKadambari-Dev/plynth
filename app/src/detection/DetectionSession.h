@@ -50,6 +50,9 @@ public:
     // What the canvas draws.
     ProposalOverlay overlay() const;
 
+    // Another floor is shown: detection runs again on its image.
+    void floorChanged();
+
     // The plan changed. A new image or scale runs detection again, other edits only re-check what exists.
     void documentChanged(unsigned changes);
 

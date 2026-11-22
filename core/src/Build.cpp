@@ -244,6 +244,7 @@ BuildMaterialSource buildMaterialSourceFor(const MaterialCatalog& catalog)
 std::optional<Vec2> problemPosition(const Plan& plan, const BuildProblem& problem)
 {
     if (problem.object.empty()) return std::nullopt;
+    if (const RoofSection* entry = findRoofSection(plan, problem.object)) return Vec2{entry->x, entry->y};
     const Floor* floor = findFloorContaining(plan, problem.object);
     if (!floor) return std::nullopt;
 
@@ -255,6 +256,7 @@ std::optional<Vec2> problemPosition(const Plan& plan, const BuildProblem& proble
         return placement.centre;
     }
     if (const Item* i = findItem(*floor, problem.object)) return Vec2{i->x, i->y};
+    if (const Stair* st = findStair(*floor, problem.object)) return Vec2{st->x, st->y};
     if (const Room* r = findRoom(*floor, problem.object)) {
         const RoomShape shape = roomShape(*floor, *r);
         if (shape.closed) return shape.labelPoint;
@@ -450,6 +452,9 @@ Json buildReportToJson(const BuildReport& report)
     counts["rooms"] = report.counts.rooms;
     counts["items"] = report.counts.items;
     counts["materials"] = report.counts.materials;
+    counts["slabs"] = report.counts.slabs;
+    counts["stairs"] = report.counts.stairs;
+    counts["roofs"] = report.counts.roofs;
     counts["collision"] = report.counts.collision;
     json["counts"] = std::move(counts);
     Json steps = Json::array();
@@ -545,6 +550,9 @@ BuildReportRead readBuildReport(const fs::path& projectFolder)
         report.counts.rooms = static_cast<int>(whole(counts, "rooms", "/counts"));
         report.counts.items = static_cast<int>(whole(counts, "items", "/counts"));
         if (counts.contains("materials")) report.counts.materials = static_cast<int>(whole(counts, "materials", "/counts"));
+        if (counts.contains("slabs")) report.counts.slabs = static_cast<int>(whole(counts, "slabs", "/counts"));
+        if (counts.contains("stairs")) report.counts.stairs = static_cast<int>(whole(counts, "stairs", "/counts"));
+        if (counts.contains("roofs")) report.counts.roofs = static_cast<int>(whole(counts, "roofs", "/counts"));
         if (counts.contains("collision")) report.counts.collision = static_cast<int>(whole(counts, "collision", "/counts"));
         if (!json.contains("steps") || !json["steps"].is_array()) throw std::string("/steps");
         for (std::size_t i = 0; i < json["steps"].size(); ++i) {

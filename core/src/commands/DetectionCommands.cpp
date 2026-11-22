@@ -1,5 +1,6 @@
 #include "plynth/core/commands/DetectionCommands.h"
 
+#include "plynth/core/Geometry.h"
 #include "plynth/core/Openings.h"
 #include "plynth/core/Snapping.h"
 #include "plynth/core/WallGeometry.h"
@@ -145,7 +146,7 @@ Status ApplyDetectionCommand::apply(Project& project)
     if (proposals_.cancelled) return fail(ErrorCode::InvalidValue, "The detection was stopped before it finished.");
     if (const Status s = checkDetectionResult(proposals_); !s.ok()) return s;
 
-    DetectionResult marked = proposals_;
+    DetectionResult marked = proposalsOnPlan(*floor, proposals_);
     markExisting(*floor, marked);
 
     std::vector<std::unique_ptr<Command>> steps;

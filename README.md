@@ -54,7 +54,7 @@ cmake --build --preset debug
 ctest --preset debug
 ```
 
-From any other terminal, put `tools\msvc-env.cmd` in front of each command. It loads the environment, then runs the command at low CPU priority with at most 16 build threads:
+From any other terminal, put `tools\msvc-env.cmd` in front of each command. It loads the environment, then runs the command at low CPU priority with at most 6 build threads:
 
 ```
 tools\msvc-env.cmd cmake --preset msvc

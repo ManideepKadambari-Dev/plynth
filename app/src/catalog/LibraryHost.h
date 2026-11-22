@@ -26,8 +26,10 @@ public:
     // Text of the problem when settings.json could not be read, empty otherwise.
     const QString& settingsProblem() const { return settingsProblem_; }
 
-    // Saves new settings and opens the library they name. Returns the save refusal, if any.
-    plynth::Status apply(const plynth::MachineSettings& settings);
+    // Reads settings.json again, lets the function change only what the user chose, saves, and opens the library
+    // the result names. Settings changed by the command line since the start are kept. When the file cannot be
+    // read nothing is written and the reading error is returned.
+    plynth::Status apply(const std::function<void(plynth::MachineSettings&)>& change);
 
     bool hasLibrary() const { return catalog_ != nullptr; }
     plynth::AssetCatalog* catalog() const { return catalog_.get(); }

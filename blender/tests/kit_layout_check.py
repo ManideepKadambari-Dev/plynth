@@ -1,6 +1,8 @@
 """Places the modular kit by its layout file and compares it with the exported walls.
 
 Run: blender --background --factory-startup --python kit_layout_check.py -- <export folder> [<renders folder>]
+Factory startup alone does not keep Blender away from your own folders, so first point the five BLENDER_USER_
+variables at an empty scratch folder, as "Testing" in docs/GENERATORS.md shows.
 
 The export folder holds the kit file, the layout file and either the walls group file or the single file.
 Prints one line, KIT_LAYOUT_CHECK followed by a JSON object, and renders two Eevee pictures when a renders
@@ -10,6 +12,7 @@ import glob
 import json
 import math
 import os
+import re
 import sys
 
 import bpy
@@ -18,6 +21,7 @@ from mathutils import Vector
 BOUNDS_TOLERANCE = 0.001
 AREA_TOLERANCE = 1e-3  # FBX stores float32 coordinates, so 136 copies drift by about 1e-4
 TOP_BAND = 0.05
+STOREY_PART = re.compile(r"_(Slab|Stair|Roof_\d+)(\.\d{3})?$")
 
 
 # Returns the arguments after the "--" of the command line.
@@ -181,7 +185,8 @@ def check(folder, renders):
     bpy.ops.wm.read_factory_settings(use_empty=True)
     kit_objects = import_meshes(kit_path)
     pieces = {obj.name: obj for obj in kit_objects}
-    wall_objects = import_meshes(walls_path)
+    # A single file also holds slabs, stairs and roofs, which are not in the kit and would widen the bounds.
+    wall_objects = [o for o in import_meshes(walls_path) if not STOREY_PART.search(o.name)]
     collection = bpy.data.collections.new("placed")
     bpy.context.scene.collection.children.link(collection)
     missing = []

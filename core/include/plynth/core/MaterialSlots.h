@@ -22,6 +22,16 @@ namespace plynth {
 //   thresholds                 the floor slot of the room whose floor they follow, or Threshold when neither
 //                              side has a room
 //   door leaves, frames, glass and handles                             Door, Frame, Glass, Handle
+//   slab edges and ledge tops                                          Exterior_Wall (look Wall_Outside)
+//   stair well sides                                                   Stair_Well (look Wall_Inside)
+//   slab and roof undersides                                           Soffit
+//   stairs, every part                                                 Stair
+//   a roof's covering          Flat_Roof when the type built is flat, otherwise Roof
+//   roof edges                                                         Fascia
+//   gables and parapets                                                Exterior_Wall (look Wall_Outside)
+//   sawtooth glazing                                                   Glass
+// A part that a slab or roof section does not have (a well without a stair, a gable on a flat roof) is treated
+// like a part an opening does not have: it names no material and makes no other name show two materials.
 // Label(r) is the room type in PascalCase ("living" Living, "guest_room" GuestRoom), or Room when the room
 // has no type. Rooms with the same type share their slots across the whole building.
 // When one name would show more than one material (a bedroom with oak floors and one with tiles), every use
@@ -35,6 +45,12 @@ inline constexpr std::string_view kDoorSlot = "Door";
 inline constexpr std::string_view kFrameSlot = "Frame";
 inline constexpr std::string_view kGlassSlot = "Glass";
 inline constexpr std::string_view kHandleSlot = "Handle";
+inline constexpr std::string_view kStairSlot = "Stair";
+inline constexpr std::string_view kRoofSlot = "Roof";
+inline constexpr std::string_view kFlatRoofSlot = "Flat_Roof";
+inline constexpr std::string_view kSoffitSlot = "Soffit";
+inline constexpr std::string_view kFasciaSlot = "Fascia";
+inline constexpr std::string_view kStairWellSlot = "Stair_Well";
 inline constexpr std::string_view kNoRoomTypeLabel = "Room";
 inline constexpr std::string_view kNeutralSlotSuffix = "Neutral";
 

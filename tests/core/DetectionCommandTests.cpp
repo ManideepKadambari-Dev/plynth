@@ -370,3 +370,80 @@ TEST_CASE("ApplyDetectionCommand refusals", "[core][command][detection]") {
         REQUIRE(p == drawn);
     }
 }
+
+TEST_CASE("proposalsOnPlan moves positions by the image offset and nothing else", "[core][detection]") {
+    Floor floor;
+    DetectionResult raw = proposalsWithRooms();
+    REQUIRE(raw.rooms.size() == 2);
+
+    SECTION("offset (1, 2)") {
+        floor.imageOffset = {1.0, 2.0};
+        const DetectionResult moved = proposalsOnPlan(floor, raw);
+        REQUIRE(moved.points.size() == raw.points.size());
+        for (std::size_t i = 0; i < raw.points.size(); ++i) {
+            REQUIRE(moved.points[i].x == Approx(raw.points[i].x + 1.0));
+            REQUIRE(moved.points[i].y == Approx(raw.points[i].y + 2.0));
+        }
+        for (std::size_t i = 0; i < raw.rooms.size(); ++i) {
+            REQUIRE(moved.rooms[i].inside.x == Approx(raw.rooms[i].inside.x + 1.0));
+            REQUIRE(moved.rooms[i].inside.y == Approx(raw.rooms[i].inside.y + 2.0));
+            REQUIRE(moved.rooms[i].rings.size() == raw.rooms[i].rings.size());
+            for (std::size_t k = 0; k < raw.rooms[i].rings.size(); ++k) {
+                REQUIRE(moved.rooms[i].rings[k].size() == raw.rooms[i].rings[k].size());
+                for (std::size_t j = 0; j < raw.rooms[i].rings[k].size(); ++j) {
+                    REQUIRE(moved.rooms[i].rings[k][j].x == Approx(raw.rooms[i].rings[k][j].x + 1.0));
+                    REQUIRE(moved.rooms[i].rings[k][j].y == Approx(raw.rooms[i].rings[k][j].y + 2.0));
+                }
+            }
+        }
+        DetectionResult back = moved;
+        back.points = raw.points;
+        for (std::size_t i = 0; i < raw.rooms.size(); ++i) {
+            back.rooms[i].inside = raw.rooms[i].inside;
+            back.rooms[i].rings = raw.rooms[i].rings;
+        }
+        REQUIRE(back.walls == raw.walls);
+        REQUIRE(back.openings == raw.openings);
+        REQUIRE(back.rooms == raw.rooms);
+        REQUIRE(back.pixelsPerMetre == raw.pixelsPerMetre);
+        REQUIRE(back.detector == raw.detector);
+        REQUIRE(back.imageWidth == raw.imageWidth);
+    }
+    SECTION("offset (0, 0) changes nothing") {
+        const DetectionResult same = proposalsOnPlan(floor, raw);
+        REQUIRE(same.points == raw.points);
+        REQUIRE(same.rooms == raw.rooms);
+        REQUIRE(same.walls == raw.walls);
+        REQUIRE(same.openings == raw.openings);
+    }
+}
+
+TEST_CASE("proposalsOnPlan then markExisting then apply, with and without moved marks", "[core][detection][command]") {
+    for (const double offsetX : {0.2, 1.0}) {
+        for (const bool marksMoved : {true, false}) {
+            INFO("offset " << offsetX << ", marks moved " << marksMoved);
+            Project p = makeNewProject();
+            Floor& f = p.plan.floors[0];
+            f.imageOffset = {offsetX, 0.0};
+            const double markX = marksMoved ? offsetX : 0.0;
+            addPoint(f, "e1", markX, 0.0);
+            addPoint(f, "e2", markX, 4.0);
+            addWall(f, "e1w", "e1", "e2", 0.3);
+
+            const DetectionResult raw = fixedProposals();
+            DetectionResult marked = proposalsOnPlan(f, raw);
+            markExisting(f, marked);
+            const ProposalCounts counts = countProposals(marked);
+            REQUIRE(counts.walls == 7);
+            REQUIRE(counts.existingWalls == (marksMoved ? 1u : 0u));
+            REQUIRE(counts.overlappingWalls == 0);
+            REQUIRE(counts.newWalls == (marksMoved ? 6u : 7u));
+
+            ApplyDetectionCommand c("f1", raw);
+            applyOk(c, p);
+            REQUIRE(c.wallIds().size() == counts.newWalls);
+            REQUIRE(c.skippedWalls() == counts.existingWalls);
+            REQUIRE(f.walls.size() == 1 + counts.newWalls);
+        }
+    }
+}

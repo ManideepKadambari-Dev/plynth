@@ -3,10 +3,12 @@
 #include "tools/Tool.h"
 
 #include <plynth/core/Materials.h>
+#include <plynth/core/Roofs.h>
 
 #include <QMetaObject>
 #include <QWidget>
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -17,13 +19,16 @@ class QComboBox;
 class QDoubleSpinBox;
 class QGridLayout;
 class QLabel;
+class QLineEdit;
 class QPushButton;
+class QScrollArea;
 class QSlider;
 class QStackedWidget;
 
 namespace plynth {
 class Command;
 class Document;
+struct Stair;
 }
 
 namespace plynth::app {
@@ -57,6 +62,8 @@ public:
 
 signals:
     void deleteRequested();
+    // The Choose image button of the Floor section was pressed.
+    void planImageRequested();
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
@@ -74,6 +81,34 @@ private:
     void buildOpeningPage();
     void buildOpeningToolPage();
     void buildItemPage();
+    void buildStairPage();
+    void refreshStair();
+    void editStair(const std::function<void(plynth::Stair&)>& change);
+    void buildFloorSection(QGridLayout* grid);
+    void refreshUnusedRoofEntries();
+    // The widgets of one roof settings group: the Roof default on the project page and the page of a section.
+    struct RoofEditor {
+        QComboBox* type = nullptr;
+        QLabel* pitchLabel = nullptr;
+        QDoubleSpinBox* pitch = nullptr;
+        QCheckBox* autoDirection = nullptr;
+        QLabel* directionLabel = nullptr;
+        QDoubleSpinBox* direction = nullptr;
+        QLabel* overhangLabel = nullptr;
+        QDoubleSpinBox* overhang = nullptr;
+        QLabel* parapetLabel = nullptr;
+        QDoubleSpinBox* parapet = nullptr;
+    };
+    void buildRoofEditor(QGridLayout* grid, RoofEditor& editor, bool section);
+    void fillRoofEditor(const RoofEditor& editor, const plynth::RoofSettings& settings);
+    plynth::RoofSettings readRoofEditor(const RoofEditor& editor) const;
+    void buildRoofPage();
+    void refreshRoof();
+    void editRoofDefault();
+    void editRoofSection(const std::function<void(plynth::RoofSettings&, std::optional<std::string>&)>& change);
+    std::optional<plynth::RoofArea> selectedRoof() const;
+    plynth::ResolvedMaterial resolveMaterial(const plynth::MaterialTarget& target) const;
+    void editImageOffset(bool xChanged);
     void refreshItem();
     void runItemCommand(std::unique_ptr<plynth::Command> command);
     void refreshOpening();
@@ -119,6 +154,7 @@ private:
     bool pointYEdited_ = false;
 
     QStackedWidget* pages_ = nullptr;
+    QScrollArea* scroll_ = nullptr;
     QPushButton* deleteButton_ = nullptr;
     std::vector<QWidget*> editors_;
     std::vector<MaterialSlot> materialSlots_;
@@ -203,6 +239,35 @@ private:
     QPushButton* straightenButton_ = nullptr;
     int focusKey_ = 0;
     std::vector<QDoubleSpinBox*> keyedSpins_;
+
+    QLineEdit* floorName_ = nullptr;
+    QDoubleSpinBox* slabSpin_ = nullptr;
+    QLabel* floorImage_ = nullptr;
+    QDoubleSpinBox* offsetX_ = nullptr;
+    QDoubleSpinBox* offsetY_ = nullptr;
+    QCheckBox* moveMarks_ = nullptr;
+
+    QLabel* stairId_ = nullptr;
+    QLabel* stairFloors_ = nullptr;
+    QComboBox* stairType_ = nullptr;
+    QDoubleSpinBox* stairWidth_ = nullptr;
+    QComboBox* stairTurn_ = nullptr;
+    QLabel* stairTurnLabel_ = nullptr;
+    QLabel* stairRise_ = nullptr;
+    QLabel* stairRisers_ = nullptr;
+    QLabel* stairRiser_ = nullptr;
+    QLabel* stairGoing_ = nullptr;
+    QLabel* stairLength_ = nullptr;
+    QLabel* stairProblems_ = nullptr;
+
+    RoofEditor roofDefault_;
+    QWidget* unusedRoofBox_ = nullptr;
+    std::string shownFloorId_;
+    RoofEditor roofSection_;
+    QLabel* roofFloor_ = nullptr;
+    QLabel* roofArea_ = nullptr;
+    QLabel* roofEntry_ = nullptr;
+    QPushButton* roofUseDefault_ = nullptr;
 
     QLabel* roomId_ = nullptr;
     QComboBox* roomType_ = nullptr;

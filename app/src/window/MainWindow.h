@@ -37,6 +37,8 @@ class BuildBar;
 class BuildController;
 class BuildPanel;
 class DocumentBridge;
+class FloorFocus;
+class FloorTabs;
 class ExportController;
 class ExportPanel;
 class HomeScreen;
@@ -89,8 +91,21 @@ public:
 
     // For checks only: activates a tool by name (select, scale, wall, room, detect). False for an unknown name.
     bool activateToolByName(const QString& name);
-    // For checks only: selects the point, wall or room with this id on the first floor. An unknown id selects nothing.
+    // For checks only: shows the floor with this id. False for an unknown id.
+    bool showFloor(const QString& id);
+    // For checks only: selects the point, wall or room with this id, switching to its floor first. An unknown id selects nothing.
     void selectById(const QString& id);
+    // For checks only: turns image alignment of the shown floor on or off, as View > Align plan image.
+    void setAlignImage(bool on);
+    // For checks only: turns the roof sections of the shown floor on the plan on or off, as View > Roof sections.
+    void setRoofSectionsShown(bool on);
+    // For checks only: shows the floor of a roof section ("<floor id>:<index>"), turns roof sections on and selects it.
+    void selectRoof(const QString& id);
+    // For checks only: View > Show roofs in 3D and View > Cut 3D at the shown floor.
+    void setShowRoofs3d(bool on);
+    void setCutAtFloor(bool on);
+    bool showRoofs3d() const;
+    bool cutAtFloor() const;
     // For checks only: chooses the side the wall view is seen from.
     void setWallViewSide(plynth::WallSide side);
 
@@ -208,8 +223,16 @@ private:
     void updateActions();
     void updateViewActions();
     void refreshImage();
+    void refreshFloorTabs();
+    void floorShown();
+    void addFloor(bool above, const QString& besideFloor);
+    void renameFloor(const QString& floorId);
+    void removeFloor(const QString& floorId);
+    void stepFloor(int direction);
+    void updateAlignAction();
     void refreshOverlay();
     void refreshPreview();
+    void applyPreviewRoofOptions();
     void refreshProblemMarkers();
     void refreshBuilding3d();
     void buildFinished(const plynth::BuildReport& report);
@@ -257,6 +280,8 @@ private:
     plynth::ProcessIdentity self_;
 
     TitleBar* titleBar_ = nullptr;
+    FloorFocus* focus_ = nullptr;
+    FloorTabs* floorTabs_ = nullptr;
     PlanCanvas* canvas_ = nullptr;
     Selection* selection_ = nullptr;
     ToolController* tools_ = nullptr;
@@ -278,6 +303,9 @@ private:
     BuildController* builder_ = nullptr;
     OverlayRenderer* overlayRenderer_ = nullptr;
     QAction* overlay3dAction_ = nullptr;
+    QAction* roofSectionsAction_ = nullptr;
+    QAction* showRoofs3dAction_ = nullptr;
+    QAction* cutAtFloorAction_ = nullptr;
     QAction* problemsOnPlanAction_ = nullptr;
     BuildPanel* buildPanel_ = nullptr;
     ExportController* exporter_ = nullptr;
@@ -319,7 +347,10 @@ private:
     QAction* wallViewAction_ = nullptr;
     QAction* flipWallViewAction_ = nullptr;
     bool wallViewSized_ = false;
-    QAction* toolActions_[kAllTools.size()] = {};
+    QAction* toolActions_[kToolCount] = {};
+    QAction* alignImageAction_ = nullptr;
+    QAction* floorUpAction_ = nullptr;
+    QAction* floorDownAction_ = nullptr;
     QAction* acceptDetectionAction_ = nullptr;
     QAction* turnLeftAction_ = nullptr;
     QAction* turnRightAction_ = nullptr;

@@ -6,6 +6,7 @@
 
 #include <cmath>
 #include <random>
+#include <system_error>
 
 namespace plynth {
 
@@ -147,6 +148,52 @@ ProbeResult readProbeResult(const Json& result, std::string_view jobId)
         probe.header.status = fail(ErrorCode::BadFile, "The Blender result is not valid: " + p.message, p.where);
     }
     return probe;
+}
+
+// Makes the probe job with the user's folders.
+Json makeProbeJob(const BlenderUserFolders& folders, std::string_view jobId, const std::filesystem::path& resultFile)
+{
+    Json user = Json::object();
+    user["config"] = pathToUtf8(folders.config);
+    user["scripts"] = pathToUtf8(folders.scripts);
+    user["extensions"] = pathToUtf8(folders.extensions);
+    user["blenderkit_data"] = pathToUtf8(folders.blenderKitData);
+    Json params = Json::object();
+    params["user_folders"] = std::move(user);
+    return makeBlenderJob(kProbeTask, jobId, resultFile, std::move(params));
+}
+
+// Runs the probe job once, in factory startup, and removes the work folder afterwards.
+BlenderProbeRun runBlenderProbe(const BlenderInstall& install, const BlenderRunOptions& options, std::stop_token stop)
+{
+    BlenderProbeRun out;
+    if (!install.usable()) {
+        out.status = fail(ErrorCode::BlenderNotFound, "The Blender " + pathToUtf8(install.executable) + " cannot be used.");
+        return out;
+    }
+    const BlenderUserFolders folders = blenderUserFolders(install);
+    if (folders.config.empty() || folders.scripts.empty() || folders.extensions.empty() || folders.blenderKitData.empty()) {
+        out.status = fail(ErrorCode::NotFound, "The folders of the user's Blender settings could not be worked out.");
+        return out;
+    }
+
+    std::error_code ec;
+    const std::string jobId = newJobId("probe");
+    const std::filesystem::path work = std::filesystem::temp_directory_path(ec) / ("plynth-" + jobId);
+    const Json job = makeProbeJob(folders, jobId, work / pathFromUtf8(kResultFileName));
+    BlenderRunOptions run = options;
+    run.factoryStartup = true;
+    const BlenderJobRun ran = runBlenderJob(install.executable, job, work, run, {}, stop);
+    if (!ran.result.is_null()) out.result = readProbeResult(ran.result, jobId);
+    std::filesystem::remove_all(work, ec);
+
+    if (!ran.status.ok()) {
+        out.status = ran.status;
+        if (out.result.header.errorCode.empty()) out.result.header.errorCode = ran.errorCode;
+    } else {
+        out.status = out.result.header.status;
+    }
+    return out;
 }
 
 }

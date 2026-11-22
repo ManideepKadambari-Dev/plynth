@@ -6,6 +6,7 @@
 #include <nlohmann/json.hpp>
 
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -94,6 +95,12 @@ struct SettingsLoad {
 // file is not valid JSON, has the wrong format, an unknown field or a bad value; UnsupportedVersion when the
 // version is newer. Unknown fields are refused, as for project files.
 SettingsLoad loadSettings(const std::filesystem::path& file);
+
+// The same with the check for the file's existence given, so a check that fails (an error code set) can be
+// tested. A failed check is CannotRead and exists false, never a first run, so defaults cannot overwrite a
+// file that is there but could not be looked at.
+using FileExistsCheck = std::function<bool(const std::filesystem::path&, std::error_code&)>;
+SettingsLoad loadSettings(const std::filesystem::path& file, const FileExistsCheck& exists);
 
 // Reads settingsFile().
 SettingsLoad loadSettings();

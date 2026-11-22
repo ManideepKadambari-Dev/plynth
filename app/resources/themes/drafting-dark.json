@@ -60,7 +60,9 @@
     "previewButton": 28
   },
   "opacity": {
-    "overlay3d": 0.85
+    "overlay3d": 0.85,
+    "floorBelow": 0.35,
+    "roofArea": 0.15
   },
   "preview": {
     "lightColor": "#FFFFFF",

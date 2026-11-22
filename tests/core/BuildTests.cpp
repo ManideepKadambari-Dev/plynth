@@ -5,6 +5,7 @@
 #include "TestSupport.h"
 
 #include <plynth/core/Build.h>
+#include <plynth/core/BuildPreview.h>
 #include <plynth/core/ProjectJson.h>
 #include <plynth/core/EditSession.h>
 #include <plynth/core/ProjectFiles.h>
@@ -14,6 +15,8 @@
 #include <nlohmann/json.hpp>
 
 #include <chrono>
+#include <cstdint>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <stop_token>
@@ -106,14 +109,14 @@ TEST_CASE("runBuild through the fake Blender writes the files and the report", "
     REQUIRE(report.logFile == f.projectFolder / "build" / "blender.log");
     REQUIRE_FALSE(fs::exists(f.lockFile()));
 
-    // The fake counts every collision piece of the job and one hull per item.
+    // The fake counts every collision piece and hull of the job and one hull per item.
     const nlohmann::json sentJob = nlohmann::json::parse(plynth::test::readTextFile(f.projectFolder / "build" / "job.json"));
     int pieces = 0;
     for (const auto& floor : sentJob["params"]["floors"]) {
-        for (const auto& shape : floor["collision"]) pieces += static_cast<int>(shape["pieces"].size());
+        for (const auto& shape : floor["collision"]) pieces += static_cast<int>(shape["pieces"].size() + shape["hulls"].size());
     }
     REQUIRE(pieces > 4);
-    REQUIRE(report.counts == BuildCounts{1, 1, 1, 1, 2, 1, pieces + 2});
+    REQUIRE(report.counts == BuildCounts{1, 1, 1, 1, 2, 1, 1, 0, 1, pieces + 2});
     REQUIRE(report.objects == 1 + 1 + 2 + 2);
     REQUIRE(report.steps.size() == 9);
     REQUIRE(report.steps[0].step == "check");
@@ -312,12 +315,30 @@ TEST_CASE("planFingerprint changes when the plan or settings change", "[core][bu
     REQUIRE(planFingerprint(c) != print);
 }
 
-TEST_CASE("planFingerprint ignores the export mode and keeps its old value", "[core][build][settings]") {
+namespace {
+
+// The hash of the plan and the settings exactly as they are written, export mode and all.
+std::string writtenHash(const Project& project)
+{
+    const std::string text = planToJson(project.plan).dump() + "\n" + settingsToJson(project.settings).dump();
+    std::uint64_t hash = 14695981039346656037ULL;
+    for (const char c : text) {
+        hash ^= static_cast<unsigned char>(c);
+        hash *= 1099511628211ULL;
+    }
+    char out[17];
+    std::snprintf(out, sizeof out, "%016llx", static_cast<unsigned long long>(hash));
+    return out;
+}
+
+}
+
+TEST_CASE("planFingerprint ignores the export mode and hashes a single project as it is written", "[core][build][settings]") {
     Project single = buildProject();
     Project grouped = buildProject();
     grouped.settings.exportMode = ExportMode::Grouped;
     REQUIRE(planFingerprint(grouped) == planFingerprint(single));
-    REQUIRE(planFingerprint(single) == "326ee401bf9de961");
+    REQUIRE(planFingerprint(single) == writtenHash(single));
 }
 
 TEST_CASE("problemPosition finds the object on the plan", "[core][build]") {
@@ -569,7 +590,7 @@ TEST_CASE("readBuiltMaterials says not_found and bad_file", "[core][build][mater
     REQUIRE(readBuiltMaterials(f.projectFolder).status.code == ErrorCode::BadFile);
 }
 
-TEST_CASE("a report written by milestone 9 reads with collision 0", "[core][build][collision]") {
+TEST_CASE("a report written by milestone 9 reads with the new counts at 0", "[core][build][collision]") {
     plynth::test::TempDir tmp("build-report-m9");
     fs::create_directories(tmp.path() / "build");
     fs::copy_file(fs::path(PLYNTH_TEST_DATA_DIR) / "build" / "build-m9.json", tmp.path() / "build" / "build.json");
@@ -579,7 +600,55 @@ TEST_CASE("a report written by milestone 9 reads with collision 0", "[core][buil
     const BuildReportRead read = readBuildReport(tmp.path());
     plynth::test::requireOk(read.status);
     REQUIRE(read.report.counts.materials == 3);
+    REQUIRE(read.report.counts.slabs == 0);
+    REQUIRE(read.report.counts.stairs == 0);
+    REQUIRE(read.report.counts.roofs == 0);
     REQUIRE(read.report.counts.collision == 0);
+}
+
+TEST_CASE("a build through the fake writes a report with the slab, stair and roof counts and the preview parts", "[core][build][run]") {
+    BuildFixture f("run-m12-counts");
+    const BuildReport report = runBuild(f.request);
+    plynth::test::requireOk(report.status);
+    REQUIRE(reportProblem(f.reportFile()).empty());
+    REQUIRE(report.counts.slabs == 1);
+    REQUIRE(report.counts.stairs == 0);
+    REQUIRE(report.counts.roofs == 1);
+    const nlohmann::json json = nlohmann::json::parse(plynth::test::readTextFile(f.reportFile()));
+    REQUIRE(json["counts"]["roofs"] == 1);
+    const fs::path parts = f.projectFolder / "build" / "preview" / "parts.json";
+    REQUIRE(fs::exists(parts));
+    REQUIRE(plynth::test::schemaProblem("build-preview.schema.json", nlohmann::json::parse(plynth::test::readTextFile(parts))).empty());
+    REQUIRE(fs::exists(f.projectFolder / "build" / "preview" / "f1.fbx"));
+    REQUIRE(fs::exists(f.projectFolder / "build" / "preview" / "f1_roof.fbx"));
+    REQUIRE(fs::exists(f.projectFolder / "build" / "preview" / "f1_slab.fbx"));
+    const PreviewPartsRead read = readPreviewParts(f.projectFolder / "build");
+    plynth::test::requireOk(read.status);
+    REQUIRE(read.parts.size() == 3);
+    REQUIRE(read.parts[0].kind == PreviewPartKind::Storey);
+    REQUIRE(read.parts[1].kind == PreviewPartKind::Slab);
+    REQUIRE(read.parts[2].kind == PreviewPartKind::Roof);
+}
+
+TEST_CASE("problemPosition finds a stair and a roof section entry", "[core][build]") {
+    Plan plan = makeEmptyPlan();
+    plan.floors.push_back(Floor{.id = "f2", .name = "Upper"});
+    Stair stair;
+    stair.id = "s1";
+    stair.x = 1.5;
+    stair.y = 2.5;
+    plan.floors[0].stairs.push_back(stair);
+    RoofSection entry;
+    entry.id = "rf1";
+    entry.floor = "f2";
+    entry.x = 3.0;
+    entry.y = 4.0;
+    plan.roofSections.push_back(entry);
+    BuildProblem p;
+    p.object = "s1";
+    REQUIRE(problemPosition(plan, p) == Vec2{1.5, 2.5});
+    p.object = "rf1";
+    REQUIRE(problemPosition(plan, p) == Vec2{3.0, 4.0});
 }
 
 TEST_CASE("the build report keeps counts.collision", "[core][build][collision][run]") {

@@ -7,7 +7,8 @@ from ..registry import BUILD_STEPS
 ORDER = 30
 
 
-# Lays a floor and a ceiling in every room that closes, one object each, from the room polygons.
+# Lays a floor and a ceiling in every room that closes, one object each, from the room's floor and ceiling
+# polygons (which have the stair holes cut out).
 def run(ctx):
     for floor in ctx.params["floors"]:
         collection = ctx.state["collections"][floor["id"]]
@@ -21,7 +22,8 @@ def run(ctx):
 def make_surface(ctx, room, floor, collection, kind, z, up):
     bm = bmesh.new()
     name = slot_name(ctx, room["%s_slot" % kind.lower()])
-    for polygon in room["polygons"]:
+    polygons = room["polygons"] if up else room["ceiling_polygons"]
+    for polygon in polygons:
         faces = meshes.add_flat(bm, polygon["outline"], polygon["holes"], z, up)
         meshes.world_uvs(bm, faces, flip_y=not up)
     obj = meshes.make_object("SM_%s_%s_%s" % (floor["id"], room["id"], kind), bm, collection, room["id"],

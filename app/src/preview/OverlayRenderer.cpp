@@ -28,7 +28,7 @@ OverlayRenderer::~OverlayRenderer()
 
 // Works out which part of the plan the building covers, makes the hidden flat view of that size and loads the
 // model into it.
-void OverlayRenderer::render(const QUrl& fbx, const plynth::Plan& plan, double pixelsPerMetre)
+void OverlayRenderer::render(const QUrl& fbx, const plynth::Plan& plan, double pixelsPerMetre, const QString& floorId)
 {
     delete view_.data();
     if (!appGraphics().ok || pixelsPerMetre <= 0.0) {
@@ -63,8 +63,32 @@ void OverlayRenderer::render(const QUrl& fbx, const plynth::Plan& plan, double p
             finish(false);
     });
     view->show();
-    view->setModel(fbx, QVector3D(static_cast<float>(x0 / pixelsPerMetre), 0.0f, static_cast<float>(y0 / pixelsPerMetre)),
-                   QVector3D(static_cast<float>(x1 / pixelsPerMetre), high.y(), static_cast<float>(y1 / pixelsPerMetre)));
+    const QVector3D boxLow(static_cast<float>(x0 / pixelsPerMetre), 0.0f, static_cast<float>(y0 / pixelsPerMetre));
+    const QVector3D boxHigh(static_cast<float>(x1 / pixelsPerMetre), high.y(), static_cast<float>(y1 / pixelsPerMetre));
+    QList<ModelView::Part> chosen;
+    if (!floorId.isEmpty() && fbx.isLocalFile()) {
+        std::vector<std::string> ids;
+        for (const plynth::Floor& floor : plan.floors)
+            ids.push_back(floor.id);
+        const std::filesystem::path path = fbx.toLocalFile().toStdWString();
+        const QList<ModelView::Part> parts = PreviewView::readParts(path, ids);
+        const auto it = std::find(ids.begin(), ids.end(), floorId.toStdString());
+        if (!parts.isEmpty() && it != ids.end()) {
+            for (const ModelView::Part& part : parts)
+                if (!part.roof && !part.slab && part.floorIndex == static_cast<int>(it - ids.begin()))
+                    chosen.append(part);
+            if (chosen.isEmpty()) {
+                delete view;
+                view_.clear();
+                emit failed();
+                return;
+            }
+        }
+    }
+    if (chosen.isEmpty())
+        view->setModel(fbx, boxLow, boxHigh);
+    else
+        view->setParts(chosen, boxLow, boxHigh);
     QTimer::singleShot(kTimeoutMs, view, [this, view]() {
         if (view_ == view)
             finish(false);

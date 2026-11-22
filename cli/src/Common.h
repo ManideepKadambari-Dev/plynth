@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -80,8 +81,9 @@ Json pointEntry(const Floor& floor, const Point& point);
 // height used, the rooms that list it and the openings on it.
 Json wallEntry(const Floor& floor, const Wall& wall);
 
-// The floor entry shared by the floor commands: id, name, image and ceiling height.
-Json floorEntry(const Floor& floor);
+// The floor entry shared by the floor commands: id, name, image, ceiling height, slab thickness, image offset,
+// elevation, rise, the ids of its stairs and the number of roof sections above it.
+Json floorEntry(const Plan& plan, const Floor& floor);
 
 // The opening entry shared by the opening commands: wall, offset, type, shape, size, sill, hinge, swing, frame,
 // centre on the plan, whether it fits its wall and the reason when it does not.
@@ -95,6 +97,11 @@ Json roomEntry(const Floor& floor, const Room& room);
 Answer removeCascade(const std::string& command, const std::string& kind, const RunContext& context,
                      const std::string& projectOption,
                      const Id& id);
+
+// For the remove commands that do not cascade: when id names a stair, the refusal that points to stair remove.
+// Empty when the id is not a stair or the project cannot be read, so the normal path reports it.
+std::optional<Answer> refuseStairId(const std::string& command, const std::string& kind, const RunContext& context,
+                                    const std::string& projectOption, const Id& id);
 
 // The result of a remove command: the ids of the items, detached items, openings, rooms, walls and points that
 // were removed. A detached item stays on the plan but is no longer on its removed wall.

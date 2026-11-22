@@ -149,7 +149,7 @@ TEST_CASE("material set refuses what is wrong and changes nothing", "[cli][mater
     CHECK(errorCode(unknownRoom) == "not_found");
     const auto badTarget = sample.run({"material", "set", "r1.roof", "oak_planks"});
     CHECK(errorCode(badTarget) == "invalid_value");
-    const auto badSurface = sample.run({"material", "set", "default.roof", "oak_planks"});
+    const auto badSurface = sample.run({"material", "set", "default.chimney", "oak_planks"});
     CHECK(errorCode(badSurface) == "invalid_value");
     const auto badName = sample.run({"material", "set", "r1.floor", "../oak planks"});
     CHECK(badName.exitCode == kExitFailed);
@@ -183,6 +183,8 @@ TEST_CASE("material set is refused with locked while the app has the project ope
 
 TEST_CASE("material list gives resolved materials with origins and the ones used", "[cli][material]") {
     MaterialLibrary library("material-list-lib");
+    plynth::cli::testing::makeMaterial(library.root, "roof_tiles", "Roof tiles", {"roof"}, {"tiles"});
+    plynth::cli::testing::makeMaterial(library.root, "concrete", "Concrete", {"wall", "floor"}, {"concrete"});
     Sample sample("material-list");
     buildTwoRooms(sample, "living", "hall");
     REQUIRE(sample.run({"material", "set", "r1.floor", "oak_planks"}).exitCode == kExitOk);
@@ -203,7 +205,7 @@ TEST_CASE("material list gives resolved materials with origins and the ones used
     const auto& result = listed.answer.at("result");
     CHECK(result.at("defaults").at("floor") == "grey_tile");
     CHECK(result.at("defaults").at("wall_inside") == "white_paint");
-    CHECK(result.at("defaults").size() == 9);
+    CHECK(result.at("defaults").size() == 12);
     CHECK(result.at("missing").empty());
     CHECK(result.at("library") == plynth::cli::testing::utf8(library.root));
 
@@ -301,6 +303,8 @@ TEST_CASE("material set without a library is no_library, but none needs no libra
 
 TEST_CASE("material list names the materials the library lacks", "[cli][material]") {
     MaterialLibrary library("material-missing-lib");
+    plynth::cli::testing::makeMaterial(library.root, "roof_tiles", "Roof tiles", {"roof"}, {"tiles"});
+    plynth::cli::testing::makeMaterial(library.root, "concrete", "Concrete", {"wall", "floor"}, {"concrete"});
     Sample sample("material-missing");
     buildTwoRooms(sample, "living", "hall");
     REQUIRE(sample.run({"material", "set", "r1.floor", "oak_planks"}).exitCode == kExitOk);

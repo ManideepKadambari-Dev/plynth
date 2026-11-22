@@ -28,6 +28,35 @@ def finish_names(uses):
     return names
 
 
+ROOF_PARTS = {"underside": ("Soffit", "Soffit"), "edge": ("Fascia", "Fascia"),
+              "gable": ("Exterior_Wall", "Wall_Outside"), "parapet": ("Exterior_Wall", "Wall_Outside"),
+              "glazing": ("Glass", "Glass")}
+
+
+# Adds the uses of the slab, the stairs and the roofs of a floor, named as MaterialSlots.h says.
+def add_part_uses(floor, use, targets):
+    slab = floor["slab"]
+    slots = slab.setdefault("slots", {})
+    target = []
+    for key, base, surface in (("edge", "Exterior_Wall", "Wall_Outside"), ("well", "Stair_Well", "Wall_Inside"),
+                               ("underside", "Soffit", "Soffit")):
+        use(base, slab["materials"][key], surface, target, (slots, key))
+    targets.append(target)
+    for stair in floor["stairs"]:
+        target = []
+        use("Stair", stair["material"], "Stair", target, (stair, "slot"))
+        targets.append(target)
+    for roof in floor["roofs"]:
+        for face in roof["faces"]:
+            target = []
+            if face["part"] == "covering":
+                base, surface = ("Flat_Roof",) * 2 if roof["type"] == "flat" else ("Roof",) * 2
+            else:
+                base, surface = ROOF_PARTS[face["part"]]
+            use(base, face["material"], surface, target, (face, "slot"))
+            targets.append(target)
+
+
 # Fills in every slot field and the slots list of a build job from its material fields, and the other fields
 # milestone 10 added (preview texture parameters, asset materials, collision). Safe to run again after the
 # material fields change.
@@ -93,6 +122,7 @@ def upgrade(params):
             for key, name in (("door", "Door"), ("frame", "Frame"), ("glass", "Glass"), ("handle", "Handle")):
                 use(name, opening["materials"][key], name, target, (opening["slots"], key))
             targets.append(target)
+        add_part_uses(floor, use, targets)
     names = finish_names(uses)
     table = {}
     for target in targets:

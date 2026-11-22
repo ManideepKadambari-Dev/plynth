@@ -19,6 +19,9 @@ add_executable(plynth_cli_tests
     ImportCliTests.cpp
     ItemCliTests.cpp
     BuildCliTests.cpp
+    FloorCliTests.cpp
+    StairCliTests.cpp
+    RoofCliTests.cpp
     ExportCliTests.cpp
     ExportGroupsCliTests.cpp
     MaterialCliTests.cpp
