@@ -16,6 +16,7 @@
 #include <plynth/core/Items.h>
 #include <plynth/core/RoomTypes.h>
 #include <plynth/core/Rooms.h>
+#include <plynth/core/Stairs.h>
 #include <plynth/core/WallGeometry.h>
 #include <plynth/core/OpeningShapes.h>
 #include <plynth/core/Openings.h>
@@ -27,6 +28,7 @@
 #include <plynth/core/commands/OpeningCommands.h>
 #include <plynth/core/commands/PointCommands.h>
 #include <plynth/core/commands/RoomCommands.h>
+#include <plynth/core/commands/StairCommands.h>
 #include <plynth/core/commands/SettingsCommands.h>
 #include <plynth/core/commands/WallCommands.h>
 #include <plynth/core/detection/Detector.h>
@@ -63,6 +65,7 @@ constexpr int kDetectPage = 4;
 constexpr int kOpeningPage = 5;
 constexpr int kOpeningToolPage = 6;
 constexpr int kItemPage = 7;
+constexpr int kStairPage = 8;
 
 // Turns a core text into Qt text.
 QString fromCore(const std::string& text)
@@ -94,6 +97,7 @@ PropertiesPanel::PropertiesPanel(plynth::Document& document, Selection& selectio
     buildOpeningPage();
     buildOpeningToolPage();
     buildItemPage();
+    buildStairPage();
     column->addWidget(pages_);
     column->addStretch(1);
 
@@ -227,17 +231,6 @@ void PropertiesPanel::buildNothingPage()
         controller_.run(std::make_unique<plynth::SetGridSizeCommand>(gridSpin_->value()));
     });
 
-    ceilingSpin_ = addKeyedSpinRow(grid, tr("Ceiling height"), 0.5, 100.0, 0.05,
-                                   tr("Height of the ceiling of this floor. Walls without their own height use it."),
-                                   QStringLiteral("panel-ceiling-height"));
-    connect(ceilingSpin_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
-        const plynth::Floor* floor = controller_.floor();
-        if (refreshing_ || floor == nullptr)
-            return;
-        if (!controller_.run(std::make_unique<plynth::SetCeilingHeightCommand>(floor->id, value, focusKey_)).ok())
-            refresh();
-    });
-
     wallCentreSpin_ = addKeyedSpinRow(grid, tr("Wall item centre"), 0.05, 100.0, 0.05,
                                       tr("Height of the middle of a newly mounted wall item, such as a TV. It is saved with the project."),
                                       QStringLiteral("panel-wall-item-centre"));
@@ -250,10 +243,6 @@ void PropertiesPanel::buildNothingPage()
             refresh();
     });
 
-    pointCount_ = addLabelRow(grid, tr("Points"));
-    wallCount_ = addLabelRow(grid, tr("Walls"));
-    roomCount_ = addLabelRow(grid, tr("Rooms"));
-
     newWallSpin_ = addSpinRow(grid, tr("New walls"), 0.01, 10.0, 0.01,
                               tr("Thickness of the walls the Wall tool draws"), QStringLiteral("panel-new-wall-thickness"),
                               &newWallLabel_);
@@ -262,6 +251,8 @@ void PropertiesPanel::buildNothingPage()
         if (!refreshing_)
             controller_.setNewWallThickness(value);
     });
+
+    buildFloorSection(grid);
 
     addMaterialSection(grid, tr("Default materials"));
     struct DefaultRow {
@@ -289,6 +280,236 @@ void PropertiesPanel::buildNothingPage()
                        QStringLiteral("material-picker-default-%1").arg(QString::fromUtf8(surface.data(), static_cast<qsizetype>(surface.size()))),
                        target);
     }
+}
+
+// The Floor group of the page for nothing selected: name, ceiling, slab, plan image, where the image sits and
+// the counts of the shown floor.
+void PropertiesPanel::buildFloorSection(QGridLayout* grid)
+{
+    const Theme& t = Theme::instance();
+    addMaterialSection(grid, tr("Floor"));
+
+    auto* nameLabel = new QLabel(tr("Name"), grid->parentWidget());
+    nameLabel->setFont(t.uiFont(t.sizeSmall()));
+    nameLabel->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
+    floorName_ = new QLineEdit(grid->parentWidget());
+    floorName_->setFont(t.uiFont(t.sizeNormal()));
+    floorName_->setStyle(t.controlStyle());
+    floorName_->setToolTip(tr("The name of this floor, shown on its tab"));
+    floorName_->setProperty("tourId", QStringLiteral("panel-floor-name"));
+    nameLabel->setToolTip(floorName_->toolTip());
+    const int nameRow = grid->rowCount();
+    grid->addWidget(nameLabel, nameRow, 0, Qt::AlignVCenter);
+    grid->addWidget(floorName_, nameRow, 1);
+    editors_.push_back(floorName_);
+    connect(floorName_, &QLineEdit::editingFinished, this, [this]() {
+        const plynth::Floor* floor = controller_.floor();
+        if (refreshing_ || floor == nullptr)
+            return;
+        const std::string name = floorName_->text().trimmed().toStdString();
+        if (name == floor->name)
+            return;
+        if (name.empty() || !controller_.run(std::make_unique<plynth::SetFloorNameCommand>(floor->id, name)).ok())
+            refresh();
+    });
+
+    ceilingSpin_ = addKeyedSpinRow(grid, tr("Ceiling height"), 0.5, 100.0, 0.05,
+                                   tr("Height of the ceiling of this floor. Walls without their own height use it."),
+                                   QStringLiteral("panel-ceiling-height"));
+    connect(ceilingSpin_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
+        const plynth::Floor* floor = controller_.floor();
+        if (refreshing_ || floor == nullptr)
+            return;
+        if (!controller_.run(std::make_unique<plynth::SetCeilingHeightCommand>(floor->id, value, focusKey_)).ok())
+            refresh();
+    });
+
+    slabSpin_ = addKeyedSpinRow(grid, tr("Slab thickness"), plynth::kMinSlabThickness, plynth::kMaxSlabThickness, 0.01,
+                                tr("Thickness of the slab between this floor and the next one up, or under the roof. It adds to the height between the two floor levels."),
+                                QStringLiteral("panel-slab-thickness"));
+    connect(slabSpin_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
+        const plynth::Floor* floor = controller_.floor();
+        if (refreshing_ || floor == nullptr)
+            return;
+        if (!controller_.run(std::make_unique<plynth::SetSlabThicknessCommand>(floor->id, value, focusKey_)).ok())
+            refresh();
+    });
+
+    floorImage_ = addLabelRow(grid, tr("Plan image"));
+    floorImage_->setToolTip(tr("The plan image of this floor"));
+    auto* choose = new QPushButton(tr("Choose image..."), grid->parentWidget());
+    choose->setToolTip(tr("Pick another plan image for this floor (Ctrl+Shift+O)"));
+    choose->setProperty("tourId", QStringLiteral("panel-floor-image"));
+    grid->addWidget(choose, grid->rowCount(), 1);
+    editors_.push_back(choose);
+    connect(choose, &QPushButton::clicked, this, &PropertiesPanel::planImageRequested);
+
+    const QString offsetTip = tr("Where the plan image of this floor sits on the plan. Line it up with the floor below, by hand here or with View > Align plan image");
+    offsetX_ = addKeyedSpinRow(grid, tr("Image offset X"), -100000.0, 100000.0, 0.01, offsetTip,
+                               QStringLiteral("panel-image-offset-x"));
+    offsetY_ = addKeyedSpinRow(grid, tr("Image offset Y"), -100000.0, 100000.0, 0.01, offsetTip,
+                               QStringLiteral("panel-image-offset-y"));
+    moveMarks_ = new QCheckBox(tr("Move marks with the image"), grid->parentWidget());
+    moveMarks_->setFont(t.uiFont(t.sizeNormal()));
+    moveMarks_->setStyle(t.controlStyle());
+    moveMarks_->setChecked(true);
+    moveMarks_->setToolTip(tr("When on, the walls, rooms, openings, items and stairs of this floor move with the image. When off, only the image moves."));
+    moveMarks_->setProperty("tourId", QStringLiteral("panel-move-marks"));
+    grid->addWidget(moveMarks_, grid->rowCount(), 0, 1, 2);
+    editors_.push_back(moveMarks_);
+    connect(offsetX_, &QDoubleSpinBox::valueChanged, this, [this]() { editImageOffset(true); });
+    connect(offsetY_, &QDoubleSpinBox::valueChanged, this, [this]() { editImageOffset(false); });
+
+    pointCount_ = addLabelRow(grid, tr("Points"));
+    wallCount_ = addLabelRow(grid, tr("Walls"));
+    roomCount_ = addLabelRow(grid, tr("Rooms"));
+}
+
+// Moves the image of the shown floor to the offset in the two boxes.
+void PropertiesPanel::editImageOffset(bool xChanged)
+{
+    Q_UNUSED(xChanged);
+    const plynth::Floor* floor = controller_.floor();
+    if (refreshing_ || floor == nullptr)
+        return;
+    const plynth::ImageOffset offset{offsetX_->value(), offsetY_->value()};
+    if (!controller_.run(std::make_unique<plynth::SetFloorImageOffsetCommand>(floor->id, offset, moveMarks_->isChecked(),
+                                                                              focusKey_)).ok())
+        refresh();
+}
+
+// The page for a selected stair: type, width, turn, the numbers worked out for it, its problems and its material.
+void PropertiesPanel::buildStairPage()
+{
+    const Theme& t = Theme::instance();
+    QGridLayout* grid = nullptr;
+    makePage(&grid);
+    stairId_ = addLabelRow(grid, tr("Stair"));
+    stairFloors_ = addLabelRow(grid, tr("Goes"));
+    stairFloors_->setToolTip(tr("The floor the stair starts on and the floor it reaches"));
+    stairType_ = addComboRow(grid, tr("Type"), tr("The shape of the stair: straight, L, U or spiral"),
+                             QStringLiteral("panel-stair-type"));
+    for (const plynth::StairType* type : plynth::allStairTypes())
+        stairType_->addItem(fromCore(std::string(type->name())), fromCore(std::string(type->id())));
+    stairWidth_ = addSpinRow(grid, tr("Width"), plynth::kMinStairWidth, plynth::kMaxStairWidth, 0.05,
+                             tr("Width of the stair across the steps"), QStringLiteral("panel-stair-width"));
+    stairTurn_ = addComboRow(grid, tr("Turn"), tr("Which way an L or U stair turns, or a spiral winds, seen while climbing"),
+                             QStringLiteral("panel-stair-turn"), &stairTurnLabel_);
+    stairTurn_->addItem(tr("Left"), QStringLiteral("left"));
+    stairTurn_->addItem(tr("Right"), QStringLiteral("right"));
+
+    stairRise_ = addLabelRow(grid, tr("Rise"));
+    stairRise_->setToolTip(tr("The height the stair climbs, from the floor to the floor above"));
+    stairRisers_ = addLabelRow(grid, tr("Risers"));
+    stairRisers_->setToolTip(tr("How many steps up, counting the last one onto the upper floor"));
+    stairRiser_ = addLabelRow(grid, tr("Riser height"));
+    stairRiser_->setToolTip(tr("The height of one step"));
+    stairGoing_ = addLabelRow(grid, tr("Going"));
+    stairGoing_->setToolTip(tr("The depth of one tread"));
+    stairLength_ = addLabelRow(grid, tr("Length"));
+    stairLength_->setToolTip(tr("The length of the walk line from the bottom step to the upper floor"));
+    stairProblems_ = new QLabel(grid->parentWidget());
+    stairProblems_->setFont(t.uiFont(t.sizeSmall()));
+    stairProblems_->setWordWrap(true);
+    stairProblems_->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
+    stairProblems_->setToolTip(tr("What is wrong with this stair now"));
+    grid->addWidget(stairProblems_, grid->rowCount(), 0, 1, 2);
+
+    addMaterialSection(grid, tr("Materials"));
+    plynth::MaterialTarget steps;
+    steps.kind = plynth::MaterialTarget::Kind::Stair;
+    addMaterialRow(grid, tr("Steps"), tr("The material of the steps and landings of this stair. Without one, the project default for stairs shows"),
+                   QStringLiteral("material-picker-stair"), steps);
+
+    connect(stairType_, &QComboBox::activated, this, [this](int index) {
+        const std::string type = stairType_->itemData(index).toString().toStdString();
+        editStair([type](plynth::Stair& stair) { stair.type = type; });
+    });
+    connect(stairTurn_, &QComboBox::activated, this, [this](int index) {
+        const bool left = stairTurn_->itemData(index).toString() == QStringLiteral("left");
+        editStair([left](plynth::Stair& stair) { stair.turn = left ? plynth::StairTurn::Left : plynth::StairTurn::Right; });
+    });
+    connect(stairWidth_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
+        editStair([value](plynth::Stair& stair) { stair.width = value; });
+    });
+}
+
+// Runs SetStairCommand with the selected stair after a change. The boxes go back to the real values on a refusal.
+void PropertiesPanel::editStair(const std::function<void(plynth::Stair&)>& change)
+{
+    if (refreshing_ || selection_.kind() != SelectionKind::Stair)
+        return;
+    const plynth::Floor* floor = controller_.floor();
+    if (floor == nullptr)
+        return;
+    const std::string id = selection_.id().toStdString();
+    for (const plynth::Stair& stair : floor->stairs) {
+        if (stair.id != id)
+            continue;
+        plynth::Stair values = stair;
+        change(values);
+        if (values == stair)
+            return;
+        if (!controller_.run(std::make_unique<plynth::SetStairCommand>(id, values)).ok())
+            refresh();
+        return;
+    }
+}
+
+// Fills the page for a selected stair.
+void PropertiesPanel::refreshStair()
+{
+    const plynth::Floor* floor = controller_.floor();
+    if (floor == nullptr)
+        return;
+    const std::string id = selection_.id().toStdString();
+    const plynth::Stair* stair = nullptr;
+    for (const plynth::Stair& candidate : floor->stairs)
+        if (candidate.id == id)
+            stair = &candidate;
+    if (stair == nullptr)
+        return;
+    stairId_->setText(fromCore(stair->id));
+    const plynth::StairLayout layout = plynth::stairLayout(document_.plan(), *floor, *stair);
+    const plynth::Floor* upper = nullptr;
+    for (std::size_t i = 0; i + 1 < document_.plan().floors.size(); ++i)
+        if (document_.plan().floors[i].id == floor->id)
+            upper = &document_.plan().floors[i + 1];
+    const auto floorName = [](const plynth::Floor& f) { return f.name.empty() ? fromCore(f.id) : fromCore(f.name); };
+    stairFloors_->setText(upper != nullptr ? tr("%1 to %2").arg(floorName(*floor), floorName(*upper))
+                                           : tr("%1, no floor above").arg(floorName(*floor)));
+    const int typeIndex = stairType_->findData(fromCore(stair->type));
+    if (typeIndex < 0) {
+        stairType_->addItem(fromCore(stair->type), fromCore(stair->type));
+        stairType_->setCurrentIndex(stairType_->count() - 1);
+    } else {
+        stairType_->setCurrentIndex(typeIndex);
+    }
+    setSpin(stairWidth_, stair->width);
+    const plynth::StairType* type = plynth::findStairType(stair->type);
+    const bool usesTurn = type != nullptr && type->usesTurn();
+    stairTurn_->setVisible(usesTurn);
+    stairTurnLabel_->setVisible(usesTurn);
+    stairTurn_->setCurrentIndex(stair->turn == plynth::StairTurn::Left ? 0 : 1);
+
+    QStringList problems;
+    if (layout.status.ok()) {
+        stairRise_->setText(tr("%1 m").arg(layout.rise, 0, 'f', 3));
+        stairRisers_->setText(QString::number(layout.riserCount));
+        stairRiser_->setText(tr("%1 m").arg(layout.riser, 0, 'f', 3));
+        stairGoing_->setText(tr("%1 m").arg(layout.going, 0, 'f', 3));
+        stairLength_->setText(tr("%1 m").arg(layout.length, 0, 'f', 2));
+    } else {
+        for (QLabel* label : {stairRise_, stairRisers_, stairRiser_, stairGoing_, stairLength_})
+            label->setText(tr("none"));
+        problems << fromCore(layout.status.message);
+    }
+    for (const plynth::StairProblem& problem : plynth::stairProblems(document_.plan(), *floor))
+        if (problem.stair == stair->id)
+            problems << fromCore(problem.message);
+    stairProblems_->setText(problems.join(QLatin1Char('\n')));
+    stairProblems_->setVisible(!problems.isEmpty());
+    refreshMaterialRows(kStairPage);
 }
 
 // The page for a selected point: id, position and the walls that use it.
@@ -771,6 +992,12 @@ void PropertiesPanel::refreshMaterialRows(int page)
         case plynth::MaterialOrigin::None:
             note = tr("neutral look");
             break;
+        case plynth::MaterialOrigin::Stair:
+            note = tr("set on this stair");
+            break;
+        case plynth::MaterialOrigin::Roof:
+            note = tr("set on this roof section");
+            break;
         }
         if (target.kind == plynth::MaterialTarget::Kind::Default)
             note.clear();
@@ -849,6 +1076,11 @@ void PropertiesPanel::applyMaterial(const plynth::MaterialTarget& target, const 
     case plynth::MaterialTarget::Kind::Default:
         command = std::make_unique<plynth::SetDefaultMaterialCommand>(target.surface, material);
         break;
+    case plynth::MaterialTarget::Kind::Stair:
+        editStair([&material](plynth::Stair& stair) { stair.material = material; });
+        return;
+    case plynth::MaterialTarget::Kind::Roof:
+        return;
     }
     controller_.run(std::move(command));
 }
@@ -867,7 +1099,11 @@ bool PropertiesPanel::openMaterialPicker(const QString& text, const QString& hov
     case plynth::MaterialTarget::Kind::Room:
         selection_.set(SelectionKind::Room, fromCore(target.object));
         break;
+    case plynth::MaterialTarget::Kind::Stair:
+        selection_.set(SelectionKind::Stair, fromCore(target.object));
+        break;
     case plynth::MaterialTarget::Kind::Default:
+    case plynth::MaterialTarget::Kind::Roof:
         selection_.clear();
         break;
     }
@@ -877,6 +1113,7 @@ bool PropertiesPanel::openMaterialPicker(const QString& text, const QString& hov
         const bool same = own.kind == target.kind &&
                           (target.kind == plynth::MaterialTarget::Kind::Wall   ? own.wallFace == target.wallFace
                            : target.kind == plynth::MaterialTarget::Kind::Room ? own.roomSurface == target.roomSurface
+                           : target.kind == plynth::MaterialTarget::Kind::Stair ? true
                                                                                : own.surface == target.surface);
         if (same && materialSlots_[i].page == pages_->currentIndex()) {
             openPicker(i, hoverMaterial);
@@ -956,13 +1193,17 @@ void PropertiesPanel::refresh()
         page = kItemPage;
         refreshItem();
         break;
+    case SelectionKind::Stair:
+        page = kStairPage;
+        refreshStair();
+        break;
     default:
         if (!detecting && !placing)
             refreshNothing();
         break;
     }
     pages_->setCurrentIndex(page);
-    deleteButton_->setVisible(!selection_.isEmpty() && !detecting && !placing);
+    deleteButton_->setVisible(!selection_.isEmpty() && selection_.kind() != SelectionKind::RoofSection && !detecting && !placing);
     for (QWidget* editor : editors_)
         editor->setEnabled(!readOnly);
     wallHeight_->setEnabled(!readOnly && wallOwnHeight_->isChecked());
@@ -983,8 +1224,14 @@ void PropertiesPanel::refreshNothing()
     }
     scaleHint_->setVisible(!scaleHint_->text().isEmpty());
     setSpin(gridSpin_, document_.project().settings.gridSize);
-    setSpin(ceilingSpin_, controller_.floor() ? controller_.floor()->ceilingHeight : 0.0);
     const plynth::Floor* floor = controller_.floor();
+    setSpin(ceilingSpin_, floor ? floor->ceilingHeight : 0.0);
+    setSpin(slabSpin_, floor ? floor->slabThickness : plynth::kDefaultSlabThickness);
+    setSpin(offsetX_, floor ? floor->imageOffset.x : 0.0);
+    setSpin(offsetY_, floor ? floor->imageOffset.y : 0.0);
+    if (floor != nullptr && !floorName_->hasFocus())
+        floorName_->setText(fromCore(floor->name));
+    floorImage_->setText(floor != nullptr && floor->image.has_value() ? fromCore(*floor->image) : tr("None"));
     pointCount_->setText(QString::number(floor ? floor->points.size() : 0));
     wallCount_->setText(QString::number(floor ? floor->walls.size() : 0));
     roomCount_->setText(QString::number(floor ? floor->rooms.size() : 0));

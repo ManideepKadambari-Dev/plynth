@@ -44,6 +44,7 @@
 #include <plynth/core/Version.h>
 #include <plynth/core/RoomTypes.h>
 #include <plynth/core/Rooms.h>
+#include <plynth/core/Stairs.h>
 #include <plynth/core/commands/DeleteCommands.h>
 #include <plynth/core/SetupCheck.h>
 #include <plynth/core/catalog/AssetImport.h>
@@ -84,6 +85,7 @@
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QHBoxLayout>
+#include <QInputDialog>
 #include <QTimer>
 #include <QUrl>
 #include <QVBoxLayout>
@@ -91,6 +93,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <set>
 
 #ifdef Q_OS_WIN
 #include "FramelessWindow_win.h"
@@ -147,6 +150,7 @@ MainWindow::MainWindow(QWidget* parent)
     toolStrip_ = new ToolStrip(tools_, central);
     host_ = new LibraryHost(this);
     tools_->setLibrary(host_);
+    tools_->setFocus(focus_);
     panel_ = new PropertiesPanel(doc_, *selection_, *tools_, central);
     assets_ = new AssetsPanel(*host_, central);
     materials_ = new MaterialsPanel(*host_, central);
@@ -216,6 +220,12 @@ MainWindow::MainWindow(QWidget* parent)
     });
     connect(builder_, &BuildController::finished, this, &MainWindow::buildFinished);
     connect(focus_, &FloorFocus::changed, this, &MainWindow::floorShown);
+    connect(floorTabs_, &FloorTabs::addAboveRequested, this, [this]() { addFloor(true, QString()); });
+    connect(floorTabs_, &FloorTabs::addBelowRequested, this, [this](const QString& id) { addFloor(false, id); });
+    connect(floorTabs_, &FloorTabs::renameRequested, this, &MainWindow::renameFloor);
+    connect(floorTabs_, &FloorTabs::removeRequested, this, &MainWindow::removeFloor);
+    connect(tools_, &ToolController::alignImageChanged, this, [this]() { updateAlignAction(); });
+    connect(panel_, &PropertiesPanel::planImageRequested, this, &MainWindow::setImageDialog);
     connect(buildBar_, &BuildBar::buildRequested, this, &MainWindow::startBuild);
     connect(buildBar_, &BuildBar::cancelRequested, builder_, &BuildController::cancel);
     connect(buildBar_, &BuildBar::problemsRequested, this, [this]() { right_->showTab(RightPanel::Tab::Build); });
@@ -452,9 +462,9 @@ void MainWindow::buildMenus()
     });
 
     edit->addSeparator();
-    const std::array<ToolId, kAllTools.size()>& toolIds = kAllTools;
-    const std::array<Qt::Key, kAllTools.size()> toolKeys{Qt::Key_V, Qt::Key_S,        Qt::Key_W, Qt::Key_O,
-                                                         Qt::Key_R, Qt::Key_P,        Qt::Key_D};
+    const std::array<ToolId, kToolCount>& toolIds = kStripTools;
+    const std::array<Qt::Key, kToolCount> toolKeys{Qt::Key_V, Qt::Key_S, Qt::Key_W, Qt::Key_O,
+                                                   Qt::Key_R, Qt::Key_T, Qt::Key_P, Qt::Key_D};
     for (size_t i = 0; i < toolIds.size(); ++i) {
         const ToolId id = toolIds[i];
         QAction* action = addMenuAction(edit, tr("%1 tool").arg(ToolStrip::toolName(id)),
@@ -553,6 +563,22 @@ void MainWindow::buildMenus()
     snapGridAction_->setCheckable(true);
     snapGridAction_->setChecked(tools_->snapToGrid());
     connect(snapGridAction_, &QAction::toggled, this, [this](bool on) { tools_->setSnapToGrid(on); });
+    titleBar_->viewMenu()->addSeparator();
+    alignImageAction_ = addMenuAction(titleBar_->viewMenu(), tr("&Align plan image"),
+                                      tr("Drag the plan image of the shown floor to line it up with the floor below, or nudge it with the arrow keys"),
+                                      QStringLiteral("view-align-image"), {});
+    alignImageAction_->setCheckable(true);
+    connect(alignImageAction_, &QAction::triggered, this, [this](bool on) {
+        tools_->setAlignImage(on);
+        updateAlignAction();
+    });
+    floorUpAction_ = addMenuAction(titleBar_->viewMenu(), tr("Floor &above"), tr("Show the next floor up (Ctrl+Page Up)"),
+                                   QStringLiteral("view-floor-up"), {QKeySequence(Qt::CTRL | Qt::Key_PageUp)});
+    connect(floorUpAction_, &QAction::triggered, this, [this]() { stepFloor(1); });
+    floorDownAction_ = addMenuAction(titleBar_->viewMenu(), tr("Floor b&elow"), tr("Show the next floor down (Ctrl+Page Down)"),
+                                     QStringLiteral("view-floor-down"), {QKeySequence(Qt::CTRL | Qt::Key_PageDown)});
+    connect(floorDownAction_, &QAction::triggered, this, [this]() { stepFloor(-1); });
+    updateAlignAction();
     titleBar_->viewMenu()->addSeparator();
     wallViewAction_ = addMenuAction(titleBar_->viewMenu(), tr("&Wall view"),
                                     tr("Show the face of the selected wall under the plan (E)"),
@@ -911,7 +937,7 @@ void MainWindow::onDocumentChanged(unsigned changes)
     if (changes & (plynth::Change::FloorImage | plynth::Change::Floors | plynth::Change::Folder))
         refreshImage();
     if (changes & (plynth::Change::Points | plynth::Change::Walls | plynth::Change::Rooms | plynth::Change::Openings | plynth::Change::Items | plynth::Change::Scale |
-                   plynth::Change::Floors | plynth::Change::Folder))
+                   plynth::Change::Stairs | plynth::Change::FloorImage | plynth::Change::Floors | plynth::Change::Folder))
         refreshOverlay();
     if (report_.has_value())
         buildUiTimer_->start();
@@ -920,6 +946,8 @@ void MainWindow::onDocumentChanged(unsigned changes)
     updateWallView();
     if (changes & plynth::Change::ReadOnly)
         updateReadOnlyUi();
+    floorTabs_->setEditable(!doc_.isReadOnly());
+    updateAlignAction();
     tools_->documentChanged(changes);
     updateDeleteAction();
     tools_->refreshAvailability();
@@ -1018,11 +1046,10 @@ void MainWindow::refreshImage()
     updateViewActions();
 }
 
-// Gives the canvas the points, walls and rooms of the first floor, in image pixels. Nothing without a scale.
+// Redraws the marks of the shown floor on the canvas.
 void MainWindow::refreshOverlay()
 {
-    canvas_->setOverlay(buildOverlay(doc_.plan(), host_ != nullptr ? host_->catalog() : nullptr));
-    canvas_->setGridStep(tools_->gridStepPixels());
+    tools_->refreshOverlay();
 }
 
 // Tells the canvas which item is selected.
@@ -1061,7 +1088,7 @@ void MainWindow::sizeWallView()
 // Deletes the selected item with everything that depends on it, as one undo step.
 void MainWindow::deleteSelection()
 {
-    if (selection_->isEmpty() || doc_.isReadOnly())
+    if (selection_->isEmpty() || selection_->kind() == SelectionKind::RoofSection || doc_.isReadOnly())
         return;
     const std::string id = selection_->id().toStdString();
     plynth::DeleteBuild build = plynth::makeDeleteCommand(doc_.plan(), std::span<const plynth::Id>(&id, 1));
@@ -1078,7 +1105,7 @@ void MainWindow::deleteSelection()
 void MainWindow::updateDeleteAction()
 {
     if (deleteAction_ != nullptr)
-        deleteAction_->setEnabled(!selection_->isEmpty() && !doc_.isReadOnly());
+        deleteAction_->setEnabled(!selection_->isEmpty() && selection_->kind() != SelectionKind::RoofSection && !doc_.isReadOnly());
 }
 
 // Clears the selection when its item is gone, for example after undo or a reload.
@@ -1108,6 +1135,13 @@ void MainWindow::validateSelection()
         case SelectionKind::Item:
             found = plynth::findItem(*floor, id) != nullptr;
             break;
+        case SelectionKind::Stair:
+            for (const plynth::Stair& stair : floor->stairs)
+                found = found || stair.id == id;
+            break;
+        case SelectionKind::RoofSection:
+            found = id.compare(0, floor->id.size() + 1, floor->id + ":") == 0;
+            break;
         case SelectionKind::None:
             break;
         }
@@ -1119,7 +1153,7 @@ void MainWindow::validateSelection()
 // Checks the active tool in the Edit menu and enables the tools that can be used.
 void MainWindow::updateToolActions()
 {
-    for (ToolId id : kAllTools) {
+    for (ToolId id : kStripTools) {
         QAction* action = toolActions_[static_cast<size_t>(id)];
         if (action == nullptr)
             continue;
@@ -1182,6 +1216,8 @@ bool MainWindow::activateToolByName(const QString& name)
         id = ToolId::Furniture;
     else if (key == QStringLiteral("detect"))
         id = ToolId::Detect;
+    else if (key == QStringLiteral("stair"))
+        id = ToolId::Stair;
     else
         return false;
     tools_->setActive(id);
@@ -1194,7 +1230,7 @@ bool MainWindow::showFloor(const QString& id)
     return focus_->setFloorId(id);
 }
 
-// For checks only: selects a point, wall, room, opening or item by its id, switching to its floor first.
+// For checks only: selects a point, wall, room, opening, item or stair by its id, switching to its floor first.
 void MainWindow::selectById(const QString& id)
 {
     selection_->clear();
@@ -1213,6 +1249,9 @@ void MainWindow::selectById(const QString& id)
             kind = SelectionKind::Opening;
         if (plynth::findItem(floor, key) != nullptr)
             kind = SelectionKind::Item;
+        for (const plynth::Stair& stair : floor.stairs)
+            if (stair.id == key)
+                kind = SelectionKind::Stair;
         if (!kind.has_value())
             continue;
         focus_->setFloorId(QString::fromStdString(floor.id));
@@ -1233,6 +1272,119 @@ void MainWindow::refreshFloorTabs()
     floorTabs_->setShown(focus_->floorId());
 }
 
+// Adds an empty floor above the top one, or below the floor named, and shows it. The name is the next free
+// "Floor N".
+void MainWindow::addFloor(bool above, const QString& besideFloor)
+{
+    if (doc_.isReadOnly())
+        return;
+    const plynth::Plan& plan = doc_.plan();
+    std::set<std::string> names;
+    for (const plynth::Floor& floor : plan.floors)
+        names.insert(floor.name);
+    int number = static_cast<int>(plan.floors.size()) + 1;
+    while (names.count(tr("Floor %1").arg(number).toStdString()) != 0)
+        ++number;
+    std::optional<std::size_t> position;
+    if (!above) {
+        for (std::size_t i = 0; i < plan.floors.size(); ++i)
+            if (plan.floors[i].id == besideFloor.toStdString())
+                position = i;
+        if (!position.has_value())
+            return;
+    }
+    auto command = std::make_unique<plynth::AddFloorCommand>(tr("Floor %1").arg(number).toStdString(), position);
+    plynth::AddFloorCommand* raw = command.get();
+    const plynth::Status status = doc_.execute(std::move(command));
+    if (!status.ok()) {
+        statusBar_->showMessage(fromCore(status.message));
+        return;
+    }
+    focus_->setFloorId(fromCore(raw->newFloorId()));
+    floorTabs_->setShown(focus_->floorId());
+}
+
+// Asks for a new name and renames the floor.
+void MainWindow::renameFloor(const QString& floorId)
+{
+    const plynth::Floor* floor = nullptr;
+    for (const plynth::Floor& candidate : doc_.plan().floors)
+        if (candidate.id == floorId.toStdString())
+            floor = &candidate;
+    if (floor == nullptr || doc_.isReadOnly() || screenshotMode_)
+        return;
+    bool ok = false;
+    const QString name = QInputDialog::getText(this, tr("Rename floor"), tr("Name of the floor"), QLineEdit::Normal,
+                                               fromCore(floor->name), &ok)
+                             .trimmed();
+    if (!ok || name.isEmpty() || name.toStdString() == floor->name)
+        return;
+    const plynth::Status status = doc_.execute(std::make_unique<plynth::SetFloorNameCommand>(floor->id, name.toStdString()));
+    if (!status.ok())
+        statusBar_->showMessage(fromCore(status.message));
+}
+
+// Asks first, then removes the floor with everything on it as one undo step.
+void MainWindow::removeFloor(const QString& floorId)
+{
+    const plynth::Floor* floor = nullptr;
+    for (const plynth::Floor& candidate : doc_.plan().floors)
+        if (candidate.id == floorId.toStdString())
+            floor = &candidate;
+    if (floor == nullptr || doc_.isReadOnly() || doc_.plan().floors.size() < 2)
+        return;
+    if (!screenshotMode_) {
+        const QString name = floor->name.empty() ? floorId : fromCore(floor->name);
+        QMessageBox box(this);
+        box.setIcon(QMessageBox::NoIcon);
+        box.setWindowTitle(tr("Remove floor"));
+        box.setText(tr("Remove %1 with its walls, rooms, openings, furniture and stairs? Undo brings it back.").arg(name));
+        QPushButton* remove = box.addButton(tr("Remove"), QMessageBox::DestructiveRole);
+        QPushButton* cancel = box.addButton(tr("Cancel"), QMessageBox::RejectRole);
+        remove->setToolTip(tr("Remove the floor"));
+        cancel->setToolTip(tr("Keep the floor"));
+        box.setDefaultButton(cancel);
+        box.setEscapeButton(cancel);
+        box.exec();
+        if (box.clickedButton() != remove)
+            return;
+    }
+    const plynth::Status status = doc_.execute(std::make_unique<plynth::RemoveFloorCommand>(floor->id));
+    if (!status.ok())
+        statusBar_->showMessage(fromCore(status.message));
+}
+
+// Shows the floor above (direction 1) or below (-1) the shown one, when there is one.
+void MainWindow::stepFloor(int direction)
+{
+    const int next = focus_->index() + direction;
+    const auto& floors = doc_.plan().floors;
+    if (next >= 0 && next < static_cast<int>(floors.size()))
+        focus_->setFloorId(fromCore(floors[static_cast<std::size_t>(next)].id));
+}
+
+// Keeps View > Align plan image and the floor stepping actions in step with the tools and the plan.
+void MainWindow::updateAlignAction()
+{
+    if (alignImageAction_ == nullptr)
+        return;
+    const bool before = alignImageAction_->blockSignals(true);
+    alignImageAction_->setChecked(tools_->alignImage());
+    alignImageAction_->blockSignals(before);
+    alignImageAction_->setEnabled(!tools_->alignRefusal() || tools_->alignImage());
+    if (floorUpAction_ != nullptr) {
+        floorUpAction_->setEnabled(focus_->index() + 1 < static_cast<int>(doc_.plan().floors.size()));
+        floorDownAction_->setEnabled(focus_->index() > 0);
+    }
+}
+
+// For checks only: turns image alignment on or off.
+void MainWindow::setAlignImage(bool on)
+{
+    tools_->setAlignImage(on);
+    updateAlignAction();
+}
+
 // Redraws what depends on the shown floor after another floor was chosen.
 void MainWindow::floorShown()
 {
@@ -1243,6 +1395,7 @@ void MainWindow::floorShown()
     wallView_->refresh();
     updateWallView();
     updateDeleteAction();
+    updateAlignAction();
     panel_->refresh();
 }
 

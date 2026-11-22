@@ -77,10 +77,10 @@ int main(int argc, char* argv[])
                                       QStringLiteral("Open the terminal and type this text. For checks only."),
                                       QStringLiteral("text"));
     QCommandLineOption toolOption(QStringLiteral("tool"),
-                                  QStringLiteral("Activate a tool: select, scale, wall, opening, room, furniture or detect. For checks only."),
+                                  QStringLiteral("Activate a tool: select, scale, wall, opening, room, stair, furniture or detect. For checks only."),
                                   QStringLiteral("name"));
     QCommandLineOption selectOption(QStringLiteral("select"),
-                                    QStringLiteral("Select the point, wall, opening or room with this id. For checks only."),
+                                    QStringLiteral("Select the point, wall, opening, room, item or stair with this id. For checks only."),
                                     QStringLiteral("id"));
     QCommandLineOption floorOption(QStringLiteral("floor"),
                                    QStringLiteral("Show the floor with this id, such as f2. For checks only."), QStringLiteral("id"));
@@ -145,6 +145,8 @@ int main(int argc, char* argv[])
     QCommandLineOption buildOption(QStringLiteral("build"),
                                    QStringLiteral("Build the project after opening it and wait for the end. For checks only."));
     QCommandLineOption buildTabOption(QStringLiteral("build-tab"), QStringLiteral("Show the Build tab. For checks only."));
+    QCommandLineOption alignImageOption(QStringLiteral("align-image"),
+                                        QStringLiteral("Turn on image alignment of the shown floor. For checks only."));
     QCommandLineOption homeOption(QStringLiteral("home"), QStringLiteral("Show the home screen. For checks only."));
     parser.addOption(zoomOption);
     parser.addOption(overlayOption);
@@ -153,6 +155,7 @@ int main(int argc, char* argv[])
     parser.addOption(viewOption);
     parser.addOption(cameraOption);
     parser.addOption(homeOption);
+    parser.addOption(alignImageOption);
     parser.addOption(furnitureAtOption);
     parser.addOption(hoverAssetOption);
     parser.addOption(assetCategoriesOption);
@@ -187,8 +190,8 @@ int main(int argc, char* argv[])
         return kExitBadArguments;
     if (parser.isSet(toolOption)) {
         const QStringList names{QStringLiteral("select"), QStringLiteral("scale"), QStringLiteral("wall"),
-                                QStringLiteral("opening"), QStringLiteral("room"), QStringLiteral("furniture"),
-                                QStringLiteral("detect")};
+                                QStringLiteral("opening"), QStringLiteral("room"), QStringLiteral("stair"),
+                                QStringLiteral("furniture"), QStringLiteral("detect")};
         if (!names.contains(parser.value(toolOption).toLower()))
             return kExitBadArguments;
     }
@@ -281,6 +284,8 @@ int main(int argc, char* argv[])
         window.showFloor(parser.value(floorOption));
     if (parser.isSet(toolOption))
         window.activateToolByName(parser.value(toolOption));
+    if (parser.isSet(alignImageOption))
+        window.setAlignImage(true);
     if (parser.isSet(selectOption))
         window.selectById(parser.value(selectOption));
     if (parser.isSet(wallSideOption))

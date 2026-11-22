@@ -7,6 +7,7 @@
 #include <QMetaObject>
 #include <QWidget>
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -17,6 +18,7 @@ class QComboBox;
 class QDoubleSpinBox;
 class QGridLayout;
 class QLabel;
+class QLineEdit;
 class QPushButton;
 class QSlider;
 class QStackedWidget;
@@ -24,6 +26,7 @@ class QStackedWidget;
 namespace plynth {
 class Command;
 class Document;
+struct Stair;
 }
 
 namespace plynth::app {
@@ -57,6 +60,8 @@ public:
 
 signals:
     void deleteRequested();
+    // The Choose image button of the Floor section was pressed.
+    void planImageRequested();
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
@@ -74,6 +79,11 @@ private:
     void buildOpeningPage();
     void buildOpeningToolPage();
     void buildItemPage();
+    void buildStairPage();
+    void refreshStair();
+    void editStair(const std::function<void(plynth::Stair&)>& change);
+    void buildFloorSection(QGridLayout* grid);
+    void editImageOffset(bool xChanged);
     void refreshItem();
     void runItemCommand(std::unique_ptr<plynth::Command> command);
     void refreshOpening();
@@ -202,6 +212,26 @@ private:
     QPushButton* straightenButton_ = nullptr;
     int focusKey_ = 0;
     std::vector<QDoubleSpinBox*> keyedSpins_;
+
+    QLineEdit* floorName_ = nullptr;
+    QDoubleSpinBox* slabSpin_ = nullptr;
+    QLabel* floorImage_ = nullptr;
+    QDoubleSpinBox* offsetX_ = nullptr;
+    QDoubleSpinBox* offsetY_ = nullptr;
+    QCheckBox* moveMarks_ = nullptr;
+
+    QLabel* stairId_ = nullptr;
+    QLabel* stairFloors_ = nullptr;
+    QComboBox* stairType_ = nullptr;
+    QDoubleSpinBox* stairWidth_ = nullptr;
+    QComboBox* stairTurn_ = nullptr;
+    QLabel* stairTurnLabel_ = nullptr;
+    QLabel* stairRise_ = nullptr;
+    QLabel* stairRisers_ = nullptr;
+    QLabel* stairRiser_ = nullptr;
+    QLabel* stairGoing_ = nullptr;
+    QLabel* stairLength_ = nullptr;
+    QLabel* stairProblems_ = nullptr;
 
     QLabel* roomId_ = nullptr;
     QComboBox* roomType_ = nullptr;
