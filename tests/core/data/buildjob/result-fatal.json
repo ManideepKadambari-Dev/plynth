@@ -20,7 +20,10 @@
       "fills": 7,
       "rooms": 5,
       "items": 4,
-      "materials": 6
+      "materials": 6,
+      "slabs": 2,
+      "stairs": 1,
+      "roofs": 3
     },
     "steps": [
       {

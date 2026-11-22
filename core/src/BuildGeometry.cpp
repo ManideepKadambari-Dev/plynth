@@ -578,7 +578,31 @@ std::optional<RoomBuild> roomBuild(const Floor& floor, const Room& room, double 
         if (owner < outers.size()) polygons[owner].holes.push_back(canonical(hole.points, false));
     }
     out.polygons = std::move(polygons);
+    out.ceilingPolygons = out.polygons;
     return out;
+}
+
+// The name of a roof part in the job.
+std::string_view roofPartName(RoofPart part)
+{
+    switch (part) {
+    case RoofPart::Covering: return "covering";
+    case RoofPart::Underside: return "underside";
+    case RoofPart::Edge: return "edge";
+    case RoofPart::Gable: return "gable";
+    case RoofPart::Parapet: return "parapet";
+    case RoofPart::Glazing: return "glazing";
+    }
+    return "covering";
+}
+
+// The roof part for a name.
+std::optional<RoofPart> roofPartFromName(std::string_view name)
+{
+    for (const RoofPart part : {RoofPart::Covering, RoofPart::Underside, RoofPart::Edge, RoofPart::Gable, RoofPart::Parapet, RoofPart::Glazing}) {
+        if (roofPartName(part) == name) return part;
+    }
+    return std::nullopt;
 }
 
 // Where an item's asset goes in the world.

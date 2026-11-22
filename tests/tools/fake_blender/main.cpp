@@ -329,6 +329,23 @@ int writeBuiltMaterials(const fs::path& folder, const Json& params)
     return count;
 }
 
+// The preview parts the fake build writes: one file per floor, one more for each floor with roofs, and
+// parts.json listing them.
+void writePreviewParts(const fs::path& folder, const Json& floors)
+{
+    Json parts = Json::array();
+    for (const Json& floor : floors) {
+        const std::string id = floor["id"].get<std::string>();
+        writeFile(folder / (id + ".fbx"), "FAKEFBX");
+        parts.push_back(Json{{"floor", id}, {"kind", "storey"}, {"file", id + ".fbx"}});
+        if (floor["roofs"].empty()) continue;
+        writeFile(folder / (id + "_roof.fbx"), "FAKEFBX");
+        parts.push_back(Json{{"floor", id}, {"kind", "roof"}, {"file", id + "_roof.fbx"}});
+    }
+    const Json file = Json{{"format", "plynth-build-preview"}, {"version", 1}, {"parts", parts}};
+    writeFile(folder / "parts.json", file.dump(2) + "\n");
+}
+
 // What the fake build task writes and reports.
 Json buildOutput(const Json& params, const std::string& mode)
 {
@@ -343,6 +360,11 @@ Json buildOutput(const Json& params, const std::string& mode)
     const int openings = sumOf(floors, "openings");
     const int rooms = sumOf(floors, "rooms");
     const int items = sumOf(floors, "items");
+    const int stairs = sumOf(floors, "stairs");
+    const int roofs = sumOf(floors, "roofs");
+    int slabs = 0;
+    for (const Json& floor : floors) slabs += floor["slab"]["polygons"].empty() ? 0 : 1;
+    if (fbx && params["preview_folder"].is_string()) writePreviewParts(folder / params["preview_folder"].get<std::string>(), floors);
     int fills = 0;
     const bool fill = params["settings"]["fill_openings"].get<bool>();
     Json problems = Json::array();
@@ -369,7 +391,8 @@ Json buildOutput(const Json& params, const std::string& mode)
     out["materials_file"] = fbx ? Json("materials.json") : Json(nullptr);
     out["objects"] = objects;
     out["triangles"] = objects * 12;
-    out["counts"] = Json{{"wall_solids", solids}, {"openings_cut", openings}, {"fills", fills}, {"rooms", rooms}, {"items", items}, {"materials", materialCount}};
+    out["counts"] = Json{{"wall_solids", solids}, {"openings_cut", openings}, {"fills", fills}, {"rooms", rooms}, {"items", items},
+                       {"materials", materialCount}, {"slabs", slabs}, {"stairs", stairs}, {"roofs", roofs}};
     out["steps"] = steps;
     out["problems"] = problems;
     return out;

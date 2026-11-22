@@ -536,3 +536,35 @@ TEST_CASE("readBuiltMaterials says not_found and bad_file", "[core][build][mater
     std::ofstream(file, std::ios::trunc) << "{not json";
     REQUIRE(readBuiltMaterials(f.projectFolder).status.code == ErrorCode::BadFile);
 }
+
+TEST_CASE("a report written by milestone 9 reads with the new counts at 0", "[core][build]") {
+    plynth::test::TempDir tmp("build-report-m9");
+    fs::create_directories(tmp.path() / "build");
+    fs::copy_file(fs::path(PLYNTH_TEST_DATA_DIR) / "build" / "build-m9.json", tmp.path() / "build" / "build.json");
+    REQUIRE(plynth::test::schemaProblem("build-report.schema.json",
+                                        nlohmann::json::parse(plynth::test::readTextFile(tmp.path() / "build" / "build.json")))
+                .empty());
+    const BuildReportRead read = readBuildReport(tmp.path());
+    plynth::test::requireOk(read.status);
+    REQUIRE(read.report.counts.materials == 3);
+    REQUIRE(read.report.counts.slabs == 0);
+    REQUIRE(read.report.counts.stairs == 0);
+    REQUIRE(read.report.counts.roofs == 0);
+}
+
+TEST_CASE("a build through the fake writes a report with the slab, stair and roof counts and the preview parts", "[core][build][run]") {
+    BuildFixture f("run-m12-counts");
+    const BuildReport report = runBuild(f.request);
+    plynth::test::requireOk(report.status);
+    REQUIRE(reportProblem(f.reportFile()).empty());
+    REQUIRE(report.counts.slabs == 0);
+    REQUIRE(report.counts.stairs == 0);
+    REQUIRE(report.counts.roofs == 0);
+    const nlohmann::json json = nlohmann::json::parse(plynth::test::readTextFile(f.reportFile()));
+    REQUIRE(json["counts"]["roofs"] == 0);
+    const fs::path parts = f.projectFolder / "build" / "preview" / "parts.json";
+    REQUIRE(fs::exists(parts));
+    REQUIRE(plynth::test::schemaProblem("build-preview.schema.json", nlohmann::json::parse(plynth::test::readTextFile(parts))).empty());
+    REQUIRE(fs::exists(f.projectFolder / "build" / "preview" / "f1.fbx"));
+    REQUIRE_FALSE(fs::exists(f.projectFolder / "build" / "preview" / "f1_roof.fbx"));
+}

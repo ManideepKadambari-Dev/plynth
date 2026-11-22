@@ -1,5 +1,6 @@
 #include "plynth/core/BuildJob.h"
 
+#include "plynth/core/BuildPreview.h"
 #include "plynth/core/Items.h"
 #include "plynth/core/Materials.h"
 #include "plynth/core/Materials.h"
@@ -158,18 +159,28 @@ Json openingJson(const OpeningBuild& o, const OpeningMaterialIds& ids)
     return json;
 }
 
+// One polygon with holes as the worker reads it.
+Json polygonJson(const WorldPolygon& p)
+{
+    Json holes = Json::array();
+    for (const std::vector<Vec2>& h : p.holes) holes.push_back(xyList(h));
+    Json polygon = Json::object();
+    polygon["outline"] = xyList(p.outline);
+    polygon["holes"] = std::move(holes);
+    return polygon;
+}
+
+// A list of polygons.
+Json polygonsJson(const std::vector<WorldPolygon>& list)
+{
+    Json out = Json::array();
+    for (const WorldPolygon& p : list) out.push_back(polygonJson(p));
+    return out;
+}
+
 // One room as the worker reads it.
 Json roomJson(const RoomBuild& r, const RoomMaterialIds& ids)
 {
-    Json polygons = Json::array();
-    for (const WorldPolygon& p : r.polygons) {
-        Json holes = Json::array();
-        for (const std::vector<Vec2>& h : p.holes) holes.push_back(xyList(h));
-        Json polygon = Json::object();
-        polygon["outline"] = xyList(p.outline);
-        polygon["holes"] = std::move(holes);
-        polygons.push_back(std::move(polygon));
-    }
     Json json = Json::object();
     json["id"] = r.id;
     json["type"] = r.type ? Json(*r.type) : Json(nullptr);
@@ -178,7 +189,85 @@ Json roomJson(const RoomBuild& r, const RoomMaterialIds& ids)
     json["ceiling_z"] = r.ceilingZ;
     json["floor_material"] = textOrNull(ids.floor);
     json["ceiling_material"] = textOrNull(ids.ceiling);
-    json["polygons"] = std::move(polygons);
+    json["polygons"] = polygonsJson(r.polygons);
+    json["ceiling_polygons"] = polygonsJson(r.ceilingPolygons);
+    return json;
+}
+
+// A slab as the worker reads it.
+Json slabJson(const SlabBuild& s, const SlabMaterialIds& ids)
+{
+    Json materials = Json::object();
+    materials["edge"] = textOrNull(ids.edge);
+    materials["well"] = textOrNull(ids.well);
+    materials["underside"] = textOrNull(ids.underside);
+    Json json = Json::object();
+    json["bottom"] = s.bottom;
+    json["top"] = s.top;
+    json["polygons"] = polygonsJson(s.polygons);
+    json["undersides"] = polygonsJson(s.undersides);
+    json["materials"] = std::move(materials);
+    return json;
+}
+
+// A stair as the worker reads it.
+Json stairJson(const StairBuild& s, const StairMaterialId* material)
+{
+    Json steps = Json::array();
+    for (const StairStepBuild& step : s.steps) {
+        Json js = Json::object();
+        js["part"] = std::string(stairPartName(step.part));
+        js["outline"] = xyList(step.outline);
+        js["bottom"] = step.bottom;
+        js["top"] = step.top;
+        steps.push_back(std::move(js));
+    }
+    Json json = Json::object();
+    json["id"] = s.id;
+    json["type"] = s.type;
+    json["to_floor"] = s.toFloor;
+    json["rise"] = s.rise;
+    json["riser_count"] = s.riserCount;
+    json["riser"] = s.riser;
+    json["material"] = textOrNull(material ? material->material : std::string());
+    json["steps"] = std::move(steps);
+    json["hole"] = polygonJson(s.hole);
+    return json;
+}
+
+// The material of a roof part.
+const std::string& roofPartMaterialId(const RoofMaterialIds& ids, RoofPart part)
+{
+    switch (part) {
+    case RoofPart::Covering: return ids.covering;
+    case RoofPart::Underside: return ids.underside;
+    case RoofPart::Edge: return ids.edge;
+    case RoofPart::Gable: return ids.gable;
+    case RoofPart::Parapet: return ids.parapet;
+    case RoofPart::Glazing: return ids.glazing;
+    }
+    return ids.covering;
+}
+
+// A roof section as the worker reads it.
+Json roofJson(const RoofBuild& r, const RoofMaterialIds* ids)
+{
+    Json faces = Json::array();
+    for (const RoofFace& f : r.faces) {
+        Json holes = Json::array();
+        for (const std::vector<Vec3>& h : f.holes) holes.push_back(xyzList(h));
+        Json jf = Json::object();
+        jf["part"] = std::string(roofPartName(f.part));
+        jf["outline"] = xyzList(f.outline);
+        jf["holes"] = std::move(holes);
+        jf["material"] = textOrNull(ids ? roofPartMaterialId(*ids, f.part) : std::string());
+        faces.push_back(std::move(jf));
+    }
+    Json json = Json::object();
+    json["index"] = r.index;
+    json["section"] = textOrNull(r.section);
+    json["type"] = r.type;
+    json["faces"] = std::move(faces);
     return json;
 }
 
@@ -234,6 +323,17 @@ Json floorJson(const FloorBuild& f, const FloorMaterials* materials)
     json["openings"] = std::move(openings);
     json["rooms"] = std::move(rooms);
     json["items"] = std::move(items);
+    json["slab"] = slabJson(f.slab, materials ? materials->slab : SlabMaterialIds{});
+    Json stairs = Json::array();
+    for (std::size_t i = 0; i < f.stairs.size(); ++i) {
+        stairs.push_back(stairJson(f.stairs[i], materials && i < materials->stairs.size() ? &materials->stairs[i] : nullptr));
+    }
+    json["stairs"] = std::move(stairs);
+    Json roofs = Json::array();
+    for (std::size_t i = 0; i < f.roofs.size(); ++i) {
+        roofs.push_back(roofJson(f.roofs[i], materials && i < materials->roofs.size() ? &materials->roofs[i] : nullptr));
+    }
+    json["roofs"] = std::move(roofs);
     return json;
 }
 
@@ -532,6 +632,7 @@ Json makeBuildJob(const Project& project, const BuildPlan& plan, const BuildSett
     params["fbx_file"] = settings.writeFbx ? Json(std::string(kBuildFbxFileName)) : Json(nullptr);
     params["materials_file"] = settings.writeFbx ? Json(std::string(kBuildMaterialsFileName)) : Json(nullptr);
     params["textures_folder"] = std::string(kBuildTexturesFolder);
+    params["preview_folder"] = settings.writeFbx ? Json(std::string(kBuildPreviewFolder)) : Json(nullptr);
     params["plan"] = planToJson(project.plan);
     Json set = Json::object();
     set["bevel_width"] = settings.bevelWidth;
@@ -597,6 +698,9 @@ BuildWorkerOutput readBuildResult(const Json& result, std::string_view jobId)
         out.counts.rooms = static_cast<int>(count(counts, "rooms", "/output/counts"));
         out.counts.items = static_cast<int>(count(counts, "items", "/output/counts"));
         out.counts.materials = static_cast<int>(count(counts, "materials", "/output/counts"));
+        out.counts.slabs = static_cast<int>(count(counts, "slabs", "/output/counts"));
+        out.counts.stairs = static_cast<int>(count(counts, "stairs", "/output/counts"));
+        out.counts.roofs = static_cast<int>(count(counts, "roofs", "/output/counts"));
         const Json& steps = field(output, "steps", "/output");
         if (!steps.is_array()) throw Problem{"/output/steps", "Must be a list."};
         for (std::size_t i = 0; i < steps.size(); ++i) {

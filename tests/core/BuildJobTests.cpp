@@ -210,7 +210,7 @@ TEST_CASE("readBuildResult reads a valid result", "[core][build]") {
     REQUIRE(out.fbxFile == "building.fbx");
     REQUIRE(out.objects == 42);
     REQUIRE(out.triangles == 18200);
-    REQUIRE(out.counts == BuildCounts{1, 9, 7, 5, 4, 6});
+    REQUIRE(out.counts == BuildCounts{1, 9, 7, 5, 4, 6, 2, 1, 3});
     REQUIRE(out.steps.size() == 3);
     REQUIRE(out.steps[2].step == "openings");
     REQUIRE(out.steps[2].ms == 3400);
@@ -469,7 +469,7 @@ TEST_CASE("readBuildResult reads materials_file and counts.materials", "[core][b
     plynth::test::requireOk(out.header.status);
     REQUIRE(out.materialsFile == "materials.json");
     REQUIRE(out.counts.materials == 6);
-    REQUIRE(out.counts == BuildCounts{1, 9, 7, 5, 4, 6});
+    REQUIRE(out.counts == BuildCounts{1, 9, 7, 5, 4, 6, 2, 1, 3});
 
     Json noFbx = readData("result-valid.json");
     noFbx["output"]["fbx_file"] = nullptr;
@@ -484,4 +484,40 @@ TEST_CASE("readBuildResult reads materials_file and counts.materials", "[core][b
     REQUIRE(bad.header.status.code == ErrorCode::BadFile);
     REQUIRE(bad.header.status.where == "/output/counts/materials");
     REQUIRE(plynth::test::schemaProblem("blender-result.schema.json", nlohmann::json::parse(missing.dump())).size() > 0);
+}
+
+TEST_CASE("readBuildResult needs the slab, stair and roof counts", "[core][build]") {
+    for (const char* key : {"slabs", "stairs", "roofs"}) {
+        INFO(key);
+        Json result = readData("result-valid.json");
+        result["output"]["counts"].erase(key);
+        const BuildWorkerOutput out = readBuildResult(result, "build-00000001");
+        REQUIRE(out.header.status.code == ErrorCode::BadFile);
+        REQUIRE(out.header.status.where == std::string("/output/counts/") + key);
+        REQUIRE_FALSE(plynth::test::schemaProblem("blender-result.schema.json", nlohmann::json::parse(result.dump())).empty());
+    }
+}
+
+TEST_CASE("the job carries the preview folder, slab, stairs, roofs and ceiling polygons", "[core][build]") {
+    plynth::test::TempDir tmp("job-m12");
+    const Project project = buildProject();
+    const BuildPlan plan = makeBuildPlan(project, {});
+    const Json job = makeBuildJob(project, plan, BuildSettings{}, tmp.path(), "build-1a2b3c4d", tmp.path() / "result.json");
+    REQUIRE(jobProblem(job).empty());
+    REQUIRE(job["params"]["preview_folder"] == "preview");
+    const Json& floor = job["params"]["floors"][0];
+    REQUIRE(floor["slab"]["polygons"].is_array());
+    REQUIRE(floor["slab"]["undersides"].empty());
+    REQUIRE(floor["slab"]["materials"]["edge"].is_null());
+    REQUIRE(floor["stairs"].empty());
+    REQUIRE(floor["roofs"].empty());
+    const Json& room = floor["rooms"][0];
+    REQUIRE_FALSE(room["polygons"].empty());
+    REQUIRE(room["ceiling_polygons"] == room["polygons"]);
+
+    BuildSettings noFbx;
+    noFbx.writeFbx = false;
+    const Json bare = makeBuildJob(project, plan, noFbx, tmp.path(), "build-1a2b3c4d", tmp.path() / "result.json");
+    REQUIRE(jobProblem(bare).empty());
+    REQUIRE(bare["params"]["preview_folder"].is_null());
 }

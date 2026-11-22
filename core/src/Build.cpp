@@ -441,6 +441,9 @@ Json buildReportToJson(const BuildReport& report)
     counts["rooms"] = report.counts.rooms;
     counts["items"] = report.counts.items;
     counts["materials"] = report.counts.materials;
+    counts["slabs"] = report.counts.slabs;
+    counts["stairs"] = report.counts.stairs;
+    counts["roofs"] = report.counts.roofs;
     json["counts"] = std::move(counts);
     Json steps = Json::array();
     for (const BuildStepTime& s : report.steps) steps.push_back(Json{{"step", s.step}, {"ms", s.ms}});
@@ -535,6 +538,9 @@ BuildReportRead readBuildReport(const fs::path& projectFolder)
         report.counts.rooms = static_cast<int>(whole(counts, "rooms", "/counts"));
         report.counts.items = static_cast<int>(whole(counts, "items", "/counts"));
         if (counts.contains("materials")) report.counts.materials = static_cast<int>(whole(counts, "materials", "/counts"));
+        if (counts.contains("slabs")) report.counts.slabs = static_cast<int>(whole(counts, "slabs", "/counts"));
+        if (counts.contains("stairs")) report.counts.stairs = static_cast<int>(whole(counts, "stairs", "/counts"));
+        if (counts.contains("roofs")) report.counts.roofs = static_cast<int>(whole(counts, "roofs", "/counts"));
         if (!json.contains("steps") || !json["steps"].is_array()) throw std::string("/steps");
         for (std::size_t i = 0; i < json["steps"].size(); ++i) {
             const std::string where = "/steps/" + std::to_string(i);
