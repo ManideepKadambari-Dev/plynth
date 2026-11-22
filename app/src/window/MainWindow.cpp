@@ -178,12 +178,12 @@ MainWindow::MainWindow(QWidget* parent)
     buildBar_ = new BuildBar(centre);
     centreColumn->addWidget(buildBar_);
     floorTabs_ = new FloorTabs(*focus_, centre);
-    centreColumn->addWidget(floorTabs_);
     centreStack_ = new QStackedWidget(centre);
     centreStack_->addWidget(splitter_);
     preview_ = new PreviewView(centreStack_);
     centreStack_->addWidget(preview_);
     centreColumn->addWidget(centreStack_, 1);
+    centreColumn->addWidget(floorTabs_);
     row->addWidget(centre, 1);
     buildPanel_ = new BuildPanel(work);
     right_ = new RightPanel(panel_, assets_, materials_, buildPanel_, work);

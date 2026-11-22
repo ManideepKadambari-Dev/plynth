@@ -118,13 +118,13 @@ bool FloorTabs::eventFilter(QObject* watched, QEvent* event)
     return QWidget::eventFilter(watched, event);
 }
 
-// Draws the bar background and its bottom line.
+// Draws the bar background and the line along its top edge.
 void FloorTabs::paintEvent(QPaintEvent*)
 {
     const Theme& t = Theme::instance();
     QPainter p(this);
     p.fillRect(rect(), t.panel());
-    p.fillRect(QRect(0, height() - 1, width(), 1), t.line());
+    p.fillRect(QRect(0, 0, width(), 1), t.line());
 }
 
 }
