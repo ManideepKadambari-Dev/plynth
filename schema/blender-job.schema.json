@@ -202,7 +202,7 @@
               "output_folder": { "description": "An empty staging folder, export/.staging. The worker writes the group files and textures_folder into it.", "type": "string", "minLength": 1 },
               "textures_folder": { "const": "Textures" },
               "groups": {
-                "description": "The files to write, from the project's exporter. A UCX_ collision mesh goes into the file of the object it belongs to. An object goes to the group whose members name its kind and id, else the group whose members name its kind with a null id, else the first group without members whose kinds and ids take it, else the group with rest (core/include/plynth/core/Exporter.h). Objects of kind kit never go into a group. A group that gets no object is not written.",
+                "description": "The files to write, from the project's exporter. A UCX_ collision mesh goes into the file of the object it belongs to. An object goes to the group whose members name its kind and id, else the group whose members name its kind with a null id, else the first group without members whose kinds and ids take it, else the group with rest (core/include/plynth/core/Exporter.h). When any group has rest, a group with no members, kinds or ids takes nothing unless it is the rest group; when none has rest, such a group takes every object, as in a single export. A UCX_ mesh without its object is placed like an object with no kind and no id. Objects of kind kit never go into a group. A group that gets no object is not written.",
                 "type": "array",
                 "minItems": 1,
                 "items": {
@@ -212,10 +212,10 @@
                   "properties": {
                     "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
                     "file": { "type": "string", "pattern": "^[A-Za-z0-9_-]+\\.fbx$" },
-                    "kinds": { "description": "plynth_kind values the group takes; empty takes every kind. Not used when members is not empty.", "type": "array", "items": { "type": "string", "minLength": 1 } },
-                    "ids": { "description": "plynth_id values the group takes; empty takes every id. Not used when members is not empty.", "type": "array", "items": { "$ref": "#/definitions/planId" } },
+                    "kinds": { "description": "plynth_kind values the group takes; empty does not narrow by kind. Not used when members is not empty.", "type": "array", "items": { "type": "string", "minLength": 1 } },
+                    "ids": { "description": "plynth_id values the group takes; empty does not narrow by id. Not used when members is not empty.", "type": "array", "items": { "$ref": "#/definitions/planId" } },
                     "name": { "description": "The group's name as the user sees it.", "type": "string", "minLength": 1, "maxLength": 64 },
-                    "members": { "description": "The objects the group takes. Missing or empty: kinds and ids decide.", "type": "array", "items": { "$ref": "#/definitions/exportMember" } },
+                    "members": { "description": "The objects the group takes. Missing or empty: kinds and ids decide. With those empty too, the group takes everything when no group has rest, and otherwise nothing except what rest gives it.", "type": "array", "items": { "$ref": "#/definitions/exportMember" } },
                     "rest": { "description": "Takes every object no other group takes. At most one group has it. Missing means false.", "type": "boolean" }
                   }
                 }

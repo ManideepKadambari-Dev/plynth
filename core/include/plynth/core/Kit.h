@@ -26,9 +26,8 @@ using Json = nlohmann::ordered_json;
 //   export/<Stem>_Kit_layout.json   where each piece goes (schema/kit-layout.schema.json), written by core
 // Stem is exportFileStem of the project name. Floors, ceilings, thresholds and furniture are not in the kit.
 //
-// Open decision 2 of DESIGN.md section 11: whether the kit grid is fixed per project or per floor. Until the
-// owner decides, every floor uses the project's grid (ProjectSettings::gridSize, the wall snap grid of DESIGN.md
-// section 7.2). kitGridSize is the only place that reads it.
+// The kit grid is fixed per project and is the project's grid size (ProjectSettings::gridSize, the wall snap
+// grid), so every floor is cut on the same grid. kitGridSize is the only place that reads it.
 //
 // How the walls of one floor are cut (lengths in metres along a wall's centre line, measured from its from
 // point):
@@ -85,7 +84,7 @@ inline constexpr std::string_view kKitLayoutFormat = "plynth-kit-layout";
 inline constexpr int kKitLayoutVersion = 1;
 inline constexpr std::string_view kKitMeshPrefix = "SM_Kit_";
 
-// The grid the kit cuts a floor's walls on. Open decision 2: the project's grid for every floor for now.
+// The grid the kit cuts a floor's walls on: the project's grid size, the same for every floor.
 double kitGridSize(const Project& project, const Floor& floor);
 
 enum class KitPieceKind {

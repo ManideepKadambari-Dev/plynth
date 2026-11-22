@@ -7,7 +7,7 @@
 namespace plynth {
 
 // Sets the project's snap grid size in metres (DESIGN.md section 7.2). InvalidValue unless finite and
-// above zero. The grid is per project; whether it should be per floor is open decision 2.
+// above zero. The grid is fixed per project, and the modular kit is cut on it (Kit.h).
 class SetGridSizeCommand : public Command {
 public:
     explicit SetGridSizeCommand(double gridSize);

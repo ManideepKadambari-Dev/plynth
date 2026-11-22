@@ -25,10 +25,13 @@ namespace plynth {
 // Which group a built object goes to (the worker's write_fbx step, in this order):
 //   1. the group whose members list its plynth_kind and plynth_id exactly
 //   2. the group whose members list its plynth_kind with an empty id (every object of that kind)
-//   3. the first group in order with no members whose kinds and ids filters take it
+//   3. the first group in order with no members whose kinds and ids filters take it. When any group of the
+//      export has rest, a group with no members, no kinds and no ids is passed over here, so an empty group
+//      takes nothing. When none has rest, such a group takes every object, as the single exporter's one does
 //   4. the group with rest set (objects nobody else takes: hand added ones, kinds no rule knows)
-// An object none of these takes is left out and named in a finding of the "groups" check. Objects of kind
-// "kit" (Kit.h) never go into a group. A group that gets no object is not written (ExportWorkerOutput).
+// A UCX_ mesh whose object is not there is placed like an object with no kind and no id. An object none of
+// these takes is left out and named in a finding of the "groups" check. Objects of kind "kit" (Kit.h) never
+// go into a group. A group that gets no object is not written (ExportWorkerOutput).
 // Core never lists one (kind, id) pair in two groups.
 
 // One built object a group takes: its plynth_kind and plynth_id custom properties (ExportGroups.h lists the
@@ -45,10 +48,11 @@ struct ExportMember {
 struct ExportGroup {
     std::string id;                 // lower case, for example "building"
     std::string file;               // the file name inside export/, for example "Flat.fbx"
-    std::vector<std::string> kinds; // plynth_kind values of the objects it takes; empty takes every kind
-    std::vector<Id> ids;            // plynth_id values it takes; empty takes every id
+    std::vector<std::string> kinds; // plynth_kind values of the objects it takes; empty does not narrow by kind
+    std::vector<Id> ids;            // plynth_id values it takes; empty does not narrow by id
     std::string name;               // shown to the user and used for the file name, for example "Walls"
-    std::vector<ExportMember> members; // when not empty, the group takes these and kinds and ids are not used
+    std::vector<ExportMember> members; // when not empty, kinds and ids are not used; when members, kinds and ids
+                                       // are all empty, see step 3 above
     bool rest = false;              // takes every object no other group takes; at most one group has it
 
     bool operator==(const ExportGroup&) const = default;

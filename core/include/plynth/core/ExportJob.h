@@ -35,7 +35,7 @@ using Json = nlohmann::ordered_json;
 //    "groups": [{"id": "building", "file": "Flat.fbx", "kinds": [], "ids": [],
 //                "name": "Flat", "members": [{"kind": "walls", "id": "f1"}, {"kind": "slab", "id": null}],
 //                "rest": false}],
-//              (name, members and rest are optional in the schema and always written by core from milestone 11;
+//              (name, members and rest are optional in the schema and always written by core;
 //               an id of null is an empty ExportMember::id; Exporter.h says which group an object goes to)
 //    "materials": [...the "materials" list of build/materials.json...],
 //    "expected_bounds": {"min": [x, y, z], "max": [x, y, z]} or null,

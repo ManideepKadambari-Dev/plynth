@@ -13,7 +13,7 @@
     "kit_file": { "description": "The kit FBX in the same folder.", "type": "string", "pattern": "^[A-Za-z0-9_-]+_Kit\\.fbx$" },
     "coordinates": { "const": "blender_world_metres" },
     "floors": {
-      "description": "Every floor with walls, in plan order, with the grid its walls were cut on.",
+      "description": "Every floor with walls, in plan order, with the grid its walls were cut on: the project's grid size, so it is the same for every floor.",
       "type": "array",
       "items": {
         "type": "object",
