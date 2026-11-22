@@ -185,9 +185,11 @@ std::optional<BuildSeverity> buildSeverityFromName(std::string_view name);
 // map could not be loaded and the surface got its neutral look), collision_failed (warning, a collision piece
 // or a hull could not be made; object is the room, floor, stair or item). New steps may add codes.
 // Also found by core: the StairProblem codes of Stairs.h (object the stair) and the RoofProblem codes
-// of Roofs.h (object the roof section entry, or empty). Found by the worker: slab_failed, stair_failed,
-// roof_failed (warnings: a mesh could not be made; object the floor, stair or entry), preview_failed (warning:
-// a preview part could not be written; the 3D view then loads building.fbx).
+// of Roofs.h (object the roof section entry, or empty). Found by the worker: slab_failed, stair_failed and
+// roof_failed (errors: the mesh could not be made and is left out, so the export's build_complete check
+// fails; floor is always set; object is a plan id, never an object name: the floor for a slab, the stair for
+// a stair, and for a roof its section entry, or the floor when the section follows the plan's default),
+// preview_failed (warning: a preview part could not be written; the 3D view then loads building.fbx).
 inline constexpr std::string_view kCheckStep = "check";
 
 struct BuildProblem {

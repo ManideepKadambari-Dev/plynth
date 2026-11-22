@@ -12,8 +12,12 @@ namespace plynth {
 // How floors stack (DESIGN.md sections 7.7, 7.8 and 7.9). Worked out in core from the walls and rooms of each
 // floor, so the plan view, the CLI and the build agree.
 //
-// A floor's footprint is everything it covers: the union of its wall bands (wallBand) and the floor areas of
-// its closed rooms (roomShape). An open courtyard that is not a room is not part of it.
+// A floor's footprint is everything it covers: the union of its walls as built (wallOutline, never wallBand)
+// and, for each closed room, the whole area inside its centre lines (RoomShape::rings: the outer ring less the
+// islands). Never RoomShape::floorArea: that is cut with the square bands, which reach past a mitred corner
+// and would leave pinholes beside the walls. So the footprint's boundary lies on that of the wall solids
+// (wallSolids, all heights together) within 1e-6, and its only holes are the enclosed areas that are no room,
+// such as an open courtyard.
 //
 // Every floor i has a slab above its ceiling, from level(i) + ceilingHeight(i) to level(i + 1) =
 // level(i) + ceilingHeight(i) + slabThickness(i) (for the top floor, up to where its roof sits). The slab covers

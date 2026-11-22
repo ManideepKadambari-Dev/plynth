@@ -24,8 +24,9 @@ namespace plynth {
 //               further, so corners have no gap.
 //   floors      per room, every convex piece of its floor polygons, kCollisionSlabThickness thick below the
 //               floor level
-//   ceilings    per room, every convex piece of its ceilingPolygons, kCollisionSlabThickness thick above the
-//               ceiling, so a stair hole stays open
+//   ceilings    per room, every convex piece of its ceilingPolygons, so a stair hole stays open, from the
+//               ceiling up by the smaller of kCollisionSlabThickness and Floor::slabThickness, so none reaches
+//               above the level of the next floor
 //   thresholds  per doorway with sill 0, the convex pieces of its threshold, as thick as a floor slab
 //   slabs       every convex piece of each of SlabBuild::polygons, from its bottom to its top
 //   stairs      per stair, one piece per step, landing and column, in the order of StairBuild::steps: its

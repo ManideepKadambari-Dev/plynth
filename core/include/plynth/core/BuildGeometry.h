@@ -79,7 +79,7 @@ struct WallSolid {
 };
 
 // The walls of a floor as solids that never overlap. Walls are grouped by wallHeight. The solid of one height
-// is the union of its walls' bands (wallBand) minus the bands of every taller wall, so a half wall stops at
+// is the union of its walls' bands (wallOutline) minus the bands of every taller wall, so a half wall stops at
 // the face of the full wall it meets and corners join without overlapping faces. One solid per outline the
 // union gives, with the holes inside it (usually the rooms the walls close). Listed tallest first, then by
 // the smallest wall id among their edges.
