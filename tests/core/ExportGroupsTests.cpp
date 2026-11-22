@@ -556,3 +556,29 @@ TEST_CASE("group names count characters and need a letter or digit of the schema
     CHECK(renameExportGroup(edits, current, "furniture_r1", "\xE0\xA4\xB0\xE0\xA4\xB8\xE0\xA5\x8B\xE0\xA4\x88").code == ErrorCode::InvalidValue);
     CHECK(renameExportGroup(edits, current, "furniture_r1", "\xE0\xA4\xB0\xE0\xA4\xB8\xE0\xA5\x8B\xE0\xA4\x88 2").ok());
 }
+
+TEST_CASE("the review carries the plan its member labels come from", "[core][exportgroups]") {
+    const TempDir dir("review-labels");
+    Project built = flatProject();
+    built.settings.exportMode = ExportMode::Grouped;
+    writeBuiltPlan(dir.path(), built.plan);
+
+    Project project = built;
+    project.plan.floors[0].rooms[0].type = "kitchen";
+    project.plan.floors[0].name = "Ground";
+
+    const ExportMember floorOfR1{"floor", "r1"};
+    const ExportMember walls{"walls", "f1"};
+    ExportGroupReview review = reviewExportGroups(dir.path(), project);
+    REQUIRE(review.status.ok());
+    CHECK(review.fromBuild);
+    CHECK(exportMemberLabel(review.plan, floorOfR1) == "Floor of Living r1");
+    CHECK(exportMemberLabel(review.plan, walls) == "Walls, Floor 1");
+
+    const TempDir noBuild("review-labels-nobuild");
+    review = reviewExportGroups(noBuild.path(), project);
+    REQUIRE(review.status.ok());
+    CHECK_FALSE(review.fromBuild);
+    CHECK(exportMemberLabel(review.plan, floorOfR1) == "Floor of Kitchen r1");
+    CHECK(exportMemberLabel(review.plan, walls) == "Walls, Ground");
+}

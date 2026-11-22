@@ -223,6 +223,8 @@ struct ExportGroupReview {
     std::vector<ExportGroup> groups;    // after edits (the same as automatic when not reviewable)
     std::vector<std::string> notes;     // edits that were skipped
     ExportOptions options;              // as read
+    Plan plan;                          // the plan the groups were made from (the built plan when fromBuild),
+                                        // for exportMemberLabel(review.plan, member)
 };
 
 // Works out the review: the exporter for the project's export mode, the project with the plan of the last

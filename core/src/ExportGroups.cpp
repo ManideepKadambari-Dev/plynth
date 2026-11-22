@@ -647,6 +647,7 @@ Status writeExportOptions(const fs::path& projectFolder, const ExportOptions& op
 ExportGroupReview reviewExportGroups(const fs::path& projectFolder, const Project& project)
 {
     ExportGroupReview review;
+    review.plan = project.plan;
     const Exporter* exporter = findExporter(exportModeName(project.settings.exportMode));
     if (!exporter) {
         review.status = fail(ErrorCode::InvalidValue, "There is no exporter for the export mode " +
@@ -668,6 +669,7 @@ ExportGroupReview reviewExportGroups(const fs::path& projectFolder, const Projec
         source.plan = std::move(built->plan);
         review.fromBuild = true;
     }
+    review.plan = source.plan;
     if (Status s = exporter->groups(source, review.automatic); !s.ok()) {
         review.status = s;
         return review;
