@@ -53,14 +53,15 @@ struct PrivateUser {
           config("BLENDER_USER_CONFIG", utf8(temp.path() / "user" / "config")),
           scripts("BLENDER_USER_SCRIPTS", utf8(temp.path() / "user" / "scripts")),
           extensions("BLENDER_USER_EXTENSIONS", utf8(temp.path() / "user" / "extensions")),
-          datafiles("BLENDER_USER_DATAFILES", utf8(temp.path() / "user" / "datafiles")) {
+          datafiles("BLENDER_USER_DATAFILES", utf8(temp.path() / "user" / "datafiles")),
+          xdgData("XDG_DATA_HOME", utf8(temp.path() / "user" / "xdg")) {
         for (const char* name : {"appdata", "profile", "private", "resources", "config", "scripts", "extensions",
-                                 "datafiles"}) {
+                                 "datafiles", "xdg"}) {
             std::filesystem::create_directories(temp.path() / "user" / name);
         }
     }
     plynth::cli::testing::ScopedEnvironment appdata, profile, privateFolder, resources, config, scripts, extensions,
-        datafiles;
+        datafiles, xdgData;
 };
 
 // Makes a library and a projects folder under temp and saves them in the settings.
@@ -73,8 +74,9 @@ void setUpFolders(const TempFolder& temp) {
 }
 
 TEST_CASE("doctor with the fake Blender, folders set and add-ons skipped is ready", "[cli][doctor]") {
-    SettingsReset reset;
     TempFolder temp("doctor-ready");
+    const PrivateUser user(temp);
+    SettingsReset reset;
     setUpFolders(temp);
     const auto fake = installFakeBlender(temp.path() / "fb52", "5.2.0");
 
@@ -94,8 +96,9 @@ TEST_CASE("doctor with the fake Blender, folders set and add-ons skipped is read
 }
 
 TEST_CASE("doctor asks the fake Blender about add-ons", "[cli][doctor]") {
-    SettingsReset reset;
     TempFolder temp("doctor-addons");
+    const PrivateUser user(temp);
+    SettingsReset reset;
     setUpFolders(temp);
     const auto fake = installFakeBlender(temp.path() / "fb52", "5.2.0");
     const ScopedEnvironment addons("FAKE_BLENDER_ADDONS", "bl_ext.blender_org.archimesh");
@@ -112,9 +115,9 @@ TEST_CASE("doctor asks the fake Blender about add-ons", "[cli][doctor]") {
 }
 
 TEST_CASE("doctor --blender beats PLYNTH_BLENDER and starts only the named Blender", "[cli][doctor]") {
-    SettingsReset reset;
     TempFolder temp("doctor-option");
     const PrivateUser user(temp);
+    SettingsReset reset;
     setUpFolders(temp);
     const auto named = installFakeBlender(temp.path() / "named", "5.2.0");
     const auto other = installFakeBlender(temp.path() / "other", "5.2.0");
@@ -131,9 +134,9 @@ TEST_CASE("doctor --blender beats PLYNTH_BLENDER and starts only the named Blend
 }
 
 TEST_CASE("doctor --blender with a missing file says so and starts no other Blender", "[cli][doctor]") {
-    SettingsReset reset;
     TempFolder temp("doctor-option-missing");
     const PrivateUser user(temp);
+    SettingsReset reset;
     setUpFolders(temp);
     const auto other = installFakeBlender(temp.path() / "other", "5.2.0");
     const plynth::cli::testing::ScopedEnvironment variable("PLYNTH_BLENDER", utf8(other));
@@ -147,8 +150,9 @@ TEST_CASE("doctor --blender with a missing file says so and starts no other Blen
 }
 
 TEST_CASE("doctor with no library or projects folder is not ready", "[cli][doctor]") {
-    SettingsReset reset;
     TempFolder temp("doctor-empty");
+    const PrivateUser user(temp);
+    SettingsReset reset;
     const auto fake = installFakeBlender(temp.path() / "fb52", "5.2.0");
 
     const auto outcome = runChecked({"doctor", "--no-addons", "--blender", utf8(fake)});
@@ -162,8 +166,9 @@ TEST_CASE("doctor with no library or projects folder is not ready", "[cli][docto
 }
 
 TEST_CASE("settings set --blender refuses a Blender that is too old and leaves the file alone", "[cli][doctor]") {
-    SettingsReset reset;
     TempFolder temp("doctor-settings");
+    const PrivateUser user(temp);
+    SettingsReset reset;
     REQUIRE(runChecked({"settings", "set", "--keep-zips", "true"}).exitCode == kExitOk);
     const std::string before = readFile(plynth::settingsFile());
     const auto old = installFakeBlender(temp.path() / "fb41", "4.1.1");
@@ -180,8 +185,10 @@ TEST_CASE("settings set --blender refuses a Blender that is too old and leaves t
 }
 
 TEST_CASE("doctor on this machine finds the real Blender", "[cli][doctor][.blender]") {
+    TempFolder temp("doctor-real");
+    const PrivateUser user(temp);
     SettingsReset reset;
-    const auto outcome = runChecked({"doctor"});
+    const auto outcome = runChecked({"doctor", "--no-addons"});
     REQUIRE(outcome.exitCode == kExitOk);
     const auto& result = outcome.answer.at("result");
     validateReport(result);
