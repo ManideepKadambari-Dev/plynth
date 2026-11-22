@@ -169,7 +169,7 @@ def ring(points, edges):
     return {"points": [list(p) for p in points], "edges": edges}
 
 
-NO_SLAB = {"bottom": 0.0, "top": 0.0, "polygons": [], "undersides": [],
+NO_SLAB = {"bottom": 0.0, "top": 0.0, "polygons": [], "undersides": [], "sides": [], "tops": [],
            "materials": {"edge": None, "well": None, "underside": None}}
 
 

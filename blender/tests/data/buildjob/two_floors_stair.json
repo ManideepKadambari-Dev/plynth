@@ -253,6 +253,25 @@
       }
      ],
      "undersides": [],
+     "sides": [
+      {
+       "outline": [
+        "edge",
+        "edge",
+        "edge",
+        "edge"
+       ],
+       "holes": [
+        [
+         "well",
+         "well",
+         "well",
+         "well"
+        ]
+       ]
+      }
+     ],
+     "tops": [],
      "materials": {
       "edge": null,
       "well": null,
@@ -850,6 +869,8 @@
      "top": 0.0,
      "polygons": [],
      "undersides": [],
+     "sides": [],
+     "tops": [],
      "materials": {
       "edge": null,
       "well": null,

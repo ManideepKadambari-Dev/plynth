@@ -726,6 +726,8 @@
      "top": 0.0,
      "polygons": [],
      "undersides": [],
+     "sides": [],
+     "tops": [],
      "materials": {
       "edge": null,
       "well": null,

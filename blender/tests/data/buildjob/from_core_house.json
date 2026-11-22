@@ -6,7 +6,7 @@
   "result_file": "@PROJECT@/build/result.json",
   "params": {
     "project": {
-      "name": "house",
+      "name": "m12",
       "folder": "@PROJECT@"
     },
     "output_folder": "@PROJECT@/build",
@@ -36,50 +36,50 @@
             },
             {
               "id": "p2",
-              "x": 14.85,
+              "x": 10.0,
               "y": 3.15,
               "corner_radius": 0.0
             },
             {
               "id": "p3",
               "x": 14.85,
-              "y": 10.85,
+              "y": 3.15,
               "corner_radius": 0.0
             },
             {
               "id": "p4",
               "x": 5.15,
-              "y": 10.85,
+              "y": 8.0,
               "corner_radius": 0.0
             },
             {
               "id": "p5",
               "x": 10.0,
-              "y": 3.15,
+              "y": 8.0,
               "corner_radius": 0.0
             },
             {
               "id": "p6",
-              "x": 10.0,
-              "y": 7.0,
+              "x": 5.15,
+              "y": 10.85,
               "corner_radius": 0.0
             },
             {
               "id": "p7",
               "x": 10.0,
-              "y": 8.0,
+              "y": 10.85,
               "corner_radius": 0.0
             },
             {
               "id": "p8",
-              "x": 10.0,
+              "x": 14.85,
               "y": 10.85,
               "corner_radius": 0.0
             },
             {
               "id": "p9",
-              "x": 5.15,
-              "y": 8.0,
+              "x": 10.0,
+              "y": 7.0,
               "corner_radius": 0.0
             },
             {
@@ -93,16 +93,6 @@
             {
               "id": "w1",
               "from": "p1",
-              "to": "p5",
-              "thickness": 0.3,
-              "height": null,
-              "bulge": 0.0,
-              "material_inside": null,
-              "material_outside": null
-            },
-            {
-              "id": "w2",
-              "from": "p5",
               "to": "p2",
               "thickness": 0.3,
               "height": null,
@@ -111,18 +101,8 @@
               "material_outside": null
             },
             {
-              "id": "w3",
+              "id": "w2",
               "from": "p2",
-              "to": "p10",
-              "thickness": 0.3,
-              "height": null,
-              "bulge": 0.0,
-              "material_inside": null,
-              "material_outside": null
-            },
-            {
-              "id": "w4",
-              "from": "p10",
               "to": "p3",
               "thickness": 0.3,
               "height": null,
@@ -131,8 +111,28 @@
               "material_outside": null
             },
             {
-              "id": "w5",
+              "id": "w3",
               "from": "p4",
+              "to": "p5",
+              "thickness": 0.12,
+              "height": null,
+              "bulge": 0.0,
+              "material_inside": null,
+              "material_outside": null
+            },
+            {
+              "id": "w4",
+              "from": "p6",
+              "to": "p7",
+              "thickness": 0.3,
+              "height": null,
+              "bulge": 0.0,
+              "material_inside": null,
+              "material_outside": null
+            },
+            {
+              "id": "w5",
+              "from": "p7",
               "to": "p8",
               "thickness": 0.3,
               "height": null,
@@ -142,9 +142,9 @@
             },
             {
               "id": "w6",
-              "from": "p8",
-              "to": "p3",
-              "thickness": 0.3,
+              "from": "p9",
+              "to": "p10",
+              "thickness": 0.12,
               "height": null,
               "bulge": 0.0,
               "material_inside": null,
@@ -153,16 +153,6 @@
             {
               "id": "w7",
               "from": "p1",
-              "to": "p9",
-              "thickness": 0.3,
-              "height": null,
-              "bulge": 0.0,
-              "material_inside": null,
-              "material_outside": null
-            },
-            {
-              "id": "w8",
-              "from": "p9",
               "to": "p4",
               "thickness": 0.3,
               "height": null,
@@ -171,9 +161,19 @@
               "material_outside": null
             },
             {
-              "id": "w9",
-              "from": "p5",
+              "id": "w8",
+              "from": "p4",
               "to": "p6",
+              "thickness": 0.3,
+              "height": null,
+              "bulge": 0.0,
+              "material_inside": null,
+              "material_outside": null
+            },
+            {
+              "id": "w9",
+              "from": "p2",
+              "to": "p9",
               "thickness": 0.12,
               "height": null,
               "bulge": 0.0,
@@ -182,8 +182,8 @@
             },
             {
               "id": "w10",
-              "from": "p6",
-              "to": "p7",
+              "from": "p9",
+              "to": "p5",
               "thickness": 0.12,
               "height": null,
               "bulge": 0.0,
@@ -192,17 +192,7 @@
             },
             {
               "id": "w11",
-              "from": "p7",
-              "to": "p8",
-              "thickness": 0.12,
-              "height": null,
-              "bulge": 0.0,
-              "material_inside": null,
-              "material_outside": null
-            },
-            {
-              "id": "w12",
-              "from": "p9",
+              "from": "p5",
               "to": "p7",
               "thickness": 0.12,
               "height": null,
@@ -211,10 +201,20 @@
               "material_outside": null
             },
             {
-              "id": "w13",
-              "from": "p6",
+              "id": "w12",
+              "from": "p3",
               "to": "p10",
-              "thickness": 0.12,
+              "thickness": 0.3,
+              "height": null,
+              "bulge": 0.0,
+              "material_inside": null,
+              "material_outside": null
+            },
+            {
+              "id": "w13",
+              "from": "p10",
+              "to": "p8",
+              "thickness": 0.3,
               "height": null,
               "bulge": 0.0,
               "material_inside": null,
@@ -229,7 +229,7 @@
                 "w1",
                 "w9",
                 "w10",
-                "w12",
+                "w3",
                 "w7"
               ],
               "floor_material": null,
@@ -240,10 +240,10 @@
               "id": "r2",
               "type": null,
               "walls": [
-                "w5",
-                "w8",
+                "w2",
                 "w12",
-                "w11"
+                "w6",
+                "w9"
               ],
               "floor_material": null,
               "wall_material": null,
@@ -253,10 +253,10 @@
               "id": "r3",
               "type": null,
               "walls": [
-                "w2",
                 "w3",
-                "w13",
-                "w9"
+                "w11",
+                "w4",
+                "w8"
               ],
               "floor_material": null,
               "wall_material": null,
@@ -266,10 +266,10 @@
               "id": "r4",
               "type": null,
               "walls": [
-                "w4",
-                "w6",
+                "w5",
                 "w11",
                 "w10",
+                "w6",
                 "w13"
               ],
               "floor_material": null,
@@ -306,6 +306,58 @@
             },
             {
               "id": "o3",
+              "wall": "w3",
+              "offset": 2.2999999999999994,
+              "type": "door",
+              "shape": "rectangle",
+              "width": 0.9,
+              "height": 2.1,
+              "sill": 0.0,
+              "hinge": "start",
+              "swing": "left",
+              "frame": null
+            },
+            {
+              "id": "o4",
+              "wall": "w4",
+              "offset": 1.8499999999999996,
+              "type": "window",
+              "shape": "rectangle",
+              "width": 2.0,
+              "height": 1.2,
+              "sill": 0.9,
+              "hinge": "start",
+              "swing": "right",
+              "frame": null
+            },
+            {
+              "id": "o5",
+              "wall": "w5",
+              "offset": 2.4499999999999993,
+              "type": "door",
+              "shape": "rectangle",
+              "width": 0.9,
+              "height": 2.1,
+              "sill": 0.0,
+              "hinge": "start",
+              "swing": "left",
+              "frame": null
+            },
+            {
+              "id": "o6",
+              "wall": "w6",
+              "offset": 1.4499999999999993,
+              "type": "door",
+              "shape": "rectangle",
+              "width": 0.9,
+              "height": 2.1,
+              "sill": 0.0,
+              "hinge": "start",
+              "swing": "left",
+              "frame": null
+            },
+            {
+              "id": "o7",
               "wall": "w7",
               "offset": 2.3499999999999996,
               "type": "window",
@@ -318,7 +370,7 @@
               "frame": null
             },
             {
-              "id": "o4",
+              "id": "o8",
               "wall": "w8",
               "offset": 1.4000000000000001,
               "type": "window",
@@ -331,64 +383,12 @@
               "frame": null
             },
             {
-              "id": "o5",
-              "wall": "w3",
+              "id": "o9",
+              "wall": "w9",
               "offset": 1.85,
-              "type": "window",
-              "shape": "rectangle",
-              "width": 1.6,
-              "height": 1.2,
-              "sill": 0.9,
-              "hinge": "start",
-              "swing": "right",
-              "frame": null
-            },
-            {
-              "id": "o6",
-              "wall": "w4",
-              "offset": 2.0,
-              "type": "window",
-              "shape": "rectangle",
-              "width": 1.6,
-              "height": 1.2,
-              "sill": 0.9,
-              "hinge": "start",
-              "swing": "right",
-              "frame": null
-            },
-            {
-              "id": "o7",
-              "wall": "w5",
-              "offset": 1.8499999999999996,
-              "type": "window",
+              "type": "plain",
               "shape": "rectangle",
               "width": 2.0,
-              "height": 1.2,
-              "sill": 0.9,
-              "hinge": "start",
-              "swing": "right",
-              "frame": null
-            },
-            {
-              "id": "o8",
-              "wall": "w6",
-              "offset": 2.4499999999999993,
-              "type": "door",
-              "shape": "rectangle",
-              "width": 0.9,
-              "height": 2.1,
-              "sill": 0.0,
-              "hinge": "start",
-              "swing": "right",
-              "frame": null
-            },
-            {
-              "id": "o9",
-              "wall": "w13",
-              "offset": 1.4499999999999993,
-              "type": "door",
-              "shape": "rectangle",
-              "width": 0.9,
               "height": 2.1,
               "sill": 0.0,
               "hinge": "start",
@@ -404,32 +404,32 @@
               "width": 0.9,
               "height": 2.1,
               "sill": 0.0,
-              "hinge": "start",
+              "hinge": "end",
               "swing": "right",
               "frame": null
             },
             {
               "id": "o11",
               "wall": "w12",
-              "offset": 2.2999999999999994,
-              "type": "door",
+              "offset": 1.85,
+              "type": "window",
               "shape": "rectangle",
-              "width": 0.9,
-              "height": 2.1,
-              "sill": 0.0,
+              "width": 1.6,
+              "height": 1.2,
+              "sill": 0.9,
               "hinge": "start",
               "swing": "right",
               "frame": null
             },
             {
               "id": "o12",
-              "wall": "w9",
-              "offset": 1.85,
-              "type": "plain",
+              "wall": "w13",
+              "offset": 2.0,
+              "type": "window",
               "shape": "rectangle",
-              "width": 2.0,
-              "height": 2.1,
-              "sill": 0.0,
+              "width": 1.6,
+              "height": 1.2,
+              "sill": 0.9,
               "hinge": "start",
               "swing": "right",
               "frame": null
@@ -468,50 +468,50 @@
             },
             {
               "id": "p12",
-              "x": 11.55,
+              "x": 10.0,
               "y": 2.15,
               "corner_radius": 0.0
             },
             {
               "id": "p13",
               "x": 11.55,
-              "y": 10.85,
+              "y": 2.15,
               "corner_radius": 0.0
             },
             {
               "id": "p14",
               "x": 5.15,
-              "y": 10.85,
+              "y": 6.6,
               "corner_radius": 0.0
             },
             {
               "id": "p15",
               "x": 10.0,
-              "y": 2.15,
+              "y": 6.6,
               "corner_radius": 0.0
             },
             {
               "id": "p16",
-              "x": 10.0,
-              "y": 5.0,
+              "x": 5.15,
+              "y": 10.85,
               "corner_radius": 0.0
             },
             {
               "id": "p17",
               "x": 10.0,
-              "y": 6.6,
+              "y": 10.85,
               "corner_radius": 0.0
             },
             {
               "id": "p18",
-              "x": 10.0,
+              "x": 11.55,
               "y": 10.85,
               "corner_radius": 0.0
             },
             {
               "id": "p19",
-              "x": 5.15,
-              "y": 6.6,
+              "x": 10.0,
+              "y": 5.0,
               "corner_radius": 0.0
             },
             {
@@ -525,16 +525,6 @@
             {
               "id": "w14",
               "from": "p11",
-              "to": "p15",
-              "thickness": 0.3,
-              "height": null,
-              "bulge": 0.0,
-              "material_inside": null,
-              "material_outside": null
-            },
-            {
-              "id": "w15",
-              "from": "p15",
               "to": "p12",
               "thickness": 0.3,
               "height": null,
@@ -543,18 +533,8 @@
               "material_outside": null
             },
             {
-              "id": "w16",
+              "id": "w15",
               "from": "p12",
-              "to": "p20",
-              "thickness": 0.3,
-              "height": null,
-              "bulge": 0.0,
-              "material_inside": null,
-              "material_outside": null
-            },
-            {
-              "id": "w17",
-              "from": "p20",
               "to": "p13",
               "thickness": 0.3,
               "height": null,
@@ -563,8 +543,28 @@
               "material_outside": null
             },
             {
-              "id": "w18",
+              "id": "w16",
               "from": "p14",
+              "to": "p15",
+              "thickness": 0.12,
+              "height": null,
+              "bulge": 0.0,
+              "material_inside": null,
+              "material_outside": null
+            },
+            {
+              "id": "w17",
+              "from": "p16",
+              "to": "p17",
+              "thickness": 0.3,
+              "height": null,
+              "bulge": 0.0,
+              "material_inside": null,
+              "material_outside": null
+            },
+            {
+              "id": "w18",
+              "from": "p17",
               "to": "p18",
               "thickness": 0.3,
               "height": null,
@@ -574,9 +574,9 @@
             },
             {
               "id": "w19",
-              "from": "p18",
-              "to": "p13",
-              "thickness": 0.3,
+              "from": "p19",
+              "to": "p20",
+              "thickness": 0.12,
               "height": null,
               "bulge": 0.0,
               "material_inside": null,
@@ -585,16 +585,6 @@
             {
               "id": "w20",
               "from": "p11",
-              "to": "p19",
-              "thickness": 0.3,
-              "height": null,
-              "bulge": 0.0,
-              "material_inside": null,
-              "material_outside": null
-            },
-            {
-              "id": "w21",
-              "from": "p19",
               "to": "p14",
               "thickness": 0.3,
               "height": null,
@@ -603,9 +593,19 @@
               "material_outside": null
             },
             {
-              "id": "w22",
-              "from": "p15",
+              "id": "w21",
+              "from": "p14",
               "to": "p16",
+              "thickness": 0.3,
+              "height": null,
+              "bulge": 0.0,
+              "material_inside": null,
+              "material_outside": null
+            },
+            {
+              "id": "w22",
+              "from": "p12",
+              "to": "p19",
               "thickness": 0.12,
               "height": null,
               "bulge": 0.0,
@@ -614,8 +614,8 @@
             },
             {
               "id": "w23",
-              "from": "p16",
-              "to": "p17",
+              "from": "p19",
+              "to": "p15",
               "thickness": 0.12,
               "height": null,
               "bulge": 0.0,
@@ -624,17 +624,7 @@
             },
             {
               "id": "w24",
-              "from": "p17",
-              "to": "p18",
-              "thickness": 0.12,
-              "height": null,
-              "bulge": 0.0,
-              "material_inside": null,
-              "material_outside": null
-            },
-            {
-              "id": "w25",
-              "from": "p19",
+              "from": "p15",
               "to": "p17",
               "thickness": 0.12,
               "height": null,
@@ -643,10 +633,20 @@
               "material_outside": null
             },
             {
-              "id": "w26",
-              "from": "p16",
+              "id": "w25",
+              "from": "p13",
               "to": "p20",
-              "thickness": 0.12,
+              "thickness": 0.3,
+              "height": null,
+              "bulge": 0.0,
+              "material_inside": null,
+              "material_outside": null
+            },
+            {
+              "id": "w26",
+              "from": "p20",
+              "to": "p18",
+              "thickness": 0.3,
               "height": null,
               "bulge": 0.0,
               "material_inside": null,
@@ -661,7 +661,7 @@
                 "w14",
                 "w22",
                 "w23",
-                "w25",
+                "w16",
                 "w20"
               ],
               "floor_material": null,
@@ -672,10 +672,10 @@
               "id": "r6",
               "type": null,
               "walls": [
-                "w18",
-                "w21",
+                "w15",
                 "w25",
-                "w24"
+                "w19",
+                "w22"
               ],
               "floor_material": null,
               "wall_material": null,
@@ -685,10 +685,10 @@
               "id": "r7",
               "type": null,
               "walls": [
-                "w15",
                 "w16",
-                "w26",
-                "w22"
+                "w24",
+                "w17",
+                "w21"
               ],
               "floor_material": null,
               "wall_material": null,
@@ -698,10 +698,10 @@
               "id": "r8",
               "type": null,
               "walls": [
-                "w17",
-                "w19",
+                "w18",
                 "w24",
                 "w23",
+                "w19",
                 "w26"
               ],
               "floor_material": null,
@@ -738,33 +738,7 @@
             },
             {
               "id": "o15",
-              "wall": "w20",
-              "offset": 2.0500000000000003,
-              "type": "window",
-              "shape": "rectangle",
-              "width": 2.0,
-              "height": 1.2,
-              "sill": 0.9,
-              "hinge": "start",
-              "swing": "right",
-              "frame": null
-            },
-            {
-              "id": "o16",
-              "wall": "w21",
-              "offset": 2.0999999999999996,
-              "type": "window",
-              "shape": "rectangle",
-              "width": 2.0,
-              "height": 1.2,
-              "sill": 0.9,
-              "hinge": "start",
-              "swing": "right",
-              "frame": null
-            },
-            {
-              "id": "o17",
-              "wall": "w18",
+              "wall": "w17",
               "offset": 2.3499999999999996,
               "type": "window",
               "shape": "rectangle",
@@ -776,12 +750,38 @@
               "frame": null
             },
             {
-              "id": "o18",
-              "wall": "w17",
-              "offset": 2.9999999999999996,
+              "id": "o16",
+              "wall": "w19",
+              "offset": 0.8499999999999998,
+              "type": "door",
+              "shape": "rectangle",
+              "width": 0.9,
+              "height": 2.1,
+              "sill": 0.0,
+              "hinge": "end",
+              "swing": "left",
+              "frame": null
+            },
+            {
+              "id": "o17",
+              "wall": "w20",
+              "offset": 2.049999999999999,
               "type": "window",
               "shape": "rectangle",
-              "width": 1.6,
+              "width": 2.0,
+              "height": 1.2,
+              "sill": 0.9,
+              "hinge": "start",
+              "swing": "right",
+              "frame": null
+            },
+            {
+              "id": "o18",
+              "wall": "w21",
+              "offset": 2.0999999999999996,
+              "type": "window",
+              "shape": "rectangle",
+              "width": 2.0,
               "height": 1.2,
               "sill": 0.9,
               "hinge": "start",
@@ -797,7 +797,7 @@
               "width": 0.9,
               "height": 2.1,
               "sill": 0.0,
-              "hinge": "start",
+              "hinge": "end",
               "swing": "right",
               "frame": null
             },
@@ -810,19 +810,19 @@
               "width": 0.9,
               "height": 2.1,
               "sill": 0.0,
-              "hinge": "start",
+              "hinge": "end",
               "swing": "right",
               "frame": null
             },
             {
               "id": "o21",
               "wall": "w26",
-              "offset": 0.8499999999999998,
-              "type": "door",
+              "offset": 2.9999999999999996,
+              "type": "window",
               "shape": "rectangle",
-              "width": 0.9,
-              "height": 2.1,
-              "sill": 0.0,
+              "width": 1.6,
+              "height": 1.2,
+              "sill": 0.9,
               "hinge": "start",
               "swing": "right",
               "frame": null
@@ -848,8 +848,8 @@
         {
           "id": "rf1",
           "floor": "f2",
-          "x": 7.6,
-          "y": 6.5,
+          "x": 7.62,
+          "y": 4.42,
           "settings": {
             "type": "gable",
             "pitch": 35.0,
@@ -1051,37 +1051,37 @@
               ],
               "edges": [
                 {
-                  "wall": "w5",
-                  "side": "right",
-                  "room": null,
-                  "material": "red_brick"
-                },
-                {
-                  "wall": "w5",
-                  "side": "right",
-                  "room": null,
-                  "material": "red_brick"
-                },
-                {
-                  "wall": "w6",
+                  "wall": "w4",
                   "side": "right",
                   "room": null,
                   "material": "red_brick"
                 },
                 {
                   "wall": "w4",
+                  "side": "right",
+                  "room": null,
+                  "material": "red_brick"
+                },
+                {
+                  "wall": "w5",
+                  "side": "right",
+                  "room": null,
+                  "material": "red_brick"
+                },
+                {
+                  "wall": "w13",
                   "side": "left",
                   "room": null,
                   "material": "red_brick"
                 },
                 {
-                  "wall": "w3",
+                  "wall": "w12",
                   "side": "left",
                   "room": null,
                   "material": "red_brick"
                 },
                 {
-                  "wall": "w3",
+                  "wall": "w12",
                   "side": "left",
                   "room": null,
                   "material": "red_brick"
@@ -1156,37 +1156,37 @@
                   {
                     "wall": "w8",
                     "side": "left",
-                    "room": "r2",
+                    "room": "r3",
                     "material": "white_paint"
                   },
                   {
                     "wall": "w8",
                     "side": "left",
-                    "room": "r2",
+                    "room": "r3",
                     "material": "white_paint"
                   },
                   {
-                    "wall": "w12",
+                    "wall": "w3",
                     "side": "right",
-                    "room": "r2",
+                    "room": "r3",
                     "material": "white_paint"
                   },
                   {
                     "wall": "w11",
                     "side": "right",
-                    "room": "r2",
+                    "room": "r3",
                     "material": "white_paint"
                   },
                   {
-                    "wall": "w5",
+                    "wall": "w4",
                     "side": "left",
-                    "room": "r2",
+                    "room": "r3",
                     "material": "white_paint"
                   },
                   {
-                    "wall": "w5",
+                    "wall": "w4",
                     "side": "left",
-                    "room": "r2",
+                    "room": "r3",
                     "material": "white_paint"
                   }
                 ]
@@ -1270,7 +1270,7 @@
                     "material": "white_paint"
                   },
                   {
-                    "wall": "w12",
+                    "wall": "w3",
                     "side": "left",
                     "room": "r1",
                     "material": "white_paint"
@@ -1332,31 +1332,31 @@
                     "material": "white_paint"
                   },
                   {
+                    "wall": "w6",
+                    "side": "right",
+                    "room": "r4",
+                    "material": "white_paint"
+                  },
+                  {
                     "wall": "w13",
                     "side": "right",
                     "room": "r4",
                     "material": "white_paint"
                   },
                   {
-                    "wall": "w4",
+                    "wall": "w13",
                     "side": "right",
                     "room": "r4",
                     "material": "white_paint"
                   },
                   {
-                    "wall": "w4",
-                    "side": "right",
-                    "room": "r4",
-                    "material": "white_paint"
-                  },
-                  {
-                    "wall": "w6",
+                    "wall": "w5",
                     "side": "left",
                     "room": "r4",
                     "material": "white_paint"
                   },
                   {
-                    "wall": "w6",
+                    "wall": "w5",
                     "side": "left",
                     "room": "r4",
                     "material": "white_paint"
@@ -1394,37 +1394,37 @@
                   {
                     "wall": "w9",
                     "side": "left",
-                    "room": "r3",
+                    "room": "r2",
                     "material": "white_paint"
                   },
                   {
                     "wall": "w2",
                     "side": "right",
-                    "room": "r3",
+                    "room": "r2",
                     "material": "white_paint"
                   },
                   {
                     "wall": "w2",
                     "side": "right",
-                    "room": "r3",
+                    "room": "r2",
                     "material": "white_paint"
                   },
                   {
-                    "wall": "w3",
+                    "wall": "w12",
                     "side": "right",
-                    "room": "r3",
+                    "room": "r2",
                     "material": "white_paint"
                   },
                   {
-                    "wall": "w3",
+                    "wall": "w12",
                     "side": "right",
-                    "room": "r3",
+                    "room": "r2",
                     "material": "white_paint"
                   },
                   {
-                    "wall": "w13",
+                    "wall": "w6",
                     "side": "left",
-                    "room": "r3",
+                    "room": "r2",
                     "material": "white_paint"
                   }
                 ]
@@ -1669,1001 +1669,14 @@
           },
           {
             "id": "o3",
-            "wall": "w7",
-            "type": "window",
-            "shape": "rectangle",
-            "width": 2.0,
-            "height": 1.2,
-            "sill": 0.9,
-            "hinge": "start",
-            "swing": "right",
-            "frame": null,
-            "centre": [
-              5.15,
-              -5.5
-            ],
-            "tangent": [
-              0.0,
-              -1.0
-            ],
-            "right": [
-              -1.0,
-              -0.0
-            ],
-            "thickness": 0.3,
-            "curved": false,
-            "outline": [
-              [
-                -1.0,
-                0.0
-              ],
-              [
-                1.0,
-                0.0
-              ],
-              [
-                1.0,
-                1.2
-              ],
-              [
-                -1.0,
-                1.2
-              ]
-            ],
-            "inner_outline": [
-              [
-                0.9500000000000001,
-                0.05
-              ],
-              [
-                0.9500000000000001,
-                1.1500000000000001
-              ],
-              [
-                -0.9500000000000001,
-                1.1500000000000001
-              ],
-              [
-                -0.9500000000000001,
-                0.05
-              ]
-            ],
-            "cutter": {
-              "right": [
-                [
-                  4.95,
-                  -4.5,
-                  0.9
-                ],
-                [
-                  4.95,
-                  -6.5,
-                  0.9
-                ],
-                [
-                  4.95,
-                  -6.5,
-                  2.1
-                ],
-                [
-                  4.95,
-                  -4.5,
-                  2.1
-                ]
-              ],
-              "left": [
-                [
-                  5.3500000000000005,
-                  -4.5,
-                  0.9
-                ],
-                [
-                  5.3500000000000005,
-                  -6.5,
-                  0.9
-                ],
-                [
-                  5.3500000000000005,
-                  -6.5,
-                  2.1
-                ],
-                [
-                  5.3500000000000005,
-                  -4.5,
-                  2.1
-                ]
-              ]
-            },
-            "threshold": [],
-            "materials": {
-              "reveal": "white_paint",
-              "threshold": null,
-              "door": null,
-              "frame": "white_paint",
-              "glass": "clear_glass",
-              "handle": null
-            }
-          },
-          {
-            "id": "o4",
-            "wall": "w8",
-            "type": "window",
-            "shape": "rectangle",
-            "width": 2.0,
-            "height": 1.2,
-            "sill": 0.9,
-            "hinge": "start",
-            "swing": "right",
-            "frame": null,
-            "centre": [
-              5.15,
-              -9.4
-            ],
-            "tangent": [
-              0.0,
-              -1.0
-            ],
-            "right": [
-              -1.0,
-              -0.0
-            ],
-            "thickness": 0.3,
-            "curved": false,
-            "outline": [
-              [
-                -1.0,
-                0.0
-              ],
-              [
-                1.0,
-                0.0
-              ],
-              [
-                1.0,
-                1.2
-              ],
-              [
-                -1.0,
-                1.2
-              ]
-            ],
-            "inner_outline": [
-              [
-                0.9500000000000001,
-                0.05
-              ],
-              [
-                0.9500000000000001,
-                1.1500000000000001
-              ],
-              [
-                -0.9500000000000001,
-                1.1500000000000001
-              ],
-              [
-                -0.9500000000000001,
-                0.05
-              ]
-            ],
-            "cutter": {
-              "right": [
-                [
-                  4.95,
-                  -8.4,
-                  0.9
-                ],
-                [
-                  4.95,
-                  -10.4,
-                  0.9
-                ],
-                [
-                  4.95,
-                  -10.4,
-                  2.1
-                ],
-                [
-                  4.95,
-                  -8.4,
-                  2.1
-                ]
-              ],
-              "left": [
-                [
-                  5.3500000000000005,
-                  -8.4,
-                  0.9
-                ],
-                [
-                  5.3500000000000005,
-                  -10.4,
-                  0.9
-                ],
-                [
-                  5.3500000000000005,
-                  -10.4,
-                  2.1
-                ],
-                [
-                  5.3500000000000005,
-                  -8.4,
-                  2.1
-                ]
-              ]
-            },
-            "threshold": [],
-            "materials": {
-              "reveal": "white_paint",
-              "threshold": null,
-              "door": null,
-              "frame": "white_paint",
-              "glass": "clear_glass",
-              "handle": null
-            }
-          },
-          {
-            "id": "o5",
             "wall": "w3",
-            "type": "window",
-            "shape": "rectangle",
-            "width": 1.6,
-            "height": 1.2,
-            "sill": 0.9,
-            "hinge": "start",
-            "swing": "right",
-            "frame": null,
-            "centre": [
-              14.85,
-              -5.0
-            ],
-            "tangent": [
-              0.0,
-              -1.0
-            ],
-            "right": [
-              -1.0,
-              -0.0
-            ],
-            "thickness": 0.3,
-            "curved": false,
-            "outline": [
-              [
-                -0.8,
-                0.0
-              ],
-              [
-                0.8,
-                0.0
-              ],
-              [
-                0.8,
-                1.2
-              ],
-              [
-                -0.8,
-                1.2
-              ]
-            ],
-            "inner_outline": [
-              [
-                0.75,
-                0.05
-              ],
-              [
-                0.75,
-                1.1500000000000001
-              ],
-              [
-                -0.75,
-                1.1500000000000001
-              ],
-              [
-                -0.75,
-                0.05
-              ]
-            ],
-            "cutter": {
-              "right": [
-                [
-                  14.65,
-                  -4.2,
-                  0.9
-                ],
-                [
-                  14.65,
-                  -5.8,
-                  0.9
-                ],
-                [
-                  14.65,
-                  -5.8,
-                  2.1
-                ],
-                [
-                  14.65,
-                  -4.2,
-                  2.1
-                ]
-              ],
-              "left": [
-                [
-                  15.049999999999999,
-                  -4.2,
-                  0.9
-                ],
-                [
-                  15.049999999999999,
-                  -5.8,
-                  0.9
-                ],
-                [
-                  15.049999999999999,
-                  -5.8,
-                  2.1
-                ],
-                [
-                  15.049999999999999,
-                  -4.2,
-                  2.1
-                ]
-              ]
-            },
-            "threshold": [],
-            "materials": {
-              "reveal": "white_paint",
-              "threshold": null,
-              "door": null,
-              "frame": "white_paint",
-              "glass": "clear_glass",
-              "handle": null
-            }
-          },
-          {
-            "id": "o6",
-            "wall": "w4",
-            "type": "window",
-            "shape": "rectangle",
-            "width": 1.6,
-            "height": 1.2,
-            "sill": 0.9,
-            "hinge": "start",
-            "swing": "right",
-            "frame": null,
-            "centre": [
-              14.85,
-              -9.0
-            ],
-            "tangent": [
-              0.0,
-              -1.0
-            ],
-            "right": [
-              -1.0,
-              -0.0
-            ],
-            "thickness": 0.3,
-            "curved": false,
-            "outline": [
-              [
-                -0.8,
-                0.0
-              ],
-              [
-                0.8,
-                0.0
-              ],
-              [
-                0.8,
-                1.2
-              ],
-              [
-                -0.8,
-                1.2
-              ]
-            ],
-            "inner_outline": [
-              [
-                0.75,
-                0.05
-              ],
-              [
-                0.75,
-                1.1500000000000001
-              ],
-              [
-                -0.75,
-                1.1500000000000001
-              ],
-              [
-                -0.75,
-                0.05
-              ]
-            ],
-            "cutter": {
-              "right": [
-                [
-                  14.65,
-                  -8.2,
-                  0.9
-                ],
-                [
-                  14.65,
-                  -9.8,
-                  0.9
-                ],
-                [
-                  14.65,
-                  -9.8,
-                  2.1
-                ],
-                [
-                  14.65,
-                  -8.2,
-                  2.1
-                ]
-              ],
-              "left": [
-                [
-                  15.049999999999999,
-                  -8.2,
-                  0.9
-                ],
-                [
-                  15.049999999999999,
-                  -9.8,
-                  0.9
-                ],
-                [
-                  15.049999999999999,
-                  -9.8,
-                  2.1
-                ],
-                [
-                  15.049999999999999,
-                  -8.2,
-                  2.1
-                ]
-              ]
-            },
-            "threshold": [],
-            "materials": {
-              "reveal": "white_paint",
-              "threshold": null,
-              "door": null,
-              "frame": "white_paint",
-              "glass": "clear_glass",
-              "handle": null
-            }
-          },
-          {
-            "id": "o7",
-            "wall": "w5",
-            "type": "window",
-            "shape": "rectangle",
-            "width": 2.0,
-            "height": 1.2,
-            "sill": 0.9,
-            "hinge": "start",
-            "swing": "right",
-            "frame": null,
-            "centre": [
-              7.0,
-              -10.85
-            ],
-            "tangent": [
-              1.0,
-              -0.0
-            ],
-            "right": [
-              -0.0,
-              -1.0
-            ],
-            "thickness": 0.3,
-            "curved": false,
-            "outline": [
-              [
-                -1.0,
-                0.0
-              ],
-              [
-                1.0,
-                0.0
-              ],
-              [
-                1.0,
-                1.2
-              ],
-              [
-                -1.0,
-                1.2
-              ]
-            ],
-            "inner_outline": [
-              [
-                0.9500000000000001,
-                0.05
-              ],
-              [
-                0.9500000000000001,
-                1.1500000000000001
-              ],
-              [
-                -0.9500000000000001,
-                1.1500000000000001
-              ],
-              [
-                -0.9500000000000001,
-                0.05
-              ]
-            ],
-            "cutter": {
-              "right": [
-                [
-                  6.0,
-                  -11.049999999999999,
-                  0.9
-                ],
-                [
-                  8.0,
-                  -11.049999999999999,
-                  0.9
-                ],
-                [
-                  8.0,
-                  -11.049999999999999,
-                  2.1
-                ],
-                [
-                  6.0,
-                  -11.049999999999999,
-                  2.1
-                ]
-              ],
-              "left": [
-                [
-                  6.0,
-                  -10.65,
-                  0.9
-                ],
-                [
-                  8.0,
-                  -10.65,
-                  0.9
-                ],
-                [
-                  8.0,
-                  -10.65,
-                  2.1
-                ],
-                [
-                  6.0,
-                  -10.65,
-                  2.1
-                ]
-              ]
-            },
-            "threshold": [],
-            "materials": {
-              "reveal": "white_paint",
-              "threshold": null,
-              "door": null,
-              "frame": "white_paint",
-              "glass": "clear_glass",
-              "handle": null
-            }
-          },
-          {
-            "id": "o8",
-            "wall": "w6",
             "type": "door",
             "shape": "rectangle",
             "width": 0.9,
             "height": 2.1,
             "sill": 0.0,
             "hinge": "start",
-            "swing": "right",
-            "frame": null,
-            "centre": [
-              12.45,
-              -10.85
-            ],
-            "tangent": [
-              1.0,
-              -0.0
-            ],
-            "right": [
-              -0.0,
-              -1.0
-            ],
-            "thickness": 0.3,
-            "curved": false,
-            "outline": [
-              [
-                -0.45,
-                0.0
-              ],
-              [
-                0.45,
-                0.0
-              ],
-              [
-                0.45,
-                2.1
-              ],
-              [
-                -0.45,
-                2.1
-              ]
-            ],
-            "inner_outline": [
-              [
-                0.3999999985098839,
-                2.0499999970197678
-              ],
-              [
-                -0.3999999985098839,
-                2.0499999970197678
-              ],
-              [
-                -0.3999999985098839,
-                0.0
-              ],
-              [
-                0.3999999985098839,
-                0.0
-              ]
-            ],
-            "cutter": {
-              "right": [
-                [
-                  12.0,
-                  -11.049999999999999,
-                  -0.05
-                ],
-                [
-                  12.899999999999999,
-                  -11.049999999999999,
-                  -0.05
-                ],
-                [
-                  12.899999999999999,
-                  -11.049999999999999,
-                  2.1
-                ],
-                [
-                  12.0,
-                  -11.049999999999999,
-                  2.1
-                ]
-              ],
-              "left": [
-                [
-                  12.0,
-                  -10.65,
-                  -0.05
-                ],
-                [
-                  12.899999999999999,
-                  -10.65,
-                  -0.05
-                ],
-                [
-                  12.899999999999999,
-                  -10.65,
-                  2.1
-                ],
-                [
-                  12.0,
-                  -10.65,
-                  2.1
-                ]
-              ]
-            },
-            "threshold": [
-              [
-                12.0,
-                -11.0
-              ],
-              [
-                12.9,
-                -11.0
-              ],
-              [
-                12.9,
-                -10.7
-              ],
-              [
-                12.0,
-                -10.7
-              ]
-            ],
-            "materials": {
-              "reveal": "white_paint",
-              "threshold": "oak_planks",
-              "door": "painted_wood",
-              "frame": "white_paint",
-              "glass": null,
-              "handle": "brushed_steel"
-            }
-          },
-          {
-            "id": "o9",
-            "wall": "w13",
-            "type": "door",
-            "shape": "rectangle",
-            "width": 0.9,
-            "height": 2.1,
-            "sill": 0.0,
-            "hinge": "start",
-            "swing": "right",
-            "frame": null,
-            "centre": [
-              11.45,
-              -7.0
-            ],
-            "tangent": [
-              1.0,
-              -0.0
-            ],
-            "right": [
-              -0.0,
-              -1.0
-            ],
-            "thickness": 0.12,
-            "curved": false,
-            "outline": [
-              [
-                -0.45,
-                0.0
-              ],
-              [
-                0.45,
-                0.0
-              ],
-              [
-                0.45,
-                2.1
-              ],
-              [
-                -0.45,
-                2.1
-              ]
-            ],
-            "inner_outline": [
-              [
-                0.3999999985098839,
-                2.0499999970197678
-              ],
-              [
-                -0.3999999985098839,
-                2.0499999970197678
-              ],
-              [
-                -0.3999999985098839,
-                0.0
-              ],
-              [
-                0.3999999985098839,
-                0.0
-              ]
-            ],
-            "cutter": {
-              "right": [
-                [
-                  11.0,
-                  -7.11,
-                  -0.05
-                ],
-                [
-                  11.899999999999999,
-                  -7.11,
-                  -0.05
-                ],
-                [
-                  11.899999999999999,
-                  -7.11,
-                  2.1
-                ],
-                [
-                  11.0,
-                  -7.11,
-                  2.1
-                ]
-              ],
-              "left": [
-                [
-                  11.0,
-                  -6.89,
-                  -0.05
-                ],
-                [
-                  11.899999999999999,
-                  -6.89,
-                  -0.05
-                ],
-                [
-                  11.899999999999999,
-                  -6.89,
-                  2.1
-                ],
-                [
-                  11.0,
-                  -6.89,
-                  2.1
-                ]
-              ]
-            },
-            "threshold": [
-              [
-                11.0,
-                -7.06
-              ],
-              [
-                11.899999999999999,
-                -7.06
-              ],
-              [
-                11.899999999999999,
-                -6.94
-              ],
-              [
-                11.0,
-                -6.94
-              ]
-            ],
-            "materials": {
-              "reveal": "white_paint",
-              "threshold": "oak_planks",
-              "door": "painted_wood",
-              "frame": "white_paint",
-              "glass": null,
-              "handle": "brushed_steel"
-            }
-          },
-          {
-            "id": "o10",
-            "wall": "w11",
-            "type": "door",
-            "shape": "rectangle",
-            "width": 0.9,
-            "height": 2.1,
-            "sill": 0.0,
-            "hinge": "start",
-            "swing": "right",
-            "frame": null,
-            "centre": [
-              10.0,
-              -9.45
-            ],
-            "tangent": [
-              0.0,
-              -1.0
-            ],
-            "right": [
-              -1.0,
-              -0.0
-            ],
-            "thickness": 0.12,
-            "curved": false,
-            "outline": [
-              [
-                -0.45,
-                0.0
-              ],
-              [
-                0.45,
-                0.0
-              ],
-              [
-                0.45,
-                2.1
-              ],
-              [
-                -0.45,
-                2.1
-              ]
-            ],
-            "inner_outline": [
-              [
-                0.3999999985098839,
-                2.0499999970197678
-              ],
-              [
-                -0.3999999985098839,
-                2.0499999970197678
-              ],
-              [
-                -0.3999999985098839,
-                0.0
-              ],
-              [
-                0.3999999985098839,
-                0.0
-              ]
-            ],
-            "cutter": {
-              "right": [
-                [
-                  9.89,
-                  -9.0,
-                  -0.05
-                ],
-                [
-                  9.89,
-                  -9.899999999999999,
-                  -0.05
-                ],
-                [
-                  9.89,
-                  -9.899999999999999,
-                  2.1
-                ],
-                [
-                  9.89,
-                  -9.0,
-                  2.1
-                ]
-              ],
-              "left": [
-                [
-                  10.11,
-                  -9.0,
-                  -0.05
-                ],
-                [
-                  10.11,
-                  -9.899999999999999,
-                  -0.05
-                ],
-                [
-                  10.11,
-                  -9.899999999999999,
-                  2.1
-                ],
-                [
-                  10.11,
-                  -9.0,
-                  2.1
-                ]
-              ]
-            },
-            "threshold": [
-              [
-                9.94,
-                -9.0
-              ],
-              [
-                9.94,
-                -9.899999999999999
-              ],
-              [
-                10.06,
-                -9.899999999999999
-              ],
-              [
-                10.06,
-                -9.0
-              ]
-            ],
-            "materials": {
-              "reveal": "white_paint",
-              "threshold": "oak_planks",
-              "door": "painted_wood",
-              "frame": "white_paint",
-              "glass": null,
-              "handle": "brushed_steel"
-            }
-          },
-          {
-            "id": "o11",
-            "wall": "w12",
-            "type": "door",
-            "shape": "rectangle",
-            "width": 0.9,
-            "height": 2.1,
-            "sill": 0.0,
-            "hinge": "start",
-            "swing": "right",
+            "swing": "left",
             "frame": null,
             "centre": [
               7.449999999999999,
@@ -2789,7 +1802,626 @@
             }
           },
           {
-            "id": "o12",
+            "id": "o4",
+            "wall": "w4",
+            "type": "window",
+            "shape": "rectangle",
+            "width": 2.0,
+            "height": 1.2,
+            "sill": 0.9,
+            "hinge": "start",
+            "swing": "right",
+            "frame": null,
+            "centre": [
+              7.0,
+              -10.85
+            ],
+            "tangent": [
+              1.0,
+              -0.0
+            ],
+            "right": [
+              -0.0,
+              -1.0
+            ],
+            "thickness": 0.3,
+            "curved": false,
+            "outline": [
+              [
+                -1.0,
+                0.0
+              ],
+              [
+                1.0,
+                0.0
+              ],
+              [
+                1.0,
+                1.2
+              ],
+              [
+                -1.0,
+                1.2
+              ]
+            ],
+            "inner_outline": [
+              [
+                0.9500000000000001,
+                0.05
+              ],
+              [
+                0.9500000000000001,
+                1.1500000000000001
+              ],
+              [
+                -0.9500000000000001,
+                1.1500000000000001
+              ],
+              [
+                -0.9500000000000001,
+                0.05
+              ]
+            ],
+            "cutter": {
+              "right": [
+                [
+                  6.0,
+                  -11.049999999999999,
+                  0.9
+                ],
+                [
+                  8.0,
+                  -11.049999999999999,
+                  0.9
+                ],
+                [
+                  8.0,
+                  -11.049999999999999,
+                  2.1
+                ],
+                [
+                  6.0,
+                  -11.049999999999999,
+                  2.1
+                ]
+              ],
+              "left": [
+                [
+                  6.0,
+                  -10.65,
+                  0.9
+                ],
+                [
+                  8.0,
+                  -10.65,
+                  0.9
+                ],
+                [
+                  8.0,
+                  -10.65,
+                  2.1
+                ],
+                [
+                  6.0,
+                  -10.65,
+                  2.1
+                ]
+              ]
+            },
+            "threshold": [],
+            "materials": {
+              "reveal": "white_paint",
+              "threshold": null,
+              "door": null,
+              "frame": "white_paint",
+              "glass": "clear_glass",
+              "handle": null
+            }
+          },
+          {
+            "id": "o5",
+            "wall": "w5",
+            "type": "door",
+            "shape": "rectangle",
+            "width": 0.9,
+            "height": 2.1,
+            "sill": 0.0,
+            "hinge": "start",
+            "swing": "left",
+            "frame": null,
+            "centre": [
+              12.45,
+              -10.85
+            ],
+            "tangent": [
+              1.0,
+              -0.0
+            ],
+            "right": [
+              -0.0,
+              -1.0
+            ],
+            "thickness": 0.3,
+            "curved": false,
+            "outline": [
+              [
+                -0.45,
+                0.0
+              ],
+              [
+                0.45,
+                0.0
+              ],
+              [
+                0.45,
+                2.1
+              ],
+              [
+                -0.45,
+                2.1
+              ]
+            ],
+            "inner_outline": [
+              [
+                0.3999999985098839,
+                2.0499999970197678
+              ],
+              [
+                -0.3999999985098839,
+                2.0499999970197678
+              ],
+              [
+                -0.3999999985098839,
+                0.0
+              ],
+              [
+                0.3999999985098839,
+                0.0
+              ]
+            ],
+            "cutter": {
+              "right": [
+                [
+                  12.0,
+                  -11.049999999999999,
+                  -0.05
+                ],
+                [
+                  12.899999999999999,
+                  -11.049999999999999,
+                  -0.05
+                ],
+                [
+                  12.899999999999999,
+                  -11.049999999999999,
+                  2.1
+                ],
+                [
+                  12.0,
+                  -11.049999999999999,
+                  2.1
+                ]
+              ],
+              "left": [
+                [
+                  12.0,
+                  -10.65,
+                  -0.05
+                ],
+                [
+                  12.899999999999999,
+                  -10.65,
+                  -0.05
+                ],
+                [
+                  12.899999999999999,
+                  -10.65,
+                  2.1
+                ],
+                [
+                  12.0,
+                  -10.65,
+                  2.1
+                ]
+              ]
+            },
+            "threshold": [
+              [
+                12.0,
+                -11.0
+              ],
+              [
+                12.9,
+                -11.0
+              ],
+              [
+                12.9,
+                -10.7
+              ],
+              [
+                12.0,
+                -10.7
+              ]
+            ],
+            "materials": {
+              "reveal": "white_paint",
+              "threshold": "oak_planks",
+              "door": "painted_wood",
+              "frame": "white_paint",
+              "glass": null,
+              "handle": "brushed_steel"
+            }
+          },
+          {
+            "id": "o6",
+            "wall": "w6",
+            "type": "door",
+            "shape": "rectangle",
+            "width": 0.9,
+            "height": 2.1,
+            "sill": 0.0,
+            "hinge": "start",
+            "swing": "left",
+            "frame": null,
+            "centre": [
+              11.45,
+              -7.0
+            ],
+            "tangent": [
+              1.0,
+              -0.0
+            ],
+            "right": [
+              -0.0,
+              -1.0
+            ],
+            "thickness": 0.12,
+            "curved": false,
+            "outline": [
+              [
+                -0.45,
+                0.0
+              ],
+              [
+                0.45,
+                0.0
+              ],
+              [
+                0.45,
+                2.1
+              ],
+              [
+                -0.45,
+                2.1
+              ]
+            ],
+            "inner_outline": [
+              [
+                0.3999999985098839,
+                2.0499999970197678
+              ],
+              [
+                -0.3999999985098839,
+                2.0499999970197678
+              ],
+              [
+                -0.3999999985098839,
+                0.0
+              ],
+              [
+                0.3999999985098839,
+                0.0
+              ]
+            ],
+            "cutter": {
+              "right": [
+                [
+                  11.0,
+                  -7.11,
+                  -0.05
+                ],
+                [
+                  11.899999999999999,
+                  -7.11,
+                  -0.05
+                ],
+                [
+                  11.899999999999999,
+                  -7.11,
+                  2.1
+                ],
+                [
+                  11.0,
+                  -7.11,
+                  2.1
+                ]
+              ],
+              "left": [
+                [
+                  11.0,
+                  -6.89,
+                  -0.05
+                ],
+                [
+                  11.899999999999999,
+                  -6.89,
+                  -0.05
+                ],
+                [
+                  11.899999999999999,
+                  -6.89,
+                  2.1
+                ],
+                [
+                  11.0,
+                  -6.89,
+                  2.1
+                ]
+              ]
+            },
+            "threshold": [
+              [
+                11.0,
+                -7.06
+              ],
+              [
+                11.899999999999999,
+                -7.06
+              ],
+              [
+                11.899999999999999,
+                -6.94
+              ],
+              [
+                11.0,
+                -6.94
+              ]
+            ],
+            "materials": {
+              "reveal": "white_paint",
+              "threshold": "oak_planks",
+              "door": "painted_wood",
+              "frame": "white_paint",
+              "glass": null,
+              "handle": "brushed_steel"
+            }
+          },
+          {
+            "id": "o7",
+            "wall": "w7",
+            "type": "window",
+            "shape": "rectangle",
+            "width": 2.0,
+            "height": 1.2,
+            "sill": 0.9,
+            "hinge": "start",
+            "swing": "right",
+            "frame": null,
+            "centre": [
+              5.15,
+              -5.5
+            ],
+            "tangent": [
+              0.0,
+              -1.0
+            ],
+            "right": [
+              -1.0,
+              -0.0
+            ],
+            "thickness": 0.3,
+            "curved": false,
+            "outline": [
+              [
+                -1.0,
+                0.0
+              ],
+              [
+                1.0,
+                0.0
+              ],
+              [
+                1.0,
+                1.2
+              ],
+              [
+                -1.0,
+                1.2
+              ]
+            ],
+            "inner_outline": [
+              [
+                0.9500000000000001,
+                0.05
+              ],
+              [
+                0.9500000000000001,
+                1.1500000000000001
+              ],
+              [
+                -0.9500000000000001,
+                1.1500000000000001
+              ],
+              [
+                -0.9500000000000001,
+                0.05
+              ]
+            ],
+            "cutter": {
+              "right": [
+                [
+                  4.95,
+                  -4.5,
+                  0.9
+                ],
+                [
+                  4.95,
+                  -6.5,
+                  0.9
+                ],
+                [
+                  4.95,
+                  -6.5,
+                  2.1
+                ],
+                [
+                  4.95,
+                  -4.5,
+                  2.1
+                ]
+              ],
+              "left": [
+                [
+                  5.3500000000000005,
+                  -4.5,
+                  0.9
+                ],
+                [
+                  5.3500000000000005,
+                  -6.5,
+                  0.9
+                ],
+                [
+                  5.3500000000000005,
+                  -6.5,
+                  2.1
+                ],
+                [
+                  5.3500000000000005,
+                  -4.5,
+                  2.1
+                ]
+              ]
+            },
+            "threshold": [],
+            "materials": {
+              "reveal": "white_paint",
+              "threshold": null,
+              "door": null,
+              "frame": "white_paint",
+              "glass": "clear_glass",
+              "handle": null
+            }
+          },
+          {
+            "id": "o8",
+            "wall": "w8",
+            "type": "window",
+            "shape": "rectangle",
+            "width": 2.0,
+            "height": 1.2,
+            "sill": 0.9,
+            "hinge": "start",
+            "swing": "right",
+            "frame": null,
+            "centre": [
+              5.15,
+              -9.4
+            ],
+            "tangent": [
+              0.0,
+              -1.0
+            ],
+            "right": [
+              -1.0,
+              -0.0
+            ],
+            "thickness": 0.3,
+            "curved": false,
+            "outline": [
+              [
+                -1.0,
+                0.0
+              ],
+              [
+                1.0,
+                0.0
+              ],
+              [
+                1.0,
+                1.2
+              ],
+              [
+                -1.0,
+                1.2
+              ]
+            ],
+            "inner_outline": [
+              [
+                0.9500000000000001,
+                0.05
+              ],
+              [
+                0.9500000000000001,
+                1.1500000000000001
+              ],
+              [
+                -0.9500000000000001,
+                1.1500000000000001
+              ],
+              [
+                -0.9500000000000001,
+                0.05
+              ]
+            ],
+            "cutter": {
+              "right": [
+                [
+                  4.95,
+                  -8.4,
+                  0.9
+                ],
+                [
+                  4.95,
+                  -10.4,
+                  0.9
+                ],
+                [
+                  4.95,
+                  -10.4,
+                  2.1
+                ],
+                [
+                  4.95,
+                  -8.4,
+                  2.1
+                ]
+              ],
+              "left": [
+                [
+                  5.3500000000000005,
+                  -8.4,
+                  0.9
+                ],
+                [
+                  5.3500000000000005,
+                  -10.4,
+                  0.9
+                ],
+                [
+                  5.3500000000000005,
+                  -10.4,
+                  2.1
+                ],
+                [
+                  5.3500000000000005,
+                  -8.4,
+                  2.1
+                ]
+              ]
+            },
+            "threshold": [],
+            "materials": {
+              "reveal": "white_paint",
+              "threshold": null,
+              "door": null,
+              "frame": "white_paint",
+              "glass": "clear_glass",
+              "handle": null
+            }
+          },
+          {
+            "id": "o9",
             "wall": "w9",
             "type": "plain",
             "shape": "rectangle",
@@ -2921,6 +2553,374 @@
               "glass": null,
               "handle": null
             }
+          },
+          {
+            "id": "o10",
+            "wall": "w11",
+            "type": "door",
+            "shape": "rectangle",
+            "width": 0.9,
+            "height": 2.1,
+            "sill": 0.0,
+            "hinge": "end",
+            "swing": "right",
+            "frame": null,
+            "centre": [
+              10.0,
+              -9.45
+            ],
+            "tangent": [
+              0.0,
+              -1.0
+            ],
+            "right": [
+              -1.0,
+              -0.0
+            ],
+            "thickness": 0.12,
+            "curved": false,
+            "outline": [
+              [
+                -0.45,
+                0.0
+              ],
+              [
+                0.45,
+                0.0
+              ],
+              [
+                0.45,
+                2.1
+              ],
+              [
+                -0.45,
+                2.1
+              ]
+            ],
+            "inner_outline": [
+              [
+                0.3999999985098839,
+                2.0499999970197678
+              ],
+              [
+                -0.3999999985098839,
+                2.0499999970197678
+              ],
+              [
+                -0.3999999985098839,
+                0.0
+              ],
+              [
+                0.3999999985098839,
+                0.0
+              ]
+            ],
+            "cutter": {
+              "right": [
+                [
+                  9.89,
+                  -9.0,
+                  -0.05
+                ],
+                [
+                  9.89,
+                  -9.899999999999999,
+                  -0.05
+                ],
+                [
+                  9.89,
+                  -9.899999999999999,
+                  2.1
+                ],
+                [
+                  9.89,
+                  -9.0,
+                  2.1
+                ]
+              ],
+              "left": [
+                [
+                  10.11,
+                  -9.0,
+                  -0.05
+                ],
+                [
+                  10.11,
+                  -9.899999999999999,
+                  -0.05
+                ],
+                [
+                  10.11,
+                  -9.899999999999999,
+                  2.1
+                ],
+                [
+                  10.11,
+                  -9.0,
+                  2.1
+                ]
+              ]
+            },
+            "threshold": [
+              [
+                9.94,
+                -9.0
+              ],
+              [
+                9.94,
+                -9.899999999999999
+              ],
+              [
+                10.06,
+                -9.899999999999999
+              ],
+              [
+                10.06,
+                -9.0
+              ]
+            ],
+            "materials": {
+              "reveal": "white_paint",
+              "threshold": "oak_planks",
+              "door": "painted_wood",
+              "frame": "white_paint",
+              "glass": null,
+              "handle": "brushed_steel"
+            }
+          },
+          {
+            "id": "o11",
+            "wall": "w12",
+            "type": "window",
+            "shape": "rectangle",
+            "width": 1.6,
+            "height": 1.2,
+            "sill": 0.9,
+            "hinge": "start",
+            "swing": "right",
+            "frame": null,
+            "centre": [
+              14.85,
+              -5.0
+            ],
+            "tangent": [
+              0.0,
+              -1.0
+            ],
+            "right": [
+              -1.0,
+              -0.0
+            ],
+            "thickness": 0.3,
+            "curved": false,
+            "outline": [
+              [
+                -0.8,
+                0.0
+              ],
+              [
+                0.8,
+                0.0
+              ],
+              [
+                0.8,
+                1.2
+              ],
+              [
+                -0.8,
+                1.2
+              ]
+            ],
+            "inner_outline": [
+              [
+                0.75,
+                0.05
+              ],
+              [
+                0.75,
+                1.1500000000000001
+              ],
+              [
+                -0.75,
+                1.1500000000000001
+              ],
+              [
+                -0.75,
+                0.05
+              ]
+            ],
+            "cutter": {
+              "right": [
+                [
+                  14.65,
+                  -4.2,
+                  0.9
+                ],
+                [
+                  14.65,
+                  -5.8,
+                  0.9
+                ],
+                [
+                  14.65,
+                  -5.8,
+                  2.1
+                ],
+                [
+                  14.65,
+                  -4.2,
+                  2.1
+                ]
+              ],
+              "left": [
+                [
+                  15.049999999999999,
+                  -4.2,
+                  0.9
+                ],
+                [
+                  15.049999999999999,
+                  -5.8,
+                  0.9
+                ],
+                [
+                  15.049999999999999,
+                  -5.8,
+                  2.1
+                ],
+                [
+                  15.049999999999999,
+                  -4.2,
+                  2.1
+                ]
+              ]
+            },
+            "threshold": [],
+            "materials": {
+              "reveal": "white_paint",
+              "threshold": null,
+              "door": null,
+              "frame": "white_paint",
+              "glass": "clear_glass",
+              "handle": null
+            }
+          },
+          {
+            "id": "o12",
+            "wall": "w13",
+            "type": "window",
+            "shape": "rectangle",
+            "width": 1.6,
+            "height": 1.2,
+            "sill": 0.9,
+            "hinge": "start",
+            "swing": "right",
+            "frame": null,
+            "centre": [
+              14.85,
+              -9.0
+            ],
+            "tangent": [
+              0.0,
+              -1.0
+            ],
+            "right": [
+              -1.0,
+              -0.0
+            ],
+            "thickness": 0.3,
+            "curved": false,
+            "outline": [
+              [
+                -0.8,
+                0.0
+              ],
+              [
+                0.8,
+                0.0
+              ],
+              [
+                0.8,
+                1.2
+              ],
+              [
+                -0.8,
+                1.2
+              ]
+            ],
+            "inner_outline": [
+              [
+                0.75,
+                0.05
+              ],
+              [
+                0.75,
+                1.1500000000000001
+              ],
+              [
+                -0.75,
+                1.1500000000000001
+              ],
+              [
+                -0.75,
+                0.05
+              ]
+            ],
+            "cutter": {
+              "right": [
+                [
+                  14.65,
+                  -8.2,
+                  0.9
+                ],
+                [
+                  14.65,
+                  -9.8,
+                  0.9
+                ],
+                [
+                  14.65,
+                  -9.8,
+                  2.1
+                ],
+                [
+                  14.65,
+                  -8.2,
+                  2.1
+                ]
+              ],
+              "left": [
+                [
+                  15.049999999999999,
+                  -8.2,
+                  0.9
+                ],
+                [
+                  15.049999999999999,
+                  -9.8,
+                  0.9
+                ],
+                [
+                  15.049999999999999,
+                  -9.8,
+                  2.1
+                ],
+                [
+                  15.049999999999999,
+                  -8.2,
+                  2.1
+                ]
+              ]
+            },
+            "threshold": [],
+            "materials": {
+              "reveal": "white_paint",
+              "threshold": null,
+              "door": null,
+              "frame": "white_paint",
+              "glass": "clear_glass",
+              "handle": null
+            }
           }
         ],
         "rooms": [
@@ -2990,61 +2990,6 @@
           {
             "id": "r2",
             "type": null,
-            "area": 12.24960000433921,
-            "floor_z": 0.0,
-            "ceiling_z": 3.0,
-            "floor_material": "oak_planks",
-            "ceiling_material": "white_paint",
-            "polygons": [
-              {
-                "outline": [
-                  [
-                    5.299999997019768,
-                    -10.700000002980232
-                  ],
-                  [
-                    9.939999997615814,
-                    -10.700000002980232
-                  ],
-                  [
-                    9.939999997615814,
-                    -8.060000002384186
-                  ],
-                  [
-                    5.299999997019768,
-                    -8.060000002384186
-                  ]
-                ],
-                "holes": []
-              }
-            ],
-            "ceiling_polygons": [
-              {
-                "outline": [
-                  [
-                    5.299999997019768,
-                    -10.700000002980232
-                  ],
-                  [
-                    9.939999997615814,
-                    -10.700000002980232
-                  ],
-                  [
-                    9.939999997615814,
-                    -8.060000002384186
-                  ],
-                  [
-                    5.299999997019768,
-                    -8.060000002384186
-                  ]
-                ],
-                "holes": []
-              }
-            ]
-          },
-          {
-            "id": "r3",
-            "type": null,
             "area": 16.889600004935257,
             "floor_z": 0.0,
             "ceiling_z": 3.0,
@@ -3091,6 +3036,61 @@
                   [
                     10.060000002384186,
                     -3.2999999970197678
+                  ]
+                ],
+                "holes": []
+              }
+            ]
+          },
+          {
+            "id": "r3",
+            "type": null,
+            "area": 12.24960000433921,
+            "floor_z": 0.0,
+            "ceiling_z": 3.0,
+            "floor_material": "oak_planks",
+            "ceiling_material": "white_paint",
+            "polygons": [
+              {
+                "outline": [
+                  [
+                    5.299999997019768,
+                    -10.700000002980232
+                  ],
+                  [
+                    9.939999997615814,
+                    -10.700000002980232
+                  ],
+                  [
+                    9.939999997615814,
+                    -8.060000002384186
+                  ],
+                  [
+                    5.299999997019768,
+                    -8.060000002384186
+                  ]
+                ],
+                "holes": []
+              }
+            ],
+            "ceiling_polygons": [
+              {
+                "outline": [
+                  [
+                    5.299999997019768,
+                    -10.700000002980232
+                  ],
+                  [
+                    9.939999997615814,
+                    -10.700000002980232
+                  ],
+                  [
+                    9.939999997615814,
+                    -8.060000002384186
+                  ],
+                  [
+                    5.299999997019768,
+                    -8.060000002384186
                   ]
                 ],
                 "holes": []
@@ -3345,6 +3345,41 @@
               "holes": []
             }
           ],
+          "sides": [
+            {
+              "outline": [
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge"
+              ],
+              "holes": [
+                [
+                  "well",
+                  "well",
+                  "well",
+                  "well",
+                  "well",
+                  "well",
+                  "well",
+                  "well"
+                ]
+              ]
+            }
+          ],
+          "tops": [],
           "materials": {
             "edge": "red_brick",
             "well": "white_paint",
@@ -4475,37 +4510,37 @@
               ],
               "edges": [
                 {
-                  "wall": "w18",
-                  "side": "right",
-                  "room": null,
-                  "material": "red_brick"
-                },
-                {
-                  "wall": "w18",
-                  "side": "right",
-                  "room": null,
-                  "material": "red_brick"
-                },
-                {
-                  "wall": "w19",
+                  "wall": "w17",
                   "side": "right",
                   "room": null,
                   "material": "red_brick"
                 },
                 {
                   "wall": "w17",
+                  "side": "right",
+                  "room": null,
+                  "material": "red_brick"
+                },
+                {
+                  "wall": "w18",
+                  "side": "right",
+                  "room": null,
+                  "material": "red_brick"
+                },
+                {
+                  "wall": "w26",
                   "side": "left",
                   "room": null,
                   "material": "red_brick"
                 },
                 {
-                  "wall": "w16",
+                  "wall": "w25",
                   "side": "left",
                   "room": null,
                   "material": "red_brick"
                 },
                 {
-                  "wall": "w16",
+                  "wall": "w25",
                   "side": "left",
                   "room": null,
                   "material": "red_brick"
@@ -4580,37 +4615,37 @@
                   {
                     "wall": "w21",
                     "side": "left",
-                    "room": "r6",
+                    "room": "r7",
                     "material": "white_paint"
                   },
                   {
                     "wall": "w21",
                     "side": "left",
-                    "room": "r6",
+                    "room": "r7",
                     "material": "white_paint"
                   },
                   {
-                    "wall": "w25",
+                    "wall": "w16",
                     "side": "right",
-                    "room": "r6",
+                    "room": "r7",
                     "material": "white_paint"
                   },
                   {
                     "wall": "w24",
                     "side": "right",
-                    "room": "r6",
+                    "room": "r7",
                     "material": "white_paint"
                   },
                   {
-                    "wall": "w18",
+                    "wall": "w17",
                     "side": "left",
-                    "room": "r6",
+                    "room": "r7",
                     "material": "white_paint"
                   },
                   {
-                    "wall": "w18",
+                    "wall": "w17",
                     "side": "left",
-                    "room": "r6",
+                    "room": "r7",
                     "material": "white_paint"
                   }
                 ]
@@ -4694,7 +4729,7 @@
                     "material": "white_paint"
                   },
                   {
-                    "wall": "w25",
+                    "wall": "w16",
                     "side": "left",
                     "room": "r5",
                     "material": "white_paint"
@@ -4756,31 +4791,31 @@
                     "material": "white_paint"
                   },
                   {
+                    "wall": "w19",
+                    "side": "right",
+                    "room": "r8",
+                    "material": "white_paint"
+                  },
+                  {
                     "wall": "w26",
                     "side": "right",
                     "room": "r8",
                     "material": "white_paint"
                   },
                   {
-                    "wall": "w17",
+                    "wall": "w26",
                     "side": "right",
                     "room": "r8",
                     "material": "white_paint"
                   },
                   {
-                    "wall": "w17",
-                    "side": "right",
-                    "room": "r8",
-                    "material": "white_paint"
-                  },
-                  {
-                    "wall": "w19",
+                    "wall": "w18",
                     "side": "left",
                     "room": "r8",
                     "material": "white_paint"
                   },
                   {
-                    "wall": "w19",
+                    "wall": "w18",
                     "side": "left",
                     "room": "r8",
                     "material": "white_paint"
@@ -4818,37 +4853,37 @@
                   {
                     "wall": "w22",
                     "side": "left",
-                    "room": "r7",
+                    "room": "r6",
                     "material": "white_paint"
                   },
                   {
                     "wall": "w15",
                     "side": "right",
-                    "room": "r7",
+                    "room": "r6",
                     "material": "white_paint"
                   },
                   {
                     "wall": "w15",
                     "side": "right",
-                    "room": "r7",
+                    "room": "r6",
                     "material": "white_paint"
                   },
                   {
-                    "wall": "w16",
+                    "wall": "w25",
                     "side": "right",
-                    "room": "r7",
+                    "room": "r6",
                     "material": "white_paint"
                   },
                   {
-                    "wall": "w16",
+                    "wall": "w25",
                     "side": "right",
-                    "room": "r7",
+                    "room": "r6",
                     "material": "white_paint"
                   },
                   {
-                    "wall": "w26",
+                    "wall": "w19",
                     "side": "left",
-                    "room": "r7",
+                    "room": "r6",
                     "material": "white_paint"
                   }
                 ]
@@ -5093,6 +5128,257 @@
           },
           {
             "id": "o15",
+            "wall": "w17",
+            "type": "window",
+            "shape": "rectangle",
+            "width": 2.0,
+            "height": 1.2,
+            "sill": 0.9,
+            "hinge": "start",
+            "swing": "right",
+            "frame": null,
+            "centre": [
+              7.5,
+              -10.85
+            ],
+            "tangent": [
+              1.0,
+              -0.0
+            ],
+            "right": [
+              -0.0,
+              -1.0
+            ],
+            "thickness": 0.3,
+            "curved": false,
+            "outline": [
+              [
+                -1.0,
+                0.0
+              ],
+              [
+                1.0,
+                0.0
+              ],
+              [
+                1.0,
+                1.2
+              ],
+              [
+                -1.0,
+                1.2
+              ]
+            ],
+            "inner_outline": [
+              [
+                0.9500000000000001,
+                0.05
+              ],
+              [
+                0.9500000000000001,
+                1.1500000000000001
+              ],
+              [
+                -0.9500000000000001,
+                1.1500000000000001
+              ],
+              [
+                -0.9500000000000001,
+                0.05
+              ]
+            ],
+            "cutter": {
+              "right": [
+                [
+                  6.5,
+                  -11.049999999999999,
+                  4.1000000000000005
+                ],
+                [
+                  8.5,
+                  -11.049999999999999,
+                  4.1000000000000005
+                ],
+                [
+                  8.5,
+                  -11.049999999999999,
+                  5.300000000000001
+                ],
+                [
+                  6.5,
+                  -11.049999999999999,
+                  5.300000000000001
+                ]
+              ],
+              "left": [
+                [
+                  6.5,
+                  -10.65,
+                  4.1000000000000005
+                ],
+                [
+                  8.5,
+                  -10.65,
+                  4.1000000000000005
+                ],
+                [
+                  8.5,
+                  -10.65,
+                  5.300000000000001
+                ],
+                [
+                  6.5,
+                  -10.65,
+                  5.300000000000001
+                ]
+              ]
+            },
+            "threshold": [],
+            "materials": {
+              "reveal": "white_paint",
+              "threshold": null,
+              "door": null,
+              "frame": "white_paint",
+              "glass": "clear_glass",
+              "handle": null
+            }
+          },
+          {
+            "id": "o16",
+            "wall": "w19",
+            "type": "door",
+            "shape": "rectangle",
+            "width": 0.9,
+            "height": 2.1,
+            "sill": 0.0,
+            "hinge": "end",
+            "swing": "left",
+            "frame": null,
+            "centre": [
+              10.85,
+              -5.0
+            ],
+            "tangent": [
+              1.0,
+              -0.0
+            ],
+            "right": [
+              -0.0,
+              -1.0
+            ],
+            "thickness": 0.12,
+            "curved": false,
+            "outline": [
+              [
+                -0.45,
+                0.0
+              ],
+              [
+                0.45,
+                0.0
+              ],
+              [
+                0.45,
+                2.1
+              ],
+              [
+                -0.45,
+                2.1
+              ]
+            ],
+            "inner_outline": [
+              [
+                0.3999999985098839,
+                2.0499999970197678
+              ],
+              [
+                -0.3999999985098839,
+                2.0499999970197678
+              ],
+              [
+                -0.3999999985098839,
+                0.0
+              ],
+              [
+                0.3999999985098839,
+                0.0
+              ]
+            ],
+            "cutter": {
+              "right": [
+                [
+                  10.4,
+                  -5.11,
+                  3.1500000000000004
+                ],
+                [
+                  11.299999999999999,
+                  -5.11,
+                  3.1500000000000004
+                ],
+                [
+                  11.299999999999999,
+                  -5.11,
+                  5.300000000000001
+                ],
+                [
+                  10.4,
+                  -5.11,
+                  5.300000000000001
+                ]
+              ],
+              "left": [
+                [
+                  10.4,
+                  -4.89,
+                  3.1500000000000004
+                ],
+                [
+                  11.299999999999999,
+                  -4.89,
+                  3.1500000000000004
+                ],
+                [
+                  11.299999999999999,
+                  -4.89,
+                  5.300000000000001
+                ],
+                [
+                  10.4,
+                  -4.89,
+                  5.300000000000001
+                ]
+              ]
+            },
+            "threshold": [
+              [
+                10.4,
+                -5.06
+              ],
+              [
+                11.3,
+                -5.06
+              ],
+              [
+                11.3,
+                -4.94
+              ],
+              [
+                10.4,
+                -4.94
+              ]
+            ],
+            "materials": {
+              "reveal": "white_paint",
+              "threshold": "oak_planks",
+              "door": "painted_wood",
+              "frame": "white_paint",
+              "glass": null,
+              "handle": "brushed_steel"
+            }
+          },
+          {
+            "id": "o17",
             "wall": "w20",
             "type": "window",
             "shape": "rectangle",
@@ -5104,7 +5390,7 @@
             "frame": null,
             "centre": [
               5.15,
-              -4.2
+              -4.199999999999999
             ],
             "tangent": [
               0.0,
@@ -5156,44 +5442,44 @@
               "right": [
                 [
                   4.95,
-                  -3.2,
+                  -3.1999999999999993,
                   4.1000000000000005
                 ],
                 [
                   4.95,
-                  -5.2,
+                  -5.199999999999999,
                   4.1000000000000005
                 ],
                 [
                   4.95,
-                  -5.2,
+                  -5.199999999999999,
                   5.300000000000001
                 ],
                 [
                   4.95,
-                  -3.2,
+                  -3.1999999999999993,
                   5.300000000000001
                 ]
               ],
               "left": [
                 [
                   5.3500000000000005,
-                  -3.2,
+                  -3.1999999999999993,
                   4.1000000000000005
                 ],
                 [
                   5.3500000000000005,
-                  -5.2,
+                  -5.199999999999999,
                   4.1000000000000005
                 ],
                 [
                   5.3500000000000005,
-                  -5.2,
+                  -5.199999999999999,
                   5.300000000000001
                 ],
                 [
                   5.3500000000000005,
-                  -3.2,
+                  -3.1999999999999993,
                   5.300000000000001
                 ]
               ]
@@ -5209,7 +5495,7 @@
             }
           },
           {
-            "id": "o16",
+            "id": "o18",
             "wall": "w21",
             "type": "window",
             "shape": "rectangle",
@@ -5326,240 +5612,6 @@
             }
           },
           {
-            "id": "o17",
-            "wall": "w18",
-            "type": "window",
-            "shape": "rectangle",
-            "width": 2.0,
-            "height": 1.2,
-            "sill": 0.9,
-            "hinge": "start",
-            "swing": "right",
-            "frame": null,
-            "centre": [
-              7.5,
-              -10.85
-            ],
-            "tangent": [
-              1.0,
-              -0.0
-            ],
-            "right": [
-              -0.0,
-              -1.0
-            ],
-            "thickness": 0.3,
-            "curved": false,
-            "outline": [
-              [
-                -1.0,
-                0.0
-              ],
-              [
-                1.0,
-                0.0
-              ],
-              [
-                1.0,
-                1.2
-              ],
-              [
-                -1.0,
-                1.2
-              ]
-            ],
-            "inner_outline": [
-              [
-                0.9500000000000001,
-                0.05
-              ],
-              [
-                0.9500000000000001,
-                1.1500000000000001
-              ],
-              [
-                -0.9500000000000001,
-                1.1500000000000001
-              ],
-              [
-                -0.9500000000000001,
-                0.05
-              ]
-            ],
-            "cutter": {
-              "right": [
-                [
-                  6.5,
-                  -11.049999999999999,
-                  4.1000000000000005
-                ],
-                [
-                  8.5,
-                  -11.049999999999999,
-                  4.1000000000000005
-                ],
-                [
-                  8.5,
-                  -11.049999999999999,
-                  5.300000000000001
-                ],
-                [
-                  6.5,
-                  -11.049999999999999,
-                  5.300000000000001
-                ]
-              ],
-              "left": [
-                [
-                  6.5,
-                  -10.65,
-                  4.1000000000000005
-                ],
-                [
-                  8.5,
-                  -10.65,
-                  4.1000000000000005
-                ],
-                [
-                  8.5,
-                  -10.65,
-                  5.300000000000001
-                ],
-                [
-                  6.5,
-                  -10.65,
-                  5.300000000000001
-                ]
-              ]
-            },
-            "threshold": [],
-            "materials": {
-              "reveal": "white_paint",
-              "threshold": null,
-              "door": null,
-              "frame": "white_paint",
-              "glass": "clear_glass",
-              "handle": null
-            }
-          },
-          {
-            "id": "o18",
-            "wall": "w17",
-            "type": "window",
-            "shape": "rectangle",
-            "width": 1.6,
-            "height": 1.2,
-            "sill": 0.9,
-            "hinge": "start",
-            "swing": "right",
-            "frame": null,
-            "centre": [
-              11.55,
-              -8.0
-            ],
-            "tangent": [
-              0.0,
-              -1.0
-            ],
-            "right": [
-              -1.0,
-              -0.0
-            ],
-            "thickness": 0.3,
-            "curved": false,
-            "outline": [
-              [
-                -0.8,
-                0.0
-              ],
-              [
-                0.8,
-                0.0
-              ],
-              [
-                0.8,
-                1.2
-              ],
-              [
-                -0.8,
-                1.2
-              ]
-            ],
-            "inner_outline": [
-              [
-                0.75,
-                0.05
-              ],
-              [
-                0.75,
-                1.1500000000000001
-              ],
-              [
-                -0.75,
-                1.1500000000000001
-              ],
-              [
-                -0.75,
-                0.05
-              ]
-            ],
-            "cutter": {
-              "right": [
-                [
-                  11.350000000000001,
-                  -7.2,
-                  4.1000000000000005
-                ],
-                [
-                  11.350000000000001,
-                  -8.8,
-                  4.1000000000000005
-                ],
-                [
-                  11.350000000000001,
-                  -8.8,
-                  5.300000000000001
-                ],
-                [
-                  11.350000000000001,
-                  -7.2,
-                  5.300000000000001
-                ]
-              ],
-              "left": [
-                [
-                  11.75,
-                  -7.2,
-                  4.1000000000000005
-                ],
-                [
-                  11.75,
-                  -8.8,
-                  4.1000000000000005
-                ],
-                [
-                  11.75,
-                  -8.8,
-                  5.300000000000001
-                ],
-                [
-                  11.75,
-                  -7.2,
-                  5.300000000000001
-                ]
-              ]
-            },
-            "threshold": [],
-            "materials": {
-              "reveal": "white_paint",
-              "threshold": null,
-              "door": null,
-              "frame": "white_paint",
-              "glass": "clear_glass",
-              "handle": null
-            }
-          },
-          {
             "id": "o19",
             "wall": "w23",
             "type": "door",
@@ -5567,7 +5619,7 @@
             "width": 0.9,
             "height": 2.1,
             "sill": 0.0,
-            "hinge": "start",
+            "hinge": "end",
             "swing": "right",
             "frame": null,
             "centre": [
@@ -5701,7 +5753,7 @@
             "width": 0.9,
             "height": 2.1,
             "sill": 0.0,
-            "hinge": "start",
+            "hinge": "end",
             "swing": "right",
             "frame": null,
             "centre": [
@@ -5830,135 +5882,118 @@
           {
             "id": "o21",
             "wall": "w26",
-            "type": "door",
+            "type": "window",
             "shape": "rectangle",
-            "width": 0.9,
-            "height": 2.1,
-            "sill": 0.0,
+            "width": 1.6,
+            "height": 1.2,
+            "sill": 0.9,
             "hinge": "start",
             "swing": "right",
             "frame": null,
             "centre": [
-              10.85,
-              -5.0
+              11.55,
+              -8.0
             ],
             "tangent": [
-              1.0,
-              -0.0
-            ],
-            "right": [
-              -0.0,
+              0.0,
               -1.0
             ],
-            "thickness": 0.12,
+            "right": [
+              -1.0,
+              -0.0
+            ],
+            "thickness": 0.3,
             "curved": false,
             "outline": [
               [
-                -0.45,
+                -0.8,
                 0.0
               ],
               [
-                0.45,
+                0.8,
                 0.0
               ],
               [
-                0.45,
-                2.1
+                0.8,
+                1.2
               ],
               [
-                -0.45,
-                2.1
+                -0.8,
+                1.2
               ]
             ],
             "inner_outline": [
               [
-                0.3999999985098839,
-                2.0499999970197678
+                0.75,
+                0.05
               ],
               [
-                -0.3999999985098839,
-                2.0499999970197678
+                0.75,
+                1.1500000000000001
               ],
               [
-                -0.3999999985098839,
-                0.0
+                -0.75,
+                1.1500000000000001
               ],
               [
-                0.3999999985098839,
-                0.0
+                -0.75,
+                0.05
               ]
             ],
             "cutter": {
               "right": [
                 [
-                  10.4,
-                  -5.11,
-                  3.1500000000000004
+                  11.350000000000001,
+                  -7.2,
+                  4.1000000000000005
                 ],
                 [
-                  11.299999999999999,
-                  -5.11,
-                  3.1500000000000004
+                  11.350000000000001,
+                  -8.8,
+                  4.1000000000000005
                 ],
                 [
-                  11.299999999999999,
-                  -5.11,
+                  11.350000000000001,
+                  -8.8,
                   5.300000000000001
                 ],
                 [
-                  10.4,
-                  -5.11,
+                  11.350000000000001,
+                  -7.2,
                   5.300000000000001
                 ]
               ],
               "left": [
                 [
-                  10.4,
-                  -4.89,
-                  3.1500000000000004
+                  11.75,
+                  -7.2,
+                  4.1000000000000005
                 ],
                 [
-                  11.299999999999999,
-                  -4.89,
-                  3.1500000000000004
+                  11.75,
+                  -8.8,
+                  4.1000000000000005
                 ],
                 [
-                  11.299999999999999,
-                  -4.89,
+                  11.75,
+                  -8.8,
                   5.300000000000001
                 ],
                 [
-                  10.4,
-                  -4.89,
+                  11.75,
+                  -7.2,
                   5.300000000000001
                 ]
               ]
             },
-            "threshold": [
-              [
-                10.4,
-                -5.06
-              ],
-              [
-                11.3,
-                -5.06
-              ],
-              [
-                11.3,
-                -4.94
-              ],
-              [
-                10.4,
-                -4.94
-              ]
-            ],
+            "threshold": [],
             "materials": {
               "reveal": "white_paint",
-              "threshold": "oak_planks",
-              "door": "painted_wood",
+              "threshold": null,
+              "door": null,
               "frame": "white_paint",
-              "glass": null,
-              "handle": "brushed_steel"
+              "glass": "clear_glass",
+              "handle": null
             }
           }
         ],
@@ -6029,61 +6064,6 @@
           {
             "id": "r6",
             "type": null,
-            "area": 18.74560003283024,
-            "floor_z": 3.2,
-            "ceiling_z": 6.2,
-            "floor_material": "oak_planks",
-            "ceiling_material": "white_paint",
-            "polygons": [
-              {
-                "outline": [
-                  [
-                    5.299999997019768,
-                    -10.700000002980232
-                  ],
-                  [
-                    9.939999997615814,
-                    -10.700000002980232
-                  ],
-                  [
-                    9.939999997615814,
-                    -6.659999996423721
-                  ],
-                  [
-                    5.299999997019768,
-                    -6.659999996423721
-                  ]
-                ],
-                "holes": []
-              }
-            ],
-            "ceiling_polygons": [
-              {
-                "outline": [
-                  [
-                    5.299999997019768,
-                    -10.700000002980232
-                  ],
-                  [
-                    9.939999997615814,
-                    -10.700000002980232
-                  ],
-                  [
-                    9.939999997615814,
-                    -6.659999996423721
-                  ],
-                  [
-                    5.299999997019768,
-                    -6.659999996423721
-                  ]
-                ],
-                "holes": []
-              }
-            ]
-          },
-          {
-            "id": "r7",
-            "type": null,
             "area": 3.537599990570543,
             "floor_z": 3.2,
             "ceiling_z": 6.2,
@@ -6130,6 +6110,61 @@
                   [
                     10.060000002384186,
                     -2.2999999970197678
+                  ]
+                ],
+                "holes": []
+              }
+            ]
+          },
+          {
+            "id": "r7",
+            "type": null,
+            "area": 18.74560003283024,
+            "floor_z": 3.2,
+            "ceiling_z": 6.2,
+            "floor_material": "oak_planks",
+            "ceiling_material": "white_paint",
+            "polygons": [
+              {
+                "outline": [
+                  [
+                    5.299999997019768,
+                    -10.700000002980232
+                  ],
+                  [
+                    9.939999997615814,
+                    -10.700000002980232
+                  ],
+                  [
+                    9.939999997615814,
+                    -6.659999996423721
+                  ],
+                  [
+                    5.299999997019768,
+                    -6.659999996423721
+                  ]
+                ],
+                "holes": []
+              }
+            ],
+            "ceiling_polygons": [
+              {
+                "outline": [
+                  [
+                    5.299999997019768,
+                    -10.700000002980232
+                  ],
+                  [
+                    9.939999997615814,
+                    -10.700000002980232
+                  ],
+                  [
+                    9.939999997615814,
+                    -6.659999996423721
+                  ],
+                  [
+                    5.299999997019768,
+                    -6.659999996423721
                   ]
                 ],
                 "holes": []
@@ -6288,6 +6323,25 @@
             }
           ],
           "undersides": [],
+          "sides": [
+            {
+              "outline": [
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge",
+                "edge"
+              ],
+              "holes": []
+            }
+          ],
+          "tops": [],
           "materials": {
             "edge": "red_brick",
             "well": "white_paint",

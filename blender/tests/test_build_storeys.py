@@ -165,6 +165,119 @@ class StairFixtureTests(StoreyTest):
         self.assertIn("SM_f1_s1_Stair", names)
 
 
+class SlabFaceTests(StoreyTest):
+    # Builds a slab of the given polygons, sides and tops at 3.0 to 3.2 with the edge and well materials told
+    # apart, and returns the result. Opens the built file.
+    def slab_of(self, polygons, sides, tops=()):
+        params = sharp("two_floors_stair")
+        slab = params["floors"][0]["slab"]
+        slab["polygons"] = polygons
+        slab["sides"] = sides
+        slab["tops"] = list(tops)
+        slab["undersides"] = []
+        slab["materials"] = {"edge": "edge_mat", "well": "well_mat", "underside": None}
+        result = self.build(params)
+        self.assertTrue(result["ok"], result["error"])
+        self.open_blend()
+        return result
+
+    # Returns the material name of each face of the slab with the face centre, as (name, centre) pairs.
+    def painted(self):
+        obj = bpy.data.objects["SM_f1_Slab"]
+        return [(obj.data.materials[f.material_index].name, f.calc_center_median(), f.normal.copy())
+                for f in mesh_of("SM_f1_Slab").faces]
+
+    # A courtyard's inner band is the outside material, facing into the courtyard.
+    def test_courtyard_inner_band_is_outside(self):
+        square = lambda a, b: [[a, a], [b, a], [b, b], [a, b]]
+        hole = square(3.0, 7.0)[::-1]
+        result = self.slab_of([{"outline": square(0.0, 10.0), "holes": [hole]}],
+                              [{"outline": ["edge"] * 4, "holes": [["edge"] * 4]}])
+        self.assertEqual(result["output"]["problems"], [])
+        faces = self.painted()
+        self.assertEqual(sorted({name for name, _, _ in faces}), ["edge_mat"])
+        self.assertEqual(len(faces), 8)
+        for _, centre, normal in faces:
+            if 2.5 < centre.x < 7.5 and 2.5 < centre.y < 7.5:
+                self.assertGreater(normal.x * (5.0 - centre.x) + normal.y * (5.0 - centre.y), 0.0)
+
+    # A well that reaches the edge is part of the outline and keeps the inside material, the rest of the
+    # outline the outside material.
+    def test_well_touching_the_edge(self):
+        outline = [[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [6.0, 10.0], [6.0, 6.0], [4.0, 6.0], [4.0, 10.0], [0.0, 10.0]]
+        names = ["edge", "edge", "edge", "well", "well", "well", "edge", "edge"]
+        self.slab_of([{"outline": outline, "holes": []}], [{"outline": names, "holes": []}])
+        wells = [c for name, c, _ in self.painted() if name == "well_mat"]
+        edges = [c for name, c, _ in self.painted() if name == "edge_mat"]
+        self.assertEqual((len(wells), len(edges)), (3, 5))
+        self.assertEqual(sorted((round(c.x, 3), round(c.y, 3)) for c in wells), [(4.0, 8.0), (5.0, 6.0), (6.0, 8.0)])
+
+    # Names stay with their edges when a ring is given clockwise (outline) or anticlockwise (hole), so it is turned.
+    def test_turned_rings_keep_their_names(self):
+        outline = [[0.0, 0.0], [0.0, 10.0], [6.0, 10.0], [6.0, 6.0], [4.0, 6.0], [4.0, 10.0], [10.0, 10.0], [10.0, 0.0]]
+        names = ["edge", "edge", "well", "well", "well", "edge", "edge", "edge"]
+        self.slab_of([{"outline": outline, "holes": []}], [{"outline": names, "holes": []}])
+        wells = sorted((round(c.x, 3), round(c.y, 3)) for name, c, _ in self.painted() if name == "well_mat")
+        self.assertEqual(wells, [(4.0, 8.0), (5.0, 6.0), (6.0, 8.0)])
+        hole = [[3.0, 3.0], [7.0, 3.0], [7.0, 7.0], [3.0, 7.0]]
+        self.slab_of([{"outline": [[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]], "holes": [hole]}],
+                     [{"outline": ["edge"] * 4, "holes": [["well", "edge", "edge", "edge"]]}])
+        wells = [c for name, c, _ in self.painted() if name == "well_mat"]
+        self.assertEqual([(round(c.x, 3), round(c.y, 3)) for c in wells], [(5.0, 3.0)])
+
+    # A ledge as thin as 1e-6 square metres has an upward face at the top with the edge material, welded to the
+    # top of the band along the shared edge so that no gap is left.
+    def test_hairline_ledge_meets_the_band(self):
+        square = [[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]]
+        ledge = {"outline": [[0.0, 0.0], [10.0, 0.0], [10.0, 1e-7], [0.0, 1e-7]], "holes": []}
+        result = self.slab_of([{"outline": square, "holes": []}], [{"outline": ["edge"] * 4, "holes": []}], [ledge])
+        self.assertEqual(result["output"]["problems"], [])
+        bm = mesh_of("SM_f1_Slab")
+        ups = [f for f in bm.faces if f.normal.z > 0.5]
+        self.assertTrue(ups)
+        self.assertAlmostEqual(sum(f.calc_area() for f in ups), 1e-6, delta=1e-8)
+        self.assertTrue(all(abs(v.co.z - 3.2) < 1e-6 for f in ups for v in f.verts))
+        obj = bpy.data.objects["SM_f1_Slab"]
+        self.assertEqual({obj.data.materials[f.material_index].name for f in ups}, {"edge_mat"})
+        shared = [e for e in bm.edges if len(e.link_faces) == 2 and
+                  any(f.normal.z > 0.5 for f in e.link_faces) and any(abs(f.normal.z) < 1e-6 for f in e.link_faces)]
+        self.assertEqual(len(shared), 1)
+        self.assertTrue(all(abs(v.co.y) < 1e-6 and abs(v.co.z - 3.2) < 1e-6 for v in shared[0].verts))
+
+    # The top faces take world X and Y as UVs.
+    def test_ledge_uvs(self):
+        square = [[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]]
+        ledge = {"outline": [[1.0, 1.0], [3.0, 1.0], [3.0, 1.5], [1.0, 1.5]], "holes": []}
+        self.slab_of([{"outline": square, "holes": []}], [{"outline": ["edge"] * 4, "holes": []}], [ledge])
+        bm = mesh_of("SM_f1_Slab")
+        layer = bm.loops.layers.uv.active
+        for face in bm.faces:
+            if face.normal.z > 0.5:
+                for loop in face.loops:
+                    self.assertAlmostEqual(loop[layer].uv[0], loop.vert.co.x, places=5)
+                    self.assertAlmostEqual(loop[layer].uv[1], loop.vert.co.y, places=5)
+
+    # Side lists that do not fit the rings are reported as slab_failed and nothing is built for the slab.
+    def test_lengths_must_match(self):
+        square = [[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]]
+        hole = [[3.0, 3.0], [3.0, 7.0], [7.0, 7.0], [7.0, 3.0]]
+        cases = {
+            "ring": ([{"outline": ["edge"] * 3, "holes": []}], square, []),
+            "hole count": ([{"outline": ["edge"] * 4, "holes": []}], square, [hole]),
+            "polygon count": ([], square, []),
+            "hole ring": ([{"outline": ["edge"] * 4, "holes": [["edge"] * 3]}], square, [hole]),
+        }
+        for name, (sides, outline, holes) in cases.items():
+            params = sharp("two_floors_stair")
+            slab = params["floors"][0]["slab"]
+            slab["polygons"] = [{"outline": outline, "holes": holes}]
+            slab["sides"] = sides
+            result = self.build(params)
+            self.assertTrue(result["ok"], result["error"])
+            self.assertEqual([p["code"] for p in result["output"]["problems"]], ["slab_failed"], name)
+            self.assertEqual(result["output"]["counts"]["slabs"], 0, name)
+
+
 class OverhangTests(StoreyTest):
     # The overhang fixture has an underside strip of 1 m facing down at z 3.0 and no top face.
     def test_underside(self):

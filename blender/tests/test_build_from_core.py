@@ -57,6 +57,20 @@ class FromCoreTests(BuildTest):
         self.assertEqual(sorted(os.listdir(self.path("build"))),
                          ["building.blend", "building.fbx", "materials.json", "preview", "textures"])
 
+    # The slab's ledges are built as upward faces at the top, with the area core gave them, and every side face
+    # takes its side's material slot.
+    def test_slab_tops(self):
+        bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
+        slab = self.params["floors"][0]["slab"]
+        wanted = sum(plain_area(t["outline"]) - sum(plain_area(h) for h in t["holes"]) for t in slab["tops"])
+        self.assertGreater(len(slab["tops"]), 0)
+        obj = bpy.data.objects["SM_%s_Slab" % self.params["floors"][0]["id"]]
+        ups = [p for p in obj.data.polygons if p.normal.z > 0.5]
+        self.assertAlmostEqual(sum(p.area for p in ups), wanted, delta=1e-6)
+        self.assertTrue(all(abs(obj.data.vertices[i].co.z - slab["top"]) < 1e-5 for p in ups for i in p.vertices))
+        sides = [p for p in obj.data.polygons if abs(p.normal.z) < 1e-3]
+        self.assertEqual(len(sides), sum(len(e["outline"]) + sum(len(h) for h in e["holes"]) for e in slab["sides"]))
+
     # Every room floor has the area core gave it, and the walls lost the volume of the openings.
     def test_geometry(self):
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
