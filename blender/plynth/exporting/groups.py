@@ -8,9 +8,17 @@ def _filters_take(group, kind, plan_id):
     return (not kinds or kind in kinds) and (not ids or plan_id in ids)
 
 
+# Says whether a group has no members, kinds or ids, so its filters would take every object.
+def _takes_everything(group):
+    return not group.get("members") and not group.get("kinds") and not group.get("ids")
+
+
 # Returns the id of the group that takes one object, or None. The order is the one in Exporter.h: the exact
 # member, the kind member (null id), the first group without members whose filters take it, the rest group.
+# When some group has rest, a group with no members and no filters (a new group, or one emptied by moves) is
+# passed over, so it takes nothing; without a rest group it takes everything, as the single export's group does.
 def _group_of(groups, kind, plan_id):
+    has_rest = any(group.get("rest") for group in groups)
     for group in groups:
         if any(m["kind"] == kind and m["id"] == plan_id and plan_id is not None for m in group.get("members") or []):
             return group["id"]
@@ -18,6 +26,8 @@ def _group_of(groups, kind, plan_id):
         if any(m["kind"] == kind and m["id"] is None for m in group.get("members") or []):
             return group["id"]
     for group in groups:
+        if has_rest and _takes_everything(group):
+            continue
         if not group.get("members") and _filters_take(group, kind, plan_id):
             return group["id"]
     for group in groups:

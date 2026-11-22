@@ -181,6 +181,28 @@ class ExportGroupsTests(ExportTest):
         self.assertEqual([o.name for o in found["a"]], ["m"])
         self.assertEqual([o.name for o in left], ["n"])
 
+    # With a rest group, a group with no members and no filters takes nothing, so an unknown object and a
+    # collision mesh of no object land in rest. Without a rest group the same group takes everything, as in a
+    # single export.
+    def test_empty_group_takes_nothing_beside_rest(self):
+        objects = [FakeObject("m1", "item", "i1"), FakeObject("hand", "cube", None)]
+        orphan = [FakeObject("UCX_gone_00", "collision", "x", "gone")]
+        with_rest = [{"id": "a", "members": [{"kind": "item", "id": "i1"}]},
+                     {"id": "hero", "kinds": [], "ids": [], "members": []},
+                     {"id": "walls", "kinds": [], "ids": [], "members": [], "rest": True}]
+        found, left = groups_module.assign(with_rest, objects, orphan)
+        self.assertEqual({k: sorted(o.name for o in v) for k, v in found.items()},
+                         {"a": ["m1"], "hero": [], "walls": ["UCX_gone_00", "hand"]})
+        self.assertEqual(left, [])
+        single = [{"id": "building", "kinds": [], "ids": [], "members": []}]
+        found, left = groups_module.assign(single, objects, orphan)
+        self.assertEqual(sorted(o.name for o in found["building"]), ["UCX_gone_00", "hand", "m1"])
+        self.assertEqual(left, [])
+        with_filter = [{"id": "hero", "kinds": ["cube"], "ids": [], "members": []},
+                       {"id": "walls", "kinds": [], "ids": [], "members": [], "rest": True}]
+        found, _ = groups_module.assign(with_filter, objects, orphan)
+        self.assertEqual([o.name for o in found["hero"]], ["hand"])
+
     # A group whose members match nothing is not written, is in empty_groups, and the groups check warns.
     def test_empty_group(self):
         output = self.run_groups(groups_with_empty())
