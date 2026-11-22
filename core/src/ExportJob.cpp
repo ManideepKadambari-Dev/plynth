@@ -178,7 +178,7 @@ std::optional<ExportBounds> expectedWallBounds(const Project& project)
 Json makeExportJob(const Project& project, const std::vector<ExportGroup>& groups,
                    const std::vector<BuiltMaterial>& materials, const ExportBuildState& build,
                    const ExportSettings& settings, const fs::path& projectFolder, const fs::path& stagingFolder,
-                   std::string_view jobId, const fs::path& resultFile)
+                   std::string_view jobId, const fs::path& resultFile, const ModularKit* /*kit*/)
 {
     Json params = Json::object();
     Json info = Json::object();
