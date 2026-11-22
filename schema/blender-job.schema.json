@@ -463,7 +463,7 @@
       }
     },
     "kitPiece": {
-      "description": "One unique piece of the modular kit in its own frame: origin at floor level, X along the wall, Y a quarter turn anticlockwise from X seen from above, Z up (core/include/plynth/core/Kit.h).",
+      "description": "One unique piece of the modular kit in the one frame stored for it (core/include/plynth/core/Kit.h rules 8 and 9): origin at floor level, X along a wall in either direction (for a curved piece along its chord, world X for a corner with no plan point), Y a quarter turn anticlockwise from X seen from above, Z up. The origin is not always at the first end of the piece along its wall.",
       "type": "object",
       "required": ["id", "mesh", "kind", "wall_solids", "openings", "fills", "collision"],
       "additionalProperties": false,

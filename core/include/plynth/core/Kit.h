@@ -34,11 +34,13 @@ using Json = nlohmann::ordered_json;
 //   1. Junctions. For every wall, the parts of its centre line where its band (wallBand) overlaps the band of
 //      another wall of the floor, each widened to the whole length of that overlap seen along the wall, are its
 //      junction parts. A wall end that meets nothing has none: its end face is a real end.
-//   2. Stations on a straight wall: the ends of its junction parts, and every whole multiple of the grid between
-//      them. A grid station strictly inside an opening's width widened by kKitOpeningMargin on each side is
-//      dropped (an opening 0.9 wide centred at 2.0 drops 2.0 and keeps 1.5 and 2.5 on a 0.5 grid), and
-//      so is one closer than kKitMinPieceLength to the station before it, so an opening is never cut and no
-//      sliver is made.
+//   2. Stations on a straight wall: its two ends, the ends of its junction parts, and the grid stations outside
+//      those parts. Grid stations are whole multiples of the grid counted from the wall's lower end (the smaller
+//      world X, for equal X the smaller world Y), whichever way it was drawn. A grid station strictly inside an
+//      opening's width widened by kKitOpeningMargin on each side is dropped (an opening 0.9 wide centred at 2.0
+//      drops 2.0 and keeps 1.5 and 2.5 on a 0.5 grid), and so is one closer than kKitMinPieceLength to a wall
+//      end, to a junction part's end or to the grid station before it, so an opening is never cut and no sliver
+//      is made.
 //   3. Wall pieces: between two stations outside the junction parts, the floor's wall solids cut by the two
 //      lines across the wall at those stations. Kind Wall, or Opening when an opening's cut reaches into it.
 //   4. A curved wall is one piece from the end of its first junction part to the start of its last (kind
@@ -52,31 +54,44 @@ using Json = nlohmann::ordered_json;
 //   7. Openings. A piece holds every opening whose cut reaches into its area, with the cutter in the piece's
 //      frame; thresholds are left out (they belong to the floor). An opening's door or window fill goes with the
 //      one piece that holds the opening's centre.
-//   8. Frames. Wall, Opening and Curved pieces: the origin is on the wall's centre line at the first station,
-//      at the floor's level; X runs along the wall toward its to point (on a curved wall, along the chord from
-//      the first to the last station), Y is X turned a quarter turn anticlockwise seen from above in world
-//      coordinates, Z up, so every frame is right handed like the world and a placement is a turn and a move,
-//      never a mirror. Corner pieces: the origin is the plan
-//      point inside the piece that its walls share (the one nearest the piece's centroid when there are
-//      several), otherwise the centroid; X runs along the lowest wall id leaving that point, or world X.
-//   9. Same pieces. Two pieces are the same when their kind and everything in their frame match within
-//      kKitTolerance: every point and height of their solids, every face's slot and kit cut, every opening's
-//      type, shape, width, height, sill, hinge, swing, centre and fill. A Wall, Opening or Curved piece also
-//      matches the piece turned half a turn about the middle of its length (so a wall drawn the other way gives
-//      the same piece); a Corner also matches after any turn about its origin that brings one of its walls onto
-//      X. The first one found (floors in plan order, then walls in plan order, then along each wall, then
-//      corners in the order of their lowest wall id) is the piece; every one found is a placement of it.
-//  10. Names. id is <Kind>_<L>x<H>x<T>_<hash>: L the length along X, H the tallest solid's height, T the size
-//      along Y, all in whole centimetres, rounded; hash the first 6 hex digits of a 64 bit FNV-1a hash of the
-//      piece's matching data above, so a piece keeps its name across exports while it stays the same. The mesh
-//      is SM_Kit_<id>, its collision UCX_SM_Kit_<id>_<NN>.
+//   8. Frames a piece may take. In every one the origin is at the floor's level, Z is up and Y is X turned a
+//      quarter turn anticlockwise seen from above, so a placement is a turn and a move, never a mirror.
+//      Wall, Opening and Curved pieces have two. The found frame: the origin is on the wall's centre line at
+//      the piece's first station, X along the wall toward its to point (on a curved wall, along the chord from
+//      the first to the last station). Its half turn: that frame turned half a turn about the middle of the
+//      piece's extent along X.
+//      A Corner has one for each wall leaving its point, in wall id order: the origin is that point, X along
+//      the wall as it leaves. The point is the plan point with walls that lies in or on the piece, the one
+//      nearest the piece's centroid when there are several. With no such point the one frame is the centroid
+//      with world X.
+//      Rule 9 picks the frame, so a piece's origin is not always at its first station and its X does not
+//      always point toward the wall's to point. The placement's location and rotationZ are the frame picked.
+//   9. Same pieces. Pieces are looked at in the order found: floors in plan order; on a floor, walls in plan
+//      order and along each from its from point, then corners by their lowest wall id and then by position.
+//      - A piece that, in any of its frames, is the same as a piece made before is a placement of that piece,
+//        in the first of its frames that is.
+//      - Otherwise it is a new piece: it is written out as text in every one of its frames, and the frame
+//        whose text sorts first is the one stored, hashed, named and placed. So equal pieces get one shape
+//        and one name, whichever wall or direction finds them.
+//      The same means equal kind and, within kKitTolerance, equal length, height, thickness, solid heights and
+//      points; equal slot, material and kit cut of every face and top, and whether a face has a side (not
+//      which wall or room); for each opening equal type, shape, curved, width, height, sill, thickness,
+//      centre, cutter, outline and fill, the materials and slots of its parts, and the hinge and swing as
+//      they lie in the piece's frame. The text holds the same things in a fixed order, with lengths in whole
+//      millimetres (snapped to a tenth of a micrometre first, then rounded half up). Pieces that differ by no
+//      more than the tolerance share the shape and name of the one found first.
+//  10. Names. id is <Kind>_<L>x<H>x<T>_<hash>: L the size along the stored X, H the tallest solid's height, T
+//      the size along the stored Y, all in whole centimetres, rounded; hash the first 6 of the 16 hex digits
+//      of the 64 bit FNV-1a hash of the stored frame's text, so a piece keeps its name across exports while it
+//      stays the same. An id another piece already has is hashed again with "#1", "#2" and so on after the
+//      text. The mesh is SM_Kit_<id>, its collision UCX_SM_Kit_<id>_<NN>.
 //  11. Collision. The rule for walls of Collision.h applied to the piece: convex prisms of its area, cut at doors
 //      and plain openings with pieces above and below them, windows closed. In the piece's frame.
 // UVs (made by the Blender side): side faces u along the face's own direction measured from the piece's
 // origin, v up from 0; tops (X, Y) in the piece's frame; cut faces of openings projected as in the build.
 
 inline constexpr double kKitOpeningMargin = 0.05;   // metres beside an opening where no grid station goes
-inline constexpr double kKitMinPieceLength = 0.05;  // metres; shorter wall pieces are joined to the one before
+inline constexpr double kKitMinPieceLength = 0.05;  // metres; a grid station this near another is dropped
 inline constexpr double kKitTolerance = 0.001;      // metres
 inline constexpr std::string_view kKitFileSuffix = "_Kit.fbx";
 inline constexpr std::string_view kKitLayoutSuffix = "_Kit_layout.json";
@@ -158,8 +173,8 @@ struct KitPlacement {
     Id floor;
     Id wall;              // the wall for Wall, Opening and Curved pieces; empty for corners
     Id point;             // the plan point of a corner's origin; empty otherwise
-    Vec3 location;        // where the piece's origin goes
-    double rotationZ = 0.0; // radians, anticlockwise seen from above
+    Vec3 location;        // where the piece's origin goes, in the frame rule 9 picked
+    double rotationZ = 0.0; // of that frame's X from world X: radians, anticlockwise seen from above
 
     bool operator==(const KitPlacement&) const = default;
 };

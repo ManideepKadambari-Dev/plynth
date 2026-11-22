@@ -27,7 +27,7 @@
       }
     },
     "pieces": {
-      "description": "Sorted by id.",
+      "description": "Sorted by id. Each piece is stored in one frame, picked the same way whichever wall or direction finds it (Kit.h rules 8 and 9). So its origin is not always at the first end along its wall and its X does not always point toward the wall's to point. The placements say where each copy goes and how it is turned.",
       "type": "array",
       "items": {
         "type": "object",
@@ -56,8 +56,8 @@
           "floor": { "$ref": "#/definitions/planId" },
           "wall": { "description": "The wall a wall, opening or curved piece comes from; null for corners.", "oneOf": [{ "$ref": "#/definitions/planId" }, { "type": "null" }] },
           "point": { "description": "The plan point at a corner's origin; null otherwise.", "oneOf": [{ "$ref": "#/definitions/planId" }, { "type": "null" }] },
-          "location": { "description": "Where the piece's origin goes.", "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
-          "rotation_z_degrees": { "type": "number", "minimum": 0, "exclusiveMaximum": 360 }
+          "location": { "description": "Where the piece's origin goes. Use it as it is: it cannot be worked out from the wall's ends.", "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
+          "rotation_z_degrees": { "description": "The turn of the piece's X from world X. Use it as it is: it can be half a turn from the wall's own direction.", "type": "number", "minimum": 0, "exclusiveMaximum": 360 }
         }
       }
     }
