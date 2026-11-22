@@ -1,5 +1,6 @@
 #include "plynth/core/Export.h"
 
+#include "BuildLockFiles.h"
 #include "FileIo.h"
 
 #include "plynth/core/Build.h"
@@ -29,22 +30,9 @@ namespace fs = std::filesystem;
 
 namespace {
 
-// Seconds since 1970 now.
-long long epochSeconds()
-{
-    return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-}
-
-// Makes the lock file only when it does not exist yet. False when it exists or cannot be made.
-bool createExclusive(const fs::path& file, const std::string& text)
-{
-    const HANDLE handle = CreateFileW(file.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (handle == INVALID_HANDLE_VALUE) return false;
-    DWORD written = 0;
-    WriteFile(handle, text.data(), static_cast<DWORD>(text.size()), &written, nullptr);
-    CloseHandle(handle);
-    return true;
-}
+using lockfile::createExclusive;
+using lockfile::epochSeconds;
+using lockfile::lockIsLive;
 
 // What the last successful build was made from, read from build/built-plan.json.
 struct BuiltPlan {
@@ -63,24 +51,6 @@ std::optional<BuiltPlan> readBuiltPlan(const fs::path& projectFolder)
     PlanRead read = planFromJson(json["plan"]);
     if (!read.status.ok()) return std::nullopt;
     return BuiltPlan{std::move(read.plan), json["plan_fingerprint"].get<std::string>()};
-}
-
-// Whether an existing lock still counts: younger than kBuildTimeout by its time and its write time, and, when it
-// names a process, that process is still running. A lock whose content cannot be read counts by its write time.
-bool lockIsLive(const fs::path& file)
-{
-    std::error_code ec;
-    const auto written = fs::last_write_time(file, ec);
-    if (!ec && fs::file_time_type::clock::now() - written > kBuildTimeout) return false;
-
-    std::ifstream in(file, std::ios::binary);
-    ProcessIdentity who;
-    long long started = 0;
-    if (in >> who.pid >> who.startKey >> started) {
-        if (epochSeconds() - started > kBuildTimeout.count()) return false;
-        return isProcessRunning(who);
-    }
-    return true;
 }
 
 // Holds build.lock, the build's lock, while an export runs and removes it at the end.
@@ -286,6 +256,15 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
         removeTree(staging);
         report.elapsedMs = since(started);
         if (!writeIt) return;
+        // Nothing was exported, so the report keeps listing the files of the last export. A later export then
+        // knows which old files to remove, for example after the project was renamed.
+        if (!report.exported) {
+            const ExportReportRead previous = readExportReport(request.projectFolder);
+            if (previous.status.ok()) {
+                report.files = previous.report.files;
+                report.fileOutputs = previous.report.fileOutputs;
+            }
+        }
         if (const Status written = writeReport(exportDir, report); !written.ok() && report.status.ok()) report.status = written;
     };
 
@@ -360,7 +339,7 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
     }
     if (!failed.empty() && !request.settings.force) {
         report.status = fail(ErrorCode::QualityFailed, "The export was blocked because these checks failed: " + failedCheckNames(report.checks) +
-                                                           ". Nothing in the export folder was changed.");
+                                                           ". Nothing in the export folder was changed. The findings are in the export report: run \"plynth export report\" to read them.");
         finish(true);
         return report;
     }
@@ -377,10 +356,13 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
         }
     }
 
-    // The last good export goes only now: the files its report lists, then the old textures.
+    // The last good export goes only now: the files its report lists, then the old textures. Only names inside
+    // the export folder are touched.
     const ExportReportRead previous = readExportReport(request.projectFolder);
     if (previous.status.ok()) {
-        for (const fs::path& old : previous.report.files) fs::remove(exportDir / old.filename(), ec);
+        for (const fs::path& old : previous.report.files) {
+            if (!old.filename().empty()) fs::remove(exportDir / old.filename(), ec);
+        }
     }
     const fs::path textures = exportDir / pathFromUtf8(kExportTexturesFolder);
     removeTree(textures);

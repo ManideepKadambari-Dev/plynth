@@ -46,6 +46,19 @@ def write_copy(image, source, target_stem, folder, limit):
     return target
 
 
+# Deletes the png and jpg files of the preview folder, which are the copies an earlier build made, and
+# removes the folder when it ends up empty. Other files are left alone.
+def clear_old_copies(folder):
+    if not os.path.isdir(folder):
+        return
+    for name in os.listdir(folder):
+        path = os.path.join(folder, name)
+        if os.path.isfile(path) and name.lower().endswith(PNG_EXTENSIONS + JPEG_EXTENSIONS):
+            os.remove(path)
+    if not os.listdir(folder):
+        os.rmdir(folder)
+
+
 # Points every image node of the given objects' materials that holds an image larger than preview_texture_size
 # on its longest side at a scaled copy in the job's preview_textures folder, one copy per source file. The
 # copies are named <owner>_<channel>. Call it only after building.blend is saved, because it changes the
@@ -53,6 +66,7 @@ def write_copy(image, source, target_stem, folder, limit):
 def make_preview_copies(ctx, objects):
     limit = ctx.params["preview_texture_size"]
     folder = os.path.join(ctx.params["output_folder"], ctx.params["preview_textures_folder"])
+    clear_old_copies(folder)
     names = owners(ctx)
     copies = {}
     loaded = {}

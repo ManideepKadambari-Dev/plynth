@@ -1,5 +1,6 @@
 import hashlib
 import os
+import re
 import unittest
 
 import bpy
@@ -48,6 +49,17 @@ class ExporterTests(CleanupTest):
         self.assertTrue(found)
         path = os.path.abspath(bpy.path.abspath(found[0].filepath, library=None))
         self.assertTrue(os.path.isfile(path), path)
+
+    # The written FBX holds neither the scratch .blend path nor any drive letter path.
+    def test_fbx_has_no_local_paths(self):
+        self.clean_chair()
+        with open(self.path("item", "asset.fbx"), "rb") as handle:
+            data = handle.read()
+        blend = os.path.abspath(self.path("item", "asset.blend")).encode("utf-8")
+        for variant in (blend, blend.replace(b"\\", b"/"), os.path.dirname(blend), os.path.dirname(blend).replace(b"\\", b"/")):
+            self.assertNotIn(variant, data)
+        self.assertIsNone(re.search(rb"[A-Za-z]:[\\/]", data))
+        self.assertIn(b"ApplicationNativeFile", data)
 
     # render_thumbnail with fbx_file writes it and leaves asset.blend unchanged.
     def test_render_thumbnail_writes_fbx(self):

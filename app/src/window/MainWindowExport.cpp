@@ -124,7 +124,7 @@ void MainWindow::loadExportReport()
     exportError_.clear();
     if (doc_.hasFolder()) {
         const plynth::ExportReportRead read = plynth::readExportReport(doc_.folder());
-        if (read.status.ok() || read.status.code == plynth::ErrorCode::QualityFailed)
+        if (read.status.ok())
             exportReport_ = read.report;
     }
     updateExportUi();

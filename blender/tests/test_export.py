@@ -188,6 +188,25 @@ class ExportTests(ExportTest):
             self.assertTrue(os.path.isfile(full), text)
             self.assertEqual(os.path.dirname(full), textures, text)
 
+    # Without the exporter's path function, or with a path mode other than RELATIVE, the wrapper does nothing.
+    def test_wrapper_skipped_when_unavailable(self):
+        from plynth.exporters import fbx
+        package = bpy.types.EXPORT_SCENE_OT_fbx.__module__
+        module = importlib.import_module(package + ".export_fbx_bin")
+        original = module._gen_vid_path
+        try:
+            del module._gen_vid_path
+            with fbx.relative_texture_names("RELATIVE"):
+                pass
+            self.assertFalse(hasattr(module, "_gen_vid_path"))
+        finally:
+            module._gen_vid_path = original
+        with fbx.relative_texture_names("COPY"):
+            self.assertIs(module._gen_vid_path, original)
+        with fbx.relative_texture_names("RELATIVE"):
+            self.assertIsNot(module._gen_vid_path, original)
+        self.assertIs(module._gen_vid_path, original)
+
     # Every file in Textures is named by the FBX, so no unused map (such as occlusion) is copied.
     def test_only_used_textures_copied(self):
         result = self.export(clean=True)

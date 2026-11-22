@@ -49,5 +49,5 @@ if(PLYNTH_BUILD_TESTS)
                 "$<TARGET_FILE_DIR:plynth_terminal_tests>/platforms/"
             COMMENT "Copying the offscreen platform plugin")
     endif()
-    catch_discover_tests(plynth_terminal_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    catch_discover_tests(plynth_terminal_tests DISCOVERY_MODE PRE_TEST PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()

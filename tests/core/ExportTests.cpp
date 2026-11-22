@@ -270,7 +270,7 @@ TEST_CASE("a failed check blocks the export and leaves the last one alone", "[co
     REQUIRE(report.status.code == ErrorCode::QualityFailed);
     REQUIRE(report.status.message.find("Naming") != std::string::npos);
     REQUIRE_FALSE(report.exported);
-    REQUIRE(report.files.empty());
+    REQUIRE(report.files == std::vector<fs::path>{f.exportDir() / "Square.fbx"});
     REQUIRE(report.texturesFolder.empty());
     REQUIRE_FALSE(report.passed());
     REQUIRE(report.failCount() == 1);
@@ -291,7 +291,33 @@ TEST_CASE("a failed check blocks the export and leaves the last one alone", "[co
     REQUIRE(written["error"]["code"] == "quality_failed");
     REQUIRE(written["quality"]["passed"] == false);
     REQUIRE(written["quality"]["fail_count"] == 1);
-    REQUIRE(written["outputs"]["files"].empty());
+    REQUIRE(written["outputs"]["files"].size() == 1);
+    REQUIRE(written["outputs"]["files"][0]["file"] == "Square.fbx");
+}
+
+TEST_CASE("a blocked or check-only export keeps the old file list so a rename cleans up later", "[core][export][run]") {
+    ExportFixture f("run-rename-blocked");
+    plynth::test::requireOk(runExport(f.request).status);
+    REQUIRE(fs::exists(f.exportDir() / "Square.fbx"));
+
+    f.request.project.settings.name = "Other";
+    f.setMode("quality_fail");
+    REQUIRE(runExport(f.request).status.code == ErrorCode::QualityFailed);
+    ExportReportRead read = readExportReport(f.projectFolder);
+    plynth::test::requireOk(read.status);
+    REQUIRE(read.report.files == std::vector<fs::path>{f.exportDir() / "Square.fbx"});
+
+    f.request.settings.write = false;
+    f.setMode("");
+    plynth::test::requireOk(runExport(f.request).status);
+    read = readExportReport(f.projectFolder);
+    plynth::test::requireOk(read.status);
+    REQUIRE(read.report.files == std::vector<fs::path>{f.exportDir() / "Square.fbx"});
+
+    f.request.settings.write = true;
+    plynth::test::requireOk(runExport(f.request).status);
+    REQUIRE(fs::exists(f.exportDir() / "Other.fbx"));
+    REQUIRE_FALSE(fs::exists(f.exportDir() / "Square.fbx"));
 }
 
 TEST_CASE("force exports past a failed check and names it", "[core][export][run]") {
