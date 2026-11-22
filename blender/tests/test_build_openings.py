@@ -136,7 +136,7 @@ class OpeningTests(BuildTest):
         walls = self.open_walls()
         names = [m.name for m in walls.data.materials]
         sides = [a.value for a in walls.data.attributes["plynth_side"].data]
-        reveal = [p for p in walls.data.polygons if sides[p.index] == 2]
+        reveal = [p for p in walls.data.polygons if sides[p.index] == 4]
         self.assertGreater(len(reveal), 0)
         for polygon in reveal:
             self.assertEqual(names[polygon.material_index], "Reveal")

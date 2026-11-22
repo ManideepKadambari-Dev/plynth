@@ -159,7 +159,9 @@ def opening_dict(oid, wall, kind, shape, width, height, sill, hinge, centre, tan
             "hinge": hinge, "swing": "left", "frame": None, "centre": list(centre), "tangent": list(tangent),
             "right": list(right), "thickness": THICKNESS, "curved": curved,
             "outline": [list(p) for p in outline], "inner_outline": [list(p) for p in inner],
-            "cutter": rings, "threshold": threshold}
+            "cutter": rings, "threshold": threshold,
+            "materials": {"reveal": None, "threshold": None, "door": None, "frame": None, "glass": None,
+                          "handle": None}}
 
 
 # Returns a wall ring dictionary from points and one wall.
@@ -169,12 +171,12 @@ def ring(points, edges):
 
 # The floor of the square room with the given openings.
 def square_floor(openings, elevation=0.0):
-    outer = ring(OUTER, [{"wall": w, "side": "right", "room": None} for w in ("w4", "w3", "w2", "w1")])
-    hole = ring(HOLE, [{"wall": w, "side": "left", "room": "r1"} for w in ("w1", "w2", "w3", "w4")])
+    outer = ring(OUTER, [{"wall": w, "side": "right", "room": None, "material": None} for w in ("w4", "w3", "w2", "w1")])
+    hole = ring(HOLE, [{"wall": w, "side": "left", "room": "r1", "material": None} for w in ("w1", "w2", "w3", "w4")])
     room = {"id": "r1", "type": "living", "area": 14.44, "floor_z": elevation, "ceiling_z": elevation + 3.0,
-            "polygons": [{"outline": [list(p) for p in ROOM], "holes": []}]}
+            "floor_material": None, "ceiling_material": None, "polygons": [{"outline": [list(p) for p in ROOM], "holes": []}]}
     return {"id": "f1", "elevation": elevation, "ceiling_height": 3.0,
-            "wall_solids": [{"height": 3.0, "outline": outer, "holes": [hole]}],
+            "wall_solids": [{"height": 3.0, "top_material": None, "outline": outer, "holes": [hole]}],
             "openings": openings, "rooms": [room], "items": []}
 
 
@@ -184,12 +186,12 @@ def curved_floor(openings, radius=3.0, a0=0.3, a1=2.4):
     outer = arc(0.0, 0.0, radius + THICKNESS / 2, a0, a1, count)
     inner = arc(0.0, 0.0, radius - THICKNESS / 2, a1, a0, count)
     points = outer + inner
-    edges = [{"wall": "wc", "side": "right", "room": None} for _ in range(count)]
-    edges.append({"wall": "wc", "side": None, "room": None})
-    edges += [{"wall": "wc", "side": "left", "room": None} for _ in range(count)]
-    edges.append({"wall": "wc", "side": None, "room": None})
+    edges = [{"wall": "wc", "side": "right", "room": None, "material": None} for _ in range(count)]
+    edges.append({"wall": "wc", "side": None, "room": None, "material": None})
+    edges += [{"wall": "wc", "side": "left", "room": None, "material": None} for _ in range(count)]
+    edges.append({"wall": "wc", "side": None, "room": None, "material": None})
     return {"id": "f1", "elevation": 0.0, "ceiling_height": 3.0,
-            "wall_solids": [{"height": 3.0, "outline": ring(points, edges), "holes": []}],
+            "wall_solids": [{"height": 3.0, "top_material": None, "outline": ring(points, edges), "holes": []}],
             "openings": openings, "rooms": [], "items": []}
 
 
@@ -198,8 +200,9 @@ def job(floors, settings=None):
     return {"format": "plynth-blender-job", "version": 1, "task": "build", "job_id": "fixture-1",
             "result_file": "result.json",
             "params": {"project": {"name": "fixture", "folder": "project"}, "output_folder": "build",
-                       "blend_file": "building.blend", "fbx_file": "building.fbx", "plan": {"version": 1},
-                       "settings": settings or dict(SETTINGS), "assets": [], "floors": floors}}
+                       "blend_file": "building.blend", "fbx_file": "building.fbx",
+                       "materials_file": "materials.json", "textures_folder": "textures", "plan": {"version": 1},
+                       "settings": settings or dict(SETTINGS), "assets": [], "materials": [], "floors": floors}}
 
 
 TOP_WALL = {"centre": (2.0, 0.0), "tangent": (1.0, 0.0), "right": (0.0, -1.0)}

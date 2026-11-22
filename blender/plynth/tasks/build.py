@@ -27,7 +27,7 @@ def run(ctx):
     registry.discover(building_package)
     steps = sorted(registry.BUILD_STEPS.all(), key=lambda pair: pair[1].order)
     ctx.state["problems"] = []
-    ctx.state["counts"] = {"wall_solids": 0, "openings_cut": 0, "fills": 0, "rooms": 0, "items": 0}
+    ctx.state["counts"] = {"wall_solids": 0, "openings_cut": 0, "fills": 0, "rooms": 0, "items": 0, "materials": 0}
     timings = []
     for index, (step_id, step) in enumerate(steps, start=1):
         progress(step_id, index, len(steps), step.message)
@@ -39,6 +39,7 @@ def run(ctx):
     ctx.output = {
         "blend_file": ctx.params["blend_file"],
         "fbx_file": ctx.state.get("fbx_file"),
+        "materials_file": ctx.state.get("materials_file"),
         "objects": ctx.state.get("objects", 0),
         "triangles": ctx.state.get("triangles", 0),
         "counts": ctx.state["counts"],

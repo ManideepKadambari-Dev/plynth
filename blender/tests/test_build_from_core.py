@@ -34,7 +34,8 @@ class FromCoreTests(BuildTest):
         self.assertEqual(counts["wall_solids"], len(floor["wall_solids"]))
         fills = len([o for o in floor["openings"] if o["type"] in ("door", "window")])
         self.assertEqual(counts["fills"], fills)
-        self.assertEqual(sorted(os.listdir(self.path("build"))), ["building.blend", "building.fbx"])
+        self.assertEqual(sorted(os.listdir(self.path("build"))),
+                         ["building.blend", "building.fbx", "materials.json", "textures"])
 
     # Every room floor has the area core gave it, and the walls lost the volume of the openings.
     def test_geometry(self):

@@ -12,6 +12,8 @@
     "output_folder": "@PROJECT@/build",
     "blend_file": "building.blend",
     "fbx_file": "building.fbx",
+    "materials_file": "materials.json",
+    "textures_folder": "textures",
     "plan": {
       "format": "plynth-plan",
       "version": 3,
@@ -263,6 +265,7 @@
       "fill_openings": true
     },
     "assets": [],
+    "materials": [],
     "floors": [
       {
         "id": "f1",
@@ -271,6 +274,7 @@
         "wall_solids": [
           {
             "height": 3.0,
+            "top_material": null,
             "outline": {
               "points": [
                 [
@@ -438,202 +442,242 @@
                 {
                   "wall": "w5",
                   "side": "left",
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w5",
                   "side": "left",
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w4",
                   "side": "left",
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w4",
                   "side": "left",
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w3",
                   "side": null,
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w3",
                   "side": null,
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w3",
                   "side": null,
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w3",
                   "side": null,
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w3",
                   "side": null,
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w3",
                   "side": "left",
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w3",
                   "side": "left",
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w3",
                   "side": "left",
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w3",
                   "side": "left",
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w3",
                   "side": "left",
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w3",
                   "side": "left",
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w3",
                   "side": "left",
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w3",
                   "side": "left",
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w3",
                   "side": "left",
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w3",
                   "side": null,
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w2",
                   "side": null,
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w2",
                   "side": null,
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w2",
                   "side": null,
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w2",
                   "side": null,
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w2",
                   "side": "left",
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w1",
                   "side": "left",
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w1",
                   "side": "left",
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w1",
                   "side": "left",
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w1",
                   "side": "left",
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w1",
                   "side": "left",
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w1",
                   "side": "left",
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w1",
                   "side": "left",
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w1",
                   "side": "left",
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w6",
                   "side": "left",
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w6",
                   "side": "left",
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w6",
                   "side": "left",
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w6",
                   "side": "left",
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w6",
                   "side": "left",
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w6",
                   "side": "left",
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w6",
                   "side": "left",
-                  "room": null
+                  "room": null,
+                  "material": null
                 },
                 {
                   "wall": "w6",
                   "side": "left",
-                  "room": null
+                  "room": null,
+                  "material": null
                 }
               ]
             },
@@ -709,82 +753,98 @@
                   {
                     "wall": "w6",
                     "side": "right",
-                    "room": "r1"
+                    "room": "r1",
+                    "material": null
                   },
                   {
                     "wall": "w6",
                     "side": "right",
-                    "room": "r1"
+                    "room": "r1",
+                    "material": null
                   },
                   {
                     "wall": "w6",
                     "side": "right",
-                    "room": "r1"
+                    "room": "r1",
+                    "material": null
                   },
                   {
                     "wall": "w6",
                     "side": "right",
-                    "room": "r1"
+                    "room": "r1",
+                    "material": null
                   },
                   {
                     "wall": "w6",
                     "side": "right",
-                    "room": "r1"
+                    "room": "r1",
+                    "material": null
                   },
                   {
                     "wall": "w6",
                     "side": "right",
-                    "room": "r1"
+                    "room": "r1",
+                    "material": null
                   },
                   {
                     "wall": "w6",
                     "side": "right",
-                    "room": "r1"
+                    "room": "r1",
+                    "material": null
                   },
                   {
                     "wall": "w1",
                     "side": "right",
-                    "room": "r1"
+                    "room": "r1",
+                    "material": null
                   },
                   {
                     "wall": "w1",
                     "side": "right",
-                    "room": "r1"
+                    "room": "r1",
+                    "material": null
                   },
                   {
                     "wall": "w1",
                     "side": "right",
-                    "room": "r1"
+                    "room": "r1",
+                    "material": null
                   },
                   {
                     "wall": "w1",
                     "side": "right",
-                    "room": "r1"
+                    "room": "r1",
+                    "material": null
                   },
                   {
                     "wall": "w1",
                     "side": "right",
-                    "room": "r1"
+                    "room": "r1",
+                    "material": null
                   },
                   {
                     "wall": "w1",
                     "side": "right",
-                    "room": "r1"
+                    "room": "r1",
+                    "material": null
                   },
                   {
                     "wall": "w1",
                     "side": "right",
-                    "room": "r1"
+                    "room": "r1",
+                    "material": null
                   },
                   {
                     "wall": "w7",
                     "side": "right",
-                    "room": "r1"
+                    "room": "r1",
+                    "material": null
                   },
                   {
                     "wall": "w5",
                     "side": "right",
-                    "room": "r1"
+                    "room": "r1",
+                    "material": null
                   }
                 ]
               },
@@ -851,72 +911,86 @@
                   {
                     "wall": "w7",
                     "side": "left",
-                    "room": "r2"
+                    "room": "r2",
+                    "material": null
                   },
                   {
                     "wall": "w2",
                     "side": "right",
-                    "room": "r2"
+                    "room": "r2",
+                    "material": null
                   },
                   {
                     "wall": "w3",
                     "side": null,
-                    "room": "r2"
+                    "room": "r2",
+                    "material": null
                   },
                   {
                     "wall": "w3",
                     "side": "right",
-                    "room": "r2"
+                    "room": "r2",
+                    "material": null
                   },
                   {
                     "wall": "w3",
                     "side": "right",
-                    "room": "r2"
+                    "room": "r2",
+                    "material": null
                   },
                   {
                     "wall": "w3",
                     "side": "right",
-                    "room": "r2"
+                    "room": "r2",
+                    "material": null
                   },
                   {
                     "wall": "w3",
                     "side": "right",
-                    "room": "r2"
+                    "room": "r2",
+                    "material": null
                   },
                   {
                     "wall": "w3",
                     "side": "right",
-                    "room": "r2"
+                    "room": "r2",
+                    "material": null
                   },
                   {
                     "wall": "w3",
                     "side": "right",
-                    "room": "r2"
+                    "room": "r2",
+                    "material": null
                   },
                   {
                     "wall": "w3",
                     "side": "right",
-                    "room": "r2"
+                    "room": "r2",
+                    "material": null
                   },
                   {
                     "wall": "w3",
                     "side": "right",
-                    "room": "r2"
+                    "room": "r2",
+                    "material": null
                   },
                   {
                     "wall": "w3",
                     "side": "right",
-                    "room": "r2"
+                    "room": "r2",
+                    "material": null
                   },
                   {
                     "wall": "w3",
                     "side": null,
-                    "room": "r2"
+                    "room": "r2",
+                    "material": null
                   },
                   {
                     "wall": "w4",
                     "side": "right",
-                    "room": "r2"
+                    "room": "r2",
+                    "material": null
                   }
                 ]
               }
@@ -1048,7 +1122,15 @@
                 1.55,
                 0.1
               ]
-            ]
+            ],
+            "materials": {
+              "reveal": null,
+              "threshold": null,
+              "door": null,
+              "frame": null,
+              "glass": null,
+              "handle": null
+            }
           },
           {
             "id": "o2",
@@ -1571,7 +1653,15 @@
                 ]
               ]
             },
-            "threshold": []
+            "threshold": [],
+            "materials": {
+              "reveal": null,
+              "threshold": null,
+              "door": null,
+              "frame": null,
+              "glass": null,
+              "handle": null
+            }
           },
           {
             "id": "o3",
@@ -1842,7 +1932,15 @@
                 ]
               ]
             },
-            "threshold": []
+            "threshold": [],
+            "materials": {
+              "reveal": null,
+              "threshold": null,
+              "door": null,
+              "frame": null,
+              "glass": null,
+              "handle": null
+            }
           },
           {
             "id": "o4",
@@ -2238,7 +2336,15 @@
                 6.5,
                 -4.1
               ]
-            ]
+            ],
+            "materials": {
+              "reveal": null,
+              "threshold": null,
+              "door": null,
+              "frame": null,
+              "glass": null,
+              "handle": null
+            }
           },
           {
             "id": "o5",
@@ -3139,7 +3245,15 @@
                 ]
               ]
             },
-            "threshold": []
+            "threshold": [],
+            "materials": {
+              "reveal": null,
+              "threshold": null,
+              "door": null,
+              "frame": null,
+              "glass": null,
+              "handle": null
+            }
           },
           {
             "id": "o6",
@@ -3321,7 +3435,15 @@
                 8.577513865688998,
                 -1.5582718683743588
               ]
-            ]
+            ],
+            "materials": {
+              "reveal": null,
+              "threshold": null,
+              "door": null,
+              "frame": null,
+              "glass": null,
+              "handle": null
+            }
           },
           {
             "id": "o7",
@@ -3447,7 +3569,15 @@
                 4.1,
                 -1.55
               ]
-            ]
+            ],
+            "materials": {
+              "reveal": null,
+              "threshold": null,
+              "door": null,
+              "frame": null,
+              "glass": null,
+              "handle": null
+            }
           }
         ],
         "rooms": [
@@ -3527,7 +3657,9 @@
                 ],
                 "holes": []
               }
-            ]
+            ],
+            "floor_material": null,
+            "ceiling_material": null
           },
           {
             "id": "r2",
@@ -3597,7 +3729,9 @@
                 ],
                 "holes": []
               }
-            ]
+            ],
+            "floor_material": null,
+            "ceiling_material": null
           }
         ],
         "items": []

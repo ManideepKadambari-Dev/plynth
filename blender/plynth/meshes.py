@@ -6,6 +6,8 @@ from mathutils.geometry import tessellate_polygon
 
 from . import surfaces
 
+UV_NAME = "UVMap"
+
 
 # Returns triangles (index triples) that fill a polygon with holes, over the points of the outline followed by
 # the points of each hole. Every triangle runs anticlockwise seen from above.
@@ -96,6 +98,35 @@ def area(obj):
     return result
 
 
+# Returns the UV layer of the bmesh, making it when it is missing.
+def uv_layer(bm):
+    return bm.loops.layers.uv.get(UV_NAME) or bm.loops.layers.uv.new(UV_NAME)
+
+
+# Gives the face UVs in metres on the world plane its normal is closest to: X and Y for faces that look up or
+# down, Y and Z for faces that look along X, X and Z for the rest.
+def project_face(face, layer):
+    normal = face.normal
+    ax, ay, az = abs(normal.x), abs(normal.y), abs(normal.z)
+    for loop in face.loops:
+        co = loop.vert.co
+        if az >= ax and az >= ay:
+            loop[layer].uv = (co.x, co.y)
+        elif ax >= ay:
+            loop[layer].uv = (co.y, co.z)
+        else:
+            loop[layer].uv = (co.x, co.z)
+
+
+# Gives the faces UVs equal to the world X and Y, or X and minus Y when flip_y is true (ceilings).
+def world_uvs(bm, faces, flip_y=False):
+    layer = uv_layer(bm)
+    sign = -1.0 if flip_y else 1.0
+    for face in faces:
+        for loop in face.loops:
+            loop[layer].uv = (loop.vert.co.x, sign * loop.vert.co.y)
+
+
 # Adds the surface materials to the object in the order of names.
 def add_slots(obj, names):
     for name in names:
@@ -143,9 +174,11 @@ def add_prism_uv(bm, outline, holes, w0, w1, place, slot):
         for i in range(total):
             j = (i + 1) % total
             faces.append(bm.faces.new([ring_back[i], ring_back[j], ring_front[j], ring_front[i]]))
+    bmesh.ops.recalc_face_normals(bm, faces=faces)
+    layer = uv_layer(bm)
     for face in faces:
         face.material_index = slot
-    bmesh.ops.recalc_face_normals(bm, faces=faces)
+        project_face(face, layer)
     return faces
 
 

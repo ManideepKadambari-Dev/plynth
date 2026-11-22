@@ -12,6 +12,8 @@
   "output_folder": "build",
   "blend_file": "building.blend",
   "fbx_file": "building.fbx",
+  "materials_file": "materials.json",
+  "textures_folder": "textures",
   "plan": {
    "version": 1
   },
@@ -21,6 +23,7 @@
    "fill_openings": true
   },
   "assets": [],
+  "materials": [],
   "floors": [
    {
     "id": "f1",
@@ -29,6 +32,7 @@
     "wall_solids": [
      {
       "height": 3.0,
+      "top_material": null,
       "outline": {
        "points": [
         [
@@ -52,22 +56,26 @@
         {
          "wall": "w4",
          "side": "right",
-         "room": null
+         "room": null,
+         "material": null
         },
         {
          "wall": "w3",
          "side": "right",
-         "room": null
+         "room": null,
+         "material": null
         },
         {
          "wall": "w2",
          "side": "right",
-         "room": null
+         "room": null,
+         "material": null
         },
         {
          "wall": "w1",
          "side": "right",
-         "room": null
+         "room": null,
+         "material": null
         }
        ]
       },
@@ -95,22 +103,26 @@
          {
           "wall": "w1",
           "side": "left",
-          "room": "r1"
+          "room": "r1",
+          "material": null
          },
          {
           "wall": "w2",
           "side": "left",
-          "room": "r1"
+          "room": "r1",
+          "material": null
          },
          {
           "wall": "w3",
           "side": "left",
-          "room": "r1"
+          "room": "r1",
+          "material": null
          },
          {
           "wall": "w4",
           "side": "left",
-          "room": "r1"
+          "room": "r1",
+          "material": null
          }
         ]
        }
@@ -728,7 +740,15 @@
         1.5,
         0.1
        ]
-      ]
+      ],
+      "materials": {
+       "reveal": null,
+       "threshold": null,
+       "door": null,
+       "frame": null,
+       "glass": null,
+       "handle": null
+      }
      }
     ],
     "rooms": [
@@ -760,7 +780,9 @@
         ],
         "holes": []
        }
-      ]
+      ],
+      "floor_material": null,
+      "ceiling_material": null
      }
     ],
     "items": []

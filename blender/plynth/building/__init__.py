@@ -22,3 +22,11 @@ def report(ctx, code, severity, message, floor=None, obj=None):
 def count(ctx, name, amount=1):
     counts = ctx.state.setdefault("counts", {})
     counts[name] = counts.get(name, 0) + amount
+
+
+# Returns the name of a slot: the library material id, or the neutral surface name when there is none. The
+# first surface seen for a name is remembered so a material that fails to load can get a neutral look.
+def slot_name(ctx, material, surface):
+    name = material or surface
+    ctx.state.setdefault("slot_surfaces", {}).setdefault(name, surface)
+    return name
