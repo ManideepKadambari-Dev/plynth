@@ -343,10 +343,14 @@ TEST_CASE("initLibrary copies the sample shapes of PLYNTH_SAMPLES and keeps edit
     REQUIRE(text == "edited");
 }
 
-TEST_CASE("sampleShapesFolder finds the source tree in a developer build", "[core][library][shapes]") {
+TEST_CASE("sampleShapesFolder uses the source tree only in a developer build", "[core][library][shapes]") {
     const fs::path none;
     EnvVar env(std::string(kSamplesVariable), none);
     const fs::path folder = sampleShapesFolder();
+#if PLYNTH_DEV_SAMPLES
     REQUIRE_FALSE(folder.empty());
     REQUIRE(fs::exists(folder / "keyhole.shape.json"));
+#else
+    REQUIRE(folder.empty());
+#endif
 }
