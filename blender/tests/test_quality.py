@@ -291,7 +291,7 @@ class QualityTests(ExportTest):
         self.assertEqual(checks["materials"]["status"], "fail")
         finding = checks["materials"]["findings"][0]
         self.assertEqual(finding["object"], "Living_Wall")
-        self.assertIn("cannot bake it, because baking needs", finding["message"])
+        self.assertIn("cannot turn into image maps", finding["message"])
 
     # A missing UCX, an open one and a concave one fail collision.
     def test_collision(self):
