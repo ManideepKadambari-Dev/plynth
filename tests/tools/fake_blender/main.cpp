@@ -2,7 +2,8 @@
 // Blender: it reads the job file after "--", acts by the mode in fake_mode.txt next to the program (or the
 // FAKE_BLENDER_MODE variable), and writes a result file that follows schema/blender-result.schema.json.
 // Modes: ok (default), fail, crash, hang, hang_version, bad_result, no_thumbnail, no_fbx, build_problem,
-// several_materials (a cleanup_material job on a .blend with no material named fails with that error).
+// several_materials (a cleanup_material job on a .blend with no material named fails with that error),
+// quality_fail (an export job reports a failing naming check with a finding on w1), quality_warn (a warning).
 // Every job is also appended as one line to fake_jobs.log next to the program.
 // The version comes from fake_version.txt next to the program, else 5.2.0.
 // Probe add-ons come from FAKE_BLENDER_ADDONS (comma separated modules) and FAKE_BLENDER_BLENDERKIT
@@ -391,6 +392,64 @@ Json buildOutput(const Json& params, const std::string& mode)
     return out;
 }
 
+// The steps the fake export reports.
+constexpr const char* kExportSteps[] = {"open_blend", "prepare", "name_objects", "textures", "checks", "write_fbx", "file_checks"};
+
+// One check result of the fake export.
+Json fakeCheck(const char* id, const char* name, const char* phase, const char* status, const char* message, Json findings = Json::array())
+{
+    return Json{{"id", id}, {"name", name}, {"phase", phase}, {"status", status}, {"message", message}, {"findings", std::move(findings)}};
+}
+
+// What the fake export task writes and reports: every group's file and Textures/T_Fake_BaseColor.png when the job
+// writes and no scene check fails (or it is forced).
+Json exportOutput(const Json& params, const std::string& mode)
+{
+    const fs::path folder = pathFrom(params["output_folder"].get<std::string>());
+    const bool failing = mode == "quality_fail";
+    const bool warning = mode == "quality_warn";
+    const bool write = params["write"].get<bool>() && (!failing || params["force"].get<bool>());
+
+    Json files = Json::array();
+    Json textures = Json::array();
+    if (write) {
+        for (const Json& group : params["groups"]) {
+            writeFile(folder / pathFrom(group["file"].get<std::string>()), "FAKEFBX");
+            files.push_back(Json{{"group", group["id"]}, {"file", group["file"]}, {"objects", 12}, {"triangles", 144}});
+        }
+        writeFile(folder / pathFrom(params["textures_folder"].get<std::string>()) / "T_Fake_BaseColor.png", tinyPng());
+        textures.push_back("T_Fake_BaseColor.png");
+    }
+
+    Json naming = fakeCheck("naming", "Naming", "scene", "pass", "Every name follows the rules.");
+    if (failing) {
+        naming = fakeCheck("naming", "Naming", "scene", "fail", "One object has a bad name.",
+                           Json::array({Json{{"object", "SM_Bad Name"}, {"plan_id", "w1"}, {"message", "The name has a space in it."}}}));
+    } else if (warning) {
+        naming = fakeCheck("naming", "Naming", "scene", "warning", "One name is unusual.");
+    }
+    Json checks = Json::array();
+    checks.push_back(fakeCheck("build_current", "Build is up to date", "scene", "pass", "The build matches the plan."));
+    checks.push_back(naming);
+    checks.push_back(write ? fakeCheck("fbx_scale", "File scale", "file", "pass", "The files have the right size.")
+                           : fakeCheck("fbx_scale", "File scale", "file", "skipped", "Nothing was written."));
+
+    Json steps = Json::array();
+    for (const char* step : kExportSteps) steps.push_back(Json{{"step", step}, {"ms", 2}});
+
+    const int groups = static_cast<int>(files.size());
+    Json out = Json::object();
+    out["written"] = write;
+    out["files"] = files;
+    out["textures"] = textures;
+    out["objects"] = 12 * groups;
+    out["triangles"] = 144 * groups;
+    out["collision_objects"] = 3 * groups;
+    out["checks"] = checks;
+    out["steps"] = steps;
+    return out;
+}
+
 }
 
 // The command line arguments as UTF-8, read from the wide command line so non ASCII paths survive.
@@ -451,6 +510,9 @@ int main()
     if (isBuild) {
         int index = 0;
         for (const char* step : kBuildSteps) progress(step, ++index, static_cast<int>(std::size(kBuildSteps)), "Fake build step");
+    } else if (job["task"].get<std::string>() == "export") {
+        int index = 0;
+        for (const char* step : kExportSteps) progress(step, ++index, static_cast<int>(std::size(kExportSteps)), "Fake export step");
     } else {
         progress("import_source", 1, 2, "Fake import");
         progress("save_blend", 2, 2, "Fake save");
@@ -483,8 +545,9 @@ int main()
         const bool render = mode != "fail";
         result["ok"] = false;
         const bool build = task == "build";
-        result["error"] = Json{{"code", render ? "render_failed" : build ? "save_failed" : "import_failed"},
-                               {"message", render ? "Fake render failure" : build ? "Fake save failure." : "Fake import failure."}};
+        const bool exporting = task == "export";
+        result["error"] = Json{{"code", render ? "render_failed" : build ? "save_failed" : exporting ? "export_failed" : "import_failed"},
+                               {"message", render ? "Fake render failure" : build ? "Fake save failure." : exporting ? "Fake export failure." : "Fake import failure."}};
         result["output"] = nullptr;
         writeResult(resultFile, result);
         return 0;
@@ -501,6 +564,8 @@ int main()
 
     if (task == "build") {
         result["output"] = buildOutput(params, mode);
+    } else if (task == "export") {
+        result["output"] = exportOutput(params, mode);
     } else if (task == "probe") {
         result["output"] = probeOutput(version);
     } else if (task == "cleanup_material") {

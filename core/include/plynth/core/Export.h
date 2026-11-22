@@ -86,6 +86,7 @@ struct ExportReport {
     bool forced = false;        // settings.force was true
     std::vector<std::string> overridden; // ids of the failed checks a forced export went past
     std::vector<std::filesystem::path> files; // absolute, in export/; empty unless exported
+    std::vector<ExportFileOutput> fileOutputs; // group, name and counts of each entry of files, same order
     std::filesystem::path texturesFolder;     // export/Textures, absolute; empty unless exported
     int textureCount = 0;
     std::filesystem::path reportFile;         // export/export_report.json, absolute
