@@ -14,6 +14,7 @@ namespace {
 
 constexpr int kPrecision = 8;
 constexpr double kMiterLimit = 10.0; // corners of a wide part keep their exact shape
+constexpr double kMergeDistance = 1e-4; // points nearer than this are one point: rounding noise a float32 mesh could not hold
 constexpr double kSliver = 1e-6; // pieces smaller than this many square metres are rounding noise
 
 // A list of points as a Clipper path.
@@ -60,6 +61,35 @@ std::vector<Vec2> turned(std::vector<Vec2> ring, bool outline)
     return ring;
 }
 
+// The ring without points that lie within kMergeDistance of the previous point, and without spike tips (a point
+// on the line through its neighbours but outside the segment between them). Turning a plan or rounding to the
+// clipper grid leaves such points, and they make edges a float32 mesh cannot keep. Points in a straight line
+// between their neighbours stay, since a wall junction there is a real vertex.
+std::vector<Vec2> cleanedRing(std::vector<Vec2> ring)
+{
+    bool changed = true;
+    while (changed && ring.size() > 3) {
+        changed = false;
+        for (std::size_t i = 0; i < ring.size() && ring.size() > 3; ++i) {
+            const Vec2 prev = ring[(i + ring.size() - 1) % ring.size()];
+            const Vec2 next = ring[(i + 1) % ring.size()];
+            const Vec2 p = ring[i];
+            const double toPrev = std::hypot(p.x - prev.x, p.y - prev.y);
+            const double dx = next.x - prev.x;
+            const double dy = next.y - prev.y;
+            const double span = std::hypot(dx, dy);
+            const double off = span > 0.0 ? std::abs((p.x - prev.x) * dy - (p.y - prev.y) * dx) / span : toPrev;
+            const double along = span > 0.0 ? ((p.x - prev.x) * dx + (p.y - prev.y) * dy) / (span * span) : 0.0;
+            if (toPrev < kMergeDistance || (off < kMergeDistance && (along <= 0.0 || along >= 1.0))) {
+                ring.erase(ring.begin() + static_cast<std::ptrdiff_t>(i));
+                changed = true;
+                --i;
+            }
+        }
+    }
+    return ring;
+}
+
 // Collects the pieces of a polygon tree: each outline with the holes directly inside it.
 void collect(const Clipper2Lib::PolyPathD& node, std::vector<PlanArea>& out)
 {
@@ -67,9 +97,9 @@ void collect(const Clipper2Lib::PolyPathD& node, std::vector<PlanArea>& out)
         const Clipper2Lib::PolyPathD& child = *node.Child(i);
         if (!child.IsHole()) {
             PlanArea area;
-            area.outline = startedAtLowest(turned(fromPath(child.Polygon()), true));
+            area.outline = startedAtLowest(turned(cleanedRing(fromPath(child.Polygon())), true));
             for (std::size_t h = 0; h < child.Count(); ++h) {
-                area.holes.push_back(startedAtLowest(turned(fromPath(child.Child(h)->Polygon()), false)));
+                area.holes.push_back(startedAtLowest(turned(cleanedRing(fromPath(child.Child(h)->Polygon())), false)));
             }
             std::sort(area.holes.begin(), area.holes.end(), [](const auto& a, const auto& b) {
                 return a.front().y != b.front().y ? a.front().y < b.front().y : a.front().x < b.front().x;
@@ -267,13 +297,24 @@ std::vector<PlanArea> roofSectionAreas(const Plan& plan, std::size_t floorIndex)
     const Clipper2Lib::PathsD grown = Clipper2Lib::InflatePaths(shrunk, half, Clipper2Lib::JoinType::Miter,
                                                                 Clipper2Lib::EndType::Polygon, kMiterLimit, kPrecision);
     if (grown.empty()) return {};
-    std::vector<PlanArea> kept = run(Clipper2Lib::ClipType::Intersection, grown, all);
+    const std::vector<PlanArea> kept = run(Clipper2Lib::ClipType::Intersection, grown, all);
+    // Nothing was dropped: keep exposedArea as it is, so the corners of a wide part are not touched. A hairline
+    // strip has next to no area, so the pieces must also have the same points.
     double keptSize = 0.0;
     double exposedSize = 0.0;
-    for (const PlanArea& a : kept) keptSize += planAreaSize(a);
-    for (const PlanArea& a : exposed) exposedSize += planAreaSize(a);
-    // Nothing was dropped: keep exposedArea as it is, so its corners are not touched.
-    if (std::abs(keptSize - exposedSize) < kSliver) return exposed;
+    std::size_t keptPoints = 0;
+    std::size_t exposedPoints = 0;
+    for (const PlanArea& a : kept) {
+        keptSize += planAreaSize(a);
+        keptPoints += a.outline.size();
+        for (const auto& h : a.holes) keptPoints += h.size();
+    }
+    for (const PlanArea& a : exposed) {
+        exposedSize += planAreaSize(a);
+        exposedPoints += a.outline.size();
+        for (const auto& h : a.holes) exposedPoints += h.size();
+    }
+    if (std::abs(keptSize - exposedSize) < kSliver && keptPoints == exposedPoints) return exposed;
     return kept;
 }
 
