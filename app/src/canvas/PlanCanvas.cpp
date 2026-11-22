@@ -397,6 +397,8 @@ void PlanCanvas::paintOverlay(QPainter* painter)
         painter->drawPath(overlay_.below);
     }
 
+    paintRoofHatch(painter);
+
     QColor roomBlue = t.signalBlue();
     roomBlue.setAlpha(t.roomFillAlpha());
     painter->setPen(Qt::NoPen);
@@ -470,6 +472,7 @@ void PlanCanvas::paintOverlay(QPainter* painter)
         painter->drawEllipse(QPointF(mapFromScene(point.position)), radius, radius);
 
     paintLabels(painter);
+    paintRoofLabels(painter);
 
     if (selectionKind_ == SelectionKind::Point) {
         for (const OverlayPoint& point : overlay_.points) {
@@ -510,6 +513,132 @@ void PlanCanvas::paintProblems(QPainter* painter)
                          t.signalAmber(), 1.6);
 }
 
+// Shows or hides the roof sections.
+void PlanCanvas::setRoofSectionsShown(bool shown)
+{
+    if (roofsShown_ == shown)
+        return;
+    roofsShown_ = shown;
+    viewport()->update();
+}
+
+// The id of the roof section holding a scene point.
+QString PlanCanvas::roofAt(const QPointF& scene) const
+{
+    for (const OverlayRoof& roof : overlay_.roofs)
+        if (roof.area.contains(scene))
+            return roof.id;
+    return QString();
+}
+
+// Whether a scene point is over something the Select tool picks before a roof section: a wall, an opening, an
+// item, a stair or a point.
+bool PlanCanvas::overRoofCover(const QPointF& scene) const
+{
+    for (const OverlayWall& wall : overlay_.walls)
+        if (wall.band.contains(scene))
+            return true;
+    for (const OverlayOpening& opening : overlay_.openings)
+        if (opening.footprint.containsPoint(scene, Qt::OddEvenFill))
+            return true;
+    for (const OverlayItem& item : overlay_.items)
+        if (item.footprint.containsPoint(scene, Qt::OddEvenFill))
+            return true;
+    if (!stairAt(scene).isEmpty())
+        return true;
+    const double radius = Theme::instance().pointDot() / zoom_;
+    for (const OverlayPoint& point : overlay_.points)
+        if (std::hypot(point.position.x() - scene.x(), point.position.y() - scene.y()) <= radius)
+            return true;
+    return false;
+}
+
+// Paints the fill, hatch and outline of every roof section, amber for the selected one. Drawn under the rooms
+// and walls.
+void PlanCanvas::paintRoofHatch(QPainter* painter)
+{
+    if (!roofsShown_ || overlay_.roofs.isEmpty())
+        return;
+    const Theme& t = Theme::instance();
+    const QTransform view = viewportTransform();
+    const double step = t.unit() * 2.0;
+    painter->save();
+    painter->resetTransform();
+    for (const OverlayRoof& roof : overlay_.roofs) {
+        const bool selected = selectionKind_ == SelectionKind::RoofSection && roof.id == selectionId_;
+        const QColor accent = selected ? t.signalAmber() : t.signalBlue();
+        const QPainterPath area = view.map(roof.area);
+        QColor fill = accent;
+        fill.setAlpha(selected ? t.roomFillAlpha() * 2 : t.roomFillAlpha());
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(fill);
+        painter->drawPath(area);
+        const QRectF box = area.boundingRect();
+        QColor line = accent;
+        line.setAlpha(selected ? 200 : t.overlayAlpha());
+        painter->save();
+        painter->setClipPath(area);
+        painter->setPen(QPen(line, 1.0));
+        for (double x = box.left() - box.height(); x < box.right(); x += step)
+            painter->drawLine(QPointF(x, box.bottom()), QPointF(x + box.height(), box.top()));
+        painter->restore();
+        painter->setPen(QPen(accent, selected ? 2.0 : 1.0));
+        painter->setBrush(Qt::NoBrush);
+        painter->drawPath(area);
+    }
+    painter->restore();
+}
+
+// Paints the label chip and the direction arrow of every roof section.
+void PlanCanvas::paintRoofLabels(QPainter* painter)
+{
+    if (!roofsShown_)
+        return;
+    const Theme& t = Theme::instance();
+    const QFont font = t.monoFont(t.sizeSmall());
+    const QFontMetrics metrics(font);
+    for (const OverlayRoof& roof : overlay_.roofs) {
+        const bool selected = selectionKind_ == SelectionKind::RoofSection && roof.id == selectionId_;
+        const QColor accent = selected ? t.signalAmber() : t.signalBlue();
+        if (roof.arrow) {
+            const QPointF from = mapFromScene(roof.arrowFrom);
+            const QPointF to = mapFromScene(roof.arrowTo);
+            const double length = std::hypot(to.x() - from.x(), to.y() - from.y());
+            if (length > 1.0) {
+                const QPointF direction = (to - from) / length;
+                const QPointF side(-direction.y(), direction.x());
+                const double head = t.unit() * 3.0;
+                painter->setPen(QPen(accent, 2.0, Qt::SolidLine, Qt::RoundCap));
+                painter->drawLine(from, to);
+                painter->setPen(Qt::NoPen);
+                painter->setBrush(accent);
+                QPolygonF tip;
+                tip << to << to - direction * head + side * (head / 2.0) << to - direction * head - side * (head / 2.0);
+                painter->drawPolygon(tip);
+                if (roof.ridge) {
+                    QPolygonF tail;
+                    tail << from << from + direction * head + side * (head / 2.0)
+                         << from + direction * head - side * (head / 2.0);
+                    painter->drawPolygon(tail);
+                }
+            }
+        }
+        if (roof.label.isEmpty())
+            continue;
+        const int pad = t.unit();
+        QRectF pill(0, 0, metrics.horizontalAdvance(roof.label) + pad * 2.0, metrics.height() + pad);
+        pill.moveCenter(mapFromScene(roof.labelPoint));
+        QColor backing = t.panel();
+        backing.setAlpha(230);
+        painter->setPen(QPen(accent, 1.0));
+        painter->setBrush(backing);
+        painter->drawRoundedRect(pill, t.radius(), t.radius());
+        painter->setFont(font);
+        painter->setPen(selected ? t.signalAmber() : t.text());
+        painter->drawText(pill, Qt::AlignCenter, roof.label);
+    }
+}
+
 // The id of the stair whose footprint holds a scene point. The one drawn last wins.
 QString PlanCanvas::stairAt(const QPointF& scene) const
 {
@@ -526,6 +655,10 @@ bool PlanCanvas::event(QEvent* event)
         const auto* help = static_cast<QHelpEvent*>(event);
         const QPointF scene = mapToScene(viewport()->mapFrom(this, help->pos()));
         QString text;
+        if (roofsShown_)
+            for (const OverlayRoof& roof : overlay_.roofs)
+                if (roof.area.contains(scene))
+                    text = roof.tip;
         for (const OverlayStair& stair : overlay_.arriving)
             if (stair.footprint.containsPoint(scene, Qt::OddEvenFill))
                 text = tr("Stair %1 from %2. Edit it on %2.").arg(stair.id, stair.from);
@@ -831,6 +964,16 @@ void PlanCanvas::mousePressEvent(QMouseEvent* event)
         emit alignDragStarted();
         event->accept();
         return;
+    }
+    if (hasImage() && roofsShown_ && tool_ != nullptr && tool_->id() == ToolId::Select &&
+        event->button() == Qt::LeftButton) {
+        const ToolMouse mouse = toolMouse(*this, event);
+        const QString roof = roofAt(mouse.scene);
+        if (!roof.isEmpty() && !overRoofCover(mouse.scene)) {
+            emit roofSectionClicked(roof);
+            event->accept();
+            return;
+        }
     }
     if (hasImage() && tool_ != nullptr) {
         tool_->mousePressed(toolMouse(*this, event));

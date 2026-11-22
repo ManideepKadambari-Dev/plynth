@@ -1,6 +1,7 @@
 #include "OverlayBuilder.h"
 
 #include <plynth/core/Items.h>
+#include <plynth/core/Roofs.h>
 #include <plynth/core/RoomTypes.h>
 #include <plynth/core/Rooms.h>
 #include <plynth/core/WallGeometry.h>
@@ -9,6 +10,10 @@
 #include <QObject>
 #include <QPolygonF>
 #include <QStringList>
+
+#include <algorithm>
+#include <cmath>
+#include <numbers>
 
 namespace plynth::app {
 
@@ -49,6 +54,67 @@ OverlayStair makeOverlayStair(const plynth::StairLayout& layout, double ppm)
     if (!stair.walkLine.isEmpty())
         stair.origin = stair.walkLine.first();
     return stair;
+}
+
+// Turns a roof section into the area, label and direction arrow the canvas draws, in image pixels.
+OverlayRoof makeOverlayRoof(const plynth::RoofArea& roof, double ppm)
+{
+    OverlayRoof out;
+    out.id = QStringLiteral("%1:%2").arg(fromCore(roof.floor)).arg(roof.index);
+    out.area.setFillRule(Qt::OddEvenFill);
+    out.area.addPolygon(toPolygon(roof.area.outline, ppm));
+    out.area.closeSubpath();
+    for (const std::vector<plynth::Vec2>& hole : roof.area.holes) {
+        out.area.addPolygon(toPolygon(hole, ppm));
+        out.area.closeSubpath();
+    }
+    out.labelPoint = QPointF(roof.labelPoint.x * ppm, roof.labelPoint.y * ppm);
+
+    const plynth::RoofSettings& s = roof.settings;
+    const plynth::RoofType* type = plynth::findRoofType(s.type);
+    QString name = type != nullptr ? fromCore(std::string(type->name())) : fromCore(s.type);
+    const QString pitch = QStringLiteral("%1°").arg(s.pitch, 0, 'f', s.pitch == std::floor(s.pitch) ? 0 : 1);
+    if (type == nullptr)
+        out.label = QObject::tr("%1 (unknown type)").arg(name);
+    else if (type->usesParapet() && s.parapet > 0.0)
+        out.label = QObject::tr("%1, parapet %2 m").arg(name).arg(s.parapet, 0, 'f', 2);
+    else if (type->usesPitch())
+        out.label = QStringLiteral("%1 %2").arg(name, pitch);
+    else
+        out.label = name;
+    out.tip = QObject::tr("Roof section %1: %2. Click it to select it.").arg(out.id, out.label);
+    // A sliver gets the hatch but no label, which would only cover the plan.
+    if (plynth::planAreaSize(roof.area) < 0.25)
+        out.label.clear();
+
+    if (type == nullptr || !type->usesDirection())
+        return out;
+    double x0 = 1e300, x1 = -1e300, y0 = 1e300, y1 = -1e300;
+    for (const plynth::Vec2& p : roof.area.outline) {
+        x0 = std::min(x0, p.x);
+        x1 = std::max(x1, p.x);
+        y0 = std::min(y0, p.y);
+        y1 = std::max(y1, p.y);
+    }
+    plynth::Vec2 ridge{1.0, 0.0};
+    if (s.direction) {
+        const double r = *s.direction * std::numbers::pi / 180.0;
+        ridge = {std::cos(r), std::sin(r)};
+    } else if ((x1 - x0) < (y1 - y0)) {
+        ridge = {0.0, 1.0};
+    }
+    const bool shed = s.type == plynth::kShedRoofId;
+    plynth::Vec2 along = ridge;
+    if (shed && !s.direction)
+        along = std::fabs(ridge.x) >= std::fabs(ridge.y) ? plynth::Vec2{0.0, 1.0} : plynth::Vec2{1.0, 0.0};
+    const double extent = std::fabs(along.x) * (x1 - x0) + std::fabs(along.y) * (y1 - y0);
+    const double half = extent * 0.35 * ppm;
+    const QPointF direction(along.x, along.y);
+    out.arrow = true;
+    out.ridge = !shed;
+    out.arrowFrom = out.labelPoint - direction * half;
+    out.arrowTo = out.labelPoint + direction * half;
+    return out;
 }
 
 // Gives the canvas the points, walls and rooms of the first floor.
@@ -100,6 +166,9 @@ OverlayData buildOverlay(const plynth::Plan& plan, const std::string& floorId, c
         entry.from = fromCore(from != nullptr ? from->name : layout.fromFloor);
         overlay.arriving.append(entry);
     }
+
+    for (const plynth::RoofArea& roof : plynth::roofAreasOf(plan, floorId))
+        overlay.roofs.append(makeOverlayRoof(roof, ppm));
 
     for (const plynth::Point& point : floor.points)
         overlay.points.append({fromCore(point.id), QPointF(point.x * ppm, point.y * ppm)});

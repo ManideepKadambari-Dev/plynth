@@ -101,6 +101,21 @@ struct OverlayStair {
     bool problem = false;
 };
 
+// One roof section of the shown floor, in scene units. id is "<floor id>:<index>", the way Selection holds it.
+// The arrow is set when the type has a direction: a ridge line for a gable or sawtooth roof (ridge is true) and
+// the way a shed falls.
+struct OverlayRoof {
+    QString id;
+    QPainterPath area;
+    QPointF labelPoint;
+    QString label;
+    QString tip;
+    bool arrow = false;
+    QPointF arrowFrom;
+    QPointF arrowTo;
+    bool ridge = false;
+};
+
 // Everything the canvas draws over the plan image.
 struct OverlayData {
     QVector<OverlayItem> items;
@@ -115,6 +130,8 @@ struct OverlayData {
     // The stairs of the shown floor, and the ones that arrive on it from the floor below (locked, not selectable).
     QVector<OverlayStair> stairs;
     QVector<OverlayStair> arriving;
+    // The roof sections of the shown floor, drawn when roof sections are shown.
+    QVector<OverlayRoof> roofs;
 };
 
 // One proposed wall, in scene units.
@@ -165,6 +182,11 @@ public:
     void setSelection(SelectionKind kind, const QString& id);
     // The id of the stair of the shown floor whose footprint holds a scene point, or an empty string.
     QString stairAt(const QPointF& scene) const;
+    // Shows or hides the roof sections of the shown floor (hatch, label and direction arrow).
+    void setRoofSectionsShown(bool shown);
+    bool roofSectionsShown() const { return roofsShown_; }
+    // The id ("<floor id>:<index>") of the roof section holding a scene point, or an empty string.
+    QString roofAt(const QPointF& scene) const;
     // The problems of the last build, and whether they are drawn.
     void setProblems(const QVector<ProblemMarker>& markers);
     void setProblemsShown(bool shown);
@@ -203,6 +225,8 @@ signals:
     void alignDragged(const QPointF& delta);
     void alignDragFinished();
     void alignNudged(const QPoint& direction, bool big);
+    // The Select tool was pressed on a roof section while roof sections are shown. id is "<floor id>:<index>".
+    void roofSectionClicked(const QString& id);
 
 protected:
     bool event(QEvent* event) override;
@@ -238,6 +262,9 @@ private:
     QVector<RoomChip> roomChips() const;
     void paintLabels(QPainter* painter);
     void paintItems(QPainter* painter);
+    bool overRoofCover(const QPointF& scene) const;
+    void paintRoofHatch(QPainter* painter);
+    void paintRoofLabels(QPainter* painter);
     void paintProposals(QPainter* painter);
     void paintProblems(QPainter* painter);
     void applyFit();
@@ -251,6 +278,7 @@ private:
     ProposalOverlay proposals_;
     QVector<ProblemMarker> problems_;
     bool problemsShown_ = true;
+    bool roofsShown_ = false;
     QImage building3d_;
     QRectF building3dRect_;
     bool building3dShown_ = false;
