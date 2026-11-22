@@ -670,3 +670,81 @@ TEST_CASE("reload reports an added floor", "[core][document][reload]") {
     REQUIRE(rec.events[0].floorId.empty());
     REQUIRE(a.plan().floors.size() == 2);
 }
+
+TEST_CASE("reload reports each format 5 field, alone and with a settings change", "[core][document][reload]") {
+    struct Case {
+        const char* name;
+        void (*edit)(Project&);
+        unsigned flags;
+        bool onFloor;
+    };
+    const Case cases[] = {
+        {"slab thickness", [](Project& p) { p.plan.floors[0].slabThickness = 0.3; }, Change::Floors, false},
+        {"image offset", [](Project& p) { p.plan.floors[0].imageOffset = {1.0, 2.0}; }, Change::FloorImage, true},
+        {"stairs",
+         [](Project& p) {
+             Stair s;
+             s.id = "s1";
+             p.plan.floors[0].stairs.push_back(s);
+         },
+         Change::Stairs, true},
+        {"roof default", [](Project& p) { p.plan.roof.type = "gable"; }, Change::Roofs, false},
+        {"roof section",
+         [](Project& p) {
+             RoofSection r;
+             r.id = "rf1";
+             r.floor = "f1";
+             p.plan.roofSections.push_back(r);
+         },
+         Change::Roofs, false},
+    };
+    for (const Case& c : cases) {
+        for (const bool withSettings : {false, true}) {
+            CAPTURE(c.name, withSettings);
+            plynth::test::TempDir tmp("doc-reload-v5");
+            const fs::path folder = tmp.path() / "p";
+            Document a;
+            plynth::test::requireOk(a.saveAs(folder));
+
+            Project edited = a.project();
+            c.edit(edited);
+            if (withSettings) edited.settings.name = "Renamed";
+            plynth::test::requireOk(saveProject(edited, folder, folder));
+
+            Recorder rec;
+            rec.attach(a);
+            plynth::test::requireOk(a.reload());
+            REQUIRE(rec.events.size() == 1);
+            const unsigned expected = c.flags | (withSettings ? Change::Settings : 0u) | Change::History;
+            REQUIRE(rec.events[0].changes == expected);
+            if (c.onFloor) REQUIRE(rec.events[0].floorId == "f1");
+        }
+    }
+}
+
+TEST_CASE("reload reports the format 5 content of an added floor", "[core][document][reload]") {
+    plynth::test::TempDir tmp("doc-reload-floor-v5");
+    const fs::path folder = tmp.path() / "p";
+    Document a;
+    plynth::test::requireOk(a.saveAs(folder));
+
+    Project more = a.project();
+    Floor upstairs;
+    upstairs.id = "f2";
+    upstairs.name = "Upstairs";
+    Stair s;
+    s.id = "s1";
+    upstairs.stairs.push_back(s);
+    upstairs.imageOffset = {0.5, 0.5};
+    more.plan.floors.push_back(upstairs);
+    plynth::test::requireOk(saveProject(more, folder, folder));
+
+    Recorder rec;
+    rec.attach(a);
+    plynth::test::requireOk(a.reload());
+    REQUIRE(rec.events.size() == 1);
+    const unsigned changes = rec.events[0].changes;
+    REQUIRE((changes & Change::Floors) != 0);
+    REQUIRE((changes & Change::Stairs) != 0);
+    REQUIRE((changes & Change::FloorImage) != 0);
+}
