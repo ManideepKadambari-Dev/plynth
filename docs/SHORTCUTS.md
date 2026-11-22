@@ -85,11 +85,15 @@ E and F work when the canvas or the wall view has focus. F does something only w
 | Shortcut | Action |
 |---|---|
 | Ctrl+B | Build the building in Blender |
+| Ctrl+E | Export the last build for Unreal: the FBX, the textures and the report (Build > Export) |
+| Ctrl+Shift+E | Check the export: run the quality checks and write no FBX (Build > Check export) |
 | 3 | Switch between the plan and the 3D view (View > 3D view) |
 | Alt+3 | Show the 3D overlay on the plan, or hide it (View > 3D overlay on plan) |
 | Ctrl+0 | In the 3D view, fit the whole building in the window |
 
 Ctrl+B builds while a build is not already running. Cancel the build with the **Cancel** button in the build bar or Build > Cancel build.
+
+Ctrl+E and Ctrl+Shift+E need a build, and do nothing while a build or another export is running. Cancel an export with the **Cancel** button in the Export tab. **Export anyway...** and **Open export folder** are in the Build menu and have no key.
 
 In the 3D view the two small buttons in the top right corner look straight down (**Top**) or from the front right (**Three quarter**). They have no shortcut.
 
@@ -103,7 +107,7 @@ While the terminal or a text box has focus, the keys go there first, so click th
 | Ctrl+Shift+M | Show the Materials tab |
 | Ctrl+I | Import model files into the library |
 
-Rescan library, Import materials, Add the sample materials, Rescan materials, Room types and categories, Open library folder and Help, Setup check have no shortcut. They are in the Catalog menu and the Help menu.
+Rescan library, Import materials, Add the sample materials, Add the sample shapes, Rescan materials, Room types and categories, Open library folder and Help, Setup check have no shortcut. They are in the Catalog menu and the Help menu.
 
 While you type in the search box or edit a name or the tags of an asset, letters go into the box and do not switch tools. Press Enter to save a name or the tags.
 
