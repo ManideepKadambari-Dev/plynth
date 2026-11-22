@@ -1,6 +1,6 @@
 # User guide
 
-This covers what Plynth does today: the home screen, opening a project, showing its plan image, setting the scale, drawing walls (straight and curved, with rounded corners), placing doors, windows and other openings, setting heights, finding walls and openings in the image automatically, making rooms, placing furniture from the library, undo and redo, saving, building the building in Blender and looking at it in 3D, the setup check, the library and assets catalog, working next to the command line, and the built-in terminal. More screens arrive in later releases.
+This covers what Plynth does today: the home screen, opening a project, showing its plan image, setting the scale, drawing walls (straight and curved, with rounded corners), placing doors, windows and other openings, setting heights, finding walls and openings in the image automatically, making rooms, placing furniture from the library, undo and redo, saving, building the building in Blender and looking at it in 3D, the setup check, the library, the assets catalog and the materials catalog, putting materials on walls, rooms and the whole project, working next to the command line, and the built-in terminal. More screens arrive in later releases.
 
 New here? Start with [Getting started](GETTING_STARTED.md). For keys see [Keyboard shortcuts](SHORTCUTS.md). For scripts see the [Command line guide](CLI_GUIDE.md). For Blender, the library folder and the first run see [Setting up Plynth](SETUP.md).
 
@@ -450,7 +450,7 @@ A save writes each file to a temporary name first and then renames it, so a cras
 
 ### Older projects
 
-Projects made with earlier versions of Plynth open as they are and upgrade by themselves. Nothing is asked and nothing is lost: doors and windows you already had get a hinge on the start of the wall and a swing to the right, the project gets the default sizes, every floor starts with no furniture, and the wall item centre is 1.2 m. The files are written in the new format the next time you save. A project saved by this version cannot be opened by an older version of Plynth, so keep a copy if you still need that.
+Projects made with earlier versions of Plynth open as they are and upgrade by themselves. Nothing is asked and nothing is lost: doors and windows you already had get a hinge on the start of the wall and a swing to the right, the project gets the default sizes, every floor starts with no furniture, and the wall item centre is 1.2 m. Rooms get no wall material of their own, and the project gets the default materials listed under "Materials on walls, rooms and the project". The files are written in the new format the next time you save. A project saved by this version cannot be opened by an older version of Plynth, so keep a copy if you still need that.
 
 ### Autosave and recovery
 
@@ -479,10 +479,10 @@ When a build finishes, the 3D view opens by itself and the bar says "Built at 10
 - **Floors and ceilings**, one flat face for each closed room. They have no thickness yet. A room whose walls do not close gets none. The ceilings are not drawn when you look from above, so the top view shows the floors.
 - **Furniture** at its marker, turned the way the plan shows, as a copy of the asset's own model. An item whose asset is missing is left out, with a problem at its marker. Plynth never puts a placeholder box there.
 - **Edges** rounded by 1 cm, so they catch the light.
-- **Colors.** Everything gets a plain neutral color. Inside wall faces are a little lighter than outside faces, so you can tell them apart. Real materials come in a later release.
+- **Materials.** Every wall face, floor, ceiling, door leaf, frame, glass pane and handle gets a material from your materials catalog, by the rules in "Materials on walls, rooms and the project". A surface with no material, or whose material is missing, gets a plain neutral color. Inside wall faces are a little lighter than outside faces, so you can tell them apart.
 - **Upper floors** are stacked on top of the floors below, by their ceiling heights.
 
-The 3D view shows base colors, roughness and normal maps. Metal and see-through glass do not show in it yet. The Blender file has them.
+The 3D view shows the materials, metal and see-through glass included. See "Materials in the 3D view". Furniture keeps the look its own model has, and its metal and see-through parts do not show in the 3D view yet.
 
 ### Where the files go
 
@@ -490,6 +490,8 @@ Everything is written into the project's `build` folder:
 
 - `building.blend`, the Blender file. Open it in Blender with **Build > Open building.blend in Blender**, edit it, render it.
 - `building.fbx`, what the 3D view loads.
+- `materials.json`, written next to the FBX. It tells the 3D view which image maps each material uses.
+- `textures`, the plain neutral images for surfaces that have no material.
 - `build.json`, the report of the last build, which fills the Build tab when you open the project again.
 - `job.json`, `result.json` and `blender.log`, for finding out what went wrong.
 
@@ -528,13 +530,15 @@ What the problems mean:
 | Room is not closed | error | The room's walls do not close, so it has no floor or ceiling. Close the gap or redraw the room. |
 | Missing asset | error | The item's asset is not in the library. The item was left out. Put the asset back, or swap it. |
 | Asset is broken | error | The library has the asset, but it is marked broken or its model file is gone. The item was left out. Import the asset again or swap it. |
-| No library | error | No library folder is set, so every item was left out. Set one in the setup check. |
+| No library | error | No library folder is set, so every item was left out. Set one in the setup check. When the plan has no items and only uses materials, it is a warning and every surface gets the neutral look. |
 | Could not cut | error | The opening could not be cut cleanly, so the wall was left uncut there. Try moving the opening a little. |
 | Could not fit the door or window | warning | The opening is cut but empty, for example because it is too small for a frame. Make it larger. |
 | Could not load the asset | error | Blender could not open the asset's model, so the item was left out. Press Retry render on the asset. |
 | Could not round the edges | warning | The wall edges stay sharp. The building is otherwise fine. |
 | Furniture warnings | warning | Not in any room, overlaps a wall and the others in "Furniture warnings" are shown here too. |
-
+| Missing material | warning | A wall, room or project default names a material that is not in the library. The surface got the neutral look. Import the material again or pick another. For a project default the problem has no object, so there is no marker. |
+| Material is broken | warning | The library has the material but it is marked broken. The surface got the neutral look. Select the material in the Materials tab to see why, and press Retry render. |
+| Could not load a material map | warning | An image of a material would not open while building. The surface got the neutral look. |
 A missing asset can show up as "Asset is broken" or "Missing asset" depending on how it went missing. If you removed or renamed the asset's folder by hand while the library still lists it, it is broken. If the library does not know the asset at all, it is missing.
 
 Problems do not stop a build. Fix what you care about and press Build again.
@@ -684,6 +688,188 @@ The files in `items` are the real catalog. If the index is lost, a rescan builds
 Changes are saved as you make them. A new room type shows up in the room picker of the Properties panel at once, so you can give it to a room in your plan.
 
 Removing a category takes it off every asset that has it. Removing a room type leaves plans that use it alone: they keep its id and show the id as the label. There are nine room types and 24 categories to start with, and you can change all of them. Room types and categories live in the library's index, so they are shared by all projects.
+
+## The materials catalog
+
+The second catalog of the library holds materials: the paint, brick, wood, tile, metal and glass that walls, floors and doors are made of. You bring your own texture images or Blender materials. Plynth turns each one into the same set of image maps, draws a thumbnail, and keeps it in the library.
+
+Open it with **Catalog > Materials catalog** (Ctrl+Shift+M), or click the **Materials** tab at the top of the right panel, next to **Assets**. With no library set, the tab says "No library folder is set." and has an **Open setup check** button. With a library and no materials, it says "No materials yet." and has an **Add the sample materials** button. That button imports the seven samples that come with Plynth: `white_paint`, `red_brick`, `oak_planks`, `grey_tile`, `painted_wood`, `brushed_steel` and `clear_glass`. New projects use them as their default materials, so add them before your first build. The same action is in **Catalog > Add the sample materials**. Running it twice does nothing the second time.
+
+### Finding materials
+
+- **Search materials.** Type part of a name, tag or group. The grid filters as you type. Several words must all match.
+- **Group.** "All groups", "Uncategorized", or one group. The built-in groups are floor, wall, ceiling, exterior, trim, door, glass and metal. **Add group**, **Rename** and **Remove** change the list. Removing a group takes it off every material that has it. The materials stay.
+
+A count under the controls says how many materials match. Each tile shows the thumbnail and the name.
+
+### The thumbnail
+
+A thumbnail is a 512 pixel render from Blender: a sphere 1 m across on the left and a flat tile 1 m square on the right, lit like an asset thumbnail. The texture is drawn at its real world size. A brick material shows small bricks on the sphere, and a plank floor shows boards that are wide on the tile. A material that is see-through, such as glass, is drawn over a checkered background so you can see it. A tile can say **Rendering**, **Render failed** (select it and press **Retry render**) or **Broken**.
+
+### Details, and editing a material
+
+Click a tile to see its details under the grid. Every edit is saved at once.
+
+- **Name.** Type a new name and press Enter. The id under it, such as `red_brick`, does not change. The plan and the command line use the id.
+- **Tile size.** How far one repeat of the picture reaches in the real world, width along the wall or floor and height up the wall, in metres, for example `1.20 x 0.60 m`. See "Tile size" below. A new size makes Plynth render the thumbnail again.
+- **Texture size**, for example `2048 x 2048 px`, the pixel size of the base color image. It is only shown.
+- **Maps.** The images the material is made of, and how each was made: `from oak_col.jpg` (an image of the source), `value 0.85` (a single number from the source, saved as a tiny image), `baked` (made from a Blender material, see "Materials from a .blend file") or `none`.
+- **License**, **Groups** and **Tags**, as for assets. The source line says where the material came from.
+
+Buttons: **Retry render** cleans the maps again and draws a new thumbnail. Use it when a render failed, or after you changed an image in the material's folder. **Open folder** shows the folder in Explorer. **Remove** deletes the material and its folder after asking. Plans that use it keep its id and show it as missing. Catalog edits are not plan changes, so Undo does not undo them.
+
+### The maps
+
+Every material in the library has the same images, whatever it came from:
+
+| Map | When | What it holds |
+|---|---|---|
+| Base color | always | The color. Saved as color data (sRGB). |
+| Normal | always | The little bumps. Saved as plain data, in the OpenGL convention. |
+| Roughness | always | How rough or shiny. Plain data, grey. |
+| Metallic | always | How metal. Plain data, grey. |
+| Opacity | only when see-through | How solid. Plain data, grey. |
+| Occlusion | only when the source had one | Soft shadow in creases. Plain data, grey. |
+
+Color data is shown as your eyes expect it. Plain data is numbers that only mean something to the lighting, so Plynth never changes the brightness of those images. A material that had only a number for roughness or metal, such as roughness 0.6, gets a tiny 4 pixel image with that value. Metal and see-through are always images. That is on purpose: the FBX file cannot carry them as numbers into the 3D view, and Unreal is more dependable with images.
+
+### Tile size
+
+One image covers one tile. The tile size says how big that tile is in the real world. If one brick image covers 1.2 m of real wall across and 0.6 m up, its tile size is `1.20 x 0.60 m`. The build lays the picture on a wall so that every 1.2 m along the wall is one repeat. A bigger tile size makes the texture look bigger. If the size is not given, Plynth takes it from `material.json`, and otherwise uses 1 m by 1 m. Tile sizes go from 0.01 m to 100 m.
+
+### Rescan
+
+**Catalog > Rescan materials**, or the **Rescan** button, reads the library's `materials` folder again and updates the index. Use it after you add, remove or change material folders by hand. It runs no Blender. A folder that has images and no `info.json` is listed as needing a refresh ("Not cleaned yet."), and so is one whose image changed. A material whose map file was deleted is Broken. Use **Retry render** on a material that needs a refresh. Plynth also watches the library while it runs and rescans by itself a couple of seconds after the folders change.
+
+## Importing materials
+
+There are three ways in.
+
+1. **The import screen.** Press **Import** in the Materials tab, or use **Catalog > Import materials...**. Add folders (**Add folder...**) and files (**Add files...**), or drop them on the screen. Fill in what you want, then press **Import**.
+2. **Drag and drop** on the Materials tab.
+3. **The inbox folder.** Copy folders, zips, images or `.blend` files into `Library\materials\inbox\`. Plynth notices within a few seconds and imports them while it runs. Imported entries move to `inbox\done`, failed ones to `inbox\failed` with a text file that says why. If Plynth is closed, `plynth materials inbox` imports what is waiting.
+
+Imports run one after another in a list under the grid, with progress and **Cancel**, as asset imports do. When an import finishes, Plynth shows the new material's thumbnail. If you ticked no group, it asks for one.
+
+The import screen has these fields. Only the sources are needed.
+
+- **Name** (one source only), **Groups**, **Tags** and **License**.
+- **Set the tile size**, with a width and a height in metres. Off takes it from `material.json`, or 1 m.
+- **Normal map type.** "Automatic (from the file name)", "OpenGL" or "DirectX (flips green)".
+- **Material name inside a .blend file.** Needed when the file holds several materials.
+- **Bake size for .blend materials.** 256 to 4096 pixels, 1024 by default.
+- **Image files per channel** (one source only): Base color, Normal, Roughness, Metallic, Opacity and Occlusion, each with **Browse...**. "Leave empty to match by file name."
+
+### Texture sets
+
+A texture set is the pictures that make one material. Plynth reads a **folder**, a **zip file**, or one **image file** (`.png`, `.jpg`, `.jpeg`, `.tga`, `.tif`, `.tiff`, `.bmp` or `.exr`). A folder may hold the pictures one folder down. A single image becomes the base color of a material.
+
+Plynth matches pictures to maps by their names. It splits a name at `_`, `-`, spaces, dots and where a lower case letter meets a capital, so `NormalDX` becomes `normal` and `dx`. The last word it knows decides:
+
+| Map | Words it knows |
+|---|---|
+| Base color | basecolor, albedo, diffuse, diff, color, colour, col, base |
+| Normal | normal, nor, nrm, norm |
+| Roughness | roughness, rough, rgh |
+| Glossiness (turned into roughness) | gloss, glossiness |
+| Metallic | metallic, metalness, metal, mtl |
+| Opacity | opacity, alpha, mask |
+| Occlusion | ao, ambientocclusion, occlusion, ambient |
+| Packed (split into occlusion, roughness and metallic) | arm, orm |
+| Ignored | height, displacement, disp, bump, specular, spec, emission, emissive, emit, preview, thumb, thumbnail |
+
+`brick_nor_gl.png`, `oak_Roughness.png` and `wood_painted_rgh.png` all match. Height and displacement images are left out, because the build does not use them. A normal map named with `dx` or `directx` is DirectX and gets its green channel flipped. One with `gl` or `opengl` is OpenGL. With neither word it is taken as OpenGL, and bumps that look inverted mean it was DirectX: import again with "DirectX" or `--normal directx`. A material needs a base color, as an image or as a color in `material.json`, or the import fails with "no base color".
+
+Plynth warns, and still imports, when:
+
+- **Several images fit one map.** It uses the largest and says which (`ambiguous_map`).
+- **An image matched no map** and was not used (`unused_image`).
+- **Maps are different sizes** (`map_size_mismatch`).
+- **The base color may show seams** where it repeats, because its left and right edges, or top and bottom edges, differ a lot (`visible_seams`).
+- **The base color is low resolution**: under 256 pixels for each metre of the tile (`low_resolution`).
+
+The warnings show under the material's details.
+
+### Fixing a wrong match
+
+If a name is odd and Plynth picks the wrong picture, name the picture yourself. Use the **Image files per channel** fields of the import screen, or `--map base_color=wood.jpg` on the command line. A picture you name beats the file names. You can also give a single number for roughness, metallic, opacity or occlusion (`--value metallic=1`).
+
+### material.json
+
+An optional file named `material.json` in the folder (or at the top of the zip) tells Plynth what the set is, so you do not have to type it each time. Every field is optional:
+
+```json
+{
+  "format": "plynth-material-source",
+  "version": 1,
+  "id": "red_brick",
+  "name": "Red brick",
+  "groups": ["wall", "exterior"],
+  "tags": ["brick", "red"],
+  "license": "own_work",
+  "tile_size": { "width": 1.2, "height": 0.6 },
+  "maps": { "normal": "brick_nor_gl.png" },
+  "values": { "roughness": 0.8 },
+  "base_color_value": [0.55, 0.2, 0.15],
+  "normal": "auto"
+}
+```
+
+What you type in the import screen wins over the file, and the file wins over the file names. A folder that holds only a `material.json` with `values` or a `base_color_value`, and no images, imports too. That is how the sample `clear_glass` is made. The sample materials all use this file, so they keep their ids and the project defaults can name them. An `id` that is already taken gets `_2` added.
+
+### Materials from a .blend file
+
+A `.blend` file with one material imports as a material. If it holds several, the import fails and lists them, and you pick one in "Material name inside a .blend file". The file itself is never changed.
+
+Plynth turns the material into the same image maps as any other. Blender's own baking needs the Cycles renderer, and Plynth never uses Cycles, so it works in three ways, one map at a time:
+
+- **An image wired straight in** is copied. The map says `from`, with the image's name.
+- **A plain number** (an unconnected value) becomes a small constant image.
+- **Anything else**, such as a noise texture or a color mixed from several nodes, is drawn with Eevee. Plynth lays a flat tile of the material's tile size under a camera that looks straight down, shows just that map, and saves the picture at the bake size. The map says `baked`.
+
+Two limits come with that. A procedural pattern that does not repeat over one tile shows a seam where tiles meet, and Plynth warns `visible_seams`. A material that depends on the object's own coordinates, or on the world, can look different on the flat tile than on the original object. If that matters, import the material as images instead.
+
+### Add to materials catalog, from an asset
+
+An asset keeps its own materials. To also use one as a surface, open the asset in the Assets tab. Its **Materials** list has a button **Add to materials catalog** for each material. It makes a new catalog material from the asset's `asset.blend`. The asset is not changed.
+
+## Materials on walls, rooms and the project
+
+Every built surface gets a material by one set of rules. The most specific setting wins.
+
+- **A wall face that looks into a room:** the wall's own **Inside** material, otherwise the room's **Wall faces** material, otherwise the project default **Wall inside**.
+- **A wall face that looks outdoors:** the wall's **Outside** material, otherwise the project default **Wall outside**.
+- **A floor or ceiling:** the room's own, otherwise the project default.
+- **The top and bottom of walls:** the project default **Wall top**.
+- **The sides of a door or window cut** (the reveal): what the wall shows on the opening's right side, or on the left when no room is on the right. The right side is the one in "Left and right" of the command line guide.
+- **A doorway's floor strip:** the floor of the room the door swings into, otherwise the other side's, otherwise the project default **Floor**.
+- **Door leaves, frames, glass and handles:** the project defaults **Door**, **Frame**, **Glass** and **Handle**.
+
+A wall between two rooms has two inside faces, one for each room. A room's **Wall faces** material applies only to the faces that look into that room. So a bathroom can have tiled walls while the bedroom on the other side of the same wall stays painted. A wall's own **Inside** material wins on both sides, so use it when you want one material on both.
+
+### The pickers
+
+Select something and look in the Properties panel.
+
+- **A wall** shows **Inside** and **Outside**.
+- **A room** shows **Floor**, **Wall faces** and **Ceiling**.
+- **Nothing selected** shows **Default materials**, with the nine surfaces: wall inside, wall outside, wall top, floor, ceiling, door, frame, glass and handle.
+
+Each row shows a small swatch, the name of the material that applies now, and in grey where it comes from, such as "from the room", "set on this room" or "project default". A material the library does not have shows its id and "not in the library" in amber.
+
+Click a row to open the picker. Pick a group, then a material. Hover a material to see its thumbnail, name and tile size. Click to use it. The first entry, **Use the default**, takes the setting away so the next rule applies. For defaults, **No material** gives that surface the neutral look. The picker only lists materials, never models. With several walls or rooms selected, one pick changes them all, and Ctrl+Z undoes it in one step.
+
+### New and old projects
+
+A new project uses these defaults: wall inside `white_paint`, wall outside `red_brick`, wall top `white_paint`, floor `oak_planks`, ceiling `white_paint`, door `painted_wood`, frame `white_paint`, glass `clear_glass` and handle `brushed_steel`. Projects from earlier versions get the same defaults when they open. You can change any of them. If the sample materials are not in the library, each build says "Missing material" for them and the surfaces get the neutral look. Press **Add the sample materials** to fix that.
+
+## Materials in the 3D view
+
+After a build, the 3D view shows each material with its color, bumps, shine, metal and see-through parts. The brick outside, the paint inside, a handle that reflects its surroundings and glass you can see through all show. The view tones the light the way a camera would and lights the scene from a neutral sky, so colors are not washed out. Textures are smoothed when you zoom out.
+
+The FBX file does not carry metal, roughness and see-through values, so the build writes a second file, `build\materials.json`, next to it. The 3D view reads it and gives each surface its maps. Every built material has its own base color image, so the view can tell the materials apart. If `materials.json` is missing, for example after you copied only the FBX, the view shows the FBX's own plain colors.
+
+The texture paths in the file point into your library. If you move the library, build again so the paths are written again. Furniture keeps the look its model has. Its metal and see-through parts do not show in the 3D view yet.
 
 ## When a plan image is missing
 

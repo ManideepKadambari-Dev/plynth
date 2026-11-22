@@ -6,6 +6,8 @@ Load a plan, mark walls, rooms, openings and furniture, then click Build. Blende
 
 Everything the app does is also available from the command line.
 
+Walls, floors and doors get their paint, brick, wood and glass from a materials catalog in your library. Seven sample materials, drawn for Plynth, are in `samples/materials/`. See `docs/GETTING_STARTED.md`.
+
 ## Status
 
 Early development. Not ready for use yet.

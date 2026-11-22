@@ -4,7 +4,7 @@ Plynth can be driven from a terminal, a script or a coding assistant. Every comm
 
 This page covers the commands that exist today: version, help, creating and reading a project, setting the scale, grid and default sizes, floors, points, walls (straight and curved), rounded corners, doors, windows and other openings, rooms, placing furniture with `place` and `item`, finding walls and openings in the plan image with `detect`, building the project in Blender with `build`, the edit session that keeps the app and the command line from overwriting each other, and the machine commands: `doctor`, `settings`, `library` and `assets`. More commands arrive in later releases.
 
-The plan and project files are now at format version 3. Older projects open and upgrade by themselves. See "File format version 3" below.
+The plan and project files are now at format version 4. Older projects open and upgrade by themselves. See "File format version 4" below.
 
 ## Running a command
 
@@ -1227,9 +1227,66 @@ Errors:
 | `image_error` | The image cannot be decoded, or is too large to process. |
 | `locked` | With `--apply` only: the project is open in the app and no edit session is active. Plain `detect` is never refused. |
 
+### material set
+
+Sets or clears the material of one wall face, one room surface or one project default. The material is an id from the materials catalog. Rules for editing are the same as for every command that changes the plan: the command takes an edit session, and is `locked` while the app has the project open without one.
+
+```
+plynth material set r3.floor oak_planks
+plynth material set w5.outside red_brick
+plynth material set hall.floor grey_tile
+plynth material set default.ceiling none
+```
+
+The first argument is the **target**:
+
+| Target | Sets |
+|---|---|
+| `w3.inside` | The material of the faces of wall `w3` that look into a room. |
+| `w3.outside` | The faces of wall `w3` that look into no room. |
+| `r1.floor` | The floor of room `r1`. |
+| `r1.wall` | The wall faces that look into room `r1`, unless a wall names its own inside material. |
+| `r1.ceiling` | The ceiling of room `r1`. |
+| `default.<surface>` | A project default. The surfaces are `wall_inside`, `wall_outside`, `wall_top`, `floor`, `ceiling`, `door`, `frame`, `glass` and `handle`. |
+
+For a room, the part before the dot may also be a room type when exactly one room has it, such as `hall.floor`. With two halls the command is refused and names both ids.
+
+The second argument is a material id, or `none` to clear the setting. `none` needs no library. Any other id is checked against the materials catalog of the library (`--library` or the one in the settings), and the check is why the library is needed.
+
+```json
+{"ok":true,"command":"material set","result":{"target":"r3.floor","material":"oak_planks","previous":null,"resolved":{"material":"oak_planks","origin":"room","from":"r3"}}}
+```
+
+`material` is what you set (`null` for none), `previous` is what the target named before, and `resolved` is what the target shows now after the rules are applied. `origin` is `wall`, `room`, `default` or `none`, and `from` is the wall or room that names it, or `null` for a default or none. Clearing `w3.outside` shows `red_brick` with origin `default`.
+
+Refusals:
+
+| Code | When |
+|---|---|
+| `invalid_value` | The target is malformed ("default.nonsense"), a room type matches no room or several rooms, or the material is broken. |
+| `not_found` | The wall or room does not exist, or the material is not in the library. |
+| `no_library` | A material (not `none`) was given and no library is set. |
+| `locked` | The project is open in the app with no edit session. |
+
+Nothing changes after a refusal. Material choices are part of the plan, so Undo in the app undoes them.
+
+### material list
+
+Shows the defaults, what every wall face and room surface gets now, and every material the build would use.
+
+```
+plynth material list
+```
+
+```json
+{"ok":true,"command":"material list","result":{"defaults":{"wall_inside":"white_paint","wall_outside":"red_brick","wall_top":"white_paint","floor":"oak_planks","ceiling":null,"door":"painted_wood","frame":"white_paint","glass":"clear_glass","handle":"brushed_steel"},"walls":[{"id":"w3","floor":"f1","inside":[{"material":"grey_tile","origin":"room","from":"r2","room":"r2"}],"outside":{"material":"red_brick","origin":"default","from":null}}],"rooms":[{"id":"r2","floor":"f1","type":"bathroom","materials":{"floor":{"material":"grey_tile","origin":"room","from":"r2"},"wall":{"material":"grey_tile","origin":"room","from":"r2"},"ceiling":{"material":null,"origin":"none","from":null}}}],"used":["brushed_steel","clear_glass","grey_tile","oak_planks","painted_wood","red_brick","white_paint"],"missing":[],"library":"D:/Demo/Library"}}
+```
+
+The lists are shortened. `walls` has one entry per wall with an `inside` entry for each room the wall belongs to, and `rooms` one entry per room. `used` is sorted and has no repeats. `missing` lists the used ids the library does not have. With no library, `library` is `null` and `missing` is empty. Both commands take `--project` and `--library`.
+
 ### build
 
-Builds the project in Blender: the walls with their thickness, every opening cut in its exact shape, a door or window fitted in each door and window opening, a floor and a ceiling in every closed room, and every placed item as a copy of its asset. It saves `build\building.blend` and `build\building.fbx`. The app's Build button does the same thing, so both give the same result.
+Builds the project in Blender: the walls with their thickness, every opening cut in its exact shape, a door or window fitted in each door and window opening, a floor and a ceiling in every closed room, every surface with its material, and every placed item as a copy of its asset. It saves `build\building.blend`, `build\building.fbx` and `build\materials.json`. The app's Build button does the same thing, so both give the same result.
 
 ```
 plynth build
@@ -1271,7 +1328,9 @@ The stages are `preparing`, `blender` (one line per step, `index` counting from 
 
 - The `result` is the build report, the same text that is saved as `build\build.json` (`schema/build-report.schema.json`). Paths are absolute with forward slashes.
 - The `ok` inside the report means the build ran and finished. It does not mean there were no problems. Problems with severity `error` can still be listed next to `"ok":true`, so a script that needs a clean building must also test `error_count`.
-- `counts` says how many wall solids, openings, doors and windows, rooms and items were made. `openings_cut` and `fills` count what was built, so an opening that did not fit is not in them. `objects` and `triangles` are what went into the FBX.
+- `counts` says how many wall solids, openings, doors and windows, rooms, items and materials were made. `materials` is how many catalog materials were built into the file (neutral looks are not counted). `outputs.materials_file` is the path of `materials.json`, and it is `null` when no FBX was written. A report from before materials still reads, with `materials` 0.
+
+`openings_cut` and `fills` count what was built, so an opening that did not fit is not in them. `objects` and `triangles` are what went into the FBX.
 - `steps` lists the time of each step in milliseconds. `check` is the work core does before Blender starts.
 - `plan_fingerprint` changes when the plan or the project settings change. The app uses it to say "The plan changed since this build".
 - `problems` lists core's problems first, then the ones Blender found, each in its own order. The top level `warnings` list has one entry (`code` and `message`) for every problem, whatever its severity. The `object` of a problem is a plan id: a point, wall, opening, room or item. It is `null` when the problem is not about one object.
@@ -1284,7 +1343,10 @@ The stages are `preparing`, `blender` (one line per step, `index` counting from 
 | `room_not_closed` | error | The room's walls do not close a shape, so it gets no floor and no ceiling. |
 | `missing_asset` | error | The item's asset is not in the library. The item is left out. |
 | `asset_broken` | error | The library lists the asset, but it is marked broken or its folder or `asset.blend` is gone. The item is left out. |
-| `no_library` | error | No usable library. Every item is left out. |
+| `no_library` | error | No usable library. Every item is left out. When the plan has no items and only uses materials, it is a warning and every surface gets its neutral look. |
+| `missing_material` | warning | A wall, room or project default names a material that is not in the library. The surface gets its neutral look. The `object` is the wall or room that names it, or empty for a project default. One problem for each material and object. |
+| `material_broken` | warning | The material is in the library but marked broken. The surface gets its neutral look. `object` as for `missing_material`. |
+| `material_failed` | warning | One image of a material would not load while building. The surface gets its neutral look. |
 | `cut_failed` | error | The opening could not be cut into its wall. The wall is left as it was. |
 | `fill_failed` | warning | The opening was cut, but the door or window could not be made, for example because the opening is too small for a frame. The hole stays empty. |
 | `asset_load_failed` | error | Blender could not load the asset's `asset.blend`. The item is left out. |
@@ -1303,7 +1365,7 @@ plynth build --check
 {"ok":true,"command":"build","result":{"problems":[{"code":"opening_does_not_fit","severity":"error","message":"Window o4 does not fit its wall: it reaches 0.12 m past the corner.","floor":"f1","object":"o4","step":"check"}],"error_count":1,"warning_count":0,"plan_fingerprint":"9c41d0e27ab35f18"}}
 ```
 
-Blender can find more problems while it builds (`cut_failed`, `fill_failed`, `asset_load_failed`, `bevel_failed`), so a clean `--check` does not promise a clean build.
+Blender can find more problems while it builds (`cut_failed`, `fill_failed`, `asset_load_failed`, `bevel_failed`, `material_failed`), so a clean `--check` does not promise a clean build.
 
 **Refusals.** All have exit code 1 and write nothing, except where said.
 
@@ -1321,6 +1383,8 @@ Blender can find more problems while it builds (`cut_failed`, `fill_failed`, `as
 |---|---|
 | `building.blend` | The Blender file. Open it in Blender, edit it, render it. Items are instances of their asset. |
 | `building.fbx` | What the 3D view loads. Items are real objects that share their mesh. |
+| `materials.json` | Written with the FBX, never without it. For each built material, its image maps (absolute paths) and alpha mode, and for each built object its material slots in order (`schema/build-materials.schema.json`). The 3D view reads it to show metal, roughness and see-through parts. |
+| `textures\` | Small constant images for surfaces with no material, such as `Wall_Outside_base_color.png`. |
 | `build.json` | The report of the last build. |
 | `job.json`, `result.json`, `blender.log` | What was sent to Blender, what came back, and what Blender printed. |
 | `build.lock` | Exists only while a build runs. |
@@ -1826,6 +1890,201 @@ plynth assets importers
 {"ok":true,"command":"assets importers","result":{"importers":[{"id":"local_file","name":"Own files","description":"Model files (.blend, .fbx, .obj, .gltf, .glb), zip files and folders that hold a model.","suffixes":[".blend",".fbx",".glb",".gltf",".obj",".zip"]}]}}
 ```
 
+## The materials catalog
+
+The library's second catalog. Its commands mirror the `assets` ones, with `--group` where assets have `--category`. Every command takes `--library <folder>` (default: the one in the settings) and is `no_library` when there is none. An id is lower case letters, digits and `_`, starting with a letter.
+
+### materials import
+
+Imports texture folders, zips, image files or `.blend` files as materials. Blender runs in the background, makes every image map, checks them and renders a thumbnail. One material takes a few seconds.
+
+```
+plynth materials import D:\Textures\oak --group floor --tile 2x2
+plynth materials import D:\Textures\brick.zip --id red_brick --keep
+plynth materials import samples\materials\*
+plynth materials import samples\materials\* --skip-existing
+plynth materials import D:\Textures\tile --map base_color=tile_a.png --value metallic=0
+plynth materials import D:\Models\chair\asset.blend --material Wood --id chair_wood --bake-size 2048
+```
+
+Options:
+
+- `<path>`: a folder, zip, image file or `.blend`. Repeat for several. A path whose last part has `*` or `?` is expanded by Plynth, because PowerShell does not expand wildcards for programs. The match is sorted by name and holds folders and files some importer can read, so a README beside the materials is left out. A pattern that matches nothing is `not_found`.
+- `--id <id>`: the material id, for one path only (two paths with it is `bad_arguments`). Default: the `id` of the `material.json`, otherwise made from the name. A taken default gets `_2`, `_3` and so on. An id you give that is taken is `already_exists`.
+- `--name <text>`: the name. Default: `material.json`, or made from the file name.
+- `--group <id>`: a group. Repeat for several. An unknown one is `not_found`.
+- `--tag <tag>`: a tag. Repeat for several.
+- `--license <id>`: a license from `materials licenses`.
+- `--tile <WxH>`: the real size of one tile in metres, `1.2x0.6`, or one number for a square. From 0.01 to 100. Anything else, such as `0x1`, is `invalid_value`.
+- `--material <name>`: which material to take from a `.blend`. Needed when it holds several.
+- `--map <channel=file>`: use this image for a channel. Repeat. The channels are `base_color`, `normal`, `roughness`, `metallic`, `opacity` and `occlusion`. It beats the file names and `material.json`.
+- `--value <channel=number>`: use a number from 0 to 1 for roughness, metallic, opacity or occlusion. Repeat. It beats `material.json`.
+- `--normal <auto|opengl|directx>`: the convention of the normal map. `auto` reads `gl` or `dx` from the file name and takes OpenGL when neither is there. DirectX maps get their green channel flipped. Maps are always stored as OpenGL.
+- `--bake-size <pixels>`: the size of images drawn from a `.blend` material that is not plain image textures. Default 1024. A power of two from 256 to 4096.
+- `--keep`: keep a zip after the import. Without it the imported zip goes to the Windows Recycle Bin. Files and folders you point at are never touched.
+- `--skip-existing`: when the material's id is taken, skip it instead of making a new id.
+- `--blender <exe>`: use this Blender.
+- `--quiet`: no progress lines.
+
+Paths are imported in order. The first failure stops the run, and its message ends with how many were imported before it, such as "2 materials were imported before it." Progress is JSON lines on standard error, one per Blender step, with the `source` named, and the answer is one object on standard output.
+
+```json
+{"ok":true,"command":"materials import","result":{"imported":[{"id":"oak_planks","importer":"texture_set","skipped":false,"warnings":[],"thumbnail_failed":false,"original_removed":false}]}}
+```
+
+`importer` is `texture_set` or `blend_material`. `skipped` is true when `--skip-existing` found the id taken, and nothing was done. `thumbnail_failed` is true when the render failed. The material is still imported, with its thumbnail state `failed`. Problems with the maps are in `warnings` and again in the top level `warnings` list: `ambiguous_map`, `unused_image`, `map_size_mismatch`, `visible_seams`, `low_resolution` and `picked_material`.
+
+Refusals: `no_library`, `not_found` for a path or group that is not there, `invalid_value` for a bad `--tile`, `--map`, `--value` or `--normal` and for an ending no importer reads, `already_exists`, `blender_not_found`, and `blender_failed` with the reason when Blender cannot make the material, such as "no base color" (a set with no base color image or color), "several materials" (a `.blend` with more than one, listing them, when `--material` is not given) or a failed bake. Nothing is left in the library after a failed import.
+
+### materials inbox
+
+Imports everything waiting in `Library\materials\inbox\`. The app does this by itself while it runs.
+
+```
+plynth materials inbox
+```
+
+```json
+{"ok":true,"command":"materials inbox","result":{"imported":["red_brick_2"],"failed":[],"remaining":0}}
+```
+
+The answer is ok even when some entries failed, and each failure is `{"entry","code","message"}`. Imported entries move to `inbox\done\`, failed ones to `inbox\failed\` with a `<name>.error.txt`. Options: `--blender`, `--quiet`.
+
+### materials search
+
+Searches the materials. Every word must match the start of a name, id, tag or group.
+
+```
+plynth materials search brick
+plynth materials search --group floor --tag wood
+plynth materials search --uncategorized --limit 20
+```
+
+Options: `<text>`, `--group <id>`, `--tag <tag>` (repeat to require several), `--license <id>`, `--uncategorized`, `--limit <n>`. An unknown group or license is `not_found`.
+
+```json
+{"ok":true,"command":"materials search","result":{"materials":[{"id":"red_brick","name":"Red brick","groups":["wall","exterior"],"tags":["brick"],"license":"own_work","source":{"kind":"texture_set","reference":"red_brick","imported_at":"2026-11-22T09:12:31Z"},"tile_size":{"width":1.2,"height":0.6},"state":"ready","problem":null,"thumbnail":{"state":"ok","file":"D:/Demo/Library/materials/items/red_brick/thumb.png","error":null},"folder":"D:/Demo/Library/materials/items/red_brick"}],"count":1}}
+```
+
+#### The material entry
+
+| Field | Meaning |
+|---|---|
+| `id`, `name` | The id used by commands and plans, and the name shown to people. |
+| `groups` | Group ids. Empty means uncategorized. |
+| `tags` | Sorted tags. |
+| `license` | A license id. |
+| `source` | `kind` (`texture_set` or `blend_material`), `reference` (the original folder or file name) and `imported_at` (UTC). |
+| `tile_size` | `width` and `height` of one tile in metres. |
+| `state` | `ready`, `needs_refresh` (a map or the tile size changed and it has not been cleaned again) or `broken` (see `problem`). |
+| `problem` | Why the material is broken, otherwise `null`. |
+| `thumbnail` | `state` (`ok`, `failed` or `missing`), `file` and `error`. |
+| `folder` | The material's folder. |
+
+### materials list
+
+The same as `materials search` without the words. It takes the same filters.
+
+### materials info
+
+Shows one material in full: the entry plus the maps, the texture size and the warnings of the last cleaning.
+
+```
+plynth materials info oak_planks
+```
+
+```json
+{"ok":true,"command":"materials info","result":{"id":"oak_planks","name":"Oak planks","groups":["floor"],"tags":["wood","oak"],"license":"own_work","source":{"kind":"texture_set","reference":"oak_planks","imported_at":"2026-11-22T09:12:40Z"},"tile_size":{"width":2.0,"height":2.0},"state":"ready","problem":null,"thumbnail":{"state":"ok","file":"D:/Demo/Library/materials/items/oak_planks/thumb.png","error":null},"folder":"D:/Demo/Library/materials/items/oak_planks","maps":{"base_color":{"file":"D:/Demo/Library/materials/items/oak_planks/textures/base_color.jpg","from":"file","detail":"oak_Color.jpg"},"normal":{"file":"D:/Demo/Library/materials/items/oak_planks/textures/normal.png","from":"file","detail":"NormalDX.png"},"roughness":{"file":"D:/Demo/Library/materials/items/oak_planks/textures/roughness.png","from":"file","detail":"oak_Roughness.png"},"metallic":{"file":"D:/Demo/Library/materials/items/oak_planks/textures/metallic.png","from":"value","detail":"0"},"opacity":{"file":null,"from":"none","detail":null},"occlusion":{"file":null,"from":"none","detail":null}},"texture_size":{"width":1024,"height":1024},"warnings":[]}}
+```
+
+Each map has the absolute `file` (or `null`), `from` (`file`, `value`, `baked` or `none`) and `detail` (the source file name, the value, or `null`). An unknown id is `not_found`.
+
+### materials set
+
+Changes the name, groups, tags, license or tile size of a material. Give at least one option.
+
+```
+plynth materials set red_brick --tile 1.2x0.6 --group wall --group exterior
+plynth materials set oak_planks --name "Oak boards" --tag wood --tag oak
+plynth materials set red_brick --no-groups
+```
+
+Options: `--name <text>`, `--group <id>` (repeat; replaces all groups), `--no-groups`, `--tag <tag>` (repeat; replaces all tags), `--license <id>`, `--tile <WxH>`. `--group` with `--no-groups` is `bad_arguments`. The answer is the material entry. A new `--tile` makes the state `needs_refresh`, because the thumbnail shows the tile size. Run `materials thumbnail` to draw it again. An unknown group or license is `not_found` and nothing changes.
+
+### materials remove
+
+Deletes a material and its whole folder. It cannot be undone, so `--yes` is required. Plans that use the id keep it, and the next build says `missing_material`.
+
+```
+plynth materials remove clear_glass --yes
+```
+
+```json
+{"ok":true,"command":"materials remove","result":{"removed":"clear_glass"}}
+```
+
+Without `--yes` the answer is `bad_arguments` and nothing is deleted.
+
+### materials groups
+
+Lists the groups with how many materials hold each. The built-in groups are `floor`, `wall`, `ceiling`, `exterior`, `trim`, `door`, `glass` and `metal`.
+
+```
+plynth materials groups
+```
+
+```json
+{"ok":true,"command":"materials groups","result":{"groups":[{"id":"floor","name":"Floor","built_in":true,"materials":2},{"id":"wall","name":"Wall","built_in":true,"materials":3}]}}
+```
+
+The example is shortened.
+
+### materials group add, group set, group remove
+
+```
+plynth materials group add stone "Stone"
+plynth materials group set stone --name "Natural stone"
+plynth materials group remove stone
+```
+
+`group add <id> <name>` makes a group. `group set <id> --name <text>` renames it, and the id stays. `group remove <id>` removes it from the list and from every material that has it. The first two answer with the group entry, as in `materials groups`. The last answers:
+
+```json
+{"ok":true,"command":"materials group remove","result":{"removed":"stone","materials_changed":["red_brick"]}}
+```
+
+### materials licenses
+
+Lists the licenses a material can have, as `assets licenses` does.
+
+### materials rescan
+
+Rebuilds the materials index from the folders in `Library\materials\items\`. It runs no Blender. Materials that need a new render are listed in `needs_refresh`: a folder with images and no `info.json`, a changed map, or a new tile size. Use `materials thumbnail <id>` on each. A deleted map makes the material Broken, and a removed folder removes its row. The answer has the same fields as `assets rescan`.
+
+```
+plynth materials rescan
+```
+
+### materials thumbnail
+
+Cleans a material again and renders a new thumbnail. Use it after `materials set --tile`, when a render failed, or after you changed an image in the material's folder. It keeps the name, groups and tags. The answer is the material entry. Options: `--blender`, `--quiet`.
+
+```
+plynth materials thumbnail red_brick
+```
+
+### materials importers
+
+Lists the ways a material can be imported.
+
+```
+plynth materials importers
+```
+
+```json
+{"ok":true,"command":"materials importers","result":{"importers":[{"id":"blend_material","name":"Material from a .blend file","description":"One material of a Blender file, made into texture maps.","suffixes":[".blend"]},{"id":"texture_set","name":"Texture set","description":"A folder, zip file or picture file of texture maps such as base color, normal and roughness.","suffixes":[".png",".jpg",".jpeg",".tga",".tif",".tiff",".bmp",".exr",".zip"]}]}}
+```
+
 ## Warnings
 
 An answer can have a top level `warnings` list next to `result`. It appears only when there is something to say, and it never changes `ok`. Each warning has a `code` and a `message`. Check for it in scripts: the command worked, and the warning says what to look at.
@@ -1834,7 +2093,8 @@ Codes in use:
 
 - `image_missing`: a plan image of the project could not be found. Edits are still saved and the image path is kept. Put the file back, or set another image.
 - The cleanup codes listed under `assets import`: `high_polycount`, `scale_suspicious`, `missing_texture`, `removed_objects`, `unsupported_object`, `fbx_failed`.
-- The build codes listed under `build`. `build` puts one warning in the list for every problem it found, whether its severity is `error` or `warning`.
+- The material import codes listed under `materials import`: `ambiguous_map`, `unused_image`, `map_size_mismatch`, `visible_seams`, `low_resolution`, `picked_material`.
+- The build codes listed under `build`, including `missing_material`, `material_broken` and `material_failed`. `build` puts one warning in the list for every problem it found, whether its severity is `error` or `warning`.
 - The furniture codes listed under "Furniture items": `no_room`, `outside_room`, `overlaps_item`, `overlaps_wall`, `overlaps_opening`, `off_wall`, `too_tall`, `missing_asset`, `size_changed`. `place` and the `item` commands that change an item give the problems of that item. With `--strict` they are refused instead.
 
 A project whose plan image was deleted, after `scale set`:
@@ -1854,10 +2114,24 @@ For a script on a new machine:
 3. `plynth doctor` again. `ready` should now be true.
 4. `plynth assets import <file>` for each model. Add `--category` and `--tag` so you do not have to edit afterwards.
 5. `plynth assets search <words>` to find the ids you need.
+6. `plynth materials import samples\materials\*` to add the seven sample materials, which new projects use by default. Add `--skip-existing` to run it again safely. Then `plynth materials search <words>` finds material ids.
+
+## File format version 4
+
+`plan.json` and `project.json` are now at format version 4. What changed:
+
+- Every room in `plan.json` has `wall_material`, the material of the wall faces that look into it (`null` when not set). Walls already had `material_inside` and `material_outside`, and rooms `floor_material` and `ceiling_material`.
+- `project.json` has `materials`, the default material of each of the nine surfaces (`wall_inside`, `wall_outside`, `wall_top`, `floor`, `ceiling`, `door`, `frame`, `glass`, `handle`). A value is a material id, or `null` for none.
+
+**Older projects upgrade by themselves**, as described under "File format version 3" below. A version 3 plan gets `"wall_material": null` on every room, and a version 3 project gets the sample materials as its defaults: `white_paint`, `red_brick`, `white_paint`, `oak_planks`, `white_paint`, `painted_wood`, `white_paint`, `clear_glass` and `brushed_steel`, in the order above. Nothing is written when you only read. The next command that edits and saves writes both files as version 4. The app does the same.
+
+**Older programs refuse the new files** with `unsupported_version`, as for version 3. The shape of each version is in `schema/plan.schema.json` and `schema/project.schema.json` (version 4), and `schema/plan.v3.schema.json` and `schema/project.v3.schema.json` (version 3, kept as it was).
+
+The sections below describe version 3, which version 4 only adds to.
 
 ## File format version 3
 
-`plan.json` and `project.json` are now at format version 3. What changed:
+Version 3 is what `plan.json` and `project.json` were before materials. Today they are saved as version 4, and the numbers in this section are the ones of that earlier release. What version 3 changed:
 
 - Every floor in `plan.json` has `items`, the furniture placed on it. Each item has `id`, `asset`, `room`, `x`, `y`, `z`, `rotation`, `wall` and `size`. See "Furniture items".
 - `project.json` has `wall_item_centre` in `defaults`, the height of the middle of a newly mounted wall item (see `project set`).

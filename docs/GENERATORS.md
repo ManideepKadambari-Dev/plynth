@@ -156,19 +156,48 @@ No existing code is edited: not the app, not the CLI, not `AssetImport.cpp`. The
 
 Read `core/src/catalog/importers/LocalFileImporter.cpp` as the worked example. Tests for importers use the fake Blender (`tests/tools/fake_blender`) and need no real Blender: see `tests/core/ImporterTests.cpp`.
 
+## Adding a material importer
+
+A material importer is one way materials come into the library. Today there are two: `texture_set` for a folder, zip or image file of texture maps, and `blend_material` for one material of a `.blend` file. Fab zips come later as one more importer. This section is for developers.
+
+Material importers are a registry of their own, separate from the asset importers, so the two catalogs share nothing. The idea is the same: an importer only decides **what Blender should read**. Matching image files to maps by their names, unpacking zips and reading `material.json` are done by the Blender worker, so core never opens a zip. Everything after that is shared: the work folder, the cleanup job, `info.json`, the index, the thumbnail and removing a zip.
+
+### The steps
+
+1. Make one new file in `core/src/catalog/material_importers/`, for example `FabMaterialImporter.cpp`. CMake finds every `.cpp` in that folder and builds it into the OBJECT library `plynth_importers`, so you do not edit `CMakeLists.txt`.
+2. In it, write a class that derives from `MaterialImporter` (`core/include/plynth/core/catalog/MaterialImporter.h`) and implements `id()`, `name()`, `description()`, `fileSuffixes()`, `score(source)` and `plan(source, workFolder, out)`. They work as for an asset importer, with a plan that holds these fields:
+
+| Field | Meaning |
+|---|---|
+| `workerSource` | Which material source of the worker reads it: `texture_set` or `blend`. It must match a file in `blender/plynth/materials/sources/`. |
+| `path` | The folder, zip, image file or `.blend` the worker reads. |
+| `sourceKind` | Written to `info.json`, for example `texture_set`. |
+| `reference` | Written to `info.json`: the original file or folder name, or the address. |
+| `defaultName` | The name when neither the user nor `material.json` gave one. |
+| `license` | The license when neither gave one. Empty means `unknown`. |
+| `originalIsZip` | True when the original is a zip that goes to the Recycle Bin after a successful import, unless the user keeps it. |
+
+3. At the bottom of the file, register it with one line:
+
+```cpp
+const MaterialImporterRegistrar registrar(std::make_unique<FabMaterialImporter>());
+```
+
+The highest score wins and ties go to the lower id, as for assets. A new importer shows up in `plynth materials importers`, the import screen's file dialog and the inbox. No existing code is edited. Read `TextureSetImporter.cpp` as the worked example. Tests use the fake Blender, see `tests/core/MaterialImportTests.cpp`.
+
 ## Blender worker registries
 
 Blender does the heavy work in the background. Its side is Python, in `blender/plynth/`, and it follows the same idea as the C++ side: **a registry, and one file for each entry**. This section is for developers.
 
 ### How a file registers itself
 
-`blender/plynth/registry.py` has a small `Registry` class and seven registries: `TASKS`, `IMPORTERS`, `CLEANUP_STEPS`, `CHECKS`, `EXPORTERS`, `BUILD_STEPS` and `OPENING_FILLS`. Each has `register(id, thing)`, which refuses a duplicate id, plus `get`, `all` and `ids`.
+`blender/plynth/registry.py` has a small `Registry` class and ten registries: `TASKS`, `IMPORTERS`, `CLEANUP_STEPS`, `CHECKS`, `EXPORTERS`, `BUILD_STEPS`, `OPENING_FILLS`, `MATERIAL_SOURCES`, `BAKERS` and `MATERIAL_CHECKS`. Each has `register(id, thing)`, which refuses a duplicate id, plus `get`, `all` and `ids`.
 
 Each package (`tasks/`, `importers/`, `cleanup/`, `checks/`, `exporters/`, `building/`, `fills/`) is loaded with `discover(package)`, which imports every module in the folder in name order. A module registers itself on its last line as it is imported. So adding an entry is adding one file. Nothing else is edited: no list, no import. Only the Python standard library and `bpy` are used.
 
 ### Tasks
 
-A task is what a job asks for. Files in `plynth/tasks/`: `probe`, `cleanup_asset`, `render_thumbnail`, `build`. A task is a function `run(ctx)` registered with `TASKS.register("name", run)`. It reads `ctx.params`, fills `ctx.output`, adds warnings with `ctx.warn(code, message)`, and raises `WorkerError(code, message)` to fail with a named error. The C++ side must also know the task name and its parameters and output: see `core/include/plynth/core/BlenderJob.h` and `catalog/AssetJobs.h`.
+A task is what a job asks for. Files in `plynth/tasks/`: `probe`, `cleanup_asset`, `render_thumbnail`, `build`, `cleanup_material`. A task is a function `run(ctx)` registered with `TASKS.register("name", run)`. It reads `ctx.params`, fills `ctx.output`, adds warnings with `ctx.warn(code, message)`, and raises `WorkerError(code, message)` to fail with a named error. The C++ side must also know the task name and its parameters and output: see `core/include/plynth/core/BlenderJob.h` and `catalog/AssetJobs.h`.
 
 ### File format importers
 
@@ -272,12 +301,12 @@ The order numbers. The gaps are for new steps, and the reserved ones belong to l
 | 50 | reserved | Roofs |
 | 60 | `assets` | Places every item as a copy of its asset |
 | 70 | reserved | Generators |
-| 80 | `materials` | The neutral look of every surface |
+| 80 | `materials` | The library material of every surface, built from its image maps, with UVs at the material's tile size. A surface without one gets its neutral look |
 | 90 | reserved | Trim |
 | 100 | reserved | Set dressing |
 | 110 | reserved | Collision |
 | 120 | `save_blend` | Saves `building.blend` |
-| 130 | `export_fbx` | Makes the item copies real objects and exports `building.fbx` |
+| 130 | `export_fbx` | Makes the item copies real objects, exports `building.fbx` and writes `materials.json` beside it |
 
 A few things to know when you choose a number:
 
@@ -326,6 +355,69 @@ Put it in `blender/plynth/fills/`, and the `opening_fills` step (26) finds it. N
 - Fills are skipped when `fill_openings` is false in the job's settings.
 
 Fitting catalog door and window assets into the opening's frame is planned for a later release. The built-in fills are the plain default.
+
+### Adding a material source, a baker or a material check
+
+The `cleanup_material` task (`blender/plynth/tasks/cleanup_material.py`) makes the image maps of a material in four steps: "Reading the source", "Making the maps", "Checking the maps" and "Rendering the thumbnail". The first three each use a registry, with one file per entry in `blender/plynth/materials/`, found by the task itself. Nothing else is edited.
+
+**A material source** reads where a material comes from and says, for each map, what feeds it. One file in `materials/sources/`, with `load(ctx, source)` that returns a `Loaded`: a `ChannelPlan` for each channel (`channel`, `kind`, `file`, `value`, `node`), the picked material's name, what a `material.json` said, and the tile size. The kind says what the baker should do: `file`, `directx`, `gloss`, `packed`, `alpha`, `value`, `color`, or `node` for something only a render can make.
+
+```python
+from .. import SourceEntry
+from ...registry import MATERIAL_SOURCES
+
+
+# Reads a material from my own format.
+def load(ctx, source):
+    ...
+
+
+MATERIAL_SOURCES.register("my_format", SourceEntry(("my_format",), load))
+```
+
+The kinds in `SourceEntry` are the `source.kind` values of the job that this source reads. Core must also name the same kind in the plan of a material importer (see "Adding a material importer").
+
+**A baker** makes the map of one channel, in order. The task asks each baker, lowest `ORDER` first, whether it `can_bake` the channel, and the first yes makes it. A channel that no baker can make is the error `bake_failed`. Two bakers exist. `direct` (order 10) copies an image, flips a DirectX normal, inverts glossiness, splits a packed image or writes a small constant image for a plain number. `eevee_render` (order 20) draws any other channel with Eevee: a flat tile one tile size across under a camera that looks straight down, the channel's node output routed to an emission shader, one sample, and a view transform that changes no values. Blender's own bake operator is never used, because it needs Cycles.
+
+```python
+from .. import BakerEntry
+from ...registry import BAKERS
+
+ORDER = 15
+
+
+# Says whether this baker can make the channel.
+def can_bake(ctx, plan):
+    return plan.kind == "my_kind"
+
+
+# Writes the map into the textures folder and returns its entry, or None when there is no map.
+def bake(ctx, plan, textures):
+    ...
+
+
+BAKERS.register("my_baker", BakerEntry(ORDER, can_bake, bake))
+```
+
+**A material check** runs after the maps are made, and warns. One file in `materials/checks/`, with `run(ctx, found)`. `found.maps` are the finished maps, `found.paths` their absolute paths and `found.tile_size` the tile size. A check never fails an import. The three that exist are `map_sizes` (10), `seams` (20) and `resolution` (30).
+
+```python
+from .. import CheckEntry
+from ...registry import MATERIAL_CHECKS
+
+ORDER = 40
+
+
+# Warns when the material has no roughness image.
+def run(ctx, found):
+    if found.maps["roughness"]["from"] != "file":
+        ctx.warn("no_roughness_image", "The roughness is a single value.")
+
+
+MATERIAL_CHECKS.register("roughness_file", CheckEntry(ORDER, run))
+```
+
+Worker codes of this task: errors `import_failed`, `no_base_color`, `several_materials`, `bake_failed`, `unpack_failed`, `save_failed`; warnings `ambiguous_map`, `unused_image`, `map_size_mismatch`, `visible_seams`, `low_resolution` and `picked_material`. The files and conventions every cleaned material follows are described at the top of `core/include/plynth/core/catalog/MaterialInfo.h`. Image names are matched in `materials/names.py`, a plain table you can extend. The tests are `blender/tests/test_materials.py` and `test_materials_blend.py`.
 
 ### Adding an exporter
 
