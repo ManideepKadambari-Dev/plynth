@@ -19,6 +19,58 @@ def ring_area(ring):
     return meshes.polygon_area([tuple(p) for p in ring["points"]])
 
 
+TARGET_NAMES = {"walls": "SM_%(floor)s_Walls", "floor": "SM_%(floor)s_%(id)s_Floor",
+                "ceiling": "SM_%(floor)s_%(id)s_Ceiling", "thresholds": "SM_%(floor)s_Thresholds"}
+
+
+# Returns the UCX object names the job's collision lists ask for, in order.
+def expected_collision_names(floor):
+    names = []
+    for entry in floor["collision"]:
+        target = entry["target"]
+        base = TARGET_NAMES[target["kind"]] % {"floor": floor["id"], "id": target["id"]}
+        names += ["UCX_%s_%02d" % (base, n) for n in range(len(entry["pieces"]))]
+    return names
+
+
+# Checks the slot names of a job against MaterialSlots.h: every field names a listed slot of the right surface.
+def check_slots(test, floor, slots):
+    surface = {s["name"]: s["surface"] for s in slots}
+    test.assertEqual([s["name"] for s in slots], sorted(surface))
+    for room in floor["rooms"]:
+        label = room["type"].capitalize()
+        test.assertEqual(room["floor_slot"], label + "_Floor")
+        test.assertEqual(room["ceiling_slot"], label + "_Ceiling")
+        test.assertEqual(surface[room["floor_slot"]], "Floor")
+        test.assertEqual(surface[room["ceiling_slot"]], "Ceiling")
+    for solid in floor["wall_solids"]:
+        test.assertEqual(solid["top_slot"], "Wall_Top")
+        for ring in [solid["outline"]] + solid["holes"]:
+            for edge in ring["edges"]:
+                if edge["side"] is None:
+                    continue
+                if edge["room"] is None:
+                    test.assertEqual(edge["slot"], "Exterior_Wall")
+                else:
+                    label = next(r["type"] for r in floor["rooms"] if r["id"] == edge["room"]).capitalize()
+                    test.assertEqual(edge["slot"], label + "_Wall")
+    for opening in floor["openings"]:
+        for slot in opening["slots"].values():
+            test.assertIn(slot, surface)
+
+
+# Checks that the built file has one closed UCX object for each collision piece the job lists and no others.
+def check_collision(test, floor, counts):
+    wanted = expected_collision_names(floor)
+    found = sorted(o.name for o in bpy.data.objects if o.name.startswith("UCX_"))
+    test.assertEqual(found, sorted(wanted))
+    test.assertEqual(counts["collision"], len(wanted))
+    walls = len(floor["collision"][0]["pieces"])
+    test.assertEqual(len([n for n in wanted if n.startswith("UCX_SM_%s_Walls_" % floor["id"])]), walls)
+    for name in wanted:
+        test.assertTrue(meshes.is_manifold(bpy.data.objects[name]), name)
+
+
 class FromCoreTests(BuildTest):
     # Builds the job core made (two rooms, a curved wall, a rounded corner, all five shapes) with the bevel off.
     def setUp(self):
@@ -66,6 +118,20 @@ class FromCoreTests(BuildTest):
             kind = {"door": "Door", "window": "Window"}.get(opening["type"])
             name = "SM_%s_%s_%s" % (floor["id"], opening["id"], kind)
             self.assertEqual(name in bpy.data.objects, kind is not None, name)
+
+    # The slot names are the ones MaterialSlots.h gives, and the door on w7 takes its reveal from the right side room.
+    def test_slots(self):
+        floor = self.params["floors"][0]
+        check_slots(self, floor, self.params["slots"])
+        o7 = next(o for o in floor["openings"] if o["id"] == "o7")
+        self.assertEqual(o7["slots"]["reveal"], "Living_Wall")
+        self.assertEqual(o7["slots"]["threshold"], "Living_Floor")
+
+    # One UCX object for each wall piece and room slab, and nothing else.
+    def test_collision(self):
+        bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
+        self.assertEqual(len(self.params["floors"][0]["collision"]), 6)
+        check_collision(self, self.params["floors"][0], self.result["output"]["counts"])
 
     # With the default bevel the build still has no problems and the walls stay closed.
     def test_with_bevel(self):
@@ -157,6 +223,13 @@ class FromCoreMaterialsTests(material_helpers.MaterialTest, BuildTest):
                 outside += 1
         self.assertGreater(inside, 0)
         self.assertGreater(outside, 0)
+
+    # Same slot names, door slots and UCX objects as the plain job.
+    def test_slots_and_collision(self):
+        floor = self.params["floors"][0]
+        check_slots(self, floor, self.params["slots"])
+        bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
+        check_collision(self, floor, self.result["output"]["counts"])
 
     # materials.json validates and names the three library materials.
     def test_materials_file(self):
