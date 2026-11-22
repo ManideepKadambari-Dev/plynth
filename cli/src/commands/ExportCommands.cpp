@@ -155,28 +155,9 @@ Answer exportProject(const RunContext& context, const ExportArgs& options) {
     return answer;
 }
 
-// The plan of the last successful build when there is one: the plan the group members refer to.
-std::optional<Plan> readBuiltPlan(const std::filesystem::path& folder) {
-    std::ifstream in(buildFolder(folder) / pathFromUtf8(kBuiltPlanFileName), std::ios::binary);
-    if (!in) {
-        return std::nullopt;
-    }
-    const Json json = Json::parse(in, nullptr, false);
-    if (!json.is_object() || !json.contains("plan")) {
-        return std::nullopt;
-    }
-    PlanRead read = planFromJson(json["plan"]);
-    if (!read.status.ok()) {
-        return std::nullopt;
-    }
-    return std::move(read.plan);
-}
-
 // The groups answer: the exporter, whether its groups can be edited, where they came from, each group with
 // its members, the notes of skipped edits and the kit switch.
-Json groupsJson(const std::filesystem::path& folder, const Project& project, const ExportGroupReview& review) {
-    const std::optional<Plan> built = review.fromBuild ? readBuiltPlan(folder) : std::nullopt;
-    const Plan& plan = built ? *built : project.plan;
+Json groupsJson(const ExportGroupReview& review) {
     Json groups = Json::array();
     for (const ExportGroup& group : review.groups) {
         Json entry = Json::object();
@@ -191,7 +172,7 @@ Json groupsJson(const std::filesystem::path& folder, const Project& project, con
             Json item = Json::object();
             item["kind"] = member.kind;
             item["id"] = member.id.empty() ? Json(nullptr) : Json(member.id);
-            item["label"] = exportMemberLabel(plan, member);
+            item["label"] = exportMemberLabel(review.plan, member);
             members.push_back(std::move(item));
         }
         entry["members"] = std::move(members);
@@ -234,7 +215,7 @@ Answer groupsList(const ExportArgs& args, const RunContext& context) {
     if (!review.status.ok()) {
         return failure(command, review.status);
     }
-    return success(command, groupsJson(folder, document.project(), review));
+    return success(command, groupsJson(review));
 }
 
 // Reads a member written as kind:id, or kind:* for every object of the kind.
@@ -331,7 +312,7 @@ Answer groupsEdit(const std::string& what, const std::string& target, const Expo
     if (!after.status.ok()) {
         return failure(command, after.status);
     }
-    Json result = groupsJson(folder, document.project(), after);
+    Json result = groupsJson(after);
     if (what == "new") {
         result["new_group"] = newId;
     }
