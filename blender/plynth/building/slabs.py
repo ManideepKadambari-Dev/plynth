@@ -22,7 +22,7 @@ def run(ctx):
         try:
             make_slab(ctx, floor, slab)
         except Exception as error:
-            report(ctx, "slab_failed", "warning", "The slab of floor %s could not be built: %s" % (floor["id"], error),
+            report(ctx, "slab_failed", "error", "The slab of floor %s could not be built: %s" % (floor["id"], error),
                    floor["id"], floor["id"])
 
 

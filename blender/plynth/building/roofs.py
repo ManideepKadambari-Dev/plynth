@@ -20,9 +20,9 @@ def run(ctx):
             try:
                 make_roof(ctx, floor, roof, collection)
             except Exception as error:
-                report(ctx, "roof_failed", "warning",
+                report(ctx, "roof_failed", "error",
                        "Roof section %d of %s could not be built: %s" % (roof["index"], floor["id"], error),
-                       floor["id"], "%s_Roof_%02d" % (floor["id"], roof["index"]))
+                       floor["id"], roof["section"] or floor["id"])
 
 
 # Returns the unit normal of a ring of 3D points (Newell's method), pointing the way the ring runs anticlockwise.

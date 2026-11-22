@@ -17,7 +17,7 @@ def run(ctx):
             try:
                 make_stair(ctx, floor, stair)
             except Exception as error:
-                report(ctx, "stair_failed", "warning", "Stair %s could not be built: %s" % (stair["id"], error),
+                report(ctx, "stair_failed", "error", "Stair %s could not be built: %s" % (stair["id"], error),
                        floor["id"], stair["id"])
 
 

@@ -87,7 +87,8 @@ class Fixture(BuildTest):
         bpy.ops.wm.read_factory_settings(use_empty=True)
 
     # Builds the project with the build job of the scratch project and returns the folders.
-    def make_project(self, export="from_core_export", build="from_core_build", assets=ASSETS, drop_collision=None):
+    def make_project(self, export="from_core_export", build="from_core_build", assets=ASSETS, drop_collision=None,
+                     break_part=None):
         project = self.path("project")
         library = self.path("Library")
         export_job = fill(load_job(export), project, library)
@@ -97,9 +98,18 @@ class Fixture(BuildTest):
         build_job = fill(load_job(build), project, library)
         for floor in build_job["params"]["floors"]:
             floor["collision"] = [c for c in floor["collision"] if c["target"]["kind"] != drop_collision]
+        if break_part:
+            floors = build_job["params"]["floors"]
+            if break_part == "slab":
+                floors[0]["slab"]["polygons"][0]["outline"] = [[0.0, 0.0], [1.0, 1.0]]
+            elif break_part == "stair":
+                floors[0]["stairs"][0]["steps"][3]["outline"] = [[0.0, 0.0], [1.0, 1.0]]
+            else:
+                floors[0]["roofs"][0]["faces"][0]["outline"] = [[0, 0, 0], [1, 0, 0], [2, 0, 0]]
         os.makedirs(project + "/build", exist_ok=True)
         result = self.run_task("build", build_job["params"], job_id="build-1")
         assert result["ok"], result["error"]
+        self.problems = result["output"]["problems"]
         return project, library
 
 
@@ -224,6 +234,18 @@ def house_without(kind):
     return _project[key]
 
 
+# Builds the house with one part's outline broken and returns its folders and the problems of the build.
+def house_broken(kind):
+    key = "house broken " + kind
+    if key not in _project:
+        fixture = Fixture()
+        fixture.setUp()
+        atexit.register(shutil.rmtree, fixture.folder, True)
+        folders = fixture.make_project("from_core_house_export", "from_core_house", (), break_part=kind)
+        _project[key] = folders + (fixture.problems,)
+    return _project[key]
+
+
 class HouseExportTests(helpers.TempFolderTest):
     # Returns the export job of the house with the files going into a staging folder of this test.
     def job(self):
@@ -275,6 +297,27 @@ class HouseExportTests(helpers.TempFolderTest):
                 self.assertEqual(check["status"], "fail")
                 self.assertEqual({f["object"] for f in check["findings"]}, names)
                 self.assertTrue(all(f["plan_id"] for f in check["findings"]))
+
+    # A bad outline of a slab, a stair or a roof section is a build error with a plan id, and the export of that
+    # build fails build_complete and names it.
+    def test_broken_part_blocks_export(self):
+        cases = (("slab", "slab_failed", "f1"), ("stair", "stair_failed", "s1"), ("roof", "roof_failed", "f1"))
+        for kind, code, plan_id in cases:
+            with self.subTest(kind=kind):
+                project, library, problems = house_broken(kind)
+                errors = [p for p in problems if p["severity"] == "error"]
+                self.assertEqual([(p["code"], p["object"]) for p in errors if p["code"] == code], [(code, plan_id)])
+                self.assertTrue(all(p["object"] and not p["object"].startswith("SM_") for p in errors), errors)
+                job = fill(load_job("from_core_house_export"), project, library)
+                job["params"]["build"]["problems"] = problems
+                job["params"]["output_folder"] = self.path("export", ".staging")
+                job["params"]["write"] = False
+                job["result_file"] = self.path("work", "result.json")
+                result = self.run_task("export", job["params"], job_id=job["job_id"])
+                self.assertTrue(result["ok"], result["error"])
+                check = next(c for c in result["output"]["checks"] if c["id"] == "build_complete")
+                self.assertEqual(check["status"], "fail")
+                self.assertIn(plan_id, {f["plan_id"] for f in check["findings"]})
 
     # The written FBX holds convex UCX_ meshes for every slab, stair and roof, 16 for the stair's steps.
     def test_fbx_has_part_collision(self):

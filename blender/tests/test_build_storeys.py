@@ -330,7 +330,7 @@ class OverhangTests(StoreyTest):
 
 
 class FailureTests(StoreyTest):
-    # A slab with a ring of two points is reported and the build carries on.
+    # A slab with a ring of two points is an error that names the floor, and the build carries on.
     def test_slab_failed(self):
         params = sharp("two_floors_stair")
         params["floors"][0]["slab"]["polygons"][0]["outline"] = [[0.0, 0.0], [1.0, 1.0]]
@@ -338,7 +338,8 @@ class FailureTests(StoreyTest):
         self.assertTrue(result["ok"], result["error"])
         self.assert_result_valid(result)
         problems = result["output"]["problems"]
-        self.assertEqual([(p["code"], p["severity"], p["floor"]) for p in problems], [("slab_failed", "warning", "f1")])
+        self.assertEqual([(p["code"], p["severity"], p["floor"], p["object"]) for p in problems],
+                         [("slab_failed", "error", "f1", "f1")])
         self.assertEqual(problems[0]["step"], "slabs")
         counts = result["output"]["counts"]
         self.assertEqual((counts["slabs"], counts["stairs"]), (0, 1))
@@ -361,6 +362,7 @@ class FailureTests(StoreyTest):
         self.assertTrue(result["ok"], result["error"])
         problems = result["output"]["problems"]
         self.assertEqual([(p["code"], p["object"], p["floor"]) for p in problems], [("stair_failed", "s1", "f1")])
+        self.assertEqual(problems[0]["severity"], "error")
         self.assertEqual(result["output"]["counts"]["stairs"], 1)
         self.open_blend()
         self.assertNotIn("SM_f1_s1_Stair", bpy.data.objects)

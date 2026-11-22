@@ -250,6 +250,18 @@ class GableRoofTests(RoofBuildTest):
 
 
 class RoofFailureTests(RoofBuildTest):
+    # A section that follows the plan's default has no entry, so the problem names the floor, never an object.
+    def test_roof_failed_without_section(self):
+        params = copy.deepcopy(load_params("roof_gable"))
+        roof = params["floors"][0]["roofs"][0]
+        roof["section"] = None
+        roof["faces"][0]["outline"] = [[0, 0, 0], [1, 0, 0], [2, 0, 0]]
+        result = self.build(params)
+        self.assertTrue(result["ok"], result["error"])
+        problems = result["output"]["problems"]
+        self.assertEqual([(p["code"], p["severity"], p["floor"], p["object"]) for p in problems],
+                         [("roof_failed", "error", "f1", "f1")])
+
     # A section with a broken face is reported and left out, and the other sections are still built.
     def test_roof_failed(self):
         params = copy.deepcopy(load_params("roof_gable"))
@@ -262,8 +274,9 @@ class RoofFailureTests(RoofBuildTest):
         self.assertTrue(result["ok"], result["error"])
         problems = result["output"]["problems"]
         self.assertEqual([p["code"] for p in problems], ["roof_failed"])
-        self.assertEqual(problems[0]["severity"], "warning")
+        self.assertEqual(problems[0]["severity"], "error")
         self.assertEqual(problems[0]["floor"], "f1")
+        self.assertEqual(problems[0]["object"], "rf1")
         self.assertEqual(problems[0]["step"], "roofs")
         self.assertEqual(result["output"]["counts"]["roofs"], 1)
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
