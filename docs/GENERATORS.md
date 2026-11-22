@@ -355,8 +355,9 @@ The order numbers. The gaps are for new steps, and the reserved ones belong to l
 | 25 | `triangulate` | Splits wall faces with more than four corners into triangles |
 | 26 | `opening_fills` | Fits a door or window into each opening |
 | 30 | `floors` | A floor and a ceiling for each room |
-| 40 | reserved | Stairs |
-| 50 | reserved | Roofs |
+| 35 | `slabs` | The slab above each floor that has one, with its edges, undersides and ledge tops |
+| 40 | `stairs` | One solid step at a time for every stair, with the well sides |
+| 50 | `roofs` | A mesh for each roof section, by its type: covering, underside, edge, gables, parapets and glazing |
 | 60 | `assets` | Places every item as a copy of its asset |
 | 70 | reserved | Generators |
 | 80 | `materials` | The library material of every surface, built from its image maps, with UVs at the material's tile size. A surface without one gets its neutral look |
@@ -365,12 +366,13 @@ The order numbers. The gaps are for new steps, and the reserved ones belong to l
 | 110 | `collision` | A closed convex `UCX_` mesh for each collision shape core worked out, and one convex hull for each furniture item. They go in a `Collision` collection and are left out of `building.fbx` |
 | 120 | `save_blend` | Saves `building.blend` |
 | 130 | `export_fbx` | Makes the item copies real objects, exports `building.fbx` and writes `materials.json` beside it |
+| 135 | `preview_parts` | Writes the preview folder for the 3D view: for each floor one file for the floor, one for its slab and one for its roofs, and `parts.json` that lists them. Collision is left out |
 
 A few things to know when you choose a number:
 
 - A step that changes the walls mesh goes after `openings` (20) if it needs the holes, and before `triangulate` (25) if its result should be split too.
 - `triangulate` is there because the 3D view loads the FBX, and its loader drops wall faces that have a hole joined to the edge by a thin slit. Splitting those faces into triangles keeps them.
-- Steps after `save_blend` (120) are not in `building.blend`. `export_fbx` (130) turns the items into real objects after the blend is saved, so the blend keeps the cheap copies.
+- Steps after `save_blend` (120) are not in `building.blend`. `export_fbx` (130) turns the items into real objects after the blend is saved, so the blend keeps the cheap copies. `preview_parts` (135) runs last and only writes files for the 3D view.
 
 ### How the openings are cut
 
