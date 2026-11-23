@@ -52,8 +52,9 @@ function Get-Problems {
     return $found
 }
 
-# The real Blender suite is left out by name: with tags as labels, -LE blender would also drop the core tests tagged [blender].
-$arguments = @('--preset', $Preset, '-E', '^(blender_python|blender_private_folders)$', '-LE', '^gpu$', '--timeout', '600', '--no-tests=error',
+# Every test blender/CMakeLists.txt registers is named blender_ and no other test is. The label cannot be used:
+# with tags as labels, the core tests tagged [blender] carry it too.
+$arguments = @('--preset', $Preset, '-E', '^blender_', '-LE', '^gpu$', '--timeout', '600', '--no-tests=error',
                '--output-log', $log, '--output-junit', $junit)
 # The filter comes from the environment so its text is never part of a script line.
 if ($env:TEST_FILTER) { $arguments += @('-R', $env:TEST_FILTER) }
