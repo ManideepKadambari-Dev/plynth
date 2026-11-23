@@ -103,7 +103,7 @@ std::string exportMemberLabel(const Plan& plan, const ExportMember& member);
 // The user's group edits. They refer to group ids and plan ids, so they survive later builds; an edit that no
 // longer applies is skipped with a note.
 struct ExportGroupNew {
-    std::string id;   // "group_1", "group_2", ...
+    std::string id;   // "group_" and eight characters as newId makes them, or "group_<n>" from before
     std::string name;
 
     bool operator==(const ExportGroupNew&) const = default;
@@ -176,7 +176,8 @@ Status mergeExportGroups(ExportGroupEdits& edits, const std::vector<ExportGroup>
 // changes nothing.
 Status moveExportMember(ExportGroupEdits& edits, const std::vector<ExportGroup>& current, const ExportMember& member,
                         std::string_view to);
-// Adds an empty group with the next free id "group_<n>", which newId receives.
+// Adds an empty group with a new id, "group_" and eight characters as newId makes them, drawn again while a
+// group or any stored edit names it. newId receives it.
 Status addExportGroup(ExportGroupEdits& edits, const std::vector<ExportGroup>& current, std::string_view name,
                       std::string& newId);
 

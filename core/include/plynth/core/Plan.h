@@ -14,7 +14,7 @@ namespace plynth {
 // so image pixel (px, py) is at (px / pixels_per_metre, py / pixels_per_metre). The image's top left
 // corner is at (0, 0). The Blender side turns this into its own y up axes.
 
-// A stable identifier such as "p12". Unique across the whole plan, never changed once given.
+// A stable identifier such as "p12" or "p7k3q9xm2". Unique across the whole plan, never changed once given.
 // Made of a letter followed by letters, digits, "_" or "-".
 using Id = std::string;
 
@@ -26,6 +26,14 @@ inline constexpr std::string_view kOpeningIdPrefix = "o";
 inline constexpr std::string_view kItemIdPrefix = "i";
 inline constexpr std::string_view kStairIdPrefix = "s";
 inline constexpr std::string_view kRoofSectionIdPrefix = "rf";
+
+// The characters a new id has after its prefix: digits and lower case letters without i, l, o and u, so none
+// looks like another.
+inline constexpr std::string_view kIdAlphabet = "0123456789abcdefghjkmnpqrstvwxyz";
+// How many characters a new id has after its prefix.
+inline constexpr std::size_t kNewIdLength = 8;
+// How many random ids newId tries before it falls back to counting.
+inline constexpr int kMaxIdDraws = 1000;
 
 inline constexpr double kDefaultCeilingHeight = 3.0;
 inline constexpr double kDefaultWallThickness = 0.2;
@@ -296,8 +304,11 @@ const Stair* findStair(const Floor& floor, std::string_view id);
 // Says whether any floor, object or roof section entry in the plan already uses this id.
 bool idInUse(const Plan& plan, std::string_view id);
 
-// Makes a new unused id: the prefix followed by one more than the highest number already used with it.
-// An id freed by a removal can be given out again only after it is no longer the highest.
+// Makes an id that no floor, object or roof section of the plan has: the prefix, a digit, then seven characters
+// of kIdAlphabet with at least one letter, for example "i7k3q9xm2", drawn at random and again while in use.
+// Removed ids are not remembered: a new id matches one only by chance, about once in 343 billion. When
+// kMaxIdDraws tries were all in use, which a working source never gives, it is the prefix and one more than the
+// highest number present, counting on while that is in use.
 Id newId(const Plan& plan, std::string_view prefix);
 
 // Says whether text is a well formed id.

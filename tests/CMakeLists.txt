@@ -83,6 +83,9 @@ add_executable(plynth_core_tests
     core/GrayImageTests.cpp
     core/OrthogonalDetectorTests.cpp
     core/DetectionPerfTests.cpp
+    core/IdTests.cpp
+    core/IdGroupTests.cpp
+    core/IdTestListener.cpp
 )
 target_link_libraries(plynth_core_tests PRIVATE
     plynth::core
