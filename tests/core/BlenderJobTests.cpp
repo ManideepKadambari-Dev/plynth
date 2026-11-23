@@ -809,13 +809,13 @@ TEST_CASE("readCleanupResult refuses bad material maps", "[core][blenderjob]") {
 
 TEST_CASE("path text drops separators at the end and nothing else", "[core][blenderjob][folders]") {
     namespace bp = plynth::blenderpaths;
-    REQUIRE(bp::normalFolder("C:/a/b//") == fs::path("C:\a\b"));
-    REQUIRE(bp::normalFolder("C:\a\.\b\..\c\/") == fs::path("C:\a\c"));
-    REQUIRE(bp::normalFolder("C:\\") == fs::path("C:\\"));
-    REQUIRE(bp::sameText("C:/Users/Me/Ext/", "c:\users\me\ext"));
+    REQUIRE(bp::normalFolder("C:/a/b//") == fs::path(R"(C:\a\b)"));
+    REQUIRE(bp::normalFolder(R"(C:\a\.\b\..\c\/)") == fs::path(R"(C:\a\c)"));
+    REQUIRE(bp::normalFolder(R"(C:\)") == fs::path(R"(C:\)"));
+    REQUIRE(bp::sameText("C:/Users/Me/Ext/", R"(c:\users\me\ext)"));
     REQUIRE_FALSE(bp::sameText("C:/Users/Me/Ext.", "C:/Users/Me/Ext"));
     REQUIRE_FALSE(bp::sameText("C:/Users/Me/Ext ", "C:/Users/Me/Ext"));
-    REQUIRE_FALSE(bp::sameText("\\?\C:\Users\Me\Ext", "C:/Users/Me/Ext"));
+    REQUIRE_FALSE(bp::sameText(R"(\\?\C:\Users\Me\Ext)", "C:/Users/Me/Ext"));
 }
 
 TEST_CASE("paths overlap when one holds the other, also with dots and spaces cut", "[core][blenderjob][folders]") {
