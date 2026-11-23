@@ -21,6 +21,10 @@ on:
         description: Exact name of a core test case, hidden ones too, to run after the Debug build. The files it changes under tests are uploaded.
         type: string
         default: ''
+      test_programs:
+        description: Upload the Debug core test programs, their helpers, libraries and data as test-programs.
+        type: boolean
+        default: false
       screens:
         description: Take app screenshots at three sizes from the ready to run copy.
         type: boolean
@@ -62,6 +66,7 @@ jobs:
       TEST_LABELS: ${{ inputs.labels }}
       WRITE_FIXTURE: ${{ inputs.write_fixture }}
       SCREENS: ${{ inputs.screens }}
+      TEST_PROGRAMS: ${{ inputs.test_programs }}
       APP_OPTIONS: ${{ inputs.app_options }}
     steps:
       - name: Check out
@@ -203,6 +208,21 @@ jobs:
         id: build-debug
         shell: pwsh
         run: cmake --build --preset debug
+
+      - name: Pack the test programs
+        id: test-programs
+        if: github.event_name == 'workflow_dispatch' && env.TEST_PROGRAMS == 'true' && steps.build-debug.outcome == 'success'
+        shell: pwsh
+        run: '& "$env:GITHUB_WORKSPACE/.github/scripts/pack-test-programs.ps1" -Destination "$env:GITHUB_WORKSPACE/out/test-programs"'
+
+      - name: Upload the test programs
+        if: ${{ !cancelled() && steps.test-programs.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-programs
+          path: out/test-programs/
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Write fixtures
         id: write-fixture
