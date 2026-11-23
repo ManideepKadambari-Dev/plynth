@@ -23,7 +23,21 @@ struct ProcessSpec {
     std::filesystem::path workingFolder; // empty: the current folder
     std::vector<std::pair<std::string, std::string>> environment; // added to, or replacing, the inherited ones
     std::chrono::milliseconds timeout{0}; // 0: no limit
+    // Variables taken out of the inherited ones, by name, ignoring case. Applied before environment.
+    std::vector<std::string> removeEnvironment;
+    // Start the program, and so everything it starts, at low integrity. Windows then lets it write only to
+    // places labelled low, such as a folder made with makeLowIntegrityFolder, and not to the user's other
+    // files, folders or registry. Reading stays as before. CannotRead when that cannot be set up; the program
+    // is then not started.
+    bool lowIntegrity = false;
+    // When the program ends by itself, also end everything it started that still runs, and return only once
+    // all of them are gone. A stop or the timeout always does this.
+    bool endChildren = false;
 };
+
+// Makes a folder, or labels one that exists and is empty, so that a low integrity program may write in it.
+// Only for a folder this process made itself. CannotWrite when it fails.
+Status makeLowIntegrityFolder(const std::filesystem::path& folder);
 
 // How much of the output is kept in ProcessResult::outputTail.
 inline constexpr std::size_t kProcessOutputTailBytes = 64 * 1024;

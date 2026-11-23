@@ -134,8 +134,11 @@ TEST_CASE("makeBlenderKitFetch builds the task", "[core][blenderkit]") {
     REQUIRE(fetch.params["resolution"] == "1k");
     REQUIRE(fetch.params["wait_seconds"] == 600);
     REQUIRE_FALSE(fetch.params.contains("output_folder"));
+    REQUIRE_FALSE(fetch.params.contains("private_folder"));
+    REQUIRE(fetch.steps.size() == 3);
 
-    fetch.params["output_folder"] = "D:/Library/assets/.staging/work/fetched";
+    fetch.params["private_folder"] = "C:/Users/Ann/AppData/Local/Plynth/fetch";
+    fetch.params["output_folder"] = "C:/Users/Ann/AppData/Local/Plynth/fetch/out";
     const Json job = makeBlenderJob(fetch.task, "blenderkit-1a2b3c4d", std::filesystem::path("D:/work/result.json"), fetch.params);
     REQUIRE(plynth::test::schemaProblem("blender-job.schema.json", nlohmann::json::parse(job.dump())).empty());
 

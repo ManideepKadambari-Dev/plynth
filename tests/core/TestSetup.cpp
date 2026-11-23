@@ -6,6 +6,7 @@
 #endif
 #include <windows.h>
 #include <crtdbg.h>
+#include <process.h>
 #include <cstdlib>
 #include <string>
 #include <initializer_list>
@@ -22,6 +23,13 @@ struct NoDialogs {
         const std::string config = std::string(temp ? temp : ".") + "\\plynth-tests-config";
         free(temp);
         _putenv_s("PLYNTH_CONFIG_DIR", config.c_str());
+        // A store fetch never uses the real %LOCALAPPDATA%: it gets a short folder of this run, unless a test that
+        // started this program named one.
+        const std::string fetch = config.substr(0, config.size() - std::string("plynth-tests-config").size()) + "plynth-fetch-" + std::to_string(_getpid());
+        char* named = nullptr;
+        _dupenv_s(&named, &size, "PLYNTH_FETCH_FOLDER");
+        if (!named) _putenv_s("PLYNTH_FETCH_FOLDER", fetch.c_str());
+        free(named);
         SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
         _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
 #ifdef _DEBUG

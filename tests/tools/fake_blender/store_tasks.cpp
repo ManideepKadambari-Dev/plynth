@@ -1,9 +1,9 @@
-// The fake store tasks of the fake Blender. blenderkit_fetch acts by the FAKE_BLENDERKIT variable: ok
-// (default, the item is a model), material, hdr, not_signed_in, addon_missing, download_failed, timeout,
-// mislabel (succeeds with the other kind than asked), missing_file (reports a
-// file it did not write). It writes fake_item.blend
-// and textures/fake.png into the job's output_folder, and its whole command line to fake_args.txt next to
-// the job file.
+// The fake store tasks of the fake Blender. blenderkit_fetch acts by the FAKE_BLENDERKIT variable: unset (the
+// item is the kind the job asks for), ok (the item is a model), material, hdr, not_signed_in, addon_missing,
+// download_failed, timeout, mislabel (succeeds with the other kind than asked), missing_file (reports a file
+// it did not write). It writes fake_item.blend and textures/fake.png into the job's output_folder, its whole
+// command line to fake_args.txt next to the job file and next to the program, and a copy of each result to
+// fake_result.json next to the program. store_fetch_env.cpp records each run and its side effects.
 #include <nlohmann/json.hpp>
 
 #include <cstdlib>
@@ -15,6 +15,8 @@
 
 namespace fs = std::filesystem;
 using Json = nlohmann::ordered_json;
+
+void keepResultCopy(const Json& result);
 
 namespace {
 
@@ -48,7 +50,7 @@ std::string fakeKitMode()
     _dupenv_s(&value, &size, "FAKE_BLENDERKIT");
     std::string text = value ? value : "";
     std::free(value);
-    return text.empty() ? "ok" : text;
+    return text.empty() ? "follow" : text;
 }
 
 // Writes the result through a temporary file and a rename.
@@ -57,11 +59,15 @@ void writeResult(const fs::path& file, const Json& result)
     fs::path tmp = file;
     tmp += ".tmp";
     writeFile(tmp, result.dump(2));
+    keepResultCopy(result);
     std::error_code ec;
     fs::rename(tmp, file, ec);
 }
 
 }
+
+void recordFetchRun(const Json& job, const std::string& jobPath, const std::string& line);
+int fetchSideEffects(const Json& job);
 
 // Runs the fake blenderkit_fetch job. Returns the process exit code.
 int runFakeStoreFetch(const Json& job, const std::string& jobPath, const std::vector<std::string>& args)
@@ -70,6 +76,8 @@ int runFakeStoreFetch(const Json& job, const std::string& jobPath, const std::ve
     std::string line;
     for (const std::string& a : args) line += (line.empty() ? "" : " ") + a;
     writeFile(jobFile.parent_path() / "fake_args.txt", line + "\n");
+    recordFetchRun(job, jobPath, line);
+    if (const int code = fetchSideEffects(job); code >= 0) return code;
 
     const Json& params = job["params"];
     const fs::path folder = pathFrom(params["output_folder"].get<std::string>());
@@ -109,7 +117,7 @@ int runFakeStoreFetch(const Json& job, const std::string& jobPath, const std::ve
     }
 
     const bool wantsMaterial = params["kind"].get<std::string>() == "material";
-    const bool material = how == "mislabel" ? !wantsMaterial : how == "material";
+    const bool material = how == "mislabel" ? !wantsMaterial : how == "follow" ? wantsMaterial : how == "material";
     if (how != "mislabel" && material != wantsMaterial) {
         return failure("wrong_asset_kind", material
             ? "This BlenderKit item is a material. Import it in the Materials tab or with plynth materials import."
@@ -127,7 +135,7 @@ int runFakeStoreFetch(const Json& job, const std::string& jobPath, const std::ve
                             {"name", "Fake chair"},
                             {"author", "Fake Author"},
                             {"license", "royalty_free"},
-                            {"reference", "https://www.blenderkit.com/asset-gallery-detail/" + id + "/"},
+                            {"reference", "https://www.blendkit.com/asset-gallery-detail/" + id + "/"},
                             {"material", material ? Json("Fake material") : Json(nullptr)}};
     writeResult(resultFile, result);
     return 0;

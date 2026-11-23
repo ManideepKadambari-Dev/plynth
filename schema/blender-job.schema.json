@@ -54,8 +54,9 @@
             "properties": {
               "asset_base_id": { "type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" },
               "kind": { "description": "What the import expects. Another kind fails with wrong_asset_kind.", "enum": ["model", "material"] },
-              "resolution": { "description": "Texture resolution to ask the add-on for, when its download operator offers one.", "enum": ["0.5k", "1k", "2k", "4k", "8k", "original"] },
-              "output_folder": { "description": "An empty folder. The worker copies the downloaded .blend and the files it uses into it.", "type": "string", "minLength": 1 },
+              "resolution": { "description": "Texture resolution, set in the add-on's preference in memory. The store gives the nearest one it has.", "enum": ["0.5k", "1k", "2k", "4k", "8k", "original"] },
+              "output_folder": { "description": "An empty folder inside private_folder. The worker copies into it the .blend the add-on names for the id and the textures folders beside it, out of private_folder only. Plynth moves it into the import's work folder afterwards. Never another item's file, a config folder or preferences.json.", "type": "string", "minLength": 1 },
+              "private_folder": { "description": "Plynth's own fetch folder (core/include/plynth/core/catalog/StoreFetch.h): labelled low integrity, emptied before and after, at most 95 bytes in UTF-8. The add-on's global folder for this run and the only place Blender, the add-on and its helper may write. The worker refuses a job without it.", "type": "string", "pattern": "^([A-Za-z]:/|/)" },
               "wait_seconds": { "description": "How long to wait for the download.", "type": "integer", "minimum": 60, "maximum": 3600 }
             }
           }

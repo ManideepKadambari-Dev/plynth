@@ -187,7 +187,25 @@ struct BlenderRunOptions {
     // built again from this list: index is the place in the list, count the list's size, message the sentence
     // here. A step that repeats the one before is dropped. Empty: no progress.
     std::vector<BlenderStep> steps;
+    // Set only for a store fetch: the fetch folder of catalog/StoreFetch.h. Then the job file, the result file
+    // and the log are inside it, and the child runs at low integrity (ProcessSpec::lowIntegrity) with
+    // endChildren. It gets TEMP and TMP in kFetchTempFolder of that folder, kFetchPrivateVariable naming the
+    // folder, PYTHONDONTWRITEBYTECODE, and the scripts folder's kFetchGuardFolder put before
+    // BLENDER_SYSTEM_SCRIPTS, so the guard loads before any add-on. kFetchRemovedVariables are taken out of
+    // its environment. When kFetchGuardFile is not in the guard folder the status is NotFound and Blender is
+    // not started.
+    std::filesystem::path privateFolder;
 };
+
+// The guard of a store fetch, see catalog/StoreFetch.h.
+inline constexpr std::string_view kFetchGuardFolder = "guard";
+inline constexpr std::string_view kFetchGuardFile = "startup/plynth_fetch_guard.py";
+inline constexpr std::string_view kFetchPrivateVariable = "PLYNTH_FETCH_PRIVATE";
+inline constexpr std::string_view kFetchTempFolder = "tmp";
+
+// Variables a store's helper reads to send the key, its settings or its log elsewhere.
+inline constexpr std::string_view kFetchRemovedVariables[] = {
+    "BLENDKIT_CLIENT_SETTINGS", "BLENDKIT_SERVER", "BLENDERKIT_SERVER", "BLENDKIT_DEBUG", "BLENDKIT_TOOLS_DIR"};
 
 struct BlenderJobRun {
     // Ok when the worker wrote a result file with ok true. BlenderFailed when it wrote ok false (the message

@@ -36,6 +36,8 @@ struct Setup {
         : temp(name), user(temp), scripts("PLYNTH_BLENDER_SCRIPTS", utf8(temp.path() / "scripts")) {
         std::filesystem::create_directories(temp.path() / "scripts");
         std::ofstream(temp.path() / "scripts" / "plynth_worker.py") << "# stand in for the worker\n";
+        std::filesystem::create_directories(temp.path() / "scripts" / "guard" / "startup");
+        std::ofstream(temp.path() / "scripts" / "guard" / "startup" / "plynth_fetch_guard.py") << "# stand in for the guard\n";
         library = temp.path() / "Library";
         REQUIRE(runChecked({"library", "init", utf8(library), "--use"}).exitCode == plynth::cli::kExitOk);
         fake = installFakeBlender(temp.path() / "fb", "5.2.0");

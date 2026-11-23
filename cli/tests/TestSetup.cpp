@@ -38,13 +38,19 @@ struct TestConfigFolder {
         std::filesystem::create_directories(path);
         _wputenv_s(L"PLYNTH_CONFIG_DIR", path.wstring().c_str());
         SetEnvironmentVariableW(L"PLYNTH_CONFIG_DIR", path.wstring().c_str());
+        // A store fetch never uses the real %LOCALAPPDATA%: it gets a short folder of this run.
+        fetch = std::filesystem::temp_directory_path() / ("plynth-fetch-" + std::to_string(GetCurrentProcessId()));
+        _wputenv_s(L"PLYNTH_FETCH_FOLDER", fetch.wstring().c_str());
+        SetEnvironmentVariableW(L"PLYNTH_FETCH_FOLDER", fetch.wstring().c_str());
         plynth::cli::testing::requireSafeSettings("starting the test program");
     }
     ~TestConfigFolder() {
         std::error_code ignored;
         std::filesystem::remove_all(path, ignored);
+        std::filesystem::remove_all(fetch, ignored);
     }
     std::filesystem::path path;
+    std::filesystem::path fetch;
 } testConfigFolderSetup;
 
 }  // namespace

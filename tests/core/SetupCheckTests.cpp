@@ -192,7 +192,7 @@ TEST_CASE("the add-on probe finds add-ons and BlenderKit", "[core][setup]") {
     const SetupItem* blenderKit = report.find(kCheckBlenderKit);
     REQUIRE(blenderKit->state == CheckState::NeedsAttention);
     REQUIRE_FALSE(blenderKit->blocks());
-    REQUIRE(blenderKit->link == "https://www.blenderkit.com/");
+    REQUIRE(blenderKit->link == "https://www.blendkit.com/");
     for (const SetupItem& i : report.items) {
         if (i.id.rfind("addon_", 0) == 0) REQUIRE_FALSE(i.required);
     }

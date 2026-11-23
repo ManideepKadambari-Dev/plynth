@@ -333,6 +333,12 @@ ProcessResult runProcess(const ProcessSpec& spec, const std::function<void(std::
     return result;
 }
 
+// Labels a folder so a low integrity program may write in it. Not done yet, so it always fails.
+Status makeLowIntegrityFolder(const std::filesystem::path&)
+{
+    return fail(ErrorCode::CannotWrite, "Folders for low integrity programs cannot be made yet.");
+}
+
 // Moves a file or folder to the Recycle Bin.
 Status moveToRecycleBin(const std::filesystem::path& path)
 {

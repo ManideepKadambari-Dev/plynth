@@ -10,6 +10,7 @@
 
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -71,12 +72,15 @@ TEST_CASE("runImportFetch brings the file through the fake", "[core][fetch]") {
     REQUIRE(run.output.kind == "model");
     REQUIRE(run.output.name == "Fake chair");
     REQUIRE(run.output.license == "royalty_free");
-    REQUIRE(run.output.reference == std::string("https://www.blenderkit.com/asset-gallery-detail/") + kId + "/");
+    REQUIRE(run.output.reference == std::string("https://www.blendkit.com/asset-gallery-detail/") + kId + "/");
     REQUIRE(steps == std::vector<std::string>{"check_addon", "download", "copy"});
 
-    const Json written = Json::parse(plynth::test::readTextFile(s.work / "result.json"));
+    const Json written = Json::parse(plynth::test::readTextFile(s.blender.parent_path() / "fake_result.json"));
     REQUIRE(plynth::test::schemaProblem("blender-result.schema.json", written) == "");
-    const Json job = Json::parse(plynth::test::readTextFile(s.work / "job.json"));
+    std::string lastJob;
+    std::ifstream jobs(s.blender.parent_path() / "fake_jobs.log", std::ios::binary);
+    for (std::string line; std::getline(jobs, line);) lastJob = line;
+    const Json job = Json::parse(lastJob);
     REQUIRE(plynth::test::schemaProblem("blender-job.schema.json", job) == "");
 }
 
@@ -84,7 +88,7 @@ TEST_CASE("the fetch starts without factory startup and with --background", "[co
     KitMode mode("");
     Setup s;
     plynth::test::requireOk(runImportFetch(fetchOf(), s.blender, s.base, s.work).status);
-    const std::string args = plynth::test::readTextFile(s.work / "fake_args.txt");
+    const std::string args = plynth::test::readTextFile(s.blender.parent_path() / "fake_args.txt");
     REQUIRE(args.find("--factory-startup") == std::string::npos);
     REQUIRE(args.find("--background") != std::string::npos);
     REQUIRE(args.find("--window-geometry") == std::string::npos);
@@ -99,7 +103,7 @@ TEST_CASE("a failed fetch gives BlenderFailed with the worker's code", "[core][f
         REQUIRE(run.status.code == ErrorCode::BlenderFailed);
         REQUIRE(run.errorCode == code);
         REQUIRE_FALSE(run.status.message.empty());
-        const Json written = Json::parse(plynth::test::readTextFile(s.work / code / "result.json"));
+        const Json written = Json::parse(plynth::test::readTextFile(s.blender.parent_path() / "fake_result.json"));
         REQUIRE(plynth::test::schemaProblem("blender-result.schema.json", written) == "");
     }
     KitMode mode("not_signed_in");

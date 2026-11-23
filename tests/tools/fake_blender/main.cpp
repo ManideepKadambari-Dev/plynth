@@ -10,6 +10,7 @@
 // Every start also appends its arguments to fake_args.log.
 // Every start also appends the BLENDER_USER_* variables it sees to fake_env.log.
 // Every job is also appended as one line to fake_jobs.log next to the program.
+// Every start also appends its integrity level and fetch variables to fake_starts.log (store_fetch_env.cpp).
 // The version comes from fake_version.txt next to the program, else 5.2.0.
 // Probe add-ons come from FAKE_BLENDER_ADDONS (comma separated modules) and FAKE_BLENDER_BLENDERKIT
 // (none, installed, enabled or signed_in).
@@ -37,6 +38,8 @@ namespace fs = std::filesystem;
 using Json = nlohmann::ordered_json;
 
 int runFakeStoreFetch(const Json& job, const std::string& jobPath, const std::vector<std::string>& args);
+int lingerChild(const std::wstring& lockFile);
+void noteStart();
 
 namespace {
 
@@ -546,11 +549,13 @@ std::vector<std::string> commandLineArguments()
 int main()
 {
     const std::vector<std::string> args = commandLineArguments();
+    if (args.size() == 2 && args[0] == "--linger") return lingerChild(pathFrom(args[1]).wstring());
     {
         std::ofstream log(programFolder() / "fake_args.log", std::ios::binary | std::ios::app);
         for (std::size_t i = 0; i < args.size(); ++i) log << (i ? "|" : "") << args[i];
         log << "\n";
     }
+    noteStart();
     if (writesUser()) writeUserMarkers();
     {
         std::ofstream log(programFolder() / "fake_env.log", std::ios::binary | std::ios::app);
