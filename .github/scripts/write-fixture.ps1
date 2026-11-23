@@ -26,7 +26,7 @@ if ($listed.Count -ne 1 -or $listed[0] -ne $name) {
     throw 'the name must match exactly one test case'
 }
 
-& $program.FullName $spec --warn NoTests
+& $program.FullName $spec --warn NoAssertions
 $code = $LASTEXITCODE
 
 New-Item -ItemType Directory -Force $OutFolder | Out-Null
