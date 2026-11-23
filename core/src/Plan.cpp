@@ -3,6 +3,8 @@
 #include "plynth/core/Roofs.h"
 #include "plynth/core/Stairs.h"
 
+#include "IdSource.h"
+
 #include <algorithm>
 #include <cmath>
 #include <set>
@@ -379,8 +381,9 @@ bool idInUse(const Plan& plan, std::string_view id)
     return findFloor(plan, id) != nullptr || findFloorContaining(plan, id) != nullptr || findRoofSection(plan, id) != nullptr;
 }
 
-// Makes a new id: the prefix and one more than the highest number used with it.
-Id newId(const Plan& plan, std::string_view prefix)
+// Makes an id the old way: the prefix and one more than the highest number used with it, counting on while that
+// id is taken by one the number rule skips.
+static Id countedId(const Plan& plan, std::string_view prefix)
 {
     long long highest = 0;
     auto consider = [&](const Id& id) { highest = std::max(highest, numberAfterPrefix(id, prefix)); };
@@ -394,7 +397,19 @@ Id newId(const Plan& plan, std::string_view prefix)
         for (const auto& st : f.stairs) consider(st.id);
     }
     for (const auto& r : plan.roofSections) consider(r.id);
-    return std::string(prefix) + std::to_string(highest + 1);
+    Id id = std::string(prefix) + std::to_string(highest + 1);
+    for (long long next = highest + 2; idInUse(plan, id); ++next) id = std::string(prefix) + std::to_string(next);
+    return id;
+}
+
+// Makes a new random id that nothing in the plan has, or a counted one when tests ask or every try was taken.
+Id newId(const Plan& plan, std::string_view prefix)
+{
+    if (detail::countedIds()) return countedId(plan, prefix);
+    const std::string part = detail::newIdPart(
+        [&](std::string_view candidate) { return idInUse(plan, std::string(prefix) + std::string(candidate)); });
+    if (part.empty()) return countedId(plan, prefix);
+    return std::string(prefix) + part;
 }
 
 // Says whether text is a well formed id.

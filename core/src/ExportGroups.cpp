@@ -2,6 +2,7 @@
 
 #include "BuiltPlan.h"
 #include "FileIo.h"
+#include "IdSource.h"
 
 #include "plynth/core/Kit.h"
 #include "plynth/core/MaterialSlots.h"
@@ -400,7 +401,7 @@ Status moveExportMember(ExportGroupEdits& edits, const std::vector<ExportGroup>&
     return {};
 }
 
-// Adds an empty group with the next free id.
+// Adds an empty group with a new id that no group and no stored edit names.
 Status addExportGroup(ExportGroupEdits& edits, const std::vector<ExportGroup>& current, std::string_view name,
                       std::string& newId)
 {
@@ -410,13 +411,28 @@ Status addExportGroup(ExportGroupEdits& edits, const std::vector<ExportGroup>& c
     for (const ExportGroup& other : current) {
         if (lowerCase(other.name) == key) return fail(ErrorCode::AlreadyExists, "There is already a group named " + other.name + ".");
     }
-    const auto taken = [&](const std::string& id) {
+    const auto taken = [&](std::string_view id) {
         if (findGroup(current, id)) return true;
-        return std::any_of(edits.added.begin(), edits.added.end(), [&](const ExportGroupNew& a) { return a.id == id; });
+        const auto same = [&](const std::string& other) { return other == id; };
+        if (std::any_of(edits.added.begin(), edits.added.end(), [&](const ExportGroupNew& a) { return same(a.id); })) return true;
+        if (std::any_of(edits.renames.begin(), edits.renames.end(), [&](const ExportGroupRename& r) { return same(r.group); })) return true;
+        if (std::any_of(edits.merges.begin(), edits.merges.end(),
+                        [&](const ExportGroupMerge& m) { return same(m.group) || same(m.into); })) {
+            return true;
+        }
+        return std::any_of(edits.moves.begin(), edits.moves.end(), [&](const ExportMemberMove& m) { return same(m.to); });
     };
-    int n = 1;
-    while (taken("group_" + std::to_string(n))) ++n;
-    newId = "group_" + std::to_string(n);
+    std::string id;
+    if (!detail::countedIds()) {
+        const std::string part = detail::newIdPart([&](std::string_view p) { return taken("group_" + std::string(p)); });
+        if (!part.empty()) id = "group_" + part;
+    }
+    if (id.empty()) {
+        int n = 1;
+        while (taken("group_" + std::to_string(n))) ++n;
+        id = "group_" + std::to_string(n);
+    }
+    newId = id;
     edits.added.push_back({newId, clean});
     return {};
 }
@@ -438,11 +454,15 @@ bool isGroupIdText(std::string_view id)
     return isWellFormedRuleId(id) && id.size() <= 80;
 }
 
-// Says whether an id is "group_" and a number from 1.
+// Says whether an id is "group_" and either a number from 1 or a digit and seven characters of kIdAlphabet.
 bool isAddedGroupId(std::string_view id)
 {
-    if (id.size() < 7 || id.substr(0, 6) != "group_" || id[6] == '0') return false;
-    return std::all_of(id.begin() + 6, id.end(), [](char c) { return c >= '0' && c <= '9'; });
+    if (id.size() < 7 || id.substr(0, 6) != "group_") return false;
+    const std::string_view rest = id.substr(6);
+    const auto isDigit = [](char c) { return c >= '0' && c <= '9'; };
+    if (rest[0] != '0' && std::all_of(rest.begin(), rest.end(), isDigit)) return true;
+    if (rest.size() != kNewIdLength || !isDigit(rest[0])) return false;
+    return std::all_of(rest.begin(), rest.end(), [](char c) { return kIdAlphabet.find(c) != std::string_view::npos; });
 }
 
 // Checks that an object has only the listed fields.
@@ -558,7 +578,7 @@ ExportOptionsRead exportOptionsFromJson(const Json& json)
             if (Status f = checkFields(item, {"id", "name"}, at); !f.ok()) return f;
             ExportGroupNew entry;
             if (!readText(item, "id", entry.id) || !isAddedGroupId(entry.id)) {
-                return fail(ErrorCode::BadFile, "\"id\" must look like group_1.", at + "/id");
+                return fail(ErrorCode::BadFile, "\"id\" must look like group_3vk8m2qa or group_1.", at + "/id");
             }
             if (Status n = readGroupName(item, at, entry.name); !n.ok()) return n;
             options.groups.added.push_back(std::move(entry));

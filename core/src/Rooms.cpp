@@ -21,7 +21,8 @@ constexpr double kTinyLength = 1e-9;
 constexpr double kTinyArea = 1e-12;
 constexpr int kClipperPrecision = 8;
 
-// Orders ids so "w9" comes before "w10".
+// Puts ids in one fixed order, shorter first and then by text, so "w9" comes before "w10". It does not follow
+// when the objects were made.
 bool idLess(const Id& a, const Id& b)
 {
     if (a.size() != b.size()) return a.size() < b.size();
@@ -114,7 +115,7 @@ bool insideRings(Vec2 position, const std::vector<std::vector<Vec2>>& rings)
     return true;
 }
 
-// Rotates a ring so it starts at the wall with the smallest id.
+// Rotates a ring so it starts at the wall that comes first in the fixed id order.
 void rotateToSmallestWall(Ring& ring)
 {
     if (ring.walls.empty()) return;
