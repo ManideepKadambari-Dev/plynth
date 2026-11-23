@@ -154,9 +154,12 @@ jobs:
             sccache-${{ runner.os }}-main-
 
       - name: Start the compiler cache
+        id: sccache-start
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force $env:SCCACHE_DIR | Out-Null
+          $files = (Get-ChildItem -Recurse -File $env:SCCACHE_DIR | Measure-Object).Count
+          "files=$files" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           sccache --start-server
           sccache --zero-stats
 
@@ -269,20 +272,25 @@ jobs:
         id: sccache-stats
         if: ${{ !cancelled() }}
         shell: pwsh
+        env:
+          CACHE_FILES_BEFORE: ${{ steps.sccache-start.outputs.files }}
         run: |
           $stats = sccache --show-stats | Out-String
           $stats
-          $writes = if ($stats -match 'Cache writes\s+(\d+)') { [int]$Matches[1] } else { 0 }
           $hits = if ($stats -match '(?m)^Cache hits\s+(\d+)') { [int]$Matches[1] } else { 0 }
           $misses = if ($stats -match '(?m)^Cache misses\s+(\d+)') { [int]$Matches[1] } else { 0 }
           $rate = if ($hits + $misses) { '{0:N0} percent' -f (100 * $hits / ($hits + $misses)) } else { 'no compiles' }
-          @('### Compiler cache', '', "$hits hits, $misses misses ($rate), $writes new objects stored.", '') |
-            Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          "writes=$writes" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          # Stopping the server first makes sure every object is on disk before the files are counted.
           sccache --stop-server | Out-Null
+          $before = [int]$env:CACHE_FILES_BEFORE
+          $after = (Get-ChildItem -Recurse -File $env:SCCACHE_DIR | Measure-Object).Count
+          $added = [math]::Max(0, $after - $before)
+          @('### Compiler cache', '', "$hits hits, $misses misses ($rate). $added new files in the cache, $after in all.", '') |
+            Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "added=$added" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Save the compiler cache
-        if: ${{ !cancelled() && steps.sccache-cache.outputs.cache-hit != 'true' && steps.sccache-stats.outputs.writes != '0' && steps.sccache-stats.outputs.writes != '' }}
+        if: ${{ !cancelled() && steps.sccache-cache.outputs.cache-hit != 'true' && steps.sccache-stats.outputs.added != '0' && steps.sccache-stats.outputs.added != '' }}
         uses: actions/cache/save@v4
         with:
           path: sccache
