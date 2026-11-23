@@ -1,6 +1,8 @@
 #include "FakeBlender.h"
 #include "SchemaSupport.h"
 
+#include "../../core/src/BlenderPaths.h"
+
 #include <plynth/core/Blender.h>
 #include <plynth/core/BlenderJob.h>
 #include <plynth/core/ProjectFiles.h>
@@ -803,4 +805,53 @@ TEST_CASE("readCleanupResult refuses bad material maps", "[core][blenderjob]") {
     Json noPreview = run.result;
     noPreview["output"]["material_maps"][0].erase("preview_maps");
     REQUIRE(readCleanupResult(noPreview, id).header.status.code == ErrorCode::BadFile);
+}
+
+TEST_CASE("path text drops separators at the end and nothing else", "[core][blenderjob][folders]") {
+    namespace bp = plynth::blenderpaths;
+    REQUIRE(bp::normalFolder("C:/a/b//") == fs::path("C:\a\b"));
+    REQUIRE(bp::normalFolder("C:\a\.\b\..\c\/") == fs::path("C:\a\c"));
+    REQUIRE(bp::normalFolder("C:\\") == fs::path("C:\\"));
+    REQUIRE(bp::sameText("C:/Users/Me/Ext/", "c:\users\me\ext"));
+    REQUIRE_FALSE(bp::sameText("C:/Users/Me/Ext.", "C:/Users/Me/Ext"));
+    REQUIRE_FALSE(bp::sameText("C:/Users/Me/Ext ", "C:/Users/Me/Ext"));
+    REQUIRE_FALSE(bp::sameText("\\?\C:\Users\Me\Ext", "C:/Users/Me/Ext"));
+}
+
+TEST_CASE("paths overlap when one holds the other, also with dots and spaces cut", "[core][blenderjob][folders]") {
+    namespace bp = plynth::blenderpaths;
+    plynth::test::TempDir tmp("paths-overlap");
+    const fs::path root = tmp.path();
+    REQUIRE(bp::overlaps(root / "a", root / "a"));
+    REQUIRE(bp::overlaps(root / "a" / "b", root / "A"));
+    REQUIRE(bp::overlaps(root / "a", root / "a" / "b" / "c"));
+    REQUIRE(bp::overlaps(fs::path((root / "a").wstring() + L". ") / "b", root / "a"));
+    REQUIRE_FALSE(bp::overlaps(root / "ab", root / "a"));
+    REQUIRE_FALSE(bp::overlaps(root / "a", root / "b"));
+    REQUIRE_FALSE(bp::overlaps({}, root));
+}
+
+TEST_CASE("the Blender Foundation name is found in any case and with dots or spaces after it", "[core][blenderjob][folders]") {
+    namespace bp = plynth::blenderpaths;
+    plynth::test::TempDir tmp("paths-foundation");
+    for (const wchar_t* name : {L"Blender Foundation", L"BLENDER FOUNDATION", L"blender foundation.", L"Blender Foundation . "}) {
+        REQUIRE(bp::namesBlenderFoundation(tmp.path() / name / "job"));
+    }
+    REQUIRE_FALSE(bp::namesBlenderFoundation(tmp.path() / "Blender Foundation copy" / "job"));
+    REQUIRE_FALSE(bp::namesBlenderFoundation(tmp.path() / "Blender" / "Foundation"));
+}
+
+TEST_CASE("a thread cap with a leading zero starts nothing", "[core][blenderjob][safety]") {
+    JobFixture f("job-threads-zero");
+    plynth::test::ScopedEnv cap(std::string(kBlenderThreadsVariable), "06");
+    REQUIRE(runBlenderJob(f.exe, cleanupJob(f, "obj", "chair-0000000c"), f.work, f.options).status.code == ErrorCode::InvalidValue);
+    REQUIRE(fakeLog(f.exe, "fake_args.log").empty());
+}
+
+TEST_CASE("the user's datafiles folder is worked out but never given to the probe", "[core][blenderjob][folders]") {
+    plynth::test::IsolatedUser user("folders-datafiles");
+    const BlenderUserFolders folders = blenderUserFolders(fakeInstall(user.tmp.path() / "bin" / "blender.exe"));
+    REQUIRE(samePlace(folders.datafiles, user.userRoot / "datafiles"));
+    const Json job = makeProbeJob(folders, "probe-0000000d", user.tmp.path() / "work" / "result.json");
+    REQUIRE_FALSE(job["params"]["user_folders"].contains("datafiles"));
 }

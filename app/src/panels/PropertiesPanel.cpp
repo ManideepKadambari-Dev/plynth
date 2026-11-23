@@ -2193,7 +2193,8 @@ void PropertiesPanel::takeOffItem()
         runItemCommand(std::make_unique<plynth::SetItemWallCommand>(item->id, std::nullopt));
 }
 
-// Gives the selected item the size its asset has in the library now.
+// Gives the selected item the size its asset has in the library now. A generator item has no asset and is
+// left as it is.
 void PropertiesPanel::updateItemSize()
 {
     const plynth::Floor* floor = controller_.floor();
@@ -2201,7 +2202,7 @@ void PropertiesPanel::updateItemSize()
                                    ? plynth::findItem(*floor, selection_.id().toStdString())
                                    : nullptr;
     plynth::AssetCatalog* catalog = controller_.catalog();
-    if (item == nullptr || catalog == nullptr)
+    if (item == nullptr || catalog == nullptr || plynth::isGeneratorItem(*item))
         return;
     const plynth::ItemAsset asset = plynth::itemAssetFor(*catalog, item->asset);
     if (!asset.status.ok()) {
@@ -2211,14 +2212,15 @@ void PropertiesPanel::updateItemSize()
     runItemCommand(std::make_unique<plynth::SwapItemAssetCommand>(item->id, item->asset, asset.size));
 }
 
-// Opens the picker beside the panel with the room type of the item. Choosing an asset swaps it in.
+// Opens the picker beside the panel with the room type of the item. Choosing an asset swaps it in. Nothing
+// happens for a generator item.
 void PropertiesPanel::swapItemAsset()
 {
     const plynth::Floor* floor = controller_.floor();
     if (floor == nullptr || selection_.kind() != SelectionKind::Item || controller_.catalog() == nullptr)
         return;
     const plynth::Item* item = plynth::findItem(*floor, selection_.id().toStdString());
-    if (item == nullptr)
+    if (item == nullptr || plynth::isGeneratorItem(*item))
         return;
     QString roomType;
     if (item->room.has_value())

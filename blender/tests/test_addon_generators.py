@@ -7,12 +7,12 @@ import bpy
 from mathutils import Vector
 
 import helpers
-from generator_helpers import SAMPLES, GeneratorTest, job_item
+from generator_helpers import SAMPLES, GeneratorTest, generator_slot_base, job_item
 from test_bridges import skip_reason
 
 TOLERANCE = 0.01
 
-# Generator id, file, add-on short names to check, label, params, size, location, allowed material ids.
+# Generator id, file, add-on short names to check, label, params, size, location.
 CASES = {
     "archimesh_column": ("archimesh_column.py", ("archimesh",), "Archimesh",
                          {"width": 0.4, "height": 3.0, "shape": "round", "material": "white_paint"},
@@ -49,7 +49,7 @@ class AddonGeneratorTests(GeneratorTest):
         if reason:
             self.skipTest(reason)
 
-    # Builds one generator in a fixture job and checks its object, size and materials.
+    # Builds one generator in a fixture job and checks its object, size and its one material slot.
     def check_case(self, name):
         self.need(name)
         result = self.build_open(self.case_params([name]))
@@ -66,7 +66,7 @@ class AddonGeneratorTests(GeneratorTest):
             self.assertLessEqual(found[axis], size[axis] + TOLERANCE, "axis %d of %s" % (axis, found))
         self.assertGreater(found[0], size[0] * 0.9)
         self.assertGreater(found[2], size[2] * 0.9)
-        allowed = {CASES[name][3]["material"]}
+        allowed = {generator_slot_base(name, "material")}
         self.assertEqual({m.name for m in obj.data.materials}, allowed)
         used = {obj.data.materials[p.material_index].name for p in obj.data.polygons}
         self.assertEqual(used, allowed)

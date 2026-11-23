@@ -167,6 +167,9 @@ Json generatorJobItems(const GeneratorFloorBuild& floor, const MaterialUsable& u
         entry["size"] = Json{{"width", item.size.width}, {"depth", item.size.depth}, {"height", item.size.height}};
         entry["room"] = item.room ? Json(*item.room) : Json(nullptr);
         entry["wall"] = item.wall ? Json(*item.wall) : Json(nullptr);
+        Json slots = Json::object();
+        for (const GeneratorMaterialSlot& slot : item.materialSlots) slots[slot.param] = slot.slot;
+        entry["slots"] = std::move(slots);
         list.push_back(std::move(entry));
     }
     return list;

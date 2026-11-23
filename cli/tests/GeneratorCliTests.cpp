@@ -33,15 +33,25 @@ using plynth::cli::testing::utf8;
 
 namespace {
 
-// Clears the settings file and the add-on cache when a test starts and when it ends.
+// The sample folder of these tests: an empty generators folder in the scratch temp folder, so a new library
+// starts with no generators whatever samples this build would find.
+std::filesystem::path emptySamples() {
+    const auto folder = std::filesystem::temp_directory_path() / "plynth-cli-no-sample-generators";
+    std::filesystem::create_directories(folder / "generators");
+    return folder;
+}
+
+// Clears the settings file and the add-on cache when a test starts and when it ends, and points the samples
+// at an empty folder while it runs.
 struct GeneratorReset {
-    GeneratorReset() { clear(); }
+    GeneratorReset() : samples("PLYNTH_SAMPLES", utf8(emptySamples())) { clear(); }
     ~GeneratorReset() { clear(); }
     static void clear() {
         plynth::cli::testing::removeSettingsFileSafely();
         std::error_code ignored;
         std::filesystem::remove(plynth::addonCacheFile(), ignored);
     }
+    ScopedEnvironment samples;
 };
 
 // Writes a text file.

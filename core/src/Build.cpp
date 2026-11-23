@@ -1,8 +1,13 @@
 #include "plynth/core/Build.h"
 
+#include "BlenderPaths.h"
 #include "BuildLockFiles.h"
 #include "FileIo.h"
 
+#include "plynth/core/Addons.h"
+#include "plynth/core/BlenderJob.h"
+#include "plynth/core/GeneratorBuild.h"
+#include "plynth/core/Generators.h"
 #include "plynth/core/Openings.h"
 #include "plynth/core/ProjectFiles.h"
 #include "plynth/core/ProjectJson.h"
@@ -118,6 +123,127 @@ Status writeReport(const fs::path& folder, const BuildReport& report)
 long long since(std::chrono::steady_clock::time_point start)
 {
     return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
+}
+
+// A warning about add-ons that belongs to the whole build, not to one object.
+BuildProblem addonWarning(std::string message)
+{
+    BuildProblem problem;
+    problem.code = std::string(kGeneratorUnavailableProblem);
+    problem.severity = BuildSeverity::Warning;
+    problem.message = std::move(message);
+    problem.step = std::string(kCheckStep);
+    return problem;
+}
+
+// Removes a file or a folder with everything in it. A link or junction is removed itself, never what it
+// points at.
+void removeTree(const fs::path& path)
+{
+    const DWORD attributes = blenderpaths::attributesOf(path);
+    if (attributes == INVALID_FILE_ATTRIBUTES) return;
+    const std::wstring name = blenderpaths::longPath(path);
+    const bool link = (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
+    if (!link && (attributes & FILE_ATTRIBUTE_READONLY)) SetFileAttributesW(name.c_str(), attributes & ~FILE_ATTRIBUTE_READONLY);
+    if (!(attributes & FILE_ATTRIBUTE_DIRECTORY)) {
+        DeleteFileW(name.c_str());
+        return;
+    }
+    if (!link) {
+        std::vector<std::wstring> inside;
+        WIN32_FIND_DATAW found{};
+        const HANDLE find = FindFirstFileExW(blenderpaths::longPath(path / L"*").c_str(), FindExInfoBasic, &found,
+                                             FindExSearchNameMatch, nullptr, 0);
+        if (find != INVALID_HANDLE_VALUE) {
+            do {
+                const std::wstring entry = found.cFileName;
+                if (entry != L"." && entry != L"..") inside.push_back(entry);
+            } while (FindNextFileW(find, &found));
+            FindClose(find);
+        }
+        for (const std::wstring& entry : inside) removeTree(path / entry);
+    }
+    RemoveDirectoryW(name.c_str());
+}
+
+// Removes the add-on folder of one job when the run ends, however it ends. It only ever removes a folder that
+// was not there before this run.
+class JobFolderGuard {
+public:
+    // Remembers the folder when nothing is there yet. Says whether it may be used.
+    bool claim(const fs::path& folder)
+    {
+        if (blenderpaths::attributesOf(folder) != INVALID_FILE_ATTRIBUTES) return false;
+        folder_ = folder;
+        return true;
+    }
+
+    // Removes the folder now.
+    void release()
+    {
+        if (folder_.empty()) return;
+        removeTree(folder_);
+        folder_.clear();
+    }
+
+    ~JobFolderGuard() { release(); }
+
+private:
+    fs::path folder_;
+};
+
+// Says whether a name is that of a job's add-on folder: plynth-ext- and eight hex digits.
+bool isJobFolderName(std::wstring_view name)
+{
+    constexpr std::wstring_view prefix = L"plynth-ext-";
+    if (name.size() != prefix.size() + 8 || !name.starts_with(prefix)) return false;
+    return std::all_of(name.begin() + prefix.size(), name.end(),
+                       [](wchar_t c) { return (c >= L'0' && c <= L'9') || (c >= L'a' && c <= L'f'); });
+}
+
+// Removes the add-on folders of earlier jobs that a killed Plynth or a held file left in the temp folder, once
+// they are older than twice the longest build. A temp folder that shares a folder with Blender's user folders
+// is not looked at.
+void removeOldJobFolders(const BlenderInstall& blender)
+{
+    std::error_code ec;
+    const fs::path temp = fs::temp_directory_path(ec);
+    if (ec || temp.empty() || !temp.is_absolute() || blenderpaths::namesBlenderFoundation(temp)) return;
+    const BlenderUserFolders folders = blenderUserFolders(blender);
+    std::vector<fs::path> kept{folders.config, folders.scripts, folders.extensions, folders.datafiles, folders.blenderKitData};
+    if (const std::wstring app = blenderpaths::environmentText(L"APPDATA"); !app.empty()) {
+        kept.push_back(fs::path(app) / L"Blender Foundation");
+    }
+    for (const fs::path& other : kept) {
+        if (!other.empty() && blenderpaths::overlaps(temp, other)) return;
+    }
+
+    FILETIME nowTime{};
+    GetSystemTimeAsFileTime(&nowTime);
+    const auto ticks = [](const FILETIME& time) {
+        return (static_cast<unsigned long long>(time.dwHighDateTime) << 32) | time.dwLowDateTime;
+    };
+    const unsigned long long now = ticks(nowTime);
+    const unsigned long long oldest = static_cast<unsigned long long>(kBuildTimeout.count()) * 2ULL * 10000000ULL;
+
+    std::vector<std::wstring> named;
+    WIN32_FIND_DATAW found{};
+    const HANDLE find = FindFirstFileExW(blenderpaths::longPath(temp / L"plynth-ext-*").c_str(), FindExInfoBasic, &found,
+                                         FindExSearchNameMatch, nullptr, 0);
+    if (find == INVALID_HANDLE_VALUE) return;
+    do {
+        const std::wstring name = found.cFileName;
+        if (isJobFolderName(name)) named.push_back(name);
+    } while (FindNextFileW(find, &found));
+    FindClose(find);
+    // The times are read from the folder itself, because the listing may hold older copies of them.
+    for (const std::wstring& name : named) {
+        WIN32_FILE_ATTRIBUTE_DATA data{};
+        if (!GetFileAttributesExW(blenderpaths::longPath(temp / name).c_str(), GetFileExInfoStandard, &data)) continue;
+        if (!(data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) || (data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) continue;
+        const unsigned long long written = ticks(data.ftLastWriteTime);
+        if (written < now && now - written > oldest) removeTree(temp / name);
+    }
 }
 
 }
@@ -341,28 +467,102 @@ BuildReport runBuild(const BuildRequest& request, const std::function<void(const
     report.planFingerprint = planFingerprint(request.project);
     report.blenderVersion = request.blender.version ? formatBlenderVersion(*request.blender.version) : std::string();
 
+    removeOldJobFolders(request.blender);
+
     std::unique_ptr<AssetCatalog> catalog;
     std::unique_ptr<MaterialCatalog> materialCatalog;
     BuildAssetSource source;
     BuildMaterialSource materialSource;
+    std::optional<GeneratorLibrary> generators;
     if (request.library) {
         Status opened;
         catalog = AssetCatalog::open(*request.library, opened);
         if (catalog) source = buildAssetSourceFor(*catalog);
         materialCatalog = MaterialCatalog::open(*request.library, opened);
         if (materialCatalog) materialSource = buildMaterialSourceFor(*materialCatalog);
+        generators = loadGeneratorFolder(request.library->generators);
     }
+    const GeneratorLibrary none{};
+    const GeneratorLibrary* library = source ? (generators ? &*generators : &none) : nullptr;
+
+    std::optional<AddonCache> addons;
+    if (const AddonCacheRead saved = readAddonCache(addonCacheFile()); saved.status.ok() && saved.cache &&
+                                                                       addonCacheMatches(*saved.cache, request.blender)) {
+        addons = saved.cache;
+    }
+
+    // Only a build that would copy asks Blender, and then the fresh answer alone decides what is built and copied.
+    std::vector<BuildProblem> addonProblems;
+    bool probed = false;
+    const bool wouldCopy = !request.addonSource.empty() && makeGeneratorBuildPlan(request.project.plan, library, addons).needsAddons;
+    if (wouldCopy) {
+        const fs::path extensions = blenderUserFolders(request.blender).extensions;
+        if (!request.addonSource.is_absolute() || extensions.empty() || !blenderpaths::sameText(request.addonSource, extensions)) {
+            addonProblems.push_back(addonWarning(
+                "Add-ons are copied only from the extensions folder of the Blender that builds, so none was copied for the generators."));
+        } else {
+            const BlenderRunOptions probeRun{true, std::min<std::chrono::seconds>(kAddonProbeTimeout, request.run.timeout),
+                                             request.run.scriptsFolder};
+            const AddonProbe probe = probeAddons(request.blender, addonCacheFile(), probeRun, stop);
+            if (probe.status.code == ErrorCode::Cancelled) {
+                report.status = probe.status;
+                report.elapsedMs = since(started);
+                return report;
+            }
+            if (probe.status.ok()) {
+                addons = probe.cache;
+                probed = true;
+            } else {
+                addons.reset();
+                addonProblems.push_back(addonWarning("No add-on was copied for the generators. " + probe.status.message));
+            }
+        }
+    }
+
     const auto checkStart = std::chrono::steady_clock::now();
-    const BuildPlan plan = makeBuildPlan(request.project, source, materialSource);
+    const BuildPlan plan = makeBuildPlan(request.project, source, materialSource, library, addons);
     report.steps.push_back({std::string(kCheckStep), since(checkStart)});
+
+    BlenderRunOptions runOptions = request.run;
+    runOptions.factoryStartup = true;
+    runOptions.extensionsFolder.clear();
+    JobFolderGuard jobFolder;
+    if (probed && plan.generators.needsAddons) {
+        std::vector<std::string> wanted;
+        for (const BuildGenerator& generator : plan.generators.generators) {
+            wanted.insert(wanted.end(), generator.addons.begin(), generator.addons.end());
+        }
+        std::error_code tempError;
+        const fs::path temp = fs::temp_directory_path(tempError);
+        const fs::path own = tempError ? fs::path() : temp / pathFromUtf8(newJobId("plynth-ext"));
+        AddonFolderCopy copy;
+        if (own.empty() || !jobFolder.claim(own)) {
+            copy.status = fail(ErrorCode::CannotWrite, "No new folder for the copies could be made in the temp folder.");
+        } else {
+            copy = prepareAddonFolder(own, request.addonSource, request.blender, *addons, wanted, stop);
+        }
+        if (copy.status.code == ErrorCode::Cancelled && stop.stop_requested()) {
+            jobFolder.release();
+            report.status = copy.status;
+            report.elapsedMs = since(started);
+            return report;
+        }
+        if (copy.status.ok()) {
+            runOptions.extensionsFolder = own;
+        } else {
+            jobFolder.release();
+            addonProblems.push_back(addonWarning("The add-ons the generators need were not copied. " + copy.status.message));
+        }
+    }
     report.problems = plan.problems;
+    report.problems.insert(report.problems.end(), addonProblems.begin(), addonProblems.end());
 
     const fs::path resultFile = folder / pathFromUtf8(kResultFileName);
     const Json job = makeBuildJob(request.project, plan, request.settings, request.projectFolder, report.jobId, resultFile);
 
     progress(BuildStage::Blender);
     const BlenderJobRun run = runBlenderJob(
-        request.blender.executable, job, folder, request.run, [&](const BlenderProgress& p) { progress(BuildStage::Blender, p); }, stop);
+        request.blender.executable, job, folder, runOptions, [&](const BlenderProgress& p) { progress(BuildStage::Blender, p); }, stop);
     report.logFile = folder / pathFromUtf8(kBlenderLogFileName);
 
     progress(BuildStage::Finishing);
@@ -453,6 +653,7 @@ Json buildReportToJson(const BuildReport& report)
     counts["stairs"] = report.counts.stairs;
     counts["roofs"] = report.counts.roofs;
     counts["collision"] = report.counts.collision;
+    counts["generators"] = report.counts.generators;
     json["counts"] = std::move(counts);
     Json steps = Json::array();
     for (const BuildStepTime& s : report.steps) steps.push_back(Json{{"step", s.step}, {"ms", s.ms}});
@@ -551,6 +752,7 @@ BuildReportRead readBuildReport(const fs::path& projectFolder)
         if (counts.contains("stairs")) report.counts.stairs = static_cast<int>(whole(counts, "stairs", "/counts"));
         if (counts.contains("roofs")) report.counts.roofs = static_cast<int>(whole(counts, "roofs", "/counts"));
         if (counts.contains("collision")) report.counts.collision = static_cast<int>(whole(counts, "collision", "/counts"));
+        if (counts.contains("generators")) report.counts.generators = static_cast<int>(whole(counts, "generators", "/counts"));
         if (!json.contains("steps") || !json["steps"].is_array()) throw std::string("/steps");
         for (std::size_t i = 0; i < json["steps"].size(); ++i) {
             const std::string where = "/steps/" + std::to_string(i);

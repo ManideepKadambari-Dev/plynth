@@ -1,5 +1,7 @@
 #pragma once
 
+#include <plynth/core/Plan.h>
+
 #include <QPoint>
 #include <QString>
 #include <QWidget>
@@ -30,6 +32,8 @@ public:
     void openAt(const QPoint& anchor, const QString& roomType);
     // Closes the picker without choosing.
     void dismiss();
+    // The ceiling height of the shown floor in metres. Generator sizes in the list and the preview use it.
+    void setCeilingHeight(double metres) { ceilingHeight_ = metres; }
     bool isOpen() const { return open_; }
     // Opens the path to an asset and hovers it, as the mouse would. False when it is not in the catalog or
     // has no category to find it by.
@@ -88,6 +92,7 @@ private:
     QString roomType_;
     QString hovered_;
     QString hoveredGenerator_;
+    double ceilingHeight_ = plynth::kDefaultCeilingHeight;
     bool filtered_ = false;
     bool flipped_ = false;
     bool open_ = false;

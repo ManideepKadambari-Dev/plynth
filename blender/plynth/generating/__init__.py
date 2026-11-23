@@ -9,6 +9,7 @@ from .. import registry, surfaces
 
 MARKER = "plynth-generator"
 FORMAT = "plynth-generator"
+GENERATED = "Generated"
 
 
 class AddonUnavailable(Exception):
@@ -80,6 +81,7 @@ class Gen:
         self.item = item["id"]
         self.generator = loaded.id
         self.params = self._convert(item["params"])
+        self.slots = dict(item.get("slots") or {})
         size = item["size"]
         self.size = (size["width"], size["depth"], size["height"])
         self.seed = zlib.crc32(item["id"].encode("utf-8"))
@@ -99,13 +101,11 @@ class Gen:
             result[key] = value
         return result
 
-    # Returns the Blender material of a material parameter, named by the job's material id or Generated.
+    # Returns the Blender material of a material parameter, named after the slot the job gives it.
     def material(self, param_id):
         if self._declared.get(param_id, {}).get("type") != "material":
             raise GeneratorError("%s is not a material parameter." % param_id)
-        name = self.params.get(param_id) or surfaces_name()
-        self._ctx.state.setdefault("slot_surfaces", {}).setdefault(name, surfaces_name())
-        mat = surfaces.material(name)
+        mat = surfaces.material(slot_of(self.slots, param_id))
         self.materials[param_id] = mat
         return mat
 
@@ -146,6 +146,7 @@ class Gen:
         print("generator %s %s: %s" % (self.generator, self.item, text))
 
 
-# Returns the name of the neutral surface of a material left empty.
-def surfaces_name():
-    return "Generated"
+# Returns the slot name the job gives a material parameter, or the neutral slot when the job gives none.
+def slot_of(slots, param_id):
+    name = slots.get(param_id)
+    return name if isinstance(name, str) and name else GENERATED

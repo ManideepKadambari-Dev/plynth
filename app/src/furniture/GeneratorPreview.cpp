@@ -91,7 +91,8 @@ GeneratorPreview::GeneratorPreview(QWidget* parent) : QWidget(parent)
 }
 
 // Fills the labels and the parameter rows from the declaration, then shows the body.
-void GeneratorPreview::showGenerator(const plynth::GeneratorInfo& info, const std::optional<plynth::AddonCache>& cache)
+void GeneratorPreview::showGenerator(const plynth::GeneratorInfo& info, const std::optional<plynth::AddonCache>& cache,
+                                     double ceilingHeight)
 {
     hint_->hide();
     body_->show();
@@ -100,7 +101,7 @@ void GeneratorPreview::showGenerator(const plynth::GeneratorInfo& info, const st
     description_->setVisible(!info.description.empty());
 
     const std::vector<plynth::GeneratorParamValue> values =
-        plynth::defaultGeneratorParams(info, plynth::kDefaultCeilingHeight);
+        plynth::defaultGeneratorParams(info, ceilingHeight);
     const plynth::GeneratorSize size = plynth::generatorSize(info, values);
     size_->setText(size.status.ok() ? sizeText(size.size) : QString());
 

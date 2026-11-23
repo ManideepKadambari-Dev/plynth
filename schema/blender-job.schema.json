@@ -98,7 +98,7 @@
           "params": {
             "description": "Everything the build needs. plan is plan.json as saved; floors holds the shapes core worked out from it (core/include/plynth/core/BuildGeometry.h). All positions are Blender world coordinates in metres: X = plan x, Y = -plan y, Z up from the first floor's level. Outer rings run anticlockwise seen from above, holes clockwise, the first point not repeated.",
             "type": "object",
-            "required": ["project", "output_folder", "blend_file", "fbx_file", "materials_file", "textures_folder", "preview_folder", "preview_textures_folder", "preview_texture_size", "plan", "settings", "assets", "materials", "slots", "floors"],
+            "required": ["project", "output_folder", "blend_file", "fbx_file", "materials_file", "textures_folder", "preview_folder", "preview_textures_folder", "preview_texture_size", "plan", "settings", "assets", "materials", "slots", "generators", "floors"],
             "additionalProperties": false,
             "properties": {
               "project": {
@@ -199,7 +199,7 @@
               },
               "floors": { "type": "array", "items": { "$ref": "#/definitions/buildFloor" } },
               "generators": {
-                "description": "Each generator file a built generator item uses, once, sorted by id (core/include/plynth/core/GeneratorBuild.h). Missing means none.",
+                "description": "Each generator file a built generator item uses, once, sorted by id (core/include/plynth/core/GeneratorBuild.h). Empty when there are none.",
                 "type": "array",
                 "items": {
                   "type": "object",
@@ -504,7 +504,7 @@
     },
     "buildFloor": {
       "type": "object",
-      "required": ["id", "elevation", "ceiling_height", "wall_solids", "openings", "rooms", "items", "slab", "stairs", "roofs", "collision"],
+      "required": ["id", "elevation", "ceiling_height", "wall_solids", "openings", "rooms", "items", "slab", "stairs", "roofs", "collision", "generator_items"],
       "additionalProperties": false,
       "properties": {
         "id": { "$ref": "#/definitions/planId" },
@@ -705,7 +705,7 @@
           "items": { "$ref": "#/definitions/collisionShape" }
         },
         "generator_items": {
-          "description": "Items that run a generator of the job's generators list, in the floor's item order. Missing means none.",
+          "description": "Items that run a generator of the job's generators list, in the floor's item order. Empty when there are none.",
           "type": "array",
           "items": { "$ref": "#/definitions/buildGeneratorItem" }
         }
@@ -714,7 +714,7 @@
     "buildGeneratorItem": {
       "description": "The worker calls the generator's generate(gen) with these values, joins the meshes it returns into SM_<generator>_<id> and places it like an item: its bottom centre at location, turned by rotation_z.",
       "type": "object",
-      "required": ["id", "generator", "params", "location", "rotation_z", "size", "room", "wall"],
+      "required": ["id", "generator", "params", "location", "rotation_z", "size", "room", "wall", "slots"],
       "additionalProperties": false,
       "properties": {
         "id": { "$ref": "#/definitions/planId" },

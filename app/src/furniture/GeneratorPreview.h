@@ -21,7 +21,9 @@ public:
     explicit GeneratorPreview(QWidget* parent = nullptr);
 
     // Shows a generator. cache is the add-on check result for the Blender in use, empty when there is none.
-    void showGenerator(const plynth::GeneratorInfo& info, const std::optional<plynth::AddonCache>& cache);
+    // The size and the default values are worked out for a floor with this ceiling height in metres.
+    void showGenerator(const plynth::GeneratorInfo& info, const std::optional<plynth::AddonCache>& cache,
+                       double ceilingHeight);
     // Shows the hint to hover a generator.
     void clear();
 

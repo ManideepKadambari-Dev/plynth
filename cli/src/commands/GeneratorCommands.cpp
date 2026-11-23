@@ -198,7 +198,18 @@ Answer generatorAddSamples(const RunContext& context, const SamplesOptions& opti
     if (!openCatalog(command, context, options.library, opened, failed)) {
         return failed;
     }
-    const SampleGeneratorsCopy copy = addSampleGenerators(opened.paths.generators, userPath(context, options.from));
+    std::filesystem::path from;
+    if (options.from.empty()) {
+        from = sampleGeneratorsFolder();
+        if (from.empty()) {
+            return failure(command, fail(ErrorCode::NotFound,
+                                         "The sample generators were not found. Give the folder with --from, or set "
+                                         "PLYNTH_SAMPLES to the samples folder."));
+        }
+    } else {
+        from = userPath(context, options.from);
+    }
+    const SampleGeneratorsCopy copy = addSampleGenerators(opened.paths.generators, from);
     if (!copy.status.ok()) {
         return failure(command, copy.status);
     }
@@ -354,7 +365,8 @@ std::vector<CommandSpec> generatorCommands() {
     samples.setup = [](CLI::App& sub) -> Handler {
         auto options = std::make_shared<SamplesOptions>();
         addLibraryOption(sub, options->library);
-        sub.add_option("--from", options->from, "The folder of sample generators.")->type_name("folder")->required();
+        sub.add_option("--from", options->from, "The folder of sample generators. Default: the ones that come with Plynth.")
+            ->type_name("folder");
         return [options](const RunContext& context) { return generatorAddSamples(context, *options); };
     };
 

@@ -256,6 +256,7 @@
     ],
     "items": [],
     "collision": [],
+    "generator_items": [],
     "slab": {
      "bottom": 0.0,
      "top": 0.0,
@@ -317,6 +318,7 @@
     "surface": "Wall_Top"
    }
   ],
+  "generators": [],
   "preview_folder": null
  }
 }

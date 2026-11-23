@@ -4,6 +4,7 @@ from mathutils import Matrix
 
 from .. import meshes, surfaces
 
+GENERATED = "Generated"
 DATA_KINDS = ("objects", "meshes", "curves", "materials", "node_groups", "images", "collections", "fonts",
               "lights", "cameras", "metaballs", "textures", "worlds")
 
@@ -84,7 +85,7 @@ def finish(ctx, gen, objects, item, floor_collection, tolerance):
     if first_material is not None and first_material["id"] not in gen.materials:
         gen.material(first_material["id"])
     default = (gen.materials[first_material["id"]] if first_material is not None
-               else surfaces.material(surfaces_default(ctx)))
+               else surfaces.material(GENERATED))
     bm, kept = join(gen, mesh_objects, default)
     if not bm.faces:
         bm.free()
@@ -98,12 +99,6 @@ def finish(ctx, gen, objects, item, floor_collection, tolerance):
     obj.location = tuple(item["location"])
     obj.rotation_euler = (0.0, 0.0, item["rotation_z"])
     return obj, overshoot
-
-
-# Returns the neutral surface name for items without a material parameter, and notes it for the materials step.
-def surfaces_default(ctx):
-    ctx.state.setdefault("slot_surfaces", {}).setdefault("Generated", "Generated")
-    return "Generated"
 
 
 # Removes everything the generator made that is not the kept object: its objects, then the data blocks nothing

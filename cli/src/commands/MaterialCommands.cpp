@@ -1,6 +1,7 @@
 #include "../CatalogCommon.h"
 #include "../Common.h"
 
+#include <plynth/core/Generators.h>
 #include <plynth/core/MaterialDefaults.h>
 #include <plynth/core/Materials.h>
 #include <plynth/core/Plan.h>
@@ -253,7 +254,8 @@ Answer materialList(const RunContext& context, const ListOptions& options) {
     result["rooms"] = std::move(rooms);
     result["stairs"] = std::move(stairs);
     result["roofs"] = std::move(roofs);
-    const std::vector<std::string> used = materialsUsed(project);
+    const std::vector<std::string> used =
+        haveLibrary ? materialsUsed(project, loadGeneratorFolder(opened.paths.generators)) : materialsUsed(project);
     Json missing = Json::array();
     if (haveLibrary) {
         for (const std::string& id : used) {

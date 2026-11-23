@@ -98,7 +98,7 @@
     "stair": {
       "description": "A stair. The step count and footprint are worked out from the floor heights: the rise is ceiling_height plus slab_thickness of its floor, cut into equal risers of at most 0.19 m, with treads 0.27 m deep. A floor that is the top one cannot hold a working stair; Plynth reports it.",
       "type": "object",
-      "required": ["id", "type", "x", "y"],
+      "required": ["id", "x", "y"],
       "additionalProperties": false,
       "properties": {
         "id": { "$ref": "#/definitions/id" },

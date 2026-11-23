@@ -1,6 +1,7 @@
 #include "../CatalogCommon.h"
 #include "../Common.h"
 
+#include <plynth/core/Generators.h>
 #include <plynth/core/OpeningShapes.h>
 #include <plynth/core/ProjectFiles.h>
 
@@ -65,12 +66,17 @@ Answer libraryInfoAnswer(const std::string& command, const OpenedCatalog& opened
             shapes.push_back(std::string(shape->id()));
         }
     }
+    Json generators = Json::array();
+    for (const GeneratorInfo& generator : loadGeneratorFolder(opened.paths.generators).generators) {
+        generators.push_back(generator.id);
+    }
     Json result = Json::object();
     result["root"] = pathToUtf8(opened.paths.root);
     result["free_bytes"] = static_cast<unsigned long long>(space.available);
     result["assets"] = std::move(assets);
     result["materials"] = std::move(materials);
     result["shapes"] = std::move(shapes);
+    result["generators"] = std::move(generators);
     return success(command, std::move(result));
 }
 
@@ -172,7 +178,7 @@ std::vector<CommandSpec> libraryCommands() {
 
     CommandSpec info;
     info.words = {"library", "info"};
-    info.description = "Describe the library: folder, free space, assets, materials and custom shapes.";
+    info.description = "Describe the library: folder, free space, assets, materials, custom shapes and generators.";
     info.setup = [](CLI::App& sub) -> Handler {
         auto options = std::make_shared<InfoOptions>();
         addLibraryOption(sub, options->library);

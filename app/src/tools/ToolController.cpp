@@ -350,7 +350,8 @@ plynth::AssetCatalog* ToolController::catalog() const
     return library_ != nullptr ? library_->catalog() : nullptr;
 }
 
-// The furniture picker, a child of the canvas so it draws over the plan and in screenshots.
+// The furniture picker, a child of the canvas so it draws over the plan and in screenshots. It is given the
+// shown floor's ceiling height each time it is asked for, so generator sizes match that floor.
 FurniturePicker& ToolController::picker(QWidget* over)
 {
     QWidget* parent = over != nullptr ? over : static_cast<QWidget*>(canvas_.data());
@@ -358,6 +359,8 @@ FurniturePicker& ToolController::picker(QWidget* over)
         picker_ = new FurniturePicker(*library_, parent);
     else if (picker_->parentWidget() != parent)
         picker_->setParent(parent);
+    const plynth::Floor* current = floor();
+    picker_->setCeilingHeight(current != nullptr ? current->ceilingHeight : plynth::kDefaultCeilingHeight);
     return *picker_;
 }
 

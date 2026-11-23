@@ -187,6 +187,7 @@ void BuildPanel::setReport(const plynth::BuildReport* report, bool stale)
         addRow(summary, tr("Doors and windows"), QString::number(report->counts.fills), true);
         addRow(summary, tr("Rooms"), QString::number(report->counts.rooms), true);
         addRow(summary, tr("Items"), QString::number(report->counts.items), true);
+        addRow(summary, tr("Generators"), QString::number(report->counts.generators), true);
         addRow(summary, tr("Materials"), QString::number(report->counts.materials), true);
     }
 

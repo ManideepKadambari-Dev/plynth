@@ -61,7 +61,8 @@ public:
     bool checkingAddons() const { return probeRunning_; }
     // Reads the generators folder again and tells the views. Returns what was found.
     void reloadGenerators();
-    // Asks Blender which add-ons are enabled, on a worker thread, and writes the cache. Does nothing while one runs.
+    // Asks Blender which add-ons are enabled, on a worker thread, and writes the cache. Asked for while a check
+    // runs, it ends with that one. Every call ends in addonCheckFinished, also after a failure.
     void checkAddons();
     // Copies the sample generators into the library, never overwriting. Returns the sentence to show.
     QString addSampleGenerators();
@@ -117,6 +118,7 @@ private:
     QTimer* generatorTimer_ = nullptr;
     std::jthread probe_;
     bool probeRunning_ = false;
+    bool checkWanted_ = false;
     static inline bool autoProbe_ = true;
 };
 

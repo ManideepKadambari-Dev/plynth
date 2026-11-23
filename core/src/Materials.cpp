@@ -2,6 +2,7 @@
 
 #include "plynth/core/BuildGeometry.h"
 #include "plynth/core/Geometry.h"
+#include "plynth/core/Generators.h"
 #include "plynth/core/Openings.h"
 #include "plynth/core/Rooms.h"
 #include "plynth/core/WallGeometry.h"
@@ -9,6 +10,7 @@
 #include <algorithm>
 #include <cmath>
 #include <set>
+#include <variant>
 
 namespace plynth {
 
@@ -302,8 +304,27 @@ std::vector<std::string> materialsUsed(const Project& project)
     return {used.begin(), used.end()};
 }
 
-// The same, with the materials of generator items.
-std::vector<std::string> materialsUsed(const Project& project, const GeneratorLibrary&) { return materialsUsed(project); }
+// The same, with the materials of generator items, read with the library's declarations.
+std::vector<std::string> materialsUsed(const Project& project, const GeneratorLibrary& generators)
+{
+    const std::vector<std::string> surfaces = materialsUsed(project);
+    std::set<std::string> used(surfaces.begin(), surfaces.end());
+    for (const Floor& floor : project.plan.floors) {
+        for (const Item& item : floor.items) {
+            if (!isGeneratorItem(item)) continue;
+            const GeneratorInfo* info = generators.find(item.generator->name);
+            if (!info) continue;
+            // The values the build would use: one that no longer fits counts as its default.
+            const GeneratorParamsFit fit = fitGeneratorParams(*info, item.generator->params, floor.ceilingHeight);
+            for (const std::string& param : generatorMaterialParams(*info)) {
+                const GeneratorValue* value = findGeneratorValue(fit.params, param);
+                const std::string* text = value ? std::get_if<std::string>(value) : nullptr;
+                if (text && !text->empty()) used.insert(*text);
+            }
+        }
+    }
+    return {used.begin(), used.end()};
+}
 
 // "inside" or "outside".
 std::string_view wallFaceName(WallFace face)

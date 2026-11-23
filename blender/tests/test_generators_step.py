@@ -54,11 +54,11 @@ class SampleBuildTests(GeneratorTest):
             self.assertAlmostEqual(max(ys) - min(ys), size[1], delta=0.01)
             self.assertAlmostEqual(max(zs), size[2], delta=0.01)
 
-    # UVs are in metres divided by the tile size of the material; the slot is the material id.
+    # UVs are in metres divided by the tile size of the material; the material is named after the job's slot.
     def test_uvs_and_slots(self):
         self.build_samples(self.sample_params(tile=(2.0, 1.0)))
         column = bpy.data.objects["SM_column_i5"]
-        self.assertEqual([m.name for m in column.data.materials], ["white_paint"])
+        self.assertEqual([m.name for m in column.data.materials], ["Column_Material"])
         layer = column.data.uv_layers["UVMap"]
         checked = 0
         for polygon in column.data.polygons:
@@ -70,15 +70,23 @@ class SampleBuildTests(GeneratorTest):
                     checked += 1
         self.assertGreater(checked, 0)
         railing = bpy.data.objects["SM_railing_i6"]
-        self.assertEqual([m.name for m in railing.data.materials], ["brushed_steel"])
+        self.assertEqual([m.name for m in railing.data.materials], ["Railing_Material"])
 
-    # A null material gives the neutral Generated slot with its constant image in the textures folder.
+    # A null material keeps the slot name and gives it the neutral Generated look, with its constant image in
+    # the textures folder.
     def test_neutral_material(self):
         params = self.sample_params()
         params["floors"][0]["generator_items"][0]["params"]["material"] = None
-        self.build_samples(params)
+        row = [r for r in params["slots"] if r["name"] == "Column_Material"][0]
+        row["material"] = None
+        result = self.build_samples(params)
+        self.assertEqual(result["output"]["problems"], [])
         column = bpy.data.objects["SM_column_i5"]
-        self.assertEqual([m.name for m in column.data.materials], ["Generated"])
+        self.assertEqual([m.name for m in column.data.materials], ["Column_Material"])
+        with open(self.path("build", "materials.json"), "r", encoding="utf-8") as handle:
+            entries = {e["name"]: e for e in json.load(handle)["materials"]}
+        self.assertIsNone(entries["Column_Material"]["material"])
+        self.assertEqual(entries["Column_Material"]["surface"], "Generated")
         files = os.listdir(self.path("build", "textures"))
         self.assertTrue([f for f in files if f.startswith("Generated")], files)
 
@@ -141,6 +149,20 @@ class ProblemTests(GeneratorTest):
         self.assertIsNone(bpy.data.objects.get("SM_raises_i1"))
         self.assertIsNotNone(bpy.data.objects.get("SM_seeded_i2"))
         self.assertEqual(result["output"]["counts"]["generators"], 1)
+
+    # Items of room_params get the slot of their material parameter and the table gets its row.
+    def test_room_params_slots(self):
+        params = self.room_params({"seeded": "uses_seed"},
+                                  [job_item("i1", "seeded", {"material": None}, [1.0, -1.0, 0.0]),
+                                   job_item("i2", "seeded", {"material": None}, [3.0, -3.0, 0.0])])
+        items = params["floors"][0]["generator_items"]
+        self.assertEqual([item["slots"] for item in items], [{"material": "Seeded_Material"}] * 2)
+        rows = {row["name"]: row for row in params["slots"]}
+        self.assertEqual(rows["Seeded_Material"], {"name": "Seeded_Material", "material": None, "surface": "Generated"})
+        self.assertNotIn("Column_Material", rows)
+        result = self.build_open(params)
+        self.assertEqual(result["output"]["problems"], [])
+        self.assertEqual([m.name for m in bpy.data.objects["SM_seeded_i1"].data.materials], ["Seeded_Material"])
 
     # A generator that returns nothing gives generator_failed.
     def test_nothing(self):

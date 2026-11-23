@@ -1323,10 +1323,11 @@ void MainWindow::updateToolActions()
         mountAction_->setEnabled(item != nullptr && !item->wall.has_value());
     if (takeOffAction_ != nullptr)
         takeOffAction_->setEnabled(item != nullptr && item->wall.has_value());
+    const bool assetItem = item != nullptr && !plynth::isGeneratorItem(*item) && host_ != nullptr && host_->hasLibrary();
     if (swapAction_ != nullptr)
-        swapAction_->setEnabled(item != nullptr && host_ != nullptr && host_->hasLibrary());
+        swapAction_->setEnabled(assetItem);
     if (updateSizeAction_ != nullptr)
-        updateSizeAction_->setEnabled(item != nullptr && host_ != nullptr && host_->hasLibrary());
+        updateSizeAction_->setEnabled(assetItem);
 }
 
 // Shows the cursor position in metres, or nothing when it is off the plan or no scale is set.

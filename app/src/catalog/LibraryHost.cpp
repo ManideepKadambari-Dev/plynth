@@ -4,9 +4,7 @@
 #include <plynth/core/OpeningShapes.h>
 #include <plynth/core/RoomTypes.h>
 
-#include <QCoreApplication>
 #include <QDir>
-#include <QFileInfo>
 #include <QFileSystemWatcher>
 #include <QStandardPaths>
 #include <QTimer>
@@ -21,6 +19,12 @@ namespace {
 QString fromCore(const std::string& text)
 {
     return QString::fromUtf8(text.data(), static_cast<qsizetype>(text.size()));
+}
+
+// The sentence shown after a check that worked.
+QString checkedText(const plynth::AddonCache& cache)
+{
+    return QObject::tr("Checked the add-ons: %1 enabled in Blender.").arg(cache.enabled.size());
 }
 
 }
@@ -159,29 +163,47 @@ void LibraryHost::probeIfNeeded()
     probeRunning_ = true;
     probe_ = std::jthread([this, cached, settings](std::stop_token stop) {
         std::optional<plynth::AddonCache> result;
+        bool answered = true;
+        QString text;
         const plynth::BlenderChoice choice = plynth::chooseBlender(std::nullopt, settings, stop);
         if (!choice.status.ok()) {
-            result = std::nullopt;
+            text = fromCore(choice.status.message);
         } else if (cached && plynth::addonCacheMatches(*cached, choice.install)) {
             result = cached;
+            answered = false;
         } else {
             const plynth::AddonProbe probe = plynth::probeAddons(choice.install, plynth::addonCacheFile(), {true, plynth::kAddonProbeTimeout, {}}, stop);
-            if (probe.status.ok())
+            if (probe.status.ok()) {
                 result = probe.cache;
+                text = checkedText(probe.cache);
+            } else {
+                text = fromCore(probe.status.message);
+            }
         }
-        QMetaObject::invokeMethod(this, [this, result]() {
+        QMetaObject::invokeMethod(this, [this, result, answered, text]() {
             probeRunning_ = false;
             addonCache_ = result;
             emit generatorsChanged();
+            if (!checkWanted_)
+                return;
+            checkWanted_ = false;
+            // A check asked for during this run takes its answer when Blender was asked, else it asks now.
+            if (answered)
+                emit addonCheckFinished(text);
+            else
+                checkAddons();
         }, Qt::QueuedConnection);
     });
 }
 
-// Runs the add-on check now, even when the cache looks right.
+// Runs the add-on check now, even when the cache looks right. Asked for while a check runs, it waits for that
+// one, so every call ends in addonCheckFinished.
 void LibraryHost::checkAddons()
 {
-    if (probeRunning_)
+    if (probeRunning_) {
+        checkWanted_ = true;
         return;
+    }
     const plynth::MachineSettings settings = settings_;
     probeRunning_ = true;
     emit generatorsChanged();
@@ -195,13 +217,14 @@ void LibraryHost::checkAddons()
             const plynth::AddonProbe probe = plynth::probeAddons(choice.install, plynth::addonCacheFile(), {true, plynth::kAddonProbeTimeout, {}}, stop);
             if (probe.status.ok()) {
                 result = probe.cache;
-                text = QObject::tr("Checked the add-ons: %1 enabled in Blender.").arg(probe.cache.enabled.size());
+                text = checkedText(probe.cache);
             } else {
                 text = fromCore(probe.status.message);
             }
         }
         QMetaObject::invokeMethod(this, [this, result, text]() {
             probeRunning_ = false;
+            checkWanted_ = false;
             if (result)
                 addonCache_ = result;
             emit generatorsChanged();
@@ -210,25 +233,15 @@ void LibraryHost::checkAddons()
     });
 }
 
-// Copies the sample generators from the samples folder next to the program (or up the tree) into the library.
+// Copies the sample generators from the samples folder core finds into the library.
 QString LibraryHost::addSampleGenerators()
 {
     if (!catalog_)
         return tr("Open a library first.");
-    QDir dir(QCoreApplication::applicationDirPath());
-    QString from;
-    for (int i = 0; i < 8; ++i) {
-        if (QFileInfo(dir.filePath(QStringLiteral("samples/generators"))).isDir()) {
-            from = dir.filePath(QStringLiteral("samples/generators"));
-            break;
-        }
-        if (!dir.cdUp())
-            break;
-    }
-    if (from.isEmpty())
-        return tr("The sample generators folder was not found.");
-    const plynth::SampleGeneratorsCopy copy =
-        plynth::addSampleGenerators(paths_.generators, std::filesystem::path(from.toStdWString()));
+    const std::filesystem::path from = plynth::sampleGeneratorsFolder();
+    if (from.empty())
+        return tr("The sample generators folder was not found next to the program.");
+    const plynth::SampleGeneratorsCopy copy = plynth::addSampleGenerators(paths_.generators, from);
     reloadGenerators();
     if (!copy.status.ok())
         return fromCore(copy.status.message);

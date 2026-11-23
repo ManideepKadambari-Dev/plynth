@@ -18,6 +18,7 @@
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <memory>
 #include <string>
 
 using namespace plynth;
@@ -60,6 +61,17 @@ SetupCheckOptions optionsFor(const fs::path& folder, bool probe = false)
     options.probeAddons = probe;
     return options;
 }
+
+// Points PLYNTH_SAMPLES at an empty generators folder, so a new library gets no sample generators.
+struct NoSampleGenerators {
+    NoSampleGenerators() : tmp("setup-no-sample-generators")
+    {
+        fs::create_directories(tmp.path() / "generators");
+        env = std::make_unique<plynth::test::ScopedEnv>("PLYNTH_SAMPLES", pathToUtf8(tmp.path()));
+    }
+    plynth::test::TempDir tmp;
+    std::unique_ptr<plynth::test::ScopedEnv> env;
+};
 
 // Settings with a ready library and projects folder inside a temporary folder.
 MachineSettings goodFolders(const fs::path& root)
@@ -514,6 +526,7 @@ TEST_CASE("Home Builder 5 is found as Home Builder", "[core][setup]") {
 TEST_CASE("an add-on row names the library generators that need it", "[core][setup]") {
     plynth::test::IsolatedUser user("setup-affects-user");
     plynth::test::TempDir tmp("setup-affects");
+    const NoSampleGenerators noSamples;
     plynth::test::makeFakeBlender(tmp.path() / "b" / "Blender 5.2", "5.2.0");
     const MachineSettings settings = goodFolders(tmp.path());
     const fs::path generators = *settings.library / "generators";
@@ -546,6 +559,7 @@ TEST_CASE("an add-on row names the library generators that need it", "[core][set
 TEST_CASE("unreadable preferences still name the generators of an add-on", "[core][setup][safety]") {
     plynth::test::IsolatedUser user("setup-unreadable-user");
     plynth::test::TempDir tmp("setup-unreadable");
+    const NoSampleGenerators noSamples;
     plynth::test::makeFakeBlender(tmp.path() / "b" / "Blender 5.2", "5.2.0", "unreadable");
     const MachineSettings settings = goodFolders(tmp.path());
     const fs::path generators = *settings.library / "generators";

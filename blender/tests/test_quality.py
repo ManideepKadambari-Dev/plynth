@@ -325,6 +325,28 @@ class QualityTests(ExportTest):
         self.assertEqual(checks["collision"]["status"], "fail")
         self.assertIn("not closed", checks["collision"]["findings"][0]["message"])
 
+    # A generator object needs its UCX like an item, and the pass message names generators.
+    def test_generator_collision(self):
+        def generator(ctx):
+            self.obj(ctx, "SM_sofa_i1")["plynth_kind"] = "generator"
+
+        checks = self.checks(generator)
+        self.assert_only(checks, "collision", "pass")
+        self.assertIn("generator", checks["collision"]["message"])
+
+        def bare(ctx):
+            generator(ctx)
+            target = self.obj(ctx, "UCX_SM_sofa_i1_00")
+            ctx.state["collision"].remove(target)
+            bpy.data.objects.remove(target, do_unlink=True)
+
+        checks = self.checks(bare)
+        self.assertEqual(checks["collision"]["status"], "fail")
+        self.assertEqual([(f["object"], f["plan_id"]) for f in checks["collision"]["findings"]],
+                         [("SM_sofa_i1", "i1")])
+        self.assertIn("no collision mesh", checks["collision"]["findings"][0]["message"])
+        self.assertFalse(self.output["written"])
+
     # With write false the file check is skipped.
     def test_check_only(self):
         checks = self.checks(write=False)

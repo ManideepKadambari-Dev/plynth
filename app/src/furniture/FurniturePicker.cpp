@@ -532,7 +532,7 @@ void FurniturePicker::fillGenerators(QListWidget* list)
         item->setData(kKeyRole, fromCore(info.id));
         item->setData(kLookRole, kLookAsset);
         const plynth::GeneratorSize size =
-            plynth::generatorSize(info, plynth::defaultGeneratorParams(info, plynth::kDefaultCeilingHeight));
+            plynth::generatorSize(info, plynth::defaultGeneratorParams(info, ceilingHeight_));
         item->setData(kSubRole, size.status.ok() ? GeneratorPreview::sizeText(size.size) : QString());
         const plynth::GeneratorState state = plynth::generatorState(info, host_.addonCache());
         if (state.availability == plynth::GeneratorAvailability::NeedsAddon) {
@@ -630,7 +630,7 @@ void FurniturePicker::setHoveredGenerator(const QString& id)
         emit generatorHovered(QString());
         return;
     }
-    generatorPreview_->showGenerator(*info, host_.addonCache());
+    generatorPreview_->showGenerator(*info, host_.addonCache(), ceilingHeight_);
     const bool placeable =
         plynth::generatorState(*info, host_.addonCache()).availability != plynth::GeneratorAvailability::NeedsAddon;
     emit generatorHovered(placeable ? id : QString());
