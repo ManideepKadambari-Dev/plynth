@@ -332,9 +332,45 @@ def operator_type_name(idname):
     return "%s_OT_%s" % (group.upper(), name)
 
 
-# A stand-in for enabling or disabling an add-on after the seal.
-def _refused(*args, **kwargs):
-    raise PermissionError(errno.EACCES, REFUSED_TEXT)
+# What a refused function does after the seal. Its code is put into other modules' functions, so it uses
+# only built-in names.
+def _refusal(*args, **kwargs):
+    raise PermissionError(13, "Refused by the fetch guard")
+
+
+# What Blender's disable_all does after the seal, so its call at exit stays quiet and disables nothing.
+def _quiet(*args, **kwargs):
+    return None
+
+
+# Turns each (module, name, model) into the model: the function object itself gets the model's code, so a
+# reference taken earlier does the same, and the module name points at the model. Then proves both.
+def _swap_functions(swaps):
+    held = []
+    for module, name, model in swaps:
+        function = getattr(module, name)
+        if type(function) is not type(_refusal) or function.__closure__:
+            raise GuardError("seal_failed")
+        function.__code__ = model.__code__
+        function.__defaults__ = None
+        function.__kwdefaults__ = None
+        setattr(module, name, model)
+        held.append((function, module, name, model))
+    for function, module, name, model in held:
+        if getattr(module, name, None) is not model:
+            raise GuardError("seal_failed")
+        for call in (function, model):
+            if call.__code__ is not model.__code__:
+                raise GuardError("seal_failed")
+            if model is _quiet:
+                if call() is not None:
+                    raise GuardError("seal_failed")
+                continue
+            try:
+                call()
+            except PermissionError:
+                continue
+            raise GuardError("seal_failed")
 
 
 # Registers a throwaway operator, takes a callable to it and unregisters it. True when the callable worked
@@ -367,10 +403,11 @@ def _prove_unregister():
 
 
 # Closes what Python can close once the add-ons are loaded: unregisters the add-on, extension and preference
-# operators (SEALED_OPERATORS, every extensions.package_ one and the given idnames), replaces
-# addon_utils.enable and disable and each (module, name, function) in replacements, and proves each step.
+# operators (SEALED_OPERATORS, every extensions.package_ one and the given idnames), turns addon_utils.enable
+# and disable and each (module, name) in refusals into refusals, also for references taken earlier, makes
+# addon_utils.disable_all quiet, sets each (module, name, function) in replacements, and proves each step.
 # Raises GuardError when this Blender is not tested or any proof fails. It runs once.
-def seal(operators=(), replacements=()):
+def seal(operators=(), replacements=(), refusals=()):
     state = _current()
     if state is None or state.root is None or state.reason == "guard_not_ready":
         raise GuardError("guard_not_ready")
@@ -393,7 +430,12 @@ def seal(operators=(), replacements=()):
             bpy.utils.unregister_class(cls)
         if any(hasattr(bpy.types, name) for name in names):
             raise GuardError("seal_failed")
-        swaps = [(addon_utils, "enable", _refused), (addon_utils, "disable", _refused)] + list(replacements)
+        refused = [(addon_utils, "enable"), (addon_utils, "disable")] + [tuple(pair) for pair in refusals]
+        swaps = [(module, name, _refusal) for module, name in refused]
+        if hasattr(addon_utils, "disable_all"):
+            swaps.append((addon_utils, "disable_all", _quiet))
+        _swap_functions(swaps)
+        swaps = list(replacements)
         for module, name, function in swaps:
             setattr(module, name, function)
         if any(getattr(module, name, None) is not function for module, name, function in swaps):
