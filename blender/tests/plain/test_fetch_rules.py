@@ -220,23 +220,49 @@ class GateRefusals(FetchCase):
                 self.assert_failed(self.rig.fetch(MODEL), "download_failed")
                 self.assert_no_request()
 
-    # W2: an add-on item under a bare id never reaches its installer.
+    # W2, the lookup: an add-on item, under the asked id or another, is refused at the search of the operator,
+    # before it branches. No request, the add-on route never runs and leaves no marker.
     def test_addon_item(self):
-        self.rig.helper_scenario["search"] = [ADDON.record(assetBaseId=MODEL.base_id)]
-        self.assert_failed(self.rig.fetch(MODEL), "wrong_asset_kind", "download_failed")
-        self.assert_no_request()
-        self.assertEqual(self.rig.events("addon_choice_ran"), [])
-        reached = {entry["idname"] for entry in self.rig.events("operator")}
-        self.assertNotIn("extensions.package_install_files", reached)
+        for record in (ADDON.record(assetBaseId=MODEL.base_id), ADDON.record()):
+            with self.subTest(base_id=record["assetBaseId"]):
+                self.rig.helper_scenario["search"] = [record]
+                self.assert_failed(self.rig.fetch(MODEL), "wrong_asset_kind", "download_failed")
+                self.assert_no_request()
+                self.assertEqual(self.rig.events("addon_choice_ran"), [])
+                self.assertFalse(os.path.exists(self.rig.marker("addon_choice")))
+                reached = {entry["idname"] for entry in self.rig.events("operator")}
+                self.assertNotIn("scene.blenderkit_addon_choice", reached)
+                self.assertNotIn("extensions.package_install_files", reached)
 
-    # W2: disable, enable, save and install calls of an add-on are refused and change nothing.
-    def test_hostile_calls_are_refused(self):
-        self.rig.addon_scenario["hostile_calls"] = True
+    # Runs a fetch whose add-on tries one group of hostile calls inside the operator, so after the seal. Each
+    # call is refused, none of them ran, and nothing in the scratch home changed.
+    def assert_group_closed(self, group, names):
+        self.rig.addon_scenario["hostile_calls"] = [group]
         before = self.rig.fingerprint()
         self.rig.fetch(MODEL)
         self.assertEqual(self.rig.events("hostile_call_ran"), [], self.rig.output())
-        self.assertEqual(len(self.rig.events("hostile_call_refused")), 5, self.rig.output())
+        refused = sorted(entry["name"] for entry in self.rig.events("hostile_call_refused"))
+        self.assertEqual(refused, sorted(names), self.rig.output())
+        self.assertEqual(self.rig.events("bundled_ran"), [], self.rig.output())
+        self.assertEqual(self.rig.events("addon_choice_ran"), [])
+        self.assertFalse(os.path.exists(self.rig.marker("addon_choice")))
+        self.assertEqual([entry for entry in self.rig.events("addon_enable") if entry["module"] != "blenderkit"], [])
+        self.assertEqual(self.rig.events("addon_disable"), [])
         self.assertEqual(self.rig.fingerprint(), before)
+
+    # W2, Python operators: each named operator called by its name after the seal is gone.
+    def test_named_operators_after_the_seal(self):
+        self.assert_group_closed("named", ("addon_enable", "addon_disable", "addon_install", "addon_remove",
+                                           "package_install_files", "package_install", "package_uninstall",
+                                           "addon_choice"))
+
+    # W2: a callable the add-on took when it registered, before the seal, fails once its class is gone.
+    def test_callable_taken_before_the_seal(self):
+        self.assert_group_closed("early", ("addon_enable", "package_install_files", "addon_choice"))
+
+    # W2: addon_utils.enable and disable, read through their module, are refusals after the seal.
+    def test_addon_utils_after_the_seal(self):
+        self.assert_group_closed("addon_utils", ("enable", "disable"))
 
     # W13: an add-on whose helper folder stays outside the fetch folder fails before the operator.
     def test_helper_folder_outside(self):
@@ -394,6 +420,34 @@ class FetchSetup(FetchCase):
         self.assertIn(ADDON_MISSING, result["error"]["message"])
         self.assertFalse(os.path.exists(os.path.join(self.rig.addon, "blenderkit_updater")))
         self.assertEqual(self.rig.fingerprint(), before)
+
+    # The seal: a Blender version outside the tested list is refused before the add-on is used. No helper
+    # starts, the operator never runs, no request leaves.
+    def test_untested_blender_version(self):
+        for version in ("5.3.0", "4.2.0", "6.0.0"):
+            with self.subTest(version=version):
+                self.rig.extra_env["FAKE_BLENDER_VERSION"] = version
+                self.assert_failed(self.rig.fetch(MODEL), "download_failed")
+                self.assert_no_request()
+                self.assertEqual(self.rig.events("client_started"), [])
+                calls = [entry for entry in self.rig.events("operator")
+                         if entry["idname"] == "scene.blenderkit_download"]
+                self.assertEqual(calls, [])
+
+    # The seal proves itself: when one named class stays registered, the fetch fails closed before the helper
+    # starts and before the operator runs.
+    def test_seal_fails_closed_when_a_class_stays(self):
+        for name in ("SCENE_OT_blenderkit_addon_choice", "PREFERENCES_OT_addon_enable",
+                     "EXTENSIONS_OT_package_install_files", "EXTENSIONS_OT_package_upgrade_all"):
+            with self.subTest(kept=name):
+                self.rig.extra_env["FAKE_BPY_KEEP_CLASS"] = name
+                self.assert_failed(self.rig.fetch(MODEL), "download_failed")
+                self.assert_no_request()
+                self.assertEqual(self.rig.events("client_started"), [])
+                calls = [entry for entry in self.rig.events("operator")
+                         if entry["idname"] == "scene.blenderkit_download"]
+                self.assertEqual(calls, [])
+                self.assertFalse(os.path.exists(self.rig.marker("addon_choice")))
 
     # Step 2: no bytecode is written in the user's add-on folder.
     def test_no_bytecode_in_the_addon(self):

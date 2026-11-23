@@ -67,7 +67,6 @@ def main():
     attempt("program_outside", lambda: subprocess.run([sys.executable, "-c", "pass"], timeout=30))
     attempt("program_inside", lambda: subprocess.run([helper, "--port", "0", "--global_dir", inside], timeout=3))
     attempt("kill", lambda: os.kill(int(pid), 9))
-    attempt("save_userpref", lambda: bpy.ops.wm.save_userpref())
     attempt("install", lambda: bpy.ops.extensions.package_install_files(filepath=os.path.join(outside, "x.zip")))
     attempt("unregister", unregister_guard)
     attempt("after_unregister_create", lambda: write(os.path.join(outside, "after.txt")))

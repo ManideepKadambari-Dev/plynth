@@ -1,8 +1,8 @@
 """A plain Python stand-in for a background Blender, so the fetch task runs on a machine without Blender. It
 takes Blender's command line (-b, -t, --offline-mode, --factory-startup, --disable-autoexec,
---python-exit-code, --python <file>, -- ...) and starts as Blender does: the startup scripts of
-BLENDER_SYSTEM_SCRIPTS first (where the fetch guard is), then the add-ons enabled in
-BLENDER_USER_CONFIG/userpref.json with their saved preferences, then the --python file as __main__.
+--python-exit-code, --python <file>, -- ...) and starts as Blender does: its bundled Python operators
+(bl_operators.py), the startup scripts of BLENDER_SYSTEM_SCRIPTS (where the fetch guard is), then the add-ons
+enabled in BLENDER_USER_CONFIG/userpref.json with their saved preferences, then the --python file as __main__.
 It exits with the --python-exit-code when that file raises.
 
 userpref.json: {"addons": {"blenderkit": {"api_key": "...", ...}}}. Preferences are set without their
@@ -84,6 +84,8 @@ def main():
     bpy.app.background = "-b" in options or "--background" in options
     bpy.app.online_access = "--offline-mode" not in options
     bpy.app.binary_path = os.path.abspath(__file__)
+    import bl_operators
+    bl_operators.register()
     if "--factory-startup" not in options:
         run_startup_scripts()
         enable_user_addons()

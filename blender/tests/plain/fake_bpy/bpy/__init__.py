@@ -1,8 +1,9 @@
 """A stand-in for Blender's bpy module, for the worker tests that run in plain Python on a machine without
-Blender. It holds only what the fetch task and the fake BlenderKit add-on touch. Operators run through
-bpy.ops._op_call as in Blender, so a hook there sees every call. A fake .blend file is JSON:
+Blender. It holds only what the fetch task and the fake BlenderKit add-on touch. Operators behave as in Blender
+5.2 (see ops.py): nothing in Python sits between a call and the operator. A fake .blend file is JSON:
 {"fake_blend": 1, "materials": ["Oak"], "objects": ["Chair"]}. Every operator call and every saved
-preference is appended to the file FAKE_BK_EVENTS names.
+preference is appended to the file FAKE_BK_EVENTS names. FAKE_BLENDER_VERSION, for example "5.3.0", sets
+the version this Blender reports; it is 5.2.0 otherwise.
 """
 import json
 import os
@@ -36,10 +37,15 @@ class _Timers:
         return function in self.registered
 
 
+# The version this stand-in reports, as numbers and as text.
+def _version():
+    text = os.environ.get("FAKE_BLENDER_VERSION", "") or "5.2.0"
+    return tuple(int(part) for part in text.split(".")), text
+
+
 class _App:
     background = True
-    version = (5, 2, 0)
-    version_string = "5.2.0"
+    version, version_string = _version()
     binary_path = sys.executable
     online_access = False
     timers = _Timers()

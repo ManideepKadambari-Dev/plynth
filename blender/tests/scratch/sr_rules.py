@@ -67,29 +67,16 @@ def choices_order():
             say(2, "resolution_seen", type(error).__name__)
 
 
-# S-R 3: a dialog operator in background, then the same through a hook on bpy.ops._op_call that refuses it.
-def dialog_and_hook():
+# S-R 3: a dialog operator in background. The old hook on bpy.ops._op_call is gone in Blender 5.2, so only
+# the answer is printed; S-R 3b checks the ways that replace it.
+def dialog_in_background():
     marker = os.path.join(folder, "sr3_marker.txt")
     try:
         bpy.ops.plynth.sr3_dialog("INVOKE_DEFAULT")
     except Exception as error:
         say(3, "dialog_error", type(error).__name__)
     say(3, "execute_ran_directly", "yes" if os.path.exists(marker) else "no")
-    if os.path.exists(marker):
-        os.remove(marker)
-    real = bpy.ops._op_call
-
-    def refuse(idname, *args):
-        raise PermissionError(idname)
-    bpy.ops._op_call = refuse
-    try:
-        bpy.ops.plynth.sr3_dialog("INVOKE_DEFAULT")
-        say(3, "hook_refused", "no")
-    except PermissionError:
-        say(3, "hook_refused", "yes")
-    finally:
-        bpy.ops._op_call = real
-    say(3, "execute_ran_through_hook", "yes" if os.path.exists(marker) else "no")
+    say(3, "op_call_exists", "yes" if "_op_call" in vars(bpy.ops) else "no")
 
 
 # S-R 4: undo_push after an append in background.
@@ -114,7 +101,7 @@ bpy.utils.register_class(SR2Choices)
 bpy.utils.register_class(SR3Dialog)
 equal_value_update()
 choices_order()
-dialog_and_hook()
+dialog_in_background()
 append_then_undo()
 say(8, "window", "none" if bpy.context.window is None else "present")
 say(9, "gettempdir_follows_temp",

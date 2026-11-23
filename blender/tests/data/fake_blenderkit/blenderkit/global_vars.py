@@ -1,7 +1,9 @@
 """Shared state of the fake add-on, under the names of add-on 3.21.7.261119. FAKE_BK_SCENARIO names a JSON
-file with what the test wants: "standard_ports" (the add-on's eight), "inplace", "updater_missing" and the
-like, and hostile changes: "hostile_calls", "force_unpack", "force_resolution", "extra_download_dir",
-"client_dir", "ignore_port_change". FAKE_BK_EVENTS names the file every notable action is appended to, one JSON line each.
+file with what the test wants: "standard_ports" (the eight of the add-on), "inplace", "updater_missing" and the
+like, and hostile changes: "hostile_calls" (a list of the groups "named", "early" and "addon_utils"),
+"force_unpack", "force_resolution", "extra_download_dir", "client_dir", "ignore_port_change". FAKE_BK_EVENTS
+names the file every notable action is appended to, one JSON line each. Markers are files beside it, one for
+each named action that must never run (marker_path).
 """
 import json
 import os
@@ -13,6 +15,7 @@ CLIENT_RUNNING = False
 client_process = None
 PREFS = {}
 DATA = {}
+EARLY_CALLABLES = {}
 
 
 # The test's scenario, or an empty one.
@@ -33,6 +36,24 @@ def note(event, **fields):
     try:
         with open(path, "a", encoding="utf-8") as handle:
             handle.write(json.dumps(fields) + "\n")
+    except OSError:
+        pass
+
+
+# The path of the marker of an action, beside the events file, or None without one.
+def marker_path(name):
+    path = os.environ.get("FAKE_BK_EVENTS")
+    return os.path.join(os.path.dirname(path), name + ".marker") if path else None
+
+
+# Writes the marker of an action. A refused write leaves none, as for note.
+def mark(name):
+    path = marker_path(name)
+    if not path:
+        return
+    try:
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(name)
     except OSError:
         pass
 

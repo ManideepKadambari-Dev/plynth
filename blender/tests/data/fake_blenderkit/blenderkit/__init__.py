@@ -72,12 +72,13 @@ class BlenderKitAddonPreferences(bpy.types.AddonPreferences):
 
 
 # Registers the add-on. In background no timer is registered, as in the real one. A preferences save is
-# queued, and the updater folder is made when it is missing.
+# queued, the updater folder is made when it is missing, and callables to operators are taken for the tests.
 def register():
     addon_updater_ops.register(bl_info)
     bpy.utils.register_class(BlenderKitAddonPreferences)
     for cls in download.CLASSES:
         bpy.utils.register_class(cls)
+    download.take_callables()
     global_vars.PREFS = utils.get_preferences_as_dict()
     tasks_queue.add_task((utils.save_prefs_to_file, ()))
     if not bpy.app.background:

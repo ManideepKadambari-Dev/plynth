@@ -102,20 +102,51 @@ def cancel_running_downloads(reason=""):
     download_tasks.clear()
 
 
-# Tries what an add-on must not reach in a fetch, noting each call that was not refused.
-def hostile_calls():
+# Takes callables to operators the fetch must close, at register time, so before any seal.
+def take_callables():
+    global_vars.EARLY_CALLABLES.update({
+        "addon_enable": bpy.ops.preferences.addon_enable,
+        "package_install_files": bpy.ops.extensions.package_install_files,
+        "addon_choice": bpy.ops.scene.blenderkit_addon_choice})
+
+
+# The calls of one hostile group, by name.
+def hostile_group(group):
     import addon_utils
-    calls = {"addon_disable": lambda: bpy.ops.preferences.addon_disable(module="blenderkit"),
-             "addon_enable": lambda: addon_utils.enable("other_addon"),
-             "save_userpref": lambda: bpy.ops.wm.save_userpref(),
-             "install": lambda: bpy.ops.extensions.package_install_files(filepath="x.zip"),
-             "addon_choice": lambda: bpy.ops.scene.blenderkit_addon_choice(asset_base_id="x")}
-    for name, call in calls.items():
-        try:
-            call()
-            global_vars.note("hostile_call_ran", name=name)
-        except Exception:
-            global_vars.note("hostile_call_refused", name=name)
+    early = global_vars.EARLY_CALLABLES
+    groups = {
+        "named": {
+            "addon_enable": lambda: bpy.ops.preferences.addon_enable(module="other_addon"),
+            "addon_disable": lambda: bpy.ops.preferences.addon_disable(module="blenderkit"),
+            "addon_install": lambda: bpy.ops.preferences.addon_install(filepath="other_addon.py"),
+            "addon_remove": lambda: bpy.ops.preferences.addon_remove(module="blenderkit"),
+            "package_install_files": lambda: bpy.ops.extensions.package_install_files(filepath="other.zip"),
+            "package_install": lambda: bpy.ops.extensions.package_install(repo_index=0, pkg_id="other"),
+            "package_uninstall": lambda: bpy.ops.extensions.package_uninstall(repo_index=0, pkg_id="other"),
+            "addon_choice": lambda: bpy.ops.scene.blenderkit_addon_choice(asset_base_id="x")},
+        "early": {
+            "addon_enable": lambda: early["addon_enable"](module="other_addon"),
+            "package_install_files": lambda: early["package_install_files"](filepath="other.zip"),
+            "addon_choice": lambda: early["addon_choice"](asset_base_id="x")},
+        "addon_utils": {
+            "enable": lambda: addon_utils.enable("other_addon", default_set=True),
+            "disable": lambda: addon_utils.disable("blenderkit", default_set=True)},
+    }
+    return groups.get(group, {})
+
+
+# Tries what an add-on must not reach in a fetch, noting each call that was not refused.
+def hostile_calls(groups):
+    for group in groups:
+        for name, call in hostile_group(group).items():
+            try:
+                result = call()
+                if result is None or (isinstance(result, set) and "FINISHED" in result):
+                    global_vars.note("hostile_call_ran", group=group, name=name)
+                else:
+                    global_vars.note("hostile_call_refused", group=group, name=name)
+            except Exception:
+                global_vars.note("hostile_call_refused", group=group, name=name)
 
 
 class BlenderkitDownloadOperator(bpy.types.Operator):
@@ -126,15 +157,19 @@ class BlenderkitDownloadOperator(bpy.types.Operator):
     target_object: StringProperty(default="")  # type: ignore[valid-type]
     max_resolution: IntProperty(default=0)  # type: ignore[valid-type]
 
-    # Finds the item, leaves edit modes, and starts its download, or hands an add-on item to its installer.
+    # Finds the item through the search module, leaves edit modes, and starts its download, or hands an add-on
+    # item to its installer.
     def execute(self, context):
         if getattr(self, "resolution", None) is not None:
             global_vars.note("operator_resolution", value=self.resolution)
-        if global_vars.scenario().get("hostile_calls"):
-            hostile_calls()
+        hostile = global_vars.scenario().get("hostile_calls")
+        if hostile:
+            hostile_calls(hostile)
         if context.active_object is not None and context.mode != "OBJECT":
             bpy.ops.object.mode_set(mode="OBJECT")
-        asset_data = search.get_asset_by_base_id(self.asset_base_id)
+        results = search.get_search_simple({"asset_base_id": self.asset_base_id}, page_size=1, max_results=1,
+                                           api_key=global_vars.PREFS.get("api_key", ""))
+        asset_data = results[0] if results else None
         if asset_data is None:
             reports.add_report("Asset not found")
             return {"CANCELLED"}
@@ -151,9 +186,10 @@ class BlenderkitAddonChoiceOperator(bpy.types.Operator):
 
     asset_base_id: StringProperty(default="")  # type: ignore[valid-type]
 
-    # Installs the add-on item.
+    # Installs the add-on item. Its marker says it ran.
     def execute(self, context):
         global_vars.note("addon_choice_ran")
+        global_vars.mark("addon_choice")
         bpy.ops.extensions.package_install_files(filepath="addon.zip")
         return {"FINISHED"}
 

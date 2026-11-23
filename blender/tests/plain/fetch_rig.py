@@ -1,13 +1,15 @@
 """A scratch user, fetch folder and fake helper for the fetch tests that run without Blender. The test plays
 core's part: it makes the fetch folder low integrity labelled, builds the child's environment as core does
 (guard first in BLENDER_SYSTEM_SCRIPTS, TEMP inside the fetch folder, no helper variables), writes the job
-and starts the stand-in Blender. run_child is the one place that starts a child here.
+and starts the stand-in Blender. run_child is the one place that starts a child here; with low it
+starts it at low integrity, as core does for a fetch.
 
 Keys and tokens are made up. Nothing here reaches another computer: the fake helper listens on 127.0.0.1.
 """
 import ctypes
 import hashlib
 import json
+import msvcrt
 import os
 import shutil
 import socket
@@ -16,6 +18,7 @@ import sys
 import tempfile
 import time
 import uuid
+from ctypes import wintypes
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 BLENDER_FOLDER = os.path.dirname(os.path.dirname(HERE))
@@ -92,9 +95,112 @@ def read_lines(path):
         return [json.loads(line) for line in handle if line.strip()]
 
 
-# Starts the stand-in Blender with Blender's fixed safe options first.
-def run_child(env, arguments, cwd, timeout):
+class _StartupInfo(ctypes.Structure):
+    _fields_ = [("cb", wintypes.DWORD), ("lpReserved", wintypes.LPWSTR), ("lpDesktop", wintypes.LPWSTR),
+                ("lpTitle", wintypes.LPWSTR), ("dwX", wintypes.DWORD), ("dwY", wintypes.DWORD),
+                ("dwXSize", wintypes.DWORD), ("dwYSize", wintypes.DWORD), ("dwXCountChars", wintypes.DWORD),
+                ("dwYCountChars", wintypes.DWORD), ("dwFillAttribute", wintypes.DWORD), ("dwFlags", wintypes.DWORD),
+                ("wShowWindow", wintypes.WORD), ("cbReserved2", wintypes.WORD), ("lpReserved2", ctypes.c_void_p),
+                ("hStdInput", wintypes.HANDLE), ("hStdOutput", wintypes.HANDLE), ("hStdError", wintypes.HANDLE)]
+
+
+class _ProcessInformation(ctypes.Structure):
+    _fields_ = [("hProcess", wintypes.HANDLE), ("hThread", wintypes.HANDLE), ("dwProcessId", wintypes.DWORD),
+                ("dwThreadId", wintypes.DWORD)]
+
+
+class _MandatoryLabel(ctypes.Structure):
+    _fields_ = [("Sid", ctypes.c_void_p), ("Attributes", wintypes.DWORD)]
+
+
+# The Windows functions the low integrity start needs, with their argument types.
+def _low_api():
+    advapi = ctypes.WinDLL("advapi32", use_last_error=True)
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    handle_out = ctypes.POINTER(wintypes.HANDLE)
+    kernel.GetCurrentProcess.restype = wintypes.HANDLE
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel.LocalFree.argtypes = [ctypes.c_void_p]
+    kernel.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    kernel.WaitForSingleObject.restype = wintypes.DWORD
+    kernel.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+    kernel.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
+    advapi.OpenProcessToken.argtypes = [wintypes.HANDLE, wintypes.DWORD, handle_out]
+    advapi.DuplicateTokenEx.argtypes = [wintypes.HANDLE, wintypes.DWORD, ctypes.c_void_p, ctypes.c_int, ctypes.c_int,
+                                        handle_out]
+    advapi.ConvertStringSidToSidW.argtypes = [wintypes.LPCWSTR, ctypes.POINTER(ctypes.c_void_p)]
+    advapi.GetLengthSid.argtypes = [ctypes.c_void_p]
+    advapi.GetLengthSid.restype = wintypes.DWORD
+    advapi.SetTokenInformation.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD]
+    advapi.CreateProcessAsUserW.argtypes = [wintypes.HANDLE, wintypes.LPCWSTR, wintypes.LPWSTR, ctypes.c_void_p,
+                                            ctypes.c_void_p, wintypes.BOOL, wintypes.DWORD, ctypes.c_void_p,
+                                            wintypes.LPCWSTR, ctypes.POINTER(_StartupInfo),
+                                            ctypes.POINTER(_ProcessInformation)]
+    return advapi, kernel
+
+
+# Raises the last Windows error for a step that failed.
+def _failed(step):
+    raise OSError(ctypes.get_last_error(), "the low integrity start failed at " + step)
+
+
+# Starts a command at low integrity with its output in a temporary file and waits for it. Returns what
+# subprocess.run would.
+def _run_low(command, env, cwd, timeout):
+    advapi, kernel = _low_api()
+    token, low, sid = wintypes.HANDLE(), wintypes.HANDLE(), ctypes.c_void_p()
+    info = _ProcessInformation()
+    output = tempfile.TemporaryFile()
+    try:
+        if not advapi.OpenProcessToken(kernel.GetCurrentProcess(), 0x0001 + 0x0002 + 0x0008 + 0x0080,
+                                       ctypes.byref(token)):
+            _failed("OpenProcessToken")
+        if not advapi.DuplicateTokenEx(token, 0x02000000, None, 2, 1, ctypes.byref(low)):
+            _failed("DuplicateTokenEx")
+        if not advapi.ConvertStringSidToSidW("S-1-16-4096", ctypes.byref(sid)):
+            _failed("ConvertStringSidToSidW")
+        label = _MandatoryLabel(sid, 0x20)
+        if not advapi.SetTokenInformation(low, 25, ctypes.byref(label),
+                                          ctypes.sizeof(label) + advapi.GetLengthSid(sid)):
+            _failed("SetTokenInformation")
+        handle = msvcrt.get_osfhandle(output.fileno())
+        os.set_handle_inheritable(handle, True)
+        startup = _StartupInfo()
+        startup.cb = ctypes.sizeof(startup)
+        startup.dwFlags = 0x100
+        startup.hStdOutput = startup.hStdError = handle
+        nul = chr(0)
+        block = "".join("%s=%s%s" % (name, value, nul)
+                        for name, value in sorted(env.items(), key=lambda item: item[0].upper())) + nul
+        environment = (ctypes.c_wchar * len(block)).from_buffer_copy(block.encode("utf-16-le"))
+        line = ctypes.create_unicode_buffer(subprocess.list2cmdline(command))
+        if not advapi.CreateProcessAsUserW(low, None, line, None, None, True, 0x00000400 + 0x08000000,
+                                           ctypes.byref(environment), cwd, ctypes.byref(startup),
+                                           ctypes.byref(info)):
+            _failed("CreateProcessAsUserW")
+        if kernel.WaitForSingleObject(info.hProcess, int(timeout * 1000)) != 0:
+            kernel.TerminateProcess(info.hProcess, 1)
+            kernel.WaitForSingleObject(info.hProcess, 10000)
+            raise subprocess.TimeoutExpired(command, timeout)
+        code = wintypes.DWORD()
+        kernel.GetExitCodeProcess(info.hProcess, ctypes.byref(code))
+        output.seek(0)
+        text = output.read().decode("utf-8", "replace").replace(chr(13) + chr(10), chr(10))
+        return subprocess.CompletedProcess(command, code.value, text)
+    finally:
+        for opened in (info.hThread, info.hProcess, low, token):
+            if opened:
+                kernel.CloseHandle(opened)
+        if sid:
+            kernel.LocalFree(sid)
+        output.close()
+
+
+# Starts the stand-in Blender with the fixed safe options of Blender first. low starts it at low integrity.
+def run_child(env, arguments, cwd, timeout, low=False):
     command = [sys.executable, "-I", "-X", "utf8", STAND_IN, "-b", "-t", "6", "--offline-mode"] + arguments
+    if low:
+        return _run_low(command, env, cwd, timeout)
     return subprocess.run(command, env=env, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                           errors="replace", timeout=timeout)
 
@@ -179,13 +285,22 @@ class Rig:
         if os.path.exists(self.helper_log):
             os.remove(self.helper_log)
 
-    # Runs one fetch in the stand-in Blender. Returns the result as read, or None when there is none.
-    def fetch(self, item, resolution="2k", wait=60, guard=True, timeout=300):
-        self.reset()
+    # Writes the saved preferences and the scenarios of the two fakes, as a start of the stand-in reads them.
+    def prepare(self):
         self.write(os.path.join(self.blender_user, "config", "userpref.json"),
                    json.dumps({"addons": {"blenderkit": self.prefs}}))
         self.write(os.path.join(self.root, "addon_scenario.json"), json.dumps(self.addon_scenario))
         self.write(os.path.join(self.root, "helper_scenario.json"), json.dumps(self.helper_scenario))
+
+    # The marker file of a fake action that must never run. It lies in the fetch folder, so only the seal can
+    # keep it from being written.
+    def marker(self, name):
+        return os.path.join(self.private, name + ".marker")
+
+    # Runs one fetch in the stand-in Blender. Returns the result as read, or None when there is none.
+    def fetch(self, item, resolution="2k", wait=60, guard=True, timeout=300):
+        self.reset()
+        self.prepare()
         job = self.job(item, resolution, wait)
         job_file = os.path.join(self.private, "job.json")
         self.write(job_file, json.dumps(job))
