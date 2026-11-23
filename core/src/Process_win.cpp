@@ -5,6 +5,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#include <aclapi.h>
 #include <shellapi.h>
 
 #include <algorithm>
@@ -73,8 +74,10 @@ struct EnvNameLess {
     }
 };
 
-// The inherited environment with the given entries added or replaced, as one block for CreateProcess.
-std::wstring environmentBlock(const std::vector<std::pair<std::string, std::string>>& extra)
+// The inherited environment without the removed names and with the given entries added or replaced, as one
+// block for CreateProcess.
+std::wstring environmentBlock(const std::vector<std::pair<std::string, std::string>>& extra,
+                              const std::vector<std::string>& removed)
 {
     std::map<std::wstring, std::wstring, EnvNameLess> vars;
     if (wchar_t* block = GetEnvironmentStringsW()) {
@@ -87,6 +90,7 @@ std::wstring environmentBlock(const std::vector<std::pair<std::string, std::stri
         }
         FreeEnvironmentStringsW(block);
     }
+    for (const std::string& name : removed) vars.erase(widen(name));
     for (const auto& [name, value] : extra) vars[widen(name)] = widen(value);
     std::wstring out;
     for (const auto& [name, value] : vars) {
@@ -165,6 +169,106 @@ private:
     std::string pending_;
 };
 
+// Room for the Windows id of the low integrity level, S-1-16-4096.
+struct LowLabelSid {
+    alignas(DWORD) BYTE bytes[SECURITY_MAX_SID_SIZE]{};
+    bool ok = false;
+    LowLabelSid()
+    {
+        DWORD size = sizeof(bytes);
+        ok = CreateWellKnownSid(WinLowLabelSid, nullptr, bytes, &size) != FALSE;
+    }
+    PSID get() { return bytes; }
+};
+
+// Makes a copy of this program's sign in with its extra rights taken away, lowered to low integrity, for
+// starting a program with. False when Windows refuses any step.
+bool makeLowToken(Handle& out)
+{
+    HANDLE own = nullptr;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_DUPLICATE | TOKEN_QUERY | TOKEN_ADJUST_DEFAULT | TOKEN_ASSIGN_PRIMARY, &own)) {
+        return false;
+    }
+    Handle ownToken(own);
+    HANDLE restricted = nullptr;
+    if (!CreateRestrictedToken(own, DISABLE_MAX_PRIVILEGE, 0, nullptr, 0, nullptr, 0, nullptr, &restricted)) return false;
+    out.reset(restricted);
+    LowLabelSid sid;
+    if (!sid.ok) return false;
+    TOKEN_MANDATORY_LABEL label{};
+    label.Label.Attributes = SE_GROUP_INTEGRITY;
+    label.Label.Sid = sid.get();
+    return SetTokenInformation(out.get(), TokenIntegrityLevel, &label, sizeof(label) + GetLengthSid(sid.get())) != FALSE;
+}
+
+// Says whether a process runs at low integrity, read back from its own sign in.
+bool runsAtLowIntegrity(HANDLE process)
+{
+    HANDLE raw = nullptr;
+    if (!OpenProcessToken(process, TOKEN_QUERY, &raw)) return false;
+    Handle token(raw);
+    DWORD size = 0;
+    GetTokenInformation(token.get(), TokenIntegrityLevel, nullptr, 0, &size);
+    if (size == 0) return false;
+    std::vector<DWORD> buffer(size / sizeof(DWORD) + 1);
+    if (!GetTokenInformation(token.get(), TokenIntegrityLevel, buffer.data(), size, &size)) return false;
+    const auto* label = reinterpret_cast<const TOKEN_MANDATORY_LABEL*>(buffer.data());
+    const PSID level = label->Label.Sid;
+    if (!IsValidSid(level) || *GetSidSubAuthorityCount(level) == 0) return false;
+    return *GetSidSubAuthority(level, *GetSidSubAuthorityCount(level) - 1u) == SECURITY_MANDATORY_LOW_RID;
+}
+
+// Ends every process in the job and waits until all of them are gone. False when some still run after a
+// minute.
+bool endJob(HANDLE job)
+{
+    const auto begin = std::chrono::steady_clock::now();
+    for (;;) {
+        TerminateJobObject(job, 1);
+        JOBOBJECT_BASIC_ACCOUNTING_INFORMATION info{};
+        if (!QueryInformationJobObject(job, JobObjectBasicAccountingInformation, &info, sizeof(info), nullptr)) return false;
+        if (info.ActiveProcesses == 0) return true;
+        if (std::chrono::steady_clock::now() - begin >= std::chrono::minutes(1)) return false;
+        Sleep(10);
+    }
+}
+
+// Lets the processes of a job go on running when the job's handle is closed.
+void keepJobAlive(HANDLE job)
+{
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{};
+    SetInformationJobObject(job, JobObjectExtendedLimitInformation, &limits, sizeof(limits));
+}
+
+// Says whether a folder carries the low integrity label that its new files and folders inherit, and that
+// stops low programs only from writing to things labelled higher.
+bool hasLowLabel(const std::filesystem::path& folder)
+{
+    PACL sacl = nullptr;
+    PSECURITY_DESCRIPTOR descriptor = nullptr;
+    std::wstring name = folder.wstring();
+    if (GetNamedSecurityInfoW(name.data(), SE_FILE_OBJECT, LABEL_SECURITY_INFORMATION, nullptr, nullptr, nullptr,
+                              &sacl, &descriptor) != ERROR_SUCCESS) {
+        return false;
+    }
+    LowLabelSid low;
+    bool found = false;
+    for (DWORD i = 0; low.ok && sacl && i < sacl->AceCount; ++i) {
+        void* entry = nullptr;
+        if (!GetAce(sacl, i, &entry)) break;
+        const auto* header = static_cast<const ACE_HEADER*>(entry);
+        if (header->AceType != SYSTEM_MANDATORY_LABEL_ACE_TYPE) continue;
+        auto* ace = static_cast<SYSTEM_MANDATORY_LABEL_ACE*>(entry);
+        const BYTE inherit = OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE;
+        found = EqualSid(reinterpret_cast<PSID>(&ace->SidStart), low.get()) &&
+                (ace->Mask & SYSTEM_MANDATORY_LABEL_NO_WRITE_UP) != 0 && (header->AceFlags & inherit) == inherit &&
+                (header->AceFlags & INHERIT_ONLY_ACE) == 0;
+        break;
+    }
+    LocalFree(descriptor);
+    return found;
+}
+
 }
 
 // The id and creation time of this process.
@@ -214,6 +318,13 @@ ProcessResult runProcess(const ProcessSpec& spec, const std::function<void(std::
         commandLine += quoteArgument(widen(arg));
     }
 
+    Handle lowToken;
+    if (spec.lowIntegrity && !makeLowToken(lowToken)) {
+        result.status = fail(ErrorCode::CannotRead,
+                             "The program " + pathToUtf8(spec.program) + " could not be set up to run at low integrity.");
+        return result;
+    }
+
     SECURITY_ATTRIBUTES inheritable{sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE};
     Handle readEnd;
     Handle writeEnd;
@@ -230,11 +341,19 @@ ProcessResult runProcess(const ProcessSpec& spec, const std::function<void(std::
     SetHandleInformation(readEnd.get(), HANDLE_FLAG_INHERIT, 0);
     Handle nul(CreateFileW(L"NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, &inheritable, OPEN_EXISTING, 0, nullptr));
 
+    // A low integrity run or one that must end its children needs the job, so it is not started without one.
+    const bool needsJob = spec.lowIntegrity || spec.endChildren;
     Handle job(CreateJobObjectW(nullptr, nullptr));
+    bool jobReady = false;
     if (job.valid()) {
         JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{};
         limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-        SetInformationJobObject(job.get(), JobObjectExtendedLimitInformation, &limits, sizeof(limits));
+        jobReady = SetInformationJobObject(job.get(), JobObjectExtendedLimitInformation, &limits, sizeof(limits)) != FALSE;
+    }
+    if (needsJob && !jobReady) {
+        result.status = fail(ErrorCode::CannotRead,
+                             "The program " + pathToUtf8(spec.program) + " could not be started in a job of its own.");
+        return result;
     }
 
     // Only the pipe and the empty input are handed to the child, so another thread starting a program at the
@@ -260,23 +379,36 @@ ProcessResult runProcess(const ProcessSpec& spec, const std::function<void(std::
     if (attributes.ready) startup.lpAttributeList = attributes.list;
 
     std::wstring env;
-    if (!spec.environment.empty()) env = environmentBlock(spec.environment);
+    if (!spec.environment.empty() || !spec.removeEnvironment.empty()) {
+        env = environmentBlock(spec.environment, spec.removeEnvironment);
+    }
     const std::wstring workingFolder = spec.workingFolder.wstring();
 
     DWORD flags = CREATE_NO_WINDOW | CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT;
     if (attributes.ready) flags |= EXTENDED_STARTUPINFO_PRESENT;
     PROCESS_INFORMATION info{};
-    const BOOL started = CreateProcessW(spec.program.c_str(), commandLine.data(), nullptr, nullptr, TRUE, flags,
-                                        env.empty() ? nullptr : env.data(),
-                                        workingFolder.empty() ? nullptr : workingFolder.c_str(),
-                                        &startup.StartupInfo, &info);
+    LPVOID envBlock = env.empty() ? nullptr : env.data();
+    LPCWSTR folder = workingFolder.empty() ? nullptr : workingFolder.c_str();
+    const BOOL started = spec.lowIntegrity
+                             ? CreateProcessAsUserW(lowToken.get(), spec.program.c_str(), commandLine.data(), nullptr,
+                                                    nullptr, TRUE, flags, envBlock, folder, &startup.StartupInfo, &info)
+                             : CreateProcessW(spec.program.c_str(), commandLine.data(), nullptr, nullptr, TRUE, flags,
+                                              envBlock, folder, &startup.StartupInfo, &info);
     if (!started) {
         result.status = fail(ErrorCode::CannotRead, "The program " + pathToUtf8(spec.program) + " could not be started.");
         return result;
     }
     Handle process(info.hProcess);
     Handle thread(info.hThread);
-    if (job.valid()) AssignProcessToJobObject(job.get(), process.get());
+    const bool inJob = jobReady && AssignProcessToJobObject(job.get(), process.get());
+    // The program is still paused here, so ending it now means none of its own code has run.
+    if ((needsJob && !inJob) || (spec.lowIntegrity && !runsAtLowIntegrity(process.get()))) {
+        TerminateProcess(process.get(), 1);
+        WaitForSingleObject(process.get(), 5000);
+        result.status = fail(ErrorCode::CannotRead, "The program " + pathToUtf8(spec.program) +
+                                                        " could not be started with the protection it was asked for.");
+        return result;
+    }
     ResumeThread(thread.get());
     writeEnd.reset();
     nul.reset();
@@ -318,8 +450,18 @@ ProcessResult runProcess(const ProcessSpec& spec, const std::function<void(std::
         drain();
         DWORD code = 0;
         if (GetExitCodeProcess(process.get(), &code)) result.exitCode = static_cast<int>(code);
+        if (spec.endChildren) {
+            const bool gone = endJob(job.get());
+            drain();
+            if (!gone) {
+                result.status = fail(ErrorCode::CannotRead, "Programs started by " + pathToUtf8(spec.program) +
+                                                                " could not all be ended.");
+            }
+        } else if (inJob) {
+            keepJobAlive(job.get());
+        }
     } else {
-        if (job.valid()) TerminateJobObject(job.get(), 1);
+        if (inJob) endJob(job.get());
         else TerminateProcess(process.get(), 1);
         WaitForSingleObject(process.get(), 5000);
         drain();
@@ -333,10 +475,56 @@ ProcessResult runProcess(const ProcessSpec& spec, const std::function<void(std::
     return result;
 }
 
-// Labels a folder so a low integrity program may write in it. Not done yet, so it always fails.
-Status makeLowIntegrityFolder(const std::filesystem::path&)
+// Makes a folder, or labels an empty one, so a low integrity program may write in it and in what it makes
+// there, then reads the label back to be sure it is set.
+Status makeLowIntegrityFolder(const std::filesystem::path& folder)
 {
-    return fail(ErrorCode::CannotWrite, "Folders for low integrity programs cannot be made yet.");
+    namespace fs = std::filesystem;
+    const auto refuse = [&](const std::string& why) {
+        return fail(ErrorCode::CannotWrite, "The folder " + pathToUtf8(folder) + " " + why);
+    };
+    if (folder.empty()) return fail(ErrorCode::CannotWrite, "No folder was given for low integrity programs.");
+
+    LowLabelSid low;
+    std::vector<DWORD> aclBuffer((sizeof(ACL) + sizeof(SYSTEM_MANDATORY_LABEL_ACE) + SECURITY_MAX_SID_SIZE) / sizeof(DWORD) + 1);
+    auto* acl = reinterpret_cast<PACL>(aclBuffer.data());
+    SECURITY_DESCRIPTOR descriptor{};
+    const bool built = low.ok && InitializeAcl(acl, static_cast<DWORD>(aclBuffer.size() * sizeof(DWORD)), ACL_REVISION) &&
+                       AddMandatoryAce(acl, ACL_REVISION, OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE,
+                                       SYSTEM_MANDATORY_LABEL_NO_WRITE_UP, low.get()) &&
+                       InitializeSecurityDescriptor(&descriptor, SECURITY_DESCRIPTOR_REVISION) &&
+                       SetSecurityDescriptorSacl(&descriptor, TRUE, acl, FALSE);
+    if (!built) return refuse("could not be labelled, because the label could not be built.");
+
+    std::error_code ec;
+    const fs::file_status state = fs::symlink_status(folder, ec);
+    bool made = false;
+    if (state.type() == fs::file_type::not_found) {
+        const fs::path parent = folder.parent_path();
+        if (!parent.empty()) fs::create_directories(parent, ec);
+        if (ec) return refuse("could not be made.");
+        // Made with the label already in place, so it never exists without it.
+        SECURITY_ATTRIBUTES attributes{sizeof(SECURITY_ATTRIBUTES), &descriptor, FALSE};
+        if (!CreateDirectoryW(folder.c_str(), &attributes)) return refuse("could not be made.");
+        made = true;
+    } else {
+        const DWORD attributes = GetFileAttributesW(folder.c_str());
+        if (ec || state.type() != fs::file_type::directory || attributes == INVALID_FILE_ATTRIBUTES ||
+            (attributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
+            return refuse("is not a plain folder.");
+        }
+        if (!fs::is_empty(folder, ec) || ec) return refuse("is not empty.");
+    }
+
+    if (!hasLowLabel(folder)) {
+        std::wstring name = folder.wstring();
+        SetNamedSecurityInfoW(name.data(), SE_FILE_OBJECT, LABEL_SECURITY_INFORMATION, nullptr, nullptr, nullptr, acl);
+        if (!hasLowLabel(folder)) {
+            if (made) RemoveDirectoryW(folder.c_str());
+            return refuse("could not be labelled for low integrity programs.");
+        }
+    }
+    return {};
 }
 
 // Moves a file or folder to the Recycle Bin.
