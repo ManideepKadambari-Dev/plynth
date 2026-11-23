@@ -18,12 +18,14 @@ public:
     }
     std::vector<std::string> fileSuffixes() const override { return {}; }
 
+    // Takes only an address it can read, never a file.
     int score(const ImportSource& source) const override
     {
         if (!source.file.empty() || source.url.empty()) return 0;
         return parseBlenderKitAddress(source.url).status.ok() ? 30 : 0;
     }
 
+    // Plans a download of the material the address names, to be cleaned up like any file afterwards.
     Status plan(const ImportSource& source, const std::filesystem::path&, MaterialImportPlan& out) const override
     {
         if (!source.file.empty() || source.url.empty()) return fail(ErrorCode::InvalidValue, "BlenderKit cannot read this.");

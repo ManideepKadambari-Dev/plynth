@@ -996,7 +996,7 @@ Open it with **Catalog > Integrations** or the **Sources** tab of the right pane
 - buttons to import, and the options you can change, saved with the library;
 - a link to the official website.
 
-The first time you open the tab, and when you press **Check again** on the BlenderKit card, Plynth runs the setup check. It starts Blender once with a clean start, runs none of your add-ons and reads your saved Blender preferences only as data (see [Setting up Plynth](SETUP.md)). A card with no add-on to check is always Ready. Options are saved as soon as you change them, in the library, and apply to every later import from that card. They need an open library. The same options are saved by `plynth library integration set` (see the [command line guide](CLI_GUIDE.md)).
+The first time you open the tab, and when you press **Check again** on the BlenderKit card, Plynth runs the setup check. It starts Blender once with a clean start, runs none of your add-ons and reads your saved Blender preferences only as data (see [Setting up Plynth](SETUP.md)). A card with no add-on to check is always Ready. Options are saved as soon as you change them, in the library, and apply to every later import from that card. They need an open library. Every option the command line has is on the card, and the same options are saved by `plynth library integration set` (see the [command line guide](CLI_GUIDE.md)). An option saved with a value the card does not list is shown as it is, and it stays until you pick another.
 
 ### Importing from BlenderKit
 
@@ -1006,25 +1006,25 @@ You need your own BlenderKit account and the BlenderKit add-on, installed, enabl
 2. On the BlenderKit card, paste it into the address box. If the text is not a BlenderKit address, the card says so, and the buttons stay off.
 3. Press **Import as asset** for a model or **Import as material** for a material.
 
-The import joins the queue under the grid like any other. The row shows the steps: checking the add-on, downloading and copying. A big item can take a few minutes. Plynth waits up to 10 minutes by default. From the command line, `wait_seconds` raises that (see the [command line guide](CLI_GUIDE.md)). The **Texture resolution** option says which size of textures to ask for, 2k by default.
+The import joins the queue under the grid like any other. The row shows the steps: checking the add-on, downloading and copying. A big item can take a few minutes. Plynth waits up to 10 minutes by default. The card's wait option raises that, from 60 to 3600 seconds, as `wait_seconds` does from the command line (see the [command line guide](CLI_GUIDE.md)). The **Texture resolution** option says which size of textures to ask for, 2k by default.
 
 **What runs.** Plynth starts Blender in the background, with no window, and the BlenderKit add-on downloads the item. There is no option to show a Blender window. This download runs Blender with **your own settings and the add-ons you have enabled**, because BlenderKit needs your add-on and your sign in. Other Blender jobs in Plynth use a clean start, but this one cannot. After the download, Blender cleans the model the same way as for your own files, with a clean start.
 
-**What ends up where.** The files go into the library like any other asset or material. The name, author and license come from BlenderKit, and the item remembers its address. The add-on keeps its own copy in its own download folder. Plynth copies from it and never changes or removes anything there.
+**What ends up where.** The files go into the library like any other asset or material. The name and license come from BlenderKit, and the item remembers its address. The author is not saved yet. The add-on keeps its own copy in its own download folder. Plynth copies from it and never changes or removes anything there.
 
 If it fails, the row says why, and **Show log** opens the log. These are the usual reasons:
 
 - **The add-on is not installed or not enabled.** Install or enable it in Blender (Preferences, Add-ons).
 - **You are not signed in.** Open Blender, go to Preferences, Add-ons, BlenderKit and log in. If BlenderKit's saved settings file is damaged, Plynth leaves it exactly as it is, adds "The saved BlenderKit settings file could not be read and was left as it is." to the message, and you sign in again inside Blender.
 - **Wrong tab.** A model pasted as a material, or a material pasted as a model, is refused with a sentence that names the right tab. Nothing is added. Other kinds of items, such as HDRs, cannot be imported.
-- **Nothing arrived in time.** Try again, raise `wait_seconds` from the command line, or check the item in BlenderKit inside Blender.
+- **Nothing arrived in time.** Try again, raise the wait on the card, or check the item in BlenderKit inside Blender.
 
 ### Importing Fab zips
 
 Fab items download as a zip from fab.com in your browser. Plynth never goes to Fab for you. A zip often holds one model in several formats and qualities, with textures at several sizes. Plynth reads the list of files in the zip without unpacking it, picks one version, and unpacks only that.
 
 1. Download the zip from Fab.
-2. On the Fab card, press **Import model zips...** or **Import material zips...**, and pick one or more zips. (A Fab zip dropped in the library's inbox is picked up too.)
+2. On the Fab card, press **Import model zips...** or **Import material zips...**, and pick one or more zips. (A Fab zip dropped in the library's inbox is picked up too, but its license is Unknown. See "Which license is saved" below.)
 3. A window opens that shows, for each zip, what Plynth would take. Use **Previous** and **Next** with several zips. Tick **Leave this zip out** to skip one.
 4. Press **Import**. The zips join the queue.
 
@@ -1033,12 +1033,12 @@ Fab items download as a zip from fab.com in your browser. Plynth never goes to F
 **In the window.**
 
 - **Model.** The model taken. Open the list to pick another version of it, with its format and quality.
-- **Textures.** The textures taken, and the size they were taken at. Each has a list that says which channel it is for. **Automatic** reads it from the file name. Change it when a texture is on the wrong channel.
+- **Textures.** The textures taken, and the size they were taken at. Each has a list that says which channel it is for. **Automatic** reads it from the file name. Change it when a texture is on the wrong channel. Next to it, say which material it is for: **Every material**, or the name of one material. A texture set for one material changes only that material, and the others keep their own textures. A material can have one texture for each channel. When you give a second texture the same material and channel, the first one goes back to **Automatic**.
 - **Left out.** Files in the zip Plynth does not use, each with the reason.
 
-A zip that holds several different models (a pack) cannot be imported until you pick one. The window says "This zip holds several models" and offers **Pick a model...**. If a queue row fails for this reason, its **Pick the model...** button opens the same window. Pick another model, and the new import replaces the row. To import several models of a pack, import the zip once for each.
+A zip that holds several different models (a pack) cannot be imported until you pick one. The window says "This zip holds several models" and offers **Pick a model...**. If a queue row fails for this reason, its **Pick the model...** button opens the same window. Pick another model, and the new import replaces the row. To import several models of a pack, first tick **Keep the zip files after importing**, then import the zip once for each model. Without it, the zip goes to the Recycle Bin after the first import.
 
-**Fixing textures.** Fab textures are matched to materials by their file names. If a material comes out with the wrong picture or none, open the window again, and set the channel of each texture by hand. The **Normal maps** option says which way the normal maps point. **Automatic** reads the file name and takes OpenGL when it says nothing. Pick **DirectX** if your normal maps look inside out (Fab content made for Unreal often is).
+**Fixing textures.** Fab textures are matched to materials by their file names. If a material comes out with the wrong picture or none, import the zip again from the Fab card and set the channel and material of each texture by hand. You need the zip for that, so tick **Keep the zip files after importing** the first time, or get the zip back from the Recycle Bin. Plynth cannot see a model's material names before Blender reads it. After the first import, the asset's **Materials** list in the Assets tab shows them. The **Normal maps** option says which way the normal maps point. **Automatic** reads the file name and takes OpenGL when it says nothing. Pick **DirectX** if your normal maps look inside out (Fab content made for Unreal often is).
 
 If a zip holds no model Plynth can read, for example only `.uasset` files, the window says so. Download the FBX or glTF version from Fab instead. A zip that holds other zips has to be unzipped first.
 
@@ -1046,9 +1046,11 @@ If a zip holds no model Plynth can read, for example only `.uasset` files, the w
 
 A Fab zip with one plain model, with no versions, goes through the normal import and is treated as your own file. Import it from the Fab card if you want Plynth to match its textures by name.
 
+**Which license is saved.** A zip you import from the Fab card, or with **Catalog > Import Fab zips...**, gets the card's **License**, Royalty free unless you changed it. You told Plynth the zip is from Fab, so the store's license applies. A zip that reaches Plynth another way, with the import button of the Assets or Materials tab, by drag and drop, or through the inbox, gets **Unknown**, even when Plynth sees that it looks like a Fab zip and picks a version for you. Plynth only guessed where it came from. **Pick the model...** on such a row keeps Unknown. You can set the license in the catalog afterwards, or import the zip from the Fab card instead.
+
 ### Store items
 
-An item from BlenderKit or Fab is a normal asset or material. It shows in the catalog and works in plans like any other. It remembers where it came from: the address for BlenderKit, the zip's file name for Fab. The license is set from the store (royalty free for Fab by default, which you can change in the card's **License**) and you can change any license in the catalog. Remember that the store's own terms apply to your use of the item.
+An item from BlenderKit or Fab is a normal asset or material. It shows in the catalog and works in plans like any other. It remembers where it came from: the address for BlenderKit, the zip's file name for Fab. The license is set from the store: BlenderKit gives the item's license, and a zip imported from the Fab card gets the card's **License** (Royalty free by default). A Fab zip that came in another way gets Unknown. You can change any license in the catalog. Remember that the store's own terms apply to your use of the item.
 
 ## Materials on walls, rooms and the project
 

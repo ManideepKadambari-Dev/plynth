@@ -30,9 +30,10 @@ struct QueueItem {
     int percent = 0;     // 0 to 100
     QString message;     // the failure, in plain words
     QString workFolder;  // set when a Blender failure kept its work folder for the log
-    bool pickable = false; // a Fab zip with several models failed, so the user can pick one and try again
+    bool pickable = false; // the importer listed several models, so the user can pick one and try again
     plynth::ImportRequest request;
     std::filesystem::path entry;
+    std::filesystem::path movedTo; // where the inbox put the entry after a failure, as core reported it
     std::stop_source stop;
 };
 

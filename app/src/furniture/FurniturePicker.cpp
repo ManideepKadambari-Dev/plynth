@@ -2,6 +2,7 @@
 
 #include "AssetPreview.h"
 #include "catalog/LibraryHost.h"
+#include "theme/PlainText.h"
 #include "theme/Theme.h"
 
 #include <plynth/core/RoomTypes.h>
@@ -420,9 +421,9 @@ void FurniturePicker::fillAssets(QListWidget* list, const QString& category)
         if (!reason.isEmpty()) {
             item->setData(kBlockedRole, reason);
             item->setData(kWarnRole, record.state == plynth::AssetState::Broken);
-            item->setToolTip(reason);
+            item->setToolTip(plainToolTip(reason));
         } else {
-            item->setToolTip(tr("Click to place %1").arg(fromCore(record.name)));
+            item->setToolTip(plainToolTip(tr("Click to place %1").arg(fromCore(record.name))));
         }
     }
     if (found.empty()) {

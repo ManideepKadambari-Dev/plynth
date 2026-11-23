@@ -31,7 +31,8 @@ def read_source(path):
         problem = "names no model that it also lists"
     elif not isinstance(source.get("textures"), list) or not all(isinstance(e, str) for e in source["textures"]):
         problem = "has no list of textures"
-    elif not isinstance(source.get("maps"), dict) or source.get("normal") not in NORMAL_CHOICES:
+    elif not fab_materials.maps_are_valid(source.get("maps"), source["files"]) or \
+            source.get("normal") not in NORMAL_CHOICES:
         problem = "has bad maps or normal fields"
     if problem:
         raise WorkerError("import_failed", "The Fab source file %s." % problem)

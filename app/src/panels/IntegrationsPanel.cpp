@@ -1,9 +1,11 @@
 #include "IntegrationsPanel.h"
 
 #include "catalog/LibraryHost.h"
+#include "theme/PlainText.h"
 #include "theme/Theme.h"
+#include "theme/WheelGuard.h"
 
-#include <plynth/core/catalog/BlenderKit.h>
+#include <plynth/core/catalog/FabZip.h>
 #include <plynth/core/catalog/Integrations.h>
 
 #include <QComboBox>
@@ -17,34 +19,68 @@
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QShowEvent>
+#include <QSpinBox>
 #include <QUrl>
 #include <QVBoxLayout>
+
+#include <algorithm>
+#include <climits>
 
 namespace plynth::app {
 
 namespace {
 
+// Marks a drop down entry that only shows a saved value the list does not have.
+constexpr int kExtraRole = Qt::UserRole + 1;
+
+// Turns core text into Qt text.
 QString fromCore(const std::string& text)
 {
     return QString::fromUtf8(text.data(), static_cast<qsizetype>(text.size()));
 }
 
+// Turns a piece of core text into Qt text.
 QString fromView(std::string_view text)
 {
     return QString::fromUtf8(text.data(), static_cast<qsizetype>(text.size()));
 }
 
+// Turns Qt text into core text.
 std::string toCore(const QString& text)
 {
     const QByteArray bytes = text.toUtf8();
     return std::string(bytes.constData(), static_cast<size_t>(bytes.size()));
 }
 
+// The text a drop down keeps for a value, so any value can be found again.
+QString valueKey(const plynth::Json& value)
+{
+    return fromCore(value.dump());
+}
+
+// The words shown for a saved value that is not one of the choices.
+QString shownValue(const plynth::Json& value)
+{
+    if (value.is_string())
+        return fromCore(value.get<std::string>());
+    if (value.is_null())
+        return QObject::tr("None");
+    if (value.is_array()) {
+        QStringList parts;
+        for (const plynth::Json& item : value)
+            parts << (item.is_string() ? fromCore(item.get<std::string>()) : fromCore(item.dump()));
+        return parts.join(QStringLiteral(", "));
+    }
+    return fromCore(value.dump());
+}
+
 // A small muted caption.
 QLabel* caption(const QString& text, QWidget* parent)
 {
     const Theme& t = Theme::instance();
-    auto* label = new QLabel(text, parent);
+    auto* label = new QLabel(parent);
+    label->setTextFormat(Qt::PlainText);
+    label->setText(text);
     label->setFont(t.uiFont(t.sizeSmall()));
     label->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
     label->setWordWrap(true);
@@ -56,10 +92,10 @@ QLabel* warningLabel(QWidget* parent)
 {
     const Theme& t = Theme::instance();
     auto* label = new QLabel(parent);
+    label->setTextFormat(Qt::PlainText);
     label->setFont(t.uiFont(t.sizeSmall()));
     label->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
     label->setWordWrap(true);
-    label->setTextFormat(Qt::PlainText);
     label->setVisible(false);
     return label;
 }
@@ -72,17 +108,18 @@ struct ButtonWords {
     QString materialTip;
 };
 
+// Picks the button words for an integration: addresses, Fab zips, own files or files of another source.
 ButtonWords wordsFor(const plynth::Integration& integration)
 {
     if (integration.takesAddresses())
         return {QObject::tr("Import as asset"), QObject::tr("Import as material"),
                 QObject::tr("Download the item at this address and add it to the asset catalog"),
                 QObject::tr("Download the item at this address and add it to the materials catalog")};
-    if (integration.id() == "fab")
+    if (isFabIntegration(integration))
         return {QObject::tr("Import model zips..."), QObject::tr("Import material zips..."),
                 QObject::tr("Pick one or more Fab model zips and add them to the asset catalog"),
                 QObject::tr("Pick one or more Fab material zips and add them to the materials catalog")};
-    if (integration.id() == "local")
+    if (isOwnFilesIntegration(integration))
         return {QObject::tr("Import asset..."), QObject::tr("Import material..."),
                 QObject::tr("Pick model files and add them to the asset catalog"),
                 QObject::tr("Pick texture files or a folder and add them to the materials catalog")};
@@ -91,6 +128,20 @@ ButtonWords wordsFor(const plynth::Integration& integration)
             QObject::tr("Pick files and add them to the materials catalog")};
 }
 
+}
+
+// True for a source of the user's own files: it takes files and lists no store kinds.
+bool isOwnFilesIntegration(const plynth::Integration& integration)
+{
+    return !integration.takesAddresses() && integration.storeSourceKinds().empty();
+}
+
+// True for the source that brings the Fab zip importer, which has its own check dialog.
+bool isFabIntegration(const plynth::Integration& integration)
+{
+    const std::string fab(plynth::kFabImporterId);
+    const auto has = [&fab](const std::vector<std::string>& ids) { return std::find(ids.begin(), ids.end(), fab) != ids.end(); };
+    return has(integration.assetImporters()) || has(integration.materialImporters());
 }
 
 // Builds the cards from the integration registry.
@@ -138,11 +189,21 @@ void IntegrationsPanel::setActions(IntegrationActions* actions)
     updateImportButtons();
 }
 
+// The card of the integration with this id, or null.
+IntegrationsPanel::Card* IntegrationsPanel::cardFor(const QString& id)
+{
+    for (Card& card : list_)
+        if (fromView(card.integration->id()) == id)
+            return &card;
+    return nullptr;
+}
+
 // Builds one card: title, state, options, import buttons and the site link.
 void IntegrationsPanel::buildCard(const plynth::Integration& integration)
 {
     const Theme& t = Theme::instance();
     const QString id = fromView(integration.id());
+    const QString name = fromView(integration.name());
     list_.emplace_back();
     Card& card = list_.back();
     card.integration = &integration;
@@ -153,34 +214,37 @@ void IntegrationsPanel::buildCard(const plynth::Integration& integration)
                              .arg(t.raised().name(), t.line().name())
                              .arg(t.radius()));
     frame->setProperty("tourId", QStringLiteral("integration-%1").arg(id));
-    frame->setToolTip(tr("%1: %2").arg(fromView(integration.name()), fromView(integration.description())));
+    frame->setToolTip(plainToolTip(tr("%1: %2").arg(name, fromView(integration.description()))));
     auto* box = new QVBoxLayout(frame);
     box->setContentsMargins(t.unit() * 3, t.unit() * 3, t.unit() * 3, t.unit() * 3);
     box->setSpacing(t.unit() * 2);
 
     auto* top = new QHBoxLayout();
     top->setSpacing(t.unit() * 2);
-    auto* title = new QLabel(fromView(integration.name()), frame);
+    auto* title = new QLabel(frame);
+    title->setTextFormat(Qt::PlainText);
+    title->setText(name);
     title->setFont(t.uiFont(t.sizeLarge(), QFont::DemiBold));
     title->setToolTip(tr("The name of this source"));
     top->addWidget(title, 1);
     card.state = new QLabel(frame);
+    card.state->setTextFormat(Qt::PlainText);
     card.state->setFont(t.uiFont(t.sizeNormal(), QFont::DemiBold));
     card.state->setToolTip(tr("Whether this source is ready to use"));
     card.state->setProperty("tourId", QStringLiteral("integration-%1-state").arg(id));
     top->addWidget(card.state);
     box->addLayout(top);
 
-    auto* description = new QLabel(fromView(integration.description()), frame);
+    auto* description = new QLabel(frame);
+    description->setTextFormat(Qt::PlainText);
+    description->setText(fromView(integration.description()));
     description->setFont(t.uiFont(t.sizeNormal()));
     description->setWordWrap(true);
-    description->setTextFormat(Qt::PlainText);
     description->setToolTip(tr("What this source does and what it needs"));
     box->addWidget(description);
 
     if (!integration.setupItem().empty()) {
         card.detail = caption(QString(), frame);
-        card.detail->setTextFormat(Qt::PlainText);
         card.detail->setToolTip(tr("What the setup check found and what to do next"));
         box->addWidget(card.detail);
         card.check = new QPushButton(tr("Check again"), frame);
@@ -206,19 +270,18 @@ void IntegrationsPanel::buildCard(const plynth::Integration& integration)
 
     if (integration.takesAddresses()) {
         card.address = new QLineEdit(frame);
-        card.address->setFont(t.uiFont(t.sizeNormal()));
-        card.address->setPlaceholderText(id == QStringLiteral("blenderkit") ? tr("Paste a BlenderKit address")
-                                                                              : tr("Paste an address"));
+        card.address->setFont(t.monoFont(t.sizeNormal()));
+        card.address->setPlaceholderText(tr("Paste a %1 address").arg(name));
         card.address->setClearButtonEnabled(true);
         card.address->setToolTip(tr("The address of one item, copied from its page in your browser"));
         card.address->setProperty("tourId", QStringLiteral("integration-%1-address").arg(id));
         box->addWidget(card.address);
         card.addressNote = warningLabel(frame);
+        card.addressNote->setToolTip(tr("Why this address cannot be used"));
         box->addWidget(card.addressNote);
         connect(card.address, &QLineEdit::textChanged, this, [this, id]() {
-            for (Card& c : list_)
-                if (fromView(c.integration->id()) == id)
-                    updateAddress(c);
+            if (Card* c = cardFor(id))
+                updateAddress(*c);
         });
     }
 
@@ -240,55 +303,24 @@ void IntegrationsPanel::buildCard(const plynth::Integration& integration)
     buttons->addStretch(1);
     box->addLayout(buttons);
     const auto send = [this, id](bool material) {
-        if (actions_ == nullptr)
+        Card* c = cardFor(id);
+        if (actions_ == nullptr || c == nullptr)
             return;
-        for (Card& c : list_) {
-            if (fromView(c.integration->id()) != id)
-                continue;
-            if (c.address != nullptr)
-                actions_->importAddress(id, c.address->text().trimmed(), material);
-            else
-                actions_->importFiles(id, material);
-        }
+        if (c->address != nullptr)
+            actions_->importAddress(id, c->address->text().trimmed(), material);
+        else
+            actions_->importFiles(id, material);
     };
     if (card.importAsset != nullptr)
         connect(card.importAsset, &QPushButton::clicked, this, [send]() { send(false); });
     if (card.importMaterial != nullptr)
         connect(card.importMaterial, &QPushButton::clicked, this, [send]() { send(true); });
 
-    if (id == QStringLiteral("blenderkit")) {
-        QComboBox* resolution = addOption(card, box, QStringLiteral("resolution"), tr("Texture resolution"),
-                                          tr("The size of the textures to download"));
-        for (const char* r : {"0.5k", "1k", "2k", "4k", "8k"})
-            resolution->addItem(QString::fromLatin1(r), QString::fromLatin1(r));
-        resolution->addItem(tr("Original"), QStringLiteral("original"));
-    } else if (id == QStringLiteral("fab")) {
-        QComboBox* format = addOption(card, box, QStringLiteral("format"), tr("Preferred format"),
-                                      tr("The model format to take first when a zip holds several"));
-        for (const char* f : {"fbx", "gltf", "obj", "blend"})
-            format->addItem(QString::fromLatin1(f).toUpper(), QString::fromLatin1(f));
-        QComboBox* quality = addOption(card, box, QStringLiteral("quality"), tr("Quality"),
-                                       tr("Which version to take when a zip holds several qualities"));
-        quality->addItem(tr("Low"), QStringLiteral("low"));
-        quality->addItem(tr("Medium"), QStringLiteral("medium"));
-        quality->addItem(tr("High"), QStringLiteral("high"));
-        quality->addItem(tr("Raw"), QStringLiteral("raw"));
-        QComboBox* size = addOption(card, box, QStringLiteral("max_texture_size"), tr("Largest texture"),
-                                    tr("The largest texture size to take. Bigger images are left in the zip"));
-        for (int s : {512, 1024, 2048, 4096, 8192, 16384})
-            size->addItem(tr("%1 px").arg(s), QString::number(s));
-        size->addItem(tr("No limit"), QStringLiteral("none"));
-        QComboBox* normal = addOption(card, box, QStringLiteral("normal"), tr("Normal maps"),
-                                      tr("Which way the normal maps point. Automatic reads the file name"));
-        normal->addItem(tr("Automatic"), QStringLiteral("auto"));
-        normal->addItem(tr("OpenGL"), QStringLiteral("opengl"));
-        normal->addItem(tr("DirectX"), QStringLiteral("directx"));
-        QComboBox* license = addOption(card, box, QStringLiteral("license"), tr("License"),
-                                       tr("The license given to items imported from Fab zips"));
-        fillLicenses(license);
-    }
-    if (!card.options.empty()) {
+    for (const plynth::OptionField& field : integration.optionFields())
+        addField(card, box, field);
+    if (!card.fields.empty()) {
         card.optionNote = warningLabel(frame);
+        card.optionNote->setToolTip(tr("Why the options cannot be changed now"));
         box->addWidget(card.optionNote);
     }
 
@@ -297,48 +329,84 @@ void IntegrationsPanel::buildCard(const plynth::Integration& integration)
         link->setFont(t.uiFont(t.sizeSmall()));
         link->setTextFormat(Qt::RichText);
         link->setText(QStringLiteral("<a href=\"%1\">%2</a>")
-                          .arg(fromView(integration.site()),
-                               tr("Open the %1 website").arg(fromView(integration.name()).toHtmlEscaped())));
+                          .arg(fromView(integration.site()).toHtmlEscaped(),
+                               tr("Open the %1 website").arg(name).toHtmlEscaped()));
         QPalette palette = link->palette();
         palette.setColor(QPalette::Link, t.signalBlue());
         link->setPalette(palette);
         link->setToolTip(tr("Open the official site in your browser"));
         link->setProperty("tourId", QStringLiteral("integration-%1-site").arg(id));
-        connect(link, &QLabel::linkActivated, this, [](const QString& url) { QDesktopServices::openUrl(QUrl(url)); });
+        const QString site = fromView(integration.site());
+        connect(link, &QLabel::linkActivated, this, [site]() { QDesktopServices::openUrl(QUrl(site)); });
         box->addWidget(link);
     }
 
     cards_->addWidget(frame);
 }
 
-// Adds a captioned drop down for one saved option. The caller fills in the choices.
-QComboBox* IntegrationsPanel::addOption(Card& card, QVBoxLayout* box, const QString& key, const QString& label, const QString& tip)
+// Adds a captioned control for one saved option, drawn from what core says the option allows.
+void IntegrationsPanel::addField(Card& card, QVBoxLayout* box, const plynth::OptionField& option)
 {
     const Theme& t = Theme::instance();
     const QString id = fromView(card.integration->id());
+    const QString key = fromCore(option.key);
+    const QString tip = plainToolTip(fromCore(option.help));
     QWidget* parent = box->parentWidget();
     auto* row = new QHBoxLayout();
     row->setSpacing(t.unit() * 2);
-    auto* name = new QLabel(label, parent);
+    auto* name = new QLabel(parent);
+    name->setTextFormat(Qt::PlainText);
+    name->setText(fromCore(option.label));
     name->setFont(t.uiFont(t.sizeNormal()));
     name->setToolTip(tip);
     row->addWidget(name, 1);
-    auto* combo = new QComboBox(parent);
-    combo->setFont(t.uiFont(t.sizeNormal()));
-    combo->setStyle(t.controlStyle());
-    combo->setToolTip(tip);
-    combo->setProperty("tourId", QStringLiteral("integration-%1-%2").arg(id, key));
-    row->addWidget(combo);
+
+    Field field;
+    field.key = key;
+    field.license = option.kind == plynth::OptionKind::License;
+    field.minimum = option.minimum;
+    field.maximum = option.maximum;
+    if (option.kind == plynth::OptionKind::WholeNumber) {
+        auto* number = new QSpinBox(parent);
+        number->setFont(t.uiFont(t.sizeNormal()));
+        number->setStyle(t.controlStyle());
+        number->setRange(option.minimum, option.maximum);
+        // Saves when the user is done typing, not at every digit.
+        number->setKeyboardTracking(false);
+        number->setToolTip(tip);
+        number->setProperty("tourId", QStringLiteral("integration-%1-%2").arg(id, key));
+        WheelGuard::guard(number);
+        connect(number, &QSpinBox::valueChanged, this, [this, id, key](int value) {
+            if (refreshing_)
+                return;
+            if (Card* c = cardFor(id))
+                saveOption(*c, key, QString::number(value));
+        });
+        row->addWidget(number);
+        field.number = number;
+    } else {
+        auto* combo = new QComboBox(parent);
+        combo->setFont(t.uiFont(t.sizeNormal()));
+        combo->setStyle(t.controlStyle());
+        combo->setToolTip(tip);
+        combo->setProperty("tourId", QStringLiteral("integration-%1-%2").arg(id, key));
+        WheelGuard::guard(combo);
+        if (field.license)
+            fillLicenses(combo);
+        else
+            for (const plynth::OptionChoice& choice : option.choices)
+                combo->addItem(fromCore(choice.label), valueKey(choice.value));
+        connect(combo, &QComboBox::activated, this, [this, id, key, combo](int index) {
+            if (refreshing_ || combo->itemData(index, kExtraRole).toBool())
+                return;
+            if (Card* c = cardFor(id))
+                saveOption(*c, key, combo->itemData(index).toString());
+        });
+        row->addWidget(combo);
+        field.combo = combo;
+    }
     box->addLayout(row);
-    card.options[key] = combo;
-    connect(combo, &QComboBox::activated, this, [this, id, key, combo](int index) {
-        if (refreshing_)
-            return;
-        for (Card& c : list_)
-            if (fromView(c.integration->id()) == id)
-                saveOption(c, key, combo->itemData(index).toString());
-    });
-    return combo;
+    card.fields.push_back(field);
 }
 
 // Fills a license drop down from the catalog's license list.
@@ -348,34 +416,60 @@ void IntegrationsPanel::fillLicenses(QComboBox* combo)
     if (host_.catalog() == nullptr)
         return;
     for (const plynth::LicenseEntry& entry : host_.catalog()->licenses())
-        combo->addItem(fromCore(entry.name), fromCore(entry.id));
+        combo->addItem(fromCore(entry.name), valueKey(plynth::Json(entry.id)));
 }
 
 // Saves one changed option at once and shows the refusal in amber when core says no.
-void IntegrationsPanel::saveOption(Card& card, const QString& key, const QString& value)
+void IntegrationsPanel::saveOption(Card& card, const QString& key, const QString& valueJson)
 {
+    const plynth::Json value = plynth::Json::parse(toCore(valueJson), nullptr, false);
+    if (value.is_discarded())
+        return;
     plynth::Json changes = plynth::Json::object();
-    if (key == QStringLiteral("format")) {
-        std::vector<std::string> formats{toCore(value)};
-        for (const char* f : {"fbx", "gltf", "obj", "blend"})
-            if (value != QString::fromLatin1(f))
-                formats.emplace_back(f);
-        changes["formats"] = formats;
-    } else if (key == QStringLiteral("max_texture_size")) {
-        changes[toCore(key)] = value == QStringLiteral("none") ? plynth::Json(nullptr) : plynth::Json(value.toInt());
-    } else {
-        changes[toCore(key)] = toCore(value);
-    }
+    changes[toCore(key)] = value;
     const plynth::Status status = plynth::setIntegrationOptions(host_.paths(), card.integration->id(), changes);
+    if (status.ok())
+        return;
+    refresh();
     if (card.optionNote != nullptr) {
-        card.optionNote->setText(status.ok() ? QString() : fromCore(status.message));
-        card.optionNote->setVisible(!status.ok());
+        card.optionNote->setText(fromCore(status.message));
+        card.optionNote->setVisible(true);
     }
-    if (!status.ok())
-        refresh();
 }
 
-// Shows the saved values in the drop downs and turns the controls on or off with the library.
+// Shows a saved value in its control. A value the list lacks gets an entry of its own, and nothing is saved.
+void IntegrationsPanel::showValue(Field& field, const QString& valueJson)
+{
+    const plynth::Json value = plynth::Json::parse(toCore(valueJson), nullptr, false);
+    if (field.number != nullptr) {
+        if (!value.is_number_integer())
+            return;
+        const long long whole = value.get<long long>();
+        const int shown = static_cast<int>(std::clamp<long long>(whole, INT_MIN, INT_MAX));
+        field.number->setRange(std::min(field.minimum, shown), std::max(field.maximum, shown));
+        field.number->setValue(shown);
+        return;
+    }
+    QComboBox* combo = field.combo;
+    for (int i = combo->count() - 1; i >= 0; --i)
+        if (combo->itemData(i, kExtraRole).toBool())
+            combo->removeItem(i);
+    if (value.is_discarded()) {
+        combo->setCurrentIndex(-1);
+        return;
+    }
+    const QString wanted = valueKey(value);
+    int index = combo->findData(wanted);
+    if (index < 0) {
+        combo->addItem(shownValue(value), wanted);
+        index = combo->count() - 1;
+        combo->setItemData(index, true, kExtraRole);
+        combo->setItemData(index, tr("The saved value. It is not one of the usual choices."), Qt::ToolTipRole);
+    }
+    combo->setCurrentIndex(index);
+}
+
+// Shows the saved values in the controls and turns them on or off with the library.
 void IntegrationsPanel::refresh()
 {
     refreshing_ = true;
@@ -383,29 +477,16 @@ void IntegrationsPanel::refresh()
     const plynth::IntegrationOptionsRead read = library ? plynth::readIntegrationOptions(host_.paths())
                                                          : plynth::IntegrationOptionsRead{};
     const bool readable = library && read.status.ok();
+    const plynth::Json saved = readable ? read.saved : plynth::Json::object();
     for (Card& card : list_) {
-        const plynth::Json options = plynth::integrationOptions(*card.integration, read.saved);
-        for (auto& [key, combo] : card.options) {
-            combo->setEnabled(readable);
-            if (key == QStringLiteral("license") && combo->count() == 0)
-                fillLicenses(combo);
-            QString value;
-            if (key == QStringLiteral("format")) {
-                const auto it = options.find("formats");
-                if (it != options.end() && it->is_array() && !it->empty() && it->front().is_string())
-                    value = fromCore(it->front().get<std::string>());
-            } else if (key == QStringLiteral("max_texture_size")) {
-                const auto it = options.find("max_texture_size");
-                if (it != options.end())
-                    value = it->is_number_integer() ? QString::number(it->get<int>()) : QStringLiteral("none");
-            } else {
-                const auto it = options.find(toCore(key));
-                if (it != options.end() && it->is_string())
-                    value = fromCore(it->get<std::string>());
-            }
-            const int index = combo->findData(value);
-            if (index >= 0)
-                combo->setCurrentIndex(index);
+        const plynth::Json options = plynth::integrationOptions(*card.integration, saved);
+        for (Field& field : card.fields) {
+            QWidget* control = field.combo != nullptr ? static_cast<QWidget*>(field.combo) : field.number;
+            control->setEnabled(readable);
+            if (field.license)
+                fillLicenses(field.combo);
+            const auto it = options.find(toCore(field.key));
+            showValue(field, it != options.end() ? fromCore(it->dump()) : QString());
         }
         if (card.optionNote != nullptr) {
             QString note;
@@ -428,9 +509,7 @@ void IntegrationsPanel::updateImportButtons()
     const bool ready = actions_ != nullptr && host_.hasLibrary();
     const QString why = actions_ == nullptr ? tr("Importing arrives with the import queue") : tr("Open a library first");
     for (Card& card : list_) {
-        bool addressOk = true;
-        if (card.address != nullptr)
-            addressOk = !card.address->text().trimmed().isEmpty() && !card.addressNote->isVisible();
+        const bool addressOk = card.address == nullptr || card.addressOk;
         const bool on = ready && addressOk;
         const ButtonWords words = wordsFor(*card.integration);
         const auto set = [&](QPushButton* button, const QString& tip) {
@@ -444,16 +523,17 @@ void IntegrationsPanel::updateImportButtons()
     }
 }
 
-// Checks the address field as it changes. BlenderKit addresses are read by core.
+// Checks the address field as it changes. The integration itself says what it can use.
 void IntegrationsPanel::updateAddress(Card& card)
 {
     const QString text = card.address->text().trimmed();
     QString problem;
-    if (!text.isEmpty() && card.integration->id() == "blenderkit") {
-        const plynth::BlenderKitAddress parsed = plynth::parseBlenderKitAddress(toCore(text));
-        if (!parsed.status.ok())
-            problem = fromCore(parsed.status.message);
+    if (!text.isEmpty()) {
+        const plynth::Status status = card.integration->checkAddress(toCore(text));
+        if (!status.ok())
+            problem = fromCore(status.message);
     }
+    card.addressOk = !text.isEmpty() && problem.isEmpty();
     card.addressNote->setText(problem);
     card.addressNote->setVisible(!problem.isEmpty());
     updateImportButtons();

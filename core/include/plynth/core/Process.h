@@ -23,9 +23,6 @@ struct ProcessSpec {
     std::filesystem::path workingFolder; // empty: the current folder
     std::vector<std::pair<std::string, std::string>> environment; // added to, or replacing, the inherited ones
     std::chrono::milliseconds timeout{0}; // 0: no limit
-    // Let the program open a window, shown minimized and without taking focus, instead of
-    // starting it with no window. It still runs in the job object and its output is still read.
-    bool minimizedWindow = false;
 };
 
 // How much of the output is kept in ProcessResult::outputTail.

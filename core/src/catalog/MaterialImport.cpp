@@ -333,7 +333,9 @@ MaterialImportOutcome importMaterial(MaterialCatalog& catalog, const ImportConte
     const std::string sourceText = request.source.file.empty() ? request.source.url : pathToUtf8(request.source.file);
 
     MaterialImportPlan plan;
-    if (outcome.status = importer->plan(chosen.source, work.path(), plan); !outcome.status.ok()) return outcome;
+    outcome.status = importer->plan(chosen.source, work.path(), plan);
+    outcome.details = plan.details;
+    if (!outcome.status.ok()) return outcome;
 
     if (plan.fetch) {
         sendProgress(onProgress, ImportStage::Blender);
@@ -352,7 +354,9 @@ MaterialImportOutcome importMaterial(MaterialCatalog& catalog, const ImportConte
             outcome.status = fail(ErrorCode::Cancelled, "The import was cancelled.");
             return outcome;
         }
-        if (outcome.status = applyFetch(fetched, *plan.fetch, plan); !outcome.status.ok()) return outcome;
+        outcome.status = applyFetch(fetched, *plan.fetch, plan);
+        outcome.details = plan.details;
+        if (!outcome.status.ok()) return outcome;
     }
 
     MaterialCleanupJob cleanup;
@@ -518,11 +522,12 @@ MaterialImportOutcome importMaterialInboxEntry(MaterialCatalog& catalog, const I
 
     std::error_code ec;
     if (outcome.status.ok()) {
-        if (fs::exists(entry, ec)) moveEntry(entry, library.materialInboxDone);
+        if (fs::exists(entry, ec)) outcome.movedTo = moveEntry(entry, library.materialInboxDone);
         return outcome;
     }
     if (leavesEntryInInbox(outcome.status.code) || !fs::exists(entry, ec)) return outcome;
     const fs::path moved = moveEntry(entry, library.materialInboxFailed);
+    outcome.movedTo = moved;
     if (!moved.empty()) {
         fs::path note = moved;
         note += ".error.txt";

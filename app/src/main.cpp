@@ -169,6 +169,9 @@ int main(int argc, char* argv[])
     QCommandLineOption fabImportOption(QStringLiteral("fab-import"),
                                        QStringLiteral("Open the Fab import dialog for this model zip. For checks only."),
                                        QStringLiteral("zip"));
+    QCommandLineOption integrationFileOption(QStringLiteral("integration-file"),
+                                             QStringLiteral("Followed by an integration id and a file: does what its import button does with that file. For checks only."),
+                                             QStringLiteral("id"));
     QCommandLineOption homeOption(QStringLiteral("home"), QStringLiteral("Show the home screen. For checks only."));
     parser.addOption(zoomOption);
     parser.addOption(overlayOption);
@@ -183,6 +186,7 @@ int main(int argc, char* argv[])
     parser.addOption(integrationsTabOption);
     parser.addOption(blenderKitAddressOption);
     parser.addOption(fabImportOption);
+    parser.addOption(integrationFileOption);
     parser.addOption(alignImageOption);
     parser.addOption(roofSectionsOption);
     parser.addOption(selectRoofOption);
@@ -286,6 +290,24 @@ int main(int argc, char* argv[])
         else
             terminalWords.clear();
     }
+    // The file after the id of --integration-file is its second value, never the project folder.
+    QString integrationFile;
+    if (parser.isSet(integrationFileOption)) {
+        const QStringList raw = QApplication::arguments();
+        for (qsizetype i = 1; i < raw.size(); ++i) {
+            const bool inline_ = raw.at(i).startsWith(QStringLiteral("--integration-file="));
+            if (raw.at(i) != QStringLiteral("--integration-file") && !inline_)
+                continue;
+            const qsizetype next = inline_ ? i + 1 : i + 2;
+            if (next < raw.size())
+                integrationFile = raw.at(next);
+            break;
+        }
+        const qsizetype at = positional.lastIndexOf(integrationFile);
+        if (integrationFile.isEmpty() || at < 0)
+            return kExitBadArguments;
+        positional.removeAt(at);
+    }
     plynth::app::MainWindow window;
     window.setScreenshotMode(wantsScreenshot);
     if (hasSize)
@@ -360,6 +382,10 @@ int main(int argc, char* argv[])
     if (parser.isSet(fabImportOption)) {
         const QString zip = parser.value(fabImportOption);
         QTimer::singleShot(0, &window, [&window, zip]() { window.showFabImport(zip); });
+    }
+    if (parser.isSet(integrationFileOption)) {
+        const QString id = parser.value(integrationFileOption);
+        QTimer::singleShot(0, &window, [&window, id, integrationFile]() { window.importIntegrationFile(id, integrationFile); });
     }
     if (parser.isSet(overlayOption))
         window.setOverlay3d(true);

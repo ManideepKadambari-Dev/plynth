@@ -2,6 +2,7 @@
 
 #include "building/ProblemMark.h"
 #include "theme/ElideLabel.h"
+#include "theme/PlainText.h"
 #include "theme/Theme.h"
 
 #include <QDateTime>
@@ -78,14 +79,18 @@ public:
         auto* row = new QHBoxLayout(this);
         row->setContentsMargins(t.unit() * 2 + t.qualityMark() + t.unit() * 2, t.unit() / 2, t.unit() * 2, t.unit() / 2);
         row->setSpacing(t.unit() * 2);
-        auto* text = new QLabel(fromCore(finding.message), this);
+        auto* text = new QLabel(this);
+        text->setTextFormat(Qt::PlainText);
+        text->setText(fromCore(finding.message));
         text->setWordWrap(true);
         text->setFont(t.uiFont(t.sizeSmall()));
         text->setAttribute(Qt::WA_TransparentForMouseEvents);
         row->addWidget(text, 1);
         const QString name = clickable ? planId_ : fromCore(finding.object);
         if (!name.isEmpty()) {
-            auto* id = new QLabel(name, this);
+            auto* id = new QLabel(this);
+            id->setTextFormat(Qt::PlainText);
+            id->setText(name);
             id->setFont(t.monoFont(t.sizeSmall()));
             id->setStyleSheet(QStringLiteral("color: %1;").arg(clickable ? t.signalAmber().name() : t.muted().name()));
             id->setAttribute(Qt::WA_TransparentForMouseEvents);
@@ -118,17 +123,21 @@ public:
         header_ = new QWidget(this);
         const bool hasFindings = !check.findings.empty();
         header_->setCursor(hasFindings ? Qt::PointingHandCursor : Qt::ArrowCursor);
-        header_->setToolTip(hasFindings ? tr("Show or hide what this check found") : fromCore(check.message));
+        header_->setToolTip(hasFindings ? tr("Show or hide what this check found") : plainToolTip(fromCore(check.message)));
         header_->setProperty("tourId", QStringLiteral("export-check-row"));
         auto* row = new QHBoxLayout(header_);
         row->setContentsMargins(t.unit() * 2 + t.qualityMark() + t.unit() * 2, t.unit(), t.unit() * 2, t.unit());
         row->setSpacing(t.unit() * 2);
         auto* texts = new QVBoxLayout();
         texts->setSpacing(0);
-        auto* name = new QLabel(fromCore(check.name), header_);
+        auto* name = new QLabel(header_);
+        name->setTextFormat(Qt::PlainText);
+        name->setText(fromCore(check.name));
         name->setFont(t.uiFont(t.sizeNormal(), QFont::DemiBold));
         name->setAttribute(Qt::WA_TransparentForMouseEvents);
-        auto* message = new QLabel(fromCore(check.message), header_);
+        auto* message = new QLabel(header_);
+        message->setTextFormat(Qt::PlainText);
+        message->setText(fromCore(check.message));
         message->setWordWrap(true);
         message->setFont(t.uiFont(t.sizeSmall()));
         message->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
@@ -268,7 +277,7 @@ void ExportPanel::addRow(QWidget* host, const QString& name, const QString& valu
     label->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
     auto* shown = new ElideLabel(value, host);
     shown->setFont(mono ? t.monoFont(t.sizeNormal()) : t.uiFont(t.sizeNormal()));
-    shown->setToolTip(value);
+    shown->setToolTip(plainToolTip(value));
     grid->addWidget(label, row, 0);
     grid->addWidget(shown, row, 1);
 }
@@ -356,7 +365,9 @@ void ExportPanel::setReport(const plynth::ExportReport* report, const ExportPane
     column_->addWidget(buttons);
 
     auto note = [&](const QString& text, const QColor& color) {
-        auto* label = new QLabel(text, body_);
+        auto* label = new QLabel(body_);
+        label->setTextFormat(Qt::PlainText);
+        label->setText(text);
         label->setWordWrap(true);
         label->setFont(t.uiFont(t.sizeNormal()));
         label->setStyleSheet(QStringLiteral("color: %1;").arg(color.name()));

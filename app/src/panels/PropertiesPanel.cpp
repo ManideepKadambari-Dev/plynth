@@ -194,6 +194,7 @@ QLabel* PropertiesPanel::addLabelRow(QGridLayout* grid, const QString& label, bo
     name->setFont(t.uiFont(t.sizeSmall()));
     name->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
     auto* value = new QLabel(grid->parentWidget());
+    value->setTextFormat(Qt::PlainText);
     value->setFont(mono ? t.monoFont(t.sizeNormal()) : t.uiFont(t.sizeNormal()));
     value->setTextInteractionFlags(Qt::NoTextInteraction);
     value->setWordWrap(true);
@@ -249,6 +250,7 @@ QLabel* PropertiesPanel::addNote(QGridLayout* grid)
 {
     const Theme& t = Theme::instance();
     auto* note = new QLabel(grid->parentWidget());
+    note->setTextFormat(Qt::PlainText);
     note->setFont(t.uiFont(t.sizeSmall()));
     note->setWordWrap(true);
     note->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
@@ -468,6 +470,7 @@ void PropertiesPanel::buildStairPage()
     stairLength_ = addLabelRow(grid, tr("Length"));
     stairLength_->setToolTip(tr("The length of the walk line from the bottom step to the upper floor"));
     stairProblems_ = new QLabel(grid->parentWidget());
+    stairProblems_->setTextFormat(Qt::PlainText);
     stairProblems_->setFont(t.uiFont(t.sizeSmall()));
     stairProblems_->setWordWrap(true);
     stairProblems_->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
@@ -1053,6 +1056,7 @@ void PropertiesPanel::buildDetectPage()
     editors_.push_back(detectorCombo_);
 
     detectStatus_ = new QLabel(page);
+    detectStatus_->setTextFormat(Qt::PlainText);
     detectStatus_->setFont(t.uiFont(t.sizeSmall()));
     detectStatus_->setWordWrap(true);
     detectStatus_->setToolTip(tr("What detection found, or why it could not run"));
@@ -1542,9 +1546,10 @@ void PropertiesPanel::refreshUnusedRoofEntries()
         auto* row = new QWidget(unusedRoofBox_);
         auto* rowLayout = new QHBoxLayout(row);
         rowLayout->setContentsMargins(0, 0, 0, 0);
-        auto* text = new QLabel(fromCore(entry->id) + QStringLiteral("  ") + fromCore(entry->floor) +
-                                    QStringLiteral(" (%1, %2)").arg(entry->x, 0, 'f', 2).arg(entry->y, 0, 'f', 2),
-                                row);
+        auto* text = new QLabel(row);
+        text->setTextFormat(Qt::PlainText);
+        text->setText(fromCore(entry->id) + QStringLiteral("  ") + fromCore(entry->floor) +
+                      QStringLiteral(" (%1, %2)").arg(entry->x, 0, 'f', 2).arg(entry->y, 0, 'f', 2));
         text->setFont(t.monoFont(t.sizeNormal()));
         text->setToolTip(tr("A roof entry on this floor whose spot holds no roof section"));
         rowLayout->addWidget(text, 1);
@@ -1769,6 +1774,7 @@ void PropertiesPanel::buildOpeningPage()
     openingHeight_ = addKeyedSpinRow(grid, tr("Height"), 0.01, 100.0, 0.05, tr("Height of the opening"),
                                      QStringLiteral("panel-opening-height"));
     openingProblem_ = new QLabel(grid->parentWidget());
+    openingProblem_->setTextFormat(Qt::PlainText);
     openingProblem_->setFont(t.uiFont(t.sizeSmall()));
     openingProblem_->setWordWrap(true);
     openingProblem_->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
@@ -1977,6 +1983,7 @@ void PropertiesPanel::buildItemPage()
     grid->addWidget(itemThumb_, grid->rowCount(), 0, 1, 2, Qt::AlignLeft);
 
     itemName_ = new QLabel(page);
+    itemName_->setTextFormat(Qt::PlainText);
     itemName_->setFont(t.uiFont(t.sizeLarge(), QFont::DemiBold));
     itemName_->setToolTip(tr("The name of the asset"));
     grid->addWidget(itemName_, grid->rowCount(), 0, 1, 2);
@@ -1988,6 +1995,7 @@ void PropertiesPanel::buildItemPage()
     itemSize_->setToolTip(tr("Width, depth and height of the item"));
 
     itemState_ = new QLabel(page);
+    itemState_->setTextFormat(Qt::PlainText);
     itemState_->setFont(t.uiFont(t.sizeSmall()));
     itemState_->setWordWrap(true);
     itemState_->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
@@ -2060,6 +2068,7 @@ void PropertiesPanel::buildItemPage()
     editors_.push_back(itemSwap_);
 
     itemProblems_ = new QLabel(page);
+    itemProblems_->setTextFormat(Qt::PlainText);
     itemProblems_->setFont(t.uiFont(t.sizeSmall()));
     itemProblems_->setWordWrap(true);
     itemProblems_->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));

@@ -48,6 +48,7 @@ MaterialPreview::MaterialPreview(QWidget* parent) : QWidget(parent)
     box->addWidget(thumb_, 0, Qt::AlignHCenter);
 
     name_ = new QLabel(body_);
+    name_->setTextFormat(Qt::PlainText);
     name_->setFont(t.uiFont(t.sizeLarge(), QFont::DemiBold));
     name_->setWordWrap(true);
     box->addWidget(name_);
@@ -58,12 +59,14 @@ MaterialPreview::MaterialPreview(QWidget* parent) : QWidget(parent)
     box->addWidget(tile_);
 
     groups_ = new QLabel(body_);
+    groups_->setTextFormat(Qt::PlainText);
     groups_->setFont(t.uiFont(t.sizeSmall()));
     groups_->setWordWrap(true);
     groups_->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
     box->addWidget(groups_);
 
     license_ = new QLabel(body_);
+    license_->setTextFormat(Qt::PlainText);
     license_->setFont(t.uiFont(t.sizeSmall()));
     license_->setWordWrap(true);
     license_->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));

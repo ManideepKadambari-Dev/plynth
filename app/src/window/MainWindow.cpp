@@ -54,6 +54,7 @@
 #include <plynth/core/SetupCheck.h>
 #include <plynth/core/catalog/AssetImport.h>
 #include <plynth/core/catalog/FabZip.h>
+#include <plynth/core/catalog/Integrations.h>
 #include <plynth/core/commands/FloorCommands.h>
 
 #include <QAbstractSpinBox>
@@ -314,6 +315,14 @@ MainWindow::MainWindow(QWidget* parent)
             showMaterialImport();
         else
             importDialog();
+    });
+    storeImports_->setOwnPaths([this](const QStringList& paths, bool material) {
+        if (!material) {
+            importPaths(paths);
+            return;
+        }
+        materialImport_->addSources(paths);
+        showMaterialImport();
     });
     integrations_->setActions(storeImports_);
     connect(queueView_, &ImportQueueView::pickModelRequested, storeImports_, &StoreImports::pickModel);
@@ -804,6 +813,19 @@ void MainWindow::showFabImport(const QString& zip)
     fabDialog_ = storeImports_->openFabDialog({zip}, false);
 }
 
+// For checks only: hands one chosen file to an integration as its import button would.
+void MainWindow::importIntegrationFile(const QString& integrationId, const QString& file)
+{
+    const plynth::Integration* integration = plynth::findIntegration(integrationId.toStdString());
+    if (integration == nullptr)
+        return;
+    const bool material = integration->assetImporters().empty();
+    // A Fab zip opens the check dialog instead of a queue row, so the picture does not wait for one.
+    if (!isFabIntegration(*integration) && !material)
+        importAsked_ = true;
+    storeImports_->importChosenFiles(integrationId, {file}, material, false);
+}
+
 // For checks only: true when the Integrations tab was not asked for, or its check has ended.
 bool MainWindow::integrationsPictureReady() const
 {
@@ -1040,11 +1062,13 @@ void MainWindow::setCutAtFloor(bool on)
     cutAtFloorAction_->setChecked(on);
 }
 
+// True when the 3D view shows the roofs.
 bool MainWindow::showRoofs3d() const
 {
     return showRoofs3dAction_->isChecked();
 }
 
+// True when the 3D view is cut at the shown floor.
 bool MainWindow::cutAtFloor() const
 {
     return cutAtFloorAction_->isChecked();
@@ -1517,6 +1541,7 @@ void MainWindow::removeFloor(const QString& floorId)
         const QString name = floor->name.empty() ? floorId : fromCore(floor->name);
         QMessageBox box(this);
         box.setIcon(QMessageBox::NoIcon);
+        box.setTextFormat(Qt::PlainText);
         box.setWindowTitle(tr("Remove floor"));
         box.setText(tr("Remove %1 with its walls, rooms, openings, furniture and stairs? Undo brings it back.").arg(name));
         QPushButton* remove = box.addButton(tr("Remove"), QMessageBox::DestructiveRole);
@@ -1814,6 +1839,7 @@ void MainWindow::reloadOrAsk()
     asking_ = true;
     QMessageBox box(this);
     box.setIcon(QMessageBox::NoIcon);
+    box.setTextFormat(Qt::PlainText);
     box.setWindowTitle(tr("Project changed"));
     box.setText(tr("The plan was changed outside Plynth. Load the new version? Your unsaved changes will be lost."));
     QPushButton* load = box.addButton(tr("Load"), QMessageBox::AcceptRole);
@@ -1850,6 +1876,7 @@ void MainWindow::unlockNow()
     if (!screenshotMode_) {
         QMessageBox box(this);
         box.setIcon(QMessageBox::NoIcon);
+        box.setTextFormat(Qt::PlainText);
         box.setWindowTitle(tr("Unlock now"));
         box.setText(tr("Unlocking ends the command line session. Its next edit will be refused until it begins a new one."));
         QPushButton* unlock = box.addButton(tr("Unlock"), QMessageBox::AcceptRole);
@@ -1963,6 +1990,7 @@ bool MainWindow::confirmDiscardChanges()
     if (terminal_->hasRunningProgram()) {
         QMessageBox box(this);
         box.setIcon(QMessageBox::NoIcon);
+        box.setTextFormat(Qt::PlainText);
         box.setWindowTitle(tr("Terminal"));
         box.setText(tr("A program is still running in the terminal. Closing the project will stop it."));
         QPushButton* stop = box.addButton(tr("Stop it"), QMessageBox::AcceptRole);
@@ -1977,6 +2005,7 @@ bool MainWindow::confirmDiscardChanges()
     if (doc_.isModified()) {
         QMessageBox box(this);
         box.setIcon(QMessageBox::NoIcon);
+        box.setTextFormat(Qt::PlainText);
         box.setWindowTitle(tr("Unsaved changes"));
         box.setText(tr("Save changes to %1?").arg(projectName()));
         QPushButton* save = box.addButton(tr("Save"), QMessageBox::AcceptRole);
@@ -2144,6 +2173,7 @@ void MainWindow::offerRecovery()
 
     QMessageBox box(this);
     box.setIcon(QMessageBox::NoIcon);
+    box.setTextFormat(Qt::PlainText);
     box.setWindowTitle(tr("Recover changes"));
     box.setText(text);
     QPushButton* recover = box.addButton(tr("Recover"), QMessageBox::AcceptRole);
@@ -2225,6 +2255,7 @@ void MainWindow::showError(const QString& title, const QString& message)
 {
     QMessageBox box(this);
     box.setIcon(QMessageBox::NoIcon);
+    box.setTextFormat(Qt::PlainText);
     box.setWindowTitle(title);
     box.setText(message);
     box.setStandardButtons(QMessageBox::Ok);

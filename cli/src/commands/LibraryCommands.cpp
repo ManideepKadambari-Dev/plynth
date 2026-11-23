@@ -26,7 +26,7 @@ struct SampleShapesOptions {
 
 struct RescanOptions {
     std::string library;
-    std::string blender;
+    BlenderOption blender;
     bool noBlender = false;
 };
 
@@ -120,6 +120,9 @@ Answer libraryRescan(const RunContext& context, const RescanOptions& options) {
     const std::string command = "library rescan";
     OpenedCatalog opened;
     Answer failed;
+    if (refuseEmptyBlender(command, options.blender, failed)) {
+        return failed;
+    }
     if (!openCatalog(command, context, options.library, opened, failed)) {
         return failed;
     }

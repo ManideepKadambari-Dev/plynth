@@ -36,7 +36,8 @@ def read_source(path):
         problem = "has textures that it does not list as files"
     elif data.get("metadata") is not None and data["metadata"] not in data["files"]:
         problem = "has metadata that it does not list as a file"
-    elif not isinstance(data.get("maps"), dict) or data.get("normal") not in NORMAL_CHOICES:
+    elif not fab_materials.maps_are_valid(data.get("maps"), data["files"]) or \
+            data.get("normal") not in NORMAL_CHOICES:
         problem = "has bad maps or normal fields"
     if problem:
         raise WorkerError("import_failed", "The Fab source file %s." % problem)
@@ -89,6 +90,7 @@ def pick_set(sets):
     if not usable:
         return None
 
+    # Ranks a set by how many channels it fills, then by its name.
     def count(key):
         entry = usable[key]
         return len(entry["channels"]) + bool(entry["gloss"]) + bool(entry["packed"]), key
@@ -104,6 +106,7 @@ def load(ctx, source):
     members = sorted(set(data["textures"]) | ({data["metadata"]} if data["metadata"] else set()))
     zip_importer.unpack(data["zip"], folder, members)
 
+    # Returns where an entry of the zip was unpacked.
     def local(entry):
         return os.path.join(folder, *entry.split("/"))
 
@@ -122,7 +125,8 @@ def load(ctx, source):
         picks[channel] = path
     values = dict(source.get("values", {}))
 
-    files = [local(entry) for entry in data["textures"] if os.path.isfile(local(entry))]
+    files = [local(entry) for entry in data["textures"]
+             if not fab_names.is_preview(entry) and os.path.isfile(local(entry))]
     chosen = pick_set(fab_materials.make_sets(files)) or {"channels": {}, "gloss": [], "packed": [], "ignored": []}
     used = set(picks.values())
     plans = {}

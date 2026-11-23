@@ -1,10 +1,13 @@
 #include <plynth/core/ZipListing.h>
 
+#include <plynth/core/ProjectFiles.h>
+
 #include <algorithm>
 #include <array>
 #include <cctype>
 #include <cstring>
 #include <fstream>
+#include <string_view>
 #include <system_error>
 
 namespace plynth {
@@ -56,16 +59,20 @@ std::string cp437ToUtf8(const char* bytes, std::size_t n)
     return out;
 }
 
+// Reads a two byte number stored low byte first.
 std::uint16_t u16(const unsigned char* p) { return static_cast<std::uint16_t>(p[0] | (p[1] << 8)); }
 
+// Reads a four byte number stored low byte first.
 std::uint32_t u32(const unsigned char* p)
 {
     return static_cast<std::uint32_t>(p[0]) | (static_cast<std::uint32_t>(p[1]) << 8) | (static_cast<std::uint32_t>(p[2]) << 16) |
            (static_cast<std::uint32_t>(p[3]) << 24);
 }
 
+// Reads an eight byte number stored low byte first.
 std::uint64_t u64(const unsigned char* p) { return static_cast<std::uint64_t>(u32(p)) | (static_cast<std::uint64_t>(u32(p + 4)) << 32); }
 
+// The answer for a zip whose directory is broken.
 ZipListing damaged() { return {fail(ErrorCode::BadFile, "The zip file is damaged."), {}}; }
 
 // Reads bytes at an offset. False when the file is too short.
@@ -78,17 +85,71 @@ bool readAt(std::ifstream& in, std::uint64_t offset, std::vector<unsigned char>&
     return static_cast<std::size_t>(in.gcount()) == count;
 }
 
-// Says whether a name could write outside the folder it is unpacked into.
+// Says whether bytes are valid UTF-8, without overlong forms, surrogates or values past U+10FFFF.
+bool isValidUtf8(const char* bytes, std::size_t n)
+{
+    std::size_t i = 0;
+    while (i < n) {
+        const auto b = static_cast<unsigned char>(bytes[i]);
+        if (b < 0x80) {
+            ++i;
+            continue;
+        }
+        std::size_t extra = 0;
+        char32_t cp = 0;
+        if (b >= 0xC2 && b <= 0xDF) {
+            extra = 1;
+            cp = static_cast<char32_t>(b & 0x1F);
+        } else if (b >= 0xE0 && b <= 0xEF) {
+            extra = 2;
+            cp = static_cast<char32_t>(b & 0x0F);
+        } else if (b >= 0xF0 && b <= 0xF4) {
+            extra = 3;
+            cp = static_cast<char32_t>(b & 0x07);
+        } else {
+            return false;
+        }
+        if (i + extra >= n) return false;
+        for (std::size_t k = 1; k <= extra; ++k) {
+            const auto c = static_cast<unsigned char>(bytes[i + k]);
+            if ((c & 0xC0) != 0x80) return false;
+            cp = (cp << 6) | static_cast<char32_t>(c & 0x3F);
+        }
+        if ((extra == 2 && cp < 0x800) || (extra == 3 && cp < 0x10000)) return false;
+        if (cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF)) return false;
+        i += extra + 1;
+    }
+    return true;
+}
+
+// Says whether a part of a name is a Windows device name, which Windows opens as that device in any folder.
+bool isDeviceName(std::string_view part)
+{
+    std::string base(part.substr(0, part.find('.')));
+    while (!base.empty() && base.back() == ' ') base.pop_back();
+    std::transform(base.begin(), base.end(), base.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    if (base == "con" || base == "prn" || base == "aux" || base == "nul" || base == "conin$" || base == "conout$") return true;
+    if (base.size() < 4 || (base.compare(0, 3, "com") != 0 && base.compare(0, 3, "lpt") != 0)) return false;
+    const std::string_view number = std::string_view(base).substr(3);
+    if (number.size() == 1) return number[0] >= '1' && number[0] <= '9';
+    // The superscript digits one, two and three in UTF-8.
+    return number == "\xC2\xB9" || number == "\xC2\xB2" || number == "\xC2\xB3";
+}
+
+// Says whether a name could write outside the folder it is unpacked into, or into another file or a device.
 bool isUnsafeName(const std::string& name)
 {
     if (name.empty()) return false;
-    if (name[0] == '/') return true;
-    if (name.size() >= 2 && name[1] == ':' && std::isalpha(static_cast<unsigned char>(name[0]))) return true;
+    if (name[0] == '/' || name.find(':') != std::string::npos) return true;
     std::size_t start = 0;
-    while (start <= name.size()) {
+    while (start < name.size()) {
         std::size_t end = name.find('/', start);
         if (end == std::string::npos) end = name.size();
-        if (name.compare(start, end - start, "..") == 0) return true;
+        const std::string_view part = std::string_view(name).substr(start, end - start);
+        if (!part.empty() && part != ".") {
+            if (part.back() == '.' || part.back() == ' ') return true;
+            if (isDeviceName(part)) return true;
+        }
         start = end + 1;
     }
     return false;
@@ -96,14 +157,16 @@ bool isUnsafeName(const std::string& name)
 
 }
 
+// Reads the list of files inside a zip from its central directory.
 ZipListing listZipEntries(const fs::path& file)
 {
     std::error_code ec;
-    if (!fs::exists(file, ec)) return {fail(ErrorCode::NotFound, "The zip file does not exist: " + file.string()), {}};
+    const std::string shown = pathToUtf8(file);
+    if (!fs::exists(file, ec)) return {fail(ErrorCode::NotFound, "The zip file does not exist: " + shown), {}};
     std::ifstream in(file, std::ios::binary);
-    if (!in) return {fail(ErrorCode::CannotRead, "The zip file cannot be opened: " + file.string()), {}};
+    if (!in) return {fail(ErrorCode::CannotRead, "The zip file cannot be opened: " + shown), {}};
     const std::uint64_t fileSize = fs::file_size(file, ec);
-    if (ec) return {fail(ErrorCode::CannotRead, "The zip file cannot be read: " + file.string()), {}};
+    if (ec) return {fail(ErrorCode::CannotRead, "The zip file cannot be read: " + shown), {}};
 
     const auto notZip = [] { return ZipListing{fail(ErrorCode::BadFile, "This is not a zip file."), {}}; };
     if (fileSize < 22) return notZip();
@@ -112,7 +175,7 @@ ZipListing listZipEntries(const fs::path& file)
     const std::uint64_t tailStart = fileSize - tailSize;
     std::vector<unsigned char> tail;
     if (!readAt(in, tailStart, tail, static_cast<std::size_t>(tailSize)))
-        return {fail(ErrorCode::CannotRead, "The zip file cannot be read: " + file.string()), {}};
+        return {fail(ErrorCode::CannotRead, "The zip file cannot be read: " + shown), {}};
 
     std::size_t eocd = tail.size();
     for (std::size_t i = tail.size() - 21; i-- > 0;) {
@@ -186,6 +249,11 @@ ZipListing listZipEntries(const fs::path& file)
         std::size_t used = nameLen;
         const void* nul = std::memchr(nameBytes, 0, nameLen);
         if (nul) used = static_cast<std::size_t>(static_cast<const char*>(nul) - nameBytes);
+        if ((flags & 0x0800) && !isValidUtf8(nameBytes, used)) {
+            ZipListing bad{fail(ErrorCode::BadFile, "The zip file holds a file name that is not valid UTF-8."), {}};
+            bad.badName = true;
+            return bad;
+        }
         entry.name = (flags & 0x0800) ? std::string(nameBytes, used) : cp437ToUtf8(nameBytes, used);
         std::replace(entry.name.begin(), entry.name.end(), '\\', '/');
         entry.size = size;

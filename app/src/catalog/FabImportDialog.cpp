@@ -1,7 +1,9 @@
 #include "FabImportDialog.h"
 
 #include "theme/ElideLabel.h"
+#include "theme/PlainText.h"
 #include "theme/Theme.h"
+#include "theme/WheelGuard.h"
 
 #include <plynth/core/catalog/FabZip.h>
 #include <plynth/core/catalog/MaterialInfo.h>
@@ -13,6 +15,7 @@
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QLineEdit>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QStackedWidget>
@@ -26,11 +29,13 @@ namespace {
 
 using Json = nlohmann::ordered_json;
 
+// Turns core text into Qt text.
 QString fromCore(const std::string& text)
 {
     return QString::fromUtf8(text.data(), static_cast<qsizetype>(text.size()));
 }
 
+// Turns Qt text into core text.
 std::string toCore(const QString& text)
 {
     const QByteArray bytes = text.toUtf8();
@@ -41,11 +46,12 @@ std::string toCore(const QString& text)
 QLabel* caption(const QString& text, QWidget* parent)
 {
     const Theme& t = Theme::instance();
-    auto* label = new QLabel(text, parent);
+    auto* label = new QLabel(parent);
+    label->setTextFormat(Qt::PlainText);
+    label->setText(text);
     label->setFont(t.uiFont(t.sizeSmall()));
     label->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
     label->setWordWrap(true);
-    label->setTextFormat(Qt::PlainText);
     return label;
 }
 
@@ -53,7 +59,9 @@ QLabel* caption(const QString& text, QWidget* parent)
 QLabel* heading(const QString& text, QWidget* parent)
 {
     const Theme& t = Theme::instance();
-    auto* label = new QLabel(text, parent);
+    auto* label = new QLabel(parent);
+    label->setTextFormat(Qt::PlainText);
+    label->setText(text);
     label->setFont(t.uiFont(t.sizeNormal(), QFont::DemiBold));
     return label;
 }
@@ -83,14 +91,17 @@ QString modelLabel(const Json& model)
 
 // Builds the pages, the navigation and the buttons.
 FabImportDialog::FabImportDialog(const plynth::LibraryPaths& library, const QStringList& zips, bool material,
-                                 bool keepZips, QWidget* parent)
-    : QDialog(parent), library_(library), material_(material)
+                                 bool keepZips, const std::string& importer, QWidget* parent)
+    : QDialog(parent), library_(library), material_(material), importer_(importer)
 {
     const Theme& t = Theme::instance();
-    setWindowTitle(material ? tr("Import Fab material zips") : tr("Import Fab model zips"));
+    if (importer_ == plynth::kFabImporterId)
+        setWindowTitle(material ? tr("Import Fab material zips") : tr("Import Fab model zips"));
+    else
+        setWindowTitle(tr("Pick the model"));
     setModal(true);
     setProperty("tourId", QStringLiteral("fab-import-dialog"));
-    setToolTip(tr("Check what Plynth takes from each Fab zip before it imports them"));
+    setToolTip(tr("Check what Plynth takes from each file before it imports them"));
     resize(t.unit() * 140, t.unit() * 100);
     setMinimumSize(t.unit() * 80, t.unit() * 60);
 
@@ -101,6 +112,7 @@ FabImportDialog::FabImportDialog(const plynth::LibraryPaths& library, const QStr
     auto* nav = new QHBoxLayout();
     nav->setSpacing(t.unit() * 2);
     where_ = new QLabel(this);
+    where_->setTextFormat(Qt::PlainText);
     where_->setFont(t.uiFont(t.sizeNormal(), QFont::DemiBold));
     where_->setToolTip(tr("Which zip is shown"));
     nav->addWidget(where_, 1);
@@ -122,6 +134,9 @@ FabImportDialog::FabImportDialog(const plynth::LibraryPaths& library, const QStr
     keep_->setChecked(keepZips);
     keep_->setToolTip(tr("On: the zips stay where they are. Off: they go to the Recycle Bin after a good import."));
     keep_->setProperty("tourId", QStringLiteral("fab-keep-zip"));
+    const bool anyZip = std::any_of(zips.begin(), zips.end(),
+                                    [](const QString& zip) { return zip.endsWith(QStringLiteral(".zip"), Qt::CaseInsensitive); });
+    keep_->setVisible(anyZip);
     layout->addWidget(keep_);
 
     auto* buttons = new QDialogButtonBox(this);
@@ -139,7 +154,6 @@ FabImportDialog::FabImportDialog(const plynth::LibraryPaths& library, const QStr
     connect(next_, &QPushButton::clicked, this, [this]() { showPage(current_ + 1); });
 
     pages_.resize(static_cast<size_t>(zips.size()));
-    channels_.resize(pages_.size());
     for (int i = 0; i < zips.size(); ++i) {
         pages_[static_cast<size_t>(i)].zip = zips[i];
         buildPage(i);
@@ -160,9 +174,11 @@ void FabImportDialog::buildPage(int index)
 
     auto* top = new QHBoxLayout();
     top->setSpacing(t.unit() * 2);
-    auto* name = new ElideLabel(QFileInfo(page.zip).fileName(), widget);
+    auto* name = new ElideLabel(widget);
+    name->setTextFormat(Qt::PlainText);
+    name->setText(QFileInfo(page.zip).fileName());
     name->setFont(t.monoFont(t.sizeNormal()));
-    name->setToolTip(page.zip);
+    name->setToolTip(plainToolTip(page.zip));
     top->addWidget(name, 1);
     page.leaveOut = new QCheckBox(tr("Leave this zip out"), widget);
     page.leaveOut->setStyle(t.controlStyle());
@@ -199,21 +215,22 @@ void FabImportDialog::fill(int index)
     if (material_) {
         plynth::MaterialImportRequest request;
         request.source.file = file;
-        request.importer = std::string(plynth::kFabImporterId);
+        request.importer = importer_;
         request.importerOptions = page.options;
         page.preview = plynth::previewMaterialImport(library_, request);
     } else {
         plynth::ImportRequest request;
         request.source.file = file;
-        request.importer = std::string(plynth::kFabImporterId);
+        request.importer = importer_;
         request.importerOptions = page.options;
         page.preview = plynth::previewAssetImport(library_, request);
     }
     page.ready = page.preview.status.ok();
 
     if (!page.ready) {
-        auto* why = new QLabel(fromCore(page.preview.status.message), page.body);
+        auto* why = new QLabel(page.body);
         why->setTextFormat(Qt::PlainText);
+        why->setText(fromCore(page.preview.status.message));
         why->setWordWrap(true);
         why->setFont(t.uiFont(t.sizeNormal()));
         why->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
@@ -229,8 +246,9 @@ void FabImportDialog::fill(int index)
                 combo->addItem(tr("Pick a model..."), QString());
                 for (const Json& model : models)
                     combo->addItem(modelLabel(model), textOf(model, "entry"));
-                combo->setToolTip(tr("The zip holds several models. Choose the one to import."));
+                combo->setToolTip(tr("The file holds several models. Choose the one to import."));
                 combo->setProperty("tourId", QStringLiteral("fab-model"));
+                WheelGuard::guard(combo);
                 connect(combo, &QComboBox::activated, this, [this, index, combo](int at) {
                     const QString entry = combo->itemData(at).toString();
                     if (!entry.isEmpty())
@@ -262,6 +280,7 @@ void FabImportDialog::fill(int index)
         combo->setCurrentIndex(current);
         combo->setToolTip(tr("The model Plynth takes. Choose another version of the model to use it instead."));
         combo->setProperty("tourId", QStringLiteral("fab-model"));
+        WheelGuard::guard(combo);
         connect(combo, &QComboBox::activated, this, [this, index, combo](int at) {
             chooseModel(index, combo->itemData(at).toString());
         });
@@ -271,36 +290,69 @@ void FabImportDialog::fill(int index)
     const Json textures = details.value("textures", Json::array());
     page.layout->addWidget(heading(tr("Textures"), page.body));
     if (details.contains("texture_resolution") && details["texture_resolution"].is_number_integer()) {
-        page.layout->addWidget(caption(tr("Taken at %1 pixels across.").arg(details["texture_resolution"].get<int>()),
+        page.layout->addWidget(caption(tr("Taken at up to %1 pixels across.").arg(details["texture_resolution"].get<int>()),
                                        page.body));
     }
     if (textures.empty())
         page.layout->addWidget(caption(tr("No textures were found. The materials keep the colors of the model."), page.body));
+    else if (!material_)
+        page.layout->addWidget(caption(tr("A texture can go to one material by its name. The names are in the Materials "
+                                          "list of the imported asset, so keep the zip to import it again with them."),
+                                       page.body));
+    const QStringList typed = typedMaterials();
     for (const Json& texture : textures) {
         const QString entry = fromCore(texture.is_string() ? texture.get<std::string>() : std::string());
+        TextureChoice shown{entry};
+        for (const TextureChoice& choice : page.textures)
+            if (choice.entry == entry)
+                shown = choice;
         auto* wrap = new QWidget(page.body);
         auto* row = new QHBoxLayout(wrap);
         row->setContentsMargins(0, 0, 0, 0);
         row->setSpacing(t.unit() * 2);
-        auto* name = new ElideLabel(entry, wrap);
+        auto* name = new ElideLabel(wrap);
+        name->setTextFormat(Qt::PlainText);
+        name->setText(entry);
         name->setFont(t.monoFont(t.sizeSmall()));
-        name->setToolTip(entry);
+        name->setToolTip(plainToolTip(entry));
         row->addWidget(name, 1);
+        if (!material_) {
+            auto* which = new QComboBox(wrap);
+            which->setStyle(t.controlStyle());
+            which->setFont(t.uiFont(t.sizeSmall()));
+            which->setEditable(true);
+            which->setInsertPolicy(QComboBox::NoInsert);
+            which->addItem(tr("Every material"), QStringLiteral("*"));
+            for (const QString& typedName : typed)
+                which->addItem(typedName, typedName);
+            if (shown.material == QStringLiteral("*"))
+                which->setCurrentIndex(0);
+            else
+                which->setCurrentText(shown.material);
+            which->setToolTip(tr("The material this texture is for. Type a material name of the model, or keep Every material."));
+            which->setProperty("tourId", QStringLiteral("fab-material"));
+            WheelGuard::guard(which);
+            connect(which, &QComboBox::activated, this, [this, index, entry, which](int at) {
+                chooseMaterial(index, entry, which->itemData(at).toString());
+            });
+            connect(which->lineEdit(), &QLineEdit::editingFinished, this, [this, index, entry, which]() {
+                chooseMaterial(index, entry, which->currentText());
+            });
+            row->addWidget(which);
+        }
         auto* combo = new QComboBox(wrap);
         combo->setStyle(t.controlStyle());
         combo->setFont(t.uiFont(t.sizeSmall()));
         combo->addItem(tr("Automatic"), QString());
         for (const plynth::MapChannel channel : plynth::allMapChannels()) {
-            const QString name2 = fromCore(std::string(plynth::mapChannelName(channel)));
-            combo->addItem(name2, name2);
+            const QString channelName = fromCore(std::string(plynth::mapChannelName(channel)));
+            combo->addItem(channelName, channelName);
         }
-        QString chosen;
-        for (const auto& pair : channels_[static_cast<size_t>(index)])
-            if (pair.first == entry)
-                chosen = pair.second;
-        combo->setCurrentIndex(std::max(0, combo->findData(chosen)));
-        combo->setToolTip(tr("Which channel this texture is for. Automatic reads it from the file name."));
+        combo->setCurrentIndex(std::max(0, combo->findData(shown.channel)));
+        combo->setToolTip(tr("Which channel this texture is for. Automatic reads it from the file name. "
+                             "Each material takes one texture for each channel."));
         combo->setProperty("tourId", QStringLiteral("fab-channel"));
+        WheelGuard::guard(combo);
         connect(combo, &QComboBox::activated, this, [this, index, entry, combo](int at) {
             chooseChannel(index, entry, combo->itemData(at).toString());
         });
@@ -362,22 +414,76 @@ void FabImportDialog::chooseModel(int index, const QString& entry)
     fill(index);
 }
 
-// Takes the channel the user set for a texture and asks core again.
+// The choice of one texture on a page, Automatic for every material when it is new.
+FabImportDialog::TextureChoice& FabImportDialog::choiceFor(int index, const QString& entry)
+{
+    auto& list = pages_[static_cast<size_t>(index)].textures;
+    for (TextureChoice& choice : list)
+        if (choice.entry == entry)
+            return choice;
+    list.push_back(TextureChoice{entry});
+    return list.back();
+}
+
+// Takes the channel the user set for a texture. An older texture on the same material and channel goes back
+// to Automatic, so each material gets one texture for each channel. Then asks core again.
 void FabImportDialog::chooseChannel(int index, const QString& entry, const QString& channel)
 {
-    auto& list = channels_[static_cast<size_t>(index)];
-    std::erase_if(list, [&](const auto& pair) { return pair.first == entry; });
+    TextureChoice& chosen = choiceFor(index, entry);
+    if (chosen.channel == channel)
+        return;
+    chosen.channel = channel;
     if (!channel.isEmpty())
-        list.emplace_back(entry, channel);
+        for (TextureChoice& other : pages_[static_cast<size_t>(index)].textures)
+            if (other.entry != entry && other.material == chosen.material && other.channel == channel)
+                other.channel.clear();
+    writeMaps(index);
+    fill(index);
+}
+
+// Takes the material the user typed or picked for a texture, with the same one texture rule as a channel.
+void FabImportDialog::chooseMaterial(int index, const QString& entry, const QString& material)
+{
+    QString name = material.trimmed();
+    if (name.isEmpty() || name == tr("Every material"))
+        name = QStringLiteral("*");
+    TextureChoice& chosen = choiceFor(index, entry);
+    if (chosen.material == name)
+        return;
+    chosen.material = name;
+    // Nothing changes in the import until the texture also has a channel.
+    if (chosen.channel.isEmpty())
+        return;
+    for (TextureChoice& other : pages_[static_cast<size_t>(index)].textures)
+        if (other.entry != entry && other.material == name && other.channel == chosen.channel)
+            other.channel.clear();
+    writeMaps(index);
+    fill(index);
+}
+
+// Puts the texture choices of a page into its maps option: {"<material or *>": {"<channel>": "<entry>"}}.
+void FabImportDialog::writeMaps(int index)
+{
     Page& page = pages_[static_cast<size_t>(index)];
     page.options.erase("maps");
-    if (!list.empty()) {
-        Json all = Json::object();
-        for (const auto& pair : list)
-            all[toCore(pair.second)] = toCore(pair.first);
-        page.options["maps"] = Json{{"*", all}};
-    }
-    fill(index);
+    Json maps = Json::object();
+    for (const TextureChoice& choice : page.textures)
+        if (!choice.channel.isEmpty())
+            maps[toCore(choice.material)][toCore(choice.channel)] = toCore(choice.entry);
+    if (!maps.empty())
+        page.options["maps"] = maps;
+}
+
+// The material names typed so far on every page, for the material fields to offer.
+QStringList FabImportDialog::typedMaterials() const
+{
+    QStringList names;
+    for (const Page& page : pages_)
+        for (const TextureChoice& choice : page.textures)
+            if (choice.material != QStringLiteral("*") && !names.contains(choice.material))
+                names << choice.material;
+    names.sort(Qt::CaseInsensitive);
+    return names;
 }
 
 // The pages that are ready and not left out.

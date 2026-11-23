@@ -11,7 +11,9 @@
 
 #include <nlohmann/json.hpp>
 
+#include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -64,8 +66,10 @@ void useSettingsRoomTypes();
 bool chooseLibraryFolder(const std::string& command, const RunContext& context, const std::string& libraryOption,
                          MachineSettings& settings, LibraryPaths& paths, Answer& failed);
 
-// True when an import argument is an address and not a file: it starts with http://, https:// or
-// asset_base_id:, or it is a bare BlenderKit id and no file or folder of that name exists.
+// True when an import argument is an address and not a file. Text that starts with a word of two or more
+// letters and a colon, such as https: or asset_base_id:, cannot be a file name on Windows, so it is always an
+// address. Other text is an address when an asset or material importer scores it as one and no file or
+// folder of that name exists, so a new importer's addresses need no change here.
 bool isAddressArgument(const RunContext& context, const std::string& text);
 
 // Reads repeated key=value options into one object. The value is read as JSON when it parses and is text
@@ -74,19 +78,38 @@ bool isAddressArgument(const RunContext& context, const std::string& text);
 bool parseOptionPairs(const std::string& command, const std::vector<std::string>& pairs, nlohmann::ordered_json& out,
                       Answer& failed);
 
+// The --blender option: the text typed and whether the option was there at all. --blender "" and
+// --blender= are given and name no file, so an empty shell variable never counts as no option.
+struct BlenderOption {
+    std::string text;
+    CLI::Option* option = nullptr;
+
+    // True when the option was on the command line, even with an empty path.
+    bool given() const { return option != nullptr && option->count() > 0; }
+};
+
 // Adds the --blender option, which names the blender.exe for a command that runs Blender. Without it the
 // settings and the search decide.
-void addBlenderOption(CLI::App& sub, std::string& value);
+void addBlenderOption(CLI::App& sub, BlenderOption& value,
+                      const std::string& help = "The blender.exe to use. Default: the setup check's choice.");
+
+// The option as core takes it: none when it was not given, an empty path when it was given empty, and
+// otherwise the path from the current folder.
+std::optional<std::filesystem::path> blenderOptionPath(const RunContext& context, const BlenderOption& option);
+
+// Refuses a given --blender with an empty path, before the command does any work: the option is the only
+// Blender allowed and it names none. Fills failed with blender_not_found and core's sentence.
+bool refuseEmptyBlender(const std::string& command, const BlenderOption& option, Answer& failed);
 
 // Picks the Blender and fills what importAsset and refreshAsset need. On error the answer for command is
 // returned in failed (blender_not_found).
 bool makeImportContext(const std::string& command, const RunContext& context, const OpenedCatalog& opened,
-                       const std::string& blenderOption, ImportContext& importContext, Answer& failed);
+                       const BlenderOption& blenderOption, ImportContext& importContext, Answer& failed);
 
 // Rebuilds the index from disk. Unless noBlender, each changed asset is then measured again and given a new
 // thumbnail. Returns the rescan entry, with the refresh outcome in it.
 Json rescanAndRefresh(const std::string& command, const RunContext& context, OpenedCatalog& opened,
-                      const std::string& blenderOption, bool noBlender);
+                      const BlenderOption& blenderOption, bool noBlender);
 
 // Checks that an id typed by the user is a plain catalog id (checkCatalogId): no folders, no "..", no
 // absolute paths. Fills failed with invalid_value when it is not.

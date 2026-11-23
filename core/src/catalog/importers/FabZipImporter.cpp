@@ -11,6 +11,8 @@
 #include <cctype>
 #include <fstream>
 #include <system_error>
+#include <utility>
+#include <vector>
 
 namespace plynth {
 
@@ -18,23 +20,51 @@ namespace fs = std::filesystem;
 
 namespace {
 
-// True for a word that looks like a Fab item id: six to ten lower case letters and digits.
-bool looksLikeFabId(const std::string& word)
+// A name from a model's item. Its last word is dropped only when it is the zip's item id ("Tan_Stool_abcdefg").
+std::string nameFromItem(const std::string& item, const std::string& itemId)
 {
-    if (word.size() < 6 || word.size() > 10) return false;
-    return std::all_of(word.begin(), word.end(), [](unsigned char c) { return std::islower(c) || std::isdigit(c); });
+    const auto cut = item.find_last_of("_- ");
+    if (!itemId.empty() && cut != std::string::npos && cut > 0 && item.substr(cut + 1) == itemId) {
+        return catalogNameFromStem(item.substr(0, cut));
+    }
+    return catalogNameFromStem(item);
 }
 
-// A name from a model stem. A trailing item id ("Tan_Stool_03_abcdefg") is dropped when the words before it
-// start with a capital, so the name reads "Tan stool 03".
-std::string nameFromStem(const std::string& stem)
+// The labels and help of the Fab options, for the app's fields.
+std::vector<OptionField> fabOptionFields()
 {
-    const auto cut = stem.rfind('_');
-    if (cut != std::string::npos && looksLikeFabId(stem.substr(cut + 1)) &&
-        std::isupper(static_cast<unsigned char>(stem[0])) != 0) {
-        return catalogNameFromStem(stem.substr(0, cut));
+    OptionField formats{"formats", "Preferred format", "Which model format to take when a zip has several.", OptionKind::Choice, {}, 0, 0};
+    const std::pair<std::string_view, const char*> firsts[] = {{"fbx", "FBX first"}, {"gltf", "glTF first"}, {"obj", "OBJ first"},
+                                                               {"blend", "Blend first"}};
+    for (const auto& [first, label] : firsts) {
+        Json order = Json::array({std::string(first)});
+        for (const auto format : kFabFormats)
+            if (format != first) order.push_back(std::string(format));
+        formats.choices.push_back(OptionChoice{order, label});
     }
-    return catalogNameFromStem(stem);
+
+    OptionField quality{"quality", "Model quality", "Which quality to take when a zip has several; the nearest one is taken when it is missing.",
+                        OptionKind::Choice, {}, 0, 0};
+    const std::pair<FabQuality, const char*> qualities[] = {
+        {FabQuality::Low, "Low"}, {FabQuality::Medium, "Medium"}, {FabQuality::High, "High"}, {FabQuality::Raw, "Raw"}};
+    for (const auto& [q, label] : qualities) quality.choices.push_back(OptionChoice{std::string(fabQualityName(q)), label});
+
+    OptionField size{"max_texture_size", "Largest texture", "The largest texture resolution to take when a zip has several.",
+                     OptionKind::Choice, {}, 0, 0};
+    for (const int pixels : {512, 1024, 2048, 4096, 8192, 16384})
+        size.choices.push_back(OptionChoice{pixels, std::to_string(pixels) + " pixels"});
+    size.choices.push_back(OptionChoice{nullptr, "No limit"});
+
+    OptionField normal{"normal", "Normal maps", "Whether the normal maps are OpenGL or DirectX. Automatic lets Plynth tell from the zip.",
+                       OptionKind::Choice, {}, 0, 0};
+    normal.choices.push_back(OptionChoice{"auto", "Automatic"});
+    normal.choices.push_back(OptionChoice{"opengl", "OpenGL"});
+    normal.choices.push_back(OptionChoice{"directx", "DirectX"});
+
+    OptionField license{"license", "License",
+                        "The license recorded for zips you pick as Fab by hand. A zip that Plynth only guesses is from Fab gets Unknown.",
+                        OptionKind::License, {}, 0, 0};
+    return {formats, quality, size, normal, license};
 }
 
 // Writes the worker's source file.
@@ -67,10 +97,13 @@ public:
     }
     std::vector<std::string> fileSuffixes() const override { return {".zip"}; }
 
+    // How well a zip fits: 20 for one that looks like Fab or that only Fab can explain, 5 for another zip
+    // with a model, 0 for anything else.
     int score(const ImportSource& source) const override
     {
         if (!isZipFile(source)) return 0;
         const ZipListing listing = listZipEntries(source.file);
+        if (listing.badName) return 20;
         if (!listing.status.ok()) return 0;
         const FabZipContents contents = classifyFabZip(listing.entries);
         if (!contents.models.empty()) return looksLikeFabModelZip(contents) ? 20 : 5;
@@ -78,6 +111,7 @@ public:
         return 0;
     }
 
+    // Picks the model version and its textures and writes the worker's source file.
     Status plan(const ImportSource& source, const fs::path& workFolder, ImportPlan& out) const override
     {
         if (source.file.empty()) return fail(ErrorCode::InvalidValue, "No file was given.");
@@ -108,8 +142,8 @@ public:
         out.format = std::string(kFormatFab);
         out.sourceKind = std::string(kSourceFabZip);
         out.reference = pathToUtf8(source.file.filename());
-        out.defaultName = nameFromStem(choice.model->stem);
-        out.license = options.license;
+        out.defaultName = nameFromItem(choice.model->item, fabItemId(contents));
+        out.license = source.guessed ? std::string(kUnknownLicenseId) : options.license;
         out.originalIsZip = true;
         out.details = fabChoiceDetails(contents, choice);
         return {};
@@ -132,11 +166,14 @@ public:
     std::string_view setupItem() const override { return {}; }
     std::string_view site() const override { return kFabSite; }
     Json defaultOptions() const override { return fabOptionsToJson(FabOptions{}); }
+    // Checks options as the Fab importers read them.
     Status checkOptions(const Json& options, OptionUse use) const override
     {
         FabOptions scratch;
         return fabOptionsFromJson(options, use == OptionUse::Import, scratch);
     }
+    std::vector<std::string> storeSourceKinds() const override { return {std::string(kSourceFabZip)}; }
+    std::vector<OptionField> optionFields() const override { return fabOptionFields(); }
 };
 
 const ImporterRegistrar importerRegistrar(std::make_unique<FabZipImporter>());

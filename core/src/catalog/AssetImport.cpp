@@ -400,7 +400,9 @@ ImportOutcome importAsset(AssetCatalog& catalog, const ImportContext& context, c
     const std::string sourceText = request.source.file.empty() ? request.source.url : pathToUtf8(request.source.file);
 
     ImportPlan plan;
-    if (outcome.status = importer->plan(chosen.source, work.path(), plan); !outcome.status.ok()) return outcome;
+    outcome.status = importer->plan(chosen.source, work.path(), plan);
+    outcome.details = plan.details;
+    if (!outcome.status.ok()) return outcome;
 
     if (plan.fetch) {
         report(ImportStage::Blender);
@@ -419,7 +421,9 @@ ImportOutcome importAsset(AssetCatalog& catalog, const ImportContext& context, c
             outcome.status = fail(ErrorCode::Cancelled, "The import was cancelled.");
             return outcome;
         }
-        if (outcome.status = applyFetch(fetched, *plan.fetch, plan); !outcome.status.ok()) return outcome;
+        outcome.status = applyFetch(fetched, *plan.fetch, plan);
+        outcome.details = plan.details;
+        if (!outcome.status.ok()) return outcome;
     }
     if (id.empty()) {
         const std::string base = plan.defaultName.empty() ? std::string(importer->id()) : catalogIdFromName(plan.defaultName);
@@ -570,11 +574,12 @@ ImportOutcome importInboxEntry(AssetCatalog& catalog, const ImportContext& conte
 
     std::error_code ec;
     if (outcome.status.ok()) {
-        if (fs::exists(entry, ec)) moveEntry(entry, library.assetInboxDone);
+        if (fs::exists(entry, ec)) outcome.movedTo = moveEntry(entry, library.assetInboxDone);
         return outcome;
     }
     if (leavesEntryInInbox(outcome.status.code) || !fs::exists(entry, ec)) return outcome;
     const fs::path moved = moveEntry(entry, library.assetInboxFailed);
+    outcome.movedTo = moved;
     if (!moved.empty()) {
         fs::path note = moved;
         note += ".error.txt";

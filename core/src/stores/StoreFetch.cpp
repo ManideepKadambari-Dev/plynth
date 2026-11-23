@@ -93,6 +93,7 @@ FetchRun runImportFetch(const ImportFetch& fetch, const fs::path& blender, const
     BlenderRunOptions options = base;
     options.factoryStartup = false;
     options.timeout = fetch.timeout;
+    options.steps = fetch.steps;
     const BlenderJobRun blenderRun = runBlenderJob(blender, job, workFolder, options, onProgress, stop);
     if (!blenderRun.status.ok()) {
         run.status = blenderRun.status;

@@ -1,5 +1,4 @@
 import os
-import re
 
 import bpy
 
@@ -29,9 +28,19 @@ def keeps_own_images(material):
     return bool(images) and all(image is not None and image.size[0] > 0 for image in images)
 
 
-# Returns a file name that is safe on disk for a material name.
-def safe_name(name):
-    return re.sub(r"[^A-Za-z0-9_.-]", "_", name)
+# Says whether the picks of a source file are well formed: {material name or "*": {channel: entry}} with known
+# channels, and every entry one of the files to unpack, so a pick can never point outside the unpacked zip.
+def maps_are_valid(maps, files):
+    if not isinstance(maps, dict):
+        return False
+    listed = set(files)
+    for picks in maps.values():
+        if not isinstance(picks, dict):
+            return False
+        for channel, entry in picks.items():
+            if channel not in CHANNELS or not isinstance(entry, str) or entry not in listed:
+                return False
+    return True
 
 
 # Sorts the texture files into sets by the material name they carry. Returns {key: set} where a set is
@@ -116,7 +125,7 @@ def write_packed_channel(path, folder, stem, channel, index):
 
 # Chooses the map file of each channel for one material from its set. Returns {channel: path}; maps made
 # by a conversion are written into the folder.
-def maps_from_set(ctx, entry, normal_option, folder, stem, used):
+def maps_from_set(ctx, entry, folder, stem, used):
     chosen = {}
     for channel in CHANNELS:
         if channel in entry["channels"]:
@@ -131,11 +140,17 @@ def maps_from_set(ctx, entry, normal_option, folder, stem, used):
             if channel not in chosen:
                 chosen[channel] = write_packed_channel(packed, folder, stem, channel, index)
     used.update(entry["ignored"])
-    if "normal" in chosen:
-        convention = normal_option if normal_option != "auto" else (fab_names.classify(chosen["normal"])[1] or "opengl")
-        if convention == "directx":
-            chosen["normal"] = write_flipped_normal(chosen["normal"], folder, stem)
     return chosen
+
+
+# Turns the normal map of a material's maps into OpenGL when the normal option, or with auto the map's own
+# name, says it is DirectX. Picked maps go through this too.
+def convert_normal(maps, normal_option, folder, stem):
+    if "normal" not in maps:
+        return
+    convention = normal_option if normal_option != "auto" else (fab_names.classify(maps["normal"])[1] or "opengl")
+    if convention == "directx":
+        maps["normal"] = write_flipped_normal(maps["normal"], folder, stem)
 
 
 # Returns the maps the user picked for a material, as {channel: path}. A picked file that is not there is
@@ -158,27 +173,29 @@ def picked_maps(ctx, source, material, root):
 # material's name, or the only set. Warns missing_texture, ambiguous_map and unused_image. Returns a list of
 # {"material", "source", "channels"} for the result's details.
 def apply(ctx, source, root):
-    files = [os.path.join(root, *entry.split("/")) for entry in source["textures"]]
+    files = [os.path.join(root, *entry.split("/")) for entry in source["textures"] if not fab_names.is_preview(entry)]
     files = [path for path in files if os.path.isfile(path)]
     sets = make_sets(files)
     folder = os.path.join(ctx.work_folder, "fab_maps")
     used = set()
     report = []
-    for material in scene_materials():
+    materials = scene_materials()
+    for index, material in enumerate(materials):
         picks = picked_maps(ctx, source, material, root)
         if keeps_own_images(material) and not picks:
             report.append({"material": material.name, "source": "model", "channels": []})
             continue
         entry = set_for(material, sets)
         os.makedirs(folder, exist_ok=True)
-        stem = safe_name(material.name)
-        maps = maps_from_set(ctx, entry, source["normal"], folder, stem, used) if entry else {}
+        stem = fab_names.map_stem(index, material.name)
+        maps = maps_from_set(ctx, entry, folder, stem, used) if entry else {}
         maps.update(picks)
         used.update(picks.values())
         if "base_color" not in maps:
             ctx.warn("missing_texture", "The material %s has no base color texture." % material.name)
             report.append({"material": material.name, "source": "none", "channels": []})
             continue
+        convert_normal(maps, source["normal"], folder, stem)
         try:
             shading.apply_maps(material, maps)
         except shading.MapError as error:
@@ -186,6 +203,9 @@ def apply(ctx, source, root):
             report.append({"material": material.name, "source": "none", "channels": []})
             continue
         report.append({"material": material.name, "source": "textures", "channels": sorted(maps)})
+    known = {material.name for material in materials}
+    for name in sorted(key for key in source["maps"] if key != "*" and key not in known):
+        ctx.warn("missing_texture", "The model has no material named %s, so its picked textures were not used." % name)
     skipped = ignored_files(sets)
     for path in sorted(p for p in files if p not in used and p not in skipped):
         ctx.warn("unused_image", "%s matched no material and was not used." % os.path.basename(path))

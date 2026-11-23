@@ -19,7 +19,7 @@ namespace {
 
 struct ImportOptions {
     std::string library;
-    std::string blender;
+    BlenderOption blender;
     std::vector<std::string> paths;
     std::string id;
     std::string name;
@@ -40,7 +40,7 @@ struct ImportOptions {
     bool dryRun = false;
 };
 
-// One thing to import: a file or folder, or a BlenderKit address. text is what the user typed.
+// One thing to import: a file or folder, or an address. text is what the user typed.
 struct ImportSourceArg {
     std::filesystem::path path;
     std::string url;
@@ -49,13 +49,13 @@ struct ImportSourceArg {
 
 struct InboxOptions {
     std::string library;
-    std::string blender;
+    BlenderOption blender;
     bool quiet = false;
 };
 
 struct ThumbnailOptions {
     std::string library;
-    std::string blender;
+    BlenderOption blender;
     std::string id;
     bool quiet = false;
 };
@@ -75,13 +75,9 @@ Json warningsJson(const std::vector<BlenderWarning>& warnings) {
 // Picks the Blender and fills what the material imports and refreshes need. On error the answer for command
 // is returned in failed (blender_not_found).
 bool makeMaterialImportContext(const std::string& command, const RunContext& context,
-                               const OpenedMaterialCatalog& opened, const std::string& blenderOption,
+                               const OpenedMaterialCatalog& opened, const BlenderOption& blenderOption,
                                ImportContext& importContext, Answer& failed) {
-    std::optional<std::filesystem::path> option;
-    if (!blenderOption.empty()) {
-        option = userPath(context, blenderOption);
-    }
-    const BlenderChoice choice = chooseBlender(option, opened.settings);
+    const BlenderChoice choice = chooseBlender(blenderOptionPath(context, blenderOption), opened.settings);
     if (!choice.status.ok()) {
         failed = failure(command, choice.status);
         return false;
@@ -225,6 +221,10 @@ bool readMapOptions(const std::string& command, const RunContext& context, const
 // Imports files, folders and zips in order. The first failure stops the run.
 Answer materialsImport(const RunContext& context, const ImportOptions& options) {
     const std::string command = "materials import";
+    Answer failed;
+    if (refuseEmptyBlender(command, options.blender, failed)) {
+        return failed;
+    }
     if (!options.id.empty()) {
         Answer badId;
         if (!checkIdArgument(command, options.id, badId)) {
@@ -256,7 +256,6 @@ Answer materialsImport(const RunContext& context, const ImportOptions& options) 
         return failure(command, fail(ErrorCode::InvalidValue, "--normal is auto, opengl or directx."));
     }
     base.normal = *normal;
-    Answer failed;
     if (!readMapOptions(command, context, options, base, failed)) {
         return failed;
     }
@@ -366,6 +365,9 @@ Answer materialsInbox(const RunContext& context, const InboxOptions& options) {
     const std::string command = "materials inbox";
     OpenedMaterialCatalog opened;
     Answer failed;
+    if (refuseEmptyBlender(command, options.blender, failed)) {
+        return failed;
+    }
     if (!openMaterialCatalog(command, context, options.library, opened, failed)) {
         return failed;
     }
@@ -408,6 +410,9 @@ Answer materialsThumbnail(const RunContext& context, const ThumbnailOptions& opt
     }
     OpenedMaterialCatalog opened;
     Answer failed;
+    if (refuseEmptyBlender(command, options.blender, failed)) {
+        return failed;
+    }
     if (!openMaterialCatalog(command, context, options.library, opened, failed)) {
         return failed;
     }

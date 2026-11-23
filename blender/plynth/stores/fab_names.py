@@ -16,11 +16,73 @@ COMPOUNDS = {("base", "color"), ("base", "colour"), ("ambient", "occlusion")}
 RESOLUTION = re.compile(r"^(\d+(?:\.\d+)?)k$")
 PIXELS = {"256", "512", "1024", "2048", "4096", "8192"}
 
-TABLE = dict(names.TABLE)
+PREVIEW_WORDS = {"preview", "previews", "thumb", "thumbs", "thumbnail", "thumbnails", "render", "renders",
+                 "screenshot", "screenshots", "cover", "covers"}
+FIRST_PREVIEW_WORDS = {"preview", "previews", "thumb", "thumbs", "thumbnail", "thumbnails", "screenshot",
+                       "screenshots"}
+FORMAT_WORDS = {"fbx", "gltf", "glb", "obj", "blend", "usd", "usda", "usdc", "usdz"}
+PREVIEW_RESOLUTIONS = {"05k", "1k", "2k", "4k", "8k", "16k", "256", "512", "1024", "2048", "4096", "8192"}
+ASCII_LOWER = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
+
+# Previews are told by is_preview alone, as core does, so the preview words of names.py are no channel here.
+TABLE = {word: kind for word, kind in names.TABLE.items() if word not in PREVIEW_WORDS}
 for _word in SMOOTHNESS:
     TABLE[_word] = "gloss"
 for _word in EXTRA_IGNORED:
     TABLE[_word] = "ignored"
+
+
+# Lowers the letters A to Z only, as core does.
+def ascii_lower(text):
+    return text.translate(ASCII_LOWER)
+
+
+# Splits one part of a zip entry into words the way core does: at ASCII characters that are not letters or
+# digits, and where a lower case letter is followed by an upper case one. A piece that is a format or quality
+# word in any case (glTF, LowPoly) stays whole.
+def entry_words(part):
+    found = []
+
+    # Adds one piece between separators, split at its case changes.
+    def add(piece):
+        if not piece:
+            return
+        if ascii_lower(piece) in FORMAT_WORDS or ascii_lower(piece) in QUALITY_WORDS:
+            found.append(piece)
+            return
+        current = ""
+        for char in piece:
+            if current and "A" <= char <= "Z" and "a" <= current[-1] <= "z":
+                found.append(current)
+                current = ""
+            current += char
+        found.append(current)
+
+    piece = ""
+    for char in part:
+        if ord(char) < 128 and not char.isalnum():
+            add(piece)
+            piece = ""
+        else:
+            piece += char
+    add(piece)
+    return found
+
+
+# Says whether an image entry of a zip is a preview picture and not a texture, by core's rule: a folder whose
+# whole name is a preview word or its plural; a file whose last word, leaving out numbers and resolutions, is
+# one; or whose first word is preview, thumb, thumbnail or screenshot, or a plural of one. The same words
+# elsewhere belong to the item's name (Manhole_Cover_BaseColor).
+def is_preview(entry):
+    parts = [part for part in entry.split("/") if part]
+    if not parts:
+        return False
+    if any(ascii_lower(part) in PREVIEW_WORDS for part in parts[:-1]):
+        return True
+    stem = parts[-1][:parts[-1].rfind(".")] if "." in parts[-1] else parts[-1]
+    kept = [ascii_lower(word) for word in entry_words(stem)]
+    kept = [word for word in kept if not re.fullmatch(r"[0-9]+", word) and word not in PREVIEW_RESOLUTIONS]
+    return bool(kept) and (kept[-1] in PREVIEW_WORDS or kept[0] in FIRST_PREVIEW_WORDS)
 
 
 # Returns the pixels across that a resolution word names (2k gives 2048, 05k gives 512), or None.
@@ -60,20 +122,30 @@ def resolution_of(filename):
 # is the position of the channel word among the words, or None. A bent normal map is ignored.
 def classify(filename):
     parts = words(filename)
-    kind = None
-    index = None
-    rank = 1
-    if "bent" in parts:
-        kind = "ignored"
-    else:
-        for position in range(len(parts) - 1, -1, -1):
-            if parts[position] in TABLE:
-                kind = TABLE[parts[position]]
-                index = position
-                rank = 0 if parts[position] in LOW_RANK else 1
-                break
     convention = names.classify(filename)[1]
-    return kind, convention, rank, index
+    if any(part.startswith("bent") and part[4:] in names.NORMAL for part in parts):
+        return "ignored", convention, 1, None
+    for position in range(len(parts) - 1, -1, -1):
+        if parts[position] in TABLE:
+            kind = TABLE[parts[position]]
+            if kind == "normal" and is_bent_normal(parts, position):
+                return "ignored", convention, 1, None
+            return kind, convention, 0 if parts[position] in LOW_RANK else 1, position
+    return None, convention, 1, None
+
+
+# Says whether the normal word at a position has bent right before or after it (Wood_Bent_Normal). Bent
+# elsewhere is part of the item's name (Bent_Wood_Chair_Normal is a plain normal map).
+def is_bent_normal(parts, position):
+    return (position > 0 and parts[position - 1] == "bent") or (
+        position + 1 < len(parts) and parts[position + 1] == "bent")
+
+
+# Returns the file name stem for the maps made for one material: its place in the list of materials and its
+# name in ASCII letters, digits, "_" and "-". The place keeps two names apart that differ only in letter case
+# or in letters outside ASCII, on every file system.
+def map_stem(index, name):
+    return "%d_%s" % (index, re.sub(r"[^A-Za-z0-9_-]", "_", name))
 
 
 # Returns the key that says which material a texture belongs to: the file's words without the channel word,

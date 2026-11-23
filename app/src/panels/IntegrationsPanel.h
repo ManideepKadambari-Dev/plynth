@@ -5,24 +5,31 @@
 #include <QString>
 #include <QWidget>
 
-#include <map>
 #include <optional>
 #include <stop_token>
 #include <thread>
+#include <vector>
 
 class QComboBox;
 class QLabel;
+class QSpinBox;
 class QLineEdit;
 class QPushButton;
 class QVBoxLayout;
 
 namespace plynth {
 class Integration;
+struct OptionField;
 }
 
 namespace plynth::app {
 
 class LibraryHost;
+
+// True for a source of the user's own files: it takes files and lists no store kinds.
+bool isOwnFilesIntegration(const plynth::Integration& integration);
+// True for the source that brings the Fab zip importer, which has its own check dialog.
+bool isFabIntegration(const plynth::Integration& integration);
 
 // What the import buttons of the tab do. The window or the store glue fills it in, so the panel holds no
 // queue code.
@@ -59,6 +66,16 @@ protected:
     void showEvent(QShowEvent* event) override;
 
 private:
+    // One saved option on a card: a drop down for choices and licenses, a number field for whole numbers.
+    struct Field {
+        QString key;
+        bool license = false;
+        QComboBox* combo = nullptr;
+        QSpinBox* number = nullptr;
+        int minimum = 0;
+        int maximum = 0;
+    };
+
     struct Card {
         const plynth::Integration* integration = nullptr;
         QLabel* state = nullptr;
@@ -66,15 +83,18 @@ private:
         QPushButton* check = nullptr;
         QLineEdit* address = nullptr;
         QLabel* addressNote = nullptr;
+        bool addressOk = false; // the field holds text that core accepts
         QLabel* optionNote = nullptr;
         QPushButton* importAsset = nullptr;
         QPushButton* importMaterial = nullptr;
-        std::map<QString, QComboBox*> options; // by option key
+        std::vector<Field> fields; // in the order of optionFields
     };
 
     void buildCard(const plynth::Integration& integration);
-    QComboBox* addOption(Card& card, QVBoxLayout* box, const QString& key, const QString& label, const QString& tip);
-    void saveOption(Card& card, const QString& key, const QString& value);
+    void addField(Card& card, QVBoxLayout* box, const plynth::OptionField& field);
+    Card* cardFor(const QString& id);
+    void saveOption(Card& card, const QString& key, const QString& valueJson);
+    void showValue(Field& field, const QString& valueJson);
     void showReport(const plynth::SetupReport& report);
     void updateStates();
     void updateAddress(Card& card);

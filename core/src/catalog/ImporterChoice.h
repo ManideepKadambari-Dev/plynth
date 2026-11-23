@@ -43,6 +43,12 @@ void fillOptions(const LibraryPaths& library, const ImporterType& importer, bool
     out.source.options = options.options;
 }
 
+// Says whether Plynth guesses the source's origin: no importer is named and no license is given for this import.
+inline bool isGuessed(const std::string& importer, const Json& requested)
+{
+    return importer.empty() && !(requested.is_object() && requested.contains("license"));
+}
+
 }
 
 // The asset importer for a request: the one named by request.importer, else the best scoring.
@@ -51,6 +57,7 @@ inline ChosenImporter<Importer> chooseAssetImporter(const LibraryPaths& library,
     ChosenImporter<Importer> out;
     out.source = request.source;
     out.source.options = Json::object();
+    out.source.guessed = importer_choice::isGuessed(request.importer, request.importerOptions);
     const Importer* importer = nullptr;
     if (!request.importer.empty()) {
         importer = findImporter(request.importer);
@@ -76,6 +83,7 @@ inline ChosenImporter<MaterialImporter> chooseMaterialImporter(const LibraryPath
     ChosenImporter<MaterialImporter> out;
     out.source = request.source;
     out.source.options = Json::object();
+    out.source.guessed = importer_choice::isGuessed(request.importer, request.importerOptions);
     const MaterialImporter* importer = nullptr;
     if (!request.importer.empty()) {
         importer = findMaterialImporter(request.importer);

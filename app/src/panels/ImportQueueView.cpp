@@ -3,6 +3,7 @@
 #include "catalog/ImportQueue.h"
 #include "materials/MaterialImportQueue.h"
 #include "theme/ElideLabel.h"
+#include "theme/PlainText.h"
 #include "theme/Theme.h"
 
 #include <QDesktopServices>
@@ -89,18 +90,21 @@ void ImportQueueView::rebuild()
 
         auto* top = new QHBoxLayout();
         top->setSpacing(t.unit() * 2);
-        auto* name = new QLabel(item.title, row);
+        auto* name = new QLabel(row);
+        name->setTextFormat(Qt::PlainText);
+        name->setText(item.title);
         if (item.plainTitle) {
             name->setFont(t.uiFont(t.sizeNormal(), QFont::DemiBold));
         } else {
             name->setFont(t.monoFont(t.sizeNormal()));
-            name->setTextFormat(Qt::PlainText);
             name->setMinimumWidth(0);
             name->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
         }
-        name->setToolTip(item.title);
+        name->setToolTip(plainToolTip(item.title));
         top->addWidget(name, 1);
-        auto* stage = new QLabel(item.stage, row);
+        auto* stage = new QLabel(row);
+        stage->setTextFormat(Qt::PlainText);
+        stage->setText(item.stage);
         stage->setFont(t.uiFont(t.sizeSmall()));
         stage->setStyleSheet(QStringLiteral("color: %1;").arg((failed ? t.signalAmber() : t.muted()).name()));
         stage->setToolTip(tr("What the import is doing now"));
@@ -117,18 +121,21 @@ void ImportQueueView::rebuild()
                 shown.replace(slashed, QString());
             }
             shown = shown.trimmed();
-            auto* why = new QLabel(shown, row);
+            auto* why = new QLabel(row);
             why->setTextFormat(Qt::PlainText);
+            why->setText(shown);
             why->setWordWrap(true);
             why->setFont(t.uiFont(t.sizeSmall()));
             why->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
             why->setToolTip(tr("Why the import failed"));
             box->addWidget(why);
             if (!folder.isEmpty()) {
-                auto* path = new ElideLabel(folder, row);
+                auto* path = new ElideLabel(row);
+                path->setTextFormat(Qt::PlainText);
+                path->setText(folder);
                 path->setFont(t.monoFont(t.sizeSmall()));
                 path->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
-                path->setToolTip(folder);
+                path->setToolTip(plainToolTip(folder));
                 box->addWidget(path);
             }
         } else {
@@ -151,7 +158,7 @@ void ImportQueueView::rebuild()
         const int id = item.id;
         if (item.canPick) {
             auto* pick = new QPushButton(tr("Pick the model..."), row);
-            pick->setToolTip(tr("Choose which model of the zip to import"));
+            pick->setToolTip(tr("Choose which model of the file to import"));
             pick->setProperty("tourId", QStringLiteral("queue-pick-model"));
             const int pickId = item.id;
             connect(pick, &QPushButton::clicked, this, [this, pickId]() { emit pickModelRequested(pickId); });

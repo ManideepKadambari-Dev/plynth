@@ -17,7 +17,7 @@ namespace {
 
 struct ImportOptions {
     std::string library;
-    std::string blender;
+    BlenderOption blender;
     std::string path;
     std::string id;
     std::string name;
@@ -34,7 +34,7 @@ struct ImportOptions {
 
 struct IntegrationsOptions {
     std::string library;
-    std::string blender;
+    BlenderOption blender;
     bool noAddons = false;
 };
 
@@ -46,18 +46,18 @@ struct IntegrationOptions {
 
 struct InboxOptions {
     std::string library;
-    std::string blender;
+    BlenderOption blender;
 };
 
 struct RescanOptions {
     std::string library;
-    std::string blender;
+    BlenderOption blender;
     bool noBlender = false;
 };
 
 struct ThumbnailOptions {
     std::string library;
-    std::string blender;
+    BlenderOption blender;
     std::string id;
 };
 
@@ -76,6 +76,10 @@ Json warningsJson(const std::vector<BlenderWarning>& warnings) {
 // Imports one file, folder, zip or address, or with --dry-run shows what that would do.
 Answer assetsImport(const RunContext& context, const ImportOptions& options) {
     const std::string command = "assets import";
+    Answer failed;
+    if (refuseEmptyBlender(command, options.blender, failed)) {
+        return failed;
+    }
     if (!options.id.empty()) {
         Answer badId;
         if (!checkIdArgument(command, options.id, badId)) {
@@ -88,7 +92,6 @@ Answer assetsImport(const RunContext& context, const ImportOptions& options) {
     if (options.rotate != 0 && options.rotate != 90 && options.rotate != 180 && options.rotate != 270) {
         return failure(command, fail(ErrorCode::InvalidValue, "The rotation must be 0, 90, 180 or 270 degrees."));
     }
-    Answer failed;
     Json importerOptions;
     if (!parseOptionPairs(command, options.optionPairs, importerOptions, failed)) {
         return failed;
@@ -169,6 +172,9 @@ Answer assetsInbox(const RunContext& context, const InboxOptions& options) {
     const std::string command = "assets inbox";
     OpenedCatalog opened;
     Answer failed;
+    if (refuseEmptyBlender(command, options.blender, failed)) {
+        return failed;
+    }
     if (!openCatalog(command, context, options.library, opened, failed)) {
         return failed;
     }
@@ -205,6 +211,9 @@ Answer assetsRescan(const RunContext& context, const RescanOptions& options) {
     const std::string command = "assets rescan";
     OpenedCatalog opened;
     Answer failed;
+    if (refuseEmptyBlender(command, options.blender, failed)) {
+        return failed;
+    }
     if (!openCatalog(command, context, options.library, opened, failed)) {
         return failed;
     }
@@ -220,6 +229,9 @@ Answer assetsThumbnail(const RunContext& context, const ThumbnailOptions& option
     }
     OpenedCatalog opened;
     Answer failed;
+    if (refuseEmptyBlender(command, options.blender, failed)) {
+        return failed;
+    }
     if (!openCatalog(command, context, options.library, opened, failed)) {
         return failed;
     }
@@ -329,9 +341,7 @@ Answer libraryIntegrations(const RunContext& context, const IntegrationsOptions&
         return failure(command, loaded.status);
     }
     SetupCheckOptions check;
-    if (!options.blender.empty()) {
-        check.blender = userPath(context, options.blender);
-    }
+    check.blender = blenderOptionPath(context, options.blender);
     check.probeAddons = !options.noAddons;
     check.settingsExist = loaded.exists;
     const SetupReport report = runSetupCheck(loaded.settings, check);

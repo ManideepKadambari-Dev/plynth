@@ -30,6 +30,7 @@ std::string_view trim(std::string_view text)
     return text;
 }
 
+// Says whether a character is a hex digit.
 bool isHex(char c)
 {
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
@@ -153,6 +154,9 @@ ImportFetch makeBlenderKitFetch(std::string_view assetBaseId, std::string_view k
     fetch.params["wait_seconds"] = options.waitSeconds;
     fetch.expectedKind = std::string(kind);
     fetch.timeout = std::chrono::seconds(options.waitSeconds + 120);
+    fetch.steps = {{"check_addon", "Checking the BlenderKit add-on"},
+                   {"download", "Downloading from BlenderKit"},
+                   {"copy", "Copying the download"}};
     return fetch;
 }
 

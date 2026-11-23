@@ -1,5 +1,6 @@
 #include "BuildBar.h"
 
+#include "theme/PlainText.h"
 #include "theme/TabButton.h"
 #include "theme/Theme.h"
 
@@ -38,6 +39,7 @@ BuildBar::BuildBar(QWidget* parent) : QWidget(parent)
     row->addWidget(tabs);
 
     status_ = new QLabel(this);
+    status_->setTextFormat(Qt::PlainText);
     status_->setFont(t.uiFont(t.sizeNormal()));
     status_->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
     status_->setToolTip(tr("What the last build did, or the progress of the one that is running"));
@@ -144,7 +146,7 @@ void BuildBar::setProblems(int errors, int warnings)
 void BuildBar::setBuildEnabled(bool enabled, const QString& tip)
 {
     build_->setEnabled(enabled);
-    build_->setToolTip(tip);
+    build_->setToolTip(plainToolTip(tip));
 }
 
 // Paints the Panel background with a Line border under the bar.

@@ -2,6 +2,7 @@
 
 #include "ProblemMark.h"
 #include "theme/ElideLabel.h"
+#include "theme/PlainText.h"
 #include "theme/Theme.h"
 
 #include <QDateTime>
@@ -40,13 +41,17 @@ public:
         auto* row = new QHBoxLayout(this);
         row->setContentsMargins(t.unit() * 2 + t.problemMarker() + t.unit() * 2, t.unit(), t.unit() * 2, t.unit());
         row->setSpacing(t.unit() * 2);
-        auto* text = new QLabel(fromCore(problem.message), this);
+        auto* text = new QLabel(this);
+        text->setTextFormat(Qt::PlainText);
+        text->setText(fromCore(problem.message));
         text->setWordWrap(true);
         text->setFont(t.uiFont(t.sizeNormal()));
         text->setAttribute(Qt::WA_TransparentForMouseEvents);
         row->addWidget(text, 1);
         if (!problem.object.empty()) {
-            auto* id = new QLabel(fromCore(problem.object), this);
+            auto* id = new QLabel(this);
+            id->setTextFormat(Qt::PlainText);
+            id->setText(fromCore(problem.object));
             id->setFont(t.monoFont(t.sizeSmall()));
             id->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
             id->setAttribute(Qt::WA_TransparentForMouseEvents);
@@ -135,7 +140,7 @@ void BuildPanel::addRow(QWidget* host, const QString& name, const QString& value
     label->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
     auto* shown = new ElideLabel(value, host);
     shown->setFont(mono ? t.monoFont(t.sizeNormal()) : t.uiFont(t.sizeNormal()));
-    shown->setToolTip(value);
+    shown->setToolTip(plainToolTip(value));
     grid->addWidget(label, row, 0);
     grid->addWidget(shown, row, 1);
 }
@@ -160,7 +165,9 @@ void BuildPanel::setReport(const plynth::BuildReport* report, bool stale)
     }
 
     if (!report->status.ok()) {
-        auto* failed = new QLabel(fromCore(report->status.message), body_);
+        auto* failed = new QLabel(body_);
+        failed->setTextFormat(Qt::PlainText);
+        failed->setText(fromCore(report->status.message));
         failed->setWordWrap(true);
         failed->setFont(t.uiFont(t.sizeNormal()));
         failed->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
@@ -238,7 +245,7 @@ void BuildPanel::setReport(const plynth::BuildReport* report, bool stale)
             const int col = (index % 2) * 2;
             auto* name = new ElideLabel(fromCore(step.step), steps);
             name->setFont(t.uiFont(t.sizeNormal()));
-            name->setToolTip(fromCore(step.step));
+            name->setToolTip(plainToolTip(fromCore(step.step)));
             auto* time = new QLabel(tr("%1 ms").arg(step.ms), steps);
             time->setFont(t.monoFont(t.sizeNormal()));
             time->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));

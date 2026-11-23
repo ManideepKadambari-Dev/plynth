@@ -294,10 +294,15 @@ void ImportQueue::onDone(int id, const plynth::ImportOutcome& outcome)
     found->stage = tr("Failed");
     found->message = fromCore(outcome.status.message);
     found->workFolder = QString::fromStdWString(outcome.keptWorkFolder.wstring());
-    // The Fab sentence for a zip with several models; its "Pick the model" button opens the import dialog.
-    const bool hasZip = found->kind == QueueItem::Kind::Inbox ? !found->entry.empty()
-                                                              : found->kind == QueueItem::Kind::Import && !found->request.source.file.empty();
-    found->pickable = hasZip && found->message.contains(QLatin1String("holds several models"));
+    found->movedTo = outcome.movedTo;
+    // The importer listed the models it found and picked none, whatever its sentence says: Pick the model
+    // offers them.
+    const bool hasFile = found->kind == QueueItem::Kind::Inbox ? !found->movedTo.empty()
+                                                               : found->kind == QueueItem::Kind::Import && !found->request.source.file.empty();
+    const auto models = outcome.details.find("models");
+    const auto picked = outcome.details.find("picked");
+    const bool nonePicked = picked == outcome.details.end() || picked->is_null();
+    found->pickable = hasFile && nonePicked && models != outcome.details.end() && models->is_array() && models->size() > 1;
     const QString message = found->message;
     emit itemsChanged();
     emit finished(kind, false, assetId, message, true);

@@ -7,6 +7,7 @@
 #include "plynth/core/catalog/MaterialImporter.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <fstream>
 #include <map>
 #include <mutex>
@@ -80,6 +81,22 @@ Status writeSaved(const LibraryPaths& library, const Json& saved)
     return fileio::writeAtomic(integrationsFile(library), file.dump(2) + "\n");
 }
 
+// Checks the file's version: a whole number from 1, newer ones refused however large they are.
+Status checkVersion(const Json& file)
+{
+    const auto version = file.find("version");
+    if (version == file.end() || !version->is_number_integer()) {
+        return fail(ErrorCode::BadFile, "integrations.json has no version number.", "/version");
+    }
+    const bool belowOne = version->is_number_unsigned() ? version->get<std::uint64_t>() < 1 : version->get<std::int64_t>() < 1;
+    if (belowOne) return fail(ErrorCode::BadFile, "integrations.json has a version number below 1.", "/version");
+    const bool newer = version->is_number_unsigned()
+                           ? version->get<std::uint64_t>() > static_cast<std::uint64_t>(kIntegrationsVersion)
+                           : version->get<std::int64_t>() > kIntegrationsVersion;
+    if (newer) return fail(ErrorCode::UnsupportedVersion, "integrations.json was written by a newer Plynth.", "/version");
+    return {};
+}
+
 // Checks one saved entry key by key so the failure can point at the option.
 Status checkSavedEntry(const Integration& integration, const Json& entry, const std::string& id)
 {
@@ -149,16 +166,36 @@ const Integration* integrationForImporter(std::string_view importerId, bool mate
     return nullptr;
 }
 
-// Gives no importer for a button yet.
-std::string integrationImporter(const Integration&, const ImportSource&, bool)
+// Picks the importer an integration's button uses: the best scoring of its own, ties to the lower id.
+std::string integrationImporter(const Integration& integration, const ImportSource& source, bool material)
 {
-    return {};
+    std::vector<std::string> ids = material ? integration.materialImporters() : integration.assetImporters();
+    std::sort(ids.begin(), ids.end());
+    std::string best;
+    int bestScore = 0;
+    for (const std::string& id : ids) {
+        int score = 0;
+        if (material) {
+            if (const MaterialImporter* importer = findMaterialImporter(id)) score = importer->score(source);
+        } else if (const Importer* importer = findImporter(id)) {
+            score = importer->score(source);
+        }
+        if (score > bestScore) {
+            best = id;
+            bestScore = score;
+        }
+    }
+    return best;
 }
 
-// Says whether a source kind is a store item.
+// Says whether a source kind is a store item, by asking every integration for its store kinds.
 bool isStoreSource(std::string_view sourceKind)
 {
-    return sourceKind == kSourceBlenderKit || sourceKind == kSourceFabZip;
+    for (const Integration* integration : allIntegrations()) {
+        const std::vector<std::string> kinds = integration->storeSourceKinds();
+        if (std::find(kinds.begin(), kinds.end(), sourceKind) != kinds.end()) return true;
+    }
+    return false;
 }
 
 // The place of integrations.json.
@@ -180,17 +217,14 @@ IntegrationOptionsRead readIntegrationOptions(const LibraryPaths& library)
         result.status = s;
         return result;
     }
-    if (!json.is_object() || json.value("format", std::string()) != kIntegrationsFormat) {
+    const auto format = json.is_object() ? json.find("format") : json.end();
+    if (!json.is_object() || format == json.end() || !format->is_string() ||
+        format->get_ref<const std::string&>() != kIntegrationsFormat) {
         result.status = fail(ErrorCode::BadFile, "integrations.json is not a Plynth integrations file.", "/format");
         return result;
     }
-    const auto version = json.find("version");
-    if (version == json.end() || !version->is_number_integer()) {
-        result.status = fail(ErrorCode::BadFile, "integrations.json has no version number.", "/version");
-        return result;
-    }
-    if (version->get<int>() > kIntegrationsVersion) {
-        result.status = fail(ErrorCode::UnsupportedVersion, "integrations.json was written by a newer Plynth.", "/version");
+    if (Status s = checkVersion(json); !s.ok()) {
+        result.status = s;
         return result;
     }
     const auto entries = json.find("integrations");
@@ -199,6 +233,15 @@ IntegrationOptionsRead readIntegrationOptions(const LibraryPaths& library)
         return result;
     }
     for (const auto& item : entries->items()) {
+        const std::string where = "/integrations/" + pointerPart(item.key());
+        if (!isWellFormedId(item.key())) {
+            result.status = fail(ErrorCode::BadFile, "integrations.json holds an entry with a badly formed id.", where);
+            return result;
+        }
+        if (!item.value().is_object()) {
+            result.status = fail(ErrorCode::BadFile, "integrations.json: the entry for " + item.key() + " is not an object.", where);
+            return result;
+        }
         if (const Integration* integration = findIntegration(item.key())) {
             if (Status s = checkSavedEntry(*integration, item.value(), item.key()); !s.ok()) {
                 result.status = s;

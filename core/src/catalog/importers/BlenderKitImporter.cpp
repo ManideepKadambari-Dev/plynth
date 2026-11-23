@@ -29,12 +29,14 @@ public:
     }
     std::vector<std::string> fileSuffixes() const override { return {}; }
 
+    // Takes only an address it can read, never a file.
     int score(const ImportSource& source) const override
     {
         if (!source.file.empty() || source.url.empty()) return 0;
         return parseBlenderKitAddress(source.url).status.ok() ? 30 : 0;
     }
 
+    // Plans a download of the model the address names, to be cleaned up like any file afterwards.
     Status plan(const ImportSource& source, const std::filesystem::path&, ImportPlan& out) const override
     {
         if (!source.file.empty() || source.url.empty()) return fail(ErrorCode::InvalidValue, "BlenderKit cannot read this.");
@@ -77,6 +79,7 @@ public:
         return Json{{"resolution", defaults.resolution},
                     {"wait_seconds", defaults.waitSeconds}};
     }
+    // Refuses options for a single import and checks the saved ones.
     Status checkOptions(const Json& options, OptionUse use) const override
     {
         if (use == OptionUse::Import && options.is_object() && !options.empty()) {
@@ -86,6 +89,29 @@ public:
         BlenderKitOptions scratch;
         return blenderKitOptionsFromJson(options, scratch);
     }
+    // Items from BlenderKit are store items, never bundled.
+    std::vector<std::string> storeSourceKinds() const override { return {std::string(kSourceBlenderKit)}; }
+    // The two saved options as the app draws them.
+    std::vector<OptionField> optionFields() const override
+    {
+        OptionField resolution;
+        resolution.key = "resolution";
+        resolution.label = "Texture resolution";
+        resolution.help = "The size of the textures BlenderKit downloads. Original takes them as the author uploaded them.";
+        resolution.kind = OptionKind::Choice;
+        resolution.choices = {{"0.5k", "0.5K"}, {"1k", "1K"}, {"2k", "2K"}, {"4k", "4K"}, {"8k", "8K"}, {"original", "Original"}};
+
+        OptionField wait;
+        wait.key = "wait_seconds";
+        wait.label = "Wait for a download (seconds)";
+        wait.help = "How long a download may take before Plynth stops waiting for it.";
+        wait.kind = OptionKind::WholeNumber;
+        wait.minimum = 60;
+        wait.maximum = 3600;
+        return {resolution, wait};
+    }
+    // The sentence for a pasted text that is not a BlenderKit address.
+    Status checkAddress(std::string_view text) const override { return parseBlenderKitAddress(text).status; }
 };
 
 const ImporterRegistrar importerRegistrar(std::make_unique<BlenderKitImporter>());

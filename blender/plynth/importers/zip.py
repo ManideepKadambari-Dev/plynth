@@ -10,12 +10,30 @@ MAX_UNPACKED_BYTES = 4 * 1024 * 1024 * 1024
 PREFERENCE = [".blend", ".fbx", ".glb", ".gltf", ".obj"]
 
 
-# Says whether a name inside a zip could leave the target folder: an absolute name, a ".." part, or any
-# part with a colon (a drive letter or an alternate data stream).
+DEVICES = {"con", "prn", "aux", "nul", "conin$", "conout$"} | {
+    word + digit for word in ("com", "lpt") for digit in "123456789¹²³"}
+# Only A to Z are lowered, as core does, so no other letter can turn into a device name.
+ASCII_LOWER = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
+
+
+# Says whether one part of a zip name is one Windows would treat as something else: a ".." part, a colon (a
+# drive letter or a hidden data stream), an ending dot or space (Windows drops them), or a device name such as
+# CON or COM1 in any letter case, also with an ending after it (nul.png) or spaces before that ending.
+def is_unsafe_part(part):
+    if part == ".." or ":" in part:
+        return True
+    if part != "." and part.endswith((".", " ")):
+        return True
+    base = part.split(".", 1)[0].rstrip(" ")
+    return base.translate(ASCII_LOWER) in DEVICES
+
+
+# Says whether a name inside a zip is unsafe to unpack: an absolute name or any unsafe part. ZipListing.h in
+# core has the same rule, so core refuses the same names before the worker starts.
 def is_unsafe(name):
     if name.startswith("/") or name.startswith("\\"):
         return True
-    return any(part == ".." or ":" in part for part in re.split(r"[\\/]", name))
+    return any(is_unsafe_part(part) for part in re.split(r"[\\/]", name) if part)
 
 
 # Says whether a path is inside a folder, after resolving links.

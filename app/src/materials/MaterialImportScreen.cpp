@@ -3,6 +3,7 @@
 #include "catalog/LibraryHost.h"
 #include "materials/MaterialImportQueue.h"
 #include "panels/ImportQueueView.h"
+#include "theme/PlainText.h"
 #include "theme/Theme.h"
 
 #include <plynth/core/catalog/MaterialImporter.h>
@@ -58,7 +59,9 @@ std::filesystem::path toPath(const QString& text)
 QLabel* caption(const QString& text, QWidget* parent)
 {
     const Theme& t = Theme::instance();
-    auto* label = new QLabel(text, parent);
+    auto* label = new QLabel(parent);
+    label->setTextFormat(Qt::PlainText);
+    label->setText(text);
     label->setFont(t.uiFont(t.sizeSmall()));
     label->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
     return label;
@@ -171,6 +174,7 @@ QWidget* MaterialImportScreen::buildSources()
     connect(sources_, &QListWidget::itemSelectionChanged, this, &MaterialImportScreen::updateState);
 
     note_ = new QLabel(page);
+    note_->setTextFormat(Qt::PlainText);
     note_->setWordWrap(true);
     note_->setFont(t.uiFont(t.sizeSmall()));
     note_->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
@@ -448,7 +452,7 @@ void MaterialImportScreen::addSources(const QStringList& paths)
         if (!sources_->findItems(clean, Qt::MatchExactly).isEmpty())
             continue;
         auto* item = new QListWidgetItem(clean, sources_);
-        item->setToolTip(tr("%1\nTaken by: %2").arg(clean, fromCore(std::string(plynth::pickMaterialImporter(source)->name()))));
+        item->setToolTip(plainToolTip(tr("%1\nTaken by: %2").arg(clean, fromCore(std::string(plynth::pickMaterialImporter(source)->name())))));
     }
     note_->setVisible(!refused.isEmpty());
     if (!refused.isEmpty())

@@ -23,18 +23,14 @@ std::string lowerCase(std::string text)
     return text;
 }
 
-// A name from a zip's file stem, without a trailing quality word and item id ("Muddy_Cloth_abcdefghi_High").
-std::string nameFromZipStem(std::string stem)
+// A name from a zip's file stem, without a last quality word and without the zip's item id before it
+// ("Muddy_Cloth_abcdefghi_High"). No other word is dropped.
+std::string nameFromZipStem(std::string stem, const std::string& itemId)
 {
-    auto cut = stem.rfind('_');
-    if (cut != std::string::npos && fabQualityFromName(lowerCase(stem.substr(cut + 1)))) stem.erase(cut);
-    cut = stem.rfind('_');
-    if (cut != std::string::npos && std::isupper(static_cast<unsigned char>(stem[0])) != 0) {
-        const std::string last = stem.substr(cut + 1);
-        const bool idLike = last.size() >= 6 && last.size() <= 10 &&
-                            std::all_of(last.begin(), last.end(), [](unsigned char c) { return std::islower(c) || std::isdigit(c); });
-        if (idLike) stem.erase(cut);
-    }
+    auto cut = stem.find_last_of("_- ");
+    if (cut != std::string::npos && cut > 0 && fabQualityFromName(lowerCase(stem.substr(cut + 1)))) stem.erase(cut);
+    cut = stem.find_last_of("_- ");
+    if (!itemId.empty() && cut != std::string::npos && cut > 0 && lowerCase(stem.substr(cut + 1)) == itemId) stem.erase(cut);
     return catalogNameFromStem(stem);
 }
 
@@ -56,16 +52,20 @@ public:
     }
     std::vector<std::string> fileSuffixes() const override { return {".zip"}; }
 
+    // How well a zip fits: 20 for a texture zip that looks like Fab, 5 for another zip of images, 0 for
+    // anything else. A zip with a name that is not valid UTF-8 gets 20, so its plan gives the reason.
     int score(const ImportSource& source) const override
     {
         if (!isZipFile(source)) return 0;
         const ZipListing listing = listZipEntries(source.file);
+        if (listing.badName) return 20;
         if (!listing.status.ok()) return 0;
         const FabZipContents contents = classifyFabZip(listing.entries);
         if (!contents.models.empty() || contents.textures.empty()) return 0;
         return looksLikeFabMaterialZip(contents) ? 20 : 5;
     }
 
+    // Picks one resolution of each texture and writes the worker's source file.
     Status plan(const ImportSource& source, const fs::path& workFolder, MaterialImportPlan& out) const override
     {
         if (source.file.empty()) return fail(ErrorCode::InvalidValue, "No file was given.");
@@ -99,8 +99,8 @@ public:
         out.path = sourceFile;
         out.sourceKind = std::string(kSourceFabZip);
         out.reference = pathToUtf8(source.file.filename());
-        out.defaultName = nameFromZipStem(pathToUtf8(source.file.stem()));
-        out.license = options.license;
+        out.defaultName = nameFromZipStem(pathToUtf8(source.file.stem()), fabItemId(contents));
+        out.license = source.guessed ? std::string(kUnknownLicenseId) : options.license;
         out.originalIsZip = true;
         out.details = fabChoiceDetails(contents, choice);
         return {};

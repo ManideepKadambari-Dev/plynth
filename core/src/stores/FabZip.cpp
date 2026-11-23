@@ -21,6 +21,7 @@ struct Word {
     int value = 0; // quality as int, LOD number, or pixels
 };
 
+// The text in lower case. Only the letters A to Z change.
 std::string lower(std::string_view text)
 {
     std::string out(text);
@@ -28,6 +29,7 @@ std::string lower(std::string_view text)
     return out;
 }
 
+// Says whether text is one or more digits and nothing else.
 bool isDigits(std::string_view text)
 {
     return !text.empty() && std::all_of(text.begin(), text.end(), [](unsigned char c) { return std::isdigit(c) != 0; });
@@ -44,6 +46,7 @@ std::string formatGroup(std::string_view word)
     return {};
 }
 
+// The quality a lower case word names, as a number, or -1 for none.
 int qualityWord(std::string_view w)
 {
     if (w == "low" || w == "lowpoly" || w == "lp") return static_cast<int>(FabQuality::Low);
@@ -90,6 +93,7 @@ std::vector<std::string> splitWords(std::string_view part)
     return words;
 }
 
+// The pixels across a lower case resolution word names, or 0 for none.
 int resolutionWord(std::string_view w)
 {
     if (w == "05k") return 512;
@@ -133,6 +137,7 @@ std::vector<Word> classifyWords(std::string_view part)
     return words;
 }
 
+// The folder and file names of a zip entry, top down, without empty ones.
 std::vector<std::string> pathParts(std::string_view entry)
 {
     std::vector<std::string> parts;
@@ -146,18 +151,31 @@ std::vector<std::string> pathParts(std::string_view entry)
     return parts;
 }
 
+// The folder of a zip entry, empty at the top of the zip.
 std::string parentOf(const std::string& entry)
 {
     const auto slash = entry.rfind('/');
     return slash == std::string::npos ? std::string() : entry.substr(0, slash);
 }
 
+// The ending of a zip entry in lower case with its dot, empty for none.
 std::string extensionOf(const std::string& entry)
 {
     const auto slash = entry.rfind('/');
     const auto dot = entry.rfind('.');
     if (dot == std::string::npos || (slash != std::string::npos && dot < slash)) return {};
     return lower(std::string_view(entry).substr(dot));
+}
+
+// The file name of a zip entry without its ending.
+std::string fileStemOf(const std::string& entry)
+{
+    const auto parts = pathParts(entry);
+    if (parts.empty()) return {};
+    std::string name = parts.back();
+    const std::string ext = extensionOf(entry);
+    if (ext.size() <= name.size()) name.erase(name.size() - ext.size());
+    return name;
 }
 
 // The value of the word of the given kind nearest to the file name: the name first, then the folders up.
@@ -195,6 +213,104 @@ std::string stemOf(const std::string& entry)
     return "model";
 }
 
+// Says whether a lower case word is one of the general words that name no item, such as model or mesh.
+bool isGeneralWord(const std::string& word)
+{
+    static const std::set<std::string> general{"model",  "models",  "mesh",     "meshes", "scene",  "scenes", "object",  "objects",
+                                               "geometry", "asset", "export", "exports", "file", "files", "untitled"};
+    return general.count(word) != 0;
+}
+
+// The item of a model, the name it goes by: its stem, or for a general stem the nearest folder with its own words.
+std::string itemOf(const std::string& entry, const std::string& stem)
+{
+    if (!isGeneralWord(lower(stem))) return stem;
+    const auto parts = pathParts(entry);
+    for (std::size_t p = parts.empty() ? 0 : parts.size() - 1; p-- > 0;) {
+        for (const auto& w : classifyWords(parts[p])) {
+            if (w.kind == WordKind::Plain && !isGeneralWord(lower(w.text))) return plainWords(parts[p]);
+        }
+    }
+    return stem;
+}
+
+// The lower case words of an item.
+std::set<std::string> itemWordsOf(const std::string& item)
+{
+    std::set<std::string> words;
+    for (const auto& w : splitWords(item)) words.insert(lower(w));
+    return words;
+}
+
+// The plain words of a folder name that tell one model from another: not general and not the item's own.
+std::vector<std::string> ownFolderWords(const std::string& part, const std::set<std::string>& itemWords)
+{
+    std::vector<std::string> out;
+    for (const auto& w : classifyWords(part)) {
+        const std::string l = lower(w.text);
+        if (w.kind == WordKind::Plain && !isGeneralWord(l) && itemWords.count(l) == 0) out.push_back(w.text);
+    }
+    return out;
+}
+
+// The folder words of a model, top down and in lower case.
+std::vector<std::string> folderWordsOf(const std::string& entry, const std::string& item)
+{
+    const auto itemWords = itemWordsOf(item);
+    const auto parts = pathParts(entry);
+    std::vector<std::string> out;
+    for (std::size_t p = 0; p + 1 < parts.size(); ++p)
+        for (const auto& w : ownFolderWords(parts[p], itemWords)) out.push_back(lower(w));
+    return out;
+}
+
+// The folders of a model that hold its folder words, each with only those words and a "/" after it.
+std::string folderPrefix(const std::string& entry, const std::string& item)
+{
+    const auto itemWords = itemWordsOf(item);
+    const auto parts = pathParts(entry);
+    std::string out;
+    for (std::size_t p = 0; p + 1 < parts.size(); ++p) {
+        const auto words = ownFolderWords(parts[p], itemWords);
+        if (words.empty()) continue;
+        for (std::size_t i = 0; i < words.size(); ++i) {
+            if (i) out += '_';
+            out += words[i];
+        }
+        out += '/';
+    }
+    return out;
+}
+
+// One different model of a zip with all its versions.
+struct ModelGroup {
+    std::string item;
+    std::vector<std::string> folderWords;
+    std::vector<const FabModel*> models;
+    std::string shown;
+};
+
+// Sorts the models into different models, in the order of their first entry, each with its shown name.
+std::vector<ModelGroup> groupModels(const std::vector<FabModel>& models)
+{
+    std::vector<ModelGroup> groups;
+    for (const auto& m : models) {
+        const auto words = folderWordsOf(m.entry, m.item);
+        const std::string key = lower(m.item);
+        const auto same = std::find_if(groups.begin(), groups.end(),
+                                       [&](const ModelGroup& g) { return lower(g.item) == key && g.folderWords == words; });
+        if (same == groups.end()) groups.push_back(ModelGroup{m.item, words, {&m}, m.item});
+        else same->models.push_back(&m);
+    }
+    for (auto& g : groups) {
+        const bool shared = std::any_of(groups.begin(), groups.end(),
+                                        [&](const ModelGroup& o) { return &o != &g && lower(o.item) == lower(g.item); });
+        if (shared) g.shown = folderPrefix(g.models.front()->entry, g.item) + g.item;
+    }
+    return groups;
+}
+
+// The model format of an ending, empty for one Plynth cannot read.
 std::string modelFormatOf(const std::string& ext)
 {
     if (ext == ".fbx") return "fbx";
@@ -204,6 +320,7 @@ std::string modelFormatOf(const std::string& ext)
     return {};
 }
 
+// Says whether an ending is a model format Plynth knows of but cannot read.
 bool isUnreadableModelExt(const std::string& ext)
 {
     static const std::set<std::string> known = {".uasset", ".umap", ".usd", ".usda", ".usdc", ".usdz", ".unitypackage",
@@ -211,25 +328,45 @@ bool isUnreadableModelExt(const std::string& ext)
     return known.count(ext) != 0;
 }
 
+// Says whether an ending is one of the texture image endings.
 bool isImageExt(const std::string& ext)
 {
     const auto all = textureImageSuffixes();
     return std::find(all.begin(), all.end(), ext) != all.end();
 }
 
-bool isPreview(const std::string& entry)
+// Says whether a quality word of the path, other than source and original, marks it as a Fab version.
+bool hasVersionQualityWord(const std::string& entry)
 {
     for (const auto& part : pathParts(entry)) {
-        for (const auto& w : splitWords(part)) {
-            const std::string l = lower(w);
-            if (l == "preview" || l == "previews" || l == "thumb" || l == "thumbnail" || l == "thumbnails" || l == "render" ||
-                l == "renders" || l == "screenshot" || l == "screenshots" || l == "cover")
-                return true;
+        for (const auto& w : classifyWords(part)) {
+            const std::string l = lower(w.text);
+            if (w.kind == WordKind::Quality && l != "source" && l != "original") return true;
         }
     }
     return false;
 }
 
+// Says whether an image is a preview picture rather than a texture.
+bool isPreview(const std::string& entry)
+{
+    static const std::set<std::string> names{"preview", "previews", "thumb",      "thumbs",      "thumbnail", "thumbnails",
+                                             "render",  "renders",  "screenshot", "screenshots", "cover",     "covers"};
+    static const std::set<std::string> firstNames{"preview",    "previews",   "thumb",      "thumbs",
+                                                  "thumbnail", "thumbnails", "screenshot", "screenshots"};
+    const auto parts = pathParts(entry);
+    for (std::size_t p = 0; p + 1 < parts.size(); ++p)
+        if (names.count(lower(parts[p]))) return true;
+    std::vector<std::string> words;
+    for (const auto& w : splitWords(fileStemOf(entry))) {
+        const std::string l = lower(w);
+        if (!isDigits(l) && resolutionWord(l) == 0) words.push_back(l);
+    }
+    if (words.empty()) return false;
+    return names.count(words.back()) != 0 || firstNames.count(words.front()) != 0;
+}
+
+// The names joined with commas, at most limit of them, then how many more there are.
 std::string joinNames(const std::vector<std::string>& names, std::size_t limit)
 {
     std::string out;
@@ -249,7 +386,32 @@ std::string utf8Slashes(const std::filesystem::path& path)
     return text;
 }
 
+// A refusal with this sentence.
 Status invalid(std::string message) { return fail(ErrorCode::InvalidValue, std::move(message)); }
+
+// Says whether text is a license id as the schema allows: a lower case letter, then letters, digits and "_".
+bool isLicenseId(const std::string& text)
+{
+    if (text.empty() || text.size() > 64 || text[0] < 'a' || text[0] > 'z') return false;
+    return std::all_of(text.begin(), text.end(), [](char c) { return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_'; });
+}
+
+// Says whether text could be a Fab item id: six to ten lower case letters and digits.
+bool looksLikeItemId(const std::string& text)
+{
+    if (text.size() < 6 || text.size() > 10) return false;
+    return std::all_of(text.begin(), text.end(), [](char c) { return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'); });
+}
+
+// Says whether a word of an entry's file name is this word, ignoring case.
+bool fileNameHasWord(const std::string& entry, const std::string& word)
+{
+    const auto parts = pathParts(entry);
+    if (parts.empty()) return false;
+    for (const auto& w : splitWords(parts.back()))
+        if (lower(w) == word) return true;
+    return false;
+}
 
 // Quality preference lists, nearest first.
 std::array<FabQuality, 4> qualityOrder(FabQuality wanted)
@@ -263,44 +425,104 @@ std::array<FabQuality, 4> qualityOrder(FabQuality wanted)
     return {FabQuality::Medium, FabQuality::High, FabQuality::Low, FabQuality::Raw};
 }
 
-// Refuses an unsafe or encrypted entry of a kind that would be picked.
+// The ending of an entry once a stream name and trailing dots and spaces are left out, as Windows would see it.
+std::string hiddenEnding(const std::string& entry)
+{
+    std::string name = entry;
+    const auto slash = name.rfind('/');
+    const auto colon = name.find(':', slash == std::string::npos ? 0 : slash + 1);
+    if (colon != std::string::npos) name.erase(colon);
+    while (!name.empty() && (name.back() == '.' || name.back() == ' ')) name.pop_back();
+    return extensionOf(name);
+}
+
+// Says whether an entry with this ending is of a kind that would be given to the worker.
+bool isPickedKind(const std::string& ext)
+{
+    return isImageExt(ext) || !modelFormatOf(ext).empty() || ext == ".bin" || ext == ".mtl" || ext == ".json";
+}
+
+// The refusal of an entry that cannot be unpacked safely.
+Status unsafeEntry(const std::string& entry) { return invalid("The zip holds " + entry + ", which cannot be unpacked safely."); }
+
+// Says whether the entry is among the unsafe or encrypted ones.
+bool isUnsafeEntry(const FabZipContents& contents, const std::string& entry)
+{
+    return std::find(contents.unsafe.begin(), contents.unsafe.end(), entry) != contents.unsafe.end();
+}
+
+// Refuses an unsafe or encrypted entry of a kind that would be picked, also behind a hidden ending.
 Status checkUnsafe(const FabZipContents& contents)
 {
-    for (const auto& entry : contents.unsafe) {
-        const std::string ext = extensionOf(entry);
-        if (isImageExt(ext) || !modelFormatOf(ext).empty() || ext == ".bin" || ext == ".mtl" || ext == ".json")
-            return invalid("The zip holds " + entry + ", which cannot be unpacked safely.");
-    }
+    for (const auto& entry : contents.unsafe)
+        if (isPickedKind(extensionOf(entry)) || isPickedKind(hiddenEnding(entry))) return unsafeEntry(entry);
     return {};
 }
 
-// Keeps the textures of the resolution to take. Untagged textures stay.
+// What tells one texture from another: its path without resolution words, without folders made only of them
+// and without its ending, in lower case and without separators.
+std::string textureKey(const std::string& entry)
+{
+    auto parts = pathParts(entry);
+    if (parts.empty()) return {};
+    parts.back() = fileStemOf(entry);
+    std::string key;
+    for (const auto& part : parts) {
+        std::string piece;
+        bool hadResolution = false;
+        for (const auto& w : classifyWords(part)) {
+            if (w.kind == WordKind::Resolution) hadResolution = true;
+            else piece += lower(w.text);
+        }
+        if (piece.empty() && hadResolution) continue;
+        key += piece;
+        key += '/';
+    }
+    return key;
+}
+
+// Keeps one resolution of each texture: its largest up to maxSize, its largest when there is no limit, its
+// smallest when all are larger. Textures without a resolution word stay. largest is the largest resolution
+// taken when the textures came in several, else empty.
 std::vector<FabTexture> filterByResolution(const std::vector<FabTexture>& textures, const std::optional<int>& maxSize,
-                                           std::optional<int>& taken)
+                                           std::optional<int>& largest)
 {
     std::set<int> found;
-    for (const auto& t : textures)
-        if (t.resolution) found.insert(*t.resolution);
-    taken.reset();
-    if (found.size() < 2) return textures;
-    int pick = *found.rbegin();
-    if (maxSize) {
-        std::optional<int> best;
-        for (const int r : found)
-            if (r <= *maxSize) best = r;
-        pick = best ? *best : *found.begin();
+    std::map<std::string, std::set<int>> sizesOf;
+    for (const auto& t : textures) {
+        auto& sizes = sizesOf[textureKey(t.entry)];
+        if (t.resolution) {
+            found.insert(*t.resolution);
+            sizes.insert(*t.resolution);
+        }
     }
-    taken = pick;
+    std::map<std::string, int> pickOf;
+    for (const auto& [key, sizes] : sizesOf) {
+        if (sizes.empty()) continue;
+        int pick = *sizes.rbegin();
+        if (maxSize) {
+            std::optional<int> best;
+            for (const int r : sizes)
+                if (r <= *maxSize) best = r;
+            pick = best ? *best : *sizes.begin();
+        }
+        pickOf[key] = pick;
+    }
+    largest.reset();
     std::vector<FabTexture> out;
-    for (const auto& t : textures)
-        if (!t.resolution || *t.resolution == pick) out.push_back(t);
+    for (const auto& t : textures) {
+        if (t.resolution && pickOf[textureKey(t.entry)] != *t.resolution) continue;
+        out.push_back(t);
+        if (found.size() >= 2 && t.resolution && (!largest || *t.resolution > *largest)) largest = t.resolution;
+    }
     return out;
 }
 
-// Adds the textures named in the maps option. A name the zip does not have is a refusal.
+// Adds the textures named in the maps option. A name the zip does not have, or an unsafe one, is a refusal.
 Status addPickedMaps(const FabZipContents& contents, const FabOptions& options, std::set<std::string>& taken)
 {
     for (const auto& pick : options.maps) {
+        if (isUnsafeEntry(contents, pick.entry)) return unsafeEntry(pick.entry);
         const bool known = std::any_of(contents.textures.begin(), contents.textures.end(),
                                        [&](const FabTexture& t) { return t.entry == pick.entry; }) ||
                            std::find(contents.previews.begin(), contents.previews.end(), pick.entry) != contents.previews.end();
@@ -322,6 +544,7 @@ std::optional<std::string> firstMetadata(const std::vector<std::string>& metadat
 
 }
 
+// The option word of a quality.
 std::string_view fabQualityName(FabQuality quality)
 {
     switch (quality) {
@@ -333,6 +556,7 @@ std::string_view fabQualityName(FabQuality quality)
     return {};
 }
 
+// The quality an option word names, empty for an unknown word.
 std::optional<FabQuality> fabQualityFromName(std::string_view name)
 {
     for (const auto q : {FabQuality::Low, FabQuality::Medium, FabQuality::High, FabQuality::Raw})
@@ -340,6 +564,7 @@ std::optional<FabQuality> fabQualityFromName(std::string_view name)
     return std::nullopt;
 }
 
+// Reads the Fab options from JSON, refusing unknown keys and bad values with a sentence naming the option.
 Status fabOptionsFromJson(const Json& json, bool forImport, FabOptions& out)
 {
     if (!json.is_object()) return invalid("The Fab options must be an object.");
@@ -375,7 +600,9 @@ Status fabOptionsFromJson(const Json& json, bool forImport, FabOptions& out)
             if (!n) return invalid("The option normal must be auto, opengl or directx.");
             next.normal = *n;
         } else if (key == "license") {
-            if (!value.is_string() || value.get<std::string>().empty()) return invalid("The option license must be a license name.");
+            if (!value.is_string() || !isLicenseId(value.get<std::string>()))
+                return invalid("The option license must be a license id: a lower case letter, then up to 63 lower case letters, "
+                               "digits and _.");
             next.license = value.get<std::string>();
         } else if (key == "model") {
             if (!forImport) return invalid("The option model is for one import only and cannot be saved.");
@@ -403,6 +630,7 @@ Status fabOptionsFromJson(const Json& json, bool forImport, FabOptions& out)
     return {};
 }
 
+// The saved Fab options as JSON, without the options for one import.
 Json fabOptionsToJson(const FabOptions& options)
 {
     Json json = Json::object();
@@ -414,6 +642,7 @@ Json fabOptionsToJson(const FabOptions& options)
     return json;
 }
 
+// Sorts the entries of a zip into models, textures, previews and the rest.
 FabZipContents classifyFabZip(const std::vector<ZipEntry>& entries)
 {
     FabZipContents out;
@@ -431,6 +660,7 @@ FabZipContents classifyFabZip(const std::vector<ZipEntry>& entries)
             if (const auto q = nearestValue(e.name, WordKind::Quality)) m.quality = static_cast<FabQuality>(*q);
             m.lod = nearestValue(e.name, WordKind::Lod);
             m.stem = stemOf(e.name);
+            m.item = itemOf(e.name, m.stem);
             out.models.push_back(std::move(m));
         } else if (isUnreadableModelExt(ext)) {
             out.unreadableModels.push_back(e.name);
@@ -458,12 +688,13 @@ FabZipContents classifyFabZip(const std::vector<ZipEntry>& entries)
     return out;
 }
 
+// Says whether the models look like the versions of a Fab download.
 bool looksLikeFabModelZip(const FabZipContents& contents)
 {
     std::map<std::string, int> stems;
     for (const auto& m : contents.models) {
         if (++stems[lower(m.stem)] >= 2) return true;
-        if (m.quality || m.lod) return true;
+        if (m.lod || hasVersionQualityWord(m.entry)) return true;
         const auto parts = pathParts(m.entry);
         for (std::size_t i = 0; i + 1 < parts.size(); ++i)
             for (const auto& w : splitWords(parts[i]))
@@ -472,34 +703,50 @@ bool looksLikeFabModelZip(const FabZipContents& contents)
     return false;
 }
 
+// Says whether the textures look like a Fab download rather than the user's own texture set.
 bool looksLikeFabMaterialZip(const FabZipContents& contents)
 {
+    for (const auto& entry : contents.metadata) {
+        const auto parts = pathParts(entry);
+        if (!parts.empty() && lower(parts.back()) == "material.json") return false;
+    }
     std::set<int> resolutions;
     for (const auto& t : contents.textures)
         if (t.resolution) resolutions.insert(*t.resolution);
     return resolutions.size() >= 2 || !contents.metadata.empty();
 }
 
-// Gives no item id yet.
-std::string fabItemId(const FabZipContents&)
+// The Fab id of the zip's item, only when a .json of that name is there and the id is a word of a model or
+// texture file name. Empty when there is none.
+std::string fabItemId(const FabZipContents& contents)
 {
-    return {};
+    std::vector<std::string> ids;
+    for (const auto& entry : contents.metadata) {
+        const std::string id = fileStemOf(entry);
+        if (!looksLikeItemId(id)) continue;
+        const bool used = std::any_of(contents.models.begin(), contents.models.end(),
+                                      [&](const FabModel& m) { return fileNameHasWord(m.entry, id); }) ||
+                          std::any_of(contents.textures.begin(), contents.textures.end(),
+                                      [&](const FabTexture& t) { return fileNameHasWord(t.entry, id); });
+        if (used) ids.push_back(id);
+    }
+    if (ids.empty()) return {};
+    return *std::min_element(ids.begin(), ids.end());
 }
 
+// Picks the model version and the textures that go with it, or refuses with a plain sentence.
 FabChoice chooseFabModel(const FabZipContents& contents, const FabOptions& options)
 {
     FabChoice choice;
     const FabModel* picked = nullptr;
-    std::vector<std::string> allStems;
-    std::set<std::string> seenStems;
-    for (const auto& m : contents.models)
-        if (seenStems.insert(lower(m.stem)).second) allStems.push_back(m.stem);
+    const auto groups = groupModels(contents.models);
 
     if (!options.model.empty()) {
         for (const auto& m : contents.models)
             if (m.entry == options.model) picked = &m;
         if (!picked) {
-            choice.status = invalid("The zip has no model " + options.model + ".");
+            choice.status = isUnsafeEntry(contents, options.model) ? unsafeEntry(options.model)
+                                                                   : invalid("The zip has no model " + options.model + ".");
             return choice;
         }
     } else {
@@ -518,6 +765,12 @@ FabChoice chooseFabModel(const FabZipContents& contents, const FabOptions& optio
             return choice;
         }
 
+        if (groups.size() > 1) {
+            for (const auto& g : groups) choice.otherStems.push_back(g.shown);
+            choice.status = invalid("This zip holds several models: " + joinNames(choice.otherStems, 10) + ". Pick one with the option model.");
+            return choice;
+        }
+
         std::vector<std::string> order = options.formats;
         for (const auto f : kFabFormats) {
             const std::string name(f);
@@ -528,16 +781,6 @@ FabChoice chooseFabModel(const FabZipContents& contents, const FabOptions& optio
             for (const auto& m : contents.models)
                 if (m.format == format) candidates.push_back(&m);
             if (!candidates.empty()) break;
-        }
-
-        std::vector<std::string> stems;
-        std::set<std::string> seen;
-        for (const auto* m : candidates)
-            if (seen.insert(lower(m->stem)).second) stems.push_back(m->stem);
-        if (stems.size() > 1) {
-            choice.otherStems = stems;
-            choice.status = invalid("This zip holds several models: " + joinNames(stems, 10) + ". Pick one with the option model.");
-            return choice;
         }
 
         const auto order4 = qualityOrder(options.quality);
@@ -557,8 +800,8 @@ FabChoice chooseFabModel(const FabZipContents& contents, const FabOptions& optio
     choice.status = checkUnsafe(contents);
     if (!choice.status.ok()) return choice;
     choice.model = *picked;
-    for (const auto& stem : allStems)
-        if (lower(stem) != lower(picked->stem)) choice.otherStems.push_back(stem);
+    for (const auto& g : groups)
+        if (std::find(g.models.begin(), g.models.end(), picked) == g.models.end()) choice.otherStems.push_back(g.shown);
 
     std::set<std::string> files{picked->entry};
     const std::string folder = parentOf(picked->entry);
@@ -636,6 +879,7 @@ FabChoice chooseFabModel(const FabZipContents& contents, const FabOptions& optio
     return choice;
 }
 
+// Picks the textures of a material zip, one resolution of each.
 FabChoice chooseFabMaterial(const FabZipContents& contents, const FabOptions& options)
 {
     FabChoice choice;
@@ -665,6 +909,7 @@ FabChoice chooseFabMaterial(const FabZipContents& contents, const FabOptions& op
     return choice;
 }
 
+// The source file the worker reads to unpack and build the picked entries.
 Json fabSourceJson(const FabChoice& choice, std::string_view kind, const std::filesystem::path& zip,
                    const std::filesystem::path& unpackFolder, const FabOptions& options)
 {
@@ -689,6 +934,7 @@ Json fabSourceJson(const FabChoice& choice, std::string_view kind, const std::fi
     return json;
 }
 
+// What was found and picked in a zip, for the dry run and the pick of a model.
 Json fabChoiceDetails(const FabZipContents& contents, const FabChoice& choice)
 {
     Json models = Json::array();
@@ -699,6 +945,7 @@ Json fabChoiceDetails(const FabZipContents& contents, const FabChoice& choice)
         item["quality"] = m.quality ? Json(std::string(fabQualityName(*m.quality))) : Json(nullptr);
         item["lod"] = m.lod ? Json(*m.lod) : Json(nullptr);
         item["stem"] = m.stem;
+        item["item"] = m.item;
         models.push_back(std::move(item));
     }
     Json skipped = Json::array();

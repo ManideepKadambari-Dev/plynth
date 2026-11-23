@@ -142,6 +142,9 @@ public:
     void setBlenderKitAddress(const QString& text);
     // For checks only: opens the Fab import dialog for a zip without waiting for it.
     void showFabImport(const QString& zip);
+    // For checks only: does what an integration's import button does once this file is chosen. Assets when
+    // the integration imports assets, otherwise materials.
+    void importIntegrationFile(const QString& integrationId, const QString& file);
     // For checks only: true when the Integrations tab was not asked for, or its check has ended.
     bool integrationsPictureReady() const;
     // For checks only: shows the Assets tab.

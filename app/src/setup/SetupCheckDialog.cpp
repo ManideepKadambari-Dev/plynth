@@ -2,6 +2,7 @@
 
 #include "catalog/LibraryHost.h"
 #include "preview/GraphicsProbe.h"
+#include "theme/PlainText.h"
 #include "theme/Theme.h"
 
 #include <plynth/core/Library.h>
@@ -80,7 +81,9 @@ QColor stateColor(plynth::CheckState state)
 // Makes a wrapped label with a color and font.
 QLabel* textLabel(const QString& text, const QFont& font, const QColor& color, QWidget* parent)
 {
-    auto* label = new QLabel(text, parent);
+    auto* label = new QLabel(parent);
+    label->setTextFormat(Qt::PlainText);
+    label->setText(text);
     label->setWordWrap(true);
     label->setFont(font);
     label->setStyleSheet(QStringLiteral("color: %1;").arg(color.name()));
@@ -239,14 +242,16 @@ void SetupCheckDialog::addRow(const plynth::SetupItem& item)
                            .arg(t.panel().name(), t.line().name())
                            .arg(t.radius()));
     row->setProperty("tourId", QStringLiteral("setup-row-") + fromCore(item.id));
-    row->setToolTip(fromCore(item.name));
+    row->setToolTip(plainToolTip(fromCore(item.name)));
     auto* box = new QVBoxLayout(row);
     box->setContentsMargins(t.unit() * 3, t.unit() * 3, t.unit() * 3, t.unit() * 3);
     box->setSpacing(t.unit() * 2);
 
     auto* head = new QHBoxLayout();
     head->setSpacing(t.unit() * 3);
-    auto* name = new QLabel(fromCore(item.name) + (item.required ? QString() : tr(" (optional)")), row);
+    auto* name = new QLabel(row);
+    name->setTextFormat(Qt::PlainText);
+    name->setText(fromCore(item.name) + (item.required ? QString() : tr(" (optional)")));
     name->setFont(t.uiFont(t.sizeNormal(), QFont::DemiBold));
     head->addWidget(name, 1);
     auto* state = new QLabel(stateWord(item.state), row);
@@ -307,7 +312,7 @@ void SetupCheckDialog::addRow(const plynth::SetupItem& item)
                                    .arg(version, where.join(QStringLiteral(", ")),
                                         install.usable() ? QString() : tr("  cannot be used")),
                                QString::fromStdWString(install.executable.wstring()));
-                combo->setItemData(static_cast<int>(i), displayPath(install.executable), Qt::ToolTipRole);
+                combo->setItemData(static_cast<int>(i), plainToolTip(displayPath(install.executable)), Qt::ToolTipRole);
             }
             if (report_->selectedBlender)
                 combo->setCurrentIndex(static_cast<int>(*report_->selectedBlender));
