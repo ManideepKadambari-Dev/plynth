@@ -27,6 +27,9 @@ namespace fs = std::filesystem;
 
 namespace {
 
+// What runProcess says when programs a run started could not all be ended.
+constexpr std::string_view kProgramsLeftMessage = "Programs that the program started could not all be ended.";
+
 // The value of an environment variable as text. Empty when it is not set.
 std::wstring environmentText(const wchar_t* name)
 {
@@ -578,6 +581,8 @@ BlenderJobRun runBlenderJob(const fs::path& blender, const Json& job, const fs::
     for (const char* arg : {"--", "--job"}) spec.arguments.emplace_back(arg);
     spec.arguments.push_back(pathToUtf8(jobFile));
     spec.timeout = std::chrono::duration_cast<std::chrono::milliseconds>(options.timeout);
+    // A helper Blender starts, such as a store's download program, must be gone before the caller goes on.
+    spec.endChildren = true;
 
     constexpr std::size_t kMaxLogBytes = 1024 * 1024;
     std::string log;
@@ -621,6 +626,13 @@ BlenderJobRun runBlenderJob(const fs::path& blender, const Json& job, const fs::
     run.logTail = log.size() > kLogTail ? log.substr(log.size() - kLogTail) : log;
     run.exitCode = process.exitCode;
     if (process.status.code != ErrorCode::None) dropResult();
+
+    // A helper that is still running may change the result, so even a good one is not used.
+    if (process.status.code == ErrorCode::CannotRead && process.status.message == kProgramsLeftMessage) {
+        if (!resultName.empty()) fs::remove(resultFile, ec);
+        run.status = fail(ErrorCode::BlenderFailed, "Blender's helper programs could not all be ended.");
+        return run;
+    }
 
     if (process.status.code == ErrorCode::NotFound) {
         run.status = fail(ErrorCode::BlenderNotFound, "The Blender " + pathToUtf8(blender) + " does not exist.");

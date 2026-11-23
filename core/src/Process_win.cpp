@@ -233,15 +233,26 @@ bool endJob(HANDLE job)
     }
 }
 
-// Lets the processes of a job go on running when the job's handle is closed.
-void keepJobAlive(HANDLE job)
+// Says whether a list of labels holds the low integrity label that new files and folders inherit, and that
+// stops low programs only from writing to things labelled higher.
+bool isLowLabel(PACL sacl)
 {
-    JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{};
-    SetInformationJobObject(job, JobObjectExtendedLimitInformation, &limits, sizeof(limits));
+    LowLabelSid low;
+    for (DWORD i = 0; low.ok && sacl && i < sacl->AceCount; ++i) {
+        void* entry = nullptr;
+        if (!GetAce(sacl, i, &entry)) return false;
+        const auto* header = static_cast<const ACE_HEADER*>(entry);
+        if (header->AceType != SYSTEM_MANDATORY_LABEL_ACE_TYPE) continue;
+        auto* ace = static_cast<SYSTEM_MANDATORY_LABEL_ACE*>(entry);
+        const BYTE inherit = OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE;
+        return EqualSid(reinterpret_cast<PSID>(&ace->SidStart), low.get()) &&
+               (ace->Mask & SYSTEM_MANDATORY_LABEL_NO_WRITE_UP) != 0 && (header->AceFlags & inherit) == inherit &&
+               (header->AceFlags & INHERIT_ONLY_ACE) == 0;
+    }
+    return false;
 }
 
-// Says whether a folder carries the low integrity label that its new files and folders inherit, and that
-// stops low programs only from writing to things labelled higher.
+// Says whether a folder carries the low integrity label.
 bool hasLowLabel(const std::filesystem::path& folder)
 {
     PACL sacl = nullptr;
@@ -251,22 +262,28 @@ bool hasLowLabel(const std::filesystem::path& folder)
                               &sacl, &descriptor) != ERROR_SUCCESS) {
         return false;
     }
-    LowLabelSid low;
-    bool found = false;
-    for (DWORD i = 0; low.ok && sacl && i < sacl->AceCount; ++i) {
-        void* entry = nullptr;
-        if (!GetAce(sacl, i, &entry)) break;
-        const auto* header = static_cast<const ACE_HEADER*>(entry);
-        if (header->AceType != SYSTEM_MANDATORY_LABEL_ACE_TYPE) continue;
-        auto* ace = static_cast<SYSTEM_MANDATORY_LABEL_ACE*>(entry);
-        const BYTE inherit = OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE;
-        found = EqualSid(reinterpret_cast<PSID>(&ace->SidStart), low.get()) &&
-                (ace->Mask & SYSTEM_MANDATORY_LABEL_NO_WRITE_UP) != 0 && (header->AceFlags & inherit) == inherit &&
-                (header->AceFlags & INHERIT_ONLY_ACE) == 0;
-        break;
-    }
+    const bool found = isLowLabel(sacl);
     LocalFree(descriptor);
     return found;
+}
+
+// Says whether a security id is this program's user, or the owner it gives the files it makes.
+bool isCurrentUser(PSID owner)
+{
+    HANDLE raw = nullptr;
+    if (!owner || !OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &raw)) return false;
+    Handle token(raw);
+    for (const TOKEN_INFORMATION_CLASS kind : {TokenUser, TokenOwner}) {
+        DWORD size = 0;
+        GetTokenInformation(token.get(), kind, nullptr, 0, &size);
+        if (size == 0) continue;
+        std::vector<DWORD> buffer(size / sizeof(DWORD) + 1);
+        if (!GetTokenInformation(token.get(), kind, buffer.data(), size, &size)) continue;
+        const PSID sid = kind == TokenUser ? reinterpret_cast<const TOKEN_USER*>(buffer.data())->User.Sid
+                                           : reinterpret_cast<const TOKEN_OWNER*>(buffer.data())->Owner;
+        if (EqualSid(sid, owner)) return true;
+    }
+    return false;
 }
 
 }
@@ -453,12 +470,9 @@ ProcessResult runProcess(const ProcessSpec& spec, const std::function<void(std::
         if (spec.endChildren) {
             const bool gone = endJob(job.get());
             drain();
-            if (!gone) {
-                result.status = fail(ErrorCode::CannotRead, "Programs started by " + pathToUtf8(spec.program) +
-                                                                " could not all be ended.");
-            }
+            if (!gone) result.status = fail(ErrorCode::CannotRead, "Programs that the program started could not all be ended.");
         } else if (inJob) {
-            keepJobAlive(job.get());
+            TerminateJobObject(job.get(), 1);
         }
     } else {
         if (inJob) endJob(job.get());
@@ -527,10 +541,38 @@ Status makeLowIntegrityFolder(const std::filesystem::path& folder)
     return {};
 }
 
-// Checks a kept folder for low integrity programs. Not written yet: always refuses.
-Status checkLowIntegrityFolder(const std::filesystem::path&)
+// Checks that a kept folder for low integrity programs is a real folder of this user with the low label,
+// reading it only.
+Status checkLowIntegrityFolder(const std::filesystem::path& folder)
 {
-    return fail(ErrorCode::CannotWrite, "Plynth's fetch folder is not set up as expected. Delete it and try again.");
+    const Status notSetUp = fail(ErrorCode::CannotWrite, "Plynth's fetch folder is not set up as expected. Delete it and try again.");
+    if (folder.empty()) return notSetUp;
+    const DWORD attributes = GetFileAttributesW(folder.c_str());
+    if (attributes == INVALID_FILE_ATTRIBUTES) {
+        const DWORD error = GetLastError();
+        if (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND) {
+            return fail(ErrorCode::NotFound, "The folder for low integrity programs was not found.");
+        }
+        return notSetUp;
+    }
+    // Opened without following a link, so what is checked is the folder itself and not where a link points.
+    Handle handle(CreateFileW(folder.c_str(), READ_CONTROL, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+                              OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr));
+    BY_HANDLE_FILE_INFORMATION info{};
+    if (!handle.valid() || !GetFileInformationByHandle(handle.get(), &info)) return notSetUp;
+    if (!(info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) || (info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
+        return notSetUp;
+    }
+    PSID owner = nullptr;
+    PACL sacl = nullptr;
+    PSECURITY_DESCRIPTOR descriptor = nullptr;
+    if (GetSecurityInfo(handle.get(), SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION | LABEL_SECURITY_INFORMATION, &owner,
+                        nullptr, nullptr, &sacl, &descriptor) != ERROR_SUCCESS) {
+        return notSetUp;
+    }
+    const bool ok = isCurrentUser(owner) && isLowLabel(sacl);
+    LocalFree(descriptor);
+    return ok ? Status{} : notSetUp;
 }
 
 // Moves a file or folder to the Recycle Bin.
