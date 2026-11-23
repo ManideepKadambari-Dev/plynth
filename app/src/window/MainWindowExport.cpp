@@ -157,7 +157,7 @@ void MainWindow::updateExportUi()
     state.grouped = doc_.project().settings.exportMode == plynth::ExportMode::Grouped;
     state.built = doc_.hasFolder() &&
                   std::filesystem::exists(plynth::buildFolder(doc_.folder()) / "building.blend", ignored);
-    state.readOnly = doc_.isReadOnly();
+    state.project = &doc_.project();
     if (doc_.hasFolder()) {
         const plynth::ExportOptionsRead options = plynth::readExportOptions(doc_.folder());
         state.kitEnabled = options.status.ok() && options.options.kit.enabled;
@@ -167,12 +167,11 @@ void MainWindow::updateExportUi()
         }
     }
     plynth::ExportGroupReview review;
-    if (state.grouped && doc_.hasFolder()) {
+    if (doc_.hasFolder()) {
+        // Every mode needs the review, because the guard checks the kit switch and the repair with it too.
         state.projectFolder = doc_.folder();
         review = plynth::reviewExportGroups(doc_.folder(), doc_.project());
         state.review = &review;
-    } else if (doc_.hasFolder()) {
-        state.projectFolder = doc_.folder();
     }
     connect(exportPanel_, &ExportPanel::refreshRequested, this, &MainWindow::updateExportUi, Qt::UniqueConnection);
     exportPanel_->setReport(exportReport_ ? &*exportReport_ : nullptr, state);

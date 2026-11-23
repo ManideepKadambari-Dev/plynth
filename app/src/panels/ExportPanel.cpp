@@ -5,6 +5,8 @@
 #include "theme/ElideLabel.h"
 #include "theme/Theme.h"
 
+#include <plynth/core/EditSession.h>
+
 #include <QCheckBox>
 #include <QDateTime>
 #include <QDir>
@@ -32,6 +34,9 @@
 namespace plynth::app {
 
 namespace {
+
+constexpr int kRefreshMs = 250;
+constexpr int kLockCheckMs = 1000;
 
 // Turns a core text into Qt text.
 QString fromCore(const std::string& text)
@@ -246,12 +251,10 @@ ExportPanel::ExportPanel(QWidget* parent) : QWidget(parent)
     scroll->setWidget(body_);
     outer->addWidget(scroll, 1);
 
-    groups_ = new ExportGroupsList();
+    groups_ = new ExportGroupsList(guard_);
     groupsTree_ = groups_->findChild<QTreeWidget*>();
     groups_->hide();
-    connect(groups_, &ExportGroupsList::edited, this, [this]() {
-        QTimer::singleShot(0, this, &ExportPanel::refreshRequested);
-    });
+    connect(groups_, &ExportGroupsList::editTried, this, &ExportPanel::afterWrite);
     if (groupsTree_ != nullptr) {
         groupsTree_->setTextElideMode(Qt::ElideMiddle);
         groupsTree_->header()->setSectionResizeMode(0, QHeaderView::Stretch);
@@ -260,17 +263,23 @@ ExportPanel::ExportPanel(QWidget* parent) : QWidget(parent)
         connect(groupsTree_, &QTreeWidget::itemExpanded, this, [this]() { fitGroupsTree(); });
         connect(groupsTree_, &QTreeWidget::itemCollapsed, this, [this]() { fitGroupsTree(); });
     }
-    connect(groups_, &ExportGroupsList::editorClosed, this, &ExportPanel::applyDeferred);
-    connect(groups_, &ExportGroupsList::outsideChanged, this, [this]() { QTimer::singleShot(0, this, &ExportPanel::refreshRequested); });
+    connect(groups_, &ExportGroupsList::editorClosed, this, [this]() {
+        if (refreshDue_ && !groups_->editing())
+            askForReview();
+    });
     watcher_ = new QFileSystemWatcher(this);
     watchTimer_ = new QTimer(this);
     watchTimer_->setSingleShot(true);
-    watchTimer_->setInterval(250);
+    watchTimer_->setInterval(kRefreshMs);
     connect(watcher_, &QFileSystemWatcher::directoryChanged, this, [this]() {
-        groups_->checkOutside();
+        lookAgain();
         watchTimer_->start();
     });
     connect(watchTimer_, &QTimer::timeout, this, &ExportPanel::refreshRequested);
+    // A session that expires changes no file, so a lock cannot wait for a folder event.
+    lockTimer_ = new QTimer(this);
+    lockTimer_->setInterval(kLockCheckMs);
+    connect(lockTimer_, &QTimer::timeout, this, &ExportPanel::lookAgain);
     setReport(nullptr, ExportPanelState());
 }
 
@@ -296,24 +305,77 @@ ExportPanel::~ExportPanel()
     delete groups_;
 }
 
-// Shows what setReport was given while a name was being typed.
-void ExportPanel::applyDeferred()
+// Asks for a new review after the current event, once however often it is called.
+void ExportPanel::askForReview()
 {
-    if (!deferred_ || groups_->editing())
+    if (refreshAsked_)
         return;
-    Deferred later = std::move(*deferred_);
-    deferred_.reset();
-    ExportPanelState state = later.state;
-    if (deferredHasReview_)
-        state.review = &later.review;
-    setReport(later.report ? &*later.report : nullptr, state);
+    refreshAsked_ = true;
+    QTimer::singleShot(0, this, [this]() {
+        refreshAsked_ = false;
+        emit refreshRequested();
+    });
+}
+
+// Follows a write, saved or refused, after the current event. Without a project there is nothing to review, and a
+// new review would wipe the sentence that says so.
+void ExportPanel::afterWrite()
+{
+    if (projectFolder_.empty())
+        QTimer::singleShot(0, this, &ExportPanel::updateLock);
+    else
+        askForReview();
+}
+
+// Lets the guard look at the files again. When something locked or changed, it greys at once and a new review follows.
+void ExportPanel::lookAgain()
+{
+    if (!guard_.folderChanged(plynth::sessionNow()))
+        return;
+    updateLock();
+    askForReview();
+}
+
+// Makes every edit control and the reason beside it follow the guard, and keeps looking while something is locked.
+void ExportPanel::updateLock()
+{
+    groups_->updateLock(stale_);
+    const plynth::ExportEditDecision lock = guard_.state();
+    const bool open = lock == plynth::ExportEditDecision::Allowed;
+    const bool usable = !stale_ && !projectFolder_.empty();
+    if (kitBox_)
+        kitBox_->setEnabled(usable && lock != plynth::ExportEditDecision::Locked);
+    if (repairButton_)
+        repairButton_->setEnabled(usable && open);
+    if (lockLine_) {
+        const QString reason = fromCore(guard_.message());
+        lockLine_->setText(reason);
+        lockLine_->setVisible(!reason.isEmpty());
+    }
+    if (open || projectFolder_.empty())
+        lockTimer_->stop();
+    else if (!lockTimer_->isActive())
+        lockTimer_->start();
+}
+
+// Adds the line that says why editing is locked where the list, which has its own, is not shown.
+void ExportPanel::addLockLine()
+{
+    const Theme& t = Theme::instance();
+    lockLine_ = new QLabel(body_);
+    lockLine_->setWordWrap(true);
+    lockLine_->setFont(t.uiFont(t.sizeSmall()));
+    lockLine_->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
+    lockLine_->setToolTip(tr("Why editing is locked, or why the last edit was not saved"));
+    column_->addWidget(lockLine_);
+    lockLine_->hide();
 }
 
 // Asks for a fresh review each time the tab is shown.
 void ExportPanel::showEvent(QShowEvent* event)
 {
     QWidget::showEvent(event);
-    QTimer::singleShot(0, this, &ExportPanel::refreshRequested);
+    askForReview();
 }
 
 // For checks only: keeps every group open.
@@ -355,20 +417,15 @@ void ExportPanel::watchFolder(const std::filesystem::path& folder)
         watcher_->addPath(nativePath(folder));
 }
 
-// Writes the kit switch into the project's export options and asks for a new review.
+// Hands the kit switch to the guard and asks for a new review.
 void ExportPanel::setKitEnabled(bool enabled)
 {
-    if (projectFolder_.empty())
-        return;
-    plynth::ExportOptionsRead read = plynth::readExportOptions(projectFolder_);
-    plynth::Status status = read.status;
-    if (status.ok() && read.options.kit.enabled != enabled) {
-        read.options.kit.enabled = enabled;
-        status = plynth::writeExportOptions(projectFolder_, read.options);
-    }
-    kitError_ = status.ok() ? QString() : fromCore(status.message);
+    const plynth::ExportEditResult result = guard_.setKit(plynth::sessionNow(), enabled);
+    // A refusal is in the guard's message. Only a write that was allowed and failed needs a line of its own.
+    const bool failed = result.decision == plynth::ExportEditDecision::Allowed && !result.status.ok();
+    kitError_ = failed ? fromCore(result.status.message) : QString();
     // The new review puts the box back to what is saved. It comes after this click, which the box is part of.
-    QTimer::singleShot(0, this, &ExportPanel::refreshRequested);
+    afterWrite();
 }
 
 // Adds the checkbox that switches the modular kit on for the next export.
@@ -376,9 +433,9 @@ void ExportPanel::addKitSwitch(const ExportPanelState& state)
 {
     const Theme& t = Theme::instance();
     auto* box = new QCheckBox(tr("Also write the modular kit"), body_);
+    kitBox_ = box;
     box->setFont(t.uiFont(t.sizeNormal()));
     box->setChecked(state.kitEnabled);
-    box->setEnabled(!state.projectFolder.empty() && !state.readOnly);
     box->setProperty("tourId", QStringLiteral("export-kit"));
     box->setToolTip(tr("Also write every unique wall, corner and opening piece once, with collision, and a layout file "
                        "that says where each copy goes. It needs a library."));
@@ -421,6 +478,11 @@ void ExportPanel::addKitReport(const plynth::ExportReport& report)
 // it can be read. The CLI does the same.
 void ExportPanel::resetOptions()
 {
+    const plynth::ExportEditTicket ticket = guard_.ticket();
+    if (!guard_.holds(ticket)) {
+        askForReview();
+        return;
+    }
     const auto answer = QMessageBox::question(
         this, tr("Reset groups"),
         tr("The export options file cannot be read. Keep a copy of it as export-options.json.bad and go back to the "
@@ -428,9 +490,8 @@ void ExportPanel::resetOptions()
         QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
     if (answer != QMessageBox::Yes)
         return;
-    const plynth::ExportOptionsRepair repair = plynth::repairExportOptions(projectFolder_);
-    resetError_ = repair.status.ok() ? QString() : fromCore(repair.status.message);
-    emit refreshRequested();
+    guard_.repair(ticket, plynth::sessionNow());
+    afterWrite();
 }
 
 // Shows why the options file cannot be read, with a button that throws it away.
@@ -445,13 +506,7 @@ void ExportPanel::addOptionsProblem(const ExportPanelState& state)
         line->setToolTip(tr("Why the groups cannot be shown"));
         column_->addWidget(line);
     }
-    if (!resetError_.isEmpty()) {
-        auto* error = new QLabel(resetError_, body_);
-        error->setWordWrap(true);
-        error->setFont(t.uiFont(t.sizeSmall()));
-        error->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
-        column_->addWidget(error);
-    }
+    addLockLine();
     if (!state.optionsRepairable)
         return;
     auto* row = new QWidget(body_);
@@ -460,9 +515,10 @@ void ExportPanel::addOptionsProblem(const ExportPanelState& state)
     QPushButton* reset = addButton(row, tr("Reset groups"),
                                    tr("Keep a copy of the unreadable export options file and go back to the automatic groups"),
                                    QStringLiteral("export-groups-reset"), false);
-    reset->setEnabled(!state.readOnly && !state.projectFolder.empty());
+    repairButton_ = reset;
     layout->addStretch(1);
-    connect(reset, &QPushButton::clicked, this, &ExportPanel::resetOptions);
+    // Queued, because a refresh can delete the button while the question is open.
+    connect(reset, &QPushButton::clicked, this, &ExportPanel::resetOptions, Qt::QueuedConnection);
     column_->addWidget(row);
 }
 
@@ -479,7 +535,6 @@ void ExportPanel::addGroups(const ExportPanelState& state)
         addOptionsProblem(state);
         return;
     }
-    resetError_.clear();
     if (!state.grouped) {
         auto* line = new QLabel(tr("Single FBX: one file. Switch to grouped in Properties > Project."), body_);
         line->setWordWrap(true);
@@ -488,13 +543,14 @@ void ExportPanel::addGroups(const ExportPanelState& state)
         line->setProperty("tourId", QStringLiteral("export-groups-single"));
         line->setToolTip(tr("This project exports one FBX. Choose Grouped FBX under Export mode in Properties > Project"));
         column_->addWidget(line);
+        addLockLine();
         return;
     }
     review_ = state.review != nullptr ? *state.review : plynth::ExportGroupReview();
     if (!state.built)
         review_.groups.clear();
     // The labels come from the plan the groups were made from, which review_ keeps as long as the list needs it.
-    groups_->setReview(state.projectFolder, review_, state.readOnly, &review_.plan);
+    groups_->setReview(state.projectFolder, review_, &review_.plan);
     if (groupsExpanded_ && !groupsExpandedDone_ && !review_.groups.empty()) {
         groups_->setAllExpanded(true);
         groupsExpandedDone_ = true;
@@ -598,24 +654,28 @@ void ExportPanel::addChecks(const plynth::ExportReport& report)
 // Rebuilds the body from a report and the state around it.
 void ExportPanel::setReport(const plynth::ExportReport* report, const ExportPanelState& state)
 {
-    // A name being typed is never torn down by a refresh that changes no group: the refresh waits for the editor to
-    // close. A refresh that locks the list (a session, or groups changed outside) closes the editor without saving.
-    if (groups_->editing() && groups_->mustCloseEditor(state.readOnly, state.review))
-        groups_->cancelEditing();
-    if (groups_->editing()) {
-        Deferred later;
-        if (report != nullptr)
-            later.report = *report;
-        later.state = state;
-        if (state.review != nullptr)
-            later.review = *state.review;
-        later.state.review = nullptr;
-        later.state.projectFolder = state.projectFolder;
-        deferred_ = std::move(later);
-        deferredHasReview_ = state.review != nullptr;
+    // The guard sees the review as core gave it, before any of it is hidden, cleared or left for later.
+    const plynth::Project noProject;
+    const plynth::ExportGroupReview noReview;
+    stale_ = !guard_.show(state.projectFolder, state.project != nullptr ? *state.project : noProject,
+                          state.review != nullptr ? *state.review : noReview, plynth::sessionNow());
+    if (stale_) {
+        // A refused show keeps guarding the project it had. When that is another project than the open one, the
+        // guard is told there is none, so nothing that is still open can write into it.
+        if (state.projectFolder != projectFolder_)
+            guard_.show({}, noProject, noReview, plynth::sessionNow());
+        updateLock();
+        watchTimer_->start();
         return;
     }
-    deferred_.reset();
+    // A name whose ticket still holds is never torn down: the refresh waits for the editor to close.
+    groups_->closeDeadEditor();
+    if (groups_->editing()) {
+        refreshDue_ = true;
+        updateLock();
+        return;
+    }
+    refreshDue_ = false;
     const Theme& t = Theme::instance();
     while (QLayoutItem* item = column_->takeAt(0)) {
         if (item->widget() == groups_)
@@ -671,6 +731,7 @@ void ExportPanel::setReport(const plynth::ExportReport* report, const ExportPane
 
     addGroups(state);
     addKitSwitch(state);
+    updateLock();
 
     if (report == nullptr) {
         if (state.notice.isEmpty() && state.error.isEmpty())

@@ -1,16 +1,19 @@
 #pragma once
 
 #include <plynth/core/Export.h>
+#include <plynth/core/ExportEditGuard.h>
 #include <plynth/core/ExportGroups.h>
 
 #include <QHash>
+#include <QPointer>
 #include <QString>
 #include <QWidget>
 
 #include <filesystem>
-#include <optional>
 
+class QCheckBox;
 class QFileSystemWatcher;
+class QLabel;
 class QPushButton;
 class QShowEvent;
 class QTimer;
@@ -34,9 +37,9 @@ struct ExportPanelState {
     QString optionsProblem;    // why export-options.json cannot be read; empty when it can
     bool optionsRepairable = false; // the bad file may be replaced; false for one written by a newer Plynth
     bool kitEnabled = false;   // export-options.json switches the modular kit on
-    bool readOnly = false;     // a CLI session holds the project, so the groups cannot be edited
     std::filesystem::path projectFolder;               // empty when the project is not saved
-    const plynth::ExportGroupReview* review = nullptr; // copied by setReport; null without a project folder
+    const plynth::Project* project = nullptr;          // used only during setReport; null when there is no project
+    const plynth::ExportGroupReview* review = nullptr; // as core gave it, in every mode; null without a project folder
 };
 
 // The Export tab: the Export and Check buttons, the last export and the list of quality checks.
@@ -75,9 +78,13 @@ private:
     void addChecks(const plynth::ExportReport& report);
     void addGroups(const ExportPanelState& state);
     void addKitSwitch(const ExportPanelState& state);
-    void applyDeferred();
+    void addLockLine();
     void addOptionsProblem(const ExportPanelState& state);
     void resetOptions();
+    void updateLock();
+    void lookAgain();
+    void askForReview();
+    void afterWrite();
     void addKitReport(const plynth::ExportReport& report);
     void fitGroupsTree();
     void fitGroupsColumns();
@@ -86,24 +93,23 @@ private:
     QVBoxLayout* column_ = nullptr;
     QWidget* body_ = nullptr;
     QHash<QString, bool> expanded_;
+    plynth::ExportEditGuard guard_; // the one judge of every write to export-options.json
     ExportGroupsList* groups_ = nullptr;
-    // What setReport was given while a group name was being typed; shown when the editor closes.
-    struct Deferred {
-        std::optional<plynth::ExportReport> report;
-        ExportPanelState state;
-        plynth::ExportGroupReview review;
-    };
-    std::optional<Deferred> deferred_;
-    bool deferredHasReview_ = false;
+    bool stale_ = false;        // the last review was out of date, so the old body is shown greyed
+    bool refreshDue_ = false;   // a refresh waits for the name editor to close
+    bool refreshAsked_ = false; // a request for a new review is on its way
+    QPointer<QCheckBox> kitBox_;
+    QPointer<QPushButton> repairButton_;
+    QPointer<QLabel> lockLine_; // the guard's message where the list is not shown
     QTreeWidget* groupsTree_ = nullptr;
     plynth::ExportGroupReview review_;
     bool groupsExpanded_ = false;
     bool groupsExpandedDone_ = false;
     QFileSystemWatcher* watcher_ = nullptr;
     QTimer* watchTimer_ = nullptr;
+    QTimer* lockTimer_ = nullptr; // looks again while something is locked
     std::filesystem::path watched_;
     std::filesystem::path projectFolder_;
-    QString resetError_; // why the options file could not be removed; empty when it could
     QString kitError_; // why the last change of the kit switch was not saved; empty when it was
 };
 
