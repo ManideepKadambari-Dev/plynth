@@ -10,6 +10,9 @@
 #define NOMINMAX
 #include <windows.h>
 
+#include <crtdbg.h>
+
+#include <cstdlib>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -81,8 +84,21 @@ std::string narrow(const std::wstring& text)
 
 }
 
+// Sends failure reports of the C runtime and Windows to stderr instead of dialogs, so a failing run of this
+// tool ends instead of waiting for someone to close a window.
+void quietFailures()
+{
+    SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
+    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+    for (const int type : {_CRT_WARN, _CRT_ERROR, _CRT_ASSERT}) {
+        _CrtSetReportMode(type, _CRTDBG_MODE_FILE);
+        _CrtSetReportFile(type, _CRTDBG_FILE_STDERR);
+    }
+}
+
 int wmain(int argc, wchar_t** argv)
 {
+    quietFailures();
     for (int i = 1; i < argc; ++i) {
         const std::wstring arg = argv[i];
         const std::wstring next = i + 1 < argc ? argv[i + 1] : L"";

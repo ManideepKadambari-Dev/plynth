@@ -22,6 +22,8 @@
 #include <windows.h>
 #include <shellapi.h>
 
+#include <crtdbg.h>
+
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
@@ -548,8 +550,21 @@ std::vector<std::string> commandLineArguments()
     return out;
 }
 
+// Sends failure reports of the C runtime and Windows to stderr instead of dialogs, so a failing run of this
+// tool ends instead of waiting for someone to close a window.
+void quietFailures()
+{
+    SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
+    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+    for (const int type : {_CRT_WARN, _CRT_ERROR, _CRT_ASSERT}) {
+        _CrtSetReportMode(type, _CRTDBG_MODE_FILE);
+        _CrtSetReportFile(type, _CRTDBG_FILE_STDERR);
+    }
+}
+
 int main()
 {
+    quietFailures();
     const std::vector<std::string> args = commandLineArguments();
     if (args.size() == 2 && args[0] == "--linger") return lingerChild(pathFrom(args[1]).wstring());
     {

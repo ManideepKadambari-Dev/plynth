@@ -23,6 +23,8 @@
 
 #include <nlohmann/json.hpp>
 
+#include <crtdbg.h>
+
 #include <atomic>
 #include <cctype>
 #include <cstdlib>
@@ -276,8 +278,21 @@ void showTrayIcon()
     }).detach();
 }
 
+// Sends failure reports of the C runtime and Windows to stderr instead of dialogs, so a failing run of this
+// tool ends instead of waiting for someone to close a window.
+void quietFailures()
+{
+    SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
+    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+    for (const int type : {_CRT_WARN, _CRT_ERROR, _CRT_ASSERT}) {
+        _CrtSetReportMode(type, _CRTDBG_MODE_FILE);
+        _CrtSetReportFile(type, _CRTDBG_FILE_STDERR);
+    }
+}
+
 int main(int argc, char** argv)
 {
+    quietFailures();
     for (int i = 1; i + 1 < argc; ++i) {
         const std::string arg = argv[i];
         if (arg == "--port") port = argv[i + 1];

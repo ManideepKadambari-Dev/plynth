@@ -200,8 +200,12 @@ TEST_CASE("a job with factory startup gets no fetch rules", "[core][fetch][fetch
     FetchRig rig("fn");
     Json params = Json::object();
     params["source"] = Json{{"file", "D:/in/chair.obj"}, {"format", "obj"}};
+    params["output_folder"] = pathToUtf8(rig.work / "out");
+    params["thumbnail"] = Json{{"render", false}};
     const Json job = makeBlenderJob("cleanup_asset", "chair-1", rig.work / "result.json", params);
-    runBlenderJob(rig.blender, job, rig.work, rig.base);
+    BlenderRunOptions options = rig.base;
+    options.timeout = std::chrono::seconds(30);
+    runBlenderJob(rig.blender, job, rig.work, options);
     CHECK(rig.runs().empty());
     const std::string args = plynth::test::readTextFile(rig.blender.parent_path() / "fake_args.log");
     CHECK(args.find("--factory-startup") != std::string::npos);
