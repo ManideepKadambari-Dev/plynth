@@ -100,6 +100,8 @@ using Json = nlohmann::ordered_json;
 // (the material is unset, missing from the library or broken, and core has reported it). Materials follow
 // Materials.h. Every slot field names an entry of "slots" (MaterialSlots.h); the Blender material of the face
 // is named after the slot, and the slot's material is always the same as the material field beside it.
+// The worker makes an empty material for every name of "slots" before any asset is appended, so a furniture
+// material of the same name keeps its own data under a name with a number suffix and is never written over.
 // "surface" in a slot is the neutral surface whose look the slot gets when its material is null (Wall_Inside,
 // Wall_Outside, Wall_Top, Reveal, Threshold, Floor, Ceiling, Door, Frame, Glass, Handle, Stair, Roof, Flat_Roof,
 // Soffit, Fascia, Generated). Generated is the look of a generator's material left empty.

@@ -38,6 +38,14 @@ namespace plynth {
 // Ceiling, the name is <Generator>Generator_<Param>, for example DoorGenerator_Frame, so it meets no surface's
 // slot. When one name would show more than one material the rule at the end holds for it too:
 // Column_Material_WhitePaint, Column_Material_Neutral.
+// Two different (generator, parameter) pairs never share a name and none shares one with a surface, also when
+// these rules alone would give the same (a room type living_generator and the generator living with the
+// parameter wall, the generators door and door_generator, ids alike in their first 24 characters). Surface
+// slots are named first, as if there were no generators, and never change for one. Then the pairs, sorted by
+// generator id and then parameter id, each take their name unless it, or one of the names the material rule
+// makes of it, equals a name already taken (a surface slot's, with or without its material, Generated, or
+// those of an earlier pair), case ignored. Such a pair takes the first free name with 2, 3 and so on at the
+// end of the generator's part: LivingGenerator2_Wall, DoorGenerator2_Material.
 // A part that a slab or roof section does not have (a well without a stair, a gable on a flat roof) is treated
 // like a part an opening does not have: it names no material and makes no other name show two materials.
 // Label(r) is the room type in PascalCase ("living" Living, "guest_room" GuestRoom), or Room when the room

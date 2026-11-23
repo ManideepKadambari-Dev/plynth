@@ -42,13 +42,31 @@ using Json = nlohmann::ordered_json;
 //
 // Generators and add-ons: a build reads the library's generators and the add-on cache, which counts only when
 // it was made by the build's Blender, and always runs with factory startup. Add-ons are copied only from
-// BuildRequest::addonSource. When that is set and a generator to build needs add-ons:
-//   - without a matching cache, probeAddons runs once first
-//   - the job gets a new folder plynth-ext-<8 hex> in the temp folder (prepareAddonFolder), removed however
-//     the run ends
-//   - a probe or copy that fails gives one generator_unavailable warning, and the build runs on without it
-// With no addonSource there is no probe and no copy, and the worker reports generator_unavailable for the
-// items that need an add-on.
+// BuildRequest::addonSource, which prepareAddonFolder accepts only when it is the user's extensions folder of
+// the build's Blender (Addons.h).
+// A build would copy when addonSource is that folder and, by the saved cache or with no matching cache, an item
+// to build needs add-ons. Only such a build asks Blender, and it always asks, however new the cache is:
+//   - probeAddons runs once first, as it always runs (factory startup, private folders, preferences read as
+//     data). The saved cache never decides what is copied: the build plan and the copy use the fresh result
+//     alone, so an add-on switched off since the last check is not copied and the items that need it are left
+//     out with generator_unavailable
+//   - that probe may take the shorter of kAddonProbeTimeout and run.timeout, and it uses run.scriptsFolder.
+//     Running out of time is a failed probe, only a stop cancels
+//   - when the probe fails nothing is copied, runBuild gives one generator_unavailable warning and the build
+//     goes on with no cache at all, the saved one included. When it is cancelled the build is Cancelled and
+//     the build job is not started
+//   - only the add-ons of the generators of items that are built are asked for, so one of an item that is left
+//     out, or of a generator no item uses, is never read
+//   - the job gets a new folder plynth-ext-<8 hex> in the temp folder (prepareAddonFolder). It is removed
+//     however the run ends: success, failure, timeout, cancel or an exception, and only after Blender stopped
+//   - a folder that a killed Plynth or a held file left behind is removed by a later build: each build first
+//     removes folders of exactly that name form in the temp folder that are older than twice kBuildTimeout,
+//     following no link
+//   - a copy that fails or is refused gives one generator_unavailable warning, and the build runs on without it
+// Any other build runs no probe and copies nothing: no item needs an add-on, the saved cache says the needed
+// ones are off, or there is no addonSource. An addonSource that is not that folder is not probed for either
+// and gives the warning of a refused copy. With no addonSource the worker reports generator_unavailable for
+// the items that need an add-on.
 
 inline constexpr std::string_view kBuildReportFileName = "build.json";
 inline constexpr std::string_view kBuiltPlanFileName = "built-plan.json";
@@ -87,8 +105,9 @@ struct BuildRequest {
     BlenderInstall blender;               // a usable install from chooseBlender
     BlenderRunOptions run{true, kBuildTimeout, {}};
     BuildSettings settings;
-    // Where add-ons may be copied from for this build. Empty, the default: none are copied. runBuild never
-    // fills it in from the environment or the user's Blender folders. run.extensionsFolder is not used.
+    // Where add-ons may be copied from for this build. The app's Build and "plynth build" set it to
+    // blenderUserFolders(blender).extensions after choosing Blender, and nothing else sets it. Empty, the
+    // default: none are copied. runBuild never fills it in. run.extensionsFolder is not used.
     std::filesystem::path addonSource;
 };
 

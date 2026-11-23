@@ -33,19 +33,36 @@ using Json = nlohmann::ordered_json;
 // Add-ons are named by their short module name: the last dotted part of the module, lower case, so
 // "bl_ext.blender_org.Bagapie" is "bagapie". Generators list the short names they need.
 //
-// A job that switches add-ons on gets an extensions folder of its own (prepareAddonFolder), filled only from a
-// source folder the caller names, laid out like an extensions folder. The user's own Blender folders are never
-// a source:
-//   - the source is refused with InvalidValue, before it is opened or listed, when it is empty or not absolute,
-//     or is, lies in or holds %APPDATA%/Blender Foundation or a folder of blenderUserFolders; links in the
-//     source path are then resolved and it is checked again
-//   - the job's folder must be absolute, must not exist and must not lie in the source; only then is it made
-//   - for each short name, the first cache module of the form bl_ext.<repository>.<id> with that short name
-//     (parts of letters, digits and "_" only) is copied from <source>/<repository>/<id>, which needs a
-//     blender_manifest.toml, to <job folder>/user_default/<id>, without __pycache__
-//   - an add-on that is not found or holds a link is left out, which is not an error
-//   - nothing else is listed or copied, nothing is written in the source, and kPreparedExtensionsMarker is
-//     written last, only when every copy finished
+// A job that switches add-ons on gets an extensions folder of its own (prepareAddonFolder), filled with
+// temporary copies of enabled add-ons it needs from the user's extensions folder of that Blender:
+//   - the source must be blenderUserFolders(blender).extensions: absolute, and the same text after lexical
+//     normalisation of both, case ignored. Normalisation is lexically_normal with "/" and "\" alike and then
+//     every separator at the end dropped, except a root's own, so a path with and one without a separator at
+//     the end are the same. Nothing else is changed: a dot or space at the end of the last name, a short name
+//     or a long path prefix is another text. All file access uses the folder of blenderUserFolders, not the
+//     spelling given. Any other source, empty or inside or around that folder too, gives InvalidValue before
+//     any file access to it. There is no exception and no switch: a test makes that folder a scratch one
+//     through the environment
+//   - that folder is refused as well, with InvalidValue and before it is listed, when the cache is not this
+//     Blender's (addonCacheMatches), when it is, lies in or holds the config, scripts, datafiles or
+//     blenderKitData folder of blenderUserFolders, also with paths resolved, or when any part of its path is a
+//     link or a junction
+//   - for each short name asked for, only the first module in the cache's enabled list of the form
+//     bl_ext.<repository>.<id> with that short name (parts of letters, digits and "_" only) is used. Its
+//     folder <source>/<repository>/<id> is reached by name: neither the source nor a repository is ever listed
+//   - that folder is the only thing listed or read. It needs a blender_manifest.toml and is copied to
+//     <job folder>/user_default/<id> without __pycache__. Settings, preferences, other repositories' and other
+//     add-ons' folders and everything else are never listed, read or copied
+//   - an add-on is left out whole, which is not an error, when it is not found, when its repository, its folder
+//     or anything in it is a link or a junction, or when it resolves to outside <source>/<repository>/<id>
+//   - files at the source are opened for reading only. Nothing is created, changed, renamed or removed there
+//   - the job's folder must be absolute, must not exist and, with paths resolved, must not lie in or hold the
+//     source, another folder of blenderUserFolders (datafiles included), Plynth's private Blender folder
+//     (PLYNTH_BLENDER_PRIVATE or its default, whether it exists yet or not) or %APPDATA%/Blender Foundation.
+//     No part of its path, as given or resolved, may be named "Blender Foundation" in any case, dots and
+//     spaces at the end of a name ignored, so a changed APPDATA cannot hide the user's folders. Only then is
+//     it made. Copies do not keep the read-only attribute
+//   - kPreparedExtensionsMarker is written last, only when every copy finished
 //   - the caller removes a job folder that was made, also after a failure
 
 inline constexpr std::string_view kAddonCacheFileName = "addons.json";
@@ -112,7 +129,7 @@ struct AddonFolderCopy {
     std::vector<std::string> copied; // short names, sorted
 };
 
-// Prepares one job's extensions folder from a source folder, by the rules at the top of this file.
+// Copies the needed add-ons into one job's own folder, by the rules at the top of this file.
 AddonFolderCopy prepareAddonFolder(const std::filesystem::path& jobFolder, const std::filesystem::path& source,
                                    const BlenderInstall& blender, const AddonCache& cache,
                                    const std::vector<std::string>& shortNames, std::stop_token stop = {});

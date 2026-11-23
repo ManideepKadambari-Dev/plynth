@@ -174,10 +174,11 @@ TEST_CASE("a run without factory startup works", "[core][blenderjob]") {
 
 namespace {
 
-// Points the private Blender folder at a temporary one for the life of the object.
+// Points the private Blender folder at a temporary one for the life of the object, then puts the old value back.
 struct PrivateFolderScope {
-    explicit PrivateFolderScope(const fs::path& folder) { SetEnvironmentVariableW(L"PLYNTH_BLENDER_PRIVATE", folder.c_str()); }
-    ~PrivateFolderScope() { SetEnvironmentVariableW(L"PLYNTH_BLENDER_PRIVATE", nullptr); }
+    // Sets the folder and keeps the value it replaced.
+    explicit PrivateFolderScope(const fs::path& folder) : env("PLYNTH_BLENDER_PRIVATE", pathToUtf8(folder)) {}
+    plynth::test::ScopedEnv env;
 };
 
 // The lines the fake wrote about the variables it saw.
@@ -195,12 +196,12 @@ TEST_CASE("a factory startup job and the version probe run in the private folder
     JobFixture f("job-private");
     const fs::path priv = f.tmp.path() / "private";
     PrivateFolderScope scope(priv);
-    SetEnvironmentVariableW(L"BLENDER_USER_CONFIG", L"C:/users/me/config");
-    SetEnvironmentVariableW(L"BLENDER_USER_EXTENSIONS", L"C:/users/me/extensions");
-    REQUIRE(inspectBlender(f.exe).status.ok());
-    plynth::test::requireOk(runBlenderJob(f.exe, f.probeJob(), f.work, f.options).status);
-    SetEnvironmentVariableW(L"BLENDER_USER_CONFIG", nullptr);
-    SetEnvironmentVariableW(L"BLENDER_USER_EXTENSIONS", nullptr);
+    {
+        plynth::test::ScopedEnv config("BLENDER_USER_CONFIG", "C:/users/me/config");
+        plynth::test::ScopedEnv extensions("BLENDER_USER_EXTENSIONS", "C:/users/me/extensions");
+        REQUIRE(inspectBlender(f.exe).status.ok());
+        plynth::test::requireOk(runBlenderJob(f.exe, f.probeJob(), f.work, f.options).status);
+    }
 
     const std::string root = pathToUtf8(priv);
     const auto lines = fakeEnvLines(f);
@@ -219,12 +220,11 @@ TEST_CASE("a run without factory startup keeps the user's environment", "[core][
     JobFixture f("job-normal-env");
     const fs::path priv = f.tmp.path() / "private";
     PrivateFolderScope scope(priv);
-    wchar_t saved[4096] = {};
-    const DWORD savedSize = GetEnvironmentVariableW(L"BLENDER_USER_RESOURCES", saved, 4096);
-    SetEnvironmentVariableW(L"BLENDER_USER_RESOURCES", L"C:/users/me/resources");
     f.options.factoryStartup = false;
-    plynth::test::requireOk(runBlenderJob(f.exe, cleanupJob(f, "obj", "chair-00000009"), f.work, f.options).status);
-    SetEnvironmentVariableW(L"BLENDER_USER_RESOURCES", savedSize > 0 ? saved : nullptr);
+    {
+        plynth::test::ScopedEnv resources("BLENDER_USER_RESOURCES", "C:/users/me/resources");
+        plynth::test::requireOk(runBlenderJob(f.exe, cleanupJob(f, "obj", "chair-00000009"), f.work, f.options).status);
+    }
     const auto lines = fakeEnvLines(f);
     REQUIRE(lines.size() == 1);
     REQUIRE(lines[0].find("BLENDER_USER_RESOURCES=C:/users/me/resources|") != std::string::npos);
