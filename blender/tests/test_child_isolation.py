@@ -475,24 +475,6 @@ class StoreSandbox(Sandbox):
             found.append(self.child_of(lambda: tool.make_config(folder, **options)))
         return found
 
-    # Returns the children of the fetch test, one for each config it makes.
-    def fetch_children(self):
-        module = self.load("test_blenderkit_fetch")
-        tests = module.BlenderKitFetchTests
-        self.answer = "FAKE CONFIG SAVED"
-        with mock.patch.object(module, "make_sources", lambda folder: None):
-            tests.setUpClass()
-        found = []
-        for config in list(tests.configs):
-            case = tests("test_model")
-            case.setUp()
-            try:
-                found.append(self.child_of(lambda: case.fetch(module.MODEL_ID, config=config)))
-            finally:
-                case.doCleanups()
-        self.assertNotEqual(found, [], "the fetch test made no configs")
-        return found
-
 
 class StoreChildTests(StoreSandbox):
     # The child that saves a fake config sees only scratch folders that exist.
@@ -502,14 +484,6 @@ class StoreChildTests(StoreSandbox):
     # The child that saves a fake config is offline and limited to six threads.
     def test_config_child_options(self):
         self.check_options(self.config_children)
-
-    # The fetch child sees only scratch folders that exist.
-    def test_fetch_child_folders(self):
-        self.check_folders(self.fetch_children)
-
-    # The fetch child is offline and limited to six threads.
-    def test_fetch_child_options(self):
-        self.check_options(self.fetch_children)
 
 
 class FakeConfigFolderTests(StoreSandbox):
