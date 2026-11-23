@@ -112,4 +112,4 @@ target_compile_definitions(plynth_core_tests PRIVATE
     PLYNTH_ECHO_LINES="$<TARGET_FILE:plynth_echo_lines>"
     PLYNTH_FAKE_BLENDER="$<TARGET_FILE:plynth_fake_blender>")
 
-catch_discover_tests(plynth_core_tests DISCOVERY_MODE PRE_TEST)
+catch_discover_tests(plynth_core_tests DISCOVERY_MODE PRE_TEST ADD_TAGS_AS_LABELS)

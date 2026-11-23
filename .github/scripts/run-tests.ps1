@@ -52,10 +52,12 @@ function Get-Problems {
     return $found
 }
 
-$arguments = @('--preset', $Preset, '-LE', 'blender|gpu', '--timeout', '600', '--no-tests=error',
+# The real Blender suite is left out by name: with tags as labels, -LE blender would also drop the core tests tagged [blender].
+$arguments = @('--preset', $Preset, '-E', '^(blender_python|blender_private_folders)$', '-LE', '^gpu$', '--timeout', '600', '--no-tests=error',
                '--output-log', $log, '--output-junit', $junit)
 # The filter comes from the environment so its text is never part of a script line.
 if ($env:TEST_FILTER) { $arguments += @('-R', $env:TEST_FILTER) }
+if ($env:TEST_LABELS) { $arguments += @('-L', $env:TEST_LABELS) }
 & ctest @arguments
 $code = $LASTEXITCODE
 
@@ -78,7 +80,7 @@ if ($total) {
 } else {
     $lines += "CTest ended with code $code before it printed a total. See the test-logs artifact."
 }
-if ($env:TEST_FILTER) { $lines += 'Only tests matching the filter ran.' }
+if ($env:TEST_FILTER -or $env:TEST_LABELS) { $lines += 'Only tests matching the filter ran.' }
 if ($problems.Count -gt 0) {
     $groups = $problems | Group-Object Kind | ForEach-Object { "$($_.Count) $($_.Name)" }
     $lines += ($groups -join ', ') + '.'
