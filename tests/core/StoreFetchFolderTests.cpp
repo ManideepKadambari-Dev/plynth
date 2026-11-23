@@ -431,10 +431,16 @@ namespace {
 
 const char* const kHelpersLeft = "Blender's helper programs could not all be ended.";
 
-// A probe job for runBlenderJob, which the fake answers with a good result.
-Json probeJob(const fs::path& work)
+// A probe job for runBlenderJob, with user folders in the rig's temporary folder, which the fake answers with a
+// good result.
+Json probeJob(const FetchRig& rig)
 {
-    return makeBlenderJob(kProbeTask, "probe-1", work / "result.json", Json::object());
+    BlenderUserFolders folders;
+    folders.config = rig.tmp.path() / "user" / "config";
+    folders.scripts = rig.tmp.path() / "user" / "scripts";
+    folders.extensions = rig.tmp.path() / "user" / "extensions";
+    folders.blenderKitData = rig.tmp.path() / "user" / "blenderkit_data";
+    return makeProbeJob(folders, "probe-00000001", rig.work / "result.json");
 }
 
 }
@@ -450,7 +456,7 @@ TEST_CASE("every runBlenderJob job waits until the programs Blender started are 
         if (pid != 0) hold = std::make_unique<plynth::test::HoldExit>(pid, std::chrono::seconds(5));
     });
     const auto began = std::chrono::steady_clock::now();
-    const BlenderJobRun run = runBlenderJob(rig.blender, probeJob(rig.work), rig.work, rig.base);
+    const BlenderJobRun run = runBlenderJob(rig.blender, probeJob(rig), rig.work, rig.base);
     const auto took = std::chrono::steady_clock::now() - began;
     watcher.join();
     REQUIRE(hold);
@@ -473,7 +479,7 @@ TEST_CASE("a helper Blender left that cannot be ended fails the job and removes 
         const unsigned long pid = plynth::test::waitForPid(pidFile, std::chrono::seconds(30));
         if (pid != 0) hold = std::make_unique<plynth::test::HoldExit>(pid, std::chrono::seconds(75));
     });
-    const BlenderJobRun run = runBlenderJob(rig.blender, probeJob(rig.work), rig.work, rig.base);
+    const BlenderJobRun run = runBlenderJob(rig.blender, probeJob(rig), rig.work, rig.base);
     watcher.join();
     REQUIRE(hold);
     REQUIRE(hold->attached());
