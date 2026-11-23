@@ -33,7 +33,7 @@ function Get-Problems {
             $word = if ($node) { $node.GetAttribute('message') } else { $status }
             $output = $case.SelectSingleNode('system-out')
             $text = if ($output) { $output.InnerText } else { '' }
-            $kind = if ($status -in 'notrun', 'disabled') { 'not run' } else { Get-Kind $word $text }
+            $kind = if ($word -match 'SKIP') { 'skipped' } elseif ($status -in 'notrun', 'disabled') { 'not run' } else { Get-Kind $word $text }
             $found += [pscustomobject]@{ Name = $case.GetAttribute('name'); Status = $word; Kind = $kind }
         }
         return $found
@@ -64,14 +64,17 @@ if (Test-Path $lastTest) { Copy-Item $lastTest (Join-Path $LogFolder "LastTest-$
 
 $total = $null
 if (Test-Path $log) {
-    $total = Get-Content $log | Select-String -Pattern '\d+% tests passed, (\d+) tests? failed out of (\d+)' | Select-Object -Last 1
+    $total = Get-Content $log | Select-String -Pattern '\d+% tests passed(?:, (\d+) tests? failed)? out of (\d+)' | Select-Object -Last 1
 }
 $problems = @(Get-Problems)
 $lines = @("### $title", '')
 if ($total) {
-    $failedCount = [int]$total.Matches[0].Groups[1].Value
-    $count = [int]$total.Matches[0].Groups[2].Value
-    $lines += "$($count - $failedCount) of $count passed."
+    # CTest leaves out the failed part when nothing failed, and counts skipped tests as passed.
+    $groups = $total.Matches[0].Groups
+    $failedCount = if ($groups[1].Success) { [int]$groups[1].Value } else { 0 }
+    $count = [int]$groups[2].Value
+    $skipped = @($problems | Where-Object Kind -eq 'skipped').Count
+    $lines += "$($count - $failedCount - $skipped) of $count passed."
 } else {
     $lines += "CTest ended with code $code before it printed a total. See the test-logs artifact."
 }
