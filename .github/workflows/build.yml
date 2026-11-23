@@ -3,13 +3,24 @@ name: build
 on:
   push:
   workflow_dispatch:
+    inputs:
+      config:
+        description: gate builds and tests Debug and Release. debug builds and tests Debug only.
+        type: choice
+        options: [gate, debug]
+        default: gate
+      tests:
+        description: Run only the tests whose names match this CTest pattern. Empty runs every test.
+        type: string
+        default: ''
 
 permissions:
   contents: read
 
+# A branch push and a gate on the same branch do not cancel each other.
 concurrency:
-  group: build-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: build-${{ github.ref }}-${{ (github.ref == 'refs/heads/main' || github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && inputs.config != 'debug')) && 'gate' || 'debug' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   VCPKG_ROOT: C:\vcpkg
@@ -19,8 +30,16 @@ env:
 
 jobs:
   windows:
+    name: >-
+      ${{ (github.ref == 'refs/heads/main' || github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && inputs.config != 'debug'))
+      && (format('{0}', inputs.tests) != '' && 'Debug and Release, filtered, not a gate' || 'Release gate')
+      || (format('{0}', inputs.tests) != '' && 'Debug only, filtered' || 'Debug only') }}
     runs-on: windows-latest
     timeout-minutes: 150
+    env:
+      PLYNTH_GATE: ${{ (github.ref == 'refs/heads/main' || github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && inputs.config != 'debug')) && 'true' || 'false' }}
+      PACKAGE_CONFIG: ${{ (github.ref == 'refs/heads/main' || github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && inputs.config != 'debug')) && 'Release' || 'Debug' }}
+      TEST_FILTER: ${{ inputs.tests }}
     steps:
       - name: Check out
         uses: actions/checkout@v4
@@ -97,32 +116,63 @@ jobs:
           path: vcpkg-binary-cache
           key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'ports/**') }}-${{ github.run_id }}
 
+      - name: Describe the run
+        shell: pwsh
+        run: |
+          $lines = if ($env:PLYNTH_GATE -eq 'true') {
+            'Release gate: Debug and Release are built and every test outside the blender and gpu labels runs in both.'
+          } else {
+            'Debug only. Release is not built, so this run is not the Release gate.'
+          }
+          if ($env:TEST_FILTER) { $lines = @($lines, '', 'Filtered: only tests whose names match the pattern below ran, so this run is not a gate.', '', '```', $env:TEST_FILTER, '```') }
+          @($lines) + @('') | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
       - name: Build Debug
+        id: build-debug
         shell: pwsh
         run: cmake --build --preset debug
 
       - name: Test Debug
         shell: pwsh
-        run: ctest --preset debug -LE "blender|gpu" --timeout 600 --output-log ctest-debug.log
+        run: '& "$env:GITHUB_WORKSPACE/.github/scripts/run-tests.ps1" -Preset debug -LogFolder "$env:GITHUB_WORKSPACE/test-logs"'
 
       - name: Build Release
+        id: build-release
+        if: env.PLYNTH_GATE == 'true' && !cancelled() && steps.build-debug.outcome == 'success'
         shell: pwsh
         run: cmake --build --preset release
 
       - name: Test Release
+        if: env.PLYNTH_GATE == 'true' && !cancelled() && steps.build-release.outcome == 'success'
         shell: pwsh
-        run: ctest --preset release -LE "blender|gpu" --timeout 600 --output-log ctest-release.log
+        run: '& "$env:GITHUB_WORKSPACE/.github/scripts/run-tests.ps1" -Preset release -LogFolder "$env:GITHUB_WORKSPACE/test-logs"'
+
+      - name: Make the ready to run copy
+        id: package
+        if: >-
+          ${{ !cancelled()
+          && ((env.PACKAGE_CONFIG == 'Debug' && steps.build-debug.outcome == 'success')
+          || (env.PACKAGE_CONFIG == 'Release' && steps.build-release.outcome == 'success')) }}
+        shell: pwsh
+        run: '& "$env:GITHUB_WORKSPACE/.github/scripts/make-package.ps1" -Config $env:PACKAGE_CONFIG -Destination "$env:GITHUB_WORKSPACE/out/package/plynth" -LogFolder "$env:GITHUB_WORKSPACE/test-logs"'
+
+      - name: Upload the ready to run copy
+        if: ${{ !cancelled() && steps.package.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PACKAGE_CONFIG == 'Release' && 'plynth-windows-release' || 'plynth-windows-debug' }}
+          path: out/package/plynth/
+          if-no-files-found: error
+          retention-days: ${{ env.PLYNTH_GATE == 'true' && 30 || 14 }}
 
       - name: Upload test logs
-        if: failure()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: test-logs
           path: |
-            ctest-debug.log
-            ctest-release.log
-            out/build/msvc/Testing/Temporary/*.log
+            test-logs/
             out/build/msvc/vcpkg-manifest-install.log
             out/build/msvc/CMakeFiles/CMakeConfigureLog.yaml
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 14
