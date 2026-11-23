@@ -128,4 +128,4 @@ target_compile_definitions(plynth_core_tests PRIVATE
     PLYNTH_FAKE_BLENDER="$<TARGET_FILE:plynth_fake_blender>"
     PLYNTH_LEAKY_BLENDER="$<TARGET_FILE:plynth_leaky_blender>")
 
-catch_discover_tests(plynth_core_tests DISCOVERY_MODE PRE_TEST)
+catch_discover_tests(plynth_core_tests DISCOVERY_MODE PRE_TEST ADD_TAGS_AS_LABELS)
