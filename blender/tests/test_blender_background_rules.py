@@ -18,7 +18,8 @@ import make_fake_blenderkit_config as fake_config  # noqa: E402
 SCRATCH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scratch")
 ADDON = "def register():\n    import os\n    open(os.environ['SR5_ORDER'], 'a').write('%s\\n')\n\ndef unregister():\n    pass\n"
 MANIFEST = ('schema_version = "1.0.0"\nid = "sr5_ext"\nversion = "1.0.0"\nname = "SR5"\nmaintainer = "Plynth tests"\n'
-            'type = "add-on"\nblender_version_min = "4.2.0"\n')
+            'tagline = "Startup order check for tests"\ntype = "add-on"\nblender_version_min = "4.2.0"\n'
+            'license = ["SPDX:GPL-3.0-or-later"]\n')
 ENABLE = ("import addon_utils, bpy; addon_utils.enable('sr5_addon', default_set=True); "
           "addon_utils.enable('bl_ext.user_default.sr5_ext', default_set=True); bpy.ops.wm.save_userpref(); "
           "print('SR5 SAVED')")
