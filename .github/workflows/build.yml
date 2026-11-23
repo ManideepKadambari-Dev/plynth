@@ -21,6 +21,14 @@ on:
         description: Exact name of a core test case, hidden ones too, to run after the Debug build. The files it changes under tests are uploaded.
         type: string
         default: ''
+      screens:
+        description: Take app screenshots at three sizes from the ready to run copy.
+        type: boolean
+        default: false
+      app_options:
+        description: Extra app options for one more screenshot, such as --view 3d --camera top.
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -35,6 +43,9 @@ env:
   VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}\vcpkg-binary-cache
   VCPKG_DISABLE_METRICS: 1
   QT_QPA_PLATFORM: offscreen
+  SCCACHE_DIR: ${{ github.workspace }}\sccache
+  SCCACHE_CACHE_SIZE: 2G
+  SCCACHE_IDLE_TIMEOUT: 0
 
 jobs:
   windows:
@@ -50,6 +61,8 @@ jobs:
       TEST_FILTER: ${{ inputs.tests }}
       TEST_LABELS: ${{ inputs.labels }}
       WRITE_FIXTURE: ${{ inputs.write_fixture }}
+      SCREENS: ${{ inputs.screens }}
+      APP_OPTIONS: ${{ inputs.app_options }}
     steps:
       - name: Check out
         uses: actions/checkout@v4
@@ -117,9 +130,42 @@ jobs:
           $n = (Get-ChildItem -Recurse -File $env:VCPKG_DEFAULT_BINARY_CACHE | Measure-Object).Count
           "count=$n" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
+      - name: Install the compiler cache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      # One cache a day for each branch. A branch can also read main's. sccache only reuses an object whose
+      # preprocessed source, compiler and options are the same, and never stores a failed compile.
+      - name: Pick the compiler cache key
+        id: sccache-key
+        shell: pwsh
+        run: |
+          $day = (Get-Date).ToUniversalTime().ToString('yyyyMMdd')
+          "key=sccache-$env:RUNNER_OS-$env:GITHUB_REF_NAME-$day" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "prefix=sccache-$env:RUNNER_OS-$env:GITHUB_REF_NAME-" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Restore the compiler cache
+        id: sccache-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: sccache
+          key: ${{ steps.sccache-key.outputs.key }}
+          restore-keys: |
+            ${{ steps.sccache-key.outputs.prefix }}
+            sccache-${{ runner.os }}-main-
+
+      - name: Start the compiler cache
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force $env:SCCACHE_DIR | Out-Null
+          sccache --start-server
+          sccache --zero-stats
+
+      # The launcher and embedded debug information are set here only, so local builds stay as they are.
+      # Embedded debug information changes where the debug data is kept, not the code.
       - name: Configure
         shell: pwsh
-        run: cmake --preset msvc
+        run: |
+          cmake --preset msvc -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache '-DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>'
 
       - name: Check for new packages
         if: always()
@@ -203,6 +249,44 @@ jobs:
           path: out/package/plynth/
           if-no-files-found: error
           retention-days: ${{ env.PLYNTH_GATE == 'true' && 30 || 14 }}
+
+      - name: Take screenshots
+        id: screens
+        if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && env.SCREENS == 'true' && steps.package.outcome == 'success' }}
+        shell: pwsh
+        run: '& "$env:GITHUB_WORKSPACE/.github/scripts/screenshots.ps1" -Package "$env:GITHUB_WORKSPACE/out/package/plynth" -OutFolder "$env:GITHUB_WORKSPACE/out/screenshots"'
+
+      - name: Upload screenshots
+        if: ${{ !cancelled() && steps.screens.outcome != 'skipped' && github.event_name == 'workflow_dispatch' && env.SCREENS == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: out/screenshots/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Report the compiler cache
+        id: sccache-stats
+        if: ${{ !cancelled() }}
+        shell: pwsh
+        run: |
+          $stats = sccache --show-stats | Out-String
+          $stats
+          $writes = if ($stats -match 'Cache writes\s+(\d+)') { [int]$Matches[1] } else { 0 }
+          $hits = if ($stats -match '(?m)^Cache hits\s+(\d+)') { [int]$Matches[1] } else { 0 }
+          $misses = if ($stats -match '(?m)^Cache misses\s+(\d+)') { [int]$Matches[1] } else { 0 }
+          $rate = if ($hits + $misses) { '{0:N0} percent' -f (100 * $hits / ($hits + $misses)) } else { 'no compiles' }
+          @('### Compiler cache', '', "$hits hits, $misses misses ($rate), $writes new objects stored.", '') |
+            Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "writes=$writes" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          sccache --stop-server | Out-Null
+
+      - name: Save the compiler cache
+        if: ${{ !cancelled() && steps.sccache-cache.outputs.cache-hit != 'true' && steps.sccache-stats.outputs.writes != '0' && steps.sccache-stats.outputs.writes != '' }}
+        uses: actions/cache/save@v4
+        with:
+          path: sccache
+          key: ${{ steps.sccache-key.outputs.key }}
 
       - name: Upload test logs
         if: ${{ !cancelled() }}
