@@ -37,7 +37,8 @@ class GuardEvents(unittest.TestCase):
         helper = os.path.join(cls.rig.private, "client", "bin", "helper.exe")
         os.makedirs(os.path.dirname(helper))
         shutil.copyfile(fetch_rig.helper_program(), helper)
-        cls.sleeper = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"])
+        cls.sleeper = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"],
+                                       env=cls.rig.environment())
         arguments = ["--disable-autoexec", "--python-exit-code", "3", "--python", PROBE, "--", cls.outside, cls.inside,
                      helper, str(cls.sleeper.pid)]
         cls.done = fetch_rig.run_child(cls.rig.environment(), arguments, cls.rig.private, 120)
@@ -104,12 +105,12 @@ class GuardEvents(unittest.TestCase):
 class GuardSeal(unittest.TestCase):
     # Runs the seal probe once in a scratch user with the fake add-on enabled. extra holds variables for the
     # stand-in. Returns the outcomes by name, the rig and the end of the output.
-    def probe(self, extra=None):
+    def probe(self, extra=None, held=False):
         rig = Rig(self)
         rig.prepare()
         rig.extra_env.update(extra or {})
-        done = fetch_rig.run_child(rig.environment(), ["--disable-autoexec", "--python", SEAL_PROBE],
-                                   rig.private, 120)
+        arguments = ["--disable-autoexec", "--python", SEAL_PROBE] + (["--", "held"] if held else [])
+        done = fetch_rig.run_child(rig.environment(), arguments, rig.private, 120)
         seen = {}
         for line in done.stdout.splitlines():
             if line.startswith("{"):
@@ -146,6 +147,19 @@ class GuardSeal(unittest.TestCase):
         self.assertEqual(seen["require"]["reason"], "untested_blender", output)
         self.assertEqual(seen["seal"]["reason"], "untested_blender", output)
         self.assertTrue(seen["type_left_preferences.addon_enable"]["ok"], output)
+
+    # References taken before the seal: the probe took addon_utils.enable and disable by name when it was
+    # loaded, before the seal. After the seal both are refusals, nothing is enabled or disabled, and the seal
+    # reports ok.
+    def test_references_taken_before_the_seal(self):
+        seen, rig, output = self.probe(held=True)
+        self.assertTrue(seen["seal"]["ok"], output)
+        for name in ("held_enable", "held_disable"):
+            with self.subTest(name=name):
+                self.assertIn(name, seen, output)
+                self.assertEqual(seen[name]["error"], "PermissionError", output)
+        self.assertEqual([entry for entry in rig.events("addon_enable") if entry["module"] != "blenderkit"], [])
+        self.assertEqual(rig.events("addon_disable"), [], output)
 
     # A class that cannot be taken out: the seal fails closed with seal_failed.
     def test_class_that_stays_fails_the_seal(self):

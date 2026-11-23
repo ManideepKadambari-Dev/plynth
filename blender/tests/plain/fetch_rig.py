@@ -26,6 +26,7 @@ WORKER = os.path.join(BLENDER_FOLDER, "plynth_worker.py")
 GUARD = os.path.join(BLENDER_FOLDER, "guard")
 STAND_IN = os.path.join(HERE, "stand_in_blender.py")
 FAKE_ADDON = os.path.join(BLENDER_FOLDER, "tests", "data", "fake_blenderkit", "blenderkit")
+HELD_ADDON = os.path.join(BLENDER_FOLDER, "tests", "data", "fake_held_refs", "held_refs")
 KEY = "KEY-MARKER-7f31-made-up-key-0000000000"
 REFRESH = "TOKEN-MARKER-92ac-made-up-refresh-00000"
 REMOVED = ("BLENDKIT_CLIENT_SETTINGS", "BLENDKIT_SERVER", "BLENDERKIT_SERVER", "BLENDKIT_DEBUG", "BLENDKIT_TOOLS_DIR")
@@ -238,6 +239,7 @@ class Rig:
         self.helper_log = os.path.join(self.root, "helper.log")
         self.events_file = os.path.join(self.private, "events.jsonl")
         self.extra_env = {}
+        self.extra_addons = {}
         self.done = None
 
     # Writes a text file, making its folder.
@@ -256,7 +258,8 @@ class Rig:
 
     # The child's environment, as core builds it, plus the fakes' variables.
     def environment(self):
-        env = {name: value for name, value in os.environ.items() if name.upper() not in REMOVED}
+        env = {name: value for name, value in os.environ.items()
+               if name.upper() not in REMOVED and not name.upper().startswith("BLENDER_USER_")}
         temp = os.path.join(self.private, "tmp")
         os.makedirs(temp, exist_ok=True)
         user = self.blender_user
@@ -272,7 +275,12 @@ class Rig:
                     "FAKE_BK_EVENTS": self.events_file,
                     "FAKE_STORE_SCENARIO": os.path.join(self.root, "helper_scenario.json"),
                     "FAKE_STORE_LOG": self.helper_log})
-        env.pop("XDG_DATA_HOME", None)
+        # XDG_DATA_HOME is the home itself, so the default data folder of the add-on stays the one in the home.
+        env["XDG_DATA_HOME"] = self.home
+        env["PLYNTH_BLENDER_PRIVATE"] = os.path.join(self.home, "plynth_private")
+        env["PLYNTH_CONFIG_DIR"] = os.path.join(self.home, "plynth_config")
+        for name in ("APPDATA", "LOCALAPPDATA", "XDG_DATA_HOME", "PLYNTH_BLENDER_PRIVATE", "PLYNTH_CONFIG_DIR"):
+            os.makedirs(env[name], exist_ok=True)
         env.update(self.extra_env)
         return env
 
@@ -287,10 +295,16 @@ class Rig:
 
     # Writes the saved preferences and the scenarios of the two fakes, as a start of the stand-in reads them.
     def prepare(self):
-        self.write(os.path.join(self.blender_user, "config", "userpref.json"),
-                   json.dumps({"addons": {"blenderkit": self.prefs}}))
+        addons = dict({"blenderkit": self.prefs}, **self.extra_addons)
+        self.write(os.path.join(self.blender_user, "config", "userpref.json"), json.dumps({"addons": addons}))
         self.write(os.path.join(self.root, "addon_scenario.json"), json.dumps(self.addon_scenario))
         self.write(os.path.join(self.root, "helper_scenario.json"), json.dumps(self.helper_scenario))
+
+    # Installs and enables the second fake add-on, which holds functions taken before the seal.
+    def add_held_references(self):
+        shutil.copytree(HELD_ADDON, os.path.join(self.blender_user, "scripts", "addons", "held_refs"),
+                        ignore=shutil.ignore_patterns("__pycache__"))
+        self.extra_addons["held_refs"] = {}
 
     # The marker file of a fake action that must never run. It lies in the fetch folder, so only the seal can
     # keep it from being written.

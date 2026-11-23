@@ -13,6 +13,9 @@ import subprocess
 import sys
 import time
 
+USER_VARIABLES = ("BLENDER_USER_RESOURCES", "BLENDER_USER_CONFIG", "BLENDER_USER_SCRIPTS", "BLENDER_USER_EXTENSIONS",
+                  "BLENDER_USER_DATAFILES", "APPDATA", "LOCALAPPDATA", "USERPROFILE", "HOME", "XDG_DATA_HOME",
+                  "PLYNTH_BLENDER_PRIVATE", "PLYNTH_CONFIG_DIR")
 
 # Prints one result line.
 def say(name, result):
@@ -50,6 +53,16 @@ def read_lines(path):
         return [json.loads(line) for line in handle if line.strip()]
 
 
+# The environment of the fake helper: every user folder variable points at a folder made inside the labelled
+# folder, and no other Blender user variable is passed on.
+def helper_env(folder):
+    env = {name: value for name, value in os.environ.items() if not name.upper().startswith("BLENDER_USER_")}
+    for name in USER_VARIABLES:
+        env[name] = os.path.join(folder, "env", name.lower())
+        os.makedirs(env[name], exist_ok=True)
+    return env
+
+
 # Runs the checks.
 def main():
     folder, outside, helper = sys.argv[sys.argv.index("--") + 1:][:3]
@@ -67,7 +80,8 @@ def main():
     scenario = os.path.join(folder, "helper.json")
     with open(scenario, "w", encoding="utf-8") as handle:
         json.dump({"tray": True, "linger_s": 60}, handle)
-    env = dict(os.environ, FAKE_STORE_SCENARIO=scenario, FAKE_STORE_LOG=log)
+    env = helper_env(folder)
+    env.update(FAKE_STORE_SCENARIO=scenario, FAKE_STORE_LOG=log)
     process = subprocess.Popen([copy, "--port", str(port), "--global_dir", folder], cwd=folder, env=env)
     try:
         answer = None

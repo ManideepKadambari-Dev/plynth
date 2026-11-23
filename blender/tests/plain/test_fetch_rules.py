@@ -57,7 +57,7 @@ class FetchCase(unittest.TestCase):
         log = os.path.join(self.rig.root, "user_helper.log")
         scenario = os.path.join(self.rig.root, "user_helper.json")
         self.rig.write(scenario, json.dumps({"linger_s": 3600}))
-        env = dict(os.environ, FAKE_STORE_LOG=log, FAKE_STORE_SCENARIO=scenario)
+        env = dict(self.rig.environment(), FAKE_STORE_LOG=log, FAKE_STORE_SCENARIO=scenario)
         port = self.rig.addon_scenario["standard_ports"][0]
         process = subprocess.Popen([exe, "--port", port, "--global_dir", self.rig.data], env=env,
                                    stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
@@ -263,6 +263,25 @@ class GateRefusals(FetchCase):
     # W2: addon_utils.enable and disable, read through their module, are refusals after the seal.
     def test_addon_utils_after_the_seal(self):
         self.assert_group_closed("addon_utils", ("enable", "disable"))
+
+    # W2, D3, references taken before the seal: a second add-on took addon_utils.enable and disable and the
+    # logout of the add-on by name when it was imported, and calls them inside the lookup, after the seal. Each
+    # is a refusal: nothing is enabled, disabled or signed out, no logout request leaves, and the fetch lands.
+    def test_references_taken_before_the_seal(self):
+        self.rig.add_held_references()
+        before = self.rig.fingerprint()
+        self.assert_ok(self.rig.fetch(MODEL))
+        self.assertEqual(self.rig.events("held_call_ran"), [], self.rig.output())
+        refused = sorted({entry["name"] for entry in self.rig.events("held_call_refused")})
+        self.assertEqual(refused, ["disable", "enable", "logout"], self.rig.output())
+        enabled = [entry for entry in self.rig.events("addon_enable")
+                   if entry["module"] not in ("blenderkit", "held_refs")]
+        self.assertEqual(enabled, [])
+        self.assertEqual(self.rig.events("addon_disable"), [])
+        for event in ("logout", "oauth2_logout", "clean_login_data"):
+            self.assertEqual(self.rig.events(event), [], event)
+        self.assertEqual(self.rig.requests("oauth2_logout"), [])
+        self.assertEqual(self.rig.fingerprint(), before)
 
     # W13: an add-on whose helper folder stays outside the fetch folder fails before the operator.
     def test_helper_folder_outside(self):

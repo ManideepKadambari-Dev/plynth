@@ -1,12 +1,16 @@
 """Run by test_fetch_guard in the stand-in Blender with the fetch guard and the fake add-on loaded. It takes
 callables to the operators the seal closes, asks the guard to require the fetch folder and to seal, then tries
-each way the seal closes. Prints one JSON line {"name": ..., "ok": true or false, "error": "<type name>",
-"reason": "<reason of a GuardError>"} for each.
-    stand_in_blender.py -b ... --python seal_probe.py
+each way the seal closes. With "held" after "--" it also calls addon_utils.enable and disable through the names
+it took when it was loaded, before the seal. Prints one JSON line {"name": ..., "ok": true or false,
+"error": "<type name>", "reason": "<reason of a GuardError>"} for each.
+    stand_in_blender.py -b ... --python seal_probe.py [-- held]
 """
 import json
 import os
 import sys
+
+from addon_utils import disable as HELD_DISABLE
+from addon_utils import enable as HELD_ENABLE
 
 NAMED = ("preferences.addon_enable", "preferences.addon_disable", "preferences.addon_install",
          "preferences.addon_remove", "extensions.package_install_files", "extensions.package_install",
@@ -47,6 +51,9 @@ def main():
     attempt("addon_utils_enable", lambda: addon_utils.enable("other_addon", default_set=True))
     attempt("addon_utils_disable", lambda: addon_utils.disable("blenderkit", default_set=True))
     attempt("seal_again", lambda: guard.seal())
+    if "held" in sys.argv:
+        attempt("held_enable", lambda: HELD_ENABLE("other_addon", default_set=True))
+        attempt("held_disable", lambda: HELD_DISABLE("blenderkit", default_set=True))
 
 
 main()

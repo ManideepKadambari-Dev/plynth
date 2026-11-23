@@ -11,6 +11,7 @@ import importlib
 import io
 import os
 import re
+import runpy
 import shutil
 import sys
 import tempfile
@@ -32,12 +33,35 @@ PARENTS = ("set", "unset")
 # The file and function of each start that is checked here, and the call it makes.
 SUITE_STARTS = {("test_probe.py", "ProbeTests.test_worker_process"): "subprocess.run",
                 ("test_userprefs.py", "Fixture.save"): "subprocess.run"}
-STORE_STARTS = {("tools/make_fake_blenderkit_config.py", "make_config"): "subprocess.run",
-                ("test_blenderkit_fetch.py", "BlenderKitFetchTests.fetch"): "subprocess.run"}
+STORE_STARTS = {("tools/make_fake_blenderkit_config.py", "make_config"): "subprocess.run"}
 EDGE_STARTS = {("blenderkit_edge_helpers.py", "run_blender"): "subprocess.run",
                ("blenderkit_edge_helpers.py", "make_user"): "run_blender",
                ("blenderkit_edge_helpers.py", "EdgeTest.start"): "run_blender",
-               ("test_blenderkit_autoexec.py", "AutoexecTests.setUpClass"): "run_blender"}
+               ("test_blenderkit_autoexec.py", "AutoexecTests.setUpClass"): "run_blender",
+               # The same scenario user and run_blender as setUpClass, which EdgeChildTests checks.
+               ("test_blenderkit_autoexec.py", "AutoexecTests.open_with_driver"): "run_blender"}
+# The plain fetch tests start the stand-in Blender, at normal or low integrity, and fake helpers.
+PLAIN_STARTS = {("plain/fetch_rig.py", "run_child"): "subprocess.run",
+                ("plain/fetch_rig.py", "_low_api"): "CreateProcessAsUserW",
+                ("plain/fetch_rig.py", "_run_low"): "CreateProcessAsUserW",
+                ("plain/test_fetch_rules.py", "FetchCase.start_user_helper"): "subprocess.Popen",
+                ("plain/test_fetch_guard.py", "GuardEvents.setUpClass"): "subprocess.Popen",
+                # Two attempts the guard must refuse, run only inside the stand-in under the guard.
+                ("plain/guard_probe.py", "main"): "subprocess.run"}
+# The scratch runs of S-R 1 to 9: real Blender children, and the fake helper that S-R 7 starts.
+SCRATCH_STARTS = {("scratch/sr7_low_integrity.py", "main"): "subprocess.Popen",
+                  ("test_blender_background_rules.py", "BackgroundRules.setUpClass"): "run_blender",
+                  ("test_blender_background_rules.py", "OperatorCloses.setUpClass"): "run_blender",
+                  ("test_blender_background_rules.py", "StartupOrder.test_sr5_order"): "run_blender"}
+# The fake add-on starts its fake helper as the real one does. The fetch gives it only fetch folders, which
+# test_fetch_rules checks (test_preferences_copy_and_child_folders_are_private).
+ADDON_STARTS = {("data/fake_blenderkit/blenderkit/client_lib.py", "start_blenderkit_client"): "subprocess.Popen"}
+ADDON_HANDED_ON = ("data/fake_blenderkit/blenderkit/client_lib.py", "start_blenderkit_client", "subprocess handed on")
+# Places with more than one start of the same kind.
+REPEATED = {("plain/guard_probe.py", "main", "subprocess.run"): 2,
+            ("test_blender_background_rules.py", "StartupOrder.test_sr5_order", "run_blender"): 2}
+PLAIN = os.path.join(TESTS, "plain")
+HAS_PLAIN = os.path.isfile(os.path.join(PLAIN, "fetch_rig.py"))
 # A helper that starts whatever it is given, so each place that uses it counts as a start too.
 START_WRAPPERS = ("run_blender",)
 STORE_PARTS = ("tools/make_fake_blenderkit_config.py", "test_blenderkit_fetch.py",
@@ -47,9 +71,10 @@ HAS_EDGE = os.path.isfile(os.path.join(TESTS, "blenderkit_edge_helpers.py"))
 NO_STORE = "this branch has no fake BlenderKit helper"
 
 NOT_A_START = {"PIPE", "STDOUT", "DEVNULL", "TimeoutExpired", "CalledProcessError", "CompletedProcess",
-               "SubprocessError"}
+               "SubprocessError", "list2cmdline"}
 START_MODULES = {"subprocess", "multiprocessing", "pty", "_winapi", "_posixsubprocess", "nt", "posix"}
-START_ANYWHERE = {"CreateProcess", "CreateProcessW", "CreateProcessA", "ShellExecuteW", "ShellExecuteA",
+START_ANYWHERE = {"CreateProcess", "CreateProcessW", "CreateProcessA", "CreateProcessAsUserW",
+                  "CreateProcessAsUserA", "CreateProcessWithTokenW", "ShellExecuteW", "ShellExecuteA",
                   "ShellExecuteExW", "WinExec", "create_subprocess_exec", "create_subprocess_shell",
                   "subprocess_exec", "subprocess_shell", "ProcessPoolExecutor", "path_open"}
 BEFORE_SCRIPT = ("--python", "-P", "--python-expr", "--python-text", "--")
@@ -721,6 +746,143 @@ class EdgeChildTests(StoreSandbox):
         self.check_options(self.edge_children)
 
 
+class PlainAndScratchChildTests(Sandbox):
+    """The starts of the plain fetch tests and of the scratch runs, checked like every other child."""
+
+    # Skips where there are no plain fetch tests, and lets the plain helpers load.
+    def setUp(self):
+        if not HAS_PLAIN:
+            self.skipTest("this branch has no plain fetch tests")
+        super().setUp()
+        sys.path.insert(0, PLAIN)
+
+    # Puts an empty stand-in for the fake helper program where the build would name it.
+    def fake_helper(self):
+        path = self.new_path("fake_store_helper.exe")
+        os.makedirs(os.path.dirname(path))
+        open(path, "wb").close()
+        os.environ["PLYNTH_FAKE_STORE_HELPER"] = path
+        return path
+
+    # Returns the stand-in children of a fetch and of a low integrity start. The low start itself is replaced
+    # by a record, so nothing starts.
+    def stand_in_children(self):
+        self.fake_helper()
+        rig = self.load("fetch_rig")
+        rules = self.load("test_fetch_rules")
+        case = rules.FetchCase("assert_ok")
+        case.setUp()
+        found = []
+        try:
+            found.append(self.child_of(lambda: case.rig.fetch(rig.MODEL)))
+            low = lambda command, env, cwd, timeout: self.record_start(command, env=env)
+            with mock.patch.object(rig, "_run_low", low):
+                found.append(self.child_of(lambda: rig.run_child(case.rig.environment(), ["--python", "probe.py"],
+                                                                 case.rig.private, 60, low=True)))
+        finally:
+            case.doCleanups()
+        return found
+
+    # Returns the fake helper started as the user's own and the program the guard test leaves running.
+    def helper_children(self):
+        self.fake_helper()
+        rules = self.load("test_fetch_rules")
+        guard = self.load("test_fetch_guard")
+        found = []
+        with mock.patch("subprocess.Popen", self.record_start):
+            case = rules.FetchCase("assert_ok")
+            case.setUp()
+            try:
+                found.append(self.child_of(case.start_user_helper))
+            finally:
+                case.doCleanups()
+            try:
+                found.append(self.child_of(guard.GuardEvents.setUpClass))
+            finally:
+                guard.GuardEvents.case.doCleanups()
+        return found
+
+    # Returns the fake helper that S-R 7 starts from inside its Blender.
+    def sr7_children(self):
+        folder = self.new_path("labelled")
+        os.makedirs(folder)
+        sys.modules["bpy"].app.background = True
+        script = os.path.join(TESTS, "scratch", "sr7_low_integrity.py")
+        arguments = ["blender", "--", folder, self.new_path("outside.txt"), self.fake_helper()]
+        with mock.patch("subprocess.Popen", self.record_start), mock.patch.object(sys, "argv", arguments):
+            return [self.child_of(lambda: runpy.run_path(script, run_name="__main__"))]
+
+    # Returns the real Blender children of the S-R runs: S-R 1 to 4, 8 and 9, S-R 3b, and both starts of S-R 5.
+    def scratch_children(self):
+        module = self.load("test_blender_background_rules")
+        found = []
+        for tests in (module.BackgroundRules, module.OperatorCloses):
+            try:
+                found.append(self.child_of(tests.setUpClass))
+            finally:
+                tests.doClassCleanups()
+        record = self.record_start
+
+        # Answers the setup start of S-R 5 as Blender would, so the test goes on to its check start.
+        def answer(*args, **kwargs):
+            command = args[0] if args else kwargs.get("args")
+            if any(str(part).endswith("sr5_save_prefs.py") for part in command):
+                open(os.path.join(kwargs["env"]["BLENDER_USER_CONFIG"], "userpref.blend"), "wb").close()
+                self.answer = chr(10).join(("SR5 SAVED", "SR5 setup_sr5_addon: enabled", "SR5 setup_sr5_ext: enabled"))
+            else:
+                self.answer = None
+            return record(*args, **kwargs)
+
+        case = module.StartupOrder("test_sr5_order")
+        before = len(self.starts)
+        with mock.patch("subprocess.run", answer):
+            try:
+                case.test_sr5_order()
+            except ChildStopped:
+                pass
+            finally:
+                case.doCleanups()
+        self.answer = None
+        self.assertEqual(len(self.starts), before + 2, "expected the setup and the check start of S-R 5")
+        return found + self.starts[before:]
+
+    # Fails for each stand-in child that is not the stand-in, is online, has no thread limit or gets its
+    # options too late.
+    def check_stand_in_options(self, drive):
+        self.deletable = self.scratch
+        stand_in = os.path.join(PLAIN, "stand_in_blender.py")
+        for number, start in enumerate(drive()):
+            with self.subTest(child=number):
+                self.assertIsNotNone(start.args, "the child needs a list of arguments and no shell")
+                self.assertEqual(start.args[0], sys.executable)
+                self.assertIn(stand_in, start.args)
+                self.assertEqual(option_problems(start.args[start.args.index(stand_in) + 1:]), [])
+
+    # The stand-in children, also the low integrity one, see only scratch folders that exist.
+    def test_stand_in_child_folders(self):
+        self.check_folders(self.stand_in_children)
+
+    # The stand-in children are offline and limited to six threads, as a Blender child.
+    def test_stand_in_child_options(self):
+        self.check_stand_in_options(self.stand_in_children)
+
+    # The fake helper and the program of the guard test see only scratch folders that exist.
+    def test_helper_child_folders(self):
+        self.check_folders(self.helper_children)
+
+    # The fake helper of S-R 7 sees only scratch folders that exist.
+    def test_sr7_child_folders(self):
+        self.check_folders(self.sr7_children)
+
+    # The Blender children of the S-R runs see only scratch folders that exist.
+    def test_scratch_child_folders(self):
+        self.check_folders(self.scratch_children)
+
+    # The Blender children of the S-R runs are offline and limited to six threads.
+    def test_scratch_child_options(self):
+        self.check_options(self.scratch_children)
+
+
 class StartListTests(unittest.TestCase):
     # Every start in the tests folder is one that this file checks. A new one fails until it gets a check here.
     def test_every_start_is_checked(self):
@@ -730,7 +892,14 @@ class StartListTests(unittest.TestCase):
         if HAS_EDGE:
             wanted.update((key, what) for key, what in EDGE_STARTS.items()
                           if os.path.isfile(os.path.join(TESTS, key[0])))
+        for group in (PLAIN_STARTS, SCRATCH_STARTS, ADDON_STARTS):
+            wanted.update((key, what) for key, what in group.items() if os.path.isfile(os.path.join(TESTS, key[0])))
         expected = collections.Counter(key + (what,) for key, what in wanted.items())
+        if os.path.isfile(os.path.join(TESTS, ADDON_HANDED_ON[0])):
+            expected[ADDON_HANDED_ON] += 1
+        for key, count in REPEATED.items():
+            if key in expected:
+                expected[key] = count
         found = collections.Counter()
         seen = []
         for place, folders, files in os.walk(TESTS):
@@ -759,7 +928,9 @@ class StartListTests(unittest.TestCase):
                    "import importlib\nimportlib.import_module('subprocess')", "import sys\nsys.modules['subprocess']",
                    "import asyncio\nasyncio.create_subprocess_exec('x')", "bpy.ops.wm.path_open(filepath='x')",
                    "run_blender({}, [])", "pool.submit(run_blender, {}, [])", "self.start(item, env={})",
-                   "from helper import run_blender as go")
+                   "from helper import run_blender as go", "advapi.CreateProcessAsUserW(token)",
+                   "advapi.CreateProcessAsUserA(token)", "advapi.CreateProcessWithTokenW(token)",
+                   "from ctypes.windll.advapi32 import CreateProcessAsUserW")
         for source in samples:
             with self.subTest(source=source):
                 self.assertNotEqual(find_starts(source), [])
