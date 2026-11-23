@@ -93,7 +93,7 @@ TEST_CASE("a new group id is drawn again while any stored edit names it", "[core
 
 TEST_CASE("the product source gives added groups ids of the new shape", "[core][export][ids]")
 {
-    detail::ScopedIdSource source(detail::IdPartMaker(&detail::systemIdPart));
+    detail::ScopedIdSource source{detail::IdPartMaker(&detail::systemIdPart)};
     ExportGroupEdits edits;
     std::set<std::string> seen;
     for (int n = 0; n < 200; ++n) {
