@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "too
 import make_fake_blenderkit_config as fake_config  # noqa: E402
 
 SCRATCH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scratch")
-ADDON = "def register():\n    import os\n    open(os.environ['SR5_ORDER'], 'a').write('%s\n')\n\ndef unregister():\n    pass\n"
+ADDON = "def register():\n    import os\n    open(os.environ['SR5_ORDER'], 'a').write('%s\\n')\n\ndef unregister():\n    pass\n"
 MANIFEST = ('schema_version = "1.0.0"\nid = "sr5_ext"\nversion = "1.0.0"\nname = "SR5"\nmaintainer = "Plynth tests"\n'
             'type = "add-on"\nblender_version_min = "4.2.0"\n')
 ENABLE = ("import addon_utils, bpy; addon_utils.enable('sr5_addon', default_set=True); "

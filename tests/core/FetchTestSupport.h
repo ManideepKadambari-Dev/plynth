@@ -99,7 +99,7 @@ inline std::vector<std::string> listing(const std::filesystem::path& folder)
         out.push_back(pathToUtf8(it->path().lexically_relative(folder)));
         if (it->is_symlink(ec) || (GetFileAttributesW(it->path().c_str()) & FILE_ATTRIBUTE_REPARSE_POINT)) it.disable_recursion_pending();
     }
-    for (std::string& name : out) std::replace(name.begin(), name.end(), '\', '/');
+    for (std::string& name : out) std::replace(name.begin(), name.end(), '\\', '/');
     std::sort(out.begin(), out.end());
     return out;
 }
@@ -131,7 +131,7 @@ inline bool makeJunction(const std::filesystem::path& link, const std::filesyste
     const HANDLE handle = CreateFileW(link.c_str(), GENERIC_WRITE, 0, nullptr, OPEN_EXISTING,
                                       FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
     if (handle == INVALID_HANDLE_VALUE) return false;
-    const std::wstring substitute = L"\??\\" + std::filesystem::absolute(target).wstring();
+    const std::wstring substitute = L"\\??\\" + std::filesystem::absolute(target).wstring();
     const std::wstring print = std::filesystem::absolute(target).wstring();
     std::vector<char> buffer(sizeof(DWORD) + 2 * sizeof(WORD) + 4 * sizeof(WORD) + (substitute.size() + print.size() + 2) * sizeof(wchar_t));
     auto* header = reinterpret_cast<DWORD*>(buffer.data());

@@ -69,7 +69,7 @@ TEST_CASE("a low integrity program writes only to a folder labelled for it", "[c
     const fs::path labelled = user.tmp.path() / "low";
     plynth::test::requireOk(makeLowIntegrityFolder(labelled));
     const fs::path normal = user.tmp.path() / "profile" / "probe.txt";
-    const std::string key = "Software\PlynthLowProbe" + std::to_string(GetCurrentProcessId());
+    const std::string key = "Software\\PlynthLowProbe" + std::to_string(GetCurrentProcessId());
     const auto lines = probe({"--level", "--write", pathToUtf8(labelled / "probe.txt"), "--write", pathToUtf8(normal), "--reg", key}, true);
     RegDeleteKeyW(HKEY_CURRENT_USER, plynth::test::widenUtf8(key).c_str());
     REQUIRE(lines.size() == 4);

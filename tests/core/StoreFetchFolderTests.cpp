@@ -220,7 +220,7 @@ TEST_CASE("at low integrity the fetch cannot write the user's home, the library 
     const fs::path library = rig.tmp.path() / "Library" / "probe.txt";
     fs::create_directories(library.parent_path());
     const fs::path own = rig.fetchFolder / "probe.txt";
-    const std::string key = "Software\PlynthFetchProbe" + std::to_string(GetCurrentProcessId());
+    const std::string key = "Software\\PlynthFetchProbe" + std::to_string(GetCurrentProcessId());
     const ScopedEnv doing("FAKE_FETCH_DO", "probe");
     const ScopedEnv writes("FAKE_PROBE_WRITES", pathToUtf8(home) + ";" + pathToUtf8(library) + ";" + pathToUtf8(own));
     const ScopedEnv reg("FAKE_PROBE_REG", key);
@@ -391,7 +391,7 @@ TEST_CASE("a helper that unzips entries with .. or a full path writes nothing ou
     const fs::path log = rig.tmp.path() / "helper.log";
     nlohmann::json entries = nlohmann::json::array();
     entries.push_back({{"name", "../../up.txt"}, {"text", "x"}});
-    entries.push_back({{"name", "..\..\..\up2.txt"}, {"text", "x"}});
+    entries.push_back({{"name", "..\\..\\..\\up2.txt"}, {"text", "x"}});
     entries.push_back({{"name", pathToUtf8(home)}, {"text", "x"}});
     entries.push_back({{"name", "client/inside.txt"}, {"text", "x"}});
     plynth::test::writeBytes(scenario, nlohmann::json{{"unzip_at_start", entries}}.dump());
