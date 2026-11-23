@@ -9,10 +9,12 @@
 #include "SettingsGuard.h"
 
 #include <crtdbg.h>
+#include <process.h>
 #include <cstdlib>
 #include <filesystem>
 #include <initializer_list>
 #include <string>
+#include <system_error>
 
 namespace {
 
@@ -46,5 +48,20 @@ struct TestConfigFolder {
     }
     std::filesystem::path path;
 } testConfigFolderSetup;
+
+// Gives this test program its own private Blender folder under the temp folder, and removes it at the end.
+// Without it a run of the fake Blender would use the shared folder under %LOCALAPPDATA%.
+struct TestPrivateFolder {
+    TestPrivateFolder() {
+        path = std::filesystem::temp_directory_path() / ("plynth-cli-private-" + std::to_string(_getpid()));
+        _wputenv_s(L"PLYNTH_BLENDER_PRIVATE", path.c_str());
+        SetEnvironmentVariableW(L"PLYNTH_BLENDER_PRIVATE", path.c_str());
+    }
+    ~TestPrivateFolder() {
+        std::error_code ignored;
+        std::filesystem::remove_all(path, ignored);
+    }
+    std::filesystem::path path;
+} testPrivateFolderSetup;
 
 }  // namespace

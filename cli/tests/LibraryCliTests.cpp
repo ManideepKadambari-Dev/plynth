@@ -85,7 +85,7 @@ TEST_CASE("library init copies the sample shapes found through PLYNTH_SAMPLES", 
     SettingsReset reset;
     TempFolder temp("library-init-shapes");
     // The variable is set with a narrow string, so its folder must have an ASCII name.
-    const auto samples = std::filesystem::temp_directory_path() / "plynth-cli-test-samples";
+    const auto samples = std::filesystem::temp_directory_path() / ("plynth-cli-test-samples-" + std::to_string(_getpid()));
     std::error_code ignored;
     std::filesystem::remove_all(samples, ignored);
     std::filesystem::create_directories(samples / "shapes");
