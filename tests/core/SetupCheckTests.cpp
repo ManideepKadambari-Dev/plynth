@@ -423,6 +423,8 @@ TEST_CASE("firstRun and updated come from the settings", "[core][setup]") {
 
 TEST_CASE("setupNeeded", "[core][setup]") {
     plynth::test::TempDir tmp("setup-needed");
+    // The test program names a missing Blender in this variable, and it would win over the settings.
+    plynth::test::ScopedEnv noVariable("PLYNTH_BLENDER", "");
     const auto fake = plynth::test::makeFakeBlender(tmp.path() / "b" / "Blender 5.2", "5.2.0");
     MachineSettings settings = goodFolders(tmp.path());
     settings.blender = fake;
