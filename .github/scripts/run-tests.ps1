@@ -55,6 +55,7 @@ function Get-Problems {
 # Every test blender/CMakeLists.txt registers is named blender_ and no other test is. The label cannot be used:
 # with tags as labels, the core tests tagged [blender] carry it too.
 $arguments = @('--preset', $Preset, '-E', '^blender_', '-LE', '^gpu$', '--timeout', '600', '--no-tests=error',
+               '-j', [string][Environment]::ProcessorCount,
                '--output-log', $log, '--output-junit', $junit)
 # The filter comes from the environment so its text is never part of a script line.
 if ($env:TEST_FILTER) { $arguments += @('-R', $env:TEST_FILTER) }
