@@ -22,10 +22,13 @@
 #include <winioctl.h>
 
 #include <algorithm>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <semaphore>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace plynth::test {
@@ -154,6 +157,48 @@ inline bool makeJunction(const std::filesystem::path& link, const std::filesyste
     const BOOL ok = DeviceIoControl(handle, FSCTL_SET_REPARSE_POINT, buffer.data(), static_cast<DWORD>(buffer.size()), nullptr, 0, &returned, nullptr);
     CloseHandle(handle);
     return ok != FALSE;
+}
+
+// Keeps a process from ending for a while, as a helper that ignores the end would: a thread attaches to it
+// as a debugger and answers no debug event, so Windows cannot finish ending it. Afterwards it lets go.
+class HoldExit {
+public:
+    // Starts holding the process, from its own thread, for the given time.
+    HoldExit(unsigned long pid, std::chrono::milliseconds hold)
+        : thread_([this, pid, hold] {
+              attached_ = DebugActiveProcess(pid) != FALSE;
+              if (attached_) DebugSetProcessKillOnExit(FALSE);
+              ready_.release();
+              std::this_thread::sleep_for(hold);
+              if (attached_) DebugActiveProcessStop(pid);
+          })
+    {
+        ready_.acquire();
+    }
+    ~HoldExit() { thread_.join(); }
+    HoldExit(const HoldExit&) = delete;
+    HoldExit& operator=(const HoldExit&) = delete;
+
+    // Says whether the hold could start.
+    bool attached() const { return attached_; }
+
+private:
+    std::binary_semaphore ready_{0};
+    bool attached_ = false;
+    std::thread thread_;
+};
+
+// Waits until a file holds a process id, and returns it, or 0 after the time.
+inline unsigned long waitForPid(const std::filesystem::path& file, std::chrono::milliseconds limit)
+{
+    const auto end = std::chrono::steady_clock::now() + limit;
+    while (std::chrono::steady_clock::now() < end) {
+        std::ifstream in(file, std::ios::binary);
+        unsigned long pid = 0;
+        if (in >> pid && pid != 0) return pid;
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+    return 0;
 }
 
 // Says whether any file below a folder holds a made-up secret.

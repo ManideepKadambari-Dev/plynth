@@ -11,6 +11,7 @@
 // Every start also appends the BLENDER_USER_* variables it sees to fake_env.log.
 // Every job is also appended as one line to fake_jobs.log next to the program.
 // Every start also appends its integrity level and fetch variables to fake_starts.log (store_fetch_env.cpp).
+// With FAKE_LEAVE_CHILD set, every job start leaves a sleeping child and writes its id to fake_child.pid.
 // The version comes from fake_version.txt next to the program, else 5.2.0.
 // Probe add-ons come from FAKE_BLENDER_ADDONS (comma separated modules) and FAKE_BLENDER_BLENDERKIT
 // (none, installed, enabled or signed_in).
@@ -40,6 +41,7 @@ using Json = nlohmann::ordered_json;
 int runFakeStoreFetch(const Json& job, const std::string& jobPath, const std::vector<std::string>& args);
 int lingerChild(const std::wstring& lockFile);
 void noteStart();
+void leaveChildIfAsked();
 
 namespace {
 
@@ -556,6 +558,7 @@ int main()
         log << "\n";
     }
     noteStart();
+    if (std::find(args.begin(), args.end(), "--version") == args.end()) leaveChildIfAsked();
     if (writesUser()) writeUserMarkers();
     {
         std::ofstream log(programFolder() / "fake_env.log", std::ios::binary | std::ios::app);

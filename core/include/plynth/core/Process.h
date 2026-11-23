@@ -30,14 +30,21 @@ struct ProcessSpec {
     // files, folders or registry. Reading stays as before. CannotRead when that cannot be set up; the program
     // is then not started.
     bool lowIntegrity = false;
-    // When the program ends by itself, also end everything it started that still runs, and return only once
-    // all of them are gone. A stop or the timeout always does this.
+    // Without it everything the program started still ends when it ends, but runProcess does not wait for
+    // that. With it runProcess returns only once every one of them is gone, and when they cannot all be ended
+    // within a minute the status is CannotRead "Programs that the program started could not all be ended."
     bool endChildren = false;
 };
 
 // Makes a folder, or labels one that exists and is empty, so that a low integrity program may write in it.
 // Only for a folder this process made itself. CannotWrite when it fails.
 Status makeLowIntegrityFolder(const std::filesystem::path& folder);
+
+// Checks a folder that low integrity programs already used and that is kept: it is a real folder and not a
+// link, it is owned by the current user, and its label is low integrity. Never changes the folder. NotFound
+// when it is not there, CannotWrite "Plynth's fetch folder is not set up as expected. Delete it and try
+// again." when any of the three does not hold.
+Status checkLowIntegrityFolder(const std::filesystem::path& folder);
 
 // How much of the output is kept in ProcessResult::outputTail.
 inline constexpr std::size_t kProcessOutputTailBytes = 64 * 1024;

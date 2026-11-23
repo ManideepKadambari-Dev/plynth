@@ -4,6 +4,7 @@
 
 #include <chrono>
 #include <filesystem>
+#include <memory>
 #include <fstream>
 #include <string>
 #include <thread>
@@ -424,4 +425,116 @@ TEST_CASE("a helper that unzips entries with .. or a full path writes nothing ou
     CHECK_FALSE(plynth::test::processRunning(run.at("helper_pid").get<unsigned long>()));
     plynth::test::endProcess(run.at("helper_pid").get<unsigned long>());
     CHECK(onlyKeptParts(rig.fetchFolder));
+}
+
+namespace {
+
+const char* const kHelpersLeft = "Blender's helper programs could not all be ended.";
+
+// A probe job for runBlenderJob, which the fake answers with a good result.
+Json probeJob(const fs::path& work)
+{
+    return makeBlenderJob(kProbeTask, "probe-1", work / "result.json", Json::object());
+}
+
+}
+
+TEST_CASE("every runBlenderJob job waits until the programs Blender started are gone", "[core][blender][end_children]")
+{
+    FetchRig rig("fx");
+    const ScopedEnv leave("FAKE_LEAVE_CHILD", "1500");
+    const fs::path pidFile = rig.blender.parent_path() / "fake_child.pid";
+    std::unique_ptr<plynth::test::HoldExit> hold;
+    std::jthread watcher([&] {
+        const unsigned long pid = plynth::test::waitForPid(pidFile, std::chrono::seconds(30));
+        if (pid != 0) hold = std::make_unique<plynth::test::HoldExit>(pid, std::chrono::seconds(5));
+    });
+    const auto began = std::chrono::steady_clock::now();
+    const BlenderJobRun run = runBlenderJob(rig.blender, probeJob(rig.work), rig.work, rig.base);
+    const auto took = std::chrono::steady_clock::now() - began;
+    watcher.join();
+    REQUIRE(hold);
+    REQUIRE(hold->attached());
+    plynth::test::requireOk(run.status);
+    CHECK(took >= std::chrono::milliseconds(4500));
+    const unsigned long pid = plynth::test::waitForPid(pidFile, std::chrono::seconds(1));
+    CHECK_FALSE(plynth::test::processRunning(pid));
+    hold.reset();
+    plynth::test::endProcess(pid);
+}
+
+TEST_CASE("a helper Blender left that cannot be ended fails the job and removes its good result", "[core][blender][end_children]")
+{
+    FetchRig rig("fy");
+    const ScopedEnv leave("FAKE_LEAVE_CHILD", "1500");
+    const fs::path pidFile = rig.blender.parent_path() / "fake_child.pid";
+    std::unique_ptr<plynth::test::HoldExit> hold;
+    std::jthread watcher([&] {
+        const unsigned long pid = plynth::test::waitForPid(pidFile, std::chrono::seconds(30));
+        if (pid != 0) hold = std::make_unique<plynth::test::HoldExit>(pid, std::chrono::seconds(75));
+    });
+    const BlenderJobRun run = runBlenderJob(rig.blender, probeJob(rig.work), rig.work, rig.base);
+    watcher.join();
+    REQUIRE(hold);
+    REQUIRE(hold->attached());
+    CHECK(run.status.code == ErrorCode::BlenderFailed);
+    CHECK(run.status.message == kHelpersLeft);
+    CHECK_FALSE(fs::exists(rig.work / "result.json"));
+    hold.reset();
+    plynth::test::endProcess(plynth::test::waitForPid(pidFile, std::chrono::seconds(1)));
+}
+
+TEST_CASE("a fetch whose helper cannot be ended brings nothing, and the next fetch empties the folder first", "[core][fetch][end_children]")
+{
+    FetchRig rig("fq");
+    const fs::path pidFile = rig.blender.parent_path() / "fake_child.pid";
+    std::unique_ptr<plynth::test::HoldExit> hold;
+    FetchRun first;
+    {
+        const ScopedEnv doing("FAKE_FETCH_DO", "helper+linger+delay");
+        const ScopedEnv delay("FAKE_FETCH_DELAY_MS", "3000");
+        std::jthread watcher([&] {
+            const unsigned long pid = plynth::test::waitForPid(pidFile, std::chrono::seconds(30));
+            if (pid != 0) hold = std::make_unique<plynth::test::HoldExit>(pid, std::chrono::seconds(75));
+        });
+        first = rig.fetch();
+    }
+    REQUIRE(hold);
+    REQUIRE(hold->attached());
+    CHECK(first.status.code == ErrorCode::BlenderFailed);
+    CHECK(first.status.message == kHelpersLeft);
+    CHECK_FALSE(fs::exists(rig.work / "fetched"));
+    const unsigned long pid = plynth::test::waitForPid(pidFile, std::chrono::seconds(1));
+    hold.reset();
+    plynth::test::endProcess(pid);
+    fs::remove(pidFile);
+
+    const ScopedEnv doing("FAKE_FETCH_DO", "probe");
+    const ScopedEnv writes("FAKE_PROBE_WRITES", "");
+    plynth::test::requireOk(rig.fetch().status);
+    CHECK(onlyKeptParts(rig.fetchFolder));
+    CHECK_FALSE(fs::exists(rig.fetchFolder / "client" / "helper.lock"));
+}
+
+TEST_CASE("an older empty fetch folder without a label is labelled as new and used", "[core][fetch][check_folder]")
+{
+    FetchRig rig("fo");
+    fs::create_directories(rig.fetchFolder);
+    const ScopedEnv doing("FAKE_FETCH_DO", "probe");
+    const ScopedEnv writes("FAKE_PROBE_WRITES", pathToUtf8(rig.fetchFolder / "client" / "probe.txt"));
+    plynth::test::requireOk(rig.fetch().status);
+    const nlohmann::json probes = rig.runs().at(0).at("probes");
+    REQUIRE(probes.size() == 1);
+    CHECK(probes[0].at("ok") == true);
+}
+
+TEST_CASE("a fetch folder with files and another label fails the fetch and is not relabelled", "[core][fetch][check_folder]")
+{
+    FetchRig rig("fr");
+    plynth::test::writeBytes(rig.fetchFolder / "client" / "system_id", "kept");
+    const FetchRun run = rig.fetch();
+    CHECK(run.status.code == ErrorCode::CannotWrite);
+    CHECK(run.status.message == "Plynth's fetch folder is not set up as expected. Delete it and try again.");
+    CHECK(rig.starts() == 0);
+    CHECK(plynth::test::readTextFile(rig.fetchFolder / "client" / "system_id") == "kept");
 }

@@ -135,6 +135,27 @@ void recordFetchRun(const Json& job, const std::string& jobPath, const std::stri
     entry["vars"] = vars;
 }
 
+// Starts a child that sleeps for a minute and writes its id to fake_child.pid next to the program, when
+// FAKE_LEAVE_CHILD is set, for any job. Then waits FAKE_LEAVE_CHILD milliseconds, so a test can reach the child.
+void leaveChildIfAsked()
+{
+    const Json wait = variable(L"FAKE_LEAVE_CHILD");
+    if (!wait.is_string()) return;
+    wchar_t self[MAX_PATH];
+    GetModuleFileNameW(nullptr, self, MAX_PATH);
+    const fs::path lockFile = here() / ("leave-" + std::to_string(GetCurrentProcessId()) + ".lock");
+    std::wstring command = L"\"" + std::wstring(self) + L"\" --linger \"" + lockFile.wstring() + L"\"";
+    STARTUPINFOW startup{};
+    startup.cb = sizeof(startup);
+    PROCESS_INFORMATION info{};
+    if (CreateProcessW(self, command.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &startup, &info)) {
+        std::ofstream(here() / "fake_child.pid", std::ios::binary | std::ios::trunc) << info.dwProcessId;
+        CloseHandle(info.hThread);
+        CloseHandle(info.hProcess);
+    }
+    Sleep(static_cast<DWORD>(std::atoi(wait.get<std::string>().c_str())));
+}
+
 // The --linger child: holds a file open in the fetch folder for a minute.
 int lingerChild(const std::wstring& lockFile)
 {
@@ -170,6 +191,7 @@ int fetchSideEffects(const Json& job)
         PROCESS_INFORMATION info{};
         if (CreateProcessW(self, command.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &startup, &info)) {
             entry["linger_pid"] = info.dwProcessId;
+            std::ofstream(here() / "fake_child.pid", std::ios::binary | std::ios::trunc) << info.dwProcessId;
             CloseHandle(info.hThread);
             CloseHandle(info.hProcess);
             Sleep(300);

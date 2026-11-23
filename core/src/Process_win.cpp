@@ -527,6 +527,12 @@ Status makeLowIntegrityFolder(const std::filesystem::path& folder)
     return {};
 }
 
+// Checks a kept folder for low integrity programs. Not written yet: always refuses.
+Status checkLowIntegrityFolder(const std::filesystem::path&)
+{
+    return fail(ErrorCode::CannotWrite, "Plynth's fetch folder is not set up as expected. Delete it and try again.");
+}
+
 // Moves a file or folder to the Recycle Bin.
 Status moveToRecycleBin(const std::filesystem::path& path)
 {
