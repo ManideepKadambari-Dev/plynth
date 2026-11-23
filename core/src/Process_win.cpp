@@ -218,17 +218,48 @@ bool runsAtLowIntegrity(HANDLE process)
     return *GetSidSubAuthority(level, *GetSidSubAuthorityCount(level) - 1u) == SECURITY_MANDATORY_LOW_RID;
 }
 
+// Opens every process the job lists that is not open yet. True when one was added.
+bool openJobProcesses(HANDLE job, std::map<DWORD, Handle>& open)
+{
+    constexpr DWORD kMaxIds = 4096;
+    std::vector<ULONG_PTR> buffer(kMaxIds + 2, 0);
+    auto* list = reinterpret_cast<JOBOBJECT_BASIC_PROCESS_ID_LIST*>(buffer.data());
+    if (!QueryInformationJobObject(job, JobObjectBasicProcessIdList, list, static_cast<DWORD>(buffer.size() * sizeof(ULONG_PTR)),
+                                   nullptr) &&
+        GetLastError() != ERROR_MORE_DATA) {
+        return false;
+    }
+    bool added = false;
+    for (DWORD i = 0; i < list->NumberOfProcessIdsInList && i < kMaxIds; ++i) {
+        const auto pid = static_cast<DWORD>(list->ProcessIdList[i]);
+        if (open.count(pid) != 0) continue;
+        const HANDLE process = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+        if (!process) continue;
+        open.try_emplace(pid, process);
+        added = true;
+    }
+    return added;
+}
+
 // Ends every process in the job and waits until all of them are gone. False when some still run after a
 // minute.
 bool endJob(HANDLE job)
 {
-    const auto begin = std::chrono::steady_clock::now();
+    // The job's own count drops while a process is still ending, so each process is opened before it is
+    // ended and its handle is waited on.
+    const auto end = std::chrono::steady_clock::now() + std::chrono::minutes(1);
+    std::map<DWORD, Handle> open;
     for (;;) {
+        const bool added = openJobProcesses(job, open);
         TerminateJobObject(job, 1);
         JOBOBJECT_BASIC_ACCOUNTING_INFORMATION info{};
-        if (!QueryInformationJobObject(job, JobObjectBasicAccountingInformation, &info, sizeof(info), nullptr)) return false;
-        if (info.ActiveProcesses == 0) return true;
-        if (std::chrono::steady_clock::now() - begin >= std::chrono::minutes(1)) return false;
+        bool running = !QueryInformationJobObject(job, JobObjectBasicAccountingInformation, &info, sizeof(info), nullptr) ||
+                       info.ActiveProcesses != 0;
+        for (const auto& [pid, process] : open) {
+            if (WaitForSingleObject(process.get(), 0) != WAIT_OBJECT_0) running = true;
+        }
+        if (!running && !added) return true;
+        if (std::chrono::steady_clock::now() >= end) return false;
         Sleep(10);
     }
 }
