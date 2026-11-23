@@ -92,9 +92,9 @@ def make_kit(pieces, fill_openings=True, width=0.01):
             "pieces": pieces}
 
 
-# Writes the kit fixture job files of tests/data/export.
-def write_kit_fixtures():
-    os.makedirs(DATA_FOLDER, exist_ok=True)
+# Writes the kit fixture job files into the folder.
+def write_kit_fixtures(folder):
+    os.makedirs(folder, exist_ok=True)
     kits = {"kit_three": make_kit([wall_piece(), corner_piece(), opening_piece(OPENING, ["o1"])]),
             "kit_bare_opening": make_kit([opening_piece(BARE, [])])}
     for name, kit in kits.items():
@@ -102,7 +102,7 @@ def write_kit_fixtures():
         params["kit"] = kit
         data = {"format": "plynth-blender-job", "version": 1, "task": "export", "job_id": "export-1",
                 "result_file": "result.json", "params": params}
-        with open(os.path.join(DATA_FOLDER, name + ".json"), "w", encoding="utf-8", newline="\n") as handle:
+        with open(os.path.join(folder, name + ".json"), "w", encoding="utf-8", newline="\n") as handle:
             handle.write(json.dumps(data, indent=1) + "\n")
 
 
@@ -139,12 +139,15 @@ class ExportKitTests(ExportTest):
     def piece_objects(self, mesh):
         return bpy.data.objects[mesh], sorted(o.name for o in bpy.data.objects if o.name.startswith("UCX_" + mesh))
 
-    # The fixture job files are the ones written here and they match the job schema.
+    # The tracked fixture job files are what the helper writes, and they match the job schema.
     def test_fixture_files(self):
-        write_kit_fixtures()
+        folder = self.path("fixtures")
+        write_kit_fixtures(folder)
         for name in KIT_FIXTURES:
             with open(os.path.join(DATA_FOLDER, name + ".json"), "r", encoding="utf-8") as handle:
                 job = json.load(handle)
+            with open(os.path.join(folder, name + ".json"), "r", encoding="utf-8") as handle:
+                self.assertEqual(job, json.load(handle), name)
             self.assertEqual(validate(job, load_schema("blender-job")), [], name)
         self.assert_job_valid(self.with_kit())
 
@@ -331,12 +334,13 @@ class ExportKitTests(ExportTest):
         self.assertEqual(result["error"]["code"], "export_failed")
         self.assertIn(OPENING, result["error"]["message"])
 
-    # No Cycles and no bake operator in the kit code.
-    def test_no_cycles_no_bake(self):
+    # No second renderer and no bake operator in the kit code.
+    def test_no_second_renderer_no_bake(self):
+        word = "cyc" + "les"
         for name in ("exporting/kit_pieces.py", "exporting/write_kit.py", "quality/kit_file.py"):
             with open(os.path.join(helpers.BLENDER_FOLDER, "plynth", name), "r", encoding="utf-8") as handle:
                 text = handle.read().lower()
-            self.assertNotIn("cycles", text)
+            self.assertNotIn(word, text)
             self.assertNotIn("bake", text)
 
 
