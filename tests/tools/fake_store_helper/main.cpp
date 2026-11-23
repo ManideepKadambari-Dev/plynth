@@ -144,7 +144,8 @@ void download(const std::string& taskId, const Json& data)
         queued.push_back(std::move(done));
     };
     if (plan.value("never", false)) return;
-    const fs::path dir = pathFrom(data.value("download_dirs", Json::array()).value(0, std::string()));
+    const Json dirs = data.value("download_dirs", Json::array());
+    const fs::path dir = pathFrom(dirs.is_array() && !dirs.empty() && dirs[0].is_string() ? dirs[0].get<std::string>() : std::string());
     const std::string name = asset.value("name", std::string("item"));
     const fs::path item = dir / (slug(name, 16) + "_" + asset.value("id", std::string()));
     bool zipped = false;
@@ -192,7 +193,8 @@ void download(const std::string& taskId, const Json& data)
     Json done = task;
     done["status"] = "finished";
     done["progress"] = 100;
-    done["result"] = {{"file_paths", {plan.contains("fake_path") ? plan["fake_path"].get<std::string>() : textOf(final)}}};
+    const std::string reported = plan.contains("fake_path") ? plan["fake_path"].get<std::string>() : textOf(final);
+    done["result"] = Json::object({{"file_paths", Json::array({reported})}});
     finish(done);
 }
 
@@ -264,7 +266,8 @@ void showTrayIcon()
         icon.hWnd = window;
         icon.uID = 1;
         icon.uFlags = NIF_ICON | NIF_TIP;
-        icon.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
+        // 32512 is IDI_APPLICATION, whose macro is the narrow form in this build.
+        icon.hIcon = LoadIconW(nullptr, MAKEINTRESOURCEW(32512));
         wcscpy_s(icon.szTip, L"Fake store helper");
         const bool shown = window != nullptr && Shell_NotifyIconW(NIM_ADD, &icon);
         note({{"op", "tray"}, {"ok", shown}});
