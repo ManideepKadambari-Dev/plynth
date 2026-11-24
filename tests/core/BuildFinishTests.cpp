@@ -334,8 +334,7 @@ std::string finishFixtureText()
     choices.assets = {books, shelf};
     const BuildPlan plan = makeBuildPlan(p, source, {}, nullptr, std::nullopt, &choices);
     const Json job = makeBuildJob(p, plan, BuildSettings{}, "@PROJECT@", "build-fixture", "@PROJECT@/build/result.json");
-    return replaced(job.dump(2) + "
-", "C:/plynth-fixture/library", "@LIBRARY@");
+    return replaced(job.dump(2) + "\n", "C:/plynth-fixture/library", "@LIBRARY@");
 }
 
 // Where the finishing job for the Blender tests is kept.
