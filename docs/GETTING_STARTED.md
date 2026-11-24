@@ -110,4 +110,5 @@ See "Exporting for Unreal", "The quality gate", "Collision" and "Importing into 
 - [Keyboard shortcuts](SHORTCUTS.md): the full list of keys and mouse actions.
 - [Command line guide](CLI_GUIDE.md): do all of this from a terminal or a script. For example, `plynth place sofa --room living` places the sofa from step 7, and `plynth materials import samples\materials\*` does step 8, `plynth build` does step 9, `plynth floor add`, `plynth stair add` and `plynth roof set` do step 10, and `plynth export` does step 11.
 - [Setting up Plynth](SETUP.md): what each item of the setup check means.
-- [Writing generators](GENERATORS.md): add your own opening shapes, importers and material importers.
+- [Writing generators](GENERATORS.md): add your own generators, opening shapes, importers and material importers.
+- In the app, F1 opens these pages in the Help window, and **Help > Guided tours** shows each screen one control at a time.

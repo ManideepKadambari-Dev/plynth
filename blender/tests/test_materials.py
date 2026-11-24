@@ -57,7 +57,7 @@ class SampleTests(MaterialTest):
                 self.assertEqual(result["warnings"], [], material_id)
                 output = result["output"]
                 self.assertEqual(output["source_info"]["id"], material_id)
-                self.assertEqual(output["source_info"]["license"], "own_work")
+                self.assertEqual(output["source_info"]["license"], "cc0")
                 for channel in ("base_color", "normal", "roughness", "metallic"):
                     self.assertTrue(os.path.isfile(self.map_path(result, channel)), channel)
 

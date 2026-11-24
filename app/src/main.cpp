@@ -2,6 +2,8 @@
 #include "theme/Theme.h"
 #include "catalog/LibraryHost.h"
 #include "window/MainWindow.h"
+#include "guide/GuideHost.h"
+#include "guide/TourAudit.h"
 #include "preview/RenderHost.h"
 
 #include <plynth/cli/Cli.h>
@@ -90,7 +92,7 @@ int main(int argc, char* argv[])
                                   QStringLiteral("Activate a tool: select, scale, wall, opening, room, stair, light, furniture or detect. For checks only."),
                                   QStringLiteral("name"));
     QCommandLineOption selectOption(QStringLiteral("select"),
-                                    QStringLiteral("Select the point, wall, opening, room, item, stair or light with this id. For checks only."),
+                                    QStringLiteral("Select the point, wall, opening, room, item, stair or light with this id, or first-wall. For checks only."),
                                     QStringLiteral("id"));
     QCommandLineOption floorOption(QStringLiteral("floor"),
                                    QStringLiteral("Show the floor with this id, such as f2. For checks only."), QStringLiteral("id"));
@@ -208,6 +210,9 @@ int main(int argc, char* argv[])
     parser.addOption(addLightOption);
     parser.addOption(projectFinishOption);
     parser.addOption(exportGameplayOnOption);
+    QCommandLineOption exportLicensesOnOption(QStringLiteral("export-licenses-on"),
+                                              QStringLiteral("Tick the license report box of the Export tab and show the tab. For checks only."));
+    parser.addOption(exportLicensesOnOption);
     parser.addOption(variationsDialogOption);
     parser.addOption(openingAssetPickerOption);
     QCommandLineOption homeOption(QStringLiteral("home"), QStringLiteral("Show the home screen. For checks only."));
@@ -223,6 +228,33 @@ int main(int argc, char* argv[])
     parser.addOption(viewOption);
     parser.addOption(cameraOption);
     parser.addOption(homeOption);
+    QCommandLineOption helpPageOption(QStringLiteral("help-page"), QStringLiteral("Open the Help window at a page. For checks only."),
+                                      QStringLiteral("id"));
+    QCommandLineOption helpSearchOption(QStringLiteral("help-search"),
+                                        QStringLiteral("Open the Help window with the hits of a search. For checks only."),
+                                        QStringLiteral("text"));
+    QCommandLineOption aboutOption(QStringLiteral("about"), QStringLiteral("Open About in the Help window. For checks only."));
+    QCommandLineOption tourOption(QStringLiteral("tour"), QStringLiteral("Start a guided tour. For checks only."),
+                                  QStringLiteral("id"));
+    QCommandLineOption tourStepOption(QStringLiteral("tour-step"),
+                                      QStringLiteral("The step of the tour to show, from 1, or last. For checks only."),
+                                      QStringLiteral("n"));
+    QCommandLineOption firstRunOption(QStringLiteral("first-run"),
+                                      QStringLiteral("Apply the first run rule as if there were no settings file. For checks only."));
+    parser.addOption(firstRunOption);
+    QCommandLineOption tourAuditOption(QStringLiteral("tour-audit"),
+                                       QStringLiteral("List every control on every screen, check it has a tour entry, write the result and exit. For the build check only."),
+                                       QStringLiteral("file"));
+    parser.addOption(tourAuditOption);
+    QCommandLineOption whatIsThisOption(QStringLiteral("what-is-this"),
+                                        QStringLiteral("Turn on What is this? and explain a control. For checks only."),
+                                        QStringLiteral("control id"));
+    parser.addOption(helpPageOption);
+    parser.addOption(helpSearchOption);
+    parser.addOption(aboutOption);
+    parser.addOption(tourOption);
+    parser.addOption(tourStepOption);
+    parser.addOption(whatIsThisOption);
     parser.addOption(integrationsTabOption);
     parser.addOption(blenderKitAddressOption);
     parser.addOption(fabImportOption);
@@ -294,6 +326,14 @@ int main(int argc, char* argv[])
         if (camera != QStringLiteral("three-quarter") && camera != QStringLiteral("top"))
             return kExitBadArguments;
     }
+    int tourStep = 0;
+    if (parser.isSet(tourStepOption)) {
+        const QString value = parser.value(tourStepOption).toLower();
+        bool ok = value == QStringLiteral("last");
+        tourStep = ok ? -1 : value.toInt(&ok) - 1;
+        if (!ok || tourStep < -1)
+            return kExitBadArguments;
+    }
     if (parser.isSet(wallSideOption)) {
         const QString side = parser.value(wallSideOption).toLower();
         if (side != QStringLiteral("left") && side != QStringLiteral("right"))
@@ -334,6 +374,9 @@ int main(int argc, char* argv[])
             return kExitBadArguments;
     }
     const bool wantsScreenshot = parser.isSet(screenshotOption);
+    const bool wantsAudit = parser.isSet(tourAuditOption);
+    // A screenshot and the tour audit both run with no dialogs, no probe and nothing written.
+    const bool quiet = wantsScreenshot || wantsAudit;
     if (wantsScreenshot && parser.value(screenshotOption).isEmpty())
         return kExitBadArguments;
 
@@ -382,10 +425,10 @@ int main(int argc, char* argv[])
             return kExitBadArguments;
         positional.removeAt(at);
     }
-    if (wantsScreenshot)
+    if (quiet)
         plynth::app::LibraryHost::setAutoProbe(false);
     plynth::app::MainWindow window;
-    window.setScreenshotMode(wantsScreenshot);
+    window.setScreenshotMode(quiet);
     if (hasSize)
         window.resize(size);
     else
@@ -452,9 +495,40 @@ int main(int argc, char* argv[])
         window.showMaterialsTab();
     if (parser.isSet(selectMaterialOption))
         window.selectMaterial(parser.value(selectMaterialOption));
-    if (parser.isSet(homeOption) || (!wantsScreenshot && !hasProject && !parser.isSet(imageOption)))
+    if (parser.isSet(homeOption) || (!quiet && !hasProject && !parser.isSet(imageOption)))
         window.showHome();
     window.show();
+    if (parser.isSet(helpPageOption)) {
+        const QString page = parser.value(helpPageOption);
+        QTimer::singleShot(0, &window, [&window, page]() { window.guide()->openHelp(page); });
+    } else if (parser.isSet(helpSearchOption)) {
+        const QString text = parser.value(helpSearchOption);
+        QTimer::singleShot(0, &window, [&window, text]() { window.guide()->openSearch(text); });
+    } else if (parser.isSet(aboutOption)) {
+        QTimer::singleShot(0, &window, [&window]() { window.guide()->openAbout(); });
+    }
+    if (parser.isSet(firstRunOption)) {
+        window.showHome();
+        QTimer::singleShot(0, &window, [&window]() {
+            window.showSetupCheck();
+            window.runFirstRun(true);
+        });
+    }
+    if (parser.isSet(tourOption)) {
+        const QString tour = parser.value(tourOption);
+        QTimer::singleShot(200, &window, [&window, tour, tourStep]() {
+            if (!window.guide()->tourLoaded())
+                qWarning("The tour text could not be read: %s", qPrintable(window.guide()->tourProblem()));
+            if (!window.guide()->startTour(tour, tourStep))
+                qWarning("The tour %s could not start.", qPrintable(tour));
+        });
+    } else if (parser.isSet(whatIsThisOption)) {
+        const QString control = parser.value(whatIsThisOption);
+        QTimer::singleShot(200, &window, [&window, control]() {
+            if (!window.guide()->explain(control))
+                qWarning("The control %s was not found.", qPrintable(control));
+        });
+    }
     if (parser.isSet(buildTabOption))
         window.showBuildTab();
     if (parser.isSet(exportGroupsExpandedOption))
@@ -463,7 +537,9 @@ int main(int argc, char* argv[])
         window.findChild<plynth::app::ExportPanel*>()->setKitEnabled(true);
     if (parser.isSet(exportGameplayOnOption))
         window.findChild<plynth::app::ExportPanel*>()->setGameplayEnabled(true);
-    if (parser.isSet(exportTabOption) || parser.isSet(exportGameplayOnOption))
+    if (parser.isSet(exportLicensesOnOption))
+        window.findChild<plynth::app::ExportPanel*>()->setLicensesEnabled(true);
+    if (parser.isSet(exportTabOption) || parser.isSet(exportGameplayOnOption) || parser.isSet(exportLicensesOnOption))
         window.showExportTab();
     if (parser.isSet(projectFinishOption))
         QTimer::singleShot(100, &window, [&window]() { window.showProjectFinish(); });
@@ -532,11 +608,11 @@ int main(int argc, char* argv[])
         const QString item = parser.value(setupItemOption);
         QTimer::singleShot(0, &window, [&window, item]() { window.showSetupCheck(item); });
     }
-    else if (!wantsScreenshot)
+    else if (!quiet)
         QTimer::singleShot(0, &window, [&window]() { window.openSetupCheckIfNeeded(); });
-    if (loadFailed && !wantsScreenshot)
+    if (loadFailed && !quiet)
         QTimer::singleShot(0, &window, [&window, loadTitle, loadError]() { window.showError(loadTitle, loadError); });
-    else if (hasProject && !loadFailed && !wantsScreenshot)
+    else if (hasProject && !loadFailed && !quiet)
         QTimer::singleShot(0, &window, [&window]() { window.offerRecovery(); });
 
     const bool wantsTerminal = parser.isSet(terminalOption);
@@ -550,6 +626,10 @@ int main(int argc, char* argv[])
     }
 
     const bool wantsBuild = parser.isSet(buildOption) || parser.isSet(exportOption) || parser.isSet(exportCheckOption);
+    if (wantsAudit) {
+        const QString file = parser.value(tourAuditOption);
+        QTimer::singleShot(500, &window, [&window, file]() { QApplication::exit(plynth::app::runTourAudit(window, file)); });
+    }
     if (wantsScreenshot) {
         const QString file = parser.value(screenshotOption);
         const QSize target = hasSize ? size : window.size();

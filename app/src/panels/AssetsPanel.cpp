@@ -8,6 +8,7 @@
 
 #include <plynth/core/RoomTypes.h>
 #include <plynth/core/catalog/AssetInfo.h>
+#include <plynth/core/ProjectFiles.h>
 
 #include <QComboBox>
 #include <QDesktopServices>
@@ -394,6 +395,23 @@ void AssetsPanel::buildDetails()
         applyEdit(edit);
     });
 
+    box->addWidget(mutedLabel(tr("Author"), body));
+    author_ = new QLineEdit(body);
+    author_->setFont(t.uiFont(t.sizeNormal()));
+    author_->setStyle(t.controlStyle());
+    author_->setMaxLength(static_cast<int>(plynth::kMaxAuthorLength));
+    author_->setPlaceholderText(tr("Unknown"));
+    author_->setToolTip(tr("Who made the asset, shown in the license report. Press Enter to save"));
+    author_->setProperty("tourId", QStringLiteral("catalog-author"));
+    box->addWidget(author_);
+    connect(author_, &QLineEdit::editingFinished, this, [this]() {
+        if (refreshing_ || !current_ || author_->text().trimmed() == shownAuthor_)
+            return;
+        plynth::AssetEdit edit;
+        edit.author = toCore(author_->text().trimmed());
+        applyEdit(edit);
+    });
+
     box->addWidget(mutedLabel(tr("Categories"), body));
     categories_ = new QListWidget(body);
     categories_->setFont(t.uiFont(t.sizeNormal()));
@@ -711,6 +729,9 @@ void AssetsPanel::showDetails()
     for (const plynth::LicenseEntry& entry : host_.catalog()->licenses())
         license_->addItem(fromCore(entry.name), fromCore(entry.id));
     license_->setCurrentIndex(std::max(0, license_->findData(fromCore(record.license))));
+    const plynth::AssetInfoRead info = plynth::readAssetInfo(record.folder / plynth::pathFromUtf8(plynth::kAssetInfoFileName), record.id);
+    shownAuthor_ = info.status.ok() ? fromCore(info.info.author) : QString();
+    author_->setText(shownAuthor_);
 
     categories_->clear();
     for (const plynth::CategoryEntry& entry : host_.catalog()->categories()) {
@@ -733,8 +754,6 @@ void AssetsPanel::showDetails()
         problems << fromCore(record.problem);
     if (!record.thumbnailError.empty())
         problems << fromCore(record.thumbnailError);
-    const plynth::AssetInfoRead info =
-        plynth::readAssetInfo(record.folder / std::string(plynth::kAssetInfoFileName), fromCore(record.id).toStdString());
     if (info.status.ok())
         for (const plynth::BlenderWarning& warning : info.info.warnings)
             problems << fromCore(warning.message);

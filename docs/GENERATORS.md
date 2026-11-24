@@ -1,8 +1,103 @@
 # Writing generators
 
-This page explains how to add to Plynth without changing the program. Today it covers opening shapes, roof types, stair types, importers, exporters, group rules, the Blender worker registries, build steps, opening fills, export steps and quality checks. Generators are added to this page in a later release.
+This page explains how to add to Plynth without changing the program. It covers generators, opening shapes, roof types, stair types, importers, exporters, group rules, the Blender worker registries, build steps, opening fills, export steps and quality checks.
 
 For the commands see the [Command line guide](CLI_GUIDE.md). For the screens see the [User guide](USER_GUIDE.md).
+
+## Generators
+
+A generator is one Python file that Blender runs during the build to make a piece of the building from a few values. Adding one is adding one file to the `generators` folder of your library. Plynth reads only its declaration and never runs the file itself. Only the build in Blender runs it.
+
+`samples/generators/column.py` is a full example. `railing.py` is a second one, and `archimesh_column.py`, `home_builder_cabinets.py`, `bool_tool_screen.py` and `bagapie_fence.py` show generators that use an add-on.
+
+### The file
+
+The file name without `.py` is the generator's id: lower case letters, digits and `_`, starting with a letter. Files whose name starts with `_`, and subfolders, are skipped, so a generator can keep helper modules there. A file may be at most 1 MB.
+
+The first thing in the file, after blank lines and `#` comment lines, is a docstring. Its first line is `plynth-generator` and the rest is one JSON object, the declaration:
+
+```python
+"""plynth-generator
+{"format": "plynth-generator", "version": 1, "name": "Column",
+ "description": "A round or square column from the floor up.",
+ "addons": [],
+ "size": {"width": {"param": "diameter"}, "depth": {"param": "diameter"}, "height": {"param": "height"}},
+ "params": [
+  {"id": "diameter", "label": "Diameter", "type": "number", "unit": "m", "default": 0.3, "min": 0.05, "max": 2.0},
+  {"id": "height", "label": "Height", "type": "number", "unit": "m", "default": "ceiling_height", "min": 0.1, "max": 20},
+  {"id": "shape", "label": "Shape", "type": "choice", "default": "round",
+   "choices": [{"id": "round", "label": "Round"}, {"id": "square", "label": "Square"}]},
+  {"id": "material", "label": "Material", "type": "material", "default": "white_paint"}]}
+"""
+```
+
+The full rules are in `schema/generator.schema.json`.
+
+- `name` is shown in the app. `description` is one or two plain sentences for the picker.
+- `addons` lists the short names of the Blender add-ons it needs, such as `archimesh` or `bagapie`. Leave it empty when it needs none.
+- `params` holds 1 to 32 values. Each has an `id`, a `label`, a `type` and a `default`, and may have a `help` sentence for the tooltip.
+- `size` says how large the result is, with `width` along its own x, `depth` along its own y and `height` up. Each side is a fixed length in metres, or `{"param": "<id>", "times": 1, "plus": 0}` for a number or integer parameter. The plan draws this footprint, so fit and overlap checks work without running Blender.
+
+### Parameter types
+
+| Type | Values | Extra fields |
+|---|---|---|
+| `number` | A number. With `"unit": "m"` the default may be `ceiling_height`, the ceiling height of the floor at the time the item is placed | `unit` (`none`, `m` or `deg`), `min`, `max`, `step` |
+| `integer` | A whole number | `min`, `max`, `step` |
+| `boolean` | `true` or `false` | |
+| `choice` | One of the choice ids | `choices`: a list of `{"id", "label"}` |
+| `material` | A materials catalog id, or `null` for the neutral look | |
+
+Lengths are always metres and angles degrees. The app shows a box for each parameter, and the command line sets one with `--param id=value`.
+
+### generate(gen)
+
+The file defines `generate(gen)`. It makes the mesh around the origin, with its bottom centre at (0, 0, 0) and its front toward -Y, and returns the objects it made. The build joins them into one object, moves it to the item's place and turn, and puts it on the item's floor.
+
+| Name | What it is |
+|---|---|
+| `gen.params` | The values, by parameter id. Numbers are floats and integers are ints |
+| `gen.size` | The declared size as (width, depth, height) in metres |
+| `gen.item` | The id of the item in the plan |
+| `gen.seed` | A number that stays the same for the item, for anything random |
+| `gen.mesh_object(name, verts, faces)` | Makes a mesh object from vertices and faces and returns it |
+| `gen.link(obj)` | Takes an object made another way, such as by an add-on, into the generator's collection |
+| `gen.material(param_id)` | The Blender material of a material parameter, named after its slot in the export |
+| `gen.bridge(short_name)` | The bridge of an add-on the declaration lists, with the add-on switched on |
+| `gen.log(text)` | Writes a line to the build log |
+
+When the generator gives no material to a face, the first material parameter is used, or a neutral material when it has none. Everything else the generator made is removed after the build has taken the result.
+
+### Using an add-on
+
+List the add-on in `addons` and ask for its bridge. A bridge is a small Plynth module in `blender/plynth/bridges/` that calls the add-on with fixed settings and hands back plain objects:
+
+```python
+def generate(gen):
+    p = gen.params
+    api = gen.bridge("archimesh").api
+    made = api.column(height=p["height"], width=p["width"] / 1.3, shape=p["shape"], plates=True,
+                      plate_width=p["width"])
+    for obj in made:
+        gen.link(obj)
+        obj.data.materials.clear()
+        obj.data.materials.append(gen.material("material"))
+    return made
+```
+
+A new bridge registers itself with `register(addon, modules, api)` from `plynth.bridges`, so adding one is adding one file there. Without the add-on switched on, the generator shows as unavailable in the picker, the command line refuses to place it, and an item that uses it is left out of the build with the warning `generator_unavailable`. The build only ever switches an add-on on in its own Blender run, never in your saved Blender preferences.
+
+### Rules and checks
+
+- A declaration that breaks a rule makes the file refused. `plynth generator list` names each refused file and why, and the app leaves it out.
+- An error inside `generate(gen)` is the build problem `generator_failed`, with the last line of the error.
+- A result that reaches more than 1 cm past the declared size is the warning `generator_size`.
+- When you change a file, placed items keep their stored values. **Update** in the app, or `plynth item params <id> --fit`, keeps the values that still fit and defaults the rest.
+- A generator is code that runs inside Blender with your rights. Only use generators from people you trust.
+
+### Trying one
+
+Copy the file into `Library\generators\`, then choose **Catalog > Reload generators** in the app, or run `plynth generator list`. `plynth generator info <id>` shows its parameters and default size, and `plynth place --generator <id> --room <room>` places it. Build to see the result.
 
 ## Opening shapes
 
@@ -666,6 +761,3 @@ A fetch task writes into the `output_folder` it is given and answers with the sa
 
 Test the importers and options with the fake Blender (`tests/tools/fake_blender`), which can also stand in for a fetch task. Test the address parsing and the options as plain functions. Test the Python side in a real Blender with a small fake add-on and scratch user folders (`blender/tests/tools/make_fake_blenderkit_config.py` sets every variable), never with the real store or your own settings. Keep downloaded items and zips out of the repository.
 
-## Other things you will be able to add
-
-A later release adds the same kind of page for generators (small Blender scripts). It will be added to this page, with its file format and its rules.

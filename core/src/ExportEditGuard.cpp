@@ -317,6 +317,22 @@ ExportEditResult ExportEditGuard::setGameplay(SessionTime now, bool enabled)
     return {ExportEditDecision::Allowed, writeExportOptions(d.folder, read.options)};
 }
 
+// Turns the license report on or off, with the same rules as the gameplay switch.
+ExportEditResult ExportEditGuard::setLicenses(SessionTime now, bool enabled)
+{
+    State& d = *d_;
+    if (d.folder.empty()) return d.refuse(ExportEditDecision::ChangedOutside, kNoProjectText);
+    d.lookForSession(now);
+    if (d.sessionLock) return d.refuseLocked();
+
+    ExportOptionsRead read = readExportOptions(d.folder);
+    if (!read.status.ok()) return {ExportEditDecision::Allowed, read.status};
+    if (read.options.licenses.enabled == enabled) return {};
+    read.options.licenses.enabled = enabled;
+    if (d.lookForSession(now)) return d.refuseLocked();
+    return {ExportEditDecision::Allowed, writeExportOptions(d.folder, read.options)};
+}
+
 // Replaces the unreadable options file the person was asked about, or refuses.
 ExportEditResult ExportEditGuard::repair(ExportEditTicket ticket, SessionTime now)
 {

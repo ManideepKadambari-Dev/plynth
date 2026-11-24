@@ -42,6 +42,7 @@ class FloorFocus;
 class FloorTabs;
 class ExportController;
 class ExportPanel;
+class GuideHost;
 class HomeScreen;
 class ImportQueue;
 class ImportQueueView;
@@ -137,10 +138,21 @@ public:
     bool importPictureReady() const;
     // Opens the setup check at start when this is the first run, after an update, or a required item blocks.
     void openSetupCheckIfNeeded();
+    // Starts the plan view tour once on the first run (no settings file and the tour not done), after the setup
+    // check closes, and saves that it was shown. pretend applies the rule as if there were no settings file.
+    void runFirstRun(bool pretend);
 
     // For checks only: opens the furniture picker at a place on the plan (metres) and hovers an asset when
     // an id is given. False when there is no scale or no library.
     bool showFurniturePicker(double x, double y, const QString& hoverAsset);
+
+    // The guided tour, What is this? and the Help window.
+    GuideHost* guide() const { return guide_; }
+    // Shows a screen by its tour name: home, plan, wall, build, export, assets or materials. Selection and
+    // the project are left as they are. False for an unknown name.
+    bool showScreenByName(const QString& screen);
+    // The tour name of the screen shown now.
+    QString screenName() const;
 
     // Shows the home screen over the work area. A project that is open stays open behind it.
     void showHome();
@@ -173,6 +185,11 @@ public:
     void importFromBlenderKit();
     // Queues every folder of samples/materials, skipping ids already in the library.
     void addSampleMaterials();
+    // Adds every sample model and material with license cc0 and copies the sample shapes and generators, as
+    // "plynth samples add" does. Items the library has already are skipped.
+    void addSampleItems();
+    // Copies a sample project into the projects folder and opens the copy. False when it cannot.
+    bool openSampleProject(const QString& id);
     // For checks only: takes a material of an asset into the materials catalog, as its button does.
     void addAssetMaterialForCheck(const QString& assetId, const QString& materialName) { addMaterialFromAsset(assetId, materialName); }
     // For checks only: adds a path to the import screen list.
@@ -236,7 +253,6 @@ private:
     void toggleMaximized();
     void recordRecent();
     void openRecent(const QString& folder);
-    void showAbout();
     void buildCatalogMenu();
     void openSetupCheck();
     void importDialog();
@@ -372,6 +388,7 @@ private:
     QAction* fitAction_ = nullptr;
     QWidget* work_ = nullptr;
     HomeScreen* home_ = nullptr;
+    GuideHost* guide_ = nullptr;
     QAction* homeAction_ = nullptr;
     QAction* closeAction_ = nullptr;
     QAction* importAction_ = nullptr;
@@ -381,6 +398,7 @@ private:
     QAction* importBlenderKitAction_ = nullptr;
     QAction* importFabAction_ = nullptr;
     QAction* addSamplesAction_ = nullptr;
+    QAction* addSampleItemsAction_ = nullptr;
     QAction* addShapesAction_ = nullptr;
     QAction* reloadGeneratorsAction_ = nullptr;
     QAction* checkAddonsAction_ = nullptr;

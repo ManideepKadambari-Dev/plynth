@@ -10,6 +10,7 @@
 #include <plynth/core/catalog/AssetInfo.h>
 #include <plynth/core/catalog/Importer.h>
 #include <plynth/core/catalog/MaterialImporter.h>
+#include <plynth/core/catalog/MaterialInfo.h>
 
 #include <algorithm>
 #include <cctype>
@@ -369,6 +370,8 @@ Json assetEntry(const AssetRecord& record) {
     entry["categories"] = record.categories;
     entry["tags"] = record.tags;
     entry["license"] = record.license;
+    const AssetInfoRead info = readAssetInfo(record.folder / pathFromUtf8(kAssetInfoFileName), record.id);
+    entry["author"] = info.status.ok() && !info.info.author.empty() ? Json(info.info.author) : Json(nullptr);
     entry["source"] = std::move(source);
     entry["size"] = std::move(size);
     entry["measured"] = isMeasured(record.size);
@@ -410,6 +413,8 @@ Json materialEntry(const MaterialRecord& record) {
     entry["groups"] = record.groups;
     entry["tags"] = record.tags;
     entry["license"] = record.license;
+    const MaterialInfoRead info = readMaterialInfo(record.folder / pathFromUtf8(kMaterialInfoFileName), record.id);
+    entry["author"] = info.status.ok() && !info.info.author.empty() ? Json(info.info.author) : Json(nullptr);
     entry["source"] = std::move(source);
     entry["tile_size"] = std::move(tile);
     entry["state"] = std::string(materialStateName(record.state));

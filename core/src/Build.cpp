@@ -1,4 +1,5 @@
 #include "plynth/core/Build.h"
+#include "plynth/core/LicenseReport.h"
 
 #include "BlenderPaths.h"
 #include "BuildLockFiles.h"
@@ -616,6 +617,15 @@ BuildReport runBuild(const BuildRequest& request, const std::function<void(const
     built["plan"] = planToJson(resolved.project.plan);
     const std::string planText = built.dump(2, ' ', false, Json::error_handler_t::replace) + "\n";
     if (Status written = fileio::writeAtomic(folder / pathFromUtf8(kBuiltPlanFileName), planText); !written.ok()) {
+        report.status = written;
+        return report;
+    }
+    // The license report of an export describes this build, so the ids of what it used are kept beside it.
+    UsedItems used;
+    used.planFingerprint = report.planFingerprint;
+    for (const BuildAsset& asset : plan.assets) used.assets.push_back(asset.id);
+    for (const BuildMaterial& material : plan.materials) used.materials.push_back(material.id);
+    if (Status written = writeUsedItems(folder / pathFromUtf8(kUsedItemsFileName), used); !written.ok()) {
         report.status = written;
         return report;
     }

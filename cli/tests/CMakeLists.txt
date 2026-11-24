@@ -43,6 +43,7 @@ add_executable(plynth_cli_tests
     SessionKeeperTests.cpp
     WholeCliTests.cpp
     GuideTests.cpp
+    GuideCliTests.cpp
     IdCliTests.cpp
     FormatCliTests.cpp
     LightCliTests.cpp

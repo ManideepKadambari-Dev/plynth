@@ -43,10 +43,13 @@
 #include "terminal/TerminalDock.h"
 #include "wallview/WallView.h"
 #include "theme/Theme.h"
+#include "guide/GuideHost.h"
 
 #include <plynth/core/Items.h>
 #include <plynth/core/PlanImage.h>
 #include <plynth/core/ProjectFiles.h>
+#include <plynth/core/Resources.h>
+#include <plynth/core/Samples.h>
 #include <plynth/core/Version.h>
 #include <plynth/core/RoomTypes.h>
 #include <plynth/core/Rooms.h>
@@ -60,6 +63,7 @@
 #include <plynth/core/commands/FloorCommands.h>
 
 #include <QEventLoop>
+#include <QSignalBlocker>
 #include <QAbstractSpinBox>
 #include <QAction>
 #include <QApplication>
@@ -264,6 +268,10 @@ MainWindow::MainWindow(QWidget* parent)
     connect(home_, &HomeScreen::newFromImageRequested, this, &MainWindow::newProjectFromImage);
     connect(home_, &HomeScreen::openProjectRequested, this, &MainWindow::openProjectDialog);
     connect(home_, &HomeScreen::openRecentRequested, this, &MainWindow::openRecent);
+    connect(home_, &HomeScreen::openSampleProjectRequested, this, [this](const QString& id) {
+        if (confirmDiscardChanges())
+            openSampleProject(id);
+    });
     connect(home_, &HomeScreen::openSampleRequested, this, [this](const QString& file) {
         if (!confirmDiscardChanges())
             return;
@@ -275,6 +283,7 @@ MainWindow::MainWindow(QWidget* parent)
         terminal_->shutdown();
     });
     connect(home_, &HomeScreen::setupRequested, this, &MainWindow::openSetupCheck);
+    connect(home_, &HomeScreen::helpPageRequested, this, [this](const QString& page) { guide_->openHelp(page); });
     connect(home_, &HomeScreen::backRequested, this, &MainWindow::showWork);
     connect(canvas_, &PlanCanvas::zoomChanged, this, [this](double zoom) {
         if (canvas_->hasImage())
@@ -342,6 +351,7 @@ MainWindow::MainWindow(QWidget* parent)
     connect(materials_, &MaterialsPanel::samplesRequested, this, &MainWindow::addSampleMaterials);
     connect(importMaterialsAction_, &QAction::triggered, this, &MainWindow::showMaterialImport);
     connect(addSamplesAction_, &QAction::triggered, this, &MainWindow::addSampleMaterials);
+    connect(addSampleItemsAction_, &QAction::triggered, this, &MainWindow::addSampleItems);
     connect(assets_, &AssetsPanel::addMaterialRequested, this, &MainWindow::addMaterialFromAsset);
     connect(materialRefresher_, &MaterialRefresher::busyChanged, this,
             [this]() { materials_->setBusyMaterials(materialRefresher_->busyIds()); });
@@ -385,6 +395,7 @@ MainWindow::MainWindow(QWidget* parent)
         importMaterialsAction_->setEnabled(materialsOpen);
         importFabAction_->setEnabled(open);
         addSamplesAction_->setEnabled(materialsOpen);
+        addSampleItemsAction_->setEnabled(materialsOpen);
         openGeneratorsAction_->setEnabled(open);
         reloadGeneratorsAction_->setEnabled(open);
         checkAddonsAction_->setEnabled(open);
@@ -454,6 +465,8 @@ QString MainWindow::projectName() const
 void MainWindow::setScreenshotMode(bool on)
 {
     screenshotMode_ = on;
+    if (guide_)
+        guide_->setScreenshotMode(on);
     if (on) {
         autosaveTimer_->stop();
         watcher_->setActive(false);
@@ -720,14 +733,45 @@ void MainWindow::buildMenus()
                                       QStringLiteral("build-make-variations"), {});
     connect(variationsAction_, &QAction::triggered, this, [this]() { showVariationsDialog(true); });
 
-    QAction* setupAction = addMenuAction(titleBar_->helpMenu(), tr("&Setup check"),
+    guide_ = new GuideHost(this);
+    guide_->setScreenshotMode(screenshotMode_);
+    connect(guide_, &GuideHost::setupCheckRequested, this, &MainWindow::openSetupCheck);
+    QMenu* help = titleBar_->helpMenu();
+    QAction* helpAction = addMenuAction(help, tr("&Help"), tr("Open the help pages, with a search across them (F1)"),
+                                        QStringLiteral("help-contents"), {QKeySequence(Qt::Key_F1)});
+    connect(helpAction, &QAction::triggered, this, [this]() { guide_->openHelp(); });
+    QAction* whatAction = addMenuAction(help, tr("&What is this?"),
+                                        tr("Click any control to see what it does, without running it (Shift+F1)"),
+                                        QStringLiteral("help-what-is-this"), {QKeySequence(Qt::SHIFT | Qt::Key_F1)});
+    whatAction->setCheckable(true);
+    connect(whatAction, &QAction::toggled, guide_, &GuideHost::setWhatIsThis);
+    connect(guide_, &GuideHost::whatIsThisChanged, whatAction, [whatAction](bool on) {
+        const QSignalBlocker block(whatAction);
+        whatAction->setChecked(on);
+    });
+    QMenu* tours = help->addMenu(tr("Guided &tours"));
+    tours->setToolTip(tr("Show the controls of one screen, one at a time"));
+    tours->menuAction()->setProperty("tourId", QStringLiteral("help-tours"));
+    const std::pair<const char*, QString> tourNames[] = {{"plan", tr("&Plan view")},
+                                                         {"wall", tr("&Wall view")},
+                                                         {"build_export", tr("&Build and export")},
+                                                         {"assets", tr("&Assets catalog")},
+                                                         {"materials", tr("&Materials catalog")}};
+    for (const auto& [id, name] : tourNames) {
+        const QString tourId = QString::fromLatin1(id);
+        QAction* action = addMenuAction(tours, name, tr("Start the tour of this screen"),
+                                        QStringLiteral("help-tour-") + tourId, {});
+        connect(action, &QAction::triggered, this, [this, tourId]() { guide_->startTour(tourId); });
+    }
+    help->addSeparator();
+    QAction* setupAction = addMenuAction(help, tr("&Setup check"),
                                          tr("Check that Blender, the library and the projects folder are ready"),
                                          QStringLiteral("help-setup-check"), {});
     connect(setupAction, &QAction::triggered, this, &MainWindow::openSetupCheck);
-    auto* aboutAction = titleBar_->helpMenu()->addAction(tr("&About Plynth"));
-    aboutAction->setToolTip(tr("Show the Plynth version"));
-    aboutAction->setProperty("tourId", QStringLiteral("help-about"));
-    connect(aboutAction, &QAction::triggered, this, &MainWindow::showAbout);
+    QAction* aboutAction = addMenuAction(help, tr("&About Plynth"),
+                                         tr("Show the version, the licenses and the third party notices"),
+                                         QStringLiteral("help-about"), {});
+    connect(aboutAction, &QAction::triggered, this, [this]() { guide_->openAbout(); });
 }
 
 // Builds the Catalog menu. Import and Rescan are connected where the import queue is made.
@@ -765,6 +809,9 @@ void MainWindow::buildCatalogMenu()
     addSamplesAction_ = addMenuAction(menu, tr("Add the &sample materials"),
                                       tr("Import the nine sample materials that come with Plynth"),
                                       QStringLiteral("materials-samples-action"), {});
+    addSampleItemsAction_ = addMenuAction(menu, tr("Add the sample &items"),
+                                          tr("Add the sample models and materials with license CC0, and the sample shapes and generators"),
+                                          QStringLiteral("samples-add-action"), {});
     rescanMaterialsAction_ = addMenuAction(menu, tr("Rescan m&aterials"),
                                            tr("Read the materials folder again and update the index"),
                                            QStringLiteral("materials-rescan-action"), {});
@@ -856,6 +903,27 @@ void MainWindow::openSetupCheckIfNeeded()
     const plynth::SetupReport quick = plynth::quickSetupCheck(host_->settings(), host_->settingsExisted(), appGraphics());
     if (plynth::setupNeeded(quick))
         openSetupCheck();
+    runFirstRun(false);
+}
+
+// Waits for the setup check to close, then shows the plan view tour and remembers that it was shown.
+void MainWindow::runFirstRun(bool pretend)
+{
+    const bool first = pretend || (!host_->settingsExisted() && !host_->settings().tourDone);
+    if (!first || guide_ == nullptr)
+        return;
+    const auto start = [this]() {
+        connect(guide_, &GuideHost::tourFinished, this, [this](const QString&) {
+            if (!screenshotMode_)
+                host_->apply([](plynth::MachineSettings& settings) { settings.tourDone = true; });
+        }, Qt::SingleShotConnection);
+        if (!guide_->startTour(QStringLiteral("plan")) && !screenshotMode_)
+            host_->apply([](plynth::MachineSettings& settings) { settings.tourDone = true; });
+    };
+    if (setupDialog_)
+        connect(setupDialog_.data(), &QObject::destroyed, this, start);
+    else
+        QTimer::singleShot(0, this, start);
 }
 
 // For checks only: shows the Integrations tab.
@@ -907,6 +975,8 @@ void MainWindow::importFromBlenderKit()
 // Picture of the window. An open setup check is drawn in the middle over a dimmed window.
 QImage MainWindow::grabPicture()
 {
+    if (guide_ && guide_->helpShown())
+        return guide_->helpPicture();
     QImage image = grab().toImage();
     QWidget* shownDialog = nullptr;
     if (setupDialog_ && setupDialog_->isVisible())
@@ -1571,7 +1641,8 @@ bool MainWindow::showFloor(const QString& id)
 void MainWindow::selectById(const QString& id)
 {
     selection_->clear();
-    const std::string key = id.toStdString();
+    // first-wall stands for the first wall of the plan, since ids differ in every project.
+    const std::string key = id == QStringLiteral("first-wall") ? plynth::firstWallId(doc_.plan()) : id.toStdString();
     for (const plynth::Floor& floor : doc_.plan().floors) {
         std::optional<SelectionKind> kind;
         if (plynth::findPoint(floor, key) != nullptr)
@@ -1594,7 +1665,7 @@ void MainWindow::selectById(const QString& id)
         if (!kind.has_value())
             continue;
         focus_->setFloorId(QString::fromStdString(floor.id));
-        selection_->set(*kind, id);
+        selection_->set(*kind, QString::fromStdString(key));
         return;
     }
 }
@@ -1816,6 +1887,67 @@ void MainWindow::addSampleMaterials()
     for (const plynth::MaterialImportRequest& request : requests)
         materialQueue_->enqueueImport(request);
     statusBar_->showMessage(tr("Adding %1 sample materials.").arg(requests.size()), false);
+}
+
+// Queues the sample models the library does not have, the sample materials, and copies the shapes and generators.
+void MainWindow::addSampleItems()
+{
+    if (!host_->hasLibrary() || host_->catalog() == nullptr)
+        return;
+    const std::filesystem::path samples = plynth::resourceFolder(plynth::ResourceKind::Samples);
+    const plynth::SamplesRead read = samples.empty() ? plynth::SamplesRead{} : plynth::readSamples(samples);
+    if (samples.empty() || !read.status.ok()) {
+        statusBar_->showMessage(tr("The samples were not found next to the program."));
+        return;
+    }
+    int queued = 0;
+    int skipped = 0;
+    for (const plynth::SampleAsset& asset : read.index.assets) {
+        if (host_->catalog()->idTaken(asset.id)) {
+            ++skipped;
+            continue;
+        }
+        plynth::ImportRequest request;
+        request.source.file = samples / plynth::pathFromUtf8(asset.file);
+        request.id = asset.id;
+        request.name = asset.name;
+        request.categories = asset.categories;
+        request.tags = asset.tags;
+        request.license = read.index.license;
+        request.keepOriginal = true;
+        queue_->enqueueRequest(request);
+        ++queued;
+    }
+    host_->addSampleShapes();
+    host_->addSampleGenerators();
+    addSampleMaterials();
+    statusBar_->showMessage(tr("Adding %1 sample models and the sample materials. %2 models were in the library already.")
+                                .arg(queued)
+                                .arg(skipped),
+                            false);
+}
+
+// Copies the sample into the projects folder under a free name and opens the copy.
+bool MainWindow::openSampleProject(const QString& id)
+{
+    const std::filesystem::path samples = plynth::resourceFolder(plynth::ResourceKind::Samples);
+    const QString projects = host_->projectsFolder();
+    if (samples.empty() || projects.isEmpty()) {
+        showError(tr("Open sample project"), tr("The samples or the projects folder were not found. Run the setup check."));
+        return false;
+    }
+    const plynth::SampleCopy copy = plynth::copySampleProject(samples, id.toStdString(), std::filesystem::path(projects.toStdWString()));
+    if (!copy.status.ok()) {
+        showError(tr("Open sample project"), fromCore(copy.status.message));
+        return false;
+    }
+    QString error;
+    if (!openProject(QString::fromStdWString(copy.projectFolder.wstring()), &error)) {
+        showError(tr("Open sample project"), error);
+        return false;
+    }
+    showWork();
+    return true;
 }
 
 // For checks only: adds a path to the import screen list.
@@ -2053,6 +2185,49 @@ void MainWindow::showHome()
     home_->refresh();
     pages_->setCurrentWidget(home_);
     statusBar_->setHint(QString());
+}
+
+// Switches to the screen a tour step names. Wall shows the plan with the wall view, when a wall is selected.
+bool MainWindow::showScreenByName(const QString& screen)
+{
+    if (screen == QStringLiteral("home")) {
+        if (pages_->currentWidget() != home_)
+            showHome();
+        return true;
+    }
+    static const std::pair<const char*, RightPanel::Tab> tabs[] = {{"plan", RightPanel::Tab::Properties},
+                                                                    {"wall", RightPanel::Tab::Properties},
+                                                                    {"build", RightPanel::Tab::Build},
+                                                                    {"export", RightPanel::Tab::Export},
+                                                                    {"assets", RightPanel::Tab::Assets},
+                                                                    {"materials", RightPanel::Tab::Materials}};
+    for (const auto& [name, tab] : tabs) {
+        if (screen != QLatin1String(name))
+            continue;
+        if (pages_->currentWidget() != work_)
+            showWork();
+        if (right_->tab() != tab)
+            right_->showTab(tab);
+        if (screen == QStringLiteral("plan") || screen == QStringLiteral("wall"))
+            showCentreView(false);
+        return true;
+    }
+    return false;
+}
+
+// The tour name of the screen shown now.
+QString MainWindow::screenName() const
+{
+    if (pages_->currentWidget() == home_)
+        return QStringLiteral("home");
+    switch (right_->tab()) {
+    case RightPanel::Tab::Assets: return QStringLiteral("assets");
+    case RightPanel::Tab::Materials: return QStringLiteral("materials");
+    case RightPanel::Tab::Build: return QStringLiteral("build");
+    case RightPanel::Tab::Export: return QStringLiteral("export");
+    case RightPanel::Tab::Properties: break;
+    }
+    return QStringLiteral("plan");
 }
 
 // Shows the plan, tools and panels.
@@ -2479,47 +2654,6 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, qintptr
         return true;
 #endif
     return QMainWindow::nativeEvent(eventType, message, result);
-}
-
-// Shows a small dialog with the app name and version from core.
-void MainWindow::showAbout()
-{
-    const Theme& t = Theme::instance();
-    QDialog dialog(this);
-    dialog.setWindowTitle(tr("About Plynth"));
-    dialog.setWindowIcon(windowIcon());
-
-    auto* layout = new QVBoxLayout(&dialog);
-    layout->setContentsMargins(t.unit() * 6, t.unit() * 6, t.unit() * 6, t.unit() * 6);
-    layout->setSpacing(t.unit() * 2);
-
-    auto* logo = new QLabel(&dialog);
-    logo->setPixmap(QPixmap(QStringLiteral(":/logo.png"))
-                        .scaled(QSize(t.logoSize(), t.logoSize()) * 3, Qt::KeepAspectRatio,
-                                Qt::SmoothTransformation));
-    logo->setAlignment(Qt::AlignCenter);
-    layout->addWidget(logo);
-
-    auto* name = new QLabel(tr("Plynth"), &dialog);
-    name->setFont(t.uiFont(t.sizeLarge(), QFont::DemiBold));
-    name->setAlignment(Qt::AlignCenter);
-    layout->addWidget(name);
-
-    const QString version = QString::fromUtf8(plynth::version().data(),
-                                              static_cast<qsizetype>(plynth::version().size()));
-    auto* versionLabel = new QLabel(tr("Version %1").arg(version), &dialog);
-    versionLabel->setFont(t.monoFont(t.sizeNormal()));
-    versionLabel->setAlignment(Qt::AlignCenter);
-    versionLabel->setToolTip(tr("The Plynth version"));
-    layout->addWidget(versionLabel);
-
-    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
-    buttons->button(QDialogButtonBox::Ok)->setDefault(true);
-    buttons->button(QDialogButtonBox::Ok)->setToolTip(tr("Close this dialog"));
-    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    layout->addWidget(buttons);
-
-    dialog.exec();
 }
 
 }

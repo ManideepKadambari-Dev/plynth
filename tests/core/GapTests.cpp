@@ -17,6 +17,7 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <string>
 #include <thread>
 
@@ -73,9 +74,20 @@ TEST_CASE("a cancel request stops a running build and leaves no marker for the n
     fs::create_directories(project / "build");
     std::ofstream(project / "build" / "cancel.request") << "left from before";
     std::atomic<bool> done = false;
+    // Waits until the job's Blender has started, then asks once and never again. The fake job hangs until it is
+    // stopped, so the build cannot end between the request and the marker being seen, and no request can land
+    // after the build removed the marker. If the job never starts within 30 seconds it asks anyway, so the test
+    // ends with failed checks instead of hanging.
+    const fs::path argsLog = lib.tmp.path() / "blender" / "fake_args.log";
+    const auto jobStarted = [&]() {
+        std::ifstream in(argsLog, std::ios::binary);
+        std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        return text.find("--job") != std::string::npos;
+    };
     std::thread canceller([&] {
+        for (int i = 0; i < 300 && !done && !jobStarted(); ++i) std::this_thread::sleep_for(std::chrono::milliseconds(100));
         for (int i = 0; i < 300 && !done; ++i) {
-            requestCancel(project);
+            if (requestCancel(project)) return;
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
     });
@@ -91,7 +103,7 @@ TEST_CASE("a cancel request stops a running build and leaves no marker for the n
     std::string line;
     int starts = 0;
     while (std::getline(log, line)) {
-        if (line.find_first_not_of('') == std::string::npos) continue;
+        if (line.find_first_not_of('\r') == std::string::npos) continue;
         ++starts;
         INFO(line);
         CHECK(line.find("--disable-autoexec") != std::string::npos);

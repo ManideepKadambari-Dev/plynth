@@ -87,6 +87,14 @@ add_library(plynth_core STATIC
     src/detection/Detector.cpp
     src/detection/GrayImage.cpp
     src/detection/OrthogonalDetection.cpp
+    src/guide/Resources.cpp
+    src/guide/HelpPages.cpp
+    src/guide/About.cpp
+    src/guide/Samples.cpp
+    src/guide/Tour.cpp
+    src/guide/LicenseReport.cpp
+    src/catalog/LicensedItems.cpp
+    src/catalog/SampleItems.cpp
     src/SeededChoice.cpp
     src/FinishSettings.cpp
     src/catalog/AssetSupports.cpp
@@ -126,7 +134,7 @@ elseif(PLYNTH_DEV_SAMPLES STREQUAL "OFF")
 else()
     set(PLYNTH_DEV_SAMPLES_VALUE "$<CONFIG:Debug>")
 endif()
-set_source_files_properties(src/Library.cpp PROPERTIES
+set_source_files_properties(src/Library.cpp src/guide/Resources.cpp PROPERTIES
     COMPILE_DEFINITIONS PLYNTH_DEV_SAMPLES=${PLYNTH_DEV_SAMPLES_VALUE})
 set_source_files_properties(src/Version.cpp PROPERTIES
     COMPILE_DEFINITIONS PLYNTH_VERSION_STRING="${PROJECT_VERSION}")

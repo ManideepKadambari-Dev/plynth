@@ -476,6 +476,7 @@ ImportOutcome importAsset(AssetCatalog& catalog, const ImportContext& context, c
     info.license = !request.license.empty() ? request.license
                    : (!plan.license.empty() && licenseKnown(catalog, plan.license)) ? plan.license
                                                                                     : std::string(kUnknownLicenseId);
+    if (checkAuthor(plan.author).ok()) info.author = plan.author;
     info.source = {plan.sourceKind, plan.reference, sessionNow()};
     info.size = out.size;
     info.triangles = out.triangles;

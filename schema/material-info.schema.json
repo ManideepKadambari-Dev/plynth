@@ -27,6 +27,7 @@
       "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$", "maxLength": 40 }
     },
     "license": { "description": "A license id of the materials catalog, for example unknown, cc0 or own_work.", "$ref": "#/definitions/catalogId" },
+    "author": { "description": "Who made it, when known. Optional, shown in the license report of an export.", "type": ["string", "null"], "maxLength": 120 },
     "source": {
       "type": "object",
       "required": ["kind", "reference", "imported_at"],

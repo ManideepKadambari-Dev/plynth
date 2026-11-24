@@ -40,3 +40,7 @@ Each plan has an `.expected.json` file next to it, for example `apartment-01.exp
 ## Sample shape
 
 `samples/shapes/keyhole.shape.json` is a custom opening outline in the format of `schema/shape.schema.json`: an ellipse on top of a tapered base in the unit box, 62 points. The same script writes it (`keyhole_outline`), so `python samples/tools/make_sample_plans.py` regenerates it with the plans.
+
+## License
+
+The plan images, the expected files and the sample shape are dedicated to the public domain under CC0 1.0 (see `samples/LICENSE`). `make_sample_plans.py` is code under GPL-3.0-or-later.

@@ -39,3 +39,7 @@ Built the same way, for catalog doors and windows and for set dressing. Import t
 | `picture/picture.obj` | `decor`, `wall_art` | 0.60 x 0.03 x 0.45 | Frame and canvas, flat at the back |
 
 The files of these six folders are written by the script on the next run of it; until then only the script holds them.
+
+## License
+
+The models, their material files and pictures are dedicated to the public domain under CC0 1.0 (see `samples/LICENSE`). `make_sample_models.py` is code under GPL-3.0-or-later.

@@ -116,6 +116,8 @@ private:
     QWidget* mapsBox_ = nullptr;
     QLabel* sourceLabel_ = nullptr;
     QComboBox* license_ = nullptr;
+    QLineEdit* author_ = nullptr;
+    QString shownAuthor_; // the author of the shown material as saved
     QListWidget* groups_ = nullptr;
     QLineEdit* tags_ = nullptr;
     QLabel* problems_ = nullptr;

@@ -43,6 +43,7 @@ add_library(plynth_cli STATIC
     src/commands/LightCommands.cpp
     src/commands/TrimCommands.cpp
     src/commands/VariationCommands.cpp
+    src/commands/GuideCommands.cpp
 )
 add_library(plynth::cli ALIAS plynth_cli)
 

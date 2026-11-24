@@ -34,6 +34,10 @@ add_executable(plynth WIN32
     src/canvas/PlanCanvas.h
     src/canvas/PlanCanvas.cpp
     src/detection/DetectionRunner.h
+    src/guide/GuideHost.h
+    src/guide/GuideHost.cpp
+    src/guide/TourAudit.h
+    src/guide/TourAudit.cpp
     src/detection/DetectionRunner.cpp
     src/detection/DetectionSession.h
     src/detection/DetectionSession.cpp
@@ -173,7 +177,7 @@ if(WIN32)
 endif()
 
 target_include_directories(plynth PRIVATE src)
-target_link_libraries(plynth PRIVATE plynth::core plynth::cli plynth::terminal Qt6::Widgets Qt6::Quick Qt6::QuickWidgets Qt6::Quick3D)
+target_link_libraries(plynth PRIVATE plynth::core plynth::cli plynth::terminal plynth::guide_ui Qt6::Widgets Qt6::Quick Qt6::QuickWidgets Qt6::Quick3D)
 
 # Copy the Qt DLLs and plugins next to plynth.exe so it runs from the build folder.
 get_target_property(PLYNTH_QMAKE Qt6::qmake IMPORTED_LOCATION)

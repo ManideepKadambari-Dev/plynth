@@ -63,6 +63,7 @@ std::vector<CommandSpec> packCommands();
 std::vector<CommandSpec> lightCommands();
 std::vector<CommandSpec> trimCommands();
 std::vector<CommandSpec> variationCommands();
+std::vector<CommandSpec> guideCommands();
 
 // All commands in the order help lists them.
 const std::vector<CommandSpec>& allCommands();

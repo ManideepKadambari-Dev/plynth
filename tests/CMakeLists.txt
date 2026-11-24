@@ -119,6 +119,8 @@ add_executable(plynth_core_tests
     core/BuildFinishTests.cpp
     core/LightCommandTests.cpp
     core/GameplayExportTests.cpp
+    core/LicenseExportTests.cpp
+    core/SampleItemsTests.cpp
     core/StairRailingsTests.cpp
     core/BuildResolveTests.cpp
     core/VariationCopiesTests.cpp
@@ -181,3 +183,5 @@ target_compile_definitions(plynth_core_tests PRIVATE
     PLYNTH_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 
 catch_discover_tests(plynth_core_tests DISCOVERY_MODE PRE_TEST ADD_TAGS_AS_LABELS)
+
+add_subdirectory(guide)

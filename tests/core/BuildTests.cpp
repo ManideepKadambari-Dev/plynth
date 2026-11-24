@@ -12,11 +12,13 @@
 #include <plynth/core/EditSession.h>
 #include <plynth/core/ProjectFiles.h>
 #include <plynth/core/Generators.h>
+#include <plynth/core/LicenseReport.h>
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
@@ -217,6 +219,26 @@ TEST_CASE("built-plan.json keeps the plan of the last successful build", "[core]
     std::ofstream(f.lib.tmp.path() / "blender" / "fake_mode.txt") << "fail";
     REQUIRE(runBuild(f.request).status.code == ErrorCode::BlenderFailed);
     REQUIRE(plynth::test::readTextFile(file) == first);
+}
+
+TEST_CASE("used-items.json lists what the last successful build used", "[core][build][run][licenses]") {
+    BuildFixture f("run-used-items");
+    const BuildReport report = runBuild(f.request);
+    plynth::test::requireOk(report.status);
+    const fs::path file = f.projectFolder / "build" / "used-items.json";
+    const UsedItemsRead read = readUsedItems(file);
+    plynth::test::requireOk(read.status);
+    CHECK(read.items.planFingerprint == report.planFingerprint);
+    CHECK(std::is_sorted(read.items.assets.begin(), read.items.assets.end()));
+    CHECK(std::is_sorted(read.items.materials.begin(), read.items.materials.end()));
+    REQUIRE(plynth::test::schemaProblem("used-items.schema.json",
+                                        nlohmann::json::parse(plynth::test::readTextFile(file))).empty());
+
+    const std::string first = plynth::test::readTextFile(file);
+    f.request.project.plan.floors[0].points[0].x -= 0.1;
+    std::ofstream(f.lib.tmp.path() / "blender" / "fake_mode.txt") << "fail";
+    REQUIRE(runBuild(f.request).status.code == ErrorCode::BlenderFailed);
+    CHECK(plynth::test::readTextFile(file) == first);
 }
 
 TEST_CASE("a crashing Blender is blender_failed", "[core][build][run]") {

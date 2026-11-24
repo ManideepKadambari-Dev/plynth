@@ -342,6 +342,8 @@ Point* findPoint(Floor& floor, std::string_view id);
 const Point* findPoint(const Floor& floor, std::string_view id);
 Wall* findWall(Floor& floor, std::string_view id);
 const Wall* findWall(const Floor& floor, std::string_view id);
+// The id of the first wall in plan order, on the first floor that has one. Empty when the plan has no wall.
+Id firstWallId(const Plan& plan);
 Room* findRoom(Floor& floor, std::string_view id);
 const Room* findRoom(const Floor& floor, std::string_view id);
 Opening* findOpening(Floor& floor, std::string_view id);

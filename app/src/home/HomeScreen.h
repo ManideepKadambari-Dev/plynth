@@ -33,7 +33,9 @@ signals:
     void openProjectRequested();
     void openRecentRequested(const QString& folder);
     void openSampleRequested(const QString& imageFile);
+    void openSampleProjectRequested(const QString& id);
     void setupRequested();
+    void helpPageRequested(const QString& page);
     void backRequested();
 
 protected:

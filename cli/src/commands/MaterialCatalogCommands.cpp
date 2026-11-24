@@ -40,6 +40,7 @@ struct SetOptions {
     bool noGroups = false;
     std::vector<std::string> tags;
     std::optional<std::string> license;
+    std::optional<std::string> author;
     std::optional<std::string> tile;
 };
 
@@ -177,12 +178,13 @@ Answer materialsSet(const RunContext& context, const SetOptions& options) {
         return badArguments(command, "bad_arguments", "Give --group or --no-groups, not both.");
     }
     const bool groupChange = options.noGroups || !options.groups.empty();
-    if (!options.name && !groupChange && options.tags.empty() && !options.license && !options.tile) {
+    if (!options.name && !groupChange && options.tags.empty() && !options.license && !options.author && !options.tile) {
         return badArguments(command, "bad_arguments", "Give at least one option to change. Run 'plynth help'.");
     }
     MaterialEdit edit;
     edit.name = options.name;
     edit.license = options.license;
+    edit.author = options.author;
     if (groupChange) {
         edit.groups = options.groups;
     }
@@ -423,6 +425,8 @@ std::vector<CommandSpec> materialCatalogCommands() {
         sub.add_flag("--no-groups", options->noGroups, "Take the material out of every group.");
         sub.add_option("--tag", options->tags, "A tag. Repeat to give several. Replaces the tags.")->type_name("tag");
         sub.add_option("--license", options->license, "License id.")->type_name("id");
+        sub.add_option("--author", options->author, "Who made it, at most 120 characters. An empty text clears it.")
+            ->type_name("text");
         sub.add_option("--tile", options->tile, "Real world size of one tile in metres, 1.2x0.6 or 2.")
             ->type_name("WxH");
         return [options](const RunContext& context) { return materialsSet(context, *options); };
