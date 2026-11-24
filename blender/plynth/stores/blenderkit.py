@@ -1,16 +1,21 @@
-"""Every touch point with the BlenderKit add-on, in one place.
+"""Every touch point with the BlenderKit add-on in a fetch, in one place.
 
-The worker only uses what the add-on itself offers inside Blender: its download operator, its timer functions
-and its preferences. It never calls a BlenderKit web address and never reads out the API key; the only question
-asked about the key is whether one is stored. The add-on's version goes into every error message because these
-names are not a published interface and can change with an add-on update.
+The names are those of add-on 3.21.7.261119 as the source check lists them. They are not a published
+interface, so each one is looked up before the fetch uses the add-on, and a missing one fails the fetch
+closed. The worker never calls a BlenderKit address itself, never reads out the key and never puts what the
+add-on or its helper prints into a result: every failure is a fixed sentence, at most with the add-on's
+version or an exception's type name.
 """
 import importlib
 import json
-import logging
 import os
+import random
+import re
 import shutil
+import socket
+import tempfile
 import time
+from urllib.parse import urlsplit
 
 import bpy
 
@@ -18,304 +23,602 @@ from ..jobs import WorkerError
 
 ADDON_NAME = "blenderkit"
 OPERATOR = "blenderkit_download"
-SETTLE_SECONDS = 5.0
-PUMP_SECONDS = 0.25
-SCAN_EVERY = 4
-STABLE_SCANS = 3
-SKIPPED_FOLDERS = {"client", "temp", "tmp", "thumbnails", "__pycache__"}
+ADDON_CHOICE = "scene.blenderkit_addon_choice"
+KINDS = ("model", "material")
 RESOLUTIONS = {"0.5k": "512", "1k": "1024", "2k": "2048", "4k": "4096", "8k": "8192", "original": "ORIGINAL"}
+REQUEST_RESOLUTIONS = {"512": "resolution_0_5K", "1024": "resolution_1K", "2048": "resolution_2K",
+                       "4096": "resolution_4K", "8192": "resolution_8K", "ORIGINAL": "blend"}
 LICENSES = {"royalty_free": "royalty_free", "cc_zero": "cc0", "cc0": "cc0"}
-TIMER_FUNCTIONS = (("timer", "client_communication_timer"), ("tasks_queue", "queue_worker"),
-                   ("bg_blender", "bg_update"))
+HOSTS = ("blendkit.com", "blenderkit.com")
+UUID = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+BLEND_FILE_TYPE = re.compile(r"^(blend|resolution_[0-9a-z_]+)$")
+PAGE_ADDRESS = "https://www.blendkit.com/asset-gallery-detail/%s/"
+PARTIAL_PREFIX = ".blendkit-download-"
+SKIPPED_FOLDERS = {"client", "temp", "tmp", "thumbnails", "__pycache__"}
+TARGET_NAME = "PlynthMaterialTarget"
+PORT_COUNT = 3
+SEARCH_TIMEOUT = 15.0
+PUMP_SECONDS = 0.25
+READY_SECONDS = 60.0
+REFUSED_TEXT = "Refused by the fetch"
+
+PARTS = {
+    "client_lib": ("asset_download", "blocking_request", "refresh_token", "oauth2_logout", "is_using_inplace_client",
+                   "is_client_process_alive", "start_blenderkit_client", "get_client_directory",
+                   "get_client_log_path", "get_port", "applying_client_settings"),
+    "download": ("try_finished_append", "handle_download_task", "download_tasks", "cancel_running_downloads"),
+    "global_vars": ("CLIENT_PORTS", "CLIENT_ACCESSIBLE", "client_process", "PREFS"),
+    "paths": ("get_download_dirs", "get_config_dir_path", "dirs_exist_dict", "get_asset_directory_name"),
+    "persistent_preferences": ("load_preferences_from_JSON", "get_preferences_path"),
+    "search": ("get_search_simple",),
+    "timer": ("client_communication_timer", "handle_task"),
+    "utils": ("get_preferences_as_dict",),
+    "bkit_oauth": ("ensure_token_refresh", "logout", "clean_login_data", "write_tokens"),
+}
+REFUSALS = (("client_lib", "refresh_token"), ("bkit_oauth", "ensure_token_refresh"), ("bkit_oauth", "logout"),
+            ("client_lib", "oauth2_logout"), ("bkit_oauth", "clean_login_data"), ("bkit_oauth", "write_tokens"))
+PREFERENCE_FIELDS = ("api_key", "api_key_refresh", "api_key_timeout", "preferences_lock", "global_dir",
+                     "directory_behaviour", "unpack_files", "create_asset_library", "resolution",
+                     "use_clipboard_scan", "thread_communication")
+
+NOT_INSTALLED = "The BlenderKit add-on is not installed. Install it in Blender from Preferences, Get Extensions, " \
+                "and sign in."
+NOT_RUNNING = "The BlenderKit add-on is installed but not running. Open Blender once with the BlenderKit add-on " \
+              "enabled, then try again."
+NOT_SIGNED_IN = "Sign in to BlenderKit inside Blender first: open Blender, go to Preferences, Add-ons, BlenderKit, " \
+                "and log in."
+EXPIRED = "The BlenderKit sign in has expired. Open Blender, sign in to BlenderKit again, then try again."
+NOT_KNOWN = "The %s is not a version these downloads work with."
+OUTSIDE = "The %s would use a folder outside Plynth's fetch folder, so the download was not started."
+IN_PLACE = "The %s runs its helper from its own folder, so the download was not started."
+NO_PORTS = "No free local ports were found for the helper of the %s."
+NO_HELPER = "The helper of the %s did not start."
+OTHER_HELPER = "The %s reached a helper that this download did not start, so the download was not started."
+RESTARTED = "The helper of the %s stopped during the download."
+BAD_REQUEST = "The %s asked for a download that does not match the item, so it was not sent."
+OTHER_ITEM = "BlenderKit answered with another item than the one asked for. Copy the address from the item's page."
+NOT_STARTED = "The %s did not start the download. Check the item in BlenderKit inside Blender."
+OPERATOR_FAILED = "The %s could not start the download (%s)."
+NO_FILE = "The %s did not deliver the item. Check the item in BlenderKit inside Blender."
+NO_MATERIAL = "The downloaded file holds no material with the item's name."
+TIMED_OUT = "Nothing arrived from BlenderKit after %d seconds (%s). Try again, or check the item in BlenderKit " \
+            "inside Blender."
+OTHER_TAB = {
+    "model": "This BlenderKit item is a model. Import it in the Assets tab or with plynth assets import.",
+    "material": "This BlenderKit item is a material. Import it in the Materials tab or with plynth materials import.",
+}
+KNOWN_KINDS = {"hdr": "an HDR", "scene": "a scene", "brush": "a brush", "addon": "an add-on",
+               "nodegroup": "a node group", "printable": "a printable item"}
+ONLY_TWO = "Only models and materials can be imported."
 
 
-# Returns the last dotted part of a module name, so bl_ext.user_default.blenderkit gives blenderkit.
+# A field of a dict or of an object, or None.
+def field(value, name):
+    if isinstance(value, dict):
+        return value.get(name)
+    return getattr(value, name, None)
+
+
+# The last dotted part of a module name, so bl_ext.user_default.blenderkit gives blenderkit.
 def short_name(module_name):
     return module_name.rsplit(".", 1)[-1]
 
 
-# Lists the add-on modules Blender knows, keyed by module name. Empty when they cannot be listed.
-def installed_modules():
-    try:
-        import addon_utils
-        return {module.__name__: module for module in addon_utils.modules()}
-    except Exception:
-        return {}
-
-
-# Reads the add-on's version as text, or "unknown".
+# The add-on's version as text, or "unknown".
 def version_of(module):
     try:
         import addon_utils
         version = (addon_utils.module_bl_info(module) or {}).get("version")
         if isinstance(version, (tuple, list)):
-            return ".".join(str(part) for part in version[:3])
-        if version:
-            return str(version)
+            return ".".join(str(int(part)) for part in version[:3])
     except Exception:
         pass
     return "unknown"
 
 
-class ErrorCatcher(logging.Handler):
-    # Collects warnings and errors that the add-on logs while a download runs.
-    def __init__(self):
-        super().__init__(level=logging.WARNING)
-        self.messages = []
-
-    # Keeps the text of one log record when it comes from the add-on.
-    def emit(self, record):
-        if ADDON_NAME in record.name:
-            text = record.getMessage().strip()
-            if text and text not in self.messages:
-                self.messages.append(text)
+# The sentence for an item of another kind than the one asked for.
+def kind_sentence(actual):
+    actual = str(actual or "").strip().lower()
+    if actual in OTHER_TAB:
+        return OTHER_TAB[actual]
+    if actual in KNOWN_KINDS:
+        return "This BlenderKit item is %s. %s" % (KNOWN_KINDS[actual], ONLY_TWO)
+    return "This BlenderKit item is not a model or a material. %s" % ONLY_TWO
 
 
-class Addon:
-    # Holds the module name of the enabled add-on and its version.
-    def __init__(self, module_name, version):
-        self.module_name = module_name
-        self.version = version
-        self.catcher = ErrorCatcher()
-        self._submodules = {}
+# Whether a download address is https on one of BlenderKit's hosts or a name under them.
+def allowed_address(url):
+    if not isinstance(url, str):
+        return False
+    try:
+        parts = urlsplit(url)
+        host = (parts.hostname or "").lower()
+        port = parts.port
+    except ValueError:
+        return False
+    if parts.scheme.lower() != "https" or parts.username or parts.password or port not in (None, 443):
+        return False
+    return any(host == name or host.endswith("." + name) for name in HOSTS)
 
-    # A short text naming the add-on and its version, for error messages.
-    @property
-    def label(self):
-        return "BlenderKit add-on %s" % self.version
 
-    # Returns the add-on's preferences object, or None.
-    def preferences(self):
-        entry = bpy.context.preferences.addons.get(self.module_name)
-        return getattr(entry, "preferences", None)
-
-    # Says whether a key is stored. The key itself is never kept or printed.
-    def signed_in(self):
-        try:
-            return bool(str(getattr(self.preferences(), "api_key", "")).strip())
-        except Exception:
-            return False
-
-    # Asks the add-on to load the sign in it saved on disk. Blender runs in the background here, so the add-on's own
-    # start up timer, which does this, never runs. The add-on's loader deletes a preferences file it cannot parse, so
-    # the file is parsed here first, read only, and the loader is called only when it is a valid JSON object.
-    # Returns a short note when the file was left alone because it could not be read, else None.
-    def load_saved_sign_in(self):
-        module = self.submodule("persistent_preferences")
-        function = getattr(module, "load_preferences_from_JSON", None)
-        where = getattr(module, "get_preferences_path", None)
-        if function is None or where is None:
-            return None
-        try:
-            path = where()
-            if not os.path.isfile(path):
-                return None
-            with open(path, "r", encoding="utf-8") as handle:
-                data = json.load(handle)
-        except Exception:
-            return "The saved BlenderKit settings file could not be read and was left as it is."
-        if not isinstance(data, dict):
-            return "The saved BlenderKit settings file is not in the expected form and was left as it is."
-        try:
-            function()
-        except Exception as error:
-            self.catcher.messages.append("load_preferences_from_JSON raised %s" % type(error).__name__)
-        return None
-
-    # Returns the add-on's download folder as an absolute path, or empty text.
-    def download_folder(self):
-        folder = str(getattr(self.preferences(), "global_dir", "") or "")
-        return os.path.abspath(bpy.path.abspath(folder)) if folder else ""
-
-    # Imports one submodule of the add-on, or returns None.
-    def submodule(self, short):
-        if short not in self._submodules:
-            try:
-                self._submodules[short] = importlib.import_module("%s.%s" % (self.module_name, short))
-            except Exception:
-                self._submodules[short] = None
-        return self._submodules[short]
-
-    # Runs the add-on's own timer functions once. Blender does not run them in background mode, and a script
-    # that blocks the main loop starves them, so the worker runs them by hand.
-    def pump(self):
-        for module_name, function_name in TIMER_FUNCTIONS:
-            function = getattr(self.submodule(module_name), function_name, None)
-            if function is None:
-                continue
-            try:
-                function()
-            except Exception as error:
-                self.catcher.messages.append("%s.%s raised %s" % (module_name, function_name, type(error).__name__))
-
-    # Returns how many downloads the add-on says are running, or None when it cannot tell.
-    def active_downloads(self):
-        tasks = getattr(self.submodule("download"), "download_tasks", None)
-        try:
-            return len(tasks) if tasks is not None else None
-        except Exception:
-            return None
-
-    # Asks the add-on's own operator to download the item. Returns false when the operator refused.
-    def start_download(self, base_id, resolution):
-        operator = getattr(bpy.ops.scene, OPERATOR, None)
-        if operator is None:
-            raise WorkerError("addon_missing", "The %s has no download operator. Update the add-on in Blender." %
-                              self.label)
-        try:
-            properties = operator.get_rna_type().properties.keys()
-        except Exception:
-            properties = []
-        extra = {}
-        if resolution in RESOLUTIONS and "resolution" in properties:
-            extra["resolution"] = RESOLUTIONS[resolution]
-            if "use_resolution_operator" in properties:
-                extra["use_resolution_operator"] = True
-            if "max_resolution" in properties:
-                extra["max_resolution"] = 8192
-        for attempt in (extra, {}):
-            try:
-                result = operator(asset_base_id=base_id, **attempt)
-                return "CANCELLED" not in result
-            except TypeError:
-                if not attempt:
-                    raise
-            except Exception as error:
-                raise WorkerError("download_failed", "The %s could not start the download: %s: %s" %
-                                  (self.label, type(error).__name__, str(error)[:200]))
+# Whether a local port can be taken now.
+def port_is_free(port):
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            probe.bind(("127.0.0.1", port))
+        return True
+    except OSError:
         return False
 
-    # Returns what the add-on recorded about an item in the scene, as a plain dict, or None.
-    def item_data(self, base_id):
-        try:
-            entry = (bpy.context.scene.get("assets used") or {}).get(base_id)
-            if entry is None:
-                return None
-            return entry.to_dict() if hasattr(entry, "to_dict") else dict(entry)
-        except Exception:
-            return None
 
-    # Lists the .blend files in the download folder with their times and sizes, down to three folders deep.
-    def blend_files(self):
-        found = {}
-        root = self.download_folder()
-
-        def walk(folder, depth):
-            try:
-                entries = list(os.scandir(folder))
-            except OSError:
-                return
-            for entry in entries:
-                try:
-                    if entry.is_dir(follow_symlinks=False):
-                        if depth < 3 and entry.name.lower() not in SKIPPED_FOLDERS:
-                            walk(entry.path, depth + 1)
-                    elif entry.name.lower().endswith(".blend"):
-                        stat = entry.stat()
-                        found[os.path.abspath(entry.path)] = (stat.st_mtime_ns, stat.st_size)
-                except OSError:
-                    continue
-
-        if root and os.path.isdir(root):
-            walk(root, 0)
-        return found
-
-
-# Finds the enabled add-on and checks that it is signed in. Raises addon_missing or not_signed_in.
-def open_addon():
-    modules = installed_modules()
-    installed = [name for name in modules if short_name(name) == ADDON_NAME]
-    enabled = [name for name in bpy.context.preferences.addons.keys() if short_name(name) == ADDON_NAME]
-    if not enabled:
-        if installed:
-            raise WorkerError("addon_missing", "The BlenderKit add-on is installed but not enabled. Open Blender, "
-                              "go to Preferences, Add-ons and enable BlenderKit.")
-        raise WorkerError("addon_missing", "The BlenderKit add-on is not installed. Install it in Blender from "
-                          "Preferences, Get Extensions, and sign in.")
-    name = enabled[0]
-    addon = Addon(name, version_of(modules.get(name)))
-    note = None
-    if not addon.signed_in():
-        note = addon.load_saved_sign_in()
-    if not addon.signed_in():
-        raise WorkerError("not_signed_in", "Sign in to BlenderKit inside Blender first: open Blender, go to "
-                          "Preferences, Add-ons, BlenderKit, and log in.%s" % ((" " + note) if note else ""))
-    return addon
-
-
-# Maps the add-on's license word to a license id of the catalogs, or None.
-def license_id(text):
-    return LICENSES.get(str(text or "").strip().lower())
-
-
-# Reads the names of the materials in a .blend without loading anything.
+# The names of the materials in a .blend, read without loading anything.
 def material_names(blend):
     try:
         with bpy.data.libraries.load(blend) as (data_from, _data_to):
-            return list(data_from.materials)
+            return [str(name) for name in data_from.materials]
     except Exception:
         return []
 
 
-# Says what a .blend holds when the add-on did not record the kind: a material when it has materials and no
-# objects, a model otherwise.
-def kind_from_blend(blend):
-    try:
-        with bpy.data.libraries.load(blend) as (data_from, _data_to):
-            return "material" if data_from.materials and not data_from.objects else "model"
-    except Exception:
-        return "model"
+class Fetch:
+    # One download of one item through the add-on: what was asked, the add-on's parts and what happened.
+    def __init__(self, base_id, kind, resolution, private_folder, output_folder):
+        self.base_id = base_id
+        self.kind = kind
+        self.resolution = RESOLUTIONS[resolution]
+        self.private = os.path.abspath(private_folder)
+        self.root = os.path.normcase(os.path.realpath(self.private)).rstrip("\\/")
+        self.output = os.path.abspath(output_folder)
+        self.module_name = None
+        self.version = "unknown"
+        self.parts = {}
+        self.ports = []
+        self.kind_folders = []
+        self.refusal = None
+        self.task_id = None
+        self.noted = None
+        self.helper_started = False
+        self.restarted = False
+        self.process = None
 
+    # A short text naming the add-on and its version, for messages.
+    @property
+    def label(self):
+        return "BlenderKit add-on %s" % self.version
 
-# Copies the downloaded .blend and the files beside it into output_folder, keeping the folder layout so
-# relative texture paths still work. Never changes or removes anything in the add-on's folder.
-def copy_download(blend, download_folder, output_folder):
-    os.makedirs(output_folder, exist_ok=True)
-    source = os.path.dirname(blend)
-    shutil.copyfile(blend, os.path.join(output_folder, os.path.basename(blend)))
-    if os.path.normcase(source) == os.path.normcase(download_folder):
-        return os.path.basename(blend)
-    for folder, folders, files in os.walk(source):
-        folders[:] = [name for name in folders if name.lower() not in SKIPPED_FOLDERS]
-        relative = os.path.relpath(folder, source)
-        for name in files:
-            if name.lower().endswith((".blend", ".blend1", ".tmp", ".part")):
+    # Raises download_failed with a sentence that may name the add-on.
+    def fail(self, sentence):
+        raise WorkerError("download_failed", sentence % self.label if "%s" in sentence else sentence)
+
+    # Whether a path lies inside the fetch folder, after links are followed.
+    def inside(self, path):
+        try:
+            return os.path.normcase(os.path.realpath(os.fspath(path))).startswith(self.root + os.sep)
+        except (OSError, TypeError, ValueError):
+            return False
+
+    # Refuses an output folder outside the fetch folder.
+    def check_output(self):
+        if not self.inside(self.output):
+            raise WorkerError("bad_job", "The params need an output_folder inside the private_folder.")
+
+    # Finds the enabled add-on. Raises addon_missing when it is not installed or did not start here.
+    def find_addon(self):
+        try:
+            import addon_utils
+            modules = {module.__name__: module for module in addon_utils.modules()}
+        except Exception:
+            modules = {}
+        enabled = [name for name in bpy.context.preferences.addons.keys() if short_name(name) == ADDON_NAME]
+        if not enabled:
+            installed = any(short_name(name) == ADDON_NAME for name in modules)
+            raise WorkerError("addon_missing", NOT_RUNNING if installed else NOT_INSTALLED)
+        self.module_name = enabled[0]
+        self.version = version_of(modules.get(self.module_name))
+
+    # Imports the add-on's modules the fetch uses and checks every name it needs. Fails closed on a missing one.
+    def load_parts(self):
+        for short, names in PARTS.items():
+            try:
+                module = importlib.import_module("%s.%s" % (self.module_name, short))
+            except Exception:
+                self.fail(NOT_KNOWN)
+            if any(not hasattr(module, name) for name in names):
+                self.fail(NOT_KNOWN)
+            self.parts[short] = module
+        prefs = self.preferences()
+        if prefs is None or any(not hasattr(prefs, name) for name in PREFERENCE_FIELDS):
+            self.fail(NOT_KNOWN)
+
+    # The add-on's preferences object, or None.
+    def preferences(self):
+        entry = bpy.context.preferences.addons.get(self.module_name)
+        return getattr(entry, "preferences", None)
+
+    # Seals Blender through the guard and puts the fetch's own functions in the add-on: the lookup and the
+    # request gate through the seal, the refusals of refresh, logout and token writes, then the search timeout,
+    # the task filter, the append step and the helper start. Raises the guard's error when a step fails.
+    def seal(self, guard):
+        client_lib, search = self.parts["client_lib"], self.parts["search"]
+        replacements = ((search, "get_search_simple", self.lookup(search.get_search_simple)),
+                        (client_lib, "asset_download", self.gate(client_lib.asset_download)))
+        refusals = tuple((self.parts[short], name) for short, name in REFUSALS)
+        guard.seal(operators=(ADDON_CHOICE,), replacements=replacements, refusals=refusals)
+        own = ((client_lib, "blocking_request", self.slow_request(client_lib.blocking_request)),
+               (self.parts["timer"], "handle_task", self.download_tasks_only()),
+               (self.parts["download"], "try_finished_append", self.note_append()),
+               (client_lib, "start_blenderkit_client", self.start_once(client_lib.start_blenderkit_client)))
+        for module, name, function in own:
+            setattr(module, name, function)
+        if any(getattr(module, name, None) is not function for module, name, function in own):
+            raise guard.GuardError("seal_failed")
+
+    # Points the home, app data and XDG folders that child programs get into the fetch folder, and refuses a
+    # helper that would run from the add-on's own folder.
+    def point_children_inside(self):
+        home = os.path.join(self.private, "home")
+        folders = {"USERPROFILE": home, "HOME": home, "APPDATA": os.path.join(home, "AppData", "Roaming"),
+                   "LOCALAPPDATA": os.path.join(home, "AppData", "Local"),
+                   "XDG_DATA_HOME": os.path.join(home, ".local", "share"),
+                   "XDG_CONFIG_HOME": os.path.join(home, ".config"), "XDG_CACHE_HOME": os.path.join(home, ".cache")}
+        for name, folder in folders.items():
+            os.makedirs(folder, exist_ok=True)
+            os.environ[name] = folder
+        if self.parts["client_lib"].is_using_inplace_client():
+            self.fail(IN_PLACE)
+
+    # Gives the add-on three free ports above 49151 that are none of its own, so this Blender never meets the
+    # user's helper and the user's Blender never meets this one.
+    def choose_ports(self):
+        global_vars = self.parts["global_vars"]
+        standard = {str(port) for port in global_vars.CLIENT_PORTS}
+        chooser = random.SystemRandom()
+        ports = []
+        for _ in range(500):
+            if len(ports) == PORT_COUNT:
+                break
+            port = str(chooser.randint(49152, 65535))
+            if port not in standard and port not in ports and port_is_free(int(port)):
+                ports.append(port)
+        if len(ports) < PORT_COUNT:
+            self.fail(NO_PORTS)
+        current = global_vars.CLIENT_PORTS
+        if isinstance(current, list):
+            current[:] = ports
+        else:
+            global_vars.CLIENT_PORTS = list(ports)
+        if [str(port) for port in global_vars.CLIENT_PORTS] != ports:
+            self.fail(NOT_KNOWN)
+        self.ports = ports
+
+    # Reads the sign in once: loads the saved file when no key is held, refuses a missing or expired sign in,
+    # then forgets the refresh token in memory.
+    def read_sign_in(self):
+        prefs = self.preferences()
+        if not str(prefs.api_key or "").strip():
+            self.load_saved_sign_in()
+            prefs = self.preferences()
+        has_key = bool(str(prefs.api_key or "").strip())
+        has_refresh = bool(str(prefs.api_key_refresh or "").strip())
+        try:
+            timeout = int(prefs.api_key_timeout or 0)
+        except (TypeError, ValueError):
+            timeout = 0
+        if not has_key:
+            raise WorkerError("not_signed_in", NOT_SIGNED_IN)
+        if has_refresh and 0 < timeout < time.time():
+            raise WorkerError("not_signed_in", EXPIRED)
+        prefs.preferences_lock = True
+        prefs.api_key_refresh = ""
+
+    # Runs the add-on's loader of its saved file, only when that file is a JSON object with keep_preferences
+    # true, and with the helper settings flag on so the loader posts nothing.
+    def load_saved_sign_in(self):
+        saved = self.parts["persistent_preferences"]
+        client_lib = self.parts["client_lib"]
+        try:
+            path = saved.get_preferences_path()
+            if not os.path.isfile(path):
+                return
+            with open(path, "r", encoding="utf-8") as handle:
+                data = json.load(handle)
+        except Exception:
+            return
+        if not isinstance(data, dict) or data.get("keep_preferences") is not True:
+            return
+        before = client_lib.applying_client_settings
+        client_lib.applying_client_settings = True
+        try:
+            saved.load_preferences_from_JSON()
+        except Exception:
+            pass
+        finally:
+            client_lib.applying_client_settings = before
+
+    # Sets the preferences the download uses, in memory with the lock on, makes the add-on's copy of them and
+    # checks that every folder the add-on and its helper would use lies inside the fetch folder.
+    def set_preferences(self):
+        prefs = self.preferences()
+        prefs.preferences_lock = True
+        values = (("global_dir", self.private), ("directory_behaviour", "GLOBAL"), ("unpack_files", False),
+                  ("create_asset_library", False), ("use_clipboard_scan", False), ("thread_communication", False),
+                  ("resolution", self.resolution))
+        for name, value in values:
+            setattr(prefs, name, value)
+        if not prefs.preferences_lock or any(getattr(prefs, name) != value for name, value in values):
+            self.fail(NOT_KNOWN)
+        global_vars, paths, client_lib = self.parts["global_vars"], self.parts["paths"], self.parts["client_lib"]
+        global_vars.PREFS = self.parts["utils"].get_preferences_as_dict()
+        paths.dirs_exist_dict.clear()
+        folders = list(paths.get_download_dirs(self.kind))
+        others = [paths.get_config_dir_path(), client_lib.get_client_directory(), client_lib.get_client_log_path(),
+                  tempfile.gettempdir()]
+        if not folders or not all(self.inside(folder) for folder in folders + others):
+            self.fail(OUTSIDE)
+
+    # Clears the add-on's records of used items in the startup scene, in memory, so none is taken as evidence.
+    def clear_scene_records(self):
+        try:
+            if "assets used" in bpy.context.scene:
+                del bpy.context.scene["assets used"]
+        except Exception:
+            pass
+
+    # The lookup inside the operator: raises when the item found is not the one asked for, before the operator
+    # can branch on its kind.
+    def lookup(self, original):
+        def get_search_simple(parameters, *args, **kwargs):
+            if field(parameters, "asset_base_id") != self.base_id:
+                self.refuse(WorkerError("download_failed", OTHER_ITEM))
+            results = original(parameters, *args, **kwargs)
+            if results:
+                self.check_found(results[0])
+            return results
+        return get_search_simple
+
+    # Refuses a found item with another base id, another kind or a version id that is not a uuid.
+    def check_found(self, item):
+        if field(item, "assetBaseId") != self.base_id:
+            self.refuse(WorkerError("download_failed", OTHER_ITEM))
+        actual = str(field(item, "assetType") or "").lower()
+        if actual != self.kind:
+            self.refuse(WorkerError("wrong_asset_kind", kind_sentence(actual)))
+        if not isinstance(field(item, "id"), str) or not UUID.match(field(item, "id")):
+            self.refuse(WorkerError("download_failed", OTHER_ITEM))
+
+    # Keeps the first refusal for the result and stops the add-on's call with a PermissionError.
+    def refuse(self, error):
+        if self.refusal is None:
+            self.refusal = error
+        raise PermissionError(13, REFUSED_TEXT)
+
+    # The request gate: checks the download request and raises before it leaves when anything is not as asked.
+    def gate(self, original):
+        def asset_download(data, *args, **kwargs):
+            self.check_request(data)
+            answer = original(data, *args, **kwargs)
+            self.task_id = field(answer, "task_id")
+            return answer
+        return asset_download
+
+    # Checks one download request and takes zip and other files that are no .blend out of its file list.
+    def check_request(self, data):
+        bad = WorkerError("download_failed", BAD_REQUEST % self.label)
+        if self.task_id is not None or not self.helper_is_ours() or not self.parts["global_vars"].CLIENT_ACCESSIBLE:
+            self.refuse(WorkerError("download_failed", OTHER_HELPER % self.label))
+        asset = field(data, "asset_data")
+        prefs = field(data, "PREFS")
+        if not isinstance(data, dict) or not isinstance(asset, dict) or not isinstance(prefs, dict):
+            self.refuse(bad)
+        self.check_found(asset)
+        folders = data.get("download_dirs")
+        if not isinstance(folders, list) or not folders or not all(isinstance(f, str) and self.inside(f)
+                                                                   for f in folders):
+            self.refuse(bad)
+        try:
+            same_root = os.path.normcase(os.path.realpath(prefs.get("global_dir"))).rstrip("\\/") == self.root
+        except (OSError, TypeError, ValueError):
+            same_root = False
+        if not same_root or prefs.get("directory_behaviour") != "GLOBAL" or "unpack_files" not in prefs:
+            self.refuse(bad)
+        for values in (data, prefs):
+            if any("unpack" in str(name).lower() and value for name, value in values.items()):
+                self.refuse(bad)
+        if prefs.get("resolution") != self.resolution:
+            self.refuse(bad)
+        if "resolution" in data and data["resolution"] not in (self.resolution, REQUEST_RESOLUTIONS[self.resolution]):
+            self.refuse(bad)
+        files = asset.get("files")
+        if not isinstance(files, list):
+            self.refuse(bad)
+        kept = [entry for entry in files if isinstance(entry, dict)
+                and BLEND_FILE_TYPE.match(str(entry.get("fileType") or "").lower())]
+        if not kept or not all(allowed_address(entry.get("downloadUrl")) for entry in kept):
+            self.refuse(bad)
+        asset["files"] = kept
+        self.kind_folders = [os.path.normcase(os.path.realpath(folder)) for folder in folders]
+
+    # The add-on's waiting request with at least the fetch's search timeout.
+    def slow_request(self, original):
+        def blocking_request(url, method="GET", headers=None, json_data=None, timeout=None, **kwargs):
+            try:
+                wait = max(float(timeout), SEARCH_TIMEOUT)
+            except (TypeError, ValueError):
+                wait = SEARCH_TIMEOUT
+            return original(url, method, headers, json_data, wait, **kwargs)
+        return blocking_request
+
+    # The task handler of the timer: passes download tasks to the add-on and drops every other task.
+    def download_tasks_only(self):
+        def handle_task(task, *args, **kwargs):
+            if field(task, "task_type") == "asset_download":
+                return self.parts["download"].handle_download_task(task)
+            return None
+        return handle_task
+
+    # The append step: notes the delivered path and the named fields of the item for this base id and changes
+    # nothing. A call without file_paths is refused.
+    def note_append(self):
+        def try_finished_append(asset_data=None, **kwargs):
+            given = kwargs.get("file_paths")
+            if not isinstance(given, (list, tuple)) or not given or not isinstance(given[-1], str):
+                raise PermissionError(13, REFUSED_TEXT)
+            if field(asset_data, "assetBaseId") != self.base_id:
+                raise PermissionError(13, REFUSED_TEXT)
+            author = field(asset_data, "author")
+            fields = {"id": field(asset_data, "id"), "assetType": field(asset_data, "assetType"),
+                      "name": field(asset_data, "name"), "displayName": field(asset_data, "displayName"),
+                      "author": field(author, "fullName") if isinstance(author, dict) else None,
+                      "license": field(asset_data, "license")}
+            self.noted = (given[-1], fields)
+        return try_finished_append
+
+    # The helper start: the first one goes through, a second one is a restart and is refused.
+    def start_once(self, original):
+        def start_blenderkit_client(*args, **kwargs):
+            if self.helper_started:
+                self.restarted = True
+                raise PermissionError(13, REFUSED_TEXT)
+            self.helper_started = True
+            return original(*args, **kwargs)
+        return start_blenderkit_client
+
+    # Whether the helper in use is the living child this Blender started, on one of the fetch's ports.
+    def helper_is_ours(self):
+        global_vars, client_lib = self.parts["global_vars"], self.parts["client_lib"]
+        try:
+            alive = bool(client_lib.is_client_process_alive())
+            port = str(client_lib.get_port())
+        except Exception:
+            return False
+        if not self.helper_started or not alive or port not in self.ports:
+            return False
+        return self.process is None or global_vars.client_process is self.process
+
+    # Runs the add-on's helper timer once, the only timer the fetch runs. A restart of the helper ends the fetch.
+    def pump(self):
+        try:
+            self.parts["timer"].client_communication_timer()
+        except Exception:
+            pass
+        if self.restarted:
+            self.fail(RESTARTED)
+
+    # Runs the timer until this Blender's own helper has answered a first report.
+    def wait_for_helper(self):
+        end = time.monotonic() + READY_SECONDS
+        global_vars = self.parts["global_vars"]
+        while True:
+            self.pump()
+            if global_vars.CLIENT_ACCESSIBLE:
+                if not self.helper_is_ours():
+                    self.fail(OTHER_HELPER)
+                self.process = global_vars.client_process
+                return
+            if time.monotonic() > end:
+                self.fail(NO_HELPER)
+            time.sleep(PUMP_SECONDS)
+
+    # A throwaway mesh object for a material download to target. Returns its name.
+    def make_target(self):
+        mesh = bpy.data.meshes.new(TARGET_NAME)
+        target = bpy.data.objects.new(TARGET_NAME, mesh)
+        try:
+            bpy.context.scene.collection.objects.link(target)
+        except Exception:
+            pass
+        return target.name
+
+    # Calls the add-on's download operator with the id, no object active and, for a material, a target.
+    def start_download(self):
+        try:
+            bpy.context.view_layer.objects.active = None
+        except Exception:
+            pass
+        options = {"asset_base_id": self.base_id}
+        if self.kind == "material":
+            options["target_object"] = self.make_target()
+        try:
+            result = getattr(bpy.ops.scene, OPERATOR)(**options)
+        except Exception as error:
+            if self.refusal is not None:
+                raise self.refusal
+            raise WorkerError("download_failed", OPERATOR_FAILED % (self.label, type(error).__name__))
+        if self.refusal is not None:
+            raise self.refusal
+        if "FINISHED" not in result or self.task_id is None:
+            self.fail(NOT_STARTED)
+
+    # Runs the timer until the add-on notes the delivered file. Fails when the task ends without one or the
+    # helper stops, and cancels the downloads after wait_seconds.
+    def wait_for_file(self, wait_seconds):
+        started = time.monotonic()
+        download = self.parts["download"]
+        while True:
+            self.pump()
+            if self.noted is not None:
+                return self.checked_file()
+            if self.task_id not in download.download_tasks:
+                self.fail(NO_FILE)
+            if not self.helper_is_ours():
+                self.fail(RESTARTED)
+            if time.monotonic() - started > wait_seconds:
+                try:
+                    download.cancel_running_downloads()
+                except Exception:
+                    pass
+                raise WorkerError("download_timeout", TIMED_OUT % (wait_seconds, self.label))
+            time.sleep(PUMP_SECONDS)
+
+    # The noted path, when it is a .blend that exists in this item's folder under the folder of its kind.
+    def checked_file(self):
+        path, fields = self.noted
+        if not path.lower().endswith(".blend") or not self.inside(path) or not os.path.isfile(path):
+            self.fail(NO_FILE)
+        name, version_id = fields.get("name"), fields.get("id")
+        if not isinstance(name, str) or not isinstance(version_id, str) or not UUID.match(version_id):
+            self.fail(NO_FILE)
+        item = self.parts["paths"].get_asset_directory_name(name, version_id)
+        folder = os.path.normcase(os.path.dirname(os.path.realpath(path)))
+        expected = {os.path.normcase(os.path.join(kind_folder, item)) for kind_folder in self.kind_folders}
+        if not isinstance(item, str) or not item or folder not in expected:
+            self.fail(NO_FILE)
+        return path
+
+    # Copies the .blend and the folders beside it into the output folder and returns the fetch output.
+    def copy_out(self, blend):
+        os.makedirs(self.output, exist_ok=True)
+        file = os.path.basename(blend)
+        shutil.copyfile(blend, os.path.join(self.output, file))
+        source = os.path.dirname(blend)
+        for folder, folders, files in os.walk(source):
+            folders[:] = [name for name in folders if name.lower() not in SKIPPED_FOLDERS
+                          and not os.path.islink(os.path.join(folder, name))]
+            if os.path.normcase(folder) == os.path.normcase(source):
                 continue
-            target = os.path.normpath(os.path.join(output_folder, relative, name))
-            os.makedirs(os.path.dirname(target), exist_ok=True)
-            shutil.copyfile(os.path.join(folder, name), target)
-    return os.path.basename(blend)
-
-
-# Waits for the download to finish and returns the path of the new .blend. check is called on every round and
-# may raise. Raises download_failed or download_timeout.
-def wait_for_blend(addon, before, started, wait_seconds, check):
-    stable = {}
-    tick = 0
-    while True:
-        addon.pump()
-        time.sleep(PUMP_SECONDS)
-        tick += 1
-        elapsed = time.time() - started
-        check()
-        if tick % SCAN_EVERY == 0:
-            now = addon.blend_files()
-            arrived = {path: stat for path, stat in now.items() if before.get(path) != stat}
-            for path in list(stable):
-                if path not in arrived or arrived[path] != stable[path][0]:
-                    del stable[path]
-            for path, stat in arrived.items():
-                stable[path] = (stat, stable[path][1] + 1 if path in stable else 1)
-            active = addon.active_downloads()
-            ready = [path for path, (_stat, count) in stable.items()
-                     if count >= STABLE_SCANS and (active in (0, None) or count >= STABLE_SCANS * 8)]
-            if ready:
-                return max(ready, key=lambda path: now[path][0])
-            if not arrived and active == 0 and (elapsed > 15 or (addon.catcher.messages and elapsed > 3)):
-                detail = " ".join(addon.catcher.messages[:2])[:400]
-                raise WorkerError("download_failed", "The %s did not deliver the item%s Check the item in "
-                                  "BlenderKit inside Blender." % (addon.label, (": " + detail) if detail else "."))
-        if elapsed > wait_seconds:
-            raise WorkerError("download_timeout", "Nothing arrived from BlenderKit after %d seconds (%s). Try "
-                              "again, or check the item in BlenderKit inside Blender." %
-                              (wait_seconds, addon.label))
+            relative = os.path.relpath(folder, source)
+            for name in files:
+                lower = name.lower()
+                path = os.path.join(folder, name)
+                if lower.endswith((".blend", ".blend1", ".tmp", ".part")) or lower.startswith(PARTIAL_PREFIX) \
+                        or os.path.islink(path):
+                    continue
+                target = os.path.join(self.output, relative, name)
+                os.makedirs(os.path.dirname(target), exist_ok=True)
+                shutil.copyfile(path, target)
+        _path, fields = self.noted
+        item_name = str(fields.get("name") or "").strip()
+        shown = str(fields.get("displayName") or "").strip() or item_name or None
+        material = None
+        if self.kind == "material":
+            names = material_names(os.path.join(self.output, file))
+            if item_name in names:
+                material = item_name
+            elif len(names) == 1:
+                material = names[0]
+            else:
+                self.fail(NO_MATERIAL)
+        author = str(fields.get("author") or "").strip() or None
+        return {"file": file, "format": "blend", "kind": self.kind, "name": shown, "author": author,
+                "license": LICENSES.get(str(fields.get("license") or "").strip().lower()),
+                "reference": PAGE_ADDRESS % self.base_id, "material": material}
