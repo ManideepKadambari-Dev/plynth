@@ -30,6 +30,7 @@
 #include <cstdlib>
 #include <chrono>
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -66,13 +67,27 @@ std::string textOf(const fs::path& path)
     return std::string(text.begin(), text.end());
 }
 
-// The value of a variable, or empty.
+// UTF-8 text of wide text, or empty.
+std::string utf8(const wchar_t* text)
+{
+    if (!text || !*text) return {};
+    const int size = WideCharToMultiByte(CP_UTF8, 0, text, -1, nullptr, 0, nullptr, nullptr);
+    if (size <= 1) return {};
+    std::string out(static_cast<std::size_t>(size), '\0');
+    WideCharToMultiByte(CP_UTF8, 0, text, -1, out.data(), size, nullptr, nullptr);
+    out.resize(static_cast<std::size_t>(size) - 1);
+    return out;
+}
+
+// The value of a variable as UTF-8, or empty. Read in wide form, because the narrow form uses the ANSI code
+// page and turns a folder name such as the tests' "ü" into bytes that are not UTF-8.
 std::string environment(const char* name)
 {
-    char* value = nullptr;
+    const std::wstring wide(name, name + std::strlen(name));
+    wchar_t* value = nullptr;
     std::size_t size = 0;
-    _dupenv_s(&value, &size, name);
-    std::string out = value ? value : "";
+    _wdupenv_s(&value, &size, wide.c_str());
+    std::string out = utf8(value);
     std::free(value);
     return out;
 }
@@ -290,13 +305,12 @@ void quietFailures()
     }
 }
 
-int main(int argc, char** argv)
+// Starts the helper and serves requests until it is told to stop or lingers too long.
+int run(const std::vector<std::string>& args)
 {
-    quietFailures();
-    for (int i = 1; i + 1 < argc; ++i) {
-        const std::string arg = argv[i];
-        if (arg == "--port") port = argv[i + 1];
-        if (arg == "--global_dir") globalDir = pathFrom(argv[i + 1]);
+    for (std::size_t i = 1; i + 1 < args.size(); ++i) {
+        if (args[i] == "--port") port = args[i + 1];
+        if (args[i] == "--global_dir") globalDir = pathFrom(args[i + 1]);
     }
     const std::string scenarioFile = environment("FAKE_STORE_SCENARIO");
     if (!scenarioFile.empty()) {
@@ -353,5 +367,20 @@ int main(int argc, char** argv)
         const std::string reply = (request.is_object() ? answer(request) : Json{{"error", "bad request"}}).dump() + "\n";
         send(client, reply.data(), static_cast<int>(reply.size()), 0);
         closesocket(client);
+    }
+}
+
+// Takes the arguments in wide form, as UTF-8, and reports an error that would otherwise end the program
+// without a word.
+int wmain(int argc, wchar_t** argv)
+{
+    quietFailures();
+    std::vector<std::string> args;
+    for (int i = 0; i < argc; ++i) args.push_back(utf8(argv[i]));
+    try {
+        return run(args);
+    } catch (const std::exception& error) {
+        std::cerr << "fake_store_helper: " << error.what() << std::endl;
+        return 70;
     }
 }

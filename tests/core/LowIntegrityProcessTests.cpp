@@ -278,13 +278,20 @@ TEST_CASE("Blender in background works at low integrity and writes only its labe
     spec.program = pathFromUtf8(blender);
     spec.arguments = {"-b", "-t", "6", "--offline-mode", "--factory-startup", "-noaudio", "--python-exit-code", "3",
                       "--python", pathToUtf8(script), "--", pathToUtf8(low), pathToUtf8(outside), PLYNTH_FAKE_STORE_HELPER};
+    // Every folder a variable names is made before the start, inside the labelled folder so it carries its
+    // label: a program that finds its TEMP missing may stop at once, which would hide what is tested.
+    const auto give = [&](const char* name, const fs::path& folder) {
+        fs::create_directories(folder);
+        spec.environment.emplace_back(name, pathToUtf8(folder));
+    };
     for (const char* name : {"BLENDER_USER_RESOURCES", "BLENDER_USER_CONFIG", "BLENDER_USER_SCRIPTS",
                              "BLENDER_USER_EXTENSIONS", "BLENDER_USER_DATAFILES"}) {
-        spec.environment.emplace_back(name, pathToUtf8(low / name));
+        give(name, low / name);
     }
-    spec.environment.emplace_back("TEMP", pathToUtf8(low / "tmp"));
-    spec.environment.emplace_back("TMP", pathToUtf8(low / "tmp"));
-    spec.environment.emplace_back("HOME", pathToUtf8(low / "home"));
+    give("TEMP", low / "tmp");
+    give("TMP", low / "tmp");
+    give("HOME", low / "home");
+    REQUIRE(lowCanWrite(low / "tmp"));
     spec.lowIntegrity = true;
     spec.endChildren = true;
     spec.timeout = std::chrono::seconds(120);
@@ -293,13 +300,24 @@ TEST_CASE("Blender in background works at low integrity and writes only its labe
     std::string all;
     for (const std::string& line : lines) all += line + "\n";
     INFO(all);
+
+    const std::vector<std::string> expected = {"SR7 python: ok", "SR7 inside: ok", "SR7 outside: denied",
+                                               "SR7 socket: ok", "SR7 helper: ok", "SR7 tray: ok"};
+    bool passed = result.status.ok() && result.exitCode == 0 && !fs::exists(outside);
+    for (const std::string& want : expected) passed = passed && lineOf(lines, want.substr(0, want.find(':') + 1)) == want;
+    if (!passed) {
+        // The labelled folder is copied out of the test's folder, which is removed when the test ends, so the
+        // helper's log, stderr and files can be read afterwards.
+        const fs::path kept = user.tmp.path().parent_path() / ("plynth-sr7-kept-" + std::to_string(GetCurrentProcessId()));
+        std::error_code ec;
+        fs::remove_all(kept, ec);
+        fs::copy(low, kept, fs::copy_options::recursive, ec);
+        WARN("SR7 kept the labelled folder at " << pathToUtf8(kept) << (ec ? ", copy incomplete: " + ec.message() : std::string()));
+    }
+
+    INFO(result.status.message);
     REQUIRE(result.status.ok());
     CHECK(result.exitCode == 0);
-    CHECK(lineOf(lines, "SR7 python:") == "SR7 python: ok");
-    CHECK(lineOf(lines, "SR7 inside:") == "SR7 inside: ok");
-    CHECK(lineOf(lines, "SR7 outside:") == "SR7 outside: denied");
-    CHECK(lineOf(lines, "SR7 socket:") == "SR7 socket: ok");
-    CHECK(lineOf(lines, "SR7 helper:") == "SR7 helper: ok");
-    CHECK(lineOf(lines, "SR7 tray:") == "SR7 tray: ok");
+    for (const std::string& want : expected) CHECK(lineOf(lines, want.substr(0, want.find(':') + 1)) == want);
     CHECK_FALSE(fs::exists(outside));
 }

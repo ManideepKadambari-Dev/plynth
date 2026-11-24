@@ -63,6 +63,24 @@ def helper_env(folder):
     return env
 
 
+# The text of a file, or a note that it is missing or unreadable.
+def read_text(path):
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as handle:
+            return handle.read()
+    except OSError as error:
+        return "<%s>" % error
+
+
+# Prints what the helper left behind, so a failed run can be understood from the output alone.
+def tell_helper(process, log, errors, last_error):
+    code = process.poll()
+    print("SR7 detail exit: %s" % ("still running" if code is None else code), flush=True)
+    print("SR7 detail last error: %r" % (last_error,), flush=True)
+    print("SR7 detail log:\n%s" % read_text(log), flush=True)
+    print("SR7 detail stderr:\n%s" % read_text(errors), flush=True)
+
+
 # Runs the checks.
 def main():
     folder, outside, helper = sys.argv[sys.argv.index("--") + 1:][:3]
@@ -82,26 +100,43 @@ def main():
         json.dump({"tray": True, "linger_s": 60}, handle)
     env = helper_env(folder)
     env.update(FAKE_STORE_SCENARIO=scenario, FAKE_STORE_LOG=log)
-    process = subprocess.Popen([copy, "--port", str(port), "--global_dir", folder], cwd=folder, env=env)
+    errors = os.path.join(folder, "helper.err")
+    with open(errors, "wb") as error_file:
+        process = subprocess.Popen([copy, "--port", str(port), "--global_dir", folder], cwd=folder, env=env,
+                                   stderr=error_file)
     try:
         answer = None
-        for _ in range(50):
+        last_error = None
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
             try:
                 answer = ask(port, {"op": "report"})
                 break
-            except OSError:
+            except (OSError, ValueError) as error:
+                last_error = error
+                if process.poll() is not None:
+                    break
                 time.sleep(0.1)
-        say("socket", "ok" if isinstance(answer, dict) and "tasks" in answer else "failed")
-        say("helper", "ok" if os.path.isfile(os.path.join(folder, "client", "system_id")) else "failed")
+        socket_ok = isinstance(answer, dict) and "tasks" in answer
+        say("socket", "ok" if socket_ok else "failed")
+        helper_ok = os.path.isfile(os.path.join(folder, "client", "system_id"))
+        say("helper", "ok" if helper_ok else "failed")
         tray = []
         for _ in range(30):
-            tray = [line for line in read_lines(log) if line.get("op") == "tray"]
+            try:
+                tray = [line for line in read_lines(log) if line.get("op") == "tray"]
+            except ValueError:
+                tray = []
             if tray:
                 break
             time.sleep(0.1)
-        say("tray", "ok" if tray and tray[0].get("ok") else "failed")
+        tray_ok = bool(tray) and bool(tray[0].get("ok"))
+        say("tray", "ok" if tray_ok else "failed")
+        if not (socket_ok and helper_ok and tray_ok):
+            tell_helper(process, log, errors, last_error)
     finally:
         process.kill()
+        process.wait(timeout=10)
 
 
 main()
