@@ -1,0 +1,6 @@
+# Materials of the sample door
+newmtl Wood
+Kd 0.620000 0.480000 0.340000
+
+newmtl Metal
+Kd 0.600000 0.600000 0.620000
