@@ -1,6 +1,6 @@
 # Sample models
 
-`chair/`, `sofa/`, `bed/`, `table/` and `tv/` hold small models drawn for this project. They are made by `make_sample_models.py`, so they belong to the project and is not a downloaded model. To regenerate them, run `python samples/models/make_sample_models.py` from the repository root. It needs only the Python standard library, and the output is the same bytes every run.
+`chair/`, `sofa/`, `bed/`, `table/`, `tv/`, `door/`, `window/`, `shelf/`, `books/`, `vase/` and `picture/` hold small models drawn for this project. They are made by `make_sample_models.py`, so they belong to the project and is not a downloaded model. To regenerate them, run `python samples/models/make_sample_models.py` from the repository root. It needs only the Python standard library, and the output is the same bytes every run.
 
 ## chair
 
@@ -24,6 +24,21 @@ Each is built from plain boxes, moved away from the origin like the chair, with 
 | `tv/tv.obj` | 1.23 x 0.06 x 0.71 | Flat panel for a wall. The `Screen` box is a thin separate object on the -Y face | `Plastic`, `Screen` | 24 |
 
 The thumbnail camera stands at +X, -Y (front right in Blender's views), so a thumbnail shows the front and the model's own left side. On the sofa that is the arm at +X.
+
+## Finishing models
+
+Built the same way, for catalog doors and windows and for set dressing. Import them with the category in the second column, and the tag in the third where one is given.
+
+| Model | Category, tag | Size (width x depth x height) | Parts |
+|---|---|---|---|
+| `door/door.obj` | `door` | 0.90 x 0.05 x 2.10 | Frame, leaf and handle. The leaf hangs on its left jamb seen from the front (low X), the handle is on the right |
+| `window/window.obj` | `window` | 1.20 x 0.08 x 1.20 | Frame round one pane, material `Glass` |
+| `shelf/shelf.obj` | `shelf` | 0.80 x 0.30 x 1.80 | Two sides, a back, four boards and a top, so the cleanup measures five supports |
+| `books/books.obj` | `decor`, `book` | 0.30 x 0.20 x 0.25 | A row of five books |
+| `vase/vase.obj` | `decor`, `tabletop` | 0.15 x 0.15 x 0.30 | Body and neck |
+| `picture/picture.obj` | `decor`, `wall_art` | 0.60 x 0.03 x 0.45 | Frame and canvas, flat at the back |
+
+The files of these six folders are written by the script on the next run of it; until then only the script holds them.
 
 ## License
 

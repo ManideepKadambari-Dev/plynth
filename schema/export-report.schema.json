@@ -51,6 +51,7 @@
             "additionalProperties": false,
             "properties": {
               "group": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+              "name": { "description": "The group's name as the user sees it. May be missing in older reports.", "type": "string", "minLength": 1 },
               "file": { "type": "string", "minLength": 1 },
               "objects": { "type": "integer", "minimum": 0 },
               "triangles": { "type": "integer", "minimum": 0 }
@@ -66,6 +67,45 @@
     "objects": { "type": "integer", "minimum": 0 },
     "triangles": { "type": "integer", "minimum": 0 },
     "collision_objects": { "type": "integer", "minimum": 0 },
+    "groups": {
+      "description": "Grouped export: groups that got no object, and group edits that no longer apply. May be missing in older reports.",
+      "type": "object",
+      "required": ["empty", "notes"],
+      "additionalProperties": false,
+      "properties": {
+        "empty": { "type": "array", "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" } },
+        "notes": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "kit": {
+      "description": "The modular kit (core/include/plynth/core/Kit.h). May be missing in older reports.",
+      "type": "object",
+      "required": ["asked", "written", "skipped", "file", "layout_file", "pieces", "placements", "triangles"],
+      "additionalProperties": false,
+      "properties": {
+        "asked": { "description": "The project's export options switch the kit on.", "type": "boolean" },
+        "written": { "description": "The kit files are now in export/.", "type": "boolean" },
+        "skipped": { "description": "Why the kit was asked for but not made, or null.", "type": ["string", "null"] },
+        "file": { "description": "export/<Stem>_Kit.fbx, or null unless written.", "type": ["string", "null"] },
+        "layout_file": { "description": "export/<Stem>_Kit_layout.json, or null unless written.", "type": ["string", "null"] },
+        "pieces": { "type": "integer", "minimum": 0 },
+        "placements": { "type": "integer", "minimum": 0 },
+        "triangles": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "gameplay": {
+      "description": "The gameplay data file (gameplay.schema.json). May be missing in older reports.",
+      "type": "object",
+      "required": ["enabled", "file", "rooms", "doors", "lights"],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "description": "The project's export options switch it on.", "type": "boolean" },
+        "file": { "description": "export/<Stem>_gameplay.json, or null unless written.", "type": ["string", "null"] },
+        "rooms": { "type": "integer", "minimum": 0 },
+        "doors": { "type": "integer", "minimum": 0 },
+        "lights": { "type": "integer", "minimum": 0 }
+      }
+    },
     "quality": {
       "type": "object",
       "required": ["passed", "fail_count", "warning_count", "checks"],

@@ -7,6 +7,8 @@
 #include "furniture/FurniturePicker.h"
 #include "materials/MaterialPicker.h"
 #include "materials/MaterialRow.h"
+#include "panels/FinishGroups.h"
+#include "panels/OpeningAssetPicker.h"
 #include "document/Selection.h"
 #include "theme/Theme.h"
 #include "tools/ToolController.h"
@@ -25,8 +27,10 @@
 #include <plynth/core/catalog/ItemAssets.h>
 #include <plynth/core/catalog/MaterialCatalog.h>
 #include <plynth/core/commands/FloorCommands.h>
+#include <plynth/core/commands/FinishCommands.h>
 #include <plynth/core/commands/GeneratorCommands.h>
 #include <plynth/core/commands/ItemCommands.h>
+#include <plynth/core/commands/LightCommands.h>
 #include <plynth/core/commands/MaterialCommands.h>
 #include <plynth/core/commands/OpeningCommands.h>
 #include <plynth/core/commands/PointCommands.h>
@@ -102,6 +106,7 @@ constexpr int kOpeningToolPage = 6;
 constexpr int kItemPage = 7;
 constexpr int kStairPage = 8;
 constexpr int kRoofPage = 9;
+constexpr int kLightPage = 10;
 
 // Turns a core text into Qt text.
 QString fromCore(const std::string& text)
@@ -135,6 +140,7 @@ PropertiesPanel::PropertiesPanel(plynth::Document& document, Selection& selectio
     buildItemPage();
     buildStairPage();
     buildRoofPage();
+    buildLightPage();
     // Only the shown page scrolls. The Delete button stays below it, always in view.
     scroll_ = new QScrollArea(this);
     scroll_->setWidgetResizable(true);
@@ -198,6 +204,7 @@ QLabel* PropertiesPanel::addLabelRow(QGridLayout* grid, const QString& label, bo
     name->setFont(t.uiFont(t.sizeSmall()));
     name->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
     auto* value = new QLabel(grid->parentWidget());
+    value->setTextFormat(Qt::PlainText);
     value->setFont(mono ? t.monoFont(t.sizeNormal()) : t.uiFont(t.sizeNormal()));
     value->setTextInteractionFlags(Qt::NoTextInteraction);
     value->setWordWrap(true);
@@ -253,6 +260,7 @@ QLabel* PropertiesPanel::addNote(QGridLayout* grid)
 {
     const Theme& t = Theme::instance();
     auto* note = new QLabel(grid->parentWidget());
+    note->setTextFormat(Qt::PlainText);
     note->setFont(t.uiFont(t.sizeSmall()));
     note->setWordWrap(true);
     note->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
@@ -281,6 +289,18 @@ void PropertiesPanel::buildNothingPage()
             return;
         gridEdited_ = false;
         controller_.run(std::make_unique<plynth::SetGridSizeCommand>(gridSpin_->value()));
+    });
+
+    exportModeCombo_ = addComboRow(grid, tr("Export mode"),
+                                   tr("Single FBX writes one file. Grouped FBX writes one file for each group, which you "
+                                      "review in the Export tab. Changing it does not make the build out of date."),
+                                   QStringLiteral("panel-export-mode"));
+    exportModeCombo_->addItem(tr("Single FBX"), static_cast<int>(plynth::ExportMode::Single));
+    exportModeCombo_->addItem(tr("Grouped FBX"), static_cast<int>(plynth::ExportMode::Grouped));
+    connect(exportModeCombo_, &QComboBox::activated, this, [this](int index) {
+        const auto mode = static_cast<plynth::ExportMode>(exportModeCombo_->itemData(index).toInt());
+        if (!refreshing_ && mode != document_.project().settings.exportMode)
+            controller_.run(std::make_unique<plynth::SetExportModeCommand>(mode));
     });
 
     wallCentreSpin_ = addKeyedSpinRow(grid, tr("Wall item centre"), 0.05, 100.0, 0.05,
@@ -314,6 +334,11 @@ void PropertiesPanel::buildNothingPage()
     unusedLayout->setSpacing(Theme::instance().unit() * 2);
     grid->addWidget(unusedRoofBox_, grid->rowCount(), 0, 1, 2);
 
+    trimGroup_ = new TrimGroup(document_, controller_, grid, this);
+    variationGroup_ = new VariationGroup(document_, controller_, grid, this);
+    for (QWidget* editor : variationGroup_->editors())
+        editors_.push_back(editor);
+
     addMaterialSection(grid, tr("Default materials"));
     struct DefaultRow {
         plynth::Surface surface;
@@ -333,6 +358,8 @@ void PropertiesPanel::buildNothingPage()
         {plynth::Surface::Roof, "Roofs", "The material of the covering of pitched roofs, when the roof section names none"},
         {plynth::Surface::FlatRoof, "Flat roofs", "The material of the covering of flat roofs, when the roof section names none"},
         {plynth::Surface::Stair, "Stairs", "The material of steps and landings, when the stair names none"},
+        {plynth::Surface::Trim, "Trim", "The material of skirting boards, cornices, door casings and window sills"},
+        {plynth::Surface::Railing, "Railings", "The material of stair railings and the guards round stair holes"},
     };
     for (const DefaultRow& row : defaults) {
         plynth::MaterialTarget target;
@@ -472,6 +499,7 @@ void PropertiesPanel::buildStairPage()
     stairLength_ = addLabelRow(grid, tr("Length"));
     stairLength_->setToolTip(tr("The length of the walk line from the bottom step to the upper floor"));
     stairProblems_ = new QLabel(grid->parentWidget());
+    stairProblems_->setTextFormat(Qt::PlainText);
     stairProblems_->setFont(t.uiFont(t.sizeSmall()));
     stairProblems_->setWordWrap(true);
     stairProblems_->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
@@ -948,6 +976,20 @@ void PropertiesPanel::buildRoomPage()
     roomArea_->setToolTip(tr("Floor area inside the walls"));
     roomWalls_ = addLabelRow(grid, tr("Walls"));
 
+    roomDressing_ = new QCheckBox(tr("Set dressing"), grid->parentWidget());
+    roomDressing_->setFont(t.uiFont(t.sizeNormal()));
+    roomDressing_->setToolTip(tr("Let the build add small props to this room: books on shelves, things on tables and "
+                                 "pictures on the walls, from assets tagged for it"));
+    roomDressing_->setProperty("tourId", QStringLiteral("panel-room-dressing"));
+    grid->addWidget(roomDressing_, grid->rowCount(), 1);
+    editors_.push_back(roomDressing_);
+    connect(roomDressing_, &QCheckBox::clicked, this, [this](bool on) {
+        if (refreshing_ || selection_.kind() != SelectionKind::Room)
+            return;
+        if (!controller_.run(std::make_unique<plynth::SetRoomDressingCommand>(selection_.id().toStdString(), on)).ok())
+            refresh();
+    });
+
     addMaterialSection(grid, tr("Materials"));
     plynth::MaterialTarget floor;
     floor.kind = plynth::MaterialTarget::Kind::Room;
@@ -1057,6 +1099,7 @@ void PropertiesPanel::buildDetectPage()
     editors_.push_back(detectorCombo_);
 
     detectStatus_ = new QLabel(page);
+    detectStatus_->setTextFormat(Qt::PlainText);
     detectStatus_->setFont(t.uiFont(t.sizeSmall()));
     detectStatus_->setWordWrap(true);
     detectStatus_->setToolTip(tr("What detection found, or why it could not run"));
@@ -1188,6 +1231,10 @@ void PropertiesPanel::refreshRoom()
     const plynth::RoomShape shape = plynth::roomShape(*floor, *room);
     roomArea_->setText(QStringLiteral("%1 m\u00B2").arg(shape.area, 0, 'f', 2));
     roomWalls_->setText(QString::number(room->walls.size()));
+    {
+        const QSignalBlocker blocker(roomDressing_);
+        roomDressing_->setChecked(room->dressing);
+    }
     refreshMaterialRows(kRoomPage);
 }
 
@@ -1512,6 +1559,10 @@ void PropertiesPanel::refresh()
         page = kStairPage;
         refreshStair();
         break;
+    case SelectionKind::Light:
+        page = kLightPage;
+        refreshLight();
+        break;
     case SelectionKind::RoofSection:
         if (selectedRoof()) {
             page = kRoofPage;
@@ -1566,9 +1617,10 @@ void PropertiesPanel::refreshUnusedRoofEntries()
         auto* row = new QWidget(unusedRoofBox_);
         auto* rowLayout = new QHBoxLayout(row);
         rowLayout->setContentsMargins(0, 0, 0, 0);
-        auto* text = new QLabel(fromCore(entry->id) + QStringLiteral("  ") + fromCore(entry->floor) +
-                                    QStringLiteral(" (%1, %2)").arg(entry->x, 0, 'f', 2).arg(entry->y, 0, 'f', 2),
-                                row);
+        auto* text = new QLabel(row);
+        text->setTextFormat(Qt::PlainText);
+        text->setText(fromCore(entry->id) + QStringLiteral("  ") + fromCore(entry->floor) +
+                      QStringLiteral(" (%1, %2)").arg(entry->x, 0, 'f', 2).arg(entry->y, 0, 'f', 2));
         text->setFont(t.monoFont(t.sizeNormal()));
         text->setToolTip(tr("A roof entry on this floor whose spot holds no roof section"));
         rowLayout->addWidget(text, 1);
@@ -1599,6 +1651,11 @@ void PropertiesPanel::refreshNothing()
     }
     scaleHint_->setVisible(!scaleHint_->text().isEmpty());
     setSpin(gridSpin_, document_.project().settings.gridSize);
+    {
+        const int index = exportModeCombo_->findData(static_cast<int>(document_.project().settings.exportMode));
+        const QSignalBlocker blocker(exportModeCombo_);
+        exportModeCombo_->setCurrentIndex(index);
+    }
     const plynth::Floor* floor = controller_.floor();
     const bool otherFloor = floor != nullptr && floor->id != shownFloorId_;
     if (floor != nullptr)
@@ -1626,6 +1683,8 @@ void PropertiesPanel::refreshNothing()
     roomCount_->setText(QString::number(floor ? floor->rooms.size() : 0));
     fillRoofEditor(roofDefault_, document_.plan().roof);
     refreshUnusedRoofEntries();
+    trimGroup_->refresh();
+    variationGroup_->refresh();
     setSpin(newWallSpin_, controller_.newWallThickness());
     const bool wallTool = controller_.active() == ToolId::Wall;
     newWallSpin_->setVisible(wallTool);
@@ -1792,7 +1851,25 @@ void PropertiesPanel::buildOpeningPage()
                                     QStringLiteral("panel-opening-width"));
     openingHeight_ = addKeyedSpinRow(grid, tr("Height"), 0.01, 100.0, 0.05, tr("Height of the opening"),
                                      QStringLiteral("panel-opening-height"));
+    {
+        const QString tip = tr("The door or window built into this opening: Automatic picks a fitting catalog asset, "
+                               "Built by Plynth makes its own, or choose an asset of the door or window category");
+        openingAssetLabel_ = new QLabel(tr("Asset"), grid->parentWidget());
+        openingAssetLabel_->setFont(t.uiFont(t.sizeSmall()));
+        openingAssetLabel_->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
+        openingAssetLabel_->setToolTip(tip);
+        openingAsset_ = new QPushButton(grid->parentWidget());
+        openingAsset_->setFont(t.uiFont(t.sizeNormal()));
+        openingAsset_->setToolTip(tip);
+        openingAsset_->setProperty("tourId", QStringLiteral("panel-opening-asset"));
+        const int row = grid->rowCount();
+        grid->addWidget(openingAssetLabel_, row, 0, Qt::AlignVCenter);
+        grid->addWidget(openingAsset_, row, 1);
+        editors_.push_back(openingAsset_);
+        connect(openingAsset_, &QPushButton::clicked, this, &PropertiesPanel::openAssetPicker);
+    }
     openingProblem_ = new QLabel(grid->parentWidget());
+    openingProblem_->setTextFormat(Qt::PlainText);
     openingProblem_->setFont(t.uiFont(t.sizeSmall()));
     openingProblem_->setWordWrap(true);
     openingProblem_->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
@@ -1978,9 +2055,152 @@ void PropertiesPanel::refreshOpening()
     setSpin(openingSill_, opening->sill);
     setSpin(openingWidth_, opening->width);
     setSpin(openingHeight_, opening->height);
+    const bool framed = opening->type != plynth::OpeningType::Plain;
+    openingAsset_->setVisible(framed);
+    openingAssetLabel_->setVisible(framed);
+    if (opening->frame.has_value()) {
+        QString name = fromCore(*opening->frame);
+        if (plynth::AssetCatalog* catalog = controller_.catalog())
+            if (const std::optional<plynth::AssetRecord> record = catalog->asset(*opening->frame))
+                name = fromCore(record->name);
+        openingAsset_->setText(name);
+    } else {
+        openingAsset_->setText(opening->autoFrame ? tr("Automatic") : tr("Built by Plynth"));
+    }
     const plynth::Status fit = plynth::checkOpeningFit(*floor, *opening);
     openingProblem_->setText(fit.ok() ? QString() : fromCore(fit.message));
     openingProblem_->setVisible(!fit.ok());
+}
+
+// Opens the door and window picker beside the panel for the selected opening. A choice runs SetOpeningFrameCommand.
+void PropertiesPanel::openAssetPicker()
+{
+    const plynth::Floor* floor = controller_.floor();
+    const plynth::Opening* opening = floor ? plynth::findOpening(*floor, selection_.id().toStdString()) : nullptr;
+    LibraryHost* host = controller_.library();
+    if (opening == nullptr || host == nullptr || selection_.kind() != SelectionKind::Opening)
+        return;
+    if (assetPicker_ == nullptr) {
+        assetPicker_ = new OpeningAssetPicker(*host, window());
+        connect(assetPicker_, &OpeningAssetPicker::chosen, this, [this](OpeningFrameKind kind, const QString& asset) {
+            if (selection_.kind() != SelectionKind::Opening)
+                return;
+            std::optional<std::string> frame;
+            if (kind == OpeningFrameKind::Asset)
+                frame = asset.toStdString();
+            runOpeningCommand(std::make_unique<plynth::SetOpeningFrameCommand>(selection_.id().toStdString(), frame,
+                                                                               kind == OpeningFrameKind::Automatic));
+        });
+    }
+    const OpeningFrameKind current = opening->frame.has_value() ? OpeningFrameKind::Asset
+                                     : opening->autoFrame        ? OpeningFrameKind::Automatic
+                                                                 : OpeningFrameKind::BuiltIn;
+    const QPoint anchor(mapTo(window(), QPoint(0, 0)).x(), openingAsset_->mapTo(window(), QPoint(0, 0)).y());
+    assetPicker_->openAt(anchor, opening->type, current, opening->frame ? fromCore(*opening->frame) : QString());
+}
+
+// For checks only: opens the door and window picker of the selected opening and hovers an asset when one is given.
+bool PropertiesPanel::showOpeningAssetPicker(const QString& hoverAsset)
+{
+    if (selection_.kind() != SelectionKind::Opening || openingAsset_ == nullptr || !openingAsset_->isVisible())
+        return false;
+    openAssetPicker();
+    if (assetPicker_ == nullptr || !assetPicker_->isOpen())
+        return false;
+    if (!hoverAsset.isEmpty())
+        assetPicker_->hoverAsset(hoverAsset);
+    return true;
+}
+
+// For checks only: scrolls the project page to the Trim title.
+void PropertiesPanel::scrollToFinish()
+{
+    refresh();
+    pages_->adjustSize();
+    QWidget* anchor = trimGroup_->title();
+    const int top = anchor->mapTo(pages_, QPoint(0, 0)).y();
+    scroll_->verticalScrollBar()->setValue(top);
+}
+
+// The page for a selected light marker: id, kind, height, place on the plan and the room it is in.
+void PropertiesPanel::buildLightPage()
+{
+    QGridLayout* grid = nullptr;
+    makePage(&grid);
+    lightId_ = addLabelRow(grid, tr("Light"));
+    lightKind_ = addComboRow(grid, tr("Kind"),
+                             tr("A ceiling light hangs below the ceiling, a wall light sits on a wall and a standing "
+                                "lamp stands on the floor. The build makes a warm white point light, with no fitting."),
+                             QStringLiteral("panel-light-kind"));
+    lightKind_->addItem(tr("Ceiling light"), static_cast<int>(plynth::LightKind::Ceiling));
+    lightKind_->addItem(tr("Wall light"), static_cast<int>(plynth::LightKind::Wall));
+    lightKind_->addItem(tr("Standing lamp"), static_cast<int>(plynth::LightKind::Standing));
+    lightHeight_ = addSpinRow(grid, tr("Height"), 0.0, 100.0, 0.05, tr("Height of the light above the floor"),
+                              QStringLiteral("panel-light-height"));
+    lightX_ = addKeyedSpinRow(grid, tr("X"), -10000.0, 10000.0, 0.05, tr("Place of the light across the plan"),
+                              QStringLiteral("panel-light-x"));
+    lightY_ = addKeyedSpinRow(grid, tr("Y"), -10000.0, 10000.0, 0.05, tr("Place of the light down the plan"),
+                              QStringLiteral("panel-light-y"));
+    lightRoom_ = addLabelRow(grid, tr("Room"));
+    lightRoom_->setToolTip(tr("The room the light is in. A light outside every room still builds."));
+
+    connect(lightKind_, &QComboBox::activated, this, [this]() { editLight(false); });
+    connect(lightHeight_, &QDoubleSpinBox::valueChanged, this, [this]() { editLight(false); });
+    connect(lightX_, &QDoubleSpinBox::valueChanged, this, [this]() { editLight(true); });
+    connect(lightY_, &QDoubleSpinBox::valueChanged, this, [this]() { editLight(true); });
+}
+
+// Runs MoveLightCommand for a new place, or SetLightCommand for a new kind or height. A new kind takes the start
+// height of that kind. The boxes go back to the real values on a refusal.
+void PropertiesPanel::editLight(bool place)
+{
+    if (refreshing_ || selection_.kind() != SelectionKind::Light)
+        return;
+    const plynth::Floor* floor = controller_.floor();
+    const plynth::LightMarker* light = floor ? plynth::findLight(*floor, selection_.id().toStdString()) : nullptr;
+    if (light == nullptr)
+        return;
+    std::unique_ptr<plynth::Command> command;
+    if (place) {
+        command = std::make_unique<plynth::MoveLightCommand>(light->id, lightX_->value(), lightY_->value(), focusKey_);
+    } else {
+        const auto kind = static_cast<plynth::LightKind>(lightKind_->currentData().toInt());
+        double z = lightHeight_->value();
+        if (kind != light->kind)
+            z = plynth::defaultLightHeight(kind, floor->ceilingHeight);
+        if (kind == light->kind && std::abs(z - light->z) < 1e-9)
+            return;
+        command = std::make_unique<plynth::SetLightCommand>(light->id, kind, z);
+    }
+    if (!controller_.run(std::move(command)).ok())
+        refresh();
+}
+
+// Fills the page for a selected light marker.
+void PropertiesPanel::refreshLight()
+{
+    const plynth::Floor* floor = controller_.floor();
+    const plynth::LightMarker* light = floor ? plynth::findLight(*floor, selection_.id().toStdString()) : nullptr;
+    if (light == nullptr)
+        return;
+    lightId_->setText(fromCore(light->id));
+    lightKind_->setCurrentIndex(std::max(0, lightKind_->findData(static_cast<int>(light->kind))));
+    {
+        const QSignalBlocker blocker(lightHeight_);
+        lightHeight_->setMaximum(floor->ceilingHeight);
+    }
+    setSpin(lightHeight_, light->z);
+    setSpin(lightX_, light->x);
+    setSpin(lightY_, light->y);
+    QString room = tr("None");
+    if (light->room.has_value()) {
+        room = fromCore(*light->room);
+        for (const plynth::Room& candidate : floor->rooms)
+            if (candidate.id == *light->room && candidate.type.has_value())
+                if (const plynth::RoomType* type = plynth::findRoomType(*candidate.type))
+                    room += QStringLiteral(" (%1)").arg(QString::fromUtf8(type->name.data(), static_cast<qsizetype>(type->name.size())));
+    }
+    lightRoom_->setText(room);
 }
 
 // The page for a selected item: picture, name, state, size, place, rotation, heights, room and wall.
@@ -2001,6 +2221,7 @@ void PropertiesPanel::buildItemPage()
     grid->addWidget(itemThumb_, grid->rowCount(), 0, 1, 2, Qt::AlignLeft);
 
     itemName_ = new QLabel(page);
+    itemName_->setTextFormat(Qt::PlainText);
     itemName_->setFont(t.uiFont(t.sizeLarge(), QFont::DemiBold));
     itemName_->setToolTip(tr("The name of the asset"));
     grid->addWidget(itemName_, grid->rowCount(), 0, 1, 2);
@@ -2012,6 +2233,7 @@ void PropertiesPanel::buildItemPage()
     itemSize_->setToolTip(tr("Width, depth and height of the item"));
 
     itemState_ = new QLabel(page);
+    itemState_->setTextFormat(Qt::PlainText);
     itemState_->setFont(t.uiFont(t.sizeSmall()));
     itemState_->setWordWrap(true);
     itemState_->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
@@ -2097,6 +2319,7 @@ void PropertiesPanel::buildItemPage()
     editors_.push_back(itemSwap_);
 
     itemProblems_ = new QLabel(page);
+    itemProblems_->setTextFormat(Qt::PlainText);
     itemProblems_->setFont(t.uiFont(t.sizeSmall()));
     itemProblems_->setWordWrap(true);
     itemProblems_->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));

@@ -52,10 +52,10 @@ inline constexpr double kDefaultTileSize = 1.0;
 inline constexpr double kMinTileSize = 0.01;
 inline constexpr double kMaxTileSize = 100.0;
 
-// Source kinds for info.json. Each material importer names its own; these are the ones planned.
+// Source kinds for info.json. Each material importer names its own.
 inline constexpr std::string_view kSourceTextureSet = "texture_set"; // a folder, zip or image files
 inline constexpr std::string_view kSourceBlendMaterial = "blend_material"; // a material inside a .blend
-// Fab zips (kSourceFabZip in AssetInfo.h) come in milestone 13.
+// Store materials use kSourceBlenderKit and kSourceFabZip of AssetInfo.h.
 
 // MapChannel, MapOrigin, MaterialMap and MaterialMaps are in MaterialMaps.h (shared with assets); they are
 // still implemented in MaterialInfo.cpp.

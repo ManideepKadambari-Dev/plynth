@@ -24,6 +24,7 @@ add_library(plynth_core STATIC
     src/catalog/ItemAssets.cpp
     src/catalog/BuiltInCatalog.cpp
     src/catalog/Database.cpp
+    src/IdSource.cpp
     src/Plan.cpp
     src/Project.cpp
     src/ProjectJson.cpp
@@ -57,6 +58,9 @@ add_library(plynth_core STATIC
     src/Exporter.cpp
     src/ExportJob.cpp
     src/Export.cpp
+    src/ExportGroups.cpp
+    src/ExportEditGuard.cpp
+    src/Kit.cpp
     src/openings/OpeningShapes.cpp
     src/openings/ShapeFiles.cpp
     src/commands/FloorCommands.cpp
@@ -82,6 +86,22 @@ add_library(plynth_core STATIC
     src/guide/Samples.cpp
     src/guide/Tour.cpp
     src/guide/LicenseReport.cpp
+    src/SeededChoice.cpp
+    src/FinishSettings.cpp
+    src/catalog/AssetSupports.cpp
+    src/trim/TrimProfiles.cpp
+    src/GameplayData.cpp
+    src/OpeningAssets.cpp
+    src/dressing/Dressing.cpp
+    src/trim/Trim.cpp
+    src/Variation.cpp
+    src/BuildFinish.cpp
+    src/commands/LightCommands.cpp
+    src/commands/FinishCommands.cpp
+    src/trim/StairRailings.cpp
+    src/BuildResolve.cpp
+    src/catalog/BuildChoices.cpp
+    src/VariationCopies.cpp
 )
 if(WIN32)
     target_sources(plynth_core PRIVATE src/Process_win.cpp)
@@ -142,6 +162,10 @@ if(PLYNTH_DETECTOR_SOURCES)
     target_sources(plynth_core INTERFACE $<TARGET_OBJECTS:plynth_detectors>)
 endif()
 
+# Store, zip and integration code.
+file(GLOB PLYNTH_STORE_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/stores/*.cpp)
+target_sources(plynth_core PRIVATE ${PLYNTH_STORE_SOURCES})
+
 # Opening shapes register themselves the same way, so they are built as an object library too.
 file(GLOB PLYNTH_SHAPE_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/openings/shapes/*.cpp)
 if(PLYNTH_SHAPE_SOURCES)
@@ -190,4 +214,23 @@ if(PLYNTH_EXPORTER_SOURCES)
     target_compile_features(plynth_exporters PUBLIC cxx_std_20)
     target_link_libraries(plynth_exporters PRIVATE nlohmann_json::nlohmann_json)
     target_sources(plynth_core INTERFACE $<TARGET_OBJECTS:plynth_exporters>)
+endif()
+
+# Trim profiles and set dressing rules register themselves the same way, so each set is an object library too.
+file(GLOB PLYNTH_PROFILE_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/trim/profiles/*.cpp)
+if(PLYNTH_PROFILE_SOURCES)
+    add_library(plynth_trim_profiles OBJECT ${PLYNTH_PROFILE_SOURCES})
+    target_include_directories(plynth_trim_profiles PRIVATE include src)
+    target_compile_features(plynth_trim_profiles PUBLIC cxx_std_20)
+    target_link_libraries(plynth_trim_profiles PRIVATE nlohmann_json::nlohmann_json)
+    target_sources(plynth_core INTERFACE $<TARGET_OBJECTS:plynth_trim_profiles>)
+endif()
+
+file(GLOB PLYNTH_DRESSING_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/dressing/rules/*.cpp)
+if(PLYNTH_DRESSING_SOURCES)
+    add_library(plynth_dressing_rules OBJECT ${PLYNTH_DRESSING_SOURCES})
+    target_include_directories(plynth_dressing_rules PRIVATE include src)
+    target_compile_features(plynth_dressing_rules PUBLIC cxx_std_20)
+    target_link_libraries(plynth_dressing_rules PRIVATE nlohmann_json::nlohmann_json Clipper2::Clipper2)
+    target_sources(plynth_core INTERFACE $<TARGET_OBJECTS:plynth_dressing_rules>)
 endif()

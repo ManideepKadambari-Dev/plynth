@@ -1,0 +1,29 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:asset-supports:1",
+  "title": "Plynth asset supports",
+  "description": "The flat places on an asset where set dressing may put small props, measured by Blender at cleanup. The root is the list itself; asset info and the cleanup result refer to definitions/supports. Metres in the asset's own axes from its pivot (the bottom centre): x along its width, y along its depth with the front at minus y (as in asset.blend), z up.",
+  "type": "array",
+  "maxItems": 16,
+  "items": { "$ref": "#/definitions/support" },
+  "definitions": {
+    "supports": {
+      "type": "array",
+      "maxItems": 16,
+      "items": { "$ref": "#/definitions/support" }
+    },
+    "support": {
+      "type": "object",
+      "required": ["x0", "y0", "x1", "y1", "z", "clearance"],
+      "additionalProperties": false,
+      "properties": {
+        "x0": { "type": "number" },
+        "y0": { "type": "number" },
+        "x1": { "type": "number" },
+        "y1": { "type": "number" },
+        "z": { "type": "number", "minimum": 0 },
+        "clearance": { "description": "The free height above the place.", "type": "number", "minimum": 0.1 }
+      }
+    }
+  }
+}

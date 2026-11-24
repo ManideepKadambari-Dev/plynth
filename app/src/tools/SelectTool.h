@@ -1,5 +1,6 @@
 #pragma once
 
+#include "tools/LightTool.h"
 #include "tools/StairTool.h"
 #include "tools/Tool.h"
 
@@ -11,11 +12,11 @@
 
 namespace plynth::app {
 
-// Picks points, walls, openings, items and rooms by clicking. Drags points, items and openings, drags the bend
+// Picks points, walls, openings, items, rooms and light markers by clicking. Drags light markers too. Drags points, items and openings, drags the bend
 // handle of the selected wall, and turns the selected item with its rotation handle.
 class SelectTool : public Tool {
 public:
-    explicit SelectTool(ToolController& host) : Tool(host), stairs_(host) {}
+    explicit SelectTool(ToolController& host) : Tool(host), stairs_(host), lights_(host) {}
 
     ToolId id() const override { return ToolId::Select; }
     QString hint() const override;
@@ -55,6 +56,7 @@ private:
     QPointF itemGrab_;
     bool handleHover_ = false;
     StairEditor stairs_;
+    LightEditor lights_;
 };
 
 }

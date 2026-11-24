@@ -1,5 +1,6 @@
 #pragma once
 
+#include "FinishSettings.h"
 #include "Status.h"
 
 #include <cstddef>
@@ -15,7 +16,7 @@ namespace plynth {
 // so image pixel (px, py) is at (px / pixels_per_metre, py / pixels_per_metre). The image's top left
 // corner is at (0, 0). The Blender side turns this into its own y up axes.
 
-// A stable identifier such as "p12". Unique across the whole plan, never changed once given.
+// A stable identifier such as "p12" or "p7k3q9xm2". Unique across the whole plan, never changed once given.
 // Made of a letter followed by letters, digits, "_" or "-".
 using Id = std::string;
 
@@ -27,6 +28,15 @@ inline constexpr std::string_view kOpeningIdPrefix = "o";
 inline constexpr std::string_view kItemIdPrefix = "i";
 inline constexpr std::string_view kStairIdPrefix = "s";
 inline constexpr std::string_view kRoofSectionIdPrefix = "rf";
+inline constexpr std::string_view kLightIdPrefix = "l";
+
+// The characters a new id has after its prefix: digits and lower case letters without i, l, o and u, so none
+// looks like another.
+inline constexpr std::string_view kIdAlphabet = "0123456789abcdefghjkmnpqrstvwxyz";
+// How many characters a new id has after its prefix.
+inline constexpr std::size_t kNewIdLength = 8;
+// How many random ids newId tries before it falls back to counting.
+inline constexpr int kMaxIdDraws = 1000;
 
 inline constexpr double kDefaultCeilingHeight = 3.0;
 inline constexpr double kDefaultWallThickness = 0.2;
@@ -91,6 +101,7 @@ struct Room {
     std::optional<std::string> floorMaterial;
     std::optional<std::string> wallMaterial;
     std::optional<std::string> ceilingMaterial;
+    bool dressing = true; // set dressing rules add props to this room (plan format 7)
 
     bool operator==(const Room&) const = default;
 };
@@ -120,6 +131,9 @@ struct Opening {
     HingeEnd hinge = HingeEnd::Start;
     WallSide swing = WallSide::Right;
     std::optional<std::string> frame;
+    // With no frame, a rectangular door or window gets a catalog door or window that fits (OpeningAssets.h).
+    // False keeps the fill Plynth builds (plan format 7).
+    bool autoFrame = true;
 
     bool operator==(const Opening&) const = default;
 };
@@ -222,6 +236,20 @@ struct Stair {
     bool operator==(const Stair&) const = default;
 };
 
+// A light marker (plan format 7): where the build puts a point light. x and y are plan metres, z is the height
+// above the floor, from 0 to the floor's ceiling height. room is the room it stands in, kept up to date by the
+// light and room commands like an item's room. No fixture is built: a lamp is a catalog asset.
+struct LightMarker {
+    Id id;
+    LightKind kind = LightKind::Ceiling;
+    std::optional<Id> room;
+    double x = 0.0;
+    double y = 0.0;
+    double z = 0.0;
+
+    bool operator==(const LightMarker&) const = default;
+};
+
 // One storey. image is a path in UTF-8 with forward slashes, relative to the project folder
 // (for example "plans/floor1.png"). It may be absolute only in memory, before the project is first saved.
 // slabThickness is the slab between this floor's ceiling and the next floor (or the roof): the next floor's
@@ -239,6 +267,7 @@ struct Floor {
     double slabThickness = kDefaultSlabThickness;
     ImageOffset imageOffset;
     std::vector<Stair> stairs;
+    std::vector<LightMarker> lights;
 
     bool operator==(const Floor&) const = default;
 };
@@ -293,7 +322,7 @@ Plan makeEmptyPlan();
 Floor* findFloor(Plan& plan, std::string_view floorId);
 const Floor* findFloor(const Plan& plan, std::string_view floorId);
 
-// Finds the floor that holds the point, wall, room, opening, item or stair with this id. Null when there is none.
+// Finds the floor that holds the point, wall, room, opening, item, stair or light with this id. Null when there is none.
 Floor* findFloorContaining(Plan& plan, std::string_view objectId);
 const Floor* findFloorContaining(const Plan& plan, std::string_view objectId);
 
@@ -323,12 +352,17 @@ Item* findItem(Floor& floor, std::string_view id);
 const Item* findItem(const Floor& floor, std::string_view id);
 Stair* findStair(Floor& floor, std::string_view id);
 const Stair* findStair(const Floor& floor, std::string_view id);
+LightMarker* findLight(Floor& floor, std::string_view id);
+const LightMarker* findLight(const Floor& floor, std::string_view id);
 
 // Says whether any floor, object or roof section entry in the plan already uses this id.
 bool idInUse(const Plan& plan, std::string_view id);
 
-// Makes a new unused id: the prefix followed by one more than the highest number already used with it.
-// An id freed by a removal can be given out again only after it is no longer the highest.
+// Makes an id that no floor, object or roof section of the plan has: the prefix, a digit, then seven characters
+// of kIdAlphabet with at least one letter, for example "i7k3q9xm2", drawn at random and again while in use.
+// Removed ids are not remembered: a new id matches one only by chance, about once in 343 billion. When
+// kMaxIdDraws tries were all in use, which a working source never gives, it is the prefix and one more than the
+// highest number present, counting on while that is in use.
 Id newId(const Plan& plan, std::string_view prefix);
 
 // Says whether text is a well formed id.
@@ -352,6 +386,8 @@ bool isValidId(std::string_view id);
 // Roof settings (the default and each entry): type a well formed name, pitch from 0 to kMaxRoofPitch, overhang
 // from 0 to kMaxRoofOverhang, parapet from 0 to kMaxParapet (Roofs.h), direction from 0 up to 360 when set.
 // Roof section entries: floor a floor of the plan, anchor finite, material well formed when set.
+// Lights (format 7): x and y finite, z from 0 to the floor's ceiling height, room (when set) a room of their
+// own floor.
 // Whether an opening fits its wall, and whether its shape is registered, is not part of the format: commands
 // refuse openings that do not fit (checkOpeningFit in Openings.h), and openingProblems lists the ones that
 // stopped fitting after a wall changed. So a file from another machine with a custom shape still loads.

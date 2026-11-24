@@ -5,6 +5,7 @@
 
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -12,14 +13,15 @@
 
 namespace plynth {
 
-// Material importers are registry entries (DESIGN.md sections 4 and 7.12), separate from the asset importers
-// so the two catalogs share nothing. Each lives in its own file in core/src/catalog/material_importers/ with a
-// MaterialImporterRegistrar at namespace scope, built into the OBJECT library plynth_importers, so adding one
-// never means editing existing code. Fab zips (milestone 13) are one more entry.
+// Material importers are registry entries, separate from the asset importers so the two catalogs share
+// nothing. Each lives in its own file in core/src/catalog/material_importers/ with a MaterialImporterRegistrar
+// at namespace scope, built into the OBJECT library plynth_importers, so adding one never means editing
+// existing code. Fab zips and BlenderKit addresses (FabZip.h and BlenderKit.h) are two more entries.
 //
 // An importer only decides what the Blender worker reads and with which of the worker's material sources
 // (blender/plynth/materials/sources/). Matching image files to channels by their names, unpacking zips and
-// reading material.json are done by the worker, so a zip is never opened in core.
+// reading material.json are done by the worker. Core may read a zip's list of files (ZipListing.h) but never
+// unpacks one.
 
 // Worker material source ids (schema/blender-job.schema.json "cleanup_material").
 inline constexpr std::string_view kMaterialSourceTextureSet = "texture_set";
@@ -31,13 +33,20 @@ std::span<const std::string_view> textureImageSuffixes();
 
 // What an importer decided.
 struct MaterialImportPlan {
-    std::string workerSource;   // kMaterialSourceTextureSet or kMaterialSourceBlend
-    std::filesystem::path path; // the folder, zip, image file or .blend the worker reads
+    std::string workerSource;   // kMaterialSourceTextureSet, kMaterialSourceBlend or kMaterialSourceFab
+    std::filesystem::path path; // the folder, zip, image file, .blend or Fab source file the worker reads
     std::string sourceKind;     // for info.json, for example kSourceTextureSet
     std::string reference;      // for info.json: the original file or folder name, or the address
     std::string defaultName;    // used when neither the request nor material.json names it
     std::string license;        // used when neither names one; empty means kUnknownLicenseId
-    bool originalIsZip = false; // DESIGN.md section 5 rule 4, as for assets
+    bool originalIsZip = false; // the original is removed after the import unless kept, as for assets
+    // As in ImportPlan: a Blender job that fetches the source first (path and workerSource are then filled
+    // from it, and defaultName, license and reference where still empty), and what the importer chose.
+    std::optional<ImportFetch> fetch;
+    Json details = Json::object();
+    // The material to take from a .blend when the importer knows it (a fetched BlenderKit material). The
+    // request's blendMaterial wins over it. Empty for the only one.
+    std::string blendMaterial;
 };
 
 class MaterialImporter {
@@ -54,7 +63,8 @@ public:
     virtual std::vector<std::string> fileSuffixes() const = 0;
     // How well it handles a source: 0 not at all, higher wins.
     virtual int score(const ImportSource& source) const = 0;
-    // Decides what the worker reads. InvalidValue with a plain sentence when the source cannot be used.
+    // Decides what the worker reads. InvalidValue with a plain sentence when the source cannot be used;
+    // out.details may still say what it found.
     virtual Status plan(const ImportSource& source, const std::filesystem::path& workFolder,
                         MaterialImportPlan& out) const = 0;
 };
@@ -89,7 +99,7 @@ inline constexpr std::string_view kTextureSetImporterId = "texture_set";
 // The Blender material importer (id "blend_material", name "Material from a .blend file"):
 // - a .blend scores 10; worker source blend, source kind kSourceBlendMaterial, reference the file name,
 //   default name the picked material's name (the worker reports it), no license
-// - used for a material inside an asset's asset.blend too ("Add to materials catalog", DESIGN.md section 7.11)
+// - used for a material inside an asset's asset.blend too ("Add to materials catalog")
 inline constexpr std::string_view kBlendMaterialImporterId = "blend_material";
 
 }

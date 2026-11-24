@@ -92,6 +92,8 @@ def run(ctx):
     bpy.context.view_layer.update()
     ctx.state["meshes"] = [o for o in meshes if o.get("plynth_kind") != COLLISION_KIND]
     ctx.state["collision"] = [o for o in meshes if o.get("plynth_kind") == COLLISION_KIND]
+    # Lights are the one object that is not a mesh: they keep their place and go into the FBX of their group.
+    ctx.state["lights"] = [o for o in scene.scene_objects() if o.type == "LIGHT" and o.get("plynth_kind") == "light"]
     if not ctx.state["meshes"]:
         raise WorkerError("no_geometry", "Nothing is left to export.")
 

@@ -12,14 +12,20 @@ add_executable(plynth WIN32
     src/building/ExportController.h
     src/building/ExportController.cpp
     src/building/ProblemMark.h
+    src/catalog/FabImportDialog.h
+    src/catalog/FabImportDialog.cpp
     src/catalog/ImportQueue.h
     src/catalog/ImportQueue.cpp
     src/catalog/LibraryHost.h
     src/catalog/LibraryHost.cpp
     src/catalog/LibraryWatcher.h
     src/catalog/LibraryWatcher.cpp
+    src/catalog/StoreImports.h
+    src/catalog/StoreImports.cpp
     src/canvas/OpeningPaint.h
     src/canvas/OpeningPaint.cpp
+    src/canvas/LightPaint.h
+    src/canvas/LightPaint.cpp
     src/canvas/StairPaint.h
     src/canvas/StairPaint.cpp
     src/canvas/OverlayBuilder.h
@@ -59,6 +65,8 @@ add_executable(plynth WIN32
     src/dialogs/RoomTypesDialog.cpp
     src/dialogs/ScaleDialog.h
     src/dialogs/ScaleDialog.cpp
+    src/dialogs/VariationsDialog.h
+    src/dialogs/VariationsDialog.cpp
     src/document/FloorFocus.h
     src/document/FloorFocus.cpp
     src/document/Selection.h
@@ -83,10 +91,18 @@ add_executable(plynth WIN32
     src/panels/AssetsPanel.cpp
     src/panels/ExportPanel.h
     src/panels/ExportPanel.cpp
+    src/panels/ExportGroupsList.h
+    src/panels/ExportGroupsList.cpp
     src/panels/MaterialsPanel.h
     src/panels/MaterialsPanel.cpp
     src/panels/ImportQueueView.h
     src/panels/ImportQueueView.cpp
+    src/panels/FinishGroups.h
+    src/panels/FinishGroups.cpp
+    src/panels/OpeningAssetPicker.h
+    src/panels/OpeningAssetPicker.cpp
+    src/panels/IntegrationsPanel.h
+    src/panels/IntegrationsPanel.cpp
     src/panels/PropertiesPanel.h
     src/panels/PropertiesPanel.cpp
     src/panels/RightPanel.h
@@ -97,6 +113,8 @@ add_executable(plynth WIN32
     src/tools/FurnitureTool.cpp
     src/tools/DetectTool.h
     src/tools/DetectTool.cpp
+    src/tools/LightTool.h
+    src/tools/LightTool.cpp
     src/tools/OpeningTool.h
     src/tools/OpeningTool.cpp
     src/tools/RoomTool.h

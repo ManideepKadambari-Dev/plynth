@@ -108,6 +108,16 @@ void ToolButton::paintEvent(QPaintEvent*)
         p.drawLine(c + QPointF(-10, 9) * u, c + QPointF(10, 9) * u);
         break;
     }
+    case ToolId::Light: {
+        const QPointF bulb = c + QPointF(0, -2) * u;
+        p.drawEllipse(bulb, 5 * u, 5 * u);
+        p.drawLine(c + QPointF(-2.5, 5) * u, c + QPointF(2.5, 5) * u);
+        p.drawLine(c + QPointF(-2, 8) * u, c + QPointF(2, 8) * u);
+        p.drawLine(bulb + QPointF(-9, 0) * u, bulb + QPointF(-7, 0) * u);
+        p.drawLine(bulb + QPointF(7, 0) * u, bulb + QPointF(9, 0) * u);
+        p.drawLine(bulb + QPointF(0, -9) * u, bulb + QPointF(0, -7) * u);
+        break;
+    }
     case ToolId::Furniture: {
         p.drawRoundedRect(QRectF(c + QPointF(-9, -7) * u, QSizeF(18, 9) * u), 2 * u, 2 * u);
         p.drawRoundedRect(QRectF(c + QPointF(-11, -1) * u, QSizeF(22, 8) * u), 2 * u, 2 * u);
@@ -149,7 +159,7 @@ ToolStrip::ToolStrip(ToolController* controller, QWidget* parent)
     const Theme& t = Theme::instance();
     setFixedWidth(t.toolStripWidth());
     setProperty("tourId", QStringLiteral("tool-strip"));
-    setToolTip(tr("Tools: Select, Scale, Wall, Opening, Room, Stair, Furniture and Detect"));
+    setToolTip(tr("Tools: Select, Scale, Wall, Opening, Room, Stair, Light, Furniture and Detect"));
 
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins((t.toolStripWidth() - kBorderWidth - t.toolButton()) / 2, t.unit() * 2,
@@ -160,7 +170,8 @@ ToolStrip::ToolStrip(ToolController* controller, QWidget* parent)
     for (size_t i = 0; i < ids.size(); ++i) {
         auto* button = new ToolButton(ids[i], this);
         button->setFixedSize(button->sizeHint());
-        button->setProperty("tourId", QStringLiteral("tool-button-") + toolName(ids[i]).toLower());
+        button->setProperty("tourId", ids[i] == ToolId::Light ? QStringLiteral("light-tool")
+                                                              : QStringLiteral("tool-button-") + toolName(ids[i]).toLower());
         connect(button, &QAbstractButton::clicked, this, [this, id = ids[i]]() {
             controller_->setActive(id);
             refresh();
@@ -185,6 +196,7 @@ QString ToolStrip::toolName(ToolId id)
     case ToolId::Opening: return tr("Opening");
     case ToolId::Room: return tr("Room");
     case ToolId::Stair: return tr("Stair");
+    case ToolId::Light: return tr("Light");
     case ToolId::Furniture: return tr("Furniture");
     case ToolId::Detect: return tr("Detect");
     }
@@ -201,6 +213,7 @@ QString ToolStrip::toolKey(ToolId id)
     case ToolId::Opening: return QStringLiteral("O");
     case ToolId::Room: return QStringLiteral("R");
     case ToolId::Stair: return QStringLiteral("T");
+    case ToolId::Light: return QStringLiteral("L");
     case ToolId::Furniture: return QStringLiteral("P");
     case ToolId::Detect: return QStringLiteral("D");
     }

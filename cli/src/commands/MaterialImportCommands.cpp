@@ -2,6 +2,8 @@
 #include "../Common.h"
 
 #include <plynth/core/ProjectFiles.h>
+#include <plynth/core/catalog/BlenderKit.h>
+#include <plynth/core/catalog/ImportPreview.h>
 #include <plynth/core/catalog/MaterialImport.h>
 #include <plynth/core/catalog/MaterialInfo.h>
 
@@ -17,7 +19,7 @@ namespace {
 
 struct ImportOptions {
     std::string library;
-    std::string blender;
+    BlenderOption blender;
     std::vector<std::string> paths;
     std::string id;
     std::string name;
@@ -33,17 +35,27 @@ struct ImportOptions {
     bool keep = false;
     bool skipExisting = false;
     bool quiet = false;
+    std::string importer;
+    std::vector<std::string> optionPairs;
+    bool dryRun = false;
+};
+
+// One thing to import: a file or folder, or an address. text is what the user typed.
+struct ImportSourceArg {
+    std::filesystem::path path;
+    std::string url;
+    std::string text;
 };
 
 struct InboxOptions {
     std::string library;
-    std::string blender;
+    BlenderOption blender;
     bool quiet = false;
 };
 
 struct ThumbnailOptions {
     std::string library;
-    std::string blender;
+    BlenderOption blender;
     std::string id;
     bool quiet = false;
 };
@@ -63,13 +75,9 @@ Json warningsJson(const std::vector<BlenderWarning>& warnings) {
 // Picks the Blender and fills what the material imports and refreshes need. On error the answer for command
 // is returned in failed (blender_not_found).
 bool makeMaterialImportContext(const std::string& command, const RunContext& context,
-                               const OpenedMaterialCatalog& opened, const std::string& blenderOption,
+                               const OpenedMaterialCatalog& opened, const BlenderOption& blenderOption,
                                ImportContext& importContext, Answer& failed) {
-    std::optional<std::filesystem::path> option;
-    if (!blenderOption.empty()) {
-        option = userPath(context, blenderOption);
-    }
-    const BlenderChoice choice = chooseBlender(option, opened.settings);
+    const BlenderChoice choice = chooseBlender(blenderOptionPath(context, blenderOption), opened.settings);
     if (!choice.status.ok()) {
         failed = failure(command, choice.status);
         return false;
@@ -213,6 +221,10 @@ bool readMapOptions(const std::string& command, const RunContext& context, const
 // Imports files, folders and zips in order. The first failure stops the run.
 Answer materialsImport(const RunContext& context, const ImportOptions& options) {
     const std::string command = "materials import";
+    Answer failed;
+    if (refuseEmptyBlender(command, options.blender, failed)) {
+        return failed;
+    }
     if (!options.id.empty()) {
         Answer badId;
         if (!checkIdArgument(command, options.id, badId)) {
@@ -244,16 +256,60 @@ Answer materialsImport(const RunContext& context, const ImportOptions& options) 
         return failure(command, fail(ErrorCode::InvalidValue, "--normal is auto, opengl or directx."));
     }
     base.normal = *normal;
-    Answer failed;
     if (!readMapOptions(command, context, options, base, failed)) {
         return failed;
     }
-    std::vector<std::filesystem::path> paths;
-    if (!expandPaths(command, context, options.paths, paths, failed)) {
+    base.importer = options.importer;
+    if (!options.importer.empty() && findMaterialImporter(options.importer) == nullptr) {
+        return failure(command, fail(ErrorCode::NotFound, "There is no importer called " + options.importer + "."));
+    }
+    if (!parseOptionPairs(command, options.optionPairs, base.importerOptions, failed)) {
         return failed;
     }
-    if (!options.id.empty() && paths.size() > 1) {
+    std::vector<ImportSourceArg> sources;
+    for (const std::string& text : options.paths) {
+        if (isAddressArgument(context, text)) {
+            sources.push_back({{}, text, text});
+            continue;
+        }
+        std::vector<std::filesystem::path> paths;
+        if (!expandPaths(command, context, {text}, paths, failed)) {
+            return failed;
+        }
+        for (const std::filesystem::path& path : paths) {
+            sources.push_back({path, {}, pathToUtf8(path.filename())});
+        }
+    }
+    if (!options.id.empty() && sources.size() > 1) {
         return badArguments(command, "bad_arguments", "--id names one material, so it needs exactly one path.");
+    }
+    if (options.dryRun) {
+        MachineSettings settings;
+        LibraryPaths library;
+        if (!chooseLibraryFolder(command, context, options.library, settings, library, failed)) {
+            return failed;
+        }
+        Json previews = Json::array();
+        for (const ImportSourceArg& source : sources) {
+            MaterialImportRequest request = base;
+            request.source.file = source.path;
+            request.source.url = source.url;
+            const ImportPreview preview = previewMaterialImport(library, request);
+            if (!preview.status.ok()) {
+                return failure(command, preview.status);
+            }
+            Json item = importPreviewToJson(preview);
+            if (sources.size() > 1) {
+                item["source"] = source.text;
+            }
+            previews.push_back(std::move(item));
+        }
+        if (previews.size() == 1) {
+            return success(command, std::move(previews.at(0)));
+        }
+        Json result = Json::object();
+        result["previews"] = std::move(previews);
+        return success(command, std::move(result));
     }
     OpenedMaterialCatalog opened;
     if (!openMaterialCatalog(command, context, options.library, opened, failed)) {
@@ -265,10 +321,14 @@ Answer materialsImport(const RunContext& context, const ImportOptions& options) 
     }
     Json imported = Json::array();
     std::vector<AnswerWarning> warnings;
-    for (const std::filesystem::path& path : paths) {
+    for (const ImportSourceArg& source : sources) {
         MaterialImportRequest request = base;
-        request.source.file = path;
-        const std::string name = pathToUtf8(path.filename());
+        request.source.file = source.path;
+        request.source.url = source.url;
+        const std::string& name = source.text;
+        if (options.importer.empty() && !source.url.empty() && pickMaterialImporter(request.source) == nullptr) {
+            return failure(command, parseBlenderKitAddress(source.url).status);
+        }
         const MaterialImportOutcome outcome = importMaterial(*opened.catalog, importContext, request,
                                                              progressWriter(context, options.quiet, name));
         if (!outcome.status.ok()) {
@@ -305,6 +365,9 @@ Answer materialsInbox(const RunContext& context, const InboxOptions& options) {
     const std::string command = "materials inbox";
     OpenedMaterialCatalog opened;
     Answer failed;
+    if (refuseEmptyBlender(command, options.blender, failed)) {
+        return failed;
+    }
     if (!openMaterialCatalog(command, context, options.library, opened, failed)) {
         return failed;
     }
@@ -347,6 +410,9 @@ Answer materialsThumbnail(const RunContext& context, const ThumbnailOptions& opt
     }
     OpenedMaterialCatalog opened;
     Answer failed;
+    if (refuseEmptyBlender(command, options.blender, failed)) {
+        return failed;
+    }
     if (!openMaterialCatalog(command, context, options.library, opened, failed)) {
         return failed;
     }
@@ -392,7 +458,7 @@ std::vector<CommandSpec> materialImportCommands() {
         addLibraryOption(sub, options->library);
         addBlenderOption(sub, options->blender);
         sub.add_option("path", options->paths,
-                       "A folder, zip, image or .blend. A last part with * or ? is expanded.")
+                       "A folder, zip, image, .blend or BlenderKit address. A last part with * or ? is expanded.")
             ->type_name("path")
             ->required();
         sub.add_option("--id", options->id, "Id for the material. One path only. Default: material.json or the name.")
@@ -417,6 +483,12 @@ std::vector<CommandSpec> materialImportCommands() {
         sub.add_flag("--skip-existing", options->skipExisting,
                      "Skip a material whose id is taken instead of making a new id.");
         sub.add_flag("--quiet", options->quiet, "Write no progress lines to standard error.");
+        sub.add_option("--importer", options->importer, "Use this importer instead of the best match.")
+            ->type_name("id");
+        sub.add_option("--option", options->optionPairs,
+                       "An option for the importer, key=value. A dotted key makes nested options. Repeatable.")
+            ->type_name("key=value");
+        sub.add_flag("--dry-run", options->dryRun, "Show the importer, options and plan. Imports nothing.");
         return [options](const RunContext& context) { return materialsImport(context, *options); };
     };
 

@@ -48,6 +48,7 @@ AssetPreview::AssetPreview(QWidget* parent) : QWidget(parent)
     box->addWidget(stage_, 0, Qt::AlignHCenter);
 
     name_ = new QLabel(body_);
+    name_->setTextFormat(Qt::PlainText);
     name_->setFont(t.uiFont(t.sizeLarge(), QFont::DemiBold));
     name_->setWordWrap(true);
     box->addWidget(name_);
@@ -57,12 +58,14 @@ AssetPreview::AssetPreview(QWidget* parent) : QWidget(parent)
     box->addWidget(size_);
 
     categories_ = new QLabel(body_);
+    categories_->setTextFormat(Qt::PlainText);
     categories_->setFont(t.uiFont(t.sizeSmall()));
     categories_->setWordWrap(true);
     categories_->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
     box->addWidget(categories_);
 
     license_ = new QLabel(body_);
+    license_->setTextFormat(Qt::PlainText);
     license_->setFont(t.uiFont(t.sizeSmall()));
     license_->setWordWrap(true);
     license_->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));

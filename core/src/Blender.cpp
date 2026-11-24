@@ -220,6 +220,9 @@ namespace {
 
 using blenderpaths::environmentText;
 
+// What runProcess says when programs a run started could not all be ended.
+constexpr std::string_view kProgramsLeftMessage = "Programs that the program started could not all be ended.";
+
 // The folder an environment variable names, as an absolute path, when that folder exists. Empty otherwise.
 fs::path existingFolderFrom(const wchar_t* name)
 {
@@ -379,6 +382,30 @@ std::string lastLines(const std::string& text, int count)
         out += lines[i];
     }
     return out;
+}
+
+// Reads which step a progress line names and builds the line again from the list, so none of its own text is
+// kept. Empty when the line is not a progress line or its step is not listed.
+std::optional<BlenderProgress> rebuiltStep(std::string_view line, const std::vector<BlenderStep>& steps)
+{
+    if (steps.empty() || line.rfind(kProgressPrefix, 0) != 0) return std::nullopt;
+    const Json parsed = Json::parse(line.substr(kProgressPrefix.size()), nullptr, false);
+    if (parsed.is_discarded() || !parsed.is_object() || !parsed.contains("progress") || !parsed["progress"].is_object()) {
+        return std::nullopt;
+    }
+    const Json& p = parsed["progress"];
+    if (!p.contains("step") || !p["step"].is_string()) return std::nullopt;
+    const std::string& step = p["step"].get_ref<const std::string&>();
+    for (std::size_t i = 0; i < steps.size(); ++i) {
+        if (steps[i].step != step) continue;
+        BlenderProgress progress;
+        progress.step = steps[i].step;
+        progress.index = static_cast<int>(i) + 1;
+        progress.count = static_cast<int>(steps.size());
+        progress.message = steps[i].message;
+        return progress;
+    }
+    return std::nullopt;
 }
 
 }
@@ -640,6 +667,11 @@ BlenderChoice chooseBlender(const std::optional<fs::path>& option, const Machine
     };
 
     if (option) {
+        // An empty path was still asked for on purpose, so it never means "find one".
+        if (option->empty()) {
+            choice.status = fail(ErrorCode::BlenderNotFound, "No path was given for Blender, so no Blender was started.");
+            return choice;
+        }
         std::error_code ec;
         if (!fs::is_regular_file(*option, ec)) {
             choice.status = fail(ErrorCode::BlenderNotFound, "The Blender " + pathToUtf8(*option) + " does not exist.");
@@ -751,6 +783,12 @@ BlenderJobRun runBlenderJob(const fs::path& blender, const Json& job, const fs::
         run.status = fail(ErrorCode::NotFound, "The Blender scripts folder with " + std::string(kWorkerScriptName) + " was not found.");
         return run;
     }
+    const bool fetch = !options.privateFolder.empty();
+    const fs::path guard = scripts / pathFromUtf8(kFetchGuardFolder);
+    if (fetch && !fs::is_regular_file(guard / pathFromUtf8(kFetchGuardFile), ec)) {
+        run.status = fail(ErrorCode::NotFound, "The Blender scripts folder has no store fetch guard, so the fetch was not started.");
+        return run;
+    }
     fs::create_directories(workFolder, ec);
     if (ec || !fs::is_directory(workFolder, ec)) {
         run.status = fail(ErrorCode::CannotWrite, "The folder " + pathToUtf8(workFolder) + " could not be created.");
@@ -768,7 +806,9 @@ BlenderJobRun runBlenderJob(const fs::path& blender, const Json& job, const fs::
     ProcessSpec spec;
     spec.program = blender;
     spec.arguments = {"--background"};
-    if (options.factoryStartup || isProbe) {
+    // Without factory startup the user's add-ons run, and what they print may hold their secrets.
+    const bool trusted = options.factoryStartup || isProbe;
+    if (trusted) {
         // Offline mode goes with every factory startup, so a copied add-on never goes online.
         spec.arguments.emplace_back("--factory-startup");
         spec.arguments.emplace_back("--offline-mode");
@@ -786,15 +826,48 @@ BlenderJobRun runBlenderJob(const fs::path& blender, const Json& job, const fs::
         spec.arguments.emplace_back("-t");
         spec.arguments.push_back(threads);
     }
-    for (const char* arg : {"-noaudio", "--python-exit-code", "3", "--python"}) spec.arguments.emplace_back(arg);
+    for (const char* arg : {"--disable-autoexec", "-noaudio", "--python-exit-code", "3", "--python"}) spec.arguments.emplace_back(arg);
     spec.arguments.push_back(pathToUtf8(scripts / pathFromUtf8(kWorkerScriptName)));
     for (const char* arg : {"--", "--job"}) spec.arguments.emplace_back(arg);
     spec.arguments.push_back(pathToUtf8(jobFile));
     spec.timeout = std::chrono::duration_cast<std::chrono::milliseconds>(options.timeout);
+    // A helper Blender starts, such as a store's download program, must be gone before the caller goes on.
+    spec.endChildren = true;
+    if (fetch) {
+        const fs::path temp = options.privateFolder / pathFromUtf8(kFetchTempFolder);
+        fs::create_directories(temp, ec);
+        if (ec) {
+            run.status = fail(ErrorCode::CannotWrite, "Plynth's fetch folder could not be prepared.");
+            return run;
+        }
+        // At low integrity Windows refuses every write outside the fetch folder, whatever the add-ons do.
+        spec.lowIntegrity = true;
+        for (const std::string_view name : kFetchRemovedVariables) spec.removeEnvironment.emplace_back(name);
+        spec.environment.emplace_back("TEMP", pathToUtf8(temp));
+        spec.environment.emplace_back("TMP", pathToUtf8(temp));
+        spec.environment.emplace_back(std::string(kFetchPrivateVariable), pathToUtf8(options.privateFolder));
+        spec.environment.emplace_back("PYTHONDONTWRITEBYTECODE", "1");
+        // The guard folder comes first, so its startup script runs before any add-on registers.
+        std::string system = pathToUtf8(guard);
+        if (const std::wstring given = environmentText(L"BLENDER_SYSTEM_SCRIPTS"); !given.empty()) {
+            system += ";" + pathToUtf8(fs::path(given));
+        }
+        spec.environment.emplace_back("BLENDER_SYSTEM_SCRIPTS", system);
+    }
 
     constexpr std::size_t kMaxLogBytes = 1024 * 1024;
     std::string log;
+    std::string lastStep;
     const auto onLine = [&](std::string_view line) {
+        if (!trusted) {
+            const std::optional<BlenderProgress> progress = rebuiltStep(line, options.steps);
+            if (!progress || progress->step == lastStep) return;
+            lastStep = progress->step;
+            log += "Step " + std::to_string(progress->index) + " of " + std::to_string(progress->count) + ", " +
+                   progress->step + ": " + progress->message + "\n";
+            if (onProgress) onProgress(*progress);
+            return;
+        }
         log.append(line);
         log.push_back('\n');
         if (log.size() > 2 * kMaxLogBytes) log.erase(0, log.size() - kMaxLogBytes);
@@ -809,7 +882,12 @@ BlenderJobRun runBlenderJob(const fs::path& blender, const Json& job, const fs::
         if (p.contains("message") && p["message"].is_string()) progress.message = p["message"].get<std::string>();
         onProgress(progress);
     };
-    const ProcessResult process = runProcess(spec, onLine, stop);
+    ProcessResult process = runProcess(spec, onLine, stop);
+    if (!trusted) process.outputTail.clear();
+    // Without factory startup the result file may hold what the add-ons wrote, so it never stays on disk.
+    const auto dropResult = [&] {
+        if (!trusted && !resultName.empty()) fs::remove(resultFile, ec);
+    };
 
     {
         std::ofstream out(workFolder / pathFromUtf8(kBlenderLogFileName), std::ios::binary | std::ios::trunc);
@@ -818,6 +896,14 @@ BlenderJobRun runBlenderJob(const fs::path& blender, const Json& job, const fs::
     constexpr std::size_t kLogTail = 4096;
     run.logTail = log.size() > kLogTail ? log.substr(log.size() - kLogTail) : log;
     run.exitCode = process.exitCode;
+    if (process.status.code != ErrorCode::None) dropResult();
+
+    // A helper that is still running may change the result, so even a good one is not used.
+    if (process.status.code == ErrorCode::CannotRead && process.status.message == kProgramsLeftMessage) {
+        if (!resultName.empty()) fs::remove(resultFile, ec);
+        run.status = fail(ErrorCode::BlenderFailed, "Blender's helper programs could not all be ended.");
+        return run;
+    }
 
     if (process.status.code == ErrorCode::NotFound) {
         run.status = fail(ErrorCode::BlenderNotFound, "The Blender " + pathToUtf8(blender) + " does not exist.");
@@ -837,18 +923,27 @@ BlenderJobRun runBlenderJob(const fs::path& blender, const Json& job, const fs::
         return run;
     }
 
-    const std::string tail = lastLines(log, 8);
+    const std::string tail = trusted ? lastLines(log, 8) : std::string();
     const auto failedWith = [&](const std::string& why) {
         run.status = fail(ErrorCode::BlenderFailed, why + (tail.empty() ? std::string() : "\n" + tail));
     };
-    std::ifstream in(resultFile, std::ios::binary);
-    if (resultName.empty() || !in) {
+    std::string text;
+    bool haveResult = false;
+    if (!resultName.empty()) {
+        std::ifstream in(resultFile, std::ios::binary);
+        if (in) {
+            std::ostringstream read;
+            read << in.rdbuf();
+            text = read.str();
+            haveResult = true;
+        }
+    }
+    dropResult();
+    if (!haveResult) {
         failedWith("Blender ended (exit code " + std::to_string(process.exitCode) + ") without writing a result.");
         return run;
     }
-    std::ostringstream text;
-    text << in.rdbuf();
-    Json result = Json::parse(text.str(), nullptr, false);
+    Json result = Json::parse(text, nullptr, false);
     if (result.is_discarded() || !result.is_object() || !result.contains("ok") || !result["ok"].is_boolean()) {
         failedWith("Blender wrote a result that could not be read.");
         return run;

@@ -200,7 +200,8 @@ public:
     // later, so it is listed in needsRefresh); a folder whose asset.blend size or write time differs from
     // info.json is NeedsRefresh; a folder with asset.blend but no asset.fbx is listed in needsRefresh and keeps
     // its state, so refreshAsset writes the preview file; a folder whose info.json has no material maps
-    // (hasMaterialMaps false) is listed in needsRefresh the same way, so every asset gets its maps once; rows
+    // (hasMaterialMaps false) or no supports (AssetInfo::supports empty) is listed in needsRefresh the same way,
+    // so every asset gets its maps and supports once; rows
     // without a folder are removed. Runs no Blender and never deletes files.
     RescanReport rescan();
 

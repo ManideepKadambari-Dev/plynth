@@ -2,6 +2,7 @@
 
 #include "MaterialPreview.h"
 #include "catalog/LibraryHost.h"
+#include "theme/PlainText.h"
 #include "theme/Theme.h"
 
 #include <plynth/core/catalog/MaterialCatalog.h>
@@ -390,9 +391,9 @@ void MaterialPicker::fillMaterials(QListWidget* list, const QString& group)
             const QString reason = record.problem.empty() ? tr("This material is broken") : fromCore(record.problem);
             item->setData(kBlockedRole, reason);
             item->setData(kWarnRole, true);
-            item->setToolTip(reason);
+            item->setToolTip(plainToolTip(reason));
         } else {
-            item->setToolTip(tr("Click to use %1").arg(fromCore(record.name)));
+            item->setToolTip(plainToolTip(tr("Click to use %1").arg(fromCore(record.name))));
         }
     }
     if (found.empty()) {

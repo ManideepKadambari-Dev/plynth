@@ -3,6 +3,8 @@
 #include "plynth/core/Roofs.h"
 #include "plynth/core/Stairs.h"
 
+#include "IdSource.h"
+
 #include <algorithm>
 #include <cmath>
 #include <set>
@@ -276,6 +278,26 @@ Status checkStairs(const Floor& floor, const std::string& floorPath, IdSet& seen
     return {};
 }
 
+// Checks the light markers of one floor.
+Status checkLights(const Floor& floor, const std::string& floorPath, IdSet& seen)
+{
+    for (std::size_t i = 0; i < floor.lights.size(); ++i) {
+        const LightMarker& l = floor.lights[i];
+        const std::string base = floorPath + "/lights/" + std::to_string(i);
+        if (auto s = checkId(l.id, seen, base + "/id"); !s.ok()) return s;
+        if (!std::isfinite(l.x)) return fail(ErrorCode::InvalidValue, "The light x coordinate must be a finite number.", base + "/x");
+        if (!std::isfinite(l.y)) return fail(ErrorCode::InvalidValue, "The light y coordinate must be a finite number.", base + "/y");
+        if (!std::isfinite(l.z) || l.z < 0.0 || l.z > floor.ceilingHeight + 1e-9) {
+            return fail(ErrorCode::InvalidValue, "The light height must be from 0 to the ceiling height.", base + "/z");
+        }
+        if (l.room && !findRoom(floor, *l.room)) {
+            return fail(ErrorCode::NotFound, "The light " + l.id + " names " + *l.room + ", which is not a room of its floor.",
+                        base + "/room");
+        }
+    }
+    return {};
+}
+
 // Checks one set of roof settings.
 Status checkRoofSettingsFields(const RoofSettings& r, const std::string& where)
 {
@@ -340,7 +362,8 @@ Status checkFloor(const Floor& floor, std::size_t index, IdSet& seen)
     if (auto s = checkRooms(floor, base, seen); !s.ok()) return s;
     if (auto s = checkOpenings(floor, base, seen); !s.ok()) return s;
     if (auto s = checkItems(floor, base, seen); !s.ok()) return s;
-    return checkStairs(floor, base, seen);
+    if (auto s = checkStairs(floor, base, seen); !s.ok()) return s;
+    return checkLights(floor, base, seen);
 }
 
 }
@@ -364,7 +387,7 @@ const Floor* findFloor(const Plan& plan, std::string_view floorId) { return find
 Floor* findFloorContaining(Plan& plan, std::string_view objectId)
 {
     for (auto& f : plan.floors) {
-        if (findPoint(f, objectId) || findWall(f, objectId) || findRoom(f, objectId) || findOpening(f, objectId) || findItem(f, objectId) || findStair(f, objectId)) return &f;
+        if (findPoint(f, objectId) || findWall(f, objectId) || findRoom(f, objectId) || findOpening(f, objectId) || findItem(f, objectId) || findStair(f, objectId) || findLight(f, objectId)) return &f;
     }
     return nullptr;
 }
@@ -398,6 +421,8 @@ bool isGeneratorItem(const Item& item) { return item.generator.has_value(); }
 
 Stair* findStair(Floor& floor, std::string_view id) { return findById(floor.stairs, id); }
 const Stair* findStair(const Floor& floor, std::string_view id) { return findById(floor.stairs, id); }
+LightMarker* findLight(Floor& floor, std::string_view id) { return findById(floor.lights, id); }
+const LightMarker* findLight(const Floor& floor, std::string_view id) { return findById(floor.lights, id); }
 RoofSection* findRoofSection(Plan& plan, std::string_view id) { return findById(plan.roofSections, id); }
 const RoofSection* findRoofSection(const Plan& plan, std::string_view id) { return findById(plan.roofSections, id); }
 
@@ -433,8 +458,9 @@ bool idInUse(const Plan& plan, std::string_view id)
     return findFloor(plan, id) != nullptr || findFloorContaining(plan, id) != nullptr || findRoofSection(plan, id) != nullptr;
 }
 
-// Makes a new id: the prefix and one more than the highest number used with it.
-Id newId(const Plan& plan, std::string_view prefix)
+// Makes an id the old way: the prefix and one more than the highest number used with it, counting on while that
+// id is taken by one the number rule skips.
+static Id countedId(const Plan& plan, std::string_view prefix)
 {
     long long highest = 0;
     auto consider = [&](const Id& id) { highest = std::max(highest, numberAfterPrefix(id, prefix)); };
@@ -446,9 +472,22 @@ Id newId(const Plan& plan, std::string_view prefix)
         for (const auto& o : f.openings) consider(o.id);
         for (const auto& it : f.items) consider(it.id);
         for (const auto& st : f.stairs) consider(st.id);
+        for (const auto& l : f.lights) consider(l.id);
     }
     for (const auto& r : plan.roofSections) consider(r.id);
-    return std::string(prefix) + std::to_string(highest + 1);
+    Id id = std::string(prefix) + std::to_string(highest + 1);
+    for (long long next = highest + 2; idInUse(plan, id); ++next) id = std::string(prefix) + std::to_string(next);
+    return id;
+}
+
+// Makes a new random id that nothing in the plan has, or a counted one when tests ask or every try was taken.
+Id newId(const Plan& plan, std::string_view prefix)
+{
+    if (detail::countedIds()) return countedId(plan, prefix);
+    const std::string part = detail::newIdPart(
+        [&](std::string_view candidate) { return idInUse(plan, std::string(prefix) + std::string(candidate)); });
+    if (part.empty()) return countedId(plan, prefix);
+    return std::string(prefix) + part;
 }
 
 // Says whether text is a well formed id.

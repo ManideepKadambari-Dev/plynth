@@ -11,7 +11,8 @@ def triangles_of(obj):
     return len(obj.data.loop_triangles)
 
 
-# Fails for a mesh with no triangles. Warns above object_triangles for one mesh or total_triangles in all.
+# Fails for a mesh with no triangles. Warns above object_triangles for one mesh or total_triangles in all. The
+# kit pieces are checked like the rest but are not part of the building's total.
 def run(ctx):
     limits = ctx.params["limits"]
     failures = []
@@ -22,7 +23,7 @@ def run(ctx):
         if count == 0:
             failures.append(finding("%s has no triangles." % obj.name, obj.name, plan_id(obj)))
             continue
-        if obj in ctx.state["meshes"]:
+        if obj in ctx.state["meshes"] and obj.get("plynth_kind") != "kit":
             total += count
         if count > limits["object_triangles"]:
             warnings.append(finding("%s has %d triangles, more than %d." % (obj.name, count,

@@ -6,10 +6,17 @@
 namespace plynth::app {
 
 // A one line label that cuts the middle out of a long text so it never makes its row wider. Put the full text
-// in the tooltip.
+// in the tooltip. The text is always plain, so tags in a name show as typed.
 class ElideLabel : public QLabel {
 public:
-    using QLabel::QLabel;
+    // Makes an empty plain text label.
+    explicit ElideLabel(QWidget* parent = nullptr, Qt::WindowFlags f = {}) : QLabel(parent, f) { setTextFormat(Qt::PlainText); }
+
+    // Makes a plain text label that shows the given text.
+    explicit ElideLabel(const QString& text, QWidget* parent = nullptr, Qt::WindowFlags f = {}) : ElideLabel(parent, f)
+    {
+        setText(text);
+    }
 
     // Lets the layout shrink the label to nothing.
     QSize minimumSizeHint() const override { return QSize(0, QLabel::minimumSizeHint().height()); }

@@ -25,7 +25,7 @@ QPushButton* makeTab(const QString& text, const QString& tip, const QString& tou
 }
 
 // Builds the tabs over a stack holding their pages.
-RightPanel::RightPanel(QWidget* properties, QWidget* assets, QWidget* materials, QWidget* build, QWidget* exportPage, QWidget* parent) : QWidget(parent)
+RightPanel::RightPanel(QWidget* properties, QWidget* assets, QWidget* materials, QWidget* build, QWidget* exportPage, QWidget* integrations, QWidget* parent) : QWidget(parent)
 {
     const Theme& t = Theme::instance();
     setProperty("tourId", QStringLiteral("panel-right"));
@@ -49,6 +49,9 @@ RightPanel::RightPanel(QWidget* properties, QWidget* assets, QWidget* materials,
                             QStringLiteral("tab-export"), this);
     tabs->addWidget(buildButton_, 1);
     tabs->addWidget(exportButton_, 1);
+    integrationsButton_ = makeTab(tr("Sources"), tr("Integrations: import from BlenderKit, Fab and your own files"),
+                                  QStringLiteral("tab-integrations"), this);
+    tabs->addWidget(integrationsButton_, 1);
     column->addLayout(tabs);
 
     pages_ = new QStackedWidget(this);
@@ -57,11 +60,13 @@ RightPanel::RightPanel(QWidget* properties, QWidget* assets, QWidget* materials,
     materials->setParent(pages_);
     build->setParent(pages_);
     exportPage->setParent(pages_);
+    integrations->setParent(pages_);
     pages_->addWidget(properties);
     pages_->addWidget(assets);
     pages_->addWidget(materials);
     pages_->addWidget(build);
     pages_->addWidget(exportPage);
+    pages_->addWidget(integrations);
     column->addWidget(pages_, 1);
 
     connect(propertiesButton_, &QPushButton::clicked, this, [this]() { showTab(Tab::Properties); });
@@ -69,6 +74,7 @@ RightPanel::RightPanel(QWidget* properties, QWidget* assets, QWidget* materials,
     connect(materialsButton_, &QPushButton::clicked, this, [this]() { showTab(Tab::Materials); });
     connect(buildButton_, &QPushButton::clicked, this, [this]() { showTab(Tab::Build); });
     connect(exportButton_, &QPushButton::clicked, this, [this]() { showTab(Tab::Export); });
+    connect(integrationsButton_, &QPushButton::clicked, this, [this]() { showTab(Tab::Integrations); });
     showTab(Tab::Properties);
 }
 
@@ -82,6 +88,7 @@ void RightPanel::showTab(Tab tab)
     materialsButton_->setChecked(tab == Tab::Materials);
     buildButton_->setChecked(tab == Tab::Build);
     exportButton_->setChecked(tab == Tab::Export);
+    integrationsButton_->setChecked(tab == Tab::Integrations);
     pages_->setCurrentIndex(static_cast<int>(tab));
     setFixedWidth(t.assetsWidth());
 }

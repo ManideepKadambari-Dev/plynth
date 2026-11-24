@@ -9,7 +9,7 @@ Plynth uses Blender in the background to clean up the 3D models you import, to d
 1. Download Blender 4.2 or newer from blender.org and install it.
 2. That is all. Plynth finds it by itself.
 
-Plynth never installs or downloads anything for you. See [Setting up Plynth](SETUP.md) if Blender is somewhere unusual.
+Plynth never installs or downloads Blender for you. See [Setting up Plynth](SETUP.md) if Blender is somewhere unusual.
 
 ## 2. Run the setup check
 

@@ -37,6 +37,9 @@ namespace plynth::app {
 
 class MaterialPicker;
 class MaterialRow;
+class OpeningAssetPicker;
+class TrimGroup;
+class VariationGroup;
 class Selection;
 class ToolController;
 
@@ -63,6 +66,11 @@ public:
     // as "diameter=0.5". All calls before the next focus change share one undo step. False with the reason in
     // message when it is refused.
     bool setGeneratorParamText(const QString& assignment, QString* message);
+    // For checks only: opens the door and window picker of the selected opening and hovers an asset when one is
+    // given. False when no door or window is selected.
+    bool showOpeningAssetPicker(const QString& hoverAsset);
+    // For checks only: scrolls the project page so the Trim group is at the top.
+    void scrollToFinish();
     // For checks only: true when the picker is closed or its preview has its picture.
     bool pickerOpen() const;
 
@@ -88,6 +96,10 @@ private:
     void buildOpeningToolPage();
     void buildItemPage();
     void buildStairPage();
+    void buildLightPage();
+    void refreshLight();
+    void editLight(bool place);
+    void openAssetPicker();
     void refreshStair();
     void editStair(const std::function<void(plynth::Stair&)>& change);
     void buildFloorSection(QGridLayout* grid);
@@ -177,6 +189,7 @@ private:
     QLabel* scaleValue_ = nullptr;
     QLabel* scaleHint_ = nullptr;
     QDoubleSpinBox* gridSpin_ = nullptr;
+    QComboBox* exportModeCombo_ = nullptr;
     QLabel* pointCount_ = nullptr;
     QLabel* wallCount_ = nullptr;
     QLabel* roomCount_ = nullptr;
@@ -214,6 +227,9 @@ private:
     QDoubleSpinBox* openingSill_ = nullptr;
     QDoubleSpinBox* openingWidth_ = nullptr;
     QDoubleSpinBox* openingHeight_ = nullptr;
+    QLabel* openingAssetLabel_ = nullptr;
+    QPushButton* openingAsset_ = nullptr;
+    OpeningAssetPicker* assetPicker_ = nullptr;
 
     QLabel* itemThumb_ = nullptr;
     QLabel* itemName_ = nullptr;
@@ -303,6 +319,17 @@ private:
     QComboBox* roomType_ = nullptr;
     QLabel* roomArea_ = nullptr;
     QLabel* roomWalls_ = nullptr;
+    QCheckBox* roomDressing_ = nullptr;
+
+    TrimGroup* trimGroup_ = nullptr;
+    VariationGroup* variationGroup_ = nullptr;
+
+    QLabel* lightId_ = nullptr;
+    QLabel* lightRoom_ = nullptr;
+    QComboBox* lightKind_ = nullptr;
+    QDoubleSpinBox* lightHeight_ = nullptr;
+    QDoubleSpinBox* lightX_ = nullptr;
+    QDoubleSpinBox* lightY_ = nullptr;
 
     QSlider* thinSlider_ = nullptr;
     QLabel* thinValue_ = nullptr;

@@ -41,7 +41,8 @@ int MaterialImportQueue::enqueueImport(const plynth::MaterialImportRequest& requ
 {
     MaterialQueueItem item;
     item.kind = MaterialQueueItem::Kind::Import;
-    item.title = QString::fromStdWString(request.source.file.filename().wstring());
+    item.title = request.source.file.empty() ? QString::fromUtf8(request.source.url.data(), static_cast<qsizetype>(request.source.url.size()))
+                                             : QString::fromStdWString(request.source.file.filename().wstring());
     item.request = request;
     return add(std::move(item));
 }

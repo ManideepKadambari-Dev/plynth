@@ -189,10 +189,14 @@ TEST_CASE("assets importers lists the local file importer", "[cli][import]") {
     const auto outcome = runChecked({"assets", "importers"});
     REQUIRE(outcome.exitCode == kExitOk);
     const auto& importers = outcome.answer.at("result").at("importers");
-    REQUIRE(importers.size() >= 1);
-    CHECK(importers.at(0).at("id") == "local_file");
-    CHECK(importers.at(0).at("suffixes") ==
-          nlohmann::json::array({".blend", ".fbx", ".glb", ".gltf", ".obj", ".zip"}));
+    const nlohmann::json* local = nullptr;
+    for (const auto& importer : importers) {
+        if (importer.at("id") == "local_file") {
+            local = &importer;
+        }
+    }
+    REQUIRE(local != nullptr);
+    CHECK(local->at("suffixes") == nlohmann::json::array({".blend", ".fbx", ".glb", ".gltf", ".obj", ".zip"}));
 }
 
 TEST_CASE("the sample chair imports with the real Blender", "[cli][import][.blender]") {

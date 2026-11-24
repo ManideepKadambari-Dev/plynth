@@ -5,6 +5,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -282,7 +283,8 @@ TEST_CASE("materials importers lists the texture set and blend importers", "[cli
         CHECK(importer.at("suffixes").is_array());
         CHECK(!importer.at("description").get<std::string>().empty());
     }
-    CHECK(ids == std::vector<std::string>{"blend_material", "texture_set"});
+    CHECK(std::ranges::find(ids, "blend_material") != ids.end());
+    CHECK(std::ranges::find(ids, "texture_set") != ids.end());
 }
 
 TEST_CASE("help lists the material import commands", "[cli][materials][import]") {

@@ -1,0 +1,68 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:kit-layout:1",
+  "title": "Plynth modular kit layout, version 1",
+  "description": "Written by Plynth as export/<Stem>_Kit_layout.json next to the kit FBX (core/include/plynth/core/Kit.h). It lists every unique kit piece and every place a copy of one goes. Coordinates are Blender world metres: X = plan x, Y = -plan y, Z up from the first floor's level, the same origin as every exported FBX. Rotations are degrees about Z, anticlockwise seen from above.",
+  "type": "object",
+  "required": ["format", "version", "project", "kit_file", "coordinates", "floors", "pieces", "placements"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "plynth-kit-layout" },
+    "version": { "const": 1 },
+    "project": { "type": "string" },
+    "kit_file": { "description": "The kit FBX in the same folder.", "type": "string", "pattern": "^[A-Za-z0-9_-]+_Kit\\.fbx$" },
+    "coordinates": { "const": "blender_world_metres" },
+    "floors": {
+      "description": "Every floor with walls, in plan order, with the grid its walls were cut on: the project's grid size, so it is the same for every floor.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "elevation", "grid_size"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "$ref": "#/definitions/planId" },
+          "elevation": { "type": "number" },
+          "grid_size": { "type": "number", "exclusiveMinimum": 0 }
+        }
+      }
+    },
+    "pieces": {
+      "description": "Sorted by id. Each piece is stored in one frame, picked the same way whichever wall or direction finds it (Kit.h rules 8 and 9). So its origin is not always at the first end along its wall and its X does not always point toward the wall's to point. The placements say where each copy goes and how it is turned.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "mesh", "kind", "length", "height", "thickness", "count"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^(Wall|Corner|Opening|Curved)_[0-9]+x[0-9]+x[0-9]+_[0-9a-f]{6}$" },
+          "mesh": { "description": "The mesh name in the kit FBX.", "type": "string", "pattern": "^SM_Kit_[A-Za-z0-9_]+$" },
+          "kind": { "enum": ["wall", "corner", "opening", "curved"] },
+          "length": { "description": "Metres along the piece's X.", "type": "number", "minimum": 0 },
+          "height": { "type": "number", "minimum": 0 },
+          "thickness": { "description": "Metres along the piece's Y.", "type": "number", "minimum": 0 },
+          "count": { "description": "How many placements use it.", "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    "placements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["piece", "mesh", "floor", "wall", "point", "location", "rotation_z_degrees"],
+        "additionalProperties": false,
+        "properties": {
+          "piece": { "type": "string", "minLength": 1 },
+          "mesh": { "type": "string", "pattern": "^SM_Kit_[A-Za-z0-9_]+$" },
+          "floor": { "$ref": "#/definitions/planId" },
+          "wall": { "description": "The wall a wall, opening or curved piece comes from; null for corners.", "oneOf": [{ "$ref": "#/definitions/planId" }, { "type": "null" }] },
+          "point": { "description": "The plan point at a corner's origin; null otherwise.", "oneOf": [{ "$ref": "#/definitions/planId" }, { "type": "null" }] },
+          "location": { "description": "Where the piece's origin goes. Use it as it is: it cannot be worked out from the wall's ends.", "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
+          "rotation_z_degrees": { "description": "The turn of the piece's X from world X. Use it as it is: it can be half a turn from the wall's own direction.", "type": "number", "minimum": 0, "exclusiveMaximum": 360 }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "planId": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]*$" }
+  }
+}

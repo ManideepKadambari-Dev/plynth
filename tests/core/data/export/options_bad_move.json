@@ -1,0 +1,5 @@
+{
+  "format": "plynth-export-options",
+  "version": 1,
+  "groups": { "moves": [{ "kind": "item", "to": "structure" }] }
+}

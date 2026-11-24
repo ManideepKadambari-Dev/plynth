@@ -28,10 +28,15 @@ public:
         bool plainTitle = false; // a render, shown in the normal font instead of mono
         QString message;
         QString workFolder;
+        bool canPick = false; // a Fab zip with several models failed: offer Pick the model
     };
 
     explicit ImportQueueView(ImportQueue& queue, QWidget* parent = nullptr);
     explicit ImportQueueView(MaterialImportQueue& queue, QWidget* parent = nullptr);
+
+signals:
+    // The user pressed Pick the model on a failed row of the asset queue.
+    void pickModelRequested(int id);
 
 private:
     void start();

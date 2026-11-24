@@ -5,6 +5,7 @@
 #include "FileIo.h"
 
 #include "plynth/core/Addons.h"
+#include "plynth/core/BuildResolve.h"
 #include "plynth/core/BlenderJob.h"
 #include "plynth/core/GeneratorBuild.h"
 #include "plynth/core/Generators.h"
@@ -14,6 +15,7 @@
 #include "plynth/core/Rooms.h"
 #include "plynth/core/WallGeometry.h"
 #include "plynth/core/catalog/AssetInfo.h"
+#include "plynth/core/catalog/BuildChoices.h"
 #include "plynth/core/catalog/MaterialInfo.h"
 
 #include <nlohmann/json.hpp>
@@ -254,12 +256,15 @@ fs::path buildFolder(const fs::path& projectFolder)
     return projectFolder / pathFromUtf8(kBuildFolderName);
 }
 
-// Sixteen hex digits that change when the plan or the project settings change.
+// Sixteen hex digits that change when the plan or the project settings change. The export mode is left out, so
+// switching it never makes a build out of date.
 std::string planFingerprint(const Project& project)
 {
+    ProjectSettings settings = project.settings;
+    settings.exportMode = ExportMode::Single;
     std::string text = planToJson(project.plan).dump();
     text += '\n';
-    text += settingsToJson(project.settings).dump();
+    text += settingsToJson(settings).dump();
     char out[17];
     std::snprintf(out, sizeof out, "%016llx", static_cast<unsigned long long>(fnv1a(text)));
     return out;
@@ -310,6 +315,9 @@ BuildAssetSource buildAssetSourceFor(const AssetCatalog& catalog)
             state.problem = "asset.blend is missing.";
         }
         if (!state.broken) state.materials = assetMaterialsOf(record->folder);
+        if (record->size.width > 0.0 && record->size.height > 0.0) {
+            state.size = ItemSize{record->size.width, record->size.depth, record->size.height};
+        }
         return state;
     };
 }
@@ -520,7 +528,10 @@ BuildReport runBuild(const BuildRequest& request, const std::function<void(const
     }
 
     const auto checkStart = std::chrono::steady_clock::now();
-    const BuildPlan plan = makeBuildPlan(request.project, source, materialSource, library, addons);
+    // The build works from the resolved copy: varied furniture and materials, picked doors and windows, props.
+    const BuildChoices choices = buildChoicesFrom(catalog.get(), materialCatalog.get());
+    const ResolvedBuild resolved = resolveBuild(request.project, choices);
+    const BuildPlan plan = makeBuildPlan(resolved.project, source, materialSource, library, addons, &choices);
     report.steps.push_back({std::string(kCheckStep), since(checkStart)});
 
     BlenderRunOptions runOptions = request.run;
@@ -558,7 +569,7 @@ BuildReport runBuild(const BuildRequest& request, const std::function<void(const
     report.problems.insert(report.problems.end(), addonProblems.begin(), addonProblems.end());
 
     const fs::path resultFile = folder / pathFromUtf8(kResultFileName);
-    const Json job = makeBuildJob(request.project, plan, request.settings, request.projectFolder, report.jobId, resultFile);
+    const Json job = makeBuildJob(resolved.project, plan, request.settings, request.projectFolder, report.jobId, resultFile);
 
     progress(BuildStage::Blender);
     const BlenderJobRun run = runBlenderJob(
@@ -599,7 +610,7 @@ BuildReport runBuild(const BuildRequest& request, const std::function<void(const
 
     Json built = Json::object();
     built["plan_fingerprint"] = report.planFingerprint;
-    built["plan"] = planToJson(request.project.plan);
+    built["plan"] = planToJson(resolved.project.plan);
     const std::string planText = built.dump(2, ' ', false, Json::error_handler_t::replace) + "\n";
     if (Status written = fileio::writeAtomic(folder / pathFromUtf8(kBuiltPlanFileName), planText); !written.ok()) {
         report.status = written;
@@ -845,6 +856,16 @@ BuiltMaterialsRead readBuiltMaterials(const fs::path& projectFolder)
             if (mode == "opaque") built.alphaMode = AlphaMode::Opaque;
             else if (mode == "blend") built.alphaMode = AlphaMode::Blend;
             else throw std::string(where + "/alpha_mode");
+            if (m.contains("tile_size")) {
+                const Json& tile = m["tile_size"];
+                const auto number = [&](const char* key) -> double {
+                    if (!tile.is_object() || !tile.contains(key) || !tile[key].is_number() || !(tile[key].get<double>() > 0.0)) {
+                        throw std::string(where + "/tile_size/" + key);
+                    }
+                    return tile[key].get<double>();
+                };
+                built.tileSize = TileSize{number("width"), number("height")};
+            }
             result.materials.push_back(std::move(built));
         }
         const Json& objects = array(json, "objects");
