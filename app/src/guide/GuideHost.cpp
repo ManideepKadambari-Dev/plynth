@@ -60,6 +60,7 @@ plynth::guide::HelpWindow* GuideHost::help()
                                                       folderOf(plynth::ResourceKind::Licenses),
                                                       QPixmap(QStringLiteral(":/logo.png")), window_);
         created->setWindowIcon(window_->windowIcon());
+        created->setBackgroundRendering(!screenshotMode_);
         connect(created, &plynth::guide::HelpWindow::setupCheckRequested, this, &GuideHost::setupCheckRequested);
         help_ = created;
     }
