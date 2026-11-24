@@ -57,7 +57,10 @@
     "problemMarker": 12,
     "qualityMark": 14,
     "markStroke": 1.4,
-    "previewButton": 28
+    "previewButton": 28,
+    "tourCardWidth": 320,
+    "tourOutline": 2,
+    "helpListWidth": 240
   },
   "opacity": {
     "overlay3d": 0.85,
@@ -81,7 +84,8 @@
     "roomFillAlpha": 36,
     "proposalFillAlpha": 40,
     "proposalLineAlpha": 220,
-    "itemFillAlpha": 153
+    "itemFillAlpha": 153,
+    "tourDimAlpha": 170
   },
   "terminal": {
     "ansi": [

@@ -102,6 +102,7 @@
     "help-results": {"name": "Search results", "text": "Every place the words you typed appear, headings first. Click one to open the page there."},
     "help-search": {"name": "Search help", "text": "Type words to find them in every help page."},
     "help-setup-check": {"name": "Setup check", "text": "Checks that Blender, the library folder and the projects folder are ready."},
+    "help-tours": {"name": "Guided tours", "text": "The five tours, one for each screen. Each shows the controls one at a time."},
     "help-tour-*": {"name": "Guided tour", "text": "Shows the controls of one screen one at a time, with what each does."},
     "help-what-is-this": {"name": "What is this?", "text": "Turn it on and click any control to see what it does. The control is not run."},
     "help-window": {"name": "Help", "text": "The help pages of Plynth with a search across all of them."},

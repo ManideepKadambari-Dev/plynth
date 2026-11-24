@@ -1,6 +1,7 @@
 #include "theme/Theme.h"
 #include "catalog/LibraryHost.h"
 #include "window/MainWindow.h"
+#include "guide/GuideHost.h"
 
 #include <plynth/cli/Cli.h>
 #include <plynth/core/Version.h>
@@ -173,6 +174,26 @@ int main(int argc, char* argv[])
     parser.addOption(viewOption);
     parser.addOption(cameraOption);
     parser.addOption(homeOption);
+    QCommandLineOption helpPageOption(QStringLiteral("help-page"), QStringLiteral("Open the Help window at a page. For checks only."),
+                                      QStringLiteral("id"));
+    QCommandLineOption helpSearchOption(QStringLiteral("help-search"),
+                                        QStringLiteral("Open the Help window with the hits of a search. For checks only."),
+                                        QStringLiteral("text"));
+    QCommandLineOption aboutOption(QStringLiteral("about"), QStringLiteral("Open About in the Help window. For checks only."));
+    QCommandLineOption tourOption(QStringLiteral("tour"), QStringLiteral("Start a guided tour. For checks only."),
+                                  QStringLiteral("id"));
+    QCommandLineOption tourStepOption(QStringLiteral("tour-step"),
+                                      QStringLiteral("The step of the tour to show, from 1, or last. For checks only."),
+                                      QStringLiteral("n"));
+    QCommandLineOption whatIsThisOption(QStringLiteral("what-is-this"),
+                                        QStringLiteral("Turn on What is this? and explain a control. For checks only."),
+                                        QStringLiteral("control id"));
+    parser.addOption(helpPageOption);
+    parser.addOption(helpSearchOption);
+    parser.addOption(aboutOption);
+    parser.addOption(tourOption);
+    parser.addOption(tourStepOption);
+    parser.addOption(whatIsThisOption);
     parser.addOption(alignImageOption);
     parser.addOption(roofSectionsOption);
     parser.addOption(selectRoofOption);
@@ -238,6 +259,14 @@ int main(int argc, char* argv[])
     if (parser.isSet(cameraOption)) {
         const QString camera = parser.value(cameraOption).toLower();
         if (camera != QStringLiteral("three-quarter") && camera != QStringLiteral("top"))
+            return kExitBadArguments;
+    }
+    int tourStep = 0;
+    if (parser.isSet(tourStepOption)) {
+        const QString value = parser.value(tourStepOption).toLower();
+        bool ok = value == QStringLiteral("last");
+        tourStep = ok ? -1 : value.toInt(&ok) - 1;
+        if (!ok || tourStep < -1)
             return kExitBadArguments;
     }
     if (parser.isSet(wallSideOption)) {
@@ -358,6 +387,30 @@ int main(int argc, char* argv[])
     if (parser.isSet(homeOption) || (!wantsScreenshot && !hasProject && !parser.isSet(imageOption)))
         window.showHome();
     window.show();
+    if (parser.isSet(helpPageOption)) {
+        const QString page = parser.value(helpPageOption);
+        QTimer::singleShot(0, &window, [&window, page]() { window.guide()->openHelp(page); });
+    } else if (parser.isSet(helpSearchOption)) {
+        const QString text = parser.value(helpSearchOption);
+        QTimer::singleShot(0, &window, [&window, text]() { window.guide()->openSearch(text); });
+    } else if (parser.isSet(aboutOption)) {
+        QTimer::singleShot(0, &window, [&window]() { window.guide()->openAbout(); });
+    }
+    if (parser.isSet(tourOption)) {
+        const QString tour = parser.value(tourOption);
+        QTimer::singleShot(200, &window, [&window, tour, tourStep]() {
+            if (!window.guide()->tourLoaded())
+                qWarning("The tour text could not be read: %s", qPrintable(window.guide()->tourProblem()));
+            if (!window.guide()->startTour(tour, tourStep))
+                qWarning("The tour %s could not start.", qPrintable(tour));
+        });
+    } else if (parser.isSet(whatIsThisOption)) {
+        const QString control = parser.value(whatIsThisOption);
+        QTimer::singleShot(200, &window, [&window, control]() {
+            if (!window.guide()->explain(control))
+                qWarning("The control %s was not found.", qPrintable(control));
+        });
+    }
     if (parser.isSet(buildTabOption))
         window.showBuildTab();
     if (parser.isSet(exportTabOption))

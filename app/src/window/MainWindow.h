@@ -41,6 +41,7 @@ class FloorFocus;
 class FloorTabs;
 class ExportController;
 class ExportPanel;
+class GuideHost;
 class HomeScreen;
 class ImportQueue;
 class ImportQueueView;
@@ -134,6 +135,14 @@ public:
     // an id is given. False when there is no scale or no library.
     bool showFurniturePicker(double x, double y, const QString& hoverAsset);
 
+    // The guided tour, What is this? and the Help window.
+    GuideHost* guide() const { return guide_; }
+    // Shows a screen by its tour name: home, plan, wall, build, export, assets or materials. Selection and
+    // the project are left as they are. False for an unknown name.
+    bool showScreenByName(const QString& screen);
+    // The tour name of the screen shown now.
+    QString screenName() const;
+
     // Shows the home screen over the work area. A project that is open stays open behind it.
     void showHome();
     // Shows the work area (plan, panels) again.
@@ -206,7 +215,6 @@ private:
     void toggleMaximized();
     void recordRecent();
     void openRecent(const QString& folder);
-    void showAbout();
     void buildCatalogMenu();
     void openSetupCheck();
     void importDialog();
@@ -337,6 +345,7 @@ private:
     QAction* fitAction_ = nullptr;
     QWidget* work_ = nullptr;
     HomeScreen* home_ = nullptr;
+    GuideHost* guide_ = nullptr;
     QAction* homeAction_ = nullptr;
     QAction* closeAction_ = nullptr;
     QAction* importAction_ = nullptr;

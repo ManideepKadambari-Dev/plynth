@@ -80,6 +80,10 @@ public:
     int qualityMark() const { return qualityMark_; }
     double markStroke() const { return markStroke_; }
     int previewButton() const { return previewButton_; }
+    int tourCardWidth() const { return tourCardWidth_; }
+    int tourOutline() const { return tourOutline_; }
+    int tourDimAlpha() const { return tourDimAlpha_; }
+    int helpListWidth() const { return helpListWidth_; }
     double overlay3dOpacity() const { return overlay3dOpacity_; }
     double floorBelowOpacity() const { return floorBelowOpacity_; }
     double roofAreaOpacity() const { return roofAreaOpacity_; }
@@ -148,6 +152,10 @@ private:
     int problemMarker_ = 12;
     int qualityMark_ = 14;
     int previewButton_ = 28;
+    int tourCardWidth_ = 320;
+    int tourOutline_ = 2;
+    int tourDimAlpha_ = 170;
+    int helpListWidth_ = 240;
     double overlay3dOpacity_ = 0.85;
     double floorBelowOpacity_ = 0.35;
     double roofAreaOpacity_ = 0.15;

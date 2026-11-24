@@ -34,6 +34,7 @@ signals:
     void openRecentRequested(const QString& folder);
     void openSampleRequested(const QString& imageFile);
     void setupRequested();
+    void helpPageRequested(const QString& page);
     void backRequested();
 
 protected:
