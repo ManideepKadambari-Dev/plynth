@@ -191,7 +191,7 @@ AssetInfo parseInfo(const Json& json, std::string_view folderName)
 {
     objectAt(json, "", {"format", "version", "id", "name", "categories", "tags", "license", "source", "size",
                         "triangles", "objects", "materials", "textures", "blend", "thumbnail", "cleanup"},
-              {"material_maps"});
+              {"material_maps", "supports", "author"});
     if (!json.at("format").is_string() || json.at("format").get<std::string>() != kAssetInfoFormat) {
         throw ReadProblem{"/format", "This is not a Plynth asset file."};
     }
@@ -227,6 +227,10 @@ AssetInfo parseInfo(const Json& json, std::string_view folderName)
     }
     info.license = textAt(json, "license", "");
     require(checkCatalogId(info.license), "/license");
+    if (json.contains("author") && !json.at("author").is_null()) {
+        info.author = textAt(json, "author", "");
+        require(checkAuthor(info.author), "/author");
+    }
 
     const Json& source = objectAt(json.at("source"), "/source", {"kind", "reference", "imported_at"});
     info.source.kind = textAt(source, "kind", "/source");
@@ -256,6 +260,11 @@ AssetInfo parseInfo(const Json& json, std::string_view folderName)
             material.previewMaps = assetMapsAt(entry.at("preview_maps"), where + "/preview_maps");
             info.materialMaps.push_back(std::move(material));
         }
+    }
+    if (json.contains("supports")) {
+        const auto supports = assetSupportsFromJson(json.at("supports"));
+        if (!supports) throw ReadProblem{"/supports", "The supports are not a valid list of flat places."};
+        info.supports = *supports;
     }
 
     const Json& blend = objectAt(json.at("blend"), "/blend", {"file", "bytes", "modified"});
@@ -360,6 +369,7 @@ Status writeAssetInfo(const fs::path& file, const AssetInfo& info)
     json["categories"] = info.categories;
     json["tags"] = info.tags;
     json["license"] = info.license;
+    if (!info.author.empty()) json["author"] = info.author;
     json["source"] = Json{{"kind", info.source.kind},
                           {"reference", info.source.reference},
                           {"imported_at", formatSessionTime(info.source.importedAt)}};
@@ -372,6 +382,7 @@ Status writeAssetInfo(const fs::path& file, const AssetInfo& info)
         materialMaps.push_back(Json{{"name", m.name}, {"maps", assetMapsToJson(m.maps)}, {"preview_maps", assetMapsToJson(m.previewMaps)}});
     }
     json["material_maps"] = std::move(materialMaps);
+    if (info.supports) json["supports"] = assetSupportsToJson(*info.supports);
     json["textures"] = info.textures;
     json["blend"] = Json{{"file", std::string(kAssetBlendFileName)},
                          {"bytes", info.blendBytes},
@@ -436,6 +447,18 @@ Status checkCatalogName(std::string_view name)
     if (name.empty() || blank) return fail(ErrorCode::InvalidValue, "The name is empty.");
     if (characterCount(name) > kMaxAssetNameLength) {
         return fail(ErrorCode::InvalidValue, "The name is longer than " + std::to_string(kMaxAssetNameLength) + " characters.");
+    }
+    return {};
+}
+
+// Checks the length of an author and that it is one line.
+Status checkAuthor(std::string_view author)
+{
+    if (std::any_of(author.begin(), author.end(), [](char c) { return static_cast<unsigned char>(c) < 0x20 || c == 0x7f; })) {
+        return fail(ErrorCode::InvalidValue, "The author may not hold line breaks or other control characters.");
+    }
+    if (characterCount(author) > kMaxAuthorLength) {
+        return fail(ErrorCode::InvalidValue, "The author is longer than " + std::to_string(kMaxAuthorLength) + " characters.");
     }
     return {};
 }

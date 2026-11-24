@@ -1358,8 +1358,10 @@ TEST_CASE("no collision under a floor rises above the next level, whatever the s
                 const double nextLevel = plan.floors[i + 1].elevation;
                 const double ceilingZ = plan.floors[i].elevation + plan.floors[i].ceilingHeight;
                 for (const CollisionShape& shape : plan.collision[i]) {
+                    // A stair's railing reaches up through the hole to the floor above, so it is left out like the stair.
                     if (shape.kind == CollisionTargetKind::Walls || shape.kind == CollisionTargetKind::Stair ||
-                        shape.kind == CollisionTargetKind::Roof) {
+                        shape.kind == CollisionTargetKind::Roof || shape.kind == CollisionTargetKind::Railing ||
+                        shape.kind == CollisionTargetKind::Guard) {
                         continue;
                     }
                     for (const CollisionPiece& piece : shape.pieces) REQUIRE(piece.top <= nextLevel + 1e-9);

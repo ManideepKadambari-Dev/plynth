@@ -29,11 +29,13 @@ struct ReadProblem {
 };
 
 // The object at a JSON pointer, with every key checked against the allowed ones and the required ones present.
-const Json& objectAt(const Json& json, const std::string& where, std::initializer_list<const char*> required)
+const Json& objectAt(const Json& json, const std::string& where, std::initializer_list<const char*> required,
+                     std::initializer_list<const char*> optional = {})
 {
     if (!json.is_object()) throw ReadProblem{where, "Must be an object."};
     std::set<std::string> known;
     for (const char* key : required) known.insert(key);
+    for (const char* key : optional) known.insert(key);
     for (const auto& [key, value] : json.items()) {
         if (!known.count(key)) throw ReadProblem{where + "/" + key, "Unknown field \"" + key + "\"."};
     }
@@ -139,7 +141,8 @@ MaterialMap mapAt(const Json& maps, MapChannel channel, bool required)
 MaterialInfo parseInfo(const Json& json, std::string_view folderName)
 {
     objectAt(json, "", {"format", "version", "id", "name", "groups", "tags", "license", "source", "tile_size", "maps",
-                        "texture_size", "files", "thumbnail", "cleanup"});
+                        "texture_size", "files", "thumbnail", "cleanup"},
+             {"author"});
     if (!json.at("format").is_string() || json.at("format").get<std::string>() != kMaterialInfoFormat) {
         throw ReadProblem{"/format", "This is not a Plynth material file."};
     }
@@ -171,6 +174,10 @@ MaterialInfo parseInfo(const Json& json, std::string_view folderName)
     }
     info.license = textAt(json, "license", "");
     require(checkCatalogId(info.license), "/license");
+    if (json.contains("author") && !json.at("author").is_null()) {
+        info.author = textAt(json, "author", "");
+        require(checkAuthor(info.author), "/author");
+    }
 
     const Json& source = objectAt(json.at("source"), "/source", {"kind", "reference", "imported_at"});
     info.source.kind = textAt(source, "kind", "/source");
@@ -411,6 +418,7 @@ Status writeMaterialInfo(const fs::path& file, const MaterialInfo& info)
     json["groups"] = info.groups;
     json["tags"] = info.tags;
     json["license"] = info.license;
+    if (!info.author.empty()) json["author"] = info.author;
     json["source"] = Json{{"kind", info.source.kind},
                           {"reference", info.source.reference},
                           {"imported_at", formatSessionTime(info.source.importedAt)}};

@@ -115,7 +115,7 @@ TEST_CASE("RemoveFloorCommand removes a floor and its roof entries and brings th
     const Project fresh = p;
 
     RemoveFloorCommand c("f2");
-    const unsigned all = Change::Floors | Change::Stairs | Change::Roofs;
+    const unsigned all = Change::Floors | Change::Stairs | Change::Roofs | Change::Lights;
     REQUIRE((c.changes() & all) == all);
     requireOk(c.apply(p));
     REQUIRE(p.plan.floors.size() == 1);
@@ -246,7 +246,7 @@ TEST_CASE("SetScaleCommand scales stairs, items and anchors about the image offs
     const Project before = p;
     requireOk(c.apply(p));
     REQUIRE(c.movedMarks());
-    const unsigned all = Change::Stairs | Change::Roofs | Change::Items;
+    const unsigned all = Change::Stairs | Change::Roofs | Change::Items | Change::Lights;
     REQUIRE((c.changes() & all) == all);
     REQUIRE(p.plan.floors[1].points[0].x == Approx(5.0));
     REQUIRE(p.plan.floors[1].points[0].y == Approx(1.0));

@@ -1,8 +1,103 @@
 # Writing generators
 
-This page explains how to add to Plynth without changing the program. Today it covers opening shapes, roof types, stair types, importers, exporters, the Blender worker registries, build steps, opening fills, export steps and quality checks. Generators are added to this page in a later release.
+This page explains how to add to Plynth without changing the program. It covers generators, opening shapes, roof types, stair types, importers, exporters, group rules, the Blender worker registries, build steps, opening fills, export steps and quality checks.
 
 For the commands see the [Command line guide](CLI_GUIDE.md). For the screens see the [User guide](USER_GUIDE.md).
+
+## Generators
+
+A generator is one Python file that Blender runs during the build to make a piece of the building from a few values. Adding one is adding one file to the `generators` folder of your library. Plynth reads only its declaration and never runs the file itself. Only the build in Blender runs it.
+
+`samples/generators/column.py` is a full example. `railing.py` is a second one, and `archimesh_column.py`, `home_builder_cabinets.py`, `bool_tool_screen.py` and `bagapie_fence.py` show generators that use an add-on.
+
+### The file
+
+The file name without `.py` is the generator's id: lower case letters, digits and `_`, starting with a letter. Files whose name starts with `_`, and subfolders, are skipped, so a generator can keep helper modules there. A file may be at most 1 MB.
+
+The first thing in the file, after blank lines and `#` comment lines, is a docstring. Its first line is `plynth-generator` and the rest is one JSON object, the declaration:
+
+```python
+"""plynth-generator
+{"format": "plynth-generator", "version": 1, "name": "Column",
+ "description": "A round or square column from the floor up.",
+ "addons": [],
+ "size": {"width": {"param": "diameter"}, "depth": {"param": "diameter"}, "height": {"param": "height"}},
+ "params": [
+  {"id": "diameter", "label": "Diameter", "type": "number", "unit": "m", "default": 0.3, "min": 0.05, "max": 2.0},
+  {"id": "height", "label": "Height", "type": "number", "unit": "m", "default": "ceiling_height", "min": 0.1, "max": 20},
+  {"id": "shape", "label": "Shape", "type": "choice", "default": "round",
+   "choices": [{"id": "round", "label": "Round"}, {"id": "square", "label": "Square"}]},
+  {"id": "material", "label": "Material", "type": "material", "default": "white_paint"}]}
+"""
+```
+
+The full rules are in `schema/generator.schema.json`.
+
+- `name` is shown in the app. `description` is one or two plain sentences for the picker.
+- `addons` lists the short names of the Blender add-ons it needs, such as `archimesh` or `bagapie`. Leave it empty when it needs none.
+- `params` holds 1 to 32 values. Each has an `id`, a `label`, a `type` and a `default`, and may have a `help` sentence for the tooltip.
+- `size` says how large the result is, with `width` along its own x, `depth` along its own y and `height` up. Each side is a fixed length in metres, or `{"param": "<id>", "times": 1, "plus": 0}` for a number or integer parameter. The plan draws this footprint, so fit and overlap checks work without running Blender.
+
+### Parameter types
+
+| Type | Values | Extra fields |
+|---|---|---|
+| `number` | A number. With `"unit": "m"` the default may be `ceiling_height`, the ceiling height of the floor at the time the item is placed | `unit` (`none`, `m` or `deg`), `min`, `max`, `step` |
+| `integer` | A whole number | `min`, `max`, `step` |
+| `boolean` | `true` or `false` | |
+| `choice` | One of the choice ids | `choices`: a list of `{"id", "label"}` |
+| `material` | A materials catalog id, or `null` for the neutral look | |
+
+Lengths are always metres and angles degrees. The app shows a box for each parameter, and the command line sets one with `--param id=value`.
+
+### generate(gen)
+
+The file defines `generate(gen)`. It makes the mesh around the origin, with its bottom centre at (0, 0, 0) and its front toward -Y, and returns the objects it made. The build joins them into one object, moves it to the item's place and turn, and puts it on the item's floor.
+
+| Name | What it is |
+|---|---|
+| `gen.params` | The values, by parameter id. Numbers are floats and integers are ints |
+| `gen.size` | The declared size as (width, depth, height) in metres |
+| `gen.item` | The id of the item in the plan |
+| `gen.seed` | A number that stays the same for the item, for anything random |
+| `gen.mesh_object(name, verts, faces)` | Makes a mesh object from vertices and faces and returns it |
+| `gen.link(obj)` | Takes an object made another way, such as by an add-on, into the generator's collection |
+| `gen.material(param_id)` | The Blender material of a material parameter, named after its slot in the export |
+| `gen.bridge(short_name)` | The bridge of an add-on the declaration lists, with the add-on switched on |
+| `gen.log(text)` | Writes a line to the build log |
+
+When the generator gives no material to a face, the first material parameter is used, or a neutral material when it has none. Everything else the generator made is removed after the build has taken the result.
+
+### Using an add-on
+
+List the add-on in `addons` and ask for its bridge. A bridge is a small Plynth module in `blender/plynth/bridges/` that calls the add-on with fixed settings and hands back plain objects:
+
+```python
+def generate(gen):
+    p = gen.params
+    api = gen.bridge("archimesh").api
+    made = api.column(height=p["height"], width=p["width"] / 1.3, shape=p["shape"], plates=True,
+                      plate_width=p["width"])
+    for obj in made:
+        gen.link(obj)
+        obj.data.materials.clear()
+        obj.data.materials.append(gen.material("material"))
+    return made
+```
+
+A new bridge registers itself with `register(addon, modules, api)` from `plynth.bridges`, so adding one is adding one file there. Without the add-on switched on, the generator shows as unavailable in the picker, the command line refuses to place it, and an item that uses it is left out of the build with the warning `generator_unavailable`. The build only ever switches an add-on on in its own Blender run, never in your saved Blender preferences.
+
+### Rules and checks
+
+- A declaration that breaks a rule makes the file refused. `plynth generator list` names each refused file and why, and the app leaves it out.
+- An error inside `generate(gen)` is the build problem `generator_failed`, with the last line of the error.
+- A result that reaches more than 1 cm past the declared size is the warning `generator_size`.
+- When you change a file, placed items keep their stored values. **Update** in the app, or `plynth item params <id> --fit`, keeps the values that still fit and defaults the rest.
+- A generator is code that runs inside Blender with your rights. Only use generators from people you trust.
+
+### Trying one
+
+Copy the file into `Library\generators\`, then choose **Catalog > Reload generators** in the app, or run `plynth generator list`. `plynth generator info <id>` shows its parameters and default size, and `plynth place --generator <id> --room <room>` places it. Build to see the result.
 
 ## Opening shapes
 
@@ -166,7 +261,7 @@ The footprint of the stair, which is the hole in the slab and the ceilings, is t
 
 ## Adding an importer
 
-An importer is one way assets come into the library. Today there is one, for your own files (`local_file`). BlenderKit and Fab zips come later, as more importers. This section is for developers.
+An importer is one way assets come into the library. Today there are three: `local_file` for your own files, `fab_zip` for zips downloaded from Fab and `blenderkit` for BlenderKit addresses. This section is for developers.
 
 An importer only decides **what Blender should read**. Everything else is shared by every route: the work folder, the Blender cleanup job, `info.json`, the index, the thumbnail and removing a zip afterwards. That is why a new importer is small.
 
@@ -197,11 +292,11 @@ That line runs when the program starts and adds the importer to the list, which 
 | Field | Meaning |
 |---|---|
 | `file` | The file Blender reads. It may be inside the work folder, for a file the importer made or unpacked. |
-| `format` | A format id from `AssetJobs.h` (`obj`, `fbx`, `gltf`, `blend`, `zip`). It must match a file format module in `blender/plynth/importers/`. |
+| `format` | A format id: `obj`, `fbx`, `gltf`, `blend` or `zip` from `AssetJobs.h`, or `fab` from `FabZip.h`. It must match a file format module in `blender/plynth/importers/`. A new format also adds its id to the `format` list of `cleanup_asset` in `schema/blender-job.schema.json`. |
 | `sourceKind` | Written to `info.json`, for example `local_file`. |
 | `reference` | Written to `info.json`: the original file name or the address. |
 | `defaultName` | The name when the user gave none. |
-| `license` | The license when the user gave none. Empty means `unknown`. |
+| `license` | The license when the user gave none. Empty means `unknown`. When `source.guessed` is true, give none of your own (see "Adding a source"). |
 | `originalIsZip` | True when the original is a zip that should go to the Recycle Bin after a successful import, unless the user keeps it. |
 
 ### Picking between importers
@@ -210,15 +305,15 @@ That line runs when the program starts and adds the importer to the list, which 
 
 ### What does not change
 
-No existing code is edited: not the app, not the CLI, not `AssetImport.cpp`. The new importer shows up in `plynth assets importers`, in the file dialog, and in drag and drop. A test finds an importer by id from the test program, so if the registration trick ever breaks, a test fails.
+No existing code is edited: not the app, not the CLI, not `AssetImport.cpp`. The one exception is a new worker format, which adds its id to the schema as said above. The new importer shows up in `plynth assets importers`, in the file dialog, and in drag and drop. A test finds an importer by id from the test program, so if the registration trick ever breaks, a test fails.
 
 Read `core/src/catalog/importers/LocalFileImporter.cpp` as the worked example. Tests for importers use the fake Blender (`tests/tools/fake_blender`) and need no real Blender: see `tests/core/ImporterTests.cpp`.
 
 ## Adding a material importer
 
-A material importer is one way materials come into the library. Today there are two: `texture_set` for a folder, zip or image file of texture maps, and `blend_material` for one material of a `.blend` file. Fab zips come later as one more importer. This section is for developers.
+A material importer is one way materials come into the library. Today there are four: `texture_set` for a folder, zip or image file of texture maps, `blend_material` for one material of a `.blend` file, `fab_zip` for Fab texture zips and `blenderkit` for BlenderKit material addresses. This section is for developers.
 
-Material importers are a registry of their own, separate from the asset importers, so the two catalogs share nothing. The idea is the same: an importer only decides **what Blender should read**. Matching image files to maps by their names, unpacking zips and reading `material.json` are done by the Blender worker, so core never opens a zip. Everything after that is shared: the work folder, the cleanup job, `info.json`, the index, the thumbnail and removing a zip.
+Material importers are a registry of their own, separate from the asset importers, so the two catalogs share nothing. The idea is the same: an importer only decides **what Blender should read**. Matching image files to maps by their names, unpacking zips and reading `material.json` are done by the Blender worker. Core may read a zip's list of files to decide what to take, as the Fab importer does (`core/include/plynth/core/ZipListing.h`), but it never unpacks one. Everything after that is shared: the work folder, the cleanup job, `info.json`, the index, the thumbnail and removing a zip.
 
 ### The steps
 
@@ -227,7 +322,7 @@ Material importers are a registry of their own, separate from the asset importer
 
 | Field | Meaning |
 |---|---|
-| `workerSource` | Which material source of the worker reads it: `texture_set` or `blend`. It must match a file in `blender/plynth/materials/sources/`. |
+| `workerSource` | Which material source of the worker reads it: `texture_set`, `blend` or `fab`. It must match a file in `blender/plynth/materials/sources/`. A new one also adds its id to the `kind` list of `cleanup_material` in `schema/blender-job.schema.json`. |
 | `path` | The folder, zip, image file or `.blend` the worker reads. |
 | `sourceKind` | Written to `info.json`, for example `texture_set`. |
 | `reference` | Written to `info.json`: the original file or folder name, or the address. |
@@ -241,7 +336,7 @@ Material importers are a registry of their own, separate from the asset importer
 const MaterialImporterRegistrar registrar(std::make_unique<FabMaterialImporter>());
 ```
 
-The highest score wins and ties go to the lower id, as for assets. A new importer shows up in `plynth materials importers`, the import screen's file dialog and the inbox. No existing code is edited. Read `TextureSetImporter.cpp` as the worked example. Tests use the fake Blender, see `tests/core/MaterialImportTests.cpp`.
+The highest score wins and ties go to the lower id, as for assets. A new importer shows up in `plynth materials importers`, the import screen's file dialog and the inbox. No existing code is edited, except the schema line for a new worker material source. Read `TextureSetImporter.cpp` as the worked example. Tests use the fake Blender, see `tests/core/MaterialImportTests.cpp`.
 
 ## Blender worker registries
 
@@ -255,7 +350,7 @@ Each package (`tasks/`, `importers/`, `cleanup/`, `checks/`, `exporters/`, `buil
 
 ### Tasks
 
-A task is what a job asks for. Files in `plynth/tasks/`: `probe`, `cleanup_asset`, `render_thumbnail`, `build`, `cleanup_material`, `export`. A task is a function `run(ctx)` registered with `TASKS.register("name", run)`. It reads `ctx.params`, fills `ctx.output`, adds warnings with `ctx.warn(code, message)`, and raises `WorkerError(code, message)` to fail with a named error. The C++ side must also know the task name and its parameters and output: see `core/include/plynth/core/BlenderJob.h` and `catalog/AssetJobs.h`.
+A task is what a job asks for. Files in `plynth/tasks/`: `probe`, `cleanup_asset`, `render_thumbnail`, `build`, `cleanup_material`, `export`, `blenderkit_fetch`. A task is a function `run(ctx)` registered with `TASKS.register("name", run)`. It reads `ctx.params`, fills `ctx.output`, adds warnings with `ctx.warn(code, message)`, and raises `WorkerError(code, message)` to fail with a named error. The C++ side must also know the task name and its parameters and output: see `core/include/plynth/core/BlenderJob.h` and `catalog/AssetJobs.h`.
 
 ### File format importers
 
@@ -302,11 +397,11 @@ One file for each check in `plynth/checks/`, run by the `run_checks` step. A che
 C++ and Python talk through files, described in `schema/blender-job.schema.json` and `schema/blender-result.schema.json`.
 
 - Plynth writes `job.json`: `format`, `version`, `task`, `job_id`, `result_file` and `params`. The folder holding `result_file` is the job's work folder.
-- It starts `blender --background --factory-startup -noaudio --python-exit-code 3 --python plynth_worker.py -- --job <file>`, with Blender's user folders (`BLENDER_USER_RESOURCES`, `_CONFIG`, `_SCRIPTS`, `_EXTENSIONS`, `_DATAFILES`) set to a private folder of Plynth's, so a job never writes your own Blender folders. Only the add-on probe reads your saved settings, as plain data (see [Setting up Plynth](SETUP.md)). The entry point `plynth_worker.py` reads the job, finds the task in the registry and runs it.
+- For every task but a store fetch it starts `blender --background --factory-startup -noaudio --python-exit-code 3 --python plynth_worker.py -- --job <file>`, with Blender's user folders (`BLENDER_USER_RESOURCES`, `_CONFIG`, `_SCRIPTS`, `_EXTENSIONS`, `_DATAFILES`) set to a private folder of Plynth's, so these jobs never write your own Blender folders. Of these, only the add-on probe reads your saved settings, as plain data (see [Setting up Plynth](SETUP.md)). A store fetch (`blenderkit_fetch`) is the one exception: it starts in the background without `--factory-startup`, with your own settings and enabled add-ons. The entry point `plynth_worker.py` reads the job, finds the task in the registry and runs it.
 - While running, the worker prints progress lines: `PLYNTH:{"progress":{"step":"set_pivot","index":4,"count":11,"message":"Setting the pivot"}}`. Use `jobs.progress(...)`.
 - At the end it writes `result.json` through a temporary file and a rename: `ok`, `error`, `blender_version`, `warnings`, `elapsed_ms` and `output`. The worker never lets an exception escape without trying to write a result. An uncaught error exits with code 3 and C++ reports `blender_failed` with the end of the log.
 
-Error codes a task may raise: `bad_job`, `unknown_task`, `unsupported_format`, `import_failed`, `no_geometry`, `several_models`, `unpack_failed`, `save_failed`, `render_failed`, `export_failed`, `internal`. Warning codes: `high_polycount`, `scale_suspicious`, `missing_texture`, `removed_objects`, `unsupported_object`, `fbx_failed`. The `build` task reports its problems in the result's `output.problems` instead, see "Adding a build step".
+Error codes a task may raise: `bad_job`, `unknown_task`, `unsupported_format`, `import_failed`, `no_geometry`, `several_models`, `unpack_failed`, `save_failed`, `render_failed`, `export_failed`, `preferences_unreadable`, `internal`, and for store fetches `addon_missing`, `not_signed_in`, `download_failed`, `download_timeout`, `wrong_asset_kind`. Warning codes: `high_polycount`, `scale_suspicious`, `missing_texture`, `removed_objects`, `unsupported_object`, `fbx_failed`. The `build` task reports its problems in the result's `output.problems` instead, see "Adding a build step".
 
 ### Adding a build step
 
@@ -484,16 +579,76 @@ Worker codes of this task: errors `import_failed`, `no_base_color`, `several_mat
 An exporter decides which FBX files an export writes and which built objects go into each. It lives in core, because core knows the project. It is one file, and nothing else is edited.
 
 1. Make one new file in `core/src/exporters/`, for example `GroupedExporter.cpp`. CMake finds every `.cpp` in that folder and builds it into the OBJECT library `plynth_exporters`, so you do not edit `CMakeLists.txt`.
-2. In it, write a class that derives from `Exporter` (`core/include/plynth/core/Exporter.h`) and implements `id()`, `name()`, `description()` and `groups(project, out)`. The id is the project's export mode name, so `single` serves the single mode. `groups` fills a list of `ExportGroup`, one for each file: its `id`, its `file` name, and which kinds of objects or plan ids it takes. An empty list of kinds takes everything. When the project cannot be exported this way, return `InvalidValue` with a plain sentence.
+2. In it, write a class that derives from `Exporter` (`core/include/plynth/core/Exporter.h`) and implements `id()`, `name()`, `description()` and `groups(project, out)`. The id is the project's export mode name, so `single` serves the single mode. `groups` fills a list of `ExportGroup`, one for each file: its `id`, its `file` name, and which kinds of objects or plan ids it takes. An empty list of kinds or ids does not narrow the group. A group with no members, kinds or ids takes everything only when no group of the export is marked `rest`, as in a single export. When the project cannot be exported this way, return `InvalidValue` with a plain sentence.
 3. At the bottom of the file, register it:
 
 ```cpp
 const ExporterRegistrar registrar(std::make_unique<GroupedExporter>());
 ```
 
-`SingleExporter.cpp` is the worked example, about twenty lines. `exportFileStem(name)` turns a project name into a safe file name. The export runs the exporter's groups through the same Blender task and the same checks, and every group is written with the same FBX profile.
+`SingleExporter.cpp` is the worked example, about twenty lines. `GroupedExporter.cpp` is the exporter of the grouped mode. It does not list the groups itself. It asks every group rule (next section). `exportFileStem(name)` turns a project name into a safe file name. The export runs the exporter's groups through the same Blender task and the same checks, and every group is written with the same FBX profile.
 
 On the Blender side, the file format is a registry too. One file in `blender/plynth/exporters/` registers an `ExporterEntry(extension, export)`. `export(objects, filepath, path_mode)` writes the given objects, or the whole scene when `objects` is `None`. `exporters/__init__.py` has `write_file`, which writes under a temporary name and renames the result, so a failed export leaves nothing behind. `fbx.py` is the one profile Plynth uses for `asset.fbx`, `building.fbx` and the export.
+
+### Adding a group rule
+
+A grouped export writes one file for each group. The groups are made by group rules, and each rule is one file in core. Core knows the plan, so the rules live there and not in Blender. A new rule needs no other edit.
+
+1. Make one new file in `core/src/exporters/`, named `GroupRule<Name>.cpp`. The same glob that finds exporters builds it, so `CMakeLists.txt` stays as it is.
+2. In it, write a class that derives from `ExportGroupRule` (`core/include/plynth/core/ExportGroups.h`) and implements three functions:
+   - `id()`: a stable lower case name, such as `doors`.
+   - `order()`: where its groups go in the list. Lower numbers come first. The built-in rules are `structure` (10), `surfaces` (20) and `furniture` (30).
+   - `addGroups(project, out)`: add `ExportGroup` entries to `out`, each with an `id`, a `name` and its `members`. Do not fill in `file`. Core names the files afterwards from the project name and the group name.
+3. At the bottom, register it.
+
+Here is a rule that puts every door in a group of its own. Its order is 5, so it runs before the Walls group:
+
+```cpp
+#include "plynth/core/ExportGroups.h"
+
+namespace plynth {
+
+namespace {
+
+// Puts every door in a group of its own.
+class DoorsRule final : public ExportGroupRule {
+public:
+    std::string_view id() const override { return "doors"; }
+    int order() const override { return 5; }
+
+    // One member for each door.
+    void addGroups(const Project& project, std::vector<ExportGroup>& out) const override
+    {
+        ExportGroup group;
+        group.id = "doors";
+        group.name = "Doors";
+        for (const Floor& floor : project.plan.floors) {
+            for (const Opening& opening : floor.openings) {
+                if (opening.type == OpeningType::Door) group.members.push_back({std::string(kKindDoor), opening.id});
+            }
+        }
+        if (!group.members.empty()) out.push_back(std::move(group));
+    }
+};
+
+const ExportGroupRuleRegistrar registrar(std::make_unique<DoorsRule>());
+
+}
+
+}
+```
+
+The example was written for this page and has not been built.
+
+What to know when you write one:
+
+- **A member is a kind and a plan id.** Every built object carries a `plynth_kind` and a `plynth_id`, for example `door` and `o3`, or `item` and `i1`. A member with an empty id takes every object of that kind. `ExportGroups.h` lists the kinds as `kKind...` constants, including kinds that later releases make (`generator`, `light`). A member for a kind nothing has is harmless. An item has one member, never two: `item` for an asset, `generator` for an item a generator makes, both with the item's id.
+- **An object goes to one group.** The Blender side picks the group by this order: a group with the exact member, then a group with the kind as an empty id member, then the first group with no members whose `kinds` and `ids` filters take it, then the group marked `rest`. When a group is marked `rest`, a group with no members, kinds or ids is skipped in the third step, so an empty group takes nothing. If a rule gives a member that an earlier rule already has, core drops it from the later group. A group that loses all its members to earlier rules is dropped, and only one group keeps `rest`.
+- **List only what the build makes.** Give a member only for objects the plan says exist, such as a door for each door opening. Then the review shows what an export will really write.
+- **Edits come on top.** Whatever your rule makes, the user can rename, merge and move its groups, and the edits are applied to your groups by id. Keep ids stable from one build to the next, so a user's edit keeps finding its group.
+- **Collision follows its object.** A `UCX_` mesh goes into the file of the object it belongs to, so a rule never mentions collision.
+
+`GroupRuleStructure.cpp` and `GroupRuleFurniture.cpp` are the readable examples. The tests are `tests/core/ExportGroupsTests.cpp`. On the Blender side, the one helper that sorts objects into groups is `blender/plynth/exporting/groups.py` (`assign`). The writer and the `groups` check both call it, so they always agree.
 
 ### Adding a quality check
 
@@ -526,11 +681,11 @@ QUALITY_CHECKS.register("material_count", QualityCheck(ORDER, "scene", "Material
 - `ctx.state["meshes"]` holds the building and furniture objects, `ctx.state["collision"]` the `UCX_` objects. `ctx.params` is the export job, with the `limits` and the `expected_bounds` that core worked out.
 - A check never stops the export. Do not raise an error for a problem you can report.
 
-Look at `naming.py` for a bigger one. A new check shows up in the Export tab and in the report at once. Core only needs a change if the check needs a number it does not pass yet.
+Look at `naming.py` for a bigger one. Two checks came with grouped export. `groups.py` (105, scene) fails for an object that no group takes and warns about a group with no object. It uses `assign` from `exporting/groups.py`, the same helper the writer uses, so the check and the files cannot disagree. `kit_file.py` (120, file) reads the kit file back and fails when a piece is missing, moved or has no collision. It says "skipped" when the job has no kit, so a check can stay quiet when its part of the export was not asked for. A new check shows up in the Export tab and in the report at once. Core only needs a change if the check needs a number it does not pass yet.
 
 ### Adding an export step
 
-The `export` task, like the build, only runs steps in order. Each step is one file in `blender/plynth/exporting/`. The steps are `open_blend` (10), `prepare` (20), `name_objects` (30), `textures` (40), `checks` (50), `write_fbx` (60) and `file_checks` (70).
+The `export` task, like the build, only runs steps in order. Each step is one file in `blender/plynth/exporting/`. The steps are `open_blend` (10), `prepare` (20), `name_objects` (30), `kit_pieces` (35), `textures` (40), `checks` (50), `write_fbx` (60), `write_kit` (65) and `file_checks` (70).
 
 ```python
 from . import Step
@@ -547,7 +702,7 @@ def run(ctx):
 EXPORT_STEPS.register("my_step", Step(ORDER, "Doing my step", run))
 ```
 
-Drop the file in `exporting/` and the step runs between `textures` (40) and `checks` (50). The sentence is shown as progress. `ctx.state` is shared between the steps. A step may fail the whole job by raising `WorkerError`, which is meant for real errors such as a missing file. A quality problem is a check, not a step. The export never saves `building.blend`.
+Drop the file in `exporting/` and the step runs between `textures` (40) and `checks` (50). `kit_pieces.py` and `write_kit.py` are real examples. `kit_pieces` (35) makes the modular kit's meshes from the outlines core sends in the job. `write_kit` (65) writes them to their own FBX after the group files. Both do nothing when the job has no `kit`, which is how an optional step stays out of the way. The sentence is shown as progress. `ctx.state` is shared between the steps. A step may fail the whole job by raising `WorkerError`, which is meant for real errors such as a missing file. A quality problem is a check, not a step. The export never saves `building.blend`.
 
 ### Testing
 
@@ -565,6 +720,44 @@ $env:BLENDER_USER_DATAFILES = $s
 
 Set these in the same window, and use the same window to run the command. The run starts a second Blender with user folders of its own and a prepared extensions folder, and an add-on is only ever switched on in such a folder. The tests that need add-ons skip unless `PLYNTH_TEST_ADDONS` names a folder with copies of them, laid out like an extensions folder (`<repository>\<add-on>\blender_manifest.toml`). The tests never take add-ons from your own Blender folders: they refuse a folder inside them. Every registry has a test that refuses a duplicate id. The sample chair in `samples/models/chair` is the model most tests use.
 
-## Other things you will be able to add
+## Adding a source
 
-A later release adds the same kind of page for generators (small Blender scripts). It will be added to this page, with its file format and its rules.
+A source is a place assets and materials come from, such as BlenderKit or Fab. It is called an **integration**. This section is for developers. It adds one card to the Integrations tab, its options and its commands, and it needs no edit of existing code. The one exception: a new worker format or material source adds its id to a list in `schema/blender-job.schema.json` (see the two tables above). It is built from the pieces above: an importer, a material importer, and, when the source is not a file on disk, a fetch task and a worker format or material source in Python.
+
+The rule behind the design: Plynth never talks to a store itself. A source either takes files you downloaded, or asks a store's own Blender add-on, which you installed and signed in to, to download. It never calls a private web address, never shows, logs or copies a key and never bundles what it brings.
+
+### The core side
+
+1. **The importers.** Write an asset importer, a material importer or both, as in the two sections above. Each is one file. An importer that takes a web address returns no endings from `fileSuffixes()` and scores 0 for anything that is not its address (`BlenderKitImporter.cpp` scores 30 for an address it accepts). An importer for zips can score above the local one for a zip it recognises, as `FabZipImporter.cpp` does with 20.
+2. **The integration.** In the same file, write a class that derives from `Integration` (`core/include/plynth/core/catalog/Integrations.h`). It gives an id, a name, a description, its place in the tab (`order()`), its importer ids, whether it takes addresses, the setup check item it depends on (empty for none), its official site, and an optional `note()`, one plain sentence shown with the card, as BlenderKit shows its reminder about your own Blender settings. It also gives its options: `defaultOptions()` lists each saved option with its default, and `checkOptions()` refuses an unknown key or a bad value. Three more parts make the source work everywhere without code of its own:
+
+   - `optionFields()`: one field for each key of `defaultOptions()`, in the same order, with a label, a one sentence help and a kind: a choice from a list, a whole number from a minimum to a maximum, or a license. The tab draws the card's options from it.
+   - `storeSourceKinds()`: the source kinds of its items when they come from a store, such as `blenderkit` and `fab_zip`. `isStoreSource` reads them from the registry, so such items are never copied into packs. Leave it empty when the items are the user's own files.
+   - `checkAddress(text)`: for a source that takes addresses, the sentence the card shows beside a pasted text it cannot use. BlenderKit returns what its address parser says.
+
+   At the bottom, register it:
+
+```cpp
+const IntegrationRegistrar integrationRegistrar(std::make_unique<MyIntegration>());
+```
+
+3. **The options.** A saved option applies to every import from the integration. It is kept in `integrations.json` in the library, and only what the user changed is saved. An option for one import only (such as `model` for Fab) is refused when saving: `checkOptions()` gets `OptionUse::Saved` or `OptionUse::Import` to tell them apart. At import time `optionsForImporter` puts the request's options over the saved ones over the defaults and hands the result to the importer's `plan` as `ImportSource::options`.
+4. **The CLI and the tab.** `plynth library integrations`, `library integration show|set|reset` and the Integrations tab list every registered integration by themselves. The tab draws the card from what the class returns and the options from `optionFields()`, so no app code is needed. The card's import button for files asks `integrationImporter` for the best scoring of the source's own importers and names it in the request, so the item gets this source's kind and options even when another importer would score higher. The CLI treats a text as an address when a registered importer takes it.
+5. **The license.** When the request names no importer and gives no `license` option, Plynth only guessed the source, and `ImportSource::guessed` is true. The plan then gives no license of its own, so the item gets `unknown`. Fab does this for a zip that only looks like a Fab download. When the user picked the source, use the saved license option.
+6. **A choice for the user.** When a plan refuses because the user must choose, for example between the models of a pack, put the candidates in the plan's `details` as a `models` list. The app's **Pick the model...** button is offered from that list, not from the sentence.
+
+### The fetch, when the source is not a file
+
+An importer for a source that is not a file gives its plan no `file`, and puts a **fetch** in the plan instead: a worker task and its parameters (`ImportFetch`, `core/include/plynth/core/catalog/ImportFetch.h`). The import runs the fetch first, in its own Blender run, and then the usual cleanup on what it fetched. It is a separate run because a fetch may need the user's own add-ons and sign in, which the clean start of every other job leaves out, and the cleanup must always run clean so that no add-on can change its result. A BlenderKit fetch always runs in the background, with no window.
+
+A fetch task writes into the `output_folder` it is given and answers with the same output for every store (the `fetchOutput` part of `schema/blender-result.schema.json`): the file, its format, whether it is a `model` or a `material`, and the name, author, license and address when the store gives them. `core/include/plynth/core/catalog/StoreFetch.h` explains how the answer is checked and put into the plan. Its failures are `blender_failed` with the task's own error code and a plain sentence.
+
+### The Python side
+
+- **A fetch task.** One file in `blender/plynth/tasks/`, a function `run(ctx)` registered with `TASKS.register`, as under "Tasks". `blenderkit_fetch.py` is the worked example. Everything that touches the store's add-on sits in one module (`blender/plynth/stores/blenderkit.py`), so an add-on update changes one file, and every failure names the add-on's version.
+- **A worker format or material source**, when the fetched files need a reader of their own. A model format is one file in `blender/plynth/importers/` registered with `IMPORTERS.register`. A material source is one file in `blender/plynth/materials/sources/` registered with `MATERIAL_SOURCES.register`. Either one also adds its id to its list in `schema/blender-job.schema.json`: `format` of `cleanup_asset` or `kind` of `cleanup_material`. `importers/fab.py` and `materials/sources/fab.py` are the examples: both read a small source file the importer wrote, unpack only the entries it lists, and match textures to materials by file name.
+
+### Tests
+
+Test the importers and options with the fake Blender (`tests/tools/fake_blender`), which can also stand in for a fetch task. Test the address parsing and the options as plain functions. Test the Python side in a real Blender with a small fake add-on and scratch user folders (`blender/tests/tools/make_fake_blenderkit_config.py` sets every variable), never with the real store or your own settings. Keep downloaded items and zips out of the repository.
+

@@ -25,11 +25,33 @@ add_executable(plynth_cli_tests
     StairCliTests.cpp
     RoofCliTests.cpp
     ExportCliTests.cpp
+    ExportGroupsCliTests.cpp
     MaterialCliTests.cpp
     MaterialCatalogCliTests.cpp
     MaterialImportCliTests.cpp
+    StoreImportCliTests.cpp
+    StoreFailureCliTests.cpp
+    StoreSourceCliTests.cpp
+    BlenderOptionCliTests.cpp
     RecentCliTests.cpp
     EnvironmentCliTests.cpp
+    ErrorListTests.cpp
+    RenderCliTests.cpp
+    RenderProcessTests.cpp
+    GapCliTests.cpp
+    PackCliTests.cpp
+    SessionKeeperTests.cpp
+    WholeCliTests.cpp
+    GuideTests.cpp
+    GuideCliTests.cpp
+    IdCliTests.cpp
+    FormatCliTests.cpp
+    LightCliTests.cpp
+    TrimCliTests.cpp
+    FinishCliTests.cpp
+    VariationCliTests.cpp
+    GameplayCliTests.cpp
+    IdTestListener.cpp
     TestSetup.cpp
     TestSupport.cpp
 )
@@ -41,7 +63,10 @@ target_compile_definitions(plynth_cli_tests PRIVATE
     PLYNTH_TEST_GENERATORS="${PROJECT_SOURCE_DIR}/tests/core/data/generators"
     PLYNTH_SAMPLE_PLAN="${PROJECT_SOURCE_DIR}/samples/plans/apartment-01.png"
     PLYNTH_SAMPLE_CHAIR_FOLDER="${PROJECT_SOURCE_DIR}/samples/models/chair"
-    PLYNTH_FAKE_BLENDER="$<TARGET_FILE:plynth_fake_blender>")
-add_dependencies(plynth_cli_tests plynth_fake_blender)
+    PLYNTH_RENDER_FIXTURES="${PROJECT_SOURCE_DIR}/tests/data/render"
+    PLYNTH_DOCS_DIR="${PROJECT_SOURCE_DIR}/docs"
+    PLYNTH_FAKE_BLENDER="$<TARGET_FILE:plynth_fake_blender>"
+    PLYNTH_LEAKY_BLENDER="$<TARGET_FILE:plynth_leaky_blender>")
+add_dependencies(plynth_cli_tests plynth_fake_blender plynth_leaky_blender)
 
 catch_discover_tests(plynth_cli_tests DISCOVERY_MODE PRE_TEST)

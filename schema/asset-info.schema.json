@@ -27,6 +27,7 @@
       "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$", "maxLength": 40 }
     },
     "license": { "description": "A license id from the catalog, for example unknown or cc0.", "$ref": "#/definitions/catalogId" },
+    "author": { "description": "Who made it, when known. Optional, shown in the license report of an export.", "type": ["string", "null"], "maxLength": 120 },
     "source": {
       "type": "object",
       "required": ["kind", "reference", "imported_at"],
@@ -51,6 +52,24 @@
     "triangles": { "type": "integer", "minimum": 0 },
     "objects": { "type": "integer", "minimum": 0 },
     "materials": { "type": "array", "items": { "type": "string" } },
+    "supports": {
+      "description": "The flat places set dressing may put props on (asset-supports.schema.json), measured at cleanup. Missing until the asset was measured for them; such an asset is cleaned once more when it is refreshed.",
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "required": ["x0", "y0", "x1", "y1", "z", "clearance"],
+        "additionalProperties": false,
+        "properties": {
+          "x0": { "type": "number" },
+          "y0": { "type": "number" },
+          "x1": { "type": "number" },
+          "y1": { "type": "number" },
+          "z": { "type": "number", "minimum": 0 },
+          "clearance": { "type": "number", "minimum": 0.1 }
+        }
+      }
+    },
     "material_maps": {
       "description": "The image maps of each material, one per entry of materials, in the same order (milestone 10). Missing in files written before; such an asset is cleaned once more when it is refreshed. maps are full size under textures/maps/; preview_maps are what asset.fbx uses (scaled copies under textures/preview/ for images larger than 1024 px).",
       "type": "array",

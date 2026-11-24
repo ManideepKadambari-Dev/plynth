@@ -2,7 +2,7 @@
 
 Plynth needs a few things on your computer before it can import models: Blender, a library folder and a projects folder. The setup check looks at all of them and tells you what is missing and what to do.
 
-The setup check only looks. **Plynth never installs or downloads anything.** If Blender is missing, you install it yourself from blender.org and then press Check again.
+The setup check only looks. **It never installs or downloads anything.** If Blender is missing, you install it yourself from blender.org and then press Check again.
 
 ## Where to find it
 
@@ -68,7 +68,9 @@ Library/
     assets.db        the search index
     items/           one folder for each asset
     inbox/           drop model files here to import them
-  materials/         for a later release
+  materials/         the materials catalog, laid out like assets/
+  generators/        generator scripts (.py), see Writing generators
+  integrations.json  the options of BlenderKit and Fab, made when you change one
   shapes/            your own opening shapes
 ```
 
@@ -92,18 +94,22 @@ Add-ons are optional extras that live inside Blender. Plynth never needs them to
 
 | Add-on | What it is for |
 |---|---|
-| BlenderKit | Importing assets from BlenderKit in a later release |
-| Archimesh | Stairs, doors, windows and columns generators in a later release |
-| Home Builder | Cabinets, countertops and moldings generators in a later release |
-| Bool Tool | Cutting openings with boolean tools in a later release |
-| Asset Optimizer | Asset cleanup generators in a later release |
-| Bagapie | Array and scatter generators in a later release |
+| BlenderKit | Importing models and materials from BlenderKit |
+| Archimesh | The Archimesh Column sample generator, and other generators that use it |
+| Home Builder | The Base Cabinets sample generator |
+| Bool Tool | The Slotted Screen sample generator |
+| Asset Optimizer | Generators that tidy the meshes they make |
+| Bagapie | The Post and Rail Fence sample generator |
 
 Each add-on row says Found or Missing. Some have an **Open page** button that opens the official page where you can get the add-on. Install add-ons from inside Blender (Edit, Preferences, Get Extensions or Add-ons).
 
 **BlenderKit and signing in.** BlenderKit needs your own BlenderKit account. Install and enable the add-on in Blender, then open Edit, Preferences, Add-ons, BlenderKit and sign in. Plynth only checks whether a sign in is stored. It never shows, logs or copies your key or password. If the add-on is on but you are not signed in, the row says Needs attention.
 
-Checking add-ons starts Blender once with its factory settings, which takes a few seconds. `plynth doctor --no-addons` skips it. If your preferences file cannot be understood, the add-on rows say Not checked.
+**BlenderKit downloads use your own Blender settings.** The add-on check runs none of your add-ons, but a BlenderKit download does. It starts Blender in the background, without a window, with your own Blender settings and the add-ons you have enabled. Blender and those add-ons can change files in your Blender folders during that run. Plynth does not start Blender with a clean setup for this, because BlenderKit needs your add-on and your sign in. Plynth shows this reminder next to BlenderKit in the app. There is no option to show a Blender window.
+
+When your preferences hold no key, a download reads the saved BlenderKit settings file to see that it is valid before it lets the add-on load it. If that file is damaged, Plynth leaves it as it is and does not repair or delete it. It tells you to sign in again inside Blender (Edit, Preferences, Add-ons, BlenderKit).
+
+Checking add-ons starts Blender once with its factory settings, which takes a few seconds. The setup check, `plynth doctor` and `plynth library integrations` do it, and so does the Integrations tab when you first open it or press Check again. `--no-addons` skips it in both commands. If your preferences file cannot be understood, the add-on rows say Not checked.
 
 ## The settings file
 
@@ -113,7 +119,7 @@ Your choices are saved in one file for your Windows account:
 %APPDATA%\Plynth\settings.json
 ```
 
-That is usually `C:\Users\<you>\AppData\Roaming\Plynth\settings.json`. It holds the library folder, the projects folder, the Blender you chose, whether to keep imported zips, the triangle warning limit and the Plynth version whose setup check last passed. You can read it in any text editor. The usual way to change it is the setup check or `plynth settings set`.
+`%APPDATA%` is the Roaming folder of your Windows account. Type `%APPDATA%\Plynth` in the Explorer address bar to open it. The file holds the library folder, the projects folder, the Blender you chose, whether to keep imported zips, the triangle warning limit and the Plynth version whose setup check last passed. You can read it in any text editor. The usual way to change it is the setup check or `plynth settings set`.
 
 Settings belong to the computer, not to a project, so they are not saved in your project folders.
 
@@ -138,5 +144,5 @@ The full answer is described in the [command line guide](CLI_GUIDE.md).
 
 - **The row says Missing for Blender but you installed it.** Press Check again. If it is still missing, press Browse and pick `blender.exe` by hand.
 - **The library row says "not a library".** The folder you chose has no catalog yet. Press Create.
-- **Add-ons say Not checked.** Blender could not be started to ask. Fix the Blender rows first.
+- **Add-ons say Not checked.** The row says why. If Blender could not be started to ask, fix the Blender rows first. If your saved preferences could not be read, Plynth leaves them as they are.
 - **A new Blender was installed and Plynth still uses the old one.** Open the Blender drop-down and pick the new one.

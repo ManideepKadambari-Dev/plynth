@@ -1,6 +1,7 @@
 #include "plynth/core/BuildGeometry.h"
 
 #include "BandOutline.h"
+#include "RingClean.h"
 
 #include "plynth/core/OpeningShapes.h"
 #include "plynth/core/Openings.h"
@@ -71,16 +72,7 @@ std::vector<Vec2> fromPath(const Clipper2Lib::PathD& path)
     return points;
 }
 
-// The ring without points that sit on the one before them.
-std::vector<Vec2> withoutRepeats(const std::vector<Vec2>& ring)
-{
-    std::vector<Vec2> out;
-    for (const Vec2& p : ring) {
-        if (out.empty() || distance(out.back(), p) >= kClose) out.push_back(p);
-    }
-    while (out.size() > 1 && distance(out.front(), out.back()) < kClose) out.pop_back();
-    return out;
-}
+using detail::withoutRepeats;
 
 // The ring turned to run anticlockwise (or clockwise) as seen from above, by the world shoelace sum.
 std::vector<Vec2> oriented(std::vector<Vec2> ring, bool anticlockwise)
@@ -422,7 +414,7 @@ std::vector<WallSolid> wallSolids(const Floor& floor)
         std::vector<AreaRing> holes;
         for (const Clipper2Lib::PathD& path : shape) {
             AreaRing ring;
-            ring.points = withoutRepeats(fromPath(path));
+            ring.points = detail::cleanedWallRing(fromPath(path));
             if (ring.points.size() < 3) continue;
             ring.area = signedArea(ring.points);
             if (std::fabs(ring.area) < 1e-9) continue;

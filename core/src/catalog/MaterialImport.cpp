@@ -1,9 +1,12 @@
 #include "plynth/core/catalog/MaterialImport.h"
 
+#include "ImporterChoice.h"
 #include "Staging.h"
 
 #include "plynth/core/Process.h"
 #include "plynth/core/ProjectFiles.h"
+#include "plynth/core/catalog/Integrations.h"
+#include "plynth/core/catalog/StoreFetch.h"
 
 #include <algorithm>
 #include <cctype>
@@ -54,13 +57,21 @@ BlenderRunOptions materialRunOptions(const ImportContext& context)
 }
 
 // Turns a failed Blender run into the status an import reports, naming the kept work folder.
-Status blenderFailure(const BlenderJobRun& run, const fs::path& kept)
+Status blenderFailure(Status s, const fs::path& kept)
 {
-    Status s = run.status;
     if (s.code == ErrorCode::BlenderFailed && !kept.empty()) {
         s.message += "\nThe work folder was kept for the log: " + pathToUtf8(kept);
     }
     return s;
+}
+
+// Says whether a license id is one the catalog has.
+bool licenseKnown(const MaterialCatalog& catalog, const std::string& id)
+{
+    for (const LicenseEntry& l : catalog.licenses()) {
+        if (l.id == id) return true;
+    }
+    return false;
 }
 
 // Sorted values without repeats.
@@ -97,7 +108,9 @@ bool takesValue(MapChannel channel)
 // Checks the parts of a request that need no catalog.
 Status checkRequest(const MaterialImportRequest& request)
 {
-    if (request.source.file.empty()) return fail(ErrorCode::InvalidValue, "No file or folder was given to import.");
+    if (request.source.file.empty() && request.source.url.empty()) {
+        return fail(ErrorCode::InvalidValue, "No file, folder or address was given to import.");
+    }
     if (!request.id.empty()) {
         if (Status s = checkCatalogId(request.id); !s.ok()) return s;
     }
@@ -261,13 +274,18 @@ MaterialImportOutcome importMaterial(MaterialCatalog& catalog, const ImportConte
     sendProgress(onProgress, ImportStage::Preparing);
 
     if (outcome.status = checkRequest(request); !outcome.status.ok()) return outcome;
-    const MaterialImporter* importer = pickMaterialImporter(request.source);
+    const ChosenImporter<MaterialImporter> chosen = chooseMaterialImporter(catalog.paths(), request);
+    if (!chosen.status.ok()) {
+        outcome.status = chosen.status;
+        return outcome;
+    }
+    const MaterialImporter* importer = chosen.importer;
     if (!importer) {
         std::string suffixes;
         for (const std::string& s : importableMaterialSuffixes()) suffixes += (suffixes.empty() ? "" : ", ") + s;
-        const std::string what = pathToUtf8(request.source.file);
+        const std::string what = request.source.file.empty() ? request.source.url : pathToUtf8(request.source.file);
         std::error_code ec;
-        if (!fs::exists(request.source.file, ec)) {
+        if (!request.source.file.empty() && !fs::exists(request.source.file, ec)) {
             outcome.status = fail(ErrorCode::NotFound, "The file " + what + " was not found.");
         } else {
             outcome.status = fail(ErrorCode::InvalidValue, "Plynth cannot import " + what + " as a material. It reads these file endings: " +
@@ -312,15 +330,39 @@ MaterialImportOutcome importMaterial(MaterialCatalog& catalog, const ImportConte
         outcome.status = fail(ErrorCode::CannotWrite, "The work folder " + pathToUtf8(work.path()) + " could not be created.");
         return outcome;
     }
-    const std::string sourceText = pathToUtf8(request.source.file);
+    const std::string sourceText = request.source.file.empty() ? request.source.url : pathToUtf8(request.source.file);
 
     MaterialImportPlan plan;
-    if (outcome.status = importer->plan(request.source, work.path(), plan); !outcome.status.ok()) return outcome;
+    outcome.status = importer->plan(chosen.source, work.path(), plan);
+    outcome.details = plan.details;
+    if (!outcome.status.ok()) return outcome;
+
+    if (plan.fetch) {
+        sendProgress(onProgress, ImportStage::Blender);
+        const FetchRun fetched = runImportFetch(*plan.fetch, context.blender.executable, context.run, work.path(),
+                                                [&](const BlenderProgress& p) { sendProgress(onProgress, ImportStage::Blender, p); }, stop);
+        if (!fetched.status.ok()) {
+            const bool blenderProblem = fetched.status.code == ErrorCode::BlenderFailed;
+            if (blenderProblem) {
+                work.keep(sourceText);
+                outcome.keptWorkFolder = work.path();
+            }
+            outcome.status = blenderFailure(fetched.status, blenderProblem ? work.path() : fs::path());
+            return outcome;
+        }
+        if (stop.stop_requested()) {
+            outcome.status = fail(ErrorCode::Cancelled, "The import was cancelled.");
+            return outcome;
+        }
+        outcome.status = applyFetch(fetched, *plan.fetch, plan);
+        outcome.details = plan.details;
+        if (!outcome.status.ok()) return outcome;
+    }
 
     MaterialCleanupJob cleanup;
     cleanup.workerSource = plan.workerSource;
     cleanup.path = plan.path;
-    cleanup.blendMaterial = request.blendMaterial;
+    cleanup.blendMaterial = request.blendMaterial.empty() ? plan.blendMaterial : request.blendMaterial;
     cleanup.maps = request.maps;
     cleanup.values = request.values;
     cleanup.normal = request.normal;
@@ -336,7 +378,7 @@ MaterialImportOutcome importMaterial(MaterialCatalog& catalog, const ImportConte
     if (!run.status.ok()) {
         const bool blenderProblem = run.status.code == ErrorCode::BlenderFailed;
         if (blenderProblem) work.keep(sourceText);
-        outcome.status = blenderFailure(run, blenderProblem ? work.path() : fs::path());
+        outcome.status = blenderFailure(run.status, blenderProblem ? work.path() : fs::path());
         if (blenderProblem) outcome.keptWorkFolder = work.path();
         return outcome;
     }
@@ -363,7 +405,7 @@ MaterialImportOutcome importMaterial(MaterialCatalog& catalog, const ImportConte
     const MaterialSourceInfo& said = out.sourceInfo ? *out.sourceInfo : none;
 
     MaterialInfo info;
-    info.name = firstValidName({request.name, said.name.value_or(""), out.pickedMaterial, plan.defaultName});
+    info.name = firstValidName({request.name, said.name.value_or(""), plan.defaultName, out.pickedMaterial});
     if (info.name.empty()) info.name = "Material";
 
     std::string id = request.id;
@@ -395,10 +437,12 @@ MaterialImportOutcome importMaterial(MaterialCatalog& catalog, const ImportConte
     info.tags = sortedUnique(tags);
     if (!request.license.empty()) info.license = request.license;
     else if (said.license && checkCatalogId(*said.license).ok()) info.license = *said.license;
-    else if (!plan.license.empty()) info.license = plan.license;
+    else if (!plan.license.empty() && licenseKnown(catalog, plan.license)) info.license = plan.license;
     else info.license = std::string(kUnknownLicenseId);
+    if (checkAuthor(plan.author).ok()) info.author = plan.author;
 
     info.source = {plan.sourceKind, plan.reference, sessionNow()};
+    if (request.origin) info.source = *request.origin;
     info.tileSize = request.tileSize ? *request.tileSize : out.tileSize;
     info.maps = out.maps;
     info.textureSize = out.textureSize;
@@ -430,7 +474,7 @@ MaterialImportOutcome importMaterial(MaterialCatalog& catalog, const ImportConte
     outcome.warnings = info.warnings;
     outcome.thumbnailFailed = !rendered;
     const bool keepOriginal = request.keepOriginal.value_or(context.settings.keepImportedZips);
-    if (plan.originalIsZip && !keepOriginal) {
+    if (plan.originalIsZip && !keepOriginal && !request.source.file.empty()) {
         const Status removed = context.removeOriginal ? context.removeOriginal(request.source.file) : moveToRecycleBin(request.source.file);
         outcome.originalRemoved = removed.ok();
     }
@@ -468,17 +512,24 @@ MaterialImportOutcome importMaterialInboxEntry(MaterialCatalog& catalog, const I
                                                std::stop_token stop)
 {
     const LibraryPaths& library = catalog.paths();
+    // A broken integrations.json says nothing about the entry, so the entry stays where it is.
+    if (const IntegrationOptionsRead options = readIntegrationOptions(library); !options.status.ok()) {
+        MaterialImportOutcome refused;
+        refused.status = options.status;
+        return refused;
+    }
     MaterialImportRequest request;
     request.source.file = entry;
     MaterialImportOutcome outcome = importMaterial(catalog, context, request, onProgress, stop);
 
     std::error_code ec;
     if (outcome.status.ok()) {
-        if (fs::exists(entry, ec)) moveEntry(entry, library.materialInboxDone);
+        if (fs::exists(entry, ec)) outcome.movedTo = moveEntry(entry, library.materialInboxDone);
         return outcome;
     }
     if (leavesEntryInInbox(outcome.status.code) || !fs::exists(entry, ec)) return outcome;
     const fs::path moved = moveEntry(entry, library.materialInboxFailed);
+    outcome.movedTo = moved;
     if (!moved.empty()) {
         fs::path note = moved;
         note += ".error.txt";
@@ -561,7 +612,7 @@ MaterialImportOutcome refreshMaterial(MaterialCatalog& catalog, const ImportCont
             work.keep();
             outcome.keptWorkFolder = work.path();
         }
-        outcome.status = blenderFailure(run, blenderProblem ? work.path() : fs::path());
+        outcome.status = blenderFailure(run.status, blenderProblem ? work.path() : fs::path());
         return outcome;
     }
     const MaterialJobOutput out = readMaterialCleanupResult(run.result, jobId);

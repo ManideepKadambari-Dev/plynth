@@ -2,3 +2,7 @@
 tests/core/data/** -text
 cli/tests/data/** -text
 blender/tests/data/** -text
+# License texts are kept byte for byte as downloaded, so their SHA-256 values stay true.
+licenses/texts/** -text
+licenses/license-texts.json -text
+samples/LICENSE -text

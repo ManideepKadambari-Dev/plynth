@@ -4,13 +4,18 @@
 // Modes: ok (default), fail, crash, hang, hang_version, bad_result, no_thumbnail, no_fbx, build_problem,
 // several_materials (a cleanup_material job on a .blend with no material named fails with that error),
 // quality_fail (an export job reports a failing naming check with a finding on w1), quality_warn (a warning),
+// empty_group (the last group of an export job gets no object, so it has no file),
 // unreadable (a probe job fails with preferences_unreadable).
 // Several modes can be joined with "+", for example write_user+crash. write_user writes marker files into the
 // folders BLENDER_USER_CONFIG and BLENDER_USER_EXTENSIONS name, else into config and extensions under
 // FAKE_BLENDER_USER_ROOT, and into no folder when neither is set. It never uses a real default folder.
+// Its records (the logs below, fake_args.txt, fake_result.json, fake_child.pid) go to the folder that
+// FAKE_BLENDER_RECORDS names, else next to the program. The mode and version files are always read next to it.
 // Every start also appends its arguments to fake_args.log.
 // Every start also appends the BLENDER_USER_* variables it sees to fake_env.log.
 // Every job is also appended as one line to fake_jobs.log next to the program.
+// Every start also appends its integrity level and fetch variables to fake_starts.log (store_fetch_env.cpp).
+// With FAKE_LEAVE_CHILD set, every job start leaves a sleeping child and writes its id to fake_child.pid.
 // Every job also appends one JSON line to fake_extensions.log: {"task", "marker", "user_default"}. marker says
 // whether the folder BLENDER_USER_EXTENSIONS names holds .plynth-prepared, user_default lists the sorted names
 // in that folder's user_default. Without the variable no folder is looked at.
@@ -23,6 +28,8 @@
 #define NOMINMAX
 #include <windows.h>
 #include <shellapi.h>
+
+#include <crtdbg.h>
 
 #include <algorithm>
 #include <chrono>
@@ -39,6 +46,12 @@
 
 namespace fs = std::filesystem;
 using Json = nlohmann::ordered_json;
+
+int runFakeStoreFetch(const Json& job, const std::string& jobPath, const std::vector<std::string>& args);
+fs::path recordFolder();
+int lingerChild(const std::wstring& lockFile);
+void noteStart();
+void leaveChildIfAsked();
 
 namespace {
 
@@ -511,10 +524,26 @@ Json exportOutput(const Json& params, const std::string& mode)
 
     Json files = Json::array();
     Json textures = Json::array();
+    Json emptyGroups = Json::array();
+    Json kitOutput = nullptr;
     if (write) {
+        const std::size_t groupCount = params["groups"].size();
+        std::size_t position = 0;
         for (const Json& group : params["groups"]) {
+            ++position;
+            // Mode empty_group: the last group gets no object, so no file is written for it.
+            if (mode == "empty_group" && position == groupCount) {
+                emptyGroups.push_back(group["id"]);
+                continue;
+            }
             writeFile(folder / pathFrom(group["file"].get<std::string>()), "FAKEFBX");
             files.push_back(Json{{"group", group["id"]}, {"file", group["file"]}, {"objects", 12}, {"triangles", 144}});
+        }
+        if (params.contains("kit") && params["kit"].is_object()) {
+            const Json& kitJob = params["kit"];
+            const int pieces = static_cast<int>(kitJob["pieces"].size());
+            writeFile(folder / pathFrom(kitJob["file"].get<std::string>()), "FAKEKIT");
+            kitOutput = Json{{"file", kitJob["file"]}, {"pieces", pieces}, {"objects", pieces * 2}, {"triangles", 100 * pieces}};
         }
         writeFile(folder / pathFrom(params["textures_folder"].get<std::string>()) / "T_Fake_BaseColor.png", tinyPng());
         textures.push_back("T_Fake_BaseColor.png");
@@ -544,6 +573,8 @@ Json exportOutput(const Json& params, const std::string& mode)
     out["objects"] = 12 * groups;
     out["triangles"] = 144 * groups;
     out["collision_objects"] = 3 * groups;
+    out["empty_groups"] = emptyGroups;
+    out["kit"] = kitOutput;
     out["checks"] = checks;
     out["steps"] = steps;
     return out;
@@ -567,17 +598,33 @@ std::vector<std::string> commandLineArguments()
     return out;
 }
 
+// Sends failure reports of the C runtime and Windows to stderr instead of dialogs, so a failing run of this
+// tool ends instead of waiting for someone to close a window.
+void quietFailures()
+{
+    SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
+    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+    for (const int type : {_CRT_WARN, _CRT_ERROR, _CRT_ASSERT}) {
+        _CrtSetReportMode(type, _CRTDBG_MODE_FILE);
+        _CrtSetReportFile(type, _CRTDBG_FILE_STDERR);
+    }
+}
+
 int main()
 {
+    quietFailures();
     const std::vector<std::string> args = commandLineArguments();
+    if (args.size() == 2 && args[0] == "--linger") return lingerChild(pathFrom(args[1]).wstring());
     {
-        std::ofstream log(programFolder() / "fake_args.log", std::ios::binary | std::ios::app);
+        std::ofstream log(recordFolder() / "fake_args.log", std::ios::binary | std::ios::app);
         for (std::size_t i = 0; i < args.size(); ++i) log << (i ? "|" : "") << args[i];
         log << "\n";
     }
+    noteStart();
+    if (std::find(args.begin(), args.end(), "--version") == args.end()) leaveChildIfAsked();
     if (writesUser()) writeUserMarkers();
     {
-        std::ofstream log(programFolder() / "fake_env.log", std::ios::binary | std::ios::app);
+        std::ofstream log(recordFolder() / "fake_env.log", std::ios::binary | std::ios::app);
         log << (std::find(args.begin(), args.end(), "--version") != args.end() ? "version" : "job");
         for (const char* name : {"BLENDER_USER_RESOURCES", "BLENDER_USER_CONFIG", "BLENDER_USER_SCRIPTS", "BLENDER_USER_EXTENSIONS", "BLENDER_USER_DATAFILES"})
             log << "|" << name << "=" << environment(name);
@@ -614,14 +661,15 @@ int main()
     if (job.is_discarded()) return 3;
 
     {
-        std::ofstream log(programFolder() / "fake_jobs.log", std::ios::binary | std::ios::app);
+        std::ofstream log(recordFolder() / "fake_jobs.log", std::ios::binary | std::ios::app);
         log << job.dump() << "\n";
     }
     {
-        std::ofstream log(programFolder() / "fake_extensions.log", std::ios::binary | std::ios::app);
+        std::ofstream log(recordFolder() / "fake_extensions.log", std::ios::binary | std::ios::app);
         log << extensionsSeen(job["task"].get<std::string>()).dump() << "\n";
     }
 
+    if (job["task"] == "blenderkit_fetch") return runFakeStoreFetch(job, jobPath, args);
     if (job["task"].get<std::string>() == "probe") {
         const Json& given = job["params"];
         const Json folders = given.is_object() && given.contains("user_folders") ? given["user_folders"] : Json();
@@ -751,8 +799,9 @@ int main()
         output["picked_file"] = zip ? Json("model.obj") : Json(nullptr);
         output["missing_textures"] = Json::array();
         output["thumbnail"] = thumbnail;
+        output["supports"] = Json::array();
         Json ordered = Json::object();
-        for (const char* key : {"blend_file", "fbx_file", "picked_file", "size", "triangles", "objects", "materials", "textures", "missing_textures", "material_maps", "thumbnail"}) {
+        for (const char* key : {"blend_file", "fbx_file", "picked_file", "size", "triangles", "objects", "materials", "textures", "missing_textures", "material_maps", "thumbnail", "supports"}) {
             ordered[key] = output[key];
         }
         result["output"] = ordered;

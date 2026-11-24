@@ -339,4 +339,16 @@ Status removeAutosave(const fs::path& folder)
     return {};
 }
 
+// Saves the autosave as the project and removes it, or only removes it.
+Status recoverAutosave(const fs::path& folder, bool discard)
+{
+    if (!isProjectFolder(folder)) return fail(ErrorCode::NotAProject, "The folder " + pathToUtf8(folder) + " holds no project.");
+    if (!findAutosave(folder).exists) return fail(ErrorCode::NotFound, "The project has no autosave.");
+    if (discard) return removeAutosave(folder);
+    ProjectLoad load = loadAutosave(folder);
+    if (!load.status.ok()) return load.status;
+    if (Status saved = saveProject(load.project, folder, folder); !saved.ok()) return saved;
+    return removeAutosave(folder);
+}
+
 }

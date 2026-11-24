@@ -1,0 +1,3278 @@
+{
+  "format": "plynth-blender-job",
+  "version": 1,
+  "task": "build",
+  "job_id": "build-fixture",
+  "result_file": "@PROJECT@/build/result.json",
+  "params": {
+    "project": {
+      "name": "Untitled",
+      "folder": "@PROJECT@"
+    },
+    "output_folder": "@PROJECT@/build",
+    "blend_file": "building.blend",
+    "fbx_file": "building.fbx",
+    "materials_file": "materials.json",
+    "textures_folder": "textures",
+    "preview_folder": "preview",
+    "preview_textures_folder": "preview_textures",
+    "preview_texture_size": 1024,
+    "plan": {
+      "format": "plynth-plan",
+      "version": 7,
+      "scale": {
+        "pixels_per_metre": null
+      },
+      "floors": [
+        {
+          "id": "f1",
+          "name": "Floor 1",
+          "image": null,
+          "ceiling_height": 3.0,
+          "points": [
+            {
+              "id": "p1",
+              "x": 0.0,
+              "y": 0.0,
+              "corner_radius": 0.0
+            },
+            {
+              "id": "p2",
+              "x": 4.0,
+              "y": 0.0,
+              "corner_radius": 0.0
+            },
+            {
+              "id": "p3",
+              "x": 4.0,
+              "y": 4.0,
+              "corner_radius": 0.0
+            },
+            {
+              "id": "p4",
+              "x": 0.0,
+              "y": 4.0,
+              "corner_radius": 0.0
+            }
+          ],
+          "walls": [
+            {
+              "id": "w1",
+              "from": "p1",
+              "to": "p2",
+              "thickness": 0.2,
+              "height": null,
+              "bulge": 0.0,
+              "material_inside": null,
+              "material_outside": null
+            },
+            {
+              "id": "w2",
+              "from": "p2",
+              "to": "p3",
+              "thickness": 0.2,
+              "height": null,
+              "bulge": 0.0,
+              "material_inside": null,
+              "material_outside": null
+            },
+            {
+              "id": "w3",
+              "from": "p3",
+              "to": "p4",
+              "thickness": 0.2,
+              "height": null,
+              "bulge": 0.0,
+              "material_inside": null,
+              "material_outside": null
+            },
+            {
+              "id": "w4",
+              "from": "p4",
+              "to": "p1",
+              "thickness": 0.2,
+              "height": null,
+              "bulge": 0.0,
+              "material_inside": null,
+              "material_outside": null
+            }
+          ],
+          "rooms": [
+            {
+              "id": "r1",
+              "type": null,
+              "walls": [
+                "w1",
+                "w2",
+                "w3",
+                "w4"
+              ],
+              "floor_material": null,
+              "wall_material": null,
+              "ceiling_material": null,
+              "dressing": true
+            }
+          ],
+          "openings": [
+            {
+              "id": "o1",
+              "wall": "w1",
+              "offset": 2.0,
+              "type": "door",
+              "shape": "rectangle",
+              "width": 0.9,
+              "height": 2.1,
+              "sill": 0.0,
+              "hinge": "start",
+              "swing": "right",
+              "frame": "door",
+              "auto_frame": true
+            },
+            {
+              "id": "o2",
+              "wall": "w2",
+              "offset": 2.0,
+              "type": "window",
+              "shape": "rectangle",
+              "width": 1.2,
+              "height": 1.2,
+              "sill": 0.9,
+              "hinge": "start",
+              "swing": "right",
+              "frame": null,
+              "auto_frame": true
+            }
+          ],
+          "items": [
+            {
+              "id": "i1",
+              "asset": "shelf",
+              "room": "r1",
+              "x": 2.0,
+              "y": 3.6,
+              "z": 0.0,
+              "rotation": 180.0,
+              "wall": null,
+              "size": {
+                "width": 0.8,
+                "depth": 0.3,
+                "height": 1.8
+              },
+              "generator": null
+            }
+          ],
+          "slab_thickness": 0.2,
+          "image_offset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "stairs": [],
+          "lights": [
+            {
+              "id": "l1",
+              "kind": "ceiling",
+              "room": "r1",
+              "x": 2.0,
+              "y": 2.0,
+              "z": 2.9
+            }
+          ]
+        }
+      ],
+      "roof": {
+        "type": "flat",
+        "pitch": 30.0,
+        "overhang": 0.3,
+        "parapet": 0.6,
+        "direction": null
+      },
+      "roof_sections": []
+    },
+    "settings": {
+      "bevel_width": 0.01,
+      "bevel_segments": 2,
+      "fill_openings": true
+    },
+    "assets": [
+      {
+        "id": "books",
+        "blend_file": "@LIBRARY@/books/asset.blend",
+        "collection": "books",
+        "materials": []
+      },
+      {
+        "id": "door",
+        "blend_file": "@LIBRARY@/door/asset.blend",
+        "collection": "door",
+        "materials": []
+      },
+      {
+        "id": "shelf",
+        "blend_file": "@LIBRARY@/shelf/asset.blend",
+        "collection": "shelf",
+        "materials": []
+      }
+    ],
+    "materials": [],
+    "slots": [
+      {
+        "name": "Door",
+        "material": null,
+        "surface": "Door"
+      },
+      {
+        "name": "Exterior_Wall",
+        "material": null,
+        "surface": "Wall_Outside"
+      },
+      {
+        "name": "Fascia",
+        "material": null,
+        "surface": "Fascia"
+      },
+      {
+        "name": "Flat_Roof",
+        "material": null,
+        "surface": "Flat_Roof"
+      },
+      {
+        "name": "Frame",
+        "material": null,
+        "surface": "Frame"
+      },
+      {
+        "name": "Glass",
+        "material": null,
+        "surface": "Glass"
+      },
+      {
+        "name": "Handle",
+        "material": null,
+        "surface": "Handle"
+      },
+      {
+        "name": "Room_Ceiling",
+        "material": null,
+        "surface": "Ceiling"
+      },
+      {
+        "name": "Room_Floor",
+        "material": null,
+        "surface": "Floor"
+      },
+      {
+        "name": "Room_Wall",
+        "material": null,
+        "surface": "Wall_Inside"
+      },
+      {
+        "name": "Soffit",
+        "material": null,
+        "surface": "Soffit"
+      },
+      {
+        "name": "Stair_Well",
+        "material": null,
+        "surface": "Wall_Inside"
+      },
+      {
+        "name": "Threshold",
+        "material": null,
+        "surface": "Threshold"
+      },
+      {
+        "name": "Trim",
+        "material": null,
+        "surface": "Trim"
+      },
+      {
+        "name": "Wall_Top",
+        "material": null,
+        "surface": "Wall_Top"
+      }
+    ],
+    "generators": [],
+    "floors": [
+      {
+        "id": "f1",
+        "elevation": 0.0,
+        "ceiling_height": 3.0,
+        "wall_solids": [
+          {
+            "height": 3.0,
+            "top_material": null,
+            "top_slot": "Wall_Top",
+            "outline": {
+              "points": [
+                [
+                  -0.10000000149011612,
+                  -4.100000001490116
+                ],
+                [
+                  4.100000001490116,
+                  -4.100000001490116
+                ],
+                [
+                  4.100000001490116,
+                  0.10000000149011612
+                ],
+                [
+                  -0.10000000149011612,
+                  0.10000000149011612
+                ]
+              ],
+              "edges": [
+                {
+                  "wall": "w3",
+                  "side": "left",
+                  "room": null,
+                  "material": null,
+                  "slot": "Exterior_Wall"
+                },
+                {
+                  "wall": "w2",
+                  "side": "left",
+                  "room": null,
+                  "material": null,
+                  "slot": "Exterior_Wall"
+                },
+                {
+                  "wall": "w1",
+                  "side": "left",
+                  "room": null,
+                  "material": null,
+                  "slot": "Exterior_Wall"
+                },
+                {
+                  "wall": "w4",
+                  "side": "left",
+                  "room": null,
+                  "material": null,
+                  "slot": "Exterior_Wall"
+                }
+              ]
+            },
+            "holes": [
+              {
+                "points": [
+                  [
+                    0.10000000149011612,
+                    -3.899999998509884
+                  ],
+                  [
+                    0.10000000149011612,
+                    -0.10000000149011612
+                  ],
+                  [
+                    3.899999998509884,
+                    -0.10000000149011612
+                  ],
+                  [
+                    3.899999998509884,
+                    -3.899999998509884
+                  ]
+                ],
+                "edges": [
+                  {
+                    "wall": "w4",
+                    "side": "right",
+                    "room": "r1",
+                    "material": null,
+                    "slot": "Room_Wall"
+                  },
+                  {
+                    "wall": "w1",
+                    "side": "right",
+                    "room": "r1",
+                    "material": null,
+                    "slot": "Room_Wall"
+                  },
+                  {
+                    "wall": "w2",
+                    "side": "right",
+                    "room": "r1",
+                    "material": null,
+                    "slot": "Room_Wall"
+                  },
+                  {
+                    "wall": "w3",
+                    "side": "right",
+                    "room": "r1",
+                    "material": null,
+                    "slot": "Room_Wall"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "openings": [
+          {
+            "id": "o1",
+            "wall": "w1",
+            "type": "door",
+            "shape": "rectangle",
+            "width": 0.9,
+            "height": 2.1,
+            "sill": 0.0,
+            "hinge": "start",
+            "swing": "right",
+            "frame": "door",
+            "centre": [
+              2.0,
+              -0.0
+            ],
+            "tangent": [
+              1.0,
+              -0.0
+            ],
+            "right": [
+              -0.0,
+              -1.0
+            ],
+            "thickness": 0.2,
+            "curved": false,
+            "outline": [
+              [
+                -0.45,
+                0.0
+              ],
+              [
+                0.45,
+                0.0
+              ],
+              [
+                0.45,
+                2.1
+              ],
+              [
+                -0.45,
+                2.1
+              ]
+            ],
+            "inner_outline": [
+              [
+                0.3999999985098839,
+                2.0499999970197678
+              ],
+              [
+                -0.3999999985098839,
+                2.0499999970197678
+              ],
+              [
+                -0.3999999985098839,
+                0.0
+              ],
+              [
+                0.3999999985098839,
+                0.0
+              ]
+            ],
+            "cutter": {
+              "right": [
+                [
+                  1.55,
+                  -0.15000000000000002,
+                  -0.05
+                ],
+                [
+                  2.45,
+                  -0.15000000000000002,
+                  -0.05
+                ],
+                [
+                  2.45,
+                  -0.15000000000000002,
+                  2.1
+                ],
+                [
+                  1.55,
+                  -0.15000000000000002,
+                  2.1
+                ]
+              ],
+              "left": [
+                [
+                  1.55,
+                  0.15000000000000002,
+                  -0.05
+                ],
+                [
+                  2.45,
+                  0.15000000000000002,
+                  -0.05
+                ],
+                [
+                  2.45,
+                  0.15000000000000002,
+                  2.1
+                ],
+                [
+                  1.55,
+                  0.15000000000000002,
+                  2.1
+                ]
+              ]
+            },
+            "threshold": [
+              [
+                1.55,
+                -0.1
+              ],
+              [
+                2.45,
+                -0.1
+              ],
+              [
+                2.45,
+                0.1
+              ],
+              [
+                1.55,
+                0.1
+              ]
+            ],
+            "materials": {
+              "reveal": null,
+              "threshold": null,
+              "door": null,
+              "frame": null,
+              "glass": null,
+              "handle": null
+            },
+            "slots": {
+              "reveal": "Room_Wall",
+              "threshold": "Room_Floor",
+              "door": "Door",
+              "frame": "Frame",
+              "glass": "Glass",
+              "handle": "Handle"
+            },
+            "asset": {
+              "id": "door",
+              "location": [
+                2.0,
+                -0.0,
+                0.0
+              ],
+              "rotation_z": -0.0,
+              "scale": [
+                1.0,
+                1.0,
+                1.0
+              ]
+            }
+          },
+          {
+            "id": "o2",
+            "wall": "w2",
+            "type": "window",
+            "shape": "rectangle",
+            "width": 1.2,
+            "height": 1.2,
+            "sill": 0.9,
+            "hinge": "start",
+            "swing": "right",
+            "frame": null,
+            "centre": [
+              4.0,
+              -2.0
+            ],
+            "tangent": [
+              0.0,
+              -1.0
+            ],
+            "right": [
+              -1.0,
+              -0.0
+            ],
+            "thickness": 0.2,
+            "curved": false,
+            "outline": [
+              [
+                -0.6,
+                0.0
+              ],
+              [
+                0.6,
+                0.0
+              ],
+              [
+                0.6,
+                1.2
+              ],
+              [
+                -0.6,
+                1.2
+              ]
+            ],
+            "inner_outline": [
+              [
+                0.55,
+                0.05
+              ],
+              [
+                0.55,
+                1.1500000000000001
+              ],
+              [
+                -0.55,
+                1.1500000000000001
+              ],
+              [
+                -0.55,
+                0.05
+              ]
+            ],
+            "cutter": {
+              "right": [
+                [
+                  3.85,
+                  -1.4,
+                  0.9
+                ],
+                [
+                  3.85,
+                  -2.6,
+                  0.9
+                ],
+                [
+                  3.85,
+                  -2.6,
+                  2.1
+                ],
+                [
+                  3.85,
+                  -1.4,
+                  2.1
+                ]
+              ],
+              "left": [
+                [
+                  4.15,
+                  -1.4,
+                  0.9
+                ],
+                [
+                  4.15,
+                  -2.6,
+                  0.9
+                ],
+                [
+                  4.15,
+                  -2.6,
+                  2.1
+                ],
+                [
+                  4.15,
+                  -1.4,
+                  2.1
+                ]
+              ]
+            },
+            "threshold": [],
+            "materials": {
+              "reveal": null,
+              "threshold": null,
+              "door": null,
+              "frame": null,
+              "glass": null,
+              "handle": null
+            },
+            "slots": {
+              "reveal": "Room_Wall",
+              "threshold": "Threshold",
+              "door": "Door",
+              "frame": "Frame",
+              "glass": "Glass",
+              "handle": "Handle"
+            }
+          }
+        ],
+        "rooms": [
+          {
+            "id": "r1",
+            "type": null,
+            "area": 14.439999977350233,
+            "floor_z": 0.0,
+            "ceiling_z": 3.0,
+            "floor_material": null,
+            "ceiling_material": null,
+            "floor_slot": "Room_Floor",
+            "ceiling_slot": "Room_Ceiling",
+            "polygons": [
+              {
+                "outline": [
+                  [
+                    0.10000000149011612,
+                    -3.899999998509884
+                  ],
+                  [
+                    3.899999998509884,
+                    -3.899999998509884
+                  ],
+                  [
+                    3.899999998509884,
+                    -0.10000000149011612
+                  ],
+                  [
+                    0.10000000149011612,
+                    -0.10000000149011612
+                  ]
+                ],
+                "holes": []
+              }
+            ],
+            "ceiling_polygons": [
+              {
+                "outline": [
+                  [
+                    0.10000000149011612,
+                    -3.899999998509884
+                  ],
+                  [
+                    3.899999998509884,
+                    -3.899999998509884
+                  ],
+                  [
+                    3.899999998509884,
+                    -0.10000000149011612
+                  ],
+                  [
+                    0.10000000149011612,
+                    -0.10000000149011612
+                  ]
+                ],
+                "holes": []
+              }
+            ]
+          }
+        ],
+        "items": [
+          {
+            "id": "i1",
+            "asset": "shelf",
+            "location": [
+              2.0,
+              -3.6,
+              0.0
+            ],
+            "rotation_z": -3.141592653589793,
+            "size": {
+              "width": 0.8,
+              "depth": 0.3,
+              "height": 1.8
+            },
+            "wall": null
+          }
+        ],
+        "slab": {
+          "bottom": 3.0,
+          "top": 3.2,
+          "polygons": [
+            {
+              "outline": [
+                [
+                  -0.10000000149011612,
+                  -4.100000001490116
+                ],
+                [
+                  4.100000001490116,
+                  -4.100000001490116
+                ],
+                [
+                  4.100000001490116,
+                  0.10000000149011612
+                ],
+                [
+                  -0.10000000149011612,
+                  0.10000000149011612
+                ]
+              ],
+              "holes": []
+            }
+          ],
+          "undersides": [],
+          "sides": [
+            {
+              "outline": [
+                "edge",
+                "edge",
+                "edge",
+                "edge"
+              ],
+              "holes": []
+            }
+          ],
+          "tops": [],
+          "materials": {
+            "edge": null,
+            "well": null,
+            "underside": null
+          },
+          "slots": {
+            "edge": "Exterior_Wall",
+            "well": "Stair_Well",
+            "underside": "Soffit"
+          }
+        },
+        "stairs": [],
+        "roofs": [
+          {
+            "index": 0,
+            "section": null,
+            "type": "flat",
+            "faces": [
+              {
+                "part": "covering",
+                "outline": [
+                  [
+                    -0.10000000149011612,
+                    -4.100000001490116,
+                    3.35
+                  ],
+                  [
+                    4.100000001490116,
+                    -4.100000001490116,
+                    3.35
+                  ],
+                  [
+                    4.100000001490116,
+                    0.10000000149011612,
+                    3.35
+                  ],
+                  [
+                    -0.10000000149011612,
+                    0.10000000149011612,
+                    3.35
+                  ]
+                ],
+                "holes": [],
+                "material": null,
+                "slot": "Flat_Roof"
+              },
+              {
+                "part": "underside",
+                "outline": [
+                  [
+                    -0.10000000149011612,
+                    0.10000000149011612,
+                    3.2
+                  ],
+                  [
+                    4.100000001490116,
+                    0.10000000149011612,
+                    3.2
+                  ],
+                  [
+                    4.100000001490116,
+                    -4.100000001490116,
+                    3.2
+                  ],
+                  [
+                    -0.10000000149011612,
+                    -4.100000001490116,
+                    3.2
+                  ]
+                ],
+                "holes": [],
+                "material": null,
+                "slot": "Soffit"
+              },
+              {
+                "part": "edge",
+                "outline": [
+                  [
+                    -0.10000000149011612,
+                    -4.100000001490116,
+                    3.2
+                  ],
+                  [
+                    4.100000001490116,
+                    -4.100000001490116,
+                    3.2
+                  ],
+                  [
+                    4.100000001490116,
+                    -4.100000001490116,
+                    3.35
+                  ],
+                  [
+                    -0.10000000149011612,
+                    -4.100000001490116,
+                    3.35
+                  ]
+                ],
+                "holes": [],
+                "material": null,
+                "slot": "Fascia"
+              },
+              {
+                "part": "edge",
+                "outline": [
+                  [
+                    4.100000001490116,
+                    -4.100000001490116,
+                    3.2
+                  ],
+                  [
+                    4.100000001490116,
+                    0.10000000149011612,
+                    3.2
+                  ],
+                  [
+                    4.100000001490116,
+                    0.10000000149011612,
+                    3.35
+                  ],
+                  [
+                    4.100000001490116,
+                    -4.100000001490116,
+                    3.35
+                  ]
+                ],
+                "holes": [],
+                "material": null,
+                "slot": "Fascia"
+              },
+              {
+                "part": "edge",
+                "outline": [
+                  [
+                    4.100000001490116,
+                    0.10000000149011612,
+                    3.2
+                  ],
+                  [
+                    -0.10000000149011612,
+                    0.10000000149011612,
+                    3.2
+                  ],
+                  [
+                    -0.10000000149011612,
+                    0.10000000149011612,
+                    3.35
+                  ],
+                  [
+                    4.100000001490116,
+                    0.10000000149011612,
+                    3.35
+                  ]
+                ],
+                "holes": [],
+                "material": null,
+                "slot": "Fascia"
+              },
+              {
+                "part": "edge",
+                "outline": [
+                  [
+                    -0.10000000149011612,
+                    0.10000000149011612,
+                    3.2
+                  ],
+                  [
+                    -0.10000000149011612,
+                    -4.100000001490116,
+                    3.2
+                  ],
+                  [
+                    -0.10000000149011612,
+                    -4.100000001490116,
+                    3.35
+                  ],
+                  [
+                    -0.10000000149011612,
+                    0.10000000149011612,
+                    3.35
+                  ]
+                ],
+                "holes": [],
+                "material": null,
+                "slot": "Fascia"
+              },
+              {
+                "part": "parapet",
+                "outline": [
+                  [
+                    4.100000001490116,
+                    0.10000000149011612,
+                    3.95
+                  ],
+                  [
+                    -0.10000000149011612,
+                    0.10000000149011612,
+                    3.95
+                  ],
+                  [
+                    -0.10000000149011612,
+                    -4.100000001490116,
+                    3.95
+                  ],
+                  [
+                    4.100000001490116,
+                    -4.100000001490116,
+                    3.95
+                  ]
+                ],
+                "holes": [
+                  [
+                    [
+                      0.10000000149011612,
+                      -3.899999998509884,
+                      3.95
+                    ],
+                    [
+                      0.10000000149011612,
+                      -0.10000000149011612,
+                      3.95
+                    ],
+                    [
+                      3.899999998509884,
+                      -0.10000000149011612,
+                      3.95
+                    ],
+                    [
+                      3.899999998509884,
+                      -3.899999998509884,
+                      3.95
+                    ]
+                  ]
+                ],
+                "material": null,
+                "slot": "Exterior_Wall"
+              },
+              {
+                "part": "parapet",
+                "outline": [
+                  [
+                    4.100000001490116,
+                    0.10000000149011612,
+                    3.35
+                  ],
+                  [
+                    -0.10000000149011612,
+                    0.10000000149011612,
+                    3.35
+                  ],
+                  [
+                    -0.10000000149011612,
+                    0.10000000149011612,
+                    3.95
+                  ],
+                  [
+                    4.100000001490116,
+                    0.10000000149011612,
+                    3.95
+                  ]
+                ],
+                "holes": [],
+                "material": null,
+                "slot": "Exterior_Wall"
+              },
+              {
+                "part": "parapet",
+                "outline": [
+                  [
+                    -0.10000000149011612,
+                    0.10000000149011612,
+                    3.35
+                  ],
+                  [
+                    -0.10000000149011612,
+                    -4.100000001490116,
+                    3.35
+                  ],
+                  [
+                    -0.10000000149011612,
+                    -4.100000001490116,
+                    3.95
+                  ],
+                  [
+                    -0.10000000149011612,
+                    0.10000000149011612,
+                    3.95
+                  ]
+                ],
+                "holes": [],
+                "material": null,
+                "slot": "Exterior_Wall"
+              },
+              {
+                "part": "parapet",
+                "outline": [
+                  [
+                    -0.10000000149011612,
+                    -4.100000001490116,
+                    3.35
+                  ],
+                  [
+                    4.100000001490116,
+                    -4.100000001490116,
+                    3.35
+                  ],
+                  [
+                    4.100000001490116,
+                    -4.100000001490116,
+                    3.95
+                  ],
+                  [
+                    -0.10000000149011612,
+                    -4.100000001490116,
+                    3.95
+                  ]
+                ],
+                "holes": [],
+                "material": null,
+                "slot": "Exterior_Wall"
+              },
+              {
+                "part": "parapet",
+                "outline": [
+                  [
+                    4.100000001490116,
+                    -4.100000001490116,
+                    3.35
+                  ],
+                  [
+                    4.100000001490116,
+                    0.10000000149011612,
+                    3.35
+                  ],
+                  [
+                    4.100000001490116,
+                    0.10000000149011612,
+                    3.95
+                  ],
+                  [
+                    4.100000001490116,
+                    -4.100000001490116,
+                    3.95
+                  ]
+                ],
+                "holes": [],
+                "material": null,
+                "slot": "Exterior_Wall"
+              },
+              {
+                "part": "parapet",
+                "outline": [
+                  [
+                    0.10000000149011612,
+                    -3.899999998509884,
+                    3.35
+                  ],
+                  [
+                    0.10000000149011612,
+                    -0.10000000149011612,
+                    3.35
+                  ],
+                  [
+                    0.10000000149011612,
+                    -0.10000000149011612,
+                    3.95
+                  ],
+                  [
+                    0.10000000149011612,
+                    -3.899999998509884,
+                    3.95
+                  ]
+                ],
+                "holes": [],
+                "material": null,
+                "slot": "Exterior_Wall"
+              },
+              {
+                "part": "parapet",
+                "outline": [
+                  [
+                    0.10000000149011612,
+                    -0.10000000149011612,
+                    3.35
+                  ],
+                  [
+                    3.899999998509884,
+                    -0.10000000149011612,
+                    3.35
+                  ],
+                  [
+                    3.899999998509884,
+                    -0.10000000149011612,
+                    3.95
+                  ],
+                  [
+                    0.10000000149011612,
+                    -0.10000000149011612,
+                    3.95
+                  ]
+                ],
+                "holes": [],
+                "material": null,
+                "slot": "Exterior_Wall"
+              },
+              {
+                "part": "parapet",
+                "outline": [
+                  [
+                    3.899999998509884,
+                    -0.10000000149011612,
+                    3.35
+                  ],
+                  [
+                    3.899999998509884,
+                    -3.899999998509884,
+                    3.35
+                  ],
+                  [
+                    3.899999998509884,
+                    -3.899999998509884,
+                    3.95
+                  ],
+                  [
+                    3.899999998509884,
+                    -0.10000000149011612,
+                    3.95
+                  ]
+                ],
+                "holes": [],
+                "material": null,
+                "slot": "Exterior_Wall"
+              },
+              {
+                "part": "parapet",
+                "outline": [
+                  [
+                    3.899999998509884,
+                    -3.899999998509884,
+                    3.35
+                  ],
+                  [
+                    0.10000000149011612,
+                    -3.899999998509884,
+                    3.35
+                  ],
+                  [
+                    0.10000000149011612,
+                    -3.899999998509884,
+                    3.95
+                  ],
+                  [
+                    3.899999998509884,
+                    -3.899999998509884,
+                    3.95
+                  ]
+                ],
+                "holes": [],
+                "material": null,
+                "slot": "Exterior_Wall"
+              }
+            ]
+          }
+        ],
+        "collision": [
+          {
+            "target": {
+              "kind": "walls",
+              "id": "f1"
+            },
+            "pieces": [
+              {
+                "outline": [
+                  [
+                    1.5499999970197678,
+                    0.10000000149011612
+                  ],
+                  [
+                    -0.10000000149011612,
+                    0.10000000149011612
+                  ],
+                  [
+                    0.10000000149011612,
+                    -0.10000000149011612
+                  ],
+                  [
+                    1.5499999970197678,
+                    -0.10000000149011612
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 3.0
+              },
+              {
+                "outline": [
+                  [
+                    2.4500000029802322,
+                    0.10000000149011612
+                  ],
+                  [
+                    1.5499999970197678,
+                    0.10000000149011612
+                  ],
+                  [
+                    1.5499999970197678,
+                    -0.10000000149011612
+                  ],
+                  [
+                    2.4500000029802322,
+                    -0.10000000149011612
+                  ]
+                ],
+                "bottom": 2.1,
+                "top": 3.0
+              },
+              {
+                "outline": [
+                  [
+                    4.100000001490116,
+                    0.10000000149011612
+                  ],
+                  [
+                    2.4500000029802322,
+                    0.10000000149011612
+                  ],
+                  [
+                    2.4500000029802322,
+                    -0.10000000149011612
+                  ],
+                  [
+                    3.899999998509884,
+                    -0.10000000149011612
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 3.0
+              },
+              {
+                "outline": [
+                  [
+                    4.100000001490116,
+                    0.10000000149011612
+                  ],
+                  [
+                    3.899999998509884,
+                    -0.10000000149011612
+                  ],
+                  [
+                    3.899999998509884,
+                    -3.899999998509884
+                  ],
+                  [
+                    4.100000001490116,
+                    -4.100000001490116
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 3.0
+              },
+              {
+                "outline": [
+                  [
+                    3.899999998509884,
+                    -3.899999998509884
+                  ],
+                  [
+                    0.10000000149011612,
+                    -3.899999998509884
+                  ],
+                  [
+                    -0.10000000149011612,
+                    -4.100000001490116
+                  ],
+                  [
+                    4.100000001490116,
+                    -4.100000001490116
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 3.0
+              },
+              {
+                "outline": [
+                  [
+                    -0.10000000149011612,
+                    0.10000000149011612
+                  ],
+                  [
+                    -0.10000000149011612,
+                    -4.100000001490116
+                  ],
+                  [
+                    0.10000000149011612,
+                    -3.899999998509884
+                  ],
+                  [
+                    0.10000000149011612,
+                    -0.10000000149011612
+                  ]
+                ],
+                "bottom": 0.0,
+                "top": 3.0
+              }
+            ],
+            "index": 0,
+            "hulls": []
+          },
+          {
+            "target": {
+              "kind": "floor",
+              "id": "r1"
+            },
+            "pieces": [
+              {
+                "outline": [
+                  [
+                    3.899999998509884,
+                    -3.899999998509884
+                  ],
+                  [
+                    3.899999998509884,
+                    -0.10000000149011612
+                  ],
+                  [
+                    0.10000000149011612,
+                    -0.10000000149011612
+                  ],
+                  [
+                    0.10000000149011612,
+                    -3.899999998509884
+                  ]
+                ],
+                "bottom": -0.1,
+                "top": 0.0
+              }
+            ],
+            "index": 0,
+            "hulls": []
+          },
+          {
+            "target": {
+              "kind": "ceiling",
+              "id": "r1"
+            },
+            "pieces": [
+              {
+                "outline": [
+                  [
+                    3.899999998509884,
+                    -3.899999998509884
+                  ],
+                  [
+                    3.899999998509884,
+                    -0.10000000149011612
+                  ],
+                  [
+                    0.10000000149011612,
+                    -0.10000000149011612
+                  ],
+                  [
+                    0.10000000149011612,
+                    -3.899999998509884
+                  ]
+                ],
+                "bottom": 3.0,
+                "top": 3.1
+              }
+            ],
+            "index": 0,
+            "hulls": []
+          },
+          {
+            "target": {
+              "kind": "thresholds",
+              "id": "f1"
+            },
+            "pieces": [
+              {
+                "outline": [
+                  [
+                    2.45,
+                    -0.1
+                  ],
+                  [
+                    2.45,
+                    0.1
+                  ],
+                  [
+                    1.55,
+                    0.1
+                  ],
+                  [
+                    1.55,
+                    -0.1
+                  ]
+                ],
+                "bottom": -0.1,
+                "top": 0.0
+              }
+            ],
+            "index": 0,
+            "hulls": []
+          },
+          {
+            "target": {
+              "kind": "slab",
+              "id": "f1"
+            },
+            "pieces": [
+              {
+                "outline": [
+                  [
+                    4.100000001490116,
+                    -4.100000001490116
+                  ],
+                  [
+                    4.100000001490116,
+                    0.10000000149011612
+                  ],
+                  [
+                    -0.10000000149011612,
+                    0.10000000149011612
+                  ],
+                  [
+                    -0.10000000149011612,
+                    -4.100000001490116
+                  ]
+                ],
+                "bottom": 3.0,
+                "top": 3.2
+              }
+            ],
+            "index": 0,
+            "hulls": []
+          },
+          {
+            "target": {
+              "kind": "roof",
+              "id": "f1"
+            },
+            "pieces": [
+              {
+                "outline": [
+                  [
+                    4.100000001490116,
+                    -4.100000001490116
+                  ],
+                  [
+                    4.100000001490116,
+                    -3.899999998509884
+                  ],
+                  [
+                    -0.10000000149011612,
+                    -3.899999998509884
+                  ],
+                  [
+                    -0.10000000149011612,
+                    -4.100000001490116
+                  ]
+                ],
+                "bottom": 3.35,
+                "top": 3.95
+              },
+              {
+                "outline": [
+                  [
+                    0.10000000149011612,
+                    -3.899999998509884
+                  ],
+                  [
+                    0.10000000149011612,
+                    -0.10000000149011612
+                  ],
+                  [
+                    -0.10000000149011612,
+                    -0.10000000149011612
+                  ],
+                  [
+                    -0.10000000149011612,
+                    -3.899999998509884
+                  ]
+                ],
+                "bottom": 3.35,
+                "top": 3.95
+              },
+              {
+                "outline": [
+                  [
+                    4.100000001490116,
+                    -3.899999998509884
+                  ],
+                  [
+                    4.100000001490116,
+                    -0.10000000149011612
+                  ],
+                  [
+                    3.899999998509884,
+                    -0.10000000149011612
+                  ],
+                  [
+                    3.899999998509884,
+                    -3.899999998509884
+                  ]
+                ],
+                "bottom": 3.35,
+                "top": 3.95
+              },
+              {
+                "outline": [
+                  [
+                    4.100000001490116,
+                    -0.10000000149011612
+                  ],
+                  [
+                    4.100000001490116,
+                    0.10000000149011612
+                  ],
+                  [
+                    -0.10000000149011612,
+                    0.10000000149011612
+                  ],
+                  [
+                    -0.10000000149011612,
+                    -0.10000000149011612
+                  ]
+                ],
+                "bottom": 3.35,
+                "top": 3.95
+              }
+            ],
+            "index": 0,
+            "hulls": [
+              [
+                [
+                  4.100000001490116,
+                  -4.100000001490116,
+                  3.35
+                ],
+                [
+                  4.100000001490116,
+                  0.10000000149011612,
+                  3.35
+                ],
+                [
+                  -0.10000000149011612,
+                  0.10000000149011612,
+                  3.35
+                ],
+                [
+                  -0.10000000149011612,
+                  -4.100000001490116,
+                  3.35
+                ],
+                [
+                  4.100000001490116,
+                  -4.100000001490116,
+                  3.2
+                ],
+                [
+                  4.100000001490116,
+                  0.10000000149011612,
+                  3.2
+                ],
+                [
+                  -0.10000000149011612,
+                  0.10000000149011612,
+                  3.2
+                ],
+                [
+                  -0.10000000149011612,
+                  -4.100000001490116,
+                  3.2
+                ]
+              ]
+            ]
+          }
+        ],
+        "generator_items": [],
+        "trim": [
+          {
+            "kind": "skirting",
+            "plan_id": "f1",
+            "object": "SM_f1_Skirting",
+            "plynth_kind": "trim",
+            "slot": "Trim",
+            "material": null,
+            "sweeps": [
+              {
+                "closed": false,
+                "sections": [
+                  [
+                    [
+                      2.5199999999999996,
+                      -0.10000000149011612,
+                      0.0
+                    ],
+                    [
+                      2.5199999999999996,
+                      -0.11500000149011612,
+                      0.0
+                    ],
+                    [
+                      2.5199999999999996,
+                      -0.11500000149011612,
+                      0.065
+                    ],
+                    [
+                      2.5199999999999996,
+                      -0.1149358379504197,
+                      0.0659789464416504
+                    ],
+                    [
+                      2.5199999999999996,
+                      -0.11474444518728413,
+                      0.06694114283826891
+                    ],
+                    [
+                      2.5199999999999996,
+                      -0.11442909798395076,
+                      0.06787012574273818
+                    ],
+                    [
+                      2.5199999999999996,
+                      -0.1139951920184994,
+                      0.06875
+                    ],
+                    [
+                      2.5199999999999996,
+                      -0.11345015154230038,
+                      0.06956571071756541
+                    ],
+                    [
+                      2.5199999999999996,
+                      -0.11280330234901523,
+                      0.0703033008588991
+                    ],
+                    [
+                      2.5199999999999996,
+                      -0.11206571220768152,
+                      0.07095015005218426
+                    ],
+                    [
+                      2.5199999999999996,
+                      -0.11125000149011612,
+                      0.0714951905283833
+                    ],
+                    [
+                      2.5199999999999996,
+                      -0.11037012723285429,
+                      0.07192909649383465
+                    ],
+                    [
+                      2.5199999999999996,
+                      -0.10944114432838503,
+                      0.07224444369716801
+                    ],
+                    [
+                      2.5199999999999996,
+                      -0.1084789479317665,
+                      0.07243583646030358
+                    ],
+                    [
+                      2.5199999999999996,
+                      -0.10750000149011613,
+                      0.07250000000000001
+                    ],
+                    [
+                      2.5199999999999996,
+                      -0.10750000149011613,
+                      0.1
+                    ],
+                    [
+                      2.5199999999999996,
+                      -0.10000000149011612,
+                      0.1
+                    ]
+                  ],
+                  [
+                    [
+                      3.899999998509884,
+                      -0.10000000149011612,
+                      0.0
+                    ],
+                    [
+                      3.8849999985098838,
+                      -0.11500000149011612,
+                      0.0
+                    ],
+                    [
+                      3.8849999985098838,
+                      -0.11500000149011612,
+                      0.065
+                    ],
+                    [
+                      3.8850641620495803,
+                      -0.1149358379504197,
+                      0.0659789464416504
+                    ],
+                    [
+                      3.8852555548127157,
+                      -0.11474444518728413,
+                      0.06694114283826891
+                    ],
+                    [
+                      3.8855709020160494,
+                      -0.11442909798395076,
+                      0.06787012574273818
+                    ],
+                    [
+                      3.8860048079815006,
+                      -0.1139951920184994,
+                      0.06875
+                    ],
+                    [
+                      3.8865498484576997,
+                      -0.11345015154230038,
+                      0.06956571071756541
+                    ],
+                    [
+                      3.887196697650985,
+                      -0.11280330234901523,
+                      0.0703033008588991
+                    ],
+                    [
+                      3.8879342877923184,
+                      -0.11206571220768152,
+                      0.07095015005218426
+                    ],
+                    [
+                      3.888749998509884,
+                      -0.11125000149011612,
+                      0.0714951905283833
+                    ],
+                    [
+                      3.889629872767146,
+                      -0.11037012723285429,
+                      0.07192909649383465
+                    ],
+                    [
+                      3.890558855671615,
+                      -0.10944114432838503,
+                      0.07224444369716801
+                    ],
+                    [
+                      3.8915210520682333,
+                      -0.1084789479317665,
+                      0.07243583646030358
+                    ],
+                    [
+                      3.892499998509884,
+                      -0.10750000149011613,
+                      0.07250000000000001
+                    ],
+                    [
+                      3.892499998509884,
+                      -0.10750000149011613,
+                      0.1
+                    ],
+                    [
+                      3.899999998509884,
+                      -0.10000000149011612,
+                      0.1
+                    ]
+                  ],
+                  [
+                    [
+                      3.899999998509884,
+                      -3.899999998509884,
+                      0.0
+                    ],
+                    [
+                      3.8849999985098838,
+                      -3.8849999985098838,
+                      0.0
+                    ],
+                    [
+                      3.8849999985098838,
+                      -3.8849999985098838,
+                      0.065
+                    ],
+                    [
+                      3.8850641620495803,
+                      -3.8850641620495803,
+                      0.0659789464416504
+                    ],
+                    [
+                      3.8852555548127157,
+                      -3.8852555548127157,
+                      0.06694114283826891
+                    ],
+                    [
+                      3.8855709020160494,
+                      -3.8855709020160494,
+                      0.06787012574273818
+                    ],
+                    [
+                      3.8860048079815006,
+                      -3.8860048079815006,
+                      0.06875
+                    ],
+                    [
+                      3.8865498484576997,
+                      -3.8865498484576997,
+                      0.06956571071756541
+                    ],
+                    [
+                      3.887196697650985,
+                      -3.887196697650985,
+                      0.0703033008588991
+                    ],
+                    [
+                      3.8879342877923184,
+                      -3.8879342877923184,
+                      0.07095015005218426
+                    ],
+                    [
+                      3.888749998509884,
+                      -3.888749998509884,
+                      0.0714951905283833
+                    ],
+                    [
+                      3.889629872767146,
+                      -3.889629872767146,
+                      0.07192909649383465
+                    ],
+                    [
+                      3.890558855671615,
+                      -3.890558855671615,
+                      0.07224444369716801
+                    ],
+                    [
+                      3.8915210520682333,
+                      -3.8915210520682333,
+                      0.07243583646030358
+                    ],
+                    [
+                      3.892499998509884,
+                      -3.892499998509884,
+                      0.07250000000000001
+                    ],
+                    [
+                      3.892499998509884,
+                      -3.892499998509884,
+                      0.1
+                    ],
+                    [
+                      3.899999998509884,
+                      -3.899999998509884,
+                      0.1
+                    ]
+                  ],
+                  [
+                    [
+                      0.10000000149011612,
+                      -3.899999998509884,
+                      0.0
+                    ],
+                    [
+                      0.11500000149011612,
+                      -3.8849999985098838,
+                      0.0
+                    ],
+                    [
+                      0.11500000149011612,
+                      -3.8849999985098838,
+                      0.065
+                    ],
+                    [
+                      0.1149358379504197,
+                      -3.8850641620495803,
+                      0.0659789464416504
+                    ],
+                    [
+                      0.11474444518728413,
+                      -3.8852555548127157,
+                      0.06694114283826891
+                    ],
+                    [
+                      0.11442909798395076,
+                      -3.8855709020160494,
+                      0.06787012574273818
+                    ],
+                    [
+                      0.1139951920184994,
+                      -3.8860048079815006,
+                      0.06875
+                    ],
+                    [
+                      0.11345015154230038,
+                      -3.8865498484576997,
+                      0.06956571071756541
+                    ],
+                    [
+                      0.11280330234901523,
+                      -3.887196697650985,
+                      0.0703033008588991
+                    ],
+                    [
+                      0.11206571220768152,
+                      -3.8879342877923184,
+                      0.07095015005218426
+                    ],
+                    [
+                      0.11125000149011612,
+                      -3.888749998509884,
+                      0.0714951905283833
+                    ],
+                    [
+                      0.11037012723285429,
+                      -3.889629872767146,
+                      0.07192909649383465
+                    ],
+                    [
+                      0.10944114432838503,
+                      -3.890558855671615,
+                      0.07224444369716801
+                    ],
+                    [
+                      0.1084789479317665,
+                      -3.8915210520682333,
+                      0.07243583646030358
+                    ],
+                    [
+                      0.10750000149011613,
+                      -3.892499998509884,
+                      0.07250000000000001
+                    ],
+                    [
+                      0.10750000149011613,
+                      -3.892499998509884,
+                      0.1
+                    ],
+                    [
+                      0.10000000149011612,
+                      -3.899999998509884,
+                      0.1
+                    ]
+                  ],
+                  [
+                    [
+                      0.10000000149011612,
+                      -0.10000000149011612,
+                      0.0
+                    ],
+                    [
+                      0.11500000149011612,
+                      -0.11500000149011612,
+                      0.0
+                    ],
+                    [
+                      0.11500000149011612,
+                      -0.11500000149011612,
+                      0.065
+                    ],
+                    [
+                      0.1149358379504197,
+                      -0.1149358379504197,
+                      0.0659789464416504
+                    ],
+                    [
+                      0.11474444518728413,
+                      -0.11474444518728413,
+                      0.06694114283826891
+                    ],
+                    [
+                      0.11442909798395076,
+                      -0.11442909798395076,
+                      0.06787012574273818
+                    ],
+                    [
+                      0.1139951920184994,
+                      -0.1139951920184994,
+                      0.06875
+                    ],
+                    [
+                      0.11345015154230038,
+                      -0.11345015154230038,
+                      0.06956571071756541
+                    ],
+                    [
+                      0.11280330234901523,
+                      -0.11280330234901523,
+                      0.0703033008588991
+                    ],
+                    [
+                      0.11206571220768152,
+                      -0.11206571220768152,
+                      0.07095015005218426
+                    ],
+                    [
+                      0.11125000149011612,
+                      -0.11125000149011612,
+                      0.0714951905283833
+                    ],
+                    [
+                      0.11037012723285429,
+                      -0.11037012723285429,
+                      0.07192909649383465
+                    ],
+                    [
+                      0.10944114432838503,
+                      -0.10944114432838503,
+                      0.07224444369716801
+                    ],
+                    [
+                      0.1084789479317665,
+                      -0.1084789479317665,
+                      0.07243583646030358
+                    ],
+                    [
+                      0.10750000149011613,
+                      -0.10750000149011613,
+                      0.07250000000000001
+                    ],
+                    [
+                      0.10750000149011613,
+                      -0.10750000149011613,
+                      0.1
+                    ],
+                    [
+                      0.10000000149011612,
+                      -0.10000000149011612,
+                      0.1
+                    ]
+                  ],
+                  [
+                    [
+                      1.4800000000000002,
+                      -0.10000000149011612,
+                      0.0
+                    ],
+                    [
+                      1.4800000000000002,
+                      -0.11500000149011612,
+                      0.0
+                    ],
+                    [
+                      1.4800000000000002,
+                      -0.11500000149011612,
+                      0.065
+                    ],
+                    [
+                      1.4800000000000002,
+                      -0.1149358379504197,
+                      0.0659789464416504
+                    ],
+                    [
+                      1.4800000000000002,
+                      -0.11474444518728413,
+                      0.06694114283826891
+                    ],
+                    [
+                      1.4800000000000002,
+                      -0.11442909798395076,
+                      0.06787012574273818
+                    ],
+                    [
+                      1.4800000000000002,
+                      -0.1139951920184994,
+                      0.06875
+                    ],
+                    [
+                      1.4800000000000002,
+                      -0.11345015154230038,
+                      0.06956571071756541
+                    ],
+                    [
+                      1.4800000000000002,
+                      -0.11280330234901523,
+                      0.0703033008588991
+                    ],
+                    [
+                      1.4800000000000002,
+                      -0.11206571220768152,
+                      0.07095015005218426
+                    ],
+                    [
+                      1.4800000000000002,
+                      -0.11125000149011612,
+                      0.0714951905283833
+                    ],
+                    [
+                      1.4800000000000002,
+                      -0.11037012723285429,
+                      0.07192909649383465
+                    ],
+                    [
+                      1.4800000000000002,
+                      -0.10944114432838503,
+                      0.07224444369716801
+                    ],
+                    [
+                      1.4800000000000002,
+                      -0.1084789479317665,
+                      0.07243583646030358
+                    ],
+                    [
+                      1.4800000000000002,
+                      -0.10750000149011613,
+                      0.07250000000000001
+                    ],
+                    [
+                      1.4800000000000002,
+                      -0.10750000149011613,
+                      0.1
+                    ],
+                    [
+                      1.4800000000000002,
+                      -0.10000000149011612,
+                      0.1
+                    ]
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "cornice",
+            "plan_id": "f1",
+            "object": "SM_f1_Cornice",
+            "plynth_kind": "trim",
+            "slot": "Trim",
+            "material": null,
+            "sweeps": [
+              {
+                "closed": true,
+                "sections": [
+                  [
+                    [
+                      0.10000000149011612,
+                      -3.899999998509884,
+                      2.92
+                    ],
+                    [
+                      0.10068441258021128,
+                      -3.899315587419789,
+                      2.9304420953776043
+                    ],
+                    [
+                      0.10272593538699067,
+                      -3.8972740646130095,
+                      2.9407055236082016
+                    ],
+                    [
+                      0.10608963888921318,
+                      -3.893910361110787,
+                      2.950614674589207
+                    ],
+                    [
+                      0.11071796918736103,
+                      -3.889282030812639,
+                      2.96
+                    ],
+                    [
+                      0.11653173426681732,
+                      -3.8834682657331827,
+                      2.9687009143206975
+                    ],
+                    [
+                      0.12343145899519233,
+                      -3.876568541004808,
+                      2.9765685424949235
+                    ],
+                    [
+                      0.13129908716941846,
+                      -3.8687009128305814,
+                      2.983468267223299
+                    ],
+                    [
+                      0.1400000014901161,
+                      -3.859999998509884,
+                      2.989282032302755
+                    ],
+                    [
+                      0.14938532690090894,
+                      -3.850614673099091,
+                      2.9939103626009027
+                    ],
+                    [
+                      0.15929447788191448,
+                      -3.8407055221180855,
+                      2.997274066103125
+                    ],
+                    [
+                      0.16955790611251198,
+                      -3.830442093887488,
+                      2.9993155889099046
+                    ],
+                    [
+                      0.18000000149011613,
+                      -3.819999998509884,
+                      3.0
+                    ],
+                    [
+                      0.10000000149011612,
+                      -3.899999998509884,
+                      3.0
+                    ]
+                  ],
+                  [
+                    [
+                      0.10000000149011612,
+                      -0.10000000149011612,
+                      2.92
+                    ],
+                    [
+                      0.10068441258021128,
+                      -0.10068441258021128,
+                      2.9304420953776043
+                    ],
+                    [
+                      0.10272593538699067,
+                      -0.10272593538699067,
+                      2.9407055236082016
+                    ],
+                    [
+                      0.10608963888921318,
+                      -0.10608963888921318,
+                      2.950614674589207
+                    ],
+                    [
+                      0.11071796918736103,
+                      -0.11071796918736103,
+                      2.96
+                    ],
+                    [
+                      0.11653173426681732,
+                      -0.11653173426681732,
+                      2.9687009143206975
+                    ],
+                    [
+                      0.12343145899519233,
+                      -0.12343145899519233,
+                      2.9765685424949235
+                    ],
+                    [
+                      0.13129908716941846,
+                      -0.13129908716941846,
+                      2.983468267223299
+                    ],
+                    [
+                      0.1400000014901161,
+                      -0.1400000014901161,
+                      2.989282032302755
+                    ],
+                    [
+                      0.14938532690090894,
+                      -0.14938532690090894,
+                      2.9939103626009027
+                    ],
+                    [
+                      0.15929447788191448,
+                      -0.15929447788191448,
+                      2.997274066103125
+                    ],
+                    [
+                      0.16955790611251198,
+                      -0.16955790611251198,
+                      2.9993155889099046
+                    ],
+                    [
+                      0.18000000149011613,
+                      -0.18000000149011613,
+                      3.0
+                    ],
+                    [
+                      0.10000000149011612,
+                      -0.10000000149011612,
+                      3.0
+                    ]
+                  ],
+                  [
+                    [
+                      3.899999998509884,
+                      -0.10000000149011612,
+                      2.92
+                    ],
+                    [
+                      3.899315587419789,
+                      -0.10068441258021128,
+                      2.9304420953776043
+                    ],
+                    [
+                      3.8972740646130095,
+                      -0.10272593538699067,
+                      2.9407055236082016
+                    ],
+                    [
+                      3.893910361110787,
+                      -0.10608963888921318,
+                      2.950614674589207
+                    ],
+                    [
+                      3.889282030812639,
+                      -0.11071796918736103,
+                      2.96
+                    ],
+                    [
+                      3.8834682657331827,
+                      -0.11653173426681732,
+                      2.9687009143206975
+                    ],
+                    [
+                      3.876568541004808,
+                      -0.12343145899519233,
+                      2.9765685424949235
+                    ],
+                    [
+                      3.8687009128305814,
+                      -0.13129908716941846,
+                      2.983468267223299
+                    ],
+                    [
+                      3.859999998509884,
+                      -0.1400000014901161,
+                      2.989282032302755
+                    ],
+                    [
+                      3.850614673099091,
+                      -0.14938532690090894,
+                      2.9939103626009027
+                    ],
+                    [
+                      3.8407055221180855,
+                      -0.15929447788191448,
+                      2.997274066103125
+                    ],
+                    [
+                      3.830442093887488,
+                      -0.16955790611251198,
+                      2.9993155889099046
+                    ],
+                    [
+                      3.819999998509884,
+                      -0.18000000149011613,
+                      3.0
+                    ],
+                    [
+                      3.899999998509884,
+                      -0.10000000149011612,
+                      3.0
+                    ]
+                  ],
+                  [
+                    [
+                      3.899999998509884,
+                      -3.899999998509884,
+                      2.92
+                    ],
+                    [
+                      3.899315587419789,
+                      -3.899315587419789,
+                      2.9304420953776043
+                    ],
+                    [
+                      3.8972740646130095,
+                      -3.8972740646130095,
+                      2.9407055236082016
+                    ],
+                    [
+                      3.893910361110787,
+                      -3.893910361110787,
+                      2.950614674589207
+                    ],
+                    [
+                      3.889282030812639,
+                      -3.889282030812639,
+                      2.96
+                    ],
+                    [
+                      3.8834682657331827,
+                      -3.8834682657331827,
+                      2.9687009143206975
+                    ],
+                    [
+                      3.876568541004808,
+                      -3.876568541004808,
+                      2.9765685424949235
+                    ],
+                    [
+                      3.8687009128305814,
+                      -3.8687009128305814,
+                      2.983468267223299
+                    ],
+                    [
+                      3.859999998509884,
+                      -3.859999998509884,
+                      2.989282032302755
+                    ],
+                    [
+                      3.850614673099091,
+                      -3.850614673099091,
+                      2.9939103626009027
+                    ],
+                    [
+                      3.8407055221180855,
+                      -3.8407055221180855,
+                      2.997274066103125
+                    ],
+                    [
+                      3.830442093887488,
+                      -3.830442093887488,
+                      2.9993155889099046
+                    ],
+                    [
+                      3.819999998509884,
+                      -3.819999998509884,
+                      3.0
+                    ],
+                    [
+                      3.899999998509884,
+                      -3.899999998509884,
+                      3.0
+                    ]
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "casing",
+            "plan_id": "f1",
+            "object": "SM_f1_Casing",
+            "plynth_kind": "trim",
+            "slot": "Trim",
+            "material": null,
+            "sweeps": [
+              {
+                "closed": false,
+                "sections": [
+                  [
+                    [
+                      2.45,
+                      -0.1,
+                      0.0
+                    ],
+                    [
+                      2.45,
+                      -0.11800000000000001,
+                      0.0
+                    ],
+                    [
+                      2.471,
+                      -0.11800000000000001,
+                      0.0
+                    ],
+                    [
+                      2.52,
+                      -0.109,
+                      0.0
+                    ],
+                    [
+                      2.52,
+                      -0.1,
+                      0.0
+                    ]
+                  ],
+                  [
+                    [
+                      2.45,
+                      -0.1,
+                      2.1
+                    ],
+                    [
+                      2.45,
+                      -0.11800000000000001,
+                      2.1
+                    ],
+                    [
+                      2.471,
+                      -0.11800000000000001,
+                      2.121
+                    ],
+                    [
+                      2.52,
+                      -0.109,
+                      2.17
+                    ],
+                    [
+                      2.52,
+                      -0.1,
+                      2.17
+                    ]
+                  ],
+                  [
+                    [
+                      1.55,
+                      -0.1,
+                      2.1
+                    ],
+                    [
+                      1.55,
+                      -0.11800000000000001,
+                      2.1
+                    ],
+                    [
+                      1.5290000000000001,
+                      -0.11800000000000001,
+                      2.121
+                    ],
+                    [
+                      1.48,
+                      -0.109,
+                      2.17
+                    ],
+                    [
+                      1.48,
+                      -0.1,
+                      2.17
+                    ]
+                  ],
+                  [
+                    [
+                      1.55,
+                      -0.1,
+                      0.0
+                    ],
+                    [
+                      1.55,
+                      -0.11800000000000001,
+                      0.0
+                    ],
+                    [
+                      1.5290000000000001,
+                      -0.11800000000000001,
+                      0.0
+                    ],
+                    [
+                      1.48,
+                      -0.109,
+                      0.0
+                    ],
+                    [
+                      1.48,
+                      -0.1,
+                      0.0
+                    ]
+                  ]
+                ]
+              },
+              {
+                "closed": false,
+                "sections": [
+                  [
+                    [
+                      1.55,
+                      0.1,
+                      0.0
+                    ],
+                    [
+                      1.55,
+                      0.11800000000000001,
+                      0.0
+                    ],
+                    [
+                      1.5290000000000001,
+                      0.11800000000000001,
+                      0.0
+                    ],
+                    [
+                      1.48,
+                      0.109,
+                      0.0
+                    ],
+                    [
+                      1.48,
+                      0.1,
+                      0.0
+                    ]
+                  ],
+                  [
+                    [
+                      1.55,
+                      0.1,
+                      2.1
+                    ],
+                    [
+                      1.55,
+                      0.11800000000000001,
+                      2.1
+                    ],
+                    [
+                      1.5290000000000001,
+                      0.11800000000000001,
+                      2.121
+                    ],
+                    [
+                      1.48,
+                      0.109,
+                      2.17
+                    ],
+                    [
+                      1.48,
+                      0.1,
+                      2.17
+                    ]
+                  ],
+                  [
+                    [
+                      2.45,
+                      0.1,
+                      2.1
+                    ],
+                    [
+                      2.45,
+                      0.11800000000000001,
+                      2.1
+                    ],
+                    [
+                      2.471,
+                      0.11800000000000001,
+                      2.121
+                    ],
+                    [
+                      2.52,
+                      0.109,
+                      2.17
+                    ],
+                    [
+                      2.52,
+                      0.1,
+                      2.17
+                    ]
+                  ],
+                  [
+                    [
+                      2.45,
+                      0.1,
+                      0.0
+                    ],
+                    [
+                      2.45,
+                      0.11800000000000001,
+                      0.0
+                    ],
+                    [
+                      2.471,
+                      0.11800000000000001,
+                      0.0
+                    ],
+                    [
+                      2.52,
+                      0.109,
+                      0.0
+                    ],
+                    [
+                      2.52,
+                      0.1,
+                      0.0
+                    ]
+                  ]
+                ]
+              }
+            ]
+          },
+          {
+            "kind": "sill",
+            "plan_id": "f1",
+            "object": "SM_f1_Sill",
+            "plynth_kind": "trim",
+            "slot": "Trim",
+            "material": null,
+            "sweeps": [
+              {
+                "closed": false,
+                "sections": [
+                  [
+                    [
+                      3.9,
+                      -1.3499999999999999,
+                      0.87
+                    ],
+                    [
+                      3.86,
+                      -1.3499999999999999,
+                      0.87
+                    ],
+                    [
+                      3.86,
+                      -1.3499999999999999,
+                      0.885
+                    ],
+                    [
+                      3.860128327079393,
+                      -1.3499999999999999,
+                      0.8869578928833007
+                    ],
+                    [
+                      3.8605111126056637,
+                      -1.3499999999999999,
+                      0.8888822856765378
+                    ],
+                    [
+                      3.8611418070123307,
+                      -1.3499999999999999,
+                      0.8907402514854763
+                    ],
+                    [
+                      3.862009618943233,
+                      -1.3499999999999999,
+                      0.8925
+                    ],
+                    [
+                      3.8630996998956313,
+                      -1.3499999999999999,
+                      0.8941314214351308
+                    ],
+                    [
+                      3.8643933982822016,
+                      -1.3499999999999999,
+                      0.8956066017177982
+                    ],
+                    [
+                      3.865868578564869,
+                      -1.3499999999999999,
+                      0.8969003001043685
+                    ],
+                    [
+                      3.8674999999999997,
+                      -1.3499999999999999,
+                      0.8979903810567665
+                    ],
+                    [
+                      3.8692597485145237,
+                      -1.3499999999999999,
+                      0.8988581929876693
+                    ],
+                    [
+                      3.871117714323462,
+                      -1.3499999999999999,
+                      0.899488887394336
+                    ],
+                    [
+                      3.873042107116699,
+                      -1.3499999999999999,
+                      0.8998716729206071
+                    ],
+                    [
+                      3.875,
+                      -1.3499999999999999,
+                      0.9
+                    ],
+                    [
+                      3.9,
+                      -1.3499999999999999,
+                      0.9
+                    ]
+                  ],
+                  [
+                    [
+                      3.9,
+                      -2.65,
+                      0.87
+                    ],
+                    [
+                      3.86,
+                      -2.65,
+                      0.87
+                    ],
+                    [
+                      3.86,
+                      -2.65,
+                      0.885
+                    ],
+                    [
+                      3.860128327079393,
+                      -2.65,
+                      0.8869578928833007
+                    ],
+                    [
+                      3.8605111126056637,
+                      -2.65,
+                      0.8888822856765378
+                    ],
+                    [
+                      3.8611418070123307,
+                      -2.65,
+                      0.8907402514854763
+                    ],
+                    [
+                      3.862009618943233,
+                      -2.65,
+                      0.8925
+                    ],
+                    [
+                      3.8630996998956313,
+                      -2.65,
+                      0.8941314214351308
+                    ],
+                    [
+                      3.8643933982822016,
+                      -2.65,
+                      0.8956066017177982
+                    ],
+                    [
+                      3.865868578564869,
+                      -2.65,
+                      0.8969003001043685
+                    ],
+                    [
+                      3.8674999999999997,
+                      -2.65,
+                      0.8979903810567665
+                    ],
+                    [
+                      3.8692597485145237,
+                      -2.65,
+                      0.8988581929876693
+                    ],
+                    [
+                      3.871117714323462,
+                      -2.65,
+                      0.899488887394336
+                    ],
+                    [
+                      3.873042107116699,
+                      -2.65,
+                      0.8998716729206071
+                    ],
+                    [
+                      3.875,
+                      -2.65,
+                      0.9
+                    ],
+                    [
+                      3.9,
+                      -2.65,
+                      0.9
+                    ]
+                  ]
+                ]
+              },
+              {
+                "closed": false,
+                "sections": [
+                  [
+                    [
+                      4.1,
+                      -2.65,
+                      0.87
+                    ],
+                    [
+                      4.14,
+                      -2.65,
+                      0.87
+                    ],
+                    [
+                      4.14,
+                      -2.65,
+                      0.885
+                    ],
+                    [
+                      4.139871672920607,
+                      -2.65,
+                      0.8869578928833007
+                    ],
+                    [
+                      4.139488887394336,
+                      -2.65,
+                      0.8888822856765378
+                    ],
+                    [
+                      4.138858192987669,
+                      -2.65,
+                      0.8907402514854763
+                    ],
+                    [
+                      4.137990381056766,
+                      -2.65,
+                      0.8925
+                    ],
+                    [
+                      4.136900300104368,
+                      -2.65,
+                      0.8941314214351308
+                    ],
+                    [
+                      4.1356066017177975,
+                      -2.65,
+                      0.8956066017177982
+                    ],
+                    [
+                      4.13413142143513,
+                      -2.65,
+                      0.8969003001043685
+                    ],
+                    [
+                      4.132499999999999,
+                      -2.65,
+                      0.8979903810567665
+                    ],
+                    [
+                      4.130740251485476,
+                      -2.65,
+                      0.8988581929876693
+                    ],
+                    [
+                      4.1288822856765375,
+                      -2.65,
+                      0.899488887394336
+                    ],
+                    [
+                      4.126957892883301,
+                      -2.65,
+                      0.8998716729206071
+                    ],
+                    [
+                      4.125,
+                      -2.65,
+                      0.9
+                    ],
+                    [
+                      4.1,
+                      -2.65,
+                      0.9
+                    ]
+                  ],
+                  [
+                    [
+                      4.1,
+                      -1.3499999999999999,
+                      0.87
+                    ],
+                    [
+                      4.14,
+                      -1.3499999999999999,
+                      0.87
+                    ],
+                    [
+                      4.14,
+                      -1.3499999999999999,
+                      0.885
+                    ],
+                    [
+                      4.139871672920607,
+                      -1.3499999999999999,
+                      0.8869578928833007
+                    ],
+                    [
+                      4.139488887394336,
+                      -1.3499999999999999,
+                      0.8888822856765378
+                    ],
+                    [
+                      4.138858192987669,
+                      -1.3499999999999999,
+                      0.8907402514854763
+                    ],
+                    [
+                      4.137990381056766,
+                      -1.3499999999999999,
+                      0.8925
+                    ],
+                    [
+                      4.136900300104368,
+                      -1.3499999999999999,
+                      0.8941314214351308
+                    ],
+                    [
+                      4.1356066017177975,
+                      -1.3499999999999999,
+                      0.8956066017177982
+                    ],
+                    [
+                      4.13413142143513,
+                      -1.3499999999999999,
+                      0.8969003001043685
+                    ],
+                    [
+                      4.132499999999999,
+                      -1.3499999999999999,
+                      0.8979903810567665
+                    ],
+                    [
+                      4.130740251485476,
+                      -1.3499999999999999,
+                      0.8988581929876693
+                    ],
+                    [
+                      4.1288822856765375,
+                      -1.3499999999999999,
+                      0.899488887394336
+                    ],
+                    [
+                      4.126957892883301,
+                      -1.3499999999999999,
+                      0.8998716729206071
+                    ],
+                    [
+                      4.125,
+                      -1.3499999999999999,
+                      0.9
+                    ],
+                    [
+                      4.1,
+                      -1.3499999999999999,
+                      0.9
+                    ]
+                  ]
+                ]
+              }
+            ]
+          }
+        ],
+        "dressing": [
+          {
+            "id": "r1_d01",
+            "room": "r1",
+            "rule": "books",
+            "host": "i1",
+            "asset": "books",
+            "location": [
+              2.23,
+              -3.6,
+              0.02
+            ],
+            "rotation_z": -3.141592653589793,
+            "size": {
+              "width": 0.3,
+              "depth": 0.2,
+              "height": 0.25
+            }
+          },
+          {
+            "id": "r1_d02",
+            "room": "r1",
+            "rule": "books",
+            "host": "i1",
+            "asset": "books",
+            "location": [
+              1.93,
+              -3.6,
+              0.02
+            ],
+            "rotation_z": -3.141592653589793,
+            "size": {
+              "width": 0.3,
+              "depth": 0.2,
+              "height": 0.25
+            }
+          },
+          {
+            "id": "r1_d03",
+            "room": "r1",
+            "rule": "books",
+            "host": "i1",
+            "asset": "books",
+            "location": [
+              2.23,
+              -3.6,
+              0.47
+            ],
+            "rotation_z": -3.141592653589793,
+            "size": {
+              "width": 0.3,
+              "depth": 0.2,
+              "height": 0.25
+            }
+          },
+          {
+            "id": "r1_d04",
+            "room": "r1",
+            "rule": "books",
+            "host": "i1",
+            "asset": "books",
+            "location": [
+              1.93,
+              -3.6,
+              0.47
+            ],
+            "rotation_z": -3.141592653589793,
+            "size": {
+              "width": 0.3,
+              "depth": 0.2,
+              "height": 0.25
+            }
+          },
+          {
+            "id": "r1_d05",
+            "room": "r1",
+            "rule": "books",
+            "host": "i1",
+            "asset": "books",
+            "location": [
+              2.23,
+              -3.6,
+              0.92
+            ],
+            "rotation_z": -3.141592653589793,
+            "size": {
+              "width": 0.3,
+              "depth": 0.2,
+              "height": 0.25
+            }
+          },
+          {
+            "id": "r1_d06",
+            "room": "r1",
+            "rule": "books",
+            "host": "i1",
+            "asset": "books",
+            "location": [
+              1.93,
+              -3.6,
+              0.92
+            ],
+            "rotation_z": -3.141592653589793,
+            "size": {
+              "width": 0.3,
+              "depth": 0.2,
+              "height": 0.25
+            }
+          },
+          {
+            "id": "r1_d07",
+            "room": "r1",
+            "rule": "books",
+            "host": "i1",
+            "asset": "books",
+            "location": [
+              2.23,
+              -3.6,
+              1.37
+            ],
+            "rotation_z": -3.141592653589793,
+            "size": {
+              "width": 0.3,
+              "depth": 0.2,
+              "height": 0.25
+            }
+          },
+          {
+            "id": "r1_d08",
+            "room": "r1",
+            "rule": "books",
+            "host": "i1",
+            "asset": "books",
+            "location": [
+              1.93,
+              -3.6,
+              1.37
+            ],
+            "rotation_z": -3.141592653589793,
+            "size": {
+              "width": 0.3,
+              "depth": 0.2,
+              "height": 0.25
+            }
+          }
+        ],
+        "lights": [
+          {
+            "id": "l1",
+            "kind": "ceiling",
+            "location": [
+              2.0,
+              -2.0,
+              2.9
+            ],
+            "power": 60.0,
+            "color": [
+              1.0,
+              0.9,
+              0.8
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

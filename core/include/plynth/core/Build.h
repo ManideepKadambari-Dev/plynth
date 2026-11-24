@@ -71,6 +71,8 @@ using Json = nlohmann::ordered_json;
 inline constexpr std::string_view kBuildReportFileName = "build.json";
 inline constexpr std::string_view kBuiltPlanFileName = "built-plan.json";
 inline constexpr std::string_view kBuildLockFileName = "build.lock";
+// Written by requestCancel; a running build or export stops when it appears (BuildLockFiles.h).
+inline constexpr std::string_view kBuildCancelFileName = "cancel.request";
 inline constexpr std::string_view kBuildReportFormat = "plynth-build-report";
 inline constexpr int kBuildReportVersion = 1;
 
@@ -82,7 +84,8 @@ std::filesystem::path buildFolder(const std::filesystem::path& projectFolder);
 
 // A short text that changes whenever the plan or the project settings change: 16 hex digits of a 64 bit
 // FNV-1a hash of planToJson and settingsToJson. The report keeps it, so the app can say the plan changed
-// since the last build.
+// since the last build. The export mode does not count: the settings are hashed with it set to single, so
+// fingerprints of single projects stay what they were and switching the mode never makes a build out of date.
 std::string planFingerprint(const Project& project);
 
 // A BuildAssetSource that asks the catalog. The catalog must outlive it.
@@ -160,6 +163,12 @@ struct BuildReport {
 BuildReport runBuild(const BuildRequest& request, const std::function<void(const BuildProgress&)>& onProgress = {},
                      std::stop_token stop = {});
 
+// Asks the build or the export running on a project, in this process or another, to stop: writes
+// build/cancel.request, which the running job watches. False, writing nothing, when no live lock says one runs.
+// The app's Cancel button, "plynth build cancel" and "plynth export cancel" all end up here or at the job's
+// own stop token.
+bool requestCancel(const std::filesystem::path& projectFolder);
+
 // The report in the form of schema/build-report.schema.json. Paths are absolute, UTF-8, forward slashes.
 Json buildReportToJson(const BuildReport& report);
 
@@ -176,9 +185,10 @@ BuildReportRead readBuildReport(const std::filesystem::path& projectFolder);
 // build/materials.json, schema/build-materials.schema.json: for each Blender material of the built surfaces
 // (one per slot, MaterialSlots.h), the images of its channels, and for each built object the material of each
 // of its slots in order. The 3D preview replaces the materials the FBX loader made with these, matched by the
-// base color image path (milestone 9, gate U1). Several slots may share one catalog material and so one base
-// color path; their entries then have the same maps, and the first one found is used. The export (Export.h)
-// reads this file to name the textures it copies.
+// base color image path. Several slots may share one catalog material and so one base color path; their
+// entries then have the same maps, and the first one found is used. The export (Export.h) reads this file to
+// name the textures it copies and for the tile size each material was built with, so the modular kit's UVs
+// match the building's after the library changes.
 inline constexpr std::string_view kBuildMaterialsFormat = "plynth-build-materials";
 inline constexpr int kBuildMaterialsVersion = 1;
 
@@ -199,6 +209,8 @@ struct BuiltMaterial {
     std::filesystem::path occlusion;  // empty when there is none
     AlphaMode alphaMode = AlphaMode::Opaque;
     std::string asset;                // the asset id for a material of furniture; empty for a built surface
+    std::optional<TileSize> tileSize; // what the build divided a catalog material's UVs by (tile_size in the file);
+                                      // empty for a neutral look, for furniture and when the file has none
 
     bool operator==(const BuiltMaterial&) const = default;
 };

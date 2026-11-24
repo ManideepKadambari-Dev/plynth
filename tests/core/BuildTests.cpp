@@ -12,12 +12,16 @@
 #include <plynth/core/EditSession.h>
 #include <plynth/core/ProjectFiles.h>
 #include <plynth/core/Generators.h>
+#include <plynth/core/LicenseReport.h>
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <chrono>
+#include <cstdint>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <stop_token>
@@ -217,6 +221,26 @@ TEST_CASE("built-plan.json keeps the plan of the last successful build", "[core]
     REQUIRE(plynth::test::readTextFile(file) == first);
 }
 
+TEST_CASE("used-items.json lists what the last successful build used", "[core][build][run][licenses]") {
+    BuildFixture f("run-used-items");
+    const BuildReport report = runBuild(f.request);
+    plynth::test::requireOk(report.status);
+    const fs::path file = f.projectFolder / "build" / "used-items.json";
+    const UsedItemsRead read = readUsedItems(file);
+    plynth::test::requireOk(read.status);
+    CHECK(read.items.planFingerprint == report.planFingerprint);
+    CHECK(std::is_sorted(read.items.assets.begin(), read.items.assets.end()));
+    CHECK(std::is_sorted(read.items.materials.begin(), read.items.materials.end()));
+    REQUIRE(plynth::test::schemaProblem("used-items.schema.json",
+                                        nlohmann::json::parse(plynth::test::readTextFile(file))).empty());
+
+    const std::string first = plynth::test::readTextFile(file);
+    f.request.project.plan.floors[0].points[0].x -= 0.1;
+    std::ofstream(f.lib.tmp.path() / "blender" / "fake_mode.txt") << "fail";
+    REQUIRE(runBuild(f.request).status.code == ErrorCode::BlenderFailed);
+    CHECK(plynth::test::readTextFile(file) == first);
+}
+
 TEST_CASE("a crashing Blender is blender_failed", "[core][build][run]") {
     BuildFixture f("run-crash", "crash");
     const BuildReport report = runBuild(f.request);
@@ -314,6 +338,32 @@ TEST_CASE("planFingerprint changes when the plan or settings change", "[core][bu
     Project c = buildProject();
     c.settings.gridSize = 0.25;
     REQUIRE(planFingerprint(c) != print);
+}
+
+namespace {
+
+// The hash of the plan and the settings exactly as they are written, export mode and all.
+std::string writtenHash(const Project& project)
+{
+    const std::string text = planToJson(project.plan).dump() + "\n" + settingsToJson(project.settings).dump();
+    std::uint64_t hash = 14695981039346656037ULL;
+    for (const char c : text) {
+        hash ^= static_cast<unsigned char>(c);
+        hash *= 1099511628211ULL;
+    }
+    char out[17];
+    std::snprintf(out, sizeof out, "%016llx", static_cast<unsigned long long>(hash));
+    return out;
+}
+
+}
+
+TEST_CASE("planFingerprint ignores the export mode and hashes a single project as it is written", "[core][build][settings]") {
+    Project single = buildProject();
+    Project grouped = buildProject();
+    grouped.settings.exportMode = ExportMode::Grouped;
+    REQUIRE(planFingerprint(grouped) == planFingerprint(single));
+    REQUIRE(planFingerprint(single) == writtenHash(single));
 }
 
 TEST_CASE("problemPosition finds the object on the plan", "[core][build]") {

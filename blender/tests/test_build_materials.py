@@ -343,6 +343,9 @@ class MaterialsFileTests(MaterialBuildTest):
         self.assertEqual(by_name["Living_Wall_PaintA"]["alpha_mode"], "opaque")
         self.assertEqual(by_name["Living_Wall_PaintA"]["material"], "paint_a")
         self.assertEqual(by_name["Exterior_Wall"]["surface"], "Wall_Outside")
+        self.assertEqual(by_name["Living_Wall_PaintA"]["tile_size"], {"width": 2.0, "height": 1.0})
+        self.assertEqual(by_name["Living_Floor_PaintB"]["tile_size"], {"width": 2.0, "height": 1.0})
+        self.assertNotIn("tile_size", by_name["Exterior_Wall"])
         for entry in data["materials"]:
             for path in entry["maps"].values():
                 if path:

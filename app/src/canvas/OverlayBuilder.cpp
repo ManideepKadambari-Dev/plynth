@@ -172,6 +172,18 @@ OverlayData buildOverlay(const plynth::Plan& plan, const std::string& floorId, c
     for (const plynth::RoofArea& roof : plynth::roofAreasOf(plan, floorId))
         overlay.roofs.append(makeOverlayRoof(roof, ppm));
 
+    for (const plynth::LightMarker& light : floor.lights) {
+        OverlayLight entry;
+        entry.id = fromCore(light.id);
+        entry.position = QPointF(light.x * ppm, light.y * ppm);
+        entry.kind = light.kind == plynth::LightKind::Wall ? 1 : light.kind == plynth::LightKind::Standing ? 2 : 0;
+        const QString kind = entry.kind == 1 ? QObject::tr("Wall light")
+                             : entry.kind == 2 ? QObject::tr("Standing lamp")
+                                               : QObject::tr("Ceiling light");
+        entry.tip = QObject::tr("%1 %2, %3 m above the floor").arg(kind, entry.id).arg(light.z, 0, 'f', 2);
+        overlay.lights.append(entry);
+    }
+
     for (const plynth::Point& point : floor.points)
         overlay.points.append({fromCore(point.id), QPointF(point.x * ppm, point.y * ppm)});
 

@@ -25,7 +25,9 @@ inline constexpr std::string_view kSettingsFileName = "settings.json";
 inline constexpr std::string_view kSettingsFormat = "plynth-settings";
 // Version 2 adds "recent_projects". A version 1 file is read as having none and is written back as version 2.
 // Version 3 drops thumbnail_engine: thumbnails use Eevee only.
-inline constexpr int kSettingsFormatVersion = 3;
+// Version 4 adds "tour_done". A file of version 1 to 3 is read with it true, so an upgrade does not start the
+// first run tour. A fresh default is false.
+inline constexpr int kSettingsFormatVersion = 4;
 inline constexpr std::string_view kConfigDirVariable = "PLYNTH_CONFIG_DIR";
 
 // An import with more triangles than this gets a warning. Never refused: the target is Nanite.
@@ -54,6 +56,8 @@ struct MachineSettings {
     std::string setupCheckedVersion;
     // Most recent first, at most kMaxRecentProjects. Only the app adds to it (when it opens or saves a project).
     std::vector<RecentProject> recentProjects;
+    // True once the first run tour was shown or skipped. The app starts it once, after the setup check closes.
+    bool tourDone = false;
 
     bool operator==(const MachineSettings&) const = default;
 };

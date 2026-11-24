@@ -77,10 +77,20 @@ def load_suite(pattern, addons):
     return suite
 
 
+# Makes TEMP the one temporary folder of the run. Python reads TMPDIR before TEMP, and a Git Bash shell sets
+# TMPDIR, so without this a run from there would put temporary files elsewhere than a ctest run, and every
+# child a test starts with its own TEMP would still follow the TMPDIR it inherited.
+def use_temp_only():
+    if os.environ.get("TEMP"):
+        os.environ.pop("TMPDIR", None)
+        tempfile.tempdir = None
+
+
 # Runs the tests of this folder inside Blender and exits 1 when any fails. With --addons a skip or an empty run
 # fails too.
 def main():
     from plynth import extensions
+    use_temp_only()
     if not extensions.is_private():
         if os.environ.get(CHILD_ENV_NAME):
             print("The prepared extensions folder is missing, so the tests were not run.")

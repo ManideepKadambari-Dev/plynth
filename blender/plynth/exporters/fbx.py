@@ -8,12 +8,12 @@ from ..registry import EXPORTERS
 
 
 # Exports objects (or the whole scene when None) to an FBX file with the one Plynth profile: metres, Y up,
-# meshes and empties only, modifiers applied, face smoothing.
+# meshes, empties and lights only, modifiers applied, face smoothing.
 def export(objects, filepath, path_mode):
     options = dict(
         filepath=filepath,
         use_selection=False,
-        object_types={"MESH", "EMPTY"},
+        object_types={"MESH", "EMPTY", "LIGHT"},
         apply_unit_scale=True,
         apply_scale_options="FBX_SCALE_NONE",
         global_scale=1.0,

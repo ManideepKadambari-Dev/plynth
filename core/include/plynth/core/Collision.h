@@ -56,6 +56,8 @@ enum class CollisionTargetKind {
     Slab,       // "slab"
     Stair,      // "stair"
     Roof,       // "roof"
+    Railing,    // "railing": a stair's railings, plynth_id the stair (StairRailings.h)
+    Guard,      // "guard": the guard round a stair's hole on the floor above, plynth_id the stair
 };
 
 std::string_view collisionTargetKindName(CollisionTargetKind kind);

@@ -1,9 +1,14 @@
 #include "plynth/core/Export.h"
 
 #include "BuildLockFiles.h"
+#include "BuiltPlan.h"
 #include "FileIo.h"
 
 #include "plynth/core/Build.h"
+#include "plynth/core/BuildJob.h"
+#include "plynth/core/GameplayData.h"
+#include "plynth/core/catalog/LicensedItems.h"
+#include "plynth/core/catalog/MaterialCatalog.h"
 #include "plynth/core/ProjectFiles.h"
 #include "plynth/core/ProjectJson.h"
 
@@ -21,6 +26,7 @@
 #include <cctype>
 #include <chrono>
 #include <fstream>
+#include <map>
 #include <optional>
 #include <sstream>
 
@@ -33,25 +39,6 @@ namespace {
 using lockfile::createExclusive;
 using lockfile::epochSeconds;
 using lockfile::lockIsLive;
-
-// What the last successful build was made from, read from build/built-plan.json.
-struct BuiltPlan {
-    Plan plan;
-    std::string fingerprint;
-};
-
-// Empty when the file is missing or unusable.
-std::optional<BuiltPlan> readBuiltPlan(const fs::path& projectFolder)
-{
-    std::ifstream in(buildFolder(projectFolder) / pathFromUtf8(kBuiltPlanFileName), std::ios::binary);
-    if (!in) return std::nullopt;
-    const Json json = Json::parse(in, nullptr, false);
-    if (!json.is_object() || !json.contains("plan") || !json.contains("plan_fingerprint")) return std::nullopt;
-    if (!json["plan_fingerprint"].is_string()) return std::nullopt;
-    PlanRead read = planFromJson(json["plan"]);
-    if (!read.status.ok()) return std::nullopt;
-    return BuiltPlan{std::move(read.plan), json["plan_fingerprint"].get<std::string>()};
-}
 
 // Holds build.lock, the build's lock, while an export runs and removes it at the end.
 class ExportLock {
@@ -227,8 +214,16 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
         report.status = fail(ErrorCode::BlenderNotFound, "There is no usable Blender to export with.");
         return report;
     }
-    std::vector<ExportGroup> groups;
-    if (report.status = exporter->groups(request.project, groups); !report.status.ok()) return report;
+    // The groups of the built plan with the saved edits; an unreadable options file stops the export here, before
+    // the lock is taken and before anything is written.
+    ExportGroupReview review = reviewExportGroups(request.projectFolder, request.project);
+    if (!review.status.ok()) {
+        report.status = review.status;
+        return report;
+    }
+    std::vector<ExportGroup> groups = std::move(review.groups);
+    report.groupNotes = review.notes;
+    report.kit.asked = review.options.kit.enabled;
     if (groups.empty()) {
         report.status = fail(ErrorCode::InvalidValue, "The exporter has no file to write.");
         return report;
@@ -240,6 +235,9 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
     const fs::path work = build / pathFromUtf8(kExportWorkFolder);
     report.reportFile = exportDir / pathFromUtf8(kExportReportFileName);
 
+    // Made before the lock, so it ends after the lock is gone and no cancel marker outlives the job.
+    const lockfile::CancelWatch cancelWatch(build, stop);
+    stop = cancelWatch.token();
     ExportLock lock;
     if (!lock.take(build / pathFromUtf8(kBuildLockFileName))) {
         report.status = fail(ErrorCode::InUse, "A build or another export of this project is running.");
@@ -263,6 +261,13 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
             if (previous.status.ok()) {
                 report.files = previous.report.files;
                 report.fileOutputs = previous.report.fileOutputs;
+                // The old kit files stay too, and the report keeps naming them.
+                report.kit.written = previous.report.kit.written;
+                report.kit.file = previous.report.kit.file;
+                report.kit.layoutFile = previous.report.kit.layoutFile;
+                report.kit.pieces = previous.report.kit.pieces;
+                report.kit.placements = previous.report.kit.placements;
+                report.kit.triangles = previous.report.kit.triangles;
             }
         }
         if (const Status written = writeReport(exportDir, report); !written.ok() && report.status.ok()) report.status = written;
@@ -294,9 +299,53 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
     // The scale check compares the built walls, so the expected bounds come from the plan that was built.
     Project boundsSource = request.project;
     if (builtPlan) boundsSource.plan = builtPlan->plan;
-    const Json job = makeExportJob(boundsSource, groups, materials.status.ok() ? materials.materials : std::vector<BuiltMaterial>{},
-                                   buildState, request.settings, request.projectFolder, staging, report.jobId,
-                                   work / pathFromUtf8(kResultFileName));
+    // Every group goes to the worker with a name: the file name without ".fbx" when it has none (the single
+    // group), which is the project's file name stem.
+    for (ExportGroup& g : groups) {
+        if (g.name.empty()) g.name = g.file.size() > 4 ? g.file.substr(0, g.file.size() - 4) : g.id;
+    }
+    // The materials catalog of the library gives the tile size of each material (for the kit UVs) and the slot
+    // names the kit needs, the same as the build made.
+    std::unique_ptr<MaterialCatalog> catalog;
+    if (request.library) {
+        Status opened;
+        catalog = MaterialCatalog::open(*request.library, opened);
+    }
+    std::map<std::string, TileSize> tileSizes;
+    const std::vector<BuiltMaterial> builtMaterials = materials.status.ok() ? materials.materials : std::vector<BuiltMaterial>{};
+    if (catalog) {
+        for (const BuiltMaterial& m : builtMaterials) {
+            if (m.tileSize || m.material.empty() || tileSizes.count(m.material) != 0) continue;
+            if (const std::optional<MaterialRecord> record = catalog->material(m.material)) tileSizes[m.material] = record->tileSize;
+        }
+    }
+    // The kit, when the options ask for it.
+    ModularKit kit;
+    bool kitInJob = false;
+    if (report.kit.asked && request.settings.write) {
+        if (!request.library) {
+            report.kit.skipped = "No library is set, so the kit was left out.";
+        } else if (!catalog) {
+            report.kit.skipped = "The library materials could not be opened, so the kit was left out.";
+        } else {
+            const BuildPlan plan = makeBuildPlan(boundsSource, BuildAssetSource{}, buildMaterialSourceFor(*catalog));
+            // An opening that cannot be built (a missing shape, one that does not fit) would leave a solid wall in
+            // the kit, so the kit is left out and says why.
+            const auto bad = std::find_if(plan.problems.begin(), plan.problems.end(), [](const BuildProblem& problem) {
+                return problem.code == "opening_does_not_fit";
+            });
+            if (bad != plan.problems.end()) {
+                report.kit.skipped = "The kit was left out because opening " + bad->object + " cannot be built. " + bad->message;
+            } else {
+                kit = modularKit(boundsSource, plan);
+                kitInJob = !kit.pieces.empty();
+                if (!kitInJob) report.kit.skipped = "The plan has no walls, so there is no kit to make.";
+            }
+        }
+    }
+    const Json job = makeExportJob(boundsSource, groups, builtMaterials, buildState, request.settings, request.projectFolder, staging,
+                                   report.jobId, work / pathFromUtf8(kResultFileName), kitInJob ? &kit : nullptr,
+                                   catalog ? &tileSizes : nullptr);
     report.steps.push_back({"prepare", since(prepareStart)});
 
     progress(ExportStage::Blender);
@@ -326,6 +375,7 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
     report.collisionObjects = out.collisionObjects;
     report.checks = out.checks;
     report.steps.insert(report.steps.end(), out.steps.begin(), out.steps.end());
+    report.emptyGroups = out.emptyGroups;
 
     std::vector<std::string> failed;
     for (const QualityCheckResult& c : report.checks) {
@@ -356,11 +406,34 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
         }
     }
 
+    // The kit layout is written by core, next to the kit file the worker made.
+    const std::string kitStem = exportFileStem(request.project.settings.name);
+    const std::string layoutName = kitStem + std::string(kKitLayoutSuffix);
+    const bool kitWritten = kitInJob && out.kit.has_value();
+    if (kitInJob && !out.kit) report.kit.skipped = "Blender did not write the kit.";
+    if (kitWritten) {
+        if (!fs::is_regular_file(staging / pathFromUtf8(out.kit->file), ec)) {
+            report.status = fail(ErrorCode::BlenderFailed, "Blender did not write " + out.kit->file + ".\nThe log is in " + pathToUtf8(report.logFile));
+            finish(true);
+            return report;
+        }
+        const std::string layoutText =
+            kitLayoutToJson(kit, request.project.settings.name, out.kit->file).dump(2, ' ', false, Json::error_handler_t::replace) + "\n";
+        if (const Status layoutWritten = fileio::writeAtomic(staging / pathFromUtf8(layoutName), layoutText); !layoutWritten.ok()) {
+            report.status = layoutWritten;
+            finish(true);
+            return report;
+        }
+    }
+
     // The last good export goes only now: the files its report lists, then the old textures. Only names inside
     // the export folder are touched.
     const ExportReportRead previous = readExportReport(request.projectFolder);
     if (previous.status.ok()) {
         for (const fs::path& old : previous.report.files) {
+            if (!old.filename().empty()) fs::remove(exportDir / old.filename(), ec);
+        }
+        for (const fs::path& old : {previous.report.kit.file, previous.report.kit.layoutFile}) {
             if (!old.filename().empty()) fs::remove(exportDir / old.filename(), ec);
         }
     }
@@ -373,6 +446,16 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
         moved = moveInto(staging / pathFromUtf8(file.file), target) && moved;
         report.files.push_back(target);
         report.fileOutputs.push_back(file);
+        for (const ExportGroup& g : groups) {
+            if (g.id == file.group) report.fileOutputs.back().name = g.name;
+        }
+    }
+    if (kitWritten) {
+        for (const std::string& name : {out.kit->file, layoutName}) {
+            const fs::path target = exportDir / pathFromUtf8(name);
+            fs::remove(target, ec);
+            moved = moveInto(staging / pathFromUtf8(name), target) && moved;
+        }
     }
     const fs::path stagedTextures = staging / pathFromUtf8(kExportTexturesFolder);
     if (fs::is_directory(stagedTextures, ec)) {
@@ -383,9 +466,73 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
     if (!moved) {
         report.files.clear();
         report.fileOutputs.clear();
+        report.kit.written = false;
         report.status = fail(ErrorCode::CannotWrite, "The exported files could not be moved into " + pathToUtf8(exportDir) + ".");
         finish(true);
         return report;
+    }
+    report.kit.written = kitWritten;
+    report.kit.file = kitWritten ? exportDir / pathFromUtf8(out.kit->file) : fs::path();
+    report.kit.layoutFile = kitWritten ? exportDir / pathFromUtf8(layoutName) : fs::path();
+    report.kit.pieces = kitWritten ? static_cast<int>(kit.pieces.size()) : 0;
+    report.kit.placements = kitWritten ? static_cast<int>(kit.placements.size()) : 0;
+    report.kit.triangles = kitWritten ? out.kit->triangles : 0;
+
+    // The gameplay data is written by core from the plan the build used.
+    report.gameplay.enabled = review.options.gameplay.enabled;
+    const fs::path gameplayFile = exportDir / pathFromUtf8(kitStem + std::string(kGameplayFileSuffix));
+    if (report.gameplay.enabled) {
+        Project built = request.project;
+        built.plan = review.plan;
+        const BuildPlan geometry = makeBuildPlan(built, {});
+        const GameplayData data = gameplayData(request.project.settings.name, built.plan, geometry.floors, planLights(built.plan));
+        const std::string text = gameplayToJson(data).dump(2, ' ', false, Json::error_handler_t::replace) + "\n";
+        if (const Status written = fileio::writeAtomic(gameplayFile, text); !written.ok()) {
+            report.status = written;
+            finish(true);
+            return report;
+        }
+        report.gameplay.file = gameplayFile;
+        report.gameplay.rooms = static_cast<int>(data.rooms.size());
+        report.gameplay.doors = static_cast<int>(data.doors.size());
+        report.gameplay.lights = static_cast<int>(data.lights.size());
+    } else {
+        fs::remove(gameplayFile, ec);
+    }
+
+    // The license report describes the last build and never blocks the export.
+    report.licenses.enabled = review.options.licenses.enabled;
+    const fs::path licensesJson = exportDir / pathFromUtf8(kitStem + std::string(kLicensesJsonSuffix));
+    const fs::path licensesText = exportDir / pathFromUtf8(kitStem + std::string(kLicensesTextSuffix));
+    if (report.licenses.enabled) {
+        std::unique_ptr<AssetCatalog> assetCatalog;
+        std::unique_ptr<MaterialCatalog> materialCatalog;
+        if (request.library) {
+            Status opened;
+            assetCatalog = AssetCatalog::open(*request.library, opened);
+            materialCatalog = MaterialCatalog::open(*request.library, opened);
+        }
+        const LicenseReportRead licenses = projectLicenseReport(request.projectFolder, request.project.settings.name,
+                                                                assetCatalog.get(), materialCatalog.get());
+        if (!licenses.status.ok()) {
+            report.licenses.reason = licenses.status.message;
+        } else {
+            const std::string jsonText = licenseReportToJson(licenses.report).dump(2, ' ', false, Json::error_handler_t::replace) + "\n";
+            const Status a = fileio::writeAtomic(licensesJson, jsonText);
+            const Status b = a.ok() ? fileio::writeAtomic(licensesText, licenseReportText(licenses.report)) : a;
+            if (!b.ok()) {
+                report.licenses.reason = b.message;
+            } else {
+                report.licenses.written = true;
+                report.licenses.jsonFile = licensesJson;
+                report.licenses.textFile = licensesText;
+                report.licenses.items = static_cast<int>(licenses.report.items.size());
+                report.licenses.warnings = static_cast<int>(licenses.report.warnings.size());
+            }
+        }
+    } else {
+        fs::remove(licensesJson, ec);
+        fs::remove(licensesText, ec);
     }
     report.exported = true;
     report.texturesFolder = textures;
@@ -428,7 +575,13 @@ Json exportReportToJson(const ExportReport& report)
     Json outputs = Json::object();
     Json files = Json::array();
     for (const ExportFileOutput& f : report.fileOutputs) {
-        files.push_back(Json{{"group", f.group}, {"file", f.file}, {"objects", f.objects}, {"triangles", f.triangles}});
+        Json entry = Json::object();
+        entry["group"] = f.group;
+        if (!f.name.empty()) entry["name"] = f.name;
+        entry["file"] = f.file;
+        entry["objects"] = f.objects;
+        entry["triangles"] = f.triangles;
+        files.push_back(std::move(entry));
     }
     outputs["files"] = std::move(files);
     outputs["textures_folder"] = pathOrNull(report.texturesFolder);
@@ -460,6 +613,34 @@ Json exportReportToJson(const ExportReport& report)
                            {"fail_count", report.failCount()},
                            {"warning_count", report.warningCount()},
                            {"checks", std::move(checks)}};
+
+    json["groups"] = Json{{"empty", report.emptyGroups}, {"notes", report.groupNotes}};
+    Json kit = Json::object();
+    kit["asked"] = report.kit.asked;
+    kit["written"] = report.kit.written;
+    kit["skipped"] = report.kit.skipped.empty() ? Json(nullptr) : Json(report.kit.skipped);
+    kit["file"] = pathOrNull(report.kit.file);
+    kit["layout_file"] = pathOrNull(report.kit.layoutFile);
+    kit["pieces"] = report.kit.pieces;
+    kit["placements"] = report.kit.placements;
+    kit["triangles"] = report.kit.triangles;
+    json["kit"] = std::move(kit);
+    Json gameplay = Json::object();
+    gameplay["enabled"] = report.gameplay.enabled;
+    gameplay["file"] = pathOrNull(report.gameplay.file);
+    gameplay["rooms"] = report.gameplay.rooms;
+    gameplay["doors"] = report.gameplay.doors;
+    gameplay["lights"] = report.gameplay.lights;
+    json["gameplay"] = std::move(gameplay);
+    Json licenses = Json::object();
+    licenses["enabled"] = report.licenses.enabled;
+    licenses["written"] = report.licenses.written;
+    licenses["reason"] = report.licenses.reason.empty() ? Json(nullptr) : Json(report.licenses.reason);
+    licenses["json_file"] = pathOrNull(report.licenses.jsonFile);
+    licenses["text_file"] = pathOrNull(report.licenses.textFile);
+    licenses["items"] = report.licenses.items;
+    licenses["warnings"] = report.licenses.warnings;
+    json["licenses"] = std::move(licenses);
 
     Json steps = Json::array();
     for (const BuildStepTime& s : report.steps) steps.push_back(Json{{"step", s.step}, {"ms", s.ms}});
@@ -559,6 +740,7 @@ ExportReportRead readExportReport(const fs::path& projectFolder)
             ExportFileOutput f;
             f.group = text(files[i], "group", where);
             f.file = text(files[i], "file", where);
+            if (files[i].contains("name")) f.name = text(files[i], "name", where);
             f.objects = whole(files[i], "objects", where);
             f.triangles = whole(files[i], "triangles", where);
             report.files.push_back(folder / pathFromUtf8(f.file));
@@ -600,6 +782,55 @@ ExportReportRead readExportReport(const fs::path& projectFolder)
                 c.findings.push_back(std::move(f));
             }
             report.checks.push_back(std::move(c));
+        }
+        if (json.contains("groups")) {
+            const Json& groups = json["groups"];
+            if (!groups.is_object()) throw std::string("/groups");
+            for (const Json& id : array(groups, "empty", "/groups")) {
+                if (!id.is_string()) throw std::string("/groups/empty");
+                report.emptyGroups.push_back(id.get<std::string>());
+            }
+            for (const Json& note : array(groups, "notes", "/groups")) {
+                if (!note.is_string()) throw std::string("/groups/notes");
+                report.groupNotes.push_back(note.get<std::string>());
+            }
+        }
+        if (json.contains("kit")) {
+            const Json& kit = json["kit"];
+            if (!kit.is_object()) throw std::string("/kit");
+            report.kit.asked = flag(kit, "asked", "/kit");
+            report.kit.written = flag(kit, "written", "/kit");
+            report.kit.skipped = optionalText(kit, "skipped", "/kit");
+            const std::string kitFile = optionalText(kit, "file", "/kit");
+            if (!kitFile.empty()) report.kit.file = pathFromUtf8(kitFile);
+            const std::string layout = optionalText(kit, "layout_file", "/kit");
+            if (!layout.empty()) report.kit.layoutFile = pathFromUtf8(layout);
+            report.kit.pieces = static_cast<int>(whole(kit, "pieces", "/kit"));
+            report.kit.placements = static_cast<int>(whole(kit, "placements", "/kit"));
+            report.kit.triangles = whole(kit, "triangles", "/kit");
+        }
+        if (json.contains("gameplay")) {
+            const Json& gameplay = json["gameplay"];
+            if (!gameplay.is_object()) throw std::string("/gameplay");
+            report.gameplay.enabled = flag(gameplay, "enabled", "/gameplay");
+            const std::string file = optionalText(gameplay, "file", "/gameplay");
+            if (!file.empty()) report.gameplay.file = pathFromUtf8(file);
+            report.gameplay.rooms = static_cast<int>(whole(gameplay, "rooms", "/gameplay"));
+            report.gameplay.doors = static_cast<int>(whole(gameplay, "doors", "/gameplay"));
+            report.gameplay.lights = static_cast<int>(whole(gameplay, "lights", "/gameplay"));
+        }
+        if (json.contains("licenses")) {
+            const Json& licenses = json["licenses"];
+            if (!licenses.is_object()) throw std::string("/licenses");
+            report.licenses.enabled = flag(licenses, "enabled", "/licenses");
+            report.licenses.written = flag(licenses, "written", "/licenses");
+            report.licenses.reason = optionalText(licenses, "reason", "/licenses");
+            const std::string jsonFile = optionalText(licenses, "json_file", "/licenses");
+            if (!jsonFile.empty()) report.licenses.jsonFile = pathFromUtf8(jsonFile);
+            const std::string textFile = optionalText(licenses, "text_file", "/licenses");
+            if (!textFile.empty()) report.licenses.textFile = pathFromUtf8(textFile);
+            report.licenses.items = static_cast<int>(whole(licenses, "items", "/licenses"));
+            report.licenses.warnings = static_cast<int>(whole(licenses, "warnings", "/licenses"));
         }
         const Json& steps = array(json, "steps", "");
         for (std::size_t i = 0; i < steps.size(); ++i) {

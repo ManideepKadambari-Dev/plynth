@@ -12,14 +12,20 @@ add_executable(plynth WIN32
     src/building/ExportController.h
     src/building/ExportController.cpp
     src/building/ProblemMark.h
+    src/catalog/FabImportDialog.h
+    src/catalog/FabImportDialog.cpp
     src/catalog/ImportQueue.h
     src/catalog/ImportQueue.cpp
     src/catalog/LibraryHost.h
     src/catalog/LibraryHost.cpp
     src/catalog/LibraryWatcher.h
     src/catalog/LibraryWatcher.cpp
+    src/catalog/StoreImports.h
+    src/catalog/StoreImports.cpp
     src/canvas/OpeningPaint.h
     src/canvas/OpeningPaint.cpp
+    src/canvas/LightPaint.h
+    src/canvas/LightPaint.cpp
     src/canvas/StairPaint.h
     src/canvas/StairPaint.cpp
     src/canvas/OverlayBuilder.h
@@ -28,6 +34,10 @@ add_executable(plynth WIN32
     src/canvas/PlanCanvas.h
     src/canvas/PlanCanvas.cpp
     src/detection/DetectionRunner.h
+    src/guide/GuideHost.h
+    src/guide/GuideHost.cpp
+    src/guide/TourAudit.h
+    src/guide/TourAudit.cpp
     src/detection/DetectionRunner.cpp
     src/detection/DetectionSession.h
     src/detection/DetectionSession.cpp
@@ -53,10 +63,14 @@ add_executable(plynth WIN32
     src/furniture/GeneratorPreview.cpp
     src/furniture/FurniturePicker.h
     src/furniture/FurniturePicker.cpp
+    src/dialogs/PackDialog.h
+    src/dialogs/PackDialog.cpp
     src/dialogs/RoomTypesDialog.h
     src/dialogs/RoomTypesDialog.cpp
     src/dialogs/ScaleDialog.h
     src/dialogs/ScaleDialog.cpp
+    src/dialogs/VariationsDialog.h
+    src/dialogs/VariationsDialog.cpp
     src/document/FloorFocus.h
     src/document/FloorFocus.cpp
     src/document/Selection.h
@@ -75,16 +89,26 @@ add_executable(plynth WIN32
     src/preview/ModelView.cpp
     src/preview/PreviewView.h
     src/preview/PreviewView.cpp
+    src/preview/RenderHost.h
+    src/preview/RenderHost.cpp
     src/preview/ThemeQml.h
     src/preview/ThemeQml.cpp
     src/panels/AssetsPanel.h
     src/panels/AssetsPanel.cpp
     src/panels/ExportPanel.h
     src/panels/ExportPanel.cpp
+    src/panels/ExportGroupsList.h
+    src/panels/ExportGroupsList.cpp
     src/panels/MaterialsPanel.h
     src/panels/MaterialsPanel.cpp
     src/panels/ImportQueueView.h
     src/panels/ImportQueueView.cpp
+    src/panels/FinishGroups.h
+    src/panels/FinishGroups.cpp
+    src/panels/OpeningAssetPicker.h
+    src/panels/OpeningAssetPicker.cpp
+    src/panels/IntegrationsPanel.h
+    src/panels/IntegrationsPanel.cpp
     src/panels/PropertiesPanel.h
     src/panels/PropertiesPanel.cpp
     src/panels/RightPanel.h
@@ -95,6 +119,8 @@ add_executable(plynth WIN32
     src/tools/FurnitureTool.cpp
     src/tools/DetectTool.h
     src/tools/DetectTool.cpp
+    src/tools/LightTool.h
+    src/tools/LightTool.cpp
     src/tools/OpeningTool.h
     src/tools/OpeningTool.cpp
     src/tools/RoomTool.h
@@ -132,6 +158,7 @@ add_executable(plynth WIN32
     src/window/MainWindow.cpp
     src/window/MainWindowBuild.cpp
     src/window/MainWindowExport.cpp
+    src/window/MainWindowPack.cpp
     src/window/ReadOnlyBanner.h
     src/window/ReadOnlyBanner.cpp
     src/window/StatusBar.h
@@ -150,7 +177,7 @@ if(WIN32)
 endif()
 
 target_include_directories(plynth PRIVATE src)
-target_link_libraries(plynth PRIVATE plynth::core plynth::cli plynth::terminal Qt6::Widgets Qt6::Quick Qt6::QuickWidgets Qt6::Quick3D)
+target_link_libraries(plynth PRIVATE plynth::core plynth::cli plynth::terminal plynth::guide_ui Qt6::Widgets Qt6::Quick Qt6::QuickWidgets Qt6::Quick3D)
 
 # Copy the Qt DLLs and plugins next to plynth.exe so it runs from the build folder.
 get_target_property(PLYNTH_QMAKE Qt6::qmake IMPORTED_LOCATION)

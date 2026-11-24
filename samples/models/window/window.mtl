@@ -1,0 +1,6 @@
+# Materials of the sample window
+newmtl Frame
+Kd 0.900000 0.900000 0.880000
+
+newmtl Glass
+Kd 0.700000 0.820000 0.880000

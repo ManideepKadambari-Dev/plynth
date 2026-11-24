@@ -1,6 +1,7 @@
 #include "plynth/core/Storeys.h"
 
 #include "ClipperInclude.h"
+#include "PlanRingClean.h"
 #include "plynth/core/Rooms.h"
 #include "plynth/core/Stairs.h"
 #include "plynth/core/WallGeometry.h"
@@ -12,11 +13,6 @@ namespace plynth {
 
 namespace {
 
-constexpr int kPrecision = 8;
-constexpr double kMiterLimit = 10.0; // corners of a wide part keep their exact shape
-constexpr double kMergeDistance = 1e-4; // points nearer than this are one point: rounding noise a float32 mesh could not hold
-constexpr double kSliver = 1e-6; // pieces smaller than this many square metres are rounding noise
-
 // A list of points as a Clipper path.
 Clipper2Lib::PathD toPath(const std::vector<Vec2>& points)
 {
@@ -24,15 +20,6 @@ Clipper2Lib::PathD toPath(const std::vector<Vec2>& points)
     path.reserve(points.size());
     for (const Vec2& p : points) path.emplace_back(p.x, p.y);
     return path;
-}
-
-// A Clipper path as a list of points.
-std::vector<Vec2> fromPath(const Clipper2Lib::PathD& path)
-{
-    std::vector<Vec2> points;
-    points.reserve(path.size());
-    for (const Clipper2Lib::PointD& p : path) points.push_back({p.x, p.y});
-    return points;
 }
 
 // The area as Clipper paths: the outline, then each hole.
@@ -61,65 +48,29 @@ std::vector<Vec2> turned(std::vector<Vec2> ring, bool outline)
     return ring;
 }
 
-// The ring without points that lie within kMergeDistance of the previous point, and without spike tips (a point
-// on the line through its neighbours but outside the segment between them). Turning a plan or rounding to the
-// clipper grid leaves such points, and they make edges a float32 mesh cannot keep. Points in a straight line
-// between their neighbours stay, since a wall junction there is a real vertex.
-std::vector<Vec2> cleanedRing(std::vector<Vec2> ring)
+// The pieces of plain paths as plan areas, each read by the turning of its rings and then tidied
+// (PlanRingClean.h).
+std::vector<PlanArea> collect(const Clipper2Lib::PathsD& paths)
 {
-    bool changed = true;
-    while (changed && ring.size() > 3) {
-        changed = false;
-        for (std::size_t i = 0; i < ring.size() && ring.size() > 3; ++i) {
-            const Vec2 prev = ring[(i + ring.size() - 1) % ring.size()];
-            const Vec2 next = ring[(i + 1) % ring.size()];
-            const Vec2 p = ring[i];
-            const double toPrev = std::hypot(p.x - prev.x, p.y - prev.y);
-            const double dx = next.x - prev.x;
-            const double dy = next.y - prev.y;
-            const double span = std::hypot(dx, dy);
-            const double off = span > 0.0 ? std::abs((p.x - prev.x) * dy - (p.y - prev.y) * dx) / span : toPrev;
-            const double along = span > 0.0 ? ((p.x - prev.x) * dx + (p.y - prev.y) * dy) / (span * span) : 0.0;
-            if (toPrev < kMergeDistance || (off < kMergeDistance && (along <= 0.0 || along >= 1.0))) {
-                ring.erase(ring.begin() + static_cast<std::ptrdiff_t>(i));
-                changed = true;
-                --i;
-            }
-        }
-    }
-    return ring;
-}
-
-// Collects the pieces of a polygon tree: each outline with the holes directly inside it.
-void collect(const Clipper2Lib::PolyPathD& node, std::vector<PlanArea>& out)
-{
-    for (std::size_t i = 0; i < node.Count(); ++i) {
-        const Clipper2Lib::PolyPathD& child = *node.Child(i);
-        if (!child.IsHole()) {
+    std::vector<PlanArea> out;
+    for (const RingPiece& read : piecesByTurning(paths)) {
+        for (RingPiece& piece : tidyPiece(read)) {
             PlanArea area;
-            area.outline = startedAtLowest(turned(cleanedRing(fromPath(child.Polygon())), true));
-            for (std::size_t h = 0; h < child.Count(); ++h) {
-                area.holes.push_back(startedAtLowest(turned(cleanedRing(fromPath(child.Child(h)->Polygon())), false)));
-            }
+            area.outline = startedAtLowest(std::move(piece.outline));
+            for (std::vector<Vec2>& hole : piece.holes) area.holes.push_back(startedAtLowest(std::move(hole)));
             std::sort(area.holes.begin(), area.holes.end(), [](const auto& a, const auto& b) {
                 return a.front().y != b.front().y ? a.front().y < b.front().y : a.front().x < b.front().x;
             });
-            if (area.outline.size() >= 3 && planAreaSize(area) >= kSliver) out.push_back(std::move(area));
+            out.push_back(std::move(area));
         }
-        collect(child, out);
     }
+    return out;
 }
 
 // Runs one clip operation and returns the pieces in a stable order.
 std::vector<PlanArea> run(Clipper2Lib::ClipType type, const Clipper2Lib::PathsD& subject, const Clipper2Lib::PathsD& clip)
 {
-    Clipper2Lib::ClipperD clipper(kPrecision);
-    clipper.AddSubject(subject);
-    if (!clip.empty()) clipper.AddClip(clip);
-    Clipper2Lib::PolyTreeD tree;
-    clipper.Execute(type, Clipper2Lib::FillRule::NonZero, tree);
-    std::vector<PlanArea> out;
-    collect(tree, out);
+    std::vector<PlanArea> out = collect(clipAndTidy(type, subject, clip));
     std::sort(out.begin(), out.end(), [](const PlanArea& a, const PlanArea& b) {
         const Vec2 p = a.outline.front();
         const Vec2 q = b.outline.front();
@@ -133,21 +84,6 @@ Clipper2Lib::PathsD pathsOf(const std::vector<PlanArea>& areas)
     Clipper2Lib::PathsD paths;
     for (const PlanArea& a : areas) addPaths(a, paths);
     return paths;
-}
-
-// How a plan point sits on a segment: the part along it from a (0 at a, 1 at b) and the distance across.
-struct Along {
-    double t = 0.0;
-    double across = 0.0;
-};
-
-Along alongSegment(const Vec2& a, const Vec2& b, const Vec2& p)
-{
-    const double dx = b.x - a.x;
-    const double dy = b.y - a.y;
-    const double len = std::hypot(dx, dy);
-    if (len <= 0.0) return {0.0, std::hypot(p.x - a.x, p.y - a.y)};
-    return {((p.x - a.x) * dx + (p.y - a.y) * dy) / (len * len), std::abs((p.x - a.x) * dy - (p.y - a.y) * dx) / len};
 }
 
 // Every segment of every ring of the uncut slab area: the boundary the edge faces stand on.
@@ -168,18 +104,12 @@ Boundary boundaryOf(const std::vector<PlanArea>& areas)
     return b;
 }
 
-// Says whether the point lies on the boundary, on a segment running the same way as the direction d.
-bool onBoundary(const Boundary& boundary, const Vec2& p, const Vec2& d)
+// The distance from a point to the nearest segment of the boundary.
+double distanceToBoundary(const Boundary& boundary, const Vec2& p)
 {
-    const double dl = std::hypot(d.x, d.y);
-    for (const auto& [a, b] : boundary.segments) {
-        const Along al = alongSegment(a, b, p);
-        if (al.across > kSlabSideTolerance || al.t < 0.0 || al.t > 1.0) continue;
-        const double sl = std::hypot(b.x - a.x, b.y - a.y);
-        if (sl <= 0.0 || dl <= 0.0) continue;
-        if (std::abs((b.x - a.x) * d.y - (b.y - a.y) * d.x) / (sl * dl) <= 1e-6) return true;
-    }
-    return false;
+    double best = 1e18;
+    for (const auto& [a, b] : boundary.segments) best = std::min(best, distanceToSegmentOf(p, a, b));
+    return best;
 }
 
 // One ring with its edge kinds. A vertex is added where an edge changes from edge face to well face, so every
@@ -189,6 +119,9 @@ struct SidedRing {
     std::vector<SlabSide> sides;
 };
 
+// Judges every edge of the ring in pieces, split at the boundary's points that lie within kSlabSideTolerance of
+// the edge. A piece is an edge face when both its ends and its middle are within kSlabSideTolerance of the
+// boundary, whatever way that runs: the middle matters because a well's side can run from boundary to boundary.
 SidedRing sidedRing(const std::vector<Vec2>& ring, const Boundary& boundary)
 {
     SidedRing out;
@@ -202,10 +135,9 @@ SidedRing sidedRing(const std::vector<Vec2>& ring, const Boundary& boundary)
         std::vector<double> cuts{0.0, 1.0};
         for (const auto& [sa, sb] : boundary.segments) {
             for (const Vec2& q : {sa, sb}) {
-                const Along al = alongSegment(a, b, q);
-                if (al.across <= kSlabSideTolerance && al.t * len > kSlabSideTolerance && (1.0 - al.t) * len > kSlabSideTolerance) {
-                    cuts.push_back(al.t);
-                }
+                if (distanceToSegmentOf(q, a, b) > kSlabSideTolerance) continue;
+                const double t = len > 0.0 ? ((q.x - a.x) * d.x + (q.y - a.y) * d.y) / (len * len) : 0.0;
+                if (t * len > kSlabSideTolerance && (1.0 - t) * len > kSlabSideTolerance) cuts.push_back(t);
             }
         }
         std::sort(cuts.begin(), cuts.end());
@@ -216,17 +148,19 @@ SidedRing sidedRing(const std::vector<Vec2>& ring, const Boundary& boundary)
         if (stops.size() < 2) stops = {0.0, 1.0};
         stops.back() = 1.0;
 
+        const auto at = [&](double t) { return Vec2{a.x + d.x * t, a.y + d.y * t}; };
         std::vector<SlabSide> kinds;
         for (std::size_t k = 0; k + 1 < stops.size(); ++k) {
-            const double mid = 0.5 * (stops[k] + stops[k + 1]);
-            const Vec2 m{a.x + d.x * mid, a.y + d.y * mid};
-            kinds.push_back(onBoundary(boundary, m, d) ? SlabSide::Edge : SlabSide::Well);
+            const bool edge = distanceToBoundary(boundary, at(stops[k])) <= kSlabSideTolerance &&
+                              distanceToBoundary(boundary, at(stops[k + 1])) <= kSlabSideTolerance &&
+                              distanceToBoundary(boundary, at(0.5 * (stops[k] + stops[k + 1]))) <= kSlabSideTolerance;
+            kinds.push_back(edge ? SlabSide::Edge : SlabSide::Well);
         }
         out.ring.push_back(a);
         out.sides.push_back(kinds.front());
         for (std::size_t k = 1; k < kinds.size(); ++k) {
             if (kinds[k] == kinds[k - 1]) continue;
-            out.ring.push_back({a.x + d.x * stops[k], a.y + d.y * stops[k]});
+            out.ring.push_back(at(stops[k]));
             out.sides.push_back(kinds[k]);
         }
     }
@@ -291,11 +225,9 @@ std::vector<PlanArea> roofSectionAreas(const Plan& plan, std::size_t floorIndex)
     if (exposed.empty()) return {};
     const Clipper2Lib::PathsD all = pathsOf(exposed);
     const double half = 0.5 * (kMinRoofSectionWidth - kRoofWidthTolerance);
-    const Clipper2Lib::PathsD shrunk = Clipper2Lib::InflatePaths(all, -half, Clipper2Lib::JoinType::Miter,
-                                                                 Clipper2Lib::EndType::Polygon, kMiterLimit, kPrecision);
+    const Clipper2Lib::PathsD shrunk = offsetByTurning(all, -half);
     if (shrunk.empty()) return {};
-    const Clipper2Lib::PathsD grown = Clipper2Lib::InflatePaths(shrunk, half, Clipper2Lib::JoinType::Miter,
-                                                                Clipper2Lib::EndType::Polygon, kMiterLimit, kPrecision);
+    const Clipper2Lib::PathsD grown = offsetByTurning(shrunk, half);
     if (grown.empty()) return {};
     const std::vector<PlanArea> kept = run(Clipper2Lib::ClipType::Intersection, grown, all);
     // Nothing was dropped: keep exposedArea as it is, so the corners of a wide part are not touched. A hairline
@@ -314,7 +246,7 @@ std::vector<PlanArea> roofSectionAreas(const Plan& plan, std::size_t floorIndex)
         exposedPoints += a.outline.size();
         for (const auto& h : a.holes) exposedPoints += h.size();
     }
-    if (std::abs(keptSize - exposedSize) < kSliver && keptPoints == exposedPoints) return exposed;
+    if (std::abs(keptSize - exposedSize) < kMinPlanAreaSize && keptPoints == exposedPoints) return exposed;
     return kept;
 }
 

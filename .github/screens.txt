@@ -9,3 +9,28 @@ materials: {project} --materials-tab
 setup: {project} --setup
 build-tab: {project} --build-tab
 export-tab: {project} --export-tab
+help: {project} --help-page getting-started
+help-user-guide: {project} --help-page user-guide
+help-search: {project} --help-search stairs
+about: {project} --about
+tour-plan-first: {project} --tour plan --tour-step 1
+tour-plan-mid: {project} --tour plan --tour-step 6
+tour-plan-last: {project} --tour plan --tour-step last
+tour-wall-first: {project} --tour wall --tour-step 1
+tour-wall-mid: {project} --tour wall --tour-step 4
+tour-wall-last: {project} --tour wall --tour-step last
+tour-build_export-first: {project} --tour build_export --tour-step 1
+tour-build_export-mid: {project} --tour build_export --tour-step 6
+tour-build_export-last: {project} --tour build_export --tour-step last
+tour-assets-first: {project} --tour assets --tour-step 1
+tour-assets-mid: {project} --tour assets --tour-step 6
+tour-assets-last: {project} --tour assets --tour-step last
+tour-materials-first: {project} --tour materials --tour-step 1
+tour-materials-mid: {project} --tour materials --tour-step 6
+tour-materials-last: {project} --tour materials --tour-step last
+tour-3d: {project} --view 3d --tour build_export --tour-step 7
+what-is-this: {project} --what-is-this tool-button-wall
+home-samples: --home
+first-run: --home --first-run
+export-licenses: {project} --export-licenses-on
+assets-author: {project} --catalog --select-asset chair

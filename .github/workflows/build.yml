@@ -320,11 +320,9 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      # It does not fail the run until the texts of the vcpkg libraries are copied in from notice-inputs.
       # A tag without the script is an error here too.
       - name: Check the third party notices
         if: ${{ !cancelled() && steps.package.outcome == 'success' }}
-        continue-on-error: true
         shell: pwsh
         run: |
           $script = "$env:GITHUB_WORKSPACE/.github/scripts/check-notices.ps1"
@@ -354,6 +352,21 @@ jobs:
         run: |
           "Graphics tests: $env:GRAPHICS_OUTCOME. They do not fail the run yet." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           if ($env:GRAPHICS_OUTCOME -ne 'success') { Write-Host "::warning::The graphics tests ended with $env:GRAPHICS_OUTCOME" }
+
+      - name: Check every control has a tour entry
+        id: tour-audit
+        if: ${{ !cancelled() && steps.package.outcome == 'success' }}
+        shell: pwsh
+        run: '& "$env:GITHUB_WORKSPACE/.github/scripts/tour-audit.ps1" -Package "$env:GITHUB_WORKSPACE/out/package/plynth" -OutFolder "$env:GITHUB_WORKSPACE/out/tour-audit"'
+
+      - name: Upload the tour audit
+        if: ${{ !cancelled() && steps.tour-audit.outcome != 'skipped' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: tour-audit
+          path: out/tour-audit/
+          if-no-files-found: ignore
+          retention-days: 14
 
       # From here the Release build becomes the installer. Every gate run does this, so a fault shows before a tag.
       - name: Find or install Inno Setup

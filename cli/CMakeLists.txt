@@ -11,6 +11,7 @@ add_library(plynth_cli STATIC
     src/CatalogCommon.cpp
     src/Cli.cpp
     src/Common.cpp
+    src/ErrorList.cpp
     src/Registry.cpp
     src/commands/AssetCommands.cpp
     src/commands/BuildCommands.cpp
@@ -21,6 +22,8 @@ add_library(plynth_cli STATIC
     src/commands/MaterialCatalogCommands.cpp
     src/commands/MaterialImportCommands.cpp
     src/commands/OpeningCommands.cpp
+    src/commands/PackCommands.cpp
+    src/commands/RenderCommands.cpp
     src/commands/PointCommands.cpp
     src/commands/DetectCommands.cpp
     src/commands/DoctorCommands.cpp
@@ -37,6 +40,10 @@ add_library(plynth_cli STATIC
     src/commands/StairCommands.cpp
     src/commands/VersionCommand.cpp
     src/commands/WallCommands.cpp
+    src/commands/LightCommands.cpp
+    src/commands/TrimCommands.cpp
+    src/commands/VariationCommands.cpp
+    src/commands/GuideCommands.cpp
 )
 add_library(plynth::cli ALIAS plynth_cli)
 

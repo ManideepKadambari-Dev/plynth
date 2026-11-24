@@ -7,6 +7,10 @@
 #include "preview/GraphicsProbe.h"
 #include "theme/Theme.h"
 
+#include <plynth/core/HelpPages.h>
+#include <plynth/core/ProjectFiles.h>
+#include <plynth/core/Resources.h>
+#include <plynth/core/Samples.h>
 #include <plynth/core/SetupCheck.h>
 #include <plynth/core/Settings.h>
 #include <plynth/core/Version.h>
@@ -19,6 +23,8 @@
 #include <QFileInfo>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QIcon>
+#include <QPixmap>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMouseEvent>
@@ -45,17 +51,14 @@ QString fromCore(const std::string& text)
     return QString::fromUtf8(text.data(), static_cast<qsizetype>(text.size()));
 }
 
-// Looks for a folder of the repository (docs, samples) by walking up from the program's folder.
-QString findFolder(const QString& relative)
+// The plans folder of the samples core finds. Empty when there is none.
+QString samplePlansFolder()
 {
-    QDir dir(QCoreApplication::applicationDirPath());
-    for (int level = 0; level < 8; ++level) {
-        if (QFileInfo(dir.filePath(relative)).isDir())
-            return dir.filePath(relative);
-        if (!dir.cdUp())
-            break;
-    }
-    return QString();
+    const std::filesystem::path samples = plynth::resourceFolder(plynth::ResourceKind::Samples);
+    if (samples.empty())
+        return QString();
+    const QString plans = QString::fromStdWString((samples / L"plans").wstring());
+    return QFileInfo(plans).isDir() ? plans : QString();
 }
 
 // A short readable time: the time today, "Yesterday", or the date.
@@ -357,29 +360,28 @@ void HomeScreen::fillSide()
     clear(helpColumn_);
     clear(samplesColumn_);
 
-    const QString docs = findFolder(QStringLiteral("docs"));
-    if (!docs.isEmpty()) {
-        const std::pair<const char*, const char*> pages[] = {{"GETTING_STARTED.md", "Getting started"},
-                                                              {"USER_GUIDE.md", "User guide"},
-                                                              {"SHORTCUTS.md", "Keyboard shortcuts"},
-                                                              {"CLI_GUIDE.md", "Command line guide"}};
+    const std::filesystem::path docs = plynth::resourceFolder(plynth::ResourceKind::Docs);
+    if (!docs.empty()) {
         bool any = false;
-        for (const auto& page : pages) {
-            const QString file = QDir(docs).filePath(QString::fromLatin1(page.first));
-            if (!QFileInfo::exists(file))
+        for (const plynth::HelpPageEntry& page : plynth::helpPages()) {
+            if (!page.listed || page.kind != plynth::HelpPageKind::File || page.id == "generators")
+                continue;
+            std::error_code ec;
+            if (!std::filesystem::is_regular_file(docs / plynth::pathFromUtf8(page.file), ec))
                 continue;
             if (!any) {
                 helpColumn_->addWidget(sectionTitle(tr("Help"), helpBox_));
                 any = true;
             }
-            QPushButton* link = addLink(helpColumn_, tr(page.second), tr("Open this help page"),
-                                        QStringLiteral("home-help-") + QString::fromLatin1(page.first).toLower());
-            connect(link, &QPushButton::clicked, this, [file]() { QDesktopServices::openUrl(QUrl::fromLocalFile(file)); });
+            const QString id = fromCore(page.id);
+            QPushButton* link = addLink(helpColumn_, fromCore(page.title), tr("Open this help page in the Help window"),
+                                        QStringLiteral("home-help-") + id);
+            connect(link, &QPushButton::clicked, this, [this, id]() { emit helpPageRequested(id); });
         }
     }
     helpBox_->setVisible(helpColumn_->count() > 0);
 
-    const QString samples = findFolder(QStringLiteral("samples/plans"));
+    const QString samples = samplePlansFolder();
     if (!samples.isEmpty()) {
         const QFileInfoList images = QDir(samples).entryInfoList({QStringLiteral("*.png")}, QDir::Files, QDir::Name);
         if (!images.isEmpty())
@@ -390,6 +392,23 @@ void HomeScreen::fillSide()
                                         QStringLiteral("home-sample-") + image.completeBaseName());
             const QString file = image.absoluteFilePath();
             connect(link, &QPushButton::clicked, this, [this, file]() { emit openSampleRequested(file); });
+        }
+    }
+    const std::filesystem::path sampleRoot = plynth::resourceFolder(plynth::ResourceKind::Samples);
+    const plynth::SamplesRead index = sampleRoot.empty() ? plynth::SamplesRead{} : plynth::readSamples(sampleRoot);
+    if (index.status.ok() && !index.index.projects.empty()) {
+        samplesColumn_->addWidget(sectionTitle(tr("Sample projects"), samplesBox_));
+        for (const plynth::SampleProject& project : index.index.projects) {
+            QPushButton* link = addLink(samplesColumn_, fromCore(project.name),
+                                        tr("Open a copy of this sample project that you can change. %1").arg(fromCore(project.description)),
+                                        QStringLiteral("home-sample-project-") + fromCore(project.id));
+            const QPixmap picture(QString::fromStdWString((sampleRoot / plynth::pathFromUtf8(project.image)).wstring()));
+            if (!picture.isNull()) {
+                link->setIcon(QIcon(picture.scaled(t.unit() * 12, t.unit() * 8, Qt::KeepAspectRatio, Qt::SmoothTransformation)));
+                link->setIconSize(QSize(t.unit() * 12, t.unit() * 8));
+            }
+            const QString id = fromCore(project.id);
+            connect(link, &QPushButton::clicked, this, [this, id]() { emit openSampleProjectRequested(id); });
         }
     }
     samplesBox_->setVisible(samplesColumn_->count() > 0);

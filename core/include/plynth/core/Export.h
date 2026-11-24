@@ -2,7 +2,9 @@
 
 #include "Blender.h"
 #include "EditSession.h"
+#include "ExportGroups.h"
 #include "ExportJob.h"
+#include "Library.h"
 #include "Project.h"
 #include "Status.h"
 
@@ -10,6 +12,7 @@
 
 #include <filesystem>
 #include <functional>
+#include <optional>
 #include <stop_token>
 #include <string>
 #include <string_view>
@@ -22,15 +25,18 @@ using Json = nlohmann::ordered_json;
 // Exporting a project for Unreal (DESIGN.md sections 7.16 and 7.17): one call that the app's Export button and
 // "plynth export" both use. It exports the last build (build/building.blend, with any hand edits); it never
 // builds. It writes into the project's export/ folder (DESIGN.md section 5), which can always be deleted:
-//   export/<Name>.fbx           one file per group of the project's exporter (Exporter.h)
+//   export/<Name>.fbx           one file per group of the project's exporter (Exporter.h) that got objects
 //   export/Textures/            the images of every exported material (ExportJob.h names them)
+//   export/<Stem>_Kit.fbx       the modular kit, when the project's export options switch it on (Kit.h)
+//   export/<Stem>_Kit_layout.json  where each kit piece goes, written by core into the staging folder
 //   export/export_report.json   the report of the last export, written for every export that got past the
 //                               lock, blocked or not (schema/export-report.schema.json)
 // The worker writes into export/.staging/; only when the export is not blocked does core remove the files the
-// previous report lists and the old Textures/ folder, and move the new ones in. A blocked or failed export
-// leaves the last good export in place. The job, result and Blender log go to build/export_work/.
+// previous report lists (group files and kit files) and the old Textures/ folder, and move the new ones in. A
+// blocked or failed export leaves the last good export in place. The job, result and Blender log go to
+// build/export_work/.
 // While it runs it holds build/build.lock, the build's lock, so a build cannot replace building.blend under it.
-// Nothing in the project's plan or settings is changed.
+// Nothing in the project's plan, settings or export options is changed.
 
 inline constexpr std::string_view kExportFolderName = "export";
 inline constexpr std::string_view kExportStagingFolder = ".staging";
@@ -48,6 +54,51 @@ struct ExportRequest {
     BlenderInstall blender;              // a usable install from chooseBlender
     BlenderRunOptions run{true, kBuildTimeout, {}};
     ExportSettings settings;
+    // Only the kit uses it: its faces need the same slot names as the build, which makeBuildPlan works out with
+    // the materials catalog, and a material gets its tile size from it only when build/materials.json has none.
+    // Empty: an export with the kit switched on goes on without it (ExportKitReport).
+    std::optional<LibraryPaths> library;
+};
+
+// What happened to the modular kit in one export.
+struct ExportKitReport {
+    bool asked = false;      // the project's export options switch the kit on
+    bool written = false;    // the kit files are now in export/
+    std::string skipped;     // why it was not made, for example "No library is set, so the kit was left out."
+    std::filesystem::path file;       // export/<Stem>_Kit.fbx, absolute; empty unless written
+    std::filesystem::path layoutFile; // export/<Stem>_Kit_layout.json, absolute; empty unless written
+    int pieces = 0;
+    int placements = 0;
+    long long triangles = 0;
+};
+
+// The gameplay data file of an export (GameplayData.h), written by core when the export options switch it on:
+// export/<Stem>_gameplay.json. An export with the switch off removes an old one; a blocked export leaves it.
+inline constexpr std::string_view kGameplayFileSuffix = "_gameplay.json";
+
+struct ExportGameplayReport {
+    bool enabled = false;         // the project's export options switch it on
+    std::filesystem::path file;   // absolute; empty unless written
+    int rooms = 0;
+    int doors = 0;
+    int lights = 0;
+};
+
+// The license report of an export (LicenseReport.h), written when the export options switch it on:
+// export/<Stem>_licenses.json and export/<Stem>_licenses.txt. It describes the last build, read from
+// build/used-items.json and looked up in the library. Without used items it is not written and the export goes
+// on. An export with the switch off removes old report files; a blocked export or a check leaves them.
+inline constexpr std::string_view kLicensesJsonSuffix = "_licenses.json";
+inline constexpr std::string_view kLicensesTextSuffix = "_licenses.txt";
+
+struct ExportLicenseReport {
+    bool enabled = false;            // the project's export options switch it on
+    bool written = false;
+    std::string reason;              // why it was not written although enabled; empty otherwise
+    std::filesystem::path jsonFile;  // absolute; empty unless written
+    std::filesystem::path textFile;
+    int items = 0;
+    int warnings = 0;
 };
 
 enum class ExportStage {
@@ -68,8 +119,8 @@ struct ExportProgress {
 struct ExportReport {
     // Ok when the files were exported, or when settings.write was false and the checks ran. QualityFailed when a
     // check failed and the export was not forced (nothing in export/ changed, the report is written).
-    // InvalidValue when the project's export mode has no exporter yet ("Grouped export is not available
-    // yet ...") or the exporter refuses. NotFound when the project folder or build/building.blend does not exist
+    // InvalidValue when the project's export mode has no exporter or the exporter refuses; BadFile when
+    // export-options.json is not valid. NotFound when the project folder or build/building.blend does not exist
     // ("Build the project first."). InUse when a build or another export holds the lock. BlenderNotFound,
     // BlenderFailed (the worker's message, with the log file named), Cancelled, CannotWrite.
     Status status;
@@ -96,6 +147,11 @@ struct ExportReport {
     long long collisionObjects = 0;
     std::vector<QualityCheckResult> checks;   // in the order the worker ran them
     std::vector<BuildStepTime> steps;         // "prepare" from core first, then the worker's steps
+    std::vector<std::string> emptyGroups;     // group ids that got no object and were not written
+    std::vector<std::string> groupNotes;      // group edits that no longer apply (ExportGroupsApplied::notes)
+    ExportKitReport kit;
+    ExportGameplayReport gameplay;
+    ExportLicenseReport licenses;
 
     bool passed() const;      // no check failed
     int failCount() const;
@@ -103,13 +159,17 @@ struct ExportReport {
 };
 
 // Exports a project: the exporter for its export mode (findExporter(exportModeName(mode))), the project folder
-// and build/building.blend, takes build/build.lock (as runBuild does, a stale lock is taken over), reads
+// and build/building.blend, the groups of reviewExportGroups (ExportGroups.h: the plan of the last successful
+// build, the saved edits for a reviewable exporter; an unreadable export-options.json is its BadFile and nothing
+// runs), takes build/build.lock (as runBuild does, a stale lock is taken over), reads
 // build/build.json (readBuildReport: the plan changed when its fingerprint differs from planFingerprint, or
 // there is none) and build/materials.json (readBuiltMaterials; missing is an empty list), empties
-// export/.staging, makeExportJob, runBlenderJob in build/export_work, readExportResult; then moves the files
-// into export/ when written and (passed or forced), removes export/.staging, writes
-// export/export_report.json and removes the lock, also after a failure. Blocks; the app runs it on a worker
-// thread and passes stop for its Cancel button.
+// export/.staging, when the kit is switched on and a library is given modularKit of the built project with
+// makeBuildPlan (that library's materials catalog, no assets), makeExportJob, runBlenderJob in
+// build/export_work, readExportResult; then, when written and (passed or forced), writes the kit layout
+// (kitLayoutToJson) into the staging folder when the worker wrote the kit, moves the files into export/,
+// removes export/.staging, writes export/export_report.json and removes the lock, also after a failure. Blocks;
+// the app runs it on a worker thread and passes stop for its Cancel button.
 ExportReport runExport(const ExportRequest& request,
                        const std::function<void(const ExportProgress&)>& onProgress = {},
                        std::stop_token stop = {});

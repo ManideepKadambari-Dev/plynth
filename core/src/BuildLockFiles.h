@@ -2,6 +2,7 @@
 
 #include "plynth/core/Build.h"
 #include "plynth/core/EditSession.h"
+#include "plynth/core/ProjectFiles.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -14,7 +15,9 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <stop_token>
 #include <string>
+#include <thread>
 
 // Helpers for build.lock, shared by the build and the export, which take the same lock.
 namespace plynth::lockfile {
@@ -54,5 +57,44 @@ inline bool lockIsLive(const std::filesystem::path& file)
     }
     return true;
 }
+
+// Watches build/cancel.request while a build or an export holds the lock, so "plynth build cancel" or
+// "plynth export cancel" from another process stops it. A marker left from before is removed at the start, and
+// the marker is removed again at the end. token() stops when the marker appears or the outer token stops.
+class CancelWatch {
+public:
+    CancelWatch(const std::filesystem::path& buildFolder, std::stop_token outer)
+        : marker_(buildFolder / pathFromUtf8(kBuildCancelFileName))
+    {
+        std::error_code ec;
+        std::filesystem::remove(marker_, ec);
+        watcher_ = std::jthread([this, outer](std::stop_token own) {
+            while (!own.stop_requested()) {
+                std::error_code ignored;
+                if (outer.stop_requested() || std::filesystem::exists(marker_, ignored)) {
+                    source_.request_stop();
+                    return;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            }
+        });
+    }
+    ~CancelWatch()
+    {
+        watcher_.request_stop();
+        if (watcher_.joinable()) watcher_.join();
+        std::error_code ec;
+        std::filesystem::remove(marker_, ec);
+    }
+    CancelWatch(const CancelWatch&) = delete;
+    CancelWatch& operator=(const CancelWatch&) = delete;
+
+    std::stop_token token() const { return source_.get_token(); }
+
+private:
+    std::filesystem::path marker_;
+    std::stop_source source_;
+    std::jthread watcher_;
+};
 
 }

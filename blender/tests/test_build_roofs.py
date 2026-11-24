@@ -301,7 +301,7 @@ class RoofSampleMaterialTests(MaterialTest):
                 self.assertEqual(result["warnings"], [])
                 output = result["output"]
                 self.assertEqual(output["source_info"]["id"], material_id)
-                self.assertEqual(output["source_info"]["license"], "own_work")
+                self.assertEqual(output["source_info"]["license"], "cc0")
                 self.assertEqual((output["tile_size"]["width"], output["tile_size"]["height"]), tile)
                 for channel in ("base_color", "roughness"):
                     self.assertTrue(os.path.isfile(self.map_path(result, channel)), channel)

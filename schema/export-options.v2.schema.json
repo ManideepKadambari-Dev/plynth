@@ -1,0 +1,96 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:export-options:2",
+  "title": "Plynth export options, version 2",
+  "description": "The export-options.json file in a project folder (core/include/plynth/core/ExportGroups.h): the user's edits to the automatic export groups and the modular kit and gameplay data switches. Version 1 files (export-options.v1.schema.json) had no gameplay switch and read with it off. It is only there once something was changed. Edits refer to group ids and plan ids; one that no longer applies is skipped with a note at export time.",
+  "type": "object",
+  "required": ["format", "version"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "plynth-export-options" },
+    "version": { "const": 2 },
+    "groups": {
+      "description": "Applied in this order: added, merges, moves, renames.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "added": {
+          "description": "Groups the user made. They start empty.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "name"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "description": "group_ and eight characters as plan ids have, or group_ and a number from before.", "type": "string", "pattern": "^group_([1-9][0-9]*|[0-9][0-9a-hjkmnp-tv-z]{7})$" },
+              "name": { "$ref": "#/definitions/groupName" }
+            }
+          },
+          "default": []
+        },
+        "renames": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["group", "name"],
+            "additionalProperties": false,
+            "properties": {
+              "group": { "$ref": "#/definitions/groupId" },
+              "name": { "$ref": "#/definitions/groupName" }
+            }
+          },
+          "default": []
+        },
+        "merges": {
+          "description": "group goes away and its members join into.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["group", "into"],
+            "additionalProperties": false,
+            "properties": {
+              "group": { "$ref": "#/definitions/groupId" },
+              "into": { "$ref": "#/definitions/groupId" }
+            }
+          },
+          "default": []
+        },
+        "moves": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["kind", "id", "to"],
+            "additionalProperties": false,
+            "properties": {
+              "kind": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+              "id": { "description": "The plan id, or null for the member that takes every object of the kind.", "oneOf": [{ "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]*$" }, { "type": "null" }] },
+              "to": { "$ref": "#/definitions/groupId" }
+            }
+          },
+          "default": []
+        }
+      },
+      "default": {}
+    },
+    "kit": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "description": "Also write the modular kit with every export.", "type": "boolean", "default": false }
+      },
+      "default": {}
+    },
+    "gameplay": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "description": "Also write the gameplay data file (rooms, doors and lights) with every export.", "type": "boolean", "default": false }
+      },
+      "default": {}
+    }
+  },
+  "definitions": {
+    "groupId": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 80 },
+    "groupName": { "description": "English only: A to Z, a to z, 0 to 9, spaces, hyphens and underscores, with at least one letter or digit.", "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9 _-]*[A-Za-z0-9][A-Za-z0-9 _-]*$" }
+  }
+}

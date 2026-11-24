@@ -3,6 +3,7 @@
 #include <plynth/core/EditSession.h>
 #include <plynth/core/OpeningShapes.h>
 #include <plynth/core/RoomTypes.h>
+#include <plynth/core/TrimProfiles.h>
 
 #include <QDir>
 #include <QFileSystemWatcher>
@@ -91,6 +92,11 @@ void LibraryHost::reopen()
                 shapeNotice_ = QObject::tr("The shape file %1 was not used. %2")
                                    .arg(QString::fromStdWString(load.refused.front().first.filename().wstring()),
                                         fromCore(load.refused.front().second.message));
+            const plynth::TrimProfileFolderLoad profiles = plynth::registerTrimProfileFolder(paths_.shapes);
+            if (shapeNotice_.isEmpty() && !profiles.refused.empty())
+                shapeNotice_ = QObject::tr("The trim profile file %1 was not used. %2")
+                                   .arg(fromCore(profiles.refused.front().first),
+                                        fromCore(profiles.refused.front().second.message));
         }
     }
     if (catalog_) {

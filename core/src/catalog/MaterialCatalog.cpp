@@ -717,6 +717,9 @@ Status MaterialCatalog::editMaterial(std::string_view id, const MaterialEdit& ed
         if (edit.license && !exists(db, "SELECT 1 FROM licenses WHERE id = ?", *edit.license)) {
             return fail(ErrorCode::NotFound, "There is no license \"" + *edit.license + "\".");
         }
+        if (edit.author) {
+            if (Status s = checkAuthor(*edit.author); !s.ok()) return s;
+        }
         const fs::path file = impl_->paths.materialItems / pathFromUtf8(id) / pathFromUtf8(kMaterialInfoFileName);
         MaterialInfoRead read = readMaterialInfo(file, id);
         if (!read.status.ok()) return read.status;
@@ -735,6 +738,7 @@ Status MaterialCatalog::editMaterial(std::string_view id, const MaterialEdit& ed
             info.tags.erase(std::unique(info.tags.begin(), info.tags.end()), info.tags.end());
         }
         if (edit.license) info.license = *edit.license;
+        if (edit.author) info.author = *edit.author;
         if (edit.tileSize && !(*edit.tileSize == info.tileSize)) {
             info.tileSize = *edit.tileSize;
             // No map file can add up to zero bytes, so the record no longer matches the files: the material

@@ -3,10 +3,12 @@
 #include "catalog/LibraryHost.h"
 #include "furniture/AssetPreview.h"
 #include "preview/AssetStage.h"
+#include "theme/PlainText.h"
 #include "theme/Theme.h"
 
 #include <plynth/core/RoomTypes.h>
 #include <plynth/core/catalog/AssetInfo.h>
+#include <plynth/core/ProjectFiles.h>
 
 #include <QComboBox>
 #include <QDesktopServices>
@@ -161,7 +163,9 @@ public:
 QLabel* mutedLabel(const QString& text, QWidget* parent)
 {
     const Theme& t = Theme::instance();
-    auto* label = new QLabel(text, parent);
+    auto* label = new QLabel(parent);
+    label->setTextFormat(Qt::PlainText);
+    label->setText(text);
     label->setFont(t.uiFont(t.sizeSmall()));
     label->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
     return label;
@@ -188,6 +192,7 @@ AssetsPanel::AssetsPanel(LibraryHost& host, QWidget* parent) : QWidget(parent), 
     emptyColumn->setContentsMargins(0, t.unit() * 6, 0, 0);
     emptyColumn->setSpacing(t.unit() * 3);
     emptyText_ = new QLabel(empty);
+    emptyText_->setTextFormat(Qt::PlainText);
     emptyText_->setWordWrap(true);
     emptyText_->setFont(t.uiFont(t.sizeNormal()));
     emptyText_->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
@@ -360,6 +365,7 @@ void AssetsPanel::buildDetails()
 
     auto addMono = [&](const QString& tip, const QString& tour) {
         auto* label = new QLabel(body);
+        label->setTextFormat(Qt::PlainText);
         label->setFont(t.monoFont(t.sizeSmall()));
         label->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
         label->setToolTip(tip);
@@ -386,6 +392,23 @@ void AssetsPanel::buildDetails()
             return;
         plynth::AssetEdit edit;
         edit.license = toCore(license_->itemData(index).toString());
+        applyEdit(edit);
+    });
+
+    box->addWidget(mutedLabel(tr("Author"), body));
+    author_ = new QLineEdit(body);
+    author_->setFont(t.uiFont(t.sizeNormal()));
+    author_->setStyle(t.controlStyle());
+    author_->setMaxLength(static_cast<int>(plynth::kMaxAuthorLength));
+    author_->setPlaceholderText(tr("Unknown"));
+    author_->setToolTip(tr("Who made the asset, shown in the license report. Press Enter to save"));
+    author_->setProperty("tourId", QStringLiteral("catalog-author"));
+    box->addWidget(author_);
+    connect(author_, &QLineEdit::editingFinished, this, [this]() {
+        if (refreshing_ || !current_ || author_->text().trimmed() == shownAuthor_)
+            return;
+        plynth::AssetEdit edit;
+        edit.author = toCore(author_->text().trimmed());
         applyEdit(edit);
     });
 
@@ -436,6 +459,7 @@ void AssetsPanel::buildDetails()
     });
 
     problems_ = new QLabel(body);
+    problems_->setTextFormat(Qt::PlainText);
     problems_->setWordWrap(true);
     problems_->setFont(t.uiFont(t.sizeSmall()));
     problems_->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
@@ -583,7 +607,7 @@ void AssetsPanel::fillGrid()
         auto* item = new QStandardItem(fromCore(record.name));
         item->setData(fromCore(record.id), kIdRole);
         item->setData(AssetPreview::sizeText(record.size), kSizeRole);
-        item->setToolTip(tr("%1. Click to see and edit its details").arg(fromCore(record.name)));
+        item->setToolTip(plainToolTip(tr("%1. Click to see and edit its details").arg(fromCore(record.name))));
         QString state;
         QColor color = t.muted();
         if (record.state == plynth::AssetState::Broken) {
@@ -608,13 +632,13 @@ void AssetsPanel::fillGrid()
         const bool placeable = record.state != plynth::AssetState::Broken && plynth::isMeasured(record.size);
         if (placeable) {
             item->setFlags(item->flags() | Qt::ItemIsDragEnabled);
-            item->setToolTip(tr("%1. Click to see and edit its details. Drag it onto the plan to place it")
-                                 .arg(fromCore(record.name)));
+            item->setToolTip(plainToolTip(tr("%1. Click to see and edit its details. Drag it onto the plan to place it")
+                                              .arg(fromCore(record.name))));
         } else {
             item->setFlags(item->flags() & ~Qt::ItemIsDragEnabled);
             if (record.state != plynth::AssetState::Broken)
-                item->setToolTip(tr("%1 is not measured yet, so it cannot be placed. Use Retry render in the details")
-                                     .arg(fromCore(record.name)));
+                item->setToolTip(plainToolTip(tr("%1 is not measured yet, so it cannot be placed. Use Retry render in the details")
+                                                  .arg(fromCore(record.name))));
         }
         model_->appendRow(item);
     }
@@ -705,6 +729,9 @@ void AssetsPanel::showDetails()
     for (const plynth::LicenseEntry& entry : host_.catalog()->licenses())
         license_->addItem(fromCore(entry.name), fromCore(entry.id));
     license_->setCurrentIndex(std::max(0, license_->findData(fromCore(record.license))));
+    const plynth::AssetInfoRead info = plynth::readAssetInfo(record.folder / plynth::pathFromUtf8(plynth::kAssetInfoFileName), record.id);
+    shownAuthor_ = info.status.ok() ? fromCore(info.info.author) : QString();
+    author_->setText(shownAuthor_);
 
     categories_->clear();
     for (const plynth::CategoryEntry& entry : host_.catalog()->categories()) {
@@ -727,8 +754,6 @@ void AssetsPanel::showDetails()
         problems << fromCore(record.problem);
     if (!record.thumbnailError.empty())
         problems << fromCore(record.thumbnailError);
-    const plynth::AssetInfoRead info =
-        plynth::readAssetInfo(record.folder / std::string(plynth::kAssetInfoFileName), fromCore(record.id).toStdString());
     if (info.status.ok())
         for (const plynth::BlenderWarning& warning : info.info.warnings)
             problems << fromCore(warning.message);
@@ -762,12 +787,13 @@ void AssetsPanel::fillMaterials(const plynth::AssetRecord& record, const std::ve
         auto* line = new QHBoxLayout(row);
         line->setContentsMargins(0, 0, 0, 0);
         line->setSpacing(t.unit() * 2);
-        auto* label = new QLabel(name, row);
-        label->setFont(t.monoFont(t.sizeSmall()));
+        auto* label = new QLabel(row);
         label->setTextFormat(Qt::PlainText);
+        label->setText(name);
+        label->setFont(t.monoFont(t.sizeSmall()));
         label->setMinimumWidth(0);
         label->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-        label->setToolTip(name);
+        label->setToolTip(plainToolTip(name));
         line->addWidget(label, 1);
         auto* add = new QPushButton(tr("Add to materials catalog"), row);
         add->setEnabled(importMaterialsEnabled_);
@@ -815,7 +841,7 @@ void AssetsPanel::setBusyAssets(const QStringList& ids)
 void AssetsPanel::setImportEnabled(bool enabled, const QString& tip)
 {
     import_->setEnabled(enabled);
-    import_->setToolTip(tip);
+    import_->setToolTip(plainToolTip(tip));
     retryEnabled_ = enabled;
     if (current_)
         showDetails();
@@ -841,6 +867,7 @@ void AssetsPanel::removeSelected()
     QMessageBox box(this);
     box.setIcon(QMessageBox::NoIcon);
     box.setWindowTitle(tr("Remove asset"));
+    box.setTextFormat(Qt::PlainText);
     box.setText(tr("Remove %1 and its folder from the library? This cannot be undone.").arg(fromCore(current_->name)));
     QPushButton* yes = box.addButton(tr("Remove"), QMessageBox::DestructiveRole);
     QPushButton* no = box.addButton(tr("Cancel"), QMessageBox::RejectRole);

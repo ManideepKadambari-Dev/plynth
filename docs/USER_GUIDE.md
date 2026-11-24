@@ -1,6 +1,6 @@
 # User guide
 
-This covers what Plynth does today: the home screen, opening a project, showing its plan image, setting the scale, drawing walls (straight and curved, with rounded corners), placing doors, windows and other openings, setting heights, adding floors, stairs and roofs, finding walls and openings in the image automatically, making rooms, placing furniture from the library, undo and redo, saving, building the building in Blender and looking at it in 3D, the setup check, the library, the assets catalog and the materials catalog, putting materials on walls, rooms and the whole project, working next to the command line, and the built-in terminal. More screens arrive in later releases.
+This covers what Plynth does today: the home screen, opening a project, showing its plan image, setting the scale, drawing walls (straight and curved, with rounded corners), placing doors, windows and other openings, setting heights, adding floors, stairs and roofs, finding walls and openings in the image automatically, making rooms, placing furniture from the library, undo and redo, saving, building the building in Blender and looking at it in 3D, the setup check, the library, the assets catalog and the materials catalog, putting materials on walls, rooms and the whole project, working next to the command line, the built-in terminal, generators, and the help pages with the guided tours and the What is this? mode.
 
 New here? Start with [Getting started](GETTING_STARTED.md). For keys see [Keyboard shortcuts](SHORTCUTS.md). For scripts see the [Command line guide](CLI_GUIDE.md). For Blender, the library folder and the first run see [Setting up Plynth](SETUP.md).
 
@@ -21,7 +21,7 @@ Projects join the list when you open or save them in the app. The list keeps the
 **The left side** has:
 
 - **New project**, **New project from plan image** and **Open project**, the same as the File menu.
-- **Help**: Getting started, User guide, Keyboard shortcuts and Command line guide. Each opens its page.
+- **Help**: the help pages, such as Getting started, User guide, Keyboard shortcuts and the CLI developer guide. Each opens in the Help window. See "Help".
 - **Sample plans**: the sample plan images that come with Plynth. Click one to start a new project from it, a quick way to try the tools.
 - **Setup status**: "Setup is ready.", or in amber what needs attention, with a **Fix** button that opens the setup check. See [Setting up Plynth](SETUP.md).
 - **Projects folder**: the folder where new projects go. Click it to open it.
@@ -36,6 +36,7 @@ A project is one folder:
 MyApartment/
   project.json      settings, export mode, grid size
   plan.json         all marks
+  export-options.json  your group edits and the modular kit switch (only once you change one)
   plans/            floor1.png, floor2.png
   build/            building.blend, building.fbx, build.json, blender.log
   export/           FBX files, Textures/, reports
@@ -760,7 +761,7 @@ You can bring in models three ways.
 2. **Drag and drop.** Drop files, zips or folders on the Assets tab. This is also the way to import a folder.
 3. **The inbox folder.** Copy files into `Library\assets\inbox\`. Plynth notices within a few seconds and imports them, while it is running. If Plynth is closed, `plynth assets inbox` imports what is waiting.
 
-Plynth reads `.blend`, `.fbx`, `.obj`, `.gltf` and `.glb` files, zips that hold one model, and folders that hold one model. A zip with more than one model is refused, and the message lists them.
+Plynth reads `.blend`, `.fbx`, `.obj`, `.gltf` and `.glb` files, zips that hold one model, and folders that hold one model. A zip with more than one model is refused, and the message lists them. Zips downloaded from Fab and items from BlenderKit have their own way in: see [Importing from stores](#importing-from-stores).
 
 Each import joins a list under the grid. A row shows the name, what Blender is doing, a progress bar and a **Cancel** button. Imports run one after another. When one finishes, the new asset is selected, and the status bar says "Imported Chair. Pick its categories." Tick its categories so it shows up in the right rooms.
 
@@ -983,6 +984,77 @@ Two limits come with that. A procedural pattern that does not repeat over one ti
 
 An asset keeps its own materials. To also use one as a surface, open the asset in the Assets tab. Its **Materials** list has a button **Add to materials catalog** for each material. It makes a new catalog material from the asset's `asset.blend`. The asset is not changed.
 
+## Importing from stores
+
+Plynth can bring in models and materials from BlenderKit and from zips you download from Fab. Both are for your own use. Plynth never downloads from Fab and never bundles store items, so each person downloads their own copy.
+
+### The Integrations tab
+
+Open it with **Catalog > Integrations** or the **Sources** tab of the right panel. **Catalog > Import from BlenderKit...** opens it with the cursor in the address box, and **Catalog > Import Fab zips...** goes straight to picking zips. It has one card for each place assets and materials come from: **Own files**, **BlenderKit** and **Fab**. A card shows:
+
+- the name, a state (**Ready**, **Needs setup**, **Not checked** or **Checking...**) and a sentence on what it needs;
+- a reminder, when there is one. BlenderKit shows "Downloads run Blender with your own settings and enabled add-ons.";
+- buttons to import, and the options you can change, saved with the library;
+- a link to the official website.
+
+The first time you open the tab, and when you press **Check again** on the BlenderKit card, Plynth runs the setup check. It starts Blender once with a clean start, runs none of your add-ons and reads your saved Blender preferences only as data (see [Setting up Plynth](SETUP.md)). A card with no add-on to check is always Ready. Options are saved as soon as you change them, in the library, and apply to every later import from that card. They need an open library. Every option the command line has is on the card, and the same options are saved by `plynth library integration set` (see the [command line guide](CLI_GUIDE.md)). An option saved with a value the card does not list is shown as it is, and it stays until you pick another.
+
+### Importing from BlenderKit
+
+You need your own BlenderKit account and the BlenderKit add-on, installed, enabled and signed in inside Blender. Plynth never installs it, never signs in for you and never shows, logs or copies your key. [Setting up Plynth](SETUP.md) shows how.
+
+1. Open the item on www.blendkit.com (BlenderKit's site, which used to be www.blenderkit.com) and copy its address from the browser. Addresses on either site work.
+2. On the BlenderKit card, paste it into the address box. If the text is not a BlenderKit address, the card says so, and the buttons stay off.
+3. Press **Import as asset** for a model or **Import as material** for a material.
+
+The import joins the queue under the grid like any other. The row shows the steps: checking the add-on, downloading and copying. A big item can take a few minutes. Plynth waits up to 10 minutes by default. The card's wait option raises that, from 60 to 3600 seconds, as `wait_seconds` does from the command line (see the [command line guide](CLI_GUIDE.md)). The **Texture resolution** option says which size of textures to ask for, 2k by default.
+
+**What runs.** Plynth starts Blender in the background, with no window, and the BlenderKit add-on downloads the item. There is no option to show a Blender window. This download runs Blender with **your own settings and the add-ons you have enabled**, because BlenderKit needs your add-on and your sign in. Other Blender jobs in Plynth use a clean start, but this one cannot. After the download, Blender cleans the model the same way as for your own files, with a clean start.
+
+**BlenderKit's helper.** While the download runs, the BlenderKit add-on starts its helper program. During a download from Plynth the helper may show no tray icon. To stop the download, press **Cancel** on the row in Plynth. The helper ends with the download.
+
+**What ends up where.** The files go into the library like any other asset or material. The name and license come from BlenderKit, and the item remembers its address. The author is not saved yet. Every download goes into Plynth's own fetch folder, never into the add-on's own download folder, and Plynth never changes or removes anything there.
+
+If it fails, the row says why, and **Show log** opens the log. These are the usual reasons:
+
+- **The add-on is not installed or not enabled.** Install or enable it in Blender (Preferences, Add-ons).
+- **You are not signed in.** Open Blender, go to Preferences, Add-ons, BlenderKit and log in. If BlenderKit's saved settings file is damaged, Plynth leaves it exactly as it is, adds "The saved BlenderKit settings file could not be read and was left as it is." to the message, and you sign in again inside Blender.
+- **Wrong tab.** A model pasted as a material, or a material pasted as a model, is refused with a sentence that names the right tab. Nothing is added. Other kinds of items, such as HDRs, cannot be imported.
+- **Nothing arrived in time.** Try again, raise the wait on the card, or check the item in BlenderKit inside Blender.
+
+### Importing Fab zips
+
+Fab items download as a zip from fab.com in your browser. Plynth never goes to Fab for you. A zip often holds one model in several formats and qualities, with textures at several sizes. Plynth reads the list of files in the zip without unpacking it, picks one version, and unpacks only that.
+
+1. Download the zip from Fab.
+2. On the Fab card, press **Import model zips...** or **Import material zips...**, and pick one or more zips. (A Fab zip dropped in the library's inbox is picked up too, but its license is Unknown. See "Which license is saved" below.)
+3. A window opens that shows, for each zip, what Plynth would take. Use **Previous** and **Next** with several zips. Tick **Leave this zip out** to skip one.
+4. Press **Import**. The zips join the queue.
+
+**How a version is picked.** Plynth reads the model format first: FBX, then glTF, then OBJ, then Blend, as set in the card's **Preferred format**. Among the models of that format it takes the **Quality** you set (Medium by default), or the nearest one if there is none. It takes the lowest level of detail (LOD). Textures come from the folder next to the model. When they come in several sizes, it takes the largest up to **Largest texture** (4096 px by default), or the smallest if all are larger. Pictures that only show a preview are never used as textures.
+
+**In the window.**
+
+- **Model.** The model taken. Open the list to pick another version of it, with its format and quality.
+- **Textures.** The textures taken, and the size they were taken at. Each has a list that says which channel it is for. **Automatic** reads it from the file name. Change it when a texture is on the wrong channel. Next to it, say which material it is for: **Every material**, or the name of one material. A texture set for one material changes only that material, and the others keep their own textures. A material can have one texture for each channel. When you give a second texture the same material and channel, the first one goes back to **Automatic**.
+- **Left out.** Files in the zip Plynth does not use, each with the reason.
+
+A zip that holds several different models (a pack) cannot be imported until you pick one. The window says "This zip holds several models" and offers **Pick a model...**. If a queue row fails for this reason, its **Pick the model...** button opens the same window. Pick another model, and the new import replaces the row. To import several models of a pack, first tick **Keep the zip files after importing**, then import the zip once for each model. Without it, the zip goes to the Recycle Bin after the first import.
+
+**Fixing textures.** Fab textures are matched to materials by their file names. If a material comes out with the wrong picture or none, import the zip again from the Fab card and set the channel and material of each texture by hand. You need the zip for that, so tick **Keep the zip files after importing** the first time, or get the zip back from the Recycle Bin. Plynth cannot see a model's material names before Blender reads it. After the first import, the asset's **Materials** list in the Assets tab shows them. The **Normal maps** option says which way the normal maps point. **Automatic** reads the file name and takes OpenGL when it says nothing. Pick **DirectX** if your normal maps look inside out (Fab content made for Unreal often is).
+
+If a zip holds no model Plynth can read, for example only `.uasset` files, the window says so. Download the FBX or glTF version from Fab instead. A zip that holds other zips has to be unzipped first.
+
+**What happens to the zip.** Unless **Keep the zip files after importing** is ticked, a zip that imported well goes to the Windows Recycle Bin, so you can get it back. A Fab zip takes effort to download again, so tick it if you want to keep it.
+
+A Fab zip with one plain model, with no versions, goes through the normal import and is treated as your own file. Import it from the Fab card if you want Plynth to match its textures by name.
+
+**Which license is saved.** A zip you import from the Fab card, or with **Catalog > Import Fab zips...**, gets the card's **License**, Royalty free unless you changed it. You told Plynth the zip is from Fab, so the store's license applies. A zip that reaches Plynth another way, with the import button of the Assets or Materials tab, by drag and drop, or through the inbox, gets **Unknown**, even when Plynth sees that it looks like a Fab zip and picks a version for you. Plynth only guessed where it came from. **Pick the model...** on such a row keeps Unknown. You can set the license in the catalog afterwards, or import the zip from the Fab card instead.
+
+### Store items
+
+An item from BlenderKit or Fab is a normal asset or material. It shows in the catalog and works in plans like any other. It remembers where it came from: the address for BlenderKit, the zip's file name for Fab. The license is set from the store: BlenderKit gives the item's license, and a zip imported from the Fab card gets the card's **License** (Royalty free by default). A Fab zip that came in another way gets Unknown. You can change any license in the catalog. Remember that the store's own terms apply to your use of the item.
+
 ## Materials on walls, rooms and the project
 
 Every built surface gets a material by one set of rules. The most specific setting wins.
@@ -1024,7 +1096,7 @@ The texture paths in the file point into your library. If you move the library, 
 
 ## Exporting for Unreal
 
-Exporting turns the last build into one FBX file that Unreal can import, with its textures and its collision shapes. It does not build. It takes `build\building.blend` as it is, hand edits included, so build first.
+Exporting turns the last build into FBX files that Unreal can import, with their textures and collision shapes. A single project writes one file. A grouped project writes one file for each group (see "Grouped export"). It does not build. It takes `build\building.blend` as it is, hand edits included, so build first.
 
 **To export**, open the **Export** tab in the right panel, press **Export** or Ctrl+E, or use **Build > Export**. First the quality checks run (see "The quality gate"). If none failed, the files are written. If the project has not been built, the tab says "Build the project first." and has a **Build** button.
 
@@ -1036,7 +1108,9 @@ The export runs in the background with a progress bar and a **Cancel** button. I
 
 Everything goes into the project's `export` folder:
 
-- `<Name>.fbx`, named after the project. A project called "My Flat 2" gives `My_Flat_2.fbx`. Walls, floors, ceilings, slabs, stairs, roofs, doors, windows and furniture are all in it. The collision shapes go in the same file.
+- A single project: `<Name>.fbx`, named after the project. A project called "My Flat 2" gives `My_Flat_2.fbx`. Walls, floors, ceilings, slabs, stairs, roofs, doors, windows and furniture are all in it. The collision shapes go in the same file.
+- A grouped project: one FBX for each group, named `<Name>_<Group>.fbx`, for example `My_Flat_2_Walls.fbx`. See "Grouped export".
+- With the modular kit switched on: `<Name>_Kit.fbx` and `<Name>_Kit_layout.json`. See "Modular kit".
 - `Textures`, the images the FBX uses and no others. The names are `T_<Material>_<Channel>`, for example `T_OakPlanks_BaseColor.jpg` and `T_OakPlanks_Normal.png`. A surface with no material gets a plain image named after its slot.
 - `export_report.json`, the report of the last export. It lists the checks, the files and the time.
 
@@ -1044,13 +1118,99 @@ The FBX holds only relative texture paths. You can copy or move the whole `expor
 
 **Open folder** in the Export tab, or **Build > Open export folder**, shows the folder in Explorer. The folder can be deleted at any time. A new export replaces the old files. An export that is blocked by a failed check leaves the old files exactly as they were, so check the time in the tab to know which export is on disk.
 
-The Export tab shows the last export: when it ran, how long it took, the result, the number of objects, triangles and collision meshes, and the file paths. If the plan changed after the last build, the "Build is up to date" check fails. Build again, then export.
-
-Grouped projects cannot be exported yet. The tab says "Grouped export is not available yet." and the buttons are greyed. Set the project's export mode back to single to export.
+The Export tab shows the last export: when it ran, how long it took, the result, the number of objects, triangles and collision meshes, and the file paths. A grouped export lists each file with its group's name. If the plan changed after the last build, the "Build is up to date" check fails. Build again, then export.
 
 ### Export anyway
 
 When a check fails, the tab says "Export blocked: 2 checks failed." and shows **Export anyway...**. Pressing it asks first. If you confirm, the files are written even though the checks failed. The report records that the export was forced and names the failed checks it went past, so you can see later what was ignored. Warnings never block an export.
+
+### Export mode
+
+A project exports in one of two modes:
+
+- **Single FBX**: one file for the whole building. Import it once and everything is in place.
+- **Grouped FBX**: one file for each group of things, such as the walls, the floors, and the furniture of each room. See "Grouped export".
+
+You choose the mode when you make the project, and you can change it at any time. With nothing selected, open **Properties** and set **Export mode** in the project section. It is one undo step, like the grid size. Changing it does not make the build out of date, so you do not have to build again. Your group edits stay in the project when you switch back to single, and are used again when you switch to grouped.
+
+From the command line the same change is `plynth project set --export grouped` (or `single`).
+
+A single project shows one line in the Export tab: "Single FBX: one file. Switch to grouped in Properties > Project."
+
+### Grouped export
+
+A grouped export writes several FBX files instead of one. Every file uses the building's own origin, so when you bring them all into the same spot in Unreal they line up with no manual placing.
+
+**The automatic groups.** Plynth makes these for you:
+
+| Group | File ends with | What is in it |
+|---|---|---|
+| Walls | `_Walls.fbx` | The walls of every floor, and the door and window parts. It also takes anything Plynth cannot place, such as an object you added by hand in `building.blend`. |
+| Floors | `_Floors.fbx` | Every room's floor and ceiling, the door thresholds, and every slab, stair and roof. Lights go here too once the plan has them. |
+| Furniture, one for each room | `_Furniture_Living.fbx` | The furniture of one room, named by the room type. Two rooms of one type get the room id added to the name, so their files stay apart. |
+| Furniture | `_Furniture.fbx` | Furniture that is not in any room. Only made when there is some. |
+
+A group with nothing in it is not written. A collision shape always goes into the same file as the thing it belongs to.
+
+**The groups come from the last build.** The list is made from the plan as it was when you last built, because that is what is in `building.blend`. After you change the plan and build again, the groups are made again from the new plan.
+
+**Reviewing the groups.** Open the **Export** tab. For a grouped project it has a **Groups** section below the Export and Check buttons, followed by the modular kit tick box:
+
+- One row for each group, with its name, its file name and how many members it holds. Open a row to see its members, such as "Floor of Living r1" or "Window o3".
+- The group that takes anything left over (Walls, at first) says "Also takes anything added by hand".
+- A group with no members says "Not written: nothing in it".
+- Before the first build the section says "Build the project to see its groups."
+- While a command line session has the project open, the list is read only (see "When the command line is editing").
+
+**Editing the groups.** The edits are kept in the project, so every later export uses them:
+
+- **Rename.** Double click a group or press F2. The file is renamed too, and the old file is removed at the next export. A name uses English letters (A to Z, a to z), digits, spaces, hyphens and underscores only, with at least one letter or digit, up to 64 characters. Two groups cannot have the same name.
+- **Merge.** Right click a group and choose **Merge into**, then the group that should take its members. The first group goes away.
+- **Move a member.** Right click a member and choose **Move to**, then a group or **New group...**. Or drag the member onto a group.
+- **New group.** The **New group...** button makes an empty group. Move members into it.
+- **Reset groups.** The button asks first, then throws away every edit and goes back to the automatic groups. The kit switch is not touched. If `export-options.json` is damaged, **Reset groups** also repairs it: the old file is kept beside it as `export-options.json.bad`.
+
+A refused edit shows its reason in amber under the list. Group edits are export settings, not plan changes, so they have no undo. Use **Reset groups** to go back.
+
+**What happens to edits when the plan changes.** Plynth keeps an edit as what you did (move this item to that group, merge these two groups), not as a finished list. After a new build it makes the automatic groups again and applies your edits in this order: new groups, merges, moves, renames. An edit that no longer fits, for example a move of a sofa you have since deleted, is skipped. A line in amber above the list says which one and why, for example "Group furniture_r9 is gone, so its new name was not used." Nothing else breaks.
+
+**File names.** A file is called `<Project>_<Group name>.fbx`, with anything other than letters, digits, `_` and `-` turned into `_`. A project "My Flat" with a group "Lounge props" gives `My_Flat_Lounge_props.fbx`. If two names would give the same file, the second gets `_2`.
+
+**The checks run over all the files together.** The new **Groups** check fails when an object of the building belongs to no group, so nothing is left out in silence, and warns about a group that gets no object. The FBX scale check reads every file back and compares the walls' size over all of them.
+
+### Modular kit
+
+The modular kit is an optional extra of either export mode. Instead of one large mesh of walls, it gives you the few unique wall pieces the building is made of, each once, and a layout file that says where each copy goes. In Unreal you can place the pieces yourself, reuse them in other levels or build new walls from them.
+
+To switch it on, tick **Also write the modular kit** in the Export tab. From the command line it is `plynth export kit on`. The kit needs the library, because its pieces use the same material slot names as the building. Without one the export goes on without the kit and the Export tab says "No library is set, so the kit was left out." in amber. A plan with no walls gives no kit. The kit uses the custom opening shapes of its library. If an opening cannot be built, the kit is left out and the tab says why, in amber; the rest of the export still goes ahead. After an export with the kit, the tab shows the kit file and the layout file, how many pieces there are and how many placements.
+
+**What a piece is.** A piece is a short stretch of wall, cut so it can be used again. There are four kinds:
+
+- **Wall**: a straight stretch with nothing in it.
+- **Opening**: a stretch that holds a door or a window, with the hole cut and the door or window in it.
+- **Corner**: where walls meet, such as an L corner, a T junction or a cross. It has a cut face on each arm.
+- **Curved**: one piece for each curved wall.
+
+Floors, ceilings, thresholds, slabs, stairs, roofs and furniture are not in the kit.
+
+**How the walls are cut.** Each wall is cut on the project's grid (the grid size in Properties, 0.5 m at first). Plynth finds the places where walls meet and keeps them for the corner pieces. Between them it cuts the wall at every whole multiple of the grid, counted from the wall's lower end (the end with the smaller X, then the smaller Y, on the plan's world axes), not from where you started drawing. A door or window is never cut through. If a grid line would fall inside an opening, that cut is dropped, so the opening sits inside one piece. Grid cuts that would leave a sliver under 5 cm are dropped, but a stretch between two junctions can still be shorter than that. A plain square room with 4 m walls, 0.2 m thick, on a 0.5 m grid gives one corner piece used four times and two wall pieces, 0.5 m and 0.4 m long, used between the corners.
+
+**The same piece is made once.** Two pieces are the same when their shape, materials, openings and heights match within a millimetre. A wall drawn from right to left gives the same piece as one drawn from left to right, and a corner matches when turned. A piece used many times is one mesh in the kit and many placements in the layout.
+
+**Names.** A piece is called `<Kind>_<length>x<height>x<thickness>_<hash>`, with the sizes in whole centimetres, for example `Wall_50x300x20_a1b2c3` (an example, not a real hash). The mesh in the FBX is `SM_Kit_` followed by that name. The hash comes from the piece's shape, so a piece keeps its name from one export to the next while it does not change. Its collision meshes are `UCX_SM_Kit_<name>_<number>`.
+
+**Cut faces are not rounded.** The building's wall edges are slightly rounded (bevelled). The faces where one piece is cut from the next are left sharp, so two pieces placed side by side meet with no groove.
+
+**Each piece has its own origin.** In the kit FBX every piece sits at its own origin, so they overlap in the file. Import it with **Combine Meshes** off, and each piece becomes its own static mesh. A wall, opening or curved piece has its origin at floor level at one end of the piece, with X along it. Which end depends on the piece's shape and not on the way the wall was drawn, so always place pieces by the layout's `location` and `rotation_z_degrees`. A corner has its origin at the plan point where its walls meet. Its X runs along one of those walls.
+
+**The layout file.** `<Name>_Kit_layout.json` lists the floors with their grid, every piece (`id`, `mesh`, `kind`, `length`, `height`, `thickness`, `count`) and every placement. A placement has the piece, its mesh, the floor, the wall or plan point it comes from, a `location` and a `rotation_z_degrees`. The coordinates are Blender's world: metres, X as the plan's x, Y as minus the plan's y, Z up from the first floor. That is the frame every exported FBX is written in. A rotation is in degrees about Z, turning anticlockwise seen from above, from 0 up to but not including 360. The shape of the file is in `schema/kit-layout.schema.json`.
+
+**Placing the pieces in Unreal.** This is advice. Plynth does not run Unreal, and the kit was not tried there. Two things differ:
+
+- Unreal counts in centimetres, so multiply every `location` by 100.
+- Unreal's axes are not Blender's. The FBX import turns the model to suit Unreal, and the layout numbers have to be turned the same way. Expect the Y sign to flip, so a placement at (x, y, z) would go to (x*100, -y*100, z*100) and the turn would go the other way, -rotation_z_degrees. Treat this as a first guess.
+
+To check the signs, import the walls file (or the single file) and the kit file with the same import settings, place one corner piece and one wall piece from the layout, and see whether they sit on the walls. If they are mirrored or turned, change the signs once. The same signs then hold for every placement, because every file shares one origin.
 
 ## The quality gate
 
@@ -1069,8 +1229,10 @@ The checks look at the real objects that go into the FBX. The Export tab lists t
 | Texture sharpness | How many pixels of texture each metre of surface gets. A warning below half the median of the building or below 256 pixels per metre. A fail below a quarter of the median. | Use a bigger texture, or a smaller tile size, for the material the finding names. |
 | Triangle counts | A mesh with no triangles fails. A warning above 1,000,000 triangles in one mesh or 10,000,000 in all. | Remove the empty mesh, or use lighter furniture. |
 | Materials and textures | Every mesh has materials, every slot has a real material, every image file exists, and every base color is an image. An unassigned material blocks the export. | Pick a material for the surface. |
-| Collision | Every wall, floor, slab, stair, roof and furniture item has a `UCX_` mesh, and each one is closed and convex. Ceilings, door leaves and window glass need none. | Build again. |
-| FBX scale | After writing, Plynth reads the FBX back and checks the walls' size and the object count. Skipped when nothing was written. | Report it. It means the file is wrong. |
+| Collision | Every wall, floor, slab, stair, roof, furniture item and kit piece has a `UCX_` mesh, and each one is closed and convex. Ceilings, door leaves and window glass need none. | Build again. |
+| Groups | Every object of the building belongs to a group, so no file leaves anything out. A group with no object is a warning, since its file is not written. | Move the object into a group. |
+| FBX scale | After writing, Plynth reads the FBX files back and checks the walls' size over all of them and the object count. Skipped when nothing was written. | Report it. It means the file is wrong. |
+| Modular kit | After writing, Plynth reads the kit file back. Every piece must be there once, with no move, turn or scale, and have collision. Skipped when the kit is off or was not written. | Report it. It means the kit file is wrong. |
 
 A ceiling set to "No material" fails the Materials check. Choose a material for it, or use **Export anyway...** if you want it plain.
 
@@ -1121,13 +1283,13 @@ The same names are used in `building.blend` and in `building.fbx`. Builds from e
 
 ## Importing into Unreal
 
-This is advice, since Plynth does not run Unreal. Import `<Name>.fbx` with these settings in the import dialog:
+This is advice, since Plynth does not run Unreal. Import `<Name>.fbx` (or every group file, and the kit file if you wrote one) with these settings in the import dialog:
 
 - Turn **Combine Meshes** off, so each `SM_` mesh stays its own static mesh and picks up the `UCX_` collision that has its name.
 - Keep the `Textures` folder beside the FBX when you import, so Unreal finds the images.
 - Turn on **Generate Lightmap UVs** if you will use baked lighting. Plynth does not make a second UV set.
 
-Repeated furniture becomes separate meshes in the FBX. Ten identical chairs are ten meshes.
+Repeated furniture becomes separate meshes in the FBX. Ten identical chairs are ten meshes. The group files all share the building's origin, so import them at the same location and they line up. Placing the modular kit is described under "Modular kit".
 
 ## Furniture materials
 
@@ -1145,7 +1307,7 @@ If the file of a plan image has been moved or deleted, Plynth still opens the pr
 
 ## When the command line is editing
 
-A script or a coding assistant can edit the project while Plynth has it open. To keep your work and its work apart, it first begins an edit session. While one is active:
+A script or another program can edit the project while Plynth has it open. To keep your work and its work apart, it first begins an edit session. While one is active:
 
 - A banner under the title bar says "Being edited from the command line by <name>. Changes appear here as they are saved."
 - The plan is dimmed. Undo, Redo, Save, Save as and Set plan image are disabled. New project and Open project still work.
@@ -1177,3 +1339,71 @@ Plynth has a terminal built in, so you can run commands without leaving the wind
 While the terminal has focus, nearly every key goes to the shell, including Ctrl+S, Ctrl+Z and Ctrl+O. They do not save, undo or open anything in Plynth until you click outside the terminal. Ctrl+C copies when text is selected and otherwise stops the running program. Ctrl+V pastes, and Shift+PageUp and Shift+PageDown scroll back. The full list is in the [shortcuts](SHORTCUTS.md).
 
 The terminal shows program output in its own set of colors, so colored text from tools looks right.
+
+## Generators
+
+A generator is a small Blender script that makes a piece of the building from a few values, such as a column of a given height or a railing of a given length. You place it like furniture, and the build runs it in Blender.
+
+**Placing one.** Open the furniture picker with the Furniture tool (P) and click on the plan. The first list has a **Generators** row. Pick it to list the generators, and point at one to see its size, its parameters and the add-ons it needs. Click it to place it at the cross. A generator item is drawn and moved like any other item, and its footprint follows its size.
+
+**Its values.** Select the item. The properties panel shows **Generator parameters**, one box for each value the generator declares: numbers in metres or degrees, whole numbers, on and off switches, choices and materials. A change is one undo step and the next build uses it. **Reset to defaults** gives every value its default. When the generator file changed since you placed the item, **Update** keeps the values that still fit and gives the rest their default, and the panel says what changed.
+
+**Add-ons.** Some generators need a Blender add-on, such as Archimesh or Bagapie. **Catalog > Check add-ons** asks Blender which add-ons are switched on. A generator whose add-on is off shows greyed in the picker, and an item that uses it is left out of the build with the warning `generator_unavailable`. Plynth never installs or switches on an add-on in your own Blender. See "Add-ons" in [Setting up Plynth](SETUP.md).
+
+**The generators folder.** Generators are the `.py` files in the `generators` folder of your library. A new library gets the sample generators. For a library made earlier, use **Catalog > Add the sample generators**. Files already there are kept. **Catalog > Open the generators folder** opens it in Explorer, and **Catalog > Reload generators** reads it again after you add or change a file. A file that cannot be read is left out and the others still work. `plynth generator list` names each file it left out and why.
+
+**When the build runs one.** A generator that fails is a build problem named `generator_failed`, with the last line of its error. When what it made reaches more than 1 cm past its declared size, the build warns with `generator_size`. Only add generators from people you trust: a generator is Python code that Blender runs. To write your own, see [Writing generators](GENERATORS.md).
+
+## Help
+
+**Help > Help** (F1) opens the Help window. Its pages are the files in the `docs` folder that comes with Plynth, so the help in the app and the files are the same.
+
+- The list on the left holds the pages: Getting started, User guide, Keyboard shortcuts, CLI developer guide, AI integration guide, Writing generators, About and licenses, and Setup check. A page whose file is missing is left out.
+- Type in **Search help** to find words in every page. A hit in a heading comes first, then the other hits in page order. Each hit shows the page, the heading above it and the line. Click one to open the page at that heading.
+- Links to other pages open in the window. Links to web pages open in your browser.
+- **Back** (Alt+Left) and **Forward** (Alt+Right) step through the pages you saw.
+- **Setup check** in the list opens the setup check. See [Setting up Plynth](SETUP.md).
+
+The help links on the home screen open the same window.
+
+### Guided tours
+
+**Help > Guided tours** has one tour for each screen: plan view, wall view, build and export, assets catalog and materials catalog. A tour dims the window and outlines one control at a time in amber. The card next to it gives the control's name, what it does in one or two sentences and its shortcut.
+
+- **Next** (Right or Enter) goes on, **Back** (Left) goes back and **Skip** (Esc) ends the tour.
+- A control that is not on screen just now, such as the wall view when no wall is selected, is skipped.
+- A tour may switch to the screen it explains and puts the screen back when it ends. It never changes your project, so there is nothing to undo.
+- The first time Plynth starts, the plan view tour starts by itself once the setup check closes. It does not start again, and an update does not start it.
+
+### What is this?
+
+**Help > What is this?** (Shift+F1) explains any control you click. While it is on, a click shows the control's name and what it does, and the control does not run. It works on greyed controls and on menu entries too. Press Esc, or choose the menu entry again, to turn it off.
+
+### About and licenses
+
+**Help > About Plynth** opens About in the Help window. It shows the version, the licenses and the third party notices.
+
+- Plynth's source code is free software under GPL-3.0-or-later. The program includes Qt Quick 3D and Qt Quick Timeline, so the program you run is distributed under GPL version 3.
+- The sample plans, models, textures, materials, shapes and sample projects are dedicated to the public domain under CC0 1.0. The scripts and generators among the samples are GPL-3.0-or-later code. The logo and the program icon are not part of the CC0 samples.
+- The notices list every library, font and data file Plynth ships that was not written for it, with its license and copyright. Click a license text in the list to read it in full.
+
+The texts are also in the `licenses` folder beside the program, and the notices file there is `THIRD_PARTY_NOTICES.md`.
+
+## Samples
+
+Plynth comes with samples drawn for it: plan images, furniture models, materials, an opening shape, generators and, when present, whole sample projects. They are dedicated to the public domain under CC0 1.0, so you may use them for anything.
+
+- **Sample projects** on the home screen open a copy of the sample in your projects folder, named after it: "Apartment", then "Apartment (2)". The sample itself never changes. If the project uses items your library does not have yet, add the sample items and build.
+- **Catalog > Add the sample items** imports every sample model and material with the license CC0 and copies the sample shapes and generators into your library. An item the library has already is skipped and keeps its own license.
+- **Sample plans** on the home screen start a new project from a sample plan image.
+
+## Author and the license report
+
+The assets and materials catalogs have an **Author** field under License. Type who made the item and press Enter. It is empty when unknown. Items imported from BlenderKit get their author from the store.
+
+**Also write the license report** in the Export tab makes every export write two more files beside the FBX: `<Name>_licenses.json` and `<Name>_licenses.txt`. They list every asset and material the last build used, with its name, where it came from (the file name or the web address, never your folders), its author and its license. The switch is saved with the project and is off for a new one.
+
+- The report describes the last build, so build again after you change the plan. Without a build the export goes on and the tab says why no report was written.
+- Notes in amber point at items with an unknown license, a CC BY item with no author, an item that is no longer in the library, or a personal use license. They never block an export.
+- Materials inside an asset are covered by that asset. Generators and changes you make by hand in `building.blend` are not listed.
+- The report lists what Plynth knows about each item. It is not legal advice.

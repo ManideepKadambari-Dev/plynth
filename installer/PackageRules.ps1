@@ -4,14 +4,16 @@ $script:DataRoots = @('blender', 'schema', 'samples', 'docs', 'licenses', 'LICEN
 
 $script:RenamedFiles = @{ 'installer/text/README.txt' = 'README.txt' }
 
+# The three marker files are how the app finds its docs, samples and licenses beside the program.
 $script:RequiredFiles = @(
     'plynth.exe', 'plynth.com', 'cli/plynth.com', 'platforms/qwindows.dll', 'blender/plynth_worker.py',
     'schema/plan.schema.json', 'samples/shapes/keyhole.shape.json', 'docs/GETTING_STARTED.md', 'LICENSE',
-    'README.txt', 'licenses/THIRD_PARTY_NOTICES.md', 'samples/LICENSE'
+    'AUTHORS', 'README.txt', 'licenses/THIRD_PARTY_NOTICES.md', 'licenses/texts/CC0-1.0.txt', 'samples/LICENSE',
+    'samples/samples.json'
 )
 
 # Files that later work adds. A trial stage may lack them, a release stage may not.
-$script:LaterFiles = @('README.txt', 'licenses/THIRD_PARTY_NOTICES.md', 'samples/LICENSE')
+$script:LaterFiles = @('README.txt')
 
 # C++ runtime files the user installs from Microsoft. Programs may import them, the package never holds them.
 $script:RuntimeNames = @('msvcp140*.dll', 'vcruntime140*.dll', 'concrt140*.dll', 'vcomp140*.dll', 'ucrtbase*.dll',

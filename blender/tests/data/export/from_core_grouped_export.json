@@ -1,0 +1,582 @@
+{
+ "format": "plynth-blender-job",
+ "version": 1,
+ "task": "export",
+ "job_id": "export-42d416fb",
+ "result_file": "@PROJECT@/build/export_work/result.json",
+ "params": {
+  "project": {
+   "name": "m11",
+   "folder": "@PROJECT@"
+  },
+  "blend_file": "@PROJECT@/build/building.blend",
+  "output_folder": "@PROJECT@/export/.staging",
+  "textures_folder": "Textures",
+  "groups": [
+   {
+    "id": "structure",
+    "file": "m11_Walls.fbx",
+    "kinds": [],
+    "ids": [],
+    "name": "Walls",
+    "members": [
+     {
+      "kind": "walls",
+      "id": "f1"
+     },
+     {
+      "kind": "window",
+      "id": "o9xvrfeyf"
+     },
+     {
+      "kind": "window",
+      "id": "o8etfd71e"
+     },
+     {
+      "kind": "door",
+      "id": "o06tych77"
+     },
+     {
+      "kind": "door",
+      "id": "o4pm8skq3"
+     },
+     {
+      "kind": "window",
+      "id": "o1vmmzrw0"
+     },
+     {
+      "kind": "door",
+      "id": "o971j6vjp"
+     },
+     {
+      "kind": "door",
+      "id": "o4wk03943"
+     },
+     {
+      "kind": "window",
+      "id": "o2ve9fbf6"
+     }
+    ],
+    "rest": true
+   },
+   {
+    "id": "surfaces",
+    "file": "m11_Floors.fbx",
+    "kinds": [],
+    "ids": [],
+    "name": "Floors",
+    "members": [
+     {
+      "kind": "floor",
+      "id": "r4tdez2e3"
+     },
+     {
+      "kind": "ceiling",
+      "id": "r4tdez2e3"
+     },
+     {
+      "kind": "floor",
+      "id": "r91eqvv36"
+     },
+     {
+      "kind": "ceiling",
+      "id": "r91eqvv36"
+     },
+     {
+      "kind": "floor",
+      "id": "r0c4e7yrm"
+     },
+     {
+      "kind": "ceiling",
+      "id": "r0c4e7yrm"
+     },
+     {
+      "kind": "floor",
+      "id": "r2jth9npn"
+     },
+     {
+      "kind": "ceiling",
+      "id": "r2jth9npn"
+     },
+     {
+      "kind": "floor",
+      "id": "r7bdb7z5h"
+     },
+     {
+      "kind": "ceiling",
+      "id": "r7bdb7z5h"
+     },
+     {
+      "kind": "thresholds",
+      "id": "f1"
+     },
+     {
+      "kind": "slab",
+      "id": null
+     },
+     {
+      "kind": "stair",
+      "id": null
+     },
+     {
+      "kind": "roof",
+      "id": null
+     },
+     {
+      "kind": "light",
+      "id": null
+     }
+    ],
+    "rest": false
+   },
+   {
+    "id": "furniture_r4tdez2e3",
+    "file": "m11_Furniture_Living.fbx",
+    "kinds": [],
+    "ids": [],
+    "name": "Furniture Living",
+    "members": [
+     {
+      "kind": "item",
+      "id": "i3mvjb3m3"
+     },
+     {
+      "kind": "item",
+      "id": "i72ckztwr"
+     }
+    ],
+    "rest": false
+   },
+   {
+    "id": "furniture_r91eqvv36",
+    "file": "m11_Furniture_Bedroom.fbx",
+    "kinds": [],
+    "ids": [],
+    "name": "Furniture Bedroom",
+    "members": [
+     {
+      "kind": "item",
+      "id": "i649n3ebp"
+     }
+    ],
+    "rest": false
+   }
+  ],
+  "kit": null,
+  "materials": [
+   {
+    "name": "Bedroom_Ceiling",
+    "material": "white_paint",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/white_paint/textures/base_color.png",
+     "normal": "@LIBRARY@/materials/items/white_paint/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/white_paint/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/white_paint/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 1.0,
+     "height": 1.0
+    }
+   },
+   {
+    "name": "Bedroom_Floor",
+    "material": "oak_planks",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/oak_planks/textures/base_color.jpg",
+     "normal": "@LIBRARY@/materials/items/oak_planks/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/oak_planks/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/oak_planks/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 2.0,
+     "height": 2.0
+    }
+   },
+   {
+    "name": "Bedroom_Wall",
+    "material": "white_paint",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/white_paint/textures/base_color.png",
+     "normal": "@LIBRARY@/materials/items/white_paint/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/white_paint/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/white_paint/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 1.0,
+     "height": 1.0
+    }
+   },
+   {
+    "name": "Door",
+    "material": "painted_wood",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/painted_wood/textures/base_color.png",
+     "normal": "@LIBRARY@/materials/items/painted_wood/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/painted_wood/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/painted_wood/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 1.0,
+     "height": 1.0
+    }
+   },
+   {
+    "name": "Exterior_Wall",
+    "material": "red_brick",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/red_brick/textures/base_color.jpg",
+     "normal": "@LIBRARY@/materials/items/red_brick/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/red_brick/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/red_brick/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 1.2,
+     "height": 0.6
+    }
+   },
+   {
+    "name": "Fascia",
+    "material": "white_paint",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/white_paint/textures/base_color.png",
+     "normal": "@LIBRARY@/materials/items/white_paint/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/white_paint/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/white_paint/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 1.0,
+     "height": 1.0
+    }
+   },
+   {
+    "name": "Flat_Roof",
+    "material": "concrete",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/concrete/textures/base_color.jpg",
+     "normal": "@LIBRARY@/materials/items/concrete/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/concrete/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/concrete/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 2.0,
+     "height": 2.0
+    }
+   },
+   {
+    "name": "Frame",
+    "material": "white_paint",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/white_paint/textures/base_color.png",
+     "normal": "@LIBRARY@/materials/items/white_paint/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/white_paint/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/white_paint/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 1.0,
+     "height": 1.0
+    }
+   },
+   {
+    "name": "Glass",
+    "material": "clear_glass",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/clear_glass/textures/base_color.png",
+     "normal": "@LIBRARY@/materials/items/clear_glass/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/clear_glass/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/clear_glass/textures/metallic.png",
+     "opacity": "@LIBRARY@/materials/items/clear_glass/textures/opacity.png",
+     "occlusion": null
+    },
+    "alpha_mode": "blend",
+    "tile_size": {
+     "width": 1.0,
+     "height": 1.0
+    }
+   },
+   {
+    "name": "Handle",
+    "material": "brushed_steel",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/brushed_steel/textures/base_color.png",
+     "normal": "@LIBRARY@/materials/items/brushed_steel/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/brushed_steel/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/brushed_steel/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 0.5,
+     "height": 0.5
+    }
+   },
+   {
+    "name": "Living_Ceiling",
+    "material": "white_paint",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/white_paint/textures/base_color.png",
+     "normal": "@LIBRARY@/materials/items/white_paint/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/white_paint/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/white_paint/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 1.0,
+     "height": 1.0
+    }
+   },
+   {
+    "name": "Living_Floor",
+    "material": "oak_planks",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/oak_planks/textures/base_color.jpg",
+     "normal": "@LIBRARY@/materials/items/oak_planks/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/oak_planks/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/oak_planks/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 2.0,
+     "height": 2.0
+    }
+   },
+   {
+    "name": "Living_Wall",
+    "material": "white_paint",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/white_paint/textures/base_color.png",
+     "normal": "@LIBRARY@/materials/items/white_paint/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/white_paint/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/white_paint/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 1.0,
+     "height": 1.0
+    }
+   },
+   {
+    "name": "Room_Ceiling",
+    "material": "white_paint",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/white_paint/textures/base_color.png",
+     "normal": "@LIBRARY@/materials/items/white_paint/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/white_paint/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/white_paint/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 1.0,
+     "height": 1.0
+    }
+   },
+   {
+    "name": "Room_Floor",
+    "material": "oak_planks",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/oak_planks/textures/base_color.jpg",
+     "normal": "@LIBRARY@/materials/items/oak_planks/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/oak_planks/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/oak_planks/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 2.0,
+     "height": 2.0
+    }
+   },
+   {
+    "name": "Room_Wall",
+    "material": "white_paint",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/white_paint/textures/base_color.png",
+     "normal": "@LIBRARY@/materials/items/white_paint/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/white_paint/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/white_paint/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 1.0,
+     "height": 1.0
+    }
+   },
+   {
+    "name": "Soffit",
+    "material": "white_paint",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/white_paint/textures/base_color.png",
+     "normal": "@LIBRARY@/materials/items/white_paint/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/white_paint/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/white_paint/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 1.0,
+     "height": 1.0
+    }
+   },
+   {
+    "name": "Wall_Top",
+    "material": "white_paint",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/white_paint/textures/base_color.png",
+     "normal": "@LIBRARY@/materials/items/white_paint/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/white_paint/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/white_paint/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 1.0,
+     "height": 1.0
+    }
+   },
+   {
+    "name": "Fabric",
+    "material": null,
+    "surface": null,
+    "asset": "sofa",
+    "maps": {
+     "base_color": "@LIBRARY@/assets/items/sofa/textures/maps/fabric/base_color.png",
+     "normal": "@LIBRARY@/assets/items/sofa/textures/maps/fabric/normal.png",
+     "roughness": "@LIBRARY@/assets/items/sofa/textures/maps/fabric/roughness.png",
+     "metallic": "@LIBRARY@/assets/items/sofa/textures/maps/fabric/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque"
+   },
+   {
+    "name": "Legs",
+    "material": null,
+    "surface": null,
+    "asset": "sofa",
+    "maps": {
+     "base_color": "@LIBRARY@/assets/items/sofa/textures/maps/legs/base_color.png",
+     "normal": "@LIBRARY@/assets/items/sofa/textures/maps/legs/normal.png",
+     "roughness": "@LIBRARY@/assets/items/sofa/textures/maps/legs/roughness.png",
+     "metallic": "@LIBRARY@/assets/items/sofa/textures/maps/legs/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque"
+   },
+   {
+    "name": "Wood",
+    "material": null,
+    "surface": null,
+    "asset": "table",
+    "maps": {
+     "base_color": "@LIBRARY@/assets/items/table/textures/maps/wood/base_color.png",
+     "normal": "@LIBRARY@/assets/items/table/textures/maps/wood/normal.png",
+     "roughness": "@LIBRARY@/assets/items/table/textures/maps/wood/roughness.png",
+     "metallic": "@LIBRARY@/assets/items/table/textures/maps/wood/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque"
+   }
+  ],
+  "expected_bounds": {
+   "min": [
+    5.0,
+    -13.0,
+    0.0
+   ],
+   "max": [
+    19.0,
+    -3.0,
+    3.0
+   ]
+  },
+  "build": {
+   "report_found": true,
+   "plan_changed": false,
+   "problems": [
+    {
+     "code": "overlaps_item",
+     "severity": "warning",
+     "message": "Sofa i3mvjb3m3 overlaps Table i72ckztwr.",
+     "floor": "f1",
+     "object": "i3mvjb3m3",
+     "step": "check"
+    },
+    {
+     "code": "overlaps_item",
+     "severity": "warning",
+     "message": "Table i72ckztwr overlaps Sofa i3mvjb3m3.",
+     "floor": "f1",
+     "object": "i72ckztwr",
+     "step": "check"
+    }
+   ]
+  },
+  "limits": {
+   "object_triangles": 1000000,
+   "total_triangles": 10000000,
+   "low_texel_density": 256.0,
+   "texel_warning_ratio": 0.5,
+   "texel_fail_ratio": 0.25,
+   "bounds_tolerance": 0.001
+  },
+  "force": false,
+  "write": false
+ }
+}

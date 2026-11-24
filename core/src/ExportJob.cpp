@@ -1,6 +1,8 @@
 #include "plynth/core/ExportJob.h"
 
 #include "plynth/core/BuildGeometry.h"
+#include "plynth/core/Exporter.h"
+#include "plynth/core/MaterialSlots.h"
 #include "plynth/core/ProjectFiles.h"
 #include "plynth/core/WallGeometry.h"
 
@@ -95,6 +97,132 @@ Json xyz(const Vec3& p)
     return Json::array({p.x, p.y, p.z});
 }
 
+// [x, y].
+Json xy(const Vec2& p)
+{
+    return Json::array({p.x, p.y});
+}
+
+// A list of [x, y].
+Json xyList(const std::vector<Vec2>& points)
+{
+    Json list = Json::array();
+    for (const Vec2& p : points) list.push_back(xy(p));
+    return list;
+}
+
+// A list of [x, y, z].
+Json xyzList(const std::vector<Vec3>& points)
+{
+    Json list = Json::array();
+    for (const Vec3& p : points) list.push_back(xyz(p));
+    return list;
+}
+
+// Text, or null for an empty text.
+Json textOrNull(const std::string& value)
+{
+    return value.empty() ? Json(nullptr) : Json(value);
+}
+
+// A kit ring in the form of a build wall ring, with kit_cut on the faces that lie on a cut. A cut has no wall.
+Json kitRingJson(const KitRing& ring)
+{
+    Json edges = Json::array();
+    for (const KitEdge& e : ring.edges) {
+        Json edge = Json::object();
+        edge["wall"] = textOrNull(e.edge.wall);
+        edge["side"] = e.edge.side ? Json(std::string(wallSideName(*e.edge.side))) : Json(nullptr);
+        edge["room"] = textOrNull(e.edge.room);
+        edge["material"] = textOrNull(e.material);
+        edge["slot"] = e.slot;
+        if (e.cut) edge["kit_cut"] = true;
+        edges.push_back(std::move(edge));
+    }
+    Json json = Json::object();
+    json["points"] = xyList(ring.points);
+    json["edges"] = std::move(edges);
+    return json;
+}
+
+// One opening of a kit piece in the form of a build opening.
+Json kitOpeningJson(const KitOpening& k)
+{
+    const OpeningBuild& o = k.opening;
+    const OpeningMaterialIds& ids = k.materials;
+    Json json = Json::object();
+    json["id"] = o.id;
+    json["wall"] = o.wall;
+    json["type"] = std::string(openingTypeName(o.type));
+    json["shape"] = o.shape;
+    json["width"] = o.width;
+    json["height"] = o.height;
+    json["sill"] = o.sill;
+    json["hinge"] = std::string(hingeEndName(o.hinge));
+    json["swing"] = std::string(wallSideName(o.swing));
+    json["frame"] = o.frame ? Json(*o.frame) : Json(nullptr);
+    json["centre"] = xy(o.centre);
+    json["tangent"] = xy(o.tangent);
+    json["right"] = xy(o.right);
+    json["thickness"] = o.thickness;
+    json["curved"] = o.curved;
+    json["outline"] = xyList(o.outline);
+    json["inner_outline"] = xyList(o.innerOutline);
+    json["cutter"] = Json{{"right", xyzList(o.cutter.right)}, {"left", xyzList(o.cutter.left)}};
+    json["threshold"] = xyList(o.threshold);
+    json["materials"] = Json{{"reveal", textOrNull(ids.reveal)}, {"threshold", textOrNull(ids.threshold)}, {"door", textOrNull(ids.door)},
+                             {"frame", textOrNull(ids.frame)},   {"glass", textOrNull(ids.glass)},         {"handle", textOrNull(ids.handle)}};
+    const auto slot = [](const std::string& name, std::string_view fallback) { return name.empty() ? std::string(fallback) : name; };
+    json["slots"] = Json{{"reveal", slot(ids.revealSlot, kExteriorWallSlot)}, {"threshold", slot(ids.thresholdSlot, kThresholdSlot)},
+                         {"door", slot(ids.doorSlot, kDoorSlot)},             {"frame", slot(ids.frameSlot, kFrameSlot)},
+                         {"glass", slot(ids.glassSlot, kGlassSlot)},          {"handle", slot(ids.handleSlot, kHandleSlot)}};
+    if (k.asset) {
+        Json asset = Json::object();
+        asset["id"] = k.asset->asset;
+        asset["location"] = Json::array({k.asset->location.x, k.asset->location.y, k.asset->location.z});
+        asset["rotation_z"] = k.asset->rotationZ;
+        asset["scale"] = Json::array({k.asset->scale.x, k.asset->scale.y, k.asset->scale.z});
+        json["asset"] = std::move(asset);
+    }
+    return json;
+}
+
+// One kit piece in the form of the job's kitPiece definition.
+Json kitPieceJson(const KitPiece& piece)
+{
+    Json solids = Json::array();
+    for (const KitSolid& s : piece.solids) {
+        Json holes = Json::array();
+        for (const KitRing& h : s.holes) holes.push_back(kitRingJson(h));
+        Json solid = Json::object();
+        solid["height"] = s.height;
+        solid["top_material"] = textOrNull(s.topMaterial);
+        solid["top_slot"] = s.topSlot;
+        solid["outline"] = kitRingJson(s.outline);
+        solid["holes"] = std::move(holes);
+        solids.push_back(std::move(solid));
+    }
+    Json openings = Json::array();
+    Json fills = Json::array();
+    for (const KitOpening& o : piece.openings) {
+        openings.push_back(kitOpeningJson(o));
+        if (o.fill) fills.push_back(o.opening.id);
+    }
+    Json collision = Json::array();
+    for (const CollisionPiece& c : piece.collision) {
+        collision.push_back(Json{{"outline", xyList(c.outline)}, {"bottom", c.bottom}, {"top", c.top}});
+    }
+    Json json = Json::object();
+    json["id"] = piece.id;
+    json["mesh"] = piece.mesh;
+    json["kind"] = std::string(kitPieceKindName(piece.kind));
+    json["wall_solids"] = std::move(solids);
+    json["openings"] = std::move(openings);
+    json["fills"] = std::move(fills);
+    json["collision"] = std::move(collision);
+    return json;
+}
+
 // One built material in the form of build/materials.json.
 Json materialJson(const BuiltMaterial& m)
 {
@@ -178,7 +306,8 @@ std::optional<ExportBounds> expectedWallBounds(const Project& project)
 Json makeExportJob(const Project& project, const std::vector<ExportGroup>& groups,
                    const std::vector<BuiltMaterial>& materials, const ExportBuildState& build,
                    const ExportSettings& settings, const fs::path& projectFolder, const fs::path& stagingFolder,
-                   std::string_view jobId, const fs::path& resultFile)
+                   std::string_view jobId, const fs::path& resultFile, const ModularKit* kit,
+                   const std::map<std::string, TileSize>* tileSizes)
 {
     Json params = Json::object();
     Json info = Json::object();
@@ -196,12 +325,42 @@ Json makeExportJob(const Project& project, const std::vector<ExportGroup>& group
         group["file"] = g.file;
         group["kinds"] = g.kinds;
         group["ids"] = g.ids;
+        if (!g.name.empty()) group["name"] = g.name;
+        Json members = Json::array();
+        for (const ExportMember& m : g.members) {
+            members.push_back(Json{{"kind", m.kind}, {"id", m.id.empty() ? Json(nullptr) : Json(m.id)}});
+        }
+        group["members"] = std::move(members);
+        group["rest"] = g.rest;
         groupList.push_back(std::move(group));
     }
     params["groups"] = std::move(groupList);
+    if (kit && !kit->pieces.empty()) {
+        const BuildSettings kitBuild;
+        Json pieces = Json::array();
+        for (const KitPiece& piece : kit->pieces) pieces.push_back(kitPieceJson(piece));
+        Json kitJson = Json::object();
+        kitJson["file"] = exportFileStem(project.settings.name) + std::string(kKitFileSuffix);
+        kitJson["fill_openings"] = kitBuild.fillOpenings;
+        kitJson["bevel"] = Json{{"width", kitBuild.bevelWidth}, {"segments", kitBuild.bevelSegments}};
+        kitJson["pieces"] = std::move(pieces);
+        params["kit"] = std::move(kitJson);
+    } else {
+        params["kit"] = nullptr;
+    }
 
     Json materialList = Json::array();
-    for (const BuiltMaterial& m : materials) materialList.push_back(materialJson(m));
+    for (const BuiltMaterial& m : materials) {
+        Json entry = materialJson(m);
+        if (m.tileSize) {
+            entry["tile_size"] = Json{{"width", m.tileSize->width}, {"height", m.tileSize->height}};
+        } else if (tileSizes && !m.material.empty()) {
+            if (const auto tile = tileSizes->find(m.material); tile != tileSizes->end()) {
+                entry["tile_size"] = Json{{"width", tile->second.width}, {"height", tile->second.height}};
+            }
+        }
+        materialList.push_back(std::move(entry));
+    }
     params["materials"] = std::move(materialList);
 
     if (const std::optional<ExportBounds> bounds = expectedWallBounds(project)) {
@@ -247,6 +406,23 @@ ExportWorkerOutput readExportResult(const Json& result, std::string_view jobId)
             file.objects = count(files[i], "objects", where);
             file.triangles = count(files[i], "triangles", where);
             out.files.push_back(std::move(file));
+        }
+        if (output.contains("empty_groups")) {
+            const Json& empty = list(output, "empty_groups", "/output");
+            for (std::size_t i = 0; i < empty.size(); ++i) {
+                if (!empty[i].is_string()) throw Problem{"/output/empty_groups/" + std::to_string(i), "Must be text."};
+                out.emptyGroups.push_back(empty[i].get<std::string>());
+            }
+        }
+        if (output.contains("kit") && !output["kit"].is_null()) {
+            const Json& kit = output["kit"];
+            if (!kit.is_object()) throw Problem{"/output/kit", "Must be an object or null."};
+            ExportKitOutput wroteKit;
+            wroteKit.file = fileName(kit, "file", "/output/kit");
+            wroteKit.pieces = static_cast<int>(count(kit, "pieces", "/output/kit"));
+            wroteKit.objects = count(kit, "objects", "/output/kit");
+            wroteKit.triangles = count(kit, "triangles", "/output/kit");
+            out.kit = std::move(wroteKit);
         }
         const Json& textures = list(output, "textures", "/output");
         for (std::size_t i = 0; i < textures.size(); ++i) {

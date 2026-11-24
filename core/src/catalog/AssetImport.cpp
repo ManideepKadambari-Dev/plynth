@@ -1,10 +1,13 @@
 #include "plynth/core/catalog/AssetImport.h"
 
+#include "ImporterChoice.h"
 #include "Staging.h"
 
 #include "plynth/core/Process.h"
 #include "plynth/core/ProjectFiles.h"
 #include "plynth/core/catalog/AssetJobs.h"
+#include "plynth/core/catalog/Integrations.h"
+#include "plynth/core/catalog/StoreFetch.h"
 
 #include <algorithm>
 #include <cctype>
@@ -56,24 +59,13 @@ private:
     bool keep_ = false;
 };
 
-// The part of a source's name that an id and a name are made from.
-std::string sourceStem(const ImportSource& source)
+// The part of a file or folder name that an id and a name are made from.
+std::string sourceStem(const fs::path& file)
 {
-    if (!source.file.empty()) {
-        fs::path p = source.file;
-        if (!p.has_filename()) p = p.parent_path();
-        std::error_code ec;
-        return pathToUtf8(fs::is_directory(source.file, ec) ? p.filename() : p.stem());
-    }
-    std::string text = source.url;
-    const std::size_t query = text.find_first_of("?#");
-    if (query != std::string::npos) text.resize(query);
-    while (!text.empty() && text.back() == '/') text.pop_back();
-    const std::size_t slash = text.rfind('/');
-    if (slash != std::string::npos) text = text.substr(slash + 1);
-    const std::size_t dot = text.rfind('.');
-    if (dot != std::string::npos && dot > 0) text.resize(dot);
-    return text;
+    fs::path p = file;
+    if (!p.has_filename()) p = p.parent_path();
+    std::error_code ec;
+    return pathToUtf8(fs::is_directory(file, ec) ? p.filename() : p.stem());
 }
 
 // The Blender options for asset jobs: always the factory startup, so the user's add-ons cannot change results.
@@ -86,13 +78,21 @@ BlenderRunOptions assetRunOptions(const ImportContext& context)
 
 // Turns a failed Blender run into the status an import reports. The work folder is named in the message when
 // it is kept.
-Status blenderFailure(const BlenderJobRun& run, const fs::path& kept)
+Status blenderFailure(Status s, const fs::path& kept)
 {
-    Status s = run.status;
     if (s.code == ErrorCode::BlenderFailed && !kept.empty()) {
         s.message += "\nThe work folder was kept for the log: " + pathToUtf8(kept);
     }
     return s;
+}
+
+// Says whether a license id is one the catalog has.
+bool licenseKnown(const AssetCatalog& catalog, const std::string& id)
+{
+    for (const LicenseEntry& l : catalog.licenses()) {
+        if (l.id == id) return true;
+    }
+    return false;
 }
 
 // Sorted unique values.
@@ -267,7 +267,7 @@ ImportOutcome recleanAsset(AssetCatalog& catalog, const ImportContext& context, 
             work.keep();
             outcome.keptWorkFolder = work.path();
         }
-        outcome.status = blenderFailure(run, blenderProblem ? work.path() : fs::path());
+        outcome.status = blenderFailure(run.status, blenderProblem ? work.path() : fs::path());
         return outcome;
     }
     const AssetJobOutput out = readCleanupResult(run.result, jobId);
@@ -299,6 +299,7 @@ ImportOutcome recleanAsset(AssetCatalog& catalog, const ImportContext& context, 
     info.materials = out.materials;
     info.textures = out.textures;
     info.materialMaps = out.materialMaps;
+    info.supports = out.supports;
     info.blendBytes = static_cast<long long>(fs::file_size(blend, ec));
     info.blendModified = fileTime(blend);
     info.thumbnail.rendered = rendered;
@@ -344,7 +345,12 @@ ImportOutcome importAsset(AssetCatalog& catalog, const ImportContext& context, c
     report(ImportStage::Preparing);
 
     if (outcome.status = checkRequest(request); !outcome.status.ok()) return outcome;
-    const Importer* importer = pickImporter(request.source);
+    const ChosenImporter<Importer> chosen = chooseAssetImporter(catalog.paths(), request);
+    if (!chosen.status.ok()) {
+        outcome.status = chosen.status;
+        return outcome;
+    }
+    const Importer* importer = chosen.importer;
     if (!importer) {
         std::string suffixes;
         for (const std::string& s : importableSuffixes()) suffixes += (suffixes.empty() ? "" : ", ") + s;
@@ -362,14 +368,15 @@ ImportOutcome importAsset(AssetCatalog& catalog, const ImportContext& context, c
     outcome.importer = std::string(importer->id());
     if (outcome.status = checkAgainstCatalog(catalog, request); !outcome.status.ok()) return outcome;
 
+    // A file gets its id now. An address without a requested id gets one after the fetch, from the name it brings.
     std::string id = request.id;
     if (!id.empty()) {
         if (catalog.idTaken(id)) {
             outcome.status = fail(ErrorCode::AlreadyExists, "The id \"" + id + "\" is already used by another asset.");
             return outcome;
         }
-    } else {
-        id = uniqueCatalogId(catalogIdFromName(sourceStem(request.source)),
+    } else if (!request.source.file.empty()) {
+        id = uniqueCatalogId(catalogIdFromName(sourceStem(request.source.file)),
                              [&](std::string_view candidate) { return catalog.idTaken(candidate); });
     }
     if (stop.stop_requested()) {
@@ -378,7 +385,7 @@ ImportOutcome importAsset(AssetCatalog& catalog, const ImportContext& context, c
     }
 
     const LibraryPaths& library = catalog.paths();
-    const std::string jobId = newJobId(id);
+    const std::string jobId = newJobId(id.empty() ? std::string(importer->id()) : id);
     WorkFolder work(library.assetStaging / pathFromUtf8(jobId));
     const fs::path itemFolder = work.path() / "item";
     std::error_code ec;
@@ -394,7 +401,35 @@ ImportOutcome importAsset(AssetCatalog& catalog, const ImportContext& context, c
     const std::string sourceText = request.source.file.empty() ? request.source.url : pathToUtf8(request.source.file);
 
     ImportPlan plan;
-    if (outcome.status = importer->plan(request.source, work.path(), plan); !outcome.status.ok()) return outcome;
+    outcome.status = importer->plan(chosen.source, work.path(), plan);
+    outcome.details = plan.details;
+    if (!outcome.status.ok()) return outcome;
+
+    if (plan.fetch) {
+        report(ImportStage::Blender);
+        const FetchRun fetched = runImportFetch(*plan.fetch, context.blender.executable, context.run, work.path(),
+                                                [&](const BlenderProgress& p) { report(ImportStage::Blender, p); }, stop);
+        if (!fetched.status.ok()) {
+            const bool blenderProblem = fetched.status.code == ErrorCode::BlenderFailed;
+            if (blenderProblem) {
+                work.keep(sourceText);
+                outcome.keptWorkFolder = work.path();
+            }
+            outcome.status = blenderFailure(fetched.status, blenderProblem ? work.path() : fs::path());
+            return outcome;
+        }
+        if (stop.stop_requested()) {
+            outcome.status = fail(ErrorCode::Cancelled, "The import was cancelled.");
+            return outcome;
+        }
+        outcome.status = applyFetch(fetched, *plan.fetch, plan);
+        outcome.details = plan.details;
+        if (!outcome.status.ok()) return outcome;
+    }
+    if (id.empty()) {
+        const std::string base = plan.defaultName.empty() ? std::string(importer->id()) : catalogIdFromName(plan.defaultName);
+        id = uniqueCatalogId(base, [&](std::string_view candidate) { return catalog.idTaken(candidate); });
+    }
 
     CleanupJob cleanup;
     cleanup.sourceFile = plan.file;
@@ -414,7 +449,7 @@ ImportOutcome importAsset(AssetCatalog& catalog, const ImportContext& context, c
     if (!run.status.ok()) {
         const bool blenderProblem = run.status.code == ErrorCode::BlenderFailed;
         if (blenderProblem) work.keep(sourceText);
-        outcome.status = blenderFailure(run, blenderProblem ? work.path() : fs::path());
+        outcome.status = blenderFailure(run.status, blenderProblem ? work.path() : fs::path());
         if (blenderProblem) outcome.keptWorkFolder = work.path();
         return outcome;
     }
@@ -433,11 +468,15 @@ ImportOutcome importAsset(AssetCatalog& catalog, const ImportContext& context, c
     report(ImportStage::Saving);
     AssetInfo info;
     info.id = id;
-    info.name = request.name.empty() ? plan.defaultName : request.name;
+    info.name = request.name;
+    if (info.name.empty() && checkCatalogName(plan.defaultName).ok()) info.name = plan.defaultName;
     if (info.name.empty()) info.name = catalogNameFromStem(id);
     info.categories = withoutRepeats(request.categories);
     info.tags = sortedUnique(request.tags);
-    info.license = !request.license.empty() ? request.license : !plan.license.empty() ? plan.license : std::string(kUnknownLicenseId);
+    info.license = !request.license.empty() ? request.license
+                   : (!plan.license.empty() && licenseKnown(catalog, plan.license)) ? plan.license
+                                                                                    : std::string(kUnknownLicenseId);
+    if (checkAuthor(plan.author).ok()) info.author = plan.author;
     info.source = {plan.sourceKind, plan.reference, sessionNow()};
     info.size = out.size;
     info.triangles = out.triangles;
@@ -445,6 +484,7 @@ ImportOutcome importAsset(AssetCatalog& catalog, const ImportContext& context, c
     info.materials = out.materials;
     info.textures = out.textures;
     info.materialMaps = out.materialMaps;
+    info.supports = out.supports;
     const fs::path blend = itemFolder / pathFromUtf8(kAssetBlendFileName);
     if (!fs::is_regular_file(blend, ec)) {
         outcome.status = fail(ErrorCode::BlenderFailed, "Blender did not save asset.blend.");
@@ -525,17 +565,24 @@ ImportOutcome importInboxEntry(AssetCatalog& catalog, const ImportContext& conte
                                const std::function<void(const ImportProgress&)>& onProgress, std::stop_token stop)
 {
     const LibraryPaths& library = catalog.paths();
+    // A broken integrations.json says nothing about the entry, so the entry stays where it is.
+    if (const IntegrationOptionsRead options = readIntegrationOptions(library); !options.status.ok()) {
+        ImportOutcome refused;
+        refused.status = options.status;
+        return refused;
+    }
     ImportRequest request;
     request.source.file = entry;
     ImportOutcome outcome = importAsset(catalog, context, request, onProgress, stop);
 
     std::error_code ec;
     if (outcome.status.ok()) {
-        if (fs::exists(entry, ec)) moveEntry(entry, library.assetInboxDone);
+        if (fs::exists(entry, ec)) outcome.movedTo = moveEntry(entry, library.assetInboxDone);
         return outcome;
     }
     if (leavesEntryInInbox(outcome.status.code) || !fs::exists(entry, ec)) return outcome;
     const fs::path moved = moveEntry(entry, library.assetInboxFailed);
+    outcome.movedTo = moved;
     if (!moved.empty()) {
         fs::path note = moved;
         note += ".error.txt";
@@ -618,7 +665,7 @@ ImportOutcome refreshAsset(AssetCatalog& catalog, const ImportContext& context, 
             work.keep();
             outcome.keptWorkFolder = work.path();
         }
-        outcome.status = blenderFailure(run, blenderProblem ? work.path() : fs::path());
+        outcome.status = blenderFailure(run.status, blenderProblem ? work.path() : fs::path());
         return outcome;
     }
     const AssetJobOutput out = readThumbnailResult(run.result, jobId);

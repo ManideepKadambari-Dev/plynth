@@ -2,9 +2,12 @@
 
 #include "catalog/LibraryHost.h"
 #include "materials/MaterialPreview.h"
+#include "theme/PlainText.h"
 #include "theme/Theme.h"
 
 #include <plynth/core/catalog/AssetInfo.h>
+#include <plynth/core/ProjectFiles.h>
+#include <plynth/core/catalog/MaterialInfo.h>
 
 #include <QComboBox>
 #include <QEvent>
@@ -121,7 +124,9 @@ public:
 QLabel* mutedLabel(const QString& text, QWidget* parent)
 {
     const Theme& t = Theme::instance();
-    auto* label = new QLabel(text, parent);
+    auto* label = new QLabel(parent);
+    label->setTextFormat(Qt::PlainText);
+    label->setText(text);
     label->setFont(t.uiFont(t.sizeSmall()));
     label->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
     return label;
@@ -191,6 +196,7 @@ MaterialsPanel::MaterialsPanel(LibraryHost& host, QWidget* parent) : QWidget(par
     emptyColumn->setContentsMargins(0, t.unit() * 6, 0, 0);
     emptyColumn->setSpacing(t.unit() * 3);
     emptyText_ = new QLabel(empty);
+    emptyText_->setTextFormat(Qt::PlainText);
     emptyText_->setWordWrap(true);
     emptyText_->setFont(t.uiFont(t.sizeNormal()));
     emptyColumn->addWidget(emptyText_);
@@ -205,7 +211,7 @@ MaterialsPanel::MaterialsPanel(LibraryHost& host, QWidget* parent) : QWidget(par
     connect(openSetup_, &QPushButton::clicked, this, &MaterialsPanel::setupRequested);
     emptyColumn->addWidget(openSetup_, 0, Qt::AlignLeft);
     samples_ = new QPushButton(tr("Add the sample materials"), empty);
-    samples_->setToolTip(tr("Import the seven sample materials that come with Plynth. New projects use them by default"));
+    samples_->setToolTip(tr("Import the nine sample materials that come with Plynth. New projects use them by default"));
     samples_->setProperty("tourId", QStringLiteral("materials-add-samples"));
     connect(samples_, &QPushButton::clicked, this, &MaterialsPanel::samplesRequested);
     emptyColumn->addWidget(samples_, 0, Qt::AlignLeft);
@@ -379,6 +385,7 @@ void MaterialsPanel::buildDetails()
     });
 
     idLabel_ = new QLabel(body);
+    idLabel_->setTextFormat(Qt::PlainText);
     idLabel_->setFont(t.monoFont(t.sizeSmall()));
     idLabel_->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
     idLabel_->setToolTip(tr("The id of the material, used by the command line and the plan"));
@@ -432,6 +439,7 @@ void MaterialsPanel::buildDetails()
     box->addWidget(mapsBox_);
 
     sourceLabel_ = new QLabel(body);
+    sourceLabel_->setTextFormat(Qt::PlainText);
     sourceLabel_->setFont(t.monoFont(t.sizeSmall()));
     sourceLabel_->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
     sourceLabel_->setWordWrap(true);
@@ -451,6 +459,23 @@ void MaterialsPanel::buildDetails()
             return;
         plynth::MaterialEdit edit;
         edit.license = toCore(license_->itemData(index).toString());
+        applyEdit(edit);
+    });
+
+    box->addWidget(mutedLabel(tr("Author"), body));
+    author_ = new QLineEdit(body);
+    author_->setFont(t.uiFont(t.sizeNormal()));
+    author_->setStyle(t.controlStyle());
+    author_->setMaxLength(static_cast<int>(plynth::kMaxAuthorLength));
+    author_->setPlaceholderText(tr("Unknown"));
+    author_->setToolTip(tr("Who made the material, shown in the license report. Press Enter to save"));
+    author_->setProperty("tourId", QStringLiteral("materials-author"));
+    box->addWidget(author_);
+    connect(author_, &QLineEdit::editingFinished, this, [this]() {
+        if (refreshing_ || !current_ || author_->text().trimmed() == shownAuthor_)
+            return;
+        plynth::MaterialEdit edit;
+        edit.author = toCore(author_->text().trimmed());
         applyEdit(edit);
     });
 
@@ -501,6 +526,7 @@ void MaterialsPanel::buildDetails()
     });
 
     problems_ = new QLabel(body);
+    problems_->setTextFormat(Qt::PlainText);
     problems_->setWordWrap(true);
     problems_->setFont(t.uiFont(t.sizeSmall()));
     problems_->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
@@ -541,7 +567,7 @@ void MaterialsPanel::buildDetails()
 void MaterialsPanel::setImportEnabled(bool enabled, const QString& tip)
 {
     import_->setEnabled(enabled);
-    import_->setToolTip(tip);
+    import_->setToolTip(plainToolTip(tip));
     samples_->setEnabled(enabled);
 }
 
@@ -712,6 +738,7 @@ void MaterialsPanel::removeGroup()
     QMessageBox box(this);
     box.setIcon(QMessageBox::NoIcon);
     box.setWindowTitle(tr("Remove group"));
+    box.setTextFormat(Qt::PlainText);
     box.setText(tr("Remove the group %1? %n material(s) lose it. The materials stay in the library.", nullptr, count).arg(name));
     QPushButton* yes = box.addButton(tr("Remove"), QMessageBox::DestructiveRole);
     QPushButton* no = box.addButton(tr("Cancel"), QMessageBox::RejectRole);
@@ -771,7 +798,7 @@ void MaterialsPanel::fillGrid()
         auto* item = new QStandardItem(fromCore(record.name));
         item->setData(fromCore(record.id), kIdRole);
         item->setData(MaterialPreview::tileText(record.tileSize), kTileRole);
-        item->setToolTip(tr("%1. Click to see and edit its details").arg(fromCore(record.name)));
+        item->setToolTip(plainToolTip(tr("%1. Click to see and edit its details").arg(fromCore(record.name))));
         QString state;
         QColor color = t.muted();
         if (record.state == plynth::MaterialState::Broken) {
@@ -902,7 +929,9 @@ void MaterialsPanel::showDetails()
         int row = 0;
         for (const plynth::MapChannel channel : plynth::allMapChannels()) {
             auto* name = mutedLabel(channelText(channel), mapsBox_);
-            auto* how = new QLabel(originText(plynth::materialMap(info.info.maps, channel)), mapsBox_);
+            auto* how = new QLabel(mapsBox_);
+            how->setTextFormat(Qt::PlainText);
+            how->setText(originText(plynth::materialMap(info.info.maps, channel)));
             how->setFont(t.monoFont(t.sizeSmall()));
             how->setTextInteractionFlags(Qt::NoTextInteraction);
             how->setWordWrap(true);
@@ -920,6 +949,8 @@ void MaterialsPanel::showDetails()
     for (const plynth::LicenseEntry& entry : host_.materialCatalog()->licenses())
         license_->addItem(fromCore(entry.name), fromCore(entry.id));
     license_->setCurrentIndex(std::max(0, license_->findData(fromCore(record.license))));
+    shownAuthor_ = info.status.ok() ? fromCore(info.info.author) : QString();
+    author_->setText(shownAuthor_);
 
     groups_->clear();
     for (const plynth::MaterialGroupEntry& entry : host_.materialCatalog()->groups()) {
@@ -993,6 +1024,7 @@ void MaterialsPanel::removeSelected()
     QMessageBox box(this);
     box.setIcon(QMessageBox::NoIcon);
     box.setWindowTitle(tr("Remove material"));
+    box.setTextFormat(Qt::PlainText);
     box.setText(tr("Remove %1 and its folder from the library? This cannot be undone. Plans that use it keep its name and show it as missing.")
                     .arg(fromCore(current_->name)));
     QPushButton* yes = box.addButton(tr("Remove"), QMessageBox::DestructiveRole);

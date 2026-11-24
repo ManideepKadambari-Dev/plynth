@@ -92,6 +92,14 @@ struct ScratchUser {
         setFolder(L"BLENDER_USER_DATAFILES", root / "datafiles");
         // A file that does not exist. With no value at all Plynth would look for the installed Blender.
         setVariable(L"PLYNTH_BLENDER", root / "no-blender.exe");
+        // A store fetch never uses the real %LOCALAPPDATA%: it gets a short folder of this run, made by core,
+        // unless a test that started this program named one, so both share the same fetch folder.
+        wchar_t* named = nullptr;
+        std::size_t size = 0;
+        if (_wdupenv_s(&named, &size, L"PLYNTH_FETCH_FOLDER") != 0 || !named || !*named) {
+            setVariable(L"PLYNTH_FETCH_FOLDER", root / "fetch");
+        }
+        free(named);
     }
     ~ScratchUser() {
         std::error_code ignored;

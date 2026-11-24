@@ -2,6 +2,8 @@
 
 #include "Answer.h"
 
+#include <plynth/cli/Cli.h>
+
 #include <CLI/CLI.hpp>
 
 #include <filesystem>
@@ -17,6 +19,7 @@ struct RunContext {
     std::filesystem::path currentFolder;
     const CLI::App* root = nullptr; // the whole command tree, for help
     std::ostream* progress = nullptr; // where long commands write progress lines, null for none
+    const CliHost* host = nullptr;    // what the program around the CLI can do, null for nothing
 };
 
 using Handler = std::function<Answer(const RunContext&)>;
@@ -55,6 +58,12 @@ std::vector<CommandSpec> materialCommands();
 std::vector<CommandSpec> materialCatalogCommands();
 std::vector<CommandSpec> materialImportCommands();
 std::vector<CommandSpec> generatorCommands();
+std::vector<CommandSpec> renderCommands();
+std::vector<CommandSpec> packCommands();
+std::vector<CommandSpec> lightCommands();
+std::vector<CommandSpec> trimCommands();
+std::vector<CommandSpec> variationCommands();
+std::vector<CommandSpec> guideCommands();
 
 // All commands in the order help lists them.
 const std::vector<CommandSpec>& allCommands();

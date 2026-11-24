@@ -4,7 +4,7 @@ Turn a 2D floor plan image into a finished, game-ready 3D building for Unreal En
 
 Load a plan, mark walls, rooms, openings and furniture, then click Build. Blender constructs the building in the background and Plynth exports FBX files with textures and collision, ready to import.
 
-Export writes one FBX with applied transforms, named material slots such as `Living_Floor`, a `Textures` folder and `UCX_` collision shapes, after a set of quality checks. Everything the app does is also available from the command line.
+Export writes one FBX (or, in grouped mode, one FBX for each group of walls, floors and room furniture, which you can rename, merge and rearrange) with applied transforms, named material slots such as `Living_Floor`, a `Textures` folder and `UCX_` collision shapes, after a set of quality checks. An optional modular kit writes each unique wall, corner and opening piece once, with a layout file that says where every copy goes. Everything the app does is also available from the command line.
 
 Walls, floors and doors get their paint, brick, wood and glass from a materials catalog in your library. Seven sample materials, drawn for Plynth, are in `samples/materials/`. See `docs/GETTING_STARTED.md`.
 

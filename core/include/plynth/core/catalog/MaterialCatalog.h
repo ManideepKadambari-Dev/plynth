@@ -83,6 +83,7 @@ struct MaterialEdit {
     std::optional<std::vector<std::string>> groups;
     std::optional<std::vector<std::string>> tags;
     std::optional<std::string> license;
+    std::optional<std::string> author; // empty clears it
     std::optional<TileSize> tileSize;
 };
 

@@ -9,6 +9,9 @@
 #include "panels/RightPanel.h"
 
 #include <plynth/core/Build.h>
+#include <plynth/core/Export.h>
+#include <plynth/core/ExportGroups.h>
+#include <plynth/core/Exporter.h>
 
 #include <QAction>
 #include <QDesktopServices>
@@ -37,8 +40,11 @@ QString MainWindow::exportNotice(bool* offerBuild) const
 {
     if (offerBuild != nullptr)
         *offerBuild = false;
-    if (doc_.project().settings.exportMode == plynth::ExportMode::Grouped)
-        return tr("Grouped export is not available yet.");
+    if (doc_.project().settings.exportMode == plynth::ExportMode::Grouped && doc_.hasFolder()) {
+        const plynth::ExportOptionsRead options = plynth::readExportOptions(doc_.folder());
+        if (!options.status.ok())
+            return fromCore(options.status.message);
+    }
     std::error_code ignored;
     const bool built = doc_.hasFolder() &&
                        std::filesystem::exists(plynth::buildFolder(doc_.folder()) / "building.blend", ignored);
@@ -68,6 +74,8 @@ void MainWindow::startExport(bool write, bool force)
     request.project = doc_.project();
     request.settings.write = write;
     request.settings.force = force;
+    if (host_->hasLibrary())
+        request.library = host_->paths();
     buildProgressText_ = tr("Starting");
     buildProgressPercent_ = 0;
     exporter_->start(std::move(request), host_->settings());
@@ -148,6 +156,33 @@ void MainWindow::updateExportUi()
     checkExportAction_->setEnabled(state.canRun && !running);
     exportAnywayAction_->setEnabled(state.canRun && !running && blocked);
     exportFolderAction_->setEnabled(state.folderExists);
+    state.grouped = doc_.project().settings.exportMode == plynth::ExportMode::Grouped;
+    state.built = doc_.hasFolder() &&
+                  std::filesystem::exists(plynth::buildFolder(doc_.folder()) / "building.blend", ignored);
+    state.project = &doc_.project();
+    if (doc_.hasFolder()) {
+        const plynth::ExportOptionsRead options = plynth::readExportOptions(doc_.folder());
+        state.kitEnabled = options.status.ok() && options.options.kit.enabled;
+        state.gameplayEnabled = options.status.ok() && options.options.gameplay.enabled;
+        state.licensesEnabled = options.status.ok() && options.options.licenses.enabled;
+        const std::string stem = plynth::exportFileStem(doc_.project().settings.name);
+        state.gameplayFile = QString::fromStdWString(
+            (plynth::exportFolder(doc_.folder()) / (stem + std::string(plynth::kGameplayFileSuffix))).make_preferred().wstring());
+        state.licensesFile = QString::fromStdWString(
+            (plynth::exportFolder(doc_.folder()) / (stem + std::string(plynth::kLicensesJsonSuffix))).make_preferred().wstring());
+        if (!options.status.ok()) {
+            state.optionsProblem = fromCore(options.status.message);
+            state.optionsRepairable = options.status.code != plynth::ErrorCode::UnsupportedVersion;
+        }
+    }
+    plynth::ExportGroupReview review;
+    if (doc_.hasFolder()) {
+        // Every mode needs the review, because the guard checks the kit switch and the repair with it too.
+        state.projectFolder = doc_.folder();
+        review = plynth::reviewExportGroups(doc_.folder(), doc_.project());
+        state.review = &review;
+    }
+    connect(exportPanel_, &ExportPanel::refreshRequested, this, &MainWindow::updateExportUi, Qt::UniqueConnection);
     exportPanel_->setReport(exportReport_ ? &*exportReport_ : nullptr, state);
 }
 

@@ -80,7 +80,9 @@ Status SetScaleCommand::apply(Project& project)
     if (keep_ == ScaleKeep::ImagePositions && previous_ && pixelsPerMetre_ && *previous_ != *pixelsPerMetre_) {
         bool hasMarks = !project.plan.roofSections.empty();
         for (const Floor& f : project.plan.floors) {
-            if (!f.points.empty() || !f.openings.empty() || !f.items.empty() || !f.stairs.empty()) hasMarks = true;
+            if (!f.points.empty() || !f.openings.empty() || !f.items.empty() || !f.stairs.empty() || !f.lights.empty()) {
+                hasMarks = true;
+            }
         }
         if (hasMarks) {
             const double factor = *previous_ / *pixelsPerMetre_;
@@ -95,6 +97,7 @@ Status SetScaleCommand::apply(Project& project)
                 for (Point& p : f.points) about(p.x, p.y);
                 for (Item& i : f.items) about(i.x, i.y);
                 for (Stair& s : f.stairs) about(s.x, s.y);
+                for (LightMarker& l : f.lights) about(l.x, l.y);
                 for (Wall& w : f.walls) w.bulge *= factor;
                 for (Opening& op : f.openings) op.offset *= factor;
             }
@@ -123,7 +126,8 @@ void SetScaleCommand::undo(Project& project)
 
 unsigned SetScaleCommand::changes() const
 {
-    return moved_ ? (Change::Scale | Change::Points | Change::Walls | Change::Openings | Change::Items | Change::Stairs | Change::Roofs)
+    return moved_ ? (Change::Scale | Change::Points | Change::Walls | Change::Openings | Change::Items | Change::Stairs | Change::Roofs |
+                     Change::Lights)
                   : Change::Scale;
 }
 
@@ -232,6 +236,7 @@ Status AddFloorCommand::apply(Project& project)
         return fail(ErrorCode::InvalidValue, "The floor position is past the top floor.");
     }
     if (id_.empty()) id_ = newId(project.plan, kFloorIdPrefix);
+    if (idInUse(project.plan, id_)) return fail(ErrorCode::AlreadyExists, "The id " + id_ + " is already used.");
     Floor floor;
     floor.id = id_;
     floor.name = text;
@@ -309,7 +314,7 @@ void RemoveFloorCommand::undo(Project& project)
 unsigned RemoveFloorCommand::changes() const
 {
     return Change::Floors | Change::Points | Change::Walls | Change::Rooms | Change::Openings | Change::Items | Change::Stairs |
-           Change::Roofs;
+           Change::Roofs | Change::Lights;
 }
 
 SetFloorNameCommand::SetFloorNameCommand(Id floorId, std::string name) : floorId_(std::move(floorId)), name_(std::move(name)) {}
@@ -431,6 +436,10 @@ Status SetFloorImageOffsetCommand::apply(Project& project)
             s.x += dx;
             s.y += dy;
         }
+        for (LightMarker& l : floor->lights) {
+            l.x += dx;
+            l.y += dy;
+        }
         for (RoofSection& r : project.plan.roofSections) {
             if (r.floor != floorId_) continue;
             r.x += dx;
@@ -450,7 +459,9 @@ void SetFloorImageOffsetCommand::undo(Project& project)
 unsigned SetFloorImageOffsetCommand::changes() const
 {
     unsigned flags = Change::FloorImage;
-    if (moveMarks_) flags |= Change::Points | Change::Walls | Change::Openings | Change::Items | Change::Stairs | Change::Roofs;
+    if (moveMarks_) {
+        flags |= Change::Points | Change::Walls | Change::Openings | Change::Items | Change::Stairs | Change::Roofs | Change::Lights;
+    }
     return flags;
 }
 

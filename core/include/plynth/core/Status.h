@@ -1,5 +1,6 @@
 #pragma once
 
+#include <span>
 #include <string>
 #include <string_view>
 
@@ -27,6 +28,8 @@ enum class ErrorCode {
     Cancelled,          // "cancelled": the user or the caller stopped the work
     DatabaseError,      // "database_error": a catalog index could not be read or written
     QualityFailed,      // "quality_failed": a quality check failed, so the export was not written (Export.h)
+    GraphicsUnavailable, // "graphics_unavailable": there is no graphics device, or the 3D view cannot start
+    RenderFailed,       // "render_failed": the 3D view started but gave no usable picture
 };
 
 // The outcome of an operation: ok, or an error code with one plain sentence saying why.
@@ -44,5 +47,11 @@ Status fail(ErrorCode code, std::string message, std::string where = {});
 
 // The stable lower case name of an error code, for example "not_found". "ok" for None.
 std::string_view errorCodeName(ErrorCode code);
+
+// One plain sentence saying when a code is given, for the CLI's help and the guides.
+std::string_view errorCodeDescription(ErrorCode code);
+
+// Every error code once, in the order of the enum, None left out.
+std::span<const ErrorCode> allErrorCodes();
 
 }

@@ -1,0 +1,62 @@
+{
+  "format": "plynth-build-materials",
+  "version": 1,
+  "materials": [
+    {
+      "name": "Living_Floor",
+      "material": "oak_planks",
+      "surface": null,
+      "maps": {
+        "base_color": "D:/Library/materials/oak_planks/textures/base_color.jpg",
+        "normal": "D:/Library/materials/oak_planks/textures/normal.png",
+        "roughness": "D:/Library/materials/oak_planks/textures/roughness.png",
+        "metallic": "D:/Library/materials/oak_planks/textures/metallic.png",
+        "opacity": null,
+        "occlusion": null
+      },
+      "alpha_mode": "opaque",
+      "tile_size": {
+        "width": 2.0,
+        "height": 3.0
+      }
+    },
+    {
+      "name": "Glass",
+      "material": null,
+      "surface": "Glass",
+      "maps": {
+        "base_color": "D:/Project/build/textures/Glass_base_color.png",
+        "normal": "D:/Project/build/textures/Glass_normal.png",
+        "roughness": "D:/Project/build/textures/Glass_roughness.png",
+        "metallic": "D:/Project/build/textures/Glass_metallic.png",
+        "opacity": "D:/Project/build/textures/Glass_opacity.png",
+        "occlusion": null
+      },
+      "alpha_mode": "blend"
+    },
+    {
+      "name": "Fabric",
+      "material": null,
+      "surface": null,
+      "asset": "sofa",
+      "maps": {
+        "base_color": "D:/Library/assets/sofa/textures/maps/fabric/base_color.png",
+        "normal": "D:/Library/assets/sofa/textures/maps/fabric/normal.png",
+        "roughness": "D:/Library/assets/sofa/textures/maps/fabric/roughness.png",
+        "metallic": "D:/Library/assets/sofa/textures/maps/fabric/metallic.png",
+        "opacity": null,
+        "occlusion": null
+      },
+      "alpha_mode": "opaque"
+    }
+  ],
+  "objects": [
+    {
+      "name": "SM_f1_Walls",
+      "slots": [
+        "Living_Floor",
+        "Glass"
+      ]
+    }
+  ]
+}

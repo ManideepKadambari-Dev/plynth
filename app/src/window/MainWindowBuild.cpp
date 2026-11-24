@@ -14,15 +14,19 @@
 #include "preview/OverlayRenderer.h"
 #include "preview/GraphicsProbe.h"
 #include "preview/PreviewView.h"
+#include "preview/RenderHost.h"
 
 #include <plynth/core/Blender.h>
+#include <plynth/core/Render.h>
 #include <plynth/core/Roofs.h>
 #include <plynth/core/SetupCheck.h>
 
 #include <QAction>
+#include <QApplication>
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QDir>
+#include <QFileDialog>
 #include <QMessageBox>
 #include <QProcess>
 #include <QTimer>
@@ -148,7 +152,10 @@ void MainWindow::updateBuildUi()
     const bool files = report_ && !report_->blendFile.empty();
     reportAction_->setEnabled(report_.has_value());
     buildFolderAction_->setEnabled(doc_.hasFolder());
+    if (variationsAction_ != nullptr)
+        variationsAction_->setEnabled(doc_.hasFolder() && !running);
     openBlenderAction_->setEnabled(files);
+    save3dPictureAction_->setEnabled(files && !running);
     buildPanel_->setReport(report_ ? &*report_ : nullptr, stale);
     updateExportUi();
     refreshProblemMarkers();
@@ -244,6 +251,39 @@ void MainWindow::openBuildFolder()
     if (!doc_.hasFolder())
         return;
     QDesktopServices::openUrl(QUrl::fromLocalFile(QString::fromStdWString(plynth::buildFolder(doc_.folder()).wstring())));
+}
+
+// Saves a picture of the last build as the 3D page shows it: its camera, roofs and cut. It goes through the same
+// render as "plynth render", so both give the same picture for the same view.
+void MainWindow::save3dPicture()
+{
+    if (!doc_.hasFolder())
+        return;
+    plynth::RenderOptions options;
+    options.view = preview_->preset() == ModelView::Preset::Top ? plynth::RenderView::Top : plynth::RenderView::ThreeQuarter;
+    options.showRoofs = showRoofs3d();
+    if (cutAtFloor() && !focus_->floorId().isEmpty())
+        options.cutFloor = focus_->floorId().toStdString();
+    const std::filesystem::path suggested = doc_.folder() / std::string(plynth::kRendersFolderName) /
+                                            (std::string(plynth::renderViewName(options.view)) + ".png");
+    const QString file = QFileDialog::getSaveFileName(this, tr("Save 3D picture"),
+                                                      QString::fromStdWString(suggested.wstring()),
+                                                      tr("PNG pictures (*.png)"));
+    if (file.isEmpty())
+        return;
+    options.out = std::filesystem::path(file.toStdWString());
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    const plynth::RenderReport report = plynth::renderBuilding(doc_.folder(), doc_.project(), options, renderShot);
+    QApplication::restoreOverrideCursor();
+    if (!report.status.ok()) {
+        showError(tr("Save 3D picture"), fromCore(report.status.message));
+        return;
+    }
+    const QString shown = QString::fromStdWString(report.file.wstring());
+    if (report.current)
+        statusBar_->showMessage(tr("Saved the 3D picture %1").arg(shown), false);
+    else
+        statusBar_->showMessage(tr("Saved the 3D picture %1. The plan changed since the last build, so it shows the last build.").arg(shown), false);
 }
 
 // Opens building.blend in the Blender the settings choose, in a normal window.

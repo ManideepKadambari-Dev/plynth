@@ -83,6 +83,46 @@ Answer projectInfo(const RunContext& context, const std::string& projectOption) 
     return success(command, projectInfoJson(folder, loaded.project));
 }
 
+// Saves the project in another folder, as File > Save as does. The project in the first folder stays as it is.
+Answer projectSaveAs(const RunContext& context, const std::string& projectOption, const std::string& target) {
+    const std::string command = "project save-as";
+    const std::filesystem::path folder = resolveProjectFolder(context, projectOption);
+    Document document;
+    Answer failed;
+    if (!openProject(command, folder, document, failed, true)) {
+        return failed;
+    }
+    const std::filesystem::path to = userPath(context, target);
+    SaveReport report;
+    if (const Status saved = document.saveAs(to, &report); !saved.ok()) {
+        return failure(command, saved);
+    }
+    Answer answer = success(command, projectInfoJson(document.folder(), document.project()));
+    addSaveWarnings(answer, report);
+    return answer;
+}
+
+// Saves the autosave the app left behind as the project, or throws it away with --discard.
+Answer projectRecover(const RunContext& context, const std::string& projectOption, bool discard) {
+    const std::string command = "project recover";
+    const std::filesystem::path folder = resolveProjectFolder(context, projectOption);
+    Answer refused;
+    if (!checkLock(command, folder, false, refused)) {
+        return refused;
+    }
+    if (const Status done = recoverAutosave(folder, discard); !done.ok()) {
+        return failure(command, done);
+    }
+    const ProjectLoad loaded = loadProject(folder);
+    if (!loaded.status.ok()) {
+        return failure(command, loaded.status);
+    }
+    Json result = projectInfoJson(folder, loaded.project);
+    result["recovered"] = !discard;
+    result["discarded"] = discard;
+    return success(command, std::move(result));
+}
+
 // One recent project as project recent prints it.
 Json recentEntry(const RecentProject& recent) {
     std::error_code ignored;
@@ -127,6 +167,7 @@ Answer projectRecent(const RunContext& context, const std::string& removePath) {
 
 struct SetOptions {
     std::string project;
+    std::string exportMode;
     std::optional<double> grid;
     std::optional<double> doorWidth;
     std::optional<double> doorHeight;
@@ -142,13 +183,17 @@ Answer projectSet(const RunContext& context, const SetOptions& options) {
     const std::string command = "project set";
     const bool anyDefault = options.doorWidth || options.doorHeight || options.windowWidth || options.windowHeight ||
                             options.windowSill || options.newFloorHeight || options.wallItemCentre;
-    if (!options.grid && !anyDefault) {
+    if (!options.grid && !anyDefault && options.exportMode.empty()) {
         return badArguments(command, "bad_arguments", "Give at least one option to change. Run 'plynth help' to list them.");
     }
     return editProject(command, context, options.project, [&](Document& document) {
         auto group = std::make_unique<CommandGroup>("Change settings");
         if (options.grid) {
             group->add(std::make_unique<SetGridSizeCommand>(*options.grid));
+        }
+        if (!options.exportMode.empty()) {
+            group->add(std::make_unique<SetExportModeCommand>(
+                exportModeFromName(options.exportMode).value_or(ExportMode::Single)));
         }
         if (anyDefault) {
             DefaultSizes sizes = document.project().settings.defaults;
@@ -199,11 +244,14 @@ std::vector<CommandSpec> projectCommands() {
 
     CommandSpec set;
     set.words = {"project", "set"};
-    set.description = "Change the grid size or the default sizes of new openings, floors and wall items.";
+    set.description = "Change the grid size, the export mode or the default sizes of new openings, floors and wall items.";
     set.setup = [](CLI::App& sub) -> Handler {
         auto options = std::make_shared<SetOptions>();
         addProjectOption(sub, options->project);
         sub.add_option("--grid", options->grid, "Grid size in metres.")->type_name("metres");
+        sub.add_option("--export", options->exportMode, "Export mode.")
+            ->type_name("single|grouped")
+            ->check(CLI::IsMember({"single", "grouped"}));
         sub.add_option("--door-width", options->doorWidth, "Default door width in metres.")->type_name("metres");
         sub.add_option("--door-height", options->doorHeight, "Default door height in metres.")->type_name("metres");
         sub.add_option("--window-width", options->windowWidth, "Default window width in metres.")
@@ -231,7 +279,31 @@ std::vector<CommandSpec> projectCommands() {
         return [remove](const RunContext& context) { return projectRecent(context, *remove); };
     };
 
-    return {create, info, set, recent};
+    CommandSpec saveAs;
+    saveAs.words = {"project", "save-as"};
+    saveAs.description = "Save the project into another folder, with its plan images. The first folder stays as it is.";
+    saveAs.setup = [](CLI::App& sub) -> Handler {
+        auto project = std::make_shared<std::string>();
+        auto target = std::make_shared<std::string>();
+        sub.add_option("folder", *target, "The new project folder. It must not hold a project.")
+            ->type_name("folder")
+            ->required();
+        addProjectOption(sub, *project);
+        return [project, target](const RunContext& context) { return projectSaveAs(context, *project, *target); };
+    };
+
+    CommandSpec recover;
+    recover.words = {"project", "recover"};
+    recover.description = "Save the autosave the app left behind as the project. With --discard, throw it away.";
+    recover.setup = [](CLI::App& sub) -> Handler {
+        auto project = std::make_shared<std::string>();
+        auto discard = std::make_shared<bool>(false);
+        addProjectOption(sub, *project);
+        sub.add_flag("--discard", *discard, "Remove the autosave and keep the saved project.");
+        return [project, discard](const RunContext& context) { return projectRecover(context, *project, *discard); };
+    };
+
+    return {create, info, set, recent, saveAs, recover};
 }
 
 }

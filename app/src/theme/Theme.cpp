@@ -109,9 +109,13 @@ bool Theme::load(const QString& resourcePath)
     itemLabelMinPixels_ = spacing["itemLabelMinPixels"].toInt(itemLabelMinPixels_);
     buildBarHeight_ = spacing["buildBarHeight"].toInt(buildBarHeight_);
     problemMarker_ = spacing["problemMarker"].toInt(problemMarker_);
+    lightMarker_ = spacing["lightMarker"].toInt(lightMarker_);
     qualityMark_ = spacing["qualityMark"].toInt(qualityMark_);
     markStroke_ = spacing["markStroke"].toDouble(markStroke_);
     previewButton_ = spacing["previewButton"].toInt(previewButton_);
+    tourCardWidth_ = spacing["tourCardWidth"].toInt(tourCardWidth_);
+    tourOutline_ = spacing["tourOutline"].toInt(tourOutline_);
+    helpListWidth_ = spacing["helpListWidth"].toInt(helpListWidth_);
 
     const QJsonObject opacity = root["opacity"].toObject();
     overlay3dOpacity_ = opacity["overlay3d"].toDouble(overlay3dOpacity_);
@@ -142,6 +146,7 @@ bool Theme::load(const QString& resourcePath)
     proposalFillAlpha_ = effects["proposalFillAlpha"].toInt(proposalFillAlpha_);
     proposalLineAlpha_ = effects["proposalLineAlpha"].toInt(proposalLineAlpha_);
     itemFillAlpha_ = effects["itemFillAlpha"].toInt(itemFillAlpha_);
+    tourDimAlpha_ = effects["tourDimAlpha"].toInt(tourDimAlpha_);
 
     const QJsonArray ansi = root["terminal"].toObject()["ansi"].toArray();
     for (int i = 0; i < 16 && i < ansi.size(); ++i) {

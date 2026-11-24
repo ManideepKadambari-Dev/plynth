@@ -1,6 +1,7 @@
 #include "plynth/core/Roofs.h"
 
 #include "ClipperInclude.h"
+#include "PlanRingClean.h"
 #include "roofs/RoofParts.h"
 
 #include <algorithm>
@@ -13,7 +14,6 @@ namespace plynth {
 
 namespace {
 
-constexpr int kPrecision = 8;
 constexpr double kMiterLimit = 5.0;
 constexpr double kSliver = 1e-6;  // pieces smaller than this many square metres are rounding noise
 constexpr double kClose = 1e-6;   // points nearer than this are one point
@@ -94,10 +94,10 @@ Clipper2Lib::PathsD toPaths(const std::vector<WorldPolygon>& polygons)
 }
 
 // The ring without repeated points and with the wanted turning direction.
-std::vector<Vec2> cleaned(const Clipper2Lib::PathD& path, bool outline)
+std::vector<Vec2> cleaned(const std::vector<Vec2>& points, bool outline)
 {
     std::vector<Vec2> ring;
-    for (const Clipper2Lib::PointD& p : path) {
+    for (const Vec2& p : points) {
         if (!ring.empty() && std::fabs(ring.back().x - p.x) < kClose && std::fabs(ring.back().y - p.y) < kClose) continue;
         ring.push_back({p.x, p.y});
     }
@@ -109,45 +109,49 @@ std::vector<Vec2> cleaned(const Clipper2Lib::PathD& path, bool outline)
     return ring;
 }
 
-// Collects the pieces of a polygon tree: each outline with the holes directly inside it.
-void collect(const Clipper2Lib::PolyPathD& node, std::vector<WorldPolygon>& out)
+// The pieces of plain paths, each read by the turning of its rings (PlanRingClean.h) and without repeated points.
+std::vector<WorldPolygon> collect(const Clipper2Lib::PathsD& paths)
 {
-    for (std::size_t i = 0; i < node.Count(); ++i) {
-        const Clipper2Lib::PolyPathD& child = *node.Child(i);
-        if (!child.IsHole()) {
-            WorldPolygon poly;
-            poly.outline = cleaned(child.Polygon(), true);
-            for (std::size_t h = 0; h < child.Count(); ++h) {
-                std::vector<Vec2> hole = cleaned(child.Child(h)->Polygon(), false);
-                if (hole.size() >= 3) poly.holes.push_back(std::move(hole));
-            }
-            double size = signedArea(poly.outline);
-            for (const auto& hole : poly.holes) size += signedArea(hole);
-            if (poly.outline.size() >= 3 && size >= kSliver) out.push_back(std::move(poly));
+    std::vector<WorldPolygon> out;
+    for (const RingPiece& piece : piecesByTurning(paths)) {
+        WorldPolygon poly;
+        poly.outline = cleaned(piece.outline, true);
+        for (const std::vector<Vec2>& points : piece.holes) {
+            std::vector<Vec2> hole = cleaned(points, false);
+            if (hole.size() >= 3) poly.holes.push_back(std::move(hole));
         }
-        collect(child, out);
+        double size = signedArea(poly.outline);
+        for (const auto& hole : poly.holes) size += signedArea(hole);
+        if (poly.outline.size() >= 3 && size >= kSliver) out.push_back(std::move(poly));
     }
+    return out;
 }
 
 // Runs one clip operation.
 std::vector<WorldPolygon> run(Clipper2Lib::ClipType type, const Clipper2Lib::PathsD& subject, const Clipper2Lib::PathsD& clip)
 {
-    Clipper2Lib::ClipperD clipper(kPrecision);
-    clipper.AddSubject(subject);
-    if (!clip.empty()) clipper.AddClip(clip);
-    Clipper2Lib::PolyTreeD tree;
-    clipper.Execute(type, Clipper2Lib::FillRule::NonZero, tree);
-    std::vector<WorldPolygon> out;
-    collect(tree, out);
-    return out;
+    return collect(clipped(type, subject, clip));
 }
 
 // The polygons grown by delta (shrunk when negative) with mitred corners.
 std::vector<WorldPolygon> offsetBy(const std::vector<WorldPolygon>& polygons, double delta)
 {
-    const Clipper2Lib::PathsD grown = Clipper2Lib::InflatePaths(toPaths(polygons), delta, Clipper2Lib::JoinType::Miter,
-                                                                Clipper2Lib::EndType::Polygon, kMiterLimit, kPrecision);
-    return run(Clipper2Lib::ClipType::Union, grown, {});
+    return run(Clipper2Lib::ClipType::Union, offsetByTurning(toPaths(polygons), delta, kMiterLimit), {});
+}
+
+// The finished eaves: tidied once by width, then every piece tidied ring by ring.
+std::vector<WorldPolygon> finishedEaves(const std::vector<WorldPolygon>& eaves)
+{
+    std::vector<WorldPolygon> out;
+    for (const RingPiece& read : piecesByTurning(clipAndTidy(Clipper2Lib::ClipType::Union, toPaths(eaves), {}))) {
+        for (RingPiece& piece : tidyPiece(read)) {
+            WorldPolygon poly;
+            poly.outline = std::move(piece.outline);
+            poly.holes = std::move(piece.holes);
+            out.push_back(std::move(poly));
+        }
+    }
+    return out;
 }
 
 // The distance from a point to a segment.
@@ -298,8 +302,16 @@ RoofInput makeInput(const RoofArea& area, const RoofType& type, double base, con
     input.base = base;
     input.direction = resolveDirection(area.settings, input.section);
     std::vector<WorldPolygon> eaves{input.section};
-    if (type.usesOverhang() && area.settings.overhang > 1e-9) eaves = offsetBy(eaves, area.settings.overhang);
-    if (!above.empty()) eaves = run(Clipper2Lib::ClipType::Difference, toPaths(eaves), toPaths(above));
+    bool moved = false;
+    if (type.usesOverhang() && area.settings.overhang > 1e-9) {
+        eaves = offsetBy(eaves, area.settings.overhang);
+        moved = true;
+    }
+    if (!above.empty()) {
+        eaves = run(Clipper2Lib::ClipType::Difference, toPaths(eaves), toPaths(above));
+        moved = true;
+    }
+    if (moved) eaves = finishedEaves(eaves);
     input.eaves = std::move(eaves);
     return input;
 }
@@ -391,6 +403,11 @@ std::vector<WorldPolygon> keepHalf(const std::vector<WorldPolygon>& polygons, Ve
     const Vec2 p3{p0.x + n.x * reach, p0.y + n.y * reach};
     const Clipper2Lib::PathsD half{toPath({p0, p1, p2, p3})};
     return run(Clipper2Lib::ClipType::Intersection, toPaths(polygons), half);
+}
+
+std::vector<WorldPolygon> tidied(const std::vector<WorldPolygon>& polygons)
+{
+    return finishedEaves(polygons);
 }
 
 RoofFace planeFace(const WorldPolygon& polygon, const Plane& plane, double drop, bool up, RoofPart part)
@@ -711,7 +728,9 @@ FloorRoofs floorRoofs(const Plan& plan, std::size_t floorIndex, const std::vecto
         build.section = area.section;
         if (type) {
             build.type = std::string(type->id());
-            build.faces = type->build(makeInput(area, *type, base, above));
+            for (const RoofFace& face : type->build(makeInput(area, *type, base, above))) {
+                for (RoofFace& piece : tidyRoofFace(face)) build.faces.push_back(std::move(piece));
+            }
         }
         out.roofs.push_back(std::move(build));
     }

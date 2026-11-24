@@ -16,6 +16,7 @@ using plynth::cli::kExitOk;
 using plynth::cli::testing::Outcome;
 using plynth::cli::testing::runChecked;
 using plynth::cli::testing::TempFolder;
+using plynth::cli::testing::utf8;
 
 namespace {
 
@@ -28,12 +29,6 @@ std::string readFile(const std::filesystem::path& file) {
 // The code of a failed answer.
 std::string errorCode(const Outcome& outcome) {
     return outcome.answer.at("error").at("code").get<std::string>();
-}
-
-// A path as UTF-8 text.
-std::string utf8(const std::filesystem::path& path) {
-    const auto text = path.generic_u8string();
-    return std::string(text.begin(), text.end());
 }
 
 // Makes a project with the sample image in a new temp folder and returns its path.
@@ -224,4 +219,22 @@ TEST_CASE("help lists the project and edit commands with their options", "[cli][
     for (const char* wanted : {"project new", "project info", "scale set", "point add", "wall add"}) {
         CHECK(std::ranges::find(names, wanted) != names.end());
     }
+}
+
+TEST_CASE("project set --export changes the export mode and undoes nothing else", "[cli][project]") {
+    TempFolder temp("set-export");
+    const auto folder = makeSampleProject(temp);
+    const auto before = runChecked({"project", "info", "--project", utf8(folder)});
+    CHECK(before.answer.at("result").at("export_mode") == "single");
+
+    const auto set = runChecked({"project", "set", "--export", "grouped", "--project", utf8(folder)});
+    REQUIRE(set.exitCode == kExitOk);
+    CHECK(set.answer.at("result").at("export_mode") == "grouped");
+    CHECK(set.answer.at("result").at("grid_size") == before.answer.at("result").at("grid_size"));
+
+    const auto back = runChecked({"project", "set", "--export", "single", "--project", utf8(folder)});
+    CHECK(back.answer.at("result").at("export_mode") == "single");
+
+    const auto bad = runChecked({"project", "set", "--export", "pairs", "--project", utf8(folder)});
+    CHECK(bad.exitCode != kExitOk);
 }

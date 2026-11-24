@@ -1,5 +1,6 @@
 #include "plynth/core/Document.h"
 
+#include "plynth/core/ExportGroups.h"
 #include "plynth/core/ProjectFiles.h"
 
 #include <system_error>
@@ -21,6 +22,32 @@ fs::path normalizeFolder(const fs::path& folder)
     result = result.lexically_normal();
     if (!result.has_filename() && result.has_parent_path() && result != result.root_path()) result = result.parent_path();
     return result;
+}
+
+// Copies the export options to the folder of a Save As and sets copy to the new file. An options entry already
+// there is refused, so no project takes over the edits of another.
+Status copyExportOptions(const fs::path& from, const fs::path& to, fs::path& copy)
+{
+    const fs::path name = pathFromUtf8(kExportOptionsFileName);
+    const fs::path target = to / name;
+    std::error_code ec;
+    const fs::file_status there = fs::symlink_status(target, ec);
+    if (fs::exists(there)) {
+        return fail(ErrorCode::AlreadyExists, "The folder " + pathToUtf8(to) + " already has an " +
+                                                  std::string(kExportOptionsFileName) + ". Remove it or choose another folder.");
+    }
+    if (there.type() != fs::file_type::not_found) {
+        return fail(ErrorCode::CannotRead, "The folder " + pathToUtf8(to) + " could not be read.");
+    }
+    // Without a folder of its own the bare file name would be looked up in the working folder.
+    if (from.empty()) return {};
+    const fs::path source = from / name;
+    if (fs::status(source, ec).type() == fs::file_type::not_found) return {};
+    fs::create_directories(to, ec);
+    fs::copy_file(source, target, fs::copy_options::none, ec);
+    if (ec) return fail(ErrorCode::CannotWrite, "The export options could not be copied to " + pathToUtf8(target) + ".");
+    copy = target;
+    return {};
 }
 
 // The refusal sent while the document is read only.
@@ -292,8 +319,18 @@ Status Document::saveAs(const fs::path& folder, SaveReport* report)
     if (isProjectFolder(target)) {
         return fail(ErrorCode::AlreadyExists, "The folder " + pathToUtf8(target) + " already holds a project.");
     }
+    const bool newFolder = fs::symlink_status(target, ec).type() == fs::file_type::not_found;
+    fs::path optionsCopy;
+    if (Status s = copyExportOptions(folder_, target, optionsCopy); !s.ok()) {
+        if (newFolder) fs::remove(target, ec);
+        return s;
+    }
     Project copy = project_;
-    if (Status s = createProject(copy, target, folder_); !s.ok()) return s;
+    if (Status s = createProject(copy, target, folder_); !s.ok()) {
+        if (!optionsCopy.empty()) fs::remove(optionsCopy, ec);
+        if (newFolder) fs::remove(target, ec); // only goes when it is empty
+        return s;
+    }
 
     DocumentEvent event;
     event.changes = Change::History | Change::Folder;

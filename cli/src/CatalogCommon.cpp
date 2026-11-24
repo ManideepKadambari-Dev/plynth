@@ -6,9 +6,15 @@
 #include <plynth/core/OpeningShapes.h>
 #include <plynth/core/ProjectFiles.h>
 #include <plynth/core/RoomTypes.h>
+#include <plynth/core/TrimProfiles.h>
 #include <plynth/core/catalog/AssetInfo.h>
+#include <plynth/core/catalog/Importer.h>
+#include <plynth/core/catalog/MaterialImporter.h>
+#include <plynth/core/catalog/MaterialInfo.h>
 
 #include <algorithm>
+#include <cctype>
+#include <cstddef>
 #include <set>
 
 namespace plynth::cli {
@@ -24,6 +30,19 @@ std::optional<LibraryPaths> settingsLibrary() {
     return libraryPaths(*loaded.settings.library);
 }
 
+// True when text starts with a word of two or more letters, digits, _, +, - or . and a colon, the way
+// https: and asset_base_id: do. A drive letter has one letter, so C:\chair.fbx is not one.
+bool startsWithScheme(const std::string& text) {
+    const std::size_t colon = text.find(':');
+    if (colon == std::string::npos || colon < 2 || std::isalpha(static_cast<unsigned char>(text.front())) == 0) {
+        return false;
+    }
+    return std::all_of(text.begin(), text.begin() + static_cast<std::ptrdiff_t>(colon), [](char c) {
+        const auto u = static_cast<unsigned char>(c);
+        return std::isalnum(u) != 0 || c == '_' || c == '+' || c == '-' || c == '.';
+    });
+}
+
 // Refuses an empty Blender path, so an option that was given never falls back to another Blender.
 CLI::Validator notEmptyBlenderPath() {
     return CLI::Validator(
@@ -34,12 +53,11 @@ CLI::Validator notEmptyBlenderPath() {
         "", "NotEmpty");
 }
 
-// Registers a library's shapes once per folder, so a second command in one process does not refuse them again.
+// Registers a library's opening shapes and trim profiles. Each command reads the folder again, so a file added
+// since the last command in the same process is found; ids already registered are skipped.
 void registerShapes(const LibraryPaths& paths) {
-    static std::set<std::filesystem::path> done;
-    if (done.insert(paths.shapes).second) {
-        registerShapeFolder(paths.shapes);
-    }
+    registerShapeFolder(paths.shapes);
+    registerTrimProfileFolder(paths.shapes);
 }
 
 }
@@ -57,10 +75,37 @@ bool checkIdArgument(const std::string& command, const std::string& id, Answer& 
     return true;
 }
 
+void addBlenderOption(CLI::App& sub, BlenderOption& value, const std::string& help) {
+    value.option = sub.add_option("--blender", value.text, help)->type_name("file")->check(notEmptyBlenderPath());
+}
+
 void addBlenderOption(CLI::App& sub, std::string& value) {
     sub.add_option("--blender", value, "The blender.exe to use. Default: the setup check's choice.")
         ->type_name("file")
         ->check(notEmptyBlenderPath());
+}
+
+std::optional<std::filesystem::path> blenderOptionPath(const RunContext& context, const BlenderOption& option) {
+    if (!option.given()) {
+        return std::nullopt;
+    }
+    // An empty path goes to core as it is. Through userPath it would become the current folder.
+    if (option.text.empty()) {
+        return std::filesystem::path();
+    }
+    return userPath(context, option.text);
+}
+
+bool refuseEmptyBlender(const std::string& command, const BlenderOption& option, Answer& failed) {
+    if (!option.given() || !option.text.empty()) {
+        return false;
+    }
+    // Core never inspects or starts anything for an empty path, so this only asks for its sentence.
+    const BlenderChoice choice = chooseBlender(std::filesystem::path(), MachineSettings{});
+    failed = failure(command, choice.status.ok()
+                                  ? fail(ErrorCode::BlenderNotFound, "--blender was given without a path.")
+                                  : choice.status);
+    return true;
 }
 
 std::filesystem::path userPath(const RunContext& context, const std::string& text) {
@@ -145,13 +190,82 @@ bool openMaterialCatalogIfAny(const std::string& command, const RunContext& cont
     return true;
 }
 
-bool makeImportContext(const std::string& command, const RunContext& context, const OpenedCatalog& opened,
-                       const std::string& blenderOption, ImportContext& importContext, Answer& failed) {
-    std::optional<std::filesystem::path> option;
-    if (!blenderOption.empty()) {
-        option = userPath(context, blenderOption);
+bool chooseLibraryFolder(const std::string& command, const RunContext& context, const std::string& libraryOption,
+                         MachineSettings& settings, LibraryPaths& paths, Answer& failed) {
+    const SettingsLoad loaded = loadSettings();
+    if (!loaded.status.ok()) {
+        failed = failure(command, loaded.status);
+        return false;
     }
-    const BlenderChoice choice = chooseBlender(option, opened.settings);
+    settings = loaded.settings;
+    std::optional<std::filesystem::path> option;
+    if (!libraryOption.empty()) {
+        option = userPath(context, libraryOption);
+    }
+    const LibraryChoice choice = chooseLibrary(option, settings);
+    if (!choice.status.ok()) {
+        failed = failure(command, choice.status);
+        return false;
+    }
+    paths = choice.paths;
+    return true;
+}
+
+bool isAddressArgument(const RunContext& context, const std::string& text) {
+    if (startsWithScheme(text)) {
+        return true;
+    }
+    ImportSource source;
+    source.url = text;
+    if (pickImporter(source) == nullptr && pickMaterialImporter(source) == nullptr) {
+        return false;
+    }
+    std::error_code ignored;
+    return !std::filesystem::exists(userPath(context, text), ignored);
+}
+
+bool parseOptionPairs(const std::string& command, const std::vector<std::string>& pairs, nlohmann::ordered_json& out,
+                      Answer& failed) {
+    out = nlohmann::ordered_json::object();
+    for (const std::string& pair : pairs) {
+        const std::size_t equals = pair.find('=');
+        const std::string key = pair.substr(0, equals);
+        const bool badKey = equals == std::string::npos || key.empty() || key.front() == '.' || key.back() == '.' ||
+                            key.find("..") != std::string::npos;
+        if (badKey) {
+            failed = failure(command, fail(ErrorCode::InvalidValue, "--option takes key=value, for example "
+                                                                    "quality=high. Got \"" + pair + "\"."));
+            return false;
+        }
+        const std::string text = pair.substr(equals + 1);
+        nlohmann::ordered_json value = nlohmann::ordered_json::parse(text, nullptr, false);
+        if (value.is_discarded()) {
+            value = text;
+        }
+        nlohmann::ordered_json* node = &out;
+        std::size_t start = 0;
+        while (true) {
+            const std::size_t dot = key.find('.', start);
+            const std::string part = key.substr(start, dot == std::string::npos ? std::string::npos : dot - start);
+            if (dot == std::string::npos) {
+                (*node)[part] = value;
+                break;
+            }
+            if (node->contains(part) && !(*node)[part].is_object()) {
+                failed = failure(command, fail(ErrorCode::InvalidValue, "--option " + key + " clashes with another "
+                                                                         "--option for the same key."));
+                return false;
+            }
+            node = &(*node)[part];
+            start = dot + 1;
+        }
+    }
+    return true;
+}
+
+bool makeImportContext(const std::string& command, const RunContext& context, const OpenedCatalog& opened,
+                       const BlenderOption& blenderOption, ImportContext& importContext, Answer& failed) {
+    const BlenderChoice choice = chooseBlender(blenderOptionPath(context, blenderOption), opened.settings);
     if (!choice.status.ok()) {
         failed = failure(command, choice.status);
         return false;
@@ -163,7 +277,7 @@ bool makeImportContext(const std::string& command, const RunContext& context, co
 }
 
 Json rescanAndRefresh(const std::string& command, const RunContext& context, OpenedCatalog& opened,
-                      const std::string& blenderOption, bool noBlender) {
+                      const BlenderOption& blenderOption, bool noBlender) {
     const RescanReport report = opened.catalog->rescan();
     std::vector<std::string> refreshed;
     Json refreshFailed = Json::array();
@@ -188,6 +302,30 @@ Json rescanAndRefresh(const std::string& command, const RunContext& context, Ope
         }
     }
     return rescanEntry(report, refreshed, refreshFailed);
+}
+
+void registerShapesOf(const LibraryPaths& paths) {
+    registerShapes(paths);
+}
+
+bool registerShapesFor(const std::string& command, const RunContext& context, const std::string& libraryOption,
+                       Answer& failed) {
+    if (libraryOption.empty()) {
+        registerLibraryShapes();
+        return true;
+    }
+    const SettingsLoad loaded = loadSettings();
+    if (!loaded.status.ok()) {
+        failed = failure(command, loaded.status);
+        return false;
+    }
+    const LibraryChoice choice = chooseLibrary(userPath(context, libraryOption), loaded.settings);
+    if (!choice.status.ok()) {
+        failed = failure(command, choice.status);
+        return false;
+    }
+    registerShapes(choice.paths);
+    return true;
 }
 
 void registerLibraryShapes() {
@@ -232,6 +370,8 @@ Json assetEntry(const AssetRecord& record) {
     entry["categories"] = record.categories;
     entry["tags"] = record.tags;
     entry["license"] = record.license;
+    const AssetInfoRead info = readAssetInfo(record.folder / pathFromUtf8(kAssetInfoFileName), record.id);
+    entry["author"] = info.status.ok() && !info.info.author.empty() ? Json(info.info.author) : Json(nullptr);
     entry["source"] = std::move(source);
     entry["size"] = std::move(size);
     entry["measured"] = isMeasured(record.size);
@@ -273,6 +413,8 @@ Json materialEntry(const MaterialRecord& record) {
     entry["groups"] = record.groups;
     entry["tags"] = record.tags;
     entry["license"] = record.license;
+    const MaterialInfoRead info = readMaterialInfo(record.folder / pathFromUtf8(kMaterialInfoFileName), record.id);
+    entry["author"] = info.status.ok() && !info.info.author.empty() ? Json(info.info.author) : Json(nullptr);
     entry["source"] = std::move(source);
     entry["tile_size"] = std::move(tile);
     entry["state"] = std::string(materialStateName(record.state));

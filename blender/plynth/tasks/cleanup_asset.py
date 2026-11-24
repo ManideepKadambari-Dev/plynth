@@ -56,6 +56,7 @@ def run(ctx):
         "missing_textures": ctx.state["missing_textures"],
         "material_maps": ctx.state.get("material_maps", []),
         "thumbnail": ctx.state["thumbnail"],
+        "supports": ctx.state.get("supports", []),
     }
 
 

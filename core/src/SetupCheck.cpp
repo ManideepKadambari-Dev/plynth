@@ -307,7 +307,7 @@ std::string_view checkStateName(CheckState state)
 const std::vector<KnownAddon>& knownAddons()
 {
     static const std::vector<KnownAddon> addons = {
-        {kCheckBlenderKit, "BlenderKit", {"blenderkit"}, "importing assets from BlenderKit", "https://www.blenderkit.com/", true},
+        {kCheckBlenderKit, "BlenderKit", {"blenderkit"}, "importing assets from BlenderKit", "https://www.blendkit.com/", true},
         {kCheckArchimesh, "Archimesh", {"archimesh"}, "stairs, doors, windows and columns generators",
          "https://extensions.blender.org/add-ons/archimesh/", false},
         {kCheckHomeBuilder, "Home Builder", {"home_builder", "home_builder_5"}, "cabinets, countertops and moldings generators", "", false},
@@ -347,6 +347,8 @@ SetupReport runSetupCheck(const MachineSettings& settings, const SetupCheckOptio
     if (!search.chosen) search.chosen = settings.blender;
     fs::path bound;
     std::vector<BlenderSource> boundSources;
+    // An option that is an empty path was still given, so it never turns into a search.
+    const bool noPathGiven = options.blender && options.blender->empty();
     if (options.blender) {
         bound = *options.blender;
     } else if (search.environment) {
@@ -355,10 +357,10 @@ SetupReport runSetupCheck(const MachineSettings& settings, const SetupCheckOptio
     }
     fs::path boundMissing;
     std::error_code boundEc;
-    if (bound.empty()) {
+    if (bound.empty() && !noPathGiven) {
         report.blenderInstalls = findBlenderInstalls(search, stop);
         report.selectedBlender = preferredBlender(report.blenderInstalls, settings.blender);
-    } else if (fs::is_regular_file(bound, boundEc)) {
+    } else if (!bound.empty() && fs::is_regular_file(bound, boundEc)) {
         BlenderInstall install = inspectBlender(bound, stop);
         install.sources = boundSources;
         report.blenderInstalls.push_back(std::move(install));
@@ -405,7 +407,9 @@ SetupReport runSetupCheck(const MachineSettings& settings, const SetupCheckOptio
         blender.state = CheckState::Missing;
         blender.link = std::string(kBlenderDownloadUrl);
         if (report.blenderInstalls.empty()) {
-            if (!boundMissing.empty()) {
+            if (noPathGiven) {
+                blender.detail = "No path was given for Blender. No other Blender was looked for.";
+            } else if (!boundMissing.empty()) {
                 blender.detail = "The Blender " + pathToUtf8(boundMissing) + " does not exist. No other Blender was looked for.";
             } else {
                 blender.detail = settings.blender ? "The Blender " + pathToUtf8(*settings.blender) + " does not exist and no other Blender was found."

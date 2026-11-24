@@ -18,6 +18,7 @@
 #include <optional>
 
 class QAction;
+class QDialog;
 class QCloseEvent;
 class QDragEnterEvent;
 class QDropEvent;
@@ -41,12 +42,17 @@ class FloorFocus;
 class FloorTabs;
 class ExportController;
 class ExportPanel;
+class GuideHost;
 class HomeScreen;
 class ImportQueue;
 class ImportQueueView;
+class IntegrationsPanel;
+class FabImportDialog;
+class StoreImports;
 class LibraryHost;
 class LibraryWatcher;
 class SetupCheckDialog;
+class VariationsDialog;
 class ProjectWatcher;
 class TerminalDock;
 class ReadOnlyBanner;
@@ -121,6 +127,9 @@ public:
     QImage grabPicture();
     // For checks only: opens the setup check and keeps it open.
     void showSetupCheck(const QString& scrollToTitle = QString());
+    // For checks only: shows the pack dialog ("pack", from a check that writes nothing) or the unpack dialog
+    // ("unpack") without waiting, so a screenshot includes it.
+    void showPackDialogForCheck(const QString& kind);
     // For checks only: true when no setup check is open, or its check has finished.
     bool setupPictureReady();
     // For checks only: queues an import of a file or folder.
@@ -129,10 +138,21 @@ public:
     bool importPictureReady() const;
     // Opens the setup check at start when this is the first run, after an update, or a required item blocks.
     void openSetupCheckIfNeeded();
+    // Starts the plan view tour once on the first run (no settings file and the tour not done), after the setup
+    // check closes, and saves that it was shown. pretend applies the rule as if there were no settings file.
+    void runFirstRun(bool pretend);
 
     // For checks only: opens the furniture picker at a place on the plan (metres) and hovers an asset when
     // an id is given. False when there is no scale or no library.
     bool showFurniturePicker(double x, double y, const QString& hoverAsset);
+
+    // The guided tour, What is this? and the Help window.
+    GuideHost* guide() const { return guide_; }
+    // Shows a screen by its tour name: home, plan, wall, build, export, assets or materials. Selection and
+    // the project are left as they are. False for an unknown name.
+    bool showScreenByName(const QString& screen);
+    // The tour name of the screen shown now.
+    QString screenName() const;
 
     // Shows the home screen over the work area. A project that is open stays open behind it.
     void showHome();
@@ -141,6 +161,17 @@ public:
     // Closes the project after the save question and shows the home screen.
     void closeProject();
 
+    // For checks only: shows the Integrations tab.
+    void showIntegrationsTab();
+    // For checks only: fills the BlenderKit address field of the Integrations tab.
+    void setBlenderKitAddress(const QString& text);
+    // For checks only: opens the Fab import dialog for a zip without waiting for it.
+    void showFabImport(const QString& zip);
+    // For checks only: does what an integration's import button does once this file is chosen. Assets when
+    // the integration imports assets, otherwise materials.
+    void importIntegrationFile(const QString& integrationId, const QString& file);
+    // For checks only: true when the Integrations tab was not asked for, or its check has ended.
+    bool integrationsPictureReady() const;
     // For checks only: shows the Assets tab.
     void showAssetsTab();
     // For checks only: selects an asset in the Assets tab. False when it is not listed.
@@ -150,8 +181,15 @@ public:
 
     // Shows the material import screen over the work area.
     void showMaterialImport();
+    // Shows the Integrations tab and puts the focus in the BlenderKit address field.
+    void importFromBlenderKit();
     // Queues every folder of samples/materials, skipping ids already in the library.
     void addSampleMaterials();
+    // Adds every sample model and material with license cc0 and copies the sample shapes and generators, as
+    // "plynth samples add" does. Items the library has already are skipped.
+    void addSampleItems();
+    // Copies a sample project into the projects folder and opens the copy. False when it cannot.
+    bool openSampleProject(const QString& id);
     // For checks only: takes a material of an asset into the materials catalog, as its button does.
     void addAssetMaterialForCheck(const QString& assetId, const QString& materialName) { addMaterialFromAsset(assetId, materialName); }
     // For checks only: adds a path to the import screen list.
@@ -184,6 +222,15 @@ public:
     void startExport(bool write, bool force);
     // For checks only: shows the Export tab.
     void showExportTab();
+    // Opens Build > Make variations. For checks it opens without waiting, so a screenshot shows it.
+    void showVariationsDialog(bool wait = true);
+    // For checks only: places a light marker of a kind ("ceiling", "wall" or "standing") on the shown floor at a
+    // place in metres, as the Light tool does, and selects it. False when it was refused.
+    bool addLightForCheck(double x, double y, const QString& kind);
+    // For checks only: opens the door and window picker of the selected opening, hovering an asset when given.
+    bool showOpeningAssetPicker(const QString& hoverAsset);
+    // For checks only: shows the project page of Properties scrolled to the Trim and Variation groups.
+    void showProjectFinish();
     // For checks only: shows the 3D page ("3d") or the plan ("plan").
     void showView(const QString& name);
     // For checks only: sets the camera of the 3D page: "three-quarter" or "top".
@@ -206,7 +253,6 @@ private:
     void toggleMaximized();
     void recordRecent();
     void openRecent(const QString& folder);
-    void showAbout();
     void buildCatalogMenu();
     void openSetupCheck();
     void importDialog();
@@ -250,6 +296,9 @@ private:
     void showProblem(const QString& objectId);
     void openBuildFolder();
     void openInBlender();
+    void save3dPicture();
+    void packProjectDialog();
+    void unpackProjectDialog();
     bool buildBlocked(QString* reason) const;
     QString exportNotice(bool* offerBuild) const;
     void exportFinished(const plynth::ExportReport& report);
@@ -330,6 +379,8 @@ private:
     QAction* reportAction_ = nullptr;
     QAction* buildFolderAction_ = nullptr;
     QAction* openBlenderAction_ = nullptr;
+    QAction* save3dPictureAction_ = nullptr;
+    QPointer<QDialog> checkPackDialog_;
     std::optional<plynth::BuildReport> report_;
     QTimer* buildUiTimer_ = nullptr;
     QString buildProgressText_;
@@ -337,13 +388,17 @@ private:
     QAction* fitAction_ = nullptr;
     QWidget* work_ = nullptr;
     HomeScreen* home_ = nullptr;
+    GuideHost* guide_ = nullptr;
     QAction* homeAction_ = nullptr;
     QAction* closeAction_ = nullptr;
     QAction* importAction_ = nullptr;
     QAction* rescanAction_ = nullptr;
     QAction* rescanMaterialsAction_ = nullptr;
     QAction* importMaterialsAction_ = nullptr;
+    QAction* importBlenderKitAction_ = nullptr;
+    QAction* importFabAction_ = nullptr;
     QAction* addSamplesAction_ = nullptr;
+    QAction* addSampleItemsAction_ = nullptr;
     QAction* addShapesAction_ = nullptr;
     QAction* reloadGeneratorsAction_ = nullptr;
     QAction* checkAddonsAction_ = nullptr;
@@ -353,6 +408,12 @@ private:
     ImportQueueView* queueView_ = nullptr;
     LibraryWatcher* libraryWatcher_ = nullptr;
     QPointer<SetupCheckDialog> setupDialog_;
+    QPointer<VariationsDialog> variationsDialog_;
+    QAction* variationsAction_ = nullptr;
+    IntegrationsPanel* integrations_ = nullptr;
+    StoreImports* storeImports_ = nullptr;
+    QPointer<FabImportDialog> fabDialog_;
+    bool integrationsAsked_ = false;
     bool importAsked_ = false;
     QString setupScrollTo_;
     QSplitter* splitter_ = nullptr;

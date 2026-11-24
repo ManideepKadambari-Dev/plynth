@@ -113,7 +113,7 @@ While the terminal or a text box has focus, the keys go there first, so click th
 | Ctrl+Shift+M | Show the Materials tab |
 | Ctrl+I | Import model files into the library |
 
-Rescan library, Import materials, Add the sample materials, Add the sample shapes, Rescan materials, Room types and categories, Open library folder and Help, Setup check have no shortcut. They are in the Catalog menu and the Help menu.
+Rescan library, Import materials, Add the sample materials, Add the sample shapes, Rescan materials, Room types and categories, Open library folder, the generator entries (Check add-ons, Open the generators folder, Reload generators and Add the sample generators) and Help, Setup check have no shortcut. They are in the Catalog menu and the Help menu.
 
 While you type in the search box or edit a name or the tags of an asset, letters go into the box and do not switch tools. Press Enter to save a name or the tags.
 
@@ -255,3 +255,22 @@ plynth --image plan.png
 The first opens a project folder. The second starts a new project with the image already loaded. With both, the image is set on the opened project as an unsaved change. To save a picture of the window, add `--screenshot out.png --size 1280x720`.
 
 The command line can also create and edit projects without opening the window. See the command line guide.
+
+## Help, tours and What is this?
+
+| Shortcut | Action |
+|---|---|
+| F1 | Open the Help window |
+| Shift+F1 | Turn What is this? on or off |
+| Alt+Left | In the Help window, go back to the page before |
+| Alt+Right | In the Help window, go forward again |
+
+While a guided tour is shown:
+
+| Key | Action |
+|---|---|
+| Right or Enter | Next step. On the last step it ends the tour |
+| Left | The step before |
+| Esc | End the tour |
+
+While What is this? is on, a click on any control explains it and does not run it. Esc turns it off. The guided tours, Setup check and About Plynth are in the Help menu and have no key.

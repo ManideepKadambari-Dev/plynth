@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "urn:plynth:schema:blender-job:1",
   "title": "Plynth Blender job, version 1",
-  "description": "Written by Plynth as job.json in a work folder and passed to Blender with: blender --background [--factory-startup] -noaudio --python-exit-code 3 --python <scripts>/plynth_worker.py -- --job <work>/job.json. The worker runs the task and writes the result file named by result_file (schema blender-result). While it runs it prints progress lines of the form PLYNTH:{\"progress\": {\"step\": \"...\", \"index\": 1, \"count\": 9, \"message\": \"...\"}}. Paths are absolute with forward slashes. Lengths are metres.",
+  "description": "Written by Plynth as job.json in a work folder and passed to Blender with: blender --background [--factory-startup] --disable-autoexec -noaudio --python-exit-code 3 --python <scripts>/plynth_worker.py -- --job <work>/job.json. The worker runs the task and writes the result file named by result_file (schema blender-result). While it runs it prints progress lines of the form PLYNTH:{\"progress\": {\"step\": \"...\", \"index\": 1, \"count\": 9, \"message\": \"...\"}}. Paths are absolute with forward slashes. Lengths are metres.",
   "type": "object",
   "required": ["format", "version", "task", "job_id", "result_file", "params"],
   "additionalProperties": false,
@@ -43,6 +43,27 @@
       }
     },
     {
+      "if": { "properties": { "task": { "const": "blenderkit_fetch" } } },
+      "then": {
+        "properties": {
+          "params": {
+            "description": "Download one BlenderKit item through the BlenderKit add-on the user installed and signed in to (core/include/plynth/core/catalog/BlenderKit.h). Run without --factory-startup and with --disable-autoexec. Nothing it prints is kept, Plynth only knows its steps by id. The worker never calls a BlenderKit web address itself and never reads out the add-on's key.",
+            "type": "object",
+            "required": ["asset_base_id", "kind", "resolution", "output_folder", "private_folder", "wait_seconds"],
+            "additionalProperties": false,
+            "properties": {
+              "asset_base_id": { "type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" },
+              "kind": { "description": "What the import expects. Another kind fails with wrong_asset_kind.", "enum": ["model", "material"] },
+              "resolution": { "description": "Texture resolution, set in the add-on's preference in memory. The store gives the nearest one it has.", "enum": ["0.5k", "1k", "2k", "4k", "8k", "original"] },
+              "output_folder": { "description": "An empty folder inside private_folder. The worker copies into it the .blend the add-on names for the id and the textures folders beside it, out of private_folder only. Plynth moves it into the import's work folder afterwards. Never another item's file, a config folder or preferences.json.", "type": "string", "minLength": 1 },
+              "private_folder": { "description": "Plynth's own fetch folder (core/include/plynth/core/catalog/StoreFetch.h): labelled low integrity, emptied before and after, at most 95 bytes in UTF-8. The add-on's global folder for this run and the only place Blender, the add-on and its helper may write. The worker refuses a job without it.", "type": "string", "pattern": "^([A-Za-z]:/|/)" },
+              "wait_seconds": { "description": "How long to wait for the download.", "type": "integer", "minimum": 60, "maximum": 3600 }
+            }
+          }
+        }
+      }
+    },
+    {
       "if": { "properties": { "task": { "const": "cleanup_asset" } } },
       "then": {
         "properties": {
@@ -57,7 +78,7 @@
                 "additionalProperties": false,
                 "properties": {
                   "file": { "type": "string", "minLength": 1 },
-                  "format": { "description": "An importer of the worker's importer registry (blender/plynth/importers/).", "enum": ["blend", "fbx", "obj", "gltf", "zip"] }
+                  "format": { "description": "An importer of the worker's importer registry (blender/plynth/importers/). fab: file is a Fab source file (schema/fab-source.schema.json).", "enum": ["blend", "fbx", "obj", "gltf", "zip", "fab"] }
                 }
               },
               "asset_id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 64 },
@@ -240,7 +261,7 @@
               "output_folder": { "description": "An empty staging folder, export/.staging. The worker writes the group files and textures_folder into it.", "type": "string", "minLength": 1 },
               "textures_folder": { "const": "Textures" },
               "groups": {
-                "description": "The files to write, from the project's exporter. A UCX_ collision mesh goes into the file of the object it belongs to.",
+                "description": "The files to write, from the project's exporter. A UCX_ collision mesh goes into the file of the object it belongs to. An object goes to the group whose members name its kind and id, else the group whose members name its kind with a null id, else the first group without members whose kinds and ids take it, else the group with rest (core/include/plynth/core/Exporter.h). When any group has rest, a group with no members, kinds or ids takes nothing unless it is the rest group; when none has rest, such a group takes every object, as in a single export. A UCX_ mesh without its object is placed like an object with no kind and no id. Objects of kind kit never go into a group. A group that gets no object is not written.",
                 "type": "array",
                 "minItems": 1,
                 "items": {
@@ -250,15 +271,49 @@
                   "properties": {
                     "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
                     "file": { "type": "string", "pattern": "^[A-Za-z0-9_-]+\\.fbx$" },
-                    "kinds": { "description": "plynth_kind values the group takes; empty takes every kind.", "type": "array", "items": { "type": "string", "minLength": 1 } },
-                    "ids": { "description": "plynth_id values the group takes; empty takes every id.", "type": "array", "items": { "$ref": "#/definitions/planId" } }
+                    "kinds": { "description": "plynth_kind values the group takes; empty does not narrow by kind. Not used when members is not empty.", "type": "array", "items": { "type": "string", "minLength": 1 } },
+                    "ids": { "description": "plynth_id values the group takes; empty does not narrow by id. Not used when members is not empty.", "type": "array", "items": { "$ref": "#/definitions/planId" } },
+                    "name": { "description": "The group's name as the user sees it.", "type": "string", "minLength": 1, "maxLength": 64 },
+                    "members": { "description": "The objects the group takes. Missing or empty: kinds and ids decide. With those empty too, the group takes everything when no group has rest, and otherwise nothing except what rest gives it.", "type": "array", "items": { "$ref": "#/definitions/exportMember" } },
+                    "rest": { "description": "Takes every object no other group takes. At most one group has it. Missing means false.", "type": "boolean" }
                   }
                 }
               },
+              "kit": {
+                "description": "The modular kit to make and write (core/include/plynth/core/Kit.h), or null. Missing means null.",
+                "oneOf": [
+                  { "type": "null" },
+                  {
+                    "type": "object",
+                    "required": ["file", "fill_openings", "bevel", "pieces"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "file": { "type": "string", "pattern": "^[A-Za-z0-9_-]+_Kit\\.fbx$" },
+                      "fill_openings": { "description": "Put the door or window into the pieces listed in their fills.", "type": "boolean" },
+                      "bevel": {
+                        "description": "The build's bevel. Edges of faces with kit_cut are not bevelled.",
+                        "type": "object",
+                        "required": ["width", "segments"],
+                        "additionalProperties": false,
+                        "properties": {
+                          "width": { "type": "number", "minimum": 0 },
+                          "segments": { "type": "integer", "minimum": 1 }
+                        }
+                      },
+                      "pieces": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/kitPiece" } }
+                    }
+                  }
+                ]
+              },
               "materials": {
-                "description": "The materials list of build/materials.json (schema build-materials), so textures are named after their catalog material. Empty when the file is missing.",
+                "description": "The materials list of build/materials.json (schema build-materials), so textures are named after their catalog material. Empty when the file is missing. tile_size is the one the build used, from that file. Only for a catalog material without one there does core add the library's, when it can look it up. The kit's UVs are divided by it.",
                 "type": "array",
-                "items": { "type": "object" }
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "tile_size": { "$ref": "#/definitions/tileSize" }
+                  }
+                }
               },
               "expected_bounds": {
                 "description": "World bounds of every wall solid, worked out by core from the plan, for the scale checks. null when the plan has no walls.",
@@ -321,8 +376,8 @@
                 "required": ["kind", "path", "material", "maps", "values", "normal"],
                 "additionalProperties": false,
                 "properties": {
-                  "kind": { "description": "A source of the worker's material source registry (blender/plynth/materials/sources/).", "enum": ["texture_set", "blend"] },
-                  "path": { "description": "texture_set: a folder, a zip or one image file. blend: a .blend file, opened and never saved.", "type": "string", "minLength": 1 },
+                  "kind": { "description": "A source of the worker's material source registry (blender/plynth/materials/sources/).", "enum": ["texture_set", "blend", "fab"] },
+                  "path": { "description": "texture_set: a folder, a zip or one image file. blend: a .blend file, opened and never saved. fab: a Fab source file (schema/fab-source.schema.json) of kind material.", "type": "string", "minLength": 1 },
                   "material": { "description": "blend: the material's name, or null for the only one. Always null for texture_set.", "type": ["string", "null"], "minLength": 1 },
                   "maps": {
                     "description": "Absolute image files the user picked for channels. They win over names and material.json.",
@@ -362,6 +417,229 @@
     }
   ],
   "definitions": {
+    "finishVec3": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "number"
+      }
+    },
+    "finishOpeningAsset": {
+      "type": "object",
+      "required": [
+        "id",
+        "location",
+        "rotation_z",
+        "scale"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/catalogId"
+        },
+        "location": {
+          "$ref": "#/definitions/finishVec3"
+        },
+        "rotation_z": {
+          "description": "Radians about Z.",
+          "type": "number"
+        },
+        "scale": {
+          "description": "Along the asset's own axes. A negative x mirrors it.",
+          "$ref": "#/definitions/finishVec3"
+        }
+      }
+    },
+    "finishSweep": {
+      "type": "object",
+      "required": [
+        "closed",
+        "sections"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "closed": {
+          "type": "boolean"
+        },
+        "sections": {
+          "description": "Rings of world points, each with the same count. A post is a sweep of two sections.",
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "array",
+            "minItems": 3,
+            "items": {
+              "$ref": "#/definitions/finishVec3"
+            }
+          }
+        }
+      }
+    },
+    "finishTrim": {
+      "type": "object",
+      "required": [
+        "kind",
+        "plan_id",
+        "object",
+        "plynth_kind",
+        "slot",
+        "sweeps"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "skirting",
+            "cornice",
+            "casing",
+            "sill",
+            "railing",
+            "guard"
+          ]
+        },
+        "plan_id": {
+          "$ref": "#/definitions/planId"
+        },
+        "object": {
+          "type": "string",
+          "pattern": "^SM_[A-Za-z0-9_-]+$"
+        },
+        "plynth_kind": {
+          "enum": [
+            "trim",
+            "railing",
+            "guard"
+          ]
+        },
+        "slot": {
+          "type": "string",
+          "minLength": 1
+        },
+        "material": {
+          "oneOf": [
+            {
+              "$ref": "#/definitions/catalogId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sweeps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/finishSweep"
+          }
+        }
+      }
+    },
+    "finishSize": {
+      "type": "object",
+      "required": [
+        "width",
+        "depth",
+        "height"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "depth": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "height": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      }
+    },
+    "finishDressing": {
+      "type": "object",
+      "required": [
+        "id",
+        "room",
+        "rule",
+        "host",
+        "asset",
+        "location",
+        "rotation_z",
+        "size"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+        },
+        "room": {
+          "$ref": "#/definitions/planId"
+        },
+        "rule": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "host": {
+          "$ref": "#/definitions/planId"
+        },
+        "asset": {
+          "$ref": "#/definitions/catalogId"
+        },
+        "location": {
+          "$ref": "#/definitions/finishVec3"
+        },
+        "rotation_z": {
+          "type": "number"
+        },
+        "size": {
+          "$ref": "#/definitions/finishSize"
+        }
+      }
+    },
+    "finishLight": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "location",
+        "power",
+        "color"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/planId"
+        },
+        "kind": {
+          "enum": [
+            "ceiling",
+            "wall",
+            "standing"
+          ]
+        },
+        "location": {
+          "$ref": "#/definitions/finishVec3"
+        },
+        "power": {
+          "description": "Watts.",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "color": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      }
+    },
     "thumbnail": {
       "description": "Assets: three quarter view from the front right, 25 degrees up, 50 mm lens, framed with an 8 percent margin. Materials: a sphere 1 m across and a flat tile 1 m square side by side at real world size. Both: neutral studio lights, a plain background of this color, Standard view transform, square 8 bit RGB PNG, rendered with Eevee. There is no other engine.",
       "type": "object",
@@ -410,7 +688,7 @@
     },
     "surfaceName": {
       "description": "The neutral surface whose look a slot gets when it has no material.",
-      "enum": ["Wall_Inside", "Wall_Outside", "Wall_Top", "Reveal", "Threshold", "Floor", "Ceiling", "Door", "Frame", "Glass", "Handle", "Stair", "Roof", "Flat_Roof", "Soffit", "Fascia", "Generated"]
+      "enum": ["Wall_Inside", "Wall_Outside", "Wall_Top", "Reveal", "Threshold", "Floor", "Ceiling", "Door", "Frame", "Glass", "Handle", "Stair", "Roof", "Flat_Roof", "Soffit", "Fascia", "Generated", "Trim", "Railing"]
     },
     "collisionShape": {
       "description": "Convex pieces and hulls for one built object (core/include/plynth/core/Collision.h). Each becomes a closed convex mesh UCX_<object name>_<NN>, numbered from 00 over the pieces and then the hulls.",
@@ -424,7 +702,7 @@
           "required": ["kind", "id"],
           "additionalProperties": false,
           "properties": {
-            "kind": { "enum": ["walls", "floor", "ceiling", "thresholds", "slab", "stair", "roof"] },
+            "kind": { "enum": ["walls", "floor", "ceiling", "thresholds", "slab", "stair", "roof", "railing", "guard"] },
             "id": { "$ref": "#/definitions/planId" }
           }
         },
@@ -464,6 +742,61 @@
     },
     "unit": { "type": "number", "minimum": 0, "maximum": 1 },
     "planId": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]*$" },
+    "exportMember": {
+      "description": "One built object an export group takes: its plynth_kind and plynth_id. A null id takes every object of the kind that no exact member takes.",
+      "type": "object",
+      "required": ["kind", "id"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "id": { "oneOf": [{ "$ref": "#/definitions/planId" }, { "type": "null" }] }
+      }
+    },
+    "kitPiece": {
+      "description": "One unique piece of the modular kit in the one frame stored for it (core/include/plynth/core/Kit.h rules 8 and 9): origin at floor level, X along a wall in either direction (for a curved piece along its chord, world X for a corner with no plan point), Y a quarter turn anticlockwise from X seen from above, Z up. The origin is not always at the first end of the piece along its wall.",
+      "type": "object",
+      "required": ["id", "mesh", "kind", "wall_solids", "openings", "fills", "collision"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^(Wall|Corner|Opening|Curved)_[0-9]+x[0-9]+x[0-9]+_[0-9a-f]{6}$" },
+        "mesh": { "description": "SM_Kit_ and the id.", "type": "string", "pattern": "^SM_Kit_[A-Za-z0-9_]+$" },
+        "kind": { "enum": ["wall", "corner", "opening", "curved"] },
+        "wall_solids": {
+          "description": "The piece's solids, raised from z 0, in the form of a build floor's wall_solids.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["height", "top_material", "top_slot", "outline", "holes"],
+            "additionalProperties": false,
+            "properties": {
+              "height": { "type": "number", "exclusiveMinimum": 0 },
+              "top_material": { "$ref": "#/definitions/materialRef" },
+              "top_slot": { "$ref": "#/definitions/slotRef" },
+              "outline": { "$ref": "#/definitions/wallRing" },
+              "holes": { "type": "array", "items": { "$ref": "#/definitions/wallRing" } }
+            }
+          }
+        },
+        "openings": { "description": "Every opening whose cut reaches into the piece, in the piece's frame, with an empty threshold.", "type": "array", "items": { "$ref": "#/definitions/buildOpening" } },
+        "fills": { "description": "Ids of the openings whose door or window this piece gets.", "type": "array", "items": { "$ref": "#/definitions/planId" } },
+        "collision": {
+          "description": "Convex prisms in the piece's frame, named UCX_<mesh>_<NN> in this order.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["outline", "bottom", "top"],
+            "additionalProperties": false,
+            "properties": {
+              "outline": { "description": "Convex, anticlockwise seen from above.", "$ref": "#/definitions/points" },
+              "bottom": { "type": "number" },
+              "top": { "type": "number" }
+            }
+          }
+        }
+      }
+    },
     "xy": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
     "xyz": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
     "points": { "type": "array", "minItems": 3, "items": { "$ref": "#/definitions/xy" } },
@@ -492,11 +825,12 @@
             "required": ["wall", "side", "room", "material", "slot"],
             "additionalProperties": false,
             "properties": {
-              "wall": { "$ref": "#/definitions/planId" },
+              "wall": { "description": "The wall the face belongs to. null only on a kit_cut face, which lies between two pieces.", "oneOf": [{ "$ref": "#/definitions/planId" }, { "type": "null" }] },
               "side": { "description": "The face of the wall this edge belongs to, or null for an end face across the wall.", "enum": ["left", "right", null] },
               "room": { "description": "The room the face looks into, or null when it looks into no room.", "oneOf": [{ "$ref": "#/definitions/planId" }, { "type": "null" }] },
               "material": { "description": "The material of the face: the wall's inside material for its room, or its outside one when room is null.", "$ref": "#/definitions/materialRef" },
-              "slot": { "description": "<Room label>_Wall when room is set, Exterior_Wall otherwise (or the same with the material added, see MaterialSlots.h).", "$ref": "#/definitions/slotRef" }
+              "slot": { "description": "<Room label>_Wall when room is set, Exterior_Wall otherwise (or the same with the material added, see MaterialSlots.h).", "$ref": "#/definitions/slotRef" },
+              "kit_cut": { "description": "Kit pieces only: the face lies on a cut between two pieces; side and room are null and its edges are not bevelled. Missing means false.", "type": "boolean" }
             }
           }
         }
@@ -704,6 +1038,9 @@
           "type": "array",
           "items": { "$ref": "#/definitions/collisionShape" }
         },
+        "trim": { "description": "Skirting boards, cornices, casings, sills, railings and guards, as sweeps. Missing when there is none.", "type": "array", "items": { "$ref": "#/definitions/finishTrim" } },
+        "dressing": { "description": "Set dressing props, instances of assets of the assets list. Missing when there is none.", "type": "array", "items": { "$ref": "#/definitions/finishDressing" } },
+        "lights": { "description": "Point lights at the light markers. Missing when there is none.", "type": "array", "items": { "$ref": "#/definitions/finishLight" } },
         "generator_items": {
           "description": "Items that run a generator of the job's generators list, in the floor's item order. Empty when there are none.",
           "type": "array",
@@ -764,6 +1101,7 @@
         "hinge": { "enum": ["start", "end"] },
         "swing": { "enum": ["left", "right"] },
         "frame": { "type": ["string", "null"] },
+        "asset": { "description": "The catalog door or window fitted into the opening, when there is one. The built fill is then left out.", "$ref": "#/definitions/finishOpeningAsset" },
         "centre": { "$ref": "#/definitions/xy" },
         "tangent": { "$ref": "#/definitions/xy" },
         "right": { "$ref": "#/definitions/xy" },

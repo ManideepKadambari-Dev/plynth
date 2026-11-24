@@ -29,6 +29,10 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/app/terminal/CMakeLists.txt")
     add_subdirectory(app/terminal)
 endif()
 
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/app/guide/CMakeLists.txt")
+    add_subdirectory(app/guide)
+endif()
+
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/app/CMakeLists.txt")
     add_subdirectory(app)
 endif()
