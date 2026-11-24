@@ -843,6 +843,8 @@ BlenderJobRun runBlenderJob(const fs::path& blender, const Json& job, const fs::
         // At low integrity Windows refuses every write outside the fetch folder, whatever the add-ons do.
         spec.lowIntegrity = true;
         for (const std::string_view name : kFetchRemovedVariables) spec.removeEnvironment.emplace_back(name);
+        // Python looks at TMPDIR before TEMP, so an inherited TMPDIR would point its temp folder elsewhere.
+        spec.removeEnvironment.emplace_back("TMPDIR");
         spec.environment.emplace_back("TEMP", pathToUtf8(temp));
         spec.environment.emplace_back("TMP", pathToUtf8(temp));
         spec.environment.emplace_back(std::string(kFetchPrivateVariable), pathToUtf8(options.privateFolder));
