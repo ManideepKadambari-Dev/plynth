@@ -13,6 +13,7 @@
 
 #include <plynth/cli/Words.h>
 
+#include <cwchar>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -142,9 +143,19 @@ std::filesystem::path ownFolder() {
     return std::filesystem::path(path).parent_path();
 }
 
+// Where plynth.exe is: in the parent folder when this program sits in a folder named cli, as the installer puts
+// it so that only plynth.com is on the command path, otherwise next to this program.
+std::filesystem::path childProgram() {
+    const std::filesystem::path folder = ownFolder();
+    if (_wcsicmp(folder.filename().c_str(), L"cli") == 0) {
+        return folder.parent_path() / L"plynth.exe";
+    }
+    return folder / L"plynth.exe";
 }
 
-// Starts plynth.exe from this folder, waits for it and returns its exit code.
+}
+
+// Starts plynth.exe, waits for it and returns its exit code.
 int main() {
     const std::vector<std::string> arguments = readArguments();
     const Mode mode = modeOf(arguments);
@@ -152,11 +163,11 @@ int main() {
         writeOut(plynth::cli::unknownCommandAnswer(arguments));
         return kExitBadArguments;
     }
-    const std::filesystem::path child = ownFolder() / L"plynth.exe";
+    const std::filesystem::path child = childProgram();
     std::error_code ignored;
     if (!std::filesystem::exists(child, ignored)) {
         writeOut("{\"ok\":false,\"command\":\"\",\"error\":{\"code\":\"not_found\","
-                 "\"message\":\"plynth.exe was not found next to plynth.com.\"}}\n");
+                 "\"message\":\"plynth.exe was not found next to plynth.com, or above it when plynth.com is in a cli folder.\"}}\n");
         return kExitFailed;
     }
 

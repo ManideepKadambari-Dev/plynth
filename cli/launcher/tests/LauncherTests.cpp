@@ -159,3 +159,28 @@ TEST_CASE("the launcher prints the exact unknown_command answer without plynth.e
           "    \"message\": \"Unknown command '--bogus'. Run 'plynth help' to list the commands.\"\n  }\n}\n");
 }
 
+
+TEST_CASE("the launcher in a folder named cli starts the plynth.exe one folder up", "[launcher]") {
+    TempFolder temp;
+    const fs::path cli = temp.path() / "app" / "CLI";
+    fs::create_directories(cli);
+    fs::copy_file(PLYNTH_LAUNCHER_FILE, cli / "plynth.com");
+    fs::copy_file(PLYNTH_FAKE_CHILD, temp.path() / "app" / "plynth.exe");
+
+    const auto outcome = runLauncher(cli / "plynth.com", L"version exit=4", temp.path());
+    CHECK(outcome.exitCode == 4);
+    CHECK(outcome.output == "version\nexit=4\n");
+}
+
+TEST_CASE("the launcher in another folder does not look one folder up", "[launcher]") {
+    TempFolder temp;
+    const fs::path tools = temp.path() / "app" / "tools";
+    fs::create_directories(tools);
+    fs::copy_file(PLYNTH_LAUNCHER_FILE, tools / "plynth.com");
+    fs::copy_file(PLYNTH_FAKE_CHILD, temp.path() / "app" / "plynth.exe");
+
+    const auto outcome = runLauncher(tools / "plynth.com", L"version", temp.path());
+    CHECK(outcome.exitCode == 1);
+    const auto answer = nlohmann::json::parse(outcome.output);
+    CHECK(answer.at("error").at("code") == "not_found");
+}

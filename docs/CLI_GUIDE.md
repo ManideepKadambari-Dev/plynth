@@ -1,8 +1,8 @@
 # Command line guide
 
-Plynth can be driven from a terminal, a script or a coding assistant. Every command prints one JSON answer, so a program can read the result without parsing text meant for people.
+Plynth can be driven from a terminal, a script or another program. Every command prints one JSON answer, so a program can read the result without parsing text meant for people.
 
-This page covers the commands that exist today: version, help, creating and reading a project, setting the scale, grid and default sizes, floors, stairs, roofs, points, walls (straight and curved), rounded corners, doors, windows and other openings, rooms, placing furniture with `place` and `item`, finding walls and openings in the plan image with `detect`, building the project in Blender with `build`, the edit session that keeps the app and the command line from overwriting each other, and the machine commands: `doctor`, `settings`, `library` and `assets`. More commands arrive in later releases.
+This page covers the commands that exist today: version, help, creating and reading a project, setting the scale, grid and default sizes, floors, stairs, roofs, points, walls (straight and curved), rounded corners, doors, windows and other openings, rooms, placing furniture with `place` and `item`, finding walls and openings in the plan image with `detect`, building the project in Blender with `build`, saving pictures of the build with `render`, the edit session that keeps the app and the command line from overwriting each other, and the machine commands: `doctor`, `settings`, `library` and `assets`. More commands arrive in later releases.
 
 The plan file is now at format version 6 and the project file at version 5. Older projects open and upgrade by themselves. See "File format version 6" and "File format version 5" below.
 
@@ -96,7 +96,11 @@ The app itself, when you give it `--screenshot`, uses its own codes. 0 means the
 | `quality_failed` | `export` found a failed quality check and `--force` was not given. Exit 1. The report is still written. |
 | `cancelled` | The job was stopped before it finished. Nothing is kept. |
 | `database_error` | The catalog database could not be opened or written. `assets rescan` rebuilds it from the folders. |
+| `graphics_unavailable` | `render` could not start the 3D view: there is no graphics device, the driver cannot run it, or the program was started without the app's 3D view. |
+| `render_failed` | `render` started the 3D view but got no usable picture, for example only the background, the wrong size, or no picture within the time limit. The old picture is kept. |
 | `internal_error` | Something unexpected went wrong inside Plynth. Exit 1. The message says what. |
+
+`plynth help` lists the same codes under `error_codes`, each with `code`, `description` and `from` (`core` for codes the shared engine gives, `cli` for the three only the command line gives), and the exit codes under `exit_codes`. A script can read both lists instead of copying this table.
 
 ## Commands
 
@@ -109,24 +113,24 @@ plynth version
 ```
 
 ```json
-{"ok":true,"command":"version","result":{"version":"0.0.1","plan_format":2,"project_format":2}}
+{"ok":true,"command":"version","result":{"version":"0.1.0","plan_format":6,"project_format":5}}
 ```
 
 `plan_format` and `project_format` are the versions this program writes. It reads these and older ones.
 
 ### help
 
-Lists every command with its options. The list is built from the real commands, so it is always current.
+Lists every command with its options, every error code and every exit code. The lists are built from the real commands and codes, so they are always current.
 
 ```
 plynth help
 ```
 
 ```json
-{"ok":true,"command":"help","result":{"commands":[{"command":"project new","description":"Create a project folder, optionally with a plan image.","options":[{"name":"--image","value":"file","required":false,"description":"Plan image to use for the first floor (PNG, JPEG or BMP)."}]}]}}
+{"ok":true,"command":"help","result":{"commands":[{"command":"project new","description":"Create a project folder, optionally with a plan image.","options":[{"name":"--image","value":"file","positional":false,"required":false,"description":"Plan image to use for the first floor (PNG, JPEG or BMP)."}]}],"error_codes":[{"code":"invalid_value","description":"A number or name is out of range or malformed.","from":"core"},{"code":"unknown_command","description":"The first words name no command. Run plynth help to list them.","from":"cli"}],"exit_codes":[{"code":0,"description":"The command worked. The answer has ok true."},{"code":1,"description":"The command ran and refused. The answer has the error code and the reason."},{"code":2,"description":"Unknown command or bad options. The answer has unknown_command or bad_arguments."}]}}
 ```
 
-The example is shortened. The real answer lists every command.
+The example is shortened. The real answer lists every command and every error code.
 
 Each option has `name`, `value` (what to type, such as `metres` or `id`), `positional`, `required` and `description`. `positional` is true for a value you write without a name, such as the id in `point move p3 --x 2 --y 1`. Options with `positional` false are written with their `--name`.
 
@@ -1707,6 +1711,55 @@ plynth export report
 
 Answers with the last report of the project, read from `export\export_report.json`, in the same shape. It is `not_found` when the project has never been exported or checked. It takes only `--project`.
 
+### render
+
+Saves a picture of the last build as a PNG. It is drawn by Plynth's own real-time 3D view, the same scene as the app's 3D page, so it looks the way the 3D preview does. It never starts Blender, never builds and writes nothing but the picture. It only reads the project, so it works while the app has the project open and during an edit session. The app's Build menu entry "Save 3D picture..." does the same thing with the view, roofs and cut it shows.
+
+```
+plynth render
+plynth render --view top --out renders/top.png
+plynth render --size 1920x1080 --yaw 200 --pitch 35 --out renders/back.png
+plynth render --floor f1 --view top
+plynth render --no-roofs
+```
+
+| Option | Meaning |
+|---|---|
+| `--out <file>` | The PNG to write. It must end in `.png`. A relative path is inside the project folder. It may not be inside the project's `plans`, `build`, `export` or `pack` folders. Default: `renders/three-quarter.png` or `renders/top.png`. |
+| `--size <WxH>` | Width and height in pixels, 64 to 4096 each. Default: `1280x720`. |
+| `--view <name>` | `three-quarter` (from the front right, yaw 45, pitch 25, the default) or `top` (straight down, yaw 0, pitch 89.9). |
+| `--yaw <degrees>` | Turns the camera around the building, at least 0 and below 360. 0 looks from the front of the plan, 90 from the right. Default: the view's. |
+| `--pitch <degrees>` | How far the camera looks down, 2 to 89.9. Default: the view's. |
+| `--floor <id>` | Cuts the building at this floor: it and the floors below are shown, the floors above and this floor's roofs and slab are not. The id is looked up in the last build. |
+| `--no-roofs` | Hides every roof. |
+| `--project <folder>` | The project. Default: the current folder. |
+
+The camera always frames the whole building, or what is left of it after the cut, as tightly as the picture allows.
+
+```json
+{"ok":true,"command":"render","result":{"file":"D:/Plans/MyApartment/renders/three-quarter.png","width":1280,"height":720,"view":"three-quarter","yaw":45.0,"pitch":25.0,"floor":null,"roofs":true,"current":true}}
+```
+
+`current` is false when the plan or the project settings changed since the last build. The picture is still saved and shows the last build, and the answer has the warning `build_out_of_date`:
+
+```json
+{"ok":true,"command":"render","result":{"file":"D:/Plans/MyApartment/renders/top.png","width":1280,"height":720,"view":"top","yaw":0.0,"pitch":89.9,"floor":"f1","roofs":true,"current":false},"warnings":[{"code":"build_out_of_date","message":"The plan changed since the last build. The picture shows the last build."}]}
+```
+
+An existing picture is replaced only by a good new one. When a render fails or is stopped, the old file stays as it was.
+
+| Code | When |
+|---|---|
+| `not_found` | The project has never been built ("Build the project first."), or the last build has no floor with the `--floor` id. |
+| `in_use` | A build or an export of the project is running. Render when it ends. |
+| `invalid_value` | The size, yaw, pitch or output file is out of range, or `--size` is not two whole numbers such as `1280x720`. |
+| `bad_arguments` | `--view` is not `three-quarter` or `top`, or `--yaw` or `--pitch` is not a number. Exit 2. |
+| `cannot_write` | The picture or its folder could not be written. |
+| `graphics_unavailable` | The 3D view cannot start on this machine. |
+| `render_failed` | The 3D view gave no usable picture within the time limit of 60 seconds. |
+
+A graphics driver that hangs cannot always be stopped from inside Plynth, so a script that renders unattended should set its own time limit around the command.
+
 ### session begin
 
 Starts an edit session. See the next section.
@@ -2565,7 +2618,7 @@ Read `problems` in `stair list` before building: a stair that crosses a wall or 
 
 ## Working while the app is open
 
-Plynth's app and the command line can both work on the same project folder. To keep one from overwriting the other, the command line uses an edit session. The steps for a script or a coding assistant:
+Plynth's app and the command line can both work on the same project folder. To keep one from overwriting the other, the command line uses an edit session. The steps for a script or other program:
 
 1. **Begin.** Run `plynth session begin --tool <name>`. If the app has the project open, it turns read only: a banner appears saying "Being edited from the command line by <name>", the canvas is dimmed, and Undo, Redo, Save, Save as and Set plan image are disabled.
 2. **Edit.** Run commands such as `point add`, `wall draw` and `room add`. Each one saves to the project folder. The app notices the change within a second and shows it live. Zoom and pan stay where they were.
