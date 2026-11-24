@@ -1,11 +1,15 @@
 #pragma once
 
+#include <plynth/core/Addons.h>
+#include <plynth/core/Generators.h>
 #include <plynth/core/Plan.h>
 #include <plynth/core/catalog/AssetCatalog.h>
 
 #include <QPolygonF>
 #include <QString>
 #include <QVector>
+
+#include <optional>
 
 namespace plynth::app {
 
@@ -23,7 +27,8 @@ struct WallViewOpening {
 };
 
 // An item mounted on the wall face: its front box, from the offset minus half its width to the offset plus
-// half, and from its bottom z up by its height. problem marks a warning from itemProblems, missing a gone asset.
+// half, and from its bottom z up by its height. problem marks a warning from itemProblems. missing marks a gone
+// asset or generator, or a generator whose add-on is off, and missingText is written instead of the name.
 struct WallViewItem {
     QString id;
     QString name;
@@ -36,6 +41,7 @@ struct WallViewItem {
     bool selected = false;
     bool problem = false;
     bool missing = false;
+    QString missingText;
 };
 
 // Everything the wall view draws, in metres on the wall face. The view reads this and nothing else.
@@ -56,9 +62,12 @@ struct WallViewData {
 };
 
 // Builds the data for one wall of a floor, as seen from a side. selectedOpening and selectedItem are the ids to
-// show as selected, or empty. With a catalog the items are named and checked against it.
+// show as selected, or empty. With a catalog the asset items are named and checked against it. With a generator
+// library the generator items are named by their generator and checked against it and the add-on cache.
 WallViewData buildWallViewData(const plynth::Floor& floor, const plynth::Wall& wall, plynth::WallSide side,
                                const QString& selectedOpening, const QString& selectedItem = QString(),
-                               const plynth::AssetCatalog* catalog = nullptr);
+                               const plynth::AssetCatalog* catalog = nullptr,
+                               const plynth::GeneratorLibrary* generators = nullptr,
+                               const std::optional<plynth::AddonCache>& addons = std::nullopt);
 
 }

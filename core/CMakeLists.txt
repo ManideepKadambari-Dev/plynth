@@ -24,6 +24,7 @@ add_library(plynth_core STATIC
     src/catalog/ItemAssets.cpp
     src/catalog/BuiltInCatalog.cpp
     src/catalog/Database.cpp
+    src/IdSource.cpp
     src/Plan.cpp
     src/Project.cpp
     src/ProjectJson.cpp
@@ -36,6 +37,9 @@ add_library(plynth_core STATIC
     src/Geometry.cpp
     src/Snapping.cpp
     src/Items.cpp
+    src/Generators.cpp
+    src/Addons.cpp
+    src/GeneratorBuild.cpp
     src/RoomTypes.cpp
     src/Rooms.cpp
     src/WallGeometry.cpp
@@ -54,6 +58,9 @@ add_library(plynth_core STATIC
     src/Exporter.cpp
     src/ExportJob.cpp
     src/Export.cpp
+    src/ExportGroups.cpp
+    src/ExportEditGuard.cpp
+    src/Kit.cpp
     src/openings/OpeningShapes.cpp
     src/openings/ShapeFiles.cpp
     src/commands/FloorCommands.cpp
@@ -64,6 +71,7 @@ add_library(plynth_core STATIC
     src/commands/DeleteCommands.cpp
     src/commands/OpeningCommands.cpp
     src/commands/ItemCommands.cpp
+    src/commands/GeneratorCommands.cpp
     src/commands/MaterialCommands.cpp
     src/commands/StairCommands.cpp
     src/commands/RoofCommands.cpp

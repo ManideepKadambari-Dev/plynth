@@ -39,6 +39,13 @@ add_executable(plynth_core_tests
     core/MaterialImportTests.cpp
     core/ItemAssetsTests.cpp
     core/ItemsTests.cpp
+    core/GeneratorsTests.cpp
+    core/AddonsTests.cpp
+    core/AddonFolderTests.cpp
+    core/GeneratorBuildTests.cpp
+    core/GeneratorJobTests.cpp
+    core/GeneratorCommandsTests.cpp
+    core/SampleGeneratorsTests.cpp
     core/ItemCommandTests.cpp
     core/SearchTests.cpp
     core/RescanTests.cpp
@@ -75,6 +82,11 @@ add_executable(plynth_core_tests
     core/MaterialSlotsTests.cpp
     core/ExportTests.cpp
     core/ExportJobTests.cpp
+    core/ExportGroupsTests.cpp
+    core/ExportOptionsTests.cpp
+    core/KitTests.cpp
+    core/ExportEdgeCaseTests.cpp
+    core/ExportEditGuardTests.cpp
     core/BuildAssetMapsTests.cpp
     core/SnappingTests.cpp
     core/RoomTypesTests.cpp
@@ -110,6 +122,9 @@ add_executable(plynth_core_tests
     core/StoreFetchFolderTests.cpp
     core/LowIntegrityProcessTests.cpp
     core/BlenderKitAddressTests.cpp
+    core/IdTests.cpp
+    core/IdGroupTests.cpp
+    core/IdTestListener.cpp
 )
 target_link_libraries(plynth_core_tests PRIVATE
     plynth::core

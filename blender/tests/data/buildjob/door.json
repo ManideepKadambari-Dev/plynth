@@ -344,6 +344,7 @@
     ],
     "items": [],
     "collision": [],
+    "generator_items": [],
     "slab": {
      "bottom": 0.0,
      "top": 0.0,
@@ -424,6 +425,7 @@
     "material": null,
     "surface": "Wall_Top"
    }
-  ]
+  ],
+  "generators": []
  }
 }

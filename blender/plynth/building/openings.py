@@ -121,8 +121,9 @@ def restore(walls, backup):
 
 # Cuts one opening. The Manifold solver goes first because it keeps merged wall solids closed; the Exact solver
 # is the fallback. A cut counts when the walls stay closed and lost at least half the volume the outline should
-# remove; otherwise the walls are put back as they were and cut_failed is reported.
-def cut(ctx, floor, walls, opening):
+# remove; otherwise the walls are put back as they were and cut_failed is reported. With partial true the walls
+# only hold part of the opening (a kit piece), so any volume up to the opening's own counts.
+def cut(ctx, floor, walls, opening, partial=False):
     backup = walls.data.copy()
     before = meshes.volume(walls)
     expected = abs(meshes.polygon_area(opening["outline"])) * opening["thickness"]
@@ -132,7 +133,8 @@ def cut(ctx, floor, walls, opening):
         try:
             closed = boolean_cut(walls, cutter, solver)
             removed = before - meshes.volume(walls)
-            ok = closed and expected * MINIMUM_SHARE <= removed <= expected * MAXIMUM_SHARE
+            least = 0.0 if partial else expected * MINIMUM_SHARE
+            ok = closed and least <= removed <= expected * MAXIMUM_SHARE
         except Exception:
             ok = False
             for modifier in list(walls.modifiers):

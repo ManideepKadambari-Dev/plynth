@@ -1,6 +1,8 @@
 #include "FakeBlender.h"
 #include "SchemaSupport.h"
 
+#include "../../core/src/BlenderPaths.h"
+
 #include <plynth/core/Blender.h>
 #include <plynth/core/BlenderJob.h>
 #include <plynth/core/ProjectFiles.h>
@@ -174,10 +176,11 @@ TEST_CASE("a run without factory startup works", "[core][blenderjob]") {
 
 namespace {
 
-// Points the private Blender folder at a temporary one for the life of the object.
+// Points the private Blender folder at a temporary one for the life of the object, then puts the old value back.
 struct PrivateFolderScope {
-    explicit PrivateFolderScope(const fs::path& folder) { SetEnvironmentVariableW(L"PLYNTH_BLENDER_PRIVATE", folder.c_str()); }
-    ~PrivateFolderScope() { SetEnvironmentVariableW(L"PLYNTH_BLENDER_PRIVATE", nullptr); }
+    // Sets the folder and keeps the value it replaced.
+    explicit PrivateFolderScope(const fs::path& folder) : env("PLYNTH_BLENDER_PRIVATE", pathToUtf8(folder)) {}
+    plynth::test::ScopedEnv env;
 };
 
 // The lines the fake wrote about the variables it saw.
@@ -195,12 +198,12 @@ TEST_CASE("a factory startup job and the version probe run in the private folder
     JobFixture f("job-private");
     const fs::path priv = f.tmp.path() / "private";
     PrivateFolderScope scope(priv);
-    SetEnvironmentVariableW(L"BLENDER_USER_CONFIG", L"C:/users/me/config");
-    SetEnvironmentVariableW(L"BLENDER_USER_EXTENSIONS", L"C:/users/me/extensions");
-    REQUIRE(inspectBlender(f.exe).status.ok());
-    plynth::test::requireOk(runBlenderJob(f.exe, f.probeJob(), f.work, f.options).status);
-    SetEnvironmentVariableW(L"BLENDER_USER_CONFIG", nullptr);
-    SetEnvironmentVariableW(L"BLENDER_USER_EXTENSIONS", nullptr);
+    {
+        plynth::test::ScopedEnv config("BLENDER_USER_CONFIG", "C:/users/me/config");
+        plynth::test::ScopedEnv extensions("BLENDER_USER_EXTENSIONS", "C:/users/me/extensions");
+        REQUIRE(inspectBlender(f.exe).status.ok());
+        plynth::test::requireOk(runBlenderJob(f.exe, f.probeJob(), f.work, f.options).status);
+    }
 
     const std::string root = pathToUtf8(priv);
     const auto lines = fakeEnvLines(f);
@@ -219,12 +222,11 @@ TEST_CASE("a run without factory startup keeps the user's environment", "[core][
     JobFixture f("job-normal-env");
     const fs::path priv = f.tmp.path() / "private";
     PrivateFolderScope scope(priv);
-    wchar_t saved[4096] = {};
-    const DWORD savedSize = GetEnvironmentVariableW(L"BLENDER_USER_RESOURCES", saved, 4096);
-    SetEnvironmentVariableW(L"BLENDER_USER_RESOURCES", L"C:/users/me/resources");
     f.options.factoryStartup = false;
-    plynth::test::requireOk(runBlenderJob(f.exe, cleanupJob(f, "obj", "chair-00000009"), f.work, f.options).status);
-    SetEnvironmentVariableW(L"BLENDER_USER_RESOURCES", savedSize > 0 ? saved : nullptr);
+    {
+        plynth::test::ScopedEnv resources("BLENDER_USER_RESOURCES", "C:/users/me/resources");
+        plynth::test::requireOk(runBlenderJob(f.exe, cleanupJob(f, "obj", "chair-00000009"), f.work, f.options).status);
+    }
     const auto lines = fakeEnvLines(f);
     REQUIRE(lines.size() == 1);
     REQUIRE(lines[0].find("BLENDER_USER_RESOURCES=C:/users/me/resources|") != std::string::npos);
@@ -803,4 +805,53 @@ TEST_CASE("readCleanupResult refuses bad material maps", "[core][blenderjob]") {
     Json noPreview = run.result;
     noPreview["output"]["material_maps"][0].erase("preview_maps");
     REQUIRE(readCleanupResult(noPreview, id).header.status.code == ErrorCode::BadFile);
+}
+
+TEST_CASE("path text drops separators at the end and nothing else", "[core][blenderjob][folders]") {
+    namespace bp = plynth::blenderpaths;
+    REQUIRE(bp::normalFolder("C:/a/b//") == fs::path(R"(C:\a\b)"));
+    REQUIRE(bp::normalFolder(R"(C:\a\.\b\..\c\/)") == fs::path(R"(C:\a\c)"));
+    REQUIRE(bp::normalFolder(R"(C:\)") == fs::path(R"(C:\)"));
+    REQUIRE(bp::sameText("C:/Users/Me/Ext/", R"(c:\users\me\ext)"));
+    REQUIRE_FALSE(bp::sameText("C:/Users/Me/Ext.", "C:/Users/Me/Ext"));
+    REQUIRE_FALSE(bp::sameText("C:/Users/Me/Ext ", "C:/Users/Me/Ext"));
+    REQUIRE_FALSE(bp::sameText(R"(\\?\C:\Users\Me\Ext)", "C:/Users/Me/Ext"));
+}
+
+TEST_CASE("paths overlap when one holds the other, also with dots and spaces cut", "[core][blenderjob][folders]") {
+    namespace bp = plynth::blenderpaths;
+    plynth::test::TempDir tmp("paths-overlap");
+    const fs::path root = tmp.path();
+    REQUIRE(bp::overlaps(root / "a", root / "a"));
+    REQUIRE(bp::overlaps(root / "a" / "b", root / "A"));
+    REQUIRE(bp::overlaps(root / "a", root / "a" / "b" / "c"));
+    REQUIRE(bp::overlaps(fs::path((root / "a").wstring() + L". ") / "b", root / "a"));
+    REQUIRE_FALSE(bp::overlaps(root / "ab", root / "a"));
+    REQUIRE_FALSE(bp::overlaps(root / "a", root / "b"));
+    REQUIRE_FALSE(bp::overlaps({}, root));
+}
+
+TEST_CASE("the Blender Foundation name is found in any case and with dots or spaces after it", "[core][blenderjob][folders]") {
+    namespace bp = plynth::blenderpaths;
+    plynth::test::TempDir tmp("paths-foundation");
+    for (const wchar_t* name : {L"Blender Foundation", L"BLENDER FOUNDATION", L"blender foundation.", L"Blender Foundation . "}) {
+        REQUIRE(bp::namesBlenderFoundation(tmp.path() / name / "job"));
+    }
+    REQUIRE_FALSE(bp::namesBlenderFoundation(tmp.path() / "Blender Foundation copy" / "job"));
+    REQUIRE_FALSE(bp::namesBlenderFoundation(tmp.path() / "Blender" / "Foundation"));
+}
+
+TEST_CASE("a thread cap with a leading zero starts nothing", "[core][blenderjob][safety]") {
+    JobFixture f("job-threads-zero");
+    plynth::test::ScopedEnv cap(std::string(kBlenderThreadsVariable), "06");
+    REQUIRE(runBlenderJob(f.exe, cleanupJob(f, "obj", "chair-0000000c"), f.work, f.options).status.code == ErrorCode::InvalidValue);
+    REQUIRE(fakeLog(f.exe, "fake_args.log").empty());
+}
+
+TEST_CASE("the user's datafiles folder is worked out but never given to the probe", "[core][blenderjob][folders]") {
+    plynth::test::IsolatedUser user("folders-datafiles");
+    const BlenderUserFolders folders = blenderUserFolders(fakeInstall(user.tmp.path() / "bin" / "blender.exe"));
+    REQUIRE(samePlace(folders.datafiles, user.userRoot / "datafiles"));
+    const Json job = makeProbeJob(folders, "probe-0000000d", user.tmp.path() / "work" / "result.json");
+    REQUIRE_FALSE(job["params"]["user_folders"].contains("datafiles"));
 }

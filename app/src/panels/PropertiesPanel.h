@@ -2,10 +2,12 @@
 
 #include "tools/Tool.h"
 
+#include <plynth/core/Generators.h>
 #include <plynth/core/Materials.h>
 #include <plynth/core/Roofs.h>
 
 #include <QMetaObject>
+#include <QString>
 #include <QWidget>
 
 #include <functional>
@@ -57,6 +59,10 @@ public:
     // material picker on its row. With a material id, hovers it. False when the target is unknown or not shown.
     // With pickMaterial, chooses that material at once as a click would.
     bool openMaterialPicker(const QString& target, const QString& hoverMaterial, const QString& pickMaterial = QString());
+    // For checks only: sets one parameter of the selected generator item as a spin box visit would, from text such
+    // as "diameter=0.5". All calls before the next focus change share one undo step. False with the reason in
+    // message when it is refused.
+    bool setGeneratorParamText(const QString& assignment, QString* message);
     // For checks only: true when the picker is closed or its preview has its picture.
     bool pickerOpen() const;
 
@@ -110,6 +116,13 @@ private:
     plynth::ResolvedMaterial resolveMaterial(const plynth::MaterialTarget& target) const;
     void editImageOffset(bool xChanged);
     void refreshItem();
+    void buildGeneratorBody(const plynth::Item& item, const plynth::GeneratorInfo* info);
+    void refreshGenerator(const plynth::Item& item, const plynth::GeneratorInfo* info, bool changed);
+    void editGeneratorParam(const std::string& paramId, const plynth::GeneratorValue& value);
+    void resetGenerator();
+    const plynth::Item* selectedGeneratorItem() const;
+    MaterialPicker* ensurePicker();
+    void updateGenerator();
     void runItemCommand(std::unique_ptr<plynth::Command> command);
     void refreshOpening();
     void refreshOpeningTool();
@@ -164,6 +177,7 @@ private:
     QLabel* scaleValue_ = nullptr;
     QLabel* scaleHint_ = nullptr;
     QDoubleSpinBox* gridSpin_ = nullptr;
+    QComboBox* exportModeCombo_ = nullptr;
     QLabel* pointCount_ = nullptr;
     QLabel* wallCount_ = nullptr;
     QLabel* roomCount_ = nullptr;
@@ -216,6 +230,24 @@ private:
     QPushButton* itemTakeOff_ = nullptr;
     QPushButton* itemTurnLeft_ = nullptr;
     QPushButton* itemTurnRight_ = nullptr;
+    struct GeneratorRow {
+        std::string id;
+        plynth::GeneratorParamType type = plynth::GeneratorParamType::Number;
+        QWidget* editor = nullptr;
+    };
+    QWidget* genGroup_ = nullptr;
+    QWidget* genBody_ = nullptr;
+    QString genKey_;
+    std::vector<GeneratorRow> genRows_;
+    QLabel* genName_ = nullptr;
+    QLabel* genDescription_ = nullptr;
+    QLabel* genSize_ = nullptr;
+    QLabel* genNote_ = nullptr;
+    QPushButton* genReset_ = nullptr;
+    QPushButton* genUpdate_ = nullptr;
+    int genFocusKey_ = 0;
+    std::string pickGeneratorParam_;
+    std::vector<QWidget*> assetOnly_;
     QDoubleSpinBox* itemX_ = nullptr;
     QDoubleSpinBox* itemY_ = nullptr;
     QDoubleSpinBox* itemRotation_ = nullptr;

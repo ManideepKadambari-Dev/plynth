@@ -57,6 +57,9 @@ bool openMaterialCatalogIfAny(const std::string& command, const RunContext& cont
 // never fails: a command that only needs shapes still works without a library.
 void registerLibraryShapes();
 
+// Registers the custom opening shapes of one library folder, once per folder in a process.
+void registerShapesOf(const LibraryPaths& paths);
+
 // Makes the room types in use the library's list when the settings name a working library, and the built-in
 // list otherwise.
 void useSettingsRoomTypes();
@@ -89,9 +92,12 @@ struct BlenderOption {
 };
 
 // Adds the --blender option, which names the blender.exe for a command that runs Blender. Without it the
-// settings and the search decide.
+// settings and the search decide. An empty path is refused as bad_arguments before the command runs.
 void addBlenderOption(CLI::App& sub, BlenderOption& value,
                       const std::string& help = "The blender.exe to use. Default: the setup check's choice.");
+
+// The same for a command that keeps the path as plain text.
+void addBlenderOption(CLI::App& sub, std::string& value);
 
 // The option as core takes it: none when it was not given, an empty path when it was given empty, and
 // otherwise the path from the current folder.

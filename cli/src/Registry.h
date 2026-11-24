@@ -54,6 +54,7 @@ std::vector<CommandSpec> exportCommands();
 std::vector<CommandSpec> materialCommands();
 std::vector<CommandSpec> materialCatalogCommands();
 std::vector<CommandSpec> materialImportCommands();
+std::vector<CommandSpec> generatorCommands();
 
 // All commands in the order help lists them.
 const std::vector<CommandSpec>& allCommands();

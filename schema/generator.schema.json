@@ -1,0 +1,91 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:generator:1",
+  "title": "Plynth generator declaration, version 1",
+  "description": "The JSON in the module docstring of a generator file, Library/generators/<id>.py. The docstring is the first thing in the file after blank lines and # comment lines, and its first line is plynth-generator. The generator id is the file stem. The file defines generate(gen), which the Blender build calls (docs/GENERATORS.md). Lengths are metres, angles degrees. What a generator makes sits around the origin: its bottom centre at (0, 0, 0), its front toward -Y, width along X, depth along Y.",
+  "type": "object",
+  "required": ["format", "version", "name", "params", "size"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "plynth-generator" },
+    "version": { "const": 1 },
+    "name": { "description": "Shown in the app, for example Column.", "type": "string", "minLength": 1, "maxLength": 80 },
+    "description": { "description": "One or two plain sentences.", "type": "string", "maxLength": 400, "default": "" },
+    "addons": {
+      "description": "Short module names of the Blender add-ons it needs: the last dotted part of the module, lower case, for example archimesh, home_builder_5, bool_tool, bagapie or asset_optimizer. Without one of them enabled the generator is unavailable.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/definitions/id" },
+      "default": []
+    },
+    "params": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": { "$ref": "#/definitions/param" }
+    },
+    "size": {
+      "description": "How the size of what it makes follows from its values: width along its own x, depth along its own y, height up. The plan draws this footprint and the build warns when the result reaches more than 1 cm past it.",
+      "type": "object",
+      "required": ["width", "depth", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "width": { "$ref": "#/definitions/length" },
+        "depth": { "$ref": "#/definitions/length" },
+        "height": { "$ref": "#/definitions/length" }
+      }
+    }
+  },
+  "definitions": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 64 },
+    "length": {
+      "description": "A fixed length above 0, or param * times + plus, where param is a number or integer parameter.",
+      "oneOf": [
+        { "type": "number", "exclusiveMinimum": 0 },
+        {
+          "type": "object",
+          "required": ["param"],
+          "additionalProperties": false,
+          "properties": {
+            "param": { "$ref": "#/definitions/id" },
+            "times": { "type": "number", "default": 1 },
+            "plus": { "type": "number", "default": 0 }
+          }
+        }
+      ]
+    },
+    "param": {
+      "type": "object",
+      "required": ["id", "label", "type", "default"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/definitions/id" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "help": { "description": "One plain sentence for the tooltip.", "type": "string", "maxLength": 200, "default": "" },
+        "type": { "enum": ["number", "integer", "boolean", "choice", "material"] },
+        "unit": { "description": "Numbers only.", "enum": ["none", "m", "deg"], "default": "none" },
+        "default": {
+          "description": "number: a number, or ceiling_height (unit m only) for the floor's ceiling height at the time it is placed. integer: a whole number. boolean: true or false. choice: one of the choice ids. material: a materials catalog id, or null for the neutral look.",
+          "type": ["number", "boolean", "string", "null"]
+        },
+        "min": { "description": "Numbers and integers, inclusive.", "type": "number" },
+        "max": { "description": "Numbers and integers, inclusive.", "type": "number" },
+        "step": { "description": "The step of the app's spin box. Default 0.01 for m, 1 for deg and integers, 0.1 otherwise.", "type": "number", "exclusiveMinimum": 0 },
+        "choices": {
+          "description": "Choices only.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["id", "label"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "$ref": "#/definitions/id" },
+              "label": { "type": "string", "minLength": 1, "maxLength": 60 }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -53,6 +53,8 @@ add_executable(plynth WIN32
     src/materials/MaterialRow.cpp
     src/furniture/AssetPreview.h
     src/furniture/AssetPreview.cpp
+    src/furniture/GeneratorPreview.h
+    src/furniture/GeneratorPreview.cpp
     src/furniture/FurniturePicker.h
     src/furniture/FurniturePicker.cpp
     src/dialogs/RoomTypesDialog.h
@@ -83,6 +85,8 @@ add_executable(plynth WIN32
     src/panels/AssetsPanel.cpp
     src/panels/ExportPanel.h
     src/panels/ExportPanel.cpp
+    src/panels/ExportGroupsList.h
+    src/panels/ExportGroupsList.cpp
     src/panels/MaterialsPanel.h
     src/panels/MaterialsPanel.cpp
     src/panels/ImportQueueView.h

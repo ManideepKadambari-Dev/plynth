@@ -147,7 +147,7 @@ TEST_CASE("a version 1 project reads and the first edit saves version 3", "[cli]
     const auto info = runChecked({"project", "info", "--project", project});
     REQUIRE(info.exitCode == kExitOk);
     CHECK(info.answer.at("result").at("defaults").at("door_height") == 2.1);
-    CHECK(info.answer.at("result").at("plan").at("version") == 5);
+    CHECK(info.answer.at("result").at("plan").at("version") == 6);
     const auto points = runChecked({"point", "list", "--project", project});
     REQUIRE(points.exitCode == kExitOk);
     CHECK(points.answer.at("result").at("points").size() == 2);
@@ -156,7 +156,7 @@ TEST_CASE("a version 1 project reads and the first edit saves version 3", "[cli]
     const auto edit = runChecked({"point", "add", "--x", "1", "--y", "1", "--project", project});
     REQUIRE(edit.exitCode == kExitOk);
     const auto plan = nlohmann::json::parse(readFile(folder / "plan.json"));
-    CHECK(plan.at("version") == 5);
+    CHECK(plan.at("version") == 6);
     const auto& opening = plan.at("floors").at(0).at("openings").at(0);
     CHECK(opening.at("hinge") == "start");
     CHECK(opening.at("swing") == "right");
@@ -197,7 +197,7 @@ TEST_CASE("a version 2 project is saved as version 3 by an edit command", "[cli]
     const auto edit = runChecked({"point", "add", "--x", "1", "--y", "1", "--project", project});
     REQUIRE(edit.exitCode == kExitOk);
     const auto plan = nlohmann::json::parse(readFile(folder / "plan.json"));
-    CHECK(plan.at("version") == 5);
+    CHECK(plan.at("version") == 6);
     CHECK(plan.at("floors").at(0).at("items").is_array());
     CHECK(plan.at("floors").at(0).at("items").empty());
     const auto projectFile = nlohmann::json::parse(readFile(folder / "project.json"));

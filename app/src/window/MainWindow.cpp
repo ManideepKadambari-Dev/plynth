@@ -57,6 +57,7 @@
 #include <plynth/core/catalog/Integrations.h>
 #include <plynth/core/commands/FloorCommands.h>
 
+#include <QEventLoop>
 #include <QAbstractSpinBox>
 #include <QAction>
 #include <QApplication>
@@ -381,6 +382,10 @@ MainWindow::MainWindow(QWidget* parent)
         importMaterialsAction_->setEnabled(materialsOpen);
         importFabAction_->setEnabled(open);
         addSamplesAction_->setEnabled(materialsOpen);
+        openGeneratorsAction_->setEnabled(open);
+        reloadGeneratorsAction_->setEnabled(open);
+        checkAddonsAction_->setEnabled(open);
+        addSampleGeneratorsAction_->setEnabled(open);
         addShapesAction_->setEnabled(open);
         materialImport_->setLibraryOpen(materialsOpen);
         assets_->setMaterialImportEnabled(materialsOpen);
@@ -402,6 +407,7 @@ MainWindow::MainWindow(QWidget* parent)
     });
     qApp->installEventFilter(this);
     connect(host_, &LibraryHost::assetsChanged, this, &MainWindow::refreshOverlay);
+    connect(host_, &LibraryHost::generatorsChanged, this, &MainWindow::refreshOverlay);
     connect(host_, &LibraryHost::libraryChanged, wallView_, &WallView::refresh);
     connect(host_, &LibraryHost::assetsChanged, wallView_, &WallView::refresh);
 
@@ -741,6 +747,31 @@ void MainWindow::buildCatalogMenu()
                                            tr("Read the materials folder again and update the index"),
                                            QStringLiteral("materials-rescan-action"), {});
     menu->addSeparator();
+    openGeneratorsAction_ = addMenuAction(menu, tr("Open the &generators folder"),
+                                          tr("Open the folder of generator files in Explorer"),
+                                          QStringLiteral("generators-open-folder-action"), {});
+    connect(openGeneratorsAction_, &QAction::triggered, this, &MainWindow::openGeneratorsFolder);
+    reloadGeneratorsAction_ = addMenuAction(menu, tr("Reload g&enerators"),
+                                            tr("Read the generators folder again"),
+                                            QStringLiteral("generators-reload-action"), {});
+    connect(reloadGeneratorsAction_, &QAction::triggered, this, [this]() {
+        host_->reloadGenerators();
+        statusBar_->showMessage(tr("%1 generators in the library.").arg(host_->generators().generators.size()));
+    });
+    checkAddonsAction_ = addMenuAction(menu, tr("Check &add-ons"),
+                                       tr("Ask Blender which add-ons are enabled, so generators that need one show as available"),
+                                       QStringLiteral("generators-check-addons-action"), {});
+    connect(checkAddonsAction_, &QAction::triggered, this, [this]() {
+        statusBar_->showMessage(tr("Asking Blender which add-ons are enabled..."));
+        host_->checkAddons();
+    });
+    connect(host_, &LibraryHost::addonCheckFinished, this, [this](const QString& text) { statusBar_->showMessage(text); });
+    addSampleGeneratorsAction_ = addMenuAction(menu, tr("Add the sample gene&rators"),
+                                               tr("Copy the sample generators that come with Plynth into the library"),
+                                               QStringLiteral("generators-samples-action"), {});
+    connect(addSampleGeneratorsAction_, &QAction::triggered, this,
+            [this]() { statusBar_->showMessage(host_->addSampleGenerators()); });
+    menu->addSeparator();
     addShapesAction_ = addMenuAction(menu, tr("Add the sample &shapes"),
                                      tr("Copy the sample opening shapes, such as the keyhole, into the library"),
                                      QStringLiteral("catalog-sample-shapes"), {});
@@ -753,6 +784,18 @@ void MainWindow::buildCatalogMenu()
     QAction* folder = addMenuAction(menu, tr("&Open library folder"), tr("Open the library folder in Explorer"),
                                     QStringLiteral("catalog-open-folder-action"), {});
     connect(folder, &QAction::triggered, this, &MainWindow::openLibraryFolder);
+}
+
+// Opens Library/generators in Explorer, making it first when it is missing.
+void MainWindow::openGeneratorsFolder()
+{
+    if (!host_->hasLibrary()) {
+        showError(tr("Open generators folder"), tr("No library folder is set."));
+        return;
+    }
+    std::error_code ignored;
+    std::filesystem::create_directories(host_->paths().generators, ignored);
+    QDesktopServices::openUrl(QUrl::fromLocalFile(QString::fromStdWString(host_->paths().generators.wstring())));
 }
 
 // Opens the setup check over the window and keeps it until the user closes it.
@@ -1142,13 +1185,16 @@ void MainWindow::onDocumentChanged(unsigned changes)
     if (changes & (plynth::Change::Points | plynth::Change::Walls | plynth::Change::Rooms | plynth::Change::Openings | plynth::Change::Items | plynth::Change::Scale |
                    plynth::Change::Stairs | plynth::Change::FloorImage | plynth::Change::Floors | plynth::Change::Folder))
         refreshOverlay();
-    if (report_.has_value())
-        buildUiTimer_->start();
+    // Without a build report the export groups can still follow the plan, so the refresh never waits for one.
+    buildUiTimer_->start();
     validateSelection();
     wallView_->refresh();
     updateWallView();
     if (changes & plynth::Change::ReadOnly)
         updateReadOnlyUi();
+    // The lock and the export mode cannot wait for the timer. A change of folder refreshes further down.
+    if ((changes & (plynth::Change::ReadOnly | plynth::Change::Settings)) && !(changes & plynth::Change::Folder))
+        updateExportUi();
     floorTabs_->setEditable(!doc_.isReadOnly());
     updateAlignAction();
     tools_->documentChanged(changes);
@@ -1382,10 +1428,11 @@ void MainWindow::updateToolActions()
         mountAction_->setEnabled(item != nullptr && !item->wall.has_value());
     if (takeOffAction_ != nullptr)
         takeOffAction_->setEnabled(item != nullptr && item->wall.has_value());
+    const bool assetItem = item != nullptr && !plynth::isGeneratorItem(*item) && host_ != nullptr && host_->hasLibrary();
     if (swapAction_ != nullptr)
-        swapAction_->setEnabled(item != nullptr && host_ != nullptr && host_->hasLibrary());
+        swapAction_->setEnabled(assetItem);
     if (updateSizeAction_ != nullptr)
-        updateSizeAction_->setEnabled(item != nullptr && host_ != nullptr && host_->hasLibrary());
+        updateSizeAction_->setEnabled(assetItem);
 }
 
 // Shows the cursor position in metres, or nothing when it is off the plan or no scale is set.
@@ -1604,6 +1651,31 @@ void MainWindow::floorShown()
     updateDeleteAction();
     updateAlignAction();
     panel_->refresh();
+}
+
+// For checks only: copies the sample generators and shows the answer.
+void MainWindow::addSampleGenerators()
+{
+    statusBar_->showMessage(host_->addSampleGenerators());
+}
+
+// For checks only: runs the add-on check and keeps the event loop going until it reports.
+void MainWindow::checkAddonsAndWait()
+{
+    QEventLoop loop;
+    connect(host_, &LibraryHost::addonCheckFinished, &loop, &QEventLoop::quit);
+    host_->checkAddons();
+    loop.exec();
+}
+
+// For checks only: runs a parameter edit through the Properties panel.
+bool MainWindow::setGeneratorParam(const QString& assignment)
+{
+    QString message;
+    const bool ok = panel_->setGeneratorParamText(assignment, &message);
+    if (!ok)
+        statusBar_->showMessage(message);
+    return ok;
 }
 
 // For checks only: opens the furniture picker over the plan and hovers an asset like the mouse would.

@@ -41,6 +41,16 @@ bool startsWithScheme(const std::string& text) {
     });
 }
 
+// Refuses an empty Blender path, so an option that was given never falls back to another Blender.
+CLI::Validator notEmptyBlenderPath() {
+    return CLI::Validator(
+        [](std::string& value) {
+            return value.empty() ? std::string("The Blender path is empty. Give the path of blender.exe or leave the option out.")
+                                 : std::string();
+        },
+        "", "NotEmpty");
+}
+
 // Registers a library's shapes once per folder, so a second command in one process does not refuse them again.
 void registerShapes(const LibraryPaths& paths) {
     static std::set<std::filesystem::path> done;
@@ -65,7 +75,13 @@ bool checkIdArgument(const std::string& command, const std::string& id, Answer& 
 }
 
 void addBlenderOption(CLI::App& sub, BlenderOption& value, const std::string& help) {
-    value.option = sub.add_option("--blender", value.text, help)->type_name("file");
+    value.option = sub.add_option("--blender", value.text, help)->type_name("file")->check(notEmptyBlenderPath());
+}
+
+void addBlenderOption(CLI::App& sub, std::string& value) {
+    sub.add_option("--blender", value, "The blender.exe to use. Default: the setup check's choice.")
+        ->type_name("file")
+        ->check(notEmptyBlenderPath());
 }
 
 std::optional<std::filesystem::path> blenderOptionPath(const RunContext& context, const BlenderOption& option) {
@@ -285,6 +301,10 @@ Json rescanAndRefresh(const std::string& command, const RunContext& context, Ope
         }
     }
     return rescanEntry(report, refreshed, refreshFailed);
+}
+
+void registerShapesOf(const LibraryPaths& paths) {
+    registerShapes(paths);
 }
 
 void registerLibraryShapes() {

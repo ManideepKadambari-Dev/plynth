@@ -2,6 +2,8 @@
 
 #include "TestSupport.h"
 
+#include <plynth/core/ProjectFiles.h>
+
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -97,15 +99,15 @@ private:
 // Points every folder Blender or Plynth would use at temporary folders, so no test touches the user's own.
 struct PrivateUser {
     explicit PrivateUser(const TempFolder& temp)
-        : appdata("APPDATA", utf8(temp.path() / "user" / "appdata")),
-          profile("USERPROFILE", utf8(temp.path() / "user" / "profile")),
-          privateFolder("PLYNTH_BLENDER_PRIVATE", utf8(temp.path() / "user" / "private")),
-          resources("BLENDER_USER_RESOURCES", utf8(temp.path() / "user" / "resources")),
-          config("BLENDER_USER_CONFIG", utf8(temp.path() / "user" / "config")),
-          scripts("BLENDER_USER_SCRIPTS", utf8(temp.path() / "user" / "scripts")),
-          extensions("BLENDER_USER_EXTENSIONS", utf8(temp.path() / "user" / "extensions")),
-          datafiles("BLENDER_USER_DATAFILES", utf8(temp.path() / "user" / "datafiles")),
-          xdgData("XDG_DATA_HOME", utf8(temp.path() / "user" / "xdg")) {
+        : appdata("APPDATA", plynth::pathToUtf8(temp.path() / "user" / "appdata")),
+          profile("USERPROFILE", plynth::pathToUtf8(temp.path() / "user" / "profile")),
+          privateFolder("PLYNTH_BLENDER_PRIVATE", plynth::pathToUtf8(temp.path() / "user" / "private")),
+          resources("BLENDER_USER_RESOURCES", plynth::pathToUtf8(temp.path() / "user" / "resources")),
+          config("BLENDER_USER_CONFIG", plynth::pathToUtf8(temp.path() / "user" / "config")),
+          scripts("BLENDER_USER_SCRIPTS", plynth::pathToUtf8(temp.path() / "user" / "scripts")),
+          extensions("BLENDER_USER_EXTENSIONS", plynth::pathToUtf8(temp.path() / "user" / "extensions")),
+          datafiles("BLENDER_USER_DATAFILES", plynth::pathToUtf8(temp.path() / "user" / "datafiles")),
+          xdgData("XDG_DATA_HOME", plynth::pathToUtf8(temp.path() / "user" / "xdg")) {
         for (const char* name : {"appdata", "profile", "private", "resources", "config", "scripts", "extensions",
                                  "datafiles", "xdg"}) {
             std::filesystem::create_directories(temp.path() / "user" / name);

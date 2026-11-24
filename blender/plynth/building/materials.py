@@ -10,6 +10,7 @@ from ..registry import BUILD_STEPS
 
 ORDER = 80
 NEUTRAL_TILE = (1.0, 1.0)
+GENERATED = "Generated"
 
 
 # Returns the objects the build made, which are the mesh objects with a plynth kind other than items and
@@ -34,9 +35,11 @@ def clear_neutral_images(folder):
 
 # Makes a Blender material for every slot the built objects use: the library material the slot shows, from its
 # image maps, or the neutral look of the slot's surface as constant images written to the textures folder.
-# A map that will not load gives material_failed and the neutral look. Then every UV is divided by the tile
-# size of its material, so a tile is one repeat of the image. The result is kept in ctx.state for the
-# materials file.
+# A map that will not load gives material_failed and the neutral look. Only the slots table says which
+# material a slot shows, so a library material id is never taken for a slot name. Then every UV is divided
+# by the tile size of its material, so a tile is one repeat of the image. The result is kept in ctx.state for
+# the materials file, with the tile size of every library material, so the kit uses the size the walls were
+# built with.
 def run(ctx):
     library = {m["id"]: m for m in ctx.params.get("materials", [])}
     slots = slot_table(ctx)
@@ -56,7 +59,7 @@ def run(ctx):
     tiles = {}
     for name in sorted(used):
         mat = bpy.data.materials[name]
-        slot = slots.get(name, {"name": name, "material": None, "surface": "Wall_Inside"})
+        slot = slots.get(name) or unlisted_slot(name)
         entry = library.get(slot["material"]) if slot["material"] else None
         maps = None
         surface = None
@@ -74,18 +77,27 @@ def run(ctx):
             surface = slot["surface"] if slot["surface"] in surfaces.LOOKS else "Wall_Inside"
             maps = shading.apply_neutral(mat, surface, folder)
         tiles[name] = tile
-        built.append({
+        entry_out = {
             "name": name,
             "material": slot["material"] if surface is None else None,
             "surface": surface,
             "maps": maps,
             "alpha_mode": "blend" if maps.get("opacity") else "opaque",
-        })
+        }
+        if surface is None:
+            entry_out["tile_size"] = {"width": tile[0], "height": tile[1]}
+        built.append(entry_out)
         count(ctx, "materials")
     scale_uvs(objects, tiles)
     ctx.state["built_materials"] = built
     ctx.state["built_objects"] = [{"name": o.name, "slots": [m.name if m else "" for m in o.data.materials]}
                                   for o in sorted(objects, key=lambda o: o.name)]
+
+
+# Returns the entry of a slot the table does not list: no material and the Wall_Inside look, or the Generated
+# look for the Generated slot.
+def unlisted_slot(name):
+    return {"name": name, "material": None, "surface": GENERATED if name == GENERATED else "Wall_Inside"}
 
 
 # Divides the UVs of every face by the tile size of its material.

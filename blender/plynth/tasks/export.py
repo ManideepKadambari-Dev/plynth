@@ -22,6 +22,14 @@ def check_params(params):
         for key in ("kinds", "ids"):
             if not isinstance(group.get(key), list):
                 raise WorkerError("bad_job", "A group has no %s list." % key)
+        for member in group.get("members") or []:
+            if not isinstance(member, dict) or not isinstance(member.get("kind"), str) or "id" not in member:
+                raise WorkerError("bad_job", "A group has a member without a kind and an id.")
+        if not isinstance(group.get("rest", False), bool):
+            raise WorkerError("bad_job", "A group has a rest switch that is not true or false.")
+    kit = params.get("kit")
+    if kit is not None and not isinstance(kit, dict):
+        raise WorkerError("bad_job", "The job has a kit that is not an object.")
     for key in ("build", "limits"):
         if not isinstance(params.get(key), dict):
             raise WorkerError("bad_job", "The job has no %s." % key)
@@ -43,8 +51,8 @@ def run(ctx):
         step.run(ctx)
         timings.append({"step": step_id, "ms": int((time.monotonic() - started) * 1000)})
 
-    meshes = ctx.state["meshes"]
-    collision = ctx.state["collision"]
+    meshes = [o for o in ctx.state["meshes"] if o.get("plynth_kind") != "kit"]
+    collision = [o for o in ctx.state["collision"] if o.get("plynth_kind") != "kit"]
     written = ctx.state["written"]
     ctx.output = {
         "written": written,
@@ -54,6 +62,8 @@ def run(ctx):
         "objects": len(meshes) + len(collision),
         "triangles": sum(_triangles(o) for o in meshes),
         "collision_objects": len(collision),
+        "empty_groups": list(ctx.state.get("empty_groups", [])),
+        "kit": ctx.state.get("kit_output"),
         "checks": ctx.state.get("check_results", []),
         "steps": timings,
     }

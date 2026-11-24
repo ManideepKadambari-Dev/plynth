@@ -220,3 +220,21 @@ TEST_CASE("help lists the project and edit commands with their options", "[cli][
         CHECK(std::ranges::find(names, wanted) != names.end());
     }
 }
+
+TEST_CASE("project set --export changes the export mode and undoes nothing else", "[cli][project]") {
+    TempFolder temp("set-export");
+    const auto folder = makeSampleProject(temp);
+    const auto before = runChecked({"project", "info", "--project", utf8(folder)});
+    CHECK(before.answer.at("result").at("export_mode") == "single");
+
+    const auto set = runChecked({"project", "set", "--export", "grouped", "--project", utf8(folder)});
+    REQUIRE(set.exitCode == kExitOk);
+    CHECK(set.answer.at("result").at("export_mode") == "grouped");
+    CHECK(set.answer.at("result").at("grid_size") == before.answer.at("result").at("grid_size"));
+
+    const auto back = runChecked({"project", "set", "--export", "single", "--project", utf8(folder)});
+    CHECK(back.answer.at("result").at("export_mode") == "single");
+
+    const auto bad = runChecked({"project", "set", "--export", "pairs", "--project", utf8(folder)});
+    CHECK(bad.exitCode != kExitOk);
+}

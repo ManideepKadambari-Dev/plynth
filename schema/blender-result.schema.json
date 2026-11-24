@@ -231,7 +231,8 @@
             "collision": { "description": "UCX_ collision meshes made: pieces and item hulls.", "type": "integer", "minimum": 0 },
             "slabs": { "description": "Slab meshes made.", "type": "integer", "minimum": 0 },
             "stairs": { "description": "Stair meshes made.", "type": "integer", "minimum": 0 },
-            "roofs": { "description": "Roof section meshes made.", "type": "integer", "minimum": 0 }
+            "roofs": { "description": "Roof section meshes made.", "type": "integer", "minimum": 0 },
+            "generators": { "description": "Items built by generators. Missing when the job had none.", "type": "integer", "minimum": 0 }
           }
         },
         "steps": {
@@ -370,9 +371,27 @@
           "type": "array",
           "items": { "type": "string", "pattern": "^T_[A-Za-z0-9_]+\\.(png|jpg|jpeg|tga|tif|tiff|bmp|exr)$" }
         },
-        "objects": { "description": "Exported meshes, collision included.", "type": "integer", "minimum": 0 },
+        "objects": { "description": "Exported building meshes, collision included; the kit is counted in kit.", "type": "integer", "minimum": 0 },
         "triangles": { "type": "integer", "minimum": 0 },
         "collision_objects": { "type": "integer", "minimum": 0 },
+        "empty_groups": { "description": "Ids of the groups that got no object and were not written. Missing means none.", "type": "array", "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" } },
+        "kit": {
+          "description": "The kit file, or null unless it was written. Missing means null.",
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "required": ["file", "pieces", "objects", "triangles"],
+              "additionalProperties": false,
+              "properties": {
+                "file": { "type": "string", "pattern": "^[A-Za-z0-9_-]+_Kit\\.fbx$" },
+                "pieces": { "type": "integer", "minimum": 1 },
+                "objects": { "description": "Piece meshes and their collision.", "type": "integer", "minimum": 1 },
+                "triangles": { "type": "integer", "minimum": 0 }
+              }
+            }
+          ]
+        },
         "checks": { "type": "array", "items": { "$ref": "#/definitions/qualityCheck" } },
         "steps": {
           "type": "array",

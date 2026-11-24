@@ -1,0 +1,5 @@
+{
+  "format": "plynth-export-options",
+  "version": 1,
+  "kit": { "enabled": true, "grid": 0.5 }
+}

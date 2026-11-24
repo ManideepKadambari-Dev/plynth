@@ -1,5 +1,7 @@
 #pragma once
 
+#include <plynth/core/Plan.h>
+
 #include <QPoint>
 #include <QString>
 #include <QWidget>
@@ -13,6 +15,7 @@ class QListWidgetItem;
 namespace plynth::app {
 
 class AssetPreview;
+class GeneratorPreview;
 class LibraryHost;
 
 // The cascading dropdown for placing furniture: a column per level (room type, category, asset) opening
@@ -29,19 +32,27 @@ public:
     void openAt(const QPoint& anchor, const QString& roomType);
     // Closes the picker without choosing.
     void dismiss();
+    // The ceiling height of the shown floor in metres. Generator sizes in the list and the preview use it.
+    void setCeilingHeight(double metres) { ceilingHeight_ = metres; }
     bool isOpen() const { return open_; }
     // Opens the path to an asset and hovers it, as the mouse would. False when it is not in the catalog or
     // has no category to find it by.
     bool hoverAsset(const QString& id);
-    // The asset under the cursor, empty when none.
+    // Opens the path to a generator and hovers it. False when the generator is not in the library.
+    bool hoverGenerator(const QString& id);
     // For checks only: true when the preview shows no 3D model, or it has been drawn.
     bool previewReady() const;
     const QString& hoveredAsset() const { return hovered_; }
+    // The generator under the cursor, empty when none.
+    const QString& hoveredGenerator() const { return hoveredGenerator_; }
 
 signals:
     void assetChosen(const QString& id);
     // The id of the asset under the cursor, or empty when the cursor left the asset column.
     void assetHovered(const QString& id);
+    void generatorChosen(const QString& id);
+    // The id of the generator under the cursor, or empty when none or when it cannot be placed.
+    void generatorHovered(const QString& id);
     void dismissed();
 
 protected:
@@ -49,7 +60,7 @@ protected:
     void paintEvent(QPaintEvent* event) override;
 
 private:
-    enum class Kind { RoomTypes, Categories, Assets };
+    enum class Kind { RoomTypes, Categories, Assets, Generators };
     struct Column {
         Kind kind = Kind::RoomTypes;
         QListWidget* list = nullptr;
@@ -61,6 +72,10 @@ private:
     void fillRoomTypes(QListWidget* list);
     void fillCategories(QListWidget* list, const QString& roomType, bool withAllRow);
     void fillAssets(QListWidget* list, const QString& category);
+    void fillGenerators(QListWidget* list);
+    void addGeneratorsRow(QListWidget* list);
+    void setHoveredGenerator(const QString& id);
+    void refreshGenerators();
     void rowClicked(int column, QListWidgetItem* item);
     void setHovered(const QString& id);
     void relayout();
@@ -71,10 +86,13 @@ private:
     LibraryHost& host_;
     QHBoxLayout* row_ = nullptr;
     AssetPreview* preview_ = nullptr;
+    GeneratorPreview* generatorPreview_ = nullptr;
     std::vector<Column> columns_;
     QPoint anchor_;
     QString roomType_;
     QString hovered_;
+    QString hoveredGenerator_;
+    double ceilingHeight_ = plynth::kDefaultCeilingHeight;
     bool filtered_ = false;
     bool flipped_ = false;
     bool open_ = false;

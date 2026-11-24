@@ -4,7 +4,7 @@ Plynth can be driven from a terminal, a script or a coding assistant. Every comm
 
 This page covers the commands that exist today: version, help, creating and reading a project, setting the scale, grid and default sizes, floors, stairs, roofs, points, walls (straight and curved), rounded corners, doors, windows and other openings, rooms, placing furniture with `place` and `item`, finding walls and openings in the plan image with `detect`, building the project in Blender with `build`, the edit session that keeps the app and the command line from overwriting each other, and the machine commands: `doctor`, `settings`, `library` and `assets`. More commands arrive in later releases.
 
-The plan and project files are now at format version 5. Older projects open and upgrade by themselves. See "File format version 5" below.
+The plan file is now at format version 6 and the project file at version 5. Older projects open and upgrade by themselves. See "File format version 6" and "File format version 5" below.
 
 ## Running a command
 
@@ -168,11 +168,12 @@ plynth project info
 
 ### project set
 
-Changes the grid size or the default sizes. Give at least one option. Options you leave out keep their value. Several options in one command run as one step: if one is refused, none is applied.
+Changes the grid size, the export mode or the default sizes. Give at least one option. Options you leave out keep their value. Several options in one command run as one step: if one is refused, none is applied.
 
 | Option | Meaning |
 |---|---|
 | `--grid <metres>` | Distance between grid lines. Above zero. |
+| `--export single\|grouped` | The export mode. See below. |
 | `--door-width <metres>` | Width of a new door and of a new plain opening. Default: 0.9. |
 | `--door-height <metres>` | Height of a new door and of a new plain opening. Default: 2.1. |
 | `--window-width <metres>` | Width of a new window. Default: 1.2. |
@@ -201,7 +202,15 @@ plynth project set --window-sill 2.5
 {"ok":false,"command":"project set","error":{"code":"invalid_value","message":"The window sill 2.50 m plus the window height 1.20 m is more than the ceiling height 3.00 m."}}
 ```
 
-A grid of 0 or less is refused with `invalid_value`. The grid starts at the top left corner of the image. The app uses it for snapping, and so does `wall draw --grid`.
+A grid of 0 or less is refused with `invalid_value`. The grid starts at the top left corner of the image. The app uses it for snapping, and so does `wall draw --grid`. The modular kit cuts walls on the same grid.
+
+**Export mode.** `--export grouped` makes the project write one FBX for each group, and `--export single` goes back to one file. It can be changed at any time, and it can be combined with the other options. The answer shows `export_mode`. Changing the mode does not make the build out of date: `plan_fingerprint` leaves the export mode out, so `build --check` and the export's "Build is up to date" check give the same answer before and after.
+
+```
+plynth project set --export grouped
+```
+
+Group edits and the kit switch are kept in `export-options.json`, and switching the mode does not touch that file.
 
 The wall item centre is checked against the ceiling height in the same way:
 
@@ -1567,14 +1576,14 @@ The `build` word is a command, so a project folder named `build` has to be given
 
 ```
 {"progress":{"stage":"preparing","step":"","index":0,"count":0,"message":"Checking the plan"}}
-{"progress":{"stage":"blender","step":"prepare_scene","index":1,"count":15,"message":"Preparing the scene"}}
-{"progress":{"stage":"blender","step":"walls","index":2,"count":15,"message":"Raising walls"}}
-{"progress":{"stage":"blender","step":"openings","index":3,"count":15,"message":"Cutting openings"}}
+{"progress":{"stage":"blender","step":"prepare_scene","index":1,"count":17,"message":"Preparing the scene"}}
+{"progress":{"stage":"blender","step":"walls","index":2,"count":17,"message":"Raising walls"}}
+{"progress":{"stage":"blender","step":"openings","index":3,"count":17,"message":"Cutting openings"}}
 {"progress":{"stage":"finishing","step":"","index":0,"count":0,"message":"Writing the report"}}
 {"progress":{"stage":"done","step":"","index":0,"count":0,"message":"Done"}}
 ```
 
-The stages are `preparing`, `blender` (one line per step, `index` counting from 1 up to `count`), `finishing` and `done`. The steps are the registered build steps, in order: `prepare_scene`, `walls`, `openings`, `bevel`, `triangulate`, `opening_fills`, `floors`, `slabs`, `stairs`, `roofs`, `assets`, `materials`, `collision`, `save_blend`, `export_fbx`, `preview_parts`. Adding a step adds a line.
+The stages are `preparing`, `blender` (one line per step, `index` counting from 1 up to `count`), `finishing` and `done`. The steps are the registered build steps, in order: `prepare_scene`, `walls`, `openings`, `bevel`, `triangulate`, `opening_fills`, `floors`, `slabs`, `stairs`, `roofs`, `assets`, `generators`, `materials`, `collision`, `save_blend`, `export_fbx`, `preview_parts`. Adding a step adds a line.
 
 **The answer.** An example, shortened. The real lists hold every step and every problem.
 
@@ -1658,7 +1667,7 @@ Two builds of one project at the same time are not allowed: the second gets `in_
 
 ### export
 
-Exports the last build for Unreal: runs the quality checks, then writes `export\<Name>.fbx`, `export\Textures\` and `export\export_report.json`. The app's Export tab does the same thing, so both give the same result. `export` never builds. It uses `build\building.blend` as it is, hand edits included, and it never changes the plan, the project settings or `building.blend`. It runs while the app has the project open, with no edit session.
+Exports the last build for Unreal: runs the quality checks, then writes the FBX files, `export\Textures\` and `export\export_report.json`. A single project writes `export\<Name>.fbx`. A grouped project writes one file for each group, `export\<Name>_<Group>.fbx` (see "export groups"). With the kit switched on, it also writes `export\<Name>_Kit.fbx` and `export\<Name>_Kit_layout.json` (see "export kit"). The app's Export tab does the same thing, so both give the same result. `export` never builds. It uses `build\building.blend` as it is, hand edits included, and it never changes the plan, the project settings or `building.blend`. It runs while the app has the project open, with no edit session.
 
 ```
 plynth export
@@ -1672,6 +1681,7 @@ plynth export report
 |---|---|
 | `--project <folder>` | The project. Default: the current folder. |
 | `--blender <exe>` | Use this Blender instead of the one the setup check chooses. |
+| `--library <folder>` | The library the kit takes its material slot names from. Default: the library in the settings. Only the kit uses it, and it needs only the materials catalog. A folder you name here must be a library with a materials catalog, or the export is refused and `export\` is not changed. |
 | `--check` | Run the quality checks and write no FBX and no textures. The report is still written. |
 | `--force` | Write the files even when a check failed. The report records it. |
 | `--quiet` | Write no progress lines to standard error. |
@@ -1688,15 +1698,19 @@ plynth export report
 
 - `exported` is true when the files were written. `checked_only` is true for `--check`. `forced` is true when `--force` was used, and `overridden` lists the ids of the failed checks it went past.
 - `quality.checks` has one entry for each check, in the order they ran. `status` is `pass`, `warning`, `fail` or `skipped`. `findings` holds at most 50 entries, and each one may name a plan id in `plan_id`.
-- The eleven checks are `build_current`, `build_complete`, `scale`, `transforms`, `naming`, `uvs`, `texel_density`, `triangles`, `materials`, `collision` and `fbx_scale`. They are explained in "The quality gate" in the [User guide](USER_GUIDE.md).
+- The thirteen checks are `build_current`, `build_complete`, `scale`, `transforms`, `naming`, `uvs`, `texel_density`, `triangles`, `materials`, `collision`, `groups`, `fbx_scale` and `kit_file`. They are explained in "The quality gate" in the [User guide](USER_GUIDE.md).
 - With `--check`, a failed check does not make the command fail. The answer is ok, and the top level `warnings` list has one entry with the code `quality_failed` for each failed check, for example "The check 'naming' failed." A script can read it to know what to fix.
 - A blocked export replaces nothing. The files of the last good export stay, and the report says `exported` is false.
+- `outputs.files` has one entry for each FBX file, with the `group` id, the group's `name` as people see it, the `file`, and its `objects` and `triangles`. A single project has one entry, with the group `building`. The kit file is not in this list. It is under `kit`.
+- `groups` has two lists. `empty` holds the ids of groups that got no object, so no file was written for them. `notes` holds the group edits that no longer fit the plan and were skipped, the same sentences `export groups` shows.
+- `kit` says what happened to the modular kit. `asked` is true when the kit switch is on. `written` is true when the kit files are now in `export`. `skipped` is a sentence when the kit was asked for and not made, for example "No library is set, so the kit was left out." or "The plan has no walls, so there is no kit to make.", and `null` otherwise. `file` and `layout_file` are the two files, `pieces` and `placements` are counts, and `triangles` counts the kit file. A skipped kit does not fail the export: the exit code is still 0.
+- The groups and the kit are worked out from the last build and from `export-options.json`. The previous report lists the files it wrote. A new export removes those first, so a renamed group leaves no old file behind, and switching the kit off removes the old kit files. A blocked export keeps all of them.
 
 | Code | When |
 |---|---|
 | `not_a_project` | The folder has no `project.json`. |
 | `not_found` | There is no `build\building.blend`. The message is "Build the project first." |
-| `invalid_value` | The project's export mode is grouped. The message is "Grouped export is not available yet." This stays until grouped export is added. |
+| `bad_file` | `export-options.json` is there but cannot be read, or holds a group name that is not allowed (for example one edited by hand). Nothing runs. `plynth export groups reset` repairs it. |
 | `in_use` | A build or another export of the project is running. |
 | `blender_not_found` | No usable Blender. |
 | `blender_failed` | The worker failed. The message names the log file. |
@@ -1706,6 +1720,133 @@ plynth export report
 #### export report
 
 Answers with the last report of the project, read from `export\export_report.json`, in the same shape. It is `not_found` when the project has never been exported or checked. It takes only `--project`.
+
+### export groups
+
+Shows the files a grouped export would write, before you export. It changes nothing and is never refused by the edit lock. The same list is in the app's Export tab.
+
+```
+plynth export groups
+```
+
+```json
+{"ok":true,"command":"export groups","result":{"exporter":"grouped","reviewable":true,"from_build":true,"groups":[{"id":"structure","name":"Walls","file":"MyApartment_Walls.fbx","rest":true,"automatic":true,"members":[{"kind":"walls","id":"f1","label":"Walls, Floor 1"},{"kind":"door","id":"o1","label":"Door o1"}]},{"id":"surfaces","name":"Floors","file":"MyApartment_Floors.fbx","rest":false,"automatic":true,"members":[{"kind":"floor","id":"r1","label":"Floor of Living r1"},{"kind":"slab","id":null,"label":"Every slab"}]},{"id":"furniture_r1","name":"Furniture Living","file":"MyApartment_Furniture_Living.fbx","rest":false,"automatic":true,"members":[{"kind":"item","id":"i1","label":"sofa i1"}]}],"notes":[],"kit":{"enabled":false}}}
+```
+
+The example is shortened and written by hand from the code and the tests. It was not run.
+
+- `exporter` is `single` or `grouped`, the project's export mode.
+- `reviewable` is true when the groups can be edited, which is only so in grouped mode. A single project answers with its one group, `building`, and `reviewable` false.
+- `from_build` is true when the groups were made from the plan of the last successful build (`build\built-plan.json`). It is false when there is no build yet, and the project's own plan is used.
+- Each group has an `id`, a `name`, the `file` it would write, `rest` (it takes anything no other group takes), `automatic` (false for a group you made) and its `members`.
+- A member is a `kind` and an `id`: `walls` for a floor, `floor` and `ceiling` for a room, `door` and `window` for an opening, `item` for a furniture item that places an asset, `generator` for an item a generator makes (an item has one of the two, never both), and `thresholds`, `slab`, `stair`, `roof` and `light`. `id` is `null` for a member that takes every object of its kind. `label` is a plain sentence for people.
+- `notes` lists the edits that were skipped because they no longer fit the plan.
+- `kit.enabled` is the modular kit switch (see "export kit").
+
+The automatic groups are `structure` ("Walls"), `surfaces` ("Floors") and one `furniture_<room id>` for each room that holds items ("Furniture Living"), with `furniture` for items that are in no room. A group with no members is listed, but its file is not written by an export.
+
+The group edits below all take the same options as `export groups`, plus their own. They write `export-options.json` in the project folder. They never write `plan.json` or `project.json`, never change the build's fingerprint, and answer with the new list, in the same shape. They follow the rules of the edit commands: they are refused with `locked` while the app has the project open without a session. They also need the export mode to be grouped. On a single project every edit except `reset` is `invalid_value`: "Groups can only be edited in grouped export mode. Run plynth project set --export grouped first."
+
+### export groups rename
+
+Renames a group. The file is renamed with it, and the next export removes the old file.
+
+```
+plynth export groups rename furniture_r1 --name "Lounge props"
+```
+
+`--name <text>` is required. A name has 1 to 64 characters after the spaces at its ends are removed. It may hold only A to Z, a to z, 0 to 9, spaces, hyphens and underscores, with at least one letter or digit. A name another group has, compared without regard to capitals, is refused. A second rename of the same group replaces the first. The answer's group `furniture_r1` now has the name "Lounge props" and the file `MyApartment_Lounge_props.fbx`.
+
+### export groups merge
+
+Moves everything in one group into another and removes the first.
+
+```
+plynth export groups merge furniture_r2 --into furniture_r1
+```
+
+`--into <group>` is required. A group cannot be merged into itself.
+
+### export groups move
+
+Moves one member to another group. The member is written `<kind>:<id>`. `<kind>:*` is the member that takes every object of the kind.
+
+```
+plynth export groups move item:i3 --to structure
+plynth export groups move slab:* --to structure
+```
+
+`--to <group>` is required. Moving a member to the group it is already in is allowed and changes nothing. A second move of the same member replaces the first. The group can be one you made with `export groups new`.
+
+### export groups new
+
+Makes an empty group. The answer has the new group's id as `new_group`, for example `group_1`. Move members into it with `export groups move`.
+
+```
+plynth export groups new --name Hero
+```
+
+```
+{"ok":true,"command":"export groups new","result":{"exporter":"grouped","reviewable":true,"from_build":true,"groups":[...],"notes":[],"kit":{"enabled":false},"new_group":"group_1"}}
+```
+
+`--name <text>` is required, with the rules of `rename`.
+
+### export groups reset
+
+Removes every group edit, so the automatic groups come back. On a single project it only repairs a bad options file (the answer has `repaired.backup`); with a good file it is refused with `invalid_value` and nothing changes. The kit switch stays as it is. It takes no other option. It also repairs a bad `export-options.json`, whether the file is not JSON or breaks a rule such as a group name. The old file is copied to `export-options.json.bad`, and its path is in `result.repaired.backup`. All group edits are dropped, and the kit switch is kept when the old file still has a readable one. A file written by a newer Plynth is not touched: `reset` answers `unsupported_version` and leaves it as it is.
+
+```
+plynth export groups reset
+```
+
+**Refusals** of the group edits. All change nothing. They have exit code 1, except `bad_arguments`, which is 2.
+
+| Code | When |
+|---|---|
+| `not_found` | The group or the member is not in the list, or the group named by `--to` or `--into` is not. |
+| `invalid_value` | A bad name, a merge of a group into itself, a member not written `kind:id` (the message shows the form), or a single project (for `reset`, only when the options file is good). |
+| `already_exists` | Another group already has that name. |
+| `bad_file` | `export-options.json` is there but cannot be read, or holds a group name the rules above refuse. The file is left as it is. `export groups reset` is the one command that repairs it (see above), also on a single project. |
+| `unsupported_version` | `export-options.json` was written by a newer Plynth. It is left as it is, and `reset` does not touch it either. |
+| `bad_arguments` | A missing or an extra option, such as `rename` with no `--name`, or `--name` given to `merge`. |
+| `locked` | The project is open in the app and no edit session is active. |
+
+### export kit
+
+Shows or changes the modular kit switch, which is saved in `export-options.json`.
+
+```
+plynth export kit
+plynth export kit on
+plynth export kit off
+```
+
+```json
+{"ok":true,"command":"export kit on","result":{"enabled":true}}
+```
+
+`export kit` only reads the switch and is never refused by the lock. `on` and `off` write it, with the rules of the other edit commands. `export kit maybe` is `bad_arguments`. When the switch is on, `export` also writes the kit (see "export"). The kit needs a library with a materials catalog: `export` takes `--library` or the library in the settings. Without one it carries on without the kit and says why in the answer (`kit.skipped`). A configured library that is broken still exports, and `kit.skipped` says "The library materials could not be opened, so the kit was left out." An explicit `--library` that is not a usable library is refused instead. The kit uses the custom opening shapes of its library. When an opening cannot be built, the kit is left out with a reason in `kit.skipped` (for example "The kit was left out because opening o3 cannot be built.") and the export still succeeds.
+
+### export-options.json
+
+The file in the project folder that holds the group edits and the kit switch. It only exists once you change something, and writing the default settings removes it again. It is separate from `plan.json` and `project.json`, so editing it never makes the build out of date. Its shape is in `schema/export-options.schema.json`, version 1:
+
+```json
+{
+  "format": "plynth-export-options",
+  "version": 1,
+  "groups": {
+    "added": [{"id": "group_1", "name": "Hero"}],
+    "renames": [{"group": "furniture_r1", "name": "Lounge props"}],
+    "merges": [{"group": "furniture_r2", "into": "furniture_r1"}],
+    "moves": [{"kind": "item", "id": "i1", "to": "group_1"}, {"kind": "slab", "id": null, "to": "structure"}]
+  },
+  "kit": {"enabled": true}
+}
+```
+
+The edits are applied to the automatic groups in this order: `added`, `merges`, `moves`, `renames`. An edit that names a group or a plan id that is gone is skipped, and the skip is listed under `notes`. You can edit the file by hand. An unreadable file is `bad_file`, and until `export groups reset` repairs it (the old file is kept as `export-options.json.bad`) every other group and kit command answers `bad_file`. A file with a newer `version` is `unsupported_version` and is never changed. Deleting the file goes back to the automatic groups with the kit off.
 
 ### session begin
 
@@ -2612,18 +2753,31 @@ For a script on a new machine:
 5. `plynth assets search <words>` to find the ids you need.
 6. `plynth materials import samples\materials\*` to add the nine sample materials, which new projects use by default. Add `--skip-existing` to run it again safely. Then `plynth materials search <words>` finds material ids.
 
+## File format version 6
+
+`plan.json` is now at format version 6. `project.json` stays at version 5. What changed:
+
+- An item either places an asset or runs a generator. A generator item has `asset` `null` and `generator` with the generator's `name` and its `params`, one value for each parameter. An asset item has `generator` `null`.
+- The `size` of a generator item is worked out from its values and saved with it, like the measured size of an asset.
+
+**Older plans upgrade by themselves.** Every item of a version 5 plan gets `"generator": null`. Nothing is written when you only read. The next command that edits and saves writes the plan as version 6, as the app does.
+
+**Older programs refuse the new file** with `unsupported_version`. The shape of version 6 is in `schema/plan.schema.json`, and `schema/plan.v5.schema.json` keeps version 5 as it was.
+
+The sections below describe version 5 and earlier, which version 6 only adds to.
+
 ## File format version 5
 
-`plan.json` and `project.json` are now at format version 5. What changed:
+`plan.json` and `project.json` were at format version 5 before generators, and `project.json` still is. What changed:
 
 - Every floor in `plan.json` has `slab_thickness` (metres, 0.05 to 1, default 0.2), `image_offset` (`{"x", "y"}` in metres, default 0, 0) and `stairs` (a list). A stair has `id`, `type`, `x`, `y`, `rotation`, `width`, `turn` (`left` or `right`) and `material` (`null` for the project default).
 - `plan.json` has `roof`, the roof default (`type`, `pitch`, `overhang`, `parapet`, `direction`, which is `null` for automatic), and `roof_sections`, a list of entries with an `id` (`rf1`), a `floor`, an anchor point `x`, `y`, their own settings and a `material`. Roof sections themselves are not saved. They are worked out from the floors, and an entry belongs to the section that holds its anchor point.
 - `project.json` has three more default materials: `roof`, `flat_roof` and `stair`.
 - Floors now stack on slabs, so the level of a floor is the level below plus its ceiling height plus its slab thickness. A version 4 project with several floors has each upper floor 0.2 m higher for every floor below it.
 
-**Older projects upgrade by themselves.** A version 4 plan gets a slab of 0.2 m on every floor, an offset of 0, no stairs, the default roof (flat, pitch 30, overhang 0.3, parapet 0.6) and no entries. A version 4 project gets `roof_tiles`, `concrete` and `oak_planks` as the three new defaults. Nothing is written when you only read. The next command that edits and saves writes both files as version 5, as the app does.
+**Older projects upgrade by themselves.** A version 4 plan gets a slab of 0.2 m on every floor, an offset of 0, no stairs, the default roof (flat, pitch 30, overhang 0.3, parapet 0.6) and no entries. A version 4 project gets `roof_tiles`, `concrete` and `oak_planks` as the three new defaults. Nothing is written when you only read. The next command that edits and saves writes the plan as version 6 and the project as version 5, as the app does.
 
-**Older programs refuse the new files** with `unsupported_version`. The shape of each version is in `schema/plan.schema.json` and `schema/project.schema.json` (version 5), and `schema/plan.v4.schema.json` and `schema/project.v4.schema.json` (version 4, kept as it was).
+**Older programs refuse the new files** with `unsupported_version`. The shape of each version is in `schema/plan.v5.schema.json` and `schema/project.schema.json` (version 5), and `schema/plan.v4.schema.json` and `schema/project.v4.schema.json` (version 4, kept as it was).
 
 The sections below describe version 4, which version 5 only adds to.
 
@@ -2642,7 +2796,7 @@ The sections below describe version 3, which version 4 only adds to.
 
 ## File format version 3
 
-Version 3 is what `plan.json` and `project.json` were before materials. Today they are saved as version 5, and the numbers in this section are the ones of that earlier release. What version 3 changed:
+Version 3 is what `plan.json` and `project.json` were before materials. Today the plan is saved as version 6 and the project as version 5, and the numbers in this section are the ones of that earlier release. What version 3 changed:
 
 - Every floor in `plan.json` has `items`, the furniture placed on it. Each item has `id`, `asset`, `room`, `x`, `y`, `z`, `rotation`, `wall` and `size`. See "Furniture items".
 - `project.json` has `wall_item_centre` in `defaults`, the height of the middle of a newly mounted wall item (see `project set`).

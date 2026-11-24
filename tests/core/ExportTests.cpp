@@ -1,3 +1,5 @@
+#include "CatalogSupport.h"
+#include "MaterialCatalogSupport.h"
 #include "FakeBlender.h"
 #include "SchemaSupport.h"
 #include "SquareFixtures.h"
@@ -6,6 +8,7 @@
 #include <plynth/core/Build.h>
 #include <plynth/core/EditSession.h>
 #include <plynth/core/Export.h>
+#include <plynth/core/ExportGroups.h>
 #include <plynth/core/Exporter.h>
 #include <plynth/core/ExportJob.h>
 #include <plynth/core/ProjectFiles.h>
@@ -130,13 +133,14 @@ TEST_CASE("exportFileStem makes a safe file name", "[core][export]") {
     REQUIRE(exportFileStem(std::string(63, 'a') + " b") == std::string(63, 'a'));
 }
 
-TEST_CASE("the single exporter is registered and the grouped one is not", "[core][export]") {
+TEST_CASE("the single and grouped exporters are registered", "[core][export]") {
     const Exporter* single = findExporter("single");
     REQUIRE(single);
     REQUIRE(single->id() == kSingleExporterId);
     REQUIRE(single->name() == "Single FBX");
     REQUIRE_FALSE(single->description().empty());
-    REQUIRE_FALSE(findExporter("grouped"));
+    REQUIRE(findExporter("grouped"));
+    REQUIRE(findExporter("grouped")->id() == kGroupedExporterId);
 
     Project project = makeNewProject();
     project.settings.name = "My Flat 2";
@@ -450,17 +454,6 @@ TEST_CASE("the job carries the materials of the build", "[core][export][run]") {
     REQUIRE(materials[0]["name"] == "Living_Floor");
 }
 
-TEST_CASE("a project in grouped mode is refused and nothing is written", "[core][export][run]") {
-    ExportFixture f("run-grouped");
-    f.request.project.settings.exportMode = ExportMode::Grouped;
-    const ExportReport report = runExport(f.request);
-    REQUIRE(report.status.code == ErrorCode::InvalidValue);
-    REQUIRE(report.status.message.find("not available yet") != std::string::npos);
-    REQUIRE_FALSE(fs::exists(f.exportDir()));
-    REQUIRE_FALSE(fs::exists(f.lockFile()));
-    REQUIRE_FALSE(fs::exists(f.blenderFolder / "fake_jobs.log"));
-}
-
 TEST_CASE("runExport refuses before doing anything", "[core][export][run]") {
     ExportFixture f("run-refuse");
     ExportRequest missing = f.request;
@@ -579,4 +572,433 @@ TEST_CASE("readExportReport refuses a file that is not a report", "[core][export
     const ExportReportRead missing = readExportReport(f.projectFolder);
     REQUIRE(missing.status.code == ErrorCode::BadFile);
     REQUIRE(missing.status.where == "/exported");
+}
+
+namespace {
+
+// Makes the fixture's project a grouped one: living room r1 and bedroom r2 with an item each, and a door.
+void makeGrouped(ExportFixture& f)
+{
+    f.request.project.settings.exportMode = ExportMode::Grouped;
+    Floor& floor = f.request.project.plan.floors[0];
+    Room r1;
+    r1.id = "r1";
+    r1.type = "living";
+    r1.walls = {"w1", "w2", "w3", "w4"};
+    Room r2;
+    r2.id = "r2";
+    r2.type = "bedroom";
+    r2.walls = {"w1", "w2"};
+    floor.rooms = {r1, r2};
+    Opening door = doorOn("w1", 2.0);
+    door.id = "o1";
+    floor.openings = {door};
+    Item sofa;
+    sofa.id = "i1";
+    sofa.asset = "sofa";
+    sofa.room = "r1";
+    sofa.size = {1.0, 1.0, 1.0};
+    Item bed = sofa;
+    bed.id = "i2";
+    bed.asset = "bed";
+    bed.room = "r2";
+    floor.items = {sofa, bed};
+}
+
+// The job the fake Blender got last, as the whole file.
+Json lastJob(const ExportFixture& f)
+{
+    return Json::parse(plynth::test::readTextFile(f.projectFolder / "build" / "export_work" / "job.json"));
+}
+
+// Checks a job against the job schema.
+std::string jobSchemaProblem(const Json& job)
+{
+    return plynth::test::schemaProblem("blender-job.schema.json", nlohmann::json::parse(job.dump()));
+}
+
+}
+
+TEST_CASE("a grouped project exports one file per group", "[core][export][run]") {
+    ExportFixture f("run-grouped");
+    makeGrouped(f);
+    const ExportReport report = runExport(f.request);
+    plynth::test::requireOk(report.status);
+    REQUIRE(report.exporter == "grouped");
+    REQUIRE(report.exported);
+    REQUIRE(f.exportEntries() == std::set<std::string>{"Square_Walls.fbx", "Square_Floors.fbx", "Square_Furniture_Living.fbx",
+                                                       "Square_Furniture_Bedroom.fbx", "Textures", "export_report.json"});
+    REQUIRE(report.fileOutputs.size() == 4);
+    REQUIRE(report.fileOutputs[0].group == "structure");
+    REQUIRE(report.fileOutputs[0].name == "Walls");
+    REQUIRE(report.fileOutputs[3].name == "Furniture Bedroom");
+    REQUIRE(report.emptyGroups.empty());
+    REQUIRE(report.groupNotes.empty());
+
+    INFO(reportProblem(f.reportFile()));
+    REQUIRE(reportProblem(f.reportFile()).empty());
+    const nlohmann::json written = nlohmann::json::parse(plynth::test::readTextFile(f.reportFile()));
+    REQUIRE(written["outputs"]["files"][2]["name"] == "Furniture Living");
+    REQUIRE(written["groups"]["empty"].empty());
+
+    const Json job = lastJob(f);
+    INFO(jobSchemaProblem(job));
+    REQUIRE(jobSchemaProblem(job).empty());
+    const Json& groups = job["params"]["groups"];
+    REQUIRE(groups.size() == 4);
+    REQUIRE(groups[0]["id"] == "structure");
+    REQUIRE(groups[0]["name"] == "Walls");
+    REQUIRE(groups[0]["rest"] == true);
+    REQUIRE(groups[0]["members"].size() == 2);
+    REQUIRE(groups[0]["members"][0] == Json{{"kind", "walls"}, {"id", "f1"}});
+    REQUIRE(groups[1]["members"].back() == Json{{"kind", "light"}, {"id", nullptr}});
+    REQUIRE(groups[2]["rest"] == false);
+    REQUIRE(job["params"]["kit"].is_null());
+
+    const ExportReportRead read = readExportReport(f.projectFolder);
+    plynth::test::requireOk(read.status);
+    REQUIRE(read.report.fileOutputs == report.fileOutputs);
+}
+
+TEST_CASE("saved group edits rename the file and the next export removes the old one", "[core][export][run]") {
+    ExportFixture f("run-grouped-rename");
+    makeGrouped(f);
+    plynth::test::requireOk(runExport(f.request).status);
+    REQUIRE(fs::exists(f.exportDir() / "Square_Furniture_Living.fbx"));
+
+    ExportOptions options;
+    options.groups.renames = {{"furniture_r1", "Lounge props"}};
+    options.groups.merges = {{"furniture_r2", "structure"}};
+    plynth::test::requireOk(writeExportOptions(f.projectFolder, options));
+    const ExportReport second = runExport(f.request);
+    plynth::test::requireOk(second.status);
+    REQUIRE(f.exportEntries() == std::set<std::string>{"Square_Walls.fbx", "Square_Floors.fbx", "Square_Lounge_props.fbx", "Textures",
+                                                       "export_report.json"});
+    REQUIRE(second.fileOutputs[2].name == "Lounge props");
+    REQUIRE(lastJob(f)["params"]["groups"][0]["members"].size() == 3);
+    REQUIRE(reportProblem(f.reportFile()).empty());
+    REQUIRE(second.groupNotes.empty());
+}
+
+TEST_CASE("a saved edit that no longer applies is in the report notes", "[core][export][run]") {
+    ExportFixture f("run-grouped-notes");
+    makeGrouped(f);
+    ExportOptions options;
+    options.groups.renames = {{"furniture_r9", "Gone"}};
+    plynth::test::requireOk(writeExportOptions(f.projectFolder, options));
+    const ExportReport report = runExport(f.request);
+    plynth::test::requireOk(report.status);
+    REQUIRE(report.groupNotes.size() == 1);
+    REQUIRE(report.groupNotes[0].find("furniture_r9") != std::string::npos);
+    REQUIRE(reportProblem(f.reportFile()).empty());
+    const nlohmann::json written = nlohmann::json::parse(plynth::test::readTextFile(f.reportFile()));
+    REQUIRE(written["groups"]["notes"].size() == 1);
+    REQUIRE(readExportReport(f.projectFolder).report.groupNotes == report.groupNotes);
+}
+
+TEST_CASE("a group that gets no object is listed and not written", "[core][export][run]") {
+    ExportFixture f("run-grouped-empty", "empty_group");
+    makeGrouped(f);
+    const ExportReport report = runExport(f.request);
+    plynth::test::requireOk(report.status);
+    REQUIRE(report.emptyGroups == std::vector<std::string>{"furniture_r2"});
+    REQUIRE(report.fileOutputs.size() == 3);
+    REQUIRE_FALSE(fs::exists(f.exportDir() / "Square_Furniture_Bedroom.fbx"));
+    REQUIRE(reportProblem(f.reportFile()).empty());
+    const nlohmann::json written = nlohmann::json::parse(plynth::test::readTextFile(f.reportFile()));
+    REQUIRE(written["groups"]["empty"] == nlohmann::json::array({"furniture_r2"}));
+    REQUIRE(readExportReport(f.projectFolder).report.emptyGroups == report.emptyGroups);
+}
+
+TEST_CASE("a bad options file stops a grouped export before anything is written", "[core][export][run]") {
+    ExportFixture f("run-grouped-bad");
+    makeGrouped(f);
+    std::ofstream(f.projectFolder / "export-options.json", std::ios::binary) << R"({"format": "plynth-export-options", "version": 1, "x": 1})";
+    const ExportReport report = runExport(f.request);
+    REQUIRE(report.status.code == ErrorCode::BadFile);
+    REQUIRE_FALSE(fs::exists(f.exportDir()));
+    REQUIRE_FALSE(fs::exists(f.lockFile()));
+    REQUIRE_FALSE(fs::exists(f.blenderFolder / "fake_jobs.log"));
+}
+
+TEST_CASE("a single project job and files are as in milestone 10", "[core][export][run]") {
+    ExportFixture f("run-single-job");
+    plynth::test::requireOk(runExport(f.request).status);
+    const Json job = lastJob(f);
+    REQUIRE(jobSchemaProblem(job).empty());
+    const Json& groups = job["params"]["groups"];
+    REQUIRE(groups.size() == 1);
+    REQUIRE(groups[0]["id"] == "building");
+    REQUIRE(groups[0]["file"] == "Square.fbx");
+    REQUIRE(groups[0]["name"] == "Square");
+    REQUIRE(groups[0]["members"].empty());
+    REQUIRE(groups[0]["rest"] == false);
+    REQUIRE(f.exportEntries() == std::set<std::string>{"Square.fbx", "Textures", "export_report.json"});
+}
+
+TEST_CASE("a milestone 10 report still reads", "[core][export][run]") {
+    ExportFixture f("run-old-report");
+    plynth::test::requireOk(runExport(f.request).status);
+    nlohmann::json written = nlohmann::json::parse(plynth::test::readTextFile(f.reportFile()));
+    written.erase("groups");
+    written.erase("kit");
+    written["outputs"]["files"][0].erase("name");
+    std::ofstream(f.reportFile(), std::ios::binary | std::ios::trunc) << written.dump(2);
+    REQUIRE(reportProblem(f.reportFile()).empty());
+    const ExportReportRead read = readExportReport(f.projectFolder);
+    plynth::test::requireOk(read.status);
+    REQUIRE(read.report.fileOutputs.size() == 1);
+    REQUIRE(read.report.fileOutputs[0].name.empty());
+    REQUIRE(read.report.emptyGroups.empty());
+    REQUIRE_FALSE(read.report.kit.asked);
+}
+
+namespace {
+
+// Switches the kit on in the project's export options.
+void switchKit(const fs::path& projectFolder, bool on)
+{
+    ExportOptions options;
+    options.kit.enabled = on;
+    plynth::test::requireOk(writeExportOptions(projectFolder, options));
+}
+
+}
+
+TEST_CASE("the kit is written with its layout when the options switch it on", "[core][export][run][kit]") {
+    TestLibrary lib("export-kit");
+    ExportFixture f("run-kit");
+    f.request.library = lib.paths;
+    switchKit(f.projectFolder, true);
+
+    const ExportReport report = runExport(f.request);
+    plynth::test::requireOk(report.status);
+    REQUIRE(f.exportEntries() == std::set<std::string>{"Square.fbx", "Square_Kit.fbx", "Square_Kit_layout.json", "Textures", "export_report.json"});
+
+    const Json job = lastJob(f);
+    INFO(jobSchemaProblem(job));
+    REQUIRE(jobSchemaProblem(job).empty());
+    const Json& kitJob = job["params"]["kit"];
+    REQUIRE(kitJob.is_object());
+    REQUIRE(kitJob["file"] == "Square_Kit.fbx");
+    REQUIRE(kitJob["fill_openings"] == true);
+    REQUIRE(kitJob["pieces"].size() >= 2);
+
+    const nlohmann::json layout = nlohmann::json::parse(plynth::test::readTextFile(f.exportDir() / "Square_Kit_layout.json"));
+    INFO(plynth::test::schemaProblem("kit-layout.schema.json", layout));
+    REQUIRE(plynth::test::schemaProblem("kit-layout.schema.json", layout).empty());
+    REQUIRE(layout["kit_file"] == "Square_Kit.fbx");
+    REQUIRE(layout["pieces"].size() == kitJob["pieces"].size());
+    for (std::size_t i = 0; i < kitJob["pieces"].size(); ++i) REQUIRE(layout["pieces"][i]["id"] == kitJob["pieces"][i]["id"]);
+
+    REQUIRE(report.kit.asked);
+    REQUIRE(report.kit.written);
+    REQUIRE(report.kit.skipped.empty());
+    REQUIRE(report.kit.file == f.exportDir() / "Square_Kit.fbx");
+    REQUIRE(report.kit.layoutFile == f.exportDir() / "Square_Kit_layout.json");
+    REQUIRE(report.kit.pieces == static_cast<int>(layout["pieces"].size()));
+    REQUIRE(report.kit.placements == static_cast<int>(layout["placements"].size()));
+    REQUIRE(report.kit.triangles == 100 * report.kit.pieces);
+    REQUIRE(reportProblem(f.reportFile()).empty());
+    const ExportReportRead read = readExportReport(f.projectFolder);
+    plynth::test::requireOk(read.status);
+    REQUIRE(exportReportToJson(read.report) == exportReportToJson(report));
+}
+
+TEST_CASE("without a library the export goes on and says why the kit was left out", "[core][export][run][kit]") {
+    ExportFixture f("run-kit-nolib");
+    switchKit(f.projectFolder, true);
+    const ExportReport report = runExport(f.request);
+    plynth::test::requireOk(report.status);
+    REQUIRE(report.exported);
+    REQUIRE(report.kit.asked);
+    REQUIRE_FALSE(report.kit.written);
+    REQUIRE(report.kit.skipped == "No library is set, so the kit was left out.");
+    REQUIRE(f.exportEntries() == std::set<std::string>{"Square.fbx", "Textures", "export_report.json"});
+    REQUIRE(lastJob(f)["params"]["kit"].is_null());
+    REQUIRE(reportProblem(f.reportFile()).empty());
+}
+
+TEST_CASE("switching the kit off removes the old kit files at the next export", "[core][export][run][kit]") {
+    TestLibrary lib("export-kit-off");
+    ExportFixture f("run-kit-off");
+    f.request.library = lib.paths;
+    switchKit(f.projectFolder, true);
+    plynth::test::requireOk(runExport(f.request).status);
+    REQUIRE(fs::exists(f.exportDir() / "Square_Kit.fbx"));
+
+    switchKit(f.projectFolder, false);
+    const ExportReport report = runExport(f.request);
+    plynth::test::requireOk(report.status);
+    REQUIRE_FALSE(report.kit.asked);
+    REQUIRE_FALSE(report.kit.written);
+    REQUIRE(f.exportEntries() == std::set<std::string>{"Square.fbx", "Textures", "export_report.json"});
+}
+
+TEST_CASE("a blocked export leaves the old kit files", "[core][export][run][kit]") {
+    TestLibrary lib("export-kit-blocked");
+    ExportFixture f("run-kit-blocked");
+    f.request.library = lib.paths;
+    switchKit(f.projectFolder, true);
+    plynth::test::requireOk(runExport(f.request).status);
+
+    f.setMode("quality_fail");
+    const ExportReport blocked = runExport(f.request);
+    REQUIRE(blocked.status.code == ErrorCode::QualityFailed);
+    REQUIRE(fs::exists(f.exportDir() / "Square_Kit.fbx"));
+    REQUIRE(fs::exists(f.exportDir() / "Square_Kit_layout.json"));
+    REQUIRE(blocked.kit.written);
+    REQUIRE(blocked.kit.file == f.exportDir() / "Square_Kit.fbx");
+
+    f.setMode("");
+    switchKit(f.projectFolder, false);
+    plynth::test::requireOk(runExport(f.request).status);
+    REQUIRE_FALSE(fs::exists(f.exportDir() / "Square_Kit.fbx"));
+    REQUIRE_FALSE(fs::exists(f.exportDir() / "Square_Kit_layout.json"));
+}
+
+TEST_CASE("a grouped project gets the kit too", "[core][export][run][kit]") {
+    TestLibrary lib("export-kit-grouped");
+    ExportFixture f("run-kit-grouped");
+    makeGrouped(f);
+    f.request.library = lib.paths;
+    switchKit(f.projectFolder, true);
+    const ExportReport report = runExport(f.request);
+    plynth::test::requireOk(report.status);
+    REQUIRE(report.kit.written);
+    REQUIRE(fs::exists(f.exportDir() / "Square_Kit.fbx"));
+    REQUIRE(fs::exists(f.exportDir() / "Square_Walls.fbx"));
+    REQUIRE(jobSchemaProblem(lastJob(f)).empty());
+}
+
+TEST_CASE("a check only run makes no kit", "[core][export][run][kit]") {
+    TestLibrary lib("export-kit-check");
+    ExportFixture f("run-kit-check");
+    f.request.library = lib.paths;
+    f.request.settings.write = false;
+    switchKit(f.projectFolder, true);
+    plynth::test::requireOk(runExport(f.request).status);
+    REQUIRE(lastJob(f)["params"]["kit"].is_null());
+    REQUIRE_FALSE(fs::exists(f.exportDir() / "Square_Kit.fbx"));
+}
+
+TEST_CASE("the job gives each library material its tile size", "[core][export][run]") {
+    MaterialTestLibrary lib("export-tile");
+    lib.add("oak_planks", "Oak Planks");
+    ExportFixture f("run-tile");
+    f.request.library = lib.paths;
+    fs::copy_file(fs::path(PLYNTH_TEST_DATA_DIR) / "export" / "materials.json", f.projectFolder / "build" / "materials.json");
+    plynth::test::requireOk(runExport(f.request).status);
+
+    const Json job = lastJob(f);
+    INFO(jobSchemaProblem(job));
+    REQUIRE(jobSchemaProblem(job).empty());
+    const Json& materials = job["params"]["materials"];
+    REQUIRE(materials.size() == 3);
+    REQUIRE(materials[0]["material"] == "oak_planks");
+    REQUIRE(materials[0]["tile_size"] == Json{{"width", 1.0}, {"height", 0.5}});
+    REQUIRE_FALSE(materials[1].contains("tile_size"));
+    REQUIRE_FALSE(materials[2].contains("tile_size"));
+
+    // Without a library there is nothing to look up.
+    f.request.library.reset();
+    plynth::test::requireOk(runExport(f.request).status);
+    REQUIRE_FALSE(lastJob(f)["params"]["materials"][0].contains("tile_size"));
+}
+
+TEST_CASE("kit cut faces have no wall in the job", "[core][export][run][kit]") {
+    TestLibrary lib("export-kit-null-wall");
+    ExportFixture f("run-kit-null-wall");
+    f.request.library = lib.paths;
+    switchKit(f.projectFolder, true);
+    plynth::test::requireOk(runExport(f.request).status);
+    const Json job = lastJob(f);
+    REQUIRE(jobSchemaProblem(job).empty());
+    int cuts = 0;
+    for (const Json& piece : job["params"]["kit"]["pieces"]) {
+        for (const Json& solid : piece["wall_solids"]) {
+            for (const Json& edge : solid["outline"]["edges"]) {
+                if (edge.contains("kit_cut")) {
+                    REQUIRE(edge["wall"].is_null());
+                    ++cuts;
+                }
+            }
+        }
+    }
+    REQUIRE(cuts > 0);
+}
+
+TEST_CASE("a group named Kit does not take the kit file name", "[core][export][run][kit]") {
+    TestLibrary lib("export-kit-name");
+    ExportFixture f("run-kit-name");
+    makeGrouped(f);
+    f.request.library = lib.paths;
+    f.request.settings.force = true;
+    ExportOptions options;
+    options.kit.enabled = true;
+    options.groups.renames = {{"furniture_r1", "Kit"}};
+    plynth::test::requireOk(writeExportOptions(f.projectFolder, options));
+    plynth::test::requireOk(runExport(f.request).status);
+    // The second export, forced, must not lose either file.
+    const ExportReport second = runExport(f.request);
+    plynth::test::requireOk(second.status);
+    REQUIRE(plynth::test::readTextFile(f.exportDir() / "Square_Kit.fbx") == "FAKEKIT");
+    REQUIRE(plynth::test::readTextFile(f.exportDir() / "Square_Kit_2.fbx") == "FAKEFBX");
+    REQUIRE(fs::exists(f.exportDir() / "Square_Kit_layout.json"));
+}
+
+TEST_CASE("the built tile size wins over the library's", "[core][export][run]") {
+    MaterialTestLibrary lib("export-built-tile");
+    lib.add("oak_planks", "Oak Planks");
+    ExportFixture f("run-built-tile");
+    f.request.library = lib.paths;
+    fs::copy_file(fs::path(PLYNTH_TEST_DATA_DIR) / "export" / "materials_tile.json", f.projectFolder / "build" / "materials.json");
+    plynth::test::requireOk(runExport(f.request).status);
+    const Json job = lastJob(f);
+    REQUIRE(jobSchemaProblem(job).empty());
+    REQUIRE(job["params"]["materials"][0]["tile_size"] == Json{{"width", 2.0}, {"height", 3.0}});
+
+    // With the field and no library the job still has it.
+    f.request.library.reset();
+    plynth::test::requireOk(runExport(f.request).status);
+    REQUIRE(lastJob(f)["params"]["materials"][0]["tile_size"] == Json{{"width", 2.0}, {"height", 3.0}});
+}
+
+TEST_CASE("an entry without a built tile size gets the library's", "[core][export][run]") {
+    MaterialTestLibrary lib("export-no-built-tile");
+    lib.add("oak_planks", "Oak Planks");
+    ExportFixture f("run-no-built-tile");
+    f.request.library = lib.paths;
+    fs::copy_file(fs::path(PLYNTH_TEST_DATA_DIR) / "export" / "materials.json", f.projectFolder / "build" / "materials.json");
+    plynth::test::requireOk(runExport(f.request).status);
+    REQUIRE(lastJob(f)["params"]["materials"][0]["tile_size"] == Json{{"width", 1.0}, {"height", 0.5}});
+}
+
+TEST_CASE("an opening the plan cannot build leaves the kit out with a reason", "[core][export][run][kit]") {
+    TestLibrary lib("export-kit-bad-opening");
+    ExportFixture f("run-kit-bad-opening");
+    f.request.library = lib.paths;
+    Opening window;
+    window.id = "o1";
+    window.wall = "w1";
+    window.offset = 2.0;
+    window.type = OpeningType::Window;
+    window.width = 1.0;
+    window.height = 1.0;
+    window.sill = 0.9;
+    window.shape = "shape_that_nobody_registered";
+    f.request.project.plan.floors[0].openings.push_back(window);
+    switchKit(f.projectFolder, true);
+
+    const ExportReport report = runExport(f.request);
+    plynth::test::requireOk(report.status);
+    REQUIRE(report.kit.asked);
+    REQUIRE_FALSE(report.kit.written);
+    REQUIRE_FALSE(report.kit.skipped.empty());
+    REQUIRE(report.kit.skipped.find("o1") != std::string::npos);
+    REQUIRE(report.kit.skipped.find("cannot be built") != std::string::npos);
+    REQUIRE(lastJob(f)["params"]["kit"].is_null());
+    REQUIRE(f.exportEntries().count("Square_Kit.fbx") == 0);
+    REQUIRE(f.exportEntries().count("Square_Kit_layout.json") == 0);
+    REQUIRE(reportProblem(f.reportFile()).empty());
 }

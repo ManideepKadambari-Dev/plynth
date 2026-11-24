@@ -19,7 +19,7 @@
     "preview_texture_size": 1024,
     "plan": {
       "format": "plynth-plan",
-      "version": 5,
+      "version": 6,
       "scale": {
         "pixels_per_metre": 100.0
       },
@@ -1112,6 +1112,7 @@
         "surface": "Wall_Top"
       }
     ],
+    "generators": [],
     "floors": [
       {
         "id": "f1",
@@ -6314,7 +6315,8 @@
               ]
             ]
           }
-        ]
+        ],
+        "generator_items": []
       },
       {
         "id": "f2",
@@ -10093,7 +10095,8 @@
               ]
             ]
           }
-        ]
+        ],
+        "generator_items": []
       }
     ]
   }

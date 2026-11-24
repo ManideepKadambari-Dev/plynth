@@ -23,7 +23,8 @@ def run(ctx):
 
 
 # Bevels one walls object and keeps the result only when it is still closed and the volume is about the same.
-def bevel(ctx, floor_id, walls, width, segments):
+# With weighted true only the edges that carry a bevel weight are rounded (the kit pieces mark theirs).
+def bevel(ctx, floor_id, walls, width, segments, weighted=False):
     backup = walls.data.copy()
     before = meshes.volume(walls)
     was_closed = meshes.is_manifold(walls)
@@ -31,7 +32,7 @@ def bevel(ctx, floor_id, walls, width, segments):
         modifier = walls.modifiers.new("plynth_bevel", "BEVEL")
         modifier.width = width
         modifier.segments = segments
-        modifier.limit_method = "ANGLE"
+        modifier.limit_method = "WEIGHT" if weighted else "ANGLE"
         modifier.angle_limit = ANGLE
         meshes.apply_modifier(walls, modifier)
         after = meshes.volume(walls)
