@@ -1,0 +1,11 @@
+{
+  "format": "plynth-export-options",
+  "version": 1,
+  "groups": {
+    "added": [{ "id": "group_1", "name": "Hero" }],
+    "renames": [{ "group": "furniture_r1", "name": "Lounge props" }],
+    "merges": [{ "group": "furniture_r2", "into": "furniture_r1" }],
+    "moves": [{ "kind": "item", "id": "i1", "to": "group_1" }, { "kind": "slab", "id": null, "to": "structure" }]
+  },
+  "kit": { "enabled": true }
+}

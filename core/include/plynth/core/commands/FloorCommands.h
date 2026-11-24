@@ -55,7 +55,8 @@ private:
 // Adds an empty floor named name (InvalidValue when empty after trimming spaces) with the project's default
 // ceiling height, kDefaultSlabThickness and no image, at position in plan order (0 is below every floor; empty
 // or the floor count puts it on top). InvalidValue for a position past the end. The id is newId with
-// kFloorIdPrefix, the same on redo.
+// kFloorIdPrefix, the same on redo, which refuses with AlreadyExists when another floor or object has that id by
+// then.
 class AddFloorCommand : public Command {
 public:
     AddFloorCommand(std::string name, std::optional<std::size_t> position = {});

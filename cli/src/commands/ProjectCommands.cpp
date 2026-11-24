@@ -127,6 +127,7 @@ Answer projectRecent(const RunContext& context, const std::string& removePath) {
 
 struct SetOptions {
     std::string project;
+    std::string exportMode;
     std::optional<double> grid;
     std::optional<double> doorWidth;
     std::optional<double> doorHeight;
@@ -142,13 +143,17 @@ Answer projectSet(const RunContext& context, const SetOptions& options) {
     const std::string command = "project set";
     const bool anyDefault = options.doorWidth || options.doorHeight || options.windowWidth || options.windowHeight ||
                             options.windowSill || options.newFloorHeight || options.wallItemCentre;
-    if (!options.grid && !anyDefault) {
+    if (!options.grid && !anyDefault && options.exportMode.empty()) {
         return badArguments(command, "bad_arguments", "Give at least one option to change. Run 'plynth help' to list them.");
     }
     return editProject(command, context, options.project, [&](Document& document) {
         auto group = std::make_unique<CommandGroup>("Change settings");
         if (options.grid) {
             group->add(std::make_unique<SetGridSizeCommand>(*options.grid));
+        }
+        if (!options.exportMode.empty()) {
+            group->add(std::make_unique<SetExportModeCommand>(
+                exportModeFromName(options.exportMode).value_or(ExportMode::Single)));
         }
         if (anyDefault) {
             DefaultSizes sizes = document.project().settings.defaults;
@@ -199,11 +204,14 @@ std::vector<CommandSpec> projectCommands() {
 
     CommandSpec set;
     set.words = {"project", "set"};
-    set.description = "Change the grid size or the default sizes of new openings, floors and wall items.";
+    set.description = "Change the grid size, the export mode or the default sizes of new openings, floors and wall items.";
     set.setup = [](CLI::App& sub) -> Handler {
         auto options = std::make_shared<SetOptions>();
         addProjectOption(sub, options->project);
         sub.add_option("--grid", options->grid, "Grid size in metres.")->type_name("metres");
+        sub.add_option("--export", options->exportMode, "Export mode.")
+            ->type_name("single|grouped")
+            ->check(CLI::IsMember({"single", "grouped"}));
         sub.add_option("--door-width", options->doorWidth, "Default door width in metres.")->type_name("metres");
         sub.add_option("--door-height", options->doorHeight, "Default door height in metres.")->type_name("metres");
         sub.add_option("--window-width", options->windowWidth, "Default window width in metres.")

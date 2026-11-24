@@ -81,6 +81,8 @@ add_executable(plynth WIN32
     src/panels/AssetsPanel.cpp
     src/panels/ExportPanel.h
     src/panels/ExportPanel.cpp
+    src/panels/ExportGroupsList.h
+    src/panels/ExportGroupsList.cpp
     src/panels/MaterialsPanel.h
     src/panels/MaterialsPanel.cpp
     src/panels/ImportQueueView.h

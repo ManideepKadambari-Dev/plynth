@@ -5,11 +5,14 @@
 #include "BuildGeometry.h"
 #include "BuildJob.h"
 #include "Exporter.h"
+#include "Kit.h"
+#include "catalog/MaterialInfo.h"
 #include "Project.h"
 
 #include <nlohmann/json.hpp>
 
 #include <filesystem>
+#include <map>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -29,13 +32,26 @@ using Json = nlohmann::ordered_json;
 //   {"project": {"name": "Flat", "folder": "D:/Projects/Flat"},
 //    "blend_file": "D:/Projects/Flat/build/building.blend",
 //    "output_folder": "D:/Projects/Flat/export/.staging", "textures_folder": "Textures",
-//    "groups": [{"id": "building", "file": "Flat.fbx", "kinds": [], "ids": []}],
-//    "materials": [...the "materials" list of build/materials.json...],
+//    "groups": [{"id": "building", "file": "Flat.fbx", "kinds": [], "ids": [],
+//                "name": "Flat", "members": [{"kind": "walls", "id": "f1"}, {"kind": "slab", "id": null}],
+//                "rest": false}],
+//              (name, members and rest are optional in the schema and always written by core;
+//               an id of null is an empty ExportMember::id; Exporter.h says which group an object goes to)
+//    "materials": [...the "materials" list of build/materials.json, each catalog material with "tile_size":
+//                  {"width", "height"}: the built one, else the library's, else left out...],
 //    "expected_bounds": {"min": [x, y, z], "max": [x, y, z]} or null,
 //    "build": {"report_found": true, "plan_changed": false, "problems": [buildProblem, ...]},
 //    "limits": {"object_triangles": 1000000, "total_triangles": 10000000, "low_texel_density": 256,
 //               "texel_warning_ratio": 0.5, "texel_fail_ratio": 0.25, "bounds_tolerance": 0.001},
-//    "force": false, "write": true}
+//    "force": false, "write": true,
+//    "kit": null or {"file": "Flat_Kit.fbx", "fill_openings": true,
+//                    "bevel": {"width": 0.01, "segments": 2},
+//                    "pieces": [{"id": "Wall_50x300x20_3f9a07", "mesh": "SM_Kit_Wall_50x300x20_3f9a07",
+//                                "kind": "wall", "wall_solids": [wallSolid with kit rings], "openings": [opening],
+//                                "fills": ["o3"], "collision": [{"outline", "bottom", "top"}]}]}}
+//   (kit is optional in the schema: missing means null. Each piece is in its own frame, Kit.h; wall_solids and
+//    openings have the build job's form (BuildJob.h), and ring edges may have "kit_cut": true. fills lists the
+//    openings whose door or window this piece gets.)
 //
 // What the worker does, in order (blender/plynth/exporting/, one registered step per file):
 //   open_blend      opens blend_file; no mesh with a plynth_kind in it is no_geometry
@@ -47,6 +63,11 @@ using Json = nlohmann::ordered_json;
 //                   digits and "_" become "_"), every collision mesh UCX_<its object>_<NN>; furniture
 //                   materials become <Asset>_<material name> so two assets never share a slot name; built
 //                   slots keep their names (MaterialSlots.h)
+//   kit_pieces      (order 35) when kit is not null: makes every piece's meshes in a collection "Kit" away from
+//                   the building (the build's wall, cut, fill and bevel code on the piece's solids and openings;
+//                   kit cut edges not bevelled), names them by mesh, gives them the materials of their slots
+//                   from building.blend, and makes their UCX_ meshes; plynth_kind "kit", plynth_id the piece id.
+//                   They are checked with everything else and never go into a group
 //   textures        copies every image the exported materials use into output_folder/Textures/ and points the
 //                   image nodes at the copies: T_<Material>_<Channel>.<ext> for a catalog material (material id
 //                   in PascalCase; channels BaseColor, Normal, Roughness, Metallic, Opacity, Occlusion), the slot
@@ -57,7 +78,10 @@ using Json = nlohmann::ordered_json;
 //                   byte and once, however many materials use it
 //   checks          runs every quality check of phase "scene"
 //   write_fbx       when write is true and no scene check failed (or force is true): every group into its
-//                   file in output_folder, with the one FBX profile and relative texture paths
+//                   file in output_folder, with the one FBX profile and relative texture paths; a group that
+//                   gets no object is not written and is listed in empty_groups
+//   write_kit       (order 65) when kit is not null and write_fbx wrote: every kit piece and its collision into
+//                   kit.file in output_folder, with the same profile
 //   file_checks     runs every check of phase "file" on the written files; skipped when nothing was written
 // A check never stops the job: it reports pass, warning, fail or skipped. The job fails only for errors such as
 // a missing blend file (import_failed), no_geometry or export_failed.
@@ -87,12 +111,18 @@ using Json = nlohmann::ordered_json;
 //                   slot with the neutral look (no material assigned, or one that failed to load), an image
 //                   file that is missing, or a base color that is not an image (a procedural material: Plynth
 //                   cannot bake it, because baking needs Cycles)
-//   collision       "Collision": fail for a mesh of plynth_kind walls, floor, slab, stair, roof, item or
+//   collision       "Collision": fail for a mesh of plynth_kind walls, floor, slab, stair, roof, item, kit or
 //                   generator without a UCX_ mesh, each object on its own, so every roof section needs one
 //                   (ceilings, thresholds and door and window fills need none), and for a UCX_ mesh that is not
 //                   closed or not convex
-//   fbx_scale       phase "file": reads each written FBX back into an empty scene; fail unless the walls'
-//                   bounds match expected_bounds within bounds_tolerance and the object count matches
+//   groups          (order 105) "Groups": fail for a building object no group takes, naming it; warning
+//                   for each group that gets no object (it is not written); pass otherwise
+//   fbx_scale       phase "file": reads each written group FBX back into an empty scene; fail unless the walls'
+//                   bounds (over all files together) match expected_bounds within bounds_tolerance and each
+//                   file's object count matches
+//   kit_file        (order 120) phase "file", "Modular kit": skipped without a kit or when nothing was written;
+//                   reads kit.file back; fail unless every piece's mesh is in it once, at the origin, with at
+//                   least one UCX_ mesh
 //
 // Output in the result, schema/blender-result.schema.json "exportOutput":
 //   {"written": true,
@@ -101,9 +131,13 @@ using Json = nlohmann::ordered_json;
 //    "objects": 40, "triangles": 18200, "collision_objects": 31,
 //    "checks": [{"id": "naming", "name": "Naming", "phase": "scene", "status": "pass", "message": "...",
 //                "findings": [{"object": "SM_f1_Walls", "plan_id": "w3", "message": "..."}]}],
-//    "steps": [{"step": "open_blend", "ms": 410}, ...]}
+//    "steps": [{"step": "open_blend", "ms": 410}, ...],
+//    "empty_groups": ["furniture_r4"],
+//    "kit": null or {"file": "Flat_Kit.fbx", "pieces": 14, "objects": 40, "triangles": 3100}}
 // files and textures are empty when written is false. findings holds at most kMaxQualityFindings entries per
-// check; the message then says how many there were.
+// check; the message then says how many there were. empty_groups and kit are optional in the schema (missing
+// reads as none); kit is null unless the kit was written. objects, triangles and collision_objects count the
+// building objects only, not the kit.
 
 inline constexpr std::string_view kExportTexturesFolder = "Textures";
 inline constexpr int kMaxQualityFindings = 50;
@@ -182,12 +216,16 @@ struct ExportSettings {
 
 // Makes the export job: the envelope of makeBlenderJob with task kExportTask and the params above. blend_file is
 // projectFolder/build/building.blend, output_folder is stagingFolder. Paths are absolute, UTF-8, forward
-// slashes.
+// slashes. kit null writes "kit": null; otherwise kit.file is exportFileStem(project name) + kKitFileSuffix,
+// fill_openings and bevel are the build's defaults (BuildSettings). A materials entry's "tile_size", for the kit
+// UVs, is its BuiltMaterial::tileSize, the size it was built with, which always wins. tileSizes (catalog material
+// id to tile size in metres, from the library) is only used for an entry that has none.
 Json makeExportJob(const Project& project, const std::vector<ExportGroup>& groups,
                    const std::vector<BuiltMaterial>& materials, const ExportBuildState& build,
                    const ExportSettings& settings, const std::filesystem::path& projectFolder,
                    const std::filesystem::path& stagingFolder, std::string_view jobId,
-                   const std::filesystem::path& resultFile);
+                   const std::filesystem::path& resultFile, const ModularKit* kit = nullptr,
+                   const std::map<std::string, TileSize>* tileSizes = nullptr);
 
 // One file the worker wrote.
 struct ExportFileOutput {
@@ -195,8 +233,19 @@ struct ExportFileOutput {
     std::string file; // the file name inside the staging folder
     long long objects = 0;
     long long triangles = 0;
+    std::string name; // the group's name; filled by core from its groups, never read from the result
 
     bool operator==(const ExportFileOutput&) const = default;
+};
+
+// The kit file the worker wrote.
+struct ExportKitOutput {
+    std::string file; // the file name inside the staging folder
+    int pieces = 0;
+    long long objects = 0; // piece meshes and their collision
+    long long triangles = 0;
+
+    bool operator==(const ExportKitOutput&) const = default;
 };
 
 // The export task's result, read and checked. BadFile when a field is missing or has the wrong type, a status or
@@ -211,6 +260,8 @@ struct ExportWorkerOutput {
     long long collisionObjects = 0;
     std::vector<QualityCheckResult> checks;
     std::vector<BuildStepTime> steps;
+    std::vector<std::string> emptyGroups;  // group ids that got no object; empty when the result has none
+    std::optional<ExportKitOutput> kit;    // empty unless the kit was written
 };
 
 ExportWorkerOutput readExportResult(const Json& result, std::string_view jobId);

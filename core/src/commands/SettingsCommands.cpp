@@ -64,4 +64,33 @@ unsigned SetDefaultSizesCommand::changes() const
     return Change::Settings;
 }
 
+// Holds the export mode to apply.
+SetExportModeCommand::SetExportModeCommand(ExportMode mode) : mode_(mode) {}
+
+// The name shown in the undo list.
+std::string SetExportModeCommand::name() const
+{
+    return "Set export mode";
+}
+
+// Sets the export mode, remembering the old one.
+Status SetExportModeCommand::apply(Project& project)
+{
+    previous_ = project.settings.exportMode;
+    project.settings.exportMode = mode_;
+    return {};
+}
+
+// Puts the old export mode back.
+void SetExportModeCommand::undo(Project& project)
+{
+    project.settings.exportMode = previous_;
+}
+
+// Only the settings change.
+unsigned SetExportModeCommand::changes() const
+{
+    return Change::Settings;
+}
+
 }

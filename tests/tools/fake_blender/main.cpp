@@ -4,6 +4,7 @@
 // Modes: ok (default), fail, crash, hang, hang_version, bad_result, no_thumbnail, no_fbx, build_problem,
 // several_materials (a cleanup_material job on a .blend with no material named fails with that error),
 // quality_fail (an export job reports a failing naming check with a finding on w1), quality_warn (a warning),
+// empty_group (the last group of an export job gets no object, so it has no file),
 // unreadable (a probe job fails with preferences_unreadable).
 // Several modes can be joined with "+", for example write_user+crash. write_user writes marker files into the
 // folders BLENDER_USER_CONFIG and BLENDER_USER_EXTENSIONS name, else into config and extensions under
@@ -511,10 +512,26 @@ Json exportOutput(const Json& params, const std::string& mode)
 
     Json files = Json::array();
     Json textures = Json::array();
+    Json emptyGroups = Json::array();
+    Json kitOutput = nullptr;
     if (write) {
+        const std::size_t groupCount = params["groups"].size();
+        std::size_t position = 0;
         for (const Json& group : params["groups"]) {
+            ++position;
+            // Mode empty_group: the last group gets no object, so no file is written for it.
+            if (mode == "empty_group" && position == groupCount) {
+                emptyGroups.push_back(group["id"]);
+                continue;
+            }
             writeFile(folder / pathFrom(group["file"].get<std::string>()), "FAKEFBX");
             files.push_back(Json{{"group", group["id"]}, {"file", group["file"]}, {"objects", 12}, {"triangles", 144}});
+        }
+        if (params.contains("kit") && params["kit"].is_object()) {
+            const Json& kitJob = params["kit"];
+            const int pieces = static_cast<int>(kitJob["pieces"].size());
+            writeFile(folder / pathFrom(kitJob["file"].get<std::string>()), "FAKEKIT");
+            kitOutput = Json{{"file", kitJob["file"]}, {"pieces", pieces}, {"objects", pieces * 2}, {"triangles", 100 * pieces}};
         }
         writeFile(folder / pathFrom(params["textures_folder"].get<std::string>()) / "T_Fake_BaseColor.png", tinyPng());
         textures.push_back("T_Fake_BaseColor.png");
@@ -544,6 +561,8 @@ Json exportOutput(const Json& params, const std::string& mode)
     out["objects"] = 12 * groups;
     out["triangles"] = 144 * groups;
     out["collision_objects"] = 3 * groups;
+    out["empty_groups"] = emptyGroups;
+    out["kit"] = kitOutput;
     out["checks"] = checks;
     out["steps"] = steps;
     return out;
