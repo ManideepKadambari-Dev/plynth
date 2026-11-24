@@ -112,7 +112,10 @@ BlenderKitAddress parseBlenderKitAddress(std::string_view pasted)
     std::string host = low.substr(start, hostEnd == std::string::npos ? std::string::npos : hostEnd - start);
     if (const std::size_t at = host.rfind('@'); at != std::string::npos) host.erase(0, at + 1);
     if (const std::size_t colon = host.find(':'); colon != std::string::npos) host.erase(colon);
-    if (host != "blenderkit.com" && host != "www.blenderkit.com") return {fail(ErrorCode::InvalidValue, kNotAnAddress), {}};
+    // BlenderKit moved to blendkit.com and still answers on blenderkit.com, so addresses of both are read.
+    if (host != "blendkit.com" && host != "www.blendkit.com" && host != "blenderkit.com" && host != "www.blenderkit.com") {
+        return {fail(ErrorCode::InvalidValue, kNotAnAddress), {}};
+    }
     if (hostEnd == std::string::npos) return {fail(ErrorCode::InvalidValue, kNoOneItem), {}};
     const std::size_t pathEnd = low.find_first_of("?#", hostEnd);
     return oneId(text.substr(hostEnd, pathEnd == std::string::npos ? std::string::npos : pathEnd - hostEnd));

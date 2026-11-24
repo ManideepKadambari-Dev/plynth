@@ -294,7 +294,7 @@ std::string_view checkStateName(CheckState state)
 const std::vector<KnownAddon>& knownAddons()
 {
     static const std::vector<KnownAddon> addons = {
-        {kCheckBlenderKit, "BlenderKit", {"blenderkit"}, "importing assets from BlenderKit", "https://www.blenderkit.com/", true},
+        {kCheckBlenderKit, "BlenderKit", {"blenderkit"}, "importing assets from BlenderKit", "https://www.blendkit.com/", true},
         {kCheckArchimesh, "Archimesh", {"archimesh"}, "stairs, doors, windows and columns generators",
          "https://extensions.blender.org/add-ons/archimesh/", false},
         {kCheckHomeBuilder, "Home Builder", {"home_builder"}, "cabinets, countertops and moldings generators", "", false},
