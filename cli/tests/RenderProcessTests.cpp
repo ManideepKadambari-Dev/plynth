@@ -110,6 +110,15 @@ std::filesystem::path makeBuiltProject(const std::filesystem::path& parent) {
     plynth::Floor upper = floor;
     upper.id = "f2";
     upper.name = "Floor 2";
+    // Point and wall ids are unique across the whole plan, so the copy gets p5 to p8 and w5 to w8.
+    for (plynth::Point& point : upper.points) {
+        point.id = "p" + std::to_string(std::stoi(point.id.substr(1)) + 4);
+    }
+    for (plynth::Wall& wall : upper.walls) {
+        wall.id = "w" + std::to_string(std::stoi(wall.id.substr(1)) + 4);
+        wall.from = "p" + std::to_string(std::stoi(wall.from.substr(1)) + 4);
+        wall.to = "p" + std::to_string(std::stoi(wall.to.substr(1)) + 4);
+    }
     project.plan.floors.push_back(upper);
     REQUIRE(plynth::saveProject(project, folder, {}).ok());
 

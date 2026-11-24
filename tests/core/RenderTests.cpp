@@ -59,6 +59,18 @@ long long epochNow()
     return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 }
 
+// Gives a copy of a floor ids of its own, since point and wall ids are unique across the whole plan.
+void renumber(Floor& floor, int offset)
+{
+    const auto shifted = [&](const std::string& id) { return id.substr(0, 1) + std::to_string(std::stoi(id.substr(1)) + offset); };
+    for (Point& point : floor.points) point.id = shifted(point.id);
+    for (Wall& wall : floor.walls) {
+        wall.id = shifted(wall.id);
+        wall.from = shifted(wall.from);
+        wall.to = shifted(wall.to);
+    }
+}
+
 // A saved and built project with the square on two floors, in a folder whose name has a space and an umlaut.
 struct RenderFixture {
     explicit RenderFixture(const std::string& tag) : tmp(tag)
@@ -68,6 +80,7 @@ struct RenderFixture {
         Floor upper = squareFloorWithWalls();
         upper.id = "f2";
         upper.name = "Floor 2";
+        renumber(upper, 4);
         project.plan.floors.push_back(upper);
         requireOk(saveProject(project, folder, {}));
         build(project);
