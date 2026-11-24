@@ -52,14 +52,11 @@ CLI::Validator notEmptyBlenderPath() {
         "", "NotEmpty");
 }
 
-// Registers a library's opening shapes and trim profiles once per folder, so a second command in one process
-// does not refuse them again.
+// Registers a library's opening shapes and trim profiles. Each command reads the folder again, so a file added
+// since the last command in the same process is found; ids already registered are skipped.
 void registerShapes(const LibraryPaths& paths) {
-    static std::set<std::filesystem::path> done;
-    if (done.insert(paths.shapes).second) {
-        registerShapeFolder(paths.shapes);
-        registerTrimProfileFolder(paths.shapes);
-    }
+    registerShapeFolder(paths.shapes);
+    registerTrimProfileFolder(paths.shapes);
 }
 
 }
