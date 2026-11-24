@@ -82,11 +82,12 @@ public:
     }
 
 private:
-    // Adds one member for each item. An item is an asset (kind "item"); the generator kind is for items that a
-    // generator makes, which will name that kind instead.
+    // Adds one member for each item: kind "item" for an asset, kind "generator" for an item a generator makes.
     static void addItems(ExportGroup& group, const std::vector<const Item*>& items)
     {
-        for (const Item* item : items) group.members.push_back({std::string(kKindItem), item->id});
+        for (const Item* item : items) {
+            group.members.push_back({std::string(isGeneratorItem(*item) ? kKindGenerator : kKindItem), item->id});
+        }
     }
 };
 

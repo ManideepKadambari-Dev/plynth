@@ -211,7 +211,8 @@
             "collision": { "description": "UCX_ collision meshes made: pieces and item hulls.", "type": "integer", "minimum": 0 },
             "slabs": { "description": "Slab meshes made.", "type": "integer", "minimum": 0 },
             "stairs": { "description": "Stair meshes made.", "type": "integer", "minimum": 0 },
-            "roofs": { "description": "Roof section meshes made.", "type": "integer", "minimum": 0 }
+            "roofs": { "description": "Roof section meshes made.", "type": "integer", "minimum": 0 },
+            "generators": { "description": "Items built by generators. Missing when the job had none.", "type": "integer", "minimum": 0 }
           }
         },
         "steps": {

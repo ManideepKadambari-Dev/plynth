@@ -49,6 +49,8 @@ add_executable(plynth WIN32
     src/materials/MaterialRow.cpp
     src/furniture/AssetPreview.h
     src/furniture/AssetPreview.cpp
+    src/furniture/GeneratorPreview.h
+    src/furniture/GeneratorPreview.cpp
     src/furniture/FurniturePicker.h
     src/furniture/FurniturePicker.cpp
     src/dialogs/RoomTypesDialog.h

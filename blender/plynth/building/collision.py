@@ -12,8 +12,9 @@ MINIMUM_THICKNESS = 1e-4
 
 # Makes the collision meshes: one closed convex mesh per piece the job lists, then one per hull (the convex hull of
 # a point set, for roofs), named UCX_<object name>_<NN> with NN counted over the pieces and then the hulls, and
-# one convex hull per furniture item. They go into a Collision collection and carry the kind "collision" and
-# the name of the object they belong to. A piece or hull that cannot be made is reported and left out.
+# one convex hull per furniture item and per built generator item. They go into a Collision collection and
+# carry the kind "collision" and the name of the object they belong to. A piece or hull that cannot be made is
+# reported and left out. A generator item that was not built has no hull and no warning.
 def run(ctx):
     bpy.context.view_layer.update()
     collection = None
@@ -29,6 +30,13 @@ def run(ctx):
             continue
         collection = collection or collision_collection()
         make_item_hull(ctx, floor, item, empty, collection, hulls)
+    for floor in ctx.params["floors"]:
+        for item in floor.get("generator_items", []):
+            target = bpy.data.objects.get("SM_%s_%s" % (item["generator"], item["id"]))
+            if target is None or target.get("plynth_kind") != "generator":
+                continue
+            collection = collection or collision_collection()
+            make_generator_hull(ctx, floor, item, target, collection)
 
 
 # Returns the Collision collection, made and linked to the scene on first use.
@@ -172,6 +180,22 @@ def make_item_hull(ctx, floor, item, empty, collection, hulls):
         return
     obj = add_object("UCX_%s_00" % empty.name, mesh, collection, empty.name, item["id"])
     obj.matrix_world = empty.matrix_world.copy()
+    count(ctx, "collision")
+
+
+# Makes the hull object of one generator item from the convex hull of its own mesh, placed where the item is.
+# A result that is flat or has no volume gets a warning and no hull.
+def make_generator_hull(ctx, floor, item, target, collection):
+    name = "UCX_%s_00" % target.name
+    mesh = None
+    if len(target.data.vertices) >= 4:
+        mesh = hull_points_mesh(name, [v.co.copy() for v in target.data.vertices])
+    if mesh is None:
+        report(ctx, "collision_failed", "warning", "The generator item %s has no collision hull." % item["id"],
+               floor["id"], item["id"])
+        return
+    obj = add_object(name, mesh, collection, target.name, item["id"])
+    obj.matrix_world = target.matrix_world.copy()
     count(ctx, "collision")
 
 

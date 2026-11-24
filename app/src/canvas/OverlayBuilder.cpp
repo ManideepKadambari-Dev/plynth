@@ -118,15 +118,17 @@ OverlayRoof makeOverlayRoof(const plynth::RoofArea& roof, double ppm)
 }
 
 // Gives the canvas the points, walls and rooms of the first floor.
-OverlayData buildOverlay(const plynth::Plan& plan, const plynth::AssetCatalog* catalog)
+OverlayData buildOverlay(const plynth::Plan& plan, const plynth::AssetCatalog* catalog,
+                         const plynth::GeneratorLibrary* generators, const std::optional<plynth::AddonCache>* addons)
 {
     if (plan.floors.empty())
         return OverlayData();
-    return buildOverlay(plan, plan.floors.front().id, catalog);
+    return buildOverlay(plan, plan.floors.front().id, catalog, generators, addons);
 }
 
 // Gives the canvas the points, walls and rooms of one floor, and the faint walls of the floor below.
-OverlayData buildOverlay(const plynth::Plan& plan, const std::string& floorId, const plynth::AssetCatalog* catalog)
+OverlayData buildOverlay(const plynth::Plan& plan, const std::string& floorId, const plynth::AssetCatalog* catalog,
+                         const plynth::GeneratorLibrary* generators, const std::optional<plynth::AddonCache>* addons)
 {
     OverlayData overlay;
     const plynth::Floor* shown = plynth::findFloor(plan, floorId);
@@ -212,7 +214,12 @@ OverlayData buildOverlay(const plynth::Plan& plan, const std::string& floorId, c
     plynth::AssetLookup lookup;
     if (catalog != nullptr)
         lookup = plynth::assetLookupFor(*catalog);
-    const std::vector<plynth::ItemProblem> problems = plynth::itemProblems(floor, lookup);
+    plynth::GeneratorItemLookup generatorLookup;
+    if (generators != nullptr) {
+        static const std::optional<plynth::AddonCache> noCache;
+        generatorLookup = plynth::generatorItemLookupFor(*generators, addons != nullptr ? *addons : noCache);
+    }
+    const std::vector<plynth::ItemProblem> problems = plynth::itemProblems(floor, lookup, generatorLookup);
     for (const plynth::Item& item : floor.items) {
         OverlayItem entry;
         entry.id = fromCore(item.id);
@@ -222,19 +229,49 @@ OverlayData buildOverlay(const plynth::Plan& plan, const std::string& floorId, c
         entry.front = QPointF(footprint.front.x, footprint.front.y);
         entry.wall = item.wall.has_value();
         entry.label = fromCore(item.asset);
-        if (catalog != nullptr)
+        if (item.generator.has_value()) {
+            entry.label = fromCore(item.generator->name);
+            if (generators != nullptr)
+                if (const plynth::GeneratorInfo* info = generators->find(item.generator->name))
+                    entry.label = fromCore(info->name);
+        } else if (catalog != nullptr) {
             if (const std::optional<plynth::AssetRecord> record = catalog->asset(item.asset))
                 entry.label = fromCore(record->name);
+        }
         QStringList sentences;
         for (const plynth::ItemProblem& problem : problems) {
             if (problem.item != item.id)
                 continue;
             entry.problem = true;
             sentences << fromCore(problem.message);
+            if (problem.kind == plynth::ItemProblemKind::GeneratorUnavailable)
+                entry.unavailable = true;
+            else
+                entry.otherProblem = true;
             if (problem.kind == plynth::ItemProblemKind::MissingAsset) {
                 entry.missing = true;
                 entry.label = QObject::tr("Missing asset");
                 entry.detail = fromCore(item.asset);
+            }
+            if (problem.kind == plynth::ItemProblemKind::MissingGenerator && item.generator.has_value()) {
+                entry.missing = true;
+                entry.label = QObject::tr("Missing generator");
+                entry.detail = fromCore(item.generator->name);
+            }
+            if (problem.kind == plynth::ItemProblemKind::GeneratorUnavailable && item.generator.has_value() &&
+                generators != nullptr) {
+                if (const plynth::GeneratorInfo* info = generators->find(item.generator->name)) {
+                    const plynth::GeneratorState state =
+                        plynth::generatorState(*info, addons != nullptr ? *addons : std::optional<plynth::AddonCache>{});
+                    QStringList names;
+                    for (const std::string& addon : state.missingAddons)
+                        names << fromCore(plynth::addonDisplayName(addon));
+                    if (!names.isEmpty()) {
+                        entry.missing = true;
+                        entry.detail = entry.label;
+                        entry.label = QObject::tr("Needs %1").arg(names.join(QStringLiteral(", ")));
+                    }
+                }
             }
         }
         entry.tip = sentences.join(QLatin1Char('\n'));

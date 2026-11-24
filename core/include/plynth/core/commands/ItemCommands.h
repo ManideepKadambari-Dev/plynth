@@ -18,7 +18,8 @@ namespace plynth {
 // wall nearest its position. Moves with the same non zero mergeKey and item merge into one undo step; the app
 // takes every key from ToolController::nextMergeKey. Every command here changes Items only.
 
-// Adds an item at the end of the floor's item list. item.id is ignored: the new id comes from newId with
+// Adds an item at the end of the floor's item list, an asset item or a generator item (the caller makes the
+// generator's values and size with makeGeneratorUse in Generators.h first). item.id is ignored: the new id comes from newId with
 // kItemIdPrefix on the first apply and is kept for redo. rotation is normalized. When item.room is set it must
 // be a room of the floor and is kept; otherwise it is roomAt the position. A wall item is put flush as above,
 // with z as given and kept fully on the wall (slid inward from an end when it fits; wider than the wall is refused
@@ -133,8 +134,8 @@ private:
 
 // Puts another asset in an item's place, or the same asset with its new size from the library. Position and
 // rotation stay; a wall item is put flush again for the new depth and keeps its centre height (z becomes the
-// old centre minus half the new height, never below 0). Id and room stay. NotFound for an unknown item,
-// otherwise as checkItemPlacement.
+// old centre minus half the new height, never below 0). Id and room stay. A generator item becomes an asset
+// item: its generator is cleared. NotFound for an unknown item, otherwise as checkItemPlacement.
 class SwapItemAssetCommand : public Command {
 public:
     SwapItemAssetCommand(Id itemId, std::string asset, ItemSize size);

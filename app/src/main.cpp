@@ -1,5 +1,6 @@
 #include "panels/ExportPanel.h"
 #include "theme/Theme.h"
+#include "catalog/LibraryHost.h"
 #include "window/MainWindow.h"
 
 #include <plynth/cli/Cli.h>
@@ -198,12 +199,25 @@ int main(int argc, char* argv[])
     parser.addOption(importMaterialsOption);
     parser.addOption(materialSourceOption);
     parser.addOption(addSamplesOption);
+    QCommandLineOption addSampleGeneratorsOption(QStringLiteral("add-sample-generators"),
+                                                 QStringLiteral("Copy the sample generators as the Catalog menu does. For checks only."));
+    QCommandLineOption checkAddonsOption(QStringLiteral("check-addons"),
+                                         QStringLiteral("Run the add-on check as the Catalog menu does, then wait for it. For checks only."));
+    parser.addOption(addSampleGeneratorsOption);
+    parser.addOption(checkAddonsOption);
     parser.addOption(addAssetMaterialOption);
     parser.addOption(catalogOption);
     parser.addOption(selectAssetOption);
     parser.addOption(toolOption);
     parser.addOption(selectOption);
     parser.addOption(floorOption);
+    QCommandLineOption generatorParamOption(QStringLiteral("generator-param"),
+                                            QStringLiteral("Set a parameter of the selected generator item, for example diameter=0.5. "
+                                                           "Repeat for several. For checks only."),
+                                            QStringLiteral("id=value"));
+    QCommandLineOption undoOption(QStringLiteral("undo"), QStringLiteral("Undo the last change once, after the other options. For checks only."));
+    parser.addOption(generatorParamOption);
+    parser.addOption(undoOption);
     parser.addOption(wallSideOption);
     parser.addOption(imageOption);
     parser.addOption(terminalOption);
@@ -282,6 +296,8 @@ int main(int argc, char* argv[])
         else
             terminalWords.clear();
     }
+    if (wantsScreenshot)
+        plynth::app::LibraryHost::setAutoProbe(false);
     plynth::app::MainWindow window;
     window.setScreenshotMode(wantsScreenshot);
     if (hasSize)
@@ -324,6 +340,10 @@ int main(int argc, char* argv[])
         window.setShowRoofs3d(false);
     if (parser.isSet(cutAtFloorOption))
         window.setCutAtFloor(true);
+    for (const QString& assignment : parser.values(generatorParamOption))
+        window.setGeneratorParam(assignment);
+    if (parser.isSet(undoOption))
+        window.undoOnce();
     if (parser.isSet(wallSideOption))
         window.setWallViewSide(parser.value(wallSideOption).toLower() == QStringLiteral("left") ? plynth::WallSide::Left
                                                                                              : plynth::WallSide::Right);
@@ -388,6 +408,10 @@ int main(int argc, char* argv[])
             window.addAssetMaterialForCheck(both.section(QLatin1Char('/'), 0, 0), both.section(QLatin1Char('/'), 1));
         });
     }
+    if (parser.isSet(addSampleGeneratorsOption))
+        window.addSampleGenerators();
+    if (parser.isSet(checkAddonsOption))
+        window.checkAddonsAndWait();
     if (parser.isSet(addSamplesOption))
         QTimer::singleShot(0, &window, [&window]() { window.addSampleMaterials(); });
     if (parser.isSet(setupOption) || parser.isSet(setupItemOption)) {

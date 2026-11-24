@@ -765,7 +765,8 @@ bool PlanCanvas::event(QEvent* event)
 
 // Paints every placed item as its footprint at true size: Raised fill, Muted outline, a tick on the front
 // edge, a line on the back of a wall item, and the name when it fits. The selected one is amber, one with a
-// problem has a dashed amber outline, and a missing asset reads "Missing asset" with its id in mono.
+// problem has a dashed amber outline, and a missing asset reads "Missing asset" with its id in mono. A
+// generator that needs an add-on has a solid amber outline and reads "Needs" and the add-on.
 void PlanCanvas::paintItems(QPainter* painter)
 {
     if (overlay_.items.isEmpty())
@@ -787,7 +788,7 @@ void PlanCanvas::paintItems(QPainter* painter)
             shape << mapFromScene(corner);
         painter->setBrush(fill);
         QPen outline(selected ? t.signalAmber() : item.problem ? t.signalAmber() : t.muted(), selected ? 2.0 : 1.5);
-        if (item.problem && !selected)
+        if (item.problem && !selected && (!item.unavailable || item.otherProblem))
             outline.setDashPattern({4.0, 3.0});
         painter->setPen(outline);
         painter->drawPolygon(shape);

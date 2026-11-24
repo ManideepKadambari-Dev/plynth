@@ -178,6 +178,41 @@ Status checkOpenings(const Floor& floor, const std::string& floorPath, IdSet& se
     return {};
 }
 
+// Says whether a text is a generator or parameter name: a lowercase letter first, then lowercase letters,
+// digits and "_", at most 64 characters.
+bool isGeneratorName(std::string_view name)
+{
+    if (name.empty() || name.size() > 64) return false;
+    if (name.front() < 'a' || name.front() > 'z') return false;
+    for (char c : name) {
+        const bool ok = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_';
+        if (!ok) return false;
+    }
+    return true;
+}
+
+// Checks the generator of one item.
+Status checkGeneratorUse(const GeneratorUse& g, const std::string& base)
+{
+    if (!isGeneratorName(g.name)) {
+        return fail(ErrorCode::InvalidValue, "The generator name \"" + g.name + "\" is not valid.", base + "/name");
+    }
+    for (std::size_t i = 0; i < g.params.size(); ++i) {
+        const GeneratorParamValue& p = g.params[i];
+        const std::string at = base + "/params/" + p.id;
+        if (!isGeneratorName(p.id)) {
+            return fail(ErrorCode::InvalidValue, "The parameter id \"" + p.id + "\" is not valid.", at);
+        }
+        if (i > 0 && !(g.params[i - 1].id < p.id)) {
+            return fail(ErrorCode::InvalidValue, "The parameters must be sorted by id, each id once.", at);
+        }
+        if (const double* d = std::get_if<double>(&p.value); d && !std::isfinite(*d)) {
+            return fail(ErrorCode::InvalidValue, "The parameter value must be a finite number.", at);
+        }
+    }
+    return {};
+}
+
 // Checks the items of one floor.
 Status checkItems(const Floor& floor, const std::string& floorPath, IdSet& seen)
 {
@@ -185,7 +220,12 @@ Status checkItems(const Floor& floor, const std::string& floorPath, IdSet& seen)
         const Item& it = floor.items[i];
         const std::string base = floorPath + "/items/" + std::to_string(i);
         if (auto s = checkId(it.id, seen, base + "/id"); !s.ok()) return s;
-        if (!isValidName(it.asset)) {
+        if (it.generator) {
+            if (!it.asset.empty()) {
+                return fail(ErrorCode::InvalidValue, "A generator item has no asset.", base + "/asset");
+            }
+            if (auto s = checkGeneratorUse(*it.generator, base + "/generator"); !s.ok()) return s;
+        } else if (!isValidName(it.asset)) {
             return fail(ErrorCode::InvalidValue, "The item asset \"" + it.asset + "\" is not a valid name.", base + "/asset");
         }
         if (it.room && !findRoom(floor, *it.room)) {
@@ -344,6 +384,10 @@ Room* findRoom(Floor& floor, std::string_view id) { return findById(floor.rooms,
 const Room* findRoom(const Floor& floor, std::string_view id) { return findById(floor.rooms, id); }
 Opening* findOpening(Floor& floor, std::string_view id) { return findById(floor.openings, id); }
 const Opening* findOpening(const Floor& floor, std::string_view id) { return findById(floor.openings, id); }
+
+// Says whether an item runs a generator rather than placing an asset.
+bool isGeneratorItem(const Item& item) { return item.generator.has_value(); }
+
 Stair* findStair(Floor& floor, std::string_view id) { return findById(floor.stairs, id); }
 const Stair* findStair(const Floor& floor, std::string_view id) { return findById(floor.stairs, id); }
 RoofSection* findRoofSection(Plan& plan, std::string_view id) { return findById(plan.roofSections, id); }

@@ -4,7 +4,7 @@ Plynth can be driven from a terminal, a script or a coding assistant. Every comm
 
 This page covers the commands that exist today: version, help, creating and reading a project, setting the scale, grid and default sizes, floors, stairs, roofs, points, walls (straight and curved), rounded corners, doors, windows and other openings, rooms, placing furniture with `place` and `item`, finding walls and openings in the plan image with `detect`, building the project in Blender with `build`, the edit session that keeps the app and the command line from overwriting each other, and the machine commands: `doctor`, `settings`, `library` and `assets`. More commands arrive in later releases.
 
-The plan and project files are now at format version 5. Older projects open and upgrade by themselves. See "File format version 5" below.
+The plan file is now at format version 6 and the project file at version 5. Older projects open and upgrade by themselves. See "File format version 6" and "File format version 5" below.
 
 ## Running a command
 
@@ -1576,14 +1576,14 @@ The `build` word is a command, so a project folder named `build` has to be given
 
 ```
 {"progress":{"stage":"preparing","step":"","index":0,"count":0,"message":"Checking the plan"}}
-{"progress":{"stage":"blender","step":"prepare_scene","index":1,"count":15,"message":"Preparing the scene"}}
-{"progress":{"stage":"blender","step":"walls","index":2,"count":15,"message":"Raising walls"}}
-{"progress":{"stage":"blender","step":"openings","index":3,"count":15,"message":"Cutting openings"}}
+{"progress":{"stage":"blender","step":"prepare_scene","index":1,"count":17,"message":"Preparing the scene"}}
+{"progress":{"stage":"blender","step":"walls","index":2,"count":17,"message":"Raising walls"}}
+{"progress":{"stage":"blender","step":"openings","index":3,"count":17,"message":"Cutting openings"}}
 {"progress":{"stage":"finishing","step":"","index":0,"count":0,"message":"Writing the report"}}
 {"progress":{"stage":"done","step":"","index":0,"count":0,"message":"Done"}}
 ```
 
-The stages are `preparing`, `blender` (one line per step, `index` counting from 1 up to `count`), `finishing` and `done`. The steps are the registered build steps, in order: `prepare_scene`, `walls`, `openings`, `bevel`, `triangulate`, `opening_fills`, `floors`, `slabs`, `stairs`, `roofs`, `assets`, `materials`, `collision`, `save_blend`, `export_fbx`, `preview_parts`. Adding a step adds a line.
+The stages are `preparing`, `blender` (one line per step, `index` counting from 1 up to `count`), `finishing` and `done`. The steps are the registered build steps, in order: `prepare_scene`, `walls`, `openings`, `bevel`, `triangulate`, `opening_fills`, `floors`, `slabs`, `stairs`, `roofs`, `assets`, `generators`, `materials`, `collision`, `save_blend`, `export_fbx`, `preview_parts`. Adding a step adds a line.
 
 **The answer.** An example, shortened. The real lists hold every step and every problem.
 
@@ -2588,18 +2588,31 @@ For a script on a new machine:
 5. `plynth assets search <words>` to find the ids you need.
 6. `plynth materials import samples\materials\*` to add the nine sample materials, which new projects use by default. Add `--skip-existing` to run it again safely. Then `plynth materials search <words>` finds material ids.
 
+## File format version 6
+
+`plan.json` is now at format version 6. `project.json` stays at version 5. What changed:
+
+- An item either places an asset or runs a generator. A generator item has `asset` `null` and `generator` with the generator's `name` and its `params`, one value for each parameter. An asset item has `generator` `null`.
+- The `size` of a generator item is worked out from its values and saved with it, like the measured size of an asset.
+
+**Older plans upgrade by themselves.** Every item of a version 5 plan gets `"generator": null`. Nothing is written when you only read. The next command that edits and saves writes the plan as version 6, as the app does.
+
+**Older programs refuse the new file** with `unsupported_version`. The shape of version 6 is in `schema/plan.schema.json`, and `schema/plan.v5.schema.json` keeps version 5 as it was.
+
+The sections below describe version 5 and earlier, which version 6 only adds to.
+
 ## File format version 5
 
-`plan.json` and `project.json` are now at format version 5. What changed:
+`plan.json` and `project.json` were at format version 5 before generators, and `project.json` still is. What changed:
 
 - Every floor in `plan.json` has `slab_thickness` (metres, 0.05 to 1, default 0.2), `image_offset` (`{"x", "y"}` in metres, default 0, 0) and `stairs` (a list). A stair has `id`, `type`, `x`, `y`, `rotation`, `width`, `turn` (`left` or `right`) and `material` (`null` for the project default).
 - `plan.json` has `roof`, the roof default (`type`, `pitch`, `overhang`, `parapet`, `direction`, which is `null` for automatic), and `roof_sections`, a list of entries with an `id` (`rf1`), a `floor`, an anchor point `x`, `y`, their own settings and a `material`. Roof sections themselves are not saved. They are worked out from the floors, and an entry belongs to the section that holds its anchor point.
 - `project.json` has three more default materials: `roof`, `flat_roof` and `stair`.
 - Floors now stack on slabs, so the level of a floor is the level below plus its ceiling height plus its slab thickness. A version 4 project with several floors has each upper floor 0.2 m higher for every floor below it.
 
-**Older projects upgrade by themselves.** A version 4 plan gets a slab of 0.2 m on every floor, an offset of 0, no stairs, the default roof (flat, pitch 30, overhang 0.3, parapet 0.6) and no entries. A version 4 project gets `roof_tiles`, `concrete` and `oak_planks` as the three new defaults. Nothing is written when you only read. The next command that edits and saves writes both files as version 5, as the app does.
+**Older projects upgrade by themselves.** A version 4 plan gets a slab of 0.2 m on every floor, an offset of 0, no stairs, the default roof (flat, pitch 30, overhang 0.3, parapet 0.6) and no entries. A version 4 project gets `roof_tiles`, `concrete` and `oak_planks` as the three new defaults. Nothing is written when you only read. The next command that edits and saves writes the plan as version 6 and the project as version 5, as the app does.
 
-**Older programs refuse the new files** with `unsupported_version`. The shape of each version is in `schema/plan.schema.json` and `schema/project.schema.json` (version 5), and `schema/plan.v4.schema.json` and `schema/project.v4.schema.json` (version 4, kept as it was).
+**Older programs refuse the new files** with `unsupported_version`. The shape of each version is in `schema/plan.v5.schema.json` and `schema/project.schema.json` (version 5), and `schema/plan.v4.schema.json` and `schema/project.v4.schema.json` (version 4, kept as it was).
 
 The sections below describe version 4, which version 5 only adds to.
 
@@ -2618,7 +2631,7 @@ The sections below describe version 3, which version 4 only adds to.
 
 ## File format version 3
 
-Version 3 is what `plan.json` and `project.json` were before materials. Today they are saved as version 5, and the numbers in this section are the ones of that earlier release. What version 3 changed:
+Version 3 is what `plan.json` and `project.json` were before materials. Today the plan is saved as version 6 and the project as version 5, and the numbers in this section are the ones of that earlier release. What version 3 changed:
 
 - Every floor in `plan.json` has `items`, the furniture placed on it. Each item has `id`, `asset`, `room`, `x`, `y`, `z`, `rotation`, `wall` and `size`. See "Furniture items".
 - `project.json` has `wall_item_centre` in `defaults`, the height of the middle of a newly mounted wall item (see `project set`).

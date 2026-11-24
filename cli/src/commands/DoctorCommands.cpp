@@ -44,7 +44,14 @@ std::vector<CommandSpec> doctorCommands() {
         auto options = std::make_shared<DoctorOptions>();
         sub.add_flag("--no-addons", options->noAddons, "Do not ask Blender about its add-ons.");
         sub.add_option("--blender", options->blender, "Check only this blender.exe. It beats PLYNTH_BLENDER and the saved path.")
-            ->type_name("file");
+            ->type_name("file")
+            ->check(CLI::Validator(
+                [](std::string& value) {
+                    return value.empty()
+                               ? std::string("The Blender path is empty. Give the path of blender.exe or leave the option out.")
+                               : std::string();
+                },
+                "", "NotEmpty"));
         return [options](const RunContext& context) { return doctor(context, *options); };
     };
     return {spec};

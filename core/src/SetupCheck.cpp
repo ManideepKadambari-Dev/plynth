@@ -1,6 +1,7 @@
 #include "plynth/core/SetupCheck.h"
 
 #include "plynth/core/BlenderJob.h"
+#include "plynth/core/Generators.h"
 #include "plynth/core/Library.h"
 #include "plynth/core/ProjectFiles.h"
 #include "plynth/core/Version.h"
@@ -201,19 +202,31 @@ SetupItem graphicsItem(const std::optional<GraphicsProbe>& graphics)
 }
 
 // An add-on item before anything is known about it.
-SetupItem addonItem(const KnownAddon& addon)
+SetupItem addonItem(const KnownAddon& addon, const GeneratorLibrary& generators)
 {
     SetupItem i = item(addon.checkId, std::string(addon.name) + " add-on", false);
     i.link = std::string(addon.link);
     i.affects.emplace_back(addon.usedFor);
+    for (const GeneratorInfo& generator : generators.generators) {
+        const bool needed = std::any_of(generator.addons.begin(), generator.addons.end(),
+                                        [&](const std::string& name) { return moduleMatches(addon, name); });
+        if (needed) i.affects.push_back(generator.name + " generator");
+    }
     return i;
 }
 
+// The generators of the settings' library, or none when there is no library.
+GeneratorLibrary libraryGenerators(const MachineSettings& settings)
+{
+    if (!settings.library) return {};
+    return loadGeneratorFolder(*settings.library / std::string(kLibraryGeneratorsFolder));
+}
+
 // Fills the add-on items from what the probe found.
-void fillAddons(SetupReport& report, const ProbeResult& probe)
+void fillAddons(SetupReport& report, const ProbeResult& probe, const GeneratorLibrary& generators)
 {
     for (const KnownAddon& addon : knownAddons()) {
-        SetupItem i = addonItem(addon);
+        SetupItem i = addonItem(addon, generators);
         const ProbeAddon* enabled = nullptr;
         for (const ProbeAddon& a : probe.addons) {
             if (moduleMatches(addon, a.module)) {
@@ -253,10 +266,10 @@ void fillAddons(SetupReport& report, const ProbeResult& probe)
 }
 
 // Fills the add-on items with a state that says they were not asked about.
-void fillAddonsNotChecked(SetupReport& report, const std::string& detail)
+void fillAddonsNotChecked(SetupReport& report, const std::string& detail, const GeneratorLibrary& generators)
 {
     for (const KnownAddon& addon : knownAddons()) {
-        SetupItem i = addonItem(addon);
+        SetupItem i = addonItem(addon, generators);
         i.state = CheckState::NotChecked;
         i.detail = detail;
         report.items.push_back(std::move(i));
@@ -297,7 +310,7 @@ const std::vector<KnownAddon>& knownAddons()
         {kCheckBlenderKit, "BlenderKit", {"blenderkit"}, "importing assets from BlenderKit", "https://www.blenderkit.com/", true},
         {kCheckArchimesh, "Archimesh", {"archimesh"}, "stairs, doors, windows and columns generators",
          "https://extensions.blender.org/add-ons/archimesh/", false},
-        {kCheckHomeBuilder, "Home Builder", {"home_builder"}, "cabinets, countertops and moldings generators", "", false},
+        {kCheckHomeBuilder, "Home Builder", {"home_builder", "home_builder_5"}, "cabinets, countertops and moldings generators", "", false},
         {kCheckBoolTool, "Bool Tool", {"bool_tool", "object_boolean_tools"}, "cutting openings with boolean tools",
          "https://extensions.blender.org/add-ons/bool-tool/", false},
         {kCheckAssetOptimizer, "Asset Optimizer", {"asset_optimizer"}, "asset cleanup generators", "", false},
@@ -414,22 +427,23 @@ SetupReport runSetupCheck(const MachineSettings& settings, const SetupCheckOptio
     report.items.push_back(projectsItem(settings));
     report.items.push_back(graphicsItem(options.graphics));
 
+    const GeneratorLibrary generators = libraryGenerators(settings);
     const BlenderInstall* usable = report.selectedBlender ? &report.blenderInstalls[*report.selectedBlender] : nullptr;
     if (!options.probeAddons) {
-        fillAddonsNotChecked(report, "Add-ons were not checked this time.");
+        fillAddonsNotChecked(report, "Add-ons were not checked this time.", generators);
     } else if (!usable || stop.stop_requested()) {
-        fillAddonsNotChecked(report, "Blender is needed to check add-ons.");
+        fillAddonsNotChecked(report, "Blender is needed to check add-ons.", generators);
     } else {
         BlenderRunOptions run;
         run.timeout = std::chrono::seconds(120);
         const BlenderProbeRun probe = runBlenderProbe(*usable, run, stop);
         if (probe.status.ok()) {
             report.probed = true;
-            fillAddons(report, probe.result);
+            fillAddons(report, probe.result, generators);
         } else if (probe.result.header.errorCode == "preferences_unreadable") {
-            fillAddonsNotChecked(report, probe.status.message);
+            fillAddonsNotChecked(report, probe.status.message, generators);
         } else {
-            fillAddonsNotChecked(report, "Blender is needed to check add-ons.");
+            fillAddonsNotChecked(report, "Blender is needed to check add-ons.", generators);
         }
     }
     finish(report);
@@ -493,7 +507,7 @@ SetupReport quickSetupCheck(const MachineSettings& settings, bool settingsExist,
     report.items.push_back(libraryItem(settings, kMinLibraryFreeBytes));
     report.items.push_back(projectsItem(settings));
     report.items.push_back(graphicsItem(graphics));
-    fillAddonsNotChecked(report, "Checked in the setup check.");
+    fillAddonsNotChecked(report, "Checked in the setup check.", libraryGenerators(settings));
     finish(report);
     return report;
 }

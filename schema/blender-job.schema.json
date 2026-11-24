@@ -98,7 +98,7 @@
           "params": {
             "description": "Everything the build needs. plan is plan.json as saved; floors holds the shapes core worked out from it (core/include/plynth/core/BuildGeometry.h). All positions are Blender world coordinates in metres: X = plan x, Y = -plan y, Z up from the first floor's level. Outer rings run anticlockwise seen from above, holes clockwise, the first point not repeated.",
             "type": "object",
-            "required": ["project", "output_folder", "blend_file", "fbx_file", "materials_file", "textures_folder", "preview_folder", "preview_textures_folder", "preview_texture_size", "plan", "settings", "assets", "materials", "slots", "floors"],
+            "required": ["project", "output_folder", "blend_file", "fbx_file", "materials_file", "textures_folder", "preview_folder", "preview_textures_folder", "preview_texture_size", "plan", "settings", "assets", "materials", "slots", "generators", "floors"],
             "additionalProperties": false,
             "properties": {
               "project": {
@@ -197,7 +197,21 @@
                   }
                 }
               },
-              "floors": { "type": "array", "items": { "$ref": "#/definitions/buildFloor" } }
+              "floors": { "type": "array", "items": { "$ref": "#/definitions/buildFloor" } },
+              "generators": {
+                "description": "Each generator file a built generator item uses, once, sorted by id (core/include/plynth/core/GeneratorBuild.h). Empty when there are none.",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["id", "file", "addons"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": { "$ref": "#/definitions/catalogId" },
+                    "file": { "description": "Absolute path of the .py file in Library/generators.", "type": "string", "minLength": 1 },
+                    "addons": { "description": "Short module names of the add-ons it needs.", "type": "array", "items": { "$ref": "#/definitions/catalogId" } }
+                  }
+                }
+              }
             }
           }
         }
@@ -430,7 +444,7 @@
     },
     "surfaceName": {
       "description": "The neutral surface whose look a slot gets when it has no material.",
-      "enum": ["Wall_Inside", "Wall_Outside", "Wall_Top", "Reveal", "Threshold", "Floor", "Ceiling", "Door", "Frame", "Glass", "Handle", "Stair", "Roof", "Flat_Roof", "Soffit", "Fascia"]
+      "enum": ["Wall_Inside", "Wall_Outside", "Wall_Top", "Reveal", "Threshold", "Floor", "Ceiling", "Door", "Frame", "Glass", "Handle", "Stair", "Roof", "Flat_Roof", "Soffit", "Fascia", "Generated"]
     },
     "collisionShape": {
       "description": "Convex pieces and hulls for one built object (core/include/plynth/core/Collision.h). Each becomes a closed convex mesh UCX_<object name>_<NN>, numbered from 00 over the pieces and then the hulls.",
@@ -580,7 +594,7 @@
     },
     "buildFloor": {
       "type": "object",
-      "required": ["id", "elevation", "ceiling_height", "wall_solids", "openings", "rooms", "items", "slab", "stairs", "roofs", "collision"],
+      "required": ["id", "elevation", "ceiling_height", "wall_solids", "openings", "rooms", "items", "slab", "stairs", "roofs", "collision", "generator_items"],
       "additionalProperties": false,
       "properties": {
         "id": { "$ref": "#/definitions/planId" },
@@ -776,9 +790,51 @@
           }
         },
         "collision": {
-          "description": "The floor's collision: walls first, then each room's floor and ceiling, then the thresholds, the slab, the stairs and the roofs. Items get a convex hull made by the build and are not listed.",
+          "description": "The floor's collision: walls first, then each room's floor and ceiling, then the thresholds, the slab, the stairs and the roofs. Items and generator items get a convex hull made by the build and are not listed.",
           "type": "array",
           "items": { "$ref": "#/definitions/collisionShape" }
+        },
+        "generator_items": {
+          "description": "Items that run a generator of the job's generators list, in the floor's item order. Empty when there are none.",
+          "type": "array",
+          "items": { "$ref": "#/definitions/buildGeneratorItem" }
+        }
+      }
+    },
+    "buildGeneratorItem": {
+      "description": "The worker calls the generator's generate(gen) with these values, joins the meshes it returns into SM_<generator>_<id> and places it like an item: its bottom centre at location, turned by rotation_z.",
+      "type": "object",
+      "required": ["id", "generator", "params", "location", "rotation_z", "size", "room", "wall", "slots"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/definitions/planId" },
+        "generator": { "$ref": "#/definitions/catalogId" },
+        "params": {
+          "description": "Every declared parameter, after core fitted them to the declaration. Numbers in metres or degrees. A material value is the id of an entry of the job's materials list, or null for the neutral look Generated.",
+          "type": "object",
+          "propertyNames": { "$ref": "#/definitions/catalogId" },
+          "additionalProperties": { "type": ["number", "boolean", "string", "null"] }
+        },
+        "location": { "description": "Where the result's bottom centre goes.", "$ref": "#/definitions/xyz" },
+        "rotation_z": { "description": "Radians about Z: minus the plan rotation.", "type": "number" },
+        "size": {
+          "description": "The size the declaration gives for these values; the worker warns generator_size when the result reaches more than 1 cm past it.",
+          "type": "object",
+          "required": ["width", "depth", "height"],
+          "additionalProperties": false,
+          "properties": {
+            "width": { "type": "number", "exclusiveMinimum": 0 },
+            "depth": { "type": "number", "exclusiveMinimum": 0 },
+            "height": { "type": "number", "exclusiveMinimum": 0 }
+          }
+        },
+        "room": { "oneOf": [{ "$ref": "#/definitions/planId" }, { "type": "null" }] },
+        "wall": { "oneOf": [{ "$ref": "#/definitions/planId" }, { "type": "null" }] },
+        "slots": {
+          "description": "One slot per material parameter: the parameter id to the name of an entry of the build's slots list.",
+          "type": "object",
+          "propertyNames": { "$ref": "#/definitions/catalogId" },
+          "additionalProperties": { "$ref": "#/definitions/slotRef" }
         }
       }
     },

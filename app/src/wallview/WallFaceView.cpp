@@ -213,7 +213,7 @@ void WallFaceView::paintItems(QPainter& painter)
         painter.setBrush(fill);
         painter.drawPolygon(shape);
         const QRectF box = shape.boundingRect();
-        const QString name = item.missing ? tr("Missing asset") : item.name;
+        const QString name = item.missing && !item.missingText.isEmpty() ? item.missingText : item.name;
         const QFont nameFont = t.uiFont(t.sizeSmall());
         const QFont monoFont = t.monoFont(t.sizeSmall());
         const QFontMetrics names(nameFont);

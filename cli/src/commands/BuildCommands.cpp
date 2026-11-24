@@ -4,6 +4,7 @@
 #include <plynth/core/Build.h>
 #include <plynth/core/BuildJob.h>
 #include <plynth/core/Blender.h>
+#include <plynth/core/Generators.h>
 
 #include <memory>
 #include <optional>
@@ -68,13 +69,17 @@ bool tryOpenCatalog(const std::string& command, const RunContext& context, const
     return openCatalog(command, context, libraryOption, opened, ignored);
 }
 
-// Reports the problems of a build without running Blender or writing anything.
+// Reports the problems of a build without running Blender or writing anything. The library's generators are
+// checked, but no add-on cache is read, so the check says nothing about which add-ons are on.
 Answer buildCheck(const std::string& command, const Project& project, const OpenedCatalog* opened) {
     BuildAssetSource source;
+    GeneratorLibrary generators;
     if (opened != nullptr) {
         source = buildAssetSourceFor(*opened->catalog);
+        generators = loadGeneratorFolder(opened->paths.generators);
     }
-    const BuildPlan plan = makeBuildPlan(project, source);
+    const BuildPlan plan =
+        makeBuildPlan(project, source, {}, opened != nullptr ? &generators : nullptr, std::nullopt);
     int errors = 0;
     int warnings = 0;
     for (const BuildProblem& problem : plan.problems) {
@@ -131,6 +136,7 @@ Answer buildProject(const RunContext& context, const BuildOptions& options) {
         request.library = opened.paths;
     }
     request.blender = choice.install;
+    request.addonSource = blenderUserFolders(choice.install).extensions;
 
     std::ostream* progress = options.quiet ? nullptr : context.progress;
     std::optional<BuildStage> lastStage;
@@ -164,8 +170,8 @@ Answer buildProject(const RunContext& context, const BuildOptions& options) {
 std::vector<CommandSpec> buildCommands() {
     CommandSpec build;
     build.words = {"build"};
-    build.description = "Build the project in Blender: walls, openings, floors, ceilings and furniture. "
-                        "With --check, only list the problems.";
+    build.description = "Build the project in Blender: walls, openings, floors, ceilings, furniture and "
+                        "generators. With --check, only list the problems.";
     build.setup = [](CLI::App& sub) -> Handler {
         auto options = std::make_shared<BuildOptions>();
         addProjectOption(sub, options->project);

@@ -7,10 +7,11 @@
 #include <windows.h>
 #include <crtdbg.h>
 #include <process.h>
+#include <cstdio>
 #include <cstdlib>
 #include <filesystem>
-#include <string>
 #include <initializer_list>
+#include <string>
 #include <system_error>
 
 namespace {
@@ -29,41 +30,74 @@ struct NoDialogs {
     }
 } noDialogs;
 
-// Sets one variable in both the Win32 and the C runtime environment, since code and tests read one or the other.
-void setVariable(const wchar_t* name, const std::filesystem::path& value) {
-    _wputenv_s(name, value.c_str());
-    SetEnvironmentVariableW(name, value.c_str());
+// Ends the test program before any test runs, when its scratch folders could not be set up.
+[[noreturn]] void stopUnsafe(const wchar_t* what) {
+    std::fwprintf(stderr, L"The tests stop here, %ls could not be set to a scratch folder.\n", what);
+    std::fflush(stderr);
+    std::_Exit(1);
 }
 
-// Gives this test program its own settings folder under the temp folder, and removes it at the end. Settings never
-// come from the real %APPDATA%, and test programs that run at the same time never share a settings file.
-struct TestConfigFolder {
-    TestConfigFolder() {
-        path = std::filesystem::temp_directory_path() / ("plynth-tests-config-" + std::to_string(_getpid()));
-        std::error_code ignored;
-        std::filesystem::remove_all(path, ignored);
-        std::filesystem::create_directories(path, ignored);
-        setVariable(L"PLYNTH_CONFIG_DIR", path);
+// Sets one variable for this program and the programs it starts. It goes into both the Win32 and the C runtime
+// environment, since code and tests read one or the other.
+void setVariable(const wchar_t* name, const std::filesystem::path& value) {
+    if (_wputenv_s(name, value.c_str()) != 0 || !SetEnvironmentVariableW(name, value.c_str())) {
+        stopUnsafe(name);
     }
-    ~TestConfigFolder() {
-        std::error_code ignored;
-        std::filesystem::remove_all(path, ignored);
-    }
-    std::filesystem::path path;
-} testConfigFolderSetup;
+}
 
-// Gives this test program its own private Blender folder under the temp folder, and removes it at the end.
-// Without it a run of the fake Blender would use the shared folder under %LOCALAPPDATA%.
-struct TestPrivateFolder {
-    TestPrivateFolder() {
-        path = std::filesystem::temp_directory_path() / ("plynth-tests-private-" + std::to_string(_getpid()));
-        setVariable(L"PLYNTH_BLENDER_PRIVATE", path);
+// Makes a folder and points a variable at it. Blender ignores a user variable whose folder is missing.
+void setFolder(const wchar_t* name, const std::filesystem::path& folder) {
+    std::error_code ec;
+    std::filesystem::create_directories(folder, ec);
+    if (ec) {
+        stopUnsafe(name);
     }
-    ~TestPrivateFolder() {
+    setVariable(name, folder);
+}
+
+// Makes a new empty folder for this run, so nothing left over from an earlier run is used.
+std::filesystem::path makeScratchRoot() {
+    std::error_code ec;
+    const std::filesystem::path temp = std::filesystem::temp_directory_path(ec);
+    if (ec) {
+        stopUnsafe(L"TEMP");
+    }
+    const std::wstring name = L"plynth-" + std::to_wstring(_getpid()) + L"-";
+    for (int number = 0; number < 1000; ++number) {
+        const std::filesystem::path root = temp / (name + std::to_wstring(number));
+        if (std::filesystem::create_directory(root, ec)) {
+            return root;
+        }
+    }
+    stopUnsafe(L"TEMP");
+}
+
+// Points everything that names a user folder into a scratch root before the first test, and removes it at the end.
+struct ScratchUser {
+    ScratchUser() : root(makeScratchRoot()) {
+        // A short name, because tests build long paths below the temp folder.
+        setFolder(L"TEMP", root / "t");
+        setFolder(L"TMP", root / "t");
+        setFolder(L"APPDATA", root / "appdata");
+        setFolder(L"LOCALAPPDATA", root / "local");
+        setFolder(L"USERPROFILE", root / "profile");
+        setFolder(L"HOME", root / "home");
+        setFolder(L"XDG_DATA_HOME", root / "xdg");
+        setFolder(L"PLYNTH_BLENDER_PRIVATE", root / "private");
+        setFolder(L"PLYNTH_CONFIG_DIR", root / "settings");
+        setFolder(L"BLENDER_USER_RESOURCES", root / "resources");
+        setFolder(L"BLENDER_USER_CONFIG", root / "blender-config");
+        setFolder(L"BLENDER_USER_SCRIPTS", root / "scripts");
+        setFolder(L"BLENDER_USER_EXTENSIONS", root / "extensions");
+        setFolder(L"BLENDER_USER_DATAFILES", root / "datafiles");
+        // A file that does not exist. With no value at all Plynth would look for the installed Blender.
+        setVariable(L"PLYNTH_BLENDER", root / "no-blender.exe");
+    }
+    ~ScratchUser() {
         std::error_code ignored;
-        std::filesystem::remove_all(path, ignored);
+        std::filesystem::remove_all(root, ignored);
     }
-    std::filesystem::path path;
-} testPrivateFolderSetup;
+    std::filesystem::path root;
+} scratchUser;
 
 }  // namespace

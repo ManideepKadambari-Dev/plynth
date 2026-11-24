@@ -1,6 +1,7 @@
 #include "FakeBlender.h"
 #include "SchemaSupport.h"
 
+#include <plynth/core/Generators.h>
 #include <plynth/core/Library.h>
 #include <plynth/core/ProjectFiles.h>
 #include <plynth/core/SetupCheck.h>
@@ -13,9 +14,11 @@
 #define NOMINMAX
 #include <windows.h>
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <memory>
 #include <string>
 
 using namespace plynth;
@@ -58,6 +61,17 @@ SetupCheckOptions optionsFor(const fs::path& folder, bool probe = false)
     options.probeAddons = probe;
     return options;
 }
+
+// Points PLYNTH_SAMPLES at an empty generators folder, so a new library gets no sample generators.
+struct NoSampleGenerators {
+    NoSampleGenerators() : tmp("setup-no-sample-generators")
+    {
+        fs::create_directories(tmp.path() / "generators");
+        env = std::make_unique<plynth::test::ScopedEnv>("PLYNTH_SAMPLES", pathToUtf8(tmp.path()));
+    }
+    plynth::test::TempDir tmp;
+    std::unique_ptr<plynth::test::ScopedEnv> env;
+};
 
 // Settings with a ready library and projects folder inside a temporary folder.
 MachineSettings goodFolders(const fs::path& root)
@@ -421,6 +435,8 @@ TEST_CASE("firstRun and updated come from the settings", "[core][setup]") {
 
 TEST_CASE("setupNeeded", "[core][setup]") {
     plynth::test::TempDir tmp("setup-needed");
+    // The test program names a missing Blender in this variable, and it would win over the settings.
+    plynth::test::ScopedEnv noVariable("PLYNTH_BLENDER", "");
     const auto fake = plynth::test::makeFakeBlender(tmp.path() / "b" / "Blender 5.2", "5.2.0");
     MachineSettings settings = goodFolders(tmp.path());
     settings.blender = fake;
@@ -494,4 +510,67 @@ TEST_CASE("the setup check runs against the real Blender", "[.blender]") {
     REQUIRE(report.probed);
     REQUIRE(report.ready);
     requireValidReport(report);
+}
+
+TEST_CASE("Home Builder 5 is found as Home Builder", "[core][setup]") {
+    plynth::test::IsolatedUser user("setup-home-builder-user");
+    plynth::test::TempDir tmp("setup-home-builder");
+    plynth::test::makeFakeBlender(tmp.path() / "b" / "Blender 5.2", "5.2.0");
+    plynth::test::ScopedEnv addons("FAKE_BLENDER_ADDONS", "bl_ext.blender_org.home_builder_5");
+    const SetupReport report = runSetupCheck(goodFolders(tmp.path()), optionsFor(tmp.path() / "b", true));
+    REQUIRE(report.probed);
+    REQUIRE(report.find(kCheckHomeBuilder)->state == CheckState::Found);
+    REQUIRE(report.find(kCheckArchimesh)->state == CheckState::Missing);
+}
+
+TEST_CASE("an add-on row names the library generators that need it", "[core][setup]") {
+    plynth::test::IsolatedUser user("setup-affects-user");
+    plynth::test::TempDir tmp("setup-affects");
+    const NoSampleGenerators noSamples;
+    plynth::test::makeFakeBlender(tmp.path() / "b" / "Blender 5.2", "5.2.0");
+    const MachineSettings settings = goodFolders(tmp.path());
+    const fs::path generators = *settings.library / "generators";
+    fs::create_directories(generators);
+    fs::copy_file(fs::path(PLYNTH_TEST_DATA_DIR) / "generators" / "archimesh_column.py", generators / "archimesh_column.py");
+
+    const auto affectsOf = [](const SetupReport& report, std::string_view id) { return report.find(id)->affects; };
+    const auto has = [](const std::vector<std::string>& list, const std::string& text) {
+        return std::find(list.begin(), list.end(), text) != list.end();
+    };
+
+    plynth::test::ScopedEnv addons("FAKE_BLENDER_ADDONS", "bl_ext.blender_org.archimesh");
+    const SetupReport probed = runSetupCheck(settings, optionsFor(tmp.path() / "b", true));
+    REQUIRE(probed.find(kCheckArchimesh)->state == CheckState::Found);
+    const std::vector<std::string> archimesh = affectsOf(probed, kCheckArchimesh);
+    REQUIRE(archimesh.front() == "stairs, doors, windows and columns generators");
+    REQUIRE(has(archimesh, "Archimesh column generator"));
+    REQUIRE_FALSE(has(affectsOf(probed, kCheckBoolTool), "Archimesh column generator"));
+    requireValidReport(probed);
+
+    const SetupReport unchecked = runSetupCheck(settings, optionsFor(tmp.path() / "b", false));
+    REQUIRE(has(affectsOf(unchecked, kCheckArchimesh), "Archimesh column generator"));
+    REQUIRE(has(affectsOf(quickSetupCheck(settings, true), kCheckArchimesh), "Archimesh column generator"));
+
+    MachineSettings noLibrary = settings;
+    noLibrary.library.reset();
+    REQUIRE(affectsOf(quickSetupCheck(noLibrary, true), kCheckArchimesh).size() == 1);
+}
+
+TEST_CASE("unreadable preferences still name the generators of an add-on", "[core][setup][safety]") {
+    plynth::test::IsolatedUser user("setup-unreadable-user");
+    plynth::test::TempDir tmp("setup-unreadable");
+    const NoSampleGenerators noSamples;
+    plynth::test::makeFakeBlender(tmp.path() / "b" / "Blender 5.2", "5.2.0", "unreadable");
+    const MachineSettings settings = goodFolders(tmp.path());
+    const fs::path generators = *settings.library / "generators";
+    fs::create_directories(generators);
+    fs::copy_file(fs::path(PLYNTH_TEST_DATA_DIR) / "generators" / "archimesh_column.py", generators / "archimesh_column.py",
+                  fs::copy_options::overwrite_existing);
+
+    const SetupReport report = runSetupCheck(settings, optionsFor(tmp.path() / "b", true));
+    REQUIRE_FALSE(report.probed);
+    const SetupItem* archimesh = report.find(kCheckArchimesh);
+    REQUIRE(archimesh->state == CheckState::NotChecked);
+    REQUIRE(archimesh->detail == "The fake preferences cannot be read.");
+    REQUIRE(std::find(archimesh->affects.begin(), archimesh->affects.end(), "Archimesh column generator") != archimesh->affects.end());
 }

@@ -20,7 +20,7 @@
           "material": { "description": "The catalog material id, or null for a neutral look and for furniture.", "oneOf": [{ "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }, { "type": "null" }] },
           "surface": {
             "description": "The neutral surface, or null for a catalog material and for furniture.",
-            "enum": ["Wall_Inside", "Wall_Outside", "Wall_Top", "Reveal", "Threshold", "Floor", "Ceiling", "Door", "Frame", "Glass", "Handle", "Stair", "Roof", "Flat_Roof", "Soffit", "Fascia", null]
+            "enum": ["Wall_Inside", "Wall_Outside", "Wall_Top", "Reveal", "Threshold", "Floor", "Ceiling", "Door", "Frame", "Glass", "Handle", "Stair", "Roof", "Flat_Roof", "Soffit", "Fascia", "Generated", null]
           },
           "asset": { "description": "The asset id for a material of furniture. Left out for built surfaces, and in files written before milestone 10.", "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
           "maps": {

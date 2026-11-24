@@ -248,7 +248,9 @@ std::string exportMemberLabel(const Plan& plan, const ExportMember& member)
     if (member.kind == kKindWindow) return "Window " + member.id;
     if (member.kind == kKindItem || member.kind == kKindGenerator) {
         for (const Floor& floor : plan.floors) {
-            if (const Item* item = findItem(floor, member.id)) return item->asset + " " + member.id;
+            if (const Item* item = findItem(floor, member.id)) {
+                return (item->generator ? item->generator->name : item->asset) + " " + member.id;
+            }
         }
     }
     return pair;

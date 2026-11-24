@@ -1,10 +1,13 @@
 #include "../CatalogCommon.h"
 #include "../Common.h"
+#include "../GeneratorCommon.h"
 
+#include <plynth/core/Generators.h>
 #include <plynth/core/Geometry.h>
 #include <plynth/core/Items.h>
 #include <plynth/core/Rooms.h>
 #include <plynth/core/catalog/ItemAssets.h>
+#include <plynth/core/commands/GeneratorCommands.h>
 #include <plynth/core/commands/ItemCommands.h>
 
 #include <cmath>
@@ -23,6 +26,8 @@ struct PlaceOptions {
     std::string project;
     std::string library;
     std::string asset;
+    std::string generator;
+    std::vector<std::string> params;
     std::string floor;
     std::string room;
     std::string wall;
@@ -90,6 +95,16 @@ struct DetachOptions {
     std::string id;
 };
 
+struct ParamsOptions {
+    std::string project;
+    std::string library;
+    std::string id;
+    std::vector<std::string> params;
+    bool reset = false;
+    bool fit = false;
+    bool strict = false;
+};
+
 struct RemoveOptions {
     std::string project;
     std::string id;
@@ -125,15 +140,46 @@ bool openOptionalCatalog(const std::string& command, const RunContext& context, 
     return true;
 }
 
+// The library an item answer reads: the asset catalog and the generators with their add-on cache. have is
+// false when no library could be opened, and then asset and generator states are unknown.
+struct ItemLibrary {
+    OpenedCatalog opened;
+    bool have = false;
+    GeneratorEnv generators;
+
+    const AssetCatalog* catalog() const { return have ? opened.catalog.get() : nullptr; }
+    const GeneratorEnv* generatorEnv() const { return have ? &generators : nullptr; }
+};
+
+// Opens the library for an item command. With required false a missing library only means have is false,
+// unless --library named one that cannot be opened. On error the answer is returned in failed.
+bool openItemLibrary(const std::string& command, const RunContext& context, const std::string& libraryOption,
+                     ItemLibrary& lib, Answer& failed, bool required = false) {
+    if (required) {
+        lib.have = openCatalog(command, context, libraryOption, lib.opened, failed);
+        if (!lib.have) {
+            return false;
+        }
+    } else if (!openOptionalCatalog(command, context, libraryOption, lib.opened, lib.have, failed)) {
+        return false;
+    }
+    if (lib.have) {
+        lib.generators = loadGeneratorEnv(lib.opened.paths, lib.opened.settings, std::nullopt);
+    }
+    return true;
+}
+
 // The item entry shared by the item commands. catalog is null when no library could be opened: the asset
 // state is then unknown and the missing and size problems are not checked.
-Json itemEntry(const Floor& floor, const Item& item, const AssetCatalog* catalog) {
+Json itemEntry(const Floor& floor, const Item& item, const ItemLibrary& lib) {
+    const AssetCatalog* catalog = lib.catalog();
     const AssetLookup lookup = catalog != nullptr ? assetLookupFor(*catalog) : AssetLookup{};
-    const std::vector<ItemProblem> problems = checkItem(floor, item, lookup);
+    const GeneratorItemLookup generatorLookup = lib.have ? lib.generators.lookup() : GeneratorItemLookup{};
+    const std::vector<ItemProblem> problems = checkItem(floor, item, lookup, generatorLookup);
 
     std::string state = "unknown";
     Json name = nullptr;
-    if (catalog != nullptr) {
+    if (catalog != nullptr && !isGeneratorItem(item)) {
         state = "ok";
         for (const ItemProblem& problem : problems) {
             if (problem.kind == ItemProblemKind::MissingAsset) {
@@ -155,6 +201,17 @@ Json itemEntry(const Floor& floor, const Item& item, const AssetCatalog* catalog
             wallSide = std::string(wallSideName(spot.side));
             wallOffset = spot.offset;
         }
+    }
+
+    Json generator = nullptr;
+    if (item.generator) {
+        const GeneratorInfo* info = lib.have ? lib.generators.library.find(item.generator->name) : nullptr;
+        Json use = Json::object();
+        use["name"] = item.generator->name;
+        use["display_name"] = info != nullptr ? info->name : item.generator->name;
+        use["params"] = generatorParamsJson(info, item.generator->params);
+        use["state"] = generatorItemState(lib.generatorEnv(), *item.generator);
+        generator = std::move(use);
     }
 
     Json size = Json::object();
@@ -186,9 +243,16 @@ Json itemEntry(const Floor& floor, const Item& item, const AssetCatalog* catalog
     Json entry = Json::object();
     entry["id"] = item.id;
     entry["floor"] = floor.id;
-    entry["asset"] = item.asset;
-    entry["asset_name"] = std::move(name);
-    entry["asset_state"] = state;
+    if (isGeneratorItem(item)) {
+        entry["asset"] = nullptr;
+        entry["asset_name"] = nullptr;
+        entry["asset_state"] = nullptr;
+    } else {
+        entry["asset"] = item.asset;
+        entry["asset_name"] = std::move(name);
+        entry["asset_state"] = state;
+    }
+    entry["generator"] = std::move(generator);
     if (item.room) {
         entry["room"] = *item.room;
     } else {
@@ -214,21 +278,22 @@ Json itemEntry(const Floor& floor, const Item& item, const AssetCatalog* catalog
 
 // The answer for a changed item: its entry, and its problems as warnings. With strict and any problem the
 // answer is a refusal, so editProject saves nothing.
-Answer itemAnswer(const std::string& command, const Document& document, const Id& id, const AssetCatalog* catalog,
+Answer itemAnswer(const std::string& command, const Document& document, const Id& id, const ItemLibrary& lib,
                   bool strict) {
     const Floor* floor = findFloorContaining(document.plan(), id);
     const Item* item = floor == nullptr ? nullptr : findItem(*floor, id);
     if (item == nullptr) {
         return failure(command, fail(ErrorCode::NotFound, "There is no item " + id + "."));
     }
-    const AssetLookup lookup = catalog != nullptr ? assetLookupFor(*catalog) : AssetLookup{};
-    const std::vector<ItemProblem> problems = checkItem(*floor, *item, lookup);
+    const AssetLookup lookup = lib.catalog() != nullptr ? assetLookupFor(*lib.catalog()) : AssetLookup{};
+    const GeneratorItemLookup generatorLookup = lib.have ? lib.generators.lookup() : GeneratorItemLookup{};
+    const std::vector<ItemProblem> problems = checkItem(*floor, *item, lookup, generatorLookup);
     if (strict && !problems.empty()) {
         const std::string count = problems.size() == 1 ? "1 problem" : std::to_string(problems.size()) + " problems";
         return failure(command, fail(ErrorCode::InvalidValue, problems.front().message + " " + count + " in all."));
     }
     Json result = Json::object();
-    result["item"] = itemEntry(*floor, *item, catalog);
+    result["item"] = itemEntry(*floor, *item, lib);
     Answer answer = success(command, std::move(result));
     for (const ItemProblem& problem : problems) {
         answer.warnings.push_back({std::string(itemProblemName(problem.kind)), problem.message});
@@ -304,10 +369,78 @@ WallSide chooseSide(const Floor& floor, const Wall& wall, const PlaceOptions& op
     return distance(left.position) < distance(right.position) ? WallSide::Left : WallSide::Right;
 }
 
-// Places an asset on the floor or on a wall.
+// Splits "id=value" at the first "=".
+bool splitParam(const std::string& text, std::string& id, std::string& value) {
+    const std::size_t at = text.find('=');
+    if (at == std::string::npos || at == 0) {
+        return false;
+    }
+    id = text.substr(0, at);
+    value = text.substr(at + 1);
+    return true;
+}
+
+// Sets each "id=value" text in a full set of values. InvalidValue naming the parameter when one does not fit.
+Status applyParamTexts(const GeneratorInfo& info, std::vector<GeneratorParamValue>& values,
+                       const std::vector<std::string>& texts) {
+    for (const std::string& text : texts) {
+        std::string id;
+        std::string value;
+        if (!splitParam(text, id, value)) {
+            return fail(ErrorCode::InvalidValue, "--param needs the form id=value, not \"" + text + "\".");
+        }
+        const GeneratorParam* param = info.findParam(id);
+        if (param == nullptr) {
+            return fail(ErrorCode::InvalidValue, "Generator " + info.id + " has no parameter " + id + ".");
+        }
+        const GeneratorValueRead read = parseGeneratorValue(*param, value);
+        if (!read.status.ok()) {
+            return read.status;
+        }
+        const Status set = setGeneratorParam(info, values, id, read.value);
+        if (!set.ok()) {
+            return set;
+        }
+    }
+    return {};
+}
+
+// Gives a new item the generator named by --generator with the defaults and the --param values. NotFound for
+// an unknown generator, InvalidValue for one that needs an add-on that is off or a value that does not fit.
+Status chooseGenerator(const GeneratorEnv& env, const std::string& id, const std::vector<std::string>& texts,
+                       double ceilingHeight, Item& item) {
+    const GeneratorInfo* info = env.library.find(id);
+    if (info == nullptr) {
+        return fail(ErrorCode::NotFound, "There is no generator " + id + " in the library.");
+    }
+    const GeneratorState state = generatorState(*info, env.cache);
+    if (state.availability == GeneratorAvailability::NeedsAddon) {
+        return fail(ErrorCode::InvalidValue, state.message);
+    }
+    std::vector<GeneratorParamValue> values = defaultGeneratorParams(*info, ceilingHeight);
+    const Status applied = applyParamTexts(*info, values, texts);
+    if (!applied.ok()) {
+        return applied;
+    }
+    const GeneratorPlacement placement = makeGeneratorUse(*info, values);
+    if (!placement.status.ok()) {
+        return placement.status;
+    }
+    item.generator = placement.use;
+    item.size = placement.size;
+    return {};
+}
+
+// Places an asset or a generator on the floor or on a wall.
 Answer itemPlace(const RunContext& context, const PlaceOptions& options) {
     const std::string command = "place";
     const bool byXY = options.x.has_value() || options.y.has_value();
+    if (options.asset.empty() == options.generator.empty()) {
+        return badArguments(command, "bad_arguments", "Give an asset id or --generator, one of them.");
+    }
+    if (!options.params.empty() && options.generator.empty()) {
+        return badArguments(command, "bad_arguments", "--param is for --generator.");
+    }
     if (byXY && !(options.x && options.y)) {
         return badArguments(command, "bad_arguments", "Give both --x and --y.");
     }
@@ -342,13 +475,24 @@ Answer itemPlace(const RunContext& context, const PlaceOptions& options) {
         if (floor == nullptr) {
             return failed;
         }
-        OpenedCatalog opened;
-        if (!openCatalog(command, context, options.library, opened, failed)) {
+        ItemLibrary lib;
+        if (!openItemLibrary(command, context, options.library, lib, failed, true)) {
             return failed;
         }
-        const ItemAsset asset = itemAssetFor(*opened.catalog, options.asset);
-        if (!asset.status.ok()) {
-            return failure(command, asset.status);
+        Item item;
+        if (options.generator.empty()) {
+            const ItemAsset asset = itemAssetFor(*lib.opened.catalog, options.asset);
+            if (!asset.status.ok()) {
+                return failure(command, asset.status);
+            }
+            item.asset = options.asset;
+            item.size = asset.size;
+        } else {
+            const Status chosen = chooseGenerator(lib.generators, options.generator, options.params,
+                                                  floor->ceilingHeight, item);
+            if (!chosen.ok()) {
+                return failure(command, chosen);
+            }
         }
 
         const Room* room = nullptr;
@@ -364,9 +508,6 @@ Answer itemPlace(const RunContext& context, const PlaceOptions& options) {
             }
         }
 
-        Item item;
-        item.asset = options.asset;
-        item.size = asset.size;
         std::optional<double> z = options.z;
         if (options.centre) {
             z = *options.centre - item.size.height / 2.0;
@@ -417,7 +558,7 @@ Answer itemPlace(const RunContext& context, const PlaceOptions& options) {
         if (!runCommand(command, document, std::move(placed), failed)) {
             return failed;
         }
-        return itemAnswer(command, document, raw->itemId(), opened.catalog.get(), options.strict);
+        return itemAnswer(command, document, raw->itemId(), lib, options.strict);
     });
 }
 
@@ -441,9 +582,8 @@ Answer itemList(const RunContext& context, const ListOptions& options) {
         return failure(command, fail(ErrorCode::NotFound, "There is no wall " + options.wall + " on floor " +
                                                               floor->id + "."));
     }
-    OpenedCatalog opened;
-    bool have = false;
-    if (!openOptionalCatalog(command, context, options.library, opened, have, failed)) {
+    ItemLibrary lib;
+    if (!openItemLibrary(command, context, options.library, lib, failed)) {
         return failed;
     }
     Json items = Json::array();
@@ -454,7 +594,7 @@ Answer itemList(const RunContext& context, const ListOptions& options) {
         if (!options.wall.empty() && item.wall != options.wall) {
             continue;
         }
-        items.push_back(itemEntry(*floor, item, have ? opened.catalog.get() : nullptr));
+        items.push_back(itemEntry(*floor, item, lib));
     }
     Json result = Json::object();
     const std::size_t count = items.size();
@@ -529,15 +669,14 @@ Answer itemMove(const RunContext& context, const MoveOptions& options) {
                 group->add(std::make_unique<SetItemHeightCommand>(options.id, *z));
             }
         }
-        OpenedCatalog opened;
-        bool have = false;
-        if (!openOptionalCatalog(command, context, options.library, opened, have, failed)) {
+        ItemLibrary lib;
+        if (!openItemLibrary(command, context, options.library, lib, failed)) {
             return failed;
         }
         if (!runCommand(command, document, std::move(group), failed)) {
             return failed;
         }
-        return itemAnswer(command, document, options.id, have ? opened.catalog.get() : nullptr, options.strict);
+        return itemAnswer(command, document, options.id, lib, options.strict);
     });
 }
 
@@ -558,15 +697,14 @@ Answer itemRotate(const RunContext& context, const RotateOptions& options) {
             return failed;
         }
         const double rotation = options.to ? *options.to : item->rotation + *options.by;
-        OpenedCatalog opened;
-        bool have = false;
-        if (!openOptionalCatalog(command, context, options.library, opened, have, failed)) {
+        ItemLibrary lib;
+        if (!openItemLibrary(command, context, options.library, lib, failed)) {
             return failed;
         }
         if (!runCommand(command, document, std::make_unique<RotateItemCommand>(options.id, rotation), failed)) {
             return failed;
         }
-        return itemAnswer(command, document, options.id, have ? opened.catalog.get() : nullptr, options.strict);
+        return itemAnswer(command, document, options.id, lib, options.strict);
     });
 }
 
@@ -578,11 +716,11 @@ Answer itemSwap(const RunContext& context, const SwapOptions& options) {
         if (resolveItem(command, document.plan(), options.id, failed) == nullptr) {
             return failed;
         }
-        OpenedCatalog opened;
-        if (!openCatalog(command, context, options.library, opened, failed)) {
+        ItemLibrary lib;
+        if (!openItemLibrary(command, context, options.library, lib, failed, true)) {
             return failed;
         }
-        const ItemAsset asset = itemAssetFor(*opened.catalog, options.asset);
+        const ItemAsset asset = itemAssetFor(*lib.opened.catalog, options.asset);
         if (!asset.status.ok()) {
             return failure(command, asset.status);
         }
@@ -590,7 +728,7 @@ Answer itemSwap(const RunContext& context, const SwapOptions& options) {
                         std::make_unique<SwapItemAssetCommand>(options.id, options.asset, asset.size), failed)) {
             return failed;
         }
-        return itemAnswer(command, document, options.id, opened.catalog.get(), options.strict);
+        return itemAnswer(command, document, options.id, lib, options.strict);
     });
 }
 
@@ -615,15 +753,14 @@ Answer itemAttach(const RunContext& context, const AttachOptions& options) {
                                                                       " m of " + options.id + ". Give --wall."));
             }
         }
-        OpenedCatalog opened;
-        bool have = false;
-        if (!openOptionalCatalog(command, context, options.library, opened, have, failed)) {
+        ItemLibrary lib;
+        if (!openItemLibrary(command, context, options.library, lib, failed)) {
             return failed;
         }
         if (!runCommand(command, document, std::make_unique<SetItemWallCommand>(options.id, wall), failed)) {
             return failed;
         }
-        return itemAnswer(command, document, options.id, have ? opened.catalog.get() : nullptr, options.strict);
+        return itemAnswer(command, document, options.id, lib, options.strict);
     });
 }
 
@@ -635,15 +772,70 @@ Answer itemDetach(const RunContext& context, const DetachOptions& options) {
         if (resolveItem(command, document.plan(), options.id, failed) == nullptr) {
             return failed;
         }
-        OpenedCatalog opened;
-        bool have = false;
-        if (!openOptionalCatalog(command, context, options.library, opened, have, failed)) {
+        ItemLibrary lib;
+        if (!openItemLibrary(command, context, options.library, lib, failed)) {
             return failed;
         }
         if (!runCommand(command, document, std::make_unique<SetItemWallCommand>(options.id, std::nullopt), failed)) {
             return failed;
         }
-        return itemAnswer(command, document, options.id, have ? opened.catalog.get() : nullptr, false);
+        return itemAnswer(command, document, options.id, lib, false);
+    });
+}
+
+// Changes the values of a generator item, puts its defaults back, or fits them to the generator as it is now.
+Answer itemParams(const RunContext& context, const ParamsOptions& options) {
+    const std::string command = "item params";
+    if (options.reset && options.fit) {
+        return badArguments(command, "bad_arguments", "Give --reset or --fit, not both.");
+    }
+    if (options.params.empty() && !options.reset && !options.fit) {
+        return badArguments(command, "bad_arguments", "Give at least one of --param, --reset and --fit.");
+    }
+    return editProject(command, context, options.project, [&](Document& document) {
+        Answer failed;
+        const Item* item = resolveItem(command, document.plan(), options.id, failed);
+        if (item == nullptr) {
+            return failed;
+        }
+        if (!item->generator) {
+            return failure(command, fail(ErrorCode::InvalidValue, "Item " + options.id +
+                                                                      " is an asset, not a generator item."));
+        }
+        const Floor* floor = findFloorContaining(document.plan(), options.id);
+        ItemLibrary lib;
+        if (!openItemLibrary(command, context, options.library, lib, failed, true)) {
+            return failed;
+        }
+        const GeneratorInfo* info = lib.generators.library.find(item->generator->name);
+        if (info == nullptr) {
+            return failure(command, fail(ErrorCode::NotFound, "There is no generator " + item->generator->name +
+                                                                  " in the library."));
+        }
+        std::vector<GeneratorParamValue> values = item->generator->params;
+        if (options.reset) {
+            values = defaultGeneratorParams(*info, floor->ceilingHeight);
+        } else if (options.fit) {
+            values = fitGeneratorParams(*info, values, floor->ceilingHeight).params;
+        } else if (!checkGeneratorParams(*info, values).ok()) {
+            return failure(command, fail(ErrorCode::InvalidValue,
+                                         "The values of " + options.id + " no longer fit generator " + info->id +
+                                             ". Use --fit to update them or --reset for the defaults."));
+        }
+        const Status applied = applyParamTexts(*info, values, options.params);
+        if (!applied.ok()) {
+            return failure(command, applied);
+        }
+        const GeneratorPlacement placement = makeGeneratorUse(*info, values);
+        if (!placement.status.ok()) {
+            return failure(command, placement.status);
+        }
+        if (!runCommand(command, document,
+                        std::make_unique<SetItemGeneratorCommand>(options.id, placement.use, placement.size),
+                        failed)) {
+            return failed;
+        }
+        return itemAnswer(command, document, options.id, lib, options.strict);
     });
 }
 
@@ -662,12 +854,18 @@ void addStrictOption(CLI::App& sub, bool& value) {
 std::vector<CommandSpec> itemCommands() {
     CommandSpec place;
     place.words = {"place"};
-    place.description = "Place a library asset on the floor or on a wall.";
+    place.description = "Place a library asset or a generator on the floor or on a wall.";
     place.setup = [](CLI::App& sub) -> Handler {
         auto options = std::make_shared<PlaceOptions>();
         addProjectOption(sub, options->project);
         addLibraryOption(sub, options->library);
-        sub.add_option("asset", options->asset, "Id of the asset in the library.")->type_name("id")->required();
+        sub.add_option("asset", options->asset, "Id of the asset in the library. Not with --generator.")
+            ->type_name("id");
+        sub.add_option("--generator", options->generator, "Id of a generator to place instead of an asset.")
+            ->type_name("id");
+        sub.add_option("--param", options->params,
+                       "With --generator: a parameter value as id=value. Repeat for more. The rest keep their defaults.")
+            ->type_name("id=value");
         sub.add_option("--x", options->x, "Centre on the plan, to the right, in metres. Use with --y.")
             ->type_name("metres");
         sub.add_option("--y", options->y, "Centre on the plan, down, in metres. Use with --x.")->type_name("metres");
@@ -759,6 +957,22 @@ std::vector<CommandSpec> itemCommands() {
         return [options](const RunContext& context) { return itemSwap(context, *options); };
     };
 
+    CommandSpec params;
+    params.words = {"item", "params"};
+    params.description = "Change the values of a generator item, reset them or fit them to the generator.";
+    params.setup = [](CLI::App& sub) -> Handler {
+        auto options = std::make_shared<ParamsOptions>();
+        addProjectOption(sub, options->project);
+        addLibraryOption(sub, options->library);
+        sub.add_option("id", options->id, "Id of the item.")->type_name("id")->required();
+        sub.add_option("--param", options->params, "A parameter value as id=value. Repeat for more.")
+            ->type_name("id=value");
+        sub.add_flag("--reset", options->reset, "Put every value back to its default.");
+        sub.add_flag("--fit", options->fit, "Keep the values that still fit the generator and default the rest.");
+        addStrictOption(sub, options->strict);
+        return [options](const RunContext& context) { return itemParams(context, *options); };
+    };
+
     CommandSpec attach;
     attach.words = {"item", "attach"};
     attach.description = "Mount an item on a wall.";
@@ -796,7 +1010,7 @@ std::vector<CommandSpec> itemCommands() {
         return [options](const RunContext& context) { return itemRemove(context, *options); };
     };
 
-    return {place, list, move, rotate, swap, attach, detach, remove};
+    return {place, list, move, rotate, swap, params, attach, detach, remove};
 }
 
 }

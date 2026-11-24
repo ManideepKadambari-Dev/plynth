@@ -249,9 +249,9 @@ Blender does the heavy work in the background. Its side is Python, in `blender/p
 
 ### How a file registers itself
 
-`blender/plynth/registry.py` has a small `Registry` class and twelve registries: `TASKS`, `IMPORTERS`, `CLEANUP_STEPS`, `CHECKS`, `EXPORTERS`, `BUILD_STEPS`, `OPENING_FILLS`, `MATERIAL_SOURCES`, `BAKERS`, `MATERIAL_CHECKS`, `EXPORT_STEPS` and `QUALITY_CHECKS`. Each has `register(id, thing)`, which refuses a duplicate id, plus `get`, `all` and `ids`.
+`blender/plynth/registry.py` has a small `Registry` class and thirteen registries: `TASKS`, `IMPORTERS`, `CLEANUP_STEPS`, `CHECKS`, `EXPORTERS`, `BUILD_STEPS`, `OPENING_FILLS`, `MATERIAL_SOURCES`, `BAKERS`, `MATERIAL_CHECKS`, `EXPORT_STEPS`, `QUALITY_CHECKS` and `ADDON_BRIDGES`. Each has `register(id, thing)`, which refuses a duplicate id, plus `get`, `all` and `ids`.
 
-Each package (`tasks/`, `importers/`, `cleanup/`, `checks/`, `exporters/`, `building/`, `fills/`, `exporting/`, `quality/`) is loaded with `discover(package)`, which imports every module in the folder in name order. A module registers itself on its last line as it is imported. So adding an entry is adding one file. Nothing else is edited: no list, no import. Only the Python standard library and `bpy` are used.
+Each package (`tasks/`, `importers/`, `cleanup/`, `checks/`, `exporters/`, `building/`, `fills/`, `exporting/`, `quality/`, `bridges/`) is loaded with `discover(package)`, which imports every module in the folder in name order. A module registers itself on its last line as it is imported. So adding an entry is adding one file. Nothing else is edited: no list, no import. Only the Python standard library and `bpy` are used.
 
 ### Tasks
 
@@ -359,7 +359,7 @@ The order numbers. The gaps are for new steps, and the reserved ones belong to l
 | 40 | `stairs` | One solid step at a time for every stair |
 | 50 | `roofs` | A mesh for each roof section, by its type: covering, underside, edge, gables, parapets and glazing |
 | 60 | `assets` | Places every item as a copy of its asset |
-| 70 | reserved | Generators |
+| 70 | `generators` | Runs the generator of each generator item and puts what it makes at the item's place as one mesh. One whose add-on cannot be switched on is left out with a warning |
 | 80 | `materials` | The library material of every surface, built from its image maps, with UVs at the material's tile size. A surface without one gets its neutral look |
 | 90 | reserved | Trim |
 | 100 | reserved | Set dressing |
@@ -623,7 +623,7 @@ $env:BLENDER_USER_EXTENSIONS = $s
 $env:BLENDER_USER_DATAFILES = $s
 ```
 
-Set these in the same window, and use the same window to run the command. Every registry has a test that refuses a duplicate id. The sample chair in `samples/models/chair` is the model most tests use.
+Set these in the same window, and use the same window to run the command. The run starts a second Blender with user folders of its own and a prepared extensions folder, and an add-on is only ever switched on in such a folder. The tests that need add-ons skip unless `PLYNTH_TEST_ADDONS` names a folder with copies of them, laid out like an extensions folder (`<repository>\<add-on>\blender_manifest.toml`). The tests never take add-ons from your own Blender folders: they refuse a folder inside them. Every registry has a test that refuses a duplicate id. The sample chair in `samples/models/chair` is the model most tests use.
 
 ## Other things you will be able to add
 

@@ -18,6 +18,8 @@ add_executable(plynth_cli_tests
     DoctorCliTests.cpp
     ImportCliTests.cpp
     ItemCliTests.cpp
+    GeneratorCliTests.cpp
+    GeneratorBuildCliTests.cpp
     BuildCliTests.cpp
     FloorCliTests.cpp
     StairCliTests.cpp
@@ -39,6 +41,7 @@ target_link_libraries(plynth_cli_tests PRIVATE plynth::cli Catch2::Catch2WithMai
 target_compile_definitions(plynth_cli_tests PRIVATE
     PLYNTH_EXPECTED_VERSION="${PROJECT_VERSION}"
     PLYNTH_SCHEMA_DIR="${PROJECT_SOURCE_DIR}/schema"
+    PLYNTH_TEST_GENERATORS="${PROJECT_SOURCE_DIR}/tests/core/data/generators"
     PLYNTH_SAMPLE_PLAN="${PROJECT_SOURCE_DIR}/samples/plans/apartment-01.png"
     PLYNTH_SAMPLE_CHAIR_FOLDER="${PROJECT_SOURCE_DIR}/samples/models/chair"
     PLYNTH_FAKE_BLENDER="$<TARGET_FILE:plynth_fake_blender>")
