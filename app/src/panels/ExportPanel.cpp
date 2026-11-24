@@ -354,6 +354,8 @@ void ExportPanel::updateLock()
     const bool usable = !stale_ && !projectFolder_.empty();
     if (kitBox_)
         kitBox_->setEnabled(usable && lock != plynth::ExportEditDecision::Locked);
+    if (gameplayBox_)
+        gameplayBox_->setEnabled(usable && lock != plynth::ExportEditDecision::Locked);
     if (repairButton_)
         repairButton_->setEnabled(usable && open);
     if (lockLine_) {
@@ -435,6 +437,61 @@ void ExportPanel::setKitEnabled(bool enabled)
     kitError_ = failed ? fromCore(result.status.message) : QString();
     // The new review puts the box back to what is saved. It comes after this click, which the box is part of.
     afterWrite();
+}
+
+// Hands the gameplay data switch to the guard and asks for a new review.
+void ExportPanel::setGameplayEnabled(bool enabled)
+{
+    const plynth::ExportEditResult result = guard_.setGameplay(plynth::sessionNow(), enabled);
+    const bool failed = result.decision == plynth::ExportEditDecision::Allowed && !result.status.ok();
+    gameplayError_ = failed ? fromCore(result.status.message) : QString();
+    afterWrite();
+}
+
+// Adds the checkbox that switches the gameplay data file on, with the file it writes in mono below it.
+void ExportPanel::addGameplaySwitch(const ExportPanelState& state)
+{
+    const Theme& t = Theme::instance();
+    auto* box = new QCheckBox(tr("Also write gameplay data"), body_);
+    gameplayBox_ = box;
+    box->setFont(t.uiFont(t.sizeNormal()));
+    box->setChecked(state.gameplayEnabled);
+    box->setProperty("tourId", QStringLiteral("export-gameplay"));
+    box->setToolTip(tr("Also write a JSON file with the room volumes, door positions and light positions, in metres "
+                       "with Z up, for game code to read."));
+    connect(box, &QCheckBox::clicked, this, [this](bool on) { setGameplayEnabled(on); });
+    column_->addWidget(box);
+    if (!state.gameplayFile.isEmpty()) {
+        auto* file = new QLabel(state.gameplayFile, body_);
+        file->setWordWrap(true);
+        file->setFont(t.monoFont(t.sizeSmall()));
+        file->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
+        file->setToolTip(tr("The gameplay data file the next export writes"));
+        file->setProperty("tourId", QStringLiteral("export-gameplay-file"));
+        file->setEnabled(state.gameplayEnabled);
+        column_->addWidget(file);
+    }
+    if (!gameplayError_.isEmpty()) {
+        auto* error = new QLabel(gameplayError_, body_);
+        error->setWordWrap(true);
+        error->setFont(t.uiFont(t.sizeSmall()));
+        error->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
+        error->setToolTip(tr("Why the gameplay data switch was not saved"));
+        column_->addWidget(error);
+    }
+}
+
+// Adds what the last export wrote as gameplay data: the file and the counts.
+void ExportPanel::addGameplayReport(const plynth::ExportReport& report)
+{
+    const plynth::ExportGameplayReport& gameplay = report.gameplay;
+    if (gameplay.file.empty())
+        return;
+    QWidget* section = addSection(tr("Gameplay data"));
+    addRow(section, tr("File"), nativePath(gameplay.file), true);
+    addRow(section, tr("Rooms"), QLocale().toString(gameplay.rooms), true);
+    addRow(section, tr("Doors"), QLocale().toString(gameplay.doors), true);
+    addRow(section, tr("Lights"), QLocale().toString(gameplay.lights), true);
 }
 
 // Adds the checkbox that switches the modular kit on for the next export.
@@ -694,8 +751,10 @@ void ExportPanel::setReport(const plynth::ExportReport* report, const ExportPane
         delete item;
     }
     watchFolder(state.projectFolder);
-    if (projectFolder_ != state.projectFolder)
+    if (projectFolder_ != state.projectFolder) {
         kitError_.clear();
+        gameplayError_.clear();
+    }
     projectFolder_ = state.projectFolder;
 
     auto* buttons = new QWidget(body_);
@@ -742,6 +801,7 @@ void ExportPanel::setReport(const plynth::ExportReport* report, const ExportPane
 
     addGroups(state);
     addKitSwitch(state);
+    addGameplaySwitch(state);
     updateLock();
 
     if (report == nullptr) {
@@ -802,6 +862,7 @@ void ExportPanel::setReport(const plynth::ExportReport* report, const ExportPane
 
 
     addKitReport(*report);
+    addGameplayReport(*report);
 
     if (report->exported || !report->reportFile.empty()) {
         QWidget* files = addSection(tr("Files"));

@@ -51,6 +51,7 @@ class StoreImports;
 class LibraryHost;
 class LibraryWatcher;
 class SetupCheckDialog;
+class VariationsDialog;
 class ProjectWatcher;
 class TerminalDock;
 class ReadOnlyBanner;
@@ -204,6 +205,15 @@ public:
     void startExport(bool write, bool force);
     // For checks only: shows the Export tab.
     void showExportTab();
+    // Opens Build > Make variations. For checks it opens without waiting, so a screenshot shows it.
+    void showVariationsDialog(bool wait = true);
+    // For checks only: places a light marker of a kind ("ceiling", "wall" or "standing") on the shown floor at a
+    // place in metres, as the Light tool does, and selects it. False when it was refused.
+    bool addLightForCheck(double x, double y, const QString& kind);
+    // For checks only: opens the door and window picker of the selected opening, hovering an asset when given.
+    bool showOpeningAssetPicker(const QString& hoverAsset);
+    // For checks only: shows the project page of Properties scrolled to the Trim and Variation groups.
+    void showProjectFinish();
     // For checks only: shows the 3D page ("3d") or the plan ("plan").
     void showView(const QString& name);
     // For checks only: sets the camera of the 3D page: "three-quarter" or "top".
@@ -380,6 +390,8 @@ private:
     ImportQueueView* queueView_ = nullptr;
     LibraryWatcher* libraryWatcher_ = nullptr;
     QPointer<SetupCheckDialog> setupDialog_;
+    QPointer<VariationsDialog> variationsDialog_;
+    QAction* variationsAction_ = nullptr;
     IntegrationsPanel* integrations_ = nullptr;
     StoreImports* storeImports_ = nullptr;
     QPointer<FabImportDialog> fabDialog_;

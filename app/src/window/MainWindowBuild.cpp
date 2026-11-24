@@ -152,6 +152,8 @@ void MainWindow::updateBuildUi()
     const bool files = report_ && !report_->blendFile.empty();
     reportAction_->setEnabled(report_.has_value());
     buildFolderAction_->setEnabled(doc_.hasFolder());
+    if (variationsAction_ != nullptr)
+        variationsAction_->setEnabled(doc_.hasFolder() && !running);
     openBlenderAction_->setEnabled(files);
     save3dPictureAction_->setEnabled(files && !running);
     buildPanel_->setReport(report_ ? &*report_ : nullptr, stale);

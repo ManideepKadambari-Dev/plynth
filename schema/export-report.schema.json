@@ -93,6 +93,19 @@
         "triangles": { "type": "integer", "minimum": 0 }
       }
     },
+    "gameplay": {
+      "description": "The gameplay data file (gameplay.schema.json). May be missing in older reports.",
+      "type": "object",
+      "required": ["enabled", "file", "rooms", "doors", "lights"],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "description": "The project's export options switch it on.", "type": "boolean" },
+        "file": { "description": "export/<Stem>_gameplay.json, or null unless written.", "type": ["string", "null"] },
+        "rooms": { "type": "integer", "minimum": 0 },
+        "doors": { "type": "integer", "minimum": 0 },
+        "lights": { "type": "integer", "minimum": 0 }
+      }
+    },
     "quality": {
       "type": "object",
       "required": ["passed", "fail_count", "warning_count", "checks"],

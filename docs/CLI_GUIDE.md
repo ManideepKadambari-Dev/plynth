@@ -4,7 +4,7 @@ Plynth can be driven from a terminal, a script or another program. Every command
 
 This page covers the commands that exist today: version, help, creating and reading a project, setting the scale, grid and default sizes, floors, stairs, roofs, points, walls (straight and curved), rounded corners, doors, windows and other openings, rooms, placing furniture with `place` and `item`, finding walls and openings in the plan image with `detect`, building the project in Blender with `build`, saving pictures of the build with `render`, the edit session that keeps the app and the command line from overwriting each other, and the machine commands: `doctor`, `settings`, `library` and `assets`. More commands arrive in later releases.
 
-The plan file is now at format version 6 and the project file at version 5. Older projects open and upgrade by themselves. See "File format version 6" and "File format version 5" below.
+The plan file is now at format version 7 and the project file at version 6. Older projects open and upgrade by themselves. See "File format version 7" and the sections after it below.
 
 ## Running a command
 
@@ -19,7 +19,7 @@ Typing `plynth` in a terminal finds `plynth.com` first. The terminal inside Plyn
 
 The first word decides what happens:
 
-- A command word (`version`, `help`, `project`, `scale`, `point`, `wall`, `opening`, `floor`, `room`, `place`, `item`, `detect`, `build`, `session`, `doctor`, `settings`, `library`, `assets`) runs the command and prints the answer. No window opens.
+- A command word (`version`, `help`, `project`, `scale`, `point`, `wall`, `opening`, `floor`, `room`, `place`, `item`, `detect`, `build`, `session`, `doctor`, `settings`, `library`, `assets`, `light`, `trim`, `variation`) runs the command and prints the answer. No window opens.
 - A project folder or an app option (`--image`, `--screenshot`, `--size`, `--terminal`), or no argument at all, opens the window. `plynth.com` starts the window and returns at once.
 - Anything else prints an `unknown_command` answer and exits with code 2. For example `plynth bogus`.
 
@@ -27,7 +27,7 @@ To open a folder that is literally named after a command word, such as `project`
 
 ### Which project a command works on
 
-Like git, a command works on the project in the current folder. Add `--project <folder>` to use another one. It works on every command except `version`, `help`, `doctor`, `settings`, `library`, `assets` and `project recent`, which are about the machine and never open a project.
+Like git, a command works on the project in the current folder. Add `--project <folder>` to use another one. It works on every command except `version`, `help`, `doctor`, `settings`, `library`, `assets`, `project recent` and `trim profiles`, which are about the machine and never open a project.
 
 ```
 cd D:\Plans\MyApartment
@@ -918,7 +918,7 @@ plynth opening add --wall w2 --offset 2 --type door --swing right
 ```
 
 ```json
-{"ok":true,"command":"opening add","result":{"id":"o1","floor":"f1","wall":"w2","offset":2.0,"type":"door","shape":"rectangle","width":0.9,"height":2.1,"sill":0.0,"hinge":"start","swing":"right","frame":null,"centre":{"x":5.0,"y":5.0},"fits":true,"problem":null}}
+{"ok":true,"command":"opening add","result":{"id":"o1","floor":"f1","wall":"w2","offset":2.0,"type":"door","shape":"rectangle","width":0.9,"height":2.1,"sill":0.0,"hinge":"start","swing":"right","frame":null,"auto_frame":true,"centre":{"x":5.0,"y":5.0},"fits":true,"problem":null}}
 ```
 
 The same opening by place on the plan. This one snaps to wall `w4` and rounds the offset to 5 cm:
@@ -928,7 +928,7 @@ plynth opening add --x 1.05 --y 5 --type window --step 0.05
 ```
 
 ```json
-{"ok":true,"command":"opening add","result":{"id":"o4","floor":"f1","wall":"w4","offset":2.0,"type":"window","shape":"rectangle","width":1.2,"height":1.2,"sill":0.9,"hinge":"start","swing":"right","frame":null,"centre":{"x":1.0,"y":5.0},"fits":true,"problem":null}}
+{"ok":true,"command":"opening add","result":{"id":"o4","floor":"f1","wall":"w4","offset":2.0,"type":"window","shape":"rectangle","width":1.2,"height":1.2,"sill":0.9,"hinge":"start","swing":"right","frame":null,"auto_frame":true,"centre":{"x":1.0,"y":5.0},"fits":true,"problem":null}}
 ```
 
 A round arch window and a plain pointed arch opening on a curved wall:
@@ -968,7 +968,7 @@ Every answer that shows an opening has the same shape (the "opening entry"):
 **When an opening stops fitting.** Changing a wall can break a rule after the fact: moving a point so the wall gets shorter, bending the wall, rounding a corner, making a wall thicker, or splitting. These changes are allowed, so you are never blocked from reshaping walls. The opening is kept, and `opening list` reports it with `"fits":false`:
 
 ```json
-{"id":"o1","floor":"f1","wall":"w1","offset":3.0,"type":"door","shape":"rectangle","width":0.9,"height":2.1,"sill":0.0,"hinge":"start","swing":"right","frame":null,"centre":{"x":3.0,"y":0.0},"fits":false,"problem":"The opening reaches 0.25 m past the free part of wall w1 at its end, which stops 0.00 m before the wall's end."}
+{"id":"o1","floor":"f1","wall":"w1","offset":3.0,"type":"door","shape":"rectangle","width":0.9,"height":2.1,"sill":0.0,"hinge":"start","swing":"right","frame":null,"auto_frame":true,"centre":{"x":3.0,"y":0.0},"fits":false,"problem":"The opening reaches 0.25 m past the free part of wall w1 at its end, which stops 0.00 m before the wall's end."}
 ```
 
 The app shows such openings with a dashed amber outline. Fix them with `opening move` or `opening resize`, or remove them. A script should read `problems` in `opening list` after reshaping walls.
@@ -989,7 +989,7 @@ plynth opening move o1 --offset 1.5 --sill 0.1
 ```
 
 ```json
-{"ok":true,"command":"opening move","result":{"id":"o1","floor":"f1","wall":"w2","offset":1.5,"type":"door","shape":"rectangle","width":0.9,"height":2.1,"sill":0.1,"hinge":"start","swing":"right","frame":null,"centre":{"x":5.0,"y":4.5},"fits":true,"problem":null}}
+{"ok":true,"command":"opening move","result":{"id":"o1","floor":"f1","wall":"w2","offset":1.5,"type":"door","shape":"rectangle","width":0.9,"height":2.1,"sill":0.1,"hinge":"start","swing":"right","frame":null,"auto_frame":true,"centre":{"x":5.0,"y":4.5},"fits":true,"problem":null}}
 ```
 
 Moving to another wall keeps the opening's hinge and swing as they are, so check them if the new wall runs the other way. A wall on another floor is `invalid_value`. The fit rules apply: moving `o1` to `--wall w3 --offset 3.5` was refused with "The opening reaches 0.05 m past the free part of wall w3 at its end, which stops 0.10 m before the wall's end."
@@ -1011,12 +1011,12 @@ plynth opening resize o2 --width 1 --height 1.5
 ```
 
 ```json
-{"ok":true,"command":"opening resize","result":{"id":"o2","floor":"f1","wall":"w3","offset":2.0,"type":"window","shape":"round_arch","width":1.0,"height":1.5,"sill":0.9,"hinge":"start","swing":"right","frame":null,"centre":{"x":3.0,"y":7.0},"fits":true,"problem":null}}
+{"ok":true,"command":"opening resize","result":{"id":"o2","floor":"f1","wall":"w3","offset":2.0,"type":"window","shape":"round_arch","width":1.0,"height":1.5,"sill":0.9,"hinge":"start","swing":"right","frame":null,"auto_frame":true,"centre":{"x":3.0,"y":7.0},"fits":true,"problem":null}}
 ```
 
 ### opening set
 
-Changes the type, shape, hinge or swing of an opening. What you leave out stays. Give at least one option.
+Changes the type, shape, hinge, swing or door or window asset of an opening. What you leave out stays. Give at least one option. All changes are one step.
 
 | Option | Meaning |
 |---|---|
@@ -1025,16 +1025,28 @@ Changes the type, shape, hinge or swing of an opening. What you leave out stays.
 | `--shape <id>` | The new shape. It has to take the opening's size. |
 | `--hinge start\|end` | The jamb a door hangs on. |
 | `--swing left\|right` | The side a door opens toward. |
+| `--frame <asset\|auto\|generated>` | What fills the opening. An asset id from the library sets that door or window. `auto` lets the build pick a catalog door or window that fits (the default for every opening). `generated` keeps the door or window Plynth builds itself. |
+| `--library <folder>` | The library a `--frame` asset is checked in. Default: the one in the settings. |
 
 ```
 plynth opening set o1 --hinge end --swing left
 ```
 
 ```json
-{"ok":true,"command":"opening set","result":{"id":"o1","floor":"f1","wall":"w2","offset":2.0,"type":"door","shape":"rectangle","width":0.9,"height":2.1,"sill":0.0,"hinge":"end","swing":"left","frame":null,"centre":{"x":5.0,"y":5.0},"fits":true,"problem":null}}
+{"ok":true,"command":"opening set","result":{"id":"o1","floor":"f1","wall":"w2","offset":2.0,"type":"door","shape":"rectangle","width":0.9,"height":2.1,"sill":0.0,"hinge":"end","swing":"left","frame":null,"auto_frame":true,"centre":{"x":5.0,"y":5.0},"fits":true,"problem":null}}
 ```
 
 Setting a shape that is not registered is refused, and so is a shape whose size rule the opening breaks, such as a round arch on an opening that is 0.9 m wide and 0.4 m high.
+
+**Door and window assets.** Every opening entry has `frame`, the asset id the opening is set to or `null`, and `auto_frame`, which is true when the build may pick one. With `frame` null and `auto_frame` true, the build fits a rectangular door or window with an asset of category `door` or `window` whose width and height are within 10 percent of the opening, and keeps its own fill when none fits. `variation preview` shows what it picks.
+
+```
+plynth opening set o1 --frame oak_door
+plynth opening set o1 --frame generated
+plynth opening set o1 --frame auto
+```
+
+The first gives `"frame":"oak_door","auto_frame":false`, the second `"frame":null,"auto_frame":false`, the third `"frame":null,"auto_frame":true`. `auto` and `generated` need no library. An asset that is not in the library is `not_found`. An asset that is not in the `door` category for a door or the `window` category for a window is `invalid_value`, and so is any asset for a plain opening and an id that is not a plain catalog id. No library is `no_library`. The front of a door asset faces -Y and its leaf hangs on its left jamb seen from the front, as the [User guide](USER_GUIDE.md) describes.
 
 ### opening remove
 
@@ -1062,7 +1074,7 @@ plynth opening list --wall w2
 ```
 
 ```json
-{"ok":true,"command":"opening list","result":{"floor":"f1","openings":[{"id":"o1","floor":"f1","wall":"w2","offset":2.0,"type":"door","shape":"rectangle","width":0.9,"height":2.1,"sill":0.0,"hinge":"end","swing":"left","frame":null,"centre":{"x":5.0,"y":5.0},"fits":true,"problem":null}],"problems":0}}
+{"ok":true,"command":"opening list","result":{"floor":"f1","openings":[{"id":"o1","floor":"f1","wall":"w2","offset":2.0,"type":"door","shape":"rectangle","width":0.9,"height":2.1,"sill":0.0,"hinge":"end","swing":"left","frame":null,"auto_frame":true,"centre":{"x":5.0,"y":5.0},"fits":true,"problem":null}],"problems":0}}
 ```
 
 `problems` counts the openings in the list that do not fit. A wall that is not on the floor is `not_found`.
@@ -1092,7 +1104,7 @@ The `room` word is a command, so a project folder named `room` has to be given a
 A room entry looks like this:
 
 ```json
-{"id":"r1","floor":"f1","type":"living","type_name":"Living room","walls":["w1","w7","w6","w4"],"closed":true,"area":23.0706,"label":{"x":4.15,"y":5.06}}
+{"id":"r1","floor":"f1","type":"living","type_name":"Living room","walls":["w1","w7","w6","w4"],"closed":true,"area":23.0706,"label":{"x":4.15,"y":5.06},"dressing":true}
 ```
 
 - `type` is the type id, or `null` when the room has none. `type_name` is its readable name, or "Room" when there is no type.
@@ -1100,6 +1112,7 @@ A room entry looks like this:
 - `closed` is false if a wall of the room has been removed or its ring no longer closes. `area` is then 0.
 - `area` is the floor inside the walls in square metres, rounded to 4 decimals. It is the centre line area minus the band each wall covers, so a 4 m by 4 m square of 0.2 m walls gives 14.44. It is not the area between the centre lines.
 - `label` is the spot where the app writes the name and area.
+- `dressing` is true when the build may add small props to the room (books on shelves, things on tables, pictures on walls). See `room set --dressing` and `variation preview`.
 
 ### room find
 
@@ -1139,18 +1152,20 @@ The answer is a room entry. A position outside every closed area gives `not_foun
 
 ### room set
 
-Changes the type of a room.
+Changes the type of a room, or turns its set dressing on or off. What you leave out stays. Give at least one option. Both changes are one step.
 
 | Option | Meaning |
 |---|---|
 | `<id>` | Required. The room. |
-| `--type <id\|none>` | Required. A type id, or `none` to clear the type. |
+| `--type <id\|none>` | A type id, or `none` to clear the type. |
+| `--dressing on\|off` | Whether the build adds small props to the room. On for every room until you turn it off. |
 
 ```
 plynth room set r1 --type none
+plynth room set r1 --dressing off
 ```
 
-The answer is a room entry with `type` null and `type_name` "Room".
+The answer is a room entry. The first example gives `type` null and `type_name` "Room", the second `dressing` false. No option is `bad_arguments`, and so is a `--dressing` value other than `on` or `off`. An unknown room is `not_found` and an unknown type `invalid_value`. Nothing changes after a refusal.
 
 ### room remove
 
@@ -1191,6 +1206,73 @@ plynth room types
 ```
 
 A plan from another machine can hold a type id that is not in this list. It still loads, and the room shows its id as the name. Only new values typed into `room add` and `room set` are checked.
+
+### Light markers
+
+A light marker is where the build puts a point light. It builds no lamp: a lamp you want to see is a catalog asset placed with `place`. Lights are exported to Unreal with the building and listed in the gameplay data (see `export gameplay`). A light keeps the room it stands in up to date, like an item.
+
+A light entry looks like this:
+
+```json
+{"id":"l1","floor":"f1","kind":"ceiling","room":"r1","x":3.0,"y":5.0,"z":2.9}
+```
+
+- `kind` is `ceiling`, `wall` or `standing`.
+- `room` is the room the light stands in, or `null` outside every room.
+- `x` and `y` are plan metres. `z` is the height above the floor, from 0 to the floor's ceiling height.
+
+The light commands follow the edit rules of every command that changes the plan: they take an edit session and are `locked` while the app has the project open without one. `light list` only reads.
+
+### light add
+
+Places a light marker.
+
+| Option | Meaning |
+|---|---|
+| `--x <metres>`, `--y <metres>` | Required. The position on the plan. |
+| `--z <metres>` | The height. Default: 0.1 below the ceiling for a ceiling light, 1.8 for a wall light, 1.4 for a standing lamp. |
+| `--kind ceiling\|wall\|standing` | Default: `ceiling`. |
+| `--floor <id>` | Default: the first floor. |
+
+```
+plynth light add --x 3 --y 5
+```
+
+```json
+{"ok":true,"command":"light add","result":{"id":"l1","floor":"f1","kind":"ceiling","room":"r1","x":3.0,"y":5.0,"z":2.9}}
+```
+
+An unknown kind and a height below 0 or above the ceiling are `invalid_value`. An unknown floor is `not_found`. A position that is not a number is `bad_arguments`.
+
+### light set
+
+Moves a light, or changes its kind or height. What you leave out stays. Give at least one of `--x`, `--y`, `--z` and `--kind`. Changing the kind keeps the height. All changes are one step.
+
+```
+plynth light set l1 --x 4 --kind wall --z 2.0
+```
+
+The answer is the light entry. An unknown light is `not_found`, a bad kind or height `invalid_value`, no option `bad_arguments`.
+
+### light remove
+
+```
+plynth light remove l1
+```
+
+```json
+{"ok":true,"command":"light remove","result":{"removed":"l1"}}
+```
+
+An unknown light is `not_found`. `item remove` and `opening remove` refuse a light id with `invalid_value` and point to `light remove`.
+
+### light list
+
+Lists the lights of a floor, with `--floor <id>` (default: the first floor).
+
+```json
+{"ok":true,"command":"light list","result":{"floor":"f1","lights":[{"id":"l1","floor":"f1","kind":"ceiling","room":"r1","x":3.0,"y":5.0,"z":2.9}]}}
+```
 
 ### Furniture items
 
@@ -1539,7 +1621,7 @@ The first argument is the **target**:
 | `r1.ceiling` | The ceiling of room `r1`. |
 | `s2` | The material of the steps of stair `s2`. |
 | `rf1` | The covering material of roof entry `rf1`. |
-| `default.<surface>` | A project default. The surfaces are `wall_inside`, `wall_outside`, `wall_top`, `floor`, `ceiling`, `door`, `frame`, `glass`, `handle`, `roof` (pitched roofs), `flat_roof` and `stair`. |
+| `default.<surface>` | A project default. The surfaces are `wall_inside`, `wall_outside`, `wall_top`, `floor`, `ceiling`, `door`, `frame`, `glass`, `handle`, `roof` (pitched roofs), `flat_roof`, `stair`, `trim` (skirting boards, cornices, casings and sills) and `railing` (stair railings and guards). |
 
 For a room, the part before the dot may also be a room type when exactly one room has it, such as `hall.floor`. With two halls the command is refused and names both ids.
 
@@ -1576,7 +1658,129 @@ plynth material list
 {"ok":true,"command":"material list","result":{"defaults":{"wall_inside":"white_paint","wall_outside":"red_brick","wall_top":"white_paint","floor":"oak_planks","ceiling":null,"door":"painted_wood","frame":"white_paint","glass":"clear_glass","handle":"brushed_steel"},"walls":[{"id":"w3","floor":"f1","inside":[{"material":"grey_tile","origin":"room","from":"r2","room":"r2"}],"outside":{"material":"red_brick","origin":"default","from":null}}],"rooms":[{"id":"r2","floor":"f1","type":"bathroom","materials":{"floor":{"material":"grey_tile","origin":"room","from":"r2"},"wall":{"material":"grey_tile","origin":"room","from":"r2"},"ceiling":{"material":null,"origin":"none","from":null}}}],"used":["brushed_steel","clear_glass","grey_tile","oak_planks","painted_wood","red_brick","white_paint"],"missing":[],"library":"D:/Demo/Library"}}
 ```
 
-The lists are shortened. `walls` has one entry per wall with an `inside` entry for each room the wall belongs to, and `rooms` one entry per room. `stairs` has one entry per stair, `{"id", "floor", "material"}`, and `roofs` one per roof section, `{"floor", "index", "section", "material"}`, each material resolved as `{material, origin, from}`. `defaults` also has `roof`, `flat_roof` and `stair`. `used` is sorted and has no repeats. `missing` lists the used ids the library does not have. With no library, `library` is `null` and `missing` is empty. Both commands take `--project` and `--library`.
+The lists are shortened. `walls` has one entry per wall with an `inside` entry for each room the wall belongs to, and `rooms` one entry per room. `stairs` has one entry per stair, `{"id", "floor", "material"}`, and `roofs` one per roof section, `{"floor", "index", "section", "material"}`, each material resolved as `{material, origin, from}`. `defaults` also has `roof`, `flat_roof`, `stair`, `trim` and `railing`. `used` is sorted and has no repeats. `missing` lists the used ids the library does not have. With no library, `library` is `null` and `missing` is empty. Both commands take `--project` and `--library`.
+
+### Trim
+
+The build adds trim to every closed room: skirting boards along the bottom of the walls, cornices at the top, casings around doors and windows, sills under windows, and railings on stairs. Each kind has a switch, a profile (the cross section) and a size. The settings are part of the project, like the default materials. The trim material is the `trim` default and the railing material the `railing` default (see `material set`).
+
+### trim show
+
+```
+plynth trim show
+```
+
+```json
+{"ok":true,"command":"trim show","result":{"skirting":{"enabled":true,"profile":"classic","profile_found":true,"height":0.1,"depth":0.015},"cornice":{"enabled":true,"profile":"cove","profile_found":true,"height":0.08,"depth":0.08},"casing":{"enabled":true,"profile":"bevel","profile_found":true,"height":0.07,"depth":0.018},"sill":{"enabled":true,"profile":"rounded","profile_found":true,"height":0.03,"depth":0.04},"railing":{"enabled":true,"profile":"round","profile_found":true,"height":0.05,"depth":0.05},"railing_height":0.9}}
+```
+
+`height` is the size up the wall (across the wall face for a casing) and `depth` how far it stands out, in metres. `profile_found` is false when the profile is not registered on this machine, for example a custom profile of another library. The build then warns with `trim_profile_missing`. `railing_height` is the height of the top of a stair railing above the steps. `trim show` only reads and is never refused by the lock.
+
+### trim profiles
+
+Lists the trim profiles. It needs no project.
+
+```
+plynth trim profiles
+plynth trim profiles --library D:\Plynth\Library
+```
+
+```json
+{"ok":true,"command":"trim profiles","result":{"profiles":[{"id":"square","name":"Square","built_in":true},{"id":"bevel","name":"Bevel","built_in":true},{"id":"rounded","name":"Rounded","built_in":true},{"id":"classic","name":"Classic","built_in":true},{"id":"cove","name":"Cove","built_in":true},{"id":"round","name":"Round","built_in":true}]}}
+```
+
+The built-in profiles come first, then the custom ones of the library: every `Library\shapes\<id>.profile.json` file (see [GENERATORS.md](GENERATORS.md)). Without `--library` the library in the settings is used when there is one. A `--library` folder that is not a library is `no_library`.
+
+### trim set
+
+Changes one kind of trim. What you leave out stays.
+
+| Option | Meaning |
+|---|---|
+| `<kind>` | Required. `skirting`, `cornice`, `casing`, `sill` or `railing`. |
+| `--on`, `--off` | Build this kind, or leave it out. |
+| `--profile <id>` | A profile from `trim profiles`. |
+| `--height <metres>`, `--depth <metres>` | From 0.005 to 0.5. |
+| `--railing-height <metres>` | From 0.5 to 1.5. Only with `railing`. |
+| `--library <folder>` | The library whose custom profiles `--profile` may name. Default: the one in the settings. |
+
+```
+plynth trim set cornice --off
+plynth trim set skirting --profile square --height 0.12
+plynth trim set railing --railing-height 1.0
+```
+
+The answer has the shape of `trim show`. An unknown kind and a size out of range are `invalid_value`, an unknown profile `not_found`. No option, both `--on` and `--off`, and `--railing-height` with another kind are `bad_arguments`. Nothing changes after a refusal. `trim set` follows the edit rules of every command that changes the project.
+
+### Variations
+
+A seed varies a copy of the plan when it is built, never the plan you marked. Seed 0 builds the plan exactly as marked. Another seed may swap furniture for another asset of the same category and a similar size, and swap floor, wall and outside materials for others of the same material group. Doors and windows set to `auto` are picked in the same pass, and the set dressing rules add their props. `variation preview` shows all of it before a build, and the build then uses exactly that.
+
+### variation show
+
+```
+plynth variation show
+```
+
+```json
+{"ok":true,"command":"variation show","result":{"seed":0,"furniture":true,"materials":true}}
+```
+
+### variation set
+
+| Option | Meaning |
+|---|---|
+| `--seed <number>` | A whole number from 0 to 4294967295. |
+| `--furniture on\|off` | Whether the seed may swap furniture. |
+| `--materials on\|off` | Whether the seed may swap materials. |
+
+```
+plynth variation set --seed 7 --materials off
+```
+
+The answer has the shape of `variation show`. A seed that is not a whole number in range is `invalid_value`. No option, and a switch value other than `on` or `off`, are `bad_arguments`. It follows the edit rules of every command that changes the project.
+
+### variation preview
+
+Shows what a build would make of the plan. It writes nothing and is never refused by the lock.
+
+| Option | Meaning |
+|---|---|
+| `--seed <number>` | The seed to try. Default: the project's seed. The project is not changed. |
+| `--library <folder>` | The library to choose from. Default: the one in the settings. Without a library nothing is swapped, picked or added. |
+
+```
+plynth variation preview --seed 7
+```
+
+```json
+{"ok":true,"command":"variation preview","result":{"seed":7,"furniture":true,"materials":true,"library":"D:/Plynth/Library","changes":[{"target":"item","object":"i1","from":"sofa_grey","to":"sofa_blue"},{"target":"room_floor","object":"r1","from":"oak_planks","to":"grey_tile"}],"frames":[{"opening":"o1","asset":"oak_door"}],"rooms":[{"floor":"f1","room":"r1","dressing":true,"props":[{"asset":"sea_print","rule":"pictures","host":"w1","x":3.0,"y":3.12,"z":1.25,"rotation":0.0}]}],"prop_count":1}}
+```
+
+- `changes` lists what the seed swapped. `target` is `item`, `room_floor`, `room_wall`, `wall_inside` or `outside`. `object` is the item, room or wall, or `null` for `outside`, which is one choice for every outside face. `from` and `to` are asset or material ids.
+- `frames` lists the catalog doors and windows the build picks for openings set to `auto`. Openings set to an asset of their own are built with it and are not listed.
+- `rooms` has one entry per room, with its props. `rule` is `books`, `tabletop` or `pictures`. `host` is the item a prop stands on, or the wall a picture hangs on. `x` and `y` are plan metres of the prop's bottom centre, `z` its height above the floor and `rotation` degrees as for items. Props use assets tagged `book`, `tabletop` or `wall_art`. A room with `dressing` off has none.
+
+A seed that is not a whole number is `invalid_value`. A `--library` folder that is not a library is `no_library`.
+
+### variation copies
+
+Saves a copy of the project for each seed, to fill a street quickly. Each copy is a folder `<out>\<Name>_v<seed>` with that seed set, the name `<name> v<seed>`, the plan images and `export-options.json`. The copies point to the library assets by id and copy none. The project itself is not changed. It is never refused by the lock, since it only reads the project.
+
+```
+plynth variation copies --seeds 1,2,3 --out D:\Plans\Street
+```
+
+```json
+{"ok":true,"command":"variation copies","result":{"folders":[{"seed":1,"folder":"D:/Plans/Street/MyApartment_v1"},{"seed":2,"folder":"D:/Plans/Street/MyApartment_v2"},{"seed":3,"folder":"D:/Plans/Street/MyApartment_v3"}]}}
+```
+
+| Code | When |
+|---|---|
+| `already_exists` | One of the folders is already there. Nothing is written. |
+| `invalid_value` | A seed is not a whole number, a seed is given twice, or there are more than 100 seeds. |
+| `bad_arguments` | `--seeds` or `--out` is missing. |
+| `cannot_write` | A copy could not be saved. |
 
 ### build
 
@@ -1733,6 +1937,7 @@ plynth export report
 - `outputs.files` has one entry for each FBX file, with the `group` id, the group's `name` as people see it, the `file`, and its `objects` and `triangles`. A single project has one entry, with the group `building`. The kit file is not in this list. It is under `kit`.
 - `groups` has two lists. `empty` holds the ids of groups that got no object, so no file was written for them. `notes` holds the group edits that no longer fit the plan and were skipped, the same sentences `export groups` shows.
 - `kit` says what happened to the modular kit. `asked` is true when the kit switch is on. `written` is true when the kit files are now in `export`. `skipped` is a sentence when the kit was asked for and not made, for example "No library is set, so the kit was left out." or "The plan has no walls, so there is no kit to make.", and `null` otherwise. `file` and `layout_file` are the two files, `pieces` and `placements` are counts, and `triangles` counts the kit file. A skipped kit does not fail the export: the exit code is still 0.
+- `gameplay` says what happened to the gameplay data file (see `export gameplay`): `enabled`, the `file` (or `null`), and how many `rooms`, `doors` and `lights` it lists.
 - The groups and the kit are worked out from the last build and from `export-options.json`. The previous report lists the files it wrote. A new export removes those first, so a renamed group leaves no old file behind, and switching the kit off removes the old kit files. A blocked export keeps all of them.
 
 | Code | When |
@@ -1857,23 +2062,42 @@ plynth export kit off
 
 `export kit` only reads the switch and is never refused by the lock. `on` and `off` write it, with the rules of the other edit commands. `export kit maybe` is `bad_arguments`. When the switch is on, `export` also writes the kit (see "export"). The kit needs a library with a materials catalog: `export` takes `--library` or the library in the settings. Without one it carries on without the kit and says why in the answer (`kit.skipped`). A configured library that is broken still exports, and `kit.skipped` says "The library materials could not be opened, so the kit was left out." An explicit `--library` that is not a usable library is refused instead. The kit uses the custom opening shapes of its library. When an opening cannot be built, the kit is left out with a reason in `kit.skipped` (for example "The kit was left out because opening o3 cannot be built.") and the export still succeeds.
 
+### export gameplay
+
+Shows or changes the gameplay data switch, which is saved in `export-options.json`. With it on, `export` also writes `export\<Name>_gameplay.json` with the room volumes, the door positions and the light positions of the last build, for game logic in Unreal. Plynth writes it from the built plan, with no extra Blender step.
+
+```
+plynth export gameplay
+plynth export gameplay on
+plynth export gameplay off
+```
+
+```json
+{"ok":true,"command":"export gameplay on","result":{"enabled":true}}
+```
+
+`export gameplay` only reads the switch and is never refused by the lock. `on` and `off` write it, with the rules of the other edit commands. `export gameplay maybe` is `bad_arguments`. An export with the switch off removes an old gameplay file, and a blocked export leaves it. The export report lists it under `gameplay`.
+
 ### export-options.json
 
-The file in the project folder that holds the group edits and the kit switch. It only exists once you change something, and writing the default settings removes it again. It is separate from `plan.json` and `project.json`, so editing it never makes the build out of date. Its shape is in `schema/export-options.schema.json`, version 1:
+The file in the project folder that holds the group edits, the kit switch and the gameplay data switch. It only exists once you change something, and writing the default settings removes it again. It is separate from `plan.json` and `project.json`, so editing it never makes the build out of date. Its shape is in `schema/export-options.schema.json`, version 2:
 
 ```json
 {
   "format": "plynth-export-options",
-  "version": 1,
+  "version": 2,
   "groups": {
     "added": [{"id": "group_1", "name": "Hero"}],
     "renames": [{"group": "furniture_r1", "name": "Lounge props"}],
     "merges": [{"group": "furniture_r2", "into": "furniture_r1"}],
     "moves": [{"kind": "item", "id": "i1", "to": "group_1"}, {"kind": "slab", "id": null, "to": "structure"}]
   },
-  "kit": {"enabled": true}
+  "kit": {"enabled": true},
+  "gameplay": {"enabled": false}
 }
 ```
+
+A version 1 file, written before the gameplay switch, reads with the switch off and is written as version 2 the next time it changes.
 
 The edits are applied to the automatic groups in this order: `added`, `merges`, `moves`, `renames`. An edit that names a group or a plan id that is gone is skipped, and the skip is listed under `notes`. You can edit the file by hand. An unreadable file is `bad_file`, and until `export groups reset` repairs it (the old file is kept as `export-options.json.bad`) every other group and kit command answers `bad_file`. A file with a newer `version` is `unsupported_version` and is never changed. Deleting the file goes back to the automatic groups with the kit off.
 
@@ -2954,9 +3178,22 @@ For a script on a new machine:
 5. `plynth assets search <words>` to find the ids you need.
 6. `plynth materials import samples\materials\*` to add the nine sample materials, which new projects use by default. Add `--skip-existing` to run it again safely. Then `plynth materials search <words>` finds material ids.
 
+## File format version 7
+
+`plan.json` is now at format version 7 and `project.json` at version 6. What changed:
+
+- Every floor has `lights`, a list of light markers `{"id", "kind", "room", "x", "y", "z"}` (see "Light markers").
+- Every room has `dressing`, true when the build may add props to it.
+- Every opening has `auto_frame`, true when the build may pick a catalog door or window for it.
+- `project.json` has `trim`, one entry per kind `{"enabled", "profile", "height", "depth"}` plus `railing_height`, and `variation`, `{"seed", "furniture", "materials"}`. Its `materials` defaults also have `trim` and `railing`.
+
+**Older files upgrade by themselves.** A version 6 plan gets no lights, `dressing` true on every room and `auto_frame` true on every opening. A version 5 project gets the default trim and seed 0. Nothing is written when you only read. The next command that edits and saves writes the new versions, as the app does.
+
+**Older programs refuse the new files** with `unsupported_version`, and this one refuses a plan newer than 7 or a project newer than 6 the same way. The shapes are in `schema/plan.schema.json` and `schema/project.schema.json`, and `schema/plan.v6.schema.json` and `schema/project.v5.schema.json` keep the old ones.
+
 ## File format version 6
 
-`plan.json` is now at format version 6. `project.json` stays at version 5. What changed:
+`plan.json` was at format version 6 and `project.json` at version 5 before lights and trim. What changed:
 
 - An item either places an asset or runs a generator. A generator item has `asset` `null` and `generator` with the generator's `name` and its `params`, one value for each parameter. An asset item has `generator` `null`.
 - The `size` of a generator item is worked out from its values and saved with it, like the measured size of an asset.

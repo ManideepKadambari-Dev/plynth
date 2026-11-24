@@ -46,6 +46,7 @@ void SelectTool::deactivate()
     handleHover_ = false;
     dragging_ = false;
     stairs_.reset();
+    lights_.reset();
 }
 
 // Selects what is under the click, or clears the selection. A point may start a drag, and so may the bend handle.
@@ -82,6 +83,8 @@ void SelectTool::mousePressed(const ToolMouse& mouse)
         host_.canvas().viewport()->update();
         return;
     }
+    if (lights_.pressBody(mouse))
+        return;
     const plynth::Vec2 at{mouse.scene.x() / *ppm, mouse.scene.y() / *ppm};
     host_.selection().setClickAt(at.x, at.y);
     const plynth::Pick pick = plynth::pickAt(*floor, at, host_.snapRadiusMetres());
@@ -140,6 +143,10 @@ void SelectTool::mouseMoved(const ToolMouse& mouse)
             stairs_.moved(mouse);
         return;
     }
+    if (lights_.busy()) {
+        lights_.moved(mouse);
+        return;
+    }
     if (!bendWall_.empty() && (mouse.buttons & Qt::LeftButton)) {
         bendTo(mouse);
         return;
@@ -183,6 +190,7 @@ void SelectTool::mouseReleased(const ToolMouse& mouse)
     bendWall_.clear();
     dragging_ = false;
     stairs_.released();
+    lights_.released();
     host_.canvas().viewport()->update();
 }
 

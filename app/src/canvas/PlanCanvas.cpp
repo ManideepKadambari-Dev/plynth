@@ -1,6 +1,7 @@
 #include "PlanCanvas.h"
 
 #include "canvas/OpeningPaint.h"
+#include "canvas/LightPaint.h"
 #include "canvas/StairPaint.h"
 #include "building/ProblemMark.h"
 #include "theme/Theme.h"
@@ -529,6 +530,7 @@ void PlanCanvas::paintOverlay(QPainter* painter)
     for (const OverlayPoint& point : overlay_.points)
         painter->drawEllipse(QPointF(mapFromScene(point.position)), radius, radius);
 
+    paintLights(painter);
     paintLabels(painter);
     paintRoofLabels(painter);
 
@@ -602,7 +604,7 @@ bool PlanCanvas::overRoofCover(const QPointF& scene) const
     for (const OverlayItem& item : overlay_.items)
         if (item.footprint.containsPoint(scene, Qt::OddEvenFill))
             return true;
-    if (!stairAt(scene).isEmpty())
+    if (!stairAt(scene).isEmpty() || !lightAt(scene).isEmpty())
         return true;
     const double radius = Theme::instance().pointDot() / zoom_;
     for (const OverlayPoint& point : overlay_.points)
@@ -709,6 +711,30 @@ void PlanCanvas::paintRoofLabels(QPainter* painter)
     }
 }
 
+// The id of the light marker under a scene point. The one drawn last wins.
+QString PlanCanvas::lightAt(const QPointF& scene) const
+{
+    const QPointF view = mapFromScene(scene);
+    const double reach = Theme::instance().lightMarker() / 2.0 + 3.0;
+    for (int i = static_cast<int>(overlay_.lights.size()) - 1; i >= 0; --i) {
+        const QPointF d = QPointF(mapFromScene(overlay_.lights[i].position)) - view;
+        if (std::hypot(d.x(), d.y()) <= reach)
+            return overlay_.lights[i].id;
+    }
+    return QString();
+}
+
+// Paints every light marker of the shown floor in canvas pixels, the selected one amber.
+void PlanCanvas::paintLights(QPainter* painter)
+{
+    const Theme& t = Theme::instance();
+    for (const OverlayLight& light : overlay_.lights) {
+        const bool selected = selectionKind_ == SelectionKind::Light && light.id == selectionId_;
+        paintLightMarker(*painter, QPointF(mapFromScene(light.position)), light.kind,
+                         selected ? t.signalAmber() : t.signalBlue(), t.panel(), selected);
+    }
+}
+
 // The id of the stair whose footprint holds a scene point. The one drawn last wins.
 QString PlanCanvas::stairAt(const QPointF& scene) const
 {
@@ -736,6 +762,10 @@ bool PlanCanvas::event(QEvent* event)
             for (const OverlayStair& stair : overlay_.stairs)
                 if (stair.footprint.containsPoint(scene, Qt::OddEvenFill))
                     text = stair.tip.isEmpty() ? tr("Stair %1").arg(stair.id) : stair.tip;
+        const QString light = lightAt(scene);
+        for (const OverlayLight& entry : overlay_.lights)
+            if (!light.isEmpty() && entry.id == light)
+                text = entry.tip;
         if (!text.isEmpty()) {
             const int side = Theme::instance().problemMarker();
             bool overMarker = false;

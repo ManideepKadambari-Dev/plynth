@@ -148,6 +148,10 @@ struct KitOpening {
     OpeningBuild opening;
     OpeningMaterialIds materials;
     bool fill = false; // this piece gets the opening's door or window
+    // The catalog door or window fitted into the opening (BuildFinish.h), in the piece's frame: location from the
+    // piece's origin with Z from the floor's level, rotationZ from the frame's X. Two pieces are the same only when
+    // both have none, or both have the same asset in the same place and scale.
+    std::optional<OpeningAssetBuild> asset;
 
     bool operator==(const KitOpening&) const = default;
 };

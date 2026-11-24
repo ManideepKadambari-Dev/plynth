@@ -90,8 +90,59 @@ def run(ctx):
         count(ctx, "materials")
     scale_uvs(objects, tiles)
     ctx.state["built_materials"] = built
+    ctx.state["material_tiles"] = tiles
     ctx.state["built_objects"] = [{"name": o.name, "slots": [m.name if m else "" for m in o.data.materials]}
                                   for o in sorted(objects, key=lambda o: o.name)]
+
+
+# Gives objects made after this step (trim, railings) their materials the same way: a slot no earlier object
+# used gets its material made now, then the UVs of these objects only are divided by the tile sizes. Before the
+# materials step has run it does nothing, since that step will see the objects itself.
+def finish_late_objects(ctx, objects):
+    if "built_materials" not in ctx.state:
+        return
+    library = {m["id"]: m for m in ctx.params.get("materials", [])}
+    slots = slot_table(ctx)
+    tiles = ctx.state.setdefault("material_tiles", {})
+    done = {entry["name"] for entry in ctx.state["built_materials"]}
+    folder = os.path.join(ctx.params["output_folder"], ctx.params.get("textures_folder", "textures"))
+    os.makedirs(folder, exist_ok=True)
+    for obj in objects:
+        for mat in obj.data.materials:
+            if mat is None or mat.name in done:
+                continue
+            done.add(mat.name)
+            slot = slots.get(mat.name) or unlisted_slot(mat.name)
+            entry = library.get(slot["material"]) if slot["material"] else None
+            maps = None
+            surface = None
+            tile = NEUTRAL_TILE
+            if entry is not None:
+                try:
+                    maps = {k: (v.replace("\\", "/") if v else None) for k, v in entry["maps"].items()}
+                    shading.apply_maps(mat, maps)
+                    tile = (entry["tile_size"]["width"], entry["tile_size"]["height"])
+                except shading.MapError as error:
+                    report(ctx, "material_failed", "warning", "The material %s could not be loaded: %s" % (
+                        slot["material"], error), None, None)
+                    maps = None
+            if maps is None:
+                surface = slot["surface"] if slot["surface"] in surfaces.LOOKS else "Wall_Inside"
+                maps = shading.apply_neutral(mat, surface, folder)
+            tiles[mat.name] = tile
+            ctx.state["built_materials"].append({
+                "name": mat.name,
+                "material": slot["material"] if surface is None else None,
+                "surface": surface,
+                "maps": maps,
+                "alpha_mode": "blend" if maps.get("opacity") else "opaque",
+            })
+            count(ctx, "materials")
+    scale_uvs(objects, tiles)
+    listed = ctx.state.setdefault("built_objects", [])
+    for obj in sorted(objects, key=lambda o: o.name):
+        listed.append({"name": obj.name, "slots": [m.name if m else "" for m in obj.data.materials]})
+    listed.sort(key=lambda entry: entry["name"])
 
 
 # Returns the entry of a slot the table does not list: no material and the Wall_Inside look, or the Generated

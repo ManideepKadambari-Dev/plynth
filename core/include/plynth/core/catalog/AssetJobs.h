@@ -121,6 +121,9 @@ struct AssetJobOutput {
     std::vector<std::string> missingTextures;
     std::vector<AssetMaterial> materialMaps; // cleanup only; BadFile when a required map has no file or a file
                                              // is outside textures/
+    // cleanup only: the measured supports, empty when the worker wrote none (an older worker); BadFile when they
+    // are not a valid list
+    std::optional<std::vector<AssetSupport>> supports;
     bool thumbnailRendered = false;
     std::string thumbnailEngine;
     std::string thumbnailError;

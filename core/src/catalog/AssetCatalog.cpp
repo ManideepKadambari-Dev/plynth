@@ -967,7 +967,10 @@ RescanReport AssetCatalog::rescan()
             }
             const bool lacksFbx = hasBlend && !fs::is_regular_file(folder / pathFromUtf8(kAssetFbxFileName), ec);
             const bool lacksMaps = hasBlend && !hasMaterialMaps(info);
-            if (measured.state == AssetState::NeedsRefresh || lacksFbx || lacksMaps) report.needsRefresh.push_back(name);
+            const bool lacksSupports = hasBlend && !info.supports;
+            if (measured.state == AssetState::NeedsRefresh || lacksFbx || lacksMaps || lacksSupports) {
+                report.needsRefresh.push_back(name);
+            }
         }
 
         for (const auto& [id, row] : rows) {

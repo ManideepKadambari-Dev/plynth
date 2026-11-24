@@ -60,6 +60,9 @@ std::vector<CommandSpec> materialImportCommands();
 std::vector<CommandSpec> generatorCommands();
 std::vector<CommandSpec> renderCommands();
 std::vector<CommandSpec> packCommands();
+std::vector<CommandSpec> lightCommands();
+std::vector<CommandSpec> trimCommands();
+std::vector<CommandSpec> variationCommands();
 
 // All commands in the order help lists them.
 const std::vector<CommandSpec>& allCommands();

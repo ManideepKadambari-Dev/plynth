@@ -1,5 +1,6 @@
 #pragma once
 
+#include "FinishSettings.h"
 #include "MaterialDefaults.h"
 #include "Plan.h"
 #include "Status.h"
@@ -56,6 +57,8 @@ struct ProjectSettings {
     double gridSize = kDefaultGridSize;
     DefaultSizes defaults;
     MaterialDefaults materials; // project.json "materials" (format 4)
+    TrimSettings trim;          // project.json "trim" (format 6)
+    VariationSettings variation; // project.json "variation" (format 6)
 
     bool operator==(const ProjectSettings&) const = default;
 };

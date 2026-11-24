@@ -5,6 +5,8 @@
 #include "FileIo.h"
 
 #include "plynth/core/Build.h"
+#include "plynth/core/BuildJob.h"
+#include "plynth/core/GameplayData.h"
 #include "plynth/core/catalog/MaterialCatalog.h"
 #include "plynth/core/ProjectFiles.h"
 #include "plynth/core/ProjectJson.h"
@@ -474,6 +476,28 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
     report.kit.pieces = kitWritten ? static_cast<int>(kit.pieces.size()) : 0;
     report.kit.placements = kitWritten ? static_cast<int>(kit.placements.size()) : 0;
     report.kit.triangles = kitWritten ? out.kit->triangles : 0;
+
+    // The gameplay data is written by core from the plan the build used.
+    report.gameplay.enabled = review.options.gameplay.enabled;
+    const fs::path gameplayFile = exportDir / pathFromUtf8(kitStem + std::string(kGameplayFileSuffix));
+    if (report.gameplay.enabled) {
+        Project built = request.project;
+        built.plan = review.plan;
+        const BuildPlan geometry = makeBuildPlan(built, {});
+        const GameplayData data = gameplayData(request.project.settings.name, built.plan, geometry.floors, planLights(built.plan));
+        const std::string text = gameplayToJson(data).dump(2, ' ', false, Json::error_handler_t::replace) + "\n";
+        if (const Status written = fileio::writeAtomic(gameplayFile, text); !written.ok()) {
+            report.status = written;
+            finish(true);
+            return report;
+        }
+        report.gameplay.file = gameplayFile;
+        report.gameplay.rooms = static_cast<int>(data.rooms.size());
+        report.gameplay.doors = static_cast<int>(data.doors.size());
+        report.gameplay.lights = static_cast<int>(data.lights.size());
+    } else {
+        fs::remove(gameplayFile, ec);
+    }
     report.exported = true;
     report.texturesFolder = textures;
     report.textureCount = static_cast<int>(out.textures.size());
@@ -565,6 +589,13 @@ Json exportReportToJson(const ExportReport& report)
     kit["placements"] = report.kit.placements;
     kit["triangles"] = report.kit.triangles;
     json["kit"] = std::move(kit);
+    Json gameplay = Json::object();
+    gameplay["enabled"] = report.gameplay.enabled;
+    gameplay["file"] = pathOrNull(report.gameplay.file);
+    gameplay["rooms"] = report.gameplay.rooms;
+    gameplay["doors"] = report.gameplay.doors;
+    gameplay["lights"] = report.gameplay.lights;
+    json["gameplay"] = std::move(gameplay);
 
     Json steps = Json::array();
     for (const BuildStepTime& s : report.steps) steps.push_back(Json{{"step", s.step}, {"ms", s.ms}});
@@ -732,6 +763,16 @@ ExportReportRead readExportReport(const fs::path& projectFolder)
             report.kit.pieces = static_cast<int>(whole(kit, "pieces", "/kit"));
             report.kit.placements = static_cast<int>(whole(kit, "placements", "/kit"));
             report.kit.triangles = whole(kit, "triangles", "/kit");
+        }
+        if (json.contains("gameplay")) {
+            const Json& gameplay = json["gameplay"];
+            if (!gameplay.is_object()) throw std::string("/gameplay");
+            report.gameplay.enabled = flag(gameplay, "enabled", "/gameplay");
+            const std::string file = optionalText(gameplay, "file", "/gameplay");
+            if (!file.empty()) report.gameplay.file = pathFromUtf8(file);
+            report.gameplay.rooms = static_cast<int>(whole(gameplay, "rooms", "/gameplay"));
+            report.gameplay.doors = static_cast<int>(whole(gameplay, "doors", "/gameplay"));
+            report.gameplay.lights = static_cast<int>(whole(gameplay, "lights", "/gameplay"));
         }
         const Json& steps = array(json, "steps", "");
         for (std::size_t i = 0; i < steps.size(); ++i) {

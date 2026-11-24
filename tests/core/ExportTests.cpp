@@ -649,9 +649,9 @@ TEST_CASE("a grouped project exports one file per group", "[core][export][run]")
     REQUIRE(groups[0]["id"] == "structure");
     REQUIRE(groups[0]["name"] == "Walls");
     REQUIRE(groups[0]["rest"] == true);
-    REQUIRE(groups[0]["members"].size() == 2);
+    REQUIRE(groups[0]["members"].size() == 3);
     REQUIRE(groups[0]["members"][0] == Json{{"kind", "walls"}, {"id", "f1"}});
-    REQUIRE(groups[1]["members"].back() == Json{{"kind", "light"}, {"id", nullptr}});
+    REQUIRE(groups[1]["members"].back() == Json{{"kind", "guard"}, {"id", nullptr}});
     REQUIRE(groups[2]["rest"] == false);
     REQUIRE(job["params"]["kit"].is_null());
 
@@ -675,7 +675,7 @@ TEST_CASE("saved group edits rename the file and the next export removes the old
     REQUIRE(f.exportEntries() == std::set<std::string>{"Square_Walls.fbx", "Square_Floors.fbx", "Square_Lounge_props.fbx", "Textures",
                                                        "export_report.json"});
     REQUIRE(second.fileOutputs[2].name == "Lounge props");
-    REQUIRE(lastJob(f)["params"]["groups"][0]["members"].size() == 3);
+    REQUIRE(lastJob(f)["params"]["groups"][0]["members"].size() == 5);
     REQUIRE(reportProblem(f.reportFile()).empty());
     REQUIRE(second.groupNotes.empty());
 }

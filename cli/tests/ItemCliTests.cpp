@@ -445,7 +445,7 @@ TEST_CASE("the saved plan with items matches its schema", "[cli][item]") {
     validator.set_root_schema(nlohmann::json::parse(schemaFile));
     const auto plan = nlohmann::json::parse(readFile(sample.folder / "plan.json"));
     CHECK_NOTHROW(validator.validate(plan));
-    CHECK(plan.at("version") == 6);
+    CHECK(plan.at("version") == 7);
     CHECK(plan.at("floors").at(0).at("items").size() == 2);
 }
 

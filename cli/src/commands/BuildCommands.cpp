@@ -4,7 +4,9 @@
 
 #include <plynth/core/Build.h>
 #include <plynth/core/BuildJob.h>
+#include <plynth/core/BuildResolve.h>
 #include <plynth/core/Blender.h>
+#include <plynth/core/catalog/BuildChoices.h>
 #include <plynth/core/Generators.h>
 
 #include <memory>
@@ -72,16 +74,22 @@ bool tryOpenCatalog(const std::string& command, const RunContext& context, const
 }
 
 // Reports the problems of a build without running Blender or writing anything. The library's generators are
-// checked, but no add-on cache is read, so the check says nothing about which add-ons are on.
+// checked, but no add-on cache is read, so the check says nothing about which add-ons are on. Like the build, it
+// checks the resolved plan: the seed's furniture and materials and the doors and windows picked for it.
 Answer buildCheck(const std::string& command, const Project& project, const OpenedCatalog* opened) {
     BuildAssetSource source;
     GeneratorLibrary generators;
+    std::unique_ptr<MaterialCatalog> materials;
     if (opened != nullptr) {
         source = buildAssetSourceFor(*opened->catalog);
         generators = loadGeneratorFolder(opened->paths.generators);
+        Status ignored;
+        materials = MaterialCatalog::open(opened->paths, ignored);
     }
-    const BuildPlan plan =
-        makeBuildPlan(project, source, {}, opened != nullptr ? &generators : nullptr, std::nullopt);
+    const BuildChoices choices = buildChoicesFrom(opened != nullptr ? opened->catalog.get() : nullptr, materials.get());
+    const ResolvedBuild resolved = resolveBuild(project, choices);
+    const BuildPlan plan = makeBuildPlan(resolved.project, source, {}, opened != nullptr ? &generators : nullptr,
+                                         std::nullopt, &choices);
     int errors = 0;
     int warnings = 0;
     for (const BuildProblem& problem : plan.problems) {

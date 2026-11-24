@@ -903,6 +903,23 @@ TEST_CASE("the kit switch during a change lock keeps the outside groups and the 
     CHECK_FALSE(f.guard.holds(f.t));
 }
 
+TEST_CASE("the gameplay switch is written like the kit switch", "[core][exportguard][gameplay]") {
+    GuardFixture f("guard-gameplay");
+    requireSaved(f.guard.setGameplay(f.now, true));
+    CHECK(f.saved().gameplay.enabled);
+    CHECK_FALSE(f.saved().kit.enabled);
+    CHECK(f.guard.holds(f.t));
+    requireSaved(f.guard.edit(f.t, f.now, renameChange("group_1", "Mine")));
+    CHECK(f.saved().gameplay.enabled);
+    requireSaved(f.guard.setGameplay(f.now, false));
+    CHECK_FALSE(f.saved().gameplay.enabled);
+
+    writeText(optionsFile(f.folder), "{not json");
+    const auto before = filesOf(f.folder);
+    CHECK_FALSE(f.guard.setGameplay(f.now, true).status.ok());
+    CHECK(filesOf(f.folder) == before);
+}
+
 TEST_CASE("the kit switch never writes over a file that cannot be read", "[core][exportguard]") {
     GuardFixture f("guard-kit-bad");
     writeText(optionsFile(f.folder), "{not json");

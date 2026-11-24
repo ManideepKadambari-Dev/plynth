@@ -263,11 +263,23 @@ std::vector<std::string> materialsUsed(const Project& project)
         if (m.material) used.insert(*m.material);
     };
 
-    // The roof, flat roof and stair defaults count only where a section or a stair uses them.
+    // The roof, flat roof and stair defaults count only where a section or a stair uses them, trim only where a
+    // room has trim of a kind that is on, and railing only where a stair has a railing.
     for (const Surface surface : allSurfaces()) {
         if (surface == Surface::Roof || surface == Surface::FlatRoof || surface == Surface::Stair) continue;
+        if (surface == Surface::Trim || surface == Surface::Railing) continue;
         add(surfaceDefaultMaterial(project, surface));
     }
+    const TrimSettings& trim = project.settings.trim;
+    const bool anyTrim = trim.skirting.enabled || trim.cornice.enabled || trim.casing.enabled || trim.sill.enabled;
+    bool hasRoom = false;
+    bool hasStair = false;
+    for (const Floor& floor : project.plan.floors) {
+        hasRoom = hasRoom || !floor.rooms.empty();
+        hasStair = hasStair || !floor.stairs.empty();
+    }
+    if (anyTrim && hasRoom) add(surfaceDefaultMaterial(project, Surface::Trim));
+    if (trim.railing.enabled && hasStair) add(surfaceDefaultMaterial(project, Surface::Railing));
     const SlabMaterials slab = slabMaterials(project);
     add(slab.edge);
     add(slab.well);

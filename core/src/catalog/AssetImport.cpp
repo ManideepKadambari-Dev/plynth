@@ -299,6 +299,7 @@ ImportOutcome recleanAsset(AssetCatalog& catalog, const ImportContext& context, 
     info.materials = out.materials;
     info.textures = out.textures;
     info.materialMaps = out.materialMaps;
+    info.supports = out.supports;
     info.blendBytes = static_cast<long long>(fs::file_size(blend, ec));
     info.blendModified = fileTime(blend);
     info.thumbnail.rendered = rendered;
@@ -482,6 +483,7 @@ ImportOutcome importAsset(AssetCatalog& catalog, const ImportContext& context, c
     info.materials = out.materials;
     info.textures = out.textures;
     info.materialMaps = out.materialMaps;
+    info.supports = out.supports;
     const fs::path blend = itemFolder / pathFromUtf8(kAssetBlendFileName);
     if (!fs::is_regular_file(blend, ec)) {
         outcome.status = fail(ErrorCode::BlenderFailed, "Blender did not save asset.blend.");

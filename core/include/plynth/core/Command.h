@@ -26,9 +26,10 @@ inline constexpr unsigned Folder = 1u << 10;       // the document now belongs t
 inline constexpr unsigned ReadOnly = 1u << 11;     // the document became read only or editable again
 inline constexpr unsigned Stairs = 1u << 12;
 inline constexpr unsigned Roofs = 1u << 13;        // the roof default or a roof section entry changed
+inline constexpr unsigned Lights = 1u << 14;       // a light marker was added, moved, changed or removed
 // Every part of the project above. Roof sections are worked out from walls and rooms, so views that show them
 // also redraw on Floors, Walls and Rooms.
-inline constexpr unsigned Content = ((1u << 9) - 1) | Stairs | Roofs;
+inline constexpr unsigned Content = ((1u << 9) - 1) | Stairs | Roofs | Lights;
 inline constexpr unsigned Everything = Content | History | Folder | ReadOnly;
 }
 

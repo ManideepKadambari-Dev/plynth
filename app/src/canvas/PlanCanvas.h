@@ -119,6 +119,15 @@ struct OverlayRoof {
     bool ridge = false;
 };
 
+// One light marker of the shown floor, in scene units. kind is 0 ceiling, 1 wall and 2 standing. tip is its
+// kind and height for the tooltip.
+struct OverlayLight {
+    QString id;
+    QPointF position;
+    int kind = 0;
+    QString tip;
+};
+
 // Everything the canvas draws over the plan image.
 struct OverlayData {
     QVector<OverlayItem> items;
@@ -135,6 +144,8 @@ struct OverlayData {
     QVector<OverlayStair> arriving;
     // The roof sections of the shown floor, drawn when roof sections are shown.
     QVector<OverlayRoof> roofs;
+    // The light markers of the shown floor only. Other floors' lights are never drawn.
+    QVector<OverlayLight> lights;
 };
 
 // One proposed wall, in scene units.
@@ -185,6 +196,9 @@ public:
     void setSelection(SelectionKind kind, const QString& id);
     // The id of the stair of the shown floor whose footprint holds a scene point, or an empty string.
     QString stairAt(const QPointF& scene) const;
+    // The id of the light marker of the shown floor under a scene point, within the marker's drawn size, or an
+    // empty string.
+    QString lightAt(const QPointF& scene) const;
     // Shows or hides the roof sections of the shown floor (hatch, label and direction arrow).
     void setRoofSectionsShown(bool shown);
     bool roofSectionsShown() const { return roofsShown_; }
@@ -270,6 +284,7 @@ private:
     void paintRoofLabels(QPainter* painter);
     void paintProposals(QPainter* painter);
     void paintProblems(QPainter* painter);
+    void paintLights(QPainter* painter);
     void applyFit();
     QRectF imageRect() const;
 

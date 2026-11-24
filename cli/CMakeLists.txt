@@ -40,6 +40,9 @@ add_library(plynth_cli STATIC
     src/commands/StairCommands.cpp
     src/commands/VersionCommand.cpp
     src/commands/WallCommands.cpp
+    src/commands/LightCommands.cpp
+    src/commands/TrimCommands.cpp
+    src/commands/VariationCommands.cpp
 )
 add_library(plynth::cli ALIAS plynth_cli)
 

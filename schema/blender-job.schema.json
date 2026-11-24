@@ -417,6 +417,229 @@
     }
   ],
   "definitions": {
+    "finishVec3": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "number"
+      }
+    },
+    "finishOpeningAsset": {
+      "type": "object",
+      "required": [
+        "id",
+        "location",
+        "rotation_z",
+        "scale"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/catalogId"
+        },
+        "location": {
+          "$ref": "#/definitions/finishVec3"
+        },
+        "rotation_z": {
+          "description": "Radians about Z.",
+          "type": "number"
+        },
+        "scale": {
+          "description": "Along the asset's own axes. A negative x mirrors it.",
+          "$ref": "#/definitions/finishVec3"
+        }
+      }
+    },
+    "finishSweep": {
+      "type": "object",
+      "required": [
+        "closed",
+        "sections"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "closed": {
+          "type": "boolean"
+        },
+        "sections": {
+          "description": "Rings of world points, each with the same count. A post is a sweep of two sections.",
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "array",
+            "minItems": 3,
+            "items": {
+              "$ref": "#/definitions/finishVec3"
+            }
+          }
+        }
+      }
+    },
+    "finishTrim": {
+      "type": "object",
+      "required": [
+        "kind",
+        "plan_id",
+        "object",
+        "plynth_kind",
+        "slot",
+        "sweeps"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "skirting",
+            "cornice",
+            "casing",
+            "sill",
+            "railing",
+            "guard"
+          ]
+        },
+        "plan_id": {
+          "$ref": "#/definitions/planId"
+        },
+        "object": {
+          "type": "string",
+          "pattern": "^SM_[A-Za-z0-9_-]+$"
+        },
+        "plynth_kind": {
+          "enum": [
+            "trim",
+            "railing",
+            "guard"
+          ]
+        },
+        "slot": {
+          "type": "string",
+          "minLength": 1
+        },
+        "material": {
+          "oneOf": [
+            {
+              "$ref": "#/definitions/catalogId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sweeps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/finishSweep"
+          }
+        }
+      }
+    },
+    "finishSize": {
+      "type": "object",
+      "required": [
+        "width",
+        "depth",
+        "height"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "depth": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "height": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      }
+    },
+    "finishDressing": {
+      "type": "object",
+      "required": [
+        "id",
+        "room",
+        "rule",
+        "host",
+        "asset",
+        "location",
+        "rotation_z",
+        "size"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+        },
+        "room": {
+          "$ref": "#/definitions/planId"
+        },
+        "rule": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "host": {
+          "$ref": "#/definitions/planId"
+        },
+        "asset": {
+          "$ref": "#/definitions/catalogId"
+        },
+        "location": {
+          "$ref": "#/definitions/finishVec3"
+        },
+        "rotation_z": {
+          "type": "number"
+        },
+        "size": {
+          "$ref": "#/definitions/finishSize"
+        }
+      }
+    },
+    "finishLight": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "location",
+        "power",
+        "color"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/planId"
+        },
+        "kind": {
+          "enum": [
+            "ceiling",
+            "wall",
+            "standing"
+          ]
+        },
+        "location": {
+          "$ref": "#/definitions/finishVec3"
+        },
+        "power": {
+          "description": "Watts.",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "color": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      }
+    },
     "thumbnail": {
       "description": "Assets: three quarter view from the front right, 25 degrees up, 50 mm lens, framed with an 8 percent margin. Materials: a sphere 1 m across and a flat tile 1 m square side by side at real world size. Both: neutral studio lights, a plain background of this color, Standard view transform, square 8 bit RGB PNG, rendered with Eevee. There is no other engine.",
       "type": "object",
@@ -465,7 +688,7 @@
     },
     "surfaceName": {
       "description": "The neutral surface whose look a slot gets when it has no material.",
-      "enum": ["Wall_Inside", "Wall_Outside", "Wall_Top", "Reveal", "Threshold", "Floor", "Ceiling", "Door", "Frame", "Glass", "Handle", "Stair", "Roof", "Flat_Roof", "Soffit", "Fascia", "Generated"]
+      "enum": ["Wall_Inside", "Wall_Outside", "Wall_Top", "Reveal", "Threshold", "Floor", "Ceiling", "Door", "Frame", "Glass", "Handle", "Stair", "Roof", "Flat_Roof", "Soffit", "Fascia", "Generated", "Trim", "Railing"]
     },
     "collisionShape": {
       "description": "Convex pieces and hulls for one built object (core/include/plynth/core/Collision.h). Each becomes a closed convex mesh UCX_<object name>_<NN>, numbered from 00 over the pieces and then the hulls.",
@@ -479,7 +702,7 @@
           "required": ["kind", "id"],
           "additionalProperties": false,
           "properties": {
-            "kind": { "enum": ["walls", "floor", "ceiling", "thresholds", "slab", "stair", "roof"] },
+            "kind": { "enum": ["walls", "floor", "ceiling", "thresholds", "slab", "stair", "roof", "railing", "guard"] },
             "id": { "$ref": "#/definitions/planId" }
           }
         },
@@ -815,6 +1038,9 @@
           "type": "array",
           "items": { "$ref": "#/definitions/collisionShape" }
         },
+        "trim": { "description": "Skirting boards, cornices, casings, sills, railings and guards, as sweeps. Missing when there is none.", "type": "array", "items": { "$ref": "#/definitions/finishTrim" } },
+        "dressing": { "description": "Set dressing props, instances of assets of the assets list. Missing when there is none.", "type": "array", "items": { "$ref": "#/definitions/finishDressing" } },
+        "lights": { "description": "Point lights at the light markers. Missing when there is none.", "type": "array", "items": { "$ref": "#/definitions/finishLight" } },
         "generator_items": {
           "description": "Items that run a generator of the job's generators list, in the floor's item order. Empty when there are none.",
           "type": "array",
@@ -875,6 +1101,7 @@
         "hinge": { "enum": ["start", "end"] },
         "swing": { "enum": ["left", "right"] },
         "frame": { "type": ["string", "null"] },
+        "asset": { "description": "The catalog door or window fitted into the opening, when there is one. The built fill is then left out.", "$ref": "#/definitions/finishOpeningAsset" },
         "centre": { "$ref": "#/definitions/xy" },
         "tangent": { "$ref": "#/definitions/xy" },
         "right": { "$ref": "#/definitions/xy" },

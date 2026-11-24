@@ -1,6 +1,6 @@
 {
   "format": "plynth-plan",
-  "version": 6,
+  "version": 7,
   "scale": { "pixels_per_metre": null },
   "floors": [
     {

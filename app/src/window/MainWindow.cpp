@@ -22,6 +22,7 @@
 #include "panels/ImportQueueView.h"
 #include "setup/SetupCheckDialog.h"
 #include "dialogs/RoomTypesDialog.h"
+#include "dialogs/VariationsDialog.h"
 #include "home/HomeScreen.h"
 #include "home/ProjectThumbnail.h"
 #include "materials/MaterialImportQueue.h"
@@ -524,7 +525,7 @@ void MainWindow::buildMenus()
     edit->addSeparator();
     const std::array<ToolId, kToolCount>& toolIds = kStripTools;
     const std::array<Qt::Key, kToolCount> toolKeys{Qt::Key_V, Qt::Key_S, Qt::Key_W, Qt::Key_O,
-                                                   Qt::Key_R, Qt::Key_T, Qt::Key_P, Qt::Key_D};
+                                                   Qt::Key_R, Qt::Key_T, Qt::Key_L, Qt::Key_P, Qt::Key_D};
     for (size_t i = 0; i < toolIds.size(); ++i) {
         const ToolId id = toolIds[i];
         QAction* action = addMenuAction(edit, tr("%1 tool").arg(ToolStrip::toolName(id)),
@@ -712,6 +713,12 @@ void MainWindow::buildMenus()
     exportFolderAction_ = addMenuAction(build, tr("Open e&xport folder"), tr("Open the export folder of the project in Explorer"),
                                         QStringLiteral("export-open-folder-action"), {});
     connect(exportFolderAction_, &QAction::triggered, this, &MainWindow::openExportFolder);
+    build->addSeparator();
+    variationsAction_ = addMenuAction(build, tr("Make &variations..."),
+                                      tr("Save a copy of the project for each of several seeds, to build a street of "
+                                         "varied houses from one plan"),
+                                      QStringLiteral("build-make-variations"), {});
+    connect(variationsAction_, &QAction::triggered, this, [this]() { showVariationsDialog(true); });
 
     QAction* setupAction = addMenuAction(titleBar_->helpMenu(), tr("&Setup check"),
                                          tr("Check that Blender, the library and the projects folder are ready"),
@@ -906,6 +913,8 @@ QImage MainWindow::grabPicture()
         shownDialog = setupDialog_;
     else if (checkPackDialog_ && checkPackDialog_->isVisible())
         shownDialog = checkPackDialog_;
+    else if (variationsDialog_ && variationsDialog_->isVisible())
+        shownDialog = variationsDialog_;
     if (shownDialog != nullptr) {
         const Theme& t = Theme::instance();
         const QImage dialog = shownDialog->grab().toImage();
@@ -933,6 +942,58 @@ QImage MainWindow::grabPicture()
         p.drawRect(at.adjusted(0, 0, -1, -1));
     }
     return image;
+}
+
+// Opens the Make variations dialog for the saved project. It works from the saved folder, so an unsaved project
+// is told to save first.
+void MainWindow::showVariationsDialog(bool wait)
+{
+    if (!doc_.hasFolder()) {
+        showError(tr("Make variations"), tr("Save the project first. The copies are made from its folder."));
+        return;
+    }
+    if (variationsDialog_ == nullptr) {
+        variationsDialog_ = new VariationsDialog(doc_.project(), doc_.folder(), this);
+        variationsDialog_->setAttribute(Qt::WA_DeleteOnClose);
+    }
+    if (wait) {
+        variationsDialog_->exec();
+        return;
+    }
+    variationsDialog_->setModal(false);
+    variationsDialog_->show();
+    variationsDialog_->adjustSize();
+}
+
+// For checks only: places a light as the Light tool does.
+bool MainWindow::addLightForCheck(double x, double y, const QString& kind)
+{
+    const std::optional<plynth::LightKind> parsed = plynth::lightKindFromName(kind.toLower().toStdString());
+    if (!parsed.has_value())
+        return false;
+    return tools_->placeLight(plynth::Vec2{x, y}, *parsed, true);
+}
+
+// For checks only: opens the door and window picker of the selected opening. With no opening selected, the first
+// door of the shown floor is selected first.
+bool MainWindow::showOpeningAssetPicker(const QString& hoverAsset)
+{
+    const plynth::Floor* floor = focus_->floor();
+    if (selection_->kind() != SelectionKind::Opening && floor != nullptr)
+        for (const plynth::Opening& opening : floor->openings)
+            if (opening.type == plynth::OpeningType::Door) {
+                selection_->set(SelectionKind::Opening, fromCore(opening.id));
+                break;
+            }
+    return panel_->showOpeningAssetPicker(hoverAsset);
+}
+
+// For checks only: shows the project page of Properties scrolled to the Trim and Variation groups.
+void MainWindow::showProjectFinish()
+{
+    selection_->clear();
+    tools_->setActive(ToolId::Select);
+    panel_->scrollToFinish();
 }
 
 // Asks for model files and queues each one.
@@ -1412,6 +1473,9 @@ void MainWindow::validateSelection()
         case SelectionKind::RoofSection:
             found = id.compare(0, floor->id.size() + 1, floor->id + ":") == 0;
             break;
+        case SelectionKind::Light:
+            found = plynth::findLight(*floor, id) != nullptr;
+            break;
         case SelectionKind::None:
             break;
         }
@@ -1489,6 +1553,8 @@ bool MainWindow::activateToolByName(const QString& name)
         id = ToolId::Detect;
     else if (key == QStringLiteral("stair"))
         id = ToolId::Stair;
+    else if (key == QStringLiteral("light"))
+        id = ToolId::Light;
     else
         return false;
     tools_->setActive(id);
@@ -1501,7 +1567,7 @@ bool MainWindow::showFloor(const QString& id)
     return focus_->setFloorId(id);
 }
 
-// For checks only: selects a point, wall, room, opening, item or stair by its id, switching to its floor first.
+// For checks only: selects a point, wall, room, opening, item, stair or light by its id, switching to its floor first.
 void MainWindow::selectById(const QString& id)
 {
     selection_->clear();
@@ -1523,6 +1589,8 @@ void MainWindow::selectById(const QString& id)
         for (const plynth::Stair& stair : floor.stairs)
             if (stair.id == key)
                 kind = SelectionKind::Stair;
+        if (plynth::findLight(floor, key) != nullptr)
+            kind = SelectionKind::Light;
         if (!kind.has_value())
             continue;
         focus_->setFloorId(QString::fromStdString(floor.id));

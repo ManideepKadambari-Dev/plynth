@@ -38,19 +38,26 @@ inline constexpr std::string_view kKindRoof = "roof";             // id: the flo
 inline constexpr std::string_view kKindGenerator = "generator";   // id: an item that a generator makes
 inline constexpr std::string_view kKindLight = "light";           // id: the light
 inline constexpr std::string_view kKindKit = "kit";               // kit pieces (Kit.h); never in a group
+inline constexpr std::string_view kKindTrim = "trim";             // id: the floor (Trim.h)
+inline constexpr std::string_view kKindRailing = "railing";       // id: the stair
+inline constexpr std::string_view kKindGuard = "guard";           // id: the stair
+inline constexpr std::string_view kKindDressing = "dressing";     // id: the room (Dressing.h)
 
 // The built-in rules and the groups they make, in this order (one file each in core/src/exporters/, named
 // GroupRule<Name>.cpp, so the existing exporters glob picks them up):
 //   structure  order 10  group "structure", name "Walls", rest set: walls of every floor, every door and
-//                        window fill (DESIGN.md: "walls, windows and doors")
+//                        window fill (DESIGN.md: "walls, windows and doors"), and the trim of every floor with
+//                        walls and rooms while a trim kind is on
 //   surfaces   order 20  group "surfaces", name "Floors": every room's floor and ceiling, the thresholds of
-//                        every floor, and every slab, stair, roof and light (members with an empty id)
+//                        every floor, and every slab, stair, roof, light, railing and guard (members with an
+//                        empty id)
 //                        (DESIGN.md: "floors, roof and lights")
 //   furniture  order 30  per room that holds items, in plan order: group "furniture_<room id>" (lower case,
 //                        characters other than a to z, 0 to 9 and "_" as "_"), name "Furniture <Label>" where
 //                        Label is roomSlotLabel (MaterialSlots.h), with " <room id>" added when two rooms share
 //                        the label; one member for each of its items, as below. Items with no room go to
-//                        group "furniture", name "Furniture" (DESIGN.md: "furniture, one FBX per room")
+//                        group "furniture", name "Furniture" (DESIGN.md: "furniture, one FBX per room"); a room
+//                        group also takes the room's set dressing (kind "dressing", the room id) when it is on
 // Exact members only for objects the plan says the build makes: walls for a floor with walls, thresholds for
 // a floor with a door or plain opening at sill 0, floor and ceiling for each room, door or window for each
 // opening of that type, and one member for each item. An item is an asset or a generator, never both:
@@ -97,7 +104,8 @@ void nameExportGroupFiles(std::vector<ExportGroup>& groups, std::string_view pro
 // A plain label for a member, for the review list, from the plan that was built: "Walls, Floor 1",
 // "Thresholds, Floor 1", "Floor of Kitchen r3", "Ceiling of Kitchen r3", "Door o3", "Window o5",
 // "<asset> i4" for an item member (the item's asset id), "<generator> i4" for a generator member (the
-// generator's name), "Every <kind>" for an empty id, and "<kind> <id>" for anything else.
+// generator's name), "Trim, Floor 1", "Railing of stair s1", "Guard of stair s1", "Set dressing of Kitchen r3",
+// "Every <kind>" for an empty id, and "<kind> <id>" for anything else.
 std::string exportMemberLabel(const Plan& plan, const ExportMember& member);
 
 // The user's group edits. They refer to group ids and plan ids, so they survive later builds; an edit that no
@@ -188,20 +196,30 @@ struct KitOptions {
     bool operator==(const KitOptions&) const = default;
 };
 
+// The gameplay data switch (GameplayData.h). Off by default.
+struct GameplayOptions {
+    bool enabled = false;
+
+    bool operator==(const GameplayOptions&) const = default;
+};
+
 // The project's export options file: projectFolder/export-options.json, schema/export-options.schema.json.
 // It belongs to the project like project.json (it is not in build/ or export/, which can be deleted).
 inline constexpr std::string_view kExportOptionsFileName = "export-options.json";
 inline constexpr std::string_view kExportOptionsFormat = "plynth-export-options";
-inline constexpr int kExportOptionsVersion = 1;
+// Version 2 adds "gameplay". A version 1 file reads with gameplay data off and is written as version 2.
+inline constexpr int kExportOptionsVersion = 2;
 
 struct ExportOptions {
     ExportGroupEdits groups;
     KitOptions kit;
+    GameplayOptions gameplay;
 
     bool operator==(const ExportOptions&) const = default;
 };
 
-// The file form: {"format", "version", "groups": {"added", "renames", "merges", "moves"}, "kit": {"enabled"}}.
+// The file form: {"format", "version", "groups": {"added", "renames", "merges", "moves"}, "kit": {"enabled"},
+// "gameplay": {"enabled"}}.
 Json exportOptionsToJson(const ExportOptions& options);
 
 struct ExportOptionsRead {
@@ -231,8 +249,8 @@ struct ExportOptionsRepair {
 // Makes a bad export-options.json usable again, for "plynth export groups reset" and the app's Reset groups.
 // A missing or valid file is left alone (repaired false). A file written by a newer Plynth is never touched
 // (UnsupportedVersion). Any other bad file, whether it is not JSON or breaks a rule such as a group name, is
-// copied to export-options.json.bad and replaced by the default options, keeping the kit switch when the old
-// file still has a readable one. All group edits in it are dropped.
+// copied to export-options.json.bad and replaced by the default options, keeping the kit and gameplay switches
+// when the old file still has readable ones. All group edits in it are dropped.
 ExportOptionsRepair repairExportOptions(const std::filesystem::path& projectFolder);
 
 // What the Export tab and "plynth export groups" show before an export.

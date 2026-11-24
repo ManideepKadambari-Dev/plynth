@@ -67,8 +67,9 @@ else()
     message(STATUS "Blender not found, the worker Python tests are not added")
 endif()
 
-# Fetch tests that need no Blender. They run in plain Python, with stand-ins for Blender, so every machine
-# and GitHub runs them. Each run gets fresh scratch folders for temp files and the user folders.
+# Tests that need no Blender run in plain Python on every machine and on GitHub: the fetch tests, with
+# stand-ins for Blender and fresh scratch folders for temp files and the user folders, and the tests of the
+# sweep mesh helper and the support finder.
 if(PLYNTH_BUILD_TESTS)
     find_package(Python3 3.10 COMPONENTS Interpreter)
     if(Python3_Interpreter_FOUND)
@@ -84,7 +85,15 @@ if(PLYNTH_BUILD_TESTS)
             WORKING_DIRECTORY "${_plynth_plain}")
         set_tests_properties(python_plain_fetch PROPERTIES TIMEOUT 600 FIXTURES_REQUIRED python_plain
             ENVIRONMENT "PLYNTH_FAKE_STORE_HELPER=$<TARGET_FILE:plynth_fake_store_helper>;TEMP=${_plynth_plain}/temp;TMP=${_plynth_plain}/temp;APPDATA=${_plynth_plain}/appdata;LOCALAPPDATA=${_plynth_plain}/local;USERPROFILE=${_plynth_plain}/home;HOME=${_plynth_plain}/home;PLYNTH_CONFIG_DIR=${_plynth_plain}/plynth-config;PLYNTH_BLENDER_PRIVATE=${_plynth_plain}/plynth-private")
+        add_test(NAME python_plain_sweep
+            COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tests/plain/test_sweep_mesh.py"
+            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tests/plain")
+        set_tests_properties(python_plain_sweep PROPERTIES TIMEOUT 120)
+        add_test(NAME python_plain_supports
+            COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tests/plain/test_support_finder.py"
+            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tests/plain")
+        set_tests_properties(python_plain_supports PROPERTIES TIMEOUT 120)
     else()
-        message(STATUS "Python 3.10 or newer not found, the plain Python fetch tests are not added")
+        message(STATUS "Python 3.10 or newer not found, the plain Python tests are not added")
     endif()
 endif()

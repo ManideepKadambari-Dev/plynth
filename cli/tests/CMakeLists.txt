@@ -42,6 +42,12 @@ add_executable(plynth_cli_tests
     PackCliTests.cpp
     SessionKeeperTests.cpp
     IdCliTests.cpp
+    FormatCliTests.cpp
+    LightCliTests.cpp
+    TrimCliTests.cpp
+    FinishCliTests.cpp
+    VariationCliTests.cpp
+    GameplayCliTests.cpp
     IdTestListener.cpp
     TestSetup.cpp
     TestSupport.cpp

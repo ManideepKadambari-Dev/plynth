@@ -86,10 +86,11 @@ Json wallEntry(const Floor& floor, const Wall& wall);
 Json floorEntry(const Plan& plan, const Floor& floor);
 
 // The opening entry shared by the opening commands: wall, offset, type, shape, size, sill, hinge, swing, frame,
-// centre on the plan, whether it fits its wall and the reason when it does not.
+// auto_frame, centre on the plan, whether it fits its wall and the reason when it does not.
 Json openingEntry(const Floor& floor, const Opening& opening);
 
-// The room entry shared by the room commands: type, type name, walls, whether it is closed, area and label spot.
+// The room entry shared by the room commands: type, type name, walls, whether it is closed, area, label spot and
+// whether set dressing adds props to it.
 Json roomEntry(const Floor& floor, const Room& room);
 
 // The stop request of the program around the CLI (Ctrl+C through plynth.com). Never stops when there is none.

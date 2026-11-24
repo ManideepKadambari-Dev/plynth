@@ -53,6 +53,7 @@ inline AssetInfo makeAssetOnDisk(const LibraryPaths& paths, const std::string& i
     info.blendBytes = 9;
     info.blendModified = fileWriteTime(folder / "asset.blend");
     info.blenderVersion = "5.2.0";
+    info.supports = std::vector<AssetSupport>{}; // measured: no flat places
     if (withThumbnail) {
         writeBytes(folder / "thumb.png", "PNG");
         info.thumbnail.rendered = true;

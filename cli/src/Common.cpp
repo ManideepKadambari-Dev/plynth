@@ -252,6 +252,7 @@ Json openingEntry(const Floor& floor, const Opening& opening) {
     } else {
         entry["frame"] = nullptr;
     }
+    entry["auto_frame"] = opening.autoFrame;
     entry["centre"] = std::move(centre);
     entry["fits"] = fit.ok();
     if (fit.ok()) {
@@ -309,6 +310,8 @@ Answer removeCascade(const std::string& command, const std::string& kind, const 
                 actual = "room";
             } else if (findOpening(*floor, id) != nullptr) {
                 actual = "opening";
+            } else if (findLight(*floor, id) != nullptr) {
+                actual = "light";
             }
             if (actual != kind) {
                 const auto article = [](const std::string& word) { return word == "item" || word == "opening" ? "an " : "a "; };

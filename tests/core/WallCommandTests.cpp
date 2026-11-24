@@ -115,7 +115,8 @@ TEST_CASE("SetScaleCommand moves marks only when asked", "[core][command][scale]
         const Project before = p;
         applyOk(c, p);
         REQUIRE(c.movedMarks());
-        REQUIRE(c.changes() == (Change::Scale | Change::Points | Change::Walls | Change::Openings | Change::Items | Change::Stairs | Change::Roofs));
+        REQUIRE(c.changes() == (Change::Scale | Change::Points | Change::Walls | Change::Openings | Change::Items | Change::Stairs | Change::Roofs |
+                                Change::Lights));
         const Floor& f = p.plan.floors[0];
         REQUIRE(f.points[1].x == Approx(8.0));
         REQUIRE(f.points[2].y == Approx(6.0));

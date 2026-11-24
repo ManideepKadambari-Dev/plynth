@@ -17,8 +17,13 @@ public:
         group.id = "structure";
         group.name = "Walls";
         group.rest = true;
+        const TrimSettings& trim = project.settings.trim;
+        const bool anyTrim = trim.skirting.enabled || trim.cornice.enabled || trim.casing.enabled || trim.sill.enabled;
         for (const Floor& floor : project.plan.floors) {
             if (!floor.walls.empty()) group.members.push_back({std::string(kKindWalls), floor.id});
+        }
+        for (const Floor& floor : project.plan.floors) {
+            if (anyTrim && !floor.walls.empty() && !floor.rooms.empty()) group.members.push_back({std::string(kKindTrim), floor.id});
         }
         for (const Floor& floor : project.plan.floors) {
             for (const Opening& opening : floor.openings) {

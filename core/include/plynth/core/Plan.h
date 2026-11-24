@@ -1,5 +1,6 @@
 #pragma once
 
+#include "FinishSettings.h"
 #include "Status.h"
 
 #include <cstddef>
@@ -27,6 +28,7 @@ inline constexpr std::string_view kOpeningIdPrefix = "o";
 inline constexpr std::string_view kItemIdPrefix = "i";
 inline constexpr std::string_view kStairIdPrefix = "s";
 inline constexpr std::string_view kRoofSectionIdPrefix = "rf";
+inline constexpr std::string_view kLightIdPrefix = "l";
 
 // The characters a new id has after its prefix: digits and lower case letters without i, l, o and u, so none
 // looks like another.
@@ -99,6 +101,7 @@ struct Room {
     std::optional<std::string> floorMaterial;
     std::optional<std::string> wallMaterial;
     std::optional<std::string> ceilingMaterial;
+    bool dressing = true; // set dressing rules add props to this room (plan format 7)
 
     bool operator==(const Room&) const = default;
 };
@@ -128,6 +131,9 @@ struct Opening {
     HingeEnd hinge = HingeEnd::Start;
     WallSide swing = WallSide::Right;
     std::optional<std::string> frame;
+    // With no frame, a rectangular door or window gets a catalog door or window that fits (OpeningAssets.h).
+    // False keeps the fill Plynth builds (plan format 7).
+    bool autoFrame = true;
 
     bool operator==(const Opening&) const = default;
 };
@@ -230,6 +236,20 @@ struct Stair {
     bool operator==(const Stair&) const = default;
 };
 
+// A light marker (plan format 7): where the build puts a point light. x and y are plan metres, z is the height
+// above the floor, from 0 to the floor's ceiling height. room is the room it stands in, kept up to date by the
+// light and room commands like an item's room. No fixture is built: a lamp is a catalog asset.
+struct LightMarker {
+    Id id;
+    LightKind kind = LightKind::Ceiling;
+    std::optional<Id> room;
+    double x = 0.0;
+    double y = 0.0;
+    double z = 0.0;
+
+    bool operator==(const LightMarker&) const = default;
+};
+
 // One storey. image is a path in UTF-8 with forward slashes, relative to the project folder
 // (for example "plans/floor1.png"). It may be absolute only in memory, before the project is first saved.
 // slabThickness is the slab between this floor's ceiling and the next floor (or the roof): the next floor's
@@ -247,6 +267,7 @@ struct Floor {
     double slabThickness = kDefaultSlabThickness;
     ImageOffset imageOffset;
     std::vector<Stair> stairs;
+    std::vector<LightMarker> lights;
 
     bool operator==(const Floor&) const = default;
 };
@@ -301,7 +322,7 @@ Plan makeEmptyPlan();
 Floor* findFloor(Plan& plan, std::string_view floorId);
 const Floor* findFloor(const Plan& plan, std::string_view floorId);
 
-// Finds the floor that holds the point, wall, room, opening, item or stair with this id. Null when there is none.
+// Finds the floor that holds the point, wall, room, opening, item, stair or light with this id. Null when there is none.
 Floor* findFloorContaining(Plan& plan, std::string_view objectId);
 const Floor* findFloorContaining(const Plan& plan, std::string_view objectId);
 
@@ -329,6 +350,8 @@ Item* findItem(Floor& floor, std::string_view id);
 const Item* findItem(const Floor& floor, std::string_view id);
 Stair* findStair(Floor& floor, std::string_view id);
 const Stair* findStair(const Floor& floor, std::string_view id);
+LightMarker* findLight(Floor& floor, std::string_view id);
+const LightMarker* findLight(const Floor& floor, std::string_view id);
 
 // Says whether any floor, object or roof section entry in the plan already uses this id.
 bool idInUse(const Plan& plan, std::string_view id);
@@ -361,6 +384,8 @@ bool isValidId(std::string_view id);
 // Roof settings (the default and each entry): type a well formed name, pitch from 0 to kMaxRoofPitch, overhang
 // from 0 to kMaxRoofOverhang, parapet from 0 to kMaxParapet (Roofs.h), direction from 0 up to 360 when set.
 // Roof section entries: floor a floor of the plan, anchor finite, material well formed when set.
+// Lights (format 7): x and y finite, z from 0 to the floor's ceiling height, room (when set) a room of their
+// own floor.
 // Whether an opening fits its wall, and whether its shape is registered, is not part of the format: commands
 // refuse openings that do not fit (checkOpeningFit in Openings.h), and openingProblems lists the ones that
 // stopped fitting after a wall changed. So a file from another machine with a custom shape still loads.
