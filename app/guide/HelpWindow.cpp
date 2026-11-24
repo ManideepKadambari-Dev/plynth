@@ -6,6 +6,7 @@
 
 #include <QDesktopServices>
 #include <QFile>
+#include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -78,6 +79,11 @@ HelpWindow::HelpWindow(const GuideStyle& style, const std::filesystem::path& doc
     left->addWidget(search_);
     pages_ = new QListWidget(this);
     pages_->setToolTip(tr("The help pages. Click one to read it"));
+    pages_->setFont(style.uiFont);
+    pages_->setTextElideMode(Qt::ElideRight);
+    // Every row gets the height of a line of the list font plus the theme's padding above and below, so the rows
+    // never run into each other whatever size the style gives them.
+    const QSize rowSize(0, QFontMetrics(style.uiFont).height() + style.unit * 4);
     for (const plynth::HelpPageEntry& entry : plynth::helpPages()) {
         if (!entry.listed) continue;
         if (entry.kind == plynth::HelpPageKind::File) {
@@ -86,6 +92,7 @@ HelpWindow::HelpWindow(const GuideStyle& style, const std::filesystem::path& doc
         }
         auto* item = new QListWidgetItem(fromCore(entry.title), pages_);
         item->setData(Qt::UserRole, fromCore(entry.id));
+        item->setSizeHint(rowSize);
     }
     left->addWidget(pages_, 1);
     auto* leftBox = new QWidget(this);
