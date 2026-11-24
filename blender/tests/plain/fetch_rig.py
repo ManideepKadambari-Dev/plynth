@@ -301,7 +301,8 @@ class Rig:
     # Writes the saved preferences and the scenarios of the two fakes, as a start of the stand-in reads them.
     def prepare(self):
         addons = dict({"blenderkit": self.prefs}, **self.extra_addons)
-        self.write(os.path.join(self.blender_user, "config", "userpref.json"), json.dumps({"addons": addons}))
+        self.prepared_prefs = json.dumps({"addons": addons})
+        self.write(self.userpref_path(), self.prepared_prefs)
         self.write(os.path.join(self.root, "addon_scenario.json"), json.dumps(self.addon_scenario))
         self.write(os.path.join(self.root, "helper_scenario.json"), json.dumps(self.helper_scenario))
 
@@ -342,14 +343,30 @@ class Rig:
     def requests(self, op=None):
         return [entry for entry in read_lines(self.helper_log) if op is None or entry.get("op") == op]
 
-    # Path and content hash of every file below the scratch home, to see that nothing changed.
+    # The saved preferences file the rig writes for each fetch, as Blender's saved state.
+    def userpref_path(self):
+        return os.path.join(self.blender_user, "config", "userpref.json")
+
+    # Path and content hash of every file below the scratch home, to see that nothing changed. The saved
+    # preferences are the rig's own input, rewritten before each fetch: they count as "as prepared" while they
+    # are missing before the first fetch or hold exactly what the rig last wrote, so any change the child makes
+    # still shows.
     def fingerprint(self):
         seen = {}
+        prepared = getattr(self, "prepared_prefs", None)
+        userpref = os.path.normcase(self.userpref_path())
         for current, _folders, names in os.walk(self.home):
             for name in names:
                 path = os.path.join(current, name)
                 with open(path, "rb") as handle:
-                    seen[os.path.relpath(path, self.home)] = hashlib.sha256(handle.read()).hexdigest()
+                    data = handle.read()
+                digest = hashlib.sha256(data).hexdigest()
+                if os.path.normcase(path) == userpref and prepared is not None and data == prepared.encode("utf-8"):
+                    digest = "as prepared"
+                seen[os.path.relpath(path, self.home)] = digest
+        relative = os.path.relpath(self.userpref_path(), self.home)
+        if prepared is None and relative not in seen:
+            seen[relative] = "as prepared"
         return seen
 
     # The end of the child's output, for a failing check.

@@ -1,5 +1,6 @@
 """Run by test_fetch_guard in the stand-in Blender with the fetch guard loaded. It tries each kind of event
-and prints one JSON line {"name": ..., "ok": true or false, "error": "<type name>"} for each.
+and prints one JSON line {"name": ..., "ok": true or false, "error": "<type name>", "detail": "<its text>"} for
+each.
     stand_in_blender.py -b ... --python guard_probe.py -- <outside folder> <inside folder> <helper copy> <pid>
 """
 import json
@@ -15,7 +16,8 @@ def attempt(name, action):
         action()
         print(json.dumps({"name": name, "ok": True, "error": ""}), flush=True)
     except BaseException as error:
-        print(json.dumps({"name": name, "ok": False, "error": type(error).__name__}), flush=True)
+        print(json.dumps({"name": name, "ok": False, "error": type(error).__name__, "detail": str(error)[:300]}),
+              flush=True)
 
 
 # Writes a small file.

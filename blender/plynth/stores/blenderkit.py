@@ -75,6 +75,10 @@ NO_PORTS = "No free local ports were found for the helper of the %s."
 NO_HELPER = "The helper of the %s did not start."
 OTHER_HELPER = "The %s reached a helper that this download did not start, so the download was not started."
 RESTARTED = "The helper of the %s stopped during the download."
+ENDED_EARLY = "The helper of the %s ended before it answered."
+GUARD_REFUSED = "The fetch guard refused to start the helper of the %s."
+START_FAILED = "The helper of the %s could not be started (%s)."
+GUARD_REFUSED_TEXT = "Refused by the fetch guard"
 BAD_REQUEST = "The %s asked for a download that does not match the item, so it was not sent."
 OTHER_ITEM = "BlenderKit answered with another item than the one asked for. Copy the address from the item's page."
 NOT_STARTED = "The %s did not start the download. Check the item in BlenderKit inside Blender."
@@ -179,6 +183,7 @@ class Fetch:
         self.noted = None
         self.helper_started = False
         self.restarted = False
+        self.start_problem = None
         self.process = None
 
     # A short text naming the add-on and its version, for messages.
@@ -477,10 +482,19 @@ class Fetch:
     def start_once(self, original):
         def start_blenderkit_client(*args, **kwargs):
             if self.helper_started:
-                self.restarted = True
+                if self.process is None:
+                    self.start_problem = self.start_problem or ENDED_EARLY % self.label
+                else:
+                    self.restarted = True
                 raise PermissionError(13, REFUSED_TEXT)
             self.helper_started = True
-            return original(*args, **kwargs)
+            try:
+                return original(*args, **kwargs)
+            except Exception as error:
+                refused = isinstance(error, PermissionError) and GUARD_REFUSED_TEXT in str(error)
+                self.start_problem = GUARD_REFUSED % self.label if refused else \
+                    START_FAILED % (self.label, type(error).__name__)
+                raise
         return start_blenderkit_client
 
     # Whether the helper in use is the living child this Blender started, on one of the fetch's ports.
@@ -501,6 +515,8 @@ class Fetch:
             self.parts["timer"].client_communication_timer()
         except Exception:
             pass
+        if self.start_problem:
+            raise WorkerError("download_failed", self.start_problem)
         if self.restarted:
             self.fail(RESTARTED)
 
