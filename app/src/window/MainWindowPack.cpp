@@ -31,7 +31,7 @@ void MainWindow::packProjectDialog()
     }
     if (doc_.isModified()) {
         const QMessageBox::StandardButton answer =
-            QMessageBox::question(this, tr("Pack project"), tr("The project has to be saved before it is packed. Save it now?"),
+            QMessageBox::question(dialogParent(), tr("Pack project"), tr("The project has to be saved before it is packed. Save it now?"),
                                   QMessageBox::Save | QMessageBox::Cancel, QMessageBox::Save);
         if (answer != QMessageBox::Save || !saveDocument())
             return;
@@ -47,7 +47,7 @@ void MainWindow::packProjectDialog()
         showError(tr("Pack project"), fromCore(report.status.message));
         return;
     }
-    PackDialog dialog(report, this);
+    PackDialog dialog(report, dialogParent());
     dialog.exec();
 }
 
@@ -97,7 +97,7 @@ void MainWindow::unpackProjectDialog()
         showError(tr("Unpack into library"), fromCore(plan.status.message));
         return;
     }
-    PackDialog dialog(plan, this);
+    PackDialog dialog(plan, dialogParent());
     if (dialog.exec() != QDialog::Accepted)
         return;
     plynth::UnpackOptions options;

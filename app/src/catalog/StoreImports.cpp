@@ -126,7 +126,7 @@ void StoreImports::importFiles(const QString& integrationId, bool material)
                          : tr("Import assets from %1").arg(fromCore(integration->name()));
         filter = filterFor(*integration, material);
     }
-    const QStringList files = QFileDialog::getOpenFileNames(dialogParent_, title, QString(), filter);
+    const QStringList files = QFileDialog::getOpenFileNames(dialogWindow(), title, QString(), filter);
     if (!files.isEmpty())
         importChosenFiles(integrationId, files, material);
 }
@@ -187,7 +187,7 @@ void StoreImports::importFabZips(const QStringList& zips, bool material)
         return;
     }
     FabImportDialog dialog(host_.paths(), zips, material, host_.settings().keepImportedZips,
-                           std::string(plynth::kFabImporterId), dialogParent_);
+                           std::string(plynth::kFabImporterId), dialogWindow());
     if (dialog.exec() == QDialog::Accepted)
         queuePicks(dialog);
 }
@@ -198,7 +198,7 @@ FabImportDialog* StoreImports::openFabDialog(const QStringList& zips, bool mater
     if (zips.isEmpty() || !host_.hasLibrary())
         return nullptr;
     auto* dialog = new FabImportDialog(host_.paths(), zips, material, host_.settings().keepImportedZips,
-                                       std::string(plynth::kFabImporterId), dialogParent_);
+                                       std::string(plynth::kFabImporterId), dialogWindow());
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     connect(dialog, &QDialog::accepted, this, [this, dialog]() { queuePicks(*dialog); });
     dialog->open();
@@ -247,7 +247,7 @@ void StoreImports::pickModel(int queueItemId)
         return;
     }
     const std::string importer = rowRequest.importer;
-    FabImportDialog dialog(host_.paths(), {path}, false, host_.settings().keepImportedZips, importer, dialogParent_);
+    FabImportDialog dialog(host_.paths(), {path}, false, host_.settings().keepImportedZips, importer, dialogWindow());
     if (dialog.exec() != QDialog::Accepted)
         return;
     const std::vector<FabImportDialog::Pick> picks = dialog.picks();

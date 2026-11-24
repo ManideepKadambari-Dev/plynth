@@ -75,7 +75,7 @@ void MainWindow::startBuild()
             return;
         }
         const QMessageBox::StandardButton answer =
-            QMessageBox::question(this, tr("Build"), tr("The project has to be saved before it can be built. Save it now?"),
+            QMessageBox::question(dialogParent(), tr("Build"), tr("The project has to be saved before it can be built. Save it now?"),
                                   QMessageBox::Save | QMessageBox::Cancel, QMessageBox::Save);
         if (answer != QMessageBox::Save || !saveDocumentAs() || !doc_.hasFolder())
             return;
@@ -265,7 +265,7 @@ void MainWindow::save3dPicture()
         options.cutFloor = focus_->floorId().toStdString();
     const std::filesystem::path suggested = doc_.folder() / std::string(plynth::kRendersFolderName) /
                                             (std::string(plynth::renderViewName(options.view)) + ".png");
-    const QString file = QFileDialog::getSaveFileName(this, tr("Save 3D picture"),
+    const QString file = QFileDialog::getSaveFileName(dialogParent(), tr("Save 3D picture"),
                                                       QString::fromStdWString(suggested.wstring()),
                                                       tr("PNG pictures (*.png)"));
     if (file.isEmpty())

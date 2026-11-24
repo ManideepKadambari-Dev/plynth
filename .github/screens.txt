@@ -9,16 +9,18 @@ assets-window: {project} --screenshot-window assets
 materials-window: {project} --screenshot-window materials
 sources-window: {project} --screenshot-window sources
 material-import-window: {project} --screenshot-window material-import
-build-window: {project} --screenshot-window build
-export-window: {project} --screenshot-window export
+build-window: {built} --screenshot-window build
+build-window-empty: {project} --screenshot-window build
+export-window: {built} --screenshot-window export
+export-window-unbuilt: {project} --screenshot-window export
 setup: {project} --setup
 help: {project} --help-page getting-started
 help-user-guide: {project} --help-page user-guide
 help-search: {project} --help-search stairs
 about: {project} --about
 home-samples: --home
-export-licenses: {project} --export-licenses-on --screenshot-window export
+export-licenses: {built} --export-licenses-on --screenshot-window export
 assets-author: {project} --select-asset chair --screenshot-window assets
 assets-window-wide: {project} --screenshot-window assets --window-size 1700x1000
-export-window-wide: {project} --screenshot-window export --window-size 1700x1000
+export-window-wide: {built} --screenshot-window export --window-size 1700x1000
 sources-window-wide: {project} --screenshot-window sources --window-size 1700x1000

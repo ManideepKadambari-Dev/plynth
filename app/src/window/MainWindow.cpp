@@ -351,6 +351,7 @@ MainWindow::MainWindow(QWidget* parent)
         showMaterialImport();
     });
     integrations_->setActions(storeImports_);
+    storeImports_->setDialogParent([this]() { return dialogParent(); });
     connect(queueView_, &ImportQueueView::pickModelRequested, storeImports_, &StoreImports::pickModel);
     connect(storeImports_, &StoreImports::notice, statusBar_, [this](const QString& text) { statusBar_->showMessage(text); });
     connect(host_, &LibraryHost::libraryChanged, integrations_, &IntegrationsPanel::refresh);
@@ -542,6 +543,16 @@ void MainWindow::makeToolWindows()
         gather(menu);
     for (ToolWindow* window : std::as_const(toolWindows_))
         window->addActions(shared);
+}
+
+// The window a question or a dialog opens over: the app's own window the user is working in, else the main window.
+QWidget* MainWindow::dialogParent() const
+{
+    const QWidget* active = QApplication::activeWindow();
+    for (ToolWindow* window : toolWindows_)
+        if (window == active && window->isVisible())
+            return window;
+    return const_cast<MainWindow*>(this);
 }
 
 // The window of this name, or null.
@@ -1063,7 +1074,7 @@ void MainWindow::openSetupCheck()
         setupDialog_->raise();
         return;
     }
-    setupDialog_ = new SetupCheckDialog(*host_, this);
+    setupDialog_ = new SetupCheckDialog(*host_, dialogParent());
     setupDialog_->setAttribute(Qt::WA_DeleteOnClose);
     setupDialog_->open();
 }
@@ -1244,7 +1255,7 @@ void MainWindow::importDialog()
     QStringList patterns;
     for (const std::string& suffix : plynth::importableSuffixes())
         patterns << QStringLiteral("*") + fromCore(suffix);
-    const QStringList files = QFileDialog::getOpenFileNames(this, tr("Import asset"), lastAssetFolder_,
+    const QStringList files = QFileDialog::getOpenFileNames(dialogParent(), tr("Import asset"), lastAssetFolder_,
                                                             tr("Models (%1)").arg(patterns.join(QLatin1Char(' '))));
     if (files.isEmpty())
         return;
@@ -1313,7 +1324,7 @@ void MainWindow::editRoomTypes()
         showError(tr("Room types and categories"), tr("No library folder is set."));
         return;
     }
-    RoomTypesDialog dialog(*host_, this);
+    RoomTypesDialog dialog(*host_, dialogParent());
     dialog.exec();
 }
 
@@ -1891,7 +1902,7 @@ void MainWindow::renameFloor(const QString& floorId)
     if (floor == nullptr || doc_.isReadOnly() || screenshotMode_)
         return;
     bool ok = false;
-    const QString name = QInputDialog::getText(this, tr("Rename floor"), tr("Name of the floor"), QLineEdit::Normal,
+    const QString name = QInputDialog::getText(dialogParent(), tr("Rename floor"), tr("Name of the floor"), QLineEdit::Normal,
                                                fromCore(floor->name), &ok)
                              .trimmed();
     if (!ok || name.isEmpty() || name.toStdString() == floor->name)
@@ -1912,7 +1923,7 @@ void MainWindow::removeFloor(const QString& floorId)
         return;
     if (!screenshotMode_) {
         const QString name = floor->name.empty() ? floorId : fromCore(floor->name);
-        QMessageBox box(this);
+        QMessageBox box(dialogParent());
         box.setIcon(QMessageBox::NoIcon);
         box.setTextFormat(Qt::PlainText);
         box.setWindowTitle(tr("Remove floor"));
@@ -2282,7 +2293,7 @@ void MainWindow::reloadOrAsk()
         return;
 
     asking_ = true;
-    QMessageBox box(this);
+    QMessageBox box(dialogParent());
     box.setIcon(QMessageBox::NoIcon);
     box.setTextFormat(Qt::PlainText);
     box.setWindowTitle(tr("Project changed"));
@@ -2319,7 +2330,7 @@ void MainWindow::unlockNow()
     if (!doc_.hasFolder())
         return;
     if (!screenshotMode_) {
-        QMessageBox box(this);
+        QMessageBox box(dialogParent());
         box.setIcon(QMessageBox::NoIcon);
         box.setTextFormat(Qt::PlainText);
         box.setWindowTitle(tr("Unlock now"));
@@ -2433,7 +2444,7 @@ bool MainWindow::confirmDiscardChanges()
     if (screenshotMode_)
         return true;
     if (terminal_->hasRunningProgram()) {
-        QMessageBox box(this);
+        QMessageBox box(dialogParent());
         box.setIcon(QMessageBox::NoIcon);
         box.setTextFormat(Qt::PlainText);
         box.setWindowTitle(tr("Terminal"));
@@ -2448,7 +2459,7 @@ bool MainWindow::confirmDiscardChanges()
             return false;
     }
     if (doc_.isModified()) {
-        QMessageBox box(this);
+        QMessageBox box(dialogParent());
         box.setIcon(QMessageBox::NoIcon);
         box.setTextFormat(Qt::PlainText);
         box.setWindowTitle(tr("Unsaved changes"));
@@ -2509,7 +2520,7 @@ void MainWindow::newProject()
 // Asks for an image and starts an untitled project from it.
 void MainWindow::newProjectFromImage()
 {
-    const QString file = QFileDialog::getOpenFileName(this, tr("New project from image"), lastFolder_, imageFilter());
+    const QString file = QFileDialog::getOpenFileName(dialogParent(), tr("New project from image"), lastFolder_, imageFilter());
     if (file.isEmpty())
         return;
     lastFolder_ = QFileInfo(file).absolutePath();
@@ -2526,7 +2537,7 @@ void MainWindow::newProjectFromImage()
 // Asks for a project folder and opens it after the save question.
 void MainWindow::openProjectDialog()
 {
-    const QString folder = QFileDialog::getExistingDirectory(this, tr("Open project"), lastFolder_);
+    const QString folder = QFileDialog::getExistingDirectory(dialogParent(), tr("Open project"), lastFolder_);
     if (folder.isEmpty())
         return;
     lastFolder_ = QFileInfo(folder).absolutePath();
@@ -2544,7 +2555,7 @@ void MainWindow::openProjectDialog()
 // Asks for an image file and sets it on the floor.
 void MainWindow::setImageDialog()
 {
-    const QString file = QFileDialog::getOpenFileName(this, tr("Set plan image"), lastFolder_, imageFilter());
+    const QString file = QFileDialog::getOpenFileName(dialogParent(), tr("Set plan image"), lastFolder_, imageFilter());
     if (file.isEmpty())
         return;
     lastFolder_ = QFileInfo(file).absolutePath();
@@ -2573,7 +2584,7 @@ bool MainWindow::saveDocument()
 // Asks for a folder and saves the project there.
 bool MainWindow::saveDocumentAs()
 {
-    const QString folder = QFileDialog::getExistingDirectory(this, tr("Save project as"), lastFolder_);
+    const QString folder = QFileDialog::getExistingDirectory(dialogParent(), tr("Save project as"), lastFolder_);
     if (folder.isEmpty())
         return false;
     lastFolder_ = QFileInfo(folder).absolutePath();
@@ -2616,7 +2627,7 @@ void MainWindow::offerRecovery()
     if (info.olderThanSaved)
         text += QLatin1Char(' ') + tr("The saved plan is newer.");
 
-    QMessageBox box(this);
+    QMessageBox box(dialogParent());
     box.setIcon(QMessageBox::NoIcon);
     box.setTextFormat(Qt::PlainText);
     box.setWindowTitle(tr("Recover changes"));
@@ -2700,7 +2711,7 @@ void MainWindow::closeEvent(QCloseEvent* event)
 // Shows a themed message dialog with a core sentence or another reason.
 void MainWindow::showError(const QString& title, const QString& message)
 {
-    QMessageBox box(this);
+    QMessageBox box(dialogParent());
     box.setIcon(QMessageBox::NoIcon);
     box.setTextFormat(Qt::PlainText);
     box.setWindowTitle(title);

@@ -112,6 +112,26 @@ if ($r.Code -ne 0) { throw "plynth library init ended with $($r.Code): $($r.Outp
 $r = Invoke-Plynth $cli @('samples', 'add', '--library', $library) @{} 600
 if ($r.Code -ne 0) { Write-Host "::warning::plynth samples add ended with $($r.Code): $($r.Output)" }
 
+# A second copy of the project, built and exported with the fake Blender, for the Build report and Export
+# pictures. {built} in screens.txt names it. The first project stays unbuilt, so the other pictures do not
+# change. When the fake build or export fails, {built} falls back to the unbuilt project.
+$built = Join-Path $scratch 'projects/apartment-01-built'
+$builtSteps = @(
+    @('project', 'new', '--project', $built, '--image', $plan),
+    @('scale', 'set', '--project', $built, '--pixels-per-metre', '100'),
+    @('detect', '--project', $built, '--apply'),
+    @('build', '--project', $built, '--quiet'),
+    @('export', '--project', $built, '--quiet')
+)
+foreach ($s in $builtSteps) {
+    $r = Invoke-Plynth $cli $s @{} 600
+    if ($r.Code -ne 0) {
+        Write-Host "::warning::plynth $($s[0]) $($s[1]) for the built copy ended with $($r.Code): $($r.Output)"
+        if ($s[0] -eq 'build' -or $s[0] -eq 'project' -or $s[0] -eq 'scale' -or $s[0] -eq 'detect') { $built = $project }
+        break
+    }
+}
+
 $screens = @()
 foreach ($line in Get-Content (Join-Path $root '.github/screens.txt')) {
     if (-not $line.Trim()) { continue }
@@ -126,7 +146,8 @@ $software = @{ QT_QPA_PLATFORM = 'windows'; QSG_RHI_BACKEND = 'd3d11'; QSG_RHI_P
 $rows = @()
 $failed = 0
 foreach ($screen in $screens) {
-    $words = @(Split-Options $screen.Options | ForEach-Object { if ($_ -eq '{project}') { $project } else { $_ } })
+    $words = @(Split-Options $screen.Options | ForEach-Object {
+        if ($_ -eq '{project}') { $project } elseif ($_ -eq '{built}') { $built } else { $_ } })
     $threeD = $screen.Options -match '--view\s+3d'
     foreach ($size in $sizes) {
         $file = Join-Path $OutFolder "$($screen.Name)-$size.png"

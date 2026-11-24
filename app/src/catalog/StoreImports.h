@@ -26,6 +26,9 @@ public:
     StoreImports(LibraryHost& host, ImportQueue& assets, MaterialImportQueue& materials, QWidget* dialogParent,
                  QObject* parent = nullptr);
 
+    // Names the window a file picker or the Fab dialog opens over, such as the Sources window that asked for it.
+    // Without it they open over the window given at construction.
+    void setDialogParent(std::function<QWidget*()> parent) { parentOf_ = std::move(parent); }
     // What the Own files buttons do: the window's own import actions for assets or for materials.
     void setOwnFiles(std::function<void(bool material)> action) { ownFiles_ = std::move(action); }
     // What Own files do with files already chosen: the window queues them as its own imports do.
@@ -52,11 +55,14 @@ signals:
     void notice(const QString& text);
 
 private:
+    // The window dialogs open over now.
+    QWidget* dialogWindow() const { return parentOf_ ? parentOf_() : dialogParent_; }
     void queuePicks(const FabImportDialog& dialog);
     LibraryHost& host_;
     ImportQueue& assets_;
     MaterialImportQueue& materials_;
     QWidget* dialogParent_ = nullptr;
+    std::function<QWidget*()> parentOf_;
     std::function<void(bool)> ownFiles_;
     std::function<void(const QStringList&, bool)> ownPaths_;
 };

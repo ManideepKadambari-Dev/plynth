@@ -261,6 +261,7 @@ protected:
     bool nativeEvent(const QByteArray& eventType, void* message, qintptr* result) override;
 
 private:
+    QWidget* dialogParent() const;
     void makeToolWindows();
     void makeSidePanelToggle();
     void applySidePanelWidth();
