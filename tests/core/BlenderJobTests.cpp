@@ -174,11 +174,46 @@ TEST_CASE("a run without factory startup works", "[core][blenderjob]") {
 
 namespace {
 
-// Points the private Blender folder at a temporary one for the life of the object.
+// Points the private Blender folder at a temporary one for the life of the object, then puts the old value back.
 struct PrivateFolderScope {
-    explicit PrivateFolderScope(const fs::path& folder) { SetEnvironmentVariableW(L"PLYNTH_BLENDER_PRIVATE", folder.c_str()); }
-    ~PrivateFolderScope() { SetEnvironmentVariableW(L"PLYNTH_BLENDER_PRIVATE", nullptr); }
+    // Sets the folder and keeps the value it replaced.
+    explicit PrivateFolderScope(const fs::path& folder) : env("PLYNTH_BLENDER_PRIVATE", pathToUtf8(folder)) {}
+    plynth::test::ScopedEnv env;
 };
+
+// The private folder in the Win32 environment, empty when it is not set.
+std::wstring win32PrivateFolder()
+{
+    const DWORD size = GetEnvironmentVariableW(L"PLYNTH_BLENDER_PRIVATE", nullptr, 0);
+    if (size == 0) return {};
+    std::wstring value(size, L'\0');
+    value.resize(GetEnvironmentVariableW(L"PLYNTH_BLENDER_PRIVATE", value.data(), size));
+    return value;
+}
+
+// The private folder in the C runtime environment, empty when it is not set.
+std::wstring runtimePrivateFolder()
+{
+    wchar_t* text = nullptr;
+    std::size_t size = 0;
+    std::wstring value;
+    if (_wdupenv_s(&text, &size, L"PLYNTH_BLENDER_PRIVATE") == 0 && text) value = text;
+    free(text);
+    return value;
+}
+
+// The private folder a child process is given, read back from the program that prints its environment.
+std::string childPrivateFolder()
+{
+    ProcessSpec spec;
+    spec.program = fs::path(PLYNTH_ECHO_LINES);
+    spec.arguments = {"--env", "PLYNTH_BLENDER_PRIVATE"};
+    std::string line;
+    plynth::test::requireOk(runProcess(spec, [&](std::string_view text) { line = text; }).status);
+    const std::string start = "env:PLYNTH_BLENDER_PRIVATE=";
+    REQUIRE(line.rfind(start, 0) == 0);
+    return line.substr(start.size());
+}
 
 // The lines the fake wrote about the variables it saw.
 std::vector<std::string> fakeEnvLines(const JobFixture& f)
@@ -189,6 +224,39 @@ std::vector<std::string> fakeEnvLines(const JobFixture& f)
     return lines;
 }
 
+}
+
+TEST_CASE("the tests keep the private Blender folder under the temp folder", "[core][blenderjob][privatefolder]") {
+    plynth::test::TempDir tmp("private-guard");
+    // Should the guard ever be wrong, the fallback folder lands here and not in the user's own.
+    plynth::test::ScopedEnv local("LOCALAPPDATA", pathToUtf8(tmp.path() / "local"));
+
+    const std::wstring atStart = win32PrivateFolder();
+    REQUIRE_FALSE(atStart.empty());
+    const fs::path fromTemp = fs::path(atStart).lexically_normal().lexically_relative(fs::temp_directory_path());
+    REQUIRE_FALSE(fromTemp.empty());
+    const std::wstring firstPart = fromTemp.begin()->wstring();
+    REQUIRE(firstPart != L"..");
+    REQUIRE(firstPart != L".");
+    REQUIRE(runtimePrivateFolder() == atStart);
+    REQUIRE(childPrivateFolder() == fs::path(atStart).string());
+    {
+        const fs::path other = fs::temp_directory_path() / ("plynth-tests-private-scope-" + std::to_string(GetCurrentProcessId()));
+        const PrivateFolderScope scope(other);
+        REQUIRE(fs::path(win32PrivateFolder()) == other);
+        REQUIRE(childPrivateFolder() == fs::path(win32PrivateFolder()).string());
+    }
+    REQUIRE(win32PrivateFolder() == atStart);
+    REQUIRE(runtimePrivateFolder() == atStart);
+    REQUIRE(childPrivateFolder() == fs::path(atStart).string());
+
+    // Only now is Blender's folder resolved, so a failed check above creates nothing.
+    const fs::path exe = plynth::test::makeFakeBlender(tmp.path() / "blender", "5.2.0");
+    plynth::test::requireOk(inspectBlender(exe).status);
+    std::ifstream log(exe.parent_path() / "fake_env.log", std::ios::binary);
+    std::string seen;
+    REQUIRE(std::getline(log, seen).good());
+    REQUIRE(seen.find("|BLENDER_USER_RESOURCES=" + pathToUtf8(fs::path(atStart)) + "|") != std::string::npos);
 }
 
 TEST_CASE("a factory startup job and the version probe run in the private folder", "[core][blenderjob]") {
