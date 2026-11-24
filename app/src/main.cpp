@@ -3,6 +3,7 @@
 #include "catalog/LibraryHost.h"
 #include "window/MainWindow.h"
 #include "guide/GuideHost.h"
+#include "guide/TourAudit.h"
 #include "preview/RenderHost.h"
 
 #include <plynth/cli/Cli.h>
@@ -241,6 +242,10 @@ int main(int argc, char* argv[])
     QCommandLineOption firstRunOption(QStringLiteral("first-run"),
                                       QStringLiteral("Apply the first run rule as if there were no settings file. For checks only."));
     parser.addOption(firstRunOption);
+    QCommandLineOption tourAuditOption(QStringLiteral("tour-audit"),
+                                       QStringLiteral("List every control on every screen, check it has a tour entry, write the result and exit. For the build check only."),
+                                       QStringLiteral("file"));
+    parser.addOption(tourAuditOption);
     QCommandLineOption whatIsThisOption(QStringLiteral("what-is-this"),
                                         QStringLiteral("Turn on What is this? and explain a control. For checks only."),
                                         QStringLiteral("control id"));
@@ -369,6 +374,9 @@ int main(int argc, char* argv[])
             return kExitBadArguments;
     }
     const bool wantsScreenshot = parser.isSet(screenshotOption);
+    const bool wantsAudit = parser.isSet(tourAuditOption);
+    // A screenshot and the tour audit both run with no dialogs, no probe and nothing written.
+    const bool quiet = wantsScreenshot || wantsAudit;
     if (wantsScreenshot && parser.value(screenshotOption).isEmpty())
         return kExitBadArguments;
 
@@ -417,10 +425,10 @@ int main(int argc, char* argv[])
             return kExitBadArguments;
         positional.removeAt(at);
     }
-    if (wantsScreenshot)
+    if (quiet)
         plynth::app::LibraryHost::setAutoProbe(false);
     plynth::app::MainWindow window;
-    window.setScreenshotMode(wantsScreenshot);
+    window.setScreenshotMode(quiet);
     if (hasSize)
         window.resize(size);
     else
@@ -487,7 +495,7 @@ int main(int argc, char* argv[])
         window.showMaterialsTab();
     if (parser.isSet(selectMaterialOption))
         window.selectMaterial(parser.value(selectMaterialOption));
-    if (parser.isSet(homeOption) || (!wantsScreenshot && !hasProject && !parser.isSet(imageOption)))
+    if (parser.isSet(homeOption) || (!quiet && !hasProject && !parser.isSet(imageOption)))
         window.showHome();
     window.show();
     if (parser.isSet(helpPageOption)) {
@@ -600,11 +608,11 @@ int main(int argc, char* argv[])
         const QString item = parser.value(setupItemOption);
         QTimer::singleShot(0, &window, [&window, item]() { window.showSetupCheck(item); });
     }
-    else if (!wantsScreenshot)
+    else if (!quiet)
         QTimer::singleShot(0, &window, [&window]() { window.openSetupCheckIfNeeded(); });
-    if (loadFailed && !wantsScreenshot)
+    if (loadFailed && !quiet)
         QTimer::singleShot(0, &window, [&window, loadTitle, loadError]() { window.showError(loadTitle, loadError); });
-    else if (hasProject && !loadFailed && !wantsScreenshot)
+    else if (hasProject && !loadFailed && !quiet)
         QTimer::singleShot(0, &window, [&window]() { window.offerRecovery(); });
 
     const bool wantsTerminal = parser.isSet(terminalOption);
@@ -618,6 +626,10 @@ int main(int argc, char* argv[])
     }
 
     const bool wantsBuild = parser.isSet(buildOption) || parser.isSet(exportOption) || parser.isSet(exportCheckOption);
+    if (wantsAudit) {
+        const QString file = parser.value(tourAuditOption);
+        QTimer::singleShot(500, &window, [&window, file]() { QApplication::exit(plynth::app::runTourAudit(window, file)); });
+    }
     if (wantsScreenshot) {
         const QString file = parser.value(screenshotOption);
         const QSize target = hasSize ? size : window.size();

@@ -261,3 +261,26 @@ TEST_CASE("asset commands refuse ids that are paths", "[cli][assets]") {
     CHECK(std::filesystem::exists(items / "sofa"));
     CHECK(errorCode(runChecked({"assets", "remove", "nothing_here", "--yes"})) == "not_found");
 }
+
+TEST_CASE("assets set --author saves the author and every entry shows it", "[cli][assets][licenses]") {
+    SettingsReset reset;
+    TempFolder temp("assets-author");
+    makeLibrary(temp);
+    const auto before = runChecked({"assets", "info", "chair"});
+    REQUIRE(before.exitCode == kExitOk);
+    CHECK(before.answer.at("result").at("author").is_null());
+
+    const auto set = runChecked({"assets", "set", "chair", "--author", "A. Maker"});
+    REQUIRE(set.exitCode == kExitOk);
+    CHECK(set.answer.at("result").at("author") == "A. Maker");
+    CHECK(readFile(temp.path() / "Library" / "assets" / "items" / "chair" / "info.json").find("\"author\": \"A. Maker\"") !=
+          std::string::npos);
+    const auto search = runChecked({"assets", "search", "cha"});
+    REQUIRE(search.exitCode == kExitOk);
+    CHECK(search.answer.dump().find("A. Maker") != std::string::npos);
+
+    CHECK(errorCode(runChecked({"assets", "set", "chair", "--author", std::string(121, 'a')})) == "invalid_value");
+    const auto cleared = runChecked({"assets", "set", "chair", "--author", ""});
+    REQUIRE(cleared.exitCode == kExitOk);
+    CHECK(cleared.answer.at("result").at("author").is_null());
+}

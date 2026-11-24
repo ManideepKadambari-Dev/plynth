@@ -233,3 +233,12 @@ TEST_CASE("help lists the materials commands", "[cli][help]") {
         CHECK(std::ranges::find(names, wanted) != names.end());
     }
 }
+
+TEST_CASE("materials set --author saves the author", "[cli][materials][licenses]") {
+    MaterialLibrary library("materials-author");
+    const auto set = runChecked({"materials", "set", "oak_planks", "--author", "Studio A"});
+    REQUIRE(set.exitCode == kExitOk);
+    CHECK(set.answer.at("result").at("author") == "Studio A");
+    CHECK(readFile(library.item("oak_planks") / "info.json").find("Studio A") != std::string::npos);
+    CHECK(errorCode(runChecked({"materials", "set", "oak_planks", "--author", std::string(121, 'b')})) == "invalid_value");
+}

@@ -53,6 +53,8 @@ public:
     // False when the tour file could not be read; the message says why.
     bool tourLoaded() const { return tourLoaded_; }
     QString tourProblem() const { return tourProblem_; }
+    // The tour text as read.
+    const plynth::TourData& tourData() const { return data_; }
 
 signals:
     void whatIsThisChanged(bool on);
