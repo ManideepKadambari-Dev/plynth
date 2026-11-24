@@ -99,6 +99,7 @@ TEST_CASE("arguments with spaces and quotes arrive unchanged", "[core][process]"
     }
 }
 
+
 TEST_CASE("runProcess adds environment variables and keeps the others", "[core][process]") {
     ProcessSpec spec = echo({"--env", "PLYNTH_TEST_VARIABLE", "--env", "PATH"});
     spec.environment = {{"PLYNTH_TEST_VARIABLE", "hello world"}};

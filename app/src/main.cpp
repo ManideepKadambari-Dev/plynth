@@ -175,6 +175,17 @@ int main(int argc, char* argv[])
                                         QStringLiteral("Show the pack or the unpack dialog: pack or unpack. For checks only."),
                                         QStringLiteral("kind"));
     parser.addOption(packDialogOption);
+    QCommandLineOption integrationsTabOption(QStringLiteral("integrations-tab"),
+                                             QStringLiteral("Show the Integrations tab. For checks only."));
+    QCommandLineOption blenderKitAddressOption(QStringLiteral("blenderkit-address"),
+                                               QStringLiteral("Fill the BlenderKit address field of the Integrations tab. For checks only."),
+                                               QStringLiteral("text"));
+    QCommandLineOption fabImportOption(QStringLiteral("fab-import"),
+                                       QStringLiteral("Open the Fab import dialog for this model zip. For checks only."),
+                                       QStringLiteral("zip"));
+    QCommandLineOption integrationFileOption(QStringLiteral("integration-file"),
+                                             QStringLiteral("Followed by an integration id and a file: does what its import button does with that file. For checks only."),
+                                             QStringLiteral("id"));
     QCommandLineOption exportGroupsExpandedOption(QStringLiteral("export-groups-expanded"),
                                                   QStringLiteral("Open every group in the Export tab. For checks only."));
     QCommandLineOption exportKitOnOption(QStringLiteral("export-kit-on"),
@@ -192,6 +203,10 @@ int main(int argc, char* argv[])
     parser.addOption(viewOption);
     parser.addOption(cameraOption);
     parser.addOption(homeOption);
+    parser.addOption(integrationsTabOption);
+    parser.addOption(blenderKitAddressOption);
+    parser.addOption(fabImportOption);
+    parser.addOption(integrationFileOption);
     parser.addOption(alignImageOption);
     parser.addOption(roofSectionsOption);
     parser.addOption(selectRoofOption);
@@ -308,6 +323,24 @@ int main(int argc, char* argv[])
         else
             terminalWords.clear();
     }
+    // The file after the id of --integration-file is its second value, never the project folder.
+    QString integrationFile;
+    if (parser.isSet(integrationFileOption)) {
+        const QStringList raw = QApplication::arguments();
+        for (qsizetype i = 1; i < raw.size(); ++i) {
+            const bool inline_ = raw.at(i).startsWith(QStringLiteral("--integration-file="));
+            if (raw.at(i) != QStringLiteral("--integration-file") && !inline_)
+                continue;
+            const qsizetype next = inline_ ? i + 1 : i + 2;
+            if (next < raw.size())
+                integrationFile = raw.at(next);
+            break;
+        }
+        const qsizetype at = positional.lastIndexOf(integrationFile);
+        if (integrationFile.isEmpty() || at < 0)
+            return kExitBadArguments;
+        positional.removeAt(at);
+    }
     if (wantsScreenshot)
         plynth::app::LibraryHost::setAutoProbe(false);
     plynth::app::MainWindow window;
@@ -385,6 +418,18 @@ int main(int argc, char* argv[])
         window.findChild<plynth::app::ExportPanel*>()->setKitEnabled(true);
     if (parser.isSet(exportTabOption))
         window.showExportTab();
+    if (parser.isSet(blenderKitAddressOption))
+        window.setBlenderKitAddress(parser.value(blenderKitAddressOption));
+    else if (parser.isSet(integrationsTabOption))
+        window.showIntegrationsTab();
+    if (parser.isSet(fabImportOption)) {
+        const QString zip = parser.value(fabImportOption);
+        QTimer::singleShot(0, &window, [&window, zip]() { window.showFabImport(zip); });
+    }
+    if (parser.isSet(integrationFileOption)) {
+        const QString id = parser.value(integrationFileOption);
+        QTimer::singleShot(0, &window, [&window, id, integrationFile]() { window.importIntegrationFile(id, integrationFile); });
+    }
     if (parser.isSet(overlayOption))
         window.setOverlay3d(true);
     if (parser.isSet(zoomOption) && parser.value(zoomOption).toLower() == QStringLiteral("actual"))
@@ -469,6 +514,8 @@ int main(int argc, char* argv[])
             if ((!window.setupPictureReady() || !window.importPictureReady()) && !waited.hasExpired(kSetupWaitMs))
                 return;
             if (!window.materialsPictureReady() && !waited.hasExpired(kBuildWaitMs))
+                return;
+            if (!window.integrationsPictureReady() && !waited.hasExpired(kSetupWaitMs))
                 return;
             poll->stop();
             // Panels rebuilt just before need a few passes to show and lay out their rows.

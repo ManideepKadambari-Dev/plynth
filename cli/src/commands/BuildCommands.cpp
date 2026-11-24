@@ -20,7 +20,7 @@ struct BuildOptions {
     std::string what;
     std::string project;
     std::string library;
-    std::string blender;
+    BlenderOption blender;
     bool quiet = false;
     bool check = false;
 };
@@ -135,9 +135,12 @@ Answer buildProject(const RunContext& context, const BuildOptions& options) {
         return cancelRunning("build", context, options.project);
     }
     const std::string command = "build";
+    Answer failed;
+    if (refuseEmptyBlender(command, options.blender, failed)) {
+        return failed;
+    }
     const std::filesystem::path folder = resolveProjectFolder(context, options.project);
     Document document;
-    Answer failed;
     if (!openProject(command, folder, document, failed, true)) {
         return failed;
     }
@@ -159,11 +162,7 @@ Answer buildProject(const RunContext& context, const BuildOptions& options) {
         }
         opened.settings = loaded.settings;
     }
-    std::optional<std::filesystem::path> blenderOption;
-    if (!options.blender.empty()) {
-        blenderOption = userPath(context, options.blender);
-    }
-    const BlenderChoice choice = chooseBlender(blenderOption, opened.settings);
+    const BlenderChoice choice = chooseBlender(blenderOptionPath(context, options.blender), opened.settings);
     if (!choice.status.ok()) {
         return failure(command, choice.status);
     }

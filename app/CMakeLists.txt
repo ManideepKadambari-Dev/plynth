@@ -12,12 +12,16 @@ add_executable(plynth WIN32
     src/building/ExportController.h
     src/building/ExportController.cpp
     src/building/ProblemMark.h
+    src/catalog/FabImportDialog.h
+    src/catalog/FabImportDialog.cpp
     src/catalog/ImportQueue.h
     src/catalog/ImportQueue.cpp
     src/catalog/LibraryHost.h
     src/catalog/LibraryHost.cpp
     src/catalog/LibraryWatcher.h
     src/catalog/LibraryWatcher.cpp
+    src/catalog/StoreImports.h
+    src/catalog/StoreImports.cpp
     src/canvas/OpeningPaint.h
     src/canvas/OpeningPaint.cpp
     src/canvas/StairPaint.h
@@ -91,6 +95,8 @@ add_executable(plynth WIN32
     src/panels/MaterialsPanel.cpp
     src/panels/ImportQueueView.h
     src/panels/ImportQueueView.cpp
+    src/panels/IntegrationsPanel.h
+    src/panels/IntegrationsPanel.cpp
     src/panels/PropertiesPanel.h
     src/panels/PropertiesPanel.cpp
     src/panels/RightPanel.h

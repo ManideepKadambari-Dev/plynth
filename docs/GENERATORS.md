@@ -166,7 +166,7 @@ The footprint of the stair, which is the hole in the slab and the ceilings, is t
 
 ## Adding an importer
 
-An importer is one way assets come into the library. Today there is one, for your own files (`local_file`). BlenderKit and Fab zips come later, as more importers. This section is for developers.
+An importer is one way assets come into the library. Today there are three: `local_file` for your own files, `fab_zip` for zips downloaded from Fab and `blenderkit` for BlenderKit addresses. This section is for developers.
 
 An importer only decides **what Blender should read**. Everything else is shared by every route: the work folder, the Blender cleanup job, `info.json`, the index, the thumbnail and removing a zip afterwards. That is why a new importer is small.
 
@@ -197,11 +197,11 @@ That line runs when the program starts and adds the importer to the list, which 
 | Field | Meaning |
 |---|---|
 | `file` | The file Blender reads. It may be inside the work folder, for a file the importer made or unpacked. |
-| `format` | A format id from `AssetJobs.h` (`obj`, `fbx`, `gltf`, `blend`, `zip`). It must match a file format module in `blender/plynth/importers/`. |
+| `format` | A format id: `obj`, `fbx`, `gltf`, `blend` or `zip` from `AssetJobs.h`, or `fab` from `FabZip.h`. It must match a file format module in `blender/plynth/importers/`. A new format also adds its id to the `format` list of `cleanup_asset` in `schema/blender-job.schema.json`. |
 | `sourceKind` | Written to `info.json`, for example `local_file`. |
 | `reference` | Written to `info.json`: the original file name or the address. |
 | `defaultName` | The name when the user gave none. |
-| `license` | The license when the user gave none. Empty means `unknown`. |
+| `license` | The license when the user gave none. Empty means `unknown`. When `source.guessed` is true, give none of your own (see "Adding a source"). |
 | `originalIsZip` | True when the original is a zip that should go to the Recycle Bin after a successful import, unless the user keeps it. |
 
 ### Picking between importers
@@ -210,15 +210,15 @@ That line runs when the program starts and adds the importer to the list, which 
 
 ### What does not change
 
-No existing code is edited: not the app, not the CLI, not `AssetImport.cpp`. The new importer shows up in `plynth assets importers`, in the file dialog, and in drag and drop. A test finds an importer by id from the test program, so if the registration trick ever breaks, a test fails.
+No existing code is edited: not the app, not the CLI, not `AssetImport.cpp`. The one exception is a new worker format, which adds its id to the schema as said above. The new importer shows up in `plynth assets importers`, in the file dialog, and in drag and drop. A test finds an importer by id from the test program, so if the registration trick ever breaks, a test fails.
 
 Read `core/src/catalog/importers/LocalFileImporter.cpp` as the worked example. Tests for importers use the fake Blender (`tests/tools/fake_blender`) and need no real Blender: see `tests/core/ImporterTests.cpp`.
 
 ## Adding a material importer
 
-A material importer is one way materials come into the library. Today there are two: `texture_set` for a folder, zip or image file of texture maps, and `blend_material` for one material of a `.blend` file. Fab zips come later as one more importer. This section is for developers.
+A material importer is one way materials come into the library. Today there are four: `texture_set` for a folder, zip or image file of texture maps, `blend_material` for one material of a `.blend` file, `fab_zip` for Fab texture zips and `blenderkit` for BlenderKit material addresses. This section is for developers.
 
-Material importers are a registry of their own, separate from the asset importers, so the two catalogs share nothing. The idea is the same: an importer only decides **what Blender should read**. Matching image files to maps by their names, unpacking zips and reading `material.json` are done by the Blender worker, so core never opens a zip. Everything after that is shared: the work folder, the cleanup job, `info.json`, the index, the thumbnail and removing a zip.
+Material importers are a registry of their own, separate from the asset importers, so the two catalogs share nothing. The idea is the same: an importer only decides **what Blender should read**. Matching image files to maps by their names, unpacking zips and reading `material.json` are done by the Blender worker. Core may read a zip's list of files to decide what to take, as the Fab importer does (`core/include/plynth/core/ZipListing.h`), but it never unpacks one. Everything after that is shared: the work folder, the cleanup job, `info.json`, the index, the thumbnail and removing a zip.
 
 ### The steps
 
@@ -227,7 +227,7 @@ Material importers are a registry of their own, separate from the asset importer
 
 | Field | Meaning |
 |---|---|
-| `workerSource` | Which material source of the worker reads it: `texture_set` or `blend`. It must match a file in `blender/plynth/materials/sources/`. |
+| `workerSource` | Which material source of the worker reads it: `texture_set`, `blend` or `fab`. It must match a file in `blender/plynth/materials/sources/`. A new one also adds its id to the `kind` list of `cleanup_material` in `schema/blender-job.schema.json`. |
 | `path` | The folder, zip, image file or `.blend` the worker reads. |
 | `sourceKind` | Written to `info.json`, for example `texture_set`. |
 | `reference` | Written to `info.json`: the original file or folder name, or the address. |
@@ -241,7 +241,7 @@ Material importers are a registry of their own, separate from the asset importer
 const MaterialImporterRegistrar registrar(std::make_unique<FabMaterialImporter>());
 ```
 
-The highest score wins and ties go to the lower id, as for assets. A new importer shows up in `plynth materials importers`, the import screen's file dialog and the inbox. No existing code is edited. Read `TextureSetImporter.cpp` as the worked example. Tests use the fake Blender, see `tests/core/MaterialImportTests.cpp`.
+The highest score wins and ties go to the lower id, as for assets. A new importer shows up in `plynth materials importers`, the import screen's file dialog and the inbox. No existing code is edited, except the schema line for a new worker material source. Read `TextureSetImporter.cpp` as the worked example. Tests use the fake Blender, see `tests/core/MaterialImportTests.cpp`.
 
 ## Blender worker registries
 
@@ -255,7 +255,7 @@ Each package (`tasks/`, `importers/`, `cleanup/`, `checks/`, `exporters/`, `buil
 
 ### Tasks
 
-A task is what a job asks for. Files in `plynth/tasks/`: `probe`, `cleanup_asset`, `render_thumbnail`, `build`, `cleanup_material`, `export`. A task is a function `run(ctx)` registered with `TASKS.register("name", run)`. It reads `ctx.params`, fills `ctx.output`, adds warnings with `ctx.warn(code, message)`, and raises `WorkerError(code, message)` to fail with a named error. The C++ side must also know the task name and its parameters and output: see `core/include/plynth/core/BlenderJob.h` and `catalog/AssetJobs.h`.
+A task is what a job asks for. Files in `plynth/tasks/`: `probe`, `cleanup_asset`, `render_thumbnail`, `build`, `cleanup_material`, `export`, `blenderkit_fetch`. A task is a function `run(ctx)` registered with `TASKS.register("name", run)`. It reads `ctx.params`, fills `ctx.output`, adds warnings with `ctx.warn(code, message)`, and raises `WorkerError(code, message)` to fail with a named error. The C++ side must also know the task name and its parameters and output: see `core/include/plynth/core/BlenderJob.h` and `catalog/AssetJobs.h`.
 
 ### File format importers
 
@@ -302,11 +302,11 @@ One file for each check in `plynth/checks/`, run by the `run_checks` step. A che
 C++ and Python talk through files, described in `schema/blender-job.schema.json` and `schema/blender-result.schema.json`.
 
 - Plynth writes `job.json`: `format`, `version`, `task`, `job_id`, `result_file` and `params`. The folder holding `result_file` is the job's work folder.
-- It starts `blender --background --factory-startup -noaudio --python-exit-code 3 --python plynth_worker.py -- --job <file>`, with Blender's user folders (`BLENDER_USER_RESOURCES`, `_CONFIG`, `_SCRIPTS`, `_EXTENSIONS`, `_DATAFILES`) set to a private folder of Plynth's, so a job never writes your own Blender folders. Only the add-on probe reads your saved settings, as plain data (see [Setting up Plynth](SETUP.md)). The entry point `plynth_worker.py` reads the job, finds the task in the registry and runs it.
+- For every task but a store fetch it starts `blender --background --factory-startup -noaudio --python-exit-code 3 --python plynth_worker.py -- --job <file>`, with Blender's user folders (`BLENDER_USER_RESOURCES`, `_CONFIG`, `_SCRIPTS`, `_EXTENSIONS`, `_DATAFILES`) set to a private folder of Plynth's, so these jobs never write your own Blender folders. Of these, only the add-on probe reads your saved settings, as plain data (see [Setting up Plynth](SETUP.md)). A store fetch (`blenderkit_fetch`) is the one exception: it starts in the background without `--factory-startup`, with your own settings and enabled add-ons. The entry point `plynth_worker.py` reads the job, finds the task in the registry and runs it.
 - While running, the worker prints progress lines: `PLYNTH:{"progress":{"step":"set_pivot","index":4,"count":11,"message":"Setting the pivot"}}`. Use `jobs.progress(...)`.
 - At the end it writes `result.json` through a temporary file and a rename: `ok`, `error`, `blender_version`, `warnings`, `elapsed_ms` and `output`. The worker never lets an exception escape without trying to write a result. An uncaught error exits with code 3 and C++ reports `blender_failed` with the end of the log.
 
-Error codes a task may raise: `bad_job`, `unknown_task`, `unsupported_format`, `import_failed`, `no_geometry`, `several_models`, `unpack_failed`, `save_failed`, `render_failed`, `export_failed`, `internal`. Warning codes: `high_polycount`, `scale_suspicious`, `missing_texture`, `removed_objects`, `unsupported_object`, `fbx_failed`. The `build` task reports its problems in the result's `output.problems` instead, see "Adding a build step".
+Error codes a task may raise: `bad_job`, `unknown_task`, `unsupported_format`, `import_failed`, `no_geometry`, `several_models`, `unpack_failed`, `save_failed`, `render_failed`, `export_failed`, `preferences_unreadable`, `internal`, and for store fetches `addon_missing`, `not_signed_in`, `download_failed`, `download_timeout`, `wrong_asset_kind`. Warning codes: `high_polycount`, `scale_suspicious`, `missing_texture`, `removed_objects`, `unsupported_object`, `fbx_failed`. The `build` task reports its problems in the result's `output.problems` instead, see "Adding a build step".
 
 ### Adding a build step
 
@@ -624,6 +624,47 @@ $env:BLENDER_USER_DATAFILES = $s
 ```
 
 Set these in the same window, and use the same window to run the command. The run starts a second Blender with user folders of its own and a prepared extensions folder, and an add-on is only ever switched on in such a folder. The tests that need add-ons skip unless `PLYNTH_TEST_ADDONS` names a folder with copies of them, laid out like an extensions folder (`<repository>\<add-on>\blender_manifest.toml`). The tests never take add-ons from your own Blender folders: they refuse a folder inside them. Every registry has a test that refuses a duplicate id. The sample chair in `samples/models/chair` is the model most tests use.
+
+## Adding a source
+
+A source is a place assets and materials come from, such as BlenderKit or Fab. It is called an **integration**. This section is for developers. It adds one card to the Integrations tab, its options and its commands, and it needs no edit of existing code. The one exception: a new worker format or material source adds its id to a list in `schema/blender-job.schema.json` (see the two tables above). It is built from the pieces above: an importer, a material importer, and, when the source is not a file on disk, a fetch task and a worker format or material source in Python.
+
+The rule behind the design: Plynth never talks to a store itself. A source either takes files you downloaded, or asks a store's own Blender add-on, which you installed and signed in to, to download. It never calls a private web address, never shows, logs or copies a key and never bundles what it brings.
+
+### The core side
+
+1. **The importers.** Write an asset importer, a material importer or both, as in the two sections above. Each is one file. An importer that takes a web address returns no endings from `fileSuffixes()` and scores 0 for anything that is not its address (`BlenderKitImporter.cpp` scores 30 for an address it accepts). An importer for zips can score above the local one for a zip it recognises, as `FabZipImporter.cpp` does with 20.
+2. **The integration.** In the same file, write a class that derives from `Integration` (`core/include/plynth/core/catalog/Integrations.h`). It gives an id, a name, a description, its place in the tab (`order()`), its importer ids, whether it takes addresses, the setup check item it depends on (empty for none), its official site, and an optional `note()`, one plain sentence shown with the card, as BlenderKit shows its reminder about your own Blender settings. It also gives its options: `defaultOptions()` lists each saved option with its default, and `checkOptions()` refuses an unknown key or a bad value. Three more parts make the source work everywhere without code of its own:
+
+   - `optionFields()`: one field for each key of `defaultOptions()`, in the same order, with a label, a one sentence help and a kind: a choice from a list, a whole number from a minimum to a maximum, or a license. The tab draws the card's options from it.
+   - `storeSourceKinds()`: the source kinds of its items when they come from a store, such as `blenderkit` and `fab_zip`. `isStoreSource` reads them from the registry, so such items are never copied into packs. Leave it empty when the items are the user's own files.
+   - `checkAddress(text)`: for a source that takes addresses, the sentence the card shows beside a pasted text it cannot use. BlenderKit returns what its address parser says.
+
+   At the bottom, register it:
+
+```cpp
+const IntegrationRegistrar integrationRegistrar(std::make_unique<MyIntegration>());
+```
+
+3. **The options.** A saved option applies to every import from the integration. It is kept in `integrations.json` in the library, and only what the user changed is saved. An option for one import only (such as `model` for Fab) is refused when saving: `checkOptions()` gets `OptionUse::Saved` or `OptionUse::Import` to tell them apart. At import time `optionsForImporter` puts the request's options over the saved ones over the defaults and hands the result to the importer's `plan` as `ImportSource::options`.
+4. **The CLI and the tab.** `plynth library integrations`, `library integration show|set|reset` and the Integrations tab list every registered integration by themselves. The tab draws the card from what the class returns and the options from `optionFields()`, so no app code is needed. The card's import button for files asks `integrationImporter` for the best scoring of the source's own importers and names it in the request, so the item gets this source's kind and options even when another importer would score higher. The CLI treats a text as an address when a registered importer takes it.
+5. **The license.** When the request names no importer and gives no `license` option, Plynth only guessed the source, and `ImportSource::guessed` is true. The plan then gives no license of its own, so the item gets `unknown`. Fab does this for a zip that only looks like a Fab download. When the user picked the source, use the saved license option.
+6. **A choice for the user.** When a plan refuses because the user must choose, for example between the models of a pack, put the candidates in the plan's `details` as a `models` list. The app's **Pick the model...** button is offered from that list, not from the sentence.
+
+### The fetch, when the source is not a file
+
+An importer for a source that is not a file gives its plan no `file`, and puts a **fetch** in the plan instead: a worker task and its parameters (`ImportFetch`, `core/include/plynth/core/catalog/ImportFetch.h`). The import runs the fetch first, in its own Blender run, and then the usual cleanup on what it fetched. It is a separate run because a fetch may need the user's own add-ons and sign in, which the clean start of every other job leaves out, and the cleanup must always run clean so that no add-on can change its result. A BlenderKit fetch always runs in the background, with no window.
+
+A fetch task writes into the `output_folder` it is given and answers with the same output for every store (the `fetchOutput` part of `schema/blender-result.schema.json`): the file, its format, whether it is a `model` or a `material`, and the name, author, license and address when the store gives them. `core/include/plynth/core/catalog/StoreFetch.h` explains how the answer is checked and put into the plan. Its failures are `blender_failed` with the task's own error code and a plain sentence.
+
+### The Python side
+
+- **A fetch task.** One file in `blender/plynth/tasks/`, a function `run(ctx)` registered with `TASKS.register`, as under "Tasks". `blenderkit_fetch.py` is the worked example. Everything that touches the store's add-on sits in one module (`blender/plynth/stores/blenderkit.py`), so an add-on update changes one file, and every failure names the add-on's version.
+- **A worker format or material source**, when the fetched files need a reader of their own. A model format is one file in `blender/plynth/importers/` registered with `IMPORTERS.register`. A material source is one file in `blender/plynth/materials/sources/` registered with `MATERIAL_SOURCES.register`. Either one also adds its id to its list in `schema/blender-job.schema.json`: `format` of `cleanup_asset` or `kind` of `cleanup_material`. `importers/fab.py` and `materials/sources/fab.py` are the examples: both read a small source file the importer wrote, unpack only the entries it lists, and match textures to materials by file name.
+
+### Tests
+
+Test the importers and options with the fake Blender (`tests/tools/fake_blender`), which can also stand in for a fetch task. Test the address parsing and the options as plain functions. Test the Python side in a real Blender with a small fake add-on and scratch user folders (`blender/tests/tools/make_fake_blenderkit_config.py` sets every variable), never with the real store or your own settings. Keep downloaded items and zips out of the repository.
 
 ## Other things you will be able to add
 

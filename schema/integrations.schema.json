@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:integrations:1",
+  "title": "Plynth integrations, version 1",
+  "description": "Library/integrations.json: the options of the sources in the Integrations tab (core/include/plynth/core/catalog/Integrations.h). Only options the user changed are saved; the others take their defaults. Entries of integrations this Plynth does not know are kept as they are.",
+  "type": "object",
+  "required": ["format", "version", "integrations"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "plynth-integrations" },
+    "version": { "const": 1 },
+    "integrations": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
+      "properties": {
+        "local": { "type": "object", "additionalProperties": false, "properties": {} },
+        "blenderkit": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "blender_window": { "description": "No longer offered and ignored. Older files may hold it; every fetch runs with no window.", "enum": ["none", "minimized"] },
+            "resolution": { "description": "Default 2k.", "enum": ["0.5k", "1k", "2k", "4k", "8k", "original"] },
+            "wait_seconds": { "description": "Default 600.", "type": "integer", "minimum": 60, "maximum": 3600 }
+          }
+        },
+        "fab": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "formats": {
+              "description": "Model formats in order of preference. Default fbx, gltf, obj, blend.",
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "enum": ["fbx", "gltf", "obj", "blend"] }
+            },
+            "quality": { "description": "Default medium.", "enum": ["low", "medium", "high", "raw"] },
+            "max_texture_size": { "description": "Pixels. null takes the largest there is. Default 4096.", "oneOf": [{ "type": "integer", "minimum": 256, "maximum": 16384 }, { "type": "null" }] },
+            "normal": { "description": "Default auto.", "enum": ["auto", "opengl", "directx"] },
+            "license": { "description": "A license id of the catalogs, for zips the user imports as Fab by hand. A zip that Plynth guesses is from Fab gets unknown instead. Default royalty_free.", "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 64 }
+          }
+        }
+      },
+      "additionalProperties": { "type": "object" }
+    }
+  }
+}

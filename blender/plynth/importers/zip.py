@@ -10,12 +10,30 @@ MAX_UNPACKED_BYTES = 4 * 1024 * 1024 * 1024
 PREFERENCE = [".blend", ".fbx", ".glb", ".gltf", ".obj"]
 
 
-# Says whether a name inside a zip could leave the target folder: an absolute name, a ".." part, or any
-# part with a colon (a drive letter or an alternate data stream).
+DEVICES = {"con", "prn", "aux", "nul", "conin$", "conout$"} | {
+    word + digit for word in ("com", "lpt") for digit in "123456789¹²³"}
+# Only A to Z are lowered, as core does, so no other letter can turn into a device name.
+ASCII_LOWER = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
+
+
+# Says whether one part of a zip name is one Windows would treat as something else: a ".." part, a colon (a
+# drive letter or a hidden data stream), an ending dot or space (Windows drops them), or a device name such as
+# CON or COM1 in any letter case, also with an ending after it (nul.png) or spaces before that ending.
+def is_unsafe_part(part):
+    if part == ".." or ":" in part:
+        return True
+    if part != "." and part.endswith((".", " ")):
+        return True
+    base = part.split(".", 1)[0].rstrip(" ")
+    return base.translate(ASCII_LOWER) in DEVICES
+
+
+# Says whether a name inside a zip is unsafe to unpack: an absolute name or any unsafe part. ZipListing.h in
+# core has the same rule, so core refuses the same names before the worker starts.
 def is_unsafe(name):
     if name.startswith("/") or name.startswith("\\"):
         return True
-    return any(part == ".." or ":" in part for part in re.split(r"[\\/]", name))
+    return any(is_unsafe_part(part) for part in re.split(r"[\\/]", name) if part)
 
 
 # Says whether a path is inside a folder, after resolving links.
@@ -25,34 +43,50 @@ def is_inside(path, folder):
     return os.path.commonpath([root, real]) == root
 
 
-# Returns the file entries of a zip after checking that every name and the total size are safe.
-def checked_members(archive):
-    members = []
+# Returns the file entries of a zip after checking that every name and the total size are safe. With members,
+# only those entries are looked at: each must be a safe name and be in the zip.
+def checked_members(archive, members=None):
+    if members is not None:
+        found = {info.filename.replace("\\", "/"): info for info in archive.infolist() if not info.is_dir()}
+        chosen = []
+        for name in members:
+            if is_unsafe(name):
+                raise WorkerError("unpack_failed", "The zip holds an unsafe path: %s" % name)
+            if name not in found:
+                raise WorkerError("unpack_failed", "The zip has no entry %s." % name)
+            chosen.append(found[name])
+        if sum(info.file_size for info in chosen) > MAX_UNPACKED_BYTES:
+            raise WorkerError("unpack_failed", "The files are larger than 4 GB when unpacked.")
+        return chosen
+    result = []
     total = 0
     for info in archive.infolist():
         if is_unsafe(info.filename):
             raise WorkerError("unpack_failed", "The zip holds an unsafe path: %s" % info.filename)
         total += info.file_size
         if not info.is_dir():
-            members.append(info)
+            result.append(info)
     if total > MAX_UNPACKED_BYTES:
         raise WorkerError("unpack_failed", "The zip is larger than 4 GB when unpacked.")
-    return members
+    return result
 
 
-# Unpacks a zip into the work folder and returns the names of the files written, with forward slashes.
-def unpack(path, folder):
+# Unpacks a zip into the folder and returns the names of the files written, with forward slashes. With
+# members (entry names), only those are unpacked; every name is checked before the first file is written.
+def unpack(path, folder, members=None):
     try:
         archive = zipfile.ZipFile(path)
     except (zipfile.BadZipFile, OSError) as error:
         raise WorkerError("unpack_failed", "The zip cannot be opened: %s" % error)
     names = []
     with archive:
-        members = checked_members(archive)
-        for info in members:
-            target = os.path.join(folder, *re.split(r"[\\/]", info.filename))
+        infos = checked_members(archive, members)
+        for info in infos:
+            target = os.path.join(folder, *re.split(r"[\/]", info.filename))
             if not is_inside(target, folder):
                 raise WorkerError("unpack_failed", "The zip holds an unsafe path: %s" % info.filename)
+        for info in infos:
+            target = os.path.join(folder, *re.split(r"[\/]", info.filename))
             os.makedirs(os.path.dirname(target), exist_ok=True)
             try:
                 with archive.open(info) as source, open(target, "wb") as out:

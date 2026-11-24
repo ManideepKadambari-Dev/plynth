@@ -96,6 +96,8 @@ struct ScratchUser {
         setFolder(L"BLENDER_USER_DATAFILES", root / "datafiles");
         // A file that does not exist. With no value at all Plynth would look for the installed Blender.
         setVariable(L"PLYNTH_BLENDER", root / "no-blender.exe");
+        // A store fetch never uses the real %LOCALAPPDATA%: it gets a short folder of this run, made by core.
+        setVariable(L"PLYNTH_FETCH_FOLDER", root / "fetch");
         plynth::cli::testing::requireSafeSettings("starting the test program");
     }
     ~ScratchUser() {
@@ -104,5 +106,20 @@ struct ScratchUser {
     }
     std::filesystem::path root;
 } scratchUser;
+
+// Gives this test program its own private Blender folder under the temp folder, and removes it at the end.
+// Without it a run of the fake Blender would use the shared folder under %LOCALAPPDATA%.
+struct TestPrivateFolder {
+    TestPrivateFolder() {
+        path = std::filesystem::temp_directory_path() / ("plynth-cli-private-" + std::to_string(_getpid()));
+        _wputenv_s(L"PLYNTH_BLENDER_PRIVATE", path.c_str());
+        SetEnvironmentVariableW(L"PLYNTH_BLENDER_PRIVATE", path.c_str());
+    }
+    ~TestPrivateFolder() {
+        std::error_code ignored;
+        std::filesystem::remove_all(path, ignored);
+    }
+    std::filesystem::path path;
+} testPrivateFolderSetup;
 
 }  // namespace

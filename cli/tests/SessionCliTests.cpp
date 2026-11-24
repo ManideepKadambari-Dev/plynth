@@ -17,6 +17,7 @@ using plynth::cli::kExitOk;
 using plynth::cli::testing::Outcome;
 using plynth::cli::testing::runChecked;
 using plynth::cli::testing::TempFolder;
+using plynth::cli::testing::utf8;
 
 namespace {
 
@@ -24,12 +25,6 @@ namespace {
 std::string readFile(const std::filesystem::path& file) {
     std::ifstream in(file, std::ios::binary);
     return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
-}
-
-// A path as UTF-8 text.
-std::string utf8(const std::filesystem::path& path) {
-    const auto text = path.generic_u8string();
-    return std::string(text.begin(), text.end());
 }
 
 // The code of a failed answer.

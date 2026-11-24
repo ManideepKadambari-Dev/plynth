@@ -10,6 +10,12 @@
 
 namespace plynth::cli::testing {
 
+// A path as UTF-8 text.
+inline std::string utf8(const std::filesystem::path& path) {
+    const auto text = path.generic_u8string();
+    return std::string(text.begin(), text.end());
+}
+
 // What one run of the CLI produced.
 struct Outcome {
     int exitCode = -1;
