@@ -89,6 +89,9 @@ add_executable(plynth_core_tests
     core/SeededChoiceTests.cpp
     core/AssetSupportsTests.cpp
     core/TrimProfileTests.cpp
+    core/GameplayDataTests.cpp
+    core/OpeningAssetsTests.cpp
+    core/DressingTests.cpp
 )
 target_link_libraries(plynth_core_tests PRIVATE
     plynth::core

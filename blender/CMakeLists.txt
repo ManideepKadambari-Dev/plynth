@@ -66,3 +66,17 @@ if(PLYNTH_BLENDER AND EXISTS "${PLYNTH_BLENDER}")
 else()
     message(STATUS "Blender not found, the worker Python tests are not added")
 endif()
+
+# The sweep mesh helper needs no Blender, so its tests run in plain Python on every machine and on GitHub.
+if(PLYNTH_BUILD_TESTS)
+    find_package(Python3 3.10 COMPONENTS Interpreter)
+    if(Python3_Interpreter_FOUND)
+        enable_testing()
+        add_test(NAME python_plain_sweep
+            COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tests/plain/test_sweep_mesh.py"
+            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tests/plain")
+        set_tests_properties(python_plain_sweep PROPERTIES TIMEOUT 120)
+    else()
+        message(STATUS "Python 3.10 or newer not found, the plain Python sweep tests are not added")
+    endif()
+endif()

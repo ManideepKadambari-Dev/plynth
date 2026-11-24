@@ -13,9 +13,9 @@ namespace plynth {
 using Json = nlohmann::ordered_json;
 
 // A flat place on an asset where set dressing may put small props: a shelf board, a table top. Measured by
-// Blender at cleanup and kept in the asset's info.json. In the asset's own axes, in metres from its pivot (the
-// bottom centre): x along its width, y along its depth (back to front, Blender -Y is the front, so y here is
-// the asset's -Y), z up. x0 < x1 and y0 < y1. clearance is the free height above the place.
+// Blender at cleanup and kept in the asset's info.json. In the asset's own axes as in asset.blend, in metres from
+// its pivot (the bottom centre): x along its width, y along its depth with the front at -y, z up. x0 < x1 and
+// y0 < y1. clearance is the free height above the place.
 struct AssetSupport {
     double x0 = 0.0;
     double y0 = 0.0;

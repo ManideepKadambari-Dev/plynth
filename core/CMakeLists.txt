@@ -80,6 +80,9 @@ add_library(plynth_core STATIC
     src/FinishSettings.cpp
     src/catalog/AssetSupports.cpp
     src/trim/TrimProfiles.cpp
+    src/GameplayData.cpp
+    src/OpeningAssets.cpp
+    src/dressing/Dressing.cpp
 )
 if(WIN32)
     target_sources(plynth_core PRIVATE src/Process_win.cpp)

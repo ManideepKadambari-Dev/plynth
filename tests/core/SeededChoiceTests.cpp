@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <iostream>
 #include <map>
 #include <string>
 #include <vector>
@@ -52,6 +53,9 @@ TEST_CASE("Choice scores follow the fixed hash", "[choice]")
             }
         }
     }
+    std::cout << "score 0 f1/i3/asset sofa_01 = " << choiceScore(0, "f1/i3/asset", "sofa_01") << std::endl;
+    std::cout << "score 7 r1/floor oak_planks = " << choiceScore(7, "r1/floor", "oak_planks") << std::endl;
+    std::cout << "score 4294967295 empty = " << choiceScore(0xffffffffu, "", "") << std::endl;
     // The key and the candidate are kept apart by the zero byte.
     CHECK(choiceScore(1, "ab", "c") != choiceScore(1, "a", "bc"));
     CHECK(choiceScore(1, "k", "a") != choiceScore(2, "k", "a"));
