@@ -85,6 +85,10 @@ add_executable(plynth_core_tests
     core/GrayImageTests.cpp
     core/OrthogonalDetectorTests.cpp
     core/DetectionPerfTests.cpp
+    core/FinishHeadersTests.cpp
+    core/SeededChoiceTests.cpp
+    core/AssetSupportsTests.cpp
+    core/TrimProfileTests.cpp
 )
 target_link_libraries(plynth_core_tests PRIVATE
     plynth::core
