@@ -17,16 +17,19 @@ namespace plynth {
 using Json = nlohmann::ordered_json;
 
 // The two asset tasks of the Blender worker. File formats the worker reads, each one file in the worker's
-// importer registry, blender/plynth/importers/: "blend", "fbx", "obj", "gltf" (.gltf and .glb), and "zip" (unpacked first, then
+// importer registry, blender/plynth/importers/: "blend", "fbx", "obj", "gltf" (.gltf and .glb), "zip" (unpacked first, then
 // the model inside is read; with several models the order of preference is blend, fbx, glb, gltf, obj, and
-// two of the same best kind give several_models).
+// two of the same best kind give several_models), and "fab" (kFormatFab in FabZip.h: the file is a Fab source
+// file, schema/fab-source.schema.json, naming the zip, the one model to read and the entries to unpack; the
+// materials are built from the textures by file name when the model is read, so the step material_maps below
+// treats them like any other). A store model that was fetched (StoreFetch.h) is a "blend".
 inline constexpr std::string_view kFormatBlend = "blend";
 inline constexpr std::string_view kFormatFbx = "fbx";
 inline constexpr std::string_view kFormatObj = "obj";
 inline constexpr std::string_view kFormatGltf = "gltf";
 inline constexpr std::string_view kFormatZip = "zip";
 
-// The thumbnail look (DESIGN.md section 7.11): three quarter view from the front right (camera 45 degrees
+// The thumbnail look: three quarter view from the front right (camera 45 degrees
 // round from -Y toward +X, 25 degrees up, 50 mm lens), framed so the bounding sphere fits with an 8 % margin,
 // neutral white key, fill and rim area lights, a plain dark background in the theme's Ground color, the
 // "Standard" view transform so that color is exact, square PNG, 8 bit RGB, rendered with Eevee.
@@ -46,7 +49,7 @@ struct ThumbnailSpec {
 //          "triangle_warning": 500000,
 //          "thumbnail": {"render": true, "size": 512, "background": [0.0549, 0.0667, 0.0863]}}
 // Output: {"blend_file": "asset.blend", "fbx_file": "asset.fbx" or null,
-//          "picked_file": "chair/chair.fbx" or null (the model used from a zip),
+//          "picked_file": "chair/chair.fbx" or null (the model used from a zip or a Fab zip),
 //          "size": {"width": 0.45, "depth": 0.5, "height": 0.9}, "triangles": 1200, "objects": 2,
 //          "materials": ["Wood"], "textures": ["textures/wood.png"], "missing_textures": ["oak.png"],
 //          "thumbnail": {"file": "thumb.png", "engine": "eevee", "error": null}}
@@ -57,7 +60,7 @@ struct ThumbnailSpec {
 //                             "preview_maps": {"base_color": {"file": "textures/preview/wood_base_color.png",
 //                                                             "from": "file", "detail": "wood.png"}, ...}}]
 // (bake_size is a param; material_maps is in the output, one per entry of materials, in the same order.)
-// Material maps (owner, milestone 10): before asset.blend is saved, the step "material_maps" makes the maps of
+// Material maps: before asset.blend is saved, the step "material_maps" makes the maps of
 // every material with the material bakers of catalog/MaterialJobs.h ("direct", then "eevee_render" over the
 // material's own UV square, one tile 1 m across, at bake_size), writes them under kAssetMapsFolder, rebuilds
 // the material from them, and writes a scaled copy under kAssetPreviewFolder of any map larger than
@@ -66,7 +69,7 @@ struct ThumbnailSpec {
 // keeps a constant image of its base color value (warning material_approximated too). Never fails the job.
 // A failed render does not fail the job: thumbnail.file is null and thumbnail.error says why. A failed
 // asset.fbx does not fail it either: fbx_file is null with the warning fbx_failed.
-// Thumbnails are rendered with Eevee only (DESIGN.md section 7.11). There is no engine choice and no other
+// Thumbnails are rendered with Eevee only. There is no engine choice and no other
 // engine to fall back to: when Eevee cannot render, the render has failed.
 struct CleanupJob {
     std::filesystem::path sourceFile;
@@ -118,6 +121,9 @@ struct AssetJobOutput {
     std::vector<std::string> missingTextures;
     std::vector<AssetMaterial> materialMaps; // cleanup only; BadFile when a required map has no file or a file
                                              // is outside textures/
+    // cleanup only: the measured supports, empty when the worker wrote none (an older worker); BadFile when they
+    // are not a valid list
+    std::optional<std::vector<AssetSupport>> supports;
     bool thumbnailRendered = false;
     std::string thumbnailEngine;
     std::string thumbnailError;

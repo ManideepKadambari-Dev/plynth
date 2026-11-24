@@ -3,6 +3,7 @@
 #include "../BlenderJob.h"
 #include "../EditSession.h"
 #include "../Status.h"
+#include "AssetSupports.h"
 #include "CatalogNames.h"
 #include "MaterialMaps.h"
 
@@ -60,10 +61,10 @@ inline constexpr std::size_t kMaxAssetIdLength = 64;
 inline constexpr std::size_t kMaxAssetNameLength = 120;
 inline constexpr std::size_t kMaxTagLength = 40;
 
-// Source kinds. Each importer names its own; these are the ones planned.
-inline constexpr std::string_view kSourceLocalFile = "local_file";   // milestone 6
-inline constexpr std::string_view kSourceBlenderKit = "blenderkit";  // milestone 13
-inline constexpr std::string_view kSourceFabZip = "fab_zip";         // milestone 13
+// Source kinds. Each importer names its own. The two store kinds are used by materials too.
+inline constexpr std::string_view kSourceLocalFile = "local_file";   // the user's own files
+inline constexpr std::string_view kSourceBlenderKit = "blenderkit";  // catalog/BlenderKit.h
+inline constexpr std::string_view kSourceFabZip = "fab_zip";         // catalog/FabZip.h
 
 // The license every new asset gets until the user sets one.
 inline constexpr std::string_view kUnknownLicenseId = "unknown";
@@ -129,6 +130,9 @@ struct AssetInfo {
     // info.json "material_maps", one per entry of materials, in the same order. Missing in files written before
     // milestone 10 (it reads as empty); rescan then lists the asset in needsRefresh so it is cleaned once more.
     std::vector<AssetMaterial> materialMaps;
+    // info.json "supports" (AssetSupports.h): the flat places set dressing may use. Empty (no value) when the
+    // asset was not measured for them yet; rescan then lists it in needsRefresh so it is cleaned once more.
+    std::optional<std::vector<AssetSupport>> supports;
 
     bool operator==(const AssetInfo&) const = default;
 };

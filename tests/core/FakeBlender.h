@@ -2,6 +2,9 @@
 
 #include "TestSupport.h"
 
+#include <plynth/core/Process.h>
+#include <plynth/core/ProjectFiles.h>
+
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
@@ -24,11 +27,31 @@ inline std::filesystem::path makeFakeBlender(const std::filesystem::path& folder
     return exe;
 }
 
-// A folder that holds plynth_worker.py, so runBlenderJob finds its scripts.
+// A folder labelled low that the fake Blender writes its records to while this object lives, through
+// FAKE_BLENDER_RECORDS. A fetch runs the fake at low integrity, so its records need such a folder. The fake's own
+// folder is never labelled: Windows would then start every run of the fake at low integrity.
+struct FakeRecords {
+    explicit FakeRecords(const std::filesystem::path& where) : folder(labelled(where)), variable("FAKE_BLENDER_RECORDS", pathToUtf8(folder)) {}
+
+    std::filesystem::path folder;
+    ScopedEnv variable;
+
+private:
+    // Makes the folder with the low label.
+    static std::filesystem::path labelled(const std::filesystem::path& where)
+    {
+        requireOk(makeLowIntegrityFolder(where));
+        return where;
+    }
+};
+
+// A folder that holds plynth_worker.py, so runBlenderJob finds its scripts, and an empty fetch guard.
 inline std::filesystem::path makeFakeScripts(const std::filesystem::path& folder)
 {
     std::filesystem::create_directories(folder);
     std::ofstream(folder / "plynth_worker.py") << "# stand in for the worker\n";
+    std::filesystem::create_directories(folder / "guard" / "startup");
+    std::ofstream(folder / "guard" / "startup" / "plynth_fetch_guard.py") << "# stand in for the guard\n";
     return folder;
 }
 

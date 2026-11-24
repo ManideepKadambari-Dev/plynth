@@ -17,12 +17,12 @@ namespace plynth {
 
 using Json = nlohmann::ordered_json;
 
-// The material task of the Blender worker, kCleanupMaterialTask (DESIGN.md sections 7.11 and 7.12). It reads a
-// source with one of the worker's material sources, makes every map by the conventions of MaterialInfo.h into
+// The material task of the Blender worker, kCleanupMaterialTask. It reads a source
+// with one of the worker's material sources, makes every map by the conventions of MaterialInfo.h into
 // outputFolder/textures/, runs the material checks and renders thumb.png into outputFolder. Used for imports
 // and for refreshMaterial (then the source is the item folder itself, with its maps named in maps).
 //
-// Blender's own texture baking needs Cycles, which Plynth never uses (owner, milestone 7). So the worker makes
+// Blender's own texture baking needs Cycles, which Plynth never uses. So the worker makes
 // maps without it, channel by channel, with its baker registry (blender/plynth/materials/bakers/):
 //   "direct": a channel that is an image or a single value in the source (an image texture linked straight to
 //             the Principled input, through a Normal Map node for normals, or an unlinked input) is copied or
@@ -43,6 +43,9 @@ using Json = nlohmann::ordered_json;
 //     values given here win over both.
 //   kind "blend": path is a .blend; material names the material, or null for the only one (several give
 //     several_materials, listing them).
+//   kind "fab": path is a Fab source file of kind material (FabZip.h); material is null; maps and values given
+//     here win over the source file's picks, and so does a normal other than "auto" over the source file's;
+//     the size in the zip's metadata stands in for material.json's tile size.
 //   normal: "auto" (a name with gl or opengl is OpenGL, dx or directx is DirectX, otherwise OpenGL), "opengl"
 //     or "directx"; DirectX maps get their green channel flipped.
 //   tile_size null: material.json's, otherwise kDefaultTileSize.
@@ -67,7 +70,7 @@ inline constexpr int kMinBakeSize = 256;
 inline constexpr int kMaxBakeSize = 4096;
 inline constexpr int kLowResolutionPixelsPerMetre = 256;
 
-// The material thumbnail (DESIGN.md section 7.11): a sphere 1 m across on the left and a flat tile 1 m square
+// The material thumbnail: a sphere 1 m across on the left and a flat tile 1 m square
 // on the right, standing upright and turned 30 degrees toward the lights, both with UVs of metres divided by the tile size so the
 // material shows at real world size; the asset thumbnail's lights, background and view transform; square PNG,
 // kThumbnailSize, rendered with Eevee only.
@@ -79,7 +82,7 @@ std::string_view normalConventionName(NormalConvention convention);
 std::optional<NormalConvention> normalConventionFromName(std::string_view name);
 
 struct MaterialCleanupJob {
-    std::string workerSource;            // kMaterialSourceTextureSet or kMaterialSourceBlend
+    std::string workerSource;            // kMaterialSourceTextureSet, kMaterialSourceBlend or kMaterialSourceFab
     std::filesystem::path path;
     std::string blendMaterial;           // blend only; empty for the only one
     std::vector<std::pair<MapChannel, std::filesystem::path>> maps; // files the user picked per channel

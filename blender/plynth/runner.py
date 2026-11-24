@@ -1,3 +1,5 @@
+import importlib
+import pkgutil
 import time
 import traceback
 
@@ -13,6 +15,18 @@ def blender_version():
         return ".".join(str(part) for part in bpy.app.version)
     except Exception:
         return "0.0.0"
+
+
+# Finds the function of a task. Imports only the module named after the task when it registers it, so a fetch
+# loads no other task's code; otherwise every task module.
+def load_task(task):
+    names = {name for _, name, _ in pkgutil.iter_modules(tasks.__path__) if not name.startswith("_")}
+    if task in names:
+        importlib.import_module(tasks.__name__ + "." + task)
+        if registry.TASKS.get(task) is not None:
+            return registry.TASKS.get(task)
+    registry.discover(tasks)
+    return registry.TASKS.get(task)
 
 
 # Builds the result dictionary of the result schema.
@@ -50,8 +64,7 @@ def run_job_file(path):
         return result
 
     try:
-        registry.discover(tasks)
-        run = registry.TASKS.get(task)
+        run = load_task(task)
         if run is None:
             raise WorkerError("unknown_task", "The task '%s' is not known." % task)
         ctx = Context(job)

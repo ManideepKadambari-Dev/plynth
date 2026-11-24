@@ -48,6 +48,17 @@ int ImportQueue::enqueueImport(const QString& path)
     return add(std::move(item));
 }
 
+// Adds an import with every field of the request.
+int ImportQueue::enqueueRequest(const plynth::ImportRequest& request)
+{
+    QueueItem item;
+    item.kind = QueueItem::Kind::Import;
+    item.title = request.source.file.empty() ? fromCore(request.source.url)
+                                             : QString::fromStdWString(request.source.file.filename().wstring());
+    item.request = request;
+    return add(std::move(item));
+}
+
 // Adds an entry of the library inbox.
 int ImportQueue::enqueueInbox(const QString& path)
 {
@@ -108,6 +119,15 @@ bool ImportQueue::hasEntry(const QString& path) const
     return std::any_of(items_.begin(), items_.end(), [&](const QueueItem& item) {
         return item.kind == QueueItem::Kind::Inbox && item.entry == entry && item.state != QueueItem::State::Failed;
     });
+}
+
+// The item with this id, or null.
+const QueueItem* ImportQueue::item(int id) const
+{
+    for (const QueueItem& item : items_)
+        if (item.id == id)
+            return &item;
+    return nullptr;
 }
 
 // Finds an item by id.
@@ -274,6 +294,15 @@ void ImportQueue::onDone(int id, const plynth::ImportOutcome& outcome)
     found->stage = tr("Failed");
     found->message = fromCore(outcome.status.message);
     found->workFolder = QString::fromStdWString(outcome.keptWorkFolder.wstring());
+    found->movedTo = outcome.movedTo;
+    // The importer listed the models it found and picked none, whatever its sentence says: Pick the model
+    // offers them.
+    const bool hasFile = found->kind == QueueItem::Kind::Inbox ? !found->movedTo.empty()
+                                                               : found->kind == QueueItem::Kind::Import && !found->request.source.file.empty();
+    const auto models = outcome.details.find("models");
+    const auto picked = outcome.details.find("picked");
+    const bool nonePicked = picked == outcome.details.end() || picked->is_null();
+    found->pickable = hasFile && nonePicked && models != outcome.details.end() && models->is_array() && models->size() > 1;
     const QString message = found->message;
     emit itemsChanged();
     emit finished(kind, false, assetId, message, true);

@@ -7,15 +7,15 @@ class QStackedWidget;
 
 namespace plynth::app {
 
-// The right side of the window: a tab for Properties, one for Assets, one for Materials, one for the last Build and one for the Export. It draws the panel background
+// The right side of the window: a tab for Properties, one for Assets, one for Materials, one for the last Build and one for the Export and one for the Integrations. It draws the panel background
 // and the border, and changes its width with the tab.
 class RightPanel : public QWidget {
     Q_OBJECT
 public:
     RightPanel(QWidget* properties, QWidget* assets, QWidget* materials, QWidget* build, QWidget* exportPage,
-               QWidget* parent = nullptr);
+               QWidget* integrations, QWidget* parent = nullptr);
 
-    enum class Tab { Properties, Assets, Materials, Build, Export };
+    enum class Tab { Properties, Assets, Materials, Build, Export, Integrations };
     void showTab(Tab tab);
     Tab tab() const { return tab_; }
 
@@ -29,6 +29,7 @@ private:
     QPushButton* materialsButton_ = nullptr;
     QPushButton* buildButton_ = nullptr;
     QPushButton* exportButton_ = nullptr;
+    QPushButton* integrationsButton_ = nullptr;
     QStackedWidget* pages_ = nullptr;
 };
 

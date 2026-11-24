@@ -21,7 +21,7 @@ namespace {
 struct ExportArgs {
     std::vector<std::string> what;
     std::string project;
-    std::string blender;
+    BlenderOption blender;
     std::string library;
     std::string name;
     std::string into;
@@ -107,12 +107,15 @@ bool kitLibrary(const std::string& command, const RunContext& context, const std
 // Exports the last build, or only runs the checks with --check.
 Answer exportProject(const RunContext& context, const ExportArgs& options) {
     const std::string command = "export";
+    Answer failed;
+    if (refuseEmptyBlender(command, options.blender, failed)) {
+        return failed;
+    }
     if (!options.name.empty() || !options.into.empty() || !options.to.empty()) {
         return badArguments(command, "bad_arguments", "--name, --into and --to belong to 'export groups'.");
     }
     const std::filesystem::path folder = resolveProjectFolder(context, options.project);
     Document document;
-    Answer failed;
     if (!openProject(command, folder, document, failed, true)) {
         return failed;
     }
@@ -121,11 +124,7 @@ Answer exportProject(const RunContext& context, const ExportArgs& options) {
     if (!loaded.status.ok()) {
         return failure(command, loaded.status);
     }
-    std::optional<std::filesystem::path> blenderOption;
-    if (!options.blender.empty()) {
-        blenderOption = userPath(context, options.blender);
-    }
-    const BlenderChoice choice = chooseBlender(blenderOption, loaded.settings);
+    const BlenderChoice choice = chooseBlender(blenderOptionPath(context, options.blender), loaded.settings);
     if (!choice.status.ok()) {
         return failure(command, choice.status);
     }

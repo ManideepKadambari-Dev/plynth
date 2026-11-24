@@ -3,22 +3,17 @@
 #include "plynth/core/catalog/AssetInfo.h"
 
 #include <algorithm>
-#include <fstream>
 
 namespace plynth {
 
 namespace {
 
-// The supports an asset's info.json holds, or none when it has none or cannot be read.
+// The supports an asset's info.json holds, or none when it was not measured for them or cannot be read.
 std::vector<AssetSupport> supportsOf(const std::filesystem::path& folder)
 {
-    std::ifstream in(folder / std::filesystem::path(std::string(kAssetInfoFileName)), std::ios::binary);
-    if (!in) return {};
-    const Json json = Json::parse(in, nullptr, false);
-    if (!json.is_object()) return {};
-    const auto it = json.find("supports");
-    if (it == json.end()) return {};
-    return assetSupportsFromJson(*it).value_or(std::vector<AssetSupport>{});
+    const AssetInfoRead read = readAssetInfo(folder / std::filesystem::path(std::string(kAssetInfoFileName)));
+    if (!read.status.ok() || !read.info.supports) return {};
+    return *read.info.supports;
 }
 
 }

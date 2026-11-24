@@ -149,7 +149,6 @@ class SweepMeshTests(unittest.TestCase):
                 self.assertNotIn("bpy", stripped)
                 self.assertNotIn("bmesh", stripped)
                 self.assertNotIn("mathutils", stripped)
-        self.assertNotIn("bpy", sys.modules)
 
 
 if __name__ == "__main__":

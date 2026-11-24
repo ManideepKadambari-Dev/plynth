@@ -224,6 +224,10 @@ AssetJobOutput readCleanupResult(const Json& result, std::string_view jobId)
         out.measured = true;
         out.missingTextures = textList(field(output, "missing_textures", "/output"), "/output/missing_textures");
         out.materialMaps = readMaterialMaps(field(output, "material_maps", "/output"));
+        if (output.contains("supports")) {
+            out.supports = assetSupportsFromJson(output["supports"]);
+            if (!out.supports) throw Problem{"/output/supports", "Must be a list of supports."};
+        }
         readThumbnailPart(output, out);
     } catch (const Problem& p) {
         out.header.status = fail(ErrorCode::BadFile, "The Blender result is not valid: " + p.message, p.where);

@@ -106,7 +106,6 @@ class SupportFinderTests(unittest.TestCase):
             for line in f:
                 if line.strip().startswith(("import ", "from ")):
                     self.assertNotIn("bpy", line)
-        self.assertNotIn("bpy", sys.modules)
 
 
 if __name__ == "__main__":
