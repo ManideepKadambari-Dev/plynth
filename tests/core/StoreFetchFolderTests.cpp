@@ -393,7 +393,7 @@ TEST_CASE("a helper that unzips entries with .. or a full path writes nothing ou
     FetchRig rig("fz");
     const fs::path home = rig.user.tmp.path() / "profile" / "dropped.txt";
     const fs::path scenario = rig.tmp.path() / "scenario.json";
-    const fs::path log = rig.tmp.path() / "helper.log";
+    const fs::path log = rig.logs / "helper.log";
     nlohmann::json entries = nlohmann::json::array();
     entries.push_back({{"name", "../../up.txt"}, {"text", "x"}});
     entries.push_back({{"name", "..\\..\\..\\up2.txt"}, {"text", "x"}});
