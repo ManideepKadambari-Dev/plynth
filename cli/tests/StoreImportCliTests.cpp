@@ -3,6 +3,7 @@
 
 #include "../../tests/core/ZipTestWriter.h"
 
+#include <plynth/core/Process.h>
 #include <plynth/core/ProjectFiles.h>
 
 #include <nlohmann/json-schema.hpp>
@@ -311,21 +312,53 @@ TEST_CASE("help lists the store commands and options", "[cli][store_import]") {
 
 namespace {
 
-// A fake Blender next to the library of a test. Returns its path as text.
-std::string fakeBlender(const TempFolder& temp) {
-    return utf8(installFakeBlender(temp.path() / "fb", "5.2.0"));
+// The folder a test's fake Blender writes its records to. It is labelled low, because a store fetch runs the
+// fake at low integrity. The fake's own folder is never labelled, or every start of it would be low.
+std::filesystem::path recordsOf(const TempFolder& temp) {
+    const auto folder = temp.path() / "fl";
+    if (!std::filesystem::exists(folder)) {
+        const plynth::Status labelled = plynth::makeLowIntegrityFolder(folder);
+        INFO(labelled.message);
+        REQUIRE(labelled.ok());
+    }
+    return folder;
 }
 
-// Every job the fake Blender was given, in order.
-std::vector<nlohmann::json> jobsLogged(const TempFolder& temp) {
+// A fake Blender next to the library of a test that sends its records to recordsOf while this object lives.
+// It turns into the program's path as text, so it can stand in an argument list.
+class FetchFake {
+public:
+    explicit FetchFake(const TempFolder& temp)
+        : records_(recordsOf(temp)), variable_("FAKE_BLENDER_RECORDS", utf8(records_)),
+          path_(utf8(installFakeBlender(temp.path() / "fb", "5.2.0"))) {}
+    operator std::string() const { return path_; }
+
+private:
+    std::filesystem::path records_;
+    ScopedEnvironment variable_;
+    std::string path_;
+};
+
+// A fake Blender for one test, as FetchFake.
+FetchFake fakeBlender(const TempFolder& temp) {
+    return FetchFake(temp);
+}
+
+// Every job a fake Blender wrote to a folder, in order.
+std::vector<nlohmann::json> jobsIn(const std::filesystem::path& folder) {
     std::vector<nlohmann::json> jobs;
-    std::ifstream in(temp.path() / "fb" / "fake_jobs.log", std::ios::binary);
+    std::ifstream in(folder / "fake_jobs.log", std::ios::binary);
     for (std::string line; std::getline(in, line);) {
         if (!line.empty()) {
             jobs.push_back(nlohmann::json::parse(line));
         }
     }
     return jobs;
+}
+
+// Every job the test's FetchFake was given, in order.
+std::vector<nlohmann::json> jobsLogged(const TempFolder& temp) {
+    return jobsIn(recordsOf(temp));
 }
 
 std::vector<std::string> tasksOf(const std::vector<nlohmann::json>& jobs) {
@@ -493,7 +526,7 @@ TEST_CASE("library integrations --blender beats PLYNTH_BLENDER and asks only the
     }
     CHECK(started == 2);
 
-    const auto jobs = jobsLogged(temp);
+    const auto jobs = jobsIn(temp.path() / "fb");
     REQUIRE(jobs.size() == 1);
     CHECK(jobs.at(0).at("task") == "probe");
     const std::string config = jobs.at(0).at("params").at("user_folders").at("config");

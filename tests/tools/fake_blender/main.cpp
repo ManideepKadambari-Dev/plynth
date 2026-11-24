@@ -7,6 +7,8 @@
 // Several modes can be joined with "+", for example write_user+crash. write_user writes marker files into the
 // folders BLENDER_USER_CONFIG and BLENDER_USER_EXTENSIONS name, else into config and extensions under
 // FAKE_BLENDER_USER_ROOT, and into no folder when neither is set. It never uses a real default folder.
+// Its records (the logs below, fake_args.txt, fake_result.json, fake_child.pid) go to the folder that
+// FAKE_BLENDER_RECORDS names, else next to the program. The mode and version files are always read next to it.
 // Every start also appends its arguments to fake_args.log.
 // Every start also appends the BLENDER_USER_* variables it sees to fake_env.log.
 // Every job is also appended as one line to fake_jobs.log next to the program.
@@ -41,6 +43,7 @@ namespace fs = std::filesystem;
 using Json = nlohmann::ordered_json;
 
 int runFakeStoreFetch(const Json& job, const std::string& jobPath, const std::vector<std::string>& args);
+fs::path recordFolder();
 int lingerChild(const std::wstring& lockFile);
 void noteStart();
 void leaveChildIfAsked();
@@ -568,7 +571,7 @@ int main()
     const std::vector<std::string> args = commandLineArguments();
     if (args.size() == 2 && args[0] == "--linger") return lingerChild(pathFrom(args[1]).wstring());
     {
-        std::ofstream log(programFolder() / "fake_args.log", std::ios::binary | std::ios::app);
+        std::ofstream log(recordFolder() / "fake_args.log", std::ios::binary | std::ios::app);
         for (std::size_t i = 0; i < args.size(); ++i) log << (i ? "|" : "") << args[i];
         log << "\n";
     }
@@ -576,7 +579,7 @@ int main()
     if (std::find(args.begin(), args.end(), "--version") == args.end()) leaveChildIfAsked();
     if (writesUser()) writeUserMarkers();
     {
-        std::ofstream log(programFolder() / "fake_env.log", std::ios::binary | std::ios::app);
+        std::ofstream log(recordFolder() / "fake_env.log", std::ios::binary | std::ios::app);
         log << (std::find(args.begin(), args.end(), "--version") != args.end() ? "version" : "job");
         for (const char* name : {"BLENDER_USER_RESOURCES", "BLENDER_USER_CONFIG", "BLENDER_USER_SCRIPTS", "BLENDER_USER_EXTENSIONS", "BLENDER_USER_DATAFILES"})
             log << "|" << name << "=" << environment(name);
@@ -613,7 +616,7 @@ int main()
     if (job.is_discarded()) return 3;
 
     {
-        std::ofstream log(programFolder() / "fake_jobs.log", std::ios::binary | std::ios::app);
+        std::ofstream log(recordFolder() / "fake_jobs.log", std::ios::binary | std::ios::app);
         log << job.dump() << "\n";
     }
 

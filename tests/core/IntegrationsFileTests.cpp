@@ -57,6 +57,9 @@ TEST_CASE("an integrations format that is not text is a bad file everywhere", "[
         CHECK_NOTHROW(preview = previewAssetImport(lib.paths, request));
         CHECK(preview.status.code == ErrorCode::BadFile);
 
+        // A fetch would run the fake at low integrity, so its records go to a folder labelled for it, where a
+        // job that slipped through would show.
+        const plynth::test::FakeRecords records(lib.tmp.path() / "l");
         ImportContext context;
         context.library = lib.paths;
         context.blender = inspectBlender(plynth::test::makeFakeBlender(lib.tmp.path() / "b", "5.2.0"));
@@ -85,6 +88,7 @@ TEST_CASE("an integrations format that is not text is a bad file everywhere", "[
         CHECK(materialInbox.movedTo.empty());
 
         CHECK(plynth::test::readTextFile(integrationsFile(lib.paths)) == text);
+        CHECK_FALSE(fs::exists(records.folder / "fake_jobs.log"));
         CHECK_FALSE(fs::exists(lib.tmp.path() / "b" / "fake_jobs.log"));
     }
 }

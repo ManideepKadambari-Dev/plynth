@@ -1,7 +1,7 @@
 // What the fake Blender records and does in a store fetch, for the fetch folder, integrity and helper tests.
-// recordFetchRun appends one JSON line to fake_fetch.log next to the program: the arguments, the job file,
-// private_folder, the integrity level, start and end times, and the variables the tests check. It also keeps
-// the arguments in fake_args.txt next to the program, because the job's own folder is emptied afterwards.
+// recordFetchRun appends one JSON line to fake_fetch.log in the record folder (recordFolder): the arguments,
+// the job file, private_folder, the integrity level, start and end times, and the variables the tests check. It
+// also keeps the arguments in fake_args.txt there, because the job's own folder is emptied afterwards.
 // fetchSideEffects acts by FAKE_FETCH_DO, a list of words joined by "+":
 //   helper     writes private_folder/client/system_id when missing, client/bin/helper.exe, and the logs
 //              client/default.log and client/client-50000.log holding made-up secrets
@@ -29,6 +29,19 @@
 namespace fs = std::filesystem;
 using Json = nlohmann::ordered_json;
 
+// The folder the fake writes its records to: the one FAKE_BLENDER_RECORDS names, else the folder that holds
+// this program. A test that runs the fake at low integrity names a folder labelled for it, so the program's
+// own folder never needs a label, which would make every start of the fake low.
+fs::path recordFolder()
+{
+    wchar_t named[4096];
+    const DWORD got = GetEnvironmentVariableW(L"FAKE_BLENDER_RECORDS", named, 4096);
+    if (got > 0 && got < 4096) return fs::path(std::wstring(named, got));
+    wchar_t buffer[MAX_PATH];
+    GetModuleFileNameW(nullptr, buffer, MAX_PATH);
+    return fs::path(buffer).parent_path();
+}
+
 namespace {
 
 // A path from UTF-8 text.
@@ -53,12 +66,10 @@ Json variable(const wchar_t* name)
     return toUtf8(fs::path(std::wstring(value, got)));
 }
 
-// The folder that holds this program.
+// The folder the records go to.
 fs::path here()
 {
-    wchar_t buffer[MAX_PATH];
-    GetModuleFileNameW(nullptr, buffer, MAX_PATH);
-    return fs::path(buffer).parent_path();
+    return recordFolder();
 }
 
 // The integrity level of this process as its relative id.

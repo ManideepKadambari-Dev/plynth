@@ -6,6 +6,7 @@
 #include "ZipTestWriter.h"
 
 #include <plynth/core/Blender.h>
+#include <plynth/core/Process.h>
 #include <plynth/core/ProjectFiles.h>
 #include <plynth/core/catalog/AssetImport.h>
 #include <plynth/core/catalog/FabZip.h>
@@ -39,8 +40,9 @@ template <class Library>
 struct StoreRig {
     static constexpr bool isMaterial = std::is_same_v<Library, MaterialTestLibrary>;
 
-    // Makes all of it in temporary folders.
-    explicit StoreRig(const std::string& tag, const std::string& mode = "") : user(tag), lib(tag)
+    // Makes all of it in temporary folders. A store fetch runs the fake at low integrity, so the fake writes its
+    // records into a folder labelled low (records). The fake's own folder and the library stay unlabelled.
+    explicit StoreRig(const std::string& tag, const std::string& mode = "") : user(tag), lib(tag), records(lib.tmp.path() / "l")
     {
         context.library = lib.paths;
         context.blender = inspectBlender(makeFakeBlender(lib.tmp.path() / "b", "5.2.0", mode));
@@ -74,7 +76,7 @@ struct StoreRig {
     std::vector<nlohmann::json> jobs() const
     {
         std::vector<nlohmann::json> out;
-        std::ifstream in(lib.tmp.path() / "b" / "fake_jobs.log", std::ios::binary);
+        std::ifstream in(records.folder / "fake_jobs.log", std::ios::binary);
         for (std::string line; std::getline(in, line);) out.push_back(nlohmann::json::parse(line));
         return out;
     }
@@ -90,6 +92,7 @@ struct StoreRig {
 
     IsolatedUser user;
     Library lib;
+    FakeRecords records;
     ImportContext context;
 };
 

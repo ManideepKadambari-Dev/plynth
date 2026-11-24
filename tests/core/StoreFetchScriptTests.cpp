@@ -19,9 +19,11 @@ TEST_CASE("a store fetch never lets a downloaded file run scripts", "[core][fetc
     for (const std::string_view kind : {kFetchKindModel, kFetchKindMaterial}) {
         const auto work = tmp.path() / std::string(kind);
         const auto blender = plynth::test::makeFakeBlender(tmp.path() / ("b-" + std::string(kind)), "5.2.0");
+        // A fetch runs the fake at low integrity, so its records go to a folder labelled for it.
+        const plynth::test::FakeRecords records(tmp.path() / ("r-" + std::string(kind)));
         plynth::test::requireOk(
             runImportFetch(makeBlenderKitFetch("0c1d4a2e-1111-2222-3333-444455556666", kind, BlenderKitOptions{}), blender, base, work).status);
-        const std::string args = plynth::test::readTextFile(blender.parent_path() / "fake_args.txt");
+        const std::string args = plynth::test::readTextFile(records.folder / "fake_args.txt");
         INFO(args);
         CHECK(args.find("--background") != std::string::npos);
         CHECK(args.find("--factory-startup") == std::string::npos);

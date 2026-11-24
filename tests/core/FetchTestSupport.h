@@ -37,20 +37,20 @@ namespace plynth::test {
 constexpr const char* kFetchItem = "0c1d4a2e-1111-2222-3333-444455556666";
 
 // A made-up user, a short fetch folder named by PLYNTH_FETCH_FOLDER, a fake Blender, its scripts and a work
-// folder. Each fetch's record is in fake_fetch.log next to the fake.
+// folder. Each fetch's record is in fake_fetch.log in the log folder.
 struct FetchRig {
-    // Makes all of it. The fetch folder is short, so its length stays far below the limit. The fake's folder and
-    // the log folder are labelled low: a fetch runs at low integrity, and the fake and the fake helper must be
-    // able to write their records there. Everything else in tmp, such as a test's library, stays unlabelled.
+    // Makes all of it. The fetch folder is short, so its length stays far below the limit. Only the log folder
+    // is labelled low: a fetch runs at low integrity, and the fake and the fake helper write their records there.
+    // The fake's own folder stays unlabelled, so a job that is not a fetch still starts it at normal integrity.
+    // Everything else in tmp, such as a test's library, stays unlabelled too.
     explicit FetchRig(const std::string& tag)
         : fetchFolder(std::filesystem::temp_directory_path() / ("pf" + tag + std::to_string(GetCurrentProcessId()))), user(tag), tmp(tag)
     {
         std::error_code ec;
         std::filesystem::remove_all(fetchFolder, ec);
         folderVariable = std::make_unique<ScopedEnv>("PLYNTH_FETCH_FOLDER", pathToUtf8(fetchFolder));
-        requireOk(makeLowIntegrityFolder(tmp.path() / "b"));
         logs = tmp.path() / "l";
-        requireOk(makeLowIntegrityFolder(logs));
+        records = std::make_unique<FakeRecords>(logs);
         blender = makeFakeBlender(tmp.path() / "b", "5.2.0");
         base.scriptsFolder = makeFakeScripts(tmp.path() / "s");
         work = tmp.path() / "w";
@@ -73,7 +73,7 @@ struct FetchRig {
     std::vector<nlohmann::json> runs() const
     {
         std::vector<nlohmann::json> out;
-        std::ifstream in(blender.parent_path() / "fake_fetch.log", std::ios::binary);
+        std::ifstream in(logs / "fake_fetch.log", std::ios::binary);
         for (std::string line; std::getline(in, line);) {
             if (!line.empty()) out.push_back(nlohmann::json::parse(line));
         }
@@ -83,7 +83,7 @@ struct FetchRig {
     // How many times the fake was started at all.
     int starts() const
     {
-        std::ifstream in(blender.parent_path() / "fake_args.log", std::ios::binary);
+        std::ifstream in(logs / "fake_args.log", std::ios::binary);
         int count = 0;
         for (std::string line; std::getline(in, line);) ++count;
         return count;
@@ -96,7 +96,8 @@ struct FetchRig {
     std::filesystem::path blender;
     BlenderRunOptions base;
     std::filesystem::path work;
-    std::filesystem::path logs; // labelled low, for logs that programs of the fetch write, such as the helper's
+    std::filesystem::path logs; // labelled low: the fake's records and logs that programs of the fetch write
+    std::unique_ptr<FakeRecords> records;
 };
 
 // Every file and folder below a folder, relative and with forward slashes. Links are listed, not followed.

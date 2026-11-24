@@ -98,7 +98,7 @@ const std::initializer_list<const char*> kOak = {"Oak_2K_BaseColor.png", "Oak_2K
 
 // A library with the assets catalog, a fake Blender and a context that deletes zips for good.
 struct AssetFixture {
-    explicit AssetFixture(const std::string& tag, const std::string& mode = "") : lib(tag)
+    explicit AssetFixture(const std::string& tag, const std::string& mode = "") : lib(tag), records(lib.tmp.path() / "l")
     {
         exe = plynth::test::makeFakeBlender(lib.tmp.path() / "blender", "5.2.0", mode);
         context.library = lib.paths;
@@ -129,18 +129,19 @@ struct AssetFixture {
         return request;
     }
 
-    std::vector<nlohmann::json> jobs() const { return jobsIn(lib.tmp.path() / "blender"); }
+    std::vector<nlohmann::json> jobs() const { return jobsIn(records.folder); }
     int items() const { return entriesIn(lib.paths.assetItems); }
     int staging() const { return entriesIn(lib.paths.assetStaging); }
 
     plynth::test::TestLibrary lib;
+    plynth::test::FakeRecords records; // a fetch runs the fake at low integrity, so its records go here
     fs::path exe;
     ImportContext context;
 };
 
 // The same for the materials catalog.
 struct MaterialFixture {
-    explicit MaterialFixture(const std::string& tag, const std::string& mode = "") : lib(tag)
+    explicit MaterialFixture(const std::string& tag, const std::string& mode = "") : lib(tag), records(lib.tmp.path() / "l")
     {
         exe = plynth::test::makeFakeBlender(lib.tmp.path() / "blender", "5.2.0", mode);
         context.library = lib.paths;
@@ -164,11 +165,12 @@ struct MaterialFixture {
         return request;
     }
 
-    std::vector<nlohmann::json> jobs() const { return jobsIn(lib.tmp.path() / "blender"); }
+    std::vector<nlohmann::json> jobs() const { return jobsIn(records.folder); }
     int items() const { return entriesIn(lib.paths.materialItems); }
     int staging() const { return entriesIn(lib.paths.materialStaging); }
 
     plynth::test::MaterialTestLibrary lib;
+    plynth::test::FakeRecords records; // a fetch runs the fake at low integrity, so its records go here
     fs::path exe;
     ImportContext context;
 };
@@ -402,6 +404,7 @@ TEST_CASE("importer and importerOptions reach the plan", "[store_import]") {
     high.importerOptions = nlohmann::ordered_json{{"quality", "high"}};
     const ImportOutcome picked = importAsset(*f.lib.catalog, f.context, high);
     REQUIRE(keptFabSource(picked.keptWorkFolder)["model"] == "Chair/FBX/High/Chair_LOD0.fbx");
+    REQUIRE_FALSE(f.jobs().empty());
     REQUIRE(f.jobs().back()["params"]["source"]["format"] == "fab");
 }
 
@@ -458,7 +461,7 @@ TEST_CASE("the inbox picks the Fab importer for a zip with versions", "[store_im
     const ImportOutcome outcome = importInboxEntry(*f.lib.catalog, f.context, zip);
     plynth::test::requireOk(outcome.status);
     REQUIRE(outcome.importer == "fab_zip");
-    REQUIRE(f.jobs()[0]["params"]["source"]["format"] == "fab");
+    REQUIRE(f.jobs().at(0)["params"]["source"]["format"] == "fab");
     REQUIRE_FALSE(fs::exists(zip));
 }
 
@@ -557,7 +560,7 @@ TEST_CASE("the request's blend material and name win over the fetch's", "[store_
     request.name = "Painted wall";
     const MaterialImportOutcome outcome = importMaterial(*f.lib.catalog, f.context, request);
     plynth::test::requireOk(outcome.status);
-    REQUIRE(f.jobs()[1]["params"]["source"]["material"] == "Other");
+    REQUIRE(f.jobs().at(1)["params"]["source"]["material"] == "Other");
     REQUIRE(f.lib.catalog->material(outcome.materialId)->name == "Painted wall");
 }
 

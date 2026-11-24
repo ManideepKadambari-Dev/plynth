@@ -207,9 +207,9 @@ TEST_CASE("a job with factory startup gets no fetch rules", "[core][fetch][fetch
     options.timeout = std::chrono::seconds(30);
     runBlenderJob(rig.blender, job, rig.work, options);
     CHECK(rig.runs().empty());
-    const std::string args = plynth::test::readTextFile(rig.blender.parent_path() / "fake_args.log");
+    const std::string args = plynth::test::readTextFile(rig.logs / "fake_args.log");
     CHECK(args.find("--factory-startup") != std::string::npos);
-    std::ifstream in(rig.blender.parent_path() / "fake_starts.log", std::ios::binary);
+    std::ifstream in(rig.logs / "fake_starts.log", std::ios::binary);
     std::string line;
     REQUIRE(std::getline(in, line));
     const nlohmann::json start = nlohmann::json::parse(line);
@@ -334,26 +334,33 @@ PROCESS_INFORMATION startChild(const FetchRig& rig, const std::string& delayMs)
 
 }
 
+namespace {
+
+// A path from a variable, read in wide form, or empty. The narrow form uses the ANSI code page, which turns
+// the test folders' "ü" into bytes that are not UTF-8.
+fs::path pathVariable(const wchar_t* name)
+{
+    wchar_t* value = nullptr;
+    std::size_t size = 0;
+    _wdupenv_s(&value, &size, name);
+    const fs::path out = value ? fs::path(value) : fs::path();
+    free(value);
+    return out;
+}
+
+}
+
 // Runs one fetch for the cases below. Hidden, it runs only when they start it.
 TEST_CASE("one fetch for another process", "[.fetch_child]")
 {
-    char* blender = nullptr;
-    std::size_t size = 0;
-    _dupenv_s(&blender, &size, "PLYNTH_TEST_CHILD_BLENDER");
-    const std::string exe = blender ? blender : "";
-    free(blender);
+    const fs::path exe = pathVariable(L"PLYNTH_TEST_CHILD_BLENDER");
     if (exe.empty()) SKIP("only started by the fetch lock cases");
-    char* scripts = nullptr;
-    _dupenv_s(&scripts, &size, "PLYNTH_TEST_CHILD_SCRIPTS");
-    char* work = nullptr;
-    _dupenv_s(&work, &size, "PLYNTH_TEST_CHILD_WORK");
     BlenderRunOptions base;
-    base.scriptsFolder = pathFromUtf8(scripts ? scripts : "");
-    const fs::path folder = pathFromUtf8(work ? work : "");
-    free(scripts);
-    free(work);
+    base.scriptsFolder = pathVariable(L"PLYNTH_TEST_CHILD_SCRIPTS");
+    const fs::path folder = pathVariable(L"PLYNTH_TEST_CHILD_WORK");
     const FetchRun run = runImportFetch(makeBlenderKitFetch(plynth::test::kFetchItem, kFetchKindModel, BlenderKitOptions{}),
-                                        pathFromUtf8(exe), base, folder);
+                                        exe, base, folder);
+    INFO(run.status.message);
     REQUIRE(run.status.ok());
 }
 
@@ -453,7 +460,7 @@ TEST_CASE("every runBlenderJob job waits until the programs Blender started are 
 {
     FetchRig rig("fx");
     const ScopedEnv leave("FAKE_LEAVE_CHILD", "1500");
-    const fs::path pidFile = rig.blender.parent_path() / "fake_child.pid";
+    const fs::path pidFile = rig.logs / "fake_child.pid";
     std::unique_ptr<plynth::test::HoldExit> hold;
     std::jthread watcher([&] {
         const unsigned long pid = plynth::test::waitForPid(pidFile, std::chrono::seconds(30));
@@ -477,7 +484,7 @@ TEST_CASE("a helper Blender left that cannot be ended fails the job and removes 
 {
     FetchRig rig("fy");
     const ScopedEnv leave("FAKE_LEAVE_CHILD", "1500");
-    const fs::path pidFile = rig.blender.parent_path() / "fake_child.pid";
+    const fs::path pidFile = rig.logs / "fake_child.pid";
     std::unique_ptr<plynth::test::HoldExit> hold;
     std::jthread watcher([&] {
         const unsigned long pid = plynth::test::waitForPid(pidFile, std::chrono::seconds(30));
@@ -497,7 +504,7 @@ TEST_CASE("a helper Blender left that cannot be ended fails the job and removes 
 TEST_CASE("a fetch whose helper cannot be ended brings nothing, and the next fetch empties the folder first", "[core][fetch][end_children]")
 {
     FetchRig rig("fq");
-    const fs::path pidFile = rig.blender.parent_path() / "fake_child.pid";
+    const fs::path pidFile = rig.logs / "fake_child.pid";
     std::unique_ptr<plynth::test::HoldExit> hold;
     FetchRun first;
     {
