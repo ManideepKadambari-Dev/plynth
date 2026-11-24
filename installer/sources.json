@@ -1,0 +1,7 @@
+{
+  "qt": {
+    "version": "6.8.3",
+    "archive": "https://download.qt.io/archive/qt/6.8/6.8.3/submodules",
+    "modules": ["qtbase", "qtdeclarative", "qtquick3d", "qtquicktimeline", "qtshadertools", "qtimageformats"]
+  }
+}
