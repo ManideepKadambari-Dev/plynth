@@ -364,16 +364,27 @@ TEST_CASE("one fetch for another process", "[.fetch_child]")
     REQUIRE(run.status.ok());
 }
 
+namespace {
+
+// The fetch lock is one for the whole Windows session, so a fetch of another test that runs at the same time
+// can hold it, up to about 75 seconds for the cases whose helper cannot be ended. The waits of the lock cases
+// below allow for that and more, so they measure this test's processes, not the other tests.
+constexpr auto kOtherFetchesMayHoldTheLock = std::chrono::seconds(150);
+
+}
+
 TEST_CASE("two processes never run two fetch Blenders at once", "[core][fetch][fetch_lock]")
 {
     FetchRig rig("fp");
     const PROCESS_INFORMATION a = startChild(rig, "1500");
     const PROCESS_INFORMATION b = startChild(rig, "1500");
+    const auto wait = static_cast<DWORD>(std::chrono::milliseconds(2 * kOtherFetchesMayHoldTheLock).count());
     for (const HANDLE process : {a.hProcess, b.hProcess}) {
-        CHECK(WaitForSingleObject(process, 60000) == WAIT_OBJECT_0);
+        CHECK(WaitForSingleObject(process, wait) == WAIT_OBJECT_0);
         DWORD code = 1;
         GetExitCodeProcess(process, &code);
         CHECK(code == 0);
+        if (code == STILL_ACTIVE) TerminateProcess(process, 1);
         CloseHandle(process);
     }
     const auto all = spans(rig.runs());
@@ -385,14 +396,20 @@ TEST_CASE("a process that dies during a fetch frees the next one", "[core][fetch
 {
     FetchRig rig("fc");
     const PROCESS_INFORMATION holder = startChild(rig, "60000");
-    for (int i = 0; i < 200 && rig.starts() == 0; ++i) std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    const auto startBy = std::chrono::steady_clock::now() + kOtherFetchesMayHoldTheLock;
+    while (rig.starts() == 0 && std::chrono::steady_clock::now() < startBy) std::this_thread::sleep_for(std::chrono::milliseconds(100));
     REQUIRE(rig.starts() > 0);
     TerminateProcess(holder.hProcess, 1);
     WaitForSingleObject(holder.hProcess, 10000);
     CloseHandle(holder.hProcess);
-    const auto began = std::chrono::steady_clock::now();
-    plynth::test::requireOk(rig.fetch().status);
-    CHECK(std::chrono::steady_clock::now() - began < std::chrono::seconds(30));
+    // A lock that the dead process kept would never come free, and this fetch would wait until the stop.
+    std::stop_source stop;
+    std::jthread stopper([&stop](std::stop_token done) {
+        const auto end = std::chrono::steady_clock::now() + kOtherFetchesMayHoldTheLock;
+        while (!done.stop_requested() && std::chrono::steady_clock::now() < end) std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        stop.request_stop();
+    });
+    plynth::test::requireOk(rig.fetch(stop.get_token()).status);
 }
 
 TEST_CASE("a helper that unzips entries with .. or a full path writes nothing outside the fetch folder", "[core][fetch][low_integrity]")
