@@ -26,7 +26,7 @@ namespace plynth {
 //       inbox/           texture folders, zips or .blend files to import
 //         done/, failed/ as for assets (see catalog/MaterialImport.h)
 //       .staging/        work folders of running material imports and refreshes, emptied by initLibrary
-//     generators/        milestone 14
+//     generators/        generator files, <id>.py (Generators.h); files starting with "_" are helpers
 //     shapes/            custom opening outlines, read with registerShapeFolder
 // The files in items/ are the truth. The .db files are indexes that rescan rebuilds, except for the user's
 // room type and category lists, which live only in assets.db and are recreated from the built-in lists and
@@ -78,8 +78,9 @@ bool isLibraryFolder(const std::filesystem::path& root);
 // Makes a folder into a library: creates every missing folder above and both databases with their tables,
 // seeds assets.db with the built-in room types, categories and licenses and materials.db with the built-in
 // material groups and licenses (also into an existing, empty materials.db), empties both .staging
-// folders, and copies the sample opening shapes into shapes/ (addSampleShapes with sampleShapesFolder(); no
-// samples found is not an error). Never removes
+// folders, and copies the sample opening shapes into shapes/ (addSampleShapes with sampleShapesFolder()) and
+// the sample generators into generators/ (addSampleGenerators with sampleGeneratorsFolder()). Missing samples
+// of either kind are not an error and do not stop the other kind being copied. Never removes
 // or changes anything else, so it is safe on an existing library. CannotWrite when a folder or file cannot
 // be made; DatabaseError or UnsupportedVersion from the databases.
 Status initLibrary(const std::filesystem::path& root);
@@ -100,6 +101,9 @@ struct SampleShapesCopy {
 // already there (the owner's "Add the sample shapes" for libraries made before milestone 10; the app and
 // "plynth library add-sample-shapes" call it). Sorted file names.
 SampleShapesCopy addSampleShapes(const LibraryPaths& library, const std::filesystem::path& from);
+
+// The samples/generators folder, found like sampleShapesFolder(). Empty when none exists.
+std::filesystem::path sampleGeneratorsFolder();
 
 struct LibraryChoice {
     Status status; // NoLibrary when none is set or the folder is not a library, with a sentence naming

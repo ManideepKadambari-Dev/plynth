@@ -181,7 +181,7 @@ def job(floors):
             "project": {"name": "fixture", "folder": "project"},
             "output_folder": "build", "blend_file": "building.blend", "fbx_file": "building.fbx",
             "materials_file": "materials.json", "textures_folder": "textures", "preview_folder": "preview",
-            "plan": {"version": 5},
+            "plan": {"version": 6},
             "settings": {"bevel_width": 0.01, "bevel_segments": 2, "fill_openings": True},
             "assets": [], "materials": [], "floors": floors,
         },

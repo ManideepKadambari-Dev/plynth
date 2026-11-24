@@ -1,5 +1,6 @@
 #include "WallView.h"
 
+#include "catalog/LibraryHost.h"
 #include "document/Selection.h"
 #include "theme/Theme.h"
 #include "tools/ToolController.h"
@@ -79,6 +80,8 @@ WallView::WallView(plynth::Document& document, Selection& selection, ToolControl
 
     connect(flipButton_, &QPushButton::clicked, this, &WallView::flip);
     connect(&selection_, &Selection::changed, this, &WallView::refresh);
+    if (LibraryHost* library = controller_.library())
+        connect(library, &LibraryHost::generatorsChanged, this, &WallView::refresh);
     refresh();
 }
 
@@ -152,8 +155,11 @@ void WallView::refresh()
                                        plynth::Vec2{selection_.clickAt()->x(), selection_.clickAt()->y()});
     }
 
-    const WallViewData view = buildWallViewData(*floor, *wall, side_, selectedOpening, selectedItem,
-                                                controller_.catalog());
+    const LibraryHost* library = controller_.library();
+    const WallViewData view =
+        buildWallViewData(*floor, *wall, side_, selectedOpening, selectedItem, controller_.catalog(),
+                          library != nullptr ? &library->generators() : nullptr,
+                          library != nullptr ? library->addonCache() : std::optional<plynth::AddonCache>{});
     face_->setData(view);
     title_->setText(tr("Wall %1").arg(view.wallId));
     length_->setText(measured(QString::number(view.length, 'f', 2) + QStringLiteral(" m"), tr("long")));

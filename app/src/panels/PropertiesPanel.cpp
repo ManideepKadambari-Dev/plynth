@@ -12,6 +12,7 @@
 #include "tools/ToolController.h"
 
 #include <plynth/core/Document.h>
+#include <plynth/core/Generators.h>
 #include <plynth/core/Geometry.h>
 #include <plynth/core/Items.h>
 #include <plynth/core/RoomTypes.h>
@@ -24,6 +25,7 @@
 #include <plynth/core/catalog/ItemAssets.h>
 #include <plynth/core/catalog/MaterialCatalog.h>
 #include <plynth/core/commands/FloorCommands.h>
+#include <plynth/core/commands/GeneratorCommands.h>
 #include <plynth/core/commands/ItemCommands.h>
 #include <plynth/core/commands/MaterialCommands.h>
 #include <plynth/core/commands/OpeningCommands.h>
@@ -51,6 +53,7 @@
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSlider>
+#include <QSpinBox>
 #include <QStackedWidget>
 #include <QVBoxLayout>
 
@@ -167,6 +170,7 @@ PropertiesPanel::PropertiesPanel(plynth::Document& document, Selection& selectio
     if (controller_.library() != nullptr) {
         connect(controller_.library(), &LibraryHost::materialsChanged, this, &PropertiesPanel::refresh);
         connect(controller_.library(), &LibraryHost::libraryChanged, this, &PropertiesPanel::refresh);
+        connect(controller_.library(), &LibraryHost::generatorsChanged, this, &PropertiesPanel::refresh);
     }
     refresh();
 }
@@ -194,6 +198,7 @@ QLabel* PropertiesPanel::addLabelRow(QGridLayout* grid, const QString& label, bo
     name->setFont(t.uiFont(t.sizeSmall()));
     name->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
     auto* value = new QLabel(grid->parentWidget());
+    value->setTextFormat(Qt::PlainText);
     value->setFont(mono ? t.monoFont(t.sizeNormal()) : t.uiFont(t.sizeNormal()));
     value->setTextInteractionFlags(Qt::NoTextInteraction);
     value->setWordWrap(true);
@@ -249,6 +254,7 @@ QLabel* PropertiesPanel::addNote(QGridLayout* grid)
 {
     const Theme& t = Theme::instance();
     auto* note = new QLabel(grid->parentWidget());
+    note->setTextFormat(Qt::PlainText);
     note->setFont(t.uiFont(t.sizeSmall()));
     note->setWordWrap(true);
     note->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
@@ -277,6 +283,18 @@ void PropertiesPanel::buildNothingPage()
             return;
         gridEdited_ = false;
         controller_.run(std::make_unique<plynth::SetGridSizeCommand>(gridSpin_->value()));
+    });
+
+    exportModeCombo_ = addComboRow(grid, tr("Export mode"),
+                                   tr("Single FBX writes one file. Grouped FBX writes one file for each group, which you "
+                                      "review in the Export tab. Changing it does not make the build out of date."),
+                                   QStringLiteral("panel-export-mode"));
+    exportModeCombo_->addItem(tr("Single FBX"), static_cast<int>(plynth::ExportMode::Single));
+    exportModeCombo_->addItem(tr("Grouped FBX"), static_cast<int>(plynth::ExportMode::Grouped));
+    connect(exportModeCombo_, &QComboBox::activated, this, [this](int index) {
+        const auto mode = static_cast<plynth::ExportMode>(exportModeCombo_->itemData(index).toInt());
+        if (!refreshing_ && mode != document_.project().settings.exportMode)
+            controller_.run(std::make_unique<plynth::SetExportModeCommand>(mode));
     });
 
     wallCentreSpin_ = addKeyedSpinRow(grid, tr("Wall item centre"), 0.05, 100.0, 0.05,
@@ -468,6 +486,7 @@ void PropertiesPanel::buildStairPage()
     stairLength_ = addLabelRow(grid, tr("Length"));
     stairLength_->setToolTip(tr("The length of the walk line from the bottom step to the upper floor"));
     stairProblems_ = new QLabel(grid->parentWidget());
+    stairProblems_->setTextFormat(Qt::PlainText);
     stairProblems_->setFont(t.uiFont(t.sizeSmall()));
     stairProblems_->setWordWrap(true);
     stairProblems_->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
@@ -1053,6 +1072,7 @@ void PropertiesPanel::buildDetectPage()
     editors_.push_back(detectorCombo_);
 
     detectStatus_ = new QLabel(page);
+    detectStatus_->setTextFormat(Qt::PlainText);
     detectStatus_->setFont(t.uiFont(t.sizeSmall()));
     detectStatus_->setWordWrap(true);
     detectStatus_->setToolTip(tr("What detection found, or why it could not run"));
@@ -1292,6 +1312,27 @@ void PropertiesPanel::refreshMaterialRows(int page)
     }
 }
 
+// Makes the material picker the first time it is needed.
+MaterialPicker* PropertiesPanel::ensurePicker()
+{
+    if (picker_ == nullptr) {
+        picker_ = new MaterialPicker(*controller_.library(), window());
+        connect(picker_, &MaterialPicker::materialChosen, this, [this](const QString& id) {
+            if (!pickGeneratorParam_.empty())
+                editGeneratorParam(pickGeneratorParam_, plynth::GeneratorValue{id.toStdString()});
+            else
+                applyMaterial(pickTarget_, id.toStdString());
+        });
+        connect(picker_, &MaterialPicker::cleared, this, [this]() {
+            if (!pickGeneratorParam_.empty())
+                editGeneratorParam(pickGeneratorParam_, plynth::GeneratorValue{std::string()});
+            else
+                applyMaterial(pickTarget_, std::nullopt);
+        });
+    }
+    return picker_;
+}
+
 // Opens the picker beside a row, with the row's material marked and the first row set to clear it.
 void PropertiesPanel::openPicker(size_t slotIndex, const QString& hoverMaterial)
 {
@@ -1304,13 +1345,8 @@ void PropertiesPanel::openPicker(size_t slotIndex, const QString& hoverMaterial)
     }
     const MaterialSlot& slot = materialSlots_[slotIndex];
     pickTarget_ = targetFor(slot.target, selection_.id());
-    if (picker_ == nullptr) {
-        picker_ = new MaterialPicker(*host, window());
-        connect(picker_, &MaterialPicker::materialChosen, this, [this](const QString& id) {
-            applyMaterial(pickTarget_, id.toStdString());
-        });
-        connect(picker_, &MaterialPicker::cleared, this, [this]() { applyMaterial(pickTarget_, std::nullopt); });
-    }
+    pickGeneratorParam_.clear();
+    ensurePicker();
     const plynth::ResolvedMaterial resolved = resolveMaterial(pickTarget_);
     const bool isDefault = pickTarget_.kind == plynth::MaterialTarget::Kind::Default;
     // The picker opens beside the whole panel, so the row labels stay readable.
@@ -1423,6 +1459,10 @@ bool PropertiesPanel::eventFilter(QObject* watched, QEvent* event)
         for (QDoubleSpinBox* spin : keyedSpins_)
             if (watched == spin || watched->parent() == spin)
                 focusKey_ = controller_.nextMergeKey();
+    if (event->type() == QEvent::FocusIn)
+        for (const GeneratorRow& row : genRows_)
+            if (watched == row.editor || watched->parent() == row.editor)
+                genFocusKey_ = controller_.nextMergeKey();
     if (event->type() == QEvent::ShortcutOverride) {
         const int key = static_cast<QKeyEvent*>(event)->key();
         const bool inSpin = qobject_cast<QAbstractSpinBox*>(watched) != nullptr ||
@@ -1542,9 +1582,10 @@ void PropertiesPanel::refreshUnusedRoofEntries()
         auto* row = new QWidget(unusedRoofBox_);
         auto* rowLayout = new QHBoxLayout(row);
         rowLayout->setContentsMargins(0, 0, 0, 0);
-        auto* text = new QLabel(fromCore(entry->id) + QStringLiteral("  ") + fromCore(entry->floor) +
-                                    QStringLiteral(" (%1, %2)").arg(entry->x, 0, 'f', 2).arg(entry->y, 0, 'f', 2),
-                                row);
+        auto* text = new QLabel(row);
+        text->setTextFormat(Qt::PlainText);
+        text->setText(fromCore(entry->id) + QStringLiteral("  ") + fromCore(entry->floor) +
+                      QStringLiteral(" (%1, %2)").arg(entry->x, 0, 'f', 2).arg(entry->y, 0, 'f', 2));
         text->setFont(t.monoFont(t.sizeNormal()));
         text->setToolTip(tr("A roof entry on this floor whose spot holds no roof section"));
         rowLayout->addWidget(text, 1);
@@ -1575,6 +1616,11 @@ void PropertiesPanel::refreshNothing()
     }
     scaleHint_->setVisible(!scaleHint_->text().isEmpty());
     setSpin(gridSpin_, document_.project().settings.gridSize);
+    {
+        const int index = exportModeCombo_->findData(static_cast<int>(document_.project().settings.exportMode));
+        const QSignalBlocker blocker(exportModeCombo_);
+        exportModeCombo_->setCurrentIndex(index);
+    }
     const plynth::Floor* floor = controller_.floor();
     const bool otherFloor = floor != nullptr && floor->id != shownFloorId_;
     if (floor != nullptr)
@@ -1769,6 +1815,7 @@ void PropertiesPanel::buildOpeningPage()
     openingHeight_ = addKeyedSpinRow(grid, tr("Height"), 0.01, 100.0, 0.05, tr("Height of the opening"),
                                      QStringLiteral("panel-opening-height"));
     openingProblem_ = new QLabel(grid->parentWidget());
+    openingProblem_->setTextFormat(Qt::PlainText);
     openingProblem_->setFont(t.uiFont(t.sizeSmall()));
     openingProblem_->setWordWrap(true);
     openingProblem_->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
@@ -1977,6 +2024,7 @@ void PropertiesPanel::buildItemPage()
     grid->addWidget(itemThumb_, grid->rowCount(), 0, 1, 2, Qt::AlignLeft);
 
     itemName_ = new QLabel(page);
+    itemName_->setTextFormat(Qt::PlainText);
     itemName_->setFont(t.uiFont(t.sizeLarge(), QFont::DemiBold));
     itemName_->setToolTip(tr("The name of the asset"));
     grid->addWidget(itemName_, grid->rowCount(), 0, 1, 2);
@@ -1988,6 +2036,7 @@ void PropertiesPanel::buildItemPage()
     itemSize_->setToolTip(tr("Width, depth and height of the item"));
 
     itemState_ = new QLabel(page);
+    itemState_->setTextFormat(Qt::PlainText);
     itemState_->setFont(t.uiFont(t.sizeSmall()));
     itemState_->setWordWrap(true);
     itemState_->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
@@ -2053,6 +2102,19 @@ void PropertiesPanel::buildItemPage()
     editors_.push_back(itemMount_);
     editors_.push_back(itemTakeOff_);
 
+    genGroup_ = new QWidget(page);
+    genGroup_->setProperty("tourId", QStringLiteral("generator-group"));
+    genGroup_->setToolTip(tr("The parameters of the generator this item runs"));
+    auto* genColumn = new QVBoxLayout(genGroup_);
+    genColumn->setContentsMargins(0, 0, 0, 0);
+    genColumn->setSpacing(t.unit() * 2);
+    auto* genTitle = new QLabel(tr("Generator"), genGroup_);
+    genTitle->setFont(t.uiFont(t.sizeSmall(), QFont::DemiBold));
+    genTitle->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
+    genColumn->addWidget(genTitle);
+    genGroup_->setVisible(false);
+    grid->addWidget(genGroup_, grid->rowCount(), 0, 1, 2);
+
     itemSwap_ = new QPushButton(tr("Swap asset..."), page);
     itemSwap_->setToolTip(tr("Pick another asset for this item. It keeps its place"));
     itemSwap_->setProperty("tourId", QStringLiteral("item-swap"));
@@ -2060,12 +2122,20 @@ void PropertiesPanel::buildItemPage()
     editors_.push_back(itemSwap_);
 
     itemProblems_ = new QLabel(page);
+    itemProblems_->setTextFormat(Qt::PlainText);
     itemProblems_->setFont(t.uiFont(t.sizeSmall()));
     itemProblems_->setWordWrap(true);
     itemProblems_->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
     itemProblems_->setToolTip(tr("Warnings about this item"));
     grid->addWidget(itemProblems_, grid->rowCount(), 0, 1, 2);
 
+    const auto labelOf = [grid](QWidget* widget) -> QWidget* {
+        int row = 0, column = 0, rowSpan = 0, columnSpan = 0;
+        grid->getItemPosition(grid->indexOf(widget), &row, &column, &rowSpan, &columnSpan);
+        QLayoutItem* label = grid->itemAtPosition(row, 0);
+        return label != nullptr && label->widget() != widget ? label->widget() : nullptr;
+    };
+    assetOnly_ = {itemThumb_, itemAsset_, labelOf(itemAsset_), itemSwap_, itemSize_, labelOf(itemSize_)};
     floorOnly_.push_back(itemX_);
     floorOnly_.push_back(itemY_);
     floorOnly_.push_back(itemRotation_);
@@ -2149,7 +2219,8 @@ void PropertiesPanel::takeOffItem()
         runItemCommand(std::make_unique<plynth::SetItemWallCommand>(item->id, std::nullopt));
 }
 
-// Gives the selected item the size its asset has in the library now.
+// Gives the selected item the size its asset has in the library now. A generator item has no asset and is
+// left as it is.
 void PropertiesPanel::updateItemSize()
 {
     const plynth::Floor* floor = controller_.floor();
@@ -2157,7 +2228,7 @@ void PropertiesPanel::updateItemSize()
                                    ? plynth::findItem(*floor, selection_.id().toStdString())
                                    : nullptr;
     plynth::AssetCatalog* catalog = controller_.catalog();
-    if (item == nullptr || catalog == nullptr)
+    if (item == nullptr || catalog == nullptr || plynth::isGeneratorItem(*item))
         return;
     const plynth::ItemAsset asset = plynth::itemAssetFor(*catalog, item->asset);
     if (!asset.status.ok()) {
@@ -2167,14 +2238,15 @@ void PropertiesPanel::updateItemSize()
     runItemCommand(std::make_unique<plynth::SwapItemAssetCommand>(item->id, item->asset, asset.size));
 }
 
-// Opens the picker beside the panel with the room type of the item. Choosing an asset swaps it in.
+// Opens the picker beside the panel with the room type of the item. Choosing an asset swaps it in. Nothing
+// happens for a generator item.
 void PropertiesPanel::swapItemAsset()
 {
     const plynth::Floor* floor = controller_.floor();
     if (floor == nullptr || selection_.kind() != SelectionKind::Item || controller_.catalog() == nullptr)
         return;
     const plynth::Item* item = plynth::findItem(*floor, selection_.id().toStdString());
-    if (item == nullptr)
+    if (item == nullptr || plynth::isGeneratorItem(*item))
         return;
     QString roomType;
     if (item->room.has_value())
@@ -2206,21 +2278,33 @@ void PropertiesPanel::refreshItem()
     if (item == nullptr)
         return;
     plynth::AssetCatalog* catalog = controller_.catalog();
+    const bool isGenerator = plynth::isGeneratorItem(*item);
+    LibraryHost* host = controller_.library();
+    const plynth::GeneratorInfo* generatorInfo =
+        isGenerator && host != nullptr ? host->generators().find(item->generator->name) : nullptr;
+    for (QWidget* widget : assetOnly_)
+        if (widget != nullptr)
+            widget->setVisible(!isGenerator);
+    genGroup_->setVisible(isGenerator);
     std::optional<plynth::AssetRecord> record;
-    if (catalog != nullptr)
+    if (catalog != nullptr && !isGenerator)
         record = catalog->asset(item->asset);
 
     QString name = fromCore(item->asset);
     if (record)
         name = fromCore(record->name);
+    if (isGenerator)
+        name = fromCore(generatorInfo != nullptr ? generatorInfo->name : item->generator->name);
     itemName_->setText(item->wall.has_value() ? tr("%1 on a wall").arg(name) : name);
     itemAsset_->setText(fromCore(item->asset));
     itemSize_->setText(AssetPreview::sizeText(plynth::AssetSize{item->size.width, item->size.depth, item->size.height}));
 
     QPixmap pixmap;
-    if (record && record->state != plynth::AssetState::Broken && record->thumbnail == plynth::ThumbnailState::Ok)
+    if (!isGenerator && record && record->state != plynth::AssetState::Broken && record->thumbnail == plynth::ThumbnailState::Ok)
         pixmap = AssetPreview::loadPixmap(QString::fromStdWString(record->thumbFile.wstring()), 128, devicePixelRatioF());
-    if (!pixmap.isNull()) {
+    if (isGenerator) {
+        itemThumb_->setPixmap(QPixmap());
+    } else if (!pixmap.isNull()) {
         itemThumb_->setText(QString());
         itemThumb_->setStyleSheet(QStringLiteral("background: %1;").arg(t.ground().name()));
         itemThumb_->setPixmap(pixmap);
@@ -2249,9 +2333,17 @@ void PropertiesPanel::refreshItem()
     QStringList state;
     bool sizeChanged = false;
     QStringList others;
+    bool generatorChanged = false;
     const plynth::AssetLookup lookup = catalog != nullptr ? plynth::assetLookupFor(*catalog) : plynth::AssetLookup();
-    for (const plynth::ItemProblem& problem : plynth::checkItem(*floor, *item, lookup)) {
-        if (problem.kind == plynth::ItemProblemKind::MissingAsset)
+    const plynth::GeneratorItemLookup generatorLookup =
+        isGenerator && host != nullptr ? plynth::generatorItemLookupFor(host->generators(), host->addonCache())
+                                       : plynth::GeneratorItemLookup();
+    for (const plynth::ItemProblem& problem : plynth::checkItem(*floor, *item, lookup, generatorLookup)) {
+        if (problem.kind == plynth::ItemProblemKind::GeneratorChanged)
+            generatorChanged = true;
+        else if (problem.kind == plynth::ItemProblemKind::MissingGenerator ||
+                 problem.kind == plynth::ItemProblemKind::GeneratorUnavailable) {
+        } else if (problem.kind == plynth::ItemProblemKind::MissingAsset)
             state << tr("Missing asset");
         else if (problem.kind == plynth::ItemProblemKind::SizeChanged) {
             state << tr("Size in library differs");
@@ -2261,10 +2353,12 @@ void PropertiesPanel::refreshItem()
     }
     itemState_->setText(state.join(QStringLiteral(". ")));
     itemState_->setVisible(!state.isEmpty());
-    itemUpdate_->setVisible(sizeChanged);
+    itemUpdate_->setVisible(sizeChanged && !isGenerator);
     itemProblems_->setText(others.join(QLatin1Char('\n')));
     itemProblems_->setVisible(!others.isEmpty());
 
+    if (isGenerator)
+        refreshGenerator(*item, generatorInfo, generatorChanged);
     setSpin(itemX_, item->x);
     setSpin(itemY_, item->y);
     setSpin(itemRotation_, item->rotation);
@@ -2306,6 +2400,424 @@ void PropertiesPanel::refreshItem()
                 if (label->widget() != nullptr)
                     label->widget()->setVisible(onWall);
         }
+}
+
+namespace {
+
+// The text of one stored parameter value.
+QString valueText(const plynth::GeneratorValue& value)
+{
+    return fromCore(plynth::generatorValueText(value));
+}
+
+}
+
+// Builds the rows of the Generator group for one item. Called again only when the item, the generator or its
+// declaration changes, so a box keeps the focus while it is edited.
+void PropertiesPanel::buildGeneratorBody(const plynth::Item& item, const plynth::GeneratorInfo* info)
+{
+    const Theme& t = Theme::instance();
+    if (genBody_ != nullptr) {
+        genBody_->hide();
+        genBody_->deleteLater();
+    }
+    genRows_.clear();
+    genBody_ = new QWidget(genGroup_);
+    genGroup_->layout()->addWidget(genBody_);
+    auto* grid = new QGridLayout(genBody_);
+    grid->setContentsMargins(0, 0, 0, 0);
+    grid->setHorizontalSpacing(t.unit() * 3);
+    grid->setVerticalSpacing(t.unit() * 2);
+    grid->setColumnStretch(1, 1);
+
+    genName_ = new QLabel(genBody_);
+    genName_->setFont(t.uiFont(t.sizeNormal(), QFont::DemiBold));
+    genName_->setWordWrap(true);
+    genName_->setToolTip(tr("The name of the generator"));
+    genName_->setVisible(false);
+    grid->addWidget(genName_, 0, 0, 1, 2);
+    genDescription_ = new QLabel(genBody_);
+    genDescription_->setFont(t.uiFont(t.sizeSmall()));
+    genDescription_->setWordWrap(true);
+    genDescription_->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
+    genDescription_->setToolTip(tr("What the generator makes"));
+    grid->addWidget(genDescription_, 1, 0, 1, 2);
+
+    const auto addLabel = [&](const QString& text, const QString& tip) {
+        auto* name = new QLabel(text, genBody_);
+        name->setFont(t.uiFont(t.sizeSmall()));
+        name->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
+        name->setToolTip(tip);
+        return name;
+    };
+    if (info != nullptr) {
+        for (const plynth::GeneratorParam& param : info->params) {
+            const QString label = fromCore(param.label);
+            const QString tip = param.help.empty() ? label : fromCore(param.help);
+            const std::string id = param.id;
+            QWidget* editor = nullptr;
+            switch (param.type) {
+            case plynth::GeneratorParamType::Number: {
+                auto* spin = new QDoubleSpinBox(genBody_);
+                const bool degrees = param.unit == plynth::GeneratorUnit::Degrees;
+                spin->setDecimals(degrees ? 1 : 3);
+                spin->setRange(param.min.value_or(-100000.0), param.max.value_or(100000.0));
+                spin->setSingleStep(param.step > 0.0 ? param.step
+                                    : param.unit == plynth::GeneratorUnit::Metres ? 0.01
+                                    : degrees ? 1.0 : 0.1);
+                if (param.unit == plynth::GeneratorUnit::Metres)
+                    spin->setSuffix(tr(" m"));
+                else if (degrees)
+                    spin->setSuffix(tr(" deg"));
+                spin->setKeyboardTracking(false);
+                spin->setFont(t.monoFont(t.sizeNormal()));
+                spin->setStyle(t.controlStyle());
+                connect(spin, &QDoubleSpinBox::valueChanged, this, [this, id](double value) {
+                    if (!refreshing_)
+                        editGeneratorParam(id, plynth::GeneratorValue{value});
+                });
+                editor = spin;
+                break;
+            }
+            case plynth::GeneratorParamType::Integer: {
+                auto* spin = new QSpinBox(genBody_);
+                spin->setRange(static_cast<int>(param.min.value_or(-100000.0)),
+                               static_cast<int>(param.max.value_or(100000.0)));
+                spin->setSingleStep(param.step >= 1.0 ? static_cast<int>(param.step) : 1);
+                spin->setKeyboardTracking(false);
+                spin->setFont(t.monoFont(t.sizeNormal()));
+                spin->setStyle(t.controlStyle());
+                connect(spin, &QSpinBox::valueChanged, this, [this, id](int value) {
+                    if (!refreshing_)
+                        editGeneratorParam(id, plynth::GeneratorValue{static_cast<double>(value)});
+                });
+                editor = spin;
+                break;
+            }
+            case plynth::GeneratorParamType::Boolean: {
+                auto* box = new QCheckBox(genBody_);
+                box->setFont(t.uiFont(t.sizeNormal()));
+                connect(box, &QCheckBox::toggled, this, [this, id](bool on) {
+                    if (!refreshing_)
+                        editGeneratorParam(id, plynth::GeneratorValue{on});
+                });
+                editor = box;
+                break;
+            }
+            case plynth::GeneratorParamType::Choice: {
+                auto* combo = new QComboBox(genBody_);
+                combo->setFont(t.uiFont(t.sizeNormal()));
+                combo->setStyle(t.controlStyle());
+                for (const plynth::GeneratorChoice& choice : param.choices)
+                    combo->addItem(fromCore(choice.label), fromCore(choice.id));
+                connect(combo, &QComboBox::activated, this, [this, id, combo](int index) {
+                    if (!refreshing_)
+                        editGeneratorParam(id, plynth::GeneratorValue{combo->itemData(index).toString().toStdString()});
+                });
+                combo->installEventFilter(this);
+                editor = combo;
+                break;
+            }
+            case plynth::GeneratorParamType::Material: {
+                auto* row = new MaterialRow(genBody_);
+                connect(row, &QAbstractButton::clicked, this, [this, id, row]() {
+                    LibraryHost* library = controller_.library();
+                    if (library == nullptr || !library->materialCatalog()) {
+                        controller_.showMessage(tr("There is no library with materials. Open the setup check to choose one."));
+                        return;
+                    }
+                    const plynth::Floor* floor = controller_.floor();
+                    const plynth::Item* current =
+                        floor ? plynth::findItem(*floor, selection_.id().toStdString()) : nullptr;
+                    const plynth::GeneratorValue* value =
+                        current && current->generator ? plynth::findGeneratorValue(current->generator->params, id) : nullptr;
+                    QString currentId;
+                    if (value != nullptr && std::holds_alternative<std::string>(*value))
+                        currentId = fromCore(std::get<std::string>(*value));
+                    pickGeneratorParam_ = id;
+                    const QPoint anchor(mapTo(window(), QPoint(0, 0)).x(), row->mapTo(window(), QPoint(0, 0)).y());
+                    ensurePicker()->openAt(anchor, tr("No material"), currentId);
+                });
+                editor = row;
+                break;
+            }
+            }
+            editor->setToolTip(tip);
+            editor->setProperty("tourId", QStringLiteral("generator-param-") + fromCore(param.id));
+            // As for the fixed boxes of the panel: the wheel scrolls the page unless the box has focus.
+            if (qobject_cast<QAbstractSpinBox*>(editor) != nullptr || qobject_cast<QComboBox*>(editor) != nullptr)
+                editor->setFocusPolicy(Qt::StrongFocus);
+            if (qobject_cast<QAbstractSpinBox*>(editor) != nullptr) {
+                editor->installEventFilter(this);
+                if (auto* edit = editor->findChild<QLineEdit*>())
+                    edit->installEventFilter(this);
+            }
+            const int row = grid->rowCount();
+            grid->addWidget(addLabel(label, tip), row, 0, Qt::AlignVCenter);
+            grid->addWidget(editor, row, 1);
+            genRows_.push_back({param.id, param.type, editor});
+        }
+    } else if (item.generator) {
+        for (const plynth::GeneratorParamValue& stored : item.generator->params) {
+            auto* value = new QLabel(valueText(stored.value), genBody_);
+            value->setFont(t.monoFont(t.sizeNormal()));
+            value->setToolTip(tr("The value stored in the plan"));
+            const int row = grid->rowCount();
+            grid->addWidget(addLabel(fromCore(stored.id), tr("A parameter value stored in the plan")), row, 0,
+                            Qt::AlignTop);
+            grid->addWidget(value, row, 1, Qt::AlignTop);
+        }
+    }
+
+    genSize_ = new QLabel(genBody_);
+    genSize_->setFont(t.monoFont(t.sizeSmall()));
+    genSize_->setToolTip(tr("Width, depth and height the generator makes with these values"));
+    const int sizeRow = grid->rowCount();
+    grid->addWidget(addLabel(tr("Size"), tr("Width, depth and height the generator makes with these values")), sizeRow,
+                    0, Qt::AlignTop);
+    grid->addWidget(genSize_, sizeRow, 1, Qt::AlignTop);
+
+    genNote_ = new QLabel(genBody_);
+    genNote_->setFont(t.uiFont(t.sizeSmall()));
+    genNote_->setWordWrap(true);
+    genNote_->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
+    genNote_->setToolTip(tr("What is wrong with this generator"));
+    grid->addWidget(genNote_, grid->rowCount(), 0, 1, 2);
+
+    auto* buttons = new QWidget(genBody_);
+    auto* box = new QHBoxLayout(buttons);
+    box->setContentsMargins(0, 0, 0, 0);
+    box->setSpacing(t.unit() * 2);
+    genReset_ = new QPushButton(tr("Reset to defaults"), buttons);
+    genReset_->setToolTip(tr("Give every parameter of this item its default value"));
+    genReset_->setProperty("tourId", QStringLiteral("generator-reset"));
+    genUpdate_ = new QPushButton(tr("Update"), buttons);
+    genUpdate_->setToolTip(tr("Fit the stored values to the generator as it is now"));
+    genUpdate_->setProperty("tourId", QStringLiteral("generator-update"));
+    box->addWidget(genReset_);
+    box->addWidget(genUpdate_);
+    box->addStretch(1);
+    grid->addWidget(buttons, grid->rowCount(), 0, 1, 2);
+    connect(genReset_, &QPushButton::clicked, this, &PropertiesPanel::resetGenerator);
+    connect(genUpdate_, &QPushButton::clicked, this, &PropertiesPanel::updateGenerator);
+}
+
+// Fills the Generator group from the item's stored values.
+void PropertiesPanel::refreshGenerator(const plynth::Item& item, const plynth::GeneratorInfo* info, bool changed)
+{
+    const Theme& t = Theme::instance();
+    QString key = fromCore(item.id) + QLatin1Char('|') + fromCore(item.generator->name) + QLatin1Char('|');
+    if (info == nullptr) {
+        key += QStringLiteral("missing");
+    } else {
+        for (const plynth::GeneratorParam& param : info->params)
+            key += fromCore(param.id) + QLatin1Char(':') + QString::number(static_cast<int>(param.type)) +
+                   QLatin1Char(':') + QString::number(param.choices.size()) + QLatin1Char(',');
+    }
+    if (key != genKey_ || genBody_ == nullptr) {
+        genKey_ = key;
+        buildGeneratorBody(item, info);
+    }
+    genName_->setText(fromCore(info != nullptr ? info->name : item.generator->name));
+    genDescription_->setText(info != nullptr ? fromCore(info->description) : QString());
+    genDescription_->setVisible(info != nullptr && !info->description.empty());
+    genSize_->setText(AssetPreview::sizeText(plynth::AssetSize{item.size.width, item.size.depth, item.size.height}));
+
+    plynth::MaterialCatalog* materials = controller_.library() ? controller_.library()->materialCatalog() : nullptr;
+    for (const GeneratorRow& row : genRows_) {
+        const plynth::GeneratorValue* value = plynth::findGeneratorValue(item.generator->params, row.id);
+        const plynth::GeneratorParam* param = info != nullptr ? info->findParam(row.id) : nullptr;
+        row.editor->setEnabled(!document_.isReadOnly() && !changed);
+        if (param == nullptr)
+            continue;
+        const bool before = row.editor->blockSignals(true);
+        const auto number = [&]() {
+            return value && std::holds_alternative<double>(*value) ? std::get<double>(*value)
+                                                                    : std::get<double>(param->defaultValue);
+        };
+        switch (row.type) {
+        case plynth::GeneratorParamType::Number:
+            if (auto* spin = qobject_cast<QDoubleSpinBox*>(row.editor))
+                spin->setValue(number());
+            break;
+        case plynth::GeneratorParamType::Integer:
+            if (auto* spin = qobject_cast<QSpinBox*>(row.editor))
+                spin->setValue(static_cast<int>(number()));
+            break;
+        case plynth::GeneratorParamType::Boolean:
+            if (auto* box = qobject_cast<QCheckBox*>(row.editor))
+                box->setChecked(value && std::holds_alternative<bool>(*value) && std::get<bool>(*value));
+            break;
+        case plynth::GeneratorParamType::Choice:
+            if (auto* combo = qobject_cast<QComboBox*>(row.editor))
+                combo->setCurrentIndex(value && std::holds_alternative<std::string>(*value)
+                                           ? std::max(0, combo->findData(fromCore(std::get<std::string>(*value))))
+                                           : 0);
+            break;
+        case plynth::GeneratorParamType::Material:
+            if (auto* material = qobject_cast<MaterialRow*>(row.editor)) {
+                const std::string id =
+                    value && std::holds_alternative<std::string>(*value) ? std::get<std::string>(*value) : std::string();
+                if (id.empty()) {
+                    material->setContent(QPixmap(), tr("No material"), tr("neutral look"), QString());
+                } else {
+                    const std::optional<plynth::MaterialRecord> record = materials ? materials->material(id) : std::nullopt;
+                    if (!record) {
+                        material->setContent(QPixmap(), fromCore(id), QString(), tr("not in the library"));
+                    } else {
+                        QPixmap swatch;
+                        if (record->state != plynth::MaterialState::Broken &&
+                            record->thumbnail == plynth::ThumbnailState::Ok)
+                            swatch = AssetPreview::loadPixmap(QString::fromStdWString(record->thumbFile.wstring()),
+                                                              t.materialSwatch(), devicePixelRatioF());
+                        material->setContent(swatch, fromCore(record->name), QString(),
+                                             record->state == plynth::MaterialState::Broken ? tr("broken") : QString());
+                    }
+                }
+            }
+            break;
+        }
+        row.editor->blockSignals(before);
+    }
+
+    QString note;
+    if (info == nullptr) {
+        note = tr("The generator %1 is not in the library. Its values are kept.").arg(fromCore(item.generator->name));
+    } else {
+        const plynth::GeneratorState state = plynth::generatorState(*info, controller_.library()->addonCache());
+        note = fromCore(state.message);
+        if (changed)
+            note += (note.isEmpty() ? QString() : QStringLiteral(" ")) +
+                    tr("The generator changed since this item was placed. Press Update to fit it.");
+    }
+    genNote_->setText(note);
+    genNote_->setVisible(!note.isEmpty());
+    genReset_->setVisible(info != nullptr);
+    genReset_->setEnabled(!document_.isReadOnly());
+    genUpdate_->setVisible(info != nullptr && changed);
+    genUpdate_->setEnabled(!document_.isReadOnly());
+}
+
+// For checks only: parses "id=value" like the command line does and runs the edit through the same path as a box.
+bool PropertiesPanel::setGeneratorParamText(const QString& assignment, QString* message)
+{
+    const plynth::Item* item = selectedGeneratorItem();
+    LibraryHost* host = controller_.library();
+    const qsizetype at = assignment.indexOf(QLatin1Char('='));
+    if (item == nullptr || host == nullptr || at <= 0) {
+        *message = tr("Select a generator item and give id=value.");
+        return false;
+    }
+    const plynth::GeneratorInfo* info = host->generators().find(item->generator->name);
+    const std::string id = assignment.left(at).toStdString();
+    const plynth::GeneratorParam* param = info != nullptr ? info->findParam(id) : nullptr;
+    if (param == nullptr) {
+        *message = tr("The generator has no parameter %1.").arg(assignment.left(at));
+        return false;
+    }
+    const plynth::GeneratorValueRead read = plynth::parseGeneratorValue(*param, assignment.mid(at + 1).toStdString());
+    if (!read.status.ok()) {
+        *message = fromCore(read.status.message);
+        return false;
+    }
+    static std::string lastCheckParam;
+    if (id != lastCheckParam) {
+        genFocusKey_ = controller_.nextMergeKey();
+        lastCheckParam = id;
+    }
+    editGeneratorParam(id, read.value);
+    return true;
+}
+
+// The generator item that is selected, or null.
+const plynth::Item* PropertiesPanel::selectedGeneratorItem() const
+{
+    const plynth::Floor* floor = controller_.floor();
+    const plynth::Item* item = floor && selection_.kind() == SelectionKind::Item
+                                   ? plynth::findItem(*floor, selection_.id().toStdString())
+                                   : nullptr;
+    return item != nullptr && item->generator ? item : nullptr;
+}
+
+// Changes one parameter of the selected generator item. One visit to a box is one undo step.
+void PropertiesPanel::editGeneratorParam(const std::string& paramId, const plynth::GeneratorValue& value)
+{
+    LibraryHost* host = controller_.library();
+    const plynth::Item* item = selectedGeneratorItem();
+    if (item == nullptr || host == nullptr)
+        return;
+    const plynth::GeneratorInfo* info = host->generators().find(item->generator->name);
+    if (info == nullptr)
+        return;
+    const plynth::GeneratorParam* param = info->findParam(paramId);
+    const std::string* material = std::get_if<std::string>(&value);
+    if (param != nullptr && param->type == plynth::GeneratorParamType::Material && material != nullptr &&
+        !material->empty()) {
+        if (host->materialCatalog() == nullptr) {
+            controller_.showMessage(tr("There is no library with materials."));
+            return;
+        }
+        const plynth::MaterialForUse use = plynth::materialForUse(*host->materialCatalog(), *material);
+        if (!use.status.ok()) {
+            controller_.showMessage(fromCore(use.status.message));
+            return;
+        }
+    }
+    std::vector<plynth::GeneratorParamValue> params = item->generator->params;
+    plynth::Status status = plynth::setGeneratorParam(*info, params, paramId, value);
+    plynth::GeneratorPlacement placement;
+    if (status.ok()) {
+        placement = plynth::makeGeneratorUse(*info, params);
+        status = placement.status;
+    }
+    if (!status.ok()) {
+        controller_.showMessage(fromCore(status.message));
+        refresh();
+        return;
+    }
+    const int key = genFocusKey_ != 0 ? genFocusKey_ : controller_.nextMergeKey();
+    runItemCommand(std::make_unique<plynth::SetItemGeneratorCommand>(item->id, placement.use, placement.size, key));
+}
+
+// Gives the selected generator item the default value of every parameter.
+void PropertiesPanel::resetGenerator()
+{
+    LibraryHost* host = controller_.library();
+    const plynth::Item* item = selectedGeneratorItem();
+    if (item == nullptr || host == nullptr)
+        return;
+    const plynth::GeneratorInfo* info = host->generators().find(item->generator->name);
+    if (info == nullptr)
+        return;
+    const plynth::GeneratorPlacement placement =
+        plynth::makeGeneratorUse(*info, plynth::defaultGeneratorParams(*info, controller_.floor()->ceilingHeight));
+    if (!placement.status.ok()) {
+        controller_.showMessage(fromCore(placement.status.message));
+        return;
+    }
+    runItemCommand(std::make_unique<plynth::SetItemGeneratorCommand>(item->id, placement.use, placement.size,
+                                                                     controller_.nextMergeKey()));
+}
+
+// Fits the stored values to the generator as it is now.
+void PropertiesPanel::updateGenerator()
+{
+    LibraryHost* host = controller_.library();
+    const plynth::Item* item = selectedGeneratorItem();
+    if (item == nullptr || host == nullptr)
+        return;
+    const plynth::GeneratorInfo* info = host->generators().find(item->generator->name);
+    if (info == nullptr)
+        return;
+    const plynth::GeneratorParamsFit fit =
+        plynth::fitGeneratorParams(*info, item->generator->params, controller_.floor()->ceilingHeight);
+    const plynth::GeneratorPlacement placement = plynth::makeGeneratorUse(*info, fit.params);
+    if (!placement.status.ok()) {
+        controller_.showMessage(fromCore(placement.status.message));
+        return;
+    }
+    runItemCommand(std::make_unique<plynth::SetItemGeneratorCommand>(item->id, placement.use, placement.size,
+                                                                     controller_.nextMergeKey()));
 }
 
 }

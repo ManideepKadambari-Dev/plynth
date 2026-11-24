@@ -16,7 +16,9 @@
 #include "document/Selection.h"
 #include "catalog/ImportQueue.h"
 #include "catalog/LibraryHost.h"
+#include "catalog/FabImportDialog.h"
 #include "catalog/LibraryWatcher.h"
+#include "catalog/StoreImports.h"
 #include "panels/ImportQueueView.h"
 #include "setup/SetupCheckDialog.h"
 #include "dialogs/RoomTypesDialog.h"
@@ -27,6 +29,7 @@
 #include "materials/MaterialRefresher.h"
 #include "panels/AssetsPanel.h"
 #include "panels/ExportPanel.h"
+#include "panels/IntegrationsPanel.h"
 #include "panels/MaterialsPanel.h"
 #include "panels/PropertiesPanel.h"
 #include "panels/RightPanel.h"
@@ -50,8 +53,11 @@
 #include <plynth/core/commands/DeleteCommands.h>
 #include <plynth/core/SetupCheck.h>
 #include <plynth/core/catalog/AssetImport.h>
+#include <plynth/core/catalog/FabZip.h>
+#include <plynth/core/catalog/Integrations.h>
 #include <plynth/core/commands/FloorCommands.h>
 
+#include <QEventLoop>
 #include <QAbstractSpinBox>
 #include <QAction>
 #include <QApplication>
@@ -189,7 +195,8 @@ MainWindow::MainWindow(QWidget* parent)
     row->addWidget(centre, 1);
     buildPanel_ = new BuildPanel(work);
     exportPanel_ = new ExportPanel(work);
-    right_ = new RightPanel(panel_, assets_, materials_, buildPanel_, exportPanel_, work);
+    integrations_ = new IntegrationsPanel(*host_, work);
+    right_ = new RightPanel(panel_, assets_, materials_, buildPanel_, exportPanel_, integrations_, work);
     row->addWidget(right_);
     work_ = work;
     pages_ = new QStackedWidget(central);
@@ -303,6 +310,25 @@ MainWindow::MainWindow(QWidget* parent)
     materialQueue_ = new MaterialImportQueue(*host_, this);
     libraryWatcher_->setMaterialQueue(materialQueue_);
     materials_->setQueueView(new ImportQueueView(*materialQueue_, materials_));
+    storeImports_ = new StoreImports(*host_, *queue_, *materialQueue_, this, this);
+    storeImports_->setOwnFiles([this](bool material) {
+        if (material)
+            showMaterialImport();
+        else
+            importDialog();
+    });
+    storeImports_->setOwnPaths([this](const QStringList& paths, bool material) {
+        if (!material) {
+            importPaths(paths);
+            return;
+        }
+        materialImport_->addSources(paths);
+        showMaterialImport();
+    });
+    integrations_->setActions(storeImports_);
+    connect(queueView_, &ImportQueueView::pickModelRequested, storeImports_, &StoreImports::pickModel);
+    connect(storeImports_, &StoreImports::notice, statusBar_, [this](const QString& text) { statusBar_->showMessage(text); });
+    connect(host_, &LibraryHost::libraryChanged, integrations_, &IntegrationsPanel::refresh);
     materialImport_ = new MaterialImportScreen(*host_, *materialQueue_, pages_);
     pages_->addWidget(materialImport_);
     connect(materialImport_, &MaterialImportScreen::backRequested, this, &MainWindow::showWork);
@@ -354,7 +380,12 @@ MainWindow::MainWindow(QWidget* parent)
         materials_->setImportEnabled(materialsOpen, materialsOpen ? tr("Open the import screen for materials")
                                                                   : tr("Set a library folder first"));
         importMaterialsAction_->setEnabled(materialsOpen);
+        importFabAction_->setEnabled(open);
         addSamplesAction_->setEnabled(materialsOpen);
+        openGeneratorsAction_->setEnabled(open);
+        reloadGeneratorsAction_->setEnabled(open);
+        checkAddonsAction_->setEnabled(open);
+        addSampleGeneratorsAction_->setEnabled(open);
         addShapesAction_->setEnabled(open);
         materialImport_->setLibraryOpen(materialsOpen);
         assets_->setMaterialImportEnabled(materialsOpen);
@@ -376,6 +407,7 @@ MainWindow::MainWindow(QWidget* parent)
     });
     qApp->installEventFilter(this);
     connect(host_, &LibraryHost::assetsChanged, this, &MainWindow::refreshOverlay);
+    connect(host_, &LibraryHost::generatorsChanged, this, &MainWindow::refreshOverlay);
     connect(host_, &LibraryHost::libraryChanged, wallView_, &WallView::refresh);
     connect(host_, &LibraryHost::assetsChanged, wallView_, &WallView::refresh);
 
@@ -688,6 +720,20 @@ void MainWindow::buildCatalogMenu()
     rescanAction_ = addMenuAction(menu, tr("&Rescan library"), tr("Read the library folder again and update the index"),
                                   QStringLiteral("catalog-rescan-action"), {});
     menu->addSeparator();
+    QAction* showIntegrations = addMenuAction(menu, tr("I&ntegrations"), tr("Show the Integrations tab: BlenderKit, Fab and your own files"),
+                                              QStringLiteral("integrations-show"), {});
+    connect(showIntegrations, &QAction::triggered, this, [this]() { right_->showTab(RightPanel::Tab::Integrations); });
+    importBlenderKitAction_ = addMenuAction(menu, tr("Import from &BlenderKit..."),
+                                            tr("Show the Integrations tab with the cursor in the BlenderKit address field"),
+                                            QStringLiteral("integrations-blenderkit-action"), {});
+    connect(importBlenderKitAction_, &QAction::triggered, this, &MainWindow::importFromBlenderKit);
+    importFabAction_ = addMenuAction(menu, tr("Import &Fab zips..."), tr("Pick zips downloaded from Fab and check what is taken from each"),
+                                     QStringLiteral("integrations-fab-action"), {});
+    connect(importFabAction_, &QAction::triggered, this, [this]() {
+        if (storeImports_)
+            storeImports_->importFiles(QString::fromLatin1(plynth::kFabIntegrationId.data(), static_cast<qsizetype>(plynth::kFabIntegrationId.size())), false);
+    });
+    menu->addSeparator();
     QAction* showMaterials = addMenuAction(menu, tr("&Materials catalog"), tr("Show the Materials tab (Ctrl+Shift+M)"),
                                            QStringLiteral("materials-show"),
                                            {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_M)});
@@ -695,11 +741,36 @@ void MainWindow::buildCatalogMenu()
     importMaterialsAction_ = addMenuAction(menu, tr("Import &materials..."), tr("Open the screen that imports textures and .blend materials"),
                                            QStringLiteral("materials-import-action"), {});
     addSamplesAction_ = addMenuAction(menu, tr("Add the &sample materials"),
-                                      tr("Import the seven sample materials that come with Plynth"),
+                                      tr("Import the nine sample materials that come with Plynth"),
                                       QStringLiteral("materials-samples-action"), {});
     rescanMaterialsAction_ = addMenuAction(menu, tr("Rescan m&aterials"),
                                            tr("Read the materials folder again and update the index"),
                                            QStringLiteral("materials-rescan-action"), {});
+    menu->addSeparator();
+    openGeneratorsAction_ = addMenuAction(menu, tr("Open the &generators folder"),
+                                          tr("Open the folder of generator files in Explorer"),
+                                          QStringLiteral("generators-open-folder-action"), {});
+    connect(openGeneratorsAction_, &QAction::triggered, this, &MainWindow::openGeneratorsFolder);
+    reloadGeneratorsAction_ = addMenuAction(menu, tr("Reload g&enerators"),
+                                            tr("Read the generators folder again"),
+                                            QStringLiteral("generators-reload-action"), {});
+    connect(reloadGeneratorsAction_, &QAction::triggered, this, [this]() {
+        host_->reloadGenerators();
+        statusBar_->showMessage(tr("%1 generators in the library.").arg(host_->generators().generators.size()));
+    });
+    checkAddonsAction_ = addMenuAction(menu, tr("Check &add-ons"),
+                                       tr("Ask Blender which add-ons are enabled, so generators that need one show as available"),
+                                       QStringLiteral("generators-check-addons-action"), {});
+    connect(checkAddonsAction_, &QAction::triggered, this, [this]() {
+        statusBar_->showMessage(tr("Asking Blender which add-ons are enabled..."));
+        host_->checkAddons();
+    });
+    connect(host_, &LibraryHost::addonCheckFinished, this, [this](const QString& text) { statusBar_->showMessage(text); });
+    addSampleGeneratorsAction_ = addMenuAction(menu, tr("Add the sample gene&rators"),
+                                               tr("Copy the sample generators that come with Plynth into the library"),
+                                               QStringLiteral("generators-samples-action"), {});
+    connect(addSampleGeneratorsAction_, &QAction::triggered, this,
+            [this]() { statusBar_->showMessage(host_->addSampleGenerators()); });
     menu->addSeparator();
     addShapesAction_ = addMenuAction(menu, tr("Add the sample &shapes"),
                                      tr("Copy the sample opening shapes, such as the keyhole, into the library"),
@@ -713,6 +784,18 @@ void MainWindow::buildCatalogMenu()
     QAction* folder = addMenuAction(menu, tr("&Open library folder"), tr("Open the library folder in Explorer"),
                                     QStringLiteral("catalog-open-folder-action"), {});
     connect(folder, &QAction::triggered, this, &MainWindow::openLibraryFolder);
+}
+
+// Opens Library/generators in Explorer, making it first when it is missing.
+void MainWindow::openGeneratorsFolder()
+{
+    if (!host_->hasLibrary()) {
+        showError(tr("Open generators folder"), tr("No library folder is set."));
+        return;
+    }
+    std::error_code ignored;
+    std::filesystem::create_directories(host_->paths().generators, ignored);
+    QDesktopServices::openUrl(QUrl::fromLocalFile(QString::fromStdWString(host_->paths().generators.wstring())));
 }
 
 // Opens the setup check over the window and keeps it until the user closes it.
@@ -753,6 +836,52 @@ void MainWindow::openSetupCheckIfNeeded()
         openSetupCheck();
 }
 
+// For checks only: shows the Integrations tab.
+void MainWindow::showIntegrationsTab()
+{
+    integrationsAsked_ = true;
+    right_->showTab(RightPanel::Tab::Integrations);
+}
+
+// For checks only: fills the BlenderKit address field.
+void MainWindow::setBlenderKitAddress(const QString& text)
+{
+    showIntegrationsTab();
+    integrations_->setAddress(text);
+}
+
+// For checks only: opens the Fab dialog for one model zip.
+void MainWindow::showFabImport(const QString& zip)
+{
+    fabDialog_ = storeImports_->openFabDialog({zip}, false);
+}
+
+// For checks only: hands one chosen file to an integration as its import button would.
+void MainWindow::importIntegrationFile(const QString& integrationId, const QString& file)
+{
+    const plynth::Integration* integration = plynth::findIntegration(integrationId.toStdString());
+    if (integration == nullptr)
+        return;
+    const bool material = integration->assetImporters().empty();
+    // A Fab zip opens the check dialog instead of a queue row, so the picture does not wait for one.
+    if (!isFabIntegration(*integration) && !material)
+        importAsked_ = true;
+    storeImports_->importChosenFiles(integrationId, {file}, material, false);
+}
+
+// For checks only: true when the Integrations tab was not asked for, or its check has ended.
+bool MainWindow::integrationsPictureReady() const
+{
+    return !integrationsAsked_ || integrations_->checkSettled();
+}
+
+// Shows the Integrations tab and puts the focus in the BlenderKit address field.
+void MainWindow::importFromBlenderKit()
+{
+    right_->showTab(RightPanel::Tab::Integrations);
+    integrations_->focusAddress();
+}
+
 // Picture of the window. An open setup check is drawn in the middle over a dimmed window.
 QImage MainWindow::grabPicture()
 {
@@ -768,6 +897,20 @@ QImage MainWindow::grabPicture()
         p.fillRect(QRectF(QPointF(0, 0), whole), dim);
         p.drawImage(QRectF(QPointF((whole.width() - shown.width()) / 2, (whole.height() - shown.height()) / 2), shown),
                     dialog);
+    }
+    if (fabDialog_ && fabDialog_->isVisible()) {
+        const Theme& t = Theme::instance();
+        const QImage dialog = fabDialog_->grab().toImage();
+        const QSizeF shown = QSizeF(dialog.size()) / dialog.devicePixelRatio();
+        const QSizeF whole = QSizeF(image.size()) / image.devicePixelRatio();
+        QPainter p(&image);
+        QColor dim = t.ground();
+        dim.setAlpha(t.readOnlyDim());
+        p.fillRect(QRectF(QPointF(0, 0), whole), dim);
+        const QRectF at(QPointF((whole.width() - shown.width()) / 2, (whole.height() - shown.height()) / 2), shown);
+        p.drawImage(at, dialog);
+        p.setPen(t.line());
+        p.drawRect(at.adjusted(0, 0, -1, -1));
     }
     return image;
 }
@@ -962,11 +1105,13 @@ void MainWindow::setCutAtFloor(bool on)
     cutAtFloorAction_->setChecked(on);
 }
 
+// True when the 3D view shows the roofs.
 bool MainWindow::showRoofs3d() const
 {
     return showRoofs3dAction_->isChecked();
 }
 
+// True when the 3D view is cut at the shown floor.
 bool MainWindow::cutAtFloor() const
 {
     return cutAtFloorAction_->isChecked();
@@ -1040,13 +1185,16 @@ void MainWindow::onDocumentChanged(unsigned changes)
     if (changes & (plynth::Change::Points | plynth::Change::Walls | plynth::Change::Rooms | plynth::Change::Openings | plynth::Change::Items | plynth::Change::Scale |
                    plynth::Change::Stairs | plynth::Change::FloorImage | plynth::Change::Floors | plynth::Change::Folder))
         refreshOverlay();
-    if (report_.has_value())
-        buildUiTimer_->start();
+    // Without a build report the export groups can still follow the plan, so the refresh never waits for one.
+    buildUiTimer_->start();
     validateSelection();
     wallView_->refresh();
     updateWallView();
     if (changes & plynth::Change::ReadOnly)
         updateReadOnlyUi();
+    // The lock and the export mode cannot wait for the timer. A change of folder refreshes further down.
+    if ((changes & (plynth::Change::ReadOnly | plynth::Change::Settings)) && !(changes & plynth::Change::Folder))
+        updateExportUi();
     floorTabs_->setEditable(!doc_.isReadOnly());
     updateAlignAction();
     tools_->documentChanged(changes);
@@ -1280,10 +1428,11 @@ void MainWindow::updateToolActions()
         mountAction_->setEnabled(item != nullptr && !item->wall.has_value());
     if (takeOffAction_ != nullptr)
         takeOffAction_->setEnabled(item != nullptr && item->wall.has_value());
+    const bool assetItem = item != nullptr && !plynth::isGeneratorItem(*item) && host_ != nullptr && host_->hasLibrary();
     if (swapAction_ != nullptr)
-        swapAction_->setEnabled(item != nullptr && host_ != nullptr && host_->hasLibrary());
+        swapAction_->setEnabled(assetItem);
     if (updateSizeAction_ != nullptr)
-        updateSizeAction_->setEnabled(item != nullptr && host_ != nullptr && host_->hasLibrary());
+        updateSizeAction_->setEnabled(assetItem);
 }
 
 // Shows the cursor position in metres, or nothing when it is off the plan or no scale is set.
@@ -1439,6 +1588,7 @@ void MainWindow::removeFloor(const QString& floorId)
         const QString name = floor->name.empty() ? floorId : fromCore(floor->name);
         QMessageBox box(this);
         box.setIcon(QMessageBox::NoIcon);
+        box.setTextFormat(Qt::PlainText);
         box.setWindowTitle(tr("Remove floor"));
         box.setText(tr("Remove %1 with its walls, rooms, openings, furniture and stairs? Undo brings it back.").arg(name));
         QPushButton* remove = box.addButton(tr("Remove"), QMessageBox::DestructiveRole);
@@ -1501,6 +1651,31 @@ void MainWindow::floorShown()
     updateDeleteAction();
     updateAlignAction();
     panel_->refresh();
+}
+
+// For checks only: copies the sample generators and shows the answer.
+void MainWindow::addSampleGenerators()
+{
+    statusBar_->showMessage(host_->addSampleGenerators());
+}
+
+// For checks only: runs the add-on check and keeps the event loop going until it reports.
+void MainWindow::checkAddonsAndWait()
+{
+    QEventLoop loop;
+    connect(host_, &LibraryHost::addonCheckFinished, &loop, &QEventLoop::quit);
+    host_->checkAddons();
+    loop.exec();
+}
+
+// For checks only: runs a parameter edit through the Properties panel.
+bool MainWindow::setGeneratorParam(const QString& assignment)
+{
+    QString message;
+    const bool ok = panel_->setGeneratorParamText(assignment, &message);
+    if (!ok)
+        statusBar_->showMessage(message);
+    return ok;
 }
 
 // For checks only: opens the furniture picker over the plan and hovers an asset like the mouse would.
@@ -1736,6 +1911,7 @@ void MainWindow::reloadOrAsk()
     asking_ = true;
     QMessageBox box(this);
     box.setIcon(QMessageBox::NoIcon);
+    box.setTextFormat(Qt::PlainText);
     box.setWindowTitle(tr("Project changed"));
     box.setText(tr("The plan was changed outside Plynth. Load the new version? Your unsaved changes will be lost."));
     QPushButton* load = box.addButton(tr("Load"), QMessageBox::AcceptRole);
@@ -1772,6 +1948,7 @@ void MainWindow::unlockNow()
     if (!screenshotMode_) {
         QMessageBox box(this);
         box.setIcon(QMessageBox::NoIcon);
+        box.setTextFormat(Qt::PlainText);
         box.setWindowTitle(tr("Unlock now"));
         box.setText(tr("Unlocking ends the command line session. Its next edit will be refused until it begins a new one."));
         QPushButton* unlock = box.addButton(tr("Unlock"), QMessageBox::AcceptRole);
@@ -1885,6 +2062,7 @@ bool MainWindow::confirmDiscardChanges()
     if (terminal_->hasRunningProgram()) {
         QMessageBox box(this);
         box.setIcon(QMessageBox::NoIcon);
+        box.setTextFormat(Qt::PlainText);
         box.setWindowTitle(tr("Terminal"));
         box.setText(tr("A program is still running in the terminal. Closing the project will stop it."));
         QPushButton* stop = box.addButton(tr("Stop it"), QMessageBox::AcceptRole);
@@ -1899,6 +2077,7 @@ bool MainWindow::confirmDiscardChanges()
     if (doc_.isModified()) {
         QMessageBox box(this);
         box.setIcon(QMessageBox::NoIcon);
+        box.setTextFormat(Qt::PlainText);
         box.setWindowTitle(tr("Unsaved changes"));
         box.setText(tr("Save changes to %1?").arg(projectName()));
         QPushButton* save = box.addButton(tr("Save"), QMessageBox::AcceptRole);
@@ -2066,6 +2245,7 @@ void MainWindow::offerRecovery()
 
     QMessageBox box(this);
     box.setIcon(QMessageBox::NoIcon);
+    box.setTextFormat(Qt::PlainText);
     box.setWindowTitle(tr("Recover changes"));
     box.setText(text);
     QPushButton* recover = box.addButton(tr("Recover"), QMessageBox::AcceptRole);
@@ -2147,6 +2327,7 @@ void MainWindow::showError(const QString& title, const QString& message)
 {
     QMessageBox box(this);
     box.setIcon(QMessageBox::NoIcon);
+    box.setTextFormat(Qt::PlainText);
     box.setWindowTitle(title);
     box.setText(message);
     box.setStandardButtons(QMessageBox::Ok);

@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <map>
 #include <set>
+#include <variant>
 
 namespace plynth {
 
@@ -403,7 +404,8 @@ Json collisionJson(const std::vector<CollisionShape>* shapes)
 }
 
 // One floor as the worker reads it.
-Json floorJson(const FloorBuild& f, const FloorMaterials* materials, const std::vector<CollisionShape>* collision)
+Json floorJson(const FloorBuild& f, const FloorMaterials* materials, const std::vector<CollisionShape>* collision,
+               const GeneratorFloorBuild* generators, const MaterialUsable& usable)
 {
     Json solids = Json::array();
     for (const WallSolid& s : f.wallSolids) {
@@ -450,6 +452,7 @@ Json floorJson(const FloorBuild& f, const FloorMaterials* materials, const std::
     }
     json["roofs"] = std::move(roofs);
     json["collision"] = collisionJson(collision);
+    json["generator_items"] = generators ? generatorJobItems(*generators, usable) : Json::array();
     return json;
 }
 
@@ -475,43 +478,20 @@ public:
     std::string use(const ResolvedMaterial& resolved, const Id& floor)
     {
         if (!resolved.material) return {};
-        const std::string& id = *resolved.material;
-        planUsesMaterial_ = true;
-        if (!source_) return {};
-
-        auto found = cache_.find(id);
-        if (found == cache_.end()) found = cache_.emplace(id, source_(id)).first;
-        const std::optional<BuildMaterialState>& state = found->second;
-        if (state && !state->broken) {
-            BuildMaterial material = state->material;
-            material.id = id;
-            usable_.emplace(id, std::move(material));
-            return id;
-        }
-        const auto key = std::make_pair(id, resolved.from);
-        if (problems_.count(key) != 0) return {};
-        BuildProblem p;
-        p.severity = BuildSeverity::Warning;
-        p.step = std::string(kCheckStep);
-        p.object = resolved.from;
-        p.floor = resolved.from.empty() ? Id() : floor;
         std::string who;
         if (resolved.origin == MaterialOrigin::Wall) who = "Wall " + resolved.from;
         else if (resolved.origin == MaterialOrigin::Room) who = "Room " + resolved.from;
         else if (resolved.origin == MaterialOrigin::Stair) who = "Stair " + resolved.from;
         else if (resolved.origin == MaterialOrigin::Roof) who = "Roof section " + resolved.from;
         else who = "The project default for " + std::string(surfaceName(resolved.surface));
-        if (!state) {
-            p.code = "missing_material";
-            p.message = who + " uses the material " + id + ", which is not in the library, so it gets a plain look.";
-        } else {
-            p.code = "material_broken";
-            p.message = who + " uses the material " + id + ", which is broken";
-            p.message += state->problem.empty() ? "." : ": " + state->problem;
-            p.message += " It gets a plain look.";
-        }
-        problems_.emplace(key, std::move(p));
-        return {};
+        return check(*resolved.material, resolved.from, resolved.from.empty() ? Id() : floor, who);
+    }
+
+    // The id to put in the job for a material a generator item names, or empty for the neutral look.
+    std::string useForItem(const std::string& id, const Id& item, const Id& floor)
+    {
+        if (id.empty()) return {};
+        return check(id, item, floor, "Item " + item);
     }
 
     // Puts the usable materials and the material problems into the plan.
@@ -526,6 +506,41 @@ public:
     }
 
 private:
+    // Looks a material up once, keeps it when usable and notes one problem per material and object otherwise.
+    std::string check(const std::string& id, const Id& object, const Id& floor, const std::string& who)
+    {
+        planUsesMaterial_ = true;
+        if (!source_) return {};
+
+        auto found = cache_.find(id);
+        if (found == cache_.end()) found = cache_.emplace(id, source_(id)).first;
+        const std::optional<BuildMaterialState>& state = found->second;
+        if (state && !state->broken) {
+            BuildMaterial material = state->material;
+            material.id = id;
+            usable_.emplace(id, std::move(material));
+            return id;
+        }
+        const auto key = std::make_pair(id, object);
+        if (problems_.count(key) != 0) return {};
+        BuildProblem p;
+        p.severity = BuildSeverity::Warning;
+        p.step = std::string(kCheckStep);
+        p.object = object;
+        p.floor = floor;
+        if (!state) {
+            p.code = "missing_material";
+            p.message = who + " uses the material " + id + ", which is not in the library, so it gets a plain look.";
+        } else {
+            p.code = "material_broken";
+            p.message = who + " uses the material " + id + ", which is broken";
+            p.message += state->problem.empty() ? "." : ": " + state->problem;
+            p.message += " It gets a plain look.";
+        }
+        problems_.emplace(key, std::move(p));
+        return {};
+    }
+
     const BuildMaterialSource& source_;
     std::map<std::string, std::optional<BuildMaterialState>> cache_;
     std::map<std::string, BuildMaterial> usable_;
@@ -565,9 +580,105 @@ public:
         return out;
     }
 
+    // Every name a registered base could have: the base itself and the base with each of its materials.
+    std::vector<std::string> allNames() const
+    {
+        std::vector<std::string> out;
+        for (const auto& [base, materials] : uses_) {
+            out.push_back(base);
+            for (const auto& [material, surface] : materials) out.push_back(slotNameWithMaterial(base, material));
+        }
+        return out;
+    }
+
 private:
     std::map<std::string, std::map<std::string, std::string>> uses_;
 };
+
+// The longest a generator or parameter id may be in a slot name, after PascalCase.
+constexpr std::size_t kSlotPartLength = 24;
+
+// A copy of a name in lower case, so names can be compared with case ignored.
+std::string folded(std::string_view name)
+{
+    std::string out(name);
+    for (char& c : out) {
+        if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
+    }
+    return out;
+}
+
+// A generator or parameter id as it stands in a slot name: PascalCase, cut to kSlotPartLength characters.
+std::string slotPart(std::string_view id)
+{
+    std::string part = slotPascalCase(id, kGeneratorSlotLabel);
+    if (part.size() > kSlotPartLength) part.resize(kSlotPartLength);
+    return part;
+}
+
+// Says whether a generator's part of a slot name needs "Generator" added, so that it meets no surface's slot.
+bool reservedSlotLabel(const std::string& generator, const std::string& param)
+{
+    static const std::set<std::string> generators{"Door", "Frame", "Glass",    "Handle", "Threshold", "Stair",    "Roof",
+                                                  "Soffit", "Fascia", "Wall", "Exterior", "Flat",     "Generated"};
+    return generators.count(generator) != 0 || param == "Wall" || param == "Floor" || param == "Ceiling";
+}
+
+// Names the slots of the built generator items after the surfaces have theirs (MaterialSlots.h): each
+// (generator, parameter) pair in id order takes its name, or the first numbered one whose names are all free,
+// and the names go into the slot table.
+void nameGeneratorSlots(BuildPlan& plan, const SlotNamer& namer)
+{
+    using Pair = std::pair<std::string, std::string>;
+    std::map<Pair, std::set<std::string>> pairs;
+    bool plain = false;
+    for (const GeneratorFloorBuild& floor : plan.generators.floors) {
+        for (const GeneratorItemBuild& item : floor.items) {
+            if (item.materialSlots.empty()) plain = true;
+            for (const GeneratorMaterialSlot& slot : item.materialSlots) pairs[{item.generator, slot.param}].insert(slot.material);
+        }
+    }
+
+    std::set<std::string> taken;
+    for (const std::string& name : namer.allNames()) taken.insert(folded(name));
+    for (const BuildSlot& slot : plan.materialSlots) taken.insert(folded(slot.name));
+    taken.insert(folded(kGeneratedSlot));
+
+    std::map<Pair, std::string> labels;
+    for (const auto& [pair, materials] : pairs) {
+        std::string generator = slotPart(pair.first);
+        const std::string param = slotPart(pair.second);
+        if (reservedSlotLabel(generator, param)) generator += kGeneratorSlotLabel;
+        for (int number = 1;; ++number) {
+            const std::string label = (number == 1 ? generator : generator + std::to_string(number)) + "_" + param;
+            std::vector<std::string> names{label};
+            for (const std::string& material : materials) names.push_back(slotNameWithMaterial(label, material));
+            const bool isFree = std::none_of(names.begin(), names.end(),
+                                           [&taken](const std::string& name) { return taken.count(folded(name)) != 0; });
+            if (!isFree) continue;
+            for (const std::string& name : names) taken.insert(folded(name));
+            for (const std::string& material : materials) {
+                const std::string name = materials.size() < 2 ? label : slotNameWithMaterial(label, material);
+                plan.materialSlots.push_back({name, material, std::string(kGeneratedSurface)});
+            }
+            labels.emplace(pair, label);
+            break;
+        }
+    }
+
+    for (GeneratorFloorBuild& floor : plan.generators.floors) {
+        for (GeneratorItemBuild& item : floor.items) {
+            for (GeneratorMaterialSlot& slot : item.materialSlots) {
+                const Pair pair{item.generator, slot.param};
+                const std::string& label = labels.at(pair);
+                slot.slot = pairs.at(pair).size() < 2 ? label : slotNameWithMaterial(label, slot.material);
+            }
+        }
+    }
+    if (plain) plan.materialSlots.push_back({std::string(kGeneratedSlot), std::string(), std::string(kGeneratedSurface)});
+    std::sort(plan.materialSlots.begin(), plan.materialSlots.end(),
+              [](const BuildSlot& a, const BuildSlot& b) { return a.name < b.name; });
+}
 
 // The base slot of the wall faces that look into a room, or into no room.
 std::string wallFaceBase(const Room* room)
@@ -800,13 +911,26 @@ std::optional<BuildSeverity> buildSeverityFromName(std::string_view name)
     return std::nullopt;
 }
 
-// Works out the build plan of a project.
+// Works out the build plan of a project without generators.
 BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, const BuildMaterialSource& materials)
+{
+    return makeBuildPlan(project, assets, materials, nullptr, std::nullopt);
+}
+
+// Works out the build plan of a project with the library's generators.
+BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, const BuildMaterialSource& materials,
+                        const GeneratorLibrary* generators, const std::optional<AddonCache>& addons)
 {
     BuildPlan plan;
     MaterialChecker checker(materials);
     SlotNamer namer;
     const std::vector<double> levels = floorElevations(project.plan);
+
+    // Without an assets source there is no library at all; a null library of generators is an empty one.
+    const GeneratorLibrary none{};
+    const GeneratorLibrary* library = assets ? (generators ? generators : &none) : nullptr;
+    GeneratorBuildPlan made = makeGeneratorBuildPlan(project.plan, library, addons);
+    std::size_t nextProblem = 0;
 
     bool anyItems = false;
     for (const Floor& floor : project.plan.floors) anyItems = anyItems || !floor.items.empty();
@@ -878,8 +1002,28 @@ BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, 
         if (assets) {
             for (ItemProblem& problem : itemProblems(floor)) itemWarnings[problem.item].push_back(std::move(problem));
         }
+        const auto addWarnings = [&](const Item& item) {
+            for (const ItemProblem& problem : itemWarnings[item.id]) {
+                plan.problems.push_back(checkProblem(std::string(itemProblemName(problem.kind)), BuildSeverity::Warning,
+                                                     problem.message, floor.id, item.id));
+            }
+        };
+        GeneratorFloorBuild* generatorFloor = index < made.floors.size() ? &made.floors[index] : nullptr;
+        std::size_t nextBuilt = 0;
         for (const Item& item : floor.items) {
             if (!assets) continue;
+            if (isGeneratorItem(item)) {
+                while (nextProblem < made.problems.size() && made.problems[nextProblem].floor == floor.id &&
+                       made.problems[nextProblem].object == item.id) {
+                    plan.problems.push_back(made.problems[nextProblem++]);
+                }
+                const bool built = generatorFloor && nextBuilt < generatorFloor->items.size() &&
+                                   generatorFloor->items[nextBuilt].id == item.id;
+                if (!built) continue;
+                ++nextBuilt;
+                addWarnings(item);
+                continue;
+            }
             const std::optional<BuildAssetState> state = assets(item.asset);
             if (!state) {
                 plan.problems.push_back(checkProblem("missing_asset", BuildSeverity::Error,
@@ -906,9 +1050,19 @@ BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, 
             built.size = item.size;
             built.wall = item.wall;
             build.items.push_back(std::move(built));
-            for (const ItemProblem& problem : itemWarnings[item.id]) {
-                plan.problems.push_back(checkProblem(std::string(itemProblemName(problem.kind)), BuildSeverity::Warning,
-                                                     problem.message, floor.id, item.id));
+            addWarnings(item);
+        }
+        while (nextProblem < made.problems.size() && made.problems[nextProblem].floor == floor.id) {
+            plan.problems.push_back(made.problems[nextProblem++]);
+        }
+        if (generatorFloor) {
+            for (GeneratorItemBuild& item : generatorFloor->items) {
+                for (const std::string& param : item.materialParams) {
+                    const GeneratorValue* value = findGeneratorValue(item.params, param);
+                    const std::string* text = value ? std::get_if<std::string>(value) : nullptr;
+                    const std::string material = text ? checker.useForItem(*text, item.id, floor.id) : std::string();
+                    item.materialSlots.push_back({param, material, std::string()});
+                }
             }
         }
         for (BuildProblem& problem : stairProblemList) plan.problems.push_back(std::move(problem));
@@ -930,12 +1084,15 @@ BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, 
         }
         plan.floors.push_back(std::move(build));
     }
+    while (nextProblem < made.problems.size()) plan.problems.push_back(made.problems[nextProblem++]);
+    plan.generators = std::move(made);
     for (auto& [id, asset] : used) plan.assets.push_back(std::move(asset));
     const bool noLibrary = std::any_of(plan.problems.begin(), plan.problems.end(),
                                        [](const BuildProblem& p) { return p.code == "no_library"; });
     // A caller that gives an assets source has a library; the materials source then speaks for itself.
     checker.finish(plan, noLibrary || static_cast<bool>(assets));
     finishSlots(plan, namer);
+    nameGeneratorSlots(plan, namer);
     return plan;
 }
 
@@ -1033,13 +1190,20 @@ Json makeBuildJob(const Project& project, const BuildPlan& plan, const BuildSett
         slotList.push_back(Json{{"name", slot.name}, {"material", textOrNull(slot.material)}, {"surface", slot.surface}});
     }
     params["slots"] = std::move(slotList);
+    params["generators"] = generatorJobList(plan.generators);
+    std::set<std::string> listed;
+    for (const BuildMaterial& m : plan.materials) listed.insert(m.id);
+    const MaterialUsable usable = [&listed](std::string_view id) { return listed.count(std::string(id)) != 0; };
     Json floors = Json::array();
     for (std::size_t index = 0; index < plan.floors.size(); ++index) {
         const FloorBuild& f = plan.floors[index];
         const auto it = std::find_if(plan.floorMaterials.begin(), plan.floorMaterials.end(),
                                      [&f](const FloorMaterials& m) { return m.floor == f.id; });
         const std::vector<CollisionShape>* collision = index < plan.collision.size() ? &plan.collision[index] : nullptr;
-        floors.push_back(floorJson(f, it == plan.floorMaterials.end() ? nullptr : &*it, collision));
+        const auto generators = std::find_if(plan.generators.floors.begin(), plan.generators.floors.end(),
+                                             [&f](const GeneratorFloorBuild& g) { return g.floor == f.id; });
+        floors.push_back(floorJson(f, it == plan.floorMaterials.end() ? nullptr : &*it, collision,
+                                   generators == plan.generators.floors.end() ? nullptr : &*generators, usable));
     }
     params["floors"] = std::move(floors);
     return makeBlenderJob(kBuildTask, jobId, resultFile, std::move(params));
@@ -1070,6 +1234,7 @@ BuildWorkerOutput readBuildResult(const Json& result, std::string_view jobId)
         out.counts.stairs = static_cast<int>(count(counts, "stairs", "/output/counts"));
         out.counts.roofs = static_cast<int>(count(counts, "roofs", "/output/counts"));
         out.counts.collision = static_cast<int>(count(counts, "collision", "/output/counts"));
+        if (counts.contains("generators")) out.counts.generators = static_cast<int>(count(counts, "generators", "/output/counts"));
         const Json& steps = field(output, "steps", "/output");
         if (!steps.is_array()) throw Problem{"/output/steps", "Must be a list."};
         for (std::size_t i = 0; i < steps.size(); ++i) {

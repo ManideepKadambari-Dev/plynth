@@ -767,3 +767,61 @@ TEST_CASE("wall items are kept on the wall or refused when too wide", "[core][co
         applyOk(farEdge, p);
     }
 }
+
+namespace {
+
+// A column generator item as the caller would give it.
+Item newColumn(double x, double y)
+{
+    Item it = newItem("", x, y, {0.3, 0.3, 2.7});
+    it.generator = GeneratorUse{"column", {{"diameter", GeneratorValue{0.3}}, {"shape", GeneratorValue{std::string("round")}}}};
+    return it;
+}
+
+}
+
+TEST_CASE("PlaceItemCommand places a generator item and undo removes it", "[core][command][item][generator]") {
+    Project p = houseWithRooms();
+    const Project before = p;
+    PlaceItemCommand c("f1", newColumn(4.5, 2.0));
+    applyOk(c, p);
+    const Item& it = get(p, c.itemId());
+    REQUIRE(it.asset.empty());
+    REQUIRE(it.generator.has_value());
+    REQUIRE(it.generator->name == "column");
+    REQUIRE(it.room == "r2");
+    REQUIRE(it.size == ItemSize{0.3, 0.3, 2.7});
+    const Project after = p;
+    c.undo(p);
+    REQUIRE(p == before);
+    applyOk(c, p);
+    REQUIRE(p == after);
+}
+
+TEST_CASE("PlaceItemCommand refuses a generator item with an asset or a bad name", "[core][command][item][generator]") {
+    Project p = houseWithRooms();
+    Item withAsset = newColumn(4.5, 2.0);
+    withAsset.asset = "sofa";
+    PlaceItemCommand a("f1", withAsset);
+    applyRefused(a, p, ErrorCode::InvalidValue);
+    Item badName = newColumn(4.5, 2.0);
+    badName.generator->name = "Bad Name";
+    PlaceItemCommand b("f1", badName);
+    applyRefused(b, p, ErrorCode::InvalidValue);
+    Item twice = newColumn(4.5, 2.0);
+    twice.generator->params.push_back({"diameter", GeneratorValue{0.4}});
+    PlaceItemCommand d("f1", twice);
+    applyRefused(d, p, ErrorCode::InvalidValue);
+}
+
+TEST_CASE("SwapItemAssetCommand turns a generator item into an asset item", "[core][command][item][generator]") {
+    Project p = houseWithRooms();
+    const Id column = place(p, newColumn(4.5, 2.0));
+    const Project before = p;
+    SwapItemAssetCommand c(column, "pillar", {0.4, 0.4, 2.6});
+    roundTrip(c, p);
+    REQUIRE(get(p, column).asset == "pillar");
+    REQUIRE_FALSE(get(p, column).generator.has_value());
+    c.undo(p);
+    REQUIRE(p == before);
+}

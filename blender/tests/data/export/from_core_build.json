@@ -18,7 +18,7 @@
   "preview_texture_size": 1024,
   "plan": {
    "format": "plynth-plan",
-   "version": 4,
+   "version": 6,
    "scale": {
     "pixels_per_metre": 100.0
    },
@@ -467,7 +467,8 @@
         "width": 2.0,
         "depth": 0.9,
         "height": 0.85
-       }
+       },
+       "generator": null
       },
       {
        "id": "i2",
@@ -482,11 +483,26 @@
         "width": 1.2,
         "depth": 0.8,
         "height": 0.75
-       }
+       },
+       "generator": null
       }
-     ]
+     ],
+     "slab_thickness": 0.2,
+     "image_offset": {
+      "x": 0.0,
+      "y": 0.0
+     },
+     "stairs": []
     }
-   ]
+   ],
+   "roof": {
+    "type": "flat",
+    "pitch": 30.0,
+    "overhang": 0.3,
+    "parapet": 0.6,
+    "direction": null
+   },
+   "roof_sections": []
   },
   "settings": {
    "bevel_width": 0.01,
@@ -791,6 +807,7 @@
     "surface": "Wall_Top"
    }
   ],
+  "generators": [],
   "floors": [
    {
     "id": "f1",
@@ -3972,6 +3989,7 @@
       "hulls": []
      }
     ],
+    "generator_items": [],
     "slab": {
      "bottom": 0.0,
      "top": 0.0,

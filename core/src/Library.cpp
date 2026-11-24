@@ -7,6 +7,7 @@
 
 #include "PlynthSql.h"
 
+#include "plynth/core/Generators.h"
 #include "plynth/core/ProjectFiles.h"
 
 #ifndef NOMINMAX
@@ -62,6 +63,35 @@ void ensureDatabase(const fs::path& file, int currentVersion, const char* script
     if (seedMaterials) catalog::seedMaterialBuiltIns(*db);
 }
 
+// Finds one kind of samples: the folder named kind in PLYNTH_SAMPLES, beside the running program, and in a
+// developer build in the source tree. Empty when none of them is a folder.
+fs::path findSamplesFolder(const wchar_t* kind)
+{
+    const auto isFolder = [](const fs::path& folder) {
+        std::error_code ec;
+        return !folder.empty() && fs::is_directory(folder, ec);
+    };
+    wchar_t value[MAX_PATH];
+    const std::wstring name(kSamplesVariable.begin(), kSamplesVariable.end());
+    const DWORD length = GetEnvironmentVariableW(name.c_str(), value, static_cast<DWORD>(std::size(value)));
+    if (length > 0 && length < std::size(value)) {
+        const fs::path fromEnv = fs::path(value) / kind;
+        if (isFolder(fromEnv)) return fromEnv;
+    }
+    wchar_t program[MAX_PATH];
+    const DWORD got = GetModuleFileNameW(nullptr, program, static_cast<DWORD>(std::size(program)));
+    if (got > 0 && got < std::size(program)) {
+        const fs::path beside = fs::path(program).parent_path() / L"samples" / kind;
+        if (isFolder(beside)) return beside;
+    }
+#if defined(PLYNTH_DEV_SAMPLES) && PLYNTH_DEV_SAMPLES
+    // A developer build finds the source tree through the path of this file. Release builds do not carry it.
+    const fs::path source = fs::path(__FILE__).parent_path().parent_path().parent_path() / L"samples" / kind;
+    if (isFolder(source)) return source;
+#endif
+    return {};
+}
+
 }
 
 // The paths inside a library folder.
@@ -107,37 +137,27 @@ Status initLibrary(const fs::path& root)
     staging::clearIdle(p.materialStaging);
     if (Status s = ensureLibraryDatabases(p); !s.ok()) return s;
 
-    const fs::path samples = sampleShapesFolder();
-    if (samples.empty()) return {};
-    return addSampleShapes(p, samples).status;
+    Status result;
+    if (const fs::path shapes = sampleShapesFolder(); !shapes.empty()) {
+        result = addSampleShapes(p, shapes).status;
+    }
+    if (const fs::path generators = sampleGeneratorsFolder(); !generators.empty()) {
+        const Status copied = addSampleGenerators(p.generators, generators).status;
+        if (result.ok()) result = copied;
+    }
+    return result;
 }
 
 // Looks for the sample opening shapes.
 fs::path sampleShapesFolder()
 {
-    const auto holdsShapes = [](const fs::path& folder) {
-        std::error_code ec;
-        return !folder.empty() && fs::is_directory(folder, ec);
-    };
-    wchar_t value[MAX_PATH];
-    const std::wstring name(kSamplesVariable.begin(), kSamplesVariable.end());
-    const DWORD length = GetEnvironmentVariableW(name.c_str(), value, static_cast<DWORD>(std::size(value)));
-    if (length > 0 && length < std::size(value)) {
-        const fs::path fromEnv = fs::path(value) / L"shapes";
-        if (holdsShapes(fromEnv)) return fromEnv;
-    }
-    wchar_t program[MAX_PATH];
-    const DWORD got = GetModuleFileNameW(nullptr, program, static_cast<DWORD>(std::size(program)));
-    if (got > 0 && got < std::size(program)) {
-        const fs::path beside = fs::path(program).parent_path() / L"samples" / L"shapes";
-        if (holdsShapes(beside)) return beside;
-    }
-#if defined(PLYNTH_DEV_SAMPLES) && PLYNTH_DEV_SAMPLES
-    // A developer build finds the source tree through the path of this file. Release builds do not carry it.
-    const fs::path source = fs::path(__FILE__).parent_path().parent_path().parent_path() / L"samples" / L"shapes";
-    if (holdsShapes(source)) return source;
-#endif
-    return {};
+    return findSamplesFolder(L"shapes");
+}
+
+// Looks for the sample generators.
+fs::path sampleGeneratorsFolder()
+{
+    return findSamplesFolder(L"generators");
 }
 
 // Copies the sample shape files that are not in the library yet.

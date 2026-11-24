@@ -6,6 +6,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 namespace plynth {
@@ -14,7 +15,7 @@ namespace plynth {
 // so image pixel (px, py) is at (px / pixels_per_metre, py / pixels_per_metre). The image's top left
 // corner is at (0, 0). The Blender side turns this into its own y up axes.
 
-// A stable identifier such as "p12". Unique across the whole plan, never changed once given.
+// A stable identifier such as "p12" or "p7k3q9xm2". Unique across the whole plan, never changed once given.
 // Made of a letter followed by letters, digits, "_" or "-".
 using Id = std::string;
 
@@ -26,6 +27,14 @@ inline constexpr std::string_view kOpeningIdPrefix = "o";
 inline constexpr std::string_view kItemIdPrefix = "i";
 inline constexpr std::string_view kStairIdPrefix = "s";
 inline constexpr std::string_view kRoofSectionIdPrefix = "rf";
+
+// The characters a new id has after its prefix: digits and lower case letters without i, l, o and u, so none
+// looks like another.
+inline constexpr std::string_view kIdAlphabet = "0123456789abcdefghjkmnpqrstvwxyz";
+// How many characters a new id has after its prefix.
+inline constexpr std::size_t kNewIdLength = 8;
+// How many random ids newId tries before it falls back to counting.
+inline constexpr int kMaxIdDraws = 1000;
 
 inline constexpr double kDefaultCeilingHeight = 3.0;
 inline constexpr double kDefaultWallThickness = 0.2;
@@ -134,7 +143,31 @@ struct ItemSize {
     bool operator==(const ItemSize&) const = default;
 };
 
-// A catalog asset placed on a floor (DESIGN.md section 7.6).
+// One parameter value of a placed generator (Generators.h): a number (lengths in metres, angles in degrees,
+// whole numbers too), yes or no, or text (a choice id, or a material id where empty text means the neutral
+// look). In plan.json a number, true or false, a string, or null for empty text.
+using GeneratorValue = std::variant<double, bool, std::string>;
+
+struct GeneratorParamValue {
+    std::string id;
+    GeneratorValue value;
+
+    bool operator==(const GeneratorParamValue&) const = default;
+};
+
+// The generator an item runs instead of placing an asset (plan format 6), and its parameter values, sorted by
+// id with each id once. name is the generator's id, the file stem of Library/generators/<name>.py. The plan
+// keeps it even when the library on this machine does not have that generator.
+struct GeneratorUse {
+    std::string name;
+    std::vector<GeneratorParamValue> params;
+
+    bool operator==(const GeneratorUse&) const = default;
+};
+
+// A catalog asset placed on a floor (DESIGN.md section 7.6), or a generator placed like one (DESIGN.md 7.10).
+// A generator item has generator set and asset empty; its size comes from its parameters (generatorSize in
+// Generators.h). Everything else below means the same for both kinds.
 // x and y are the centre of the footprint on the plan, which is where the asset's pivot (the bottom centre
 // of its bounding box) goes. z is the height of the asset's bottom above the floor.
 // rotation is in degrees from 0 up to 360, clockwise as seen on the plan. At 0 the asset's front faces +y
@@ -155,9 +188,13 @@ struct Item {
     double rotation = 0.0;
     std::optional<Id> wall;
     ItemSize size;
+    std::optional<GeneratorUse> generator;
 
     bool operator==(const Item&) const = default;
 };
+
+// Says whether an item runs a generator rather than placing an asset.
+bool isGeneratorItem(const Item& item);
 
 // Where a floor's plan image sits, in metres (plan format 5). Image pixel (px, py) of that floor is at
 // (px / pixels_per_metre + x, py / pixels_per_metre + y), so an upper floor's image can be lined up with the
@@ -296,8 +333,11 @@ const Stair* findStair(const Floor& floor, std::string_view id);
 // Says whether any floor, object or roof section entry in the plan already uses this id.
 bool idInUse(const Plan& plan, std::string_view id);
 
-// Makes a new unused id: the prefix followed by one more than the highest number already used with it.
-// An id freed by a removal can be given out again only after it is no longer the highest.
+// Makes an id that no floor, object or roof section of the plan has: the prefix, a digit, then seven characters
+// of kIdAlphabet with at least one letter, for example "i7k3q9xm2", drawn at random and again while in use.
+// Removed ids are not remembered: a new id matches one only by chance, about once in 343 billion. When
+// kMaxIdDraws tries were all in use, which a working source never gives, it is the prefix and one more than the
+// highest number present, counting on while that is in use.
 Id newId(const Plan& plan, std::string_view prefix);
 
 // Says whether text is a well formed id.
@@ -310,7 +350,10 @@ bool isValidId(std::string_view id);
 // and pixels per metre above zero, corner radius, offset and sill zero or more, wall height above zero when set.
 // Items: asset a well formed name, room and wall (when set) a room and a wall of their own floor, z zero or
 // more, rotation from 0 up to 360, every size above zero. Whether an item fits its room or overlaps anything
-// is not part of the format; itemProblems in Items.h reports that.
+// is not part of the format; itemProblems in Items.h reports that. A generator item instead has an empty
+// asset, a generator name that is a well formed lower case name (letters a to z, digits and "_", starting with
+// a letter, at most 64), parameter ids of the same form, each once and sorted, and finite numbers. Whether the
+// generator exists or its values fit its declaration is not part of the format either.
 // Floors (format 5): slab thickness from kMinSlabThickness to kMaxSlabThickness, image offset finite.
 // Stairs: type a well formed name (registered or not, like opening shapes), width from kMinStairWidth to
 // kMaxStairWidth (Stairs.h), rotation from 0 up to 360, material well formed when set. Whether a stair has a

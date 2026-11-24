@@ -86,7 +86,8 @@ public:
     Status save(SaveReport* report = nullptr);
 
     // Saves to another folder and makes it the document's folder. AlreadyExists when that folder holds
-    // a different project. Images are copied from the old folder into the new one.
+    // a different project or already has an export-options.json. Images and export-options.json are copied
+    // from the old folder into the new one.
     // Unlike save, a floor image that cannot be found is NotFound, as for a new project.
     Status saveAs(const std::filesystem::path& folder, SaveReport* report = nullptr);
 

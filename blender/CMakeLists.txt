@@ -22,14 +22,21 @@ endif()
 if(PLYNTH_BLENDER AND EXISTS "${PLYNTH_BLENDER}")
     message(STATUS "Blender worker tests use ${PLYNTH_BLENDER}")
     enable_testing()
+    # The add-on suite runs only the add-on tests, with the add-ons copied from the folder PLYNTH_TEST_ADDONS
+    # names. It fails when that folder is missing or lacks one of the known add-ons, and when any test skips.
     add_test(
         NAME blender_python
         COMMAND "${PLYNTH_BLENDER}" --background --factory-startup -noaudio -t 6 --offline-mode
                 --python-exit-code 3 --python "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_tests.py"
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(
+        NAME blender_addons
+        COMMAND "${PLYNTH_BLENDER}" --background --factory-startup -noaudio -t 6 --offline-mode
+                --python-exit-code 3 --python "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_tests.py" -- --addons
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
     # Factory startup does not protect the user's folders, so each variable that names one points inside the
     # build folder. Blender ignores a variable whose folder is missing and falls back to the user's own folder.
-    # A setup test makes the folders every time the test runs, so a deleted build folder cannot send Blender
+    # A setup test makes the folders every time a suite runs, so a deleted build folder cannot send Blender
     # anywhere else.
     set(_plynth_private "${CMAKE_BINARY_DIR}/blender-private")
     set(_plynth_private_folders "${_plynth_private}" "${_plynth_private}/config" "${_plynth_private}/scripts"
@@ -52,8 +59,32 @@ if(PLYNTH_BLENDER AND EXISTS "${PLYNTH_BLENDER}")
     add_test(NAME blender_private_folders
         COMMAND "${CMAKE_COMMAND}" -E make_directory ${_plynth_private_folders})
     set_tests_properties(blender_private_folders PROPERTIES LABELS blender FIXTURES_SETUP blender_private)
-    set_tests_properties(blender_python PROPERTIES LABELS blender TIMEOUT 900 FIXTURES_REQUIRED blender_private
+    set_tests_properties(blender_python PROPERTIES LABELS blender TIMEOUT 1800 FIXTURES_REQUIRED blender_private
         ENVIRONMENT "${_plynth_private_env}")
+    set_tests_properties(blender_addons PROPERTIES LABELS "blender;addons" TIMEOUT 1800
+        FIXTURES_REQUIRED blender_private ENVIRONMENT "${_plynth_private_env}")
 else()
     message(STATUS "Blender not found, the worker Python tests are not added")
+endif()
+
+# Fetch tests that need no Blender. They run in plain Python, with stand-ins for Blender, so every machine
+# and GitHub runs them. Each run gets fresh scratch folders for temp files and the user folders.
+if(PLYNTH_BUILD_TESTS)
+    find_package(Python3 3.10 COMPONENTS Interpreter)
+    if(Python3_Interpreter_FOUND)
+        enable_testing()
+        set(_plynth_plain "${CMAKE_BINARY_DIR}/python-plain")
+        set(_plynth_plain_folders "${_plynth_plain}/temp" "${_plynth_plain}/appdata" "${_plynth_plain}/local"
+            "${_plynth_plain}/home" "${_plynth_plain}/plynth-config" "${_plynth_plain}/plynth-private")
+        add_test(NAME python_plain_folders
+            COMMAND "${CMAKE_COMMAND}" -E make_directory ${_plynth_plain_folders})
+        set_tests_properties(python_plain_folders PROPERTIES FIXTURES_SETUP python_plain)
+        add_test(NAME python_plain_fetch
+            COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tests/plain/run_plain_tests.py"
+            WORKING_DIRECTORY "${_plynth_plain}")
+        set_tests_properties(python_plain_fetch PROPERTIES TIMEOUT 600 FIXTURES_REQUIRED python_plain
+            ENVIRONMENT "PLYNTH_FAKE_STORE_HELPER=$<TARGET_FILE:plynth_fake_store_helper>;TEMP=${_plynth_plain}/temp;TMP=${_plynth_plain}/temp;APPDATA=${_plynth_plain}/appdata;LOCALAPPDATA=${_plynth_plain}/local;USERPROFILE=${_plynth_plain}/home;HOME=${_plynth_plain}/home;PLYNTH_CONFIG_DIR=${_plynth_plain}/plynth-config;PLYNTH_BLENDER_PRIVATE=${_plynth_plain}/plynth-private")
+    else()
+        message(STATUS "Python 3.10 or newer not found, the plain Python fetch tests are not added")
+    endif()
 endif()

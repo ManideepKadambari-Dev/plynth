@@ -9,7 +9,7 @@ from export_helpers import ExportTest
 from plynth import quality, registry
 
 CHECK_IDS = ["build_current", "build_complete", "scale", "transforms", "naming", "uvs", "texel_density",
-             "triangles", "materials", "collision", "fbx_scale"]
+             "triangles", "materials", "collision", "groups", "fbx_scale", "kit_file"]
 
 
 # Returns the L shaped prism used as a concave collision mesh.
@@ -68,8 +68,10 @@ class QualityTests(ExportTest):
     def assert_only(self, checks, check_id, status):
         self.assertEqual(checks[check_id]["status"], status, checks[check_id])
         for other in CHECK_IDS:
-            if other != check_id and other in checks and other != "fbx_scale":
+            if other != check_id and other in checks and other not in ("fbx_scale", "kit_file"):
                 self.assertEqual(checks[other]["status"], "pass", checks[other])
+        if check_id != "kit_file":
+            self.assertEqual(checks["kit_file"]["status"], "skipped", checks["kit_file"])
 
     # Returns the exported object with the name.
     def obj(self, ctx, name):
@@ -85,7 +87,8 @@ class QualityTests(ExportTest):
         elapsed = time.monotonic() - started
         self.assertEqual([c["id"] for c in self.output["checks"]], CHECK_IDS)
         for check_id in CHECK_IDS:
-            self.assertEqual(checks[check_id]["status"], "pass", checks[check_id])
+            expected = "skipped" if check_id == "kit_file" else "pass"
+            self.assertEqual(checks[check_id]["status"], expected, checks[check_id])
             self.assertEqual(checks[check_id]["findings"], [])
         self.assertEqual(checks["fbx_scale"]["phase"], "file")
         self.assertEqual(checks["naming"]["phase"], "scene")
@@ -325,11 +328,34 @@ class QualityTests(ExportTest):
         self.assertEqual(checks["collision"]["status"], "fail")
         self.assertIn("not closed", checks["collision"]["findings"][0]["message"])
 
+    # A generator object needs its UCX like an item, and the pass message names generators.
+    def test_generator_collision(self):
+        def generator(ctx):
+            self.obj(ctx, "SM_sofa_i1")["plynth_kind"] = "generator"
+
+        checks = self.checks(generator)
+        self.assert_only(checks, "collision", "pass")
+        self.assertIn("generator", checks["collision"]["message"])
+
+        def bare(ctx):
+            generator(ctx)
+            target = self.obj(ctx, "UCX_SM_sofa_i1_00")
+            ctx.state["collision"].remove(target)
+            bpy.data.objects.remove(target, do_unlink=True)
+
+        checks = self.checks(bare)
+        self.assertEqual(checks["collision"]["status"], "fail")
+        self.assertEqual([(f["object"], f["plan_id"]) for f in checks["collision"]["findings"]],
+                         [("SM_sofa_i1", "i1")])
+        self.assertIn("no collision mesh", checks["collision"]["findings"][0]["message"])
+        self.assertFalse(self.output["written"])
+
     # With write false the file check is skipped.
     def test_check_only(self):
         checks = self.checks(write=False)
         self.assertEqual(checks["fbx_scale"]["status"], "skipped")
-        for check_id in CHECK_IDS[:-1]:
+        self.assertEqual(checks["kit_file"]["status"], "skipped")
+        for check_id in CHECK_IDS[:-2]:
             self.assertEqual(checks[check_id]["status"], "pass", checks[check_id])
         self.assertFalse(self.output["written"])
 

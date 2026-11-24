@@ -4,11 +4,13 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <initializer_list>
 #include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace plynth {
@@ -183,13 +185,42 @@ Opening readOpening(const Json& j, const std::string& where)
     return o;
 }
 
+// Reads the generator of an item.
+GeneratorUse readGeneratorUse(const Json& j, const std::string& where)
+{
+    expectObject(j, where, {"name", "params"});
+    GeneratorUse g;
+    g.name = getString(j, "name", where);
+    auto pit = j.find("params");
+    if (pit == j.end()) refuse("The field \"params\" is missing.", child(where, "params"));
+    const std::string at = child(where, "params");
+    if (!pit->is_object()) refuse("This value must be an object.", at);
+    for (auto it = pit->begin(); it != pit->end(); ++it) {
+        const std::string vat = child(at, it.key());
+        GeneratorParamValue v;
+        v.id = it.key();
+        if (it->is_number()) v.value = GeneratorValue{numberAt(*it, vat)};
+        else if (it->is_boolean()) v.value = GeneratorValue{it->get<bool>()};
+        else if (it->is_string()) v.value = GeneratorValue{it->get<std::string>()};
+        else if (it->is_null()) v.value = GeneratorValue{std::string()};
+        else refuse("This value must be a number, true or false, text or null.", vat);
+        g.params.push_back(std::move(v));
+    }
+    std::sort(g.params.begin(), g.params.end(), [](const auto& a, const auto& b) { return a.id < b.id; });
+    return g;
+}
+
 // Reads one placed item.
 Item readItem(const Json& j, const std::string& where)
 {
-    expectObject(j, where, {"id", "asset", "room", "x", "y", "z", "rotation", "wall", "size"});
+    expectObject(j, where, {"id", "asset", "room", "x", "y", "z", "rotation", "wall", "size", "generator"});
     Item it;
     it.id = getString(j, "id", where);
-    it.asset = getString(j, "asset", where);
+    if (!j.contains("asset")) refuse("The field \"asset\" is missing.", child(where, "asset"));
+    it.asset = getOptionalString(j, "asset", where).value_or("");
+    if (auto git = j.find("generator"); git != j.end() && !git->is_null()) it.generator = readGeneratorUse(*git, child(where, "generator"));
+    if (it.generator && !it.asset.empty()) refuse("An item has an asset or a generator, not both.", child(where, "generator"));
+    if (!it.generator && it.asset.empty()) refuse("An item needs an asset or a generator.", child(where, "asset"));
     it.room = getOptionalString(j, "room", where);
     it.x = getNumber(j, "x", where);
     it.y = getNumber(j, "y", where);
@@ -324,6 +355,27 @@ void prepare(Json& json, std::string_view format, int currentVersion, std::span<
     migrated = found != currentVersion;
 }
 
+// Writes the generator of an item, parameters sorted by id.
+Json generatorUseToJson(const GeneratorUse& g)
+{
+    Json out = Json::object();
+    out["name"] = g.name;
+    std::vector<const GeneratorParamValue*> sorted;
+    for (const auto& p : g.params) sorted.push_back(&p);
+    std::sort(sorted.begin(), sorted.end(), [](const auto* a, const auto* b) { return a->id < b->id; });
+    Json params = Json::object();
+    for (const auto* p : sorted) {
+        if (const double* d = std::get_if<double>(&p->value)) params[p->id] = *d;
+        else if (const bool* b = std::get_if<bool>(&p->value)) params[p->id] = *b;
+        else {
+            const std::string& text = std::get<std::string>(p->value);
+            params[p->id] = text.empty() ? Json(nullptr) : Json(text);
+        }
+    }
+    out["params"] = std::move(params);
+    return out;
+}
+
 }
 
 // Turns a plan into its plan.json form.
@@ -411,7 +463,7 @@ Json planToJson(const Plan& plan)
         for (const Item& it : f.items) {
             Json ji = Json::object();
             ji["id"] = it.id;
-            ji["asset"] = it.asset;
+            ji["asset"] = it.asset.empty() ? Json(nullptr) : Json(it.asset);
             ji["room"] = optString(it.room);
             ji["x"] = it.x;
             ji["y"] = it.y;
@@ -423,6 +475,7 @@ Json planToJson(const Plan& plan)
             size["depth"] = it.size.depth;
             size["height"] = it.size.height;
             ji["size"] = std::move(size);
+            ji["generator"] = it.generator ? generatorUseToJson(*it.generator) : Json(nullptr);
             items.push_back(std::move(ji));
         }
         jf["items"] = std::move(items);
@@ -739,12 +792,28 @@ Status migrateProject4To5(Json& json)
     return {};
 }
 
+// Version 5 to 6: every item gets an empty generator.
+Status migratePlan5To6(Json& json)
+{
+    auto floors = json.find("floors");
+    if (floors == json.end() || !floors->is_array()) return {};
+    for (Json& floor : *floors) {
+        if (!floor.is_object()) continue;
+        auto items = floor.find("items");
+        if (items == floor.end() || !items->is_array()) continue;
+        for (Json& item : *items) {
+            if (item.is_object() && !item.contains("generator")) item["generator"] = nullptr;
+        }
+    }
+    return {};
+}
+
 }
 
 // The upgrade steps for plan.json.
 std::span<const Migration> planMigrations()
 {
-    static const std::vector<Migration> steps = {{1, migratePlan1To2}, {2, migratePlan2To3}, {3, migratePlan3To4}, {4, migratePlan4To5}};
+    static const std::vector<Migration> steps = {{1, migratePlan1To2}, {2, migratePlan2To3}, {3, migratePlan3To4}, {4, migratePlan4To5}, {5, migratePlan5To6}};
     return steps;
 }
 

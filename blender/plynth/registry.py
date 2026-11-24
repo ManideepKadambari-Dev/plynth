@@ -40,6 +40,7 @@ BAKERS = Registry("baker")
 MATERIAL_CHECKS = Registry("material check")
 EXPORT_STEPS = Registry("export step")
 QUALITY_CHECKS = Registry("quality check")
+ADDON_BRIDGES = Registry("add-on bridge")
 
 
 # Imports every module of a package, in name order, so each one registers itself.

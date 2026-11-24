@@ -1,0 +1,14 @@
+schema_version = "1.0.0"
+
+id = "plynth_test_addon"
+version = "1.0.0"
+name = "Plynth Test Add-on"
+tagline = "A small add-on that the Plynth tests switch on"
+maintainer = "Plynth"
+type = "add-on"
+
+blender_version_min = "4.2.0"
+
+license = [
+  "SPDX:GPL-3.0-or-later",
+]

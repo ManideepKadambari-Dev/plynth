@@ -30,11 +30,13 @@ using Json = nlohmann::ordered_json;
 //
 // Progress: while it runs the worker prints lines to standard output of the form
 //   PLYNTH:{"progress": {"step": "apply_transforms", "index": 3, "count": 11, "message": "Applying transforms"}}
-// Every other line is log text.
+// Every other line is log text. Without factory startup no line is trusted or kept, see runBlenderJob.
 //
 // Worker error codes: bad_job, unknown_task, unsupported_format, import_failed, no_geometry, several_models,
 // several_materials, no_base_color, bake_failed, unpack_failed, save_failed, render_failed, export_failed,
 // preferences_unreadable, internal.
+// Of store fetches (catalog/BlenderKit.h says when): addon_missing, not_signed_in, download_failed,
+// download_timeout, wrong_asset_kind.
 
 inline constexpr std::string_view kBlenderJobFormat = "plynth-blender-job";
 inline constexpr int kBlenderJobVersion = 1;
@@ -46,7 +48,9 @@ inline constexpr std::string_view kResultFileName = "result.json";
 inline constexpr std::string_view kBlenderLogFileName = "blender.log";
 inline constexpr std::string_view kProgressPrefix = "PLYNTH:";
 
-// Task ids. Each is one file in blender/plynth/tasks/.
+// Task ids. Each is one file in blender/plynth/tasks/. A store's fetch task has its id in the store's header:
+// "blenderkit_fetch" is kBlenderKitFetchTask in catalog/BlenderKit.h, and its output is the shape every fetch
+// task reports, see catalog/StoreFetch.h.
 inline constexpr std::string_view kProbeTask = "probe";                     // version and add-ons, see SetupCheck.h
 inline constexpr std::string_view kCleanupAssetTask = "cleanup_asset";     // see catalog/AssetJobs.h
 inline constexpr std::string_view kRenderThumbnailTask = "render_thumbnail"; // see catalog/AssetJobs.h
@@ -66,7 +70,7 @@ std::string newJobId(std::string_view stem);
 // fbx_failed (asset.fbx for the live preview could not be written; the asset itself is fine),
 // material_approximated (an asset material's maps could not show it exactly, see catalog/AssetJobs.h).
 // Material codes (catalog/MaterialJobs.h): ambiguous_map, unused_image, map_size_mismatch, visible_seams,
-// low_resolution.
+// low_resolution. The cleanup of a Fab model gives ambiguous_map and unused_image too.
 struct BlenderWarning {
     std::string code;
     std::string message;

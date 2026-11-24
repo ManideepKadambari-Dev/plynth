@@ -1,5 +1,6 @@
 #include "StatusBar.h"
 
+#include "theme/PlainText.h"
 #include "theme/Theme.h"
 
 #include <QHBoxLayout>
@@ -29,6 +30,7 @@ StatusBar::StatusBar(QWidget* parent)
     const QString mutedStyle = QStringLiteral("color: %1;").arg(t.muted().name());
 
     nameLabel_ = new QLabel(this);
+    nameLabel_->setTextFormat(Qt::PlainText);
     nameLabel_->setFont(t.monoFont(t.sizeSmall()));
     nameLabel_->setStyleSheet(mutedStyle);
     nameLabel_->setToolTip(tr("Name of the plan image that is open"));
@@ -41,6 +43,7 @@ StatusBar::StatusBar(QWidget* parent)
     layout->addWidget(sizeLabel_);
 
     hintLabel_ = new QLabel(this);
+    hintLabel_->setTextFormat(Qt::PlainText);
     hintLabel_->setFont(t.uiFont(t.sizeSmall()));
     hintLabel_->setStyleSheet(mutedStyle);
     hintLabel_->setToolTip(tr("What the active tool does with a click"));
@@ -127,7 +130,7 @@ void StatusBar::showMessage(const QString& text, bool refusal)
     messageLabel_->setStyleSheet(QStringLiteral("color: %1;").arg((refusal ? t.signalAmber() : t.text()).name()));
     messageLabel_->setTextFormat(Qt::RichText);
     messageLabel_->setText(t.withMonoPaths(text));
-    messageLabel_->setToolTip(text);
+    messageLabel_->setToolTip(plainToolTip(text));
     messageLabel_->show();
     hintLabel_->hide();
     messageLabel_->adjustSize();

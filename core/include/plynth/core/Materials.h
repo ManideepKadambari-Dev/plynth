@@ -112,6 +112,11 @@ SlabMaterials slabMaterials(const Project& project);
 // the build's library check.
 std::vector<std::string> materialsUsed(const Project& project);
 
+struct GeneratorLibrary; // Generators.h
+
+// The same, plus the materials of generator items, found with the library's declarations.
+std::vector<std::string> materialsUsed(const Project& project, const GeneratorLibrary& generators);
+
 // The two faces of a wall a material can be set on.
 enum class WallFace { Inside, Outside };
 

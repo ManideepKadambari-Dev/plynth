@@ -273,7 +273,8 @@
     },
     "stairs": [],
     "roofs": [],
-    "collision": []
+    "collision": [],
+    "generator_items": []
    },
    {
     "id": "f2",
@@ -469,7 +470,8 @@
     },
     "stairs": [],
     "roofs": [],
-    "collision": []
+    "collision": [],
+    "generator_items": []
    }
   ],
   "preview_folder": null,
@@ -511,6 +513,7 @@
     "material": null,
     "surface": "Wall_Top"
    }
-  ]
+  ],
+  "generators": []
  }
 }

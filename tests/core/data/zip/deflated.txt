@@ -1,0 +1,3 @@
+Chair/
+Chair/Chair.fbx
+Chair/Textures/T_Chair_BaseColor_2K.png

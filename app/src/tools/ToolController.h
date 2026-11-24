@@ -92,6 +92,13 @@ public:
     // Places a catalog asset on the shown floor at a wanted place, snapped, and selects the new item. A
     // missing, broken or unmeasured asset is refused with a message. Returns true when placed.
     bool placeAsset(const QString& assetId, plynth::Vec2 wanted, bool free);
+    // Places a generator from the library on the shown floor at a wanted place, snapped, with its default
+    // values and the floor's ceiling height, and selects the new item. An unknown generator or one whose
+    // add-on is off is refused with a message. Returns true when placed.
+    bool placeGenerator(const QString& generatorId, plynth::Vec2 wanted, bool free);
+    // Makes the item a generator item would be at the default values, for the footprint preview. Empty when
+    // the generator is unknown.
+    std::optional<plynth::Item> generatorItem(const QString& generatorId) const;
     // Turns the selected floor item by degrees (positive is clockwise). Refusals show as messages.
     bool turnSelectedItem(double degrees);
     // For checks: switches to the Furniture tool and opens its picker at a place in metres, then hovers an

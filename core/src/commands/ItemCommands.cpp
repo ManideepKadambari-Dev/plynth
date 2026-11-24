@@ -372,6 +372,7 @@ Status SwapItemAssetCommand::apply(Project& project)
     if (!found.item) return noItem(itemId_);
     Item swapped = *found.item;
     swapped.asset = asset_;
+    swapped.generator.reset();
     swapped.size = size_;
     Item plain = swapped;
     plain.wall.reset();

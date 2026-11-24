@@ -44,6 +44,9 @@ class ExportPanel;
 class HomeScreen;
 class ImportQueue;
 class ImportQueueView;
+class IntegrationsPanel;
+class FabImportDialog;
+class StoreImports;
 class LibraryHost;
 class LibraryWatcher;
 class SetupCheckDialog;
@@ -106,6 +109,14 @@ public:
     void setCutAtFloor(bool on);
     bool showRoofs3d() const;
     bool cutAtFloor() const;
+    // For checks only: sets a parameter of the selected generator item ("diameter=0.5"). False when refused.
+    bool setGeneratorParam(const QString& assignment);
+    // For checks only: the Catalog menu's Add the sample generators.
+    void addSampleGenerators();
+    // For checks only: runs the add-on check and returns when it has finished.
+    void checkAddonsAndWait();
+    // For checks only: undoes the last change once.
+    void undoOnce() { doc_.undo(); }
     // For checks only: chooses the side the wall view is seen from.
     void setWallViewSide(plynth::WallSide side);
 
@@ -133,6 +144,17 @@ public:
     // Closes the project after the save question and shows the home screen.
     void closeProject();
 
+    // For checks only: shows the Integrations tab.
+    void showIntegrationsTab();
+    // For checks only: fills the BlenderKit address field of the Integrations tab.
+    void setBlenderKitAddress(const QString& text);
+    // For checks only: opens the Fab import dialog for a zip without waiting for it.
+    void showFabImport(const QString& zip);
+    // For checks only: does what an integration's import button does once this file is chosen. Assets when
+    // the integration imports assets, otherwise materials.
+    void importIntegrationFile(const QString& integrationId, const QString& file);
+    // For checks only: true when the Integrations tab was not asked for, or its check has ended.
+    bool integrationsPictureReady() const;
     // For checks only: shows the Assets tab.
     void showAssetsTab();
     // For checks only: selects an asset in the Assets tab. False when it is not listed.
@@ -142,6 +164,8 @@ public:
 
     // Shows the material import screen over the work area.
     void showMaterialImport();
+    // Shows the Integrations tab and puts the focus in the BlenderKit address field.
+    void importFromBlenderKit();
     // Queues every folder of samples/materials, skipping ids already in the library.
     void addSampleMaterials();
     // For checks only: takes a material of an asset into the materials catalog, as its button does.
@@ -208,6 +232,7 @@ private:
     void queueFinished(int kind, bool ok, const QString& assetId, const QString& message, bool thumbnailFailed);
     void editRoomTypes();
     void openLibraryFolder();
+    void openGeneratorsFolder();
     void roomTypesChanged();
     void reportMissingImages(const plynth::SaveReport& report);
     void buildMenus();
@@ -334,12 +359,22 @@ private:
     QAction* rescanAction_ = nullptr;
     QAction* rescanMaterialsAction_ = nullptr;
     QAction* importMaterialsAction_ = nullptr;
+    QAction* importBlenderKitAction_ = nullptr;
+    QAction* importFabAction_ = nullptr;
     QAction* addSamplesAction_ = nullptr;
     QAction* addShapesAction_ = nullptr;
+    QAction* reloadGeneratorsAction_ = nullptr;
+    QAction* checkAddonsAction_ = nullptr;
+    QAction* addSampleGeneratorsAction_ = nullptr;
+    QAction* openGeneratorsAction_ = nullptr;
     ImportQueue* queue_ = nullptr;
     ImportQueueView* queueView_ = nullptr;
     LibraryWatcher* libraryWatcher_ = nullptr;
     QPointer<SetupCheckDialog> setupDialog_;
+    IntegrationsPanel* integrations_ = nullptr;
+    StoreImports* storeImports_ = nullptr;
+    QPointer<FabImportDialog> fabDialog_;
+    bool integrationsAsked_ = false;
     bool importAsked_ = false;
     QString setupScrollTo_;
     QSplitter* splitter_ = nullptr;

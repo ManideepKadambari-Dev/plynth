@@ -1,4 +1,6 @@
+#include "panels/ExportPanel.h"
 #include "theme/Theme.h"
+#include "catalog/LibraryHost.h"
 #include "window/MainWindow.h"
 
 #include <plynth/cli/Cli.h>
@@ -161,6 +163,21 @@ int main(int argc, char* argv[])
     QCommandLineOption exportCheckOption(QStringLiteral("export-check"),
                                          QStringLiteral("Run the export quality checks after opening the project and wait for the end. For checks only."));
     QCommandLineOption exportTabOption(QStringLiteral("export-tab"), QStringLiteral("Show the Export tab. For checks only."));
+    QCommandLineOption integrationsTabOption(QStringLiteral("integrations-tab"),
+                                             QStringLiteral("Show the Integrations tab. For checks only."));
+    QCommandLineOption blenderKitAddressOption(QStringLiteral("blenderkit-address"),
+                                               QStringLiteral("Fill the BlenderKit address field of the Integrations tab. For checks only."),
+                                               QStringLiteral("text"));
+    QCommandLineOption fabImportOption(QStringLiteral("fab-import"),
+                                       QStringLiteral("Open the Fab import dialog for this model zip. For checks only."),
+                                       QStringLiteral("zip"));
+    QCommandLineOption integrationFileOption(QStringLiteral("integration-file"),
+                                             QStringLiteral("Followed by an integration id and a file: does what its import button does with that file. For checks only."),
+                                             QStringLiteral("id"));
+    QCommandLineOption exportGroupsExpandedOption(QStringLiteral("export-groups-expanded"),
+                                                  QStringLiteral("Open every group in the Export tab. For checks only."));
+    QCommandLineOption exportKitOnOption(QStringLiteral("export-kit-on"),
+                                         QStringLiteral("Tick the modular kit box of the Export tab before --export runs. For checks only."));
     QCommandLineOption homeOption(QStringLiteral("home"), QStringLiteral("Show the home screen. For checks only."));
     parser.addOption(zoomOption);
     parser.addOption(overlayOption);
@@ -169,9 +186,15 @@ int main(int argc, char* argv[])
     parser.addOption(exportOption);
     parser.addOption(exportCheckOption);
     parser.addOption(exportTabOption);
+    parser.addOption(exportGroupsExpandedOption);
+    parser.addOption(exportKitOnOption);
     parser.addOption(viewOption);
     parser.addOption(cameraOption);
     parser.addOption(homeOption);
+    parser.addOption(integrationsTabOption);
+    parser.addOption(blenderKitAddressOption);
+    parser.addOption(fabImportOption);
+    parser.addOption(integrationFileOption);
     parser.addOption(alignImageOption);
     parser.addOption(roofSectionsOption);
     parser.addOption(selectRoofOption);
@@ -191,12 +214,25 @@ int main(int argc, char* argv[])
     parser.addOption(importMaterialsOption);
     parser.addOption(materialSourceOption);
     parser.addOption(addSamplesOption);
+    QCommandLineOption addSampleGeneratorsOption(QStringLiteral("add-sample-generators"),
+                                                 QStringLiteral("Copy the sample generators as the Catalog menu does. For checks only."));
+    QCommandLineOption checkAddonsOption(QStringLiteral("check-addons"),
+                                         QStringLiteral("Run the add-on check as the Catalog menu does, then wait for it. For checks only."));
+    parser.addOption(addSampleGeneratorsOption);
+    parser.addOption(checkAddonsOption);
     parser.addOption(addAssetMaterialOption);
     parser.addOption(catalogOption);
     parser.addOption(selectAssetOption);
     parser.addOption(toolOption);
     parser.addOption(selectOption);
     parser.addOption(floorOption);
+    QCommandLineOption generatorParamOption(QStringLiteral("generator-param"),
+                                            QStringLiteral("Set a parameter of the selected generator item, for example diameter=0.5. "
+                                                           "Repeat for several. For checks only."),
+                                            QStringLiteral("id=value"));
+    QCommandLineOption undoOption(QStringLiteral("undo"), QStringLiteral("Undo the last change once, after the other options. For checks only."));
+    parser.addOption(generatorParamOption);
+    parser.addOption(undoOption);
     parser.addOption(wallSideOption);
     parser.addOption(imageOption);
     parser.addOption(terminalOption);
@@ -275,6 +311,26 @@ int main(int argc, char* argv[])
         else
             terminalWords.clear();
     }
+    // The file after the id of --integration-file is its second value, never the project folder.
+    QString integrationFile;
+    if (parser.isSet(integrationFileOption)) {
+        const QStringList raw = QApplication::arguments();
+        for (qsizetype i = 1; i < raw.size(); ++i) {
+            const bool inline_ = raw.at(i).startsWith(QStringLiteral("--integration-file="));
+            if (raw.at(i) != QStringLiteral("--integration-file") && !inline_)
+                continue;
+            const qsizetype next = inline_ ? i + 1 : i + 2;
+            if (next < raw.size())
+                integrationFile = raw.at(next);
+            break;
+        }
+        const qsizetype at = positional.lastIndexOf(integrationFile);
+        if (integrationFile.isEmpty() || at < 0)
+            return kExitBadArguments;
+        positional.removeAt(at);
+    }
+    if (wantsScreenshot)
+        plynth::app::LibraryHost::setAutoProbe(false);
     plynth::app::MainWindow window;
     window.setScreenshotMode(wantsScreenshot);
     if (hasSize)
@@ -317,6 +373,10 @@ int main(int argc, char* argv[])
         window.setShowRoofs3d(false);
     if (parser.isSet(cutAtFloorOption))
         window.setCutAtFloor(true);
+    for (const QString& assignment : parser.values(generatorParamOption))
+        window.setGeneratorParam(assignment);
+    if (parser.isSet(undoOption))
+        window.undoOnce();
     if (parser.isSet(wallSideOption))
         window.setWallViewSide(parser.value(wallSideOption).toLower() == QStringLiteral("left") ? plynth::WallSide::Left
                                                                                              : plynth::WallSide::Right);
@@ -340,8 +400,24 @@ int main(int argc, char* argv[])
     window.show();
     if (parser.isSet(buildTabOption))
         window.showBuildTab();
+    if (parser.isSet(exportGroupsExpandedOption))
+        window.findChild<plynth::app::ExportPanel*>()->setGroupsExpanded(true);
+    if (parser.isSet(exportKitOnOption))
+        window.findChild<plynth::app::ExportPanel*>()->setKitEnabled(true);
     if (parser.isSet(exportTabOption))
         window.showExportTab();
+    if (parser.isSet(blenderKitAddressOption))
+        window.setBlenderKitAddress(parser.value(blenderKitAddressOption));
+    else if (parser.isSet(integrationsTabOption))
+        window.showIntegrationsTab();
+    if (parser.isSet(fabImportOption)) {
+        const QString zip = parser.value(fabImportOption);
+        QTimer::singleShot(0, &window, [&window, zip]() { window.showFabImport(zip); });
+    }
+    if (parser.isSet(integrationFileOption)) {
+        const QString id = parser.value(integrationFileOption);
+        QTimer::singleShot(0, &window, [&window, id, integrationFile]() { window.importIntegrationFile(id, integrationFile); });
+    }
     if (parser.isSet(overlayOption))
         window.setOverlay3d(true);
     if (parser.isSet(zoomOption) && parser.value(zoomOption).toLower() == QStringLiteral("actual"))
@@ -377,6 +453,10 @@ int main(int argc, char* argv[])
             window.addAssetMaterialForCheck(both.section(QLatin1Char('/'), 0, 0), both.section(QLatin1Char('/'), 1));
         });
     }
+    if (parser.isSet(addSampleGeneratorsOption))
+        window.addSampleGenerators();
+    if (parser.isSet(checkAddonsOption))
+        window.checkAddonsAndWait();
     if (parser.isSet(addSamplesOption))
         QTimer::singleShot(0, &window, [&window]() { window.addSampleMaterials(); });
     if (parser.isSet(setupOption) || parser.isSet(setupItemOption)) {
@@ -418,6 +498,8 @@ int main(int argc, char* argv[])
             if ((!window.setupPictureReady() || !window.importPictureReady()) && !waited.hasExpired(kSetupWaitMs))
                 return;
             if (!window.materialsPictureReady() && !waited.hasExpired(kBuildWaitMs))
+                return;
+            if (!window.integrationsPictureReady() && !waited.hasExpired(kSetupWaitMs))
                 return;
             poll->stop();
             // Panels rebuilt just before need a few passes to show and lay out their rows.

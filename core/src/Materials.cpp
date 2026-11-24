@@ -2,6 +2,7 @@
 
 #include "plynth/core/BuildGeometry.h"
 #include "plynth/core/Geometry.h"
+#include "plynth/core/Generators.h"
 #include "plynth/core/Openings.h"
 #include "plynth/core/Rooms.h"
 #include "plynth/core/WallGeometry.h"
@@ -9,6 +10,7 @@
 #include <algorithm>
 #include <cmath>
 #include <set>
+#include <variant>
 
 namespace plynth {
 
@@ -91,12 +93,15 @@ const Stair* findStairAnywhere(const Plan& plan, std::string_view id)
     return nullptr;
 }
 
-// Says whether a text is a wall or room style id: the prefix letter and digits.
+// Says whether a text has the shape of an id with this prefix: the prefix, a digit, then letters and digits.
 bool looksLikeId(std::string_view text, std::string_view prefix)
 {
     if (text.size() <= prefix.size() || text.substr(0, prefix.size()) != prefix) return false;
-    for (char c : text.substr(prefix.size())) {
-        if (c < '0' || c > '9') return false;
+    const std::string_view rest = text.substr(prefix.size());
+    if (rest.front() < '0' || rest.front() > '9') return false;
+    for (char c : rest) {
+        const bool ok = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+        if (!ok) return false;
     }
     return true;
 }
@@ -302,6 +307,28 @@ std::vector<std::string> materialsUsed(const Project& project)
     return {used.begin(), used.end()};
 }
 
+// The same, with the materials of generator items, read with the library's declarations.
+std::vector<std::string> materialsUsed(const Project& project, const GeneratorLibrary& generators)
+{
+    const std::vector<std::string> surfaces = materialsUsed(project);
+    std::set<std::string> used(surfaces.begin(), surfaces.end());
+    for (const Floor& floor : project.plan.floors) {
+        for (const Item& item : floor.items) {
+            if (!isGeneratorItem(item)) continue;
+            const GeneratorInfo* info = generators.find(item.generator->name);
+            if (!info) continue;
+            // The values the build would use: one that no longer fits counts as its default.
+            const GeneratorParamsFit fit = fitGeneratorParams(*info, item.generator->params, floor.ceilingHeight);
+            for (const std::string& param : generatorMaterialParams(*info)) {
+                const GeneratorValue* value = findGeneratorValue(fit.params, param);
+                const std::string* text = value ? std::get_if<std::string>(value) : nullptr;
+                if (text && !text->empty()) used.insert(*text);
+            }
+        }
+    }
+    return {used.begin(), used.end()};
+}
+
 // "inside" or "outside".
 std::string_view wallFaceName(WallFace face)
 {
@@ -388,20 +415,21 @@ MaterialTargetParse parseMaterialTarget(const Plan& plan, std::string_view text)
     }
 
     const Room* room = findRoomAnywhere(plan, head);
-    if (!room && looksLikeId(head, kWallIdPrefix)) {
-        out.status = fail(ErrorCode::NotFound, "There is no wall " + std::string(head) + ".");
-        return out;
-    }
-    if (!room && looksLikeId(head, kRoomIdPrefix)) {
-        out.status = fail(ErrorCode::NotFound, "There is no room " + std::string(head) + ".");
-        return out;
-    }
     if (!room) {
         std::vector<const Room*> matches;
         for (const Floor& floor : plan.floors) {
             for (const Room& candidate : floor.rooms) {
                 if (candidate.type && *candidate.type == head) matches.push_back(&candidate);
             }
+        }
+        // A room type comes before the id shape, so a type such as "r2d2" still finds its room.
+        if (matches.empty() && looksLikeId(head, kWallIdPrefix)) {
+            out.status = fail(ErrorCode::NotFound, "There is no wall " + std::string(head) + ".");
+            return out;
+        }
+        if (matches.empty() && looksLikeId(head, kRoomIdPrefix)) {
+            out.status = fail(ErrorCode::NotFound, "There is no room " + std::string(head) + ".");
+            return out;
         }
         if (matches.empty()) {
             out.status = fail(ErrorCode::NotFound, "There is no room or wall \"" + std::string(head) + "\".");

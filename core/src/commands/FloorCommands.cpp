@@ -232,6 +232,7 @@ Status AddFloorCommand::apply(Project& project)
         return fail(ErrorCode::InvalidValue, "The floor position is past the top floor.");
     }
     if (id_.empty()) id_ = newId(project.plan, kFloorIdPrefix);
+    if (idInUse(project.plan, id_)) return fail(ErrorCode::AlreadyExists, "The id " + id_ + " is already used.");
     Floor floor;
     floor.id = id_;
     floor.name = text;

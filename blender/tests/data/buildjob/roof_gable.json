@@ -16,7 +16,7 @@
   "textures_folder": "textures",
   "preview_folder": "preview",
   "plan": {
-   "version": 5
+   "version": 6
   },
   "settings": {
    "bevel_width": 0.01,
@@ -554,7 +554,8 @@
       ]
      }
     ],
-    "collision": []
+    "collision": [],
+    "generator_items": []
    }
   ],
   "preview_textures_folder": "preview_textures",
@@ -605,6 +606,7 @@
     "material": null,
     "surface": "Wall_Top"
    }
-  ]
+  ],
+  "generators": []
  }
 }

@@ -266,6 +266,76 @@ TEST_CASE("items count in ids and lookups", "[core][plan][id]") {
     REQUIRE(newId(p, kItemIdPrefix) == "i8");
 }
 
+namespace {
+
+Plan generatorPlan()
+{
+    Plan plan = fullPlan();
+    Item g;
+    g.id = "i9";
+    g.x = 2.0;
+    g.y = 2.0;
+    g.size = ItemSize{0.3, 0.3, 2.7};
+    g.generator = GeneratorUse{"column", {{"diameter", GeneratorValue{0.3}}, {"shape", GeneratorValue{std::string("round")}}}};
+    plan.floors[0].items.push_back(g);
+    return plan;
+}
+
+}
+
+TEST_CASE("checkPlan accepts a generator item", "[core][plan][generator]") {
+    const Plan plan = generatorPlan();
+    REQUIRE(checkPlan(plan).ok());
+    REQUIRE(isGeneratorItem(plan.floors[0].items[2]));
+    REQUIRE_FALSE(isGeneratorItem(plan.floors[0].items[0]));
+}
+
+TEST_CASE("checkPlan refuses broken generator items", "[core][plan][generator]") {
+    const std::string base = "/floors/0/items/2";
+    const auto expectRefused = [&](const Plan& plan, const std::string& where) {
+        const Status s = checkPlan(plan);
+        INFO(s.message << " at " << s.where);
+        REQUIRE_FALSE(s.ok());
+        REQUIRE(s.where == where);
+    };
+    {
+        Plan plan = generatorPlan();
+        plan.floors[0].items[2].asset = "sofa";
+        expectRefused(plan, base + "/asset");
+    }
+    {
+        Plan plan = generatorPlan();
+        plan.floors[0].items[2].generator->name = "Bad";
+        expectRefused(plan, base + "/generator/name");
+    }
+    {
+        Plan plan = generatorPlan();
+        plan.floors[0].items[2].generator->params[0].id = "Bad";
+        expectRefused(plan, base + "/generator/params/Bad");
+    }
+    {
+        Plan plan = generatorPlan();
+        std::swap(plan.floors[0].items[2].generator->params[0], plan.floors[0].items[2].generator->params[1]);
+        expectRefused(plan, base + "/generator/params/diameter");
+    }
+    {
+        Plan plan = generatorPlan();
+        plan.floors[0].items[2].generator->params[1].id = "diameter";
+        expectRefused(plan, base + "/generator/params/diameter");
+    }
+    {
+        Plan plan = generatorPlan();
+        plan.floors[0].items[2].generator->params[0].value = GeneratorValue{std::numeric_limits<double>::infinity()};
+        expectRefused(plan, base + "/generator/params/diameter");
+    }
+    {
+        Plan plan = generatorPlan();
+        plan.floors[0].items[2].asset.clear();
+        plan.floors[0].items[2].generator.reset();
+        expectRefused(plan, base + "/asset");
+    }
+}
+
 TEST_CASE("stairs and roof entries count in ids and lookups", "[core][plan][id]") {
     Plan plan = fullPlan();
     Stair st;

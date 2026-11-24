@@ -58,8 +58,8 @@ def add_part_uses(floor, use, targets):
 
 
 # Fills in every slot field and the slots list of a build job from its material fields, and the other fields
-# milestone 10 added (preview texture parameters, asset materials, collision). Safe to run again after the
-# material fields change.
+# milestone 10 added (preview texture parameters, asset materials, collision) and the empty generator lists.
+# Safe to run again after the material fields change.
 def upgrade(params):
     params.setdefault("preview_textures_folder", PREVIEW_FOLDER)
     params.setdefault("preview_texture_size", PREVIEW_SIZE)
@@ -74,6 +74,7 @@ def upgrade(params):
     targets = []
     for floor in params["floors"]:
         floor.setdefault("collision", [])
+        floor.setdefault("generator_items", [])
         labels = {r["id"]: pascal(r.get("type")) if r.get("type") else "Room" for r in floor["rooms"]}
         for room in floor["rooms"]:
             label = labels[room["id"]]
@@ -131,5 +132,6 @@ def upgrade(params):
             base, material, surface = uses[index]
             table.setdefault(names[index], {"name": names[index], "material": material, "surface": surface})
     params["slots"] = [table[name] for name in sorted(table)]
+    params.setdefault("generators", [])
     return params
 

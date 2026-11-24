@@ -513,3 +513,110 @@ TEST_CASE("nearestWallForMount finds the wall within the radius", "[core][items]
     REQUIRE(nearestWallForMount(f, {2.0, 2.0}, 0.5).empty());
     REQUIRE(nearestWallForMount(f, {2.0, 0.05}, 0.0) == "w1");
 }
+
+namespace {
+
+Item makeColumn(const std::string& id, double x, double y, ItemSize size = {0.3, 0.3, 2.7})
+{
+    Item it = makeItem(id, "", x, y, size);
+    it.generator = GeneratorUse{"column", {{"diameter", GeneratorValue{0.3}}}};
+    return it;
+}
+
+// A lookup that knows "column" with a given state, and nothing else.
+GeneratorItemLookup lookupWith(GeneratorItemState state)
+{
+    return [state](const GeneratorUse& use) -> std::optional<GeneratorItemState> {
+        if (use.name != "column") return std::nullopt;
+        return state;
+    };
+}
+
+}
+
+TEST_CASE("checkItemPlacement refuses a generator item with an asset or bad names", "[core][items][check][generator]") {
+    const Floor f = roomFloor();
+    REQUIRE(checkItemPlacement(f, makeColumn("i1", 2, 2)).ok());
+    Item withAsset = makeColumn("i1", 2, 2);
+    withAsset.asset = "sofa";
+    REQUIRE(checkItemPlacement(f, withAsset).code == ErrorCode::InvalidValue);
+    Item badName = makeColumn("i1", 2, 2);
+    badName.generator->name = "Col";
+    REQUIRE(checkItemPlacement(f, badName).code == ErrorCode::InvalidValue);
+    Item badParam = makeColumn("i1", 2, 2);
+    badParam.generator->params[0].id = "Dia";
+    REQUIRE(checkItemPlacement(f, badParam).code == ErrorCode::InvalidValue);
+    Item twice = makeColumn("i1", 2, 2);
+    twice.generator->params.push_back({"diameter", GeneratorValue{0.5}});
+    REQUIRE(checkItemPlacement(f, twice).code == ErrorCode::InvalidValue);
+    Item flat = makeColumn("i1", 2, 2, {0.3, 0.3, 0.0});
+    REQUIRE(checkItemPlacement(f, flat).code == ErrorCode::InvalidValue);
+}
+
+TEST_CASE("generator item problems follow the generator lookup", "[core][items][problems][generator]") {
+    Floor f = roomFloor();
+    f.items.push_back(makeColumn("i1", 2, 2));
+    const AssetLookup assets = [](std::string_view) -> std::optional<ItemSize> { return std::nullopt; };
+
+    SECTION("an asset lookup never reports a generator item") {
+        REQUIRE_FALSE(has(checkItem(f, f.items[0], assets), ItemProblemKind::MissingAsset));
+        REQUIRE_FALSE(has(checkItem(f, f.items[0], assets, lookupWith({})), ItemProblemKind::MissingAsset));
+    }
+    SECTION("without a generator lookup nothing about the generator is reported") {
+        REQUIRE(checkItem(f, f.items[0], assets).empty());
+        REQUIRE(itemProblems(f, assets).empty());
+    }
+    SECTION("a fitting generator has no problem") {
+        GeneratorItemState state;
+        state.size = ItemSize{0.3, 0.3, 2.7};
+        REQUIRE(checkItem(f, f.items[0], assets, lookupWith(state)).empty());
+        REQUIRE(itemProblems(f, assets, lookupWith(state)).empty());
+    }
+    SECTION("a generator not in the library") {
+        f.items[0].generator->name = "gone";
+        const auto problems = checkItem(f, f.items[0], assets, lookupWith({}));
+        REQUIRE(kindsOf(problems) == std::vector<ItemProblemKind>{ItemProblemKind::MissingGenerator});
+        REQUIRE(itemProblemName(ItemProblemKind::MissingGenerator) == "missing_generator");
+    }
+    SECTION("an unavailable generator names the reason") {
+        GeneratorItemState state;
+        state.available = false;
+        state.unavailableReason = "Needs the Archimesh add-on, which is not enabled in Blender.";
+        state.size = ItemSize{0.3, 0.3, 2.7};
+        const auto problems = checkItem(f, f.items[0], assets, lookupWith(state));
+        REQUIRE(kindsOf(problems) == std::vector<ItemProblemKind>{ItemProblemKind::GeneratorUnavailable});
+        REQUIRE(problems[0].message == "Column i1 needs the Archimesh add-on, which is not enabled in Blender.");
+        REQUIRE(itemProblemName(ItemProblemKind::GeneratorUnavailable) == "generator_unavailable");
+    }
+    SECTION("values that do not fit, or another size, are a change") {
+        GeneratorItemState state;
+        state.valuesFit = false;
+        REQUIRE(has(checkItem(f, f.items[0], assets, lookupWith(state)), ItemProblemKind::GeneratorChanged));
+        state.valuesFit = true;
+        state.size = ItemSize{0.3, 0.3, 2.8};
+        REQUIRE(has(checkItem(f, f.items[0], assets, lookupWith(state)), ItemProblemKind::GeneratorChanged));
+        state.size = ItemSize{0.3, 0.3, 2.7005};
+        REQUIRE_FALSE(has(checkItem(f, f.items[0], assets, lookupWith(state)), ItemProblemKind::GeneratorChanged));
+        REQUIRE(itemProblemName(ItemProblemKind::GeneratorChanged) == "generator_changed");
+    }
+    SECTION("an asset item is not checked against the generator lookup") {
+        f.items.push_back(makeItem("i2", "sofa", 1, 1, kSofa));
+        GeneratorItemState state;
+        state.available = false;
+        const auto problems = checkItem(f, f.items[1], {}, lookupWith(state));
+        REQUIRE_FALSE(has(problems, ItemProblemKind::GeneratorUnavailable));
+        REQUIRE_FALSE(has(problems, ItemProblemKind::MissingGenerator));
+    }
+}
+
+TEST_CASE("overlap and fit work for generator items", "[core][items][problems][generator]") {
+    Floor f = roomFloor();
+    f.items.push_back(makeColumn("i1", 2, 2));
+    f.items.push_back(makeItem("i2", "sofa", 2.1, 2, kSofa));
+    REQUIRE(has(checkItem(f, f.items[0]), ItemProblemKind::OverlapsItem, "i2"));
+    REQUIRE(has(checkItem(f, f.items[1]), ItemProblemKind::OverlapsItem, "i1"));
+    Item out = makeColumn("i3", 3.95, 2);
+    REQUIRE(has(checkItem(f, out), ItemProblemKind::OutsideRoom));
+    Item tall = makeColumn("i4", 1, 1, {0.3, 0.3, 3.5});
+    REQUIRE(has(checkItem(f, tall), ItemProblemKind::TooTall));
+}
