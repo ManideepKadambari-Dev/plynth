@@ -89,6 +89,7 @@ add_library(plynth_core STATIC
     src/dressing/Dressing.cpp
     src/trim/Trim.cpp
     src/Variation.cpp
+    src/BuildFinish.cpp
 )
 if(WIN32)
     target_sources(plynth_core PRIVATE src/Process_win.cpp)

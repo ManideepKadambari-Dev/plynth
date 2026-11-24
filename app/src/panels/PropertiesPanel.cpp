@@ -345,6 +345,8 @@ void PropertiesPanel::buildNothingPage()
         {plynth::Surface::Roof, "Roofs", "The material of the covering of pitched roofs, when the roof section names none"},
         {plynth::Surface::FlatRoof, "Flat roofs", "The material of the covering of flat roofs, when the roof section names none"},
         {plynth::Surface::Stair, "Stairs", "The material of steps and landings, when the stair names none"},
+        {plynth::Surface::Trim, "Trim", "The material of skirting boards, cornices, door casings and window sills"},
+        {plynth::Surface::Railing, "Railings", "The material of stair railings and the guards round stair holes"},
     };
     for (const DefaultRow& row : defaults) {
         plynth::MaterialTarget target;

@@ -220,7 +220,8 @@ TEST_CASE("Casings frame both faces of a door without a bottom", "[trim]")
 
     Project arch = squareRoom();
     addOpening(arch, "o1", "w1", OpeningType::Door, 2.0, 0.9, 2.1, 0.0, "round_arch");
-    const TrimBuild* archCasing = kindOf(trimOf(arch), TrimKind::Casing);
+    const std::vector<TrimBuild> archAll = trimOf(arch);
+    const TrimBuild* archCasing = kindOf(archAll, TrimKind::Casing);
     REQUIRE(archCasing != nullptr);
     for (const Sweep& s : archCasing->sweeps) {
         CHECK_THAT(sweepLength(s), WithinAbs(2.0 * (2.1 - 0.45) + kPi * 0.45, 0.01));
@@ -232,7 +233,8 @@ TEST_CASE("Sills reach past both jambs of wide straight windows", "[trim]")
 {
     Project p = squareRoom();
     addOpening(p, "o2", "w2", OpeningType::Window, 2.0, 1.2, 1.2, 0.9);
-    const TrimBuild* sill = kindOf(trimOf(p), TrimKind::Sill);
+    const std::vector<TrimBuild> all = trimOf(p);
+    const TrimBuild* sill = kindOf(all, TrimKind::Sill);
     REQUIRE(sill != nullptr);
     REQUIRE(sill->sweeps.size() == 2);
     for (const Sweep& s : sill->sweeps) {
@@ -354,8 +356,11 @@ TEST_CASE("Disabled trim kinds and unknown profiles", "[trim]")
     missing.skirting.profile = "not_installed";
     TrimSettings square;
     square.skirting.profile = "square";
-    const TrimBuild* withMissing = kindOf(trimOf(p, missing), TrimKind::Skirting);
-    const TrimBuild* withSquare = kindOf(trimOf(p, square), TrimKind::Skirting);
+    // Keep the lists alive: kindOf points into them.
+    const std::vector<TrimBuild> missingAll = trimOf(p, missing);
+    const std::vector<TrimBuild> squareAll = trimOf(p, square);
+    const TrimBuild* withMissing = kindOf(missingAll, TrimKind::Skirting);
+    const TrimBuild* withSquare = kindOf(squareAll, TrimKind::Skirting);
     REQUIRE(withMissing != nullptr);
     REQUIRE(withSquare != nullptr);
     CHECK(withMissing->profileMissing);
@@ -378,8 +383,9 @@ TEST_CASE("A wall between two rooms gets skirting on both faces", "[trim]")
     bool left = false, right = false;
     for (const Sweep& s : kindOf(all, TrimKind::Skirting)->sweeps) {
         for (const Vec3& q : pathOf(s)) {
-            if (std::fabs(q.x - 2.85) < 1e-9) left = true;
-            if (std::fabs(q.x - 3.15) < 1e-9) right = true;
+            // Wall bands go through Clipper2's integer grid, so faces are exact to about a micrometre.
+            if (std::fabs(q.x - 2.85) < 1e-5) left = true;
+            if (std::fabs(q.x - 3.15) < 1e-5) right = true;
         }
     }
     CHECK(left);
