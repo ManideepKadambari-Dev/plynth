@@ -301,9 +301,16 @@ TEST_CASE("Blender in background works at low integrity and writes only its labe
     for (const std::string& line : lines) all += line + "\n";
     INFO(all);
 
-    const std::vector<std::string> expected = {"SR7 python: ok", "SR7 inside: ok", "SR7 outside: denied",
-                                               "SR7 socket: ok", "SR7 helper: ok", "SR7 tray: ok"};
-    bool passed = result.status.ok() && result.exitCode == 0 && !fs::exists(outside);
+    // The tray icon is not required: its outcome is only printed. The helper must answer after it, take one
+    // fake download to its end, and be gone once the job has ended.
+    const std::vector<std::string> expected = {"SR7 python: ok", "SR7 inside: ok", "SR7 outside: denied", "SR7 socket: ok",
+                                               "SR7 helper: ok", "SR7 after icon: ok", "SR7 download: ok"};
+    const std::string icon = lineOf(lines, "SR7 icon: ");
+    const std::string pidLine = lineOf(lines, "SR7 helper pid: ");
+    const unsigned long helperPid = pidLine.empty() ? 0 : std::stoul(pidLine.substr(16));
+    const bool helperGone = helperPid != 0 && !plynth::test::processRunning(helperPid);
+    WARN("SR7 tray icon outcome: " << (icon.empty() ? std::string("not printed") : icon.substr(10)));
+    bool passed = result.status.ok() && result.exitCode == 0 && !fs::exists(outside) && !icon.empty() && helperGone;
     for (const std::string& want : expected) passed = passed && lineOf(lines, want.substr(0, want.find(':') + 1)) == want;
     if (!passed) {
         // The labelled folder is copied out of the test's folder, which is removed when the test ends, so the
@@ -320,4 +327,8 @@ TEST_CASE("Blender in background works at low integrity and writes only its labe
     CHECK(result.exitCode == 0);
     for (const std::string& want : expected) CHECK(lineOf(lines, want.substr(0, want.find(':') + 1)) == want);
     CHECK_FALSE(fs::exists(outside));
+    CHECK_FALSE(icon.empty());
+    REQUIRE(helperPid != 0);
+    if (!helperGone) plynth::test::endProcess(helperPid);
+    CHECK(helperGone);
 }

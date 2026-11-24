@@ -13,7 +13,8 @@
 // own output to whatever it was given. A download before the first report ends it with exit code 9. The
 // scenario's unzip_at_start entries are written at start, joined to global_dir without a check, as an unzip of
 // a hostile zip would. die_after_reports ends it after that many reports; download.fake_path is reported as
-// the file instead of the one written. tray shows a tray icon and notes whether that worked.
+// the file instead of the one written. tray asks for a tray icon and notes whether that worked, with the error
+// code when it did not.
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <winsock2.h>
@@ -278,6 +279,7 @@ void showTrayIcon()
         type.lpszClassName = L"FakeStoreHelperTray";
         RegisterClassW(&type);
         const HWND window = CreateWindowExW(0, type.lpszClassName, L"", 0, 0, 0, 0, 0, nullptr, nullptr, type.hInstance, nullptr);
+        const DWORD windowError = window ? 0 : GetLastError();
         NOTIFYICONDATAW icon{};
         icon.cbSize = sizeof(icon);
         icon.hWnd = window;
@@ -286,8 +288,16 @@ void showTrayIcon()
         // 32512 is IDI_APPLICATION, whose macro is the narrow form in this build.
         icon.hIcon = LoadIconW(nullptr, MAKEINTRESOURCEW(32512));
         wcscpy_s(icon.szTip, L"Fake store helper");
-        const bool shown = window != nullptr && Shell_NotifyIconW(NIM_ADD, &icon);
-        note({{"op", "tray"}, {"ok", shown}});
+        bool shown = false;
+        DWORD error = windowError;
+        if (window) {
+            SetLastError(0);
+            shown = Shell_NotifyIconW(NIM_ADD, &icon) != FALSE;
+            error = shown ? 0 : GetLastError();
+        }
+        // The icon may fail at low integrity; the helper goes on either way. error is GetLastError of the
+        // failed call, which Shell_NotifyIcon does not always set.
+        note({{"op", "tray"}, {"ok", shown}, {"window", window != nullptr}, {"error", static_cast<unsigned long>(error)}});
         MSG message;
         while (GetMessageW(&message, nullptr, 0, 0) > 0) DispatchMessageW(&message);
     }).detach();
