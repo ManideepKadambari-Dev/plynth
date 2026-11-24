@@ -754,8 +754,6 @@ void AssetsPanel::showDetails()
         problems << fromCore(record.problem);
     if (!record.thumbnailError.empty())
         problems << fromCore(record.thumbnailError);
-    const plynth::AssetInfoRead info =
-        plynth::readAssetInfo(record.folder / std::string(plynth::kAssetInfoFileName), fromCore(record.id).toStdString());
     if (info.status.ok())
         for (const plynth::BlenderWarning& warning : info.info.warnings)
             problems << fromCore(warning.message);

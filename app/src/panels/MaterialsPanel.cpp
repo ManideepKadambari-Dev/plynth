@@ -949,7 +949,6 @@ void MaterialsPanel::showDetails()
     for (const plynth::LicenseEntry& entry : host_.materialCatalog()->licenses())
         license_->addItem(fromCore(entry.name), fromCore(entry.id));
     license_->setCurrentIndex(std::max(0, license_->findData(fromCore(record.license))));
-    const plynth::MaterialInfoRead info = plynth::readMaterialInfo(record.folder / plynth::pathFromUtf8(plynth::kMaterialInfoFileName), record.id);
     shownAuthor_ = info.status.ok() ? fromCore(info.info.author) : QString();
     author_->setText(shownAuthor_);
 
