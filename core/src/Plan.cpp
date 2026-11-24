@@ -378,6 +378,16 @@ Point* findPoint(Floor& floor, std::string_view id) { return findById(floor.poin
 const Point* findPoint(const Floor& floor, std::string_view id) { return findById(floor.points, id); }
 Wall* findWall(Floor& floor, std::string_view id) { return findById(floor.walls, id); }
 const Wall* findWall(const Floor& floor, std::string_view id) { return findById(floor.walls, id); }
+
+// Looks through the floors in order and takes the first wall found.
+Id firstWallId(const Plan& plan)
+{
+    for (const Floor& floor : plan.floors) {
+        if (!floor.walls.empty()) return floor.walls.front().id;
+    }
+    return {};
+}
+
 Room* findRoom(Floor& floor, std::string_view id) { return findById(floor.rooms, id); }
 const Room* findRoom(const Floor& floor, std::string_view id) { return findById(floor.rooms, id); }
 Opening* findOpening(Floor& floor, std::string_view id) { return findById(floor.openings, id); }

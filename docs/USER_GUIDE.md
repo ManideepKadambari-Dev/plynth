@@ -1,6 +1,6 @@
 # User guide
 
-This covers what Plynth does today: the home screen, opening a project, showing its plan image, setting the scale, drawing walls (straight and curved, with rounded corners), placing doors, windows and other openings, setting heights, adding floors, stairs and roofs, finding walls and openings in the image automatically, making rooms, placing furniture from the library, undo and redo, saving, building the building in Blender and looking at it in 3D, the setup check, the library, the assets catalog and the materials catalog, putting materials on walls, rooms and the whole project, working next to the command line, and the built-in terminal. More screens arrive in later releases.
+This covers what Plynth does today: the home screen, opening a project, showing its plan image, setting the scale, drawing walls (straight and curved, with rounded corners), placing doors, windows and other openings, setting heights, adding floors, stairs and roofs, finding walls and openings in the image automatically, making rooms, placing furniture from the library, undo and redo, saving, building the building in Blender and looking at it in 3D, the setup check, the library, the assets catalog and the materials catalog, putting materials on walls, rooms and the whole project, working next to the command line, the built-in terminal, generators, and the help pages with the guided tours and the What is this? mode.
 
 New here? Start with [Getting started](GETTING_STARTED.md). For keys see [Keyboard shortcuts](SHORTCUTS.md). For scripts see the [Command line guide](CLI_GUIDE.md). For Blender, the library folder and the first run see [Setting up Plynth](SETUP.md).
 
@@ -21,7 +21,7 @@ Projects join the list when you open or save them in the app. The list keeps the
 **The left side** has:
 
 - **New project**, **New project from plan image** and **Open project**, the same as the File menu.
-- **Help**: Getting started, User guide, Keyboard shortcuts and Command line guide. Each opens its page.
+- **Help**: the help pages, such as Getting started, User guide, Keyboard shortcuts and the CLI developer guide. Each opens in the Help window. See "Help".
 - **Sample plans**: the sample plan images that come with Plynth. Click one to start a new project from it, a quick way to try the tools.
 - **Setup status**: "Setup is ready.", or in amber what needs attention, with a **Fix** button that opens the setup check. See [Setting up Plynth](SETUP.md).
 - **Projects folder**: the folder where new projects go. Click it to open it.
@@ -1145,7 +1145,7 @@ If the file of a plan image has been moved or deleted, Plynth still opens the pr
 
 ## When the command line is editing
 
-A script or a coding assistant can edit the project while Plynth has it open. To keep your work and its work apart, it first begins an edit session. While one is active:
+A script or another program can edit the project while Plynth has it open. To keep your work and its work apart, it first begins an edit session. While one is active:
 
 - A banner under the title bar says "Being edited from the command line by <name>. Changes appear here as they are saved."
 - The plan is dimmed. Undo, Redo, Save, Save as and Set plan image are disabled. New project and Open project still work.
@@ -1177,3 +1177,51 @@ Plynth has a terminal built in, so you can run commands without leaving the wind
 While the terminal has focus, nearly every key goes to the shell, including Ctrl+S, Ctrl+Z and Ctrl+O. They do not save, undo or open anything in Plynth until you click outside the terminal. Ctrl+C copies when text is selected and otherwise stops the running program. Ctrl+V pastes, and Shift+PageUp and Shift+PageDown scroll back. The full list is in the [shortcuts](SHORTCUTS.md).
 
 The terminal shows program output in its own set of colors, so colored text from tools looks right.
+
+## Generators
+
+A generator is a small Blender script that makes a piece of the building from a few values, such as a column of a given height or a railing of a given length. You place it like furniture, and the build runs it in Blender.
+
+**Placing one.** Open the furniture picker with the Furniture tool (P) and click on the plan. The first list has a **Generators** row. Pick it to list the generators, and point at one to see its size, its parameters and the add-ons it needs. Click it to place it at the cross. A generator item is drawn and moved like any other item, and its footprint follows its size.
+
+**Its values.** Select the item. The properties panel shows **Generator parameters**, one box for each value the generator declares: numbers in metres or degrees, whole numbers, on and off switches, choices and materials. A change is one undo step and the next build uses it. **Reset to defaults** gives every value its default. When the generator file changed since you placed the item, **Update** keeps the values that still fit and gives the rest their default, and the panel says what changed.
+
+**Add-ons.** Some generators need a Blender add-on, such as Archimesh or Bagapie. **Catalog > Check add-ons** asks Blender which add-ons are switched on. A generator whose add-on is off shows greyed in the picker, and an item that uses it is left out of the build with the warning `generator_unavailable`. Plynth never installs or switches on an add-on in your own Blender. See "Add-ons" in [Setting up Plynth](SETUP.md).
+
+**The generators folder.** Generators are the `.py` files in the `generators` folder of your library. A new library gets the sample generators. For a library made earlier, use **Catalog > Add the sample generators**. Files already there are kept. **Catalog > Open the generators folder** opens it in Explorer, and **Catalog > Reload generators** reads it again after you add or change a file. A file that cannot be read is left out and the others still work. `plynth generator list` names each file it left out and why.
+
+**When the build runs one.** A generator that fails is a build problem named `generator_failed`, with the last line of its error. When what it made reaches more than 1 cm past its declared size, the build warns with `generator_size`. Only add generators from people you trust: a generator is Python code that Blender runs. To write your own, see [Writing generators](GENERATORS.md).
+
+## Help
+
+**Help > Help** (F1) opens the Help window. Its pages are the files in the `docs` folder that comes with Plynth, so the help in the app and the files are the same.
+
+- The list on the left holds the pages: Getting started, User guide, Keyboard shortcuts, CLI developer guide, Writing generators, About and licenses, and Setup check. A page whose file is missing is left out.
+- Type in **Search help** to find words in every page. A hit in a heading comes first, then the other hits in page order. Each hit shows the page, the heading above it and the line. Click one to open the page at that heading.
+- Links to other pages open in the window. Links to web pages open in your browser.
+- **Back** (Alt+Left) and **Forward** (Alt+Right) step through the pages you saw.
+- **Setup check** in the list opens the setup check. See [Setting up Plynth](SETUP.md).
+
+The help links on the home screen open the same window.
+
+### Guided tours
+
+**Help > Guided tours** has one tour for each screen: plan view, wall view, build and export, assets catalog and materials catalog. A tour dims the window and outlines one control at a time in amber. The card next to it gives the control's name, what it does in one or two sentences and its shortcut.
+
+- **Next** (Right or Enter) goes on, **Back** (Left) goes back and **Skip** (Esc) ends the tour.
+- A control that is not on screen just now, such as the wall view when no wall is selected, is skipped.
+- A tour may switch to the screen it explains and puts the screen back when it ends. It never changes your project, so there is nothing to undo.
+
+### What is this?
+
+**Help > What is this?** (Shift+F1) explains any control you click. While it is on, a click shows the control's name and what it does, and the control does not run. It works on greyed controls and on menu entries too. Press Esc, or choose the menu entry again, to turn it off.
+
+### About and licenses
+
+**Help > About Plynth** opens About in the Help window. It shows the version, the licenses and the third party notices.
+
+- Plynth's source code is free software under GPL-3.0-or-later. The program includes Qt Quick 3D and Qt Quick Timeline, so the program you run is distributed under GPL version 3.
+- The sample plans, models, textures, materials, shapes and sample projects are dedicated to the public domain under CC0 1.0. The scripts and generators among the samples are GPL-3.0-or-later code. The logo and the program icon are not part of the CC0 samples.
+- The notices list every library, font and data file Plynth ships that was not written for it, with its license and copyright. Click a license text in the list to read it in full.
+
+The texts are also in the `licenses` folder beside the program, and the notices file there is `THIRD_PARTY_NOTICES.md`.

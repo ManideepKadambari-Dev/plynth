@@ -82,7 +82,7 @@ int main(int argc, char* argv[])
                                   QStringLiteral("Activate a tool: select, scale, wall, opening, room, stair, furniture or detect. For checks only."),
                                   QStringLiteral("name"));
     QCommandLineOption selectOption(QStringLiteral("select"),
-                                    QStringLiteral("Select the point, wall, opening, room, item or stair with this id. For checks only."),
+                                    QStringLiteral("Select the point, wall, opening, room, item or stair with this id, or first-wall. For checks only."),
                                     QStringLiteral("id"));
     QCommandLineOption floorOption(QStringLiteral("floor"),
                                    QStringLiteral("Show the floor with this id, such as f2. For checks only."), QStringLiteral("id"));

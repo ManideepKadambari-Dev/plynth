@@ -68,7 +68,8 @@ Library/
     assets.db        the search index
     items/           one folder for each asset
     inbox/           drop model files here to import them
-  materials/         for a later release
+  materials/         the materials catalog, laid out like assets/
+  generators/        generator scripts (.py), see Writing generators
   shapes/            your own opening shapes
 ```
 
@@ -93,11 +94,11 @@ Add-ons are optional extras that live inside Blender. Plynth never needs them to
 | Add-on | What it is for |
 |---|---|
 | BlenderKit | Importing assets from BlenderKit in a later release |
-| Archimesh | Stairs, doors, windows and columns generators in a later release |
-| Home Builder | Cabinets, countertops and moldings generators in a later release |
-| Bool Tool | Cutting openings with boolean tools in a later release |
-| Asset Optimizer | Asset cleanup generators in a later release |
-| Bagapie | Array and scatter generators in a later release |
+| Archimesh | The Archimesh Column sample generator, and other generators that use it |
+| Home Builder | The Base Cabinets sample generator |
+| Bool Tool | The Slotted Screen sample generator |
+| Asset Optimizer | Generators that tidy the meshes they make |
+| Bagapie | The Post and Rail Fence sample generator |
 
 Each add-on row says Found or Missing. Some have an **Open page** button that opens the official page where you can get the add-on. Install add-ons from inside Blender (Edit, Preferences, Get Extensions or Add-ons).
 

@@ -432,3 +432,12 @@ TEST_CASE("checkPlan refuses broken floors, stairs and roofs", "[core][plan][che
     good.floors[0].slabThickness = 0.3;
     REQUIRE(checkPlan(good).ok());
 }
+
+TEST_CASE("the first wall is found in plan order", "[core][plan]") {
+    CHECK(firstWallId(makeEmptyPlan()).empty());
+    Plan plan = fullPlan();
+    CHECK(firstWallId(plan) == "w1");
+    plan.floors.front().walls.clear();
+    const Id next = firstWallId(plan);
+    CHECK((next.empty() || findWall(plan.floors.back(), next) != nullptr));
+}

@@ -1419,7 +1419,8 @@ bool MainWindow::showFloor(const QString& id)
 void MainWindow::selectById(const QString& id)
 {
     selection_->clear();
-    const std::string key = id.toStdString();
+    // first-wall stands for the first wall of the plan, since ids differ in every project.
+    const std::string key = id == QStringLiteral("first-wall") ? plynth::firstWallId(doc_.plan()) : id.toStdString();
     for (const plynth::Floor& floor : doc_.plan().floors) {
         std::optional<SelectionKind> kind;
         if (plynth::findPoint(floor, key) != nullptr)
@@ -1440,7 +1441,7 @@ void MainWindow::selectById(const QString& id)
         if (!kind.has_value())
             continue;
         focus_->setFloorId(QString::fromStdString(floor.id));
-        selection_->set(*kind, id);
+        selection_->set(*kind, QString::fromStdString(key));
         return;
     }
 }
