@@ -12,6 +12,7 @@ namespace {
 
 const char* const kNotAnAddress = "This is not a BlenderKit address.";
 const char* const kNoOneItem = "The address does not name one BlenderKit item. Copy it from the item's page.";
+const char* const kOnlyKinds = "Only models and materials can be imported from BlenderKit.";
 
 // Lower case copy of ASCII text.
 std::string lower(std::string_view text)
@@ -92,9 +93,15 @@ BlenderKitAddress parseBlenderKitAddress(std::string_view pasted)
     const std::string low = lower(text);
     if (text.size() == 36 && idAt(text, 0)) return {{}, low};
     if (low.rfind("asset_base_id:", 0) == 0) {
-        const std::string_view rest = trim(text.substr(14));
-        if (rest.size() == 36 && idAt(rest, 0)) return {{}, lower(rest)};
-        return {fail(ErrorCode::InvalidValue, kNoOneItem), {}};
+        BlenderKitAddress address = oneId(text);
+        if (!address.status.ok()) return address;
+        // The add-on copies the item's type after the id. Only a model or a material may go on to Blender.
+        if (const std::size_t type = low.find("asset_type:"); type != std::string::npos) {
+            const std::size_t begin = type + 11;
+            const std::string word = low.substr(begin, low.find_first_of(" \t\r\n", begin) - begin);
+            if (word != "model" && word != "material") return {fail(ErrorCode::InvalidValue, kOnlyKinds), {}};
+        }
+        return address;
     }
     std::size_t start = 0;
     if (low.rfind("https://", 0) == 0) start = 8;

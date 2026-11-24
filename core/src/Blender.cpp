@@ -548,6 +548,12 @@ BlenderJobRun runBlenderJob(const fs::path& blender, const Json& job, const fs::
         run.status = fail(ErrorCode::NotFound, "The Blender scripts folder with " + std::string(kWorkerScriptName) + " was not found.");
         return run;
     }
+    const bool fetch = !options.privateFolder.empty();
+    const fs::path guard = scripts / pathFromUtf8(kFetchGuardFolder);
+    if (fetch && !fs::is_regular_file(guard / pathFromUtf8(kFetchGuardFile), ec)) {
+        run.status = fail(ErrorCode::NotFound, "The Blender scripts folder has no store fetch guard, so the fetch was not started.");
+        return run;
+    }
     fs::create_directories(workFolder, ec);
     if (ec || !fs::is_directory(workFolder, ec)) {
         run.status = fail(ErrorCode::CannotWrite, "The folder " + pathToUtf8(workFolder) + " could not be created.");
@@ -583,6 +589,27 @@ BlenderJobRun runBlenderJob(const fs::path& blender, const Json& job, const fs::
     spec.timeout = std::chrono::duration_cast<std::chrono::milliseconds>(options.timeout);
     // A helper Blender starts, such as a store's download program, must be gone before the caller goes on.
     spec.endChildren = true;
+    if (fetch) {
+        const fs::path temp = options.privateFolder / pathFromUtf8(kFetchTempFolder);
+        fs::create_directories(temp, ec);
+        if (ec) {
+            run.status = fail(ErrorCode::CannotWrite, "Plynth's fetch folder could not be prepared.");
+            return run;
+        }
+        // At low integrity Windows refuses every write outside the fetch folder, whatever the add-ons do.
+        spec.lowIntegrity = true;
+        for (const std::string_view name : kFetchRemovedVariables) spec.removeEnvironment.emplace_back(name);
+        spec.environment.emplace_back("TEMP", pathToUtf8(temp));
+        spec.environment.emplace_back("TMP", pathToUtf8(temp));
+        spec.environment.emplace_back(std::string(kFetchPrivateVariable), pathToUtf8(options.privateFolder));
+        spec.environment.emplace_back("PYTHONDONTWRITEBYTECODE", "1");
+        // The guard folder comes first, so its startup script runs before any add-on registers.
+        std::string system = pathToUtf8(guard);
+        if (const std::wstring given = environmentText(L"BLENDER_SYSTEM_SCRIPTS"); !given.empty()) {
+            system += ";" + pathToUtf8(fs::path(given));
+        }
+        spec.environment.emplace_back("BLENDER_SYSTEM_SCRIPTS", system);
+    }
 
     constexpr std::size_t kMaxLogBytes = 1024 * 1024;
     std::string log;

@@ -49,7 +49,7 @@
           "params": {
             "description": "Download one BlenderKit item through the BlenderKit add-on the user installed and signed in to (core/include/plynth/core/catalog/BlenderKit.h). Run without --factory-startup and with --disable-autoexec. Nothing it prints is kept, Plynth only knows its steps by id. The worker never calls a BlenderKit web address itself and never reads out the add-on's key.",
             "type": "object",
-            "required": ["asset_base_id", "kind", "resolution", "output_folder", "wait_seconds"],
+            "required": ["asset_base_id", "kind", "resolution", "output_folder", "private_folder", "wait_seconds"],
             "additionalProperties": false,
             "properties": {
               "asset_base_id": { "type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" },
