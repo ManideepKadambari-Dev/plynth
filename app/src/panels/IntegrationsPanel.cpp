@@ -156,6 +156,8 @@ IntegrationsPanel::IntegrationsPanel(LibraryHost& host, QWidget* parent) : QWidg
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    // The cards sit on the window's own Panel background, so a wide window shows one surface, not a darker strip.
+    scroll->setStyleSheet(QStringLiteral("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; }"));
     scroll->verticalScrollBar()->setStyleSheet(t.scrollBarStyleSheet());
     auto* body = new QWidget(scroll);
     cards_ = new QVBoxLayout(body);

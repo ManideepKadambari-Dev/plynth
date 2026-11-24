@@ -294,6 +294,10 @@ void Theme::apply() const
     p.setColor(QPalette::ToolTipText, text_);
     p.setColor(QPalette::Highlight, signalBlue_);
     p.setColor(QPalette::HighlightedText, onBlue_);
+    // Rich text labels, help pages and markdown take their link color from the application palette when the
+    // text is read, so it is set here before any window is made.
+    p.setColor(QPalette::Link, signalBlue_);
+    p.setColor(QPalette::LinkVisited, signalBlue_);
     p.setColor(QPalette::Disabled, QPalette::WindowText, muted_);
     p.setColor(QPalette::Disabled, QPalette::Text, muted_);
     p.setColor(QPalette::Disabled, QPalette::ButtonText, muted_);

@@ -109,6 +109,9 @@ foreach ($s in $steps) {
 $library = Join-Path $scratch 'library'
 $r = Invoke-Plynth $cli @('library', 'init', $library, '--use')
 if ($r.Code -ne 0) { throw "plynth library init ended with $($r.Code): $($r.Output)" }
+# The projects folder too, as a user who ran the setup check has it, so Home does not ask to fix it.
+$r = Invoke-Plynth $cli @('settings', 'set', '--projects', $folders['projects'])
+if ($r.Code -ne 0) { Write-Host "::warning::plynth settings set --projects ended with $($r.Code): $($r.Output)" }
 $r = Invoke-Plynth $cli @('samples', 'add', '--library', $library) @{} 600
 if ($r.Code -ne 0) { Write-Host "::warning::plynth samples add ended with $($r.Code): $($r.Output)" }
 
@@ -126,10 +129,15 @@ $builtSteps = @(
 foreach ($s in $builtSteps) {
     $r = Invoke-Plynth $cli $s @{} 600
     if ($r.Code -ne 0) {
+        # A build with problems or an export with failed checks still leaves a report worth showing, so only a
+        # step before the build stops the copy.
         Write-Host "::warning::plynth $($s[0]) $($s[1]) for the built copy ended with $($r.Code): $($r.Output)"
-        if ($s[0] -eq 'build' -or $s[0] -eq 'project' -or $s[0] -eq 'scale' -or $s[0] -eq 'detect') { $built = $project }
-        break
+        if ($s[0] -ne 'build' -and $s[0] -ne 'export') { break }
     }
+}
+if (-not (Test-Path (Join-Path $built 'build/building.blend'))) {
+    Write-Host '::warning::The built copy has no build/building.blend, so the Build and Export pictures show the unbuilt project'
+    $built = $project
 }
 
 $screens = @()

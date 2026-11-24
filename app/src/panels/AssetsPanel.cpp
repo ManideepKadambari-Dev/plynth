@@ -336,6 +336,7 @@ void AssetsPanel::buildDetails()
     detailsScroll_->setFrameShape(QFrame::NoFrame);
     detailsScroll_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     detailsScroll_->setStyleSheet(QStringLiteral("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; }"));
+    detailsScroll_->verticalScrollBar()->setStyleSheet(t.scrollBarStyleSheet());
     auto* body = new QWidget();
     auto* box = new QVBoxLayout(body);
     box->setContentsMargins(t.unit() * 4, t.unit() * 2, t.unit() * 4, 0);
