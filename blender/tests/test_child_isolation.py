@@ -24,6 +24,9 @@ TESTS = os.path.dirname(os.path.abspath(__file__))
 TOOLS = os.path.join(TESTS, "tools")
 CMAKE_FILE = os.path.join(os.path.dirname(TESTS), "CMakeLists.txt")
 EXTENSIONS_FILE = os.path.join(os.path.dirname(TESTS), "plynth", "extensions.py")
+# The real fake helper program the build names, read before any test clears the environment.
+HELPER_VARIABLE = "PLYNTH_FAKE_STORE_HELPER"
+REAL_HELPER = os.environ.get(HELPER_VARIABLE, "")
 
 BLENDER_FOLDERS = ("BLENDER_USER_RESOURCES", "BLENDER_USER_CONFIG", "BLENDER_USER_SCRIPTS",
                    "BLENDER_USER_EXTENSIONS", "BLENDER_USER_DATAFILES")
@@ -101,6 +104,12 @@ def inside(path, folder):
     own = os.path.join(os.path.normcase(os.path.abspath(folder)), "")
     given = os.path.join(os.path.normcase(os.path.abspath(path)), "")
     return given.startswith(own) and given != own
+
+
+# Makes an empty file at a path, making its folder.
+def empty_file(path):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    open(path, "wb").close()
 
 
 # Says whether a name of the os module starts a program.
@@ -704,9 +713,19 @@ class EdgeChildTests(StoreSandbox):
     def edge_children(self):
         helper = self.load("blenderkit_edge_helpers")
         changes = os.path.isfile(os.path.join(TESTS, "test_blenderkit_autoexec.py"))
-        tests = self.load("test_blenderkit_autoexec").AutoexecTests if changes else helper.EdgeTest
+        autoexec = self.load("test_blenderkit_autoexec") if changes else None
+        tests = autoexec.AutoexecTests if changes else helper.EdgeTest
+        # The source and driver .blend files are made in this process with bpy, which is fake here. They start no
+        # child, so empty files stand in for them.
+        self.patch(mock.patch.object(helper, "make_source", empty_file))
+        if changes:
+            self.patch(mock.patch.object(autoexec, "make_driver_blend", lambda path, marker: empty_file(path)))
 
         before = len(self.starts)
+        # The scenario user gets a copy of the real helper, so the patched environment needs the build's name
+        # for it back. It is a build file, not a user folder.
+        if REAL_HELPER:
+            os.environ[HELPER_VARIABLE] = REAL_HELPER
         # The fetch runs on a thread of the helper, so every child here gets an answer and none is stopped.
         self.answer = "FAKE CONFIG SAVED AUTO RUN SAVED"
         tests.setUpClass()

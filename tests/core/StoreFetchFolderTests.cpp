@@ -111,6 +111,16 @@ TEST_CASE("the five helper variables never reach the fetch", "[core][fetch][fetc
     }
 }
 
+TEST_CASE("an inherited TMPDIR never reaches the fetch", "[core][fetch][fetch_folder]")
+{
+    FetchRig rig("ft");
+    const ScopedEnv outside("TMPDIR", pathToUtf8(rig.tmp.path() / "elsewhere"));
+    plynth::test::requireOk(rig.fetch().status);
+    const nlohmann::json vars = rig.runs().at(0).at("vars");
+    CHECK(vars.at("TMPDIR").is_null());
+    CHECK(inside(pathFromUtf8(vars.at("TEMP").get<std::string>()), rig.fetchFolder));
+}
+
 TEST_CASE("every ending leaves the fetch folder empty but the helper's program and id, and no helper running", "[core][fetch][fetch_folder]")
 {
     for (const auto& ending : kEndings) {

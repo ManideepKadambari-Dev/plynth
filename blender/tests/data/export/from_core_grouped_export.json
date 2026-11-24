@@ -2,7 +2,7 @@
  "format": "plynth-blender-job",
  "version": 1,
  "task": "export",
- "job_id": "export-37cbf3b5",
+ "job_id": "export-42d416fb",
  "result_file": "@PROJECT@/build/export_work/result.json",
  "params": {
   "project": {
@@ -26,35 +26,35 @@
      },
      {
       "kind": "window",
-      "id": "o1"
+      "id": "o9xvrfeyf"
      },
      {
       "kind": "window",
-      "id": "o2"
+      "id": "o8etfd71e"
      },
      {
       "kind": "door",
-      "id": "o3"
+      "id": "o06tych77"
      },
      {
       "kind": "door",
-      "id": "o4"
+      "id": "o4pm8skq3"
      },
      {
       "kind": "window",
-      "id": "o6"
+      "id": "o1vmmzrw0"
      },
      {
       "kind": "door",
-      "id": "o7"
+      "id": "o971j6vjp"
      },
      {
       "kind": "door",
-      "id": "o8"
+      "id": "o4wk03943"
      },
      {
       "kind": "window",
-      "id": "o9"
+      "id": "o2ve9fbf6"
      }
     ],
     "rest": true
@@ -68,43 +68,43 @@
     "members": [
      {
       "kind": "floor",
-      "id": "r1"
+      "id": "r4tdez2e3"
      },
      {
       "kind": "ceiling",
-      "id": "r1"
+      "id": "r4tdez2e3"
      },
      {
       "kind": "floor",
-      "id": "r2"
+      "id": "r91eqvv36"
      },
      {
       "kind": "ceiling",
-      "id": "r2"
+      "id": "r91eqvv36"
      },
      {
       "kind": "floor",
-      "id": "r3"
+      "id": "r0c4e7yrm"
      },
      {
       "kind": "ceiling",
-      "id": "r3"
+      "id": "r0c4e7yrm"
      },
      {
       "kind": "floor",
-      "id": "r4"
+      "id": "r2jth9npn"
      },
      {
       "kind": "ceiling",
-      "id": "r4"
+      "id": "r2jth9npn"
      },
      {
       "kind": "floor",
-      "id": "r5"
+      "id": "r7bdb7z5h"
      },
      {
       "kind": "ceiling",
-      "id": "r5"
+      "id": "r7bdb7z5h"
      },
      {
       "kind": "thresholds",
@@ -130,7 +130,7 @@
     "rest": false
    },
    {
-    "id": "furniture_r1",
+    "id": "furniture_r4tdez2e3",
     "file": "m11_Furniture_Living.fbx",
     "kinds": [],
     "ids": [],
@@ -138,25 +138,17 @@
     "members": [
      {
       "kind": "item",
-      "id": "i1"
-     },
-     {
-      "kind": "generator",
-      "id": "i1"
+      "id": "i3mvjb3m3"
      },
      {
       "kind": "item",
-      "id": "i2"
-     },
-     {
-      "kind": "generator",
-      "id": "i2"
+      "id": "i72ckztwr"
      }
     ],
     "rest": false
    },
    {
-    "id": "furniture_r2",
+    "id": "furniture_r91eqvv36",
     "file": "m11_Furniture_Bedroom.fbx",
     "kinds": [],
     "ids": [],
@@ -164,11 +156,7 @@
     "members": [
      {
       "kind": "item",
-      "id": "i3"
-     },
-     {
-      "kind": "generator",
-      "id": "i3"
+      "id": "i649n3ebp"
      }
     ],
     "rest": false
@@ -188,7 +176,11 @@
      "opacity": null,
      "occlusion": null
     },
-    "alpha_mode": "opaque"
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 1.0,
+     "height": 1.0
+    }
    },
    {
     "name": "Bedroom_Floor",
@@ -202,7 +194,11 @@
      "opacity": null,
      "occlusion": null
     },
-    "alpha_mode": "opaque"
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 2.0,
+     "height": 2.0
+    }
    },
    {
     "name": "Bedroom_Wall",
@@ -216,7 +212,11 @@
      "opacity": null,
      "occlusion": null
     },
-    "alpha_mode": "opaque"
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 1.0,
+     "height": 1.0
+    }
    },
    {
     "name": "Door",
@@ -230,7 +230,11 @@
      "opacity": null,
      "occlusion": null
     },
-    "alpha_mode": "opaque"
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 1.0,
+     "height": 1.0
+    }
    },
    {
     "name": "Exterior_Wall",
@@ -244,7 +248,47 @@
      "opacity": null,
      "occlusion": null
     },
-    "alpha_mode": "opaque"
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 1.2,
+     "height": 0.6
+    }
+   },
+   {
+    "name": "Fascia",
+    "material": "white_paint",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/white_paint/textures/base_color.png",
+     "normal": "@LIBRARY@/materials/items/white_paint/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/white_paint/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/white_paint/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 1.0,
+     "height": 1.0
+    }
+   },
+   {
+    "name": "Flat_Roof",
+    "material": "concrete",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/concrete/textures/base_color.jpg",
+     "normal": "@LIBRARY@/materials/items/concrete/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/concrete/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/concrete/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 2.0,
+     "height": 2.0
+    }
    },
    {
     "name": "Frame",
@@ -258,7 +302,11 @@
      "opacity": null,
      "occlusion": null
     },
-    "alpha_mode": "opaque"
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 1.0,
+     "height": 1.0
+    }
    },
    {
     "name": "Glass",
@@ -272,7 +320,11 @@
      "opacity": "@LIBRARY@/materials/items/clear_glass/textures/opacity.png",
      "occlusion": null
     },
-    "alpha_mode": "blend"
+    "alpha_mode": "blend",
+    "tile_size": {
+     "width": 1.0,
+     "height": 1.0
+    }
    },
    {
     "name": "Handle",
@@ -286,7 +338,11 @@
      "opacity": null,
      "occlusion": null
     },
-    "alpha_mode": "opaque"
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 0.5,
+     "height": 0.5
+    }
    },
    {
     "name": "Living_Ceiling",
@@ -300,7 +356,11 @@
      "opacity": null,
      "occlusion": null
     },
-    "alpha_mode": "opaque"
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 1.0,
+     "height": 1.0
+    }
    },
    {
     "name": "Living_Floor",
@@ -314,7 +374,11 @@
      "opacity": null,
      "occlusion": null
     },
-    "alpha_mode": "opaque"
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 2.0,
+     "height": 2.0
+    }
    },
    {
     "name": "Living_Wall",
@@ -328,7 +392,11 @@
      "opacity": null,
      "occlusion": null
     },
-    "alpha_mode": "opaque"
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 1.0,
+     "height": 1.0
+    }
    },
    {
     "name": "Room_Ceiling",
@@ -342,7 +410,11 @@
      "opacity": null,
      "occlusion": null
     },
-    "alpha_mode": "opaque"
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 1.0,
+     "height": 1.0
+    }
    },
    {
     "name": "Room_Floor",
@@ -356,7 +428,11 @@
      "opacity": null,
      "occlusion": null
     },
-    "alpha_mode": "opaque"
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 2.0,
+     "height": 2.0
+    }
    },
    {
     "name": "Room_Wall",
@@ -370,7 +446,29 @@
      "opacity": null,
      "occlusion": null
     },
-    "alpha_mode": "opaque"
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 1.0,
+     "height": 1.0
+    }
+   },
+   {
+    "name": "Soffit",
+    "material": "white_paint",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/white_paint/textures/base_color.png",
+     "normal": "@LIBRARY@/materials/items/white_paint/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/white_paint/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/white_paint/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 1.0,
+     "height": 1.0
+    }
    },
    {
     "name": "Wall_Top",
@@ -384,7 +482,11 @@
      "opacity": null,
      "occlusion": null
     },
-    "alpha_mode": "opaque"
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 1.0,
+     "height": 1.0
+    }
    },
    {
     "name": "Fabric",
@@ -451,17 +553,17 @@
     {
      "code": "overlaps_item",
      "severity": "warning",
-     "message": "Sofa i1 overlaps Table i2.",
+     "message": "Sofa i3mvjb3m3 overlaps Table i72ckztwr.",
      "floor": "f1",
-     "object": "i1",
+     "object": "i3mvjb3m3",
      "step": "check"
     },
     {
      "code": "overlaps_item",
      "severity": "warning",
-     "message": "Table i2 overlaps Sofa i1.",
+     "message": "Table i72ckztwr overlaps Sofa i3mvjb3m3.",
      "floor": "f1",
-     "object": "i2",
+     "object": "i72ckztwr",
      "step": "check"
     }
    ]

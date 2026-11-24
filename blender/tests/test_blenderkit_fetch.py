@@ -16,7 +16,8 @@ class FetchInBlender(EdgeTest):
     def test_model(self):
         before = self.home_files()
         result, output = self.fetch(MODEL, {})
-        self.assertTrue(result["ok"], json.dumps(result.get("error")))        self.assertEqual(result["output"]["kind"], "model")
+        self.assertTrue(result["ok"], json.dumps(result.get("error")))
+        self.assertEqual(result["output"]["kind"], "model")
         self.assertEqual(result["output"]["reference"],
                          "https://www.blendkit.com/asset-gallery-detail/%s/" % MODEL.base_id)
         self.assertTrue(os.path.isfile(os.path.join(output, result["output"]["file"])))

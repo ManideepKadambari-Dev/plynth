@@ -36,6 +36,20 @@ def shared_project():
     return _project["project"], _project["library"]
 
 
+# Returns the room type of each furniture group, in group order, from the rooms of the build job. The ids are
+# random in a captured project, so a group is known by the type of the room its id names.
+def furniture_room_types(groups):
+    build = base.load_job("from_core_grouped_build")
+    types = {room["id"]: room["type"] for floor in build["params"]["floors"] for room in floor["rooms"]}
+    found = []
+    for group in groups:
+        if not group["id"].startswith("furniture_"):
+            found.append(None)
+            continue
+        found.append(types.get(group["id"][len("furniture_"):]))
+    return found
+
+
 # Reads an FBX file into an empty scene and returns the sorted names of its mesh objects.
 def read_names(path):
     bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -68,7 +82,8 @@ class FromCoreGroupedTests(helpers.TempFolderTest):
         self.assertEqual(validate(job, load_schema("blender-job")), [])
         self.assertNotIn("@", json.dumps(job))
         groups = job["params"]["groups"]
-        self.assertEqual([g["id"] for g in groups], ["structure", "surfaces", "furniture_r1", "furniture_r2"])
+        self.assertEqual([g["id"] for g in groups[:2]], ["structure", "surfaces"])
+        self.assertEqual(furniture_room_types(groups[2:]), ["living", "bedroom"])
         self.assertEqual([g["rest"] for g in groups].count(True), 1)
 
     # Every check passes, the groups check too, and each group gets its file.
