@@ -95,6 +95,10 @@ bool Theme::load(const QString& resourcePath)
     sidePanelMaxWidth_ = spacing["sidePanelMaxWidth"].toInt(sidePanelMaxWidth_);
     toolWindowWidth_ = spacing["toolWindowWidth"].toInt(toolWindowWidth_);
     toolWindowHeight_ = spacing["toolWindowHeight"].toInt(toolWindowHeight_);
+    toolWindowNarrowWidth_ = spacing["toolWindowNarrowWidth"].toInt(toolWindowNarrowWidth_);
+    toolWindowColumnWidth_ = spacing["toolWindowColumnWidth"].toInt(toolWindowColumnWidth_);
+    detailsMinWidth_ = spacing["detailsMinWidth"].toInt(detailsMinWidth_);
+    detailsMaxWidth_ = spacing["detailsMaxWidth"].toInt(detailsMaxWidth_);
     thumbnailTile_ = spacing["thumbnailTile"].toInt(thumbnailTile_);
     thumbnailLarge_ = spacing["thumbnailLarge"].toInt(thumbnailLarge_);
     setupRowGap_ = spacing["setupRowGap"].toInt(setupRowGap_);

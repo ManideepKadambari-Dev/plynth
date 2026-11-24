@@ -5,6 +5,7 @@
 
 #include <QEvent>
 #include <QGuiApplication>
+#include <QHBoxLayout>
 #include <QIcon>
 #include <QPainter>
 #include <QScreen>
@@ -34,8 +35,9 @@ bool reachable(const QRect& frame, const QScreen* screen)
 }
 
 // Puts the title bar over the content and takes the content in.
-ToolWindow::ToolWindow(const QString& name, const QString& title, QWidget* content)
-    : QWidget(nullptr, Qt::Window | Qt::FramelessWindowHint), name_(name), content_(content)
+ToolWindow::ToolWindow(const QString& name, const QString& title, QWidget* content, const QSize& defaultSize,
+                       int columnWidth)
+    : QWidget(nullptr, Qt::Window | Qt::FramelessWindowHint), name_(name), content_(content), defaultSize_(defaultSize)
 {
     setWindowIcon(QIcon(QStringLiteral(":/logo.png")));
     setWindowTitle(tr("%1 - Plynth").arg(title));
@@ -47,8 +49,20 @@ ToolWindow::ToolWindow(const QString& name, const QString& title, QWidget* conte
     titleBar_->setProjectName(title);
     column->addWidget(titleBar_);
     content_->setParent(this);
-    column->addWidget(content_, 1);
+    if (columnWidth > 0) {
+        auto* row = new QHBoxLayout();
+        row->setContentsMargins(0, 0, 0, 0);
+        row->setSpacing(0);
+        content_->setMaximumWidth(columnWidth);
+        row->addStretch(1);
+        row->addWidget(content_, 100);
+        row->addStretch(1);
+        column->addLayout(row, 1);
+    } else {
+        column->addWidget(content_, 1);
+    }
     content_->show();
+    resize(defaultSize_);
 
     placeTimer_ = new QTimer(this);
     placeTimer_->setSingleShot(true);
@@ -99,8 +113,8 @@ void ToolWindow::applyStartPlace()
         }
     }
     const QScreen* screen = anchor_ && anchor_->screen() ? anchor_->screen() : QGuiApplication::primaryScreen();
-    const QRect area = screen ? screen->availableGeometry() : QRect(0, 0, t.toolWindowWidth(), t.toolWindowHeight());
-    QSize size = startPlace_ ? QSize(startPlace_->width, startPlace_->height) : QSize(t.toolWindowWidth(), t.toolWindowHeight());
+    const QRect area = screen ? screen->availableGeometry() : QRect(QPoint(0, 0), defaultSize_);
+    QSize size = startPlace_ ? QSize(startPlace_->width, startPlace_->height) : defaultSize_;
     size = size.boundedTo(area.size() * 9 / 10);
     const QPoint centre = anchor_ && anchor_->isVisible() ? anchor_->frameGeometry().center() : area.center();
     QRect frame(QPoint(0, 0), size);

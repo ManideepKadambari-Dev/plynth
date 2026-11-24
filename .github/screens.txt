@@ -19,3 +19,6 @@ about: {project} --about
 home-samples: --home
 export-licenses: {project} --export-licenses-on --screenshot-window export
 assets-author: {project} --select-asset chair --screenshot-window assets
+assets-window-wide: {project} --screenshot-window assets --window-size 1700x1000
+export-window-wide: {project} --screenshot-window export --window-size 1700x1000
+sources-window-wide: {project} --screenshot-window sources --window-size 1700x1000

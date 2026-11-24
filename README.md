@@ -73,7 +73,7 @@ The app is built to `out/build/msvc/app/Debug/plynth.exe`. Next to it is `plynth
 plynth.exe --screenshot window.png --size 1280x720
 ```
 
-Add `--screenshot-window <name>` to save a picture of one of the app's own windows instead: `assets`, `materials`, `sources`, `material-import`, `build` or `export`. `--panel closed` takes the picture with the Properties panel closed.
+Add `--screenshot-window <name>` to save a picture of one of the app's own windows instead: `assets`, `materials`, `sources`, `material-import`, `build` or `export`. That picture has the window's own size, or the size `--window-size <WxH>` gives. `--panel closed` takes the picture with the Properties panel closed.
 
 ## License
 

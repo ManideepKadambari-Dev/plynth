@@ -193,28 +193,33 @@ MaterialsPanel::MaterialsPanel(LibraryHost& host, QWidget* parent) : QWidget(par
     auto* emptyColumn = new QVBoxLayout(empty);
     emptyColumn->setContentsMargins(0, t.unit() * 6, 0, 0);
     emptyColumn->setSpacing(t.unit() * 3);
+    // The empty state sits in the middle of the window, not in its top left corner.
+    emptyColumn->addStretch(1);
     emptyText_ = new QLabel(empty);
     emptyText_->setTextFormat(Qt::PlainText);
     emptyText_->setWordWrap(true);
+    emptyText_->setAlignment(Qt::AlignHCenter);
     emptyText_->setFont(t.uiFont(t.sizeNormal()));
     emptyColumn->addWidget(emptyText_);
     emptyHelp_ = new QLabel(empty);
     emptyHelp_->setWordWrap(true);
+    emptyHelp_->setAlignment(Qt::AlignHCenter);
     emptyHelp_->setFont(t.uiFont(t.sizeSmall()));
     emptyHelp_->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
     emptyColumn->addWidget(emptyHelp_);
     openSetup_ = new QPushButton(tr("Open setup check"), empty);
     openSetup_->setToolTip(tr("Open the setup check to choose or create the library folder"));
     connect(openSetup_, &QPushButton::clicked, this, &MaterialsPanel::setupRequested);
-    emptyColumn->addWidget(openSetup_, 0, Qt::AlignLeft);
+    emptyColumn->addWidget(openSetup_, 0, Qt::AlignHCenter);
     samples_ = new QPushButton(tr("Add the sample materials"), empty);
     samples_->setToolTip(tr("Import the nine sample materials that come with Plynth. New projects use them by default"));
     connect(samples_, &QPushButton::clicked, this, &MaterialsPanel::samplesRequested);
-    emptyColumn->addWidget(samples_, 0, Qt::AlignLeft);
-    emptyColumn->addStretch(1);
+    emptyColumn->addWidget(samples_, 0, Qt::AlignHCenter);
+    emptyColumn->addStretch(2);
     pages_->addWidget(empty);
 
-    splitter_ = new QSplitter(Qt::Vertical, pages_);
+    // The grid takes the width of the window and grows with it; the details of the selected material sit on its right.
+    splitter_ = new QSplitter(Qt::Horizontal, pages_);
     splitter_->setChildrenCollapsible(false);
     splitter_->setHandleWidth(t.unit());
     splitter_->setStyleSheet(QStringLiteral("QSplitter::handle { background: %1; }").arg(t.line().name()));
@@ -248,8 +253,10 @@ MaterialsPanel::MaterialsPanel(LibraryHost& host, QWidget* parent) : QWidget(par
 
     buildDetails();
     splitter_->addWidget(detailsScroll_);
-    splitter_->setStretchFactor(0, 3);
-    splitter_->setStretchFactor(1, 2);
+    detailsScroll_->setMinimumWidth(t.detailsMinWidth());
+    detailsScroll_->setMaximumWidth(t.detailsMaxWidth());
+    splitter_->setStretchFactor(0, 1);
+    splitter_->setStretchFactor(1, 0);
     detailsScroll_->hide();
     grid_->installEventFilter(this);
     connect(splitter_, &QSplitter::splitterMoved, this, [this]() { QTimer::singleShot(0, this, [this]() { snapSplit(); }); });
@@ -347,7 +354,7 @@ void MaterialsPanel::buildDetails()
     detailsScroll_->verticalScrollBar()->setStyleSheet(t.scrollBarStyleSheet());
     auto* body = new QWidget();
     auto* box = new QVBoxLayout(body);
-    box->setContentsMargins(0, t.unit() * 2, t.unit() * 4, 0);
+    box->setContentsMargins(t.unit() * 4, t.unit() * 2, t.unit() * 4, 0);
     box->setSpacing(t.unit() * 2);
 
     thumb_ = new QLabel(body);
@@ -841,10 +848,11 @@ bool MaterialsPanel::eventFilter(QObject* watched, QEvent* event)
     return QWidget::eventFilter(watched, event);
 }
 
-// Moves the split so the grid ends on a whole row of tiles. The spare pixels go to the details.
+// Moves the split so the grid ends on a whole row of tiles, when the details sit under the grid. The spare
+// pixels go to the details.
 void MaterialsPanel::snapSplit()
 {
-    if (!detailsScroll_->isVisible() || model_->rowCount() == 0)
+    if (splitter_->orientation() == Qt::Horizontal || !detailsScroll_->isVisible() || model_->rowCount() == 0)
         return;
     const QRect first = grid_->visualRect(model_->index(0, 0));
     int pitch = 0;

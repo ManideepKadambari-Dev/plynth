@@ -158,8 +158,11 @@ void BuildPanel::setReport(const plynth::BuildReport* report, bool stale)
         empty_->setWordWrap(true);
         empty_->setFont(t.uiFont(t.sizeNormal()));
         empty_->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
-        column_->addWidget(empty_);
+        empty_->setAlignment(Qt::AlignHCenter);
+        // Before the first build the message sits in the middle of the window.
         column_->addStretch(1);
+        column_->addWidget(empty_);
+        column_->addStretch(2);
         return;
     }
 

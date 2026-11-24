@@ -2,6 +2,7 @@
 
 #include <plynth/core/Settings.h>
 
+#include <QSize>
 #include <QString>
 #include <QWidget>
 
@@ -19,11 +20,14 @@ class TitleBar;
 class ToolWindow : public QWidget {
     Q_OBJECT
 public:
-    ToolWindow(const QString& name, const QString& title, QWidget* content);
+    // A column width above 0 keeps the content in a centred column at most that wide, for pages of text and
+    // buttons that would look lost across a wide window. Default size is the size it first opens at.
+    ToolWindow(const QString& name, const QString& title, QWidget* content, const QSize& defaultSize, int columnWidth = 0);
 
     // The name the settings use for it, such as "assets".
     QString name() const { return name_; }
     QWidget* content() const { return content_; }
+    QSize defaultSize() const { return defaultSize_; }
 
     // The place to use the first time it opens: a remembered one, or none to centre it over the anchor window.
     // Step moves a new window down and right a little, so windows opened for the first time do not hide
@@ -55,6 +59,7 @@ private:
 
     QString name_;
     QWidget* content_ = nullptr;
+    QSize defaultSize_;
     TitleBar* titleBar_ = nullptr;
     QTimer* placeTimer_ = nullptr;
     std::optional<plynth::WindowPlace> startPlace_;

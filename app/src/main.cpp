@@ -44,11 +44,11 @@ bool parseSize(const QString& text, QSize& out)
     return true;
 }
 
-// Saves a picture of the window at exactly the requested pixel size.
+// Saves a picture of the window at exactly the requested pixel size, or at its own size when none is given.
 bool saveScreenshot(plynth::app::MainWindow& window, const QString& file, const QSize& size)
 {
     QImage image = window.grabPicture();
-    if (image.size() != size)
+    if (size.isValid() && image.size() != size)
         image = image.scaled(size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
     image.setDevicePixelRatio(1.0);
     return image.save(file, "PNG");
@@ -288,6 +288,11 @@ int main(int argc, char* argv[])
     QCommandLineOption panelOption(QStringLiteral("panel"),
                                    QStringLiteral("Open or close the side panel, without saving it: open or closed. For checks only."),
                                    QStringLiteral("state"));
+    QCommandLineOption windowSizeOption(QStringLiteral("window-size"),
+                                        QStringLiteral("With --screenshot-window, the size of that window in pixels instead of its "
+                                                       "default size, for example 1600x900."),
+                                        QStringLiteral("WxH"));
+    parser.addOption(windowSizeOption);
     parser.addOption(screenshotWindowOption);
     parser.addOption(panelOption);
     parser.addOption(screenshotOption);
@@ -419,13 +424,17 @@ int main(int argc, char* argv[])
         window.resize(size);
     else
         window.resize(1280, 800);
-    if (quiet)
-        window.setScreenshotSize(window.size());
     QString pictureWindow;
     if (parser.isSet(screenshotWindowOption)) {
         pictureWindow = parser.value(screenshotWindowOption).toLower();
         if (!window.toolWindowNames().contains(pictureWindow))
             return kExitBadArguments;
+    }
+    if (parser.isSet(windowSizeOption)) {
+        QSize windowSize;
+        if (!parseSize(parser.value(windowSizeOption), windowSize))
+            return kExitBadArguments;
+        window.setScreenshotSize(windowSize);
     }
     if (parser.isSet(panelOption))
         window.showSidePanel(parser.value(panelOption).toLower() == QStringLiteral("open"), false);
@@ -606,7 +615,9 @@ int main(int argc, char* argv[])
     const bool wantsBuild = parser.isSet(buildOption) || parser.isSet(exportOption) || parser.isSet(exportCheckOption);
     if (wantsScreenshot) {
         const QString file = parser.value(screenshotOption);
-        const QSize target = hasSize ? size : window.size();
+        // The main window is saved at --size. One of the app's own windows is saved at its own size, so the
+        // picture shows what a user sees when it opens.
+        const QSize target = !pictureWindow.isEmpty() ? QSize() : hasSize ? size : window.size();
         QElapsedTimer waited;
         waited.start();
         auto* poll = new QTimer(&app);

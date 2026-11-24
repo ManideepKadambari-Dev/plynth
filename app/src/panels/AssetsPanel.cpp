@@ -190,20 +190,24 @@ AssetsPanel::AssetsPanel(LibraryHost& host, QWidget* parent) : QWidget(parent), 
     auto* emptyColumn = new QVBoxLayout(empty);
     emptyColumn->setContentsMargins(0, t.unit() * 6, 0, 0);
     emptyColumn->setSpacing(t.unit() * 3);
+    // The empty state sits in the middle of the window, not in its top left corner.
+    emptyColumn->addStretch(1);
     emptyText_ = new QLabel(empty);
     emptyText_->setTextFormat(Qt::PlainText);
     emptyText_->setWordWrap(true);
+    emptyText_->setAlignment(Qt::AlignHCenter);
     emptyText_->setFont(t.uiFont(t.sizeNormal()));
     emptyText_->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
     emptyColumn->addWidget(emptyText_);
     auto* setup = new QPushButton(tr("Open setup check"), empty);
     setup->setToolTip(tr("Open the setup check to choose or create the library folder"));
     connect(setup, &QPushButton::clicked, this, &AssetsPanel::setupRequested);
-    emptyColumn->addWidget(setup, 0, Qt::AlignLeft);
-    emptyColumn->addStretch(1);
+    emptyColumn->addWidget(setup, 0, Qt::AlignHCenter);
+    emptyColumn->addStretch(2);
     pages_->addWidget(empty);
 
-    splitter_ = new QSplitter(Qt::Vertical, pages_);
+    // The grid takes the width of the window and grows with it; the details of the selected asset sit on its right.
+    splitter_ = new QSplitter(Qt::Horizontal, pages_);
     splitter_->setChildrenCollapsible(false);
     splitter_->setHandleWidth(t.unit());
     splitter_->setStyleSheet(QStringLiteral("QSplitter::handle { background: %1; }").arg(t.line().name()));
@@ -240,8 +244,10 @@ AssetsPanel::AssetsPanel(LibraryHost& host, QWidget* parent) : QWidget(parent), 
 
     buildDetails();
     splitter_->addWidget(detailsScroll_);
-    splitter_->setStretchFactor(0, 3);
-    splitter_->setStretchFactor(1, 2);
+    detailsScroll_->setMinimumWidth(t.detailsMinWidth());
+    detailsScroll_->setMaximumWidth(t.detailsMaxWidth());
+    splitter_->setStretchFactor(0, 1);
+    splitter_->setStretchFactor(1, 0);
     detailsScroll_->hide();
     pages_->addWidget(splitter_);
     column->addWidget(pages_, 1);
@@ -332,7 +338,7 @@ void AssetsPanel::buildDetails()
     detailsScroll_->setStyleSheet(QStringLiteral("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; }"));
     auto* body = new QWidget();
     auto* box = new QVBoxLayout(body);
-    box->setContentsMargins(0, t.unit() * 2, t.unit() * 4, 0);
+    box->setContentsMargins(t.unit() * 4, t.unit() * 2, t.unit() * 4, 0);
     box->setSpacing(t.unit() * 2);
 
     stage_ = new AssetStage(true, t.thumbnailLarge(), body);

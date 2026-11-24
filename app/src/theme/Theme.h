@@ -60,6 +60,10 @@ public:
     int sidePanelMaxWidth() const { return sidePanelMaxWidth_; }
     int toolWindowWidth() const { return toolWindowWidth_; }
     int toolWindowHeight() const { return toolWindowHeight_; }
+    int toolWindowNarrowWidth() const { return toolWindowNarrowWidth_; }
+    int toolWindowColumnWidth() const { return toolWindowColumnWidth_; }
+    int detailsMinWidth() const { return detailsMinWidth_; }
+    int detailsMaxWidth() const { return detailsMaxWidth_; }
     int thumbnailTile() const { return thumbnailTile_; }
     int thumbnailLarge() const { return thumbnailLarge_; }
     int setupRowGap() const { return setupRowGap_; }
@@ -134,8 +138,12 @@ private:
     int sidePanelWidth_ = 372;
     int sidePanelMinWidth_ = 280;
     int sidePanelMaxWidth_ = 640;
-    int toolWindowWidth_ = 960;
-    int toolWindowHeight_ = 720;
+    int toolWindowWidth_ = 1120;
+    int toolWindowHeight_ = 760;
+    int toolWindowNarrowWidth_ = 920;
+    int toolWindowColumnWidth_ = 880;
+    int detailsMinWidth_ = 360;
+    int detailsMaxWidth_ = 480;
     int thumbnailTile_ = 128;
     int thumbnailLarge_ = 256;
     int setupRowGap_ = 12;

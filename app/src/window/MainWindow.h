@@ -160,7 +160,7 @@ public:
     bool sidePanelOpen() const;
     // For checks only: the picture is of the window with this name instead of the main window.
     void setPictureWindow(const QString& name);
-    // For checks only: the size of the picture, which the app's other windows take when they open.
+    // For checks only: the size the app's other windows take when they open, instead of their default size.
     void setScreenshotSize(const QSize& size);
     // For checks only: the panel of the Export window.
     ExportPanel* exportPanel() const { return exportPanel_; }

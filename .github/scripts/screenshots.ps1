@@ -104,6 +104,14 @@ foreach ($s in $steps) {
     if ($r.Code -ne 0) { throw "plynth $($s[0]) $($s[1]) ended with $($r.Code): $($r.Output)" }
 }
 
+# A library in the scratch folder, so the catalog windows show a catalog. The samples are imported through the
+# fake Blender; an item it cannot import is only a warning, since the pictures still show the windows.
+$library = Join-Path $scratch 'library'
+$r = Invoke-Plynth $cli @('library', 'init', $library, '--use')
+if ($r.Code -ne 0) { throw "plynth library init ended with $($r.Code): $($r.Output)" }
+$r = Invoke-Plynth $cli @('samples', 'add', '--library', $library) @{} 600
+if ($r.Code -ne 0) { Write-Host "::warning::plynth samples add ended with $($r.Code): $($r.Output)" }
+
 $screens = @()
 foreach ($line in Get-Content (Join-Path $root '.github/screens.txt')) {
     if (-not $line.Trim()) { continue }

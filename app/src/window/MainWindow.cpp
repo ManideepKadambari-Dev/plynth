@@ -483,24 +483,28 @@ void MainWindow::makeToolWindows()
         QWidget* content;
         QString button;
         QString tip;
+        bool wide; // a catalog with a grid and details, or a two column form, takes the wide default size
     };
     const Kind kinds[] = {
-        {"assets", tr("Assets"), assets_, tr("Assets"), tr("Open the Assets window: the catalog of models (Ctrl+Shift+A)")},
+        {"assets", tr("Assets"), assets_, tr("Assets"), tr("Open the Assets window: the catalog of models (Ctrl+Shift+A)"), true},
         {"materials", tr("Materials"), materials_, tr("Materials"),
-         tr("Open the Materials window: the catalog of surface materials (Ctrl+Shift+M)")},
+         tr("Open the Materials window: the catalog of surface materials (Ctrl+Shift+M)"), true},
         {"sources", tr("Sources"), integrations_, tr("Sources"),
-         tr("Open the Sources window: import from BlenderKit, Fab and your own files (Ctrl+Shift+I)")},
-        {"material-import", tr("Import materials"), materialImport_, QString(), QString()},
+         tr("Open the Sources window: import from BlenderKit, Fab and your own files (Ctrl+Shift+I)"), false},
+        {"material-import", tr("Import materials"), materialImport_, QString(), QString(), true},
         {"build", tr("Build report"), buildPanel_, tr("Report"),
-         tr("Open the Build report window: summary, files, steps and problems of the last build (Ctrl+Shift+B)")},
+         tr("Open the Build report window: summary, files, steps and problems of the last build (Ctrl+Shift+B)"), false},
         {"export", tr("Export"), exportPanel_, tr("Export"),
-         tr("Open the Export window: export for Unreal and its quality checks (Ctrl+Shift+X)")},
+         tr("Open the Export window: export for Unreal and its quality checks (Ctrl+Shift+X)"), false},
     };
+    const Theme& t = Theme::instance();
     const plynth::MachineSettings& settings = host_->settings();
     int step = 0;
     for (const Kind& kind : kinds) {
         const QString name = QString::fromLatin1(kind.name);
-        auto* window = new ToolWindow(name, kind.title, kind.content);
+        // Pages of cards, checks and buttons stay in a centred column; catalogs and the import form use the width.
+        const QSize size(kind.wide ? t.toolWindowWidth() : t.toolWindowNarrowWidth(), t.toolWindowHeight());
+        auto* window = new ToolWindow(name, kind.title, kind.content, size, kind.wide ? 0 : t.toolWindowColumnWidth());
         std::optional<plynth::WindowPlace> start;
         if (const auto saved = settings.windows.find(name.toStdString()); saved != settings.windows.end())
             start = saved->second;
@@ -566,8 +570,9 @@ bool MainWindow::openToolWindow(const QString& name)
     if (window == nullptr)
         return false;
     window->open();
-    if (screenshotMode_ && screenshotSize_.isValid()) {
-        window->resize(screenshotSize_);
+    // A picture shows the window as a user first sees it: its default size, or the size the check asks for.
+    if (screenshotMode_) {
+        window->resize(screenshotSize_.isValid() ? screenshotSize_ : window->defaultSize());
         window->move(pos());
     }
     return true;
@@ -661,7 +666,7 @@ void MainWindow::setPictureWindow(const QString& name)
         integrationsAsked_ = true;
 }
 
-// For checks only: the size every picture is taken at, so the app's other windows take it too.
+// For checks only: the size the app's other windows take when they open. Unset, they keep their default size.
 void MainWindow::setScreenshotSize(const QSize& size)
 {
     screenshotSize_ = size;
