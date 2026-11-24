@@ -1002,7 +1002,7 @@ The first time you open the tab, and when you press **Check again** on the Blend
 
 You need your own BlenderKit account and the BlenderKit add-on, installed, enabled and signed in inside Blender. Plynth never installs it, never signs in for you and never shows, logs or copies your key. [Setting up Plynth](SETUP.md) shows how.
 
-1. Open the item on blenderkit.com and copy its address from the browser.
+1. Open the item on www.blendkit.com (BlenderKit's site, which used to be www.blenderkit.com) and copy its address from the browser. Addresses on either site work.
 2. On the BlenderKit card, paste it into the address box. If the text is not a BlenderKit address, the card says so, and the buttons stay off.
 3. Press **Import as asset** for a model or **Import as material** for a material.
 
@@ -1010,7 +1010,9 @@ The import joins the queue under the grid like any other. The row shows the step
 
 **What runs.** Plynth starts Blender in the background, with no window, and the BlenderKit add-on downloads the item. There is no option to show a Blender window. This download runs Blender with **your own settings and the add-ons you have enabled**, because BlenderKit needs your add-on and your sign in. Other Blender jobs in Plynth use a clean start, but this one cannot. After the download, Blender cleans the model the same way as for your own files, with a clean start.
 
-**What ends up where.** The files go into the library like any other asset or material. The name and license come from BlenderKit, and the item remembers its address. The author is not saved yet. The add-on keeps its own copy in its own download folder. Plynth copies from it and never changes or removes anything there.
+**BlenderKit's helper.** While the download runs, the BlenderKit add-on starts its helper program. During a download from Plynth the helper may show no tray icon. To stop the download, press **Cancel** on the row in Plynth. The helper ends with the download.
+
+**What ends up where.** The files go into the library like any other asset or material. The name and license come from BlenderKit, and the item remembers its address. The author is not saved yet. Every download goes into Plynth's own fetch folder, never into the add-on's own download folder, and Plynth never changes or removes anything there.
 
 If it fails, the row says why, and **Show log** opens the log. These are the usual reasons:
 
