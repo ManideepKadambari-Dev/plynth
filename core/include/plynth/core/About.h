@@ -25,7 +25,7 @@ struct AboutInfo {
     std::string sampleLicense;
     std::string notices; // the Markdown of THIRD_PARTY_NOTICES.md, empty when missing
     std::filesystem::path noticesFile;
-    std::vector<std::filesystem::path> licenseFiles; // files of licenses/texts, sorted by name
+    std::vector<std::filesystem::path> licenseFiles; // every file below licenses/texts, sorted by path
 };
 
 // The version and licenses, also when the licenses folder is missing. status says what is missing.

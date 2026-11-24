@@ -59,3 +59,14 @@ TEST_CASE("About without the notices file still lists the texts", "[about]")
     CHECK(info.status.code == ErrorCode::NotFound);
     CHECK(info.licenseFiles.size() == 1);
 }
+
+TEST_CASE("The shipped licenses folder has the notices and the CC0 text of the samples", "[about]")
+{
+    const std::filesystem::path licenses = PLYNTH_LICENSES_DIR;
+    const AboutInfo info = aboutInfo(licenses);
+    CHECK(info.status.ok());
+    CHECK(info.notices.find("Copyright 2026 the Plynth authors (see AUTHORS)") != std::string::npos);
+    const std::string cc0 = plynth::test::readFile(licenses / "texts" / "CC0-1.0.txt");
+    REQUIRE(!cc0.empty());
+    CHECK(plynth::test::readFile(std::filesystem::path(PLYNTH_SAMPLES_DIR) / "LICENSE") == cc0);
+}

@@ -17,6 +17,7 @@ target_compile_definitions(plynth_guide_tests PRIVATE
     PLYNTH_SCHEMA_DIR="${PROJECT_SOURCE_DIR}/schema"
     PLYNTH_SAMPLES_DIR="${PROJECT_SOURCE_DIR}/samples"
     PLYNTH_DOCS_DIR="${PROJECT_SOURCE_DIR}/docs"
+    PLYNTH_LICENSES_DIR="${PROJECT_SOURCE_DIR}/licenses"
     PLYNTH_APP_RESOURCES_DIR="${PROJECT_SOURCE_DIR}/app/resources")
 
 catch_discover_tests(plynth_guide_tests DISCOVERY_MODE PRE_TEST ADD_TAGS_AS_LABELS)

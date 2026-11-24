@@ -253,6 +253,28 @@ jobs:
           if-no-files-found: error
           retention-days: ${{ env.PLYNTH_GATE == 'true' && 30 || 14 }}
 
+      - name: Gather the notice inputs
+        id: notice-inputs
+        if: ${{ !cancelled() && steps.package.outcome == 'success' }}
+        shell: pwsh
+        run: '& "$env:GITHUB_WORKSPACE/.github/scripts/notice-inputs.ps1" -Package "$env:GITHUB_WORKSPACE/out/package/plynth" -OutFolder "$env:GITHUB_WORKSPACE/out/notice-inputs"'
+
+      - name: Upload the notice inputs
+        if: ${{ !cancelled() && steps.notice-inputs.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: notice-inputs
+          path: out/notice-inputs/
+          if-no-files-found: error
+          retention-days: 14
+
+      # It does not fail the run until the texts of the vcpkg libraries are copied in from notice-inputs.
+      - name: Check the third party notices
+        if: ${{ !cancelled() && steps.package.outcome == 'success' }}
+        continue-on-error: true
+        shell: pwsh
+        run: '& "$env:GITHUB_WORKSPACE/.github/scripts/check-notices.ps1" -Stage "$env:GITHUB_WORKSPACE/out/package/plynth"'
+
       - name: Take screenshots
         id: screens
         if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && env.SCREENS == 'true' && steps.package.outcome == 'success' }}

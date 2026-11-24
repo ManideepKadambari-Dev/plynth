@@ -24,3 +24,7 @@ Each is built from plain boxes, moved away from the origin like the chair, with 
 | `tv/tv.obj` | 1.23 x 0.06 x 0.71 | Flat panel for a wall. The `Screen` box is a thin separate object on the -Y face | `Plastic`, `Screen` | 24 |
 
 The thumbnail camera stands at +X, -Y (front right in Blender's views), so a thumbnail shows the front and the model's own left side. On the sofa that is the arm at +X.
+
+## License
+
+The models, their material files and pictures are dedicated to the public domain under CC0 1.0 (see `samples/LICENSE`). `make_sample_models.py` is code under GPL-3.0-or-later.

@@ -41,11 +41,10 @@ AboutInfo aboutInfo(const fs::path& licensesFolder)
 
     const fs::path texts = licensesFolder / pathFromUtf8(kLicenseTextsFolder);
     if (fs::is_directory(texts, ec)) {
-        for (fs::directory_iterator it(texts, ec), end; !ec && it != end; it.increment(ec)) {
+        for (fs::recursive_directory_iterator it(texts, ec), end; !ec && it != end; it.increment(ec)) {
             if (it->is_regular_file(ec)) info.licenseFiles.push_back(it->path());
         }
-        std::sort(info.licenseFiles.begin(), info.licenseFiles.end(),
-                  [](const fs::path& a, const fs::path& b) { return a.filename() < b.filename(); });
+        std::sort(info.licenseFiles.begin(), info.licenseFiles.end());
     }
 
     if (info.noticesFile.empty()) {

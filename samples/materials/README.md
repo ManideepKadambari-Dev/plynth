@@ -38,3 +38,7 @@ To draw only some of them, name them after `--`:
 
 To use them, import the folders into the materials catalog (the app's "Add the sample materials", or
 `plynth materials import samples\materials\*`).
+
+## License
+
+The textures and `material.json` files are dedicated to the public domain under CC0 1.0 (see `samples/LICENSE`). `make_sample_materials.py` is code under GPL-3.0-or-later.
