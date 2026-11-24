@@ -891,6 +891,8 @@ void ExportPanel::setReport(const plynth::ExportReport* report, const ExportPane
     } else if (!report->status.ok() && state.error.isEmpty()) {
         note(fromCore(report->status.message), t.signalAmber());
     }
+    if (state.reportOutOfDate)
+        note(tr("This export was made from an older build. Export again to bring the files up to date."), t.signalAmber());
 
     addChecks(*report);
 

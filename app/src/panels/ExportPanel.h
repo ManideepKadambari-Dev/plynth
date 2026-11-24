@@ -34,6 +34,7 @@ struct ExportPanelState {
     bool folderExists = false; // the export folder is there to open
     bool grouped = false;      // the project exports one FBX for each group
     bool built = false;        // the project has a build, so its groups can be shown
+    bool reportOutOfDate = false; // the last export was made from an older build than the one there now
     QString optionsProblem;    // why export-options.json cannot be read; empty when it can
     bool optionsRepairable = false; // the bad file may be replaced; false for one written by a newer Plynth
     bool kitEnabled = false;   // export-options.json switches the modular kit on

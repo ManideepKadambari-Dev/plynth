@@ -1144,7 +1144,7 @@ The FBX holds only relative texture paths. You can copy or move the whole `expor
 
 **Open folder** in the Export window, or **Build > Open export folder**, shows the folder in Explorer. The folder can be deleted at any time. A new export replaces the old files. An export that is blocked by a failed check leaves the old files exactly as they were, so check the time in the tab to know which export is on disk.
 
-The Export window shows the last export: when it ran, how long it took, the result, the number of objects, triangles and collision meshes, and the file paths. A grouped export lists each file with its group's name. If the plan changed after the last build, the "Build is up to date" check fails. Build again, then export.
+The Export window shows the last export: when it ran, how long it took, the result, the number of objects, triangles and collision meshes, and the file paths. A grouped export lists each file with its group's name. If the plan changed after the last build, the "Build is up to date" check fails. Build again, then export. The window shows the last export again when you open the project later. If you built again since that export, an amber line says the export was made from an older build; export again to bring the files up to date.
 
 ### Export anyway
 

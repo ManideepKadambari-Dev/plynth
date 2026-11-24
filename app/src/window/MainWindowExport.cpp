@@ -158,6 +158,10 @@ void MainWindow::updateExportUi()
     state.grouped = doc_.project().settings.exportMode == plynth::ExportMode::Grouped;
     state.built = doc_.hasFolder() &&
                   std::filesystem::exists(plynth::buildFolder(doc_.folder()) / "building.blend", ignored);
+    // The export records the build it came from. A later build has another plan fingerprint.
+    state.reportOutOfDate = exportReport_ && exportReport_->status.ok() && report_ && report_->status.ok() &&
+                            !exportReport_->buildFingerprint.empty() &&
+                            exportReport_->buildFingerprint != report_->planFingerprint;
     state.project = &doc_.project();
     if (doc_.hasFolder()) {
         const plynth::ExportOptionsRead options = plynth::readExportOptions(doc_.folder());
