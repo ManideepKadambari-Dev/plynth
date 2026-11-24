@@ -15,6 +15,7 @@ add_library(plynth_cli STATIC
     src/commands/AssetCommands.cpp
     src/commands/BuildCommands.cpp
     src/commands/FloorCommands.cpp
+    src/commands/GeneratorCommands.cpp
     src/commands/LibraryCommands.cpp
     src/commands/MaterialCommands.cpp
     src/commands/MaterialCatalogCommands.cpp
@@ -28,10 +29,12 @@ add_library(plynth_cli STATIC
     src/commands/ImportCommands.cpp
     src/commands/ItemCommands.cpp
     src/commands/ProjectCommands.cpp
+    src/commands/RoofCommands.cpp
     src/commands/RoomCommands.cpp
     src/commands/ScaleCommands.cpp
     src/commands/SessionCommands.cpp
     src/commands/SettingsCommands.cpp
+    src/commands/StairCommands.cpp
     src/commands/VersionCommand.cpp
     src/commands/WallCommands.cpp
 )

@@ -18,7 +18,7 @@
   "preview_texture_size": 1024,
   "plan": {
    "format": "plynth-plan",
-   "version": 4,
+   "version": 6,
    "scale": {
     "pixels_per_metre": 100.0
    },
@@ -467,7 +467,8 @@
         "width": 2.0,
         "depth": 0.9,
         "height": 0.85
-       }
+       },
+       "generator": null
       },
       {
        "id": "i2",
@@ -482,11 +483,26 @@
         "width": 1.2,
         "depth": 0.8,
         "height": 0.75
-       }
+       },
+       "generator": null
       }
-     ]
+     ],
+     "slab_thickness": 0.2,
+     "image_offset": {
+      "x": 0.0,
+      "y": 0.0
+     },
+     "stairs": []
     }
-   ]
+   ],
+   "roof": {
+    "type": "flat",
+    "pitch": 30.0,
+    "overhang": 0.3,
+    "parapet": 0.6,
+    "direction": null
+   },
+   "roof_sections": []
   },
   "settings": {
    "bevel_width": 0.01,
@@ -661,9 +677,14 @@
     "surface": "Floor"
    },
    {
-    "name": "Bathroom_Wall",
+    "name": "Bathroom_Wall_GreyTile",
     "material": "grey_tile",
     "surface": "Wall_Inside"
+   },
+   {
+    "name": "Bathroom_Wall_WhitePaint",
+    "material": "white_paint",
+    "surface": "Reveal"
    },
    {
     "name": "Bedroom_Ceiling",
@@ -681,9 +702,19 @@
     "surface": "Wall_Inside"
    },
    {
-    "name": "Door",
+    "name": "Door_Neutral",
+    "material": null,
+    "surface": "Door"
+   },
+   {
+    "name": "Door_PaintedWood",
     "material": "painted_wood",
     "surface": "Door"
+   },
+   {
+    "name": "Exterior_Wall_Neutral",
+    "material": null,
+    "surface": "Wall_Outside"
    },
    {
     "name": "Exterior_Wall_OakPlanks",
@@ -696,18 +727,33 @@
     "surface": "Wall_Outside"
    },
    {
-    "name": "Frame",
+    "name": "Frame_Neutral",
+    "material": null,
+    "surface": "Frame"
+   },
+   {
+    "name": "Frame_WhitePaint",
     "material": "white_paint",
     "surface": "Frame"
    },
    {
-    "name": "Glass",
+    "name": "Glass_ClearGlass",
     "material": "clear_glass",
     "surface": "Glass"
    },
    {
-    "name": "Handle",
+    "name": "Glass_Neutral",
+    "material": null,
+    "surface": "Glass"
+   },
+   {
+    "name": "Handle_BrushedSteel",
     "material": "brushed_steel",
+    "surface": "Handle"
+   },
+   {
+    "name": "Handle_Neutral",
+    "material": null,
     "surface": "Handle"
    },
    {
@@ -741,6 +787,16 @@
     "surface": "Wall_Inside"
    },
    {
+    "name": "Soffit",
+    "material": null,
+    "surface": "Soffit"
+   },
+   {
+    "name": "Stair_Well",
+    "material": null,
+    "surface": "Wall_Inside"
+   },
+   {
     "name": "Threshold",
     "material": null,
     "surface": "Threshold"
@@ -751,6 +807,7 @@
     "surface": "Wall_Top"
    }
   ],
+  "generators": [],
   "floors": [
    {
     "id": "f1",
@@ -1237,42 +1294,42 @@
           "side": "left",
           "room": "r2",
           "material": "grey_tile",
-          "slot": "Bathroom_Wall"
+          "slot": "Bathroom_Wall_GreyTile"
          },
          {
           "wall": "w2",
           "side": "right",
           "room": "r2",
           "material": "grey_tile",
-          "slot": "Bathroom_Wall"
+          "slot": "Bathroom_Wall_GreyTile"
          },
          {
           "wall": "w2",
           "side": "right",
           "room": "r2",
           "material": "grey_tile",
-          "slot": "Bathroom_Wall"
+          "slot": "Bathroom_Wall_GreyTile"
          },
          {
           "wall": "w2",
           "side": "right",
           "room": "r2",
           "material": "grey_tile",
-          "slot": "Bathroom_Wall"
+          "slot": "Bathroom_Wall_GreyTile"
          },
          {
           "wall": "w14",
           "side": "right",
           "room": "r2",
           "material": "grey_tile",
-          "slot": "Bathroom_Wall"
+          "slot": "Bathroom_Wall_GreyTile"
          },
          {
           "wall": "w7",
           "side": "left",
           "room": "r2",
           "material": "grey_tile",
-          "slot": "Bathroom_Wall"
+          "slot": "Bathroom_Wall_GreyTile"
          }
         ]
        },
@@ -1471,10 +1528,10 @@
       "slots": {
        "reveal": "Bedroom_Wall",
        "threshold": "Threshold",
-       "door": "Door",
-       "frame": "Frame",
-       "glass": "Glass",
-       "handle": "Handle"
+       "door": "Door_Neutral",
+       "frame": "Frame_WhitePaint",
+       "glass": "Glass_ClearGlass",
+       "handle": "Handle_Neutral"
       }
      },
      {
@@ -1596,10 +1653,10 @@
       "slots": {
        "reveal": "Room_Wall",
        "threshold": "Threshold",
-       "door": "Door",
-       "frame": "Frame",
-       "glass": "Glass",
-       "handle": "Handle"
+       "door": "Door_Neutral",
+       "frame": "Frame_WhitePaint",
+       "glass": "Glass_ClearGlass",
+       "handle": "Handle_Neutral"
       }
      },
      {
@@ -1738,10 +1795,10 @@
       "slots": {
        "reveal": "Living_Wall",
        "threshold": "Living_Floor",
-       "door": "Door",
-       "frame": "Frame",
-       "glass": "Glass",
-       "handle": "Handle"
+       "door": "Door_PaintedWood",
+       "frame": "Frame_WhitePaint",
+       "glass": "Glass_Neutral",
+       "handle": "Handle_BrushedSteel"
       }
      },
      {
@@ -1878,12 +1935,12 @@
        "handle": "brushed_steel"
       },
       "slots": {
-       "reveal": "Living_Wall",
+       "reveal": "Bathroom_Wall_WhitePaint",
        "threshold": "Bathroom_Floor",
-       "door": "Door",
-       "frame": "Frame",
-       "glass": "Glass",
-       "handle": "Handle"
+       "door": "Door_PaintedWood",
+       "frame": "Frame_WhitePaint",
+       "glass": "Glass_Neutral",
+       "handle": "Handle_BrushedSteel"
       }
      },
      {
@@ -2020,12 +2077,12 @@
        "handle": null
       },
       "slots": {
-       "reveal": "Living_Wall",
-       "threshold": "Living_Floor",
-       "door": "Door",
-       "frame": "Frame",
-       "glass": "Glass",
-       "handle": "Handle"
+       "reveal": "Room_Wall",
+       "threshold": "Room_Floor",
+       "door": "Door_Neutral",
+       "frame": "Frame_Neutral",
+       "glass": "Glass_Neutral",
+       "handle": "Handle_Neutral"
       }
      },
      {
@@ -2147,10 +2204,10 @@
       "slots": {
        "reveal": "Room_Wall",
        "threshold": "Threshold",
-       "door": "Door",
-       "frame": "Frame",
-       "glass": "Glass",
-       "handle": "Handle"
+       "door": "Door_Neutral",
+       "frame": "Frame_WhitePaint",
+       "glass": "Glass_ClearGlass",
+       "handle": "Handle_Neutral"
       }
      },
      {
@@ -2287,12 +2344,12 @@
        "handle": "brushed_steel"
       },
       "slots": {
-       "reveal": "Bedroom_Wall",
+       "reveal": "Living_Wall",
        "threshold": "Living_Floor",
-       "door": "Door",
-       "frame": "Frame",
-       "glass": "Glass",
-       "handle": "Handle"
+       "door": "Door_PaintedWood",
+       "frame": "Frame_WhitePaint",
+       "glass": "Glass_Neutral",
+       "handle": "Handle_BrushedSteel"
       }
      },
      {
@@ -2429,12 +2486,12 @@
        "handle": "brushed_steel"
       },
       "slots": {
-       "reveal": "Room_Wall",
-       "threshold": "Room_Floor",
-       "door": "Door",
-       "frame": "Frame",
-       "glass": "Glass",
-       "handle": "Handle"
+       "reveal": "Living_Wall",
+       "threshold": "Living_Floor",
+       "door": "Door_PaintedWood",
+       "frame": "Frame_WhitePaint",
+       "glass": "Glass_Neutral",
+       "handle": "Handle_BrushedSteel"
       }
      },
      {
@@ -2556,10 +2613,10 @@
       "slots": {
        "reveal": "Room_Wall",
        "threshold": "Threshold",
-       "door": "Door",
-       "frame": "Frame",
-       "glass": "Glass",
-       "handle": "Handle"
+       "door": "Door_Neutral",
+       "frame": "Frame_WhitePaint",
+       "glass": "Glass_ClearGlass",
+       "handle": "Handle_Neutral"
       }
      }
     ],
@@ -2575,6 +2632,33 @@
       "floor_slot": "Bedroom_Floor",
       "ceiling_slot": "Bedroom_Ceiling",
       "polygons": [
+       {
+        "outline": [
+         [
+          5.299999997019768,
+          -7.940234377980232
+         ],
+         [
+          10.0,
+          -7.940234377980232
+         ],
+         [
+          10.0,
+          -7.060000002384186
+         ],
+         [
+          10.0,
+          -3.2999999970197678
+         ],
+         [
+          5.299999997019768,
+          -3.2999999970197678
+         ]
+        ],
+        "holes": []
+       }
+      ],
+      "ceiling_polygons": [
        {
         "outline": [
          [
@@ -2634,6 +2718,29 @@
         ],
         "holes": []
        }
+      ],
+      "ceiling_polygons": [
+       {
+        "outline": [
+         [
+          10.119999997317791,
+          -6.939999997615814
+         ],
+         [
+          13.939999997615814,
+          -6.939999997615814
+         ],
+         [
+          13.939999997615814,
+          -3.2999999970197678
+         ],
+         [
+          10.119999997317791,
+          -3.2999999970197678
+         ]
+        ],
+        "holes": []
+       }
       ]
      },
      {
@@ -2647,6 +2754,29 @@
       "floor_slot": "Room_Floor",
       "ceiling_slot": "Room_Ceiling",
       "polygons": [
+       {
+        "outline": [
+         [
+          14.060000002384186,
+          -6.939999997615814
+         ],
+         [
+          18.700000002980232,
+          -6.939999997615814
+         ],
+         [
+          18.700000002980232,
+          -3.2999999970197678
+         ],
+         [
+          14.060000002384186,
+          -3.2999999970197678
+         ]
+        ],
+        "holes": []
+       }
+      ],
+      "ceiling_polygons": [
        {
         "outline": [
          [
@@ -2702,6 +2832,29 @@
         ],
         "holes": []
        }
+      ],
+      "ceiling_polygons": [
+       {
+        "outline": [
+         [
+          5.299999997019768,
+          -12.700000002980232
+         ],
+         [
+          10.0,
+          -12.700000002980232
+         ],
+         [
+          10.0,
+          -8.060234375298023
+         ],
+         [
+          5.299999997019768,
+          -8.060234375298023
+         ]
+        ],
+        "holes": []
+       }
       ]
      },
      {
@@ -2715,6 +2868,37 @@
       "floor_slot": "Living_Floor",
       "ceiling_slot": "Living_Ceiling",
       "polygons": [
+       {
+        "outline": [
+         [
+          10.119999997317791,
+          -12.700000002980232
+         ],
+         [
+          18.700000002980232,
+          -12.700000002980232
+         ],
+         [
+          18.700000002980232,
+          -7.060000002384186
+         ],
+         [
+          13.939999997615814,
+          -7.060000002384186
+         ],
+         [
+          10.119999997317791,
+          -7.060000002384186
+         ],
+         [
+          10.119999997317791,
+          -7.940234377980232
+         ]
+        ],
+        "holes": []
+       }
+      ],
+      "ceiling_polygons": [
        {
         "outline": [
          [
@@ -3360,7 +3544,9 @@
         "bottom": 0.0,
         "top": 3.0
        }
-      ]
+      ],
+      "index": 0,
+      "hulls": []
      },
      {
       "target": {
@@ -3390,7 +3576,9 @@
         "bottom": -0.1,
         "top": 0.0
        }
-      ]
+      ],
+      "index": 0,
+      "hulls": []
      },
      {
       "target": {
@@ -3420,7 +3608,9 @@
         "bottom": 3.0,
         "top": 3.1
        }
-      ]
+      ],
+      "index": 0,
+      "hulls": []
      },
      {
       "target": {
@@ -3450,7 +3640,9 @@
         "bottom": -0.1,
         "top": 0.0
        }
-      ]
+      ],
+      "index": 0,
+      "hulls": []
      },
      {
       "target": {
@@ -3480,7 +3672,9 @@
         "bottom": 3.0,
         "top": 3.1
        }
-      ]
+      ],
+      "index": 0,
+      "hulls": []
      },
      {
       "target": {
@@ -3510,7 +3704,9 @@
         "bottom": -0.1,
         "top": 0.0
        }
-      ]
+      ],
+      "index": 0,
+      "hulls": []
      },
      {
       "target": {
@@ -3540,7 +3736,9 @@
         "bottom": 3.0,
         "top": 3.1
        }
-      ]
+      ],
+      "index": 0,
+      "hulls": []
      },
      {
       "target": {
@@ -3570,7 +3768,9 @@
         "bottom": -0.1,
         "top": 0.0
        }
-      ]
+      ],
+      "index": 0,
+      "hulls": []
      },
      {
       "target": {
@@ -3600,7 +3800,9 @@
         "bottom": 3.0,
         "top": 3.1
        }
-      ]
+      ],
+      "index": 0,
+      "hulls": []
      },
      {
       "target": {
@@ -3630,7 +3832,9 @@
         "bottom": -0.1,
         "top": 0.0
        }
-      ]
+      ],
+      "index": 0,
+      "hulls": []
      },
      {
       "target": {
@@ -3660,7 +3864,9 @@
         "bottom": 3.0,
         "top": 3.1
        }
-      ]
+      ],
+      "index": 0,
+      "hulls": []
      },
      {
       "target": {
@@ -3778,10 +3984,34 @@
         "bottom": -0.1,
         "top": 0.0
        }
-      ]
+      ],
+      "index": 0,
+      "hulls": []
      }
-    ]
+    ],
+    "generator_items": [],
+    "slab": {
+     "bottom": 0.0,
+     "top": 0.0,
+     "polygons": [],
+     "undersides": [],
+     "sides": [],
+     "tops": [],
+     "materials": {
+      "edge": null,
+      "well": null,
+      "underside": null
+     },
+     "slots": {
+      "edge": "Exterior_Wall_Neutral",
+      "well": "Stair_Well",
+      "underside": "Soffit"
+     }
+    },
+    "stairs": [],
+    "roofs": []
    }
-  ]
+  ],
+  "preview_folder": null
  }
 }

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <plynth/core/Addons.h>
+#include <plynth/core/Generators.h>
 #include <plynth/core/Library.h>
 #include <plynth/core/Settings.h>
 #include <plynth/core/catalog/AssetCatalog.h>
@@ -10,6 +12,11 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
+#include <thread>
+
+class QFileSystemWatcher;
+class QTimer;
 
 namespace plynth::app {
 
@@ -26,8 +33,10 @@ public:
     // Text of the problem when settings.json could not be read, empty otherwise.
     const QString& settingsProblem() const { return settingsProblem_; }
 
-    // Saves new settings and opens the library they name. Returns the save refusal, if any.
-    plynth::Status apply(const plynth::MachineSettings& settings);
+    // Reads settings.json again, lets the function change only what the user chose, saves, and opens the library
+    // the result names. Settings changed by the command line since the start are kept. When the file cannot be
+    // read nothing is written and the reading error is returned.
+    plynth::Status apply(const std::function<void(plynth::MachineSettings&)>& change);
 
     bool hasLibrary() const { return catalog_ != nullptr; }
     plynth::AssetCatalog* catalog() const { return catalog_.get(); }
@@ -43,6 +52,22 @@ public:
     // Copies the sample opening shapes into the library's shapes folder, registers the new ones and tells the
     // views. Returns one sentence for the status bar.
     QString addSampleShapes();
+
+    // The generators of the open library, read from Library/generators/. Empty when no library is open.
+    const plynth::GeneratorLibrary& generators() const { return generators_; }
+    // The add-on cache when it was made by the Blender in use, else empty (not checked yet).
+    const std::optional<plynth::AddonCache>& addonCache() const { return addonCache_; }
+    // True while the add-on check runs in the background.
+    bool checkingAddons() const { return probeRunning_; }
+    // Reads the generators folder again and tells the views. Returns what was found.
+    void reloadGenerators();
+    // Asks Blender which add-ons are enabled, on a worker thread, and writes the cache. Asked for while a check
+    // runs, it ends with that one. Every call ends in addonCheckFinished, also after a failure.
+    void checkAddons();
+    // Copies the sample generators into the library, never overwriting. Returns the sentence to show.
+    QString addSampleGenerators();
+    // Turns the automatic add-on check on or off, for example off in screenshot mode.
+    static void setAutoProbe(bool enabled) { autoProbe_ = enabled; }
 
     // The folder New project and the terminal start in: the projects setting, else Documents.
     QString projectsFolder() const;
@@ -67,9 +92,16 @@ signals:
     void assetsChanged();
     void materialsChanged();
     void recentChanged();
+    // The generator list or the add-on cache changed.
+    void generatorsChanged();
+    // The add-on check finished; the text is one plain sentence.
+    void addonCheckFinished(const QString& text);
 
 private:
     void openMaterials();
+    void watchGenerators();
+    void readAddonCacheFile();
+    void probeIfNeeded();
     bool editRecent(const std::function<bool(plynth::MachineSettings&)>& change);
     plynth::MachineSettings settings_;
     bool settingsExisted_ = false;
@@ -80,6 +112,14 @@ private:
     QString libraryProblem_;
     QString shapeNotice_;
     std::filesystem::path shapesRegistered_;
+    plynth::GeneratorLibrary generators_;
+    std::optional<plynth::AddonCache> addonCache_;
+    QFileSystemWatcher* generatorWatcher_ = nullptr;
+    QTimer* generatorTimer_ = nullptr;
+    std::jthread probe_;
+    bool probeRunning_ = false;
+    bool checkWanted_ = false;
+    static inline bool autoProbe_ = true;
 };
 
 }

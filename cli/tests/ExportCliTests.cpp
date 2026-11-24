@@ -1,5 +1,6 @@
 #include "FakeBlender.h"
 #include "SampleProject.h"
+#include "SettingsGuard.h"
 
 #include <plynth/core/EditSession.h>
 #include <plynth/core/Settings.h>
@@ -33,8 +34,7 @@ struct SettingsReset {
     SettingsReset() { clear(); }
     ~SettingsReset() { clear(); }
     static void clear() {
-        std::error_code ignored;
-        fs::remove(plynth::settingsFile(), ignored);
+        plynth::cli::testing::removeSettingsFileSafely();
     }
 };
 

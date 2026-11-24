@@ -7,6 +7,7 @@
 #include <Qt>
 
 #include <array>
+#include <cstddef>
 
 class QKeyEvent;
 class QPainter;
@@ -15,11 +16,15 @@ namespace plynth::app {
 
 class ToolController;
 
-enum class ToolId { Select, Scale, Wall, Opening, Room, Furniture, Detect };
+enum class ToolId { Select, Scale, Wall, Opening, Room, Furniture, Detect, Stair };
 
-// Every tool, in the order of the tool strip and the Edit menu.
-inline constexpr std::array<ToolId, 7> kAllTools{ToolId::Select, ToolId::Scale, ToolId::Wall,        ToolId::Opening,
-                                                 ToolId::Room,   ToolId::Furniture, ToolId::Detect};
+// How many tools exist.
+inline constexpr std::size_t kToolCount = 8;
+
+// Every tool. The tool strip and the Edit menu use their own order (kStripTools in ToolStrip.h).
+inline constexpr std::array<ToolId, kToolCount> kAllTools{ToolId::Select,    ToolId::Scale,  ToolId::Wall, ToolId::Opening,
+                                                          ToolId::Room,      ToolId::Furniture, ToolId::Detect,
+                                                          ToolId::Stair};
 
 // A mouse event handed to a tool. scene is in image pixels, view in canvas pixels.
 struct ToolMouse {
@@ -51,6 +56,8 @@ public:
     virtual bool keyPressed(QKeyEvent*) { return false; }
     // Shift or Control went down or up, so a preview may need to change.
     virtual void modifiersChanged() {}
+    // Another floor is shown now. A tool drops what it was doing on the old floor.
+    virtual void floorChanged() {}
     // The document changed. byTool is true while this tool's own command is running.
     virtual void documentChanged(unsigned changes) { Q_UNUSED(changes); }
     // Draws previews over the plan. The painter works in canvas pixels.

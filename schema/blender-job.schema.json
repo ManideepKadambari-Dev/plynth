@@ -17,7 +17,30 @@
   "allOf": [
     {
       "if": { "properties": { "task": { "const": "probe" } } },
-      "then": { "properties": { "params": { "type": "object", "additionalProperties": false, "properties": {} } } }
+      "then": {
+        "properties": {
+          "params": {
+            "description": "Read the saved add-on state as data. The probe always runs with factory startup in Plynth's private folder.",
+            "type": "object",
+            "required": ["user_folders"],
+            "additionalProperties": false,
+            "properties": {
+              "user_folders": {
+                "description": "The user's own Blender folders, absolute paths. They are only read and need not exist. There are no defaults.",
+                "type": "object",
+                "required": ["config", "scripts", "extensions", "blenderkit_data"],
+                "additionalProperties": false,
+                "properties": {
+                  "config": { "type": "string", "pattern": "^([A-Za-z]:/|/)" },
+                  "scripts": { "type": "string", "pattern": "^([A-Za-z]:/|/)" },
+                  "extensions": { "type": "string", "pattern": "^([A-Za-z]:/|/)" },
+                  "blenderkit_data": { "type": "string", "pattern": "^([A-Za-z]:/|/)" }
+                }
+              }
+            }
+          }
+        }
+      }
     },
     {
       "if": { "properties": { "task": { "const": "cleanup_asset" } } },
@@ -75,7 +98,7 @@
           "params": {
             "description": "Everything the build needs. plan is plan.json as saved; floors holds the shapes core worked out from it (core/include/plynth/core/BuildGeometry.h). All positions are Blender world coordinates in metres: X = plan x, Y = -plan y, Z up from the first floor's level. Outer rings run anticlockwise seen from above, holes clockwise, the first point not repeated.",
             "type": "object",
-            "required": ["project", "output_folder", "blend_file", "fbx_file", "materials_file", "textures_folder", "preview_textures_folder", "preview_texture_size", "plan", "settings", "assets", "materials", "slots", "floors"],
+            "required": ["project", "output_folder", "blend_file", "fbx_file", "materials_file", "textures_folder", "preview_folder", "preview_textures_folder", "preview_texture_size", "plan", "settings", "assets", "materials", "slots", "generators", "floors"],
             "additionalProperties": false,
             "properties": {
               "project": {
@@ -92,6 +115,7 @@
               "fbx_file": { "description": "The FBX the 3D preview loads, or null for none.", "enum": ["building.fbx", null] },
               "materials_file": { "description": "Written with the FBX into output_folder (schema/build-materials.schema.json): the images of every channel of each built material, for the 3D preview. null exactly when fbx_file is null.", "enum": ["materials.json", null] },
               "textures_folder": { "description": "The folder in output_folder for the constant images of the neutral looks.", "const": "textures" },
+              "preview_folder": { "description": "The folder in output_folder for the preview parts: one FBX per floor, one for the slab above it and one for its roofs, and parts.json (schema/build-preview.schema.json). null exactly when fbx_file is null.", "enum": ["preview", null] },
               "preview_textures_folder": { "description": "The folder in output_folder for scaled copies of images larger than preview_texture_size, which building.fbx and materials.json use instead. building.blend keeps the full size images.", "const": "preview_textures" },
               "preview_texture_size": { "description": "The longest side of an image the 3D preview loads.", "const": 1024 },
               "plan": { "description": "plan.json as saved, schema/plan.schema.json.", "type": "object" },
@@ -173,7 +197,21 @@
                   }
                 }
               },
-              "floors": { "type": "array", "items": { "$ref": "#/definitions/buildFloor" } }
+              "floors": { "type": "array", "items": { "$ref": "#/definitions/buildFloor" } },
+              "generators": {
+                "description": "Each generator file a built generator item uses, once, sorted by id (core/include/plynth/core/GeneratorBuild.h). Empty when there are none.",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["id", "file", "addons"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": { "$ref": "#/definitions/catalogId" },
+                    "file": { "description": "Absolute path of the .py file in Library/generators.", "type": "string", "minLength": 1 },
+                    "addons": { "description": "Short module names of the add-ons it needs.", "type": "array", "items": { "$ref": "#/definitions/catalogId" } }
+                  }
+                }
+              }
             }
           }
         }
@@ -372,27 +410,32 @@
     },
     "surfaceName": {
       "description": "The neutral surface whose look a slot gets when it has no material.",
-      "enum": ["Wall_Inside", "Wall_Outside", "Wall_Top", "Reveal", "Threshold", "Floor", "Ceiling", "Door", "Frame", "Glass", "Handle"]
+      "enum": ["Wall_Inside", "Wall_Outside", "Wall_Top", "Reveal", "Threshold", "Floor", "Ceiling", "Door", "Frame", "Glass", "Handle", "Stair", "Roof", "Flat_Roof", "Soffit", "Fascia", "Generated"]
     },
     "collisionShape": {
-      "description": "Convex pieces for one built object (core/include/plynth/core/Collision.h). Each piece becomes a closed convex mesh UCX_<object name>_<NN>, numbered from 00 in this order.",
+      "description": "Convex pieces and hulls for one built object (core/include/plynth/core/Collision.h). Each becomes a closed convex mesh UCX_<object name>_<NN>, numbered from 00 over the pieces and then the hulls.",
       "type": "object",
-      "required": ["target", "pieces"],
+      "required": ["target", "pieces", "index", "hulls"],
       "additionalProperties": false,
       "properties": {
         "target": {
-          "description": "The built object: the one whose plynth_kind is kind and plynth_id is id (the floor for walls and thresholds, the room for floor and ceiling).",
+          "description": "The built object: the one whose plynth_kind is kind and plynth_id is id (the floor for walls, thresholds, slab and roof, the room for floor and ceiling, the stair for stair). For a roof also the one whose plynth_roof_index is index.",
           "type": "object",
           "required": ["kind", "id"],
           "additionalProperties": false,
           "properties": {
-            "kind": { "enum": ["walls", "floor", "ceiling", "thresholds"] },
+            "kind": { "enum": ["walls", "floor", "ceiling", "thresholds", "slab", "stair", "roof"] },
             "id": { "$ref": "#/definitions/planId" }
           }
         },
+        "index": { "description": "The roof's index for a roof, 0 otherwise.", "type": "integer", "minimum": 0 },
+        "hulls": {
+          "description": "Point sets in world X, Y and Z; the build makes the convex hull of each. Only roofs have any.",
+          "type": "array",
+          "items": { "type": "array", "minItems": 4, "items": { "$ref": "#/definitions/xyz" } }
+        },
         "pieces": {
           "type": "array",
-          "minItems": 1,
           "items": {
             "type": "object",
             "required": ["outline", "bottom", "top"],
@@ -404,7 +447,10 @@
             }
           }
         }
-      }
+      },
+      "if": { "properties": { "target": { "properties": { "kind": { "const": "roof" } } } } },
+      "then": { "properties": { "hulls": { "minItems": 1 } } },
+      "else": { "properties": { "pieces": { "minItems": 1 }, "index": { "const": 0 }, "hulls": { "maxItems": 0 } } }
     },
     "tileSize": {
       "description": "The real world size of one tile in metres: width along U, height along V.",
@@ -421,6 +467,16 @@
     "xy": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
     "xyz": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
     "points": { "type": "array", "minItems": 3, "items": { "$ref": "#/definitions/xy" } },
+    "polygon": {
+      "type": "object",
+      "required": ["outline", "holes"],
+      "additionalProperties": false,
+      "properties": {
+        "outline": { "$ref": "#/definitions/points" },
+        "holes": { "type": "array", "items": { "$ref": "#/definitions/points" } }
+      }
+    },
+    "slabSides": { "type": "array", "minItems": 3, "items": { "enum": ["edge", "well"] } },
     "wallRing": {
       "description": "A ring of a wall solid. edges[i] is the side face standing on the edge from points[i] to points[i + 1], the last back to the first. The solid is to the left of each edge seen from above.",
       "type": "object",
@@ -448,7 +504,7 @@
     },
     "buildFloor": {
       "type": "object",
-      "required": ["id", "elevation", "ceiling_height", "wall_solids", "openings", "rooms", "items", "collision"],
+      "required": ["id", "elevation", "ceiling_height", "wall_solids", "openings", "rooms", "items", "slab", "stairs", "roofs", "collision", "generator_items"],
       "additionalProperties": false,
       "properties": {
         "id": { "$ref": "#/definitions/planId" },
@@ -476,7 +532,7 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["id", "type", "area", "floor_z", "ceiling_z", "floor_material", "ceiling_material", "floor_slot", "ceiling_slot", "polygons"],
+            "required": ["id", "type", "area", "floor_z", "ceiling_z", "floor_material", "ceiling_material", "floor_slot", "ceiling_slot", "polygons", "ceiling_polygons"],
             "additionalProperties": false,
             "properties": {
               "id": { "$ref": "#/definitions/planId" },
@@ -489,14 +545,128 @@
               "floor_z": { "type": "number" },
               "ceiling_z": { "type": "number" },
               "polygons": {
+                "description": "The floor face: the room's floor area minus the holes of stairs arriving from the floor below.",
+                "type": "array",
+                "items": { "$ref": "#/definitions/polygon" }
+              },
+              "ceiling_polygons": {
+                "description": "The ceiling face: the room's floor area minus the holes of stairs that climb from this floor.",
+                "type": "array",
+                "items": { "$ref": "#/definitions/polygon" }
+              }
+            }
+          }
+        },
+        "slab": {
+          "description": "The slab above the floor (core/include/plynth/core/Storeys.h). Side faces on every ring of polygons from bottom to top, each edge or well as sides says; bottom faces only for undersides; top faces only for tops. Object SM_<floor>_Slab, plynth_kind slab.",
+          "type": "object",
+          "required": ["bottom", "top", "polygons", "undersides", "sides", "tops", "materials", "slots"],
+          "additionalProperties": false,
+          "properties": {
+            "bottom": { "type": "number" },
+            "top": { "type": "number" },
+            "polygons": { "type": "array", "items": { "$ref": "#/definitions/polygon" } },
+            "undersides": { "type": "array", "items": { "$ref": "#/definitions/polygon" } },
+            "sides": {
+              "description": "One entry per polygon, in the same order. outline[i] is the side face on the edge from point i of the outline to the next, the last back to the first; holes[h][i] the same on hole h. edge: the outside band, also round a courtyard. well: the side of a stair well, also where it is part of the outline.",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["outline", "holes"],
+                "additionalProperties": false,
+                "properties": {
+                  "outline": { "$ref": "#/definitions/slabSides" },
+                  "holes": { "type": "array", "items": { "$ref": "#/definitions/slabSides" } }
+                }
+              }
+            },
+            "tops": {
+              "description": "The ledges too narrow for a roof section: faces at top, facing up, with the edge material.",
+              "type": "array",
+              "items": { "$ref": "#/definitions/polygon" }
+            },
+            "materials": {
+              "description": "Neutral surfaces when null: edge Wall_Outside, well Wall_Inside, underside Soffit.",
+              "type": "object",
+              "required": ["edge", "well", "underside"],
+              "additionalProperties": false,
+              "properties": {
+                "edge": { "$ref": "#/definitions/materialRef" },
+                "well": { "$ref": "#/definitions/materialRef" },
+                "underside": { "$ref": "#/definitions/materialRef" }
+              }
+            },
+            "slots": {
+              "description": "The slot of each part: edge (and the ledge tops) Exterior_Wall, well Stair_Well, underside Soffit, or the same with the material added (MaterialSlots.h).",
+              "type": "object",
+              "required": ["edge", "well", "underside"],
+              "additionalProperties": false,
+              "properties": {
+                "edge": { "$ref": "#/definitions/slotRef" },
+                "well": { "$ref": "#/definitions/slotRef" },
+                "underside": { "$ref": "#/definitions/slotRef" }
+              }
+            }
+          }
+        },
+        "stairs": {
+          "description": "Stairs that climb from this floor and can be built (core/include/plynth/core/Stairs.h). Object SM_<floor>_<stair>_Stair, plynth_kind stair; each step a closed prism. Neutral surface Stair.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "type", "to_floor", "rise", "riser_count", "riser", "material", "slot", "steps", "hole"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "$ref": "#/definitions/planId" },
+              "type": { "type": "string", "minLength": 1 },
+              "to_floor": { "$ref": "#/definitions/planId" },
+              "rise": { "type": "number", "exclusiveMinimum": 0 },
+              "riser_count": { "type": "integer", "minimum": 2 },
+              "riser": { "type": "number", "exclusiveMinimum": 0 },
+              "material": { "$ref": "#/definitions/materialRef" },
+              "slot": { "description": "Stair, or the same with the material added.", "$ref": "#/definitions/slotRef" },
+              "steps": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": ["part", "outline", "bottom", "top"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "part": { "enum": ["step", "landing", "column"] },
+                    "outline": { "description": "Convex, anticlockwise.", "$ref": "#/definitions/points" },
+                    "bottom": { "type": "number" },
+                    "top": { "type": "number" }
+                  }
+                }
+              },
+              "hole": { "description": "The footprint cut through the slab and the rooms above.", "$ref": "#/definitions/polygon" }
+            }
+          }
+        },
+        "roofs": {
+          "description": "The floor's roof sections (core/include/plynth/core/Roofs.h), each finished faces. Object SM_<floor>_Roof_<NN>, NN the index from 00, plynth_kind roof. Neutral surfaces when null: covering Roof for pitched types and Flat_Roof for flat, underside Soffit, edge Fascia, gable and parapet Wall_Outside, glazing Glass.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["index", "section", "type", "faces"],
+            "additionalProperties": false,
+            "properties": {
+              "index": { "type": "integer", "minimum": 0 },
+              "section": { "description": "The roof section entry that applies, or null for the plan's default.", "oneOf": [{ "$ref": "#/definitions/planId" }, { "type": "null" }] },
+              "type": { "description": "The roof type built.", "type": "string", "minLength": 1 },
+              "faces": {
                 "type": "array",
                 "items": {
                   "type": "object",
-                  "required": ["outline", "holes"],
+                  "required": ["part", "outline", "holes", "material", "slot"],
                   "additionalProperties": false,
                   "properties": {
-                    "outline": { "$ref": "#/definitions/points" },
-                    "holes": { "type": "array", "items": { "$ref": "#/definitions/points" } }
+                    "part": { "enum": ["covering", "underside", "edge", "gable", "parapet", "glazing"] },
+                    "outline": { "description": "Planar, anticlockwise seen from the side the face looks toward.", "type": "array", "minItems": 3, "items": { "$ref": "#/definitions/xyz" } },
+                    "holes": { "type": "array", "items": { "type": "array", "minItems": 3, "items": { "$ref": "#/definitions/xyz" } } },
+                    "material": { "$ref": "#/definitions/materialRef" },
+                    "slot": { "description": "covering Roof, or Flat_Roof for a flat roof; underside Soffit; edge Fascia; gable and parapet Exterior_Wall; glazing Glass; or the same with the material added.", "$ref": "#/definitions/slotRef" }
                   }
                 }
               }
@@ -530,9 +700,51 @@
           }
         },
         "collision": {
-          "description": "The floor's collision pieces: walls first, then each room's floor and ceiling, then the thresholds. Items get a convex hull made by the build and are not listed.",
+          "description": "The floor's collision: walls first, then each room's floor and ceiling, then the thresholds, the slab, the stairs and the roofs. Items and generator items get a convex hull made by the build and are not listed.",
           "type": "array",
           "items": { "$ref": "#/definitions/collisionShape" }
+        },
+        "generator_items": {
+          "description": "Items that run a generator of the job's generators list, in the floor's item order. Empty when there are none.",
+          "type": "array",
+          "items": { "$ref": "#/definitions/buildGeneratorItem" }
+        }
+      }
+    },
+    "buildGeneratorItem": {
+      "description": "The worker calls the generator's generate(gen) with these values, joins the meshes it returns into SM_<generator>_<id> and places it like an item: its bottom centre at location, turned by rotation_z.",
+      "type": "object",
+      "required": ["id", "generator", "params", "location", "rotation_z", "size", "room", "wall", "slots"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/definitions/planId" },
+        "generator": { "$ref": "#/definitions/catalogId" },
+        "params": {
+          "description": "Every declared parameter, after core fitted them to the declaration. Numbers in metres or degrees. A material value is the id of an entry of the job's materials list, or null for the neutral look Generated.",
+          "type": "object",
+          "propertyNames": { "$ref": "#/definitions/catalogId" },
+          "additionalProperties": { "type": ["number", "boolean", "string", "null"] }
+        },
+        "location": { "description": "Where the result's bottom centre goes.", "$ref": "#/definitions/xyz" },
+        "rotation_z": { "description": "Radians about Z: minus the plan rotation.", "type": "number" },
+        "size": {
+          "description": "The size the declaration gives for these values; the worker warns generator_size when the result reaches more than 1 cm past it.",
+          "type": "object",
+          "required": ["width", "depth", "height"],
+          "additionalProperties": false,
+          "properties": {
+            "width": { "type": "number", "exclusiveMinimum": 0 },
+            "depth": { "type": "number", "exclusiveMinimum": 0 },
+            "height": { "type": "number", "exclusiveMinimum": 0 }
+          }
+        },
+        "room": { "oneOf": [{ "$ref": "#/definitions/planId" }, { "type": "null" }] },
+        "wall": { "oneOf": [{ "$ref": "#/definitions/planId" }, { "type": "null" }] },
+        "slots": {
+          "description": "One slot per material parameter: the parameter id to the name of an entry of the build's slots list.",
+          "type": "object",
+          "propertyNames": { "$ref": "#/definitions/catalogId" },
+          "additionalProperties": { "$ref": "#/definitions/slotRef" }
         }
       }
     },

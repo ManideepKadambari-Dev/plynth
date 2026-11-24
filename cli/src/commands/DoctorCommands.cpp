@@ -23,11 +23,11 @@ Answer doctor(const RunContext& context, const DoctorOptions& options) {
     if (!loaded.status.ok()) {
         return failure(command, loaded.status);
     }
-    MachineSettings settings = loaded.settings;
-    if (!options.blender.empty()) {
-        settings.blender = userPath(context, options.blender);
-    }
+    const MachineSettings& settings = loaded.settings;
     SetupCheckOptions check;
+    if (!options.blender.empty()) {
+        check.blender = userPath(context, options.blender);
+    }
     check.probeAddons = !options.noAddons;
     check.settingsExist = loaded.exists;
     const SetupReport report = runSetupCheck(settings, check);
@@ -43,8 +43,15 @@ std::vector<CommandSpec> doctorCommands() {
     spec.setup = [](CLI::App& sub) -> Handler {
         auto options = std::make_shared<DoctorOptions>();
         sub.add_flag("--no-addons", options->noAddons, "Do not ask Blender about its add-ons.");
-        sub.add_option("--blender", options->blender, "Check this blender.exe as the chosen one.")
-            ->type_name("file");
+        sub.add_option("--blender", options->blender, "Check only this blender.exe. It beats PLYNTH_BLENDER and the saved path.")
+            ->type_name("file")
+            ->check(CLI::Validator(
+                [](std::string& value) {
+                    return value.empty()
+                               ? std::string("The Blender path is empty. Give the path of blender.exe or leave the option out.")
+                               : std::string();
+                },
+                "", "NotEmpty"));
         return [options](const RunContext& context) { return doctor(context, *options); };
     };
     return {spec};

@@ -20,6 +20,8 @@ add_executable(plynth WIN32
     src/catalog/LibraryWatcher.cpp
     src/canvas/OpeningPaint.h
     src/canvas/OpeningPaint.cpp
+    src/canvas/StairPaint.h
+    src/canvas/StairPaint.cpp
     src/canvas/OverlayBuilder.h
     src/canvas/OverlayBuilder.cpp
     src/canvas/OverlayOpenings.cpp
@@ -47,12 +49,16 @@ add_executable(plynth WIN32
     src/materials/MaterialRow.cpp
     src/furniture/AssetPreview.h
     src/furniture/AssetPreview.cpp
+    src/furniture/GeneratorPreview.h
+    src/furniture/GeneratorPreview.cpp
     src/furniture/FurniturePicker.h
     src/furniture/FurniturePicker.cpp
     src/dialogs/RoomTypesDialog.h
     src/dialogs/RoomTypesDialog.cpp
     src/dialogs/ScaleDialog.h
     src/dialogs/ScaleDialog.cpp
+    src/document/FloorFocus.h
+    src/document/FloorFocus.cpp
     src/document/Selection.h
     src/document/Selection.cpp
     src/document/DocumentBridge.h
@@ -95,6 +101,8 @@ add_executable(plynth WIN32
     src/tools/RoomTool.cpp
     src/tools/ScaleTool.h
     src/tools/ScaleTool.cpp
+    src/tools/StairTool.h
+    src/tools/StairTool.cpp
     src/tools/SelectTool.h
     src/tools/SelectTool.cpp
     src/tools/Tool.h
@@ -116,6 +124,8 @@ add_executable(plynth WIN32
     src/wallview/WallView.cpp
     src/wallview/WallViewData.h
     src/wallview/WallViewData.cpp
+    src/window/FloorTabs.h
+    src/window/FloorTabs.cpp
     src/window/BuildBar.h
     src/window/BuildBar.cpp
     src/window/MainWindow.h

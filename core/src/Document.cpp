@@ -33,7 +33,9 @@ Status readOnlyStatus(const std::string& reason)
 unsigned floorDifference(const Floor& a, const Floor& b)
 {
     unsigned flags = 0;
-    if (a.image != b.image) flags |= Change::FloorImage;
+    if (a.image != b.image || a.imageOffset != b.imageOffset) flags |= Change::FloorImage;
+    if (a.slabThickness != b.slabThickness) flags |= Change::Floors;
+    if (a.stairs != b.stairs) flags |= Change::Stairs;
     if (a.points != b.points) flags |= Change::Points;
     if (a.walls != b.walls) flags |= Change::Walls;
     if (a.rooms != b.rooms) flags |= Change::Rooms;
@@ -46,7 +48,8 @@ unsigned floorDifference(const Floor& a, const Floor& b)
 unsigned floorContent(const Floor& f)
 {
     unsigned flags = 0;
-    if (f.image) flags |= Change::FloorImage;
+    if (f.image || f.imageOffset != ImageOffset{}) flags |= Change::FloorImage;
+    if (!f.stairs.empty()) flags |= Change::Stairs;
     if (!f.points.empty()) flags |= Change::Points;
     if (!f.walls.empty()) flags |= Change::Walls;
     if (!f.rooms.empty()) flags |= Change::Rooms;
@@ -62,12 +65,14 @@ unsigned projectDifference(const Project& before, const Project& after, Id& only
     unsigned flags = 0;
     if (before.settings != after.settings) flags |= Change::Settings;
     if (before.plan.scale != after.plan.scale) flags |= Change::Scale;
+    if (before.plan.roof != after.plan.roof || before.plan.roofSections != after.plan.roofSections) flags |= Change::Roofs;
 
     const auto& a = before.plan.floors;
     const auto& b = after.plan.floors;
     bool sameFloors = a.size() == b.size();
     for (std::size_t i = 0; sameFloors && i < a.size(); ++i) {
-        sameFloors = a[i].id == b[i].id && a[i].name == b[i].name && a[i].ceilingHeight == b[i].ceilingHeight;
+        sameFloors = a[i].id == b[i].id && a[i].name == b[i].name && a[i].ceilingHeight == b[i].ceilingHeight &&
+                     a[i].slabThickness == b[i].slabThickness;
     }
     if (!sameFloors) flags |= Change::Floors;
 

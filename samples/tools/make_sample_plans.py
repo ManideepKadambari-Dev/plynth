@@ -505,6 +505,155 @@ def expected_02(boxes):
     return expected_dict("apartment-02.png", 80, points, walls, rooms, openings, boxes)
 
 
+HW, HH = 1800, 1300
+OUTER_T, INNER_T = 30, 12
+DIM_TOP, DIM_LEFT = 120, 400
+
+# The two floors of house-01, all in image pixels at 100 per metre. rect is the outer wall centre line box.
+# inner holds the inner wall centre lines already split at their junctions. rooms are centre line boxes.
+# gaps are (kind, axis, fixed coordinate, start, end, wall thickness) and doors add (hinge, toward the gap,
+# direction of the open leaf). The ground floor is 10 by 8 m. The upper floor covers all but the right 0.95 m of
+# it, which stays a one storey strip, and reaches 1 m past it at the back (the top of the image); the left and
+# front outer corners are the same pixels. The upper floor roofs the whole stair hall so the stair clears its walls.
+HOUSE = {
+    "ground": {
+        "image": "house-01-ground.png",
+        "rect": (515, 315, 1485, 1085),
+        "inner": [(1000, 315, 1000, 700), (1000, 700, 1000, 800), (1000, 800, 1000, 1085),
+                  (515, 800, 1000, 800), (1000, 700, 1485, 700)],
+        "rooms": [(515, 315, 1000, 800), (515, 800, 1000, 1085), (1000, 315, 1485, 700), (1000, 700, 1485, 1085)],
+        "gaps": [
+            ("window", "h", 315, 650, 850, OUTER_T), ("window", "h", 315, 1142, 1342, OUTER_T),
+            ("window", "v", 515, 450, 650, OUTER_T), ("window", "v", 515, 840, 1040, OUTER_T),
+            ("window", "v", 1485, 420, 580, OUTER_T), ("window", "v", 1485, 820, 980, OUTER_T),
+            ("window", "h", 1085, 600, 800, OUTER_T),
+            ("door", "h", 1085, 1200, 1290, OUTER_T, (1200, 1085), (1, 0), (0, -1)),
+            ("door", "h", 700, 1100, 1190, INNER_T, (1100, 700), (1, 0), (0, -1)),
+            ("door", "v", 1000, 900, 990, INNER_T, (1000, 990), (0, -1), (-1, 0)),
+            ("door", "h", 800, 700, 790, INNER_T, (700, 800), (1, 0), (0, -1)),
+            ("plain", "v", 1000, 400, 600, INNER_T),
+        ],
+        "frame": (500, 300, 1500, 1100),
+    },
+    "upper": {
+        "image": "house-01-upper.png",
+        "rect": (515, 215, 1390, 1085),
+        "inner": [(1000, 215, 1000, 500), (1000, 500, 1000, 660), (1000, 660, 1000, 1085),
+                  (515, 660, 1000, 660), (1000, 500, 1390, 500)],
+        "rooms": [(515, 215, 1000, 660), (515, 660, 1000, 1085), (1000, 215, 1390, 500), (1000, 500, 1390, 1085)],
+        "gaps": [
+            ("window", "h", 215, 650, 850, OUTER_T), ("window", "h", 215, 1040, 1120, OUTER_T),
+            ("window", "h", 215, 1200, 1300, OUTER_T),
+            ("window", "v", 515, 320, 520, OUTER_T), ("window", "v", 515, 770, 970, OUTER_T),
+            ("window", "h", 1085, 650, 850, OUTER_T), ("window", "h", 1085, 1100, 1300, OUTER_T),
+            ("window", "v", 1390, 320, 480, OUTER_T), ("window", "v", 1390, 720, 880, OUTER_T),
+            ("door", "v", 1000, 540, 630, INNER_T, (1000, 630), (0, -1), (-1, 0)),
+            ("door", "v", 1000, 900, 990, INNER_T, (1000, 990), (0, -1), (-1, 0)),
+            ("door", "h", 500, 1040, 1130, INNER_T, (1130, 500), (-1, 0), (0, -1)),
+        ],
+        "frame": (500, 200, 1405, 1100),
+    },
+}
+
+
+# Draws one floor of house-01.
+def build_house(level):
+    c = Canvas(HW, HH)
+    left, top, right, bottom = level["rect"]
+    half = OUTER_T // 2
+    c.rect(left - half, top - half, right + half, top + half)
+    c.rect(left - half, bottom - half, right + half, bottom + half)
+    c.rect(left - half, top - half, left + half, bottom + half)
+    c.rect(right - half, top - half, right + half, bottom + half)
+    for x0, y0, x1, y1 in level["inner"]:
+        q = INNER_T // 2
+        if x0 == x1:
+            c.rect(x0 - q, y0, x0 + q, y1)
+        else:
+            c.rect(x0, y0 - q, x1, y0 + q)
+    for gap in level["gaps"]:
+        kind, axis, at, a, b, t = gap[:6]
+        r = t // 2
+        if axis == "h":
+            c.rect(a, at - r, b, at + r, 255)
+            if kind == "window":
+                c.rect(a, at - r + 8, b, at - r + 10)
+                c.rect(a, at - r + 20, b, at - r + 22)
+                c.rect(a - 2, at - r, a, at + r)
+                c.rect(b, at - r, b + 2, at + r)
+        else:
+            c.rect(at - r, a, at + r, b, 255)
+            if kind == "window":
+                c.rect(at - r + 8, a, at - r + 10, b)
+                c.rect(at - r + 20, a, at - r + 22, b)
+                c.rect(at - r, a - 2, at + r, a)
+                c.rect(at - r, b, at + r, b + 2)
+        if kind == "door":
+            hinge, d, n = gap[6:]
+            door(c, hinge[0], hinge[1], d, n, b - a)
+    x0, y0, x1, y1 = level["frame"]
+    c.rect(x0, DIM_TOP, x1, DIM_TOP + 2)
+    c.rect(x0, DIM_TOP - 10, x0 + 2, DIM_TOP + 12)
+    c.rect(x1 - 2, DIM_TOP - 10, x1, DIM_TOP + 12)
+    c.rect(DIM_LEFT, y0, DIM_LEFT + 2, y1)
+    c.rect(DIM_LEFT - 10, y0, DIM_LEFT + 12, y0 + 2)
+    c.rect(DIM_LEFT - 10, y1 - 2, DIM_LEFT + 12, y1)
+    return c
+
+
+# Returns the box around the swing arc of a door that stays clear of its wall band.
+def arc_box(hinge, d, n, w, thickness):
+    near = thickness // 2 + 2
+    box = [0, 0, 0, 0]
+    for axis in (0, 1):
+        if n[axis] != 0:
+            start = hinge[axis] + n[axis] * near
+            end = hinge[axis] + n[axis] * (w + 2)
+        else:
+            start = hinge[axis] - 2 * d[axis]
+            end = hinge[axis] + d[axis] * (w + 2)
+        box[axis], box[axis + 2] = min(start, end), max(start, end)
+    return tuple(box)
+
+
+# Describes what detection should find in one floor of house-01, in image pixels.
+def expected_house(level):
+    left, top, right, bottom = level["rect"]
+    inner = level["inner"]
+    junctions = []
+    for x0, y0, x1, y1 in inner:
+        for p in ((x0, y0), (x1, y1)):
+            if p not in junctions:
+                junctions.append(p)
+    points = [(left, top), (right, top), (right, bottom), (left, bottom)]
+    points += [p for p in junctions if p not in points]
+    walls = []
+    edges = [((left, top), (right, top), 0), ((right, top), (right, bottom), 1),
+             ((left, bottom), (right, bottom), 0), ((left, top), (left, bottom), 1)]
+    for a, b, axis in edges:
+        stops = sorted({a[axis], b[axis]} | {p[axis] for p in junctions
+                                             if p[1 - axis] == a[1 - axis] and a[axis] < p[axis] < b[axis]})
+        for lo, hi in zip(stops, stops[1:]):
+            walls.append(((lo, a[1]) if axis == 0 else (a[0], lo), (hi, a[1]) if axis == 0 else (a[0], hi), OUTER_T))
+    walls += [((x0, y0), (x1, y1), INNER_T) for x0, y0, x1, y1 in inner]
+    rooms = [(((x0 + x1) // 2, (y0 + y1) // 2), (x1 - x0) * (y1 - y0)) for x0, y0, x1, y1 in level["rooms"]]
+    openings = []
+    frame = level["frame"]
+    not_walls = [("dimension_line", (frame[0] - 5, DIM_TOP - 15, frame[2] + 5, DIM_TOP + 15)),
+                 ("dimension_line", (DIM_LEFT - 15, frame[1] - 5, DIM_LEFT + 15, frame[3] + 5))]
+    for gap in level["gaps"]:
+        kind, axis, at, a, b, t = gap[:6]
+        mid = (a + b) // 2
+        entry = (kind, mid if axis == "h" else at, at if axis == "h" else mid, b - a)
+        if kind == "door":
+            hinge, d, n = gap[6:]
+            centre = (hinge[0] + d[0] * (b - a) / 2.0, hinge[1] + d[1] * (b - a) / 2.0)
+            entry = (kind, whole(centre[0]), whole(centre[1]), b - a, door_marks(hinge, d, n, b - a))
+            not_walls.append(("door_arc", arc_box(hinge, d, n, b - a, t)))
+        openings.append(entry)
+    return expected_dict(level["image"], 100, points, walls, rooms, openings, not_walls)
+
+
 # Returns the keyhole outline in the unit box: an ellipse on top of a tapered base, anticlockwise.
 def keyhole_outline():
     cx, cy, rx, ry = 0.5, 0.72, 0.5, 0.28
@@ -543,6 +692,10 @@ def main():
         ("apartment-02.png", c2.png_bytes()),
         ("apartment-02.expected.json", expected_json(expected_02(boxes)).encode("utf-8")),
     ]
+    for level in HOUSE.values():
+        outputs.append((level["image"], build_house(level).png_bytes()))
+        outputs.append((level["image"].replace(".png", ".expected.json"),
+                        expected_json(expected_house(level)).encode("utf-8")))
     shape_dir = os.path.normpath(os.path.join(out_dir, "..", "shapes"))
     os.makedirs(shape_dir, exist_ok=True)
     with open(os.path.join(shape_dir, "keyhole.shape.json"), "wb") as f:

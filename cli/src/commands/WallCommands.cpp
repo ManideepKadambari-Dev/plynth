@@ -200,6 +200,9 @@ Answer wallRemove(const RunContext& context, const RemoveOptions& options) {
     if (options.cascade) {
         return removeCascade("wall remove", "wall", context, options.project, options.id);
     }
+    if (auto refused = refuseStairId("wall remove", "wall", context, options.project, options.id)) {
+        return *refused;
+    }
     return edit(
         "wall remove", context, options.project,
         [&](const Plan&) { return std::make_unique<RemoveWallCommand>(options.id); },

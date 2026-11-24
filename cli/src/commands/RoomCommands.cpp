@@ -96,6 +96,9 @@ Answer roomSet(const RunContext& context, const SetOptions& options) {
 
 // Removes a room. Its walls stay.
 Answer roomRemove(const RunContext& context, const RemoveOptions& options) {
+    if (auto refused = refuseStairId("room remove", "room", context, options.project, options.id)) {
+        return *refused;
+    }
     return edit(
         "room remove", context, options.project,
         [&](const Plan&) { return std::make_unique<RemoveRoomCommand>(options.id); },

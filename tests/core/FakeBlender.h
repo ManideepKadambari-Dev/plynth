@@ -2,9 +2,12 @@
 
 #include "TestSupport.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <string>
+#include <vector>
 
 namespace plynth::test {
 
@@ -28,5 +31,62 @@ inline std::filesystem::path makeFakeScripts(const std::filesystem::path& folder
     std::ofstream(folder / "plynth_worker.py") << "# stand in for the worker\n";
     return folder;
 }
+
+// A made-up user for tests that start the fake Blender: APPDATA, USERPROFILE, the private Blender folder and
+// the five BLENDER_USER_ variables and the temporary folder all point into one temporary folder, and FAKE_BLENDER_USER_ROOT points at
+// the user folder, so a run that missed the private folder would show in the fingerprint. XDG_DATA_HOME is unset.
+struct IsolatedUser {
+    explicit IsolatedUser(const std::string& tag) : tmp(tag)
+    {
+        const std::filesystem::path root = tmp.path();
+        userRoot = root / "user";
+        for (const char* sub : {"user/config", "user/scripts", "user/extensions", "user/datafiles", "appdata", "profile", "private", "temp"}) {
+            std::filesystem::create_directories(root / sub);
+        }
+        const auto set = [&](const char* name, const std::filesystem::path& value) {
+            const std::u8string text = value.generic_u8string();
+            envs.push_back(std::make_unique<ScopedEnv>(name, std::string(text.begin(), text.end())));
+        };
+        tempFolder = root / "temp";
+        set("TMP", tempFolder);
+        set("TEMP", tempFolder);
+        set("APPDATA", root / "appdata");
+        set("USERPROFILE", root / "profile");
+        set("XDG_DATA_HOME", {});
+        set("PLYNTH_BLENDER_PRIVATE", root / "private");
+        set("BLENDER_USER_RESOURCES", userRoot);
+        set("BLENDER_USER_CONFIG", userRoot / "config");
+        set("BLENDER_USER_SCRIPTS", userRoot / "scripts");
+        set("BLENDER_USER_EXTENSIONS", userRoot / "extensions");
+        set("BLENDER_USER_DATAFILES", userRoot / "datafiles");
+        set("FAKE_BLENDER_USER_ROOT", userRoot);
+    }
+
+    // Everything under the folders a real run could touch: relative path, size and write time of each entry.
+    std::vector<std::string> fingerprint() const
+    {
+        std::vector<std::string> out;
+        for (const char* sub : {"user", "appdata", "profile"}) {
+            const std::filesystem::path base = tmp.path() / sub;
+            out.push_back(std::string(sub) + "/");
+            std::error_code ec;
+            for (const auto& entry : std::filesystem::recursive_directory_iterator(base, ec)) {
+                const std::u8string rel = entry.path().lexically_relative(tmp.path()).generic_u8string();
+                std::string line(rel.begin(), rel.end());
+                if (entry.is_regular_file(ec)) {
+                    line += "|" + std::to_string(entry.file_size(ec)) + "|" + std::to_string(entry.last_write_time(ec).time_since_epoch().count());
+                }
+                out.push_back(line);
+            }
+        }
+        std::sort(out.begin(), out.end());
+        return out;
+    }
+
+    TempDir tmp;
+    std::filesystem::path userRoot;
+    std::filesystem::path tempFolder; // where temp_directory_path() points, so work folders can be counted
+    std::vector<std::unique_ptr<ScopedEnv>> envs;
+};
 
 }

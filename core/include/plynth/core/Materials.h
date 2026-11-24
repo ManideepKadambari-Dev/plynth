@@ -1,8 +1,10 @@
 #pragma once
 
+#include "BuildGeometry.h"
 #include "MaterialDefaults.h"
 #include "Plan.h"
 #include "Project.h"
+#include "Roofs.h"
 
 #include <optional>
 #include <string>
@@ -23,6 +25,12 @@ namespace plynth {
 //   a doorway's threshold: the floor of the room on the door's swing side, then of the room on the other
 //   side, then the floor default
 //   door leaves, frames, glass and handles: their defaults
+//   a stair (every step, landing and column): stair.material, then the stair default
+//   a roof section's covering: the section entry's material, then the roof default for pitched types or the
+//   flat_roof default for a flat roof; its underside: the ceiling default; its edges: the wall_top default;
+//   its gable fills and parapet: the wall_outside default; sawtooth glazing: the glass default
+//   a slab's outer side faces: the wall_outside default; its stair well sides: the wall_inside default; its
+//   undersides (below an upper floor that reaches past the one below): the ceiling default
 // The ids are catalog material ids. Nothing here opens the library; the build reports ids it lacks.
 
 // Where a material came from.
@@ -31,6 +39,8 @@ enum class MaterialOrigin {
     Room,    // "room": the room names it
     Default, // "default": the project default for the surface
     None,    // "none": nothing names one; the build uses the neutral look
+    Stair,   // "stair": the stair names it
+    Roof,    // "roof": the roof section entry names it
 };
 
 std::string_view materialOriginName(MaterialOrigin origin);
@@ -80,10 +90,32 @@ struct OpeningMaterials {
 // The materials of one opening by the rules above. The opening's wall must be on the floor.
 OpeningMaterials openingMaterials(const Project& project, const Floor& floor, const Opening& opening);
 
+ResolvedMaterial stairMaterial(const Project& project, const Stair& stair);
+
+// The material of one part of a roof section by the rules above (from is the section entry's id for Roof).
+ResolvedMaterial roofPartMaterial(const Project& project, const RoofArea& area, RoofPart part);
+
+// The materials of a floor's slab by the rules above.
+struct SlabMaterials {
+    ResolvedMaterial edge;      // outer side faces
+    ResolvedMaterial well;      // side faces of stair holes
+    ResolvedMaterial underside; // faces below an upper floor that reaches past the floor below
+
+    bool operator==(const SlabMaterials&) const = default;
+};
+
+SlabMaterials slabMaterials(const Project& project);
+
 // Every material id the build of this project would use, sorted, without repeats: every wall face that looks
-// into a room or outside, every room's floor and ceiling, wall tops, and the opening materials, plus each set
-// project default. For "plynth material list" and the build's library check.
+// into a room or outside, every room's floor and ceiling, wall tops, the opening materials, every stair, every
+// roof section's parts and the slab materials, plus each set project default. For "plynth material list" and
+// the build's library check.
 std::vector<std::string> materialsUsed(const Project& project);
+
+struct GeneratorLibrary; // Generators.h
+
+// The same, plus the materials of generator items, found with the library's declarations.
+std::vector<std::string> materialsUsed(const Project& project, const GeneratorLibrary& generators);
 
 // The two faces of a wall a material can be set on.
 enum class WallFace { Inside, Outside };
@@ -100,11 +132,12 @@ std::string_view roomSurfaceName(RoomSurface surface);
 std::optional<RoomSurface> roomSurfaceFromName(std::string_view name);
 
 // A place a material can be set, as the CLI writes it: "w12.inside", "w12.outside", "r3.floor", "r3.wall",
-// "r3.ceiling" or "default.<surface>" such as "default.wall_outside". For a room, the part before the dot may
-// also be a room type when exactly one room of the plan has it ("hall.floor").
+// "r3.ceiling", "default.<surface>" such as "default.wall_outside", a stair id such as "s2" (its steps), or a
+// roof section entry id such as "rf1" (its covering). For a room, the part before the dot may also be a room
+// type when exactly one room of the plan has it ("hall.floor").
 struct MaterialTarget {
-    enum class Kind { Wall, Room, Default } kind = Kind::Wall;
-    Id object;                          // the wall or room id; empty for Default
+    enum class Kind { Wall, Room, Default, Stair, Roof } kind = Kind::Wall;
+    Id object;                          // the wall, room, stair or roof section entry id; empty for Default
     WallFace wallFace = WallFace::Inside;
     RoomSurface roomSurface = RoomSurface::Floor;
     Surface surface = Surface::WallInside;

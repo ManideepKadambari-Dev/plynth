@@ -14,8 +14,10 @@ namespace plynth {
 
 // Detection finds walls, rooms and openings in a plan image and returns them as proposals. Proposals are
 // not part of the plan: they are shown, listed and then accepted with ApplyDetectionCommand, which turns
-// them into ordinary points, walls, openings and rooms. All lengths are in metres and positions in plan
-// coordinates (see Plan.h), so image pixel (px, py) is at (px / pixelsPerMetre, py / pixelsPerMetre).
+// them into ordinary points, walls, openings and rooms. All lengths are in metres. A detected result measures
+// positions from the image's top left corner, so pixel (px, py) is at (px / pixelsPerMetre, py / pixelsPerMetre).
+// proposalsOnPlan gives the same proposals in plan coordinates (see Plan.h): use that copy to compare, show
+// and list, and give the detected result to ApplyDetectionCommand.
 
 inline constexpr double kDefaultMinWallThickness = 0.08;
 inline constexpr double kDefaultMaxWallThickness = 0.5;
@@ -118,7 +120,13 @@ Status checkDetectionResult(const DetectionResult& result);
 // made of the proposals, in its stable order. States are New until markExisting runs.
 void proposeRooms(DetectionResult& result);
 
-// Sets the state of every proposed wall, opening and room against what the floor has now.
+// A copy of a detected result in plan coordinates: every point, room ring and room inside position moved by the
+// floor's image offset, as imageToPlan does. Lengths, areas, states and everything else stay. The only place
+// this shift is worked out. Give it a detected result, never one it has already moved.
+DetectionResult proposalsOnPlan(const Floor& floor, DetectionResult detected);
+
+// Sets the state of every proposed wall, opening and room against what the floor has now. The result is in
+// plan coordinates (proposalsOnPlan).
 // A wall is checked at places every 0.05 m along it, leaving out one tolerance at each end, or at its middle
 // when it is shorter. A place is covered when it lies within the tolerance of an existing straight wall
 // running the same way (within 5 degrees). The tolerance is half the larger of the two thicknesses, and at

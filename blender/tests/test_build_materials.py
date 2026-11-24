@@ -115,7 +115,8 @@ class WallMaterialTests(MaterialBuildTest):
                                      entries=[self.make_material("paint_a"), self.make_material("paint_b")])
         self.assertEqual([(s["name"], s["material"]) for s in params["slots"]],
                          [("Exterior_Wall", None), ("Living_Ceiling", None), ("Living_Floor", None),
-                          ("Living_Wall", "paint_a"), ("Wall_Top", "paint_b")])
+                          ("Living_Wall", "paint_a"), ("Soffit", None), ("Stair_Well", None),
+                          ("Wall_Top", "paint_b")])
         job = {"format": "plynth-blender-job", "version": 1, "task": "build", "job_id": "x",
                "result_file": "r.json", "params": params}
         self.assertEqual(validate(job, load_schema("blender-job")), [])
@@ -261,7 +262,7 @@ class MaterialNodeTests(MaterialBuildTest):
                    self.make_material("paint_b", opacity=True, occlusion=False)]
         self.build_open(self.with_materials(inside="paint_a", outside="paint_b", entries=entries))
         a = bpy.data.materials["Living_Wall"]
-        b = bpy.data.materials["Exterior_Wall"]
+        b = bpy.data.materials["Exterior_Wall_PaintB"]
         nodes_a = {n.label: n for n in a.node_tree.nodes if n.type == "TEX_IMAGE"}
         nodes_b = {n.label: n for n in b.node_tree.nodes if n.type == "TEX_IMAGE"}
         self.assertEqual(sorted(nodes_a), ["base_color", "metallic", "normal", "occlusion", "roughness"])

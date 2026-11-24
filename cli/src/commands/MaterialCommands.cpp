@@ -1,10 +1,14 @@
 #include "../CatalogCommon.h"
 #include "../Common.h"
 
+#include <plynth/core/Generators.h>
 #include <plynth/core/MaterialDefaults.h>
 #include <plynth/core/Materials.h>
 #include <plynth/core/Plan.h>
 #include <plynth/core/commands/MaterialCommands.h>
+#include <plynth/core/commands/RoofCommands.h>
+#include <plynth/core/Roofs.h>
+#include <plynth/core/commands/StairCommands.h>
 
 #include <memory>
 #include <optional>
@@ -73,18 +77,46 @@ std::optional<std::string> markedMaterial(const Project& project, const Material
         case RoomSurface::Ceiling:
             return room->ceilingMaterial;
         }
+        break;
+    }
+    case MaterialTarget::Kind::Stair: {
+        for (const Floor& floor : project.plan.floors) {
+            if (const Stair* stair = findStair(floor, target.object)) {
+                return stair->material;
+            }
+        }
+        return std::nullopt;
+    }
+    case MaterialTarget::Kind::Roof: {
+        const RoofSection* entry = findRoofSection(project.plan, target.object);
+        return entry ? entry->material : std::nullopt;
     }
     }
     return std::nullopt;
 }
 
 // The command that sets a target.
-std::unique_ptr<Command> makeSetCommand(const MaterialTarget& target, std::optional<std::string> material) {
+std::unique_ptr<Command> makeSetCommand(const Plan& plan, const MaterialTarget& target,
+                                        std::optional<std::string> material) {
     switch (target.kind) {
     case MaterialTarget::Kind::Default:
         return std::make_unique<SetDefaultMaterialCommand>(target.surface, std::move(material));
     case MaterialTarget::Kind::Wall:
         return std::make_unique<SetWallMaterialCommand>(target.object, target.wallFace, std::move(material));
+    case MaterialTarget::Kind::Stair:
+        for (const Floor& floor : plan.floors) {
+            if (const Stair* stair = findStair(floor, target.object)) {
+                Stair values = *stair;
+                values.material = std::move(material);
+                return std::make_unique<SetStairCommand>(target.object, std::move(values));
+            }
+        }
+        break;
+    case MaterialTarget::Kind::Roof:
+        if (const RoofSection* entry = findRoofSection(plan, target.object)) {
+            return std::make_unique<SetRoofSectionCommand>(target.object, entry->settings, std::move(material));
+        }
+        break;
     case MaterialTarget::Kind::Room:
         break;
     }
@@ -118,7 +150,7 @@ Answer materialSet(const RunContext& context, const SetOptions& options) {
         }
         const std::optional<std::string> previous = markedMaterial(document.project(), parsed.target);
         Answer failed;
-        if (!runCommand(name, document, makeSetCommand(parsed.target, material), failed)) {
+        if (!runCommand(name, document, makeSetCommand(document.plan(), parsed.target, material), failed)) {
             return failed;
         }
         Json result = Json::object();
@@ -197,11 +229,33 @@ Answer materialList(const RunContext& context, const ListOptions& options) {
             rooms.push_back(std::move(entry));
         }
     }
+    Json stairs = Json::array();
+    for (const Floor& floor : project.plan.floors) {
+        for (const Stair& stair : floor.stairs) {
+            Json entry = Json::object();
+            entry["id"] = stair.id;
+            entry["floor"] = floor.id;
+            entry["material"] = resolvedJson(stairMaterial(project, stair));
+            stairs.push_back(std::move(entry));
+        }
+    }
+    Json roofs = Json::array();
+    for (const RoofArea& area : roofAreas(project.plan)) {
+        Json entry = Json::object();
+        entry["floor"] = area.floor;
+        entry["index"] = area.index;
+        entry["section"] = area.section.empty() ? Json(nullptr) : Json(area.section);
+        entry["material"] = resolvedJson(roofPartMaterial(project, area, RoofPart::Covering));
+        roofs.push_back(std::move(entry));
+    }
     Json result = Json::object();
     result["defaults"] = defaultsJson(project.settings.materials);
     result["walls"] = std::move(walls);
     result["rooms"] = std::move(rooms);
-    const std::vector<std::string> used = materialsUsed(project);
+    result["stairs"] = std::move(stairs);
+    result["roofs"] = std::move(roofs);
+    const std::vector<std::string> used =
+        haveLibrary ? materialsUsed(project, loadGeneratorFolder(opened.paths.generators)) : materialsUsed(project);
     Json missing = Json::array();
     if (haveLibrary) {
         for (const std::string& id : used) {
@@ -224,7 +278,7 @@ std::vector<CommandSpec> materialCommands() {
     CommandSpec set;
     set.words = {"material", "set"};
     set.description = "Set or clear the material of a wall face, a room surface or a project default. "
-                      "Targets: w3.inside, w3.outside, r1.floor, r1.wall, r1.ceiling, hall.floor, "
+                      "Targets: w3.inside, w3.outside, r1.floor, r1.wall, r1.ceiling, s1, rf1, hall.floor, "
                       "default.wall_outside.";
     set.setup = [](CLI::App& sub) -> Handler {
         auto options = std::make_shared<SetOptions>();
@@ -237,8 +291,8 @@ std::vector<CommandSpec> materialCommands() {
 
     CommandSpec list;
     list.words = {"material", "list"};
-    list.description = "List the default materials, the material of every wall face and room surface, and the "
-                       "materials in use.";
+    list.description = "List the default materials, the material of every wall face, room surface, stair and "
+                       "roof section, and the materials in use.";
     list.setup = [](CLI::App& sub) -> Handler {
         auto options = std::make_shared<ListOptions>();
         addProjectOption(sub, options->project);

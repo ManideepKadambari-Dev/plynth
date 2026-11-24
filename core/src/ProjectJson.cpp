@@ -4,11 +4,13 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <initializer_list>
 #include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace plynth {
@@ -183,13 +185,42 @@ Opening readOpening(const Json& j, const std::string& where)
     return o;
 }
 
+// Reads the generator of an item.
+GeneratorUse readGeneratorUse(const Json& j, const std::string& where)
+{
+    expectObject(j, where, {"name", "params"});
+    GeneratorUse g;
+    g.name = getString(j, "name", where);
+    auto pit = j.find("params");
+    if (pit == j.end()) refuse("The field \"params\" is missing.", child(where, "params"));
+    const std::string at = child(where, "params");
+    if (!pit->is_object()) refuse("This value must be an object.", at);
+    for (auto it = pit->begin(); it != pit->end(); ++it) {
+        const std::string vat = child(at, it.key());
+        GeneratorParamValue v;
+        v.id = it.key();
+        if (it->is_number()) v.value = GeneratorValue{numberAt(*it, vat)};
+        else if (it->is_boolean()) v.value = GeneratorValue{it->get<bool>()};
+        else if (it->is_string()) v.value = GeneratorValue{it->get<std::string>()};
+        else if (it->is_null()) v.value = GeneratorValue{std::string()};
+        else refuse("This value must be a number, true or false, text or null.", vat);
+        g.params.push_back(std::move(v));
+    }
+    std::sort(g.params.begin(), g.params.end(), [](const auto& a, const auto& b) { return a.id < b.id; });
+    return g;
+}
+
 // Reads one placed item.
 Item readItem(const Json& j, const std::string& where)
 {
-    expectObject(j, where, {"id", "asset", "room", "x", "y", "z", "rotation", "wall", "size"});
+    expectObject(j, where, {"id", "asset", "room", "x", "y", "z", "rotation", "wall", "size", "generator"});
     Item it;
     it.id = getString(j, "id", where);
-    it.asset = getString(j, "asset", where);
+    if (!j.contains("asset")) refuse("The field \"asset\" is missing.", child(where, "asset"));
+    it.asset = getOptionalString(j, "asset", where).value_or("");
+    if (auto git = j.find("generator"); git != j.end() && !git->is_null()) it.generator = readGeneratorUse(*git, child(where, "generator"));
+    if (it.generator && !it.asset.empty()) refuse("An item has an asset or a generator, not both.", child(where, "generator"));
+    if (!it.generator && it.asset.empty()) refuse("An item needs an asset or a generator.", child(where, "asset"));
     it.room = getOptionalString(j, "room", where);
     it.x = getNumber(j, "x", where);
     it.y = getNumber(j, "y", where);
@@ -204,6 +235,67 @@ Item readItem(const Json& j, const std::string& where)
     it.size.depth = getNumber(*sit, "depth", at);
     it.size.height = getNumber(*sit, "height", at);
     return it;
+}
+
+// Reads one stair.
+Stair readStair(const Json& j, const std::string& where)
+{
+    expectObject(j, where, {"id", "type", "x", "y", "rotation", "width", "turn", "material"});
+    Stair st;
+    st.id = getString(j, "id", where);
+    if (j.contains("type")) st.type = getString(j, "type", where);
+    st.x = getNumber(j, "x", where);
+    st.y = getNumber(j, "y", where);
+    st.rotation = getNumberOr(j, "rotation", where, 0.0);
+    st.width = getNumberOr(j, "width", where, kDefaultStairWidth);
+    if (j.contains("turn")) {
+        const auto turn = stairTurnFromName(getString(j, "turn", where));
+        if (!turn) refuse("The turn must be \"left\" or \"right\".", child(where, "turn"));
+        st.turn = *turn;
+    }
+    st.material = getOptionalString(j, "material", where);
+    return st;
+}
+
+// Reads one set of roof settings.
+RoofSettings readRoofSettings(const Json& j, const std::string& where)
+{
+    expectObject(j, where, {"type", "pitch", "overhang", "parapet", "direction"});
+    RoofSettings r;
+    r.type = getString(j, "type", where);
+    r.pitch = getNumberOr(j, "pitch", where, r.pitch);
+    r.overhang = getNumberOr(j, "overhang", where, r.overhang);
+    r.parapet = getNumberOr(j, "parapet", where, r.parapet);
+    r.direction = getOptionalNumber(j, "direction", where);
+    return r;
+}
+
+// Reads one roof section entry.
+RoofSection readRoofSection(const Json& j, const std::string& where)
+{
+    expectObject(j, where, {"id", "floor", "x", "y", "settings", "material"});
+    RoofSection r;
+    r.id = getString(j, "id", where);
+    r.floor = getString(j, "floor", where);
+    r.x = getNumber(j, "x", where);
+    r.y = getNumber(j, "y", where);
+    auto sit = j.find("settings");
+    if (sit == j.end()) refuse("The field \"settings\" is missing.", child(where, "settings"));
+    r.settings = readRoofSettings(*sit, child(where, "settings"));
+    r.material = getOptionalString(j, "material", where);
+    return r;
+}
+
+// Turns roof settings into their JSON form.
+Json roofSettingsToJson(const RoofSettings& r)
+{
+    Json out = Json::object();
+    out["type"] = r.type;
+    out["pitch"] = r.pitch;
+    out["overhang"] = r.overhang;
+    out["parapet"] = r.parapet;
+    out["direction"] = r.direction ? Json(*r.direction) : Json(nullptr);
+    return out;
 }
 
 // Reads every item of an optional array with a reader function.
@@ -222,7 +314,8 @@ std::vector<Item> readList(const Json& obj, const char* key, const std::string& 
 // Reads one floor.
 Floor readFloor(const Json& j, const std::string& where)
 {
-    expectObject(j, where, {"id", "name", "image", "ceiling_height", "points", "walls", "rooms", "openings", "items"});
+    expectObject(j, where, {"id", "name", "image", "ceiling_height", "points", "walls", "rooms", "openings", "items",
+                         "slab_thickness", "image_offset", "stairs"});
     Floor f;
     f.id = getString(j, "id", where);
     f.name = j.contains("name") ? getString(j, "name", where) : f.id;
@@ -233,6 +326,14 @@ Floor readFloor(const Json& j, const std::string& where)
     f.rooms = readList<Room>(j, "rooms", where, readRoom);
     f.openings = readList<Opening>(j, "openings", where, readOpening);
     f.items = readList<Item>(j, "items", where, readItem);
+    f.slabThickness = getNumberOr(j, "slab_thickness", where, kDefaultSlabThickness);
+    if (auto oit = j.find("image_offset"); oit != j.end()) {
+        const std::string at = child(where, "image_offset");
+        expectObject(*oit, at, {"x", "y"});
+        f.imageOffset.x = getNumber(*oit, "x", at);
+        f.imageOffset.y = getNumber(*oit, "y", at);
+    }
+    f.stairs = readList<Stair>(j, "stairs", where, readStair);
     return f;
 }
 
@@ -252,6 +353,27 @@ void prepare(Json& json, std::string_view format, int currentVersion, std::span<
 
     if (auto s = migrateJson(json, currentVersion, steps); !s.ok()) throw ReadError{s};
     migrated = found != currentVersion;
+}
+
+// Writes the generator of an item, parameters sorted by id.
+Json generatorUseToJson(const GeneratorUse& g)
+{
+    Json out = Json::object();
+    out["name"] = g.name;
+    std::vector<const GeneratorParamValue*> sorted;
+    for (const auto& p : g.params) sorted.push_back(&p);
+    std::sort(sorted.begin(), sorted.end(), [](const auto* a, const auto* b) { return a->id < b->id; });
+    Json params = Json::object();
+    for (const auto* p : sorted) {
+        if (const double* d = std::get_if<double>(&p->value)) params[p->id] = *d;
+        else if (const bool* b = std::get_if<bool>(&p->value)) params[p->id] = *b;
+        else {
+            const std::string& text = std::get<std::string>(p->value);
+            params[p->id] = text.empty() ? Json(nullptr) : Json(text);
+        }
+    }
+    out["params"] = std::move(params);
+    return out;
 }
 
 }
@@ -341,7 +463,7 @@ Json planToJson(const Plan& plan)
         for (const Item& it : f.items) {
             Json ji = Json::object();
             ji["id"] = it.id;
-            ji["asset"] = it.asset;
+            ji["asset"] = it.asset.empty() ? Json(nullptr) : Json(it.asset);
             ji["room"] = optString(it.room);
             ji["x"] = it.x;
             ji["y"] = it.y;
@@ -353,12 +475,47 @@ Json planToJson(const Plan& plan)
             size["depth"] = it.size.depth;
             size["height"] = it.size.height;
             ji["size"] = std::move(size);
+            ji["generator"] = it.generator ? generatorUseToJson(*it.generator) : Json(nullptr);
             items.push_back(std::move(ji));
         }
         jf["items"] = std::move(items);
+
+        jf["slab_thickness"] = f.slabThickness;
+        Json offset = Json::object();
+        offset["x"] = f.imageOffset.x;
+        offset["y"] = f.imageOffset.y;
+        jf["image_offset"] = std::move(offset);
+
+        Json stairs = Json::array();
+        for (const Stair& st : f.stairs) {
+            Json js = Json::object();
+            js["id"] = st.id;
+            js["type"] = st.type;
+            js["x"] = st.x;
+            js["y"] = st.y;
+            js["rotation"] = st.rotation;
+            js["width"] = st.width;
+            js["turn"] = std::string(stairTurnName(st.turn));
+            js["material"] = optString(st.material);
+            stairs.push_back(std::move(js));
+        }
+        jf["stairs"] = std::move(stairs);
         floors.push_back(std::move(jf));
     }
     out["floors"] = std::move(floors);
+    out["roof"] = roofSettingsToJson(plan.roof);
+    Json sections = Json::array();
+    for (const RoofSection& r : plan.roofSections) {
+        Json jr = Json::object();
+        jr["id"] = r.id;
+        jr["floor"] = r.floor;
+        jr["x"] = r.x;
+        jr["y"] = r.y;
+        jr["settings"] = roofSettingsToJson(r.settings);
+        jr["material"] = optString(r.material);
+        sections.push_back(std::move(jr));
+    }
+    out["roof_sections"] = std::move(sections);
     return out;
 }
 
@@ -369,7 +526,7 @@ PlanRead planFromJson(const Json& json)
     try {
         Json copy = json;
         prepare(copy, kPlanFormatName, kPlanFormatVersion, planMigrations(), result.fileVersion, result.migrated);
-        expectObject(copy, "", {"format", "version", "scale", "floors"});
+        expectObject(copy, "", {"format", "version", "scale", "floors", "roof", "roof_sections"});
 
         Plan plan;
         auto sit = copy.find("scale");
@@ -380,6 +537,12 @@ PlanRead planFromJson(const Json& json)
         const Json* floors = getArray(copy, "floors", "", true);
         for (std::size_t i = 0; i < floors->size(); ++i) {
             plan.floors.push_back(readFloor((*floors)[i], "/floors/" + std::to_string(i)));
+        }
+        if (auto rit = copy.find("roof"); rit != copy.end()) plan.roof = readRoofSettings(*rit, "/roof");
+        if (const Json* sections = getArray(copy, "roof_sections", "", false)) {
+            for (std::size_t i = 0; i < sections->size(); ++i) {
+                plan.roofSections.push_back(readRoofSection((*sections)[i], "/roof_sections/" + std::to_string(i)));
+            }
         }
         if (Status s = checkPlan(plan); !s.ok()) {
             refuse(s.message, s.where);
@@ -471,7 +634,8 @@ SettingsRead settingsFromJson(const Json& json)
             if (Status s = checkDefaultSizes(d); !s.ok()) refuse(s.message, "/defaults");
         }
         if (auto mit = copy.find("materials"); mit != copy.end()) {
-            expectObject(*mit, "/materials", {"wall_inside", "wall_outside", "wall_top", "floor", "ceiling", "door", "frame", "glass", "handle"});
+            expectObject(*mit, "/materials", {"wall_inside", "wall_outside", "wall_top", "floor", "ceiling", "door", "frame", "glass", "handle",
+                          "roof", "flat_roof", "stair"});
             for (const Surface surface : allSurfaces()) {
                 const std::string key(surfaceName(surface));
                 if (!mit->contains(key)) continue;
@@ -594,19 +758,69 @@ Status migrateProject3To4(Json& json)
     return {};
 }
 
+
+// Version 4 to 5: floors get a slab, an image offset and no stairs, and the plan gets the default roof.
+Status migratePlan4To5(Json& json)
+{
+    if (!json.is_object()) return {};
+    if (auto floors = json.find("floors"); floors != json.end() && floors->is_array()) {
+        for (Json& floor : *floors) {
+            if (!floor.is_object()) continue;
+            if (!floor.contains("slab_thickness")) floor["slab_thickness"] = kDefaultSlabThickness;
+            if (!floor.contains("image_offset")) floor["image_offset"] = {{"x", 0.0}, {"y", 0.0}};
+            if (!floor.contains("stairs")) floor["stairs"] = Json::array();
+        }
+    }
+    if (!json.contains("roof")) json["roof"] = roofSettingsToJson(RoofSettings{});
+    if (!json.contains("roof_sections")) json["roof_sections"] = Json::array();
+    return {};
+}
+
+// Version 4 to 5: the materials get the roof, flat roof and stair defaults.
+Status migrateProject4To5(Json& json)
+{
+    if (!json.is_object()) return {};
+    auto materials = json.find("materials");
+    if (materials == json.end() || !materials->is_object()) return {};
+    const MaterialDefaults defaults;
+    for (const Surface surface : {Surface::Roof, Surface::FlatRoof, Surface::Stair}) {
+        const std::string key(surfaceName(surface));
+        if (materials->contains(key)) continue;
+        const auto& value = materialDefault(defaults, surface);
+        (*materials)[key] = value ? Json(*value) : Json(nullptr);
+    }
+    return {};
+}
+
+// Version 5 to 6: every item gets an empty generator.
+Status migratePlan5To6(Json& json)
+{
+    auto floors = json.find("floors");
+    if (floors == json.end() || !floors->is_array()) return {};
+    for (Json& floor : *floors) {
+        if (!floor.is_object()) continue;
+        auto items = floor.find("items");
+        if (items == floor.end() || !items->is_array()) continue;
+        for (Json& item : *items) {
+            if (item.is_object() && !item.contains("generator")) item["generator"] = nullptr;
+        }
+    }
+    return {};
+}
+
 }
 
 // The upgrade steps for plan.json.
 std::span<const Migration> planMigrations()
 {
-    static const std::vector<Migration> steps = {{1, migratePlan1To2}, {2, migratePlan2To3}, {3, migratePlan3To4}};
+    static const std::vector<Migration> steps = {{1, migratePlan1To2}, {2, migratePlan2To3}, {3, migratePlan3To4}, {4, migratePlan4To5}, {5, migratePlan5To6}};
     return steps;
 }
 
 // The upgrade steps for project.json.
 std::span<const Migration> projectMigrations()
 {
-    static const std::vector<Migration> steps = {{1, migrateProject1To2}, {2, migrateProject2To3}, {3, migrateProject3To4}};
+    static const std::vector<Migration> steps = {{1, migrateProject1To2}, {2, migrateProject2To3}, {3, migrateProject3To4}, {4, migrateProject4To5}};
     return steps;
 }
 

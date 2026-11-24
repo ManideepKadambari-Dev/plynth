@@ -1,5 +1,7 @@
 #include "BuildController.h"
 
+#include <plynth/core/Blender.h>
+
 #include <QCoreApplication>
 #include <QMetaObject>
 
@@ -86,6 +88,7 @@ bool BuildController::start(plynth::BuildRequest request, plynth::MachineSetting
             return;
         }
         request.blender = choice.install;
+        request.addonSource = plynth::blenderUserFolders(choice.install).extensions;
         report = plynth::runBuild(
             request,
             [this](const plynth::BuildProgress& step) {

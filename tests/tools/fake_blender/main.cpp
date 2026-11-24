@@ -3,8 +3,17 @@
 // FAKE_BLENDER_MODE variable), and writes a result file that follows schema/blender-result.schema.json.
 // Modes: ok (default), fail, crash, hang, hang_version, bad_result, no_thumbnail, no_fbx, build_problem,
 // several_materials (a cleanup_material job on a .blend with no material named fails with that error),
-// quality_fail (an export job reports a failing naming check with a finding on w1), quality_warn (a warning).
+// quality_fail (an export job reports a failing naming check with a finding on w1), quality_warn (a warning),
+// unreadable (a probe job fails with preferences_unreadable).
+// Several modes can be joined with "+", for example write_user+crash. write_user writes marker files into the
+// folders BLENDER_USER_CONFIG and BLENDER_USER_EXTENSIONS name, else into config and extensions under
+// FAKE_BLENDER_USER_ROOT, and into no folder when neither is set. It never uses a real default folder.
+// Every start also appends its arguments to fake_args.log.
+// Every start also appends the BLENDER_USER_* variables it sees to fake_env.log.
 // Every job is also appended as one line to fake_jobs.log next to the program.
+// Every job also appends one JSON line to fake_extensions.log: {"task", "marker", "user_default"}. marker says
+// whether the folder BLENDER_USER_EXTENSIONS names holds .plynth-prepared, user_default lists the sorted names
+// in that folder's user_default. Without the variable no folder is looked at.
 // The version comes from fake_version.txt next to the program, else 5.2.0.
 // Probe add-ons come from FAKE_BLENDER_ADDONS (comma separated modules) and FAKE_BLENDER_BLENDERKIT
 // (none, installed, enabled or signed_in).
@@ -15,9 +24,11 @@
 #include <windows.h>
 #include <shellapi.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -53,14 +64,17 @@ std::string readSmallFile(const fs::path& file)
     return s.substr(start);
 }
 
-// An environment variable, empty when it is not set.
+// An environment variable as UTF-8, empty when it is not set.
 std::string environment(const char* name)
 {
-    char* value = nullptr;
-    std::size_t size = 0;
-    _dupenv_s(&value, &size, name);
-    std::string out = value ? value : "";
-    free(value);
+    const std::wstring wideName(name, name + std::strlen(name));
+    const DWORD size = GetEnvironmentVariableW(wideName.c_str(), nullptr, 0);
+    if (size == 0) return {};
+    std::wstring value(size, L'\0');
+    value.resize(GetEnvironmentVariableW(wideName.c_str(), value.data(), size));
+    const int bytes = WideCharToMultiByte(CP_UTF8, 0, value.c_str(), -1, nullptr, 0, nullptr, nullptr);
+    std::string out(static_cast<std::size_t>(bytes > 0 ? bytes - 1 : 0), '\0');
+    if (bytes > 1) WideCharToMultiByte(CP_UTF8, 0, value.c_str(), -1, out.data(), bytes, nullptr, nullptr);
     return out;
 }
 
@@ -71,13 +85,32 @@ std::string fakeVersion()
     return v.empty() ? "5.2.0" : v;
 }
 
-// What the fake does with a job.
-std::string fakeMode()
+// The modes as written, joined with "+".
+std::string fakeModeText()
 {
     const std::string m = readSmallFile(programFolder() / "fake_mode.txt");
     if (!m.empty()) return m;
-    const std::string e = environment("FAKE_BLENDER_MODE");
-    return e.empty() ? "ok" : e;
+    return environment("FAKE_BLENDER_MODE");
+}
+
+// True when write_user is one of the modes.
+bool writesUser()
+{
+    std::stringstream list(fakeModeText());
+    for (std::string part; std::getline(list, part, '+');) {
+        if (part == "write_user") return true;
+    }
+    return false;
+}
+
+// What the fake does with a job: the first mode that is not write_user.
+std::string fakeMode()
+{
+    std::stringstream list(fakeModeText());
+    for (std::string part; std::getline(list, part, '+');) {
+        if (!part.empty() && part != "write_user") return part;
+    }
+    return "ok";
 }
 
 // Waits until the program is killed.
@@ -162,6 +195,43 @@ void writeFile(const fs::path& file, const std::string& bytes)
 fs::path pathFrom(const std::string& text)
 {
     return fs::path(std::u8string(text.begin(), text.end()));
+}
+
+// Writes a marker file into the user's config and extensions folders, as a Blender that loads the user's
+// settings would. The folders come from the environment, else from FAKE_BLENDER_USER_ROOT, never from a
+// real default.
+void writeUserMarkers()
+{
+    const std::string root = environment("FAKE_BLENDER_USER_ROOT");
+    for (const char* kind : {"config", "extensions"}) {
+        const std::string name = std::string("BLENDER_USER_") + (std::string(kind) == "config" ? "CONFIG" : "EXTENSIONS");
+        const std::string given = environment(name.c_str());
+        fs::path folder;
+        if (!given.empty()) folder = pathFrom(given);
+        else if (!root.empty()) folder = pathFrom(root) / kind;
+        if (folder.empty()) continue;
+        writeFile(folder / "fake_marker.txt", "touched by the fake\n");
+    }
+}
+
+// What the extensions folder given to this job holds. Reads no file and writes nothing there.
+Json extensionsSeen(const std::string& task)
+{
+    bool marker = false;
+    std::vector<std::string> names;
+    const std::string given = environment("BLENDER_USER_EXTENSIONS");
+    if (!given.empty()) {
+        const fs::path folder = pathFrom(given);
+        std::error_code ec;
+        marker = fs::is_regular_file(folder / ".plynth-prepared", ec);
+        ec.clear();
+        for (fs::directory_iterator it(folder / "user_default", ec), end; !ec && it != end; it.increment(ec)) {
+            const std::u8string name = it->path().filename().u8string();
+            names.emplace_back(name.begin(), name.end());
+        }
+        std::sort(names.begin(), names.end());
+    }
+    return Json{{"task", task}, {"marker", marker}, {"user_default", names}};
 }
 
 // Prints a progress line the way the worker does.
@@ -278,11 +348,11 @@ Json materialOutput(const Json& params, const std::string& mode)
 // The steps the fake build reports.
 constexpr const char* kBuildSteps[] = {"prepare_scene", "walls", "openings", "floors", "assets", "materials", "save_blend", "export_fbx"};
 
-// The sum of one list over all floors of a build job.
+// The sum of one list over all floors of a build job. A floor without the list adds nothing.
 int sumOf(const Json& floors, const char* key)
 {
     int total = 0;
-    for (const Json& floor : floors) total += static_cast<int>(floor[key].size());
+    for (const Json& floor : floors) total += floor.contains(key) ? static_cast<int>(floor[key].size()) : 0;
     return total;
 }
 
@@ -341,6 +411,27 @@ int writeBuiltMaterials(const fs::path& folder, const Json& params)
     return count;
 }
 
+// The preview parts the fake build writes: one file per floor, one more for each floor with slab polygons and with roofs, and
+// parts.json listing them.
+void writePreviewParts(const fs::path& folder, const Json& floors)
+{
+    Json parts = Json::array();
+    for (const Json& floor : floors) {
+        const std::string id = floor["id"].get<std::string>();
+        writeFile(folder / (id + ".fbx"), "FAKEFBX");
+        parts.push_back(Json{{"floor", id}, {"kind", "storey"}, {"file", id + ".fbx"}});
+        if (!floor["slab"]["polygons"].empty()) {
+            writeFile(folder / (id + "_slab.fbx"), "FAKEFBX");
+            parts.push_back(Json{{"floor", id}, {"kind", "slab"}, {"file", id + "_slab.fbx"}});
+        }
+        if (floor["roofs"].empty()) continue;
+        writeFile(folder / (id + "_roof.fbx"), "FAKEFBX");
+        parts.push_back(Json{{"floor", id}, {"kind", "roof"}, {"file", id + "_roof.fbx"}});
+    }
+    const Json file = Json{{"format", "plynth-build-preview"}, {"version", 1}, {"parts", parts}};
+    writeFile(folder / "parts.json", file.dump(2) + "\n");
+}
+
 // What the fake build task writes and reports.
 Json buildOutput(const Json& params, const std::string& mode)
 {
@@ -355,10 +446,16 @@ Json buildOutput(const Json& params, const std::string& mode)
     const int openings = sumOf(floors, "openings");
     const int rooms = sumOf(floors, "rooms");
     const int items = sumOf(floors, "items");
-    int collision = items;
+    const int stairs = sumOf(floors, "stairs");
+    const int roofs = sumOf(floors, "roofs");
+    int slabs = 0;
+    for (const Json& floor : floors) slabs += floor["slab"]["polygons"].empty() ? 0 : 1;
+    if (fbx && params["preview_folder"].is_string()) writePreviewParts(folder / params["preview_folder"].get<std::string>(), floors);
+    const int generated = sumOf(floors, "generator_items");
+    int collision = items + generated;
     for (const Json& floor : floors) {
         if (!floor.contains("collision")) continue;
-        for (const Json& shape : floor["collision"]) collision += static_cast<int>(shape["pieces"].size());
+        for (const Json& shape : floor["collision"]) collision += static_cast<int>(shape["pieces"].size() + (shape.contains("hulls") ? shape["hulls"].size() : 0));
     }
     int fills = 0;
     const bool fill = params["settings"]["fill_openings"].get<bool>();
@@ -376,7 +473,7 @@ Json buildOutput(const Json& params, const std::string& mode)
             }
         }
     }
-    const int objects = solids + openings + rooms * 2 + items;
+    const int objects = solids + openings + rooms * 2 + items + generated;
     Json steps = Json::array();
     for (const char* step : kBuildSteps) steps.push_back(Json{{"step", step}, {"ms", 3}});
 
@@ -386,7 +483,9 @@ Json buildOutput(const Json& params, const std::string& mode)
     out["materials_file"] = fbx ? Json("materials.json") : Json(nullptr);
     out["objects"] = objects;
     out["triangles"] = objects * 12;
-    out["counts"] = Json{{"wall_solids", solids}, {"openings_cut", openings}, {"fills", fills}, {"rooms", rooms}, {"items", items}, {"materials", materialCount}, {"collision", collision}};
+    out["counts"] = Json{{"wall_solids", solids}, {"openings_cut", openings}, {"fills", fills}, {"rooms", rooms}, {"items", items},
+                       {"materials", materialCount}, {"slabs", slabs}, {"stairs", stairs}, {"roofs", roofs}, {"collision", collision}};
+    if (generated > 0) out["counts"]["generators"] = generated;
     out["steps"] = steps;
     out["problems"] = problems;
     return out;
@@ -471,6 +570,19 @@ std::vector<std::string> commandLineArguments()
 int main()
 {
     const std::vector<std::string> args = commandLineArguments();
+    {
+        std::ofstream log(programFolder() / "fake_args.log", std::ios::binary | std::ios::app);
+        for (std::size_t i = 0; i < args.size(); ++i) log << (i ? "|" : "") << args[i];
+        log << "\n";
+    }
+    if (writesUser()) writeUserMarkers();
+    {
+        std::ofstream log(programFolder() / "fake_env.log", std::ios::binary | std::ios::app);
+        log << (std::find(args.begin(), args.end(), "--version") != args.end() ? "version" : "job");
+        for (const char* name : {"BLENDER_USER_RESOURCES", "BLENDER_USER_CONFIG", "BLENDER_USER_SCRIPTS", "BLENDER_USER_EXTENSIONS", "BLENDER_USER_DATAFILES"})
+            log << "|" << name << "=" << environment(name);
+        log << "\n";
+    }
     const std::string mode = fakeMode();
     const std::string version = fakeVersion();
 
@@ -504,6 +616,34 @@ int main()
     {
         std::ofstream log(programFolder() / "fake_jobs.log", std::ios::binary | std::ios::app);
         log << job.dump() << "\n";
+    }
+    {
+        std::ofstream log(programFolder() / "fake_extensions.log", std::ios::binary | std::ios::app);
+        log << extensionsSeen(job["task"].get<std::string>()).dump() << "\n";
+    }
+
+    if (job["task"].get<std::string>() == "probe") {
+        const Json& given = job["params"];
+        const Json folders = given.is_object() && given.contains("user_folders") ? given["user_folders"] : Json();
+        bool complete = folders.is_object();
+        for (const char* key : {"config", "scripts", "extensions", "blenderkit_data"}) {
+            complete = complete && folders.contains(key) && folders[key].is_string() && !folders[key].get<std::string>().empty();
+        }
+        if (!complete) {
+            Json bad = Json::object();
+            bad["format"] = "plynth-blender-result";
+            bad["version"] = 1;
+            bad["task"] = "probe";
+            bad["job_id"] = job["job_id"];
+            bad["ok"] = false;
+            bad["error"] = Json{{"code", "bad_job"}, {"message", "The probe job has no user folders."}};
+            bad["blender_version"] = version;
+            bad["warnings"] = Json::array();
+            bad["elapsed_ms"] = 1;
+            bad["output"] = nullptr;
+            writeResult(pathFrom(job["result_file"].get<std::string>()), bad);
+            return 0;
+        }
     }
 
     const bool isBuild = job["task"].get<std::string>() == "build";
@@ -548,6 +688,14 @@ int main()
         const bool exporting = task == "export";
         result["error"] = Json{{"code", render ? "render_failed" : build ? "save_failed" : exporting ? "export_failed" : "import_failed"},
                                {"message", render ? "Fake render failure" : build ? "Fake save failure." : exporting ? "Fake export failure." : "Fake import failure."}};
+        result["output"] = nullptr;
+        writeResult(resultFile, result);
+        return 0;
+    }
+
+    if (mode == "unreadable" && task == "probe") {
+        result["ok"] = false;
+        result["error"] = Json{{"code", "preferences_unreadable"}, {"message", "The fake preferences cannot be read."}};
         result["output"] = nullptr;
         writeResult(resultFile, result);
         return 0;

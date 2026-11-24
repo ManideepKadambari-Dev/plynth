@@ -6,7 +6,7 @@ from ._common import plan_id
 from ..registry import QUALITY_CHECKS
 
 ORDER = 100
-NEEDS_COLLISION = ("walls", "floor", "item")
+NEEDS_COLLISION = ("walls", "floor", "slab", "stair", "roof", "item", "generator")
 TOLERANCE = 1e-4
 
 
@@ -34,8 +34,8 @@ def is_convex(mesh):
     return True
 
 
-# Fails for a building mesh or item without a UCX_ mesh (the door and window fills, ceilings and thresholds need
-# none) and for a UCX_ mesh that is not closed or not convex.
+# Fails for a building mesh, item or generator object without a UCX_ mesh (the door and window fills, ceilings
+# and thresholds need none) and for a UCX_ mesh that is not closed or not convex.
 def run(ctx):
     findings = []
     covered = {o.get("plynth_collision_for") for o in ctx.state["collision"]}
@@ -50,7 +50,7 @@ def run(ctx):
                                     plan_id(obj)))
     if findings:
         return result("fail", "Some collision is missing or not usable.", findings)
-    return result("pass", "Every walls, floor and item mesh has closed, convex collision.")
+    return result("pass", "Every wall, floor, slab, stair, roof, item and generator mesh has closed, convex collision.")
 
 
 QUALITY_CHECKS.register("collision", QualityCheck(ORDER, "scene", "Collision", run))

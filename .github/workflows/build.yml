@@ -2,29 +2,81 @@ name: build
 
 on:
   push:
-    branches: [main]
   workflow_dispatch:
+    inputs:
+      config:
+        description: gate builds and tests Debug and Release. debug builds and tests Debug only.
+        type: choice
+        options: [gate, debug]
+        default: gate
+      tests:
+        description: Run only the tests whose names match this CTest pattern. Empty runs every test.
+        type: string
+        default: ''
+      labels:
+        description: Run only the tests with a label matching this CTest pattern, such as storeys for the [storeys] tag of the core tests.
+        type: string
+        default: ''
+      write_fixture:
+        description: Exact name of a core test case, hidden ones too, to run after the Debug build. The files it changes under tests are uploaded.
+        type: string
+        default: ''
+      screens:
+        description: Take app screenshots at three sizes from the ready to run copy.
+        type: boolean
+        default: false
+      app_options:
+        description: Extra app options for one more screenshot, such as --view 3d --camera top.
+        type: string
+        default: ''
 
 permissions:
   contents: read
 
+# A branch push and a gate on the same branch do not cancel each other.
 concurrency:
-  group: build-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: build-${{ github.ref }}-${{ (github.ref == 'refs/heads/main' || github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && inputs.config != 'debug')) && 'gate' || 'debug' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   VCPKG_ROOT: C:\vcpkg
   VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}\vcpkg-binary-cache
   VCPKG_DISABLE_METRICS: 1
   QT_QPA_PLATFORM: offscreen
+  SCCACHE_DIR: ${{ github.workspace }}\sccache
+  SCCACHE_CACHE_SIZE: 2G
+  SCCACHE_IDLE_TIMEOUT: 0
 
 jobs:
   windows:
+    name: >-
+      ${{ (github.ref == 'refs/heads/main' || github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && inputs.config != 'debug'))
+      && (format('{0}{1}{2}', inputs.tests, inputs.labels, inputs.write_fixture) != '' && 'Debug and Release, filtered, not a gate' || 'Release gate')
+      || (format('{0}{1}{2}', inputs.tests, inputs.labels, inputs.write_fixture) != '' && 'Debug only, filtered' || 'Debug only') }}
     runs-on: windows-latest
     timeout-minutes: 150
+    env:
+      PLYNTH_GATE: ${{ (github.ref == 'refs/heads/main' || github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && inputs.config != 'debug')) && 'true' || 'false' }}
+      PACKAGE_CONFIG: ${{ (github.ref == 'refs/heads/main' || github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && inputs.config != 'debug')) && 'Release' || 'Debug' }}
+      TEST_FILTER: ${{ inputs.tests }}
+      TEST_LABELS: ${{ inputs.labels }}
+      WRITE_FIXTURE: ${{ inputs.write_fixture }}
+      SCREENS: ${{ inputs.screens }}
+      APP_OPTIONS: ${{ inputs.app_options }}
     steps:
       - name: Check out
         uses: actions/checkout@v4
+
+      - name: Refuse scratch work on main, milestone branches and tags
+        shell: pwsh
+        run: |
+          $guarded = $env:GITHUB_REF_TYPE -eq 'tag' -or $env:GITHUB_REF_NAME -eq 'main' -or $env:GITHUB_REF_NAME -match '^m\d+-'
+          $markers = @(git ls-files | Where-Object { (Split-Path $_ -Leaf) -eq 'SCRATCH-NOT-FOR-MAIN' })
+          if ($guarded -and $markers.Count -gt 0) {
+            "Scratch work must not reach $env:GITHUB_REF_NAME. Found: $($markers -join ', ')" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+            Write-Error "This tree holds $($markers -join ', '), which marks scratch work. Remove it before this branch or tag is built."
+            exit 1
+          }
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
@@ -33,7 +85,7 @@ jobs:
           host: windows
           target: desktop
           arch: win64_msvc2022_64
-          modules: qtquick3d qtshadertools
+          modules: qtquick3d qtshadertools qtquicktimeline qtimageformats
           cache: true
 
       - name: Point the presets at Qt
@@ -49,6 +101,9 @@ jobs:
       - name: Prepare vcpkg
         shell: pwsh
         run: |
+          # Loading MSVC points VCPKG_ROOT at Visual Studio's copy, which cannot be bootstrapped.
+          $env:VCPKG_ROOT = 'C:\vcpkg'
+          "VCPKG_ROOT=$env:VCPKG_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           # The manifest baseline needs the full vcpkg history.
           if ((git -C $env:VCPKG_ROOT rev-parse --is-shallow-repository) -eq 'true') {
             git -C $env:VCPKG_ROOT fetch --unshallow
@@ -75,9 +130,45 @@ jobs:
           $n = (Get-ChildItem -Recurse -File $env:VCPKG_DEFAULT_BINARY_CACHE | Measure-Object).Count
           "count=$n" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
+      - name: Install the compiler cache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      # One cache a day for each branch. A branch can also read main's. sccache only reuses an object whose
+      # preprocessed source, compiler and options are the same, and never stores a failed compile.
+      - name: Pick the compiler cache key
+        id: sccache-key
+        shell: pwsh
+        run: |
+          $day = (Get-Date).ToUniversalTime().ToString('yyyyMMdd')
+          "key=sccache-$env:RUNNER_OS-$env:GITHUB_REF_NAME-$day" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "prefix=sccache-$env:RUNNER_OS-$env:GITHUB_REF_NAME-" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Restore the compiler cache
+        id: sccache-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: sccache
+          key: ${{ steps.sccache-key.outputs.key }}
+          restore-keys: |
+            ${{ steps.sccache-key.outputs.prefix }}
+            sccache-${{ runner.os }}-main-
+
+      - name: Start the compiler cache
+        id: sccache-start
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force $env:SCCACHE_DIR | Out-Null
+          $files = (Get-ChildItem -Recurse -File $env:SCCACHE_DIR | Measure-Object).Count
+          "files=$files" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          sccache --start-server
+          sccache --zero-stats
+
+      # The launcher and embedded debug information are set here only, so local builds stay as they are.
+      # Embedded debug information changes where the debug data is kept, not the code.
       - name: Configure
         shell: pwsh
-        run: cmake --preset msvc
+        run: |
+          cmake --preset msvc -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache '-DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>'
 
       - name: Check for new packages
         if: always()
@@ -95,32 +186,124 @@ jobs:
           path: vcpkg-binary-cache
           key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'ports/**') }}-${{ github.run_id }}
 
+      - name: Describe the run
+        shell: pwsh
+        run: |
+          $lines = if ($env:PLYNTH_GATE -eq 'true') {
+            'Release gate: Debug and Release are built and every test but the real Blender suite runs in both.'
+          } else {
+            'Debug only. Release is not built, so this run is not the Release gate.'
+          }
+          if ($env:TEST_FILTER) { $lines = @($lines, '', 'Filtered: only tests whose names match the pattern below ran, so this run is not a gate.', '', '```', $env:TEST_FILTER, '```') }
+          if ($env:WRITE_FIXTURE) { $lines = @($lines, '', 'A test case was run to write fixtures, so this run is not a gate.') }
+          if ($env:TEST_LABELS) { $lines = @($lines, '', 'Filtered: only tests with a label matching the pattern below ran, so this run is not a gate.', '', '```', $env:TEST_LABELS, '```') }
+          @($lines) + @('') | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
       - name: Build Debug
+        id: build-debug
         shell: pwsh
         run: cmake --build --preset debug
 
-      - name: Test Debug
+      - name: Write fixtures
+        id: write-fixture
+        if: github.event_name == 'workflow_dispatch' && env.WRITE_FIXTURE != ''
         shell: pwsh
-        run: ctest --preset debug -LE "blender|gpu" --timeout 600 --output-log ctest-debug.log
+        run: '& "$env:GITHUB_WORKSPACE/.github/scripts/write-fixture.ps1" -OutFolder "$env:GITHUB_WORKSPACE/out/written-fixtures"'
+
+      - name: Upload written fixtures
+        if: ${{ !cancelled() && steps.write-fixture.outcome != 'skipped' && github.event_name == 'workflow_dispatch' && env.WRITE_FIXTURE != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: written-fixtures
+          path: out/written-fixtures/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Test Debug
+        if: ${{ !cancelled() && steps.build-debug.outcome == 'success' }}
+        shell: pwsh
+        run: '& "$env:GITHUB_WORKSPACE/.github/scripts/run-tests.ps1" -Preset debug -LogFolder "$env:GITHUB_WORKSPACE/test-logs"'
 
       - name: Build Release
+        id: build-release
+        if: env.PLYNTH_GATE == 'true' && !cancelled() && steps.build-debug.outcome == 'success'
         shell: pwsh
         run: cmake --build --preset release
 
       - name: Test Release
+        if: env.PLYNTH_GATE == 'true' && !cancelled() && steps.build-release.outcome == 'success'
         shell: pwsh
-        run: ctest --preset release -LE "blender|gpu" --timeout 600 --output-log ctest-release.log
+        run: '& "$env:GITHUB_WORKSPACE/.github/scripts/run-tests.ps1" -Preset release -LogFolder "$env:GITHUB_WORKSPACE/test-logs"'
+
+      - name: Make the ready to run copy
+        id: package
+        if: >-
+          ${{ !cancelled()
+          && ((env.PACKAGE_CONFIG == 'Debug' && steps.build-debug.outcome == 'success')
+          || (env.PACKAGE_CONFIG == 'Release' && steps.build-release.outcome == 'success')) }}
+        shell: pwsh
+        run: '& "$env:GITHUB_WORKSPACE/.github/scripts/make-package.ps1" -Config $env:PACKAGE_CONFIG -Destination "$env:GITHUB_WORKSPACE/out/package/plynth" -LogFolder "$env:GITHUB_WORKSPACE/test-logs"'
+
+      - name: Upload the ready to run copy
+        if: ${{ !cancelled() && steps.package.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PACKAGE_CONFIG == 'Release' && 'plynth-windows-release' || 'plynth-windows-debug' }}
+          path: out/package/plynth/
+          if-no-files-found: error
+          retention-days: ${{ env.PLYNTH_GATE == 'true' && 30 || 14 }}
+
+      - name: Take screenshots
+        id: screens
+        if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && env.SCREENS == 'true' && steps.package.outcome == 'success' }}
+        shell: pwsh
+        run: '& "$env:GITHUB_WORKSPACE/.github/scripts/screenshots.ps1" -Package "$env:GITHUB_WORKSPACE/out/package/plynth" -OutFolder "$env:GITHUB_WORKSPACE/out/screenshots"'
+
+      - name: Upload screenshots
+        if: ${{ !cancelled() && steps.screens.outcome != 'skipped' && github.event_name == 'workflow_dispatch' && env.SCREENS == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: out/screenshots/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Report the compiler cache
+        id: sccache-stats
+        if: ${{ !cancelled() }}
+        shell: pwsh
+        env:
+          CACHE_FILES_BEFORE: ${{ steps.sccache-start.outputs.files }}
+        run: |
+          $stats = sccache --show-stats | Out-String
+          $stats
+          $hits = if ($stats -match '(?m)^Cache hits\s+(\d+)') { [int]$Matches[1] } else { 0 }
+          $misses = if ($stats -match '(?m)^Cache misses\s+(\d+)') { [int]$Matches[1] } else { 0 }
+          $rate = if ($hits + $misses) { '{0:N0} percent' -f (100 * $hits / ($hits + $misses)) } else { 'no compiles' }
+          # Stopping the server first makes sure every object is on disk before the files are counted.
+          sccache --stop-server | Out-Null
+          $before = [int]$env:CACHE_FILES_BEFORE
+          $after = (Get-ChildItem -Recurse -File $env:SCCACHE_DIR | Measure-Object).Count
+          $added = [math]::Max(0, $after - $before)
+          @('### Compiler cache', '', "$hits hits, $misses misses ($rate). $added new files in the cache, $after in all.", '') |
+            Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "added=$added" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Save the compiler cache
+        if: ${{ !cancelled() && steps.sccache-cache.outputs.cache-hit != 'true' && steps.sccache-stats.outputs.added != '0' && steps.sccache-stats.outputs.added != '' }}
+        uses: actions/cache/save@v4
+        with:
+          path: sccache
+          key: ${{ steps.sccache-key.outputs.key }}
 
       - name: Upload test logs
-        if: failure()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: test-logs
           path: |
-            ctest-debug.log
-            ctest-release.log
-            out/build/msvc/Testing/Temporary/*.log
+            test-logs/
             out/build/msvc/vcpkg-manifest-install.log
             out/build/msvc/CMakeFiles/CMakeConfigureLog.yaml
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 14

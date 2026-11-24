@@ -38,6 +38,8 @@ std::vector<CommandSpec> pointCommands();
 std::vector<CommandSpec> wallCommands();
 std::vector<CommandSpec> openingCommands();
 std::vector<CommandSpec> floorCommands();
+std::vector<CommandSpec> stairCommands();
+std::vector<CommandSpec> roofCommands();
 std::vector<CommandSpec> roomCommands();
 std::vector<CommandSpec> detectCommands();
 std::vector<CommandSpec> sessionCommands();
@@ -52,6 +54,7 @@ std::vector<CommandSpec> exportCommands();
 std::vector<CommandSpec> materialCommands();
 std::vector<CommandSpec> materialCatalogCommands();
 std::vector<CommandSpec> materialImportCommands();
+std::vector<CommandSpec> generatorCommands();
 
 // All commands in the order help lists them.
 const std::vector<CommandSpec>& allCommands();

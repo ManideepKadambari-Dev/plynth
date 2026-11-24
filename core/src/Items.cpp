@@ -23,6 +23,9 @@ constexpr int kClipperPrecision = 8;
 // A difference in size smaller than this is the same size (a micrometre).
 constexpr double kSizeTolerance = 1e-6;
 
+// A generator size that differs from the stored one by more than a millimetre has changed.
+constexpr double kGeneratorSizeTolerance = 1e-3;
+
 // How far inside a wall band a probe point is put to find which wall a face belongs to.
 constexpr double kProbeDepth = 1e-4;
 
@@ -43,6 +46,39 @@ bool isValidAssetName(std::string_view name)
         if (!ok) return false;
     }
     return true;
+}
+
+// Says whether a text is a generator or parameter name: a lowercase letter first, then lowercase letters,
+// digits and "_", at most 64 characters.
+bool isGeneratorName(std::string_view name)
+{
+    if (name.empty() || name.size() > 64) return false;
+    if (name.front() < 'a' || name.front() > 'z') return false;
+    for (char c : name) {
+        const bool ok = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_';
+        if (!ok) return false;
+    }
+    return true;
+}
+
+// Checks the generator name and parameter ids of a generator item.
+Status checkGeneratorFields(const Item& item)
+{
+    if (!item.asset.empty()) {
+        return fail(ErrorCode::InvalidValue, "A generator item has no asset, but this one names \"" + item.asset + "\".");
+    }
+    const GeneratorUse& use = *item.generator;
+    if (!isGeneratorName(use.name)) {
+        return fail(ErrorCode::InvalidValue, "The generator name \"" + use.name + "\" is not valid.");
+    }
+    for (std::size_t i = 0; i < use.params.size(); ++i) {
+        const std::string& id = use.params[i].id;
+        if (!isGeneratorName(id)) return fail(ErrorCode::InvalidValue, "The parameter id \"" + id + "\" is not valid.");
+        for (std::size_t j = 0; j < i; ++j) {
+            if (use.params[j].id == id) return fail(ErrorCode::InvalidValue, "The parameter " + id + " is given twice.");
+        }
+    }
+    return {};
 }
 
 double dot(Vec2 a, Vec2 b)
@@ -159,7 +195,7 @@ FloorContext makeContext(const Floor& floor)
 // The plain name of what an item is, with its id: "Sofa i1". A new item with no id yet is just "Sofa".
 std::string labelOf(const Item& item)
 {
-    std::string label = catalogNameFromStem(item.asset);
+    std::string label = catalogNameFromStem(item.generator ? item.generator->name : item.asset);
     if (!item.id.empty()) label += " " + item.id;
     return label;
 }
@@ -317,7 +353,9 @@ double defaultWallItemZ(const DefaultSizes& defaults, double height)
 // Checks the rules every item command enforces.
 Status checkItemPlacement(const Floor& floor, const Item& item)
 {
-    if (!isValidAssetName(item.asset)) {
+    if (item.generator) {
+        if (const Status s = checkGeneratorFields(item); !s.ok()) return s;
+    } else if (!isValidAssetName(item.asset)) {
         return fail(ErrorCode::InvalidValue, "The asset name \"" + item.asset + "\" is not valid.");
     }
     if (!std::isfinite(item.x) || !std::isfinite(item.y)) {
@@ -459,6 +497,9 @@ std::string_view itemProblemName(ItemProblemKind kind)
     case ItemProblemKind::TooTall: return "too_tall";
     case ItemProblemKind::MissingAsset: return "missing_asset";
     case ItemProblemKind::SizeChanged: return "size_changed";
+    case ItemProblemKind::MissingGenerator: return "missing_generator";
+    case ItemProblemKind::GeneratorUnavailable: return "generator_unavailable";
+    case ItemProblemKind::GeneratorChanged: return "generator_changed";
     }
     return "no_room";
 }
@@ -466,7 +507,8 @@ std::string_view itemProblemName(ItemProblemKind kind)
 namespace {
 
 // The problems of one item, using the context of its floor.
-std::vector<ItemProblem> problemsFor(const Floor& floor, const FloorContext& context, const Item& item, const AssetLookup& lookup)
+std::vector<ItemProblem> problemsFor(const Floor& floor, const FloorContext& context, const Item& item, const AssetLookup& lookup,
+                                     const GeneratorItemLookup& generators)
 {
     std::vector<ItemProblem> found;
     const auto add = [&](ItemProblemKind kind, Id other, std::string message) {
@@ -543,7 +585,29 @@ std::vector<ItemProblem> problemsFor(const Floor& floor, const FloorContext& con
         add(ItemProblemKind::TooTall, {}, label + " is taller than the ceiling.");
     }
 
-    if (lookup) {
+    if (item.generator) {
+        if (generators) {
+            const std::string& name = item.generator->name;
+            const std::optional<GeneratorItemState> state = generators(*item.generator);
+            if (!state) {
+                add(ItemProblemKind::MissingGenerator, {}, label + " uses generator " + name + ", which is not in the library.");
+            } else {
+                if (!state->available) {
+                    std::string reason = state->unavailableReason;
+                    if (!reason.empty() && reason.front() >= 'A' && reason.front() <= 'Z') reason.front() = static_cast<char>(reason.front() + ('a' - 'A'));
+                    add(ItemProblemKind::GeneratorUnavailable, {}, label + " " + (reason.empty() ? "cannot be built." : reason));
+                }
+                if (!state->valuesFit) {
+                    add(ItemProblemKind::GeneratorChanged, {}, label + " has values that no longer fit generator " + name + ".");
+                } else if (state->size
+                           && (std::fabs(state->size->width - item.size.width) > kGeneratorSizeTolerance
+                               || std::fabs(state->size->depth - item.size.depth) > kGeneratorSizeTolerance
+                               || std::fabs(state->size->height - item.size.height) > kGeneratorSizeTolerance)) {
+                    add(ItemProblemKind::GeneratorChanged, {}, label + " has another size than generator " + name + " now gives it.");
+                }
+            }
+        }
+    } else if (lookup) {
         const std::optional<ItemSize> known = lookup(item.asset);
         if (!known) {
             add(ItemProblemKind::MissingAsset, {}, label + " uses asset " + item.asset + ", which is not in the library.");
@@ -560,17 +624,28 @@ std::vector<ItemProblem> problemsFor(const Floor& floor, const FloorContext& con
 // The problems of one item as it would be on the floor.
 std::vector<ItemProblem> checkItem(const Floor& floor, const Item& item, const AssetLookup& lookup)
 {
-    return problemsFor(floor, makeContext(floor), item, lookup);
+    return checkItem(floor, item, lookup, GeneratorItemLookup{});
+}
+
+std::vector<ItemProblem> checkItem(const Floor& floor, const Item& item, const AssetLookup& lookup,
+                                   const GeneratorItemLookup& generators)
+{
+    return problemsFor(floor, makeContext(floor), item, lookup, generators);
 }
 
 // The problems of every item on the floor.
 std::vector<ItemProblem> itemProblems(const Floor& floor, const AssetLookup& lookup)
 {
+    return itemProblems(floor, lookup, GeneratorItemLookup{});
+}
+
+std::vector<ItemProblem> itemProblems(const Floor& floor, const AssetLookup& lookup, const GeneratorItemLookup& generators)
+{
     std::vector<ItemProblem> all;
     if (floor.items.empty()) return all;
     const FloorContext context = makeContext(floor);
     for (const Item& item : floor.items) {
-        for (ItemProblem& p : problemsFor(floor, context, item, lookup)) all.push_back(std::move(p));
+        for (ItemProblem& p : problemsFor(floor, context, item, lookup, generators)) all.push_back(std::move(p));
     }
     return all;
 }

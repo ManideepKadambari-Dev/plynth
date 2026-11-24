@@ -4,6 +4,7 @@
 #include "theme/Theme.h"
 
 #include <plynth/core/Build.h>
+#include <plynth/core/BuildPreview.h>
 
 #include <QDebug>
 #include <QImageReader>
@@ -124,7 +125,10 @@ void ModelView::readMaterials()
     QVariantList list;
     if (useMaterials_ && file_.isLocalFile()) {
         const std::filesystem::path fbx = file_.toLocalFile().toStdWString();
-        const plynth::BuiltMaterialsRead read = plynth::readBuiltMaterials(fbx.parent_path().parent_path());
+        std::filesystem::path buildFolder = fbx.parent_path();
+        if (buildFolder.filename() == std::string(plynth::kBuildPreviewFolder))
+            buildFolder = buildFolder.parent_path();
+        const plynth::BuiltMaterialsRead read = plynth::readBuiltMaterials(buildFolder.parent_path());
         if (read.status.ok()) {
             for (const plynth::BuiltMaterial& m : read.materials)
                 list.append(materialEntry(m.baseColor, m.normal, m.roughness, m.metallic, m.opacity, m.occlusion,
@@ -142,16 +146,26 @@ QString ModelView::failure() const
     return state_ == State::Failed ? error_ : QString();
 }
 
-// Starts loading a file and tells the scene how big the model is.
+// Starts loading one file and tells the scene how big the model is.
 void ModelView::setModel(const QUrl& file, const QVector3D& boundsMin, const QVector3D& boundsMax)
+{
+    setParts({Part{file, 0, false}}, boundsMin, boundsMax);
+}
+
+// Starts loading the parts and tells the scene how big the model is.
+void ModelView::setParts(const QList<Part>& parts, const QVector3D& boundsMin, const QVector3D& boundsMax)
 {
     if (state_ == State::Failed && status() == QQuickWidget::Error)
         return;
+    if (parts.isEmpty())
+        return;
     boundsMin_ = boundsMin;
     boundsMax_ = boundsMax;
-    const bool same = file == file_;
-    file_ = file;
+    const bool same = parts == parts_;
+    parts_ = parts;
+    file_ = parts.first().file;
     readMaterials();
+    updateVisibility();
     state_ = State::Loading;
     error_.clear();
     framesSinceLoad_ = 0;
@@ -159,8 +173,56 @@ void ModelView::setModel(const QUrl& file, const QVector3D& boundsMin, const QVe
     emit boundsChanged();
     if (same)
         emit reloadRequested();
-    else
+    else {
         emit modelFileChanged();
+        emit partsChanged();
+    }
+}
+
+// Says which parts show for the roof switch and the cut floor, then frames what is left.
+void ModelView::setPartFilter(bool showRoofs, int cutFloorIndex, const QVector3D& boundsMin, const QVector3D& boundsMax)
+{
+    showRoofs_ = showRoofs;
+    cutFloorIndex_ = cutFloorIndex;
+    updateVisibility();
+    if (boundsMin != boundsMin_ || boundsMax != boundsMax_) {
+        boundsMin_ = boundsMin;
+        boundsMax_ = boundsMax;
+        emit boundsChanged();
+    }
+}
+
+// Works out the visible flag of every part.
+void ModelView::updateVisibility()
+{
+    QVariantList flags;
+    for (const Part& part : parts_) {
+        bool show = true;
+        if (part.roof && (!showRoofs_ || (cutFloorIndex_ >= 0 && part.floorIndex >= cutFloorIndex_)))
+            show = false;
+        if (part.slab && cutFloorIndex_ >= 0 && part.floorIndex >= cutFloorIndex_)
+            show = false;
+        if (!part.slab && cutFloorIndex_ >= 0 && part.floorIndex > cutFloorIndex_)
+            show = false;
+        flags.append(show);
+    }
+    if (flags == partVisible_)
+        return;
+    partVisible_ = flags;
+    emit partVisibleChanged();
+    if (state_ == State::Ready) {
+        framesSinceLoad_ = 0;
+        startFrameCount();
+    }
+}
+
+// The file addresses of the parts, for the scene.
+QVariantList ModelView::partUrls() const
+{
+    QVariantList list;
+    for (const Part& part : parts_)
+        list.append(part.file);
+    return list;
 }
 
 // Loads the current file again.
@@ -181,10 +243,13 @@ void ModelView::clearModel(const QString& emptyText)
     if (status() == QQuickWidget::Error)
         return;
     file_.clear();
+    parts_.clear();
+    partVisible_.clear();
     state_ = State::Empty;
     error_.clear();
     emptyText_ = emptyText;
     emit modelFileChanged();
+    emit partsChanged();
     emit emptyTextChanged();
     emit stateChanged();
 }

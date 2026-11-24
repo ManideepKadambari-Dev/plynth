@@ -151,9 +151,12 @@ void DetectionSession::remark()
 {
     if (raw_ == nullptr)
         return;
-    marked_ = *raw_;
-    if (const plynth::Floor* floor = host_.floor())
+    if (const plynth::Floor* floor = host_.floor()) {
+        marked_ = plynth::proposalsOnPlan(*floor, *raw_);
         plynth::markExisting(*floor, marked_);
+    } else {
+        marked_ = *raw_;
+    }
     const plynth::ProposalCounts counts = plynth::countProposals(marked_);
 
     QStringList found;
@@ -195,7 +198,8 @@ bool DetectionSession::accept()
     const plynth::Floor* floor = host_.floor();
     if (!canAccept() || floor == nullptr)
         return false;
-    auto command = std::make_unique<plynth::ApplyDetectionCommand>(floor->id, marked_, marked_.params.rooms);
+    // The command moves the proposals onto the plan itself, so it gets the detected result, not marked_.
+    auto command = std::make_unique<plynth::ApplyDetectionCommand>(floor->id, *raw_, marked_.params.rooms);
     const plynth::ApplyDetectionCommand* raw = command.get();
     if (!host_.run(std::move(command)).ok())
         return false;
@@ -259,6 +263,15 @@ ProposalOverlay DetectionSession::overlay() const
         out.openings.append(mark);
     }
     return out;
+}
+
+// Starts again on the image of the floor that is shown now.
+void DetectionSession::floorChanged()
+{
+    if (!active_)
+        return;
+    clearResult();
+    restart(0);
 }
 
 // A new image or scale runs detection again. Any other edit only re-checks what the floor already has.

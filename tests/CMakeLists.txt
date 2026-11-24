@@ -29,6 +29,13 @@ add_executable(plynth_core_tests
     core/MaterialImportTests.cpp
     core/ItemAssetsTests.cpp
     core/ItemsTests.cpp
+    core/GeneratorsTests.cpp
+    core/AddonsTests.cpp
+    core/AddonFolderTests.cpp
+    core/GeneratorBuildTests.cpp
+    core/GeneratorJobTests.cpp
+    core/GeneratorCommandsTests.cpp
+    core/SampleGeneratorsTests.cpp
     core/ItemCommandTests.cpp
     core/SearchTests.cpp
     core/RescanTests.cpp
@@ -38,6 +45,8 @@ add_executable(plynth_core_tests
     core/MaterialsTests.cpp
     core/MaterialCommandTests.cpp
     core/SchemaTests.cpp
+    core/DoorApplyTests.cpp
+    core/RotatedBuildingTests.cpp
     core/CommandTests.cpp
     core/CommandStackTests.cpp
     core/ProjectFilesTests.cpp
@@ -52,6 +61,13 @@ add_executable(plynth_core_tests
     core/BuildGeometryTests.cpp
     core/BuildJobTests.cpp
     core/BuildTests.cpp
+    core/BuildPreviewTests.cpp
+    core/StairsTests.cpp
+    core/StairCommandTests.cpp
+    core/FloorCommandTests.cpp
+    core/StoreysTests.cpp
+    core/RoofsTests.cpp
+    core/RoofCommandTests.cpp
     core/CollisionTests.cpp
     core/MaterialSlotsTests.cpp
     core/ExportTests.cpp
@@ -96,4 +112,4 @@ target_compile_definitions(plynth_core_tests PRIVATE
     PLYNTH_ECHO_LINES="$<TARGET_FILE:plynth_echo_lines>"
     PLYNTH_FAKE_BLENDER="$<TARGET_FILE:plynth_fake_blender>")
 
-catch_discover_tests(plynth_core_tests DISCOVERY_MODE PRE_TEST)
+catch_discover_tests(plynth_core_tests DISCOVERY_MODE PRE_TEST ADD_TAGS_AS_LABELS)

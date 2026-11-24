@@ -1,6 +1,8 @@
 #include "FakeBlender.h"
 #include "SampleProject.h"
+#include "SettingsGuard.h"
 
+#include <plynth/core/ProjectFiles.h>
 #include <plynth/core/Settings.h>
 
 #include <catch2/catch_test_macros.hpp>
@@ -12,6 +14,7 @@
 using plynth::cli::kExitOk;
 using plynth::cli::testing::errorCode;
 using plynth::cli::testing::installFakeBlender;
+using plynth::cli::testing::PrivateUser;
 using plynth::cli::testing::readFile;
 using plynth::cli::testing::runChecked;
 using plynth::cli::testing::ScopedEnvironment;
@@ -20,15 +23,14 @@ using plynth::cli::testing::utf8;
 
 namespace {
 
-// Clears the settings file when a test starts and when it ends.
-struct SettingsReset {
-    SettingsReset() { clear(); }
-    ~SettingsReset() { clear(); }
-    static void clear() {
-        std::error_code ignored;
-        std::filesystem::remove(plynth::settingsFile(), ignored);
-    }
-};
+using SettingsReset = plynth::cli::testing::GuardedSettingsReset;
+
+// True when a path reported as text is the same file as the expected one, whatever its spelling: the temp
+// folder can be named through a short (8.3) name or a link, and the report may spell it another way.
+bool samePath(const nlohmann::json& reported, const std::filesystem::path& expected) {
+    std::error_code ec;
+    return std::filesystem::equivalent(plynth::pathFromUtf8(reported.get<std::string>()), expected, ec);
+}
 
 // Checks a doctor result against schema/setup-report.schema.json.
 void validateReport(const nlohmann::json& result) {
@@ -60,8 +62,9 @@ void setUpFolders(const TempFolder& temp) {
 }
 
 TEST_CASE("doctor with the fake Blender, folders set and add-ons skipped is ready", "[cli][doctor]") {
-    SettingsReset reset;
     TempFolder temp("doctor-ready");
+    const PrivateUser user(temp);
+    SettingsReset reset;
     setUpFolders(temp);
     const auto fake = installFakeBlender(temp.path() / "fb52", "5.2.0");
 
@@ -72,7 +75,7 @@ TEST_CASE("doctor with the fake Blender, folders set and add-ons skipped is read
     CHECK(result.at("ready") == true);
     CHECK(result.at("probed") == false);
     CHECK(item(result, "blender").at("state") == "found");
-    CHECK(item(result, "blender").at("path") == utf8(fake));
+    CHECK(samePath(item(result, "blender").at("path"), fake));
     CHECK(item(result, "blender_version").at("state") == "found");
     CHECK(item(result, "library_folder").at("state") == "found");
     CHECK(item(result, "projects_folder").at("state") == "found");
@@ -81,8 +84,9 @@ TEST_CASE("doctor with the fake Blender, folders set and add-ons skipped is read
 }
 
 TEST_CASE("doctor asks the fake Blender about add-ons", "[cli][doctor]") {
-    SettingsReset reset;
     TempFolder temp("doctor-addons");
+    const PrivateUser user(temp);
+    SettingsReset reset;
     setUpFolders(temp);
     const auto fake = installFakeBlender(temp.path() / "fb52", "5.2.0");
     const ScopedEnvironment addons("FAKE_BLENDER_ADDONS", "bl_ext.blender_org.archimesh");
@@ -98,9 +102,45 @@ TEST_CASE("doctor asks the fake Blender about add-ons", "[cli][doctor]") {
     CHECK(result.at("ready") == true);
 }
 
-TEST_CASE("doctor with no library or projects folder is not ready", "[cli][doctor]") {
+TEST_CASE("doctor --blender beats PLYNTH_BLENDER and starts only the named Blender", "[cli][doctor]") {
+    TempFolder temp("doctor-option");
+    const PrivateUser user(temp);
     SettingsReset reset;
+    setUpFolders(temp);
+    const auto named = installFakeBlender(temp.path() / "named", "5.2.0");
+    const auto other = installFakeBlender(temp.path() / "other", "5.2.0");
+    const plynth::cli::testing::ScopedEnvironment variable("PLYNTH_BLENDER", utf8(other));
+
+    const auto outcome = runChecked({"doctor", "--no-addons", "--blender", utf8(named)});
+    REQUIRE(outcome.exitCode == kExitOk);
+    const auto& result = outcome.answer.at("result");
+    validateReport(result);
+    CHECK(samePath(item(result, "blender").at("path"), named));
+    CHECK(std::filesystem::exists(temp.path() / "named" / "fake_args.log"));
+    CHECK_FALSE(std::filesystem::exists(temp.path() / "other" / "fake_args.log"));
+    CHECK(result.at("blender_installs").size() == 1);
+}
+
+TEST_CASE("doctor --blender with a missing file says so and starts no other Blender", "[cli][doctor]") {
+    TempFolder temp("doctor-option-missing");
+    const PrivateUser user(temp);
+    SettingsReset reset;
+    setUpFolders(temp);
+    const auto other = installFakeBlender(temp.path() / "other", "5.2.0");
+    const plynth::cli::testing::ScopedEnvironment variable("PLYNTH_BLENDER", utf8(other));
+
+    const auto outcome = runChecked({"doctor", "--no-addons", "--blender", utf8(temp.path() / "nowhere" / "blender.exe")});
+    REQUIRE(outcome.exitCode == kExitOk);
+    const auto& result = outcome.answer.at("result");
+    validateReport(result);
+    CHECK(item(result, "blender").at("state") == "missing");
+    CHECK_FALSE(std::filesystem::exists(temp.path() / "other" / "fake_args.log"));
+}
+
+TEST_CASE("doctor with no library or projects folder is not ready", "[cli][doctor]") {
     TempFolder temp("doctor-empty");
+    const PrivateUser user(temp);
+    SettingsReset reset;
     const auto fake = installFakeBlender(temp.path() / "fb52", "5.2.0");
 
     const auto outcome = runChecked({"doctor", "--no-addons", "--blender", utf8(fake)});
@@ -114,8 +154,9 @@ TEST_CASE("doctor with no library or projects folder is not ready", "[cli][docto
 }
 
 TEST_CASE("settings set --blender refuses a Blender that is too old and leaves the file alone", "[cli][doctor]") {
-    SettingsReset reset;
     TempFolder temp("doctor-settings");
+    const PrivateUser user(temp);
+    SettingsReset reset;
     REQUIRE(runChecked({"settings", "set", "--keep-zips", "true"}).exitCode == kExitOk);
     const std::string before = readFile(plynth::settingsFile());
     const auto old = installFakeBlender(temp.path() / "fb41", "4.1.1");
@@ -128,12 +169,14 @@ TEST_CASE("settings set --blender refuses a Blender that is too old and leaves t
 
     const auto accepted = runChecked({"settings", "set", "--blender", utf8(good)});
     REQUIRE(accepted.exitCode == kExitOk);
-    CHECK(accepted.answer.at("result").at("settings").at("blender") == utf8(good));
+    CHECK(samePath(accepted.answer.at("result").at("settings").at("blender"), good));
 }
 
 TEST_CASE("doctor on this machine finds the real Blender", "[cli][doctor][.blender]") {
+    TempFolder temp("doctor-real");
+    const PrivateUser user(temp);
     SettingsReset reset;
-    const auto outcome = runChecked({"doctor"});
+    const auto outcome = runChecked({"doctor", "--no-addons"});
     REQUIRE(outcome.exitCode == kExitOk);
     const auto& result = outcome.answer.at("result");
     validateReport(result);

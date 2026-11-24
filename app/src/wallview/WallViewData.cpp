@@ -6,12 +6,34 @@
 #include <plynth/core/WallGeometry.h>
 #include <plynth/core/catalog/ItemAssets.h>
 
+#include <QObject>
+#include <QStringList>
+
 namespace plynth::app {
+
+namespace {
+
+// The words for a generator item whose add-on is off: "Needs" and the add-on names, or a plain fallback.
+QString needsText(const plynth::GeneratorUse& use, const plynth::GeneratorLibrary* generators,
+                  const std::optional<plynth::AddonCache>& addons)
+{
+    QStringList names;
+    if (generators != nullptr)
+        if (const plynth::GeneratorInfo* info = generators->find(use.name))
+            for (const std::string& addon : plynth::generatorState(*info, addons).missingAddons)
+                names << QString::fromStdString(plynth::addonDisplayName(addon));
+    if (names.isEmpty())
+        return QObject::tr("Add-on needed");
+    return QObject::tr("Needs %1").arg(names.join(QStringLiteral(", ")));
+}
+
+}
 
 // Builds the data for one wall of a floor, as seen from a side.
 WallViewData buildWallViewData(const plynth::Floor& floor, const plynth::Wall& wall, plynth::WallSide side,
                                const QString& selectedOpening, const QString& selectedItem,
-                               const plynth::AssetCatalog* catalog)
+                               const plynth::AssetCatalog* catalog, const plynth::GeneratorLibrary* generators,
+                               const std::optional<plynth::AddonCache>& addons)
 {
     WallViewData data;
     const plynth::WallCurve curve = plynth::wallCurve(floor, wall);
@@ -60,7 +82,10 @@ WallViewData buildWallViewData(const plynth::Floor& floor, const plynth::Wall& w
     plynth::AssetLookup lookup;
     if (catalog != nullptr)
         lookup = plynth::assetLookupFor(*catalog);
-    const std::vector<plynth::ItemProblem> itemIssues = plynth::itemProblems(floor, lookup);
+    plynth::GeneratorItemLookup generatorLookup;
+    if (generators != nullptr)
+        generatorLookup = plynth::generatorItemLookupFor(*generators, addons);
+    const std::vector<plynth::ItemProblem> itemIssues = plynth::itemProblems(floor, lookup, generatorLookup);
     for (const plynth::Item& item : floor.items) {
         if (!item.wall || *item.wall != wall.id)
             continue;
@@ -70,9 +95,15 @@ WallViewData buildWallViewData(const plynth::Floor& floor, const plynth::Wall& w
         WallViewItem entry;
         entry.id = QString::fromStdString(item.id);
         entry.name = QString::fromStdString(item.asset);
-        if (catalog != nullptr)
+        if (item.generator.has_value()) {
+            entry.name = QString::fromStdString(item.generator->name);
+            if (generators != nullptr)
+                if (const plynth::GeneratorInfo* info = generators->find(item.generator->name))
+                    entry.name = QString::fromStdString(info->name);
+        } else if (catalog != nullptr) {
             if (const std::optional<plynth::AssetRecord> record = catalog->asset(item.asset))
                 entry.name = QString::fromStdString(record->name);
+        }
         entry.offset = spot.offset;
         entry.z = item.z;
         entry.width = item.size.width;
@@ -83,8 +114,17 @@ WallViewData buildWallViewData(const plynth::Floor& floor, const plynth::Wall& w
             if (issue.item != item.id)
                 continue;
             entry.problem = true;
-            if (issue.kind == plynth::ItemProblemKind::MissingAsset)
+            if (issue.kind == plynth::ItemProblemKind::MissingAsset) {
                 entry.missing = true;
+                entry.missingText = QObject::tr("Missing asset");
+            } else if (issue.kind == plynth::ItemProblemKind::MissingGenerator) {
+                entry.missing = true;
+                entry.missingText = QObject::tr("Missing generator");
+            } else if (issue.kind == plynth::ItemProblemKind::GeneratorUnavailable && item.generator.has_value() &&
+                       !entry.missing) {
+                entry.missing = true;
+                entry.missingText = needsText(*item.generator, generators, addons);
+            }
         }
         entry.outline << QPointF(entry.offset - entry.width / 2.0, entry.z)
                       << QPointF(entry.offset + entry.width / 2.0, entry.z)

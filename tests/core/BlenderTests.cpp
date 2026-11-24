@@ -180,7 +180,7 @@ TEST_CASE("chooseBlender", "[core][blender]") {
         s.blender = old;
         const BlenderChoice c = chooseBlender(std::nullopt, s);
         plynth::test::requireOk(c.status);
-        REQUIRE(c.install.executable == fs::weakly_canonical(good));
+        REQUIRE(fs::equivalent(c.install.executable, good));
     }
     SECTION("the settings are used when nothing else is given") {
         MachineSettings s;
@@ -189,6 +189,65 @@ TEST_CASE("chooseBlender", "[core][blender]") {
         plynth::test::requireOk(c.status);
         REQUIRE(c.install.version == BlenderVersion{5, 2, 0});
     }
+}
+
+namespace {
+
+// True when the fake in this folder was ever started.
+bool wasStarted(const fs::path& exe)
+{
+    return fs::exists(exe.parent_path() / "fake_env.log");
+}
+
+}
+
+TEST_CASE("a named Blender is the only one started", "[core][blender][choice]") {
+    plynth::test::TempDir tmp("blender-bound");
+    plynth::test::IsolatedUser user("blender-bound-user");
+    plynth::test::ScopedEnv shortTimeout("PLYNTH_BLENDER_VERSION_TIMEOUT_MS", "2000");
+    const auto good = plynth::test::makeFakeBlender(tmp.path() / "good", "5.2.0");
+    const auto old = plynth::test::makeFakeBlender(tmp.path() / "old", "4.1.0");
+    const auto hung = plynth::test::makeFakeBlender(tmp.path() / "hung", "5.2.0", "hang_version");
+    const auto other = plynth::test::makeFakeBlender(tmp.path() / "other", "5.2.0");
+    const fs::path missing = tmp.path() / "none" / "blender.exe";
+    MachineSettings settings;
+    settings.blender = other;
+
+    SECTION("the variable names a missing file") {
+        plynth::test::ScopedEnv env("PLYNTH_BLENDER", pathToUtf8(missing));
+        const BlenderChoice c = chooseBlender(std::nullopt, settings);
+        REQUIRE(c.status.code == ErrorCode::BlenderNotFound);
+        REQUIRE(c.status.message.find("none") != std::string::npos);
+    }
+    SECTION("the variable names a Blender that is too old") {
+        plynth::test::ScopedEnv env("PLYNTH_BLENDER", pathToUtf8(old));
+        const BlenderChoice c = chooseBlender(std::nullopt, settings);
+        REQUIRE(c.status.code == ErrorCode::BlenderNotFound);
+        REQUIRE(c.status.message.find("4.1") != std::string::npos);
+    }
+    SECTION("the variable names a Blender that does not answer") {
+        plynth::test::ScopedEnv env("PLYNTH_BLENDER", pathToUtf8(hung));
+        REQUIRE(chooseBlender(std::nullopt, settings).status.code == ErrorCode::BlenderNotFound);
+    }
+    SECTION("the option beats the variable") {
+        plynth::test::ScopedEnv env("PLYNTH_BLENDER", pathToUtf8(old));
+        const BlenderChoice c = chooseBlender(good, settings);
+        plynth::test::requireOk(c.status);
+        REQUIRE(fs::equivalent(c.install.executable, good));
+        REQUIRE_FALSE(wasStarted(old));
+    }
+    SECTION("the variable beats the settings") {
+        plynth::test::ScopedEnv env("PLYNTH_BLENDER", pathToUtf8(good));
+        plynth::test::requireOk(chooseBlender(std::nullopt, settings).status);
+    }
+    SECTION("a bad option starts no other Blender") {
+        for (const fs::path& bad : {missing, old, hung}) {
+            plynth::test::ScopedEnv env("PLYNTH_BLENDER", pathToUtf8(good));
+            REQUIRE(chooseBlender(bad, settings).status.code == ErrorCode::BlenderNotFound);
+        }
+        REQUIRE_FALSE(wasStarted(good));
+    }
+    REQUIRE_FALSE(wasStarted(other));
 }
 
 TEST_CASE("blenderScriptsFolder", "[core][blender]") {

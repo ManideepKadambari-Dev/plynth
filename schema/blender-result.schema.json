@@ -20,7 +20,7 @@
           "required": ["code", "message"],
           "additionalProperties": false,
           "properties": {
-            "code": { "enum": ["bad_job", "unknown_task", "unsupported_format", "import_failed", "no_geometry", "several_models", "several_materials", "no_base_color", "bake_failed", "unpack_failed", "save_failed", "render_failed", "export_failed", "internal"] },
+            "code": { "enum": ["bad_job", "unknown_task", "unsupported_format", "import_failed", "no_geometry", "several_models", "several_materials", "no_base_color", "bake_failed", "unpack_failed", "save_failed", "render_failed", "export_failed", "preferences_unreadable", "internal"] },
             "message": { "type": "string", "minLength": 1 }
           }
         }
@@ -111,7 +111,7 @@
           }
         },
         "addons": {
-          "description": "Enabled add-ons and extensions only.",
+          "description": "Only add-ons and extensions that are both saved as enabled and found on disk.",
           "type": "array",
           "items": {
             "type": "object",
@@ -125,7 +125,7 @@
           }
         },
         "blenderkit": {
-          "description": "signed_in only says whether an API key is stored. The key is never read out.",
+          "description": "installed means found on disk. signed_in only says whether a sign-in is saved. The key is never output.",
           "type": "object",
           "required": ["installed", "enabled", "signed_in"],
           "additionalProperties": false,
@@ -199,7 +199,7 @@
         "triangles": { "type": "integer", "minimum": 0 },
         "counts": {
           "type": "object",
-          "required": ["wall_solids", "openings_cut", "fills", "rooms", "items", "materials", "collision"],
+          "required": ["wall_solids", "openings_cut", "fills", "rooms", "items", "materials", "collision", "slabs", "stairs", "roofs"],
           "additionalProperties": false,
           "properties": {
             "wall_solids": { "type": "integer", "minimum": 0 },
@@ -208,7 +208,11 @@
             "rooms": { "type": "integer", "minimum": 0 },
             "items": { "type": "integer", "minimum": 0 },
             "materials": { "description": "Blender materials made for built surfaces, one per slot.", "type": "integer", "minimum": 0 },
-            "collision": { "description": "UCX_ collision meshes made: pieces and item hulls.", "type": "integer", "minimum": 0 }
+            "collision": { "description": "UCX_ collision meshes made: pieces and item hulls.", "type": "integer", "minimum": 0 },
+            "slabs": { "description": "Slab meshes made.", "type": "integer", "minimum": 0 },
+            "stairs": { "description": "Stair meshes made.", "type": "integer", "minimum": 0 },
+            "roofs": { "description": "Roof section meshes made.", "type": "integer", "minimum": 0 },
+            "generators": { "description": "Items built by generators. Missing when the job had none.", "type": "integer", "minimum": 0 }
           }
         },
         "steps": {

@@ -16,8 +16,9 @@ inline constexpr double kDetectedOpeningSlack = 0.05;
 
 // Accepts detection proposals: turns them into ordinary points, walls, openings and rooms of a floor, as one
 // undo step named "Accept detection".
-// On the first apply it runs markExisting on its own copy of the proposals against the floor as it is then,
-// and builds its steps:
+// Takes the result as detected, measured from the image's corner. On the first apply it makes its own copy in
+// plan coordinates with proposalsOnPlan, runs markExisting on that against the floor as it is then, and builds
+// its steps:
 // - Each New wall, in proposal order, becomes a DrawWallCommand. Each end is found when that wall is drawn:
 //   a proposal point already turned into a plan point by an earlier wall is reused; otherwise the end is
 //   snapped with snapPosition (points and walls only, no grid, radius half the wall's thickness and at least

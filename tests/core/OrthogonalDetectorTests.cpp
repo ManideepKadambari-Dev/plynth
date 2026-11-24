@@ -418,3 +418,15 @@ TEST_CASE("orthogonal detector on apartment-02", "[core][detection][orthogonal][
     REQUIRE(r.walls.size() == expected.walls.size());
     checkAgainstExpected(r, expected, 0.04);
 }
+
+TEST_CASE("orthogonal detector on the house plans", "[core][detection][orthogonal][sample]") {
+    for (const char* name : {"house-01-ground", "house-01-upper"}) {
+        DYNAMIC_SECTION(name) {
+            const auto expected = readSampleExpected(std::filesystem::path(PLYNTH_SAMPLES_DIR) / "plans" / (std::string(name) + ".expected.json"));
+            const auto image = sampleImage(expected.image);
+            const DetectionResult r = run(*image, {}, expected.pixelsPerMetre);
+            REQUIRE(r.rooms.size() == 4);
+            checkAgainstExpected(r, expected, 0.04);
+        }
+    }
+}

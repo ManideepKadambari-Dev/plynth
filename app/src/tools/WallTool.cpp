@@ -35,6 +35,12 @@ void WallTool::deactivate()
     lastScene_.reset();
 }
 
+// A chain belongs to one floor, so it ends when another floor is shown.
+void WallTool::floorChanged()
+{
+    endChain();
+}
+
 // Turns a cursor position into a snapped position, following the snap rules in core.
 plynth::SnapResult WallTool::snapFor(QPointF scene, Qt::KeyboardModifiers modifiers) const
 {

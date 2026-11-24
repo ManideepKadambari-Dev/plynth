@@ -66,7 +66,8 @@ using Json = nlohmann::ordered_json;
 //   build_current   "Build is up to date": fail when the plan changed since the build or there is no build
 //                   report
 //   build_complete  "Build is complete": fail for every error of the last build (left out items, cuts that
-//                   failed, rooms that do not close); each finding names its plan id
+//                   failed, rooms that do not close, slabs, stairs and roofs that could not be made); each finding
+//                   names its plan id
 //   scale           "Scale and units": fail unless the scene is metric with unit scale 1 and the bounds of the
 //                   walls match expected_bounds within bounds_tolerance
 //   transforms      "Pivots and applied transforms": fail for an exported object whose transform is not the
@@ -86,8 +87,10 @@ using Json = nlohmann::ordered_json;
 //                   slot with the neutral look (no material assigned, or one that failed to load), an image
 //                   file that is missing, or a base color that is not an image (a procedural material: Plynth
 //                   cannot bake it, because baking needs Cycles)
-//   collision       "Collision": fail for a building mesh or item without a UCX_ mesh (door and window fills
-//                   need none), and for a UCX_ mesh that is not closed or not convex
+//   collision       "Collision": fail for a mesh of plynth_kind walls, floor, slab, stair, roof, item or
+//                   generator without a UCX_ mesh, each object on its own, so every roof section needs one
+//                   (ceilings, thresholds and door and window fills need none), and for a UCX_ mesh that is not
+//                   closed or not convex
 //   fbx_scale       phase "file": reads each written FBX back into an empty scene; fail unless the walls'
 //                   bounds match expected_bounds within bounds_tolerance and the object count matches
 //

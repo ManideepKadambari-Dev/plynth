@@ -2,6 +2,8 @@
 
 #include "canvas/PlanCanvas.h"
 #include "catalog/LibraryHost.h"
+#include "document/FloorFocus.h"
+#include "canvas/OverlayBuilder.h"
 #include "document/Selection.h"
 #include "detection/DetectionSession.h"
 #include "theme/Theme.h"
@@ -12,13 +14,16 @@
 #include "tools/RoomTool.h"
 #include "tools/ScaleTool.h"
 #include "tools/SelectTool.h"
+#include "tools/StairTool.h"
 #include "tools/WallTool.h"
 
+#include <plynth/core/Generators.h>
 #include <plynth/core/Items.h>
 #include <plynth/core/Openings.h>
 #include <plynth/core/Snapping.h>
 #include <plynth/core/WallGeometry.h>
 #include <plynth/core/catalog/ItemAssets.h>
+#include <plynth/core/commands/FloorCommands.h>
 #include <plynth/core/commands/ItemCommands.h>
 
 namespace plynth::app {
@@ -44,6 +49,7 @@ ToolController::ToolController(plynth::Document& document, PlanCanvas* canvas, S
     tools_[static_cast<size_t>(ToolId::Opening)] = std::make_unique<OpeningTool>(*this);
     tools_[static_cast<size_t>(ToolId::Room)] = std::make_unique<RoomTool>(*this);
     tools_[static_cast<size_t>(ToolId::Furniture)] = std::make_unique<FurnitureTool>(*this);
+    tools_[static_cast<size_t>(ToolId::Stair)] = std::make_unique<StairTool>(*this);
     detection_ = new DetectionSession(*this, this);
     tools_[static_cast<size_t>(ToolId::Detect)] = std::make_unique<DetectTool>(*this);
     connect(detection_, &DetectionSession::changed, this, [this]() {
@@ -52,6 +58,22 @@ ToolController::ToolController(plynth::Document& document, PlanCanvas* canvas, S
     });
     canvas_->setTool(tool(active_));
     tool(active_)->activate();
+    if (parent != nullptr)
+        setFocus(parent->findChild<FloorFocus*>());
+    connect(canvas_, &PlanCanvas::alignDragStarted, this, [this]() {
+        if (const plynth::Floor* current = floor()) {
+            alignFrom_ = current->imageOffset;
+            alignKey_ = nextMergeKey();
+        }
+    });
+    connect(canvas_, &PlanCanvas::alignDragged, this, [this](const QPointF& delta) {
+        const std::optional<double> ppm = pixelsPerMetre();
+        if (ppm.has_value() && *ppm > 0.0)
+            moveImageTo(alignFrom_.x + delta.x() / *ppm, alignFrom_.y + delta.y() / *ppm);
+    });
+    connect(canvas_, &PlanCanvas::alignNudged, this, [this](const QPoint& direction, bool big) {
+        nudgeImage(direction, big);
+    });
 }
 
 // Stops detection and takes the tool away from the canvas, if the canvas is still there.
@@ -107,6 +129,11 @@ QString ToolController::unavailableReason(ToolId id) const
         return tr("Set the scale first (S)");
     if (id == ToolId::Furniture && catalog() == nullptr)
         return tr("No library folder is set.");
+    if (id == ToolId::Stair) {
+        const plynth::Floor* current = floor();
+        if (current == nullptr || plynth::floorAbove(document_.plan(), current->id) == nullptr)
+            return tr("Add a floor above first.");
+    }
     return QString();
 }
 
@@ -128,7 +155,32 @@ void ToolController::refreshAvailability()
 // Passes a document change to the active tool.
 void ToolController::documentChanged(unsigned changes)
 {
+    constexpr unsigned overlayChanges = plynth::Change::Content | plynth::Change::FloorImage |
+                                        plynth::Change::Scale | plynth::Change::Floors | plynth::Change::Folder;
+    if (changes & overlayChanges)
+        refreshOverlay();
     tool(active_)->documentChanged(changes);
+}
+
+// Draws the shown floor over the plan: its marks, the faint floor below, and the image at its offset.
+void ToolController::refreshOverlay()
+{
+    const std::string id = focus_ != nullptr ? focus_->floorId().toStdString() : std::string();
+    const plynth::GeneratorLibrary* generators = library_ != nullptr ? &library_->generators() : nullptr;
+    const std::optional<plynth::AddonCache>* addons = library_ != nullptr ? &library_->addonCache() : nullptr;
+    canvas_->setOverlay(id.empty() ? buildOverlay(document_.plan(), catalog(), generators, addons)
+                                   : buildOverlay(document_.plan(), id, catalog(), generators, addons));
+    canvas_->setGridStep(gridStepPixels());
+}
+
+// For checks: switches to the Stair tool and shows the preview of a drag between two places in metres. False
+// when the tool is not available.
+bool ToolController::showStairPreview(double fromX, double fromY, double toX, double toY)
+{
+    if (!setActive(ToolId::Stair))
+        return false;
+    static_cast<StairTool*>(tool(ToolId::Stair))->previewDrag(plynth::Vec2{fromX, fromY}, plynth::Vec2{toX, toY});
+    return true;
 }
 
 // The one line hint of the active tool.
@@ -143,11 +195,84 @@ void ToolController::hintChanged()
     emit hintTextChanged(hint());
 }
 
-// The first floor, which is the only one the app edits in this milestone.
+// Follows the shown floor. Tools and detection start fresh when it changes.
+void ToolController::setFocus(FloorFocus* focus)
+{
+    if (focus_ != nullptr)
+        disconnect(focus_, nullptr, this, nullptr);
+    focus_ = focus;
+    if (focus_ != nullptr)
+        connect(focus_, &FloorFocus::changed, this, [this]() { floorChanged(); });
+}
+
+// The shown floor, or the first one when no focus was given.
 const plynth::Floor* ToolController::floor() const
 {
+    if (focus_ != nullptr)
+        return focus_->floor();
     const plynth::Plan& plan = document_.plan();
     return plan.floors.empty() ? nullptr : &plan.floors.front();
+}
+
+// Another floor is shown: alignment ends, the active tool and detection drop their state.
+void ToolController::floorChanged()
+{
+    setAlignImage(false);
+    tool(active_)->floorChanged();
+    detection_->floorChanged();
+    refreshOverlay();
+    refreshAvailability();
+}
+
+// True when the image cannot be aligned now: read only, no image on this floor, or no scale.
+bool ToolController::alignRefusal() const
+{
+    return document_.isReadOnly() || floor() == nullptr || !floor()->image.has_value() || !hasImage() ||
+           !pixelsPerMetre().has_value();
+}
+
+// Turns alignment on or off. Turning on is refused without an image, a scale or write access.
+void ToolController::setAlignImage(bool on)
+{
+    if (on && alignRefusal()) {
+        if (document_.isReadOnly())
+            showMessage(tr("The project is read only"));
+        else if (!pixelsPerMetre().has_value())
+            showMessage(tr("Set the scale first (S)"));
+        else
+            showMessage(tr("This floor has no plan image to align"));
+        on = false;
+    }
+    if (on == alignImage_)
+        return;
+    alignImage_ = on;
+    canvas_->setAlignMode(on);
+    emit alignImageChanged(on);
+    if (on)
+        showNotice(tr("Drag the plan image to line it up. Arrow keys nudge it by 1 cm, Shift by 10 cm."));
+}
+
+// Moves the shown floor's image offset to a place. Moves in one drag share a merge key, so they undo as one.
+void ToolController::moveImageTo(double dx, double dy)
+{
+    const plynth::Floor* current = floor();
+    if (current == nullptr)
+        return;
+    run(std::make_unique<plynth::SetFloorImageOffsetCommand>(current->id, plynth::ImageOffset{dx, dy}, true,
+                                                             alignKey_));
+}
+
+// Moves the image by 1 cm, or 10 cm when big. Each key press is its own undo step.
+void ToolController::nudgeImage(const QPoint& direction, bool big)
+{
+    const plynth::Floor* current = floor();
+    if (current == nullptr)
+        return;
+    const double step = big ? 0.10 : 0.01;
+    run(std::make_unique<plynth::SetFloorImageOffsetCommand>(
+        current->id,
+        plynth::ImageOffset{current->imageOffset.x + direction.x() * step, current->imageOffset.y + direction.y() * step},
+        true, nextMergeKey()));
 }
 
 // Pixels per metre, when the scale is set.
@@ -156,7 +281,7 @@ std::optional<double> ToolController::pixelsPerMetre() const
     return document_.plan().scale.pixelsPerMetre;
 }
 
-// True when the first floor has an image on the sheet.
+// True when the shown floor has an image on the sheet.
 bool ToolController::hasImage() const
 {
     return canvas_->hasImage();
@@ -225,7 +350,8 @@ plynth::AssetCatalog* ToolController::catalog() const
     return library_ != nullptr ? library_->catalog() : nullptr;
 }
 
-// The furniture picker, a child of the canvas so it draws over the plan and in screenshots.
+// The furniture picker, a child of the canvas so it draws over the plan and in screenshots. It is given the
+// shown floor's ceiling height each time it is asked for, so generator sizes match that floor.
 FurniturePicker& ToolController::picker(QWidget* over)
 {
     QWidget* parent = over != nullptr ? over : static_cast<QWidget*>(canvas_.data());
@@ -233,6 +359,8 @@ FurniturePicker& ToolController::picker(QWidget* over)
         picker_ = new FurniturePicker(*library_, parent);
     else if (picker_->parentWidget() != parent)
         picker_->setParent(parent);
+    const plynth::Floor* current = floor();
+    picker_->setCeilingHeight(current != nullptr ? current->ceilingHeight : plynth::kDefaultCeilingHeight);
     return *picker_;
 }
 
@@ -338,6 +466,58 @@ bool ToolController::placeAsset(const QString& assetId, plynth::Vec2 wanted, boo
     plynth::Item item;
     item.asset = assetId.toStdString();
     item.size = asset.size;
+    const plynth::Vec2 at = snapItem(item, wanted, free);
+    item.x = at.x;
+    item.y = at.y;
+    auto command = std::make_unique<plynth::PlaceItemCommand>(current->id, item);
+    const plynth::PlaceItemCommand* raw = command.get();
+    if (!run(std::move(command)).ok())
+        return false;
+    selection_->set(SelectionKind::Item, QString::fromStdString(raw->itemId()));
+    return true;
+}
+
+// Makes the item a generator item would be at the default values and the floor's ceiling height.
+std::optional<plynth::Item> ToolController::generatorItem(const QString& generatorId) const
+{
+    const plynth::Floor* current = floor();
+    if (current == nullptr || library_ == nullptr)
+        return std::nullopt;
+    const plynth::GeneratorInfo* info = library_->generators().find(generatorId.toStdString());
+    if (info == nullptr)
+        return std::nullopt;
+    const plynth::GeneratorPlacement placement =
+        plynth::makeGeneratorUse(*info, plynth::defaultGeneratorParams(*info, current->ceilingHeight));
+    if (!placement.status.ok())
+        return std::nullopt;
+    plynth::Item item;
+    item.generator = placement.use;
+    item.size = placement.size;
+    return item;
+}
+
+// Places a generator with its default values, snapped, through PlaceItemCommand, and selects it.
+bool ToolController::placeGenerator(const QString& generatorId, plynth::Vec2 wanted, bool free)
+{
+    const plynth::Floor* current = floor();
+    if (current == nullptr)
+        return false;
+    if (library_ == nullptr || library_->generators().find(generatorId.toStdString()) == nullptr) {
+        showMessage(tr("That generator is not in the library."));
+        return false;
+    }
+    const plynth::GeneratorInfo& info = *library_->generators().find(generatorId.toStdString());
+    const plynth::GeneratorState state = plynth::generatorState(info, library_->addonCache());
+    if (state.availability == plynth::GeneratorAvailability::NeedsAddon) {
+        showMessage(fromCore(state.message));
+        return false;
+    }
+    std::optional<plynth::Item> made = generatorItem(generatorId);
+    if (!made.has_value()) {
+        showMessage(tr("This generator cannot be placed with its default values."));
+        return false;
+    }
+    plynth::Item item = *made;
     const plynth::Vec2 at = snapItem(item, wanted, free);
     item.x = at.x;
     item.y = at.y;

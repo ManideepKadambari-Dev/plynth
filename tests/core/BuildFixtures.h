@@ -80,7 +80,7 @@ inline BuildMaterialSource sampleMaterialSource()
         }
         const std::string name(id);
         if (name != "white_paint" && name != "oak_planks" && name != "painted_wood" && name != "clear_glass" &&
-            name != "brushed_steel" && name != "tile") {
+            name != "brushed_steel" && name != "tile" && name != "concrete" && name != "roof_tiles") {
             return std::nullopt;
         }
         BuildMaterialState state;

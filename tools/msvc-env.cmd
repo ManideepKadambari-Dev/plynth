@@ -13,8 +13,9 @@ rem The CMake bundled with Visual Studio is not on PATH outside its own prompt.
 set "PATH=%VSROOT%\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin;%VSROOT%\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja;%PATH%"
 :run
 rem Keep the owner's PC responsive: cap build and test parallelism unless already set.
-if not defined CMAKE_BUILD_PARALLEL_LEVEL set "CMAKE_BUILD_PARALLEL_LEVEL=16"
-if not defined CTEST_PARALLEL_LEVEL set "CTEST_PARALLEL_LEVEL=8"
+if not defined CMAKE_BUILD_PARALLEL_LEVEL set "CMAKE_BUILD_PARALLEL_LEVEL=6"
+if not defined CTEST_PARALLEL_LEVEL set "CTEST_PARALLEL_LEVEL=6"
+if not defined VCPKG_MAX_CONCURRENCY set "VCPKG_MAX_CONCURRENCY=6"
 rem Run the command at low CPU priority. Output and the exit code pass through.
 start "" /low /b /wait cmd /c %*
 exit /b %ERRORLEVEL%

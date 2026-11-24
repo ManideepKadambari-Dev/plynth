@@ -31,9 +31,11 @@ def collision_params():
     params = copy.deepcopy(load_params("square_room"))
     params["settings"]["bevel_width"] = 0.0
     walls = {"target": {"kind": "walls", "id": "f1"},
-             "pieces": [{"outline": [list(p) for p in ring], "bottom": 0.0, "top": 3.0} for ring in WALL_PIECES]}
+             "pieces": [{"outline": [list(p) for p in ring], "bottom": 0.0, "top": 3.0} for ring in WALL_PIECES],
+             "index": 0, "hulls": []}
     floor = {"target": {"kind": "floor", "id": "r1"},
-             "pieces": [{"outline": [list(p) for p in ROOM_RING], "bottom": -0.1, "top": 0.0}]}
+             "pieces": [{"outline": [list(p) for p in ROOM_RING], "bottom": -0.1, "top": 0.0}],
+             "index": 0, "hulls": []}
     params["floors"][0]["collision"] = [walls, floor]
     return upgrade(params)
 
@@ -124,6 +126,8 @@ class CollisionTests(BuildTest):
             obj = bpy.data.objects[name]
             self.assertIn(obj, list(collection.objects))
             self.assertEqual(obj.type, "MESH")
+            self.assertEqual(obj.display_type, "WIRE")
+            self.assertTrue(obj.hide_render, "a render of building.blend must not show %s" % name)
             self.assertTrue(is_closed(obj))
             volume = mesh_volume(obj)
             self.assertGreater(volume, 0.0)
@@ -175,7 +179,8 @@ class CollisionTests(BuildTest):
         params = collision_params()
         params["floors"][0]["collision"].append({"target": {"kind": "thresholds", "id": "f1"},
                                                  "pieces": [{"outline": [[1, -0.1], [2, -0.1], [2, 0.1], [1, 0.1]],
-                                                             "bottom": -0.1, "top": 0.0}]})
+                                                             "bottom": -0.1, "top": 0.0}],
+                                                 "index": 0, "hulls": []})
         result = self.build_open(params)
         self.assertEqual([p["code"] for p in result["output"]["problems"]], ["collision_failed"])
         self.assertEqual(result["output"]["counts"]["collision"], 5)
@@ -262,6 +267,7 @@ class ItemHullTests(BuildTest):
         for hull, item in ((first, "i1"), (second, "i2")):
             empty = bpy.data.objects["SM_box_%s" % item]
             self.assertEqual(hull["plynth_kind"], "collision")
+            self.assertTrue(hull.hide_render)
             self.assertEqual(hull["plynth_collision_for"], empty.name)
             for row in range(4):
                 for column in range(4):

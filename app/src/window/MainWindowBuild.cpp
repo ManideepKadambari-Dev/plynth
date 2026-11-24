@@ -1,5 +1,7 @@
 #include "MainWindow.h"
 
+#include "document/FloorFocus.h"
+
 #include "BuildBar.h"
 #include "StatusBar.h"
 #include "building/BuildController.h"
@@ -14,6 +16,7 @@
 #include "preview/PreviewView.h"
 
 #include <plynth/core/Blender.h>
+#include <plynth/core/Roofs.h>
 #include <plynth/core/SetupCheck.h>
 
 #include <QAction>
@@ -151,15 +154,15 @@ void MainWindow::updateBuildUi()
     refreshProblemMarkers();
 }
 
-// Gives the plan one marker for each problem of the last build that has a place on the first floor.
+// Gives the plan one marker for each problem of the last build that has a place on the shown floor.
 void MainWindow::refreshProblemMarkers()
 {
     QVector<ProblemMarker> markers;
     const std::optional<double> ppm = doc_.plan().scale.pixelsPerMetre;
-    if (report_ && ppm.has_value() && !doc_.plan().floors.empty()) {
-        const plynth::Floor& first = doc_.plan().floors.front();
+    if (report_ && ppm.has_value() && focus_->floor() != nullptr) {
+        const plynth::Floor& shown = *focus_->floor();
         for (const plynth::BuildProblem& problem : report_->problems) {
-            if (!problem.floor.empty() && problem.floor != first.id)
+            if (!problem.floor.empty() && problem.floor != shown.id)
                 continue;
             const std::optional<plynth::Vec2> at = plynth::problemPosition(doc_.plan(), problem);
             if (!at.has_value())
@@ -186,7 +189,7 @@ void MainWindow::refreshBuilding3d()
         canvas_->setBuilding3d(QImage(), QRectF());
         return;
     }
-    overlayRenderer_->render(QUrl::fromLocalFile(QString::fromStdWString(fbx.wstring())), doc_.plan(), *ppm);
+    overlayRenderer_->render(QUrl::fromLocalFile(QString::fromStdWString(fbx.wstring())), doc_.plan(), *ppm, focus_->floorId());
 }
 
 // For checks only: shows the plan at 100 percent.
@@ -201,10 +204,29 @@ void MainWindow::setOverlay3d(bool on)
     overlay3dAction_->setChecked(on);
 }
 
-// Opens the Plan page, selects the object of a problem and centres the plan on it.
+// Opens the Plan page, selects the object of a problem and centres the plan on it. A floor id only switches to that
+// floor, and a roof entry switches to its floor and selects its section.
 void MainWindow::showProblem(const QString& objectId)
 {
     showCentreView(false);
+    const std::string key = objectId.toStdString();
+    if (plynth::findFloor(doc_.plan(), key) != nullptr) {
+        selection_->clear();
+        showFloor(objectId);
+        return;
+    }
+    if (const plynth::RoofSection* entry = plynth::findRoofSection(doc_.plan(), key)) {
+        showFloor(fromCore(entry->floor));
+        for (const plynth::RoofArea& area : plynth::roofAreasOf(doc_.plan(), entry->floor))
+            if (area.section == key) {
+                roofSectionsAction_->setChecked(true);
+                selection_->set(SelectionKind::RoofSection, QStringLiteral("%1:%2").arg(fromCore(area.floor)).arg(area.index));
+                break;
+            }
+        if (const std::optional<double> ppm = doc_.plan().scale.pixelsPerMetre)
+            canvas_->centerOn(QPointF(entry->x * *ppm, entry->y * *ppm));
+        return;
+    }
     selectById(objectId);
     const std::optional<double> ppm = doc_.plan().scale.pixelsPerMetre;
     if (!ppm.has_value())

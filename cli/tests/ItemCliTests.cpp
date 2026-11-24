@@ -1,4 +1,5 @@
 #include "SampleProject.h"
+#include "SettingsGuard.h"
 
 #include <plynth/core/EditSession.h>
 #include <plynth/core/Library.h>
@@ -28,15 +29,7 @@ using plynth::cli::testing::utf8;
 
 namespace {
 
-// Clears the settings file when a test starts and when it ends.
-struct SettingsReset {
-    SettingsReset() { clear(); }
-    ~SettingsReset() { clear(); }
-    static void clear() {
-        std::error_code ignored;
-        std::filesystem::remove(plynth::settingsFile(), ignored);
-    }
-};
+using SettingsReset = plynth::cli::testing::GuardedSettingsReset;
 
 // Writes one asset folder by hand and indexes it.
 void makeAsset(const std::filesystem::path& library, const std::string& id, const std::string& name,
@@ -452,7 +445,7 @@ TEST_CASE("the saved plan with items matches its schema", "[cli][item]") {
     validator.set_root_schema(nlohmann::json::parse(schemaFile));
     const auto plan = nlohmann::json::parse(readFile(sample.folder / "plan.json"));
     CHECK_NOTHROW(validator.validate(plan));
-    CHECK(plan.at("version") == 4);
+    CHECK(plan.at("version") == 6);
     CHECK(plan.at("floors").at(0).at("items").size() == 2);
 }
 

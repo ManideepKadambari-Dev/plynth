@@ -5,6 +5,7 @@
 #include "theme/Theme.h"
 #include "tools/ToolController.h"
 
+#include <plynth/core/Generators.h>
 #include <plynth/core/Items.h>
 #include <plynth/core/Rooms.h>
 #include <plynth/core/catalog/ItemAssets.h>
@@ -28,6 +29,7 @@ void FurnitureTool::activate()
 {
     click_.reset();
     hoveredAsset_.clear();
+    hoveredGenerator_.clear();
     preview_.reset();
     connectPicker();
 }
@@ -41,6 +43,19 @@ void FurnitureTool::deactivate()
     click_.reset();
     preview_.reset();
     hoveredAsset_.clear();
+    hoveredGenerator_.clear();
+    host_.canvas().viewport()->update();
+}
+
+// Closes the picker and forgets the click, which was on the floor shown before.
+void FurnitureTool::floorChanged()
+{
+    if (host_.pickerOpen())
+        host_.picker().dismiss();
+    click_.reset();
+    preview_.reset();
+    hoveredAsset_.clear();
+    hoveredGenerator_.clear();
     host_.canvas().viewport()->update();
 }
 
@@ -65,6 +80,7 @@ void FurnitureTool::openAt(plynth::Vec2 metres, const QPoint& viewPoint)
     click_ = metres;
     preview_.reset();
     hoveredAsset_.clear();
+    hoveredGenerator_.clear();
     QString roomType;
     const plynth::Id roomId = plynth::roomAt(*floor, metres);
     if (!roomId.empty())
@@ -94,10 +110,13 @@ void FurnitureTool::connectPicker()
     FurniturePicker& picker = host_.picker();
     chosen_ = QObject::connect(&picker, &FurniturePicker::assetChosen, &host_, [this](const QString& id) { assetChosen(id); });
     hovered_ = QObject::connect(&picker, &FurniturePicker::assetHovered, &host_, [this](const QString& id) { assetHovered(id); });
+    generatorChosen_ = QObject::connect(&picker, &FurniturePicker::generatorChosen, &host_, [this](const QString& id) { generatorChosen(id); });
+    generatorHovered_ = QObject::connect(&picker, &FurniturePicker::generatorHovered, &host_, [this](const QString& id) { generatorHovered(id); });
     dismissed_ = QObject::connect(&picker, &FurniturePicker::dismissed, &host_, [this]() {
         click_.reset();
         preview_.reset();
         hoveredAsset_.clear();
+        hoveredGenerator_.clear();
         host_.canvas().viewport()->update();
     });
 }
@@ -107,6 +126,8 @@ void FurnitureTool::disconnectPicker()
 {
     QObject::disconnect(chosen_);
     QObject::disconnect(hovered_);
+    QObject::disconnect(generatorChosen_);
+    QObject::disconnect(generatorHovered_);
     QObject::disconnect(dismissed_);
 }
 
@@ -114,6 +135,15 @@ void FurnitureTool::disconnectPicker()
 void FurnitureTool::assetHovered(const QString& assetId)
 {
     hoveredAsset_ = assetId;
+    hoveredGenerator_.clear();
+    updatePreview();
+}
+
+// Remembers the hovered generator and works out its footprint at the click point.
+void FurnitureTool::generatorHovered(const QString& generatorId)
+{
+    hoveredGenerator_ = generatorId;
+    hoveredAsset_.clear();
     updatePreview();
 }
 
@@ -124,7 +154,17 @@ void FurnitureTool::updatePreview()
     previewProblem_ = false;
     const plynth::Floor* floor = host_.floor();
     plynth::AssetCatalog* catalog = host_.catalog();
-    if (click_.has_value() && floor != nullptr && catalog != nullptr && !hoveredAsset_.isEmpty()) {
+    if (click_.has_value() && floor != nullptr && !hoveredGenerator_.isEmpty()) {
+        std::optional<plynth::Item> item = host_.generatorItem(hoveredGenerator_);
+        if (item.has_value()) {
+            const bool free = QGuiApplication::keyboardModifiers() & Qt::ControlModifier;
+            const plynth::Vec2 at = host_.snapItem(*item, *click_, free);
+            item->x = at.x;
+            item->y = at.y;
+            previewProblem_ = !plynth::checkItem(*floor, *item, plynth::AssetLookup{}).empty();
+            preview_ = item;
+        }
+    } else if (click_.has_value() && floor != nullptr && catalog != nullptr && !hoveredAsset_.isEmpty()) {
         const plynth::ItemAsset asset = plynth::itemAssetFor(*catalog, hoveredAsset_.toStdString());
         if (asset.status.ok()) {
             plynth::Item item;
@@ -151,6 +191,19 @@ void FurnitureTool::assetChosen(const QString& assetId)
     click_.reset();
     preview_.reset();
     host_.placeAsset(assetId, at, free);
+    host_.canvas().viewport()->update();
+}
+
+// Places the chosen generator at the click point and selects it.
+void FurnitureTool::generatorChosen(const QString& generatorId)
+{
+    if (!click_.has_value())
+        return;
+    const plynth::Vec2 at = *click_;
+    const bool free = QGuiApplication::keyboardModifiers() & Qt::ControlModifier;
+    click_.reset();
+    preview_.reset();
+    host_.placeGenerator(generatorId, at, free);
     host_.canvas().viewport()->update();
 }
 

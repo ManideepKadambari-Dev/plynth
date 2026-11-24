@@ -2,6 +2,7 @@
 
 #include "plynth/core/BuildGeometry.h"
 #include "plynth/core/Geometry.h"
+#include "plynth/core/Generators.h"
 #include "plynth/core/Openings.h"
 #include "plynth/core/Rooms.h"
 #include "plynth/core/WallGeometry.h"
@@ -9,6 +10,7 @@
 #include <algorithm>
 #include <cmath>
 #include <set>
+#include <variant>
 
 namespace plynth {
 
@@ -82,6 +84,15 @@ const Wall* findWallAnywhere(const Plan& plan, std::string_view id)
     return nullptr;
 }
 
+// The stair with an id on any floor, or null.
+const Stair* findStairAnywhere(const Plan& plan, std::string_view id)
+{
+    for (const Floor& floor : plan.floors) {
+        if (const Stair* stair = findStair(floor, id)) return stair;
+    }
+    return nullptr;
+}
+
 // Says whether a text is a wall or room style id: the prefix letter and digits.
 bool looksLikeId(std::string_view text, std::string_view prefix)
 {
@@ -102,6 +113,8 @@ std::string_view materialOriginName(MaterialOrigin origin)
     case MaterialOrigin::Room: return "room";
     case MaterialOrigin::Default: return "default";
     case MaterialOrigin::None: return "none";
+    case MaterialOrigin::Stair: return "stair";
+    case MaterialOrigin::Roof: return "roof";
     }
     return "none";
 }
@@ -203,6 +216,42 @@ OpeningMaterials openingMaterials(const Project& project, const Floor& floor, co
     return out;
 }
 
+// The material of a stair.
+ResolvedMaterial stairMaterial(const Project& project, const Stair& stair)
+{
+    if (auto m = fromObject(stair.material, MaterialOrigin::Stair, stair.id, Surface::Stair)) return *m;
+    return surfaceDefaultMaterial(project, Surface::Stair);
+}
+
+// The material of one part of a roof section.
+ResolvedMaterial roofPartMaterial(const Project& project, const RoofArea& area, RoofPart part)
+{
+    switch (part) {
+    case RoofPart::Covering: {
+        const bool flat = area.settings.type == kFlatRoofId || !findRoofType(area.settings.type);
+        const Surface surface = flat ? Surface::FlatRoof : Surface::Roof;
+        if (auto m = fromObject(area.material, MaterialOrigin::Roof, area.section, surface)) return *m;
+        return surfaceDefaultMaterial(project, surface);
+    }
+    case RoofPart::Underside: return surfaceDefaultMaterial(project, Surface::Ceiling);
+    case RoofPart::Edge: return surfaceDefaultMaterial(project, Surface::WallTop);
+    case RoofPart::Gable:
+    case RoofPart::Parapet: return surfaceDefaultMaterial(project, Surface::WallOutside);
+    case RoofPart::Glazing: return surfaceDefaultMaterial(project, Surface::Glass);
+    }
+    return {};
+}
+
+// The materials of a floor's slab.
+SlabMaterials slabMaterials(const Project& project)
+{
+    SlabMaterials out;
+    out.edge = surfaceDefaultMaterial(project, Surface::WallOutside);
+    out.well = surfaceDefaultMaterial(project, Surface::WallInside);
+    out.underside = surfaceDefaultMaterial(project, Surface::Ceiling);
+    return out;
+}
+
 // Every material id the build of this project would use.
 std::vector<std::string> materialsUsed(const Project& project)
 {
@@ -211,7 +260,21 @@ std::vector<std::string> materialsUsed(const Project& project)
         if (m.material) used.insert(*m.material);
     };
 
-    for (const Surface surface : allSurfaces()) add(surfaceDefaultMaterial(project, surface));
+    // The roof, flat roof and stair defaults count only where a section or a stair uses them.
+    for (const Surface surface : allSurfaces()) {
+        if (surface == Surface::Roof || surface == Surface::FlatRoof || surface == Surface::Stair) continue;
+        add(surfaceDefaultMaterial(project, surface));
+    }
+    const SlabMaterials slab = slabMaterials(project);
+    add(slab.edge);
+    add(slab.well);
+    add(slab.underside);
+    for (const RoofArea& area : roofAreas(project.plan)) {
+        for (const RoofPart part : {RoofPart::Covering, RoofPart::Underside, RoofPart::Edge, RoofPart::Gable, RoofPart::Parapet,
+                                    RoofPart::Glazing}) {
+            add(roofPartMaterial(project, area, part));
+        }
+    }
 
     for (const Floor& floor : project.plan.floors) {
         for (const Wall& wall : floor.walls) {
@@ -227,6 +290,7 @@ std::vector<std::string> materialsUsed(const Project& project)
             add(roomFloorMaterial(project, room));
             add(roomCeilingMaterial(project, room));
         }
+        for (const Stair& stair : floor.stairs) add(stairMaterial(project, stair));
         for (const Opening& opening : floor.openings) {
             const OpeningMaterials m = openingMaterials(project, floor, opening);
             add(m.reveal);
@@ -235,6 +299,28 @@ std::vector<std::string> materialsUsed(const Project& project)
             add(m.frame);
             add(m.glass);
             add(m.handle);
+        }
+    }
+    return {used.begin(), used.end()};
+}
+
+// The same, with the materials of generator items, read with the library's declarations.
+std::vector<std::string> materialsUsed(const Project& project, const GeneratorLibrary& generators)
+{
+    const std::vector<std::string> surfaces = materialsUsed(project);
+    std::set<std::string> used(surfaces.begin(), surfaces.end());
+    for (const Floor& floor : project.plan.floors) {
+        for (const Item& item : floor.items) {
+            if (!isGeneratorItem(item)) continue;
+            const GeneratorInfo* info = generators.find(item.generator->name);
+            if (!info) continue;
+            // The values the build would use: one that no longer fits counts as its default.
+            const GeneratorParamsFit fit = fitGeneratorParams(*info, item.generator->params, floor.ceilingHeight);
+            for (const std::string& param : generatorMaterialParams(*info)) {
+                const GeneratorValue* value = findGeneratorValue(fit.params, param);
+                const std::string* text = value ? std::get_if<std::string>(value) : nullptr;
+                if (text && !text->empty()) used.insert(*text);
+            }
         }
     }
     return {used.begin(), used.end()};
@@ -278,6 +364,16 @@ std::optional<RoomSurface> roomSurfaceFromName(std::string_view name)
 MaterialTargetParse parseMaterialTarget(const Plan& plan, std::string_view text)
 {
     MaterialTargetParse out;
+    if (looksLikeId(text, kStairIdPrefix) || looksLikeId(text, kRoofSectionIdPrefix)) {
+        const bool stair = looksLikeId(text, kStairIdPrefix);
+        if (stair ? findStairAnywhere(plan, text) == nullptr : findRoofSection(plan, text) == nullptr) {
+            out.status = fail(ErrorCode::NotFound, std::string(stair ? "There is no stair " : "There is no roof section ") + std::string(text) + ".");
+            return out;
+        }
+        out.target.kind = stair ? MaterialTarget::Kind::Stair : MaterialTarget::Kind::Roof;
+        out.target.object = std::string(text);
+        return out;
+    }
     const std::size_t dot = text.find('.');
     if (dot == std::string_view::npos || dot == 0 || dot + 1 >= text.size() || text.find('.', dot + 1) != std::string_view::npos) {
         out.status = fail(ErrorCode::InvalidValue,
@@ -361,6 +457,20 @@ ResolvedMaterial materialAt(const Project& project, const MaterialTarget& target
 {
     switch (target.kind) {
     case MaterialTarget::Kind::Default: return surfaceDefaultMaterial(project, target.surface);
+    case MaterialTarget::Kind::Stair: {
+        const Stair* stair = findStairAnywhere(project.plan, target.object);
+        return stair ? stairMaterial(project, *stair) : ResolvedMaterial{};
+    }
+    case MaterialTarget::Kind::Roof: {
+        const RoofSection* entry = findRoofSection(project.plan, target.object);
+        if (!entry) return {};
+        RoofArea area;
+        area.floor = entry->floor;
+        area.section = entry->id;
+        area.settings = entry->settings;
+        area.material = entry->material;
+        return roofPartMaterial(project, area, RoofPart::Covering);
+    }
     case MaterialTarget::Kind::Wall: {
         const Wall* wall = findWallAnywhere(project.plan, target.object);
         if (!wall) return {};

@@ -1,6 +1,7 @@
 #include "PlanCanvas.h"
 
 #include "canvas/OpeningPaint.h"
+#include "canvas/StairPaint.h"
 #include "building/ProblemMark.h"
 #include "theme/Theme.h"
 #include "tools/Tool.h"
@@ -35,6 +36,62 @@
 namespace plynth::app {
 
 namespace {
+
+// Finds a spot close to a wanted box where it fits inside the region and touches none of the obstacles. The wanted
+// spot is tried first, then rings of growing size. A fine pass covers the near surroundings and a coarse pass,
+// sized from the region, covers the rest, so the work has a fixed upper bound at any zoom.
+// Returns false when there is no such spot.
+bool findFreeSpot(const QRectF& want, const QPainterPath& region, const QVector<QPainterPath>& obstacles,
+                  QRectF* result)
+{
+    constexpr double kFineStep = 6.0;
+    constexpr int kMaxRings = 40;
+    const QRectF regionBox = region.isEmpty() ? want.adjusted(-200, -200, 200, 200) : region.boundingRect();
+    const double coarseStep = std::max(kFineStep, std::max(regionBox.width(), regionBox.height()) / kMaxRings);
+    const double reach = coarseStep * kMaxRings;
+    QVector<const QPainterPath*> near;
+    for (const QPainterPath& obstacle : obstacles)
+        if (obstacle.boundingRect().intersects(want.adjusted(-reach, -reach, reach, reach)))
+            near.append(&obstacle);
+    const auto fits = [&](const QRectF& box) {
+        if (!region.isEmpty() && (!regionBox.contains(box) || !region.contains(box)))
+            return false;
+        for (const QPainterPath* obstacle : near)
+            if (obstacle->intersects(box))
+                return false;
+        return true;
+    };
+    if (fits(want)) {
+        *result = want;
+        return true;
+    }
+    for (const double step : {kFineStep, coarseStep}) {
+        for (int ring = 1; ring <= kMaxRings; ++ring) {
+            QRectF best;
+            double bestDistance = 1e300;
+            for (int ix = -ring; ix <= ring; ++ix) {
+                const bool edgeColumn = ix == -ring || ix == ring;
+                for (int iy = -ring; iy <= ring; iy += edgeColumn ? 1 : 2 * ring) {
+                    const double distance = std::hypot(ix * step, iy * step);
+                    if (distance >= bestDistance)
+                        continue;
+                    const QRectF box = want.translated(ix * step, iy * step);
+                    if (!fits(box))
+                        continue;
+                    best = box;
+                    bestDistance = distance;
+                }
+            }
+            if (bestDistance < 1e300) {
+                *result = best;
+                return true;
+            }
+        }
+        if (coarseStep <= kFineStep)
+            break;
+    }
+    return false;
+}
 
 constexpr double kMinZoom = 0.02;
 constexpr double kMaxZoom = 32.0;
@@ -79,7 +136,7 @@ void PlanCanvas::setImage(const QImage& image)
         return;
     }
     pixmapItem_ = scene_->addPixmap(QPixmap::fromImage(image));
-    pixmapItem_->setPos(0, 0);
+    pixmapItem_->setPos(imageOffset_);
     pixmapItem_->setZValue(1);
     fitToWindow();
 }
@@ -102,6 +159,7 @@ void PlanCanvas::setDimmed(bool dimmed)
 void PlanCanvas::setOverlay(const OverlayData& overlay)
 {
     overlay_ = overlay;
+    setImageOffset(overlay.imageOffset);
     QPainterPath gaps;
     for (const OverlayOpening& opening : overlay_.openings) {
         QPainterPath cut;
@@ -114,6 +172,31 @@ void PlanCanvas::setOverlay(const OverlayData& overlay)
             wall.band = wall.band.subtracted(gaps);
             wall.outline = wall.outline.subtracted(gaps);
         }
+    viewport()->update();
+}
+
+// Puts the plan image at an offset, keeping what the view shows where it is.
+void PlanCanvas::setImageOffset(const QPointF& offset)
+{
+    if (offset == imageOffset_)
+        return;
+    imageOffset_ = offset;
+    if (pixmapItem_ == nullptr)
+        return;
+    const QPointF centre = mapToScene(viewport()->rect().center());
+    pixmapItem_->setPos(imageOffset_);
+    updateSceneRect();
+    centerOn(centre);
+}
+
+// Turns image alignment on or off.
+void PlanCanvas::setAlignMode(bool on)
+{
+    if (alignMode_ == on)
+        return;
+    alignMode_ = on;
+    aligning_ = false;
+    updateCursor();
     viewport()->update();
 }
 
@@ -275,7 +358,7 @@ QRectF PlanCanvas::imageRect() const
 {
     if (pixmapItem_ == nullptr)
         return QRectF();
-    return QRectF(QPointF(0, 0), QSizeF(pixmapItem_->pixmap().size()));
+    return QRectF(imageOffset_, QSizeF(pixmapItem_->pixmap().size()));
 }
 
 // Grows the scene around the image so it can be pushed partly off screen but never lost.
@@ -357,12 +440,22 @@ void PlanCanvas::paintOverlay(QPainter* painter)
         QColor gridColor = t.line();
         gridColor.setAlpha(t.overlayAlpha());
         painter->setPen(QPen(gridColor, 0));
-        for (double x = 0.0; x <= img.width(); x += gridStep_)
-            painter->drawLine(QPointF(x, 0.0), QPointF(x, img.height()));
-        for (double y = 0.0; y <= img.height(); y += gridStep_)
-            painter->drawLine(QPointF(0.0, y), QPointF(img.width(), y));
+        for (double x = std::ceil(img.left() / gridStep_) * gridStep_; x <= img.right(); x += gridStep_)
+            painter->drawLine(QPointF(x, img.top()), QPointF(x, img.bottom()));
+        for (double y = std::ceil(img.top() / gridStep_) * gridStep_; y <= img.bottom(); y += gridStep_)
+            painter->drawLine(QPointF(img.left(), y), QPointF(img.right(), y));
         painter->setRenderHint(QPainter::Antialiasing, true);
     }
+
+    if (!overlay_.below.isEmpty()) {
+        painter->setPen(Qt::NoPen);
+        QColor faint = t.muted();
+        faint.setAlphaF(t.floorBelowOpacity());
+        painter->setBrush(faint);
+        painter->drawPath(overlay_.below);
+    }
+
+    paintRoofHatch(painter);
 
     QColor roomBlue = t.signalBlue();
     roomBlue.setAlpha(t.roomFillAlpha());
@@ -406,6 +499,17 @@ void PlanCanvas::paintOverlay(QPainter* painter)
     }
 
     painter->resetTransform();
+    {
+        const QTransform view = viewportTransform();
+        for (const OverlayStair& stair : overlay_.arriving)
+            paintArrivingStair(*painter, stair, view);
+        for (const OverlayStair& stair : overlay_.stairs)
+            if (!(selectionKind_ == SelectionKind::Stair && stair.id == selectionId_))
+                paintStair(*painter, stair, view, StairLook::Normal);
+        for (const OverlayStair& stair : overlay_.stairs)
+            if (selectionKind_ == SelectionKind::Stair && stair.id == selectionId_)
+                paintStair(*painter, stair, view, StairLook::Selected);
+    }
     paintItems(painter);
     {
         const QTransform view = viewportTransform();
@@ -426,6 +530,7 @@ void PlanCanvas::paintOverlay(QPainter* painter)
         painter->drawEllipse(QPointF(mapFromScene(point.position)), radius, radius);
 
     paintLabels(painter);
+    paintRoofLabels(painter);
 
     if (selectionKind_ == SelectionKind::Point) {
         for (const OverlayPoint& point : overlay_.points) {
@@ -466,9 +571,185 @@ void PlanCanvas::paintProblems(QPainter* painter)
                          t.signalAmber(), 1.6);
 }
 
-// Shows the sentence of the problem marker under the cursor as a tooltip.
+// Shows or hides the roof sections.
+void PlanCanvas::setRoofSectionsShown(bool shown)
+{
+    if (roofsShown_ == shown)
+        return;
+    roofsShown_ = shown;
+    viewport()->update();
+}
+
+// The id of the roof section holding a scene point.
+QString PlanCanvas::roofAt(const QPointF& scene) const
+{
+    for (const OverlayRoof& roof : overlay_.roofs)
+        if (roof.area.contains(scene))
+            return roof.id;
+    return QString();
+}
+
+// Whether a scene point is over something the Select tool picks before a roof section: a wall, an opening, an
+// item, a stair or a point.
+bool PlanCanvas::overRoofCover(const QPointF& scene) const
+{
+    for (const OverlayWall& wall : overlay_.walls)
+        if (wall.band.contains(scene))
+            return true;
+    for (const OverlayOpening& opening : overlay_.openings)
+        if (opening.footprint.containsPoint(scene, Qt::OddEvenFill))
+            return true;
+    for (const OverlayItem& item : overlay_.items)
+        if (item.footprint.containsPoint(scene, Qt::OddEvenFill))
+            return true;
+    if (!stairAt(scene).isEmpty())
+        return true;
+    const double radius = Theme::instance().pointDot() / zoom_;
+    for (const OverlayPoint& point : overlay_.points)
+        if (std::hypot(point.position.x() - scene.x(), point.position.y() - scene.y()) <= radius)
+            return true;
+    return false;
+}
+
+// Paints the fill, hatch and outline of every roof section, amber for the selected one. Drawn under the rooms
+// and walls.
+void PlanCanvas::paintRoofHatch(QPainter* painter)
+{
+    if (!roofsShown_ || overlay_.roofs.isEmpty())
+        return;
+    const Theme& t = Theme::instance();
+    const QTransform view = viewportTransform();
+    const double step = t.unit() * 2.0;
+    painter->save();
+    painter->resetTransform();
+    for (const OverlayRoof& roof : overlay_.roofs) {
+        const bool selected = selectionKind_ == SelectionKind::RoofSection && roof.id == selectionId_;
+        const QColor accent = selected ? t.signalAmber() : t.signalBlue();
+        const QPainterPath area = view.map(roof.area);
+        QColor fill = accent;
+        fill.setAlpha(static_cast<int>(std::lround(t.roofAreaOpacity() * 255.0 * (selected ? 2.0 : 1.0))));
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(fill);
+        painter->drawPath(area);
+        const QRectF box = area.boundingRect();
+        QColor line = accent;
+        line.setAlpha(selected ? 200 : t.overlayAlpha());
+        painter->save();
+        painter->setClipPath(area);
+        painter->setPen(QPen(line, 1.0));
+        for (double x = box.left() - box.height(); x < box.right(); x += step)
+            painter->drawLine(QPointF(x, box.bottom()), QPointF(x + box.height(), box.top()));
+        painter->restore();
+        painter->setPen(QPen(accent, selected ? 2.0 : 1.0));
+        painter->setBrush(Qt::NoBrush);
+        painter->drawPath(area);
+    }
+    painter->restore();
+}
+
+// Paints the label chip and the direction arrow of every roof section.
+void PlanCanvas::paintRoofLabels(QPainter* painter)
+{
+    if (!roofsShown_)
+        return;
+    const Theme& t = Theme::instance();
+    const QFont font = t.monoFont(t.sizeSmall());
+    const QFontMetrics metrics(font);
+    QVector<QPainterPath> walls;
+    bool wallsBuilt = false;
+    for (const OverlayRoof& roof : overlay_.roofs) {
+        const bool selected = selectionKind_ == SelectionKind::RoofSection && roof.id == selectionId_;
+        const QColor accent = selected ? t.signalAmber() : t.signalBlue();
+        if (roof.arrow) {
+            const QPointF from = mapFromScene(roof.arrowFrom);
+            const QPointF to = mapFromScene(roof.arrowTo);
+            const double length = std::hypot(to.x() - from.x(), to.y() - from.y());
+            if (length > 1.0) {
+                const QPointF direction = (to - from) / length;
+                const QPointF side(-direction.y(), direction.x());
+                const double head = t.unit() * 3.0;
+                painter->setPen(QPen(accent, 2.0, Qt::SolidLine, Qt::RoundCap));
+                painter->drawLine(from, to);
+                painter->setPen(Qt::NoPen);
+                painter->setBrush(accent);
+                QPolygonF tip;
+                tip << to << to - direction * head + side * (head / 2.0) << to - direction * head - side * (head / 2.0);
+                painter->drawPolygon(tip);
+                if (roof.ridge) {
+                    QPolygonF tail;
+                    tail << from << from + direction * head + side * (head / 2.0)
+                         << from + direction * head - side * (head / 2.0);
+                    painter->drawPolygon(tail);
+                }
+            }
+        }
+        if (roof.label.isEmpty())
+            continue;
+        const int pad = t.unit();
+        QRectF pill(0, 0, metrics.horizontalAdvance(roof.label) + pad * 2.0, metrics.height() + pad);
+        pill.moveCenter(mapFromScene(roof.labelPoint));
+        if (!QRectF(viewport()->rect().adjusted(-200, -200, 200, 200)).intersects(pill))
+            continue;
+        if (!wallsBuilt) {
+            for (const OverlayWall& wall : overlay_.walls)
+                walls.append(mapFromScene(wall.band));
+            wallsBuilt = true;
+        }
+        QRectF clear;
+        if (findFreeSpot(pill, mapFromScene(roof.area), walls, &clear))
+            pill = clear;
+        QColor backing = t.panel();
+        backing.setAlpha(230);
+        painter->setPen(QPen(accent, 1.0));
+        painter->setBrush(backing);
+        painter->drawRoundedRect(pill, t.radius(), t.radius());
+        painter->setFont(font);
+        painter->setPen(selected ? t.signalAmber() : t.text());
+        painter->drawText(pill, Qt::AlignCenter, roof.label);
+    }
+}
+
+// The id of the stair whose footprint holds a scene point. The one drawn last wins.
+QString PlanCanvas::stairAt(const QPointF& scene) const
+{
+    for (int i = static_cast<int>(overlay_.stairs.size()) - 1; i >= 0; --i)
+        if (overlay_.stairs[i].footprint.containsPoint(scene, Qt::OddEvenFill))
+            return overlay_.stairs[i].id;
+    return QString();
+}
+
+// Shows the sentence of the problem marker, or of the stair, under the cursor as a tooltip.
 bool PlanCanvas::event(QEvent* event)
 {
+    if (event->type() == QEvent::ToolTip) {
+        const auto* help = static_cast<QHelpEvent*>(event);
+        const QPointF scene = mapToScene(viewport()->mapFrom(this, help->pos()));
+        QString text;
+        if (roofsShown_)
+            for (const OverlayRoof& roof : overlay_.roofs)
+                if (roof.area.contains(scene))
+                    text = roof.tip;
+        for (const OverlayStair& stair : overlay_.arriving)
+            if (stair.footprint.containsPoint(scene, Qt::OddEvenFill))
+                text = tr("Stair %1 from %2. Edit it on %2.").arg(stair.id, stair.from);
+        if (text.isEmpty())
+            for (const OverlayStair& stair : overlay_.stairs)
+                if (stair.footprint.containsPoint(scene, Qt::OddEvenFill))
+                    text = stair.tip.isEmpty() ? tr("Stair %1").arg(stair.id) : stair.tip;
+        if (!text.isEmpty()) {
+            const int side = Theme::instance().problemMarker();
+            bool overMarker = false;
+            if (problemsShown_)
+                for (const ProblemMarker& marker : problems_)
+                    overMarker = overMarker || markerBox(mapFromScene(marker.position), side)
+                                                   .adjusted(-2, -2, 2, 2)
+                                                   .contains(viewport()->mapFrom(this, help->pos()));
+            if (!overMarker) {
+                QToolTip::showText(help->globalPos(), text, this);
+                return true;
+            }
+        }
+    }
     if (event->type() == QEvent::ToolTip && problemsShown_) {
         const auto* help = static_cast<QHelpEvent*>(event);
         const QPoint at = viewport()->mapFrom(this, help->pos());
@@ -484,7 +765,8 @@ bool PlanCanvas::event(QEvent* event)
 
 // Paints every placed item as its footprint at true size: Raised fill, Muted outline, a tick on the front
 // edge, a line on the back of a wall item, and the name when it fits. The selected one is amber, one with a
-// problem has a dashed amber outline, and a missing asset reads "Missing asset" with its id in mono.
+// problem has a dashed amber outline, and a missing asset reads "Missing asset" with its id in mono. A
+// generator that needs an add-on has a solid amber outline and reads "Needs" and the add-on.
 void PlanCanvas::paintItems(QPainter* painter)
 {
     if (overlay_.items.isEmpty())
@@ -506,7 +788,7 @@ void PlanCanvas::paintItems(QPainter* painter)
             shape << mapFromScene(corner);
         painter->setBrush(fill);
         QPen outline(selected ? t.signalAmber() : item.problem ? t.signalAmber() : t.muted(), selected ? 2.0 : 1.5);
-        if (item.problem && !selected)
+        if (item.problem && !selected && (!item.unavailable || item.otherProblem))
             outline.setDashPattern({4.0, 3.0});
         painter->setPen(outline);
         painter->drawPolygon(shape);
@@ -655,12 +937,21 @@ QVector<PlanCanvas::RoomChip> PlanCanvas::roomChips() const
     const Theme& t = Theme::instance();
     const QFontMetrics nameMetrics(t.uiFont(t.sizeNormal()));
     const QFontMetrics areaMetrics(t.monoFont(t.sizeSmall()));
+    QVector<QPainterPath> stairs;
+    for (const OverlayStair& stair : overlay_.stairs) {
+        QPainterPath footprint;
+        footprint.addPolygon(mapFromScene(stair.footprint));
+        footprint.closeSubpath();
+        stairs.append(footprint);
+    }
     QVector<RoomChip> chips;
     for (const OverlayRoom& room : overlay_.rooms) {
         const int nameWidth = nameMetrics.horizontalAdvance(room.name);
         const int areaWidth = areaMetrics.horizontalAdvance(room.area);
         const double width = std::max(nameWidth, areaWidth);
         const QRectF roomBox = mapFromScene(room.floor.boundingRect()).boundingRect();
+        if (!QRectF(viewport()->rect().adjusted(-200, -200, 200, 200)).intersects(roomBox))
+            continue;
         if (width + t.unit() * 2 > roomBox.width())
             continue;
         const int height = nameMetrics.height() + areaMetrics.height();
@@ -673,6 +964,19 @@ QVector<PlanCanvas::RoomChip> PlanCanvas::roomChips() const
         chip.areaBox = QRectF(at.x() - width / 2.0, chip.nameBox.bottom(), width, areaMetrics.height());
         chip.pill = QRectF(at.x() - width / 2.0, at.y() - height / 2.0, width, height)
                         .adjusted(-t.unit(), -t.unit() / 2.0, t.unit(), t.unit() / 2.0);
+        // A chip that would sit on a stair moves to the nearest clear spot in its room, or is left out.
+        bool onStair = false;
+        for (const QPainterPath& stair : stairs)
+            onStair = onStair || stair.intersects(chip.pill);
+        if (onStair) {
+            QRectF clear;
+            if (!findFreeSpot(chip.pill, mapFromScene(room.floor), stairs, &clear))
+                continue;
+            const QPointF shift = clear.center() - chip.pill.center();
+            chip.pill = clear;
+            chip.nameBox.translate(shift);
+            chip.areaBox.translate(shift);
+        }
         chips.append(chip);
     }
     return chips;
@@ -746,6 +1050,24 @@ void PlanCanvas::mousePressEvent(QMouseEvent* event)
         event->accept();
         return;
     }
+    if (hasImage() && alignMode_ && event->button() == Qt::LeftButton) {
+        aligning_ = true;
+        alignStart_ = mapToScene(event->position().toPoint());
+        viewport()->setCursor(Qt::ClosedHandCursor);
+        emit alignDragStarted();
+        event->accept();
+        return;
+    }
+    if (hasImage() && roofsShown_ && tool_ != nullptr && tool_->id() == ToolId::Select &&
+        event->button() == Qt::LeftButton) {
+        const ToolMouse mouse = toolMouse(*this, event);
+        const QString roof = roofAt(mouse.scene);
+        if (!roof.isEmpty() && !overRoofCover(mouse.scene)) {
+            emit roofSectionClicked(roof);
+            event->accept();
+            return;
+        }
+    }
     if (hasImage() && tool_ != nullptr) {
         tool_->mousePressed(toolMouse(*this, event));
         event->accept();
@@ -767,6 +1089,11 @@ void PlanCanvas::mouseMoveEvent(QMouseEvent* event)
         event->accept();
         return;
     }
+    if (aligning_) {
+        emit alignDragged(mapToScene(event->position().toPoint()) - alignStart_);
+        event->accept();
+        return;
+    }
     if (hasImage()) {
         const ToolMouse mouse = toolMouse(*this, event);
         emit cursorMoved(mouse.scene);
@@ -785,6 +1112,13 @@ void PlanCanvas::mouseReleaseEvent(QMouseEvent* event)
         panning_ = false;
         panButton_ = Qt::NoButton;
         updateCursor();
+        event->accept();
+        return;
+    }
+    if (aligning_ && event->button() == Qt::LeftButton) {
+        aligning_ = false;
+        updateCursor();
+        emit alignDragFinished();
         event->accept();
         return;
     }
@@ -815,6 +1149,21 @@ void PlanCanvas::keyPressEvent(QKeyEvent* event)
         }
         event->accept();
         return;
+    }
+    if (alignMode_ && hasImage()) {
+        QPoint direction;
+        switch (event->key()) {
+        case Qt::Key_Left: direction = QPoint(-1, 0); break;
+        case Qt::Key_Right: direction = QPoint(1, 0); break;
+        case Qt::Key_Up: direction = QPoint(0, -1); break;
+        case Qt::Key_Down: direction = QPoint(0, 1); break;
+        default: break;
+        }
+        if (!direction.isNull()) {
+            emit alignNudged(direction, event->modifiers() & Qt::ShiftModifier);
+            event->accept();
+            return;
+        }
     }
     if (event->key() == Qt::Key_Shift || event->key() == Qt::Key_Control) {
         if (tool_ != nullptr)
@@ -936,6 +1285,8 @@ void PlanCanvas::updateCursor()
         viewport()->setCursor(Qt::ClosedHandCursor);
     else if (spaceHeld_)
         viewport()->setCursor(Qt::OpenHandCursor);
+    else if (alignMode_)
+        viewport()->setCursor(Qt::SizeAllCursor);
     else
         viewport()->setCursor(tool_ != nullptr ? tool_->cursor() : Qt::ArrowCursor);
 }

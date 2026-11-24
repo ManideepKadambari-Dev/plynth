@@ -42,6 +42,8 @@ If Blender is missing:
 
 If Blender is installed somewhere unusual, press **Browse** and pick its `blender.exe`.
 
+When Plynth has to choose a Blender, it uses the first of these that is set: the `--blender` option of a command, the `PLYNTH_BLENDER` variable, the Blender saved in the settings, and then the search above. A Blender named by the option or the variable is the only one Plynth starts. If that one is missing or too old, the check says so. It does not quietly use another install.
+
 ### Blender version
 
 Plynth needs Blender 4.2 or newer. It was developed with Blender 5.2 LTS.
@@ -86,7 +88,7 @@ The app checks when it starts that your graphics card can run the 3D view. The r
 
 ### Add-ons
 
-Add-ons are optional extras that live inside Blender. Plynth never needs them to import your own models, and it never installs them. The setup check asks Blender which add-ons are switched on and shows what stays off without each one.
+Add-ons are optional extras that live inside Blender. Plynth never needs them to import your own models, and it never installs them. The setup check finds out which add-ons are switched on and shows what stays off without each one. It does this by reading your saved Blender preferences (`userpref.blend`) and the add-on folders as plain data. When BlenderKit is on and the preferences hold no key, it may also read BlenderKit's `config\preferences.json`, only to see whether a sign in exists. It does not open your add-ons or change anything in your Blender folders.
 
 | Add-on | What it is for |
 |---|---|
@@ -99,9 +101,9 @@ Add-ons are optional extras that live inside Blender. Plynth never needs them to
 
 Each add-on row says Found or Missing. Some have an **Open page** button that opens the official page where you can get the add-on. Install add-ons from inside Blender (Edit, Preferences, Get Extensions or Add-ons).
 
-**BlenderKit and signing in.** BlenderKit needs your own BlenderKit account. Install and enable the add-on in Blender, then open Edit, Preferences, Add-ons, BlenderKit and sign in. Plynth only checks whether a sign in is stored. It never reads your key or password. If the add-on is on but you are not signed in, the row says Needs attention.
+**BlenderKit and signing in.** BlenderKit needs your own BlenderKit account. Install and enable the add-on in Blender, then open Edit, Preferences, Add-ons, BlenderKit and sign in. Plynth only checks whether a sign in is stored. It never shows, logs or copies your key or password. If the add-on is on but you are not signed in, the row says Needs attention.
 
-Checking add-ons starts Blender once, which takes a few seconds. `plynth doctor --no-addons` skips it.
+Checking add-ons starts Blender once with its factory settings, which takes a few seconds. `plynth doctor --no-addons` skips it. If your preferences file cannot be understood, the add-on rows say Not checked.
 
 ## The settings file
 
@@ -127,8 +129,8 @@ plynth doctor
 
 Useful options:
 
-- `--no-addons` skips the add-on check, so Blender is not started.
-- `--blender <file>` checks one particular `blender.exe`.
+- `--no-addons` skips the add-on check, so the add-on probe is not run and your preferences are not read. Blender is still started briefly with `--version` to read its version.
+- `--blender <file>` checks one particular `blender.exe` and no other. It beats the `PLYNTH_BLENDER` variable and the saved setting.
 
 The full answer is described in the [command line guide](CLI_GUIDE.md).
 
