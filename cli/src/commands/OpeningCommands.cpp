@@ -1,11 +1,14 @@
 #include "../CatalogCommon.h"
 #include "../Common.h"
 
+#include <plynth/core/OpeningAssets.h>
 #include <plynth/core/OpeningShapes.h>
 #include <plynth/core/Openings.h>
 #include <plynth/core/commands/DeleteCommands.h>
+#include <plynth/core/commands/FinishCommands.h>
 #include <plynth/core/commands/OpeningCommands.h>
 
+#include <algorithm>
 #include <memory>
 #include <optional>
 
@@ -50,11 +53,13 @@ struct ResizeOptions {
 
 struct SetOptions {
     std::string project;
+    std::string library;
     std::string id;
     std::string type;
     std::string shape;
     std::string hinge;
     std::string swing;
+    std::string frame;
 };
 
 struct RemoveOptions {
@@ -183,11 +188,48 @@ Answer openingResize(const RunContext& context, const ResizeOptions& options) {
     });
 }
 
-// Changes the type, shape, hinge or swing of an opening. What is left out stays.
+// Checks that an asset named by --frame is in the library and in the category the opening type takes. Fills
+// failed when it is not.
+bool checkFrameAsset(const std::string& command, const RunContext& context, const SetOptions& options,
+                     OpeningType type, Answer& failed) {
+    if (type == OpeningType::Plain) {
+        failed = failure(command, fail(ErrorCode::InvalidValue,
+                                       "A plain opening takes no door or window asset. Use --frame auto or generated."));
+        return false;
+    }
+    OpenedCatalog opened;
+    if (!openCatalog(command, context, options.library, opened, failed)) {
+        return false;
+    }
+    const std::optional<AssetRecord> record = opened.catalog->asset(options.frame);
+    if (!record) {
+        failed = failure(command, fail(ErrorCode::NotFound, "There is no asset " + options.frame + " in the library."));
+        return false;
+    }
+    const std::string category(type == OpeningType::Door ? kDoorCategory : kWindowCategory);
+    if (std::ranges::find(record->categories, category) == record->categories.end()) {
+        failed = failure(command, fail(ErrorCode::InvalidValue, "The asset " + options.frame + " is not in the " +
+                                                                    category + " category, so it cannot fill a " +
+                                                                    category + "."));
+        return false;
+    }
+    return true;
+}
+
+// Changes the type, shape, hinge, swing or door or window asset of an opening, as one step. What is left out stays.
 Answer openingSet(const RunContext& context, const SetOptions& options) {
     const std::string command = "opening set";
-    if (options.type.empty() && options.shape.empty() && options.hinge.empty() && options.swing.empty()) {
-        return badArguments(command, "bad_arguments", "Give at least one of --type, --shape, --hinge and --swing.");
+    const bool styled = !options.type.empty() || !options.shape.empty() || !options.hinge.empty() || !options.swing.empty();
+    if (!styled && options.frame.empty()) {
+        return badArguments(command, "bad_arguments",
+                            "Give at least one of --type, --shape, --hinge, --swing and --frame.");
+    }
+    const bool namedAsset = !options.frame.empty() && options.frame != "auto" && options.frame != "generated";
+    if (namedAsset) {
+        Answer failed;
+        if (!checkIdArgument(command, options.frame, failed)) {
+            return failed;
+        }
     }
     return editProject(command, context, options.project, [&](Document& document) {
         Answer failed;
@@ -208,7 +250,19 @@ Answer openingSet(const RunContext& context, const SetOptions& options) {
         if (!options.swing.empty()) {
             style.swing = wallSideFromName(options.swing).value_or(style.swing);
         }
-        if (!runCommand(command, document, std::make_unique<SetOpeningStyleCommand>(options.id, style), failed)) {
+        auto group = std::make_unique<CommandGroup>("Change opening");
+        if (styled) {
+            group->add(std::make_unique<SetOpeningStyleCommand>(options.id, style));
+        }
+        if (namedAsset) {
+            if (!checkFrameAsset(command, context, options, style.type, failed)) {
+                return failed;
+            }
+            group->add(std::make_unique<SetOpeningFrameCommand>(options.id, options.frame, false));
+        } else if (!options.frame.empty()) {
+            group->add(std::make_unique<SetOpeningFrameCommand>(options.id, std::nullopt, options.frame == "auto"));
+        }
+        if (!runCommand(command, document, std::move(group), failed)) {
             return failed;
         }
         return success(command, entryFor(document.plan(), options.id));
@@ -346,7 +400,7 @@ std::vector<CommandSpec> openingCommands() {
 
     CommandSpec set;
     set.words = {"opening", "set"};
-    set.description = "Change the type, shape, hinge or swing of an opening.";
+    set.description = "Change the type, shape, hinge, swing or door or window asset of an opening.";
     set.setup = [](CLI::App& sub) -> Handler {
         auto options = std::make_shared<SetOptions>();
         addProjectOption(sub, options->project);
@@ -362,6 +416,11 @@ std::vector<CommandSpec> openingCommands() {
         sub.add_option("--swing", options->swing, "The side of the wall a door opens toward.")
             ->type_name("left|right")
             ->check(CLI::IsMember({"left", "right"}));
+        sub.add_option("--frame", options->frame,
+                       "The door or window that fills it: a catalog asset id, auto for one the build picks, or "
+                       "generated for the fill Plynth builds.")
+            ->type_name("asset|auto|generated");
+        addLibraryOption(sub, options->library);
         return [options](const RunContext& context) { return openingSet(context, *options); };
     };
 

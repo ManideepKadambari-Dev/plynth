@@ -49,12 +49,17 @@ bool openMaterialCatalogIfAny(const std::string& command, const RunContext& cont
                               const std::string& libraryOption, OpenedMaterialCatalog& opened, bool& found,
                               Answer& failed);
 
-// Registers Library/shapes/ of the library in the settings, when there is one. Does nothing otherwise and
+// Registers Library/shapes/ (opening shapes and trim profiles) of the library in the settings, when there is one. Does nothing otherwise and
 // never fails: a command that only needs shapes still works without a library.
 void registerLibraryShapes();
 
-// Registers the custom opening shapes of one library folder, once per folder in a process.
+// Registers the custom opening shapes and trim profiles of one library folder, once per folder in a process.
 void registerShapesOf(const LibraryPaths& paths);
+
+// Registers the shapes and trim profiles of the library named by --library, or of the settings' library when the
+// option is empty (never failing then). A --library value that is not a library fills failed with no_library.
+bool registerShapesFor(const std::string& command, const RunContext& context, const std::string& libraryOption,
+                       Answer& failed);
 
 // Makes the room types in use the library's list when the settings name a working library, and the built-in
 // list otherwise.

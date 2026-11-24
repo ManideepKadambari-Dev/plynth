@@ -351,15 +351,23 @@ Answer groupsEdit(const std::string& what, const std::string& target, const Expo
     return success(command, std::move(result));
 }
 
-// Shows the modular kit switch, or turns it on or off.
-Answer kitSwitch(const std::vector<std::string>& what, const ExportArgs& args, const RunContext& context) {
+// The switch of export-options.json that 'export kit' or 'export gameplay' names.
+bool& exportSwitch(ExportOptions& options, const std::string& name) {
+    return name == "kit" ? options.kit.enabled : options.gameplay.enabled;
+}
+
+// Shows the modular kit or the gameplay data switch, or turns it on or off. what[0] is "kit" or "gameplay".
+Answer optionSwitch(const std::vector<std::string>& what, const ExportArgs& args, const RunContext& context) {
+    const std::string& name = what[0];
     const bool change = what.size() == 2;
-    const std::string command = change ? "export kit " + what[1] : "export kit";
+    const std::string base = "export " + name;
+    const std::string command = change ? base + " " + what[1] : base;
     if (change && what[1] != "on" && what[1] != "off") {
-        return badArguments(command, "bad_arguments", "Use 'export kit', 'export kit on' or 'export kit off'.");
+        return badArguments(command, "bad_arguments",
+                            "Use '" + base + "', '" + base + " on' or '" + base + " off'.");
     }
     if (hasEditOptions(args)) {
-        return badArguments(command, "bad_arguments", "'export kit' takes no --name, --into or --to.");
+        return badArguments(command, "bad_arguments", "'" + base + "' takes no --name, --into or --to.");
     }
     const std::filesystem::path folder = resolveProjectFolder(context, args.project);
     Document document;
@@ -372,17 +380,17 @@ Answer kitSwitch(const std::vector<std::string>& what, const ExportArgs& args, c
         return failure(command, read.status);
     }
     if (change) {
-        read.options.kit.enabled = what[1] == "on";
+        exportSwitch(read.options, name) = what[1] == "on";
         if (const Status written = writeExportOptions(folder, read.options); !written.ok()) {
             return failure(command, written);
         }
     }
     Json result = Json::object();
-    result["enabled"] = read.options.kit.enabled;
+    result["enabled"] = exportSwitch(read.options, name);
     return success(command, std::move(result));
 }
 
-// Sends the words after export to the report, the groups, the kit or the export itself.
+// Sends the words after export to the report, the groups, the kit or gameplay switch or the export itself.
 Answer exportDispatch(const RunContext& context, const ExportArgs& args) {
     const std::vector<std::string>& what = args.what;
     if (what.empty()) {
@@ -401,12 +409,13 @@ Answer exportDispatch(const RunContext& context, const ExportArgs& args) {
             return groupsEdit(what[1], what.size() == 3 ? what[2] : std::string(), args, context);
         }
     }
-    if (what[0] == "kit" && plain && what.size() <= 2) {
-        return kitSwitch(what, args, context);
+    if ((what[0] == "kit" || what[0] == "gameplay") && plain && what.size() <= 2) {
+        return optionSwitch(what, args, context);
     }
     return badArguments("export", "bad_arguments",
                         "Unknown form of 'export'. Use: export, export report, export groups, export groups "
-                        "rename|merge|move|new|reset, export kit, export kit on|off.");
+                        "rename|merge|move|new|reset, export kit, export kit on|off, export gameplay, export "
+                        "gameplay on|off.");
 }
 
 }
@@ -422,12 +431,13 @@ std::vector<CommandSpec> exportCommands() {
         "'export groups rename <group> --name <text>', 'export groups merge <group> --into <group>', "
         "'export groups move <kind>:<id> --to <group>' (<kind>:* for every object of a kind), "
         "'export groups new --name <text>' and 'export groups reset' edit them. "
-        "'export kit' shows the modular kit switch; 'export kit on' and 'export kit off' change it.";
+        "'export kit' shows the modular kit switch; 'export kit on' and 'export kit off' change it. "
+        "'export gameplay' shows the gameplay data switch; 'export gameplay on' and 'export gameplay off' change it.";
     spec.setup = [](CLI::App& sub) -> Handler {
         auto options = std::make_shared<ExportArgs>();
         sub.add_option("what", options->what,
                        "Nothing to export; 'report'; 'groups' with rename, merge, move, new or reset and its "
-                       "group or member; 'kit' with on or off.")
+                       "group or member; 'kit' or 'gameplay' with on or off.")
             ->expected(0, 3);
         addProjectOption(sub, options->project);
         addBlenderOption(sub, options->blender);

@@ -6,6 +6,7 @@
 #include <plynth/core/OpeningShapes.h>
 #include <plynth/core/ProjectFiles.h>
 #include <plynth/core/RoomTypes.h>
+#include <plynth/core/TrimProfiles.h>
 #include <plynth/core/catalog/AssetInfo.h>
 
 #include <algorithm>
@@ -34,11 +35,13 @@ CLI::Validator notEmptyBlenderPath() {
         "", "NotEmpty");
 }
 
-// Registers a library's shapes once per folder, so a second command in one process does not refuse them again.
+// Registers a library's opening shapes and trim profiles once per folder, so a second command in one process
+// does not refuse them again.
 void registerShapes(const LibraryPaths& paths) {
     static std::set<std::filesystem::path> done;
     if (done.insert(paths.shapes).second) {
         registerShapeFolder(paths.shapes);
+        registerTrimProfileFolder(paths.shapes);
     }
 }
 
@@ -192,6 +195,26 @@ Json rescanAndRefresh(const std::string& command, const RunContext& context, Ope
 
 void registerShapesOf(const LibraryPaths& paths) {
     registerShapes(paths);
+}
+
+bool registerShapesFor(const std::string& command, const RunContext& context, const std::string& libraryOption,
+                       Answer& failed) {
+    if (libraryOption.empty()) {
+        registerLibraryShapes();
+        return true;
+    }
+    const SettingsLoad loaded = loadSettings();
+    if (!loaded.status.ok()) {
+        failed = failure(command, loaded.status);
+        return false;
+    }
+    const LibraryChoice choice = chooseLibrary(userPath(context, libraryOption), loaded.settings);
+    if (!choice.status.ok()) {
+        failed = failure(command, choice.status);
+        return false;
+    }
+    registerShapes(choice.paths);
+    return true;
 }
 
 void registerLibraryShapes() {
