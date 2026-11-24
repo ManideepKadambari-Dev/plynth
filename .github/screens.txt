@@ -1,0 +1,11 @@
+home: --home
+plan: {project}
+plan-wall-tool: {project} --tool wall
+plan-detect-tool: {project} --tool detect
+view-3d: {project} --view 3d
+view-3d-top: {project} --view 3d --camera top
+assets: {project} --catalog
+materials: {project} --materials-tab
+setup: {project} --setup
+build-tab: {project} --build-tab
+export-tab: {project} --export-tab
