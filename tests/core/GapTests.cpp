@@ -4,6 +4,8 @@
 #include "SquareFixtures.h"
 
 #include <plynth/core/Build.h>
+#include <plynth/core/BuildResolve.h>
+#include <plynth/core/catalog/BuildChoices.h>
 #include <plynth/core/Pack.h>
 #include <plynth/core/ProjectFiles.h>
 #include <plynth/core/catalog/AssetMaterials.h>
@@ -198,4 +200,52 @@ TEST_CASE("packContents lists what the marked project uses, each once", "[gaps][
     REQUIRE(contents.roomTypes.size() == 1);
     CHECK(contents.roomTypes[0].id == "gaming");
     CHECK(contents.roomTypes[0].name == "Gaming room");
+}
+
+TEST_CASE("packContents holds what a seed picks as well as what is marked", "[gaps][pack][resolved]") {
+    TestLibrary lib("gaps-resolved");
+    lib.add("sofa_a", "Sofa A", {"sofa"});
+    lib.add("sofa_b", "Sofa B", {"sofa"});
+    lib.add("sofa_c", "Sofa C", {"sofa"});
+    Project project = squareProjectWithWalls();
+    project.plan.floors[0].items.push_back(buildItem("i1", "sofa_a", 2, 2, {0.5, 0.5, 0.9}));
+
+    const BuildChoices choices = buildChoicesFrom(lib.catalog.get(), nullptr);
+    REQUIRE(choices.assets.size() == 3);
+    bool varied = false;
+    for (std::uint32_t seed : {0u, 1u, 2u, 3u, 4u, 5u, 6u, 7u, 8u, 9u, 10u, 11u, 12u}) {
+        INFO("seed " << seed);
+        project.settings.variation.seed = seed;
+        const ResolvedBuild resolved = resolveBuild(project, choices);
+        const PackContents contents = packContents(project, lib.paths);
+        CHECK(uses(contents, PackKind::Asset, "sofa_a"));
+        for (const Floor& floor : resolved.project.plan.floors) {
+            for (const Item& item : floor.items) {
+                if (item.asset.empty()) continue;
+                CHECK(uses(contents, PackKind::Asset, item.asset));
+                varied = varied || item.asset != "sofa_a";
+            }
+        }
+        for (const FloorDressing& floor : resolved.dressing) {
+            for (const DressingPlacement& prop : floor.props) CHECK(uses(contents, PackKind::Asset, prop.asset));
+        }
+        if (seed == 0) {
+            CHECK_FALSE(uses(contents, PackKind::Asset, "sofa_b"));
+            CHECK_FALSE(uses(contents, PackKind::Asset, "sofa_c"));
+        }
+    }
+    CHECK(varied);
+}
+
+TEST_CASE("packContents names a custom trim profile and not the built-in ones", "[gaps][pack][resolved]") {
+    TestLibrary lib("gaps-trim");
+    Project project = squareProjectWithWalls();
+    project.settings.trim.skirting.profile = "ogee";
+    project.settings.trim.cornice.enabled = false;
+    project.settings.trim.cornice.profile = "wave";
+    const PackContents contents = packContents(project, lib.paths);
+    CHECK(uses(contents, PackKind::TrimProfile, "ogee"));
+    CHECK_FALSE(uses(contents, PackKind::TrimProfile, "wave"));
+    CHECK_FALSE(uses(contents, PackKind::TrimProfile, "bevel"));
+    CHECK_FALSE(uses(contents, PackKind::TrimProfile, "rounded"));
 }

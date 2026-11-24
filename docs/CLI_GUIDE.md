@@ -2,7 +2,7 @@
 
 Plynth can be driven from a terminal, a script or another program. Every command prints one JSON answer, so a program can read the result without parsing text meant for people.
 
-This page covers the commands that exist today: version, help, creating and reading a project, setting the scale, grid and default sizes, floors, stairs, roofs, points, walls (straight and curved), rounded corners, doors, windows and other openings, rooms, placing furniture with `place` and `item`, finding walls and openings in the plan image with `detect`, building the project in Blender with `build`, saving pictures of the build with `render`, the edit session that keeps the app and the command line from overwriting each other, and the machine commands: `doctor`, `settings`, `library` and `assets`. More commands arrive in later releases.
+This page covers every command: version and help; creating, reading, saving elsewhere and recovering a project; the scale, grid and default sizes; floors, stairs, roofs, points, walls (straight and curved), rounded corners, doors, windows and other openings, rooms and light markers; placing furniture with `place` and `item`; finding walls and openings in the plan image with `detect`; trim, set dressing and variations; building the project in Blender with `build`; saving pictures of the build with `render`; exporting with `export`, its groups, the modular kit and gameplay data; moving a project to another machine with `pack` and `unpack`; the edit session that keeps the app and the command line from overwriting each other; and the machine commands: `doctor`, `settings`, `library`, `assets`, `materials` and the integrations. The worked examples near the end show the right order for whole buildings.
 
 The plan file is now at format version 7 and the project file at version 6. Older projects open and upgrade by themselves. See "File format version 7" and the sections after it below.
 
@@ -117,7 +117,7 @@ plynth version
 ```
 
 ```json
-{"ok":true,"command":"version","result":{"version":"0.1.0","plan_format":6,"project_format":5}}
+{"ok":true,"command":"version","result":{"version":"0.1.0","plan_format":7,"project_format":6}}
 ```
 
 `plan_format` and `project_format` are the versions this program writes. It reads these and older ones.
@@ -3306,6 +3306,112 @@ plynth build
 ```
 
 Read `problems` in `stair list` before building: a stair that crosses a wall or arrives outside a room says so there. `roof list` shows what the build will make, including `type_built` when a hip roof had to fall back to a gable. `build` reports `slabs`, `stairs` and `roofs` in its counts.
+
+## Worked examples
+
+Each example runs from an empty folder with a library set up (`plynth library init` and `plynth library add-sample-materials` once). Every command takes `--project`, left out here: run them in the project folder. The ids in the answers are the ones to use next; they are shown here as `w1`, `r1` and so on, and a real run may print other ids, so read them from each answer.
+
+### A flat
+
+```
+plynth project new --image plans\flat.png --name Flat
+plynth scale from-points --x1 120 --y1 840 --x2 940 --y2 840 --distance 8.2
+plynth detect --apply
+plynth wall list
+plynth room find
+plynth room set r1 --type living
+plynth room set r2 --type bedroom
+plynth assets search --room bedroom
+plynth place bed_double --room r2 --strict
+plynth item list
+plynth materials search --group floor
+plynth material set r1.floor oak_planks
+plynth build --check
+plynth build
+plynth render --view top --no-roofs --out renders\top.png
+plynth render --yaw 45 --pitch 30 --out renders\front.png
+plynth export --check
+plynth export
+```
+
+Read `problems` in `wall list`, `opening list` and `item list` after each step, and fix them before building. `build --check` is quick and finds most of what a build would refuse.
+
+### A house with two floors
+
+```
+plynth project new --image plans\house-ground.png --name House
+plynth scale set --pixels-per-metre 100
+plynth detect --apply
+plynth room find
+plynth floor add --name "Upper floor" --image plans\house-upper.png
+plynth detect --floor f2 --apply
+plynth floor set --floor f2 --image-offset 0.05,0
+plynth room find --floor f2
+plynth stair add --floor f1 --x 4.2 --y 2.1 --rot 90 --type u_shape
+plynth stair list
+plynth roof set --floor f2 --at 3,2 --type gable --pitch 35
+plynth trim set railing --on
+plynth light add --x 3 --y 3 --kind ceiling
+plynth build
+plynth render --floor f1 --view top --out renders\ground.png
+plynth render --yaw 135 --pitch 25 --out renders\back.png
+plynth export groups
+plynth export
+```
+
+Add the upper floor before the stair: a stair needs the floor it climbs to. `stair list` says whether a stair crosses a wall or arrives outside a room. Cut views with `--floor` show one storey from above with the floors above it taken off.
+
+### A street of variations
+
+One marked house, several finished copies that differ in furniture and materials:
+
+```
+plynth variation show
+plynth variation set --seed 7 --furniture on --materials on
+plynth variation preview
+plynth build
+plynth render --out renders\seed-7.png
+plynth variation copies --seeds 1,2,3,4 --out D:\Street
+```
+
+Seed 0 always builds the plan exactly as marked. `variation preview` lists what a seed would change without building. `variation copies` writes one project folder per seed; build and export each as above. A copy carries its seed, so it builds the same picks on another machine as long as that library has the same items (`pack` carries the picks, not every candidate).
+
+## What the app does and the command for it
+
+Every action of the app that changes or checks a project or the library has a command. Undo and redo are the one exception: they live in the app only.
+
+| App | Command |
+|---|---|
+| File > New project, New project from image | `project new`, `project new --image` |
+| File > Save as | `project save-as <folder>` |
+| Open dialog: Load or Keep mine | `project recover`, `project recover --discard` |
+| File > Pack project, Unpack into library | `pack`, `unpack` |
+| Scale tool | `scale set`, `scale from-points` |
+| Wall, point, room, opening, stair and light tools | `wall`, `point`, `room`, `opening`, `stair`, `light` |
+| Detect | `detect`, `detect --apply` |
+| Floor tabs | `floor add`, `floor set`, `floor remove` |
+| Roof sections | `roof set`, `roof clear`, `roof list` |
+| Properties: furniture, swap, mount, Update item size | `place`, `item move`, `item rotate`, `item swap`, `item attach`, `item detach`, `item params` |
+| Properties: door and window assets | `opening set --frame` |
+| Properties: materials | `material set` |
+| Room set dressing | `room set --dressing` |
+| Trim | `trim set`, `trim show`, `trim profiles` |
+| Variation, Make variations | `variation set`, `variation preview`, `variation copies` |
+| Build, Cancel build, Show build report | `build`, `build cancel`, `build report` |
+| Save 3D picture | `render` |
+| Export, Check export, Export anyway, Cancel | `export`, `export --check`, `export --force`, `export cancel` |
+| Export tab: groups, modular kit, gameplay data | `export groups ...`, `export kit on\|off`, `export gameplay on\|off` |
+| Assets and materials catalogs, imports, inboxes, rescans, thumbnails | `assets ...`, `materials ...` |
+| Add to materials catalog | `materials from-asset` |
+| Add the sample materials, shapes and generators | `library add-sample-materials`, `library add-sample-shapes`, `library add-sample-generators` |
+| Integrations | `library integrations`, `library integration ...` |
+| Setup check | `doctor` |
+| Settings | `settings show`, `settings set` |
+| Home screen recent projects | `project recent` |
+| Command line editing banner | `session begin`, `session end`, `session status` |
+| About | `version` |
+
+Zoom, pan, the tools themselves, the tour, the help pages, the terminal and opening folders need no command: every answer names the files and folders it used.
 
 ## Working while the app is open
 

@@ -105,11 +105,12 @@ struct PackContents {
     std::vector<RoomType> roomTypes;
 };
 
-// What a project as marked uses from a library: the asset of every item, the generator of every generator item,
-// every material materialsUsed names (with the generator items' materials, read from the library's generators),
-// every opening shape that is not built in, and every room type that is not built in, named as the library's
-// assets catalog names it. Each once, in that order. The varied and dressed items a build picks are added when
-// variations and set dressing come in.
+// What a project uses from a library, as marked and as resolveBuild resolves it with the library's choices (the
+// varied furniture of its seed, the catalog doors and windows picked for openings, the set dressing props): the
+// asset of every item and every door and window frame, the generator of every generator item, every set dressing
+// prop, every material materialsUsed names for either plan (with the generator items' materials, the trim and the
+// railing), every opening shape and trim profile that is not built in, and every room type that is not built in,
+// named as the library's assets catalog names it. Each once.
 PackContents packContents(const Project& project, const LibraryPaths& library);
 
 // None when the item may be copied, otherwise why it becomes a reference. Generators are always Script. Assets

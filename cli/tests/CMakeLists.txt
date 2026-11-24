@@ -41,6 +41,7 @@ add_executable(plynth_cli_tests
     GapCliTests.cpp
     PackCliTests.cpp
     SessionKeeperTests.cpp
+    WholeCliTests.cpp
     IdCliTests.cpp
     FormatCliTests.cpp
     LightCliTests.cpp

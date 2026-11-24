@@ -1,6 +1,7 @@
 #include "PackSupport.h"
 
 #include "plynth/core/OpeningShapes.h"
+#include "plynth/core/TrimProfiles.h"
 #include "plynth/core/ProjectFiles.h"
 #include "plynth/core/catalog/AssetCatalog.h"
 #include "plynth/core/catalog/Importer.h"
@@ -195,9 +196,9 @@ UnpackPlan planUnpack(const fs::path& projectFolder, const LibraryPaths& library
                     return plan;
                 }
             } else {
-                std::ifstream in(packed, std::ios::binary);
-                if (Json::parse(in, nullptr, false).is_discarded()) {
-                    plan.status = badPack("the trim profile " + entry.id + " is not valid JSON.");
+                const TrimProfileFile profile = readTrimProfileFile(packed);
+                if (!profile.status.ok() || profile.id != entry.id) {
+                    plan.status = badPack("the trim profile " + entry.id + " is refused: " + profile.status.message);
                     return plan;
                 }
             }

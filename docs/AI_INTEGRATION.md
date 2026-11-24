@@ -24,7 +24,7 @@ Plynth never sends anything to the assistant or to anyone else. What the assista
 4. Check that it can run Plynth: ask it to run `plynth version`. The answer starts with `{"ok":true`.
 5. Give it the rules below, either by pasting them in or by putting them in the instructions file your assistant reads at the start, if it has one.
 
-The full list of commands, options, answers and error codes is in the command line guide (`docs/CLI_GUIDE.md`, also in the app under Help). The assistant can also run `plynth help` at any time: it lists every command with its options, every error code and every exit code, always matching the installed version.
+The full list of commands, options, answers and error codes, with worked examples for a flat, a house with two floors and a street of variations, is in the command line guide (`docs/CLI_GUIDE.md`, also in the app under Help). The assistant can also run `plynth help` at any time: it lists every command with its options, every error code and every exit code, always matching the installed version.
 
 ## Rules to give the assistant
 
@@ -63,9 +63,10 @@ A plan is built in this order, because each step needs the one before it. The co
 6. Furniture: `plynth assets search --room bedroom`, then `plynth place <asset> --room r3 --strict`.
 7. Materials: `plynth materials search`, then `plynth material set r3.floor <material>`.
 8. More floors, stairs and roofs when the building has them: `plynth floor add`, `plynth stair add`, `plynth roof set`.
-9. Build and look: `plynth build --check`, `plynth build`, then the render loop below.
-10. `plynth export` when you are happy with it.
-11. `plynth session end`
+9. Finishing touches: light markers with `plynth light add`, trim with `plynth trim set`, small props with `plynth room set r3 --dressing on`, catalog doors and windows with `plynth opening set --frame`.
+10. Build and look: `plynth build --check`, `plynth build`, then the render loop below.
+11. `plynth export` when you are happy with it. `plynth export gameplay on` adds the room, door and light data a game needs.
+12. `plynth session end`
 
 ## The render and check loop
 
@@ -96,6 +97,10 @@ You can keep the app open while the assistant works. After `plynth session begin
 
 When you want to change something yourself, ask the assistant to run `plynth session end`, make your change in the app and save, then let it start a new session. A session with no command for a few minutes expires by itself, and the app's banner has an "Unlock now" button for one that was never ended. Use it only when the assistant has stopped.
 
+## Variations
+
+A seed changes the furniture and materials of a copy of the plan, never the plan itself. Seed 0 is the plan exactly as marked. Let the assistant try seeds with `plynth variation set --seed 7`, check each with `plynth variation preview` and a render, and keep the ones you like with `plynth variation copies --seeds 3,7 --out <folder>`. Ask it to set the seed back to 0 when it is done, unless you want the variation built.
+
 ## Moving a project to another machine
 
 `plynth pack` copies the library items a project uses into the project's `pack` folder, and `plynth unpack` on the other machine copies them into that machine's library. Store items, items with a license that does not allow sharing, and generator scripts are only named in the pack; unpack lists them with the command that gets them again.
@@ -112,6 +117,7 @@ A pack can come from someone else. Plynth checks it before it writes anything an
 - "Run the export quality check and tell me what fails. Do not use --force."
 - "Compare the top render with the plan image and list every wall or opening that does not match."
 - "Pack this project so I can take it to my laptop. Show me what is only named and why before you write the pack."
+- "Try seeds 1 to 6, render each from the front, and show me the three that look most different."
 
 ## When something goes wrong
 

@@ -3,6 +3,7 @@
 #include "FileIo.h"
 
 #include "plynth/core/OpeningShapes.h"
+#include "plynth/core/TrimProfiles.h"
 #include "plynth/core/ProjectFiles.h"
 
 #include <set>
@@ -86,6 +87,10 @@ PackEntry shapeEntry(PackKind kind, const std::string& id, const LibraryPaths& l
         const ShapeFile shape = readShapeFile(file);
         if (!shape.status.ok() || shape.id != id) return missingEntry(kind, id, PackReason::Broken);
         entry.name = shape.name;
+    } else {
+        const TrimProfileFile profile = readTrimProfileFile(file);
+        if (!profile.status.ok() || profile.id != id) return missingEntry(kind, id, PackReason::Broken);
+        entry.name = profile.name;
     }
     entry.state = PackState::Copied;
     entry.files.push_back("shapes/" + name);
