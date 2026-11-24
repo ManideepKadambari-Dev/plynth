@@ -36,7 +36,7 @@ if ($package.commit -ne $commit) { Add-Problem 'the stage was made from another 
 $notes = Join-Path $root "installer/text/release-notes-$version.md"
 if (-not (Test-Path $notes)) { Add-Problem "the release notes installer/text/release-notes-$version.md are missing" }
 
-$expected = @('PlynthSetup.exe', "Plynth-$version-third-party-sources.zip", 'SHA256SUMS.txt')
+$expected = @('PlynthSetup.exe', "Plynth-$version-windows-x64.zip", "Plynth-$version-third-party-sources.zip", 'SHA256SUMS.txt')
 $present = @(Get-ChildItem -File $Files | ForEach-Object Name)
 foreach ($name in $expected) { if ($present -notcontains $name) { Add-Problem "release file missing: $name" } }
 foreach ($name in $present) { if ($expected -notcontains $name) { Add-Problem "file that is not a release file: $name" } }

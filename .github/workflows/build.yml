@@ -78,7 +78,7 @@ jobs:
       APP_OPTIONS: ${{ inputs.app_options }}
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
           fetch-depth: ${{ github.ref_type == 'tag' && 0 || 1 }}
@@ -95,7 +95,7 @@ jobs:
           }
 
       - name: Install Qt
-        uses: jurplel/install-qt-action@v4
+        uses: jurplel/install-qt-action@b344308e4483fc892e0d27b3cd1b173ebdd95f06 # v4.5.0
         with:
           version: 6.8.3
           host: windows
@@ -110,7 +110,7 @@ jobs:
           "QTDIR=$env:QT_ROOT_DIR" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Load the MSVC environment
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
         with:
           arch: x64
 
@@ -132,7 +132,7 @@ jobs:
       - name: Restore the vcpkg binary cache
         id: vcpkg-cache
         if: env.CACHES == 'true'
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: vcpkg-binary-cache
           key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'ports/**') }}-${{ github.run_id }}
@@ -149,8 +149,7 @@ jobs:
 
       - name: Install the compiler cache
         if: env.CACHES == 'true'
-        uses: mozilla-actions/sccache-action@v0.0.9
-
+        uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
       # One cache a day for each branch. A branch can also read main's. sccache only reuses an object whose
       # preprocessed source, compiler and options are the same, and never stores a failed compile.
       - name: Pick the compiler cache key
@@ -165,7 +164,7 @@ jobs:
       - name: Restore the compiler cache
         id: sccache-cache
         if: env.CACHES == 'true'
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: sccache
           key: ${{ steps.sccache-key.outputs.key }}
@@ -206,7 +205,7 @@ jobs:
 
       - name: Save the vcpkg binary cache
         if: always() && steps.after.outputs.changed == 'true' && env.CACHES == 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: vcpkg-binary-cache
           key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'ports/**') }}-${{ github.run_id }}
@@ -237,7 +236,7 @@ jobs:
 
       - name: Upload the test programs
         if: ${{ !cancelled() && steps.test-programs.outcome == 'success' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: test-programs
           path: out/test-programs/
@@ -252,7 +251,7 @@ jobs:
 
       - name: Upload written fixtures
         if: ${{ !cancelled() && steps.write-fixture.outcome != 'skipped' && github.event_name == 'workflow_dispatch' && env.WRITE_FIXTURE != '' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: written-fixtures
           path: out/written-fixtures/
@@ -286,7 +285,7 @@ jobs:
 
       - name: Upload the ready to run copy
         if: ${{ !cancelled() && steps.package.outcome == 'success' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ env.PACKAGE_CONFIG == 'Release' && 'plynth-windows-release' || 'plynth-windows-debug' }}
           path: out/package/plynth/
@@ -378,7 +377,7 @@ jobs:
 
       - name: Keep the dry run
         if: ${{ !cancelled() && steps.installer.outcome == 'success' && github.ref_type != 'tag' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-dry-run
           path: ${{ runner.temp }}/plynth-dry-run/
@@ -393,6 +392,21 @@ jobs:
           $files = "$env:GITHUB_WORKSPACE/out/release/files"
           New-Item -ItemType Directory -Force $files | Out-Null
           Copy-Item "$env:RUNNER_TEMP/plynth-setup/PlynthSetup.exe" $files
+          # The portable zip holds the same checked stage under one Plynth folder. It changes no PATH.
+          $portable = "$env:RUNNER_TEMP/plynth-portable"
+          New-Item -ItemType Directory -Force "$portable/Plynth" | Out-Null
+          Copy-Item -Recurse "$env:RUNNER_TEMP/plynth-stage/*" "$portable/Plynth"
+          $zip = "$files/Plynth-$version-windows-x64.zip"
+          tar -a -c -f $zip -C $portable Plynth
+          if ($LASTEXITCODE -ne 0) { throw "making the portable zip failed with code $LASTEXITCODE" }
+          $unpacked = "$env:RUNNER_TEMP/plynth-portable-check"
+          New-Item -ItemType Directory -Force $unpacked | Out-Null
+          tar -x -f $zip -C $unpacked
+          if ($LASTEXITCODE -ne 0) { throw "unpacking the portable zip failed with code $LASTEXITCODE" }
+          & "$env:GITHUB_WORKSPACE/installer/CheckPackage.ps1" -Stage "$unpacked/Plynth" -Release
+          if ($LASTEXITCODE -ne 0) { throw 'the unpacked portable zip failed its check' }
+          & "$env:GITHUB_WORKSPACE/installer/SmokeTest.ps1" -Package "$unpacked/Plynth"
+          if ($LASTEXITCODE -ne 0) { throw 'the unpacked portable zip failed its check' }
           & "$env:GITHUB_WORKSPACE/installer/Sources.ps1" -Out $files -Version $version
           $sums = Get-ChildItem -File $files | Sort-Object Name | ForEach-Object { "$((Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLowerInvariant())  $($_.Name)" }
           $sums | Out-File -FilePath "$files/SHA256SUMS.txt" -Encoding utf8NoBOM
@@ -401,7 +415,7 @@ jobs:
 
       - name: Keep the release files
         if: ${{ steps.release-files.outcome == 'success' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-files
           path: out/release/
@@ -416,7 +430,7 @@ jobs:
 
       - name: Upload screenshots
         if: ${{ !cancelled() && steps.screens.outcome != 'skipped' && github.event_name == 'workflow_dispatch' && env.SCREENS == 'true' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: screenshots
           path: out/screenshots/
@@ -446,14 +460,14 @@ jobs:
 
       - name: Save the compiler cache
         if: ${{ !cancelled() && env.CACHES == 'true' && steps.sccache-cache.outputs.cache-hit != 'true' && steps.sccache-stats.outputs.added != '0' && steps.sccache-stats.outputs.added != '' }}
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: sccache
           key: ${{ steps.sccache-key.outputs.key }}
 
       - name: Upload test logs
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: test-logs
           path: |
@@ -478,7 +492,7 @@ jobs:
       TAG: ${{ github.ref_name }}
     steps:
       - name: Fetch the release files
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: release-files
           path: release
@@ -506,7 +520,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
@@ -515,7 +529,7 @@ jobs:
         run: '& "$env:GITHUB_WORKSPACE/.github/scripts/download-license-texts.ps1" -List "$env:GITHUB_WORKSPACE/installer/license-sources.json" -Out "$env:GITHUB_WORKSPACE/out/license-texts"'
 
       - name: Keep the license texts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: license-texts
           path: out/license-texts/
