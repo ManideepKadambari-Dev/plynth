@@ -294,8 +294,8 @@ TEST_CASE("settings write every surface and read them back", "[core][json][mater
     setMaterialDefault(s.materials, Surface::Ceiling, std::nullopt);
     setMaterialDefault(s.materials, Surface::Floor, "grey_tile");
     const Json j = settingsToJson(s);
-    REQUIRE(j["version"] == 5);
-    REQUIRE(j["materials"].size() == 12);
+    REQUIRE(j["version"] == 6);
+    REQUIRE(j["materials"].size() == 14);
     REQUIRE(j["materials"]["ceiling"].is_null());
     REQUIRE(j["materials"]["floor"] == "grey_tile");
     std::vector<std::string> keys;
@@ -411,20 +411,22 @@ TEST_CASE("migrateJson stops at a failing step and reports a missing step", "[co
     REQUIRE(migrateJson(text, 3, steps).code == ErrorCode::BadFile);
 }
 
-TEST_CASE("the current format versions are 6 and 5", "[core][json][migrate]") {
-    REQUIRE(kPlanFormatVersion == 6);
-    REQUIRE(kProjectFormatVersion == 5);
-    REQUIRE(planMigrations().size() == 5);
+TEST_CASE("the current format versions are 7 and 6", "[core][json][migrate]") {
+    REQUIRE(kPlanFormatVersion == 7);
+    REQUIRE(kProjectFormatVersion == 6);
+    REQUIRE(planMigrations().size() == 6);
     REQUIRE(planMigrations()[0].fromVersion == 1);
     REQUIRE(planMigrations()[1].fromVersion == 2);
     REQUIRE(planMigrations()[2].fromVersion == 3);
     REQUIRE(planMigrations()[3].fromVersion == 4);
     REQUIRE(planMigrations()[4].fromVersion == 5);
-    REQUIRE(projectMigrations().size() == 4);
+    REQUIRE(planMigrations()[5].fromVersion == 6);
+    REQUIRE(projectMigrations().size() == 5);
     REQUIRE(projectMigrations()[0].fromVersion == 1);
     REQUIRE(projectMigrations()[1].fromVersion == 2);
     REQUIRE(projectMigrations()[2].fromVersion == 3);
     REQUIRE(projectMigrations()[3].fromVersion == 4);
+    REQUIRE(projectMigrations()[4].fromVersion == 5);
 }
 
 TEST_CASE("a version 4 plan reads with the new fields at their defaults", "[core][json][migrate]") {
@@ -442,7 +444,7 @@ TEST_CASE("a version 4 plan reads with the new fields at their defaults", "[core
     REQUIRE(r.plan.roof == RoofSettings{});
     REQUIRE(r.plan.roofSections.empty());
     const Json written = planToJson(r.plan);
-    REQUIRE(written["version"] == 6);
+    REQUIRE(written["version"] == 7);
     REQUIRE(written["floors"][1]["slab_thickness"] == 0.2);
     REQUIRE(written["roof"]["type"] == "flat");
     REQUIRE(written["roof"]["direction"].is_null());
@@ -460,7 +462,7 @@ TEST_CASE("a version 4 project gets the roof, flat roof and stair defaults", "[c
     REQUIRE(r.settings.materials.flatRoof == "concrete");
     REQUIRE(r.settings.materials.stair == "oak_planks");
     const Json written = settingsToJson(r.settings);
-    REQUIRE(written["version"] == 5);
+    REQUIRE(written["version"] == 6);
     REQUIRE(written["materials"]["stair"] == "oak_planks");
 
     const SettingsRead minimal = settingsFromJson(Json::parse(
@@ -511,7 +513,7 @@ TEST_CASE("a version 2 plan upgrades with empty item lists", "[core][json][migra
     REQUIRE(r.migrated);
     for (const Floor& f : r.plan.floors) REQUIRE(f.items.empty());
     const Json written = planToJson(r.plan);
-    REQUIRE(written["version"] == 6);
+    REQUIRE(written["version"] == 7);
     REQUIRE(written["floors"][0]["items"].is_array());
     REQUIRE(written["floors"][0]["items"].empty());
     REQUIRE(written["floors"][1]["items"].empty());
@@ -526,7 +528,7 @@ TEST_CASE("a version 2 project gets the wall item centre", "[core][json][migrate
     REQUIRE(r.settings.defaults.ceilingHeight == 2.6);
     REQUIRE(r.settings.defaults.wallItemCentre == 1.2);
     const Json written = settingsToJson(r.settings);
-    REQUIRE(written["version"] == 5);
+    REQUIRE(written["version"] == 6);
     REQUIRE(written["defaults"]["wall_item_centre"] == 1.2);
 }
 
@@ -585,7 +587,7 @@ TEST_CASE("a version 1 plan upgrades with hinge start and swing right", "[core][
         REQUIRE(o.swing == WallSide::Right);
     }
     const Json written = planToJson(r.plan);
-    REQUIRE(written["version"] == 6);
+    REQUIRE(written["version"] == 7);
     REQUIRE(written["floors"][0]["openings"][0]["hinge"] == "start");
     REQUIRE(written["floors"][0]["openings"][0]["swing"] == "right");
 }
@@ -620,7 +622,7 @@ TEST_CASE("a version 1 project gets the built-in defaults", "[core][json][migrat
     REQUIRE(r.settings.name == "Old flat");
     REQUIRE(r.settings.gridSize == 0.25);
     REQUIRE(r.settings.defaults == DefaultSizes{});
-    REQUIRE(settingsToJson(r.settings)["version"] == 5);
+    REQUIRE(settingsToJson(r.settings)["version"] == 6);
 }
 
 TEST_CASE("project defaults round trip", "[core][json]") {

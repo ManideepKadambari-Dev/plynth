@@ -99,6 +99,7 @@ add_executable(plynth_core_tests
     core/DressingTests.cpp
     core/TrimTests.cpp
     core/VariationTests.cpp
+    core/FinishFormatTests.cpp
     core/IdTests.cpp
     core/IdGroupTests.cpp
     core/IdTestListener.cpp

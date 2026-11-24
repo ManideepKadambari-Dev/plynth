@@ -19,7 +19,7 @@
     "preview_texture_size": 1024,
     "plan": {
       "format": "plynth-plan",
-      "version": 6,
+      "version": 7,
       "scale": {
         "pixels_per_metre": null
       },
@@ -109,7 +109,8 @@
               ],
               "floor_material": null,
               "wall_material": null,
-              "ceiling_material": null
+              "ceiling_material": null,
+              "dressing": true
             }
           ],
           "openings": [],
@@ -196,7 +197,8 @@
             "x": 0.0,
             "y": 0.0
           },
-          "stairs": []
+          "stairs": [],
+          "lights": []
         },
         {
           "id": "f2",
@@ -283,7 +285,8 @@
               ],
               "floor_material": null,
               "wall_material": null,
-              "ceiling_material": null
+              "ceiling_material": null,
+              "dressing": true
             }
           ],
           "openings": [],
@@ -320,7 +323,8 @@
             "x": 0.0,
             "y": 0.0
           },
-          "stairs": []
+          "stairs": [],
+          "lights": []
         }
       ],
       "roof": {

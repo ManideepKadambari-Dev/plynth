@@ -41,7 +41,7 @@ nlohmann::json plain(const Json& j)
 TEST_CASE("the schema files are valid schemas", "[core][schema]") {
     for (const char* file : {"plan.schema.json", "project.schema.json", "plan.v1.schema.json", "project.v1.schema.json", "plan.v2.schema.json",
                              "project.v2.schema.json", "plan.v3.schema.json", "project.v3.schema.json", "plan.v4.schema.json", "project.v4.schema.json",
-                             "plan.v5.schema.json", "settings.schema.json", "settings.v1.schema.json",
+                             "plan.v5.schema.json", "plan.v6.schema.json", "project.v5.schema.json", "settings.schema.json", "settings.v1.schema.json",
                              "settings.v2.schema.json", "export-report.schema.json", "export-options.schema.json", "export-options.v1.schema.json",
                              "gameplay.schema.json", "trim-profile.schema.json", "asset-supports.schema.json",
                              "kit-layout.schema.json"}) {
@@ -134,7 +134,7 @@ TEST_CASE("version 1 files pass the version 1 schemas and upgrade", "[core][sche
     plynth::test::requireOk(r.status);
     REQUIRE(r.migrated);
     const nlohmann::json upgraded = plain(planToJson(r.plan));
-    REQUIRE(upgraded["version"] == 6);
+    REQUIRE(upgraded["version"] == 7);
     REQUIRE(schemaProblem("plan.schema.json", upgraded).empty());
 
     const nlohmann::json project = nlohmann::json::parse(plynth::test::readTextFile(dir / "v1-project.json"));
@@ -182,7 +182,7 @@ TEST_CASE("version 3 files pass the version 3 schemas and upgrade", "[core][sche
             for (const Room& room : floor.rooms) REQUIRE_FALSE(room.wallMaterial.has_value());
         }
         const nlohmann::json saved = plain(planToJson(r.plan));
-        REQUIRE(saved["version"] == 6);
+        REQUIRE(saved["version"] == 7);
         REQUIRE(schemaProblem("plan.schema.json", saved).empty());
         REQUIRE_FALSE(schemaProblem("plan.v3.schema.json", saved).empty());
     }
@@ -198,14 +198,14 @@ TEST_CASE("version 3 files pass the version 3 schemas and upgrade", "[core][sche
         REQUIRE(s.fileVersion == 3);
         REQUIRE(s.settings.materials == MaterialDefaults{});
         const nlohmann::json saved = plain(settingsToJson(s.settings));
-        REQUIRE(saved["version"] == 5);
+        REQUIRE(saved["version"] == 6);
         REQUIRE(schemaProblem("project.schema.json", saved).empty());
         REQUIRE_FALSE(schemaProblem("project.v3.schema.json", saved).empty());
     }
 }
 
-TEST_CASE("a version 7 plan is unsupported", "[core][schema]") {
-    const std::string text = plynth::test::readTextFile(std::filesystem::path(PLYNTH_TEST_DATA_DIR) / "invalid-version-7.json");
+TEST_CASE("a version 8 plan is unsupported", "[core][schema]") {
+    const std::string text = plynth::test::readTextFile(std::filesystem::path(PLYNTH_TEST_DATA_DIR) / "invalid-version-8.json");
     REQUIRE(planFromJson(Json::parse(text)).status.code == ErrorCode::UnsupportedVersion);
 }
 
@@ -265,7 +265,7 @@ TEST_CASE("version 5 files pass the version 5 schema and upgrade", "[core][schem
         REQUIRE(r.migrated);
         REQUIRE(r.fileVersion == 5);
         const nlohmann::json saved = plain(planToJson(r.plan));
-        REQUIRE(saved["version"] == 6);
+        REQUIRE(saved["version"] == 7);
         for (const auto& floor : saved["floors"]) {
             for (const auto& item : floor["items"]) REQUIRE(item["generator"].is_null());
         }
@@ -286,7 +286,7 @@ TEST_CASE("version 4 files pass the version 4 schemas and upgrade", "[core][sche
         REQUIRE(r.migrated);
         REQUIRE(r.fileVersion == 4);
         const nlohmann::json saved = plain(planToJson(r.plan));
-        REQUIRE(saved["version"] == 6);
+        REQUIRE(saved["version"] == 7);
         REQUIRE(schemaProblem("plan.schema.json", saved).empty());
         REQUIRE_FALSE(schemaProblem("plan.v4.schema.json", saved).empty());
     }
@@ -301,7 +301,7 @@ TEST_CASE("version 4 files pass the version 4 schemas and upgrade", "[core][sche
         REQUIRE(s.migrated);
         REQUIRE(s.fileVersion == 4);
         const nlohmann::json saved = plain(settingsToJson(s.settings));
-        REQUIRE(saved["version"] == 5);
+        REQUIRE(saved["version"] == 6);
         REQUIRE(saved["materials"]["roof"] == "roof_tiles");
         REQUIRE(saved["materials"]["flat_roof"] == "concrete");
         REQUIRE(saved["materials"]["stair"] == "oak_planks");

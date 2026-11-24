@@ -97,6 +97,15 @@ std::optional<double> getOptionalNumber(const Json& obj, const char* key, const 
     return numberAt(*it, child(where, key));
 }
 
+// Reads a true or false value that may be missing, which gives the default.
+bool getBoolOr(const Json& obj, const char* key, const std::string& where, bool fallback)
+{
+    auto it = obj.find(key);
+    if (it == obj.end()) return fallback;
+    if (!it->is_boolean()) refuse("This value must be true or false.", child(where, key));
+    return it->get<bool>();
+}
+
 // Reads an array, which must be present when required.
 const Json* getArray(const Json& obj, const char* key, const std::string& where, bool required)
 {
@@ -140,7 +149,7 @@ Wall readWall(const Json& j, const std::string& where)
 // Reads one room.
 Room readRoom(const Json& j, const std::string& where)
 {
-    expectObject(j, where, {"id", "type", "walls", "floor_material", "wall_material", "ceiling_material"});
+    expectObject(j, where, {"id", "type", "walls", "floor_material", "wall_material", "ceiling_material", "dressing"});
     Room r;
     r.id = getString(j, "id", where);
     r.type = getOptionalString(j, "type", where);
@@ -153,13 +162,15 @@ Room readRoom(const Json& j, const std::string& where)
     r.floorMaterial = getOptionalString(j, "floor_material", where);
     r.wallMaterial = getOptionalString(j, "wall_material", where);
     r.ceilingMaterial = getOptionalString(j, "ceiling_material", where);
+    r.dressing = getBoolOr(j, "dressing", where, true);
     return r;
 }
 
 // Reads one opening.
 Opening readOpening(const Json& j, const std::string& where)
 {
-    expectObject(j, where, {"id", "wall", "offset", "type", "shape", "width", "height", "sill", "hinge", "swing", "frame"});
+    expectObject(j, where, {"id", "wall", "offset", "type", "shape", "width", "height", "sill", "hinge", "swing", "frame",
+                            "auto_frame"});
     Opening o;
     o.id = getString(j, "id", where);
     o.wall = getString(j, "wall", where);
@@ -182,6 +193,7 @@ Opening readOpening(const Json& j, const std::string& where)
         o.swing = *swing;
     }
     o.frame = getOptionalString(j, "frame", where);
+    o.autoFrame = getBoolOr(j, "auto_frame", where, true);
     return o;
 }
 
@@ -257,6 +269,24 @@ Stair readStair(const Json& j, const std::string& where)
     return st;
 }
 
+// Reads one light marker.
+LightMarker readLight(const Json& j, const std::string& where)
+{
+    expectObject(j, where, {"id", "kind", "room", "x", "y", "z"});
+    LightMarker l;
+    l.id = getString(j, "id", where);
+    if (j.contains("kind")) {
+        const auto kind = lightKindFromName(getString(j, "kind", where));
+        if (!kind) refuse("The light kind must be \"ceiling\", \"wall\" or \"standing\".", child(where, "kind"));
+        l.kind = *kind;
+    }
+    l.room = getOptionalString(j, "room", where);
+    l.x = getNumber(j, "x", where);
+    l.y = getNumber(j, "y", where);
+    l.z = getNumber(j, "z", where);
+    return l;
+}
+
 // Reads one set of roof settings.
 RoofSettings readRoofSettings(const Json& j, const std::string& where)
 {
@@ -315,7 +345,7 @@ std::vector<Item> readList(const Json& obj, const char* key, const std::string& 
 Floor readFloor(const Json& j, const std::string& where)
 {
     expectObject(j, where, {"id", "name", "image", "ceiling_height", "points", "walls", "rooms", "openings", "items",
-                         "slab_thickness", "image_offset", "stairs"});
+                         "slab_thickness", "image_offset", "stairs", "lights"});
     Floor f;
     f.id = getString(j, "id", where);
     f.name = j.contains("name") ? getString(j, "name", where) : f.id;
@@ -334,6 +364,7 @@ Floor readFloor(const Json& j, const std::string& where)
         f.imageOffset.y = getNumber(*oit, "y", at);
     }
     f.stairs = readList<Stair>(j, "stairs", where, readStair);
+    f.lights = readList<LightMarker>(j, "lights", where, readLight);
     return f;
 }
 
@@ -437,6 +468,7 @@ Json planToJson(const Plan& plan)
             jr["floor_material"] = optString(r.floorMaterial);
             jr["wall_material"] = optString(r.wallMaterial);
             jr["ceiling_material"] = optString(r.ceilingMaterial);
+            jr["dressing"] = r.dressing;
             rooms.push_back(std::move(jr));
         }
         jf["rooms"] = std::move(rooms);
@@ -455,6 +487,7 @@ Json planToJson(const Plan& plan)
             jo["hinge"] = std::string(hingeEndName(o.hinge));
             jo["swing"] = std::string(wallSideName(o.swing));
             jo["frame"] = optString(o.frame);
+            jo["auto_frame"] = o.autoFrame;
             openings.push_back(std::move(jo));
         }
         jf["openings"] = std::move(openings);
@@ -500,6 +533,19 @@ Json planToJson(const Plan& plan)
             stairs.push_back(std::move(js));
         }
         jf["stairs"] = std::move(stairs);
+
+        Json lights = Json::array();
+        for (const LightMarker& l : f.lights) {
+            Json jl = Json::object();
+            jl["id"] = l.id;
+            jl["kind"] = std::string(lightKindName(l.kind));
+            jl["room"] = optString(l.room);
+            jl["x"] = l.x;
+            jl["y"] = l.y;
+            jl["z"] = l.z;
+            lights.push_back(std::move(jl));
+        }
+        jf["lights"] = std::move(lights);
         floors.push_back(std::move(jf));
     }
     out["floors"] = std::move(floors);
@@ -574,6 +620,33 @@ Json defaultsToJson(const DefaultSizes& d)
     return out;
 }
 
+// Turns the trim settings into their project.json form.
+Json trimToJson(const TrimSettings& trim)
+{
+    Json out = Json::object();
+    for (TrimKind kind : {TrimKind::Skirting, TrimKind::Cornice, TrimKind::Casing, TrimKind::Sill, TrimKind::Railing}) {
+        const TrimStyle& style = trimStyle(trim, kind);
+        Json js = Json::object();
+        js["enabled"] = style.enabled;
+        js["profile"] = style.profile;
+        js["height"] = style.height;
+        js["depth"] = style.depth;
+        out[std::string(trimKindName(kind))] = std::move(js);
+    }
+    out["railing_height"] = trim.railingHeight;
+    return out;
+}
+
+// Turns the variation settings into their project.json form.
+Json variationToJson(const VariationSettings& v)
+{
+    Json out = Json::object();
+    out["seed"] = v.seed;
+    out["furniture"] = v.furniture;
+    out["materials"] = v.materials;
+    return out;
+}
+
 // Turns the default materials into their project.json form, every surface written.
 Json materialsToJson(const MaterialDefaults& defaults)
 {
@@ -598,6 +671,8 @@ Json settingsToJson(const ProjectSettings& settings)
     out["grid_size"] = settings.gridSize;
     out["defaults"] = defaultsToJson(settings.defaults);
     out["materials"] = materialsToJson(settings.materials);
+    out["trim"] = trimToJson(settings.trim);
+    out["variation"] = variationToJson(settings.variation);
     return out;
 }
 
@@ -608,7 +683,8 @@ SettingsRead settingsFromJson(const Json& json)
     try {
         Json copy = json;
         prepare(copy, kProjectFormatName, kProjectFormatVersion, projectMigrations(), result.fileVersion, result.migrated);
-        expectObject(copy, "", {"format", "version", "name", "export_mode", "grid_size", "defaults", "materials"});
+        expectObject(copy, "", {"format", "version", "name", "export_mode", "grid_size", "defaults", "materials", "trim",
+                                "variation"});
 
         ProjectSettings settings;
         settings.name = getString(copy, "name", "");
@@ -635,13 +711,41 @@ SettingsRead settingsFromJson(const Json& json)
         }
         if (auto mit = copy.find("materials"); mit != copy.end()) {
             expectObject(*mit, "/materials", {"wall_inside", "wall_outside", "wall_top", "floor", "ceiling", "door", "frame", "glass", "handle",
-                          "roof", "flat_roof", "stair"});
+                          "roof", "flat_roof", "stair", "trim", "railing"});
             for (const Surface surface : allSurfaces()) {
                 const std::string key(surfaceName(surface));
                 if (!mit->contains(key)) continue;
                 setMaterialDefault(settings.materials, surface, getOptionalString(*mit, key.c_str(), "/materials"));
             }
             if (Status s = checkMaterialDefaults(settings.materials); !s.ok()) refuse(s.message, s.where);
+        }
+        if (auto tit = copy.find("trim"); tit != copy.end()) {
+            expectObject(*tit, "/trim", {"skirting", "cornice", "casing", "sill", "railing", "railing_height"});
+            for (TrimKind kind : {TrimKind::Skirting, TrimKind::Cornice, TrimKind::Casing, TrimKind::Sill, TrimKind::Railing}) {
+                const std::string key(trimKindName(kind));
+                auto sit = tit->find(key);
+                if (sit == tit->end()) continue;
+                const std::string at = "/trim/" + key;
+                expectObject(*sit, at, {"enabled", "profile", "height", "depth"});
+                TrimStyle& style = trimStyle(settings.trim, kind);
+                style.enabled = getBoolOr(*sit, "enabled", at, style.enabled);
+                if (sit->contains("profile")) style.profile = getString(*sit, "profile", at);
+                style.height = getNumberOr(*sit, "height", at, style.height);
+                style.depth = getNumberOr(*sit, "depth", at, style.depth);
+            }
+            settings.trim.railingHeight = getNumberOr(*tit, "railing_height", "/trim", settings.trim.railingHeight);
+            if (Status s = checkTrimSettings(settings.trim); !s.ok()) refuse(s.message, "/trim");
+        }
+        if (auto vit = copy.find("variation"); vit != copy.end()) {
+            expectObject(*vit, "/variation", {"seed", "furniture", "materials"});
+            if (auto seed = vit->find("seed"); seed != vit->end()) {
+                if (!seed->is_number_integer() || seed->get<long long>() < 0 || seed->get<long long>() > 4294967295LL) {
+                    refuse("The seed must be a whole number from 0 to 4294967295.", "/variation/seed");
+                }
+                settings.variation.seed = static_cast<std::uint32_t>(seed->get<long long>());
+            }
+            settings.variation.furniture = getBoolOr(*vit, "furniture", "/variation", true);
+            settings.variation.materials = getBoolOr(*vit, "materials", "/variation", true);
         }
         result.settings = std::move(settings);
     } catch (const ReadError& e) {
@@ -808,19 +912,61 @@ Status migratePlan5To6(Json& json)
     return {};
 }
 
+// Version 6 to 7: floors get no lights, rooms get set dressing and openings pick catalog doors and windows.
+Status migratePlan6To7(Json& json)
+{
+    auto floors = json.find("floors");
+    if (floors == json.end() || !floors->is_array()) return {};
+    for (Json& floor : *floors) {
+        if (!floor.is_object()) continue;
+        if (!floor.contains("lights")) floor["lights"] = Json::array();
+        if (auto rooms = floor.find("rooms"); rooms != floor.end() && rooms->is_array()) {
+            for (Json& room : *rooms) {
+                if (room.is_object() && !room.contains("dressing")) room["dressing"] = true;
+            }
+        }
+        if (auto openings = floor.find("openings"); openings != floor.end() && openings->is_array()) {
+            for (Json& opening : *openings) {
+                if (opening.is_object() && !opening.contains("auto_frame")) opening["auto_frame"] = true;
+            }
+        }
+    }
+    return {};
+}
+
+// Version 5 to 6: the materials get the trim and railing defaults, and the project gets trim and variation.
+Status migrateProject5To6(Json& json)
+{
+    if (!json.is_object()) return {};
+    if (auto materials = json.find("materials"); materials != json.end() && materials->is_object()) {
+        const MaterialDefaults defaults;
+        for (const Surface surface : {Surface::Trim, Surface::Railing}) {
+            const std::string key(surfaceName(surface));
+            if (materials->contains(key)) continue;
+            const auto& value = materialDefault(defaults, surface);
+            (*materials)[key] = value ? Json(*value) : Json(nullptr);
+        }
+    }
+    if (!json.contains("trim")) json["trim"] = trimToJson(TrimSettings{});
+    if (!json.contains("variation")) json["variation"] = variationToJson(VariationSettings{});
+    return {};
+}
+
 }
 
 // The upgrade steps for plan.json.
 std::span<const Migration> planMigrations()
 {
-    static const std::vector<Migration> steps = {{1, migratePlan1To2}, {2, migratePlan2To3}, {3, migratePlan3To4}, {4, migratePlan4To5}, {5, migratePlan5To6}};
+    static const std::vector<Migration> steps = {{1, migratePlan1To2}, {2, migratePlan2To3}, {3, migratePlan3To4}, {4, migratePlan4To5}, {5, migratePlan5To6},
+                                                  {6, migratePlan6To7}};
     return steps;
 }
 
 // The upgrade steps for project.json.
 std::span<const Migration> projectMigrations()
 {
-    static const std::vector<Migration> steps = {{1, migrateProject1To2}, {2, migrateProject2To3}, {3, migrateProject3To4}, {4, migrateProject4To5}};
+    static const std::vector<Migration> steps = {{1, migrateProject1To2}, {2, migrateProject2To3}, {3, migrateProject3To4}, {4, migrateProject4To5},
+                                                  {5, migrateProject5To6}};
     return steps;
 }
 

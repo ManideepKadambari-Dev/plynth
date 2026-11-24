@@ -19,7 +19,7 @@
     "preview_texture_size": 1024,
     "plan": {
       "format": "plynth-plan",
-      "version": 6,
+      "version": 7,
       "scale": {
         "pixels_per_metre": null
       },
@@ -151,7 +151,8 @@
               ],
               "floor_material": null,
               "wall_material": null,
-              "ceiling_material": null
+              "ceiling_material": null,
+              "dressing": true
             },
             {
               "id": "r2",
@@ -164,7 +165,8 @@
               ],
               "floor_material": null,
               "wall_material": null,
-              "ceiling_material": null
+              "ceiling_material": null,
+              "dressing": true
             }
           ],
           "openings": [
@@ -179,7 +181,8 @@
               "sill": 0.0,
               "hinge": "start",
               "swing": "right",
-              "frame": null
+              "frame": null,
+              "auto_frame": true
             },
             {
               "id": "o2",
@@ -192,7 +195,8 @@
               "sill": 0.9,
               "hinge": "start",
               "swing": "right",
-              "frame": null
+              "frame": null,
+              "auto_frame": true
             },
             {
               "id": "o3",
@@ -205,7 +209,8 @@
               "sill": 0.9,
               "hinge": "start",
               "swing": "right",
-              "frame": null
+              "frame": null,
+              "auto_frame": true
             },
             {
               "id": "o4",
@@ -218,7 +223,8 @@
               "sill": 0.0,
               "hinge": "start",
               "swing": "right",
-              "frame": null
+              "frame": null,
+              "auto_frame": true
             },
             {
               "id": "o5",
@@ -231,7 +237,8 @@
               "sill": 1.0,
               "hinge": "start",
               "swing": "right",
-              "frame": null
+              "frame": null,
+              "auto_frame": true
             },
             {
               "id": "o6",
@@ -244,7 +251,8 @@
               "sill": 0.0,
               "hinge": "start",
               "swing": "right",
-              "frame": null
+              "frame": null,
+              "auto_frame": true
             },
             {
               "id": "o7",
@@ -257,7 +265,8 @@
               "sill": 0.0,
               "hinge": "start",
               "swing": "right",
-              "frame": null
+              "frame": null,
+              "auto_frame": true
             }
           ],
           "items": [],
@@ -266,7 +275,8 @@
             "x": 0.0,
             "y": 0.0
           },
-          "stairs": []
+          "stairs": [],
+          "lights": []
         }
       ],
       "roof": {
