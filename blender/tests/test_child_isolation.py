@@ -106,6 +106,12 @@ def inside(path, folder):
     return given.startswith(own) and given != own
 
 
+# Makes an empty file at a path, making its folder.
+def empty_file(path):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    open(path, "wb").close()
+
+
 # Says whether a name of the os module starts a program.
 def is_os_start(name):
     return name in ("system", "popen", "startfile", "fork", "forkpty") or name.startswith(
@@ -707,7 +713,13 @@ class EdgeChildTests(StoreSandbox):
     def edge_children(self):
         helper = self.load("blenderkit_edge_helpers")
         changes = os.path.isfile(os.path.join(TESTS, "test_blenderkit_autoexec.py"))
-        tests = self.load("test_blenderkit_autoexec").AutoexecTests if changes else helper.EdgeTest
+        autoexec = self.load("test_blenderkit_autoexec") if changes else None
+        tests = autoexec.AutoexecTests if changes else helper.EdgeTest
+        # The source and driver .blend files are made in this process with bpy, which is fake here. They start no
+        # child, so empty files stand in for them.
+        self.patch(mock.patch.object(helper, "make_source", empty_file))
+        if changes:
+            self.patch(mock.patch.object(autoexec, "make_driver_blend", lambda path, marker: empty_file(path)))
 
         before = len(self.starts)
         # The scenario user gets a copy of the real helper, so the patched environment needs the build's name
