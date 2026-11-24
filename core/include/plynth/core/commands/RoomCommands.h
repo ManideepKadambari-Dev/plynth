@@ -35,6 +35,7 @@ private:
     Vec2 position_;
     Room room_;
     std::vector<Id> itemsGiven_; // items that got this room on apply
+    std::vector<Id> lightsGiven_; // light markers that got this room on apply
 };
 
 // Removes a room. NotFound for an unknown room. Items in it lose their room. Undo puts the room back at the
@@ -55,6 +56,7 @@ private:
     Room removed_;
     std::size_t index_ = 0;
     std::vector<Id> itemsCleared_; // items that lost this room on apply
+    std::vector<Id> lightsCleared_; // light markers that lost this room on apply
 };
 
 // Sets or clears the type of a room. NotFound for an unknown room, InvalidValue for a type that is not a

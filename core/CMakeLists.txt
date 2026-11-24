@@ -90,6 +90,8 @@ add_library(plynth_core STATIC
     src/trim/Trim.cpp
     src/Variation.cpp
     src/BuildFinish.cpp
+    src/commands/LightCommands.cpp
+    src/commands/FinishCommands.cpp
 )
 if(WIN32)
     target_sources(plynth_core PRIVATE src/Process_win.cpp)

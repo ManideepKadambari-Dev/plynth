@@ -108,6 +108,9 @@ struct GameplayData {
 GameplayData gameplayData(std::string_view projectName, const Plan& plan, const std::vector<FloorBuild>& builds,
                           const std::vector<GameplayLight>& lights);
 
+// The light markers of a plan as gameplay lights, in world coordinates at their floor's level.
+std::vector<GameplayLight> planLights(const Plan& plan);
+
 // The data as the gameplay file's JSON.
 Json gameplayToJson(const GameplayData& data);
 

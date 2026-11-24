@@ -34,7 +34,7 @@ public:
         for (const Floor& floor : project.plan.floors) {
             if (hasThreshold(floor)) group.members.push_back({std::string(kKindThresholds), floor.id});
         }
-        for (const std::string_view kind : {kKindSlab, kKindStair, kKindRoof, kKindLight}) {
+        for (const std::string_view kind : {kKindSlab, kKindStair, kKindRoof, kKindLight, kKindRailing, kKindGuard}) {
             group.members.push_back({std::string(kind), Id()});
         }
         out.push_back(std::move(group));

@@ -70,6 +70,13 @@ Status AddRoomCommand::apply(Project& project)
         item.room = room_.id;
         itemsGiven_.push_back(item.id);
     }
+    lightsGiven_.clear();
+    for (LightMarker& light : floor->lights) {
+        if (light.room) continue;
+        if (roomAt(*floor, {light.x, light.y}) != room_.id) continue;
+        light.room = room_.id;
+        lightsGiven_.push_back(light.id);
+    }
     return {};
 }
 
@@ -81,6 +88,9 @@ void AddRoomCommand::undo(Project& project)
     std::erase_if(floor->rooms, [&](const Room& r) { return r.id == room_.id; });
     for (const Id& id : itemsGiven_) {
         if (Item* item = findItem(*floor, id)) item->room.reset();
+    }
+    for (const Id& id : lightsGiven_) {
+        if (LightMarker* light = findLight(*floor, id)) light->room.reset();
     }
 }
 
@@ -117,6 +127,12 @@ Status RemoveRoomCommand::apply(Project& project)
         item.room.reset();
         itemsCleared_.push_back(item.id);
     }
+    lightsCleared_.clear();
+    for (LightMarker& light : floor->lights) {
+        if (light.room != roomId_) continue;
+        light.room.reset();
+        lightsCleared_.push_back(light.id);
+    }
     return {};
 }
 
@@ -129,6 +145,9 @@ void RemoveRoomCommand::undo(Project& project)
     floor->rooms.insert(floor->rooms.begin() + static_cast<std::ptrdiff_t>(at), removed_);
     for (const Id& id : itemsCleared_) {
         if (Item* item = findItem(*floor, id)) item->room = removed_.id;
+    }
+    for (const Id& id : lightsCleared_) {
+        if (LightMarker* light = findLight(*floor, id)) light->room = removed_.id;
     }
 }
 

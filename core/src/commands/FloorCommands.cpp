@@ -80,7 +80,9 @@ Status SetScaleCommand::apply(Project& project)
     if (keep_ == ScaleKeep::ImagePositions && previous_ && pixelsPerMetre_ && *previous_ != *pixelsPerMetre_) {
         bool hasMarks = !project.plan.roofSections.empty();
         for (const Floor& f : project.plan.floors) {
-            if (!f.points.empty() || !f.openings.empty() || !f.items.empty() || !f.stairs.empty()) hasMarks = true;
+            if (!f.points.empty() || !f.openings.empty() || !f.items.empty() || !f.stairs.empty() || !f.lights.empty()) {
+                hasMarks = true;
+            }
         }
         if (hasMarks) {
             const double factor = *previous_ / *pixelsPerMetre_;
@@ -95,6 +97,7 @@ Status SetScaleCommand::apply(Project& project)
                 for (Point& p : f.points) about(p.x, p.y);
                 for (Item& i : f.items) about(i.x, i.y);
                 for (Stair& s : f.stairs) about(s.x, s.y);
+                for (LightMarker& l : f.lights) about(l.x, l.y);
                 for (Wall& w : f.walls) w.bulge *= factor;
                 for (Opening& op : f.openings) op.offset *= factor;
             }
@@ -431,6 +434,10 @@ Status SetFloorImageOffsetCommand::apply(Project& project)
         for (Stair& s : floor->stairs) {
             s.x += dx;
             s.y += dy;
+        }
+        for (LightMarker& l : floor->lights) {
+            l.x += dx;
+            l.y += dy;
         }
         for (RoofSection& r : project.plan.roofSections) {
             if (r.floor != floorId_) continue;

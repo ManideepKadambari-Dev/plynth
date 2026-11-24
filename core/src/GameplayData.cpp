@@ -187,6 +187,20 @@ GameplayData gameplayData(std::string_view projectName, const Plan& plan, const 
     return data;
 }
 
+// The light markers of a plan in world coordinates.
+std::vector<GameplayLight> planLights(const Plan& plan)
+{
+    std::vector<GameplayLight> out;
+    const std::vector<double> levels = floorElevations(plan);
+    for (std::size_t i = 0; i < plan.floors.size(); ++i) {
+        for (const LightMarker& marker : plan.floors[i].lights) {
+            const Vec2 world = planToWorld({marker.x, marker.y});
+            out.push_back({marker.id, plan.floors[i].id, marker.room, marker.kind, {world.x, world.y, levels[i] + marker.z}});
+        }
+    }
+    return out;
+}
+
 // Writes the gameplay file's JSON.
 Json gameplayToJson(const GameplayData& data)
 {
