@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <numbers>
+#include <utility>
 
 namespace plynth {
 
@@ -74,10 +75,16 @@ public:
 
         std::vector<RoofFace> faces;
         std::vector<std::vector<WorldPolygon>> areas(starts.size());
+        // Each bay is cut from what is left after the bay before, so two neighbours are cut from the same polygons
+        // along the same line and share the points on it.
+        std::vector<WorldPolygon> rest = eaves;
         for (std::size_t k = 0; k < starts.size(); ++k) {
-            areas[k] = eaves;
-            if (k > 0) areas[k] = roofparts::keepHalf(areas[k], onLine(starts[k]), n);
-            areas[k] = roofparts::keepHalf(areas[k], onLine(endOf(k)), backward);
+            if (k + 1 < starts.size()) {
+                areas[k] = roofparts::keepHalf(rest, onLine(starts[k + 1]), backward);
+                rest = roofparts::keepHalf(rest, onLine(starts[k + 1]), n);
+            } else {
+                areas[k] = std::move(rest);
+            }
             for (const WorldPolygon& poly : areas[k]) {
                 faces.push_back(roofparts::planeFace(poly, planeOf(k), 0.0, true, RoofPart::Covering));
             }
