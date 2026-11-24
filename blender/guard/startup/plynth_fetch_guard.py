@@ -167,20 +167,40 @@ def _make_hook(box):
 
     def program(executable, args):
         if executable is None and args is not None:
-            if isinstance(args, (str, bytes)):
+            if isinstance(args, (list, tuple)):
+                executable = args[0] if args else None
+            else:
                 executable = _first_word(text(args))
-            elif len(args):
-                executable = args[0]
         if executable is None:
             return False
         name = text(executable)
-        return isabs(name) and inside(name)
+        return isinstance(name, str) and isabs(name) and inside(name)
+
+    def argument(args, index):
+        return args[index] if len(args) > index else None
+
+    # A start through subprocess was checked by its own event just before, on the same thread, so the
+    # CreateProcess event that follows it is allowed whatever form its arguments take.
+    def created(args, approved):
+        if approved:
+            return True
+        name = argument(args, 0)
+        if name is not None:
+            return program(name, None)
+        return program(None, argument(args, 1))
 
     def refuse():
         raise PermissionError(errno.EACCES, REFUSED_TEXT)
 
-    def check(event, args):
-        if event == "open":
+    def check(event, args, approved):
+        if event == "subprocess.Popen":
+            if not program(argument(args, 0), argument(args, 1)):
+                refuse()
+            local.approved = True
+        elif event == "_winapi.CreateProcess":
+            if not created(args, approved):
+                refuse()
+        elif event == "open":
             path, mode, flags = args[0], args[1], args[2]
             wants = (isinstance(mode, str) and any(c in mode for c in "wax+")) or \
                 (isinstance(flags, int) and flags & write_flags)
@@ -194,7 +214,7 @@ def _make_hook(box):
                     refuse()
         elif event in PROGRAM_EVENTS:
             first, second = PROGRAM_EVENTS[event]
-            if not program(args[first], None if second is None else args[second]):
+            if not program(argument(args, first), None if second is None else argument(args, second)):
                 refuse()
         elif event == "os.symlink":
             target = text(args[0])
@@ -228,8 +248,10 @@ def _make_hook(box):
         if event not in WATCHED or getattr(local, "busy", False):
             return
         local.busy = True
+        approved = getattr(local, "approved", False)
+        local.approved = False
         try:
-            check(event, args)
+            check(event, args, approved)
         except PermissionError:
             raise
         except Exception:
@@ -248,10 +270,14 @@ def _self_check(root):
                ("os.rename", (os.path.join(root, "a"), os.path.join(outside, "b"), None, None)),
                ("winreg.CreateKey", (None, "Software", 0)),
                ("subprocess.Popen", (os.path.join(outside, "probe.exe"), None, None, None)),
+               ("_winapi.CreateProcess", (None, None, None)),
+               ("_winapi.CreateProcess", (os.path.join(outside, "probe.exe"), None, None)),
                ("os.kill", (0, 9)))
     allowed = (("open", (os.path.join(root, "probe.txt"), "w", os.O_WRONLY | os.O_CREAT)),
                ("os.rename", (os.path.join(root, "a"), os.path.join(root, "b"), None, None)),
-               ("subprocess.Popen", (os.path.join(root, "probe.exe"), None, None, None)))
+               ("subprocess.Popen", (os.path.join(root, "probe.exe"), None, None, None)),
+               ("_winapi.CreateProcess", (None, None, None)),
+               ("open", (os.path.join(root, "probe.txt"), "r", 0)))
     for event, args in refused:
         try:
             sys.audit(event, *args)
