@@ -2,7 +2,7 @@
  "format": "plynth-blender-job",
  "version": 1,
  "task": "export",
- "job_id": "export-b4b32236",
+ "job_id": "export-061ce273",
  "result_file": "@PROJECT@/build/export_work/result.json",
  "params": {
   "project": {
@@ -26,35 +26,35 @@
      },
      {
       "kind": "window",
-      "id": "o1"
+      "id": "o3qv0wdqp"
      },
      {
       "kind": "window",
-      "id": "o2"
+      "id": "o1yspmgpp"
      },
      {
       "kind": "door",
-      "id": "o3"
+      "id": "o8q521h6j"
      },
      {
       "kind": "door",
-      "id": "o4"
+      "id": "o06dw85zm"
      },
      {
       "kind": "window",
-      "id": "o6"
+      "id": "o7g2mqaxb"
      },
      {
       "kind": "door",
-      "id": "o7"
+      "id": "o1mpg7cty"
      },
      {
       "kind": "door",
-      "id": "o8"
+      "id": "o1qj5rqtn"
      },
      {
       "kind": "window",
-      "id": "o9"
+      "id": "o2spvke49"
      }
     ],
     "rest": true
@@ -68,43 +68,43 @@
     "members": [
      {
       "kind": "floor",
-      "id": "r1"
+      "id": "r9szr2f81"
      },
      {
       "kind": "ceiling",
-      "id": "r1"
+      "id": "r9szr2f81"
      },
      {
       "kind": "floor",
-      "id": "r2"
+      "id": "r5xzw5wm7"
      },
      {
       "kind": "ceiling",
-      "id": "r2"
+      "id": "r5xzw5wm7"
      },
      {
       "kind": "floor",
-      "id": "r3"
+      "id": "r325167re"
      },
      {
       "kind": "ceiling",
-      "id": "r3"
+      "id": "r325167re"
      },
      {
       "kind": "floor",
-      "id": "r4"
+      "id": "r2yw61tdf"
      },
      {
       "kind": "ceiling",
-      "id": "r4"
+      "id": "r2yw61tdf"
      },
      {
       "kind": "floor",
-      "id": "r5"
+      "id": "r0x73wks7"
      },
      {
       "kind": "ceiling",
-      "id": "r5"
+      "id": "r0x73wks7"
      },
      {
       "kind": "thresholds",
@@ -130,29 +130,29 @@
     "rest": false
    },
    {
-    "id": "furniture_r1",
-    "file": "m11_Furniture_Room_r1.fbx",
+    "id": "furniture_r9szr2f81",
+    "file": "m11_Furniture_Room_r9szr2f81.fbx",
     "kinds": [],
     "ids": [],
-    "name": "Furniture Room r1",
+    "name": "Furniture Room r9szr2f81",
     "members": [
      {
       "kind": "item",
-      "id": "i1"
+      "id": "i7068m5ws"
      }
     ],
     "rest": false
    },
    {
-    "id": "furniture_r2",
-    "file": "m11_Furniture_Room_r2.fbx",
+    "id": "furniture_r5xzw5wm7",
+    "file": "m11_Furniture_Room_r5xzw5wm7.fbx",
     "kinds": [],
     "ids": [],
-    "name": "Furniture Room r2",
+    "name": "Furniture Room r5xzw5wm7",
     "members": [
      {
       "kind": "item",
-      "id": "i2"
+      "id": "i3f9n23w2"
      }
     ],
     "rest": false
@@ -167,8 +167,8 @@
    },
    "pieces": [
     {
-     "id": "Corner_12x300x12_11c064",
-     "mesh": "SM_Kit_Corner_12x300x12_11c064",
+     "id": "Corner_12x300x12_071345",
+     "mesh": "SM_Kit_Corner_12x300x12_071345",
      "kind": "corner",
      "wall_solids": [
       {
@@ -178,27 +178,142 @@
        "outline": {
         "points": [
          [
-          -0.0600000023841858,
-          -0.06000000000000049
+          -0.06000000029802343,
+          -0.059999997317790495
+         ],
+         [
+          0.059999997019767555,
+          -0.05999999731779048
+         ],
+         [
+          0.05999999701976754,
+          0.060000000000000504
+         ],
+         [
+          -0.060000000298023444,
+          0.06000000000000049
+         ]
+        ],
+        "edges": [
+         {
+          "wall": "w06d43cxd",
+          "side": "left",
+          "room": "r0x73wks7",
+          "material": "white_paint",
+          "slot": "Room_Wall"
+         },
+         {
+          "wall": null,
+          "side": null,
+          "room": null,
+          "material": "white_paint",
+          "slot": "Wall_Top",
+          "kit_cut": true
+         },
+         {
+          "wall": null,
+          "side": null,
+          "room": null,
+          "material": "white_paint",
+          "slot": "Wall_Top",
+          "kit_cut": true
+         },
+         {
+          "wall": null,
+          "side": null,
+          "room": null,
+          "material": "white_paint",
+          "slot": "Wall_Top",
+          "kit_cut": true
+         }
+        ]
+       },
+       "holes": []
+      }
+     ],
+     "openings": [],
+     "fills": [],
+     "collision": [
+      {
+       "outline": [
+        [
+         -0.06000000029802343,
+         -0.059999997317790495
+        ],
+        [
+         0.059999997019767555,
+         -0.05999999731779048
+        ],
+        [
+         0.05999999701976754,
+         0.060000000000000504
+        ],
+        [
+         -0.060000000298023444,
+         0.06000000000000049
+        ]
+       ],
+       "bottom": 0.0,
+       "top": 3.0
+      }
+     ]
+    },
+    {
+     "id": "Corner_30x300x30_392340",
+     "mesh": "SM_Kit_Corner_30x300x30_392340",
+     "kind": "corner",
+     "wall_solids": [
+      {
+       "height": 3.0,
+       "top_material": "white_paint",
+       "top_slot": "Wall_Top",
+       "outline": {
+        "points": [
+         [
+          -0.14999999850988388,
+          -0.14999999999999858
+         ],
+         [
+          0.14999999850988388,
+          -0.14999999999999858
+         ],
+         [
+          0.14999999850988388,
+          0.14999999701976918
          ],
          [
           0.060000002384185784,
-          -0.060000000000000504
+          0.14999999701976918
          ],
          [
-          0.0600000023841858,
-          0.05999999731779048
+          -0.0600000023841858,
+          0.14999999701976918
          ],
          [
-          -0.060000002384185784,
-          0.059999997317790495
+          -0.14999999850988388,
+          0.14999999701976918
          ]
         ],
         "edges": [
          {
-          "wall": "w11",
+          "wall": "w1s247gfy",
+          "side": "left",
+          "room": null,
+          "material": "red_brick",
+          "slot": "Exterior_Wall"
+         },
+         {
+          "wall": null,
+          "side": null,
+          "room": null,
+          "material": "white_paint",
+          "slot": "Wall_Top",
+          "kit_cut": true
+         },
+         {
+          "wall": "w3an9t6nt",
           "side": "right",
-          "room": "r1",
+          "room": "r325167re",
           "material": "white_paint",
           "slot": "Room_Wall"
          },
@@ -211,12 +326,11 @@
           "kit_cut": true
          },
          {
-          "wall": null,
-          "side": null,
-          "room": null,
+          "wall": "w1s247gfy",
+          "side": "right",
+          "room": "r0x73wks7",
           "material": "white_paint",
-          "slot": "Wall_Top",
-          "kit_cut": true
+          "slot": "Room_Wall"
          },
          {
           "wall": null,
@@ -237,20 +351,20 @@
       {
        "outline": [
         [
-         -0.0600000023841858,
-         -0.06000000000000049
+         -0.14999999850988388,
+         -0.14999999999999858
         ],
         [
-         0.060000002384185784,
-         -0.060000000000000504
+         0.14999999850988388,
+         -0.14999999999999858
         ],
         [
-         0.0600000023841858,
-         0.05999999731779048
+         0.14999999850988388,
+         0.14999999701976918
         ],
         [
-         -0.060000002384185784,
-         0.059999997317790495
+         -0.14999999850988388,
+         0.14999999701976918
         ]
        ],
        "bottom": 0.0,
@@ -259,8 +373,8 @@
      ]
     },
     {
-     "id": "Corner_30x300x30_1834cf",
-     "mesh": "SM_Kit_Corner_30x300x30_1834cf",
+     "id": "Corner_30x300x30_ff5d5f",
+     "mesh": "SM_Kit_Corner_30x300x30_ff5d5f",
      "kind": "corner",
      "wall_solids": [
       {
@@ -270,26 +384,26 @@
        "outline": {
         "points": [
          [
-          -0.1499999999999999,
-          -0.15000000000000036
+          -0.15000000000000036,
+          -0.14999999999999858
          ],
          [
-          0.14999999701976785,
-          -0.15000000000000036
+          0.1499999970197674,
+          -0.14999999999999858
          ],
          [
-          0.14999999701976785,
-          0.1499999970197674
+          0.1499999970197674,
+          0.14999999701976918
          ],
          [
-          -0.1499999999999999,
-          0.1499999970197674
+          -0.15000000000000036,
+          0.14999999701976918
          ]
         ],
         "edges": [
          {
-          "wall": "w9",
-          "side": "right",
+          "wall": "w1s247gfy",
+          "side": "left",
           "room": null,
           "material": "red_brick",
           "slot": "Exterior_Wall"
@@ -311,8 +425,8 @@
           "kit_cut": true
          },
          {
-          "wall": "w1",
-          "side": "left",
+          "wall": "w2bp2enfd",
+          "side": "right",
           "room": null,
           "material": "red_brick",
           "slot": "Exterior_Wall"
@@ -328,20 +442,20 @@
       {
        "outline": [
         [
-         -0.1499999999999999,
-         -0.15000000000000036
+         -0.15000000000000036,
+         -0.14999999999999858
         ],
         [
-         0.14999999701976785,
-         -0.15000000000000036
+         0.1499999970197674,
+         -0.14999999999999858
         ],
         [
-         0.14999999701976785,
-         0.1499999970197674
+         0.1499999970197674,
+         0.14999999701976918
         ],
         [
-         -0.1499999999999999,
-         0.1499999970197674
+         -0.15000000000000036,
+         0.14999999701976918
         ]
        ],
        "bottom": 0.0,
@@ -350,385 +464,8 @@
      ]
     },
     {
-     "id": "Corner_30x300x30_ec9a75",
-     "mesh": "SM_Kit_Corner_30x300x30_ec9a75",
-     "kind": "corner",
-     "wall_solids": [
-      {
-       "height": 3.0,
-       "top_material": "white_paint",
-       "top_slot": "Wall_Top",
-       "outline": {
-        "points": [
-         [
-          -0.15000000089406915,
-          -0.14999999999999994
-         ],
-         [
-          0.1500000035762792,
-          -0.14999999999999988
-         ],
-         [
-          0.15000000357627916,
-          0.14999999701976788
-         ],
-         [
-          0.06000000000000048,
-          0.14999999701976785
-         ],
-         [
-          -0.05999999731779051,
-          0.14999999701976785
-         ],
-         [
-          -0.1500000008940692,
-          0.14999999701976782
-         ]
-        ],
-        "edges": [
-         {
-          "wall": "w1",
-          "side": "left",
-          "room": null,
-          "material": "red_brick",
-          "slot": "Exterior_Wall"
-         },
-         {
-          "wall": null,
-          "side": null,
-          "room": null,
-          "material": "white_paint",
-          "slot": "Wall_Top",
-          "kit_cut": true
-         },
-         {
-          "wall": "w1",
-          "side": "right",
-          "room": "r1",
-          "material": "white_paint",
-          "slot": "Room_Wall"
-         },
-         {
-          "wall": null,
-          "side": null,
-          "room": null,
-          "material": "white_paint",
-          "slot": "Wall_Top",
-          "kit_cut": true
-         },
-         {
-          "wall": "w2",
-          "side": "right",
-          "room": "r2",
-          "material": "white_paint",
-          "slot": "Room_Wall"
-         },
-         {
-          "wall": null,
-          "side": null,
-          "room": null,
-          "material": "white_paint",
-          "slot": "Wall_Top",
-          "kit_cut": true
-         }
-        ]
-       },
-       "holes": []
-      }
-     ],
-     "openings": [],
-     "fills": [],
-     "collision": [
-      {
-       "outline": [
-        [
-         -0.15000000089406915,
-         -0.14999999999999994
-        ],
-        [
-         0.1500000035762792,
-         -0.14999999999999988
-        ],
-        [
-         0.15000000357627916,
-         0.14999999701976788
-        ],
-        [
-         -0.1500000008940692,
-         0.14999999701976782
-        ]
-       ],
-       "bottom": 0.0,
-       "top": 3.0
-      }
-     ]
-    },
-    {
-     "id": "Opening_150x300x12_ac1517",
-     "mesh": "SM_Kit_Opening_150x300x12_ac1517",
-     "kind": "opening",
-     "wall_solids": [
-      {
-       "height": 3.0,
-       "top_material": "white_paint",
-       "top_slot": "Wall_Top",
-       "outline": {
-        "points": [
-         [
-          2.38418529363571e-09,
-          -0.06000000238418579
-         ],
-         [
-          1.5000000023841853,
-          -0.06000000238418579
-         ],
-         [
-          1.5000000023841853,
-          0.06000000238418579
-         ],
-         [
-          2.38418529363571e-09,
-          0.06000000238418579
-         ]
-        ],
-        "edges": [
-         {
-          "wall": "w7",
-          "side": "right",
-          "room": "r5",
-          "material": "white_paint",
-          "slot": "Room_Wall"
-         },
-         {
-          "wall": null,
-          "side": null,
-          "room": null,
-          "material": "white_paint",
-          "slot": "Wall_Top",
-          "kit_cut": true
-         },
-         {
-          "wall": "w7",
-          "side": "left",
-          "room": "r2",
-          "material": "white_paint",
-          "slot": "Room_Wall"
-         },
-         {
-          "wall": null,
-          "side": null,
-          "room": null,
-          "material": "white_paint",
-          "slot": "Wall_Top",
-          "kit_cut": true
-         }
-        ]
-       },
-       "holes": []
-      }
-     ],
-     "openings": [
-      {
-       "id": "o4",
-       "wall": "w7",
-       "type": "door",
-       "shape": "rectangle",
-       "width": 0.9,
-       "height": 2.1,
-       "sill": 0.0,
-       "hinge": "start",
-       "swing": "left",
-       "frame": null,
-       "centre": [
-        0.8900000000000006,
-        0.0
-       ],
-       "tangent": [
-        1.0,
-        0.0
-       ],
-       "right": [
-        0.0,
-        -1.0
-       ],
-       "thickness": 0.12,
-       "curved": false,
-       "outline": [
-        [
-         -0.45,
-         0.0
-        ],
-        [
-         0.45,
-         0.0
-        ],
-        [
-         0.45,
-         2.1
-        ],
-        [
-         -0.45,
-         2.1
-        ]
-       ],
-       "inner_outline": [
-        [
-         0.3999999985098839,
-         2.0499999970197678
-        ],
-        [
-         -0.3999999985098839,
-         2.0499999970197678
-        ],
-        [
-         -0.3999999985098839,
-         0.0
-        ],
-        [
-         0.3999999985098839,
-         0.0
-        ]
-       ],
-       "cutter": {
-        "right": [
-         [
-          0.4400000000000013,
-          -0.11000000000000032,
-          -0.05
-         ],
-         [
-          1.3399999999999999,
-          -0.11000000000000032,
-          -0.05
-         ],
-         [
-          1.3399999999999999,
-          -0.11000000000000032,
-          2.1
-         ],
-         [
-          0.4400000000000013,
-          -0.11000000000000032,
-          2.1
-         ]
-        ],
-        "left": [
-         [
-          0.4400000000000013,
-          0.11000000000000032,
-          -0.05
-         ],
-         [
-          1.3399999999999999,
-          0.11000000000000032,
-          -0.05
-         ],
-         [
-          1.3399999999999999,
-          0.11000000000000032,
-          2.1
-         ],
-         [
-          0.4400000000000013,
-          0.11000000000000032,
-          2.1
-         ]
-        ]
-       },
-       "threshold": [],
-       "materials": {
-        "reveal": "white_paint",
-        "threshold": "oak_planks",
-        "door": "painted_wood",
-        "frame": "white_paint",
-        "glass": null,
-        "handle": "brushed_steel"
-       },
-       "slots": {
-        "reveal": "Room_Wall",
-        "threshold": "Room_Floor",
-        "door": "Door",
-        "frame": "Frame",
-        "glass": "Glass",
-        "handle": "Handle"
-       }
-      }
-     ],
-     "fills": [
-      "o4"
-     ],
-     "collision": [
-      {
-       "outline": [
-        [
-         0.4399999976158142,
-         0.06000000238418579
-        ],
-        [
-         0.0,
-         0.06000000238418579
-        ],
-        [
-         0.0,
-         -0.06000000238418579
-        ],
-        [
-         0.4399999976158142,
-         -0.06000000238418579
-        ]
-       ],
-       "bottom": 0.0,
-       "top": 2.1
-      },
-      {
-       "outline": [
-        [
-         1.5,
-         0.06000000238418579
-        ],
-        [
-         1.3400000035762787,
-         0.06000000238418579
-        ],
-        [
-         1.3400000035762787,
-         -0.06000000238418579
-        ],
-        [
-         1.5,
-         -0.06000000238418579
-        ]
-       ],
-       "bottom": 0.0,
-       "top": 2.1
-      },
-      {
-       "outline": [
-        [
-         2.38418529363571e-09,
-         -0.06000000238418579
-        ],
-        [
-         1.5000000023841853,
-         -0.06000000238418579
-        ],
-        [
-         1.5000000023841853,
-         0.06000000238418579
-        ],
-        [
-         2.38418529363571e-09,
-         0.06000000238418579
-        ]
-       ],
-       "bottom": 2.1,
-       "top": 3.0
-      }
-     ]
-    },
-    {
-     "id": "Opening_150x300x12_c154c9",
-     "mesh": "SM_Kit_Opening_150x300x12_c154c9",
+     "id": "Opening_150x300x12_03e6bd",
+     "mesh": "SM_Kit_Opening_150x300x12_03e6bd",
      "kind": "opening",
      "wall_solids": [
       {
@@ -756,9 +493,9 @@
         ],
         "edges": [
          {
-          "wall": "w13",
+          "wall": "w740z2mcf",
           "side": "left",
-          "room": "r5",
+          "room": "r0x73wks7",
           "material": "white_paint",
           "slot": "Room_Wall"
          },
@@ -771,9 +508,9 @@
           "kit_cut": true
          },
          {
-          "wall": "w13",
+          "wall": "w740z2mcf",
           "side": "right",
-          "room": "r4",
+          "room": "r2yw61tdf",
           "material": "white_paint",
           "slot": "Room_Wall"
          },
@@ -792,8 +529,8 @@
      ],
      "openings": [
       {
-       "id": "o8",
-       "wall": "w13",
+       "id": "o1qj5rqtn",
+       "wall": "w740z2mcf",
        "type": "door",
        "shape": "rectangle",
        "width": 0.9,
@@ -918,7 +655,7 @@
       }
      ],
      "fills": [
-      "o8"
+      "o1qj5rqtn"
      ],
      "collision": [
       {
@@ -990,8 +727,271 @@
      ]
     },
     {
-     "id": "Opening_150x300x30_1860d0",
-     "mesh": "SM_Kit_Opening_150x300x30_1860d0",
+     "id": "Opening_150x300x12_e2c8ab",
+     "mesh": "SM_Kit_Opening_150x300x12_e2c8ab",
+     "kind": "opening",
+     "wall_solids": [
+      {
+       "height": 3.0,
+       "top_material": "white_paint",
+       "top_slot": "Wall_Top",
+       "outline": {
+        "points": [
+         [
+          2.38418529363571e-09,
+          -0.06000000238418579
+         ],
+         [
+          1.5000000023841853,
+          -0.06000000238418579
+         ],
+         [
+          1.5000000023841853,
+          0.06000000238418579
+         ],
+         [
+          2.38418529363571e-09,
+          0.06000000238418579
+         ]
+        ],
+        "edges": [
+         {
+          "wall": "w1s4ydbke",
+          "side": "right",
+          "room": "r0x73wks7",
+          "material": "white_paint",
+          "slot": "Room_Wall"
+         },
+         {
+          "wall": null,
+          "side": null,
+          "room": null,
+          "material": "white_paint",
+          "slot": "Wall_Top",
+          "kit_cut": true
+         },
+         {
+          "wall": "w1s4ydbke",
+          "side": "left",
+          "room": "r5xzw5wm7",
+          "material": "white_paint",
+          "slot": "Room_Wall"
+         },
+         {
+          "wall": null,
+          "side": null,
+          "room": null,
+          "material": "white_paint",
+          "slot": "Wall_Top",
+          "kit_cut": true
+         }
+        ]
+       },
+       "holes": []
+      }
+     ],
+     "openings": [
+      {
+       "id": "o06dw85zm",
+       "wall": "w1s4ydbke",
+       "type": "door",
+       "shape": "rectangle",
+       "width": 0.9,
+       "height": 2.1,
+       "sill": 0.0,
+       "hinge": "start",
+       "swing": "left",
+       "frame": null,
+       "centre": [
+        0.8900000000000006,
+        0.0
+       ],
+       "tangent": [
+        1.0,
+        0.0
+       ],
+       "right": [
+        0.0,
+        -1.0
+       ],
+       "thickness": 0.12,
+       "curved": false,
+       "outline": [
+        [
+         -0.45,
+         0.0
+        ],
+        [
+         0.45,
+         0.0
+        ],
+        [
+         0.45,
+         2.1
+        ],
+        [
+         -0.45,
+         2.1
+        ]
+       ],
+       "inner_outline": [
+        [
+         0.3999999985098839,
+         2.0499999970197678
+        ],
+        [
+         -0.3999999985098839,
+         2.0499999970197678
+        ],
+        [
+         -0.3999999985098839,
+         0.0
+        ],
+        [
+         0.3999999985098839,
+         0.0
+        ]
+       ],
+       "cutter": {
+        "right": [
+         [
+          0.4400000000000013,
+          -0.11000000000000032,
+          -0.05
+         ],
+         [
+          1.3399999999999999,
+          -0.11000000000000032,
+          -0.05
+         ],
+         [
+          1.3399999999999999,
+          -0.11000000000000032,
+          2.1
+         ],
+         [
+          0.4400000000000013,
+          -0.11000000000000032,
+          2.1
+         ]
+        ],
+        "left": [
+         [
+          0.4400000000000013,
+          0.11000000000000032,
+          -0.05
+         ],
+         [
+          1.3399999999999999,
+          0.11000000000000032,
+          -0.05
+         ],
+         [
+          1.3399999999999999,
+          0.11000000000000032,
+          2.1
+         ],
+         [
+          0.4400000000000013,
+          0.11000000000000032,
+          2.1
+         ]
+        ]
+       },
+       "threshold": [],
+       "materials": {
+        "reveal": "white_paint",
+        "threshold": "oak_planks",
+        "door": "painted_wood",
+        "frame": "white_paint",
+        "glass": null,
+        "handle": "brushed_steel"
+       },
+       "slots": {
+        "reveal": "Room_Wall",
+        "threshold": "Room_Floor",
+        "door": "Door",
+        "frame": "Frame",
+        "glass": "Glass",
+        "handle": "Handle"
+       }
+      }
+     ],
+     "fills": [
+      "o06dw85zm"
+     ],
+     "collision": [
+      {
+       "outline": [
+        [
+         0.4399999976158142,
+         0.06000000238418579
+        ],
+        [
+         0.0,
+         0.06000000238418579
+        ],
+        [
+         0.0,
+         -0.06000000238418579
+        ],
+        [
+         0.4399999976158142,
+         -0.06000000238418579
+        ]
+       ],
+       "bottom": 0.0,
+       "top": 2.1
+      },
+      {
+       "outline": [
+        [
+         1.5,
+         0.06000000238418579
+        ],
+        [
+         1.3400000035762787,
+         0.06000000238418579
+        ],
+        [
+         1.3400000035762787,
+         -0.06000000238418579
+        ],
+        [
+         1.5,
+         -0.06000000238418579
+        ]
+       ],
+       "bottom": 0.0,
+       "top": 2.1
+      },
+      {
+       "outline": [
+        [
+         2.38418529363571e-09,
+         -0.06000000238418579
+        ],
+        [
+         1.5000000023841853,
+         -0.06000000238418579
+        ],
+        [
+         1.5000000023841853,
+         0.06000000238418579
+        ],
+        [
+         2.38418529363571e-09,
+         0.06000000238418579
+        ]
+       ],
+       "bottom": 2.1,
+       "top": 3.0
+      }
+     ]
+    },
+    {
+     "id": "Opening_150x300x30_c451ed",
+     "mesh": "SM_Kit_Opening_150x300x30_c451ed",
      "kind": "opening",
      "wall_solids": [
       {
@@ -1019,7 +1019,7 @@
         ],
         "edges": [
          {
-          "wall": "w6",
+          "wall": "w2bp2enfd",
           "side": "right",
           "room": null,
           "material": "red_brick",
@@ -1034,9 +1034,9 @@
           "kit_cut": true
          },
          {
-          "wall": "w6",
+          "wall": "w2bp2enfd",
           "side": "left",
-          "room": "r5",
+          "room": "r0x73wks7",
           "material": "white_paint",
           "slot": "Room_Wall"
          },
@@ -1055,8 +1055,8 @@
      ],
      "openings": [
       {
-       "id": "o3",
-       "wall": "w6",
+       "id": "o8q521h6j",
+       "wall": "w2bp2enfd",
        "type": "door",
        "shape": "rectangle",
        "width": 0.9,
@@ -1181,7 +1181,7 @@
       }
      ],
      "fills": [
-      "o3"
+      "o8q521h6j"
      ],
      "collision": [
       {
@@ -1253,8 +1253,8 @@
      ]
     },
     {
-     "id": "Opening_200x300x30_63770c",
-     "mesh": "SM_Kit_Opening_200x300x30_63770c",
+     "id": "Opening_200x300x30_40676b",
+     "mesh": "SM_Kit_Opening_200x300x30_40676b",
      "kind": "opening",
      "wall_solids": [
       {
@@ -1282,7 +1282,7 @@
         ],
         "edges": [
          {
-          "wall": "w15",
+          "wall": "w3an9t6nt",
           "side": "left",
           "room": null,
           "material": "red_brick",
@@ -1297,9 +1297,9 @@
           "kit_cut": true
          },
          {
-          "wall": "w15",
+          "wall": "w3an9t6nt",
           "side": "right",
-          "room": "r3",
+          "room": "r325167re",
           "material": "white_paint",
           "slot": "Room_Wall"
          },
@@ -1318,8 +1318,8 @@
      ],
      "openings": [
       {
-       "id": "o9",
-       "wall": "w15",
+       "id": "o2spvke49",
+       "wall": "w3an9t6nt",
        "type": "window",
        "shape": "rectangle",
        "width": 1.6,
@@ -1444,7 +1444,7 @@
       }
      ],
      "fills": [
-      "o9"
+      "o2spvke49"
      ],
      "collision": [
       {
@@ -1472,8 +1472,8 @@
      ]
     },
     {
-     "id": "Opening_250x300x30_278073",
-     "mesh": "SM_Kit_Opening_250x300x30_278073",
+     "id": "Opening_250x300x30_39202f",
+     "mesh": "SM_Kit_Opening_250x300x30_39202f",
      "kind": "opening",
      "wall_solids": [
       {
@@ -1501,7 +1501,7 @@
         ],
         "edges": [
          {
-          "wall": "w1",
+          "wall": "w459ccepa",
           "side": "left",
           "room": null,
           "material": "red_brick",
@@ -1516,9 +1516,9 @@
           "kit_cut": true
          },
          {
-          "wall": "w1",
+          "wall": "w459ccepa",
           "side": "right",
-          "room": "r1",
+          "room": "r9szr2f81",
           "material": "white_paint",
           "slot": "Room_Wall"
          },
@@ -1537,8 +1537,8 @@
      ],
      "openings": [
       {
-       "id": "o1",
-       "wall": "w1",
+       "id": "o3qv0wdqp",
+       "wall": "w459ccepa",
        "type": "window",
        "shape": "rectangle",
        "width": 2.0,
@@ -1663,7 +1663,7 @@
       }
      ],
      "fills": [
-      "o1"
+      "o3qv0wdqp"
      ],
      "collision": [
       {
@@ -1691,8 +1691,8 @@
      ]
     },
     {
-     "id": "Opening_250x300x30_cae5d7",
-     "mesh": "SM_Kit_Opening_250x300x30_cae5d7",
+     "id": "Opening_250x300x30_3ddcc7",
+     "mesh": "SM_Kit_Opening_250x300x30_3ddcc7",
      "kind": "opening",
      "wall_solids": [
       {
@@ -1720,7 +1720,7 @@
         ],
         "edges": [
          {
-          "wall": "w10",
+          "wall": "w45cj7v3z",
           "side": "right",
           "room": null,
           "material": "red_brick",
@@ -1735,9 +1735,9 @@
           "kit_cut": true
          },
          {
-          "wall": "w10",
+          "wall": "w45cj7v3z",
           "side": "left",
-          "room": "r4",
+          "room": "r2yw61tdf",
           "material": "white_paint",
           "slot": "Room_Wall"
          },
@@ -1756,8 +1756,8 @@
      ],
      "openings": [
       {
-       "id": "o6",
-       "wall": "w10",
+       "id": "o7g2mqaxb",
+       "wall": "w45cj7v3z",
        "type": "window",
        "shape": "rectangle",
        "width": 2.0,
@@ -1882,7 +1882,7 @@
       }
      ],
      "fills": [
-      "o6"
+      "o7g2mqaxb"
      ],
      "collision": [
       {
@@ -1910,8 +1910,8 @@
      ]
     },
     {
-     "id": "Opening_300x300x12_b8e72f",
-     "mesh": "SM_Kit_Opening_300x300x12_b8e72f",
+     "id": "Opening_300x300x12_e5e6ce",
+     "mesh": "SM_Kit_Opening_300x300x12_e5e6ce",
      "kind": "opening",
      "wall_solids": [
       {
@@ -1939,9 +1939,9 @@
         ],
         "edges": [
          {
-          "wall": "w8",
+          "wall": "w29c293n3",
           "side": "right",
-          "room": "r5",
+          "room": "r0x73wks7",
           "material": "white_paint",
           "slot": "Room_Wall"
          },
@@ -1954,9 +1954,9 @@
           "kit_cut": true
          },
          {
-          "wall": "w8",
+          "wall": "w29c293n3",
           "side": "left",
-          "room": "r3",
+          "room": "r325167re",
           "material": "white_paint",
           "slot": "Room_Wall"
          },
@@ -1975,8 +1975,8 @@
      ],
      "openings": [
       {
-       "id": "o5",
-       "wall": "w8",
+       "id": "o5g5jfx03",
+       "wall": "w29c293n3",
        "type": "plain",
        "shape": "rectangle",
        "width": 2.4,
@@ -2101,7 +2101,7 @@
       }
      ],
      "fills": [
-      "o5"
+      "o5g5jfx03"
      ],
      "collision": [
       {
@@ -2173,8 +2173,8 @@
      ]
     },
     {
-     "id": "Opening_300x300x30_0d483b",
-     "mesh": "SM_Kit_Opening_300x300x30_0d483b",
+     "id": "Opening_300x300x30_0ffded",
+     "mesh": "SM_Kit_Opening_300x300x30_0ffded",
      "kind": "opening",
      "wall_solids": [
       {
@@ -2202,7 +2202,7 @@
         ],
         "edges": [
          {
-          "wall": "w3",
+          "wall": "w4zpnnr2h",
           "side": "left",
           "room": null,
           "material": "red_brick",
@@ -2217,9 +2217,9 @@
           "kit_cut": true
          },
          {
-          "wall": "w3",
+          "wall": "w4zpnnr2h",
           "side": "right",
-          "room": "r3",
+          "room": "r325167re",
           "material": "white_paint",
           "slot": "Room_Wall"
          },
@@ -2238,8 +2238,8 @@
      ],
      "openings": [
       {
-       "id": "o2",
-       "wall": "w3",
+       "id": "o1yspmgpp",
+       "wall": "w4zpnnr2h",
        "type": "window",
        "shape": "rectangle",
        "width": 2.0,
@@ -2364,7 +2364,7 @@
       }
      ],
      "fills": [
-      "o2"
+      "o1yspmgpp"
      ],
      "collision": [
       {
@@ -2392,8 +2392,8 @@
      ]
     },
     {
-     "id": "Opening_88x300x12_c2a9a6",
-     "mesh": "SM_Kit_Opening_88x300x12_c2a9a6",
+     "id": "Opening_88x300x12_0ec89c",
+     "mesh": "SM_Kit_Opening_88x300x12_0ec89c",
      "kind": "opening",
      "wall_solids": [
       {
@@ -2421,9 +2421,9 @@
         ],
         "edges": [
          {
-          "wall": "w12",
+          "wall": "w06d43cxd",
           "side": "left",
-          "room": "r5",
+          "room": "r0x73wks7",
           "material": "white_paint",
           "slot": "Room_Wall"
          },
@@ -2436,9 +2436,9 @@
           "kit_cut": true
          },
          {
-          "wall": "w12",
+          "wall": "w06d43cxd",
           "side": "right",
-          "room": "r1",
+          "room": "r9szr2f81",
           "material": "white_paint",
           "slot": "Room_Wall"
          },
@@ -2457,8 +2457,8 @@
      ],
      "openings": [
       {
-       "id": "o7",
-       "wall": "w12",
+       "id": "o1mpg7cty",
+       "wall": "w06d43cxd",
        "type": "door",
        "shape": "rectangle",
        "width": 0.8802343749999997,
@@ -2583,7 +2583,7 @@
       }
      ],
      "fills": [
-      "o7"
+      "o1mpg7cty"
      ],
      "collision": [
       {
@@ -2611,8 +2611,8 @@
      ]
     },
     {
-     "id": "Wall_14x300x30_9526f2",
-     "mesh": "SM_Kit_Wall_14x300x30_9526f2",
+     "id": "Wall_14x300x30_3ed888",
+     "mesh": "SM_Kit_Wall_14x300x30_3ed888",
      "kind": "wall",
      "wall_solids": [
       {
@@ -2640,7 +2640,7 @@
         ],
         "edges": [
          {
-          "wall": "w6",
+          "wall": "w2bp2enfd",
           "side": "right",
           "room": null,
           "material": "red_brick",
@@ -2655,9 +2655,9 @@
           "kit_cut": true
          },
          {
-          "wall": "w6",
+          "wall": "w2bp2enfd",
           "side": "left",
-          "room": "r5",
+          "room": "r0x73wks7",
           "material": "white_paint",
           "slot": "Room_Wall"
          },
@@ -2702,8 +2702,8 @@
      ]
     },
     {
-     "id": "Wall_20x300x12_b40282",
-     "mesh": "SM_Kit_Wall_20x300x12_b40282",
+     "id": "Wall_20x300x12_871426",
+     "mesh": "SM_Kit_Wall_20x300x12_871426",
      "kind": "wall",
      "wall_solids": [
       {
@@ -2731,9 +2731,9 @@
         ],
         "edges": [
          {
-          "wall": "w8",
+          "wall": "w29c293n3",
           "side": "right",
-          "room": "r5",
+          "room": "r0x73wks7",
           "material": "white_paint",
           "slot": "Room_Wall"
          },
@@ -2746,9 +2746,9 @@
           "kit_cut": true
          },
          {
-          "wall": "w8",
+          "wall": "w29c293n3",
           "side": "left",
-          "room": "r3",
+          "room": "r325167re",
           "material": "white_paint",
           "slot": "Room_Wall"
          },
@@ -2793,8 +2793,8 @@
      ]
     },
     {
-     "id": "Wall_20x300x30_2f93a2",
-     "mesh": "SM_Kit_Wall_20x300x30_2f93a2",
+     "id": "Wall_20x300x30_9a1d70",
+     "mesh": "SM_Kit_Wall_20x300x30_9a1d70",
      "kind": "wall",
      "wall_solids": [
       {
@@ -2822,7 +2822,7 @@
         ],
         "edges": [
          {
-          "wall": "w3",
+          "wall": "w4zpnnr2h",
           "side": "left",
           "room": null,
           "material": "red_brick",
@@ -2837,9 +2837,9 @@
           "kit_cut": true
          },
          {
-          "wall": "w3",
+          "wall": "w4zpnnr2h",
           "side": "right",
-          "room": "r3",
+          "room": "r325167re",
           "material": "white_paint",
           "slot": "Room_Wall"
          },
@@ -2884,8 +2884,8 @@
      ]
     },
     {
-     "id": "Wall_26x300x30_4479b5",
-     "mesh": "SM_Kit_Wall_26x300x30_4479b5",
+     "id": "Wall_26x300x30_cfeefe",
+     "mesh": "SM_Kit_Wall_26x300x30_cfeefe",
      "kind": "wall",
      "wall_solids": [
       {
@@ -2913,7 +2913,7 @@
         ],
         "edges": [
          {
-          "wall": "w1",
+          "wall": "w459ccepa",
           "side": "left",
           "room": null,
           "material": "red_brick",
@@ -2928,9 +2928,9 @@
           "kit_cut": true
          },
          {
-          "wall": "w1",
+          "wall": "w459ccepa",
           "side": "right",
-          "room": "r1",
+          "room": "r9szr2f81",
           "material": "white_paint",
           "slot": "Room_Wall"
          },
@@ -2975,8 +2975,8 @@
      ]
     },
     {
-     "id": "Wall_29x300x12_56c477",
-     "mesh": "SM_Kit_Wall_29x300x12_56c477",
+     "id": "Wall_29x300x12_aff3a1",
+     "mesh": "SM_Kit_Wall_29x300x12_aff3a1",
      "kind": "wall",
      "wall_solids": [
       {
@@ -3004,9 +3004,9 @@
         ],
         "edges": [
          {
-          "wall": "w13",
+          "wall": "w740z2mcf",
           "side": "right",
-          "room": "r4",
+          "room": "r2yw61tdf",
           "material": "white_paint",
           "slot": "Room_Wall"
          },
@@ -3019,9 +3019,9 @@
           "kit_cut": true
          },
          {
-          "wall": "w13",
+          "wall": "w740z2mcf",
           "side": "left",
-          "room": "r5",
+          "room": "r0x73wks7",
           "material": "white_paint",
           "slot": "Room_Wall"
          },
@@ -3066,8 +3066,8 @@
      ]
     },
     {
-     "id": "Wall_29x300x30_d16815",
-     "mesh": "SM_Kit_Wall_29x300x30_d16815",
+     "id": "Wall_29x300x30_bf32ed",
+     "mesh": "SM_Kit_Wall_29x300x30_bf32ed",
      "kind": "wall",
      "wall_solids": [
       {
@@ -3095,7 +3095,7 @@
         ],
         "edges": [
          {
-          "wall": "w2",
+          "wall": "w8mpew9cm",
           "side": "left",
           "room": null,
           "material": "red_brick",
@@ -3110,9 +3110,9 @@
           "kit_cut": true
          },
          {
-          "wall": "w2",
+          "wall": "w8mpew9cm",
           "side": "right",
-          "room": "r2",
+          "room": "r5xzw5wm7",
           "material": "white_paint",
           "slot": "Room_Wall"
          },
@@ -3157,8 +3157,8 @@
      ]
     },
     {
-     "id": "Wall_35x300x12_d0236c",
-     "mesh": "SM_Kit_Wall_35x300x12_d0236c",
+     "id": "Wall_35x300x12_f01ca6",
+     "mesh": "SM_Kit_Wall_35x300x12_f01ca6",
      "kind": "wall",
      "wall_solids": [
       {
@@ -3186,9 +3186,9 @@
         ],
         "edges": [
          {
-          "wall": "w4",
+          "wall": "w9cgxr6r5",
           "side": "right",
-          "room": "r4",
+          "room": "r2yw61tdf",
           "material": "white_paint",
           "slot": "Room_Wall"
          },
@@ -3201,9 +3201,9 @@
           "kit_cut": true
          },
          {
-          "wall": "w4",
+          "wall": "w9cgxr6r5",
           "side": "left",
-          "room": "r1",
+          "room": "r9szr2f81",
           "material": "white_paint",
           "slot": "Room_Wall"
          },
@@ -3248,8 +3248,8 @@
      ]
     },
     {
-     "id": "Wall_35x300x30_dff816",
-     "mesh": "SM_Kit_Wall_35x300x30_dff816",
+     "id": "Wall_35x300x30_8e584e",
+     "mesh": "SM_Kit_Wall_35x300x30_8e584e",
      "kind": "wall",
      "wall_solids": [
       {
@@ -3277,7 +3277,7 @@
         ],
         "edges": [
          {
-          "wall": "w1",
+          "wall": "w459ccepa",
           "side": "left",
           "room": null,
           "material": "red_brick",
@@ -3292,9 +3292,9 @@
           "kit_cut": true
          },
          {
-          "wall": "w1",
+          "wall": "w459ccepa",
           "side": "right",
-          "room": "r1",
+          "room": "r9szr2f81",
           "material": "white_paint",
           "slot": "Room_Wall"
          },
@@ -3339,8 +3339,8 @@
      ]
     },
     {
-     "id": "Wall_38x300x12_0467fb",
-     "mesh": "SM_Kit_Wall_38x300x12_0467fb",
+     "id": "Wall_38x300x12_55c31d",
+     "mesh": "SM_Kit_Wall_38x300x12_55c31d",
      "kind": "wall",
      "wall_solids": [
       {
@@ -3368,9 +3368,9 @@
         ],
         "edges": [
          {
-          "wall": "w7",
+          "wall": "w1s4ydbke",
           "side": "right",
-          "room": "r5",
+          "room": "r0x73wks7",
           "material": "white_paint",
           "slot": "Room_Wall"
          },
@@ -3383,9 +3383,9 @@
           "kit_cut": true
          },
          {
-          "wall": "w7",
+          "wall": "w1s4ydbke",
           "side": "left",
-          "room": "r2",
+          "room": "r5xzw5wm7",
           "material": "white_paint",
           "slot": "Room_Wall"
          },
@@ -3430,8 +3430,8 @@
      ]
     },
     {
-     "id": "Wall_44x300x12_49c308",
-     "mesh": "SM_Kit_Wall_44x300x12_49c308",
+     "id": "Wall_44x300x12_816548",
+     "mesh": "SM_Kit_Wall_44x300x12_816548",
      "kind": "wall",
      "wall_solids": [
       {
@@ -3459,9 +3459,9 @@
         ],
         "edges": [
          {
-          "wall": "w7",
+          "wall": "w1s4ydbke",
           "side": "right",
-          "room": "r5",
+          "room": "r0x73wks7",
           "material": "white_paint",
           "slot": "Room_Wall"
          },
@@ -3474,9 +3474,9 @@
           "kit_cut": true
          },
          {
-          "wall": "w7",
+          "wall": "w1s4ydbke",
           "side": "left",
-          "room": "r2",
+          "room": "r5xzw5wm7",
           "material": "white_paint",
           "slot": "Room_Wall"
          },
@@ -3521,8 +3521,8 @@
      ]
     },
     {
-     "id": "Wall_50x300x12_dbc004",
-     "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+     "id": "Wall_50x300x12_c4ebaa",
+     "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
      "kind": "wall",
      "wall_solids": [
       {
@@ -3550,9 +3550,9 @@
         ],
         "edges": [
          {
-          "wall": "w4",
+          "wall": "w9cgxr6r5",
           "side": "right",
-          "room": "r4",
+          "room": "r2yw61tdf",
           "material": "white_paint",
           "slot": "Room_Wall"
          },
@@ -3565,9 +3565,9 @@
           "kit_cut": true
          },
          {
-          "wall": "w4",
+          "wall": "w9cgxr6r5",
           "side": "left",
-          "room": "r1",
+          "room": "r9szr2f81",
           "material": "white_paint",
           "slot": "Room_Wall"
          },
@@ -3612,8 +3612,8 @@
      ]
     },
     {
-     "id": "Wall_50x300x30_e29c20",
-     "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+     "id": "Wall_50x300x30_7b89bb",
+     "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
      "kind": "wall",
      "wall_solids": [
       {
@@ -3641,7 +3641,7 @@
         ],
         "edges": [
          {
-          "wall": "w1",
+          "wall": "w459ccepa",
           "side": "left",
           "room": null,
           "material": "red_brick",
@@ -3656,9 +3656,9 @@
           "kit_cut": true
          },
          {
-          "wall": "w1",
+          "wall": "w459ccepa",
           "side": "right",
-          "room": "r1",
+          "room": "r9szr2f81",
           "material": "white_paint",
           "slot": "Room_Wall"
          },
@@ -3739,6 +3739,42 @@
     "tile_size": {
      "width": 1.2,
      "height": 0.6
+    }
+   },
+   {
+    "name": "Fascia",
+    "material": "white_paint",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/white_paint/textures/base_color.png",
+     "normal": "@LIBRARY@/materials/items/white_paint/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/white_paint/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/white_paint/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 1.0,
+     "height": 1.0
+    }
+   },
+   {
+    "name": "Flat_Roof",
+    "material": "concrete",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/concrete/textures/base_color.jpg",
+     "normal": "@LIBRARY@/materials/items/concrete/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/concrete/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/concrete/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 2.0,
+     "height": 2.0
     }
    },
    {
@@ -3833,6 +3869,24 @@
    },
    {
     "name": "Room_Wall",
+    "material": "white_paint",
+    "surface": null,
+    "maps": {
+     "base_color": "@LIBRARY@/materials/items/white_paint/textures/base_color.png",
+     "normal": "@LIBRARY@/materials/items/white_paint/textures/normal.png",
+     "roughness": "@LIBRARY@/materials/items/white_paint/textures/roughness.png",
+     "metallic": "@LIBRARY@/materials/items/white_paint/textures/metallic.png",
+     "opacity": null,
+     "occlusion": null
+    },
+    "alpha_mode": "opaque",
+    "tile_size": {
+     "width": 1.0,
+     "height": 1.0
+    }
+   },
+   {
+    "name": "Soffit",
     "material": "white_paint",
     "surface": null,
     "maps": {

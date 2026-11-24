@@ -268,7 +268,7 @@ def case2_and_4():
                                                              if python_class(idname) is not None]
     say("4_classes_left", ",".join(left_classes) or "none")
     say("4_choice_class_left", "yes" if python_class(CHOICE) is not None else "no")
-    say("4_enable_replaced", "yes" if sys.modules["addon_utils"].enable is sealing._refused else "no")
+    say("4_enable_replaced", "yes" if sys.modules["addon_utils"].enable is sealing._refusal else "no")
     say("4_seal_again", guard_outcome(lambda: sealing.seal()))
 
     say("2_enable_through_ops", outcome(lambda: bpy.ops.preferences.addon_enable(module=PROBE_ADDON)))
