@@ -1,0 +1,24 @@
+{
+  "format": "plynth-samples",
+  "version": 1,
+  "license": "cc0",
+  "assets": [
+    {"id": "bed", "name": "Bed", "file": "models/bed/bed.obj", "categories": ["bed"], "tags": []},
+    {"id": "chair", "name": "Chair", "file": "models/chair/chair.obj", "categories": ["chair"], "tags": []},
+    {"id": "sofa", "name": "Sofa", "file": "models/sofa/sofa.obj", "categories": ["sofa"], "tags": []},
+    {"id": "table", "name": "Table", "file": "models/table/table.obj", "categories": ["table"], "tags": []},
+    {"id": "tv", "name": "TV", "file": "models/tv/tv.obj", "categories": ["tv"], "tags": []}
+  ],
+  "materials": [
+    {"id": "brushed_steel", "folder": "materials/brushed_steel"},
+    {"id": "clear_glass", "folder": "materials/clear_glass"},
+    {"id": "concrete", "folder": "materials/concrete"},
+    {"id": "grey_tile", "folder": "materials/grey_tile"},
+    {"id": "oak_planks", "folder": "materials/oak_planks"},
+    {"id": "painted_wood", "folder": "materials/painted_wood"},
+    {"id": "red_brick", "folder": "materials/red_brick"},
+    {"id": "roof_tiles", "folder": "materials/roof_tiles"},
+    {"id": "white_paint", "folder": "materials/white_paint"}
+  ],
+  "projects": []
+}

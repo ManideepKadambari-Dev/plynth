@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:used-items:1",
+  "title": "Plynth used items, version 1",
+  "description": "build/used-items.json in a project folder, read and written by core/include/plynth/core/LicenseReport.h. The asset and material ids the last build used, sorted and each once, so the license report describes that build.",
+  "type": "object",
+  "required": ["format", "version", "plan_fingerprint", "assets", "materials"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "plynth-used-items" },
+    "version": { "const": 1 },
+    "plan_fingerprint": { "description": "The fingerprint of the plan that was built.", "type": "string" },
+    "assets": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "materials": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+  }
+}

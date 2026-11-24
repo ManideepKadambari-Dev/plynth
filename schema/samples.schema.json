@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:samples:1",
+  "title": "Plynth samples index, version 1",
+  "description": "samples/samples.json, read by core/include/plynth/core/Samples.h. Lists the sample models, materials and projects that ship with Plynth. Paths are relative to the samples folder, use forward slashes and never leave it.",
+  "type": "object",
+  "required": ["format", "version", "license", "assets", "materials"],
+  "additionalProperties": false,
+  "definitions": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 64 },
+    "path": { "type": "string", "minLength": 1, "pattern": "^[^/:\\\\]+(/[^/:\\\\]+)*$", "not": { "pattern": "(^|/)\\.\\.?(/|$)" } }
+  },
+  "properties": {
+    "format": { "const": "plynth-samples" },
+    "version": { "const": 1 },
+    "license": { "description": "The catalog license id every sample item gets, cc0.", "$ref": "#/definitions/id" },
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "file", "categories", "tags"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "$ref": "#/definitions/id" },
+          "name": { "type": "string", "minLength": 1 },
+          "file": { "$ref": "#/definitions/path" },
+          "categories": { "type": "array", "items": { "$ref": "#/definitions/id" } },
+          "tags": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "materials": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "folder"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "$ref": "#/definitions/id" },
+          "folder": { "$ref": "#/definitions/path" }
+        }
+      }
+    },
+    "projects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "description", "folder", "image"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "$ref": "#/definitions/id" },
+          "name": { "type": "string", "minLength": 1 },
+          "description": { "type": "string" },
+          "folder": { "$ref": "#/definitions/path" },
+          "image": { "description": "A picture shown on Home.", "$ref": "#/definitions/path" }
+        }
+      }
+    }
+  }
+}
