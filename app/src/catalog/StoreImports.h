@@ -18,7 +18,7 @@ class ImportQueue;
 class LibraryHost;
 class MaterialImportQueue;
 
-// Connects the Integrations tab and the Fab dialog to the two import queues. It builds the requests and
+// Connects the Sources window and the Fab dialog to the two import queues. It builds the requests and
 // hands them over; the queues run them. The window gives it the existing own-files actions.
 class StoreImports : public QObject, public IntegrationActions {
     Q_OBJECT

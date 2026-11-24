@@ -7,7 +7,7 @@
 namespace plynth::app {
 
 // Makes one flat tab button: muted text with a line under it, bright text and a blue line when checked.
-inline QPushButton* makeTabButton(const QString& text, const QString& tip, const QString& tourId, QWidget* parent,
+inline QPushButton* makeTabButton(const QString& text, const QString& tip, QWidget* parent,
                                   int padVertical, int padHorizontal)
 {
     const Theme& t = Theme::instance();
@@ -17,7 +17,6 @@ inline QPushButton* makeTabButton(const QString& text, const QString& tip, const
     button->setFocusPolicy(Qt::NoFocus);
     button->setFont(t.uiFont(t.sizeNormal(), QFont::DemiBold));
     button->setToolTip(tip);
-    button->setProperty("tourId", tourId);
     button->setStyleSheet(
         QStringLiteral("QPushButton { background: transparent; border: none; border-bottom: 2px solid %1; "
                        "color: %2; padding: %3px %4px; border-radius: 0px; }"

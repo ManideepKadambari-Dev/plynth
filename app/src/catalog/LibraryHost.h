@@ -37,6 +37,10 @@ public:
     // the result names. Settings changed by the command line since the start are kept. When the file cannot be
     // read nothing is written and the reading error is returned.
     plynth::Status apply(const std::function<void(plynth::MachineSettings&)>& change);
+    // The same for a change that only the window layout reads, such as where a window was left: the library is
+    // not opened again. Before the first settings file exists the change is only kept in memory, so moving a
+    // window never makes a first run look like a later one.
+    plynth::Status applyLayout(const std::function<void(plynth::MachineSettings&)>& change);
 
     bool hasLibrary() const { return catalog_ != nullptr; }
     plynth::AssetCatalog* catalog() const { return catalog_.get(); }

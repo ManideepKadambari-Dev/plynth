@@ -31,7 +31,7 @@ bool isOwnFilesIntegration(const plynth::Integration& integration);
 // True for the source that brings the Fab zip importer, which has its own check dialog.
 bool isFabIntegration(const plynth::Integration& integration);
 
-// What the import buttons of the tab do. The window or the store glue fills it in, so the panel holds no
+// What the import buttons of the window do. The window or the store glue fills it in, so the panel holds no
 // queue code.
 class IntegrationActions {
 public:
@@ -42,7 +42,7 @@ public:
     virtual void importFiles(const QString& integrationId, bool material) = 0;
 };
 
-// The Integrations tab: one card per source of assets and materials, with its state, its saved options and
+// The Sources window: one card per source of assets and materials, with its state, its saved options and
 // its import buttons. It reads core's integration registry and saves options with core calls.
 class IntegrationsPanel : public QWidget {
     Q_OBJECT

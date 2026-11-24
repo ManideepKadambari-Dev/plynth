@@ -36,6 +36,11 @@
     "toolStripWidth": 44,
     "propertiesWidth": 304,
     "assetsWidth": 372,
+    "sidePanelWidth": 372,
+    "sidePanelMinWidth": 280,
+    "sidePanelMaxWidth": 640,
+    "toolWindowWidth": 960,
+    "toolWindowHeight": 720,
     "thumbnailTile": 128,
     "thumbnailLarge": 256,
     "setupRowGap": 12,
@@ -59,8 +64,6 @@
     "qualityMark": 14,
     "markStroke": 1.4,
     "previewButton": 28,
-    "tourCardWidth": 320,
-    "tourOutline": 2,
     "helpListWidth": 240
   },
   "opacity": {
@@ -85,8 +88,7 @@
     "roomFillAlpha": 36,
     "proposalFillAlpha": 40,
     "proposalLineAlpha": 220,
-    "itemFillAlpha": 153,
-    "tourDimAlpha": 170
+    "itemFillAlpha": 153
   },
   "terminal": {
     "ansi": [

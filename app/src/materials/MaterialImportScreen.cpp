@@ -82,7 +82,7 @@ QString channelTitle(plynth::MapChannel channel)
 }
 
 // A tile size spin box in metres.
-QDoubleSpinBox* tileSpin(const QString& tip, const QString& tourId, QWidget* parent)
+QDoubleSpinBox* tileSpin(const QString& tip, QWidget* parent)
 {
     const Theme& t = Theme::instance();
     auto* spin = new QDoubleSpinBox(parent);
@@ -95,7 +95,6 @@ QDoubleSpinBox* tileSpin(const QString& tip, const QString& tourId, QWidget* par
     spin->setKeyboardTracking(false);
     spin->setStyle(t.controlStyle());
     spin->setToolTip(tip);
-    spin->setProperty("tourId", tourId);
     return spin;
 }
 
@@ -106,7 +105,6 @@ MaterialImportScreen::MaterialImportScreen(LibraryHost& host, MaterialImportQueu
     : QWidget(parent), host_(host), queue_(queue)
 {
     const Theme& t = Theme::instance();
-    setProperty("tourId", QStringLiteral("materials-import-screen"));
     setAcceptDrops(true);
     auto* column = new QVBoxLayout(this);
     column->setContentsMargins(t.unit() * 8, t.unit() * 6, t.unit() * 8, t.unit() * 5);
@@ -118,9 +116,8 @@ MaterialImportScreen::MaterialImportScreen(LibraryHost& host, MaterialImportQueu
     title->setFont(t.uiFont(t.sizeLarge() + 2, QFont::DemiBold));
     head->addWidget(title);
     head->addStretch(1);
-    auto* back = new QPushButton(tr("Back"), this);
-    back->setToolTip(tr("Close the import screen and go back to the plan"));
-    back->setProperty("tourId", QStringLiteral("materials-import-back"));
+    auto* back = new QPushButton(tr("Close"), this);
+    back->setToolTip(tr("Close the Import materials window. Imports that are queued go on"));
     connect(back, &QPushButton::clicked, this, &MaterialImportScreen::backRequested);
     head->addWidget(back);
     column->addLayout(head);
@@ -159,7 +156,6 @@ QWidget* MaterialImportScreen::buildSources()
     sources_->setStyleSheet(t.scrollBarStyleSheet());
     sources_->setMinimumHeight(t.unit() * 40);
     sources_->setToolTip(tr("Folders and zip files of textures, single images, or a .blend file. Drop them here or use the buttons"));
-    sources_->setProperty("tourId", QStringLiteral("materials-import-sources"));
     box->addWidget(sources_, 1);
     sourcesHint_ = new QLabel(tr("Drop folders, zip files, images or .blend files here, or use Add folder / Add files."),
                               sources_->viewport());
@@ -179,7 +175,6 @@ QWidget* MaterialImportScreen::buildSources()
     note_->setFont(t.uiFont(t.sizeSmall()));
     note_->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
     note_->setToolTip(tr("Why something was left out of the list"));
-    note_->setProperty("tourId", QStringLiteral("materials-import-note"));
     note_->hide();
     box->addWidget(note_);
 
@@ -187,22 +182,18 @@ QWidget* MaterialImportScreen::buildSources()
     buttons->setSpacing(t.unit() * 2);
     auto* folder = new QPushButton(tr("Add folder..."), page);
     folder->setToolTip(tr("Pick a folder that holds the texture images of one material"));
-    folder->setProperty("tourId", QStringLiteral("materials-import-add-folder"));
     connect(folder, &QPushButton::clicked, this, &MaterialImportScreen::chooseFolder);
     auto* files = new QPushButton(tr("Add files..."), page);
     files->setToolTip(tr("Pick zip files, image files or a .blend file"));
-    files->setProperty("tourId", QStringLiteral("materials-import-add-files"));
     connect(files, &QPushButton::clicked, this, &MaterialImportScreen::chooseFiles);
     remove_ = new QPushButton(tr("Remove"), page);
     remove_->setToolTip(tr("Take the selected lines off the list"));
-    remove_->setProperty("tourId", QStringLiteral("materials-import-remove"));
     connect(remove_, &QPushButton::clicked, this, [this]() {
         qDeleteAll(sources_->selectedItems());
         updateState();
     });
     clear_ = new QPushButton(tr("Clear"), page);
     clear_->setToolTip(tr("Empty the list"));
-    clear_->setProperty("tourId", QStringLiteral("materials-import-clear"));
     connect(clear_, &QPushButton::clicked, this, [this]() {
         sources_->clear();
         note_->hide();
@@ -236,7 +227,6 @@ QWidget* MaterialImportScreen::buildSources()
                                    .arg(dim.name(), t.muted().name()));
     }
     import_->setToolTip(tr("Add every line of the list to the import queue"));
-    import_->setProperty("tourId", QStringLiteral("materials-import-start"));
     connect(import_, &QPushButton::clicked, this, &MaterialImportScreen::importAll);
     box->addWidget(import_, 0, Qt::AlignRight);
     return page;
@@ -252,7 +242,6 @@ QWidget* MaterialImportScreen::buildForm()
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     scroll->verticalScrollBar()->setStyleSheet(t.scrollBarStyleSheet());
     scroll->setStyleSheet(QStringLiteral("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; }"));
-    scroll->setProperty("tourId", QStringLiteral("materials-import-form"));
     auto* body = new QWidget();
     auto* box = new QVBoxLayout(body);
     box->setContentsMargins(0, 0, t.unit() * 3, 0);
@@ -264,7 +253,6 @@ QWidget* MaterialImportScreen::buildForm()
     name_->setStyle(t.controlStyle());
     name_->setPlaceholderText(tr("From material.json or the folder or file name"));
     name_->setToolTip(tr("The name shown in the catalog. Leave empty to take it from the source"));
-    name_->setProperty("tourId", QStringLiteral("materials-import-name"));
     box->addWidget(name_);
 
     box->addWidget(caption(tr("Groups"), body));
@@ -274,7 +262,6 @@ QWidget* MaterialImportScreen::buildForm()
     groups_->setFixedHeight(t.unit() * 34);
     groups_->setStyleSheet(t.scrollBarStyleSheet());
     groups_->setToolTip(tr("Tick the groups the material goes in. With none ticked, the app asks after the import"));
-    groups_->setProperty("tourId", QStringLiteral("materials-import-groups"));
     box->addWidget(groups_);
 
     box->addWidget(caption(tr("Tags, separated by commas"), body));
@@ -282,7 +269,6 @@ QWidget* MaterialImportScreen::buildForm()
     tags_->setFont(t.uiFont(t.sizeNormal()));
     tags_->setStyle(t.controlStyle());
     tags_->setToolTip(tr("Words that help find the material. Lower case letters, digits, _ and -"));
-    tags_->setProperty("tourId", QStringLiteral("materials-import-tags"));
     box->addWidget(tags_);
 
     box->addWidget(caption(tr("License"), body));
@@ -290,18 +276,16 @@ QWidget* MaterialImportScreen::buildForm()
     license_->setFont(t.uiFont(t.sizeNormal()));
     license_->setStyle(t.controlStyle());
     license_->setToolTip(tr("The license the material came with. The first entry takes it from the source"));
-    license_->setProperty("tourId", QStringLiteral("materials-import-license"));
     box->addWidget(license_);
 
     setTile_ = new QCheckBox(tr("Set the tile size"), body);
     setTile_->setFont(t.uiFont(t.sizeNormal()));
     setTile_->setToolTip(tr("How far one repeat of the texture reaches on a wall or floor. Off takes it from material.json, else 1 m"));
-    setTile_->setProperty("tourId", QStringLiteral("materials-import-set-tile"));
     box->addWidget(setTile_);
     auto* tile = new QHBoxLayout();
     tile->setSpacing(t.unit() * 2);
-    tileWidth_ = tileSpin(tr("Width of one tile in metres"), QStringLiteral("materials-import-tile-width"), body);
-    tileHeight_ = tileSpin(tr("Height of one tile in metres"), QStringLiteral("materials-import-tile-height"), body);
+    tileWidth_ = tileSpin(tr("Width of one tile in metres"), body);
+    tileHeight_ = tileSpin(tr("Height of one tile in metres"), body);
     auto* by = new QLabel(QStringLiteral("x"), body);
     by->setFont(t.monoFont(t.sizeNormal()));
     tile->addWidget(tileWidth_, 1);
@@ -323,7 +307,6 @@ QWidget* MaterialImportScreen::buildForm()
     normal_->addItem(tr("OpenGL"), QStringLiteral("opengl"));
     normal_->addItem(tr("DirectX (flips green)"), QStringLiteral("directx"));
     normal_->setToolTip(tr("Pick DirectX when bumps look inverted. A map with dx in its name is found by itself"));
-    normal_->setProperty("tourId", QStringLiteral("materials-import-normal"));
     box->addWidget(normal_);
 
     box->addWidget(caption(tr("Material name inside a .blend file"), body));
@@ -332,7 +315,6 @@ QWidget* MaterialImportScreen::buildForm()
     blendMaterial_->setStyle(t.controlStyle());
     blendMaterial_->setPlaceholderText(tr("Needed when the file holds several materials"));
     blendMaterial_->setToolTip(tr("Which material of a .blend file to take. Ignored for textures"));
-    blendMaterial_->setProperty("tourId", QStringLiteral("materials-import-blend-material"));
     box->addWidget(blendMaterial_);
 
     box->addWidget(caption(tr("Bake size for .blend materials"), body));
@@ -343,7 +325,6 @@ QWidget* MaterialImportScreen::buildForm()
         bake_->addItem(QStringLiteral("%1 x %1 px").arg(size), size);
     bake_->setCurrentIndex(std::max(0, bake_->findData(plynth::kDefaultBakeSize)));
     bake_->setToolTip(tr("Size of the images made from a .blend material that is not plain image textures"));
-    bake_->setProperty("tourId", QStringLiteral("materials-import-bake"));
     box->addWidget(bake_);
 
     box->addWidget(caption(tr("Image files per channel (one source only)"), body));
@@ -359,10 +340,8 @@ QWidget* MaterialImportScreen::buildForm()
         edit->setStyle(t.controlStyle());
         edit->setPlaceholderText(tr("Leave empty to match by file name"));
         edit->setToolTip(tr("The image to use for %1. Leave empty to match by file name").arg(channelTitle(channel).toLower()));
-        edit->setProperty("tourId", QStringLiteral("materials-import-channel-%1").arg(fromCore(std::string(plynth::mapChannelName(channel)))));
         auto* browse = new QPushButton(tr("Browse..."), body);
         browse->setToolTip(tr("Pick the image file for %1").arg(channelTitle(channel).toLower()));
-        browse->setProperty("tourId", QStringLiteral("materials-import-channel-browse"));
         connect(browse, &QPushButton::clicked, this, [this, edit]() {
             const QString file = QFileDialog::getOpenFileName(this, tr("Pick an image"), lastFolder_,
                                                               tr("Images (*.png *.jpg *.jpeg *.tga *.tif *.tiff *.bmp *.exr)"));

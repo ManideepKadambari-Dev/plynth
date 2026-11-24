@@ -148,7 +148,6 @@ bool isFabIntegration(const plynth::Integration& integration)
 IntegrationsPanel::IntegrationsPanel(LibraryHost& host, QWidget* parent) : QWidget(parent), host_(host)
 {
     const Theme& t = Theme::instance();
-    setProperty("tourId", QStringLiteral("integrations-panel"));
     setToolTip(tr("Where assets and materials come from"));
 
     auto* outer = new QVBoxLayout(this);
@@ -213,7 +212,6 @@ void IntegrationsPanel::buildCard(const plynth::Integration& integration)
     frame->setStyleSheet(QStringLiteral("QFrame#integrationCard { background: %1; border: 1px solid %2; border-radius: %3px; }")
                              .arg(t.raised().name(), t.line().name())
                              .arg(t.radius()));
-    frame->setProperty("tourId", QStringLiteral("integration-%1").arg(id));
     frame->setToolTip(plainToolTip(tr("%1: %2").arg(name, fromView(integration.description()))));
     auto* box = new QVBoxLayout(frame);
     box->setContentsMargins(t.unit() * 3, t.unit() * 3, t.unit() * 3, t.unit() * 3);
@@ -231,7 +229,6 @@ void IntegrationsPanel::buildCard(const plynth::Integration& integration)
     card.state->setTextFormat(Qt::PlainText);
     card.state->setFont(t.uiFont(t.sizeNormal(), QFont::DemiBold));
     card.state->setToolTip(tr("Whether this source is ready to use"));
-    card.state->setProperty("tourId", QStringLiteral("integration-%1-state").arg(id));
     top->addWidget(card.state);
     box->addLayout(top);
 
@@ -249,7 +246,6 @@ void IntegrationsPanel::buildCard(const plynth::Integration& integration)
         box->addWidget(card.detail);
         card.check = new QPushButton(tr("Check again"), frame);
         card.check->setToolTip(tr("Run the setup check again, including Blender and its add-ons"));
-        card.check->setProperty("tourId", QStringLiteral("integration-%1-check").arg(id));
         connect(card.check, &QPushButton::clicked, this, &IntegrationsPanel::checkAgain);
         auto* row = new QHBoxLayout();
         row->addWidget(card.check);
@@ -261,7 +257,6 @@ void IntegrationsPanel::buildCard(const plynth::Integration& integration)
         QLabel* note = warningLabel(frame);
         note->setText(fromView(integration.note()));
         note->setToolTip(tr("What to know before using this source"));
-        note->setProperty("tourId", QStringLiteral("integration-%1-note").arg(id));
         note->setVisible(true);
         box->addWidget(note);
     }
@@ -274,7 +269,6 @@ void IntegrationsPanel::buildCard(const plynth::Integration& integration)
         card.address->setPlaceholderText(tr("Paste a %1 address").arg(name));
         card.address->setClearButtonEnabled(true);
         card.address->setToolTip(tr("The address of one item, copied from its page in your browser"));
-        card.address->setProperty("tourId", QStringLiteral("integration-%1-address").arg(id));
         box->addWidget(card.address);
         card.addressNote = warningLabel(frame);
         card.addressNote->setToolTip(tr("Why this address cannot be used"));
@@ -290,14 +284,12 @@ void IntegrationsPanel::buildCard(const plynth::Integration& integration)
     if (!integration.assetImporters().empty()) {
         card.importAsset = new QPushButton(words.asset, frame);
         card.importAsset->setToolTip(words.assetTip);
-        card.importAsset->setProperty("tourId", QStringLiteral("integration-%1-import-asset").arg(id));
         card.importAsset->setDefault(integration.takesAddresses());
         buttons->addWidget(card.importAsset);
     }
     if (!integration.materialImporters().empty()) {
         card.importMaterial = new QPushButton(words.material, frame);
         card.importMaterial->setToolTip(words.materialTip);
-        card.importMaterial->setProperty("tourId", QStringLiteral("integration-%1-import-material").arg(id));
         buttons->addWidget(card.importMaterial);
     }
     buttons->addStretch(1);
@@ -335,7 +327,6 @@ void IntegrationsPanel::buildCard(const plynth::Integration& integration)
         palette.setColor(QPalette::Link, t.signalBlue());
         link->setPalette(palette);
         link->setToolTip(tr("Open the official site in your browser"));
-        link->setProperty("tourId", QStringLiteral("integration-%1-site").arg(id));
         const QString site = fromView(integration.site());
         connect(link, &QLabel::linkActivated, this, [site]() { QDesktopServices::openUrl(QUrl(site)); });
         box->addWidget(link);
@@ -374,7 +365,6 @@ void IntegrationsPanel::addField(Card& card, QVBoxLayout* box, const plynth::Opt
         // Saves when the user is done typing, not at every digit.
         number->setKeyboardTracking(false);
         number->setToolTip(tip);
-        number->setProperty("tourId", QStringLiteral("integration-%1-%2").arg(id, key));
         WheelGuard::guard(number);
         connect(number, &QSpinBox::valueChanged, this, [this, id, key](int value) {
             if (refreshing_)
@@ -389,7 +379,6 @@ void IntegrationsPanel::addField(Card& card, QVBoxLayout* box, const plynth::Opt
         combo->setFont(t.uiFont(t.sizeNormal()));
         combo->setStyle(t.controlStyle());
         combo->setToolTip(tip);
-        combo->setProperty("tourId", QStringLiteral("integration-%1-%2").arg(id, key));
         WheelGuard::guard(combo);
         if (field.license)
             fillLicenses(combo);
@@ -639,7 +628,7 @@ void IntegrationsPanel::focusAddress()
         }
 }
 
-// Runs the first check when the tab is first shown.
+// Runs the first check when the window is first shown.
 void IntegrationsPanel::showEvent(QShowEvent* event)
 {
     QWidget::showEvent(event);

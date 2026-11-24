@@ -46,7 +46,7 @@ private:
     QWidget* buildRecent();
     void fillRecent();
     void fillSide();
-    QPushButton* addLink(QVBoxLayout* column, const QString& text, const QString& tip, const QString& tourId);
+    QPushButton* addLink(QVBoxLayout* column, const QString& text, const QString& tip);
 
     LibraryHost& host_;
     QLineEdit* search_ = nullptr;

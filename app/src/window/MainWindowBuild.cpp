@@ -10,7 +10,6 @@
 #include "panels/ExportPanel.h"
 #include "canvas/PlanCanvas.h"
 #include "catalog/LibraryHost.h"
-#include "panels/RightPanel.h"
 #include "preview/OverlayRenderer.h"
 #include "preview/GraphicsProbe.h"
 #include "preview/PreviewView.h"
@@ -121,7 +120,7 @@ void MainWindow::loadBuildReport()
     updateBuildUi();
 }
 
-// Shows the state of the last build and of the Build button in the bar, the menu and the Build tab.
+// Shows the state of the last build and of the Build button in the bar, the menu and the Build report window.
 void MainWindow::updateBuildUi()
 {
     const bool running = (builder_ != nullptr && builder_->running()) || (exporter_ != nullptr && exporter_->running());
@@ -132,7 +131,7 @@ void MainWindow::updateBuildUi()
     } else if (!report_) {
         buildBar_->setStatus(tr("Not built yet"));
     } else if (!report_->status.ok()) {
-        buildBar_->setStatus(tr("The last build failed. See the Build tab."));
+        buildBar_->setStatus(tr("The last build failed. See the Build report window."));
     } else if (stale) {
         buildBar_->setStatus(tr("The plan changed since this build"));
     } else {
@@ -300,10 +299,10 @@ void MainWindow::openInBlender()
                             {QString::fromStdWString(report_->blendFile.wstring())});
 }
 
-// For checks only: shows the Build tab.
+// For checks only: shows the Build report window.
 void MainWindow::showBuildTab()
 {
-    right_->showTab(RightPanel::Tab::Build);
+    openToolWindow(QStringLiteral("build"));
 }
 
 }

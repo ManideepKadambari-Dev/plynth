@@ -45,9 +45,9 @@ std::string wrongKindSentence(const ImportFetch& fetch, std::string_view fetched
 {
     const std::string store = fetch.task == kBlenderKitFetchTask ? "BlenderKit item" : "item";
     if (fetchedKind == kFetchKindMaterial) {
-        return "This " + store + " is a material. Import it in the Materials tab or with plynth materials import.";
+        return "This " + store + " is a material. Import it in the Materials window or with plynth materials import.";
     }
-    return "This " + store + " is a model. Import it in the Assets tab or with plynth assets import.";
+    return "This " + store + " is a model. Import it in the Assets window or with plynth assets import.";
 }
 
 const char* const kFolderNotSetUp = "Plynth's fetch folder is not set up as expected. Delete it and try again.";

@@ -55,6 +55,11 @@ public:
     int toolStripWidth() const { return toolStripWidth_; }
     int propertiesWidth() const { return propertiesWidth_; }
     int assetsWidth() const { return assetsWidth_; }
+    int sidePanelWidth() const { return sidePanelWidth_; }
+    int sidePanelMinWidth() const { return sidePanelMinWidth_; }
+    int sidePanelMaxWidth() const { return sidePanelMaxWidth_; }
+    int toolWindowWidth() const { return toolWindowWidth_; }
+    int toolWindowHeight() const { return toolWindowHeight_; }
     int thumbnailTile() const { return thumbnailTile_; }
     int thumbnailLarge() const { return thumbnailLarge_; }
     int setupRowGap() const { return setupRowGap_; }
@@ -81,9 +86,6 @@ public:
     int qualityMark() const { return qualityMark_; }
     double markStroke() const { return markStroke_; }
     int previewButton() const { return previewButton_; }
-    int tourCardWidth() const { return tourCardWidth_; }
-    int tourOutline() const { return tourOutline_; }
-    int tourDimAlpha() const { return tourDimAlpha_; }
     int helpListWidth() const { return helpListWidth_; }
     double overlay3dOpacity() const { return overlay3dOpacity_; }
     double floorBelowOpacity() const { return floorBelowOpacity_; }
@@ -129,6 +131,11 @@ private:
     int toolStripWidth_ = 44;
     int propertiesWidth_ = 280;
     int assetsWidth_ = 372;
+    int sidePanelWidth_ = 372;
+    int sidePanelMinWidth_ = 280;
+    int sidePanelMaxWidth_ = 640;
+    int toolWindowWidth_ = 960;
+    int toolWindowHeight_ = 720;
     int thumbnailTile_ = 128;
     int thumbnailLarge_ = 256;
     int setupRowGap_ = 12;
@@ -154,9 +161,6 @@ private:
     int lightMarker_ = 14;
     int qualityMark_ = 14;
     int previewButton_ = 28;
-    int tourCardWidth_ = 320;
-    int tourOutline_ = 2;
-    int tourDimAlpha_ = 170;
     int helpListWidth_ = 240;
     double overlay3dOpacity_ = 0.85;
     double floorBelowOpacity_ = 0.35;

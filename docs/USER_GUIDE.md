@@ -1,6 +1,6 @@
 # User guide
 
-This covers what Plynth does today: the home screen, opening a project, showing its plan image, setting the scale, drawing walls (straight and curved, with rounded corners), placing doors, windows and other openings, setting heights, adding floors, stairs and roofs, finding walls and openings in the image automatically, making rooms, placing furniture from the library, undo and redo, saving, building the building in Blender and looking at it in 3D, the setup check, the library, the assets catalog and the materials catalog, putting materials on walls, rooms and the whole project, working next to the command line, the built-in terminal, generators, and the help pages with the guided tours and the What is this? mode.
+This covers what Plynth does today: the home screen, opening a project, showing its plan image, setting the scale, drawing walls (straight and curved, with rounded corners), placing doors, windows and other openings, setting heights, adding floors, stairs and roofs, finding walls and openings in the image automatically, making rooms, placing furniture from the library, undo and redo, saving, building the building in Blender and looking at it in 3D, the setup check, the library, the assets catalog and the materials catalog, putting materials on walls, rooms and the whole project, working next to the command line, the built-in terminal, generators, and the help pages.
 
 New here? Start with [Getting started](GETTING_STARTED.md). For keys see [Keyboard shortcuts](SHORTCUTS.md). For scripts see the [Command line guide](CLI_GUIDE.md). For Blender, the library folder and the first run see [Setting up Plynth](SETUP.md).
 
@@ -88,6 +88,32 @@ A strip of buttons sits at the left edge of the plan. The active tool is the one
 The status bar at the bottom shows the position of the cursor in metres and a short hint for the active tool. If a tool cannot do what you asked, the reason shows there in amber for a few seconds instead of in a dialog.
 
 The Scale tool needs a plan image. The Wall, Opening, Room, Stair, Furniture and Detect tools also need a scale, because without one a click cannot be turned into metres. Until the scale is set, their buttons are greyed and their tooltips say "Set the scale first (S)". The Furniture tool also needs a library folder, and says "No library folder is set." without one. While the command line is editing the project, the Scale, Wall, Opening, Room, Furniture and Detect tools are disabled and you can only select. You can still click to look at things.
+
+## The side panel and the app's windows
+
+**The Properties panel** on the right of the plan shows the properties of what is selected, or of the tool in use, or of the project when nothing is selected. It is the only panel on that side.
+
+- **Hide** at the top of the panel closes it, and the plan takes the space. **View > Properties panel** (Ctrl+Shift+P) or the **Properties** button at the right end of the bar above the plan opens it again.
+- Drag the edge between the plan and the panel to make it wider or narrower.
+- Plynth remembers whether the panel was open and how wide it was, and opens it the same way next time.
+
+**The app's own windows.** The catalogs and the build and export pages each open in a window of their own, so you can keep them beside the plan or move them to a second screen:
+
+| Window | Opens with | What it holds |
+|---|---|---|
+| Assets | **Catalog > Assets catalog** (Ctrl+Shift+A) or **Assets** in the bar | The assets catalog, its import queue and the details of an asset |
+| Materials | **Catalog > Materials catalog** (Ctrl+Shift+M) or **Materials** in the bar | The materials catalog and the details of a material |
+| Sources | **Catalog > Sources and integrations** (Ctrl+Shift+I) or **Sources** in the bar | BlenderKit, Fab and your own files |
+| Import materials | **Catalog > Import materials...** or **Import** in the Materials window | The screen that imports textures and .blend materials |
+| Build report | **Build > Build report window** (Ctrl+Shift+B), **Report** in the bar, or the amber problems button | The last build: summary, problems, files and steps |
+| Export | **Build > Export window** (Ctrl+Shift+X) or **Export** in the bar | The export for Unreal, its groups and the quality checks |
+
+- There is one window of each kind. Opening it again brings it to the front.
+- Each window remembers its size, its place and its screen. If that screen is gone, it opens over the main window.
+- The windows have the same title bar as the main window: drag it to move, double click to maximize, and drag an edge to resize.
+- The shortcuts with Ctrl, Alt or a function key, such as Ctrl+Z, Ctrl+S, Ctrl+B and F1, work in these windows too.
+- Closing the main window closes them all.
+- Everything in them works as it did when they were tabs of the side panel.
 
 ## Setting the scale
 
@@ -267,11 +293,11 @@ Esc, or a click outside the picker, closes it and places nothing.
 
 - **Room types.** If you clicked inside a room that has a type, the picker starts at that room's categories, because a bedroom needs beds and not baths. A row at the top, **All room types**, goes back to the list of all types. If you clicked outside every room, or in a room with no type, it starts with the list of room types.
 - **Categories.** Each shows how many assets it holds. A category with none is greyed.
-- **Assets.** Each shows its name and its size in metres, for example `2.00 x 0.90 x 0.85 m`. An asset that is broken, or that has not been measured, is greyed and its tooltip says why. Use **Retry render** in the Assets tab to measure an asset that says "not measured".
+- **Assets.** Each shows its name and its size in metres, for example `2.00 x 0.90 x 0.85 m`. An asset that is broken, or that has not been measured, is greyed and its tooltip says why. Use **Retry render** in the Assets window to measure an asset that says "not measured".
 
 **The hover preview.** Point at an asset without clicking. A panel beside the list shows its thumbnail, its name, its real size, its categories and its license. At the same time the item's footprint is drawn on the plan at the cross, at its true size. The footprint is drawn in amber when the item would have a problem there. See "Furniture warnings". The preview is the live 3D model once it is drawn, with the thumbnail shown until then. The thumbnail is always a real picture. While one is still being drawn, the panel says "Rendering", and when it failed, "Render failed".
 
-**Dragging from the Assets tab.** You can skip the picker. Drag a tile from the Assets tab and drop it on the plan. The item is placed where you drop it, snapped like a drag. Hold Ctrl while you drop to place it freely. Drop it on the wall view to hang it on the wall face. An asset that is broken or not measured cannot be dragged. It works with any tool active.
+**Dragging from the Assets window.** You can skip the picker. Drag a tile from the Assets window and drop it on the plan. The item is placed where you drop it, snapped like a drag. Hold Ctrl while you drop to place it freely. Drop it on the wall view to hang it on the wall face. An asset that is broken or not measured cannot be dragged. It works with any tool active.
 
 You can place the same asset as many times as you like. Each item has its own id, `i1`, `i2` and so on. One undo removes the last item.
 
@@ -316,7 +342,7 @@ Some things hang on a wall: a TV, a picture, a shelf. A wall item stands flat ag
 **Putting one on a wall.**
 
 - In the **wall view**, press P and click on the wall face. The picker opens. Pick an asset and it is hung at the place you clicked, with its centre at the **wall item centre**.
-- Or drag an asset tile from the Assets tab onto the wall view.
+- Or drag an asset tile from the Assets window onto the wall view.
 - Or place it as any item, drag it close to a wall, select it and press **Mount on wall** in the Properties panel (or Edit > Mount item on wall). It goes on the nearest wall within about 30 cm. If no wall is near, the status bar says "No wall is near this item. Move it next to a wall first." The face is the side the item is on.
 - **Take off wall** reverses it. The item keeps its place, turn and height, and becomes a floor item.
 
@@ -436,7 +462,7 @@ A selected stair is amber. Drag its move handle to move it and its rotate handle
 
 ### Stair problems
 
-The Properties panel lists the problems of a stair, and the Build tab shows them too. A stair with a warning is still built.
+The Properties panel lists the problems of a stair, and the Build report window shows them too. A stair with a warning is still built.
 
 | Problem | Kind | What it means |
 |---|---|---|
@@ -475,13 +501,13 @@ With nothing selected, the **Roof default** group in the Properties panel sets t
 
 Roofs are 15 cm thick. A pitched roof that rises against a taller storey can cover its windows, because the slope does not turn away from the wall. For a low wing, choose a flat roof, or a shed that falls away from the wall.
 
-**Hip needs a convex section**, one with no inward corners and no holes. A section shaped like an L cannot have a hip roof. It is built as a gable roof instead, and the Build tab says "A hip roof needs a section without holes or inward corners, so it is built as a gable."
+**Hip needs a convex section**, one with no inward corners and no holes. A section shaped like an L cannot have a hip roof. It is built as a gable roof instead, and the Build report window says "A hip roof needs a section without holes or inward corners, so it is built as a gable."
 
 ### Settings of one section
 
 Change a section that follows the default and it gets settings of its own, tied to a point inside it. The roof section also has a **Covering** material. **Use the default** takes the settings away again, and the section follows the default.
 
-If you later change the walls so that the point is no longer in that section, the settings are kept but have no effect, and the Build tab says "The roof entry rf1 is not in any roof section, so it has no effect." (with the id of the entry). Remove them in the app: with nothing selected, open the **Roof default** group in the Properties panel and press **Remove** next to the unused entry. Or use `plynth roof clear`, or redraw the walls.
+If you later change the walls so that the point is no longer in that section, the settings are kept but have no effect, and the Build report window says "The roof entry rf1 is not in any roof section, so it has no effect." (with the id of the entry). Remove them in the app: with nothing selected, open the **Roof default** group in the Properties panel and press **Remove** next to the unused entry. Or use `plynth roof clear`, or redraw the walls.
 
 ### Materials
 
@@ -594,7 +620,7 @@ Building turns the plan into a real 3D building. Plynth starts Blender in the ba
 
 While it runs, the bar shows a progress bar and the step it is on, for example "Cutting openings", with a **Cancel** button. Cancel stops the build. The last building stays as it was, so a cancelled or failed build never leaves you with half a file. A small flat takes a few seconds. Many openings and a large plan take longer, because every opening is cut one at a time. You can look at the plan while you wait, but you cannot start a second build.
 
-When a build finishes, the 3D view opens by itself and the bar says "Built at 10:42 in 8.2 s". If you change the plan afterwards, the bar says "The plan changed since this build". Build again to catch up. If Blender fails, the bar says "The last build failed. See the Build tab." and the Build tab says why.
+When a build finishes, the 3D view opens by itself and the bar says "Built at 10:42 in 8.2 s". If you change the plan afterwards, the bar says "The plan changed since this build". Build again to catch up. If Blender fails, the bar says "The last build failed. See the Build report window." and the Build report window says why.
 
 **Build is blocked** when a required item of the setup check is missing, such as Blender or the graphics driver. The button then opens the setup check and the status bar says what to fix. See [Setting up Plynth](SETUP.md).
 
@@ -630,7 +656,7 @@ Everything is written into the project's `build` folder:
 - `preview_textures`, copies of textures larger than 1024 pixels, scaled down for the 3D view.
 - `built-plan.json`, the plan of the last successful build. "Build is up to date" is judged against it.
 - `export_work`, the files of the last export job.
-- `build.json`, the report of the last build, which fills the Build tab when you open the project again.
+- `build.json`, the report of the last build, which fills the Build report window when you open the project again.
 - `job.json`, `result.json` and `blender.log`, for finding out what went wrong.
 
 **Build > Open build folder** opens it in Explorer. The `build` folder can be deleted at any time. Plynth writes each model file under a temporary name and renames it at the end, so a failed build keeps the last good files.
@@ -663,7 +689,7 @@ Before the first build the 3D view says "Build the plan to see it in 3D. (Ctrl+B
 A build always finishes with a list of problems, even when it worked. Each problem points at something in the plan.
 
 - When there are problems, an amber **problems** button appears in the bar, such as "3 problems". Click it to open the **Build** tab.
-- The **Build** tab is one column in the right panel, with four parts. **Summary** says when the build ran, how long it took, which Blender, and how many objects, triangles, cuts, doors and windows, rooms and items. **Problems** lists each one. **Files** shows where the files are, with **Open folder** and **Open in Blender**. **Steps** lists the steps with their times in milliseconds. **Build > Show build report** opens the tab.
+- The **Build report** window has four parts. **Summary** says when the build ran, how long it took, which Blender, and how many objects, triangles, cuts, doors and windows, rooms and items. **Problems** lists each one. **Files** shows where the files are, with **Open folder** and **Open in Blender**. **Steps** lists the steps with their times in milliseconds. **Build > Build report window** (Ctrl+Shift+B), the **Report** button in the bar above the plan, or the amber **problems** button opens it.
 - Each problem has an amber icon, a sentence and the id of its object. A filled icon is an **error**: the object was left out or is incomplete. An outline icon is a **warning**: it was built, but check it. Click a problem to go to the plan, select that object and centre the plan on it.
 - **Markers.** The plan shows an amber triangle at each problem, filled for an error and outlined for a warning. Point at one to read the sentence. Turn them off with **View > Build problems on plan**. The plan shows the markers of the floor you are working on.
 
@@ -688,7 +714,7 @@ What the problems mean:
 | Could not write the preview parts | warning | The 3D view loads the whole building file instead, so Show roofs and Cut at the shown floor do nothing until the next good build. |
 | Furniture warnings | warning | Not in any room, overlaps a wall and the others in "Furniture warnings" are shown here too. |
 | Missing material | warning | A wall, room or project default names a material that is not in the library. The surface got the neutral look. Import the material again or pick another. For a project default the problem has no object, so there is no marker. |
-| Material is broken | warning | The library has the material but it is marked broken. The surface got the neutral look. Select the material in the Materials tab to see why, and press Retry render. |
+| Material is broken | warning | The library has the material but it is marked broken. The surface got the neutral look. Select the material in the Materials window to see why, and press Retry render. |
 | Could not load a material map | warning | An image of a material would not open while building. The surface got the neutral look. |
 A missing asset can show up as "Asset is broken" or "Missing asset" depending on how it went missing. If you removed or renamed the asset's folder by hand while the library still lists it, it is broken. If the library does not know the asset at all, it is missing.
 
@@ -705,7 +731,7 @@ The plan view draws the same mitred corners as the build, so the overlay lines u
 The preview of an asset is now the real model, lit from the front right, as soon as its model file is ready. It appears in two places:
 
 - **The furniture picker.** The hover preview panel shows the model for the asset you point at. It is shown from the front right and takes no mouse.
-- **The Assets tab.** The details of the selected asset show the model. Drag to orbit it and use the wheel to zoom.
+- **The Assets window.** The details of the selected asset show the model. Drag to orbit it and use the wheel to zoom.
 
 The thumbnail shows first and stays when the asset has no 3D preview file, or when the model could not be drawn. Each asset gets that file, `asset.fbx`, when it is imported. After the update to this version, Plynth makes it once for every asset that lacks it, in the background. On a big library that means many short Blender runs, so give it a little time on the first start.
 
@@ -713,7 +739,7 @@ The thumbnail shows first and stays when the asset has no 3D preview file, or wh
 
 "Build the plan to see it in 3D" is normal before the first build. If you built and still see nothing:
 
-- **Check the Build tab.** A problem there may explain it. If the build failed, there is no model to show.
+- **Check the Build report window.** A problem there may explain it. If the build failed, there is no model to show.
 - **Press Ctrl+0** to fit the view. You may be looking at empty space.
 - **The message "The 3D view cannot start."** means your graphics card or its driver cannot run the 3D view. Plynth needs a card that supports Direct3D 11. Update the graphics driver from the maker of your card (NVIDIA, AMD or Intel), restart Plynth, and open **Help > Setup check** to see the Graphics driver row. On a laptop with two graphics cards, open Windows Settings, System, Display, Graphics, add Plynth and choose High performance. A remote desktop session or a virtual machine without a graphics card often cannot run it.
 - **The message "The 3D model could not be loaded."** means `building.fbx` is missing or damaged. Delete the project's `build` folder and press Build again.
@@ -731,11 +757,11 @@ The **library** is one folder on your computer that holds your assets catalog. I
 
 The catalog is the list of 3D models you can use in your plans, such as chairs, tables and lamps. You bring your own model files. Plynth cleans each one up so they all behave the same way, draws a thumbnail, and keeps them in the library.
 
-Open it with **Catalog > Assets catalog** (Ctrl+Shift+A), or click the **Assets** tab at the top of the right panel. The other tab, **Properties**, is the panel you already know. With no library set, the Assets tab says "No library folder is set." and has an **Open setup check** button.
+Open it with **Catalog > Assets catalog** (Ctrl+Shift+A), or click **Assets** in the bar above the plan. It opens in a window of its own. See "The app's windows". With no library set, the Assets window says "No library folder is set." and has an **Open setup check** button.
 
 ### Finding assets
 
-At the top of the Assets tab:
+At the top of the Assets window:
 
 - **Search assets.** Type part of a name, tag or category. The grid filters as you type, after a short pause. Typing `cha` finds "Chair" and "Armchair". Several words must all match. Accents are ignored.
 - **Room.** "All rooms", or one kind of room. Only assets in categories that belong in that room are shown. A living room shows sofas and lamps, a bathroom shows baths and mirrors.
@@ -758,7 +784,7 @@ Plynth never shows a stand-in picture. A thumbnail is always a real picture of t
 You can bring in models three ways.
 
 1. **The Import button** (or **Catalog > Import asset...**, Ctrl+I). A file dialog opens. You can pick several files at once.
-2. **Drag and drop.** Drop files, zips or folders on the Assets tab. This is also the way to import a folder.
+2. **Drag and drop.** Drop files, zips or folders on the Assets window. This is also the way to import a folder.
 3. **The inbox folder.** Copy files into `Library\assets\inbox\`. Plynth notices within a few seconds and imports them, while it is running. If Plynth is closed, `plynth assets inbox` imports what is waiting.
 
 Plynth reads `.blend`, `.fbx`, `.obj`, `.gltf` and `.glb` files, zips that hold one model, and folders that hold one model. A zip with more than one model is refused, and the message lists them. Zips downloaded from Fab and items from BlenderKit have their own way in: see [Importing from stores](#importing-from-stores).
@@ -844,7 +870,7 @@ Removing a category takes it off every asset that has it. Removing a room type l
 
 The second catalog of the library holds materials: the paint, brick, wood, tile, metal and glass that walls, floors and doors are made of. You bring your own texture images or Blender materials. Plynth turns each one into the same set of image maps, draws a thumbnail, and keeps it in the library.
 
-Open it with **Catalog > Materials catalog** (Ctrl+Shift+M), or click the **Materials** tab at the top of the right panel, next to **Assets**. With no library set, the tab says "No library folder is set." and has an **Open setup check** button. With a library and no materials, it says "No materials yet." and has an **Add the sample materials** button. That button imports the nine samples that come with Plynth: `white_paint`, `red_brick`, `oak_planks`, `grey_tile`, `painted_wood`, `brushed_steel`, `clear_glass`, `roof_tiles` and `concrete`. New projects use them as their default materials, so add them before your first build. The same action is in **Catalog > Add the sample materials**. Running it twice does nothing the second time.
+Open it with **Catalog > Materials catalog** (Ctrl+Shift+M), or click **Materials** in the bar above the plan. It opens in a window of its own. With no library set, the window says "No library folder is set." and has an **Open setup check** button. With a library and no materials, it says "No materials yet." and has an **Add the sample materials** button. That button imports the nine samples that come with Plynth: `white_paint`, `red_brick`, `oak_planks`, `grey_tile`, `painted_wood`, `brushed_steel`, `clear_glass`, `roof_tiles` and `concrete`. New projects use them as their default materials, so add them before your first build. The same action is in **Catalog > Add the sample materials**. Running it twice does nothing the second time.
 
 ### Finding materials
 
@@ -896,13 +922,13 @@ One image covers one tile. The tile size says how big that tile is in the real w
 
 There are three ways in.
 
-1. **The import screen.** Press **Import** in the Materials tab, or use **Catalog > Import materials...**. Add folders (**Add folder...**) and files (**Add files...**), or drop them on the screen. Fill in what you want, then press **Import**.
-2. **Drag and drop** on the Materials tab.
+1. **The Import materials window.** Press **Import** in the Materials window, or use **Catalog > Import materials...**. Add folders (**Add folder...**) and files (**Add files...**), or drop them on the window. Fill in what you want, then press **Import**.
+2. **Drag and drop** on the Materials window.
 3. **The inbox folder.** Copy folders, zips, images or `.blend` files into `Library\materials\inbox\`. Plynth notices within a few seconds and imports them while it runs. Imported entries move to `inbox\done`, failed ones to `inbox\failed` with a text file that says why. If Plynth is closed, `plynth materials inbox` imports what is waiting.
 
 Imports run one after another in a list under the grid, with progress and **Cancel**, as asset imports do. When an import finishes, Plynth shows the new material's thumbnail. If you ticked no group, it asks for one.
 
-The import screen has these fields. Only the sources are needed.
+The Import materials window has these fields. Only the sources are needed.
 
 - **Name** (one source only), **Groups**, **Tags** and **License**.
 - **Set the tile size**, with a width and a height in metres. Off takes it from `material.json`, or 1 m.
@@ -943,7 +969,7 @@ The warnings show under the material's details.
 
 ### Fixing a wrong match
 
-If a name is odd and Plynth picks the wrong picture, name the picture yourself. Use the **Image files per channel** fields of the import screen, or `--map base_color=wood.jpg` on the command line. A picture you name beats the file names. You can also give a single number for roughness, metallic, opacity or occlusion (`--value metallic=1`).
+If a name is odd and Plynth picks the wrong picture, name the picture yourself. Use the **Image files per channel** fields of the Import materials window, or `--map base_color=wood.jpg` on the command line. A picture you name beats the file names. You can also give a single number for roughness, metallic, opacity or occlusion (`--value metallic=1`).
 
 ### material.json
 
@@ -966,7 +992,7 @@ An optional file named `material.json` in the folder (or at the top of the zip) 
 }
 ```
 
-What you type in the import screen wins over the file, and the file wins over the file names. A folder that holds only a `material.json` with `values` or a `base_color_value`, and no images, imports too. That is how the sample `clear_glass` is made. The sample materials all use this file, so they keep their ids and the project defaults can name them. An `id` that is already taken gets `_2` added.
+What you type in the Import materials window wins over the file, and the file wins over the file names. A folder that holds only a `material.json` with `values` or a `base_color_value`, and no images, imports too. That is how the sample `clear_glass` is made. The sample materials all use this file, so they keep their ids and the project defaults can name them. An `id` that is already taken gets `_2` added.
 
 ### Materials from a .blend file
 
@@ -982,15 +1008,15 @@ Two limits come with that. A procedural pattern that does not repeat over one ti
 
 ### Add to materials catalog, from an asset
 
-An asset keeps its own materials. To also use one as a surface, open the asset in the Assets tab. Its **Materials** list has a button **Add to materials catalog** for each material. It makes a new catalog material from the asset's `asset.blend`. The asset is not changed.
+An asset keeps its own materials. To also use one as a surface, open the asset in the Assets window. Its **Materials** list has a button **Add to materials catalog** for each material. It makes a new catalog material from the asset's `asset.blend`. The asset is not changed.
 
 ## Importing from stores
 
 Plynth can bring in models and materials from BlenderKit and from zips you download from Fab. Both are for your own use. Plynth never downloads from Fab and never bundles store items, so each person downloads their own copy.
 
-### The Integrations tab
+### The Sources window
 
-Open it with **Catalog > Integrations** or the **Sources** tab of the right panel. **Catalog > Import from BlenderKit...** opens it with the cursor in the address box, and **Catalog > Import Fab zips...** goes straight to picking zips. It has one card for each place assets and materials come from: **Own files**, **BlenderKit** and **Fab**. A card shows:
+Open it with **Catalog > Sources and integrations** (Ctrl+Shift+I) or **Sources** in the bar above the plan. **Catalog > Import from BlenderKit...** opens it with the cursor in the address box, and **Catalog > Import Fab zips...** goes straight to picking zips. It has one card for each place assets and materials come from: **Own files**, **BlenderKit** and **Fab**. A card shows:
 
 - the name, a state (**Ready**, **Needs setup**, **Not checked** or **Checking...**) and a sentence on what it needs;
 - a reminder, when there is one. BlenderKit shows "Downloads run Blender with your own settings and enabled add-ons.";
@@ -1041,7 +1067,7 @@ Fab items download as a zip from fab.com in your browser. Plynth never goes to F
 
 A zip that holds several different models (a pack) cannot be imported until you pick one. The window says "This zip holds several models" and offers **Pick a model...**. If a queue row fails for this reason, its **Pick the model...** button opens the same window. Pick another model, and the new import replaces the row. To import several models of a pack, first tick **Keep the zip files after importing**, then import the zip once for each model. Without it, the zip goes to the Recycle Bin after the first import.
 
-**Fixing textures.** Fab textures are matched to materials by their file names. If a material comes out with the wrong picture or none, import the zip again from the Fab card and set the channel and material of each texture by hand. You need the zip for that, so tick **Keep the zip files after importing** the first time, or get the zip back from the Recycle Bin. Plynth cannot see a model's material names before Blender reads it. After the first import, the asset's **Materials** list in the Assets tab shows them. The **Normal maps** option says which way the normal maps point. **Automatic** reads the file name and takes OpenGL when it says nothing. Pick **DirectX** if your normal maps look inside out (Fab content made for Unreal often is).
+**Fixing textures.** Fab textures are matched to materials by their file names. If a material comes out with the wrong picture or none, import the zip again from the Fab card and set the channel and material of each texture by hand. You need the zip for that, so tick **Keep the zip files after importing** the first time, or get the zip back from the Recycle Bin. Plynth cannot see a model's material names before Blender reads it. After the first import, the asset's **Materials** list in the Assets window shows them. The **Normal maps** option says which way the normal maps point. **Automatic** reads the file name and takes OpenGL when it says nothing. Pick **DirectX** if your normal maps look inside out (Fab content made for Unreal often is).
 
 If a zip holds no model Plynth can read, for example only `.uasset` files, the window says so. Download the FBX or glTF version from Fab instead. A zip that holds other zips has to be unzipped first.
 
@@ -1049,7 +1075,7 @@ If a zip holds no model Plynth can read, for example only `.uasset` files, the w
 
 A Fab zip with one plain model, with no versions, goes through the normal import and is treated as your own file. Import it from the Fab card if you want Plynth to match its textures by name.
 
-**Which license is saved.** A zip you import from the Fab card, or with **Catalog > Import Fab zips...**, gets the card's **License**, Royalty free unless you changed it. You told Plynth the zip is from Fab, so the store's license applies. A zip that reaches Plynth another way, with the import button of the Assets or Materials tab, by drag and drop, or through the inbox, gets **Unknown**, even when Plynth sees that it looks like a Fab zip and picks a version for you. Plynth only guessed where it came from. **Pick the model...** on such a row keeps Unknown. You can set the license in the catalog afterwards, or import the zip from the Fab card instead.
+**Which license is saved.** A zip you import from the Fab card, or with **Catalog > Import Fab zips...**, gets the card's **License**, Royalty free unless you changed it. You told Plynth the zip is from Fab, so the store's license applies. A zip that reaches Plynth another way, with the import button of the Assets or Materials window, by drag and drop, or through the inbox, gets **Unknown**, even when Plynth sees that it looks like a Fab zip and picks a version for you. Plynth only guessed where it came from. **Pick the model...** on such a row keeps Unknown. You can set the license in the catalog afterwards, or import the zip from the Fab card instead.
 
 ### Store items
 
@@ -1098,7 +1124,7 @@ The texture paths in the file point into your library. If you move the library, 
 
 Exporting turns the last build into FBX files that Unreal can import, with their textures and collision shapes. A single project writes one file. A grouped project writes one file for each group (see "Grouped export"). It does not build. It takes `build\building.blend` as it is, hand edits included, so build first.
 
-**To export**, open the **Export** tab in the right panel, press **Export** or Ctrl+E, or use **Build > Export**. First the quality checks run (see "The quality gate"). If none failed, the files are written. If the project has not been built, the tab says "Build the project first." and has a **Build** button.
+**To export**, open the Export window with **Export** in the bar above the plan or **Build > Export window** (Ctrl+Shift+X) and press **Export**, or press Ctrl+E, or use **Build > Export**. First the quality checks run (see "The quality gate"). If none failed, the files are written. If the project has not been built, the window says "Build the project first." and has a **Build** button.
 
 **Check export** (Ctrl+Shift+E, or the **Check** button) runs the same checks and writes no FBX and no textures. Use it to see what is wrong before you export.
 
@@ -1116,9 +1142,9 @@ Everything goes into the project's `export` folder:
 
 The FBX holds only relative texture paths. You can copy or move the whole `export` folder anywhere, and the textures are still found as long as `Textures` stays beside the FBX. Textures keep their full size. Only the 3D view uses smaller copies.
 
-**Open folder** in the Export tab, or **Build > Open export folder**, shows the folder in Explorer. The folder can be deleted at any time. A new export replaces the old files. An export that is blocked by a failed check leaves the old files exactly as they were, so check the time in the tab to know which export is on disk.
+**Open folder** in the Export window, or **Build > Open export folder**, shows the folder in Explorer. The folder can be deleted at any time. A new export replaces the old files. An export that is blocked by a failed check leaves the old files exactly as they were, so check the time in the tab to know which export is on disk.
 
-The Export tab shows the last export: when it ran, how long it took, the result, the number of objects, triangles and collision meshes, and the file paths. A grouped export lists each file with its group's name. If the plan changed after the last build, the "Build is up to date" check fails. Build again, then export.
+The Export window shows the last export: when it ran, how long it took, the result, the number of objects, triangles and collision meshes, and the file paths. A grouped export lists each file with its group's name. If the plan changed after the last build, the "Build is up to date" check fails. Build again, then export.
 
 ### Export anyway
 
@@ -1135,7 +1161,7 @@ You choose the mode when you make the project, and you can change it at any time
 
 From the command line the same change is `plynth project set --export grouped` (or `single`).
 
-A single project shows one line in the Export tab: "Single FBX: one file. Switch to grouped in Properties > Project."
+A single project shows one line in the Export window: "Single FBX: one file. Switch to grouped in Properties > Project."
 
 ### Grouped export
 
@@ -1182,7 +1208,7 @@ A refused edit shows its reason in amber under the list. Group edits are export 
 
 The modular kit is an optional extra of either export mode. Instead of one large mesh of walls, it gives you the few unique wall pieces the building is made of, each once, and a layout file that says where each copy goes. In Unreal you can place the pieces yourself, reuse them in other levels or build new walls from them.
 
-To switch it on, tick **Also write the modular kit** in the Export tab. From the command line it is `plynth export kit on`. The kit needs the library, because its pieces use the same material slot names as the building. Without one the export goes on without the kit and the Export tab says "No library is set, so the kit was left out." in amber. A plan with no walls gives no kit. The kit uses the custom opening shapes of its library. If an opening cannot be built, the kit is left out and the tab says why, in amber; the rest of the export still goes ahead. After an export with the kit, the tab shows the kit file and the layout file, how many pieces there are and how many placements.
+To switch it on, tick **Also write the modular kit** in the Export window. From the command line it is `plynth export kit on`. The kit needs the library, because its pieces use the same material slot names as the building. Without one the export goes on without the kit and the Export window says "No library is set, so the kit was left out." in amber. A plan with no walls gives no kit. The kit uses the custom opening shapes of its library. If an opening cannot be built, the kit is left out and the tab says why, in amber; the rest of the export still goes ahead. After an export with the kit, the tab shows the kit file and the layout file, how many pieces there are and how many placements.
 
 **What a piece is.** A piece is a short stretch of wall, cut so it can be used again. There are four kinds:
 
@@ -1214,14 +1240,14 @@ To check the signs, import the walls file (or the single file) and the kit file 
 
 ## The quality gate
 
-The checks look at the real objects that go into the FBX. The Export tab lists them in a column. Each row has the check's name, a sentence and a mark: blue for pass, an amber outline for a warning, filled amber for a fail, grey for skipped. Click a row to see what it found. Click a finding that names something on the plan, and Plynth switches to the plan and selects it.
+The checks look at the real objects that go into the FBX. The Export window lists them in a column. Each row has the check's name, a sentence and a mark: blue for pass, an amber outline for a warning, filled amber for a fail, grey for skipped. Click a row to see what it found. Click a finding that names something on the plan, and Plynth switches to the plan and selects it.
 
 "Build is up to date" is judged against the plan of the last successful build, saved in `build\built-plan.json`. A build that failed does not change what counts as built.
 
 | Check | What it looks at | How to fix a fail |
 |---|---|---|
 | Build is up to date | The plan has not changed since the last successful build. | Press Build, then export. |
-| Build is complete | The last build left nothing out: no missing assets, no openings that were not cut, no rooms that do not close, no slab, stair or roof that could not be built. Each finding names the item. | Fix the problems on the Build tab, then build again. |
+| Build is complete | The last build left nothing out: no missing assets, no openings that were not cut, no rooms that do not close, no slab, stair or roof that could not be built. Each finding names the item. | Fix the problems on the Build report window, then build again. |
 | Scale and units | The scene is in metres with scale 1, and the walls are the size the plan says, within 1 mm. | Do not change the scale in `building.blend`. Build again. |
 | Pivots and applied transforms | Every object sits at the building's origin with no rotation, scale or parent. | The export does this itself. A fail means a hand edit made a parent. Remove it. |
 | Naming | Every mesh is called `SM_...` or `UCX_...`, names are not repeated, and names use only letters, digits and `_`. | Rename the object in `building.blend`. |
@@ -1366,18 +1392,7 @@ A generator is a small Blender script that makes a piece of the building from a 
 
 The help links on the home screen open the same window.
 
-### Guided tours
-
-**Help > Guided tours** has one tour for each screen: plan view, wall view, build and export, assets catalog and materials catalog. A tour dims the window and outlines one control at a time in amber. The card next to it gives the control's name, what it does in one or two sentences and its shortcut.
-
-- **Next** (Right or Enter) goes on, **Back** (Left) goes back and **Skip** (Esc) ends the tour.
-- A control that is not on screen just now, such as the wall view when no wall is selected, is skipped.
-- A tour may switch to the screen it explains and puts the screen back when it ends. It never changes your project, so there is nothing to undo.
-- The first time Plynth starts, the plan view tour starts by itself once the setup check closes. It does not start again, and an update does not start it.
-
-### What is this?
-
-**Help > What is this?** (Shift+F1) explains any control you click. While it is on, a click shows the control's name and what it does, and the control does not run. It works on greyed controls and on menu entries too. Press Esc, or choose the menu entry again, to turn it off.
+Every button and field also has a tooltip with its name and, when it has one, its shortcut. Hold the mouse over it to see it.
 
 ### About and licenses
 
@@ -1401,7 +1416,7 @@ Plynth comes with samples drawn for it: plan images, furniture models, materials
 
 The assets and materials catalogs have an **Author** field under License. Type who made the item and press Enter. It is empty when unknown. Items imported from BlenderKit get their author from the store.
 
-**Also write the license report** in the Export tab makes every export write two more files beside the FBX: `<Name>_licenses.json` and `<Name>_licenses.txt`. They list every asset and material the last build used, with its name, where it came from (the file name or the web address, never your folders), its author and its license. The switch is saved with the project and is off for a new one.
+**Also write the license report** in the Export window makes every export write two more files beside the FBX: `<Name>_licenses.json` and `<Name>_licenses.txt`. They list every asset and material the last build used, with its name, where it came from (the file name or the web address, never your folders), its author and its license. The switch is saved with the project and is off for a new one.
 
 - The report describes the last build, so build again after you change the plan. Without a build the export goes on and the tab says why no report was written.
 - Notes in amber point at items with an unknown license, a CC BY item with no author, an item that is no longer in the library, or a personal use license. They never block an export.

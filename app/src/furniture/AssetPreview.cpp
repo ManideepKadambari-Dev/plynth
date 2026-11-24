@@ -25,7 +25,6 @@ AssetPreview::AssetPreview(QWidget* parent) : QWidget(parent)
     const Theme& t = Theme::instance();
     setFixedWidth(t.previewWidth());
     setToolTip(tr("The asset under the cursor: thumbnail, real size, categories and license"));
-    setProperty("tourId", QStringLiteral("picker-preview"));
 
     auto* column = new QVBoxLayout(this);
     column->setContentsMargins(t.unit() * 4, t.unit() * 4, t.unit() * 4, t.unit() * 4);

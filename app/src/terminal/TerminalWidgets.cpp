@@ -94,7 +94,6 @@ TerminalPanel::TerminalPanel(QWidget* parent)
     setAttribute(Qt::WA_StyledBackground, false);
     grip_ = new TerminalGrip(this);
     grip_->setToolTip(tr("Drag to resize the terminal"));
-    grip_->setProperty("tourId", QStringLiteral("terminal-resize"));
 }
 
 // Keeps the grip in the top left corner above the terminal view.

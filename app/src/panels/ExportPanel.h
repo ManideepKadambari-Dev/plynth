@@ -24,7 +24,7 @@ namespace plynth::app {
 
 class ExportGroupsList;
 
-// What the Export tab needs to know besides the report.
+// What the Export window needs to know besides the report.
 struct ExportPanelState {
     bool running = false;      // an export or a build is running, so the buttons wait
     bool canRun = false;       // there is a build and setup is fine
@@ -46,7 +46,7 @@ struct ExportPanelState {
     const plynth::ExportGroupReview* review = nullptr; // as core gave it, in every mode; null without a project folder
 };
 
-// The Export tab: the Export and Check buttons, the last export and the list of quality checks.
+// The Export window: the Export and Check buttons, the last export and the list of quality checks.
 class ExportPanel : public QWidget {
     Q_OBJECT
 public:
@@ -76,13 +76,13 @@ signals:
     void openFolderRequested();
     // A finding was clicked: the plan id of its object.
     void findingActivated(const QString& planId);
-    // The groups were edited, an options file appeared or changed, or the tab was shown: ask for a new review.
+    // The groups were edited, an options file appeared or changed, or the window was shown: ask for a new review.
     void refreshRequested();
 
 private:
     QWidget* addSection(const QString& title);
     void addRow(QWidget* host, const QString& name, const QString& value, bool mono);
-    QPushButton* addButton(QWidget* row, const QString& text, const QString& tip, const QString& tourId, bool primary);
+    QPushButton* addButton(QWidget* row, const QString& text, const QString& tip, bool primary);
     void addChecks(const plynth::ExportReport& report);
     void addGroups(const ExportPanelState& state);
     void addKitSwitch(const ExportPanelState& state);

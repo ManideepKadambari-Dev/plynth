@@ -34,6 +34,7 @@
 #include "panels/MaterialsPanel.h"
 #include "panels/PropertiesPanel.h"
 #include "panels/RightPanel.h"
+#include "window/ToolWindow.h"
 #include "panels/ToolStrip.h"
 #include "preview/GraphicsProbe.h"
 #include "preview/OverlayRenderer.h"
@@ -108,7 +109,9 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <functional>
 #include <set>
+#include <utility>
 
 #ifdef Q_OS_WIN
 #include "FramelessWindow_win.h"
@@ -167,8 +170,9 @@ MainWindow::MainWindow(QWidget* parent)
     tools_->setLibrary(host_);
     tools_->setFocus(focus_);
     panel_ = new PropertiesPanel(doc_, *selection_, *tools_, central);
-    assets_ = new AssetsPanel(*host_, central);
-    materials_ = new MaterialsPanel(*host_, central);
+    // The catalog and tool panels get their own windows at the end of the constructor.
+    assets_ = new AssetsPanel(*host_);
+    materials_ = new MaterialsPanel(*host_);
     auto* work = new QWidget(central);
     auto* row = new QHBoxLayout(work);
     row->setContentsMargins(0, 0, 0, 0);
@@ -199,12 +203,21 @@ MainWindow::MainWindow(QWidget* parent)
     centreStack_->addWidget(preview_);
     centreColumn->addWidget(centreStack_, 1);
     centreColumn->addWidget(floorTabs_);
-    row->addWidget(centre, 1);
-    buildPanel_ = new BuildPanel(work);
-    exportPanel_ = new ExportPanel(work);
-    integrations_ = new IntegrationsPanel(*host_, work);
-    right_ = new RightPanel(panel_, assets_, materials_, buildPanel_, exportPanel_, integrations_, work);
-    row->addWidget(right_);
+    buildPanel_ = new BuildPanel();
+    exportPanel_ = new ExportPanel();
+    integrations_ = new IntegrationsPanel(*host_);
+    sideSplitter_ = new QSplitter(Qt::Horizontal, work);
+    sideSplitter_->setChildrenCollapsible(false);
+    sideSplitter_->setHandleWidth(Theme::instance().unit());
+    sideSplitter_->setStyleSheet(QStringLiteral("QSplitter::handle { background: %1; }")
+                                     .arg(Theme::instance().panel().name()));
+    centre->setParent(sideSplitter_);
+    sideSplitter_->addWidget(centre);
+    right_ = new RightPanel(panel_, sideSplitter_);
+    sideSplitter_->addWidget(right_);
+    sideSplitter_->setStretchFactor(0, 1);
+    sideSplitter_->setStretchFactor(1, 0);
+    row->addWidget(sideSplitter_, 1);
     work_ = work;
     pages_ = new QStackedWidget(central);
     pages_->addWidget(work);
@@ -252,7 +265,7 @@ MainWindow::MainWindow(QWidget* parent)
     connect(exporter_, &ExportController::finished, this, &MainWindow::exportFinished);
     connect(buildBar_, &BuildBar::buildRequested, this, &MainWindow::startBuild);
     connect(buildBar_, &BuildBar::cancelRequested, this, &MainWindow::cancelWork);
-    connect(buildBar_, &BuildBar::problemsRequested, this, [this]() { right_->showTab(RightPanel::Tab::Build); });
+    connect(buildBar_, &BuildBar::problemsRequested, this, [this]() { openToolWindow(QStringLiteral("build")); });
     connect(buildPanel_, &BuildPanel::problemActivated, this, &MainWindow::showProblem);
     connect(buildPanel_, &BuildPanel::openFolderRequested, this, &MainWindow::openBuildFolder);
     connect(buildPanel_, &BuildPanel::openBlenderRequested, this, &MainWindow::openInBlender);
@@ -341,9 +354,7 @@ MainWindow::MainWindow(QWidget* parent)
     connect(queueView_, &ImportQueueView::pickModelRequested, storeImports_, &StoreImports::pickModel);
     connect(storeImports_, &StoreImports::notice, statusBar_, [this](const QString& text) { statusBar_->showMessage(text); });
     connect(host_, &LibraryHost::libraryChanged, integrations_, &IntegrationsPanel::refresh);
-    materialImport_ = new MaterialImportScreen(*host_, *materialQueue_, pages_);
-    pages_->addWidget(materialImport_);
-    connect(materialImport_, &MaterialImportScreen::backRequested, this, &MainWindow::showWork);
+    materialImport_ = new MaterialImportScreen(*host_, *materialQueue_);
     connect(host_, &LibraryHost::materialsChanged, materialImport_, &MaterialImportScreen::refreshLists);
     connect(host_, &LibraryHost::libraryChanged, materialImport_, &MaterialImportScreen::refreshLists);
     connect(materialQueue_, &MaterialImportQueue::finished, this, &MainWindow::materialImportFinished);
@@ -390,7 +401,7 @@ MainWindow::MainWindow(QWidget* parent)
         rescanMaterialsAction_->setEnabled(open);
         materials_->setRenderEnabled(open);
         const bool materialsOpen = open && host_->materialCatalog() != nullptr;
-        materials_->setImportEnabled(materialsOpen, materialsOpen ? tr("Open the import screen for materials")
+        materials_->setImportEnabled(materialsOpen, materialsOpen ? tr("Open the Import materials window")
                                                                   : tr("Set a library folder first"));
         importMaterialsAction_->setEnabled(materialsOpen);
         importFabAction_->setEnabled(open);
@@ -442,6 +453,9 @@ MainWindow::MainWindow(QWidget* parent)
     connect(autosaveTimer_, &QTimer::timeout, this, &MainWindow::runAutosave);
     autosaveTimer_->start();
 
+    makeToolWindows();
+    makeSidePanelToggle();
+
     refreshFloorTabs();
     refreshImage();
     refreshOverlay();
@@ -449,10 +463,208 @@ MainWindow::MainWindow(QWidget* parent)
     updateActions();
 }
 
-// Removes the app state file so the CLI knows the project is no longer open.
+// Removes the app state file so the CLI knows the project is no longer open, and closes the app's other windows
+// with their panels while everything they use is still there.
 MainWindow::~MainWindow()
 {
     removeAppState();
+    for (ToolWindow* window : std::as_const(toolWindows_))
+        delete window;
+    toolWindows_.clear();
+}
+
+// Puts each catalog and tool panel in a window of its own, adds the buttons that open them to the build bar,
+// and lets the main window's shortcuts with Ctrl, Alt or a function key work in them too.
+void MainWindow::makeToolWindows()
+{
+    struct Kind {
+        const char* name;
+        QString title;
+        QWidget* content;
+        QString button;
+        QString tip;
+    };
+    const Kind kinds[] = {
+        {"assets", tr("Assets"), assets_, tr("Assets"), tr("Open the Assets window: the catalog of models (Ctrl+Shift+A)")},
+        {"materials", tr("Materials"), materials_, tr("Materials"),
+         tr("Open the Materials window: the catalog of surface materials (Ctrl+Shift+M)")},
+        {"sources", tr("Sources"), integrations_, tr("Sources"),
+         tr("Open the Sources window: import from BlenderKit, Fab and your own files (Ctrl+Shift+I)")},
+        {"material-import", tr("Import materials"), materialImport_, QString(), QString()},
+        {"build", tr("Build report"), buildPanel_, tr("Report"),
+         tr("Open the Build report window: summary, files, steps and problems of the last build (Ctrl+Shift+B)")},
+        {"export", tr("Export"), exportPanel_, tr("Export"),
+         tr("Open the Export window: export for Unreal and its quality checks (Ctrl+Shift+X)")},
+    };
+    const plynth::MachineSettings& settings = host_->settings();
+    int step = 0;
+    for (const Kind& kind : kinds) {
+        const QString name = QString::fromLatin1(kind.name);
+        auto* window = new ToolWindow(name, kind.title, kind.content);
+        std::optional<plynth::WindowPlace> start;
+        if (const auto saved = settings.windows.find(name.toStdString()); saved != settings.windows.end())
+            start = saved->second;
+        window->setStartPlace(start, this, step++);
+        connect(window, &ToolWindow::placeChanged, this, [this, window]() { saveWindowPlace(window); });
+        toolWindows_.append(window);
+        if (!kind.button.isEmpty())
+            buildBar_->addWindowButton(name, kind.button, kind.tip);
+    }
+    connect(buildBar_, &BuildBar::windowRequested, this, [this](const QString& name) { openToolWindow(name); });
+    connect(materialImport_, &MaterialImportScreen::backRequested, this,
+            [this]() { toolWindow(QStringLiteral("material-import"))->close(); });
+
+    QList<QAction*> shared;
+    const std::function<void(QMenu*)> gather = [&](QMenu* menu) {
+        for (QAction* action : menu->actions()) {
+            if (action->menu()) {
+                gather(action->menu());
+                continue;
+            }
+            if (action->shortcuts().isEmpty() || action == exitAction_ || action == closeAction_)
+                continue;
+            bool global = true;
+            for (const QKeySequence& key : action->shortcuts()) {
+                const QKeyCombination first = key[0];
+                const bool functionKey = first.key() >= Qt::Key_F1 && first.key() <= Qt::Key_F35;
+                global = global && (functionKey || first.keyboardModifiers().testAnyFlags(Qt::ControlModifier | Qt::AltModifier));
+            }
+            if (global)
+                shared.append(action);
+        }
+    };
+    for (QMenu* menu : {titleBar_->fileMenu(), titleBar_->editMenu(), titleBar_->viewMenu(), titleBar_->buildMenu(),
+                        titleBar_->catalogMenu(), titleBar_->helpMenu()})
+        gather(menu);
+    for (ToolWindow* window : std::as_const(toolWindows_))
+        window->addActions(shared);
+}
+
+// The window of this name, or null.
+ToolWindow* MainWindow::toolWindow(const QString& name) const
+{
+    for (ToolWindow* window : toolWindows_)
+        if (window->name() == name)
+            return window;
+    return nullptr;
+}
+
+// The names of the app's other windows, in the order they were made.
+QStringList MainWindow::toolWindowNames() const
+{
+    QStringList names;
+    for (const ToolWindow* window : toolWindows_)
+        names.append(window->name());
+    return names;
+}
+
+// Opens one of the app's windows, or brings it to the front when it is open. In screenshot mode it takes the
+// size of the picture. False for an unknown name.
+bool MainWindow::openToolWindow(const QString& name)
+{
+    ToolWindow* window = toolWindow(name);
+    if (window == nullptr)
+        return false;
+    window->open();
+    if (screenshotMode_ && screenshotSize_.isValid()) {
+        window->resize(screenshotSize_);
+        window->move(pos());
+    }
+    return true;
+}
+
+// Remembers where a window was left, except in screenshot mode.
+void MainWindow::saveWindowPlace(const ToolWindow* window)
+{
+    if (screenshotMode_)
+        return;
+    const std::string name = window->name().toStdString();
+    const plynth::WindowPlace place = window->place();
+    host_->applyLayout([&name, &place](plynth::MachineSettings& settings) {
+        if (settings.windows.size() < plynth::kMaxWindowPlaces || settings.windows.count(name))
+            settings.windows[name] = place;
+    });
+}
+
+// Builds View > Properties panel and the side panel's close button, and opens the panel as the settings left it.
+void MainWindow::makeSidePanelToggle()
+{
+    panelAction_ = addMenuAction(titleBar_->viewMenu(), tr("&Properties panel"),
+                                 tr("Open or close the side panel with the properties of what is selected (Ctrl+Shift+P)"),
+                                 {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_P)});
+    panelAction_->setCheckable(true);
+    connect(panelAction_, &QAction::triggered, this, [this](bool open) { showSidePanel(open, true); });
+    connect(right_, &RightPanel::closeRequested, this, [this]() { showSidePanel(false, true); });
+    connect(buildBar_, &BuildBar::panelToggled, this, [this](bool open) { showSidePanel(open, true); });
+    panelWidthTimer_ = new QTimer(this);
+    panelWidthTimer_->setSingleShot(true);
+    panelWidthTimer_->setInterval(400);
+    connect(panelWidthTimer_, &QTimer::timeout, this, &MainWindow::saveSidePanel);
+    connect(sideSplitter_, &QSplitter::splitterMoved, this, [this]() {
+        if (right_->isVisible())
+            panelWidthTimer_->start();
+    });
+    for (ToolWindow* window : std::as_const(toolWindows_))
+        window->addAction(panelAction_);
+    showSidePanel(host_->settings().sidePanelOpen, false);
+}
+
+// Opens or closes the side panel; the plan takes the space. With remember, the settings keep the new state.
+void MainWindow::showSidePanel(bool open, bool remember)
+{
+    right_->setVisible(open);
+    panelAction_->setChecked(open);
+    buildBar_->setPanelOpen(open);
+    if (open)
+        QTimer::singleShot(0, this, &MainWindow::applySidePanelWidth);
+    if (remember)
+        saveSidePanel();
+}
+
+// True while the side panel is shown.
+bool MainWindow::sidePanelOpen() const
+{
+    return !right_->isHidden();
+}
+
+// Gives the side panel its remembered width, or the theme width, within the theme's limits.
+void MainWindow::applySidePanelWidth()
+{
+    const Theme& t = Theme::instance();
+    const int total = sideSplitter_->width();
+    if (right_->isHidden() || total <= 0)
+        return;
+    const int saved = host_->settings().sidePanelWidth;
+    const int width = std::clamp(saved > 0 ? saved : t.sidePanelWidth(), t.sidePanelMinWidth(), t.sidePanelMaxWidth());
+    sideSplitter_->setSizes({std::max(0, total - width - sideSplitter_->handleWidth()), width});
+}
+
+// Writes whether the side panel is open and its width, except in screenshot mode.
+void MainWindow::saveSidePanel()
+{
+    if (screenshotMode_)
+        return;
+    const bool open = sidePanelOpen();
+    const int width = open ? right_->width() : host_->settings().sidePanelWidth;
+    host_->applyLayout([open, width](plynth::MachineSettings& settings) {
+        settings.sidePanelOpen = open;
+        settings.sidePanelWidth = width;
+    });
+}
+
+// For checks only: the picture is of this window instead of the main window.
+void MainWindow::setPictureWindow(const QString& name)
+{
+    pictureWindow_ = name;
+    // The Sources window starts its check when it is shown, so the picture waits for the check to end.
+    if (name == QStringLiteral("sources"))
+        integrationsAsked_ = true;
+}
+
+// For checks only: the size every picture is taken at, so the app's other windows take it too.
+void MainWindow::setScreenshotSize(const QSize& size)
+{
+    screenshotSize_ = size;
 }
 
 // The name shown in the title bar.
@@ -467,6 +679,8 @@ void MainWindow::setScreenshotMode(bool on)
     screenshotMode_ = on;
     if (guide_)
         guide_->setScreenshotMode(on);
+    for (ToolWindow* window : std::as_const(toolWindows_))
+        window->setReportsPlace(!on);
     if (on) {
         autosaveTimer_->stop();
         watcher_->setActive(false);
@@ -474,60 +688,56 @@ void MainWindow::setScreenshotMode(bool on)
     }
 }
 
-// Builds the File, Edit and View menu actions with their tooltips and tour ids.
+// Builds the File, Edit and View menu actions with their tooltips.
 void MainWindow::buildMenus()
 {
     QMenu* file = titleBar_->fileMenu();
     newAction_ = addMenuAction(file, tr("&New project"), tr("Start a new empty project (Ctrl+N)"),
-                               QStringLiteral("file-new"), {QKeySequence(Qt::CTRL | Qt::Key_N)});
+                               {QKeySequence(Qt::CTRL | Qt::Key_N)});
     connect(newAction_, &QAction::triggered, this, &MainWindow::newProject);
     newFromImageAction_ = addMenuAction(file, tr("New project from &image..."),
                                         tr("Start a new project from a plan image (Ctrl+Shift+N)"),
-                                        QStringLiteral("file-new-from-image"),
                                         {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N)});
     connect(newFromImageAction_, &QAction::triggered, this, &MainWindow::newProjectFromImage);
     homeAction_ = addMenuAction(file, tr("&Home"), tr("Show the home screen with the recent projects"),
-                                QStringLiteral("file-home"), {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_H)});
+                                {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_H)});
     connect(homeAction_, &QAction::triggered, this, &MainWindow::showHome);
     openAction_ = addMenuAction(file, tr("&Open project..."), tr("Open a project folder (Ctrl+O)"),
-                                QStringLiteral("file-open-project"), {QKeySequence(Qt::CTRL | Qt::Key_O)});
+                                {QKeySequence(Qt::CTRL | Qt::Key_O)});
     connect(openAction_, &QAction::triggered, this, &MainWindow::openProjectDialog);
     closeAction_ = addMenuAction(file, tr("&Close project"), tr("Close the project and go to the home screen (Ctrl+W)"),
-                                 QStringLiteral("file-close"), {QKeySequence(Qt::CTRL | Qt::Key_W)});
+                                 {QKeySequence(Qt::CTRL | Qt::Key_W)});
     connect(closeAction_, &QAction::triggered, this, &MainWindow::closeProject);
     setImageAction_ = addMenuAction(file, tr("Set plan &image..."),
                                     tr("Set the plan image of the floor (Ctrl+Shift+O)"),
-                                    QStringLiteral("file-set-image"),
                                     {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_O)});
     connect(setImageAction_, &QAction::triggered, this, &MainWindow::setImageDialog);
     file->addSeparator();
     saveAction_ = addMenuAction(file, tr("&Save"), tr("Save the project (Ctrl+S)"),
-                                QStringLiteral("file-save"), {QKeySequence(Qt::CTRL | Qt::Key_S)});
+                                {QKeySequence(Qt::CTRL | Qt::Key_S)});
     connect(saveAction_, &QAction::triggered, this, [this]() { saveDocument(); });
     saveAsAction_ = addMenuAction(file, tr("Save &as..."), tr("Save the project in another folder (Ctrl+Shift+S)"),
-                                  QStringLiteral("file-save-as"),
                                   {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S)});
     connect(saveAsAction_, &QAction::triggered, this, [this]() { saveDocumentAs(); });
     file->addSeparator();
     QAction* packAction = addMenuAction(file, tr("&Pack project..."),
                                         tr("Copy the library items the project uses into its pack folder, to move it to another machine"),
-                                        QStringLiteral("project-pack"), {});
+                                        {});
     connect(packAction, &QAction::triggered, this, &MainWindow::packProjectDialog);
     QAction* unpackAction = addMenuAction(file, tr("&Unpack into library..."),
                                           tr("Copy the items of the project's pack into this machine's library"),
-                                          QStringLiteral("project-unpack"), {});
+                                          {});
     connect(unpackAction, &QAction::triggered, this, &MainWindow::unpackProjectDialog);
     file->addSeparator();
-    QAction* exitAction = addMenuAction(file, tr("E&xit"), tr("Exit Plynth (Alt+F4)"),
-                                        QStringLiteral("file-exit"), {QKeySequence(Qt::ALT | Qt::Key_F4)});
-    connect(exitAction, &QAction::triggered, this, &QWidget::close);
+    exitAction_ = addMenuAction(file, tr("E&xit"), tr("Exit Plynth (Alt+F4)"),
+                                        {QKeySequence(Qt::ALT | Qt::Key_F4)});
+    connect(exitAction_, &QAction::triggered, this, &QWidget::close);
 
     QMenu* edit = titleBar_->editMenu();
     undoAction_ = addMenuAction(edit, tr("&Undo"), tr("Undo the last change (Ctrl+Z)"),
-                                QStringLiteral("edit-undo"), {QKeySequence(Qt::CTRL | Qt::Key_Z)});
+                                {QKeySequence(Qt::CTRL | Qt::Key_Z)});
     connect(undoAction_, &QAction::triggered, this, [this]() { doc_.undo(); });
     redoAction_ = addMenuAction(edit, tr("&Redo"), tr("Redo the change that was undone (Ctrl+Y)"),
-                                QStringLiteral("edit-redo"),
                                 {QKeySequence(Qt::CTRL | Qt::Key_Y), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Z)});
     connect(redoAction_, &QAction::triggered, this, [this]() {
         const plynth::Status status = doc_.redo();
@@ -543,7 +753,6 @@ void MainWindow::buildMenus()
         const ToolId id = toolIds[i];
         QAction* action = addMenuAction(edit, tr("%1 tool").arg(ToolStrip::toolName(id)),
                                         tr("%1 tool (%2)").arg(ToolStrip::toolName(id), ToolStrip::toolKey(id)),
-                                        QStringLiteral("tool-") + ToolStrip::toolName(id).toLower(),
                                         {QKeySequence(toolKeys[i])});
         action->setCheckable(true);
         connect(action, &QAction::triggered, this, [this, id]() {
@@ -554,34 +763,32 @@ void MainWindow::buildMenus()
     }
     turnLeftAction_ = addMenuAction(edit, tr("Turn item left"),
                                     tr("Turn the selected item 90 degrees counterclockwise ([)"),
-                                    QStringLiteral("item-turn-left"), {QKeySequence(Qt::Key_BracketLeft)});
+                                    {QKeySequence(Qt::Key_BracketLeft)});
     connect(turnLeftAction_, &QAction::triggered, this, [this]() { tools_->turnSelectedItem(-plynth::kItemQuarterTurn); });
     turnRightAction_ = addMenuAction(edit, tr("Turn item right"),
                                      tr("Turn the selected item 90 degrees clockwise (])"),
-                                     QStringLiteral("item-turn-right"), {QKeySequence(Qt::Key_BracketRight)});
+                                     {QKeySequence(Qt::Key_BracketRight)});
     connect(turnRightAction_, &QAction::triggered, this, [this]() { tools_->turnSelectedItem(plynth::kItemQuarterTurn); });
     mountAction_ = addMenuAction(edit, tr("Mount item on wall"), tr("Hang the selected item flat on the nearest wall"),
-                                 QStringLiteral("item-mount"), {});
+                                 {});
     connect(mountAction_, &QAction::triggered, this, [this]() { panel_->mountItem(); });
     takeOffAction_ = addMenuAction(edit, tr("Take item off wall"), tr("Take the selected item off its wall"),
-                                   QStringLiteral("item-take-off"), {});
+                                   {});
     connect(takeOffAction_, &QAction::triggered, this, [this]() { panel_->takeOffItem(); });
     swapAction_ = addMenuAction(edit, tr("Swap item asset..."), tr("Pick another asset for the selected item"),
-                                QStringLiteral("item-swap"), {});
+                                {});
     connect(swapAction_, &QAction::triggered, this, [this]() { panel_->swapItemAsset(); });
     updateSizeAction_ = addMenuAction(edit, tr("Update item size"), tr("Use the size the library has now for the selected item"),
-                                      QStringLiteral("item-update-size"), {});
+                                      {});
     connect(updateSizeAction_, &QAction::triggered, this, [this]() { panel_->updateItemSize(); });
     acceptDetectionAction_ = addMenuAction(edit, tr("Accept detection"),
                                            tr("Add the detected walls, openings and rooms to the plan (Enter)"),
-                                           QStringLiteral("detect-accept"),
                                            {QKeySequence(Qt::Key_Return), QKeySequence(Qt::Key_Enter)});
     connect(acceptDetectionAction_, &QAction::triggered, this, [this]() { tools_->detection().accept(); });
     updateToolActions();
     edit->addSeparator();
     deleteAction_ = addMenuAction(edit, tr("&Delete"),
                                   tr("Delete the selected item and what depends on it (Delete)"),
-                                  QStringLiteral("edit-delete"),
                                   {QKeySequence(Qt::Key_Delete), QKeySequence(Qt::Key_Backspace)});
     connect(deleteAction_, &QAction::triggered, this, &MainWindow::deleteSelection);
     updateDeleteAction();
@@ -590,13 +797,11 @@ void MainWindow::buildMenus()
     for (const QKeySequence& key : QKeySequence::keyBindings(QKeySequence::ZoomOut))
         if (!zoomOutKeys.contains(key))
             zoomOutKeys.append(key);
-    addViewAction(tr("Zoom &in"), tr("Zoom in (Ctrl+=)"), QStringLiteral("view-zoom-in"),
-                  {QKeySequence(Qt::CTRL | Qt::Key_Equal), QKeySequence(Qt::CTRL | Qt::Key_Plus)},
+    addViewAction(tr("Zoom &in"), tr("Zoom in (Ctrl+=)"), {QKeySequence(Qt::CTRL | Qt::Key_Equal), QKeySequence(Qt::CTRL | Qt::Key_Plus)},
                   &PlanCanvas::zoomIn);
-    addViewAction(tr("Zoom &out"), tr("Zoom out (Ctrl+-)"), QStringLiteral("view-zoom-out"),
-                  zoomOutKeys, &PlanCanvas::zoomOut);
+    addViewAction(tr("Zoom &out"), tr("Zoom out (Ctrl+-)"), zoomOutKeys, &PlanCanvas::zoomOut);
     fitAction_ = addViewAction(tr("&Fit to window"), tr("Fit the whole plan, or the building in 3D, in the window (Ctrl+0)"),
-                               QStringLiteral("view-fit"), {QKeySequence(Qt::CTRL | Qt::Key_0)},
+                               {QKeySequence(Qt::CTRL | Qt::Key_0)},
                                &PlanCanvas::fitToWindow);
     disconnect(fitAction_, &QAction::triggered, canvas_, nullptr);
     connect(fitAction_, &QAction::triggered, this, [this]() {
@@ -606,18 +811,18 @@ void MainWindow::buildMenus()
             canvas_->fitToWindow();
     });
     addViewAction(tr("&Actual size (100%)"), tr("Show the plan at 100 percent (Ctrl+1)"),
-                  QStringLiteral("view-actual-size"), {QKeySequence(Qt::CTRL | Qt::Key_1)},
+                  {QKeySequence(Qt::CTRL | Qt::Key_1)},
                   &PlanCanvas::actualSize);
     updateViewActions();
     titleBar_->viewMenu()->addSeparator();
     view3dAction_ = addMenuAction(titleBar_->viewMenu(), tr("&3D view"),
                                   tr("Show the building in 3D instead of the plan (3)"),
-                                  QStringLiteral("view-3d"), {QKeySequence(Qt::Key_3)});
+                                  {QKeySequence(Qt::Key_3)});
     view3dAction_->setCheckable(true);
     connect(view3dAction_, &QAction::triggered, this, [this](bool on) { showCentreView(on); });
     overlay3dAction_ = addMenuAction(titleBar_->viewMenu(), tr("3D &overlay on plan"),
                                      tr("Show the top view of the built building over the plan (Alt+3)"),
-                                     QStringLiteral("view-overlay-3d"), {QKeySequence(Qt::ALT | Qt::Key_3)});
+                                     {QKeySequence(Qt::ALT | Qt::Key_3)});
     overlay3dAction_->setCheckable(true);
     connect(overlay3dAction_, &QAction::toggled, this, [this](bool on) {
         canvas_->setBuilding3dShown(on);
@@ -626,111 +831,113 @@ void MainWindow::buildMenus()
     });
     problemsOnPlanAction_ = addMenuAction(titleBar_->viewMenu(), tr("Build &problems on plan"),
                                           tr("Show the problems of the last build as amber triangles on the plan"),
-                                          QStringLiteral("view-build-problems"), {});
+                                          {});
     problemsOnPlanAction_->setCheckable(true);
     problemsOnPlanAction_->setChecked(true);
     connect(problemsOnPlanAction_, &QAction::toggled, canvas_, &PlanCanvas::setProblemsShown);
     roofSectionsAction_ = addMenuAction(titleBar_->viewMenu(), tr("&Roof sections"),
                                         tr("Show the roof sections of the shown floor on the plan, with their type. Click one to edit it (Alt+R)"),
-                                        QStringLiteral("view-roof-sections"), {QKeySequence(Qt::ALT | Qt::Key_R)});
+                                        {QKeySequence(Qt::ALT | Qt::Key_R)});
     roofSectionsAction_->setCheckable(true);
     connect(roofSectionsAction_, &QAction::toggled, canvas_, &PlanCanvas::setRoofSectionsShown);
     connect(canvas_, &PlanCanvas::roofSectionClicked, this,
             [this](const QString& id) { selection_->set(SelectionKind::RoofSection, id); });
     showRoofs3dAction_ = addMenuAction(titleBar_->viewMenu(), tr("Show roofs in &3D"),
                                        tr("Show the roofs in the 3D view. Turn off to see the rooms under them"),
-                                       QStringLiteral("view-show-roofs-3d"), {});
+                                       {});
     showRoofs3dAction_->setCheckable(true);
     showRoofs3dAction_->setChecked(true);
     connect(showRoofs3dAction_, &QAction::toggled, this, [this]() { applyPreviewRoofOptions(); });
     cutAtFloorAction_ = addMenuAction(titleBar_->viewMenu(), tr("&Cut 3D at the shown floor"),
                                       tr("Show the floors up to the shown one in 3D, without the shown floor's roof"),
-                                      QStringLiteral("view-cut-at-floor"), {});
+                                      {});
     cutAtFloorAction_->setCheckable(true);
     connect(cutAtFloorAction_, &QAction::toggled, this, [this]() { applyPreviewRoofOptions(); });
     titleBar_->viewMenu()->addSeparator();
     snapGridAction_ = addMenuAction(titleBar_->viewMenu(), tr("Snap to &grid"),
-                                    tr("Snap new and moved points to the grid (G)"), QStringLiteral("view-snap-grid"),
-                                    {QKeySequence(Qt::Key_G)});
+                                    tr("Snap new and moved points to the grid (G)"), {QKeySequence(Qt::Key_G)});
     snapGridAction_->setCheckable(true);
     snapGridAction_->setChecked(tools_->snapToGrid());
     connect(snapGridAction_, &QAction::toggled, this, [this](bool on) { tools_->setSnapToGrid(on); });
     titleBar_->viewMenu()->addSeparator();
     alignImageAction_ = addMenuAction(titleBar_->viewMenu(), tr("&Align plan image"),
                                       tr("Drag the plan image of the shown floor to line it up with the floor below, or nudge it with the arrow keys"),
-                                      QStringLiteral("view-align-image"), {});
+                                      {});
     alignImageAction_->setCheckable(true);
     connect(alignImageAction_, &QAction::triggered, this, [this](bool on) {
         tools_->setAlignImage(on);
         updateAlignAction();
     });
     floorUpAction_ = addMenuAction(titleBar_->viewMenu(), tr("Floor &above"), tr("Show the next floor up (Ctrl+Page Up)"),
-                                   QStringLiteral("view-floor-up"), {QKeySequence(Qt::CTRL | Qt::Key_PageUp)});
+                                   {QKeySequence(Qt::CTRL | Qt::Key_PageUp)});
     connect(floorUpAction_, &QAction::triggered, this, [this]() { stepFloor(1); });
     floorDownAction_ = addMenuAction(titleBar_->viewMenu(), tr("Floor b&elow"), tr("Show the next floor down (Ctrl+Page Down)"),
-                                     QStringLiteral("view-floor-down"), {QKeySequence(Qt::CTRL | Qt::Key_PageDown)});
+                                     {QKeySequence(Qt::CTRL | Qt::Key_PageDown)});
     connect(floorDownAction_, &QAction::triggered, this, [this]() { stepFloor(-1); });
     updateAlignAction();
     titleBar_->viewMenu()->addSeparator();
     wallViewAction_ = addMenuAction(titleBar_->viewMenu(), tr("&Wall view"),
                                     tr("Show the face of the selected wall under the plan (E)"),
-                                    QStringLiteral("view-wall-view"), {QKeySequence(Qt::Key_E)});
+                                    {QKeySequence(Qt::Key_E)});
     wallViewAction_->setCheckable(true);
     wallViewAction_->setChecked(true);
     connect(wallViewAction_, &QAction::toggled, this, &MainWindow::updateWallView);
     flipWallViewAction_ = addMenuAction(titleBar_->viewMenu(), tr("Fl&ip wall view"),
                                         tr("See the other side of the wall (F)"),
-                                        QStringLiteral("wall-view-flip"), {QKeySequence(Qt::Key_F)});
+                                        {QKeySequence(Qt::Key_F)});
     flipWallViewAction_->setEnabled(false);
     connect(flipWallViewAction_, &QAction::triggered, wallView_, &WallView::flip);
     titleBar_->viewMenu()->addSeparator();
     QAction* terminalAction = addMenuAction(titleBar_->viewMenu(), tr("&Terminal"),
-                                            tr("Show or hide the terminal (Ctrl+`)"), QStringLiteral("view-terminal"),
-                                            {QKeySequence(Qt::CTRL | Qt::Key_QuoteLeft)});
+                                            tr("Show or hide the terminal (Ctrl+`)"), {QKeySequence(Qt::CTRL | Qt::Key_QuoteLeft)});
     connect(terminalAction, &QAction::triggered, terminal_, &TerminalDock::toggle);
 
     QMenu* build = titleBar_->buildMenu();
     buildAction_ = addMenuAction(build, tr("&Build"), tr("Build the building in Blender (Ctrl+B)"),
-                                 QStringLiteral("build-run"), {QKeySequence(Qt::CTRL | Qt::Key_B)});
+                                 {QKeySequence(Qt::CTRL | Qt::Key_B)});
     connect(buildAction_, &QAction::triggered, this, &MainWindow::startBuild);
     cancelBuildAction_ = addMenuAction(build, tr("&Cancel build"), tr("Stop the running build"),
-                                       QStringLiteral("build-cancel-action"), {});
+                                       {});
     connect(cancelBuildAction_, &QAction::triggered, this, &MainWindow::cancelWork);
     build->addSeparator();
-    reportAction_ = addMenuAction(build, tr("Show build &report"), tr("Show the last build in the Build tab"),
-                                  QStringLiteral("build-report"), {});
-    connect(reportAction_, &QAction::triggered, this, [this]() { right_->showTab(RightPanel::Tab::Build); });
+    reportAction_ = addMenuAction(build, tr("Build &report window"),
+                                  tr("Open the Build report window: summary, files, steps and problems of the last build (Ctrl+Shift+B)"),
+                                  {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_B)});
+    connect(reportAction_, &QAction::triggered, this, [this]() { openToolWindow(QStringLiteral("build")); });
     buildFolderAction_ = addMenuAction(build, tr("&Open build folder"), tr("Open the build folder of the project in Explorer"),
-                                       QStringLiteral("build-open-folder-action"), {});
+                                       {});
     connect(buildFolderAction_, &QAction::triggered, this, &MainWindow::openBuildFolder);
     openBlenderAction_ = addMenuAction(build, tr("Open building.&blend in Blender"),
                                        tr("Open the built Blender file in Blender"),
-                                       QStringLiteral("build-open-blender-action"), {});
+                                       {});
     connect(openBlenderAction_, &QAction::triggered, this, &MainWindow::openInBlender);
     save3dPictureAction_ = addMenuAction(build, tr("Save 3D &picture..."),
                                          tr("Save a picture of the last build as the 3D view shows it, with its camera, roofs and cut"),
-                                         QStringLiteral("render-save"), {});
+                                         {});
     connect(save3dPictureAction_, &QAction::triggered, this, &MainWindow::save3dPicture);
     build->addSeparator();
     exportAction_ = addMenuAction(build, tr("&Export"), tr("Write the FBX and textures for Unreal (Ctrl+E)"),
-                                  QStringLiteral("export-run-action"), {QKeySequence(Qt::CTRL | Qt::Key_E)});
+                                  {QKeySequence(Qt::CTRL | Qt::Key_E)});
     connect(exportAction_, &QAction::triggered, this, [this]() { startExport(true, false); });
     checkExportAction_ = addMenuAction(build, tr("C&heck export"), tr("Run the quality checks and write nothing (Ctrl+Shift+E)"),
-                                       QStringLiteral("export-check-action"),
                                        {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E)});
     connect(checkExportAction_, &QAction::triggered, this, [this]() { startExport(false, false); });
     exportAnywayAction_ = addMenuAction(build, tr("Export &anyway..."),
                                         tr("Export with the failed checks of the last export left as they are. Asks first"),
-                                        QStringLiteral("export-anyway-action"), {});
+                                        {});
     connect(exportAnywayAction_, &QAction::triggered, this, &MainWindow::exportAnyway);
     exportFolderAction_ = addMenuAction(build, tr("Open e&xport folder"), tr("Open the export folder of the project in Explorer"),
-                                        QStringLiteral("export-open-folder-action"), {});
+                                        {});
     connect(exportFolderAction_, &QAction::triggered, this, &MainWindow::openExportFolder);
+    QAction* exportWindow = addMenuAction(build, tr("Export &window"),
+                                          tr("Open the Export window: export for Unreal and its quality checks (Ctrl+Shift+X)"),
+                                          {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_X)});
+    connect(exportWindow, &QAction::triggered, this, [this]() { openToolWindow(QStringLiteral("export")); });
     build->addSeparator();
     variationsAction_ = addMenuAction(build, tr("Make &variations..."),
                                       tr("Save a copy of the project for each of several seeds, to build a street of "
                                          "varied houses from one plan"),
-                                      QStringLiteral("build-make-variations"), {});
+                                      {});
     connect(variationsAction_, &QAction::triggered, this, [this]() { showVariationsDialog(true); });
 
     guide_ = new GuideHost(this);
@@ -738,39 +945,16 @@ void MainWindow::buildMenus()
     connect(guide_, &GuideHost::setupCheckRequested, this, &MainWindow::openSetupCheck);
     QMenu* help = titleBar_->helpMenu();
     QAction* helpAction = addMenuAction(help, tr("&Help"), tr("Open the help pages, with a search across them (F1)"),
-                                        QStringLiteral("help-contents"), {QKeySequence(Qt::Key_F1)});
+                                        {QKeySequence(Qt::Key_F1)});
     connect(helpAction, &QAction::triggered, this, [this]() { guide_->openHelp(); });
-    QAction* whatAction = addMenuAction(help, tr("&What is this?"),
-                                        tr("Click any control to see what it does, without running it (Shift+F1)"),
-                                        QStringLiteral("help-what-is-this"), {QKeySequence(Qt::SHIFT | Qt::Key_F1)});
-    whatAction->setCheckable(true);
-    connect(whatAction, &QAction::toggled, guide_, &GuideHost::setWhatIsThis);
-    connect(guide_, &GuideHost::whatIsThisChanged, whatAction, [whatAction](bool on) {
-        const QSignalBlocker block(whatAction);
-        whatAction->setChecked(on);
-    });
-    QMenu* tours = help->addMenu(tr("Guided &tours"));
-    tours->setToolTip(tr("Show the controls of one screen, one at a time"));
-    tours->menuAction()->setProperty("tourId", QStringLiteral("help-tours"));
-    const std::pair<const char*, QString> tourNames[] = {{"plan", tr("&Plan view")},
-                                                         {"wall", tr("&Wall view")},
-                                                         {"build_export", tr("&Build and export")},
-                                                         {"assets", tr("&Assets catalog")},
-                                                         {"materials", tr("&Materials catalog")}};
-    for (const auto& [id, name] : tourNames) {
-        const QString tourId = QString::fromLatin1(id);
-        QAction* action = addMenuAction(tours, name, tr("Start the tour of this screen"),
-                                        QStringLiteral("help-tour-") + tourId, {});
-        connect(action, &QAction::triggered, this, [this, tourId]() { guide_->startTour(tourId); });
-    }
     help->addSeparator();
     QAction* setupAction = addMenuAction(help, tr("&Setup check"),
                                          tr("Check that Blender, the library and the projects folder are ready"),
-                                         QStringLiteral("help-setup-check"), {});
+                                         {});
     connect(setupAction, &QAction::triggered, this, &MainWindow::openSetupCheck);
     QAction* aboutAction = addMenuAction(help, tr("&About Plynth"),
                                          tr("Show the version, the licenses and the third party notices"),
-                                         QStringLiteral("help-about"), {});
+                                         {});
     connect(aboutAction, &QAction::triggered, this, [this]() { guide_->openAbout(); });
 }
 
@@ -778,58 +962,58 @@ void MainWindow::buildMenus()
 void MainWindow::buildCatalogMenu()
 {
     QMenu* menu = titleBar_->catalogMenu();
-    QAction* show = addMenuAction(menu, tr("&Assets catalog"), tr("Show the Assets tab (Ctrl+Shift+A)"),
-                                  QStringLiteral("catalog-show"), {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_A)});
-    connect(show, &QAction::triggered, this, [this]() { right_->showTab(RightPanel::Tab::Assets); });
+    QAction* show = addMenuAction(menu, tr("&Assets catalog"), tr("Open the Assets window: the catalog of models (Ctrl+Shift+A)"),
+                                  {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_A)});
+    connect(show, &QAction::triggered, this, [this]() { openToolWindow(QStringLiteral("assets")); });
     importAction_ = addMenuAction(menu, tr("&Import asset..."), tr("Import model files into the library (Ctrl+I)"),
-                                  QStringLiteral("catalog-import-action"), {QKeySequence(Qt::CTRL | Qt::Key_I)});
+                                  {QKeySequence(Qt::CTRL | Qt::Key_I)});
     rescanAction_ = addMenuAction(menu, tr("&Rescan library"), tr("Read the library folder again and update the index"),
-                                  QStringLiteral("catalog-rescan-action"), {});
+                                  {});
     menu->addSeparator();
-    QAction* showIntegrations = addMenuAction(menu, tr("I&ntegrations"), tr("Show the Integrations tab: BlenderKit, Fab and your own files"),
-                                              QStringLiteral("integrations-show"), {});
-    connect(showIntegrations, &QAction::triggered, this, [this]() { right_->showTab(RightPanel::Tab::Integrations); });
+    QAction* showIntegrations = addMenuAction(menu, tr("S&ources and integrations"),
+                                              tr("Open the Sources window: import from BlenderKit, Fab and your own files (Ctrl+Shift+I)"),
+                                              {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_I)});
+    connect(showIntegrations, &QAction::triggered, this, [this]() { openToolWindow(QStringLiteral("sources")); });
     importBlenderKitAction_ = addMenuAction(menu, tr("Import from &BlenderKit..."),
-                                            tr("Show the Integrations tab with the cursor in the BlenderKit address field"),
-                                            QStringLiteral("integrations-blenderkit-action"), {});
+                                            tr("Open the Sources window with the cursor in the BlenderKit address field"),
+                                            {});
     connect(importBlenderKitAction_, &QAction::triggered, this, &MainWindow::importFromBlenderKit);
     importFabAction_ = addMenuAction(menu, tr("Import &Fab zips..."), tr("Pick zips downloaded from Fab and check what is taken from each"),
-                                     QStringLiteral("integrations-fab-action"), {});
+                                     {});
     connect(importFabAction_, &QAction::triggered, this, [this]() {
         if (storeImports_)
             storeImports_->importFiles(QString::fromLatin1(plynth::kFabIntegrationId.data(), static_cast<qsizetype>(plynth::kFabIntegrationId.size())), false);
     });
     menu->addSeparator();
-    QAction* showMaterials = addMenuAction(menu, tr("&Materials catalog"), tr("Show the Materials tab (Ctrl+Shift+M)"),
-                                           QStringLiteral("materials-show"),
+    QAction* showMaterials = addMenuAction(menu, tr("&Materials catalog"), tr("Open the Materials window: the catalog of surface materials (Ctrl+Shift+M)"),
                                            {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_M)});
-    connect(showMaterials, &QAction::triggered, this, [this]() { right_->showTab(RightPanel::Tab::Materials); });
-    importMaterialsAction_ = addMenuAction(menu, tr("Import &materials..."), tr("Open the screen that imports textures and .blend materials"),
-                                           QStringLiteral("materials-import-action"), {});
+    connect(showMaterials, &QAction::triggered, this, [this]() { openToolWindow(QStringLiteral("materials")); });
+    importMaterialsAction_ = addMenuAction(menu, tr("Import &materials..."), tr("Open the Import materials window, which imports textures and .blend materials"),
+                                           {});
     addSamplesAction_ = addMenuAction(menu, tr("Add the &sample materials"),
                                       tr("Import the nine sample materials that come with Plynth"),
-                                      QStringLiteral("materials-samples-action"), {});
+                                      {});
     addSampleItemsAction_ = addMenuAction(menu, tr("Add the sample &items"),
                                           tr("Add the sample models and materials with license CC0, and the sample shapes and generators"),
-                                          QStringLiteral("samples-add-action"), {});
+                                          {});
     rescanMaterialsAction_ = addMenuAction(menu, tr("Rescan m&aterials"),
                                            tr("Read the materials folder again and update the index"),
-                                           QStringLiteral("materials-rescan-action"), {});
+                                           {});
     menu->addSeparator();
     openGeneratorsAction_ = addMenuAction(menu, tr("Open the &generators folder"),
                                           tr("Open the folder of generator files in Explorer"),
-                                          QStringLiteral("generators-open-folder-action"), {});
+                                          {});
     connect(openGeneratorsAction_, &QAction::triggered, this, &MainWindow::openGeneratorsFolder);
     reloadGeneratorsAction_ = addMenuAction(menu, tr("Reload g&enerators"),
                                             tr("Read the generators folder again"),
-                                            QStringLiteral("generators-reload-action"), {});
+                                            {});
     connect(reloadGeneratorsAction_, &QAction::triggered, this, [this]() {
         host_->reloadGenerators();
         statusBar_->showMessage(tr("%1 generators in the library.").arg(host_->generators().generators.size()));
     });
     checkAddonsAction_ = addMenuAction(menu, tr("Check &add-ons"),
                                        tr("Ask Blender which add-ons are enabled, so generators that need one show as available"),
-                                       QStringLiteral("generators-check-addons-action"), {});
+                                       {});
     connect(checkAddonsAction_, &QAction::triggered, this, [this]() {
         statusBar_->showMessage(tr("Asking Blender which add-ons are enabled..."));
         host_->checkAddons();
@@ -837,21 +1021,21 @@ void MainWindow::buildCatalogMenu()
     connect(host_, &LibraryHost::addonCheckFinished, this, [this](const QString& text) { statusBar_->showMessage(text); });
     addSampleGeneratorsAction_ = addMenuAction(menu, tr("Add the sample gene&rators"),
                                                tr("Copy the sample generators that come with Plynth into the library"),
-                                               QStringLiteral("generators-samples-action"), {});
+                                               {});
     connect(addSampleGeneratorsAction_, &QAction::triggered, this,
             [this]() { statusBar_->showMessage(host_->addSampleGenerators()); });
     menu->addSeparator();
     addShapesAction_ = addMenuAction(menu, tr("Add the sample &shapes"),
                                      tr("Copy the sample opening shapes, such as the keyhole, into the library"),
-                                     QStringLiteral("catalog-sample-shapes"), {});
+                                     {});
     connect(addShapesAction_, &QAction::triggered, this,
             [this]() { statusBar_->showMessage(host_->addSampleShapes(), false); });
     QAction* rooms = addMenuAction(menu, tr("Room &types and categories..."),
                                    tr("Edit the room types and the categories of the catalog"),
-                                   QStringLiteral("catalog-room-types"), {});
+                                   {});
     connect(rooms, &QAction::triggered, this, &MainWindow::editRoomTypes);
     QAction* folder = addMenuAction(menu, tr("&Open library folder"), tr("Open the library folder in Explorer"),
-                                    QStringLiteral("catalog-open-folder-action"), {});
+                                    {});
     connect(folder, &QAction::triggered, this, &MainWindow::openLibraryFolder);
 }
 
@@ -903,34 +1087,13 @@ void MainWindow::openSetupCheckIfNeeded()
     const plynth::SetupReport quick = plynth::quickSetupCheck(host_->settings(), host_->settingsExisted(), appGraphics());
     if (plynth::setupNeeded(quick))
         openSetupCheck();
-    runFirstRun(false);
 }
 
-// Waits for the setup check to close, then shows the plan view tour and remembers that it was shown.
-void MainWindow::runFirstRun(bool pretend)
-{
-    const bool first = pretend || (!host_->settingsExisted() && !host_->settings().tourDone);
-    if (!first || guide_ == nullptr)
-        return;
-    const auto start = [this]() {
-        connect(guide_, &GuideHost::tourFinished, this, [this](const QString&) {
-            if (!screenshotMode_)
-                host_->apply([](plynth::MachineSettings& settings) { settings.tourDone = true; });
-        }, Qt::SingleShotConnection);
-        if (!guide_->startTour(QStringLiteral("plan")) && !screenshotMode_)
-            host_->apply([](plynth::MachineSettings& settings) { settings.tourDone = true; });
-    };
-    if (setupDialog_)
-        connect(setupDialog_.data(), &QObject::destroyed, this, start);
-    else
-        QTimer::singleShot(0, this, start);
-}
-
-// For checks only: shows the Integrations tab.
+// For checks only: shows the Sources window.
 void MainWindow::showIntegrationsTab()
 {
     integrationsAsked_ = true;
-    right_->showTab(RightPanel::Tab::Integrations);
+    openToolWindow(QStringLiteral("sources"));
 }
 
 // For checks only: fills the BlenderKit address field.
@@ -959,16 +1122,16 @@ void MainWindow::importIntegrationFile(const QString& integrationId, const QStri
     storeImports_->importChosenFiles(integrationId, {file}, material, false);
 }
 
-// For checks only: true when the Integrations tab was not asked for, or its check has ended.
+// For checks only: true when the Sources window was not asked for, or its check has ended.
 bool MainWindow::integrationsPictureReady() const
 {
     return !integrationsAsked_ || integrations_->checkSettled();
 }
 
-// Shows the Integrations tab and puts the focus in the BlenderKit address field.
+// Shows the Sources window and puts the focus in the BlenderKit address field.
 void MainWindow::importFromBlenderKit()
 {
-    right_->showTab(RightPanel::Tab::Integrations);
+    openToolWindow(QStringLiteral("sources"));
     integrations_->focusAddress();
 }
 
@@ -977,6 +1140,8 @@ QImage MainWindow::grabPicture()
 {
     if (guide_ && guide_->helpShown())
         return guide_->helpPicture();
+    if (ToolWindow* window = toolWindow(pictureWindow_))
+        return window->grab().toImage();
     QImage image = grab().toImage();
     QWidget* shownDialog = nullptr;
     if (setupDialog_ && setupDialog_->isVisible())
@@ -1082,12 +1247,12 @@ void MainWindow::importDialog()
     importPaths(files);
 }
 
-// Queues files and folders for import and shows the Assets tab.
+// Queues files and folders for import and shows the Assets window.
 void MainWindow::importPaths(const QStringList& paths)
 {
     if (!host_->hasLibrary())
         return;
-    right_->showTab(RightPanel::Tab::Assets);
+    openToolWindow(QStringLiteral("assets"));
     for (const QString& path : paths)
         queue_->enqueueImport(path);
 }
@@ -1123,7 +1288,7 @@ void MainWindow::queueFinished(int kind, bool ok, const QString& assetId, const 
         host_->catalog() ? host_->catalog()->asset(assetId.toStdString()) : std::nullopt;
     if (isRefresh || !record)
         return;
-    right_->showTab(RightPanel::Tab::Assets);
+    openToolWindow(QStringLiteral("assets"));
     assets_->selectAsset(assetId);
     const QString name = fromCore(record->name);
     if (record->categories.empty()) {
@@ -1181,22 +1346,19 @@ void MainWindow::roomTypesChanged()
     panel_->refresh();
 }
 
-// Adds one menu action with its tooltip, tour id and shortcuts.
-QAction* MainWindow::addMenuAction(QMenu* menu, const QString& text, const QString& tip, const QString& tourId,
-                                   const QList<QKeySequence>& keys)
+// Adds one menu action with its tooltip and shortcuts.
+QAction* MainWindow::addMenuAction(QMenu* menu, const QString& text, const QString& tip, const QList<QKeySequence>& keys)
 {
     QAction* action = menu->addAction(text);
     action->setShortcuts(keys);
     action->setToolTip(tip);
-    action->setProperty("tourId", tourId);
     return action;
 }
 
 // Adds one View menu action that calls a canvas function.
-QAction* MainWindow::addViewAction(const QString& text, const QString& tip, const QString& tourId,
-                                   const QList<QKeySequence>& keys, void (PlanCanvas::*slot)())
+QAction* MainWindow::addViewAction(const QString& text, const QString& tip, const QList<QKeySequence>& keys, void (PlanCanvas::*slot)())
 {
-    QAction* action = addMenuAction(titleBar_->viewMenu(), text, tip, tourId, keys);
+    QAction* action = addMenuAction(titleBar_->viewMenu(), text, tip, keys);
     connect(action, &QAction::triggered, canvas_, slot);
     viewActions_.append(action);
     return action;
@@ -1843,13 +2005,13 @@ bool MainWindow::showFurniturePicker(double x, double y, const QString& hoverAss
     return tools_->showFurniturePicker(x, y, hoverAsset);
 }
 
-// For checks only: shows the Assets tab.
+// For checks only: shows the Assets window.
 void MainWindow::showAssetsTab()
 {
-    right_->showTab(RightPanel::Tab::Assets);
+    openToolWindow(QStringLiteral("assets"));
 }
 
-// For checks only: selects an asset in the Assets tab.
+// For checks only: selects an asset in the Assets window.
 bool MainWindow::selectAsset(const QString& id)
 {
     showAssetsTab();
@@ -1862,14 +2024,12 @@ void MainWindow::showAssetCategories()
     assets_->showCategories();
 }
 
-// Shows the material import screen over the work area.
+// Opens the Import materials window.
 void MainWindow::showMaterialImport()
 {
     if (!host_->hasLibrary())
         return;
-    terminal_->close();
-    pages_->setCurrentWidget(materialImport_);
-    statusBar_->setHint(QString());
+    openToolWindow(QStringLiteral("material-import"));
 }
 
 // Queues the sample materials, the same requests "plynth library add-sample-materials" runs.
@@ -1883,7 +2043,7 @@ void MainWindow::addSampleMaterials()
         return;
     }
     materialImportAsked_ = true;
-    right_->showTab(RightPanel::Tab::Materials);
+    openToolWindow(QStringLiteral("materials"));
     for (const plynth::MaterialImportRequest& request : requests)
         materialQueue_->enqueueImport(request);
     statusBar_->showMessage(tr("Adding %1 sample materials.").arg(requests.size()), false);
@@ -1950,7 +2110,7 @@ bool MainWindow::openSampleProject(const QString& id)
     return true;
 }
 
-// For checks only: adds a path to the import screen list.
+// For checks only: adds a path to the list of the Import materials window.
 void MainWindow::addMaterialSource(const QString& path)
 {
     materialImport_->addSources({path});
@@ -1976,7 +2136,7 @@ void MainWindow::materialImportFinished(bool ok, const QString& materialId, cons
     const std::optional<plynth::MaterialRecord> record = host_->materialCatalog()->material(materialId.toStdString());
     if (!record)
         return;
-    right_->showTab(RightPanel::Tab::Materials);
+    openToolWindow(QStringLiteral("materials"));
     materials_->selectMaterial(materialId);
     const QString name = fromCore(record->name);
     if (record->groups.empty()) {
@@ -2006,13 +2166,13 @@ void MainWindow::addMaterialFromAsset(const QString& assetId, const QString& mat
     statusBar_->showMessage(tr("Adding the material %1 to the materials catalog.").arg(materialName), false);
 }
 
-// For checks only: shows the Materials tab.
+// For checks only: shows the Materials window.
 void MainWindow::showMaterialsTab()
 {
-    right_->showTab(RightPanel::Tab::Materials);
+    openToolWindow(QStringLiteral("materials"));
 }
 
-// For checks only: selects a material in the Materials tab.
+// For checks only: selects a material in the Materials window.
 bool MainWindow::selectMaterial(const QString& id)
 {
     showMaterialsTab();
@@ -2022,7 +2182,7 @@ bool MainWindow::selectMaterial(const QString& id)
 // For checks only: shows Properties and opens the material picker for a target.
 bool MainWindow::showMaterialPicker(const QString& target, const QString& hoverMaterial, const QString& pickMaterial)
 {
-    right_->showTab(RightPanel::Tab::Properties);
+    showSidePanel(true, false);
     return panel_->openMaterialPicker(target, hoverMaterial, pickMaterial);
 }
 
@@ -2185,49 +2345,6 @@ void MainWindow::showHome()
     home_->refresh();
     pages_->setCurrentWidget(home_);
     statusBar_->setHint(QString());
-}
-
-// Switches to the screen a tour step names. Wall shows the plan with the wall view, when a wall is selected.
-bool MainWindow::showScreenByName(const QString& screen)
-{
-    if (screen == QStringLiteral("home")) {
-        if (pages_->currentWidget() != home_)
-            showHome();
-        return true;
-    }
-    static const std::pair<const char*, RightPanel::Tab> tabs[] = {{"plan", RightPanel::Tab::Properties},
-                                                                    {"wall", RightPanel::Tab::Properties},
-                                                                    {"build", RightPanel::Tab::Build},
-                                                                    {"export", RightPanel::Tab::Export},
-                                                                    {"assets", RightPanel::Tab::Assets},
-                                                                    {"materials", RightPanel::Tab::Materials}};
-    for (const auto& [name, tab] : tabs) {
-        if (screen != QLatin1String(name))
-            continue;
-        if (pages_->currentWidget() != work_)
-            showWork();
-        if (right_->tab() != tab)
-            right_->showTab(tab);
-        if (screen == QStringLiteral("plan") || screen == QStringLiteral("wall"))
-            showCentreView(false);
-        return true;
-    }
-    return false;
-}
-
-// The tour name of the screen shown now.
-QString MainWindow::screenName() const
-{
-    if (pages_->currentWidget() == home_)
-        return QStringLiteral("home");
-    switch (right_->tab()) {
-    case RightPanel::Tab::Assets: return QStringLiteral("assets");
-    case RightPanel::Tab::Materials: return QStringLiteral("materials");
-    case RightPanel::Tab::Build: return QStringLiteral("build");
-    case RightPanel::Tab::Export: return QStringLiteral("export");
-    case RightPanel::Tab::Properties: break;
-    }
-    return QStringLiteral("plan");
 }
 
 // Shows the plan, tools and panels.
@@ -2570,6 +2687,8 @@ void MainWindow::closeEvent(QCloseEvent* event)
     }
     terminal_->shutdown();
     removeAppState();
+    for (ToolWindow* window : std::as_const(toolWindows_))
+        window->close();
     event->accept();
 }
 
@@ -2638,6 +2757,10 @@ void MainWindow::showEvent(QShowEvent* event)
 {
     QMainWindow::showEvent(event);
     QTimer::singleShot(0, this, &MainWindow::sizeWallView);
+    if (!sidePanelSized_) {
+        sidePanelSized_ = true;
+        QTimer::singleShot(0, this, &MainWindow::applySidePanelWidth);
+    }
 #ifdef Q_OS_WIN
     if (!nativeFrameReady_) {
         nativeFrameReady_ = true;

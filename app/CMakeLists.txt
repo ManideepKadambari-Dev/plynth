@@ -36,8 +36,6 @@ add_executable(plynth WIN32
     src/detection/DetectionRunner.h
     src/guide/GuideHost.h
     src/guide/GuideHost.cpp
-    src/guide/TourAudit.h
-    src/guide/TourAudit.cpp
     src/detection/DetectionRunner.cpp
     src/detection/DetectionSession.h
     src/detection/DetectionSession.cpp
@@ -163,6 +161,8 @@ add_executable(plynth WIN32
     src/window/ReadOnlyBanner.cpp
     src/window/StatusBar.h
     src/window/StatusBar.cpp
+    src/window/ToolWindow.h
+    src/window/ToolWindow.cpp
     src/window/TitleBar.h
     src/window/TitleBar.cpp
     resources/app.qrc

@@ -98,7 +98,6 @@ SetupCheckDialog::SetupCheckDialog(LibraryHost& host, QWidget* parent) : QDialog
 {
     const Theme& t = Theme::instance();
     setWindowTitle(tr("Setup check"));
-    setProperty("tourId", QStringLiteral("setup-check"));
     setToolTip(tr("Checks that Blender, the library and the projects folder are ready"));
     setModal(true);
 
@@ -109,7 +108,6 @@ SetupCheckDialog::SetupCheckDialog(LibraryHost& host, QWidget* parent) : QDialog
     summary_ = new QLabel(this);
     summary_->setFont(t.uiFont(t.sizeLarge(), QFont::DemiBold));
     summary_->setToolTip(tr("The result of the check"));
-    summary_->setProperty("tourId", QStringLiteral("setup-summary"));
     outer->addWidget(summary_);
     note_ = textLabel(QString(), t.uiFont(t.sizeNormal()), t.muted(), this);
     note_->hide();
@@ -136,12 +134,10 @@ SetupCheckDialog::SetupCheckDialog(LibraryHost& host, QWidget* parent) : QDialog
     buttons->setSpacing(t.unit() * 3);
     again_ = new QPushButton(tr("Check again"), this);
     again_->setToolTip(tr("Run every check again without restarting Plynth"));
-    again_->setProperty("tourId", QStringLiteral("setup-check-again"));
     connect(again_, &QPushButton::clicked, this, &SetupCheckDialog::recheck);
     done_ = new QPushButton(tr("Done"), this);
     done_->setDefault(true);
     done_->setToolTip(tr("Close the setup check. When everything required is found, it will not open by itself again"));
-    done_->setProperty("tourId", QStringLiteral("setup-done"));
     connect(done_, &QPushButton::clicked, this, &SetupCheckDialog::finish);
     buttons->addWidget(again_);
     buttons->addStretch(1);
@@ -241,7 +237,6 @@ void SetupCheckDialog::addRow(const plynth::SetupItem& item)
     row->setStyleSheet(QStringLiteral("QFrame#setupRow { background: %1; border: 1px solid %2; border-radius: %3px; }")
                            .arg(t.panel().name(), t.line().name())
                            .arg(t.radius()));
-    row->setProperty("tourId", QStringLiteral("setup-row-") + fromCore(item.id));
     row->setToolTip(plainToolTip(fromCore(item.name)));
     auto* box = new QVBoxLayout(row);
     box->setContentsMargins(t.unit() * 3, t.unit() * 3, t.unit() * 3, t.unit() * 3);
@@ -284,10 +279,9 @@ void SetupCheckDialog::addRow(const plynth::SetupItem& item)
     auto* buttons = new QHBoxLayout();
     buttons->setSpacing(t.unit() * 2);
     bool any = false;
-    const auto addButton = [&](const QString& text, const QString& tip, const QString& tour) {
+    const auto addButton = [&](const QString& text, const QString& tip) {
         auto* button = new QPushButton(text, row);
         button->setToolTip(tip);
-        button->setProperty("tourId", tour);
         buttons->addWidget(button);
         any = true;
         return button;
@@ -300,7 +294,6 @@ void SetupCheckDialog::addRow(const plynth::SetupItem& item)
             combo->setStyle(t.controlStyle());
             combo->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
             combo->setToolTip(tr("Every Blender found on this computer. Pick the one Plynth should use"));
-            combo->setProperty("tourId", QStringLiteral("setup-blender-combo"));
             for (std::size_t i = 0; i < report_->blenderInstalls.size(); ++i) {
                 const plynth::BlenderInstall& install = report_->blenderInstalls[i];
                 QStringList where;
@@ -325,29 +318,25 @@ void SetupCheckDialog::addRow(const plynth::SetupItem& item)
         } else {
             buttons->addStretch(1);
         }
-        connect(addButton(tr("Browse"), tr("Pick blender.exe by hand"), QStringLiteral("setup-blender-browse")),
+        connect(addButton(tr("Browse"), tr("Pick blender.exe by hand")),
                 &QPushButton::clicked, this, &SetupCheckDialog::browseBlender);
-        connect(addButton(tr("Get Blender"), tr("Open the official Blender download page in your browser"),
-                          QStringLiteral("setup-blender-get")),
+        connect(addButton(tr("Get Blender"), tr("Open the official Blender download page in your browser")),
                 &QPushButton::clicked, this, [this]() { openLink(QString::fromUtf8(plynth::kBlenderDownloadUrl.data())); });
     } else if (item.id == plynth::kCheckLibrary || item.id == plynth::kCheckProjects) {
         const bool library = item.id == plynth::kCheckLibrary;
         buttons->addStretch(1);
         connect(addButton(tr("Choose folder"),
-                          library ? tr("Choose the folder that holds the library") : tr("Choose the folder for your projects"),
-                          library ? QStringLiteral("setup-library-choose") : QStringLiteral("setup-projects-choose")),
+                          library ? tr("Choose the folder that holds the library") : tr("Choose the folder for your projects")),
                 &QPushButton::clicked, this, [this, library]() { chooseFolder(library); });
         if (item.state == plynth::CheckState::Missing)
             connect(addButton(tr("Create"),
                               library ? tr("Create the library folder and its databases")
-                                      : tr("Create the projects folder"),
-                              library ? QStringLiteral("setup-library-create") : QStringLiteral("setup-projects-create")),
+                                      : tr("Create the projects folder")),
                     &QPushButton::clicked, this, [this, library]() { createFolder(library); });
     } else if (!item.link.empty()) {
         buttons->addStretch(1);
         const QString link = fromCore(item.link);
-        connect(addButton(tr("Open page"), tr("Open the official page in your browser"),
-                          QStringLiteral("setup-open-page")),
+        connect(addButton(tr("Open page"), tr("Open the official page in your browser")),
                 &QPushButton::clicked, this, [this, link]() { openLink(link); });
     }
     if (any)

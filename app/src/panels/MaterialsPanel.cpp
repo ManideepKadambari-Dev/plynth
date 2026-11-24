@@ -159,7 +159,7 @@ QString originText(const plynth::MaterialMap& map)
 }
 
 // A tile size spin box in metres.
-QDoubleSpinBox* makeTileSpin(const QString& tip, const QString& tourId, QWidget* parent)
+QDoubleSpinBox* makeTileSpin(const QString& tip, QWidget* parent)
 {
     const Theme& t = Theme::instance();
     auto* spin = new QDoubleSpinBox(parent);
@@ -171,7 +171,6 @@ QDoubleSpinBox* makeTileSpin(const QString& tip, const QString& tourId, QWidget*
     spin->setKeyboardTracking(false);
     spin->setStyle(t.controlStyle());
     spin->setToolTip(tip);
-    spin->setProperty("tourId", tourId);
     return spin;
 }
 
@@ -181,7 +180,6 @@ QDoubleSpinBox* makeTileSpin(const QString& tip, const QString& tourId, QWidget*
 MaterialsPanel::MaterialsPanel(LibraryHost& host, QWidget* parent) : QWidget(parent), host_(host)
 {
     const Theme& t = Theme::instance();
-    setProperty("tourId", QStringLiteral("materials-panel"));
     setToolTip(tr("The materials catalog: search, pick and edit the surface materials in the library"));
 
     auto* column = new QVBoxLayout(this);
@@ -207,12 +205,10 @@ MaterialsPanel::MaterialsPanel(LibraryHost& host, QWidget* parent) : QWidget(par
     emptyColumn->addWidget(emptyHelp_);
     openSetup_ = new QPushButton(tr("Open setup check"), empty);
     openSetup_->setToolTip(tr("Open the setup check to choose or create the library folder"));
-    openSetup_->setProperty("tourId", QStringLiteral("materials-open-setup"));
     connect(openSetup_, &QPushButton::clicked, this, &MaterialsPanel::setupRequested);
     emptyColumn->addWidget(openSetup_, 0, Qt::AlignLeft);
     samples_ = new QPushButton(tr("Add the sample materials"), empty);
     samples_->setToolTip(tr("Import the nine sample materials that come with Plynth. New projects use them by default"));
-    samples_->setProperty("tourId", QStringLiteral("materials-add-samples"));
     connect(samples_, &QPushButton::clicked, this, &MaterialsPanel::samplesRequested);
     emptyColumn->addWidget(samples_, 0, Qt::AlignLeft);
     emptyColumn->addStretch(1);
@@ -246,7 +242,6 @@ MaterialsPanel::MaterialsPanel(LibraryHost& host, QWidget* parent) : QWidget(par
     grid_->setStyleSheet(QStringLiteral("QListView { background: transparent; }"));
     grid_->setItemDelegate(new TileDelegate(grid_));
     grid_->setToolTip(tr("The materials in the library. Click one to see and edit its details"));
-    grid_->setProperty("tourId", QStringLiteral("materials-grid"));
     grid_->setMinimumHeight(t.materialGridThumb() + t.unit() * 14);
     topLayout->addWidget(grid_, 1);
     splitter_->addWidget(top);
@@ -290,7 +285,6 @@ void MaterialsPanel::buildControls(QVBoxLayout* column)
     search_->setFont(t.uiFont(t.sizeNormal()));
     search_->setStyle(t.controlStyle());
     search_->setToolTip(tr("Type part of a name, tag or group. The grid filters as you type"));
-    search_->setProperty("tourId", QStringLiteral("materials-search"));
     box->addWidget(search_);
     searchTimer_ = new QTimer(this);
     searchTimer_->setSingleShot(true);
@@ -302,7 +296,6 @@ void MaterialsPanel::buildControls(QVBoxLayout* column)
     group_->setFont(t.uiFont(t.sizeNormal()));
     group_->setStyle(t.controlStyle());
     group_->setToolTip(tr("Show only one group, or the materials that have no group yet"));
-    group_->setProperty("tourId", QStringLiteral("materials-group"));
     group_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
     box->addWidget(group_);
     connect(group_, &QComboBox::activated, this, &MaterialsPanel::fillGrid);
@@ -312,15 +305,12 @@ void MaterialsPanel::buildControls(QVBoxLayout* column)
     groupButtons->setSpacing(t.unit() * 2);
     addGroup_ = new QPushButton(tr("Add group"), controls_);
     addGroup_->setToolTip(tr("Make a new material group"));
-    addGroup_->setProperty("tourId", QStringLiteral("materials-group-add"));
     connect(addGroup_, &QPushButton::clicked, this, &MaterialsPanel::addGroup);
     renameGroup_ = new QPushButton(tr("Rename"), controls_);
     renameGroup_->setToolTip(tr("Change the name of the group shown in the filter above"));
-    renameGroup_->setProperty("tourId", QStringLiteral("materials-group-rename"));
     connect(renameGroup_, &QPushButton::clicked, this, &MaterialsPanel::renameGroup);
     removeGroup_ = new QPushButton(tr("Remove"), controls_);
     removeGroup_->setToolTip(tr("Delete the group shown in the filter above. The materials stay but lose the group"));
-    removeGroup_->setProperty("tourId", QStringLiteral("materials-group-remove"));
     connect(removeGroup_, &QPushButton::clicked, this, &MaterialsPanel::removeGroup);
     groupButtons->addWidget(addGroup_);
     groupButtons->addWidget(renameGroup_);
@@ -332,12 +322,10 @@ void MaterialsPanel::buildControls(QVBoxLayout* column)
     buttons->setSpacing(t.unit() * 2);
     rescan_ = new QPushButton(tr("Rescan"), controls_);
     rescan_->setToolTip(tr("Read the materials folder again and update the index"));
-    rescan_->setProperty("tourId", QStringLiteral("materials-rescan"));
     connect(rescan_, &QPushButton::clicked, this, &MaterialsPanel::rescanRequested);
     import_ = new QPushButton(tr("Import"), controls_);
     import_->setDefault(true);
-    import_->setToolTip(tr("Open the import screen for materials"));
-    import_->setProperty("tourId", QStringLiteral("materials-import"));
+    import_->setToolTip(tr("Open the Import materials window"));
     import_->setEnabled(false);
     connect(import_, &QPushButton::clicked, this, &MaterialsPanel::importRequested);
     buttons->addWidget(rescan_);
@@ -367,14 +355,12 @@ void MaterialsPanel::buildDetails()
     thumb_->setAlignment(Qt::AlignCenter);
     thumb_->setFont(t.uiFont(t.sizeNormal()));
     thumb_->setToolTip(tr("The thumbnail from Blender: a sphere and a flat tile at real size. A missing one reads Rendering, a failed one Render failed"));
-    thumb_->setProperty("tourId", QStringLiteral("materials-thumbnail"));
     box->addWidget(thumb_, 0, Qt::AlignHCenter);
 
     name_ = new QLineEdit(body);
     name_->setFont(t.uiFont(t.sizeNormal(), QFont::DemiBold));
     name_->setStyle(t.controlStyle());
     name_->setToolTip(tr("The name of the material. Press Enter to save a new name"));
-    name_->setProperty("tourId", QStringLiteral("materials-name"));
     box->addWidget(name_);
     connect(name_, &QLineEdit::editingFinished, this, [this]() {
         if (refreshing_ || !current_ || name_->text().trimmed() == fromCore(current_->name))
@@ -389,7 +375,6 @@ void MaterialsPanel::buildDetails()
     idLabel_->setFont(t.monoFont(t.sizeSmall()));
     idLabel_->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
     idLabel_->setToolTip(tr("The id of the material, used by the command line and the plan"));
-    idLabel_->setProperty("tourId", QStringLiteral("materials-id"));
     idLabel_->setTextInteractionFlags(Qt::NoTextInteraction);
     box->addWidget(idLabel_);
 
@@ -397,9 +382,9 @@ void MaterialsPanel::buildDetails()
     auto* tileRow = new QHBoxLayout();
     tileRow->setSpacing(t.unit() * 2);
     tileWidth_ = makeTileSpin(tr("Real width of one tile of the texture, along the wall or floor. Press Enter to save; the thumbnail is rendered again"),
-                              QStringLiteral("materials-tile-width"), body);
+                              body);
     tileHeight_ = makeTileSpin(tr("Real height of one tile of the texture. Press Enter to save; the thumbnail is rendered again"),
-                               QStringLiteral("materials-tile-height"), body);
+                               body);
     tileRow->addWidget(tileWidth_, 1);
     auto* times = mutedLabel(QStringLiteral("x"), body);
     tileRow->addWidget(times);
@@ -424,13 +409,11 @@ void MaterialsPanel::buildDetails()
     textureLabel_->setFont(t.monoFont(t.sizeSmall()));
     textureLabel_->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
     textureLabel_->setToolTip(tr("Size in pixels of the base color image"));
-    textureLabel_->setProperty("tourId", QStringLiteral("materials-texture-size"));
     box->addWidget(textureLabel_);
 
     box->addWidget(mutedLabel(tr("Maps"), body));
     mapsBox_ = new QWidget(body);
     mapsBox_->setToolTip(tr("The images the material is made of and how each was made: from a file, a single value, baked from Blender nodes, or none"));
-    mapsBox_->setProperty("tourId", QStringLiteral("materials-maps"));
     mapsGrid_ = new QGridLayout(mapsBox_);
     mapsGrid_->setContentsMargins(0, 0, 0, 0);
     mapsGrid_->setHorizontalSpacing(t.unit() * 3);
@@ -444,7 +427,6 @@ void MaterialsPanel::buildDetails()
     sourceLabel_->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
     sourceLabel_->setWordWrap(true);
     sourceLabel_->setToolTip(tr("Where the material came from"));
-    sourceLabel_->setProperty("tourId", QStringLiteral("materials-source"));
     box->addWidget(sourceLabel_);
 
     box->addWidget(mutedLabel(tr("License"), body));
@@ -452,7 +434,6 @@ void MaterialsPanel::buildDetails()
     license_->setFont(t.uiFont(t.sizeNormal()));
     license_->setStyle(t.controlStyle());
     license_->setToolTip(tr("The license the material came with"));
-    license_->setProperty("tourId", QStringLiteral("materials-license"));
     box->addWidget(license_);
     connect(license_, &QComboBox::activated, this, [this](int index) {
         if (refreshing_ || !current_)
@@ -469,7 +450,6 @@ void MaterialsPanel::buildDetails()
     author_->setMaxLength(static_cast<int>(plynth::kMaxAuthorLength));
     author_->setPlaceholderText(tr("Unknown"));
     author_->setToolTip(tr("Who made the material, shown in the license report. Press Enter to save"));
-    author_->setProperty("tourId", QStringLiteral("materials-author"));
     box->addWidget(author_);
     connect(author_, &QLineEdit::editingFinished, this, [this]() {
         if (refreshing_ || !current_ || author_->text().trimmed() == shownAuthor_)
@@ -486,7 +466,6 @@ void MaterialsPanel::buildDetails()
     groups_->setFixedHeight(t.unit() * 40);
     groups_->setStyleSheet(t.scrollBarStyleSheet());
     groups_->setToolTip(tr("Tick every group the material belongs to"));
-    groups_->setProperty("tourId", QStringLiteral("materials-groups"));
     box->addWidget(groups_);
     connect(groups_, &QListWidget::itemChanged, this, [this]() {
         if (refreshing_ || !current_)
@@ -505,7 +484,6 @@ void MaterialsPanel::buildDetails()
     tags_->setFont(t.uiFont(t.sizeNormal()));
     tags_->setStyle(t.controlStyle());
     tags_->setToolTip(tr("Words that help find the material. Lower case letters, digits, _ and -. Press Enter to save"));
-    tags_->setProperty("tourId", QStringLiteral("materials-tags"));
     box->addWidget(tags_);
     connect(tags_, &QLineEdit::editingFinished, this, [this]() {
         if (refreshing_ || !current_)
@@ -531,14 +509,12 @@ void MaterialsPanel::buildDetails()
     problems_->setFont(t.uiFont(t.sizeSmall()));
     problems_->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
     problems_->setToolTip(tr("Warnings from the import and the last render"));
-    problems_->setProperty("tourId", QStringLiteral("materials-warnings"));
     box->addWidget(problems_);
 
     auto* buttons = new QHBoxLayout();
     buttons->setSpacing(t.unit() * 2);
     retry_ = new QPushButton(tr("Retry render"), body);
     retry_->setToolTip(tr("Clean the maps again and render a new thumbnail"));
-    retry_->setProperty("tourId", QStringLiteral("materials-retry"));
     retry_->setEnabled(false);
     connect(retry_, &QPushButton::clicked, this, [this]() {
         if (current_)
@@ -546,14 +522,12 @@ void MaterialsPanel::buildDetails()
     });
     openFolder_ = new QPushButton(tr("Open folder"), body);
     openFolder_->setToolTip(tr("Open the folder of the material in Explorer"));
-    openFolder_->setProperty("tourId", QStringLiteral("materials-open-folder"));
     connect(openFolder_, &QPushButton::clicked, this, [this]() {
         if (current_)
             QDesktopServices::openUrl(QUrl::fromLocalFile(QString::fromStdWString(current_->folder.wstring())));
     });
     remove_ = new QPushButton(tr("Remove"), body);
     remove_->setToolTip(tr("Delete the material and its folder from the library. This cannot be undone"));
-    remove_->setProperty("tourId", QStringLiteral("materials-remove"));
     connect(remove_, &QPushButton::clicked, this, &MaterialsPanel::removeSelected);
     buttons->addWidget(retry_);
     buttons->addWidget(openFolder_);

@@ -3,7 +3,6 @@
 #include "catalog/LibraryHost.h"
 #include "window/MainWindow.h"
 #include "guide/GuideHost.h"
-#include "guide/TourAudit.h"
 #include "preview/RenderHost.h"
 
 #include <plynth/cli/Cli.h>
@@ -100,16 +99,16 @@ int main(int argc, char* argv[])
                                       QStringLiteral("Side of the wall the wall view is seen from: left or right. For checks only."),
                                       QStringLiteral("side"));
     QCommandLineOption catalogOption(QStringLiteral("catalog"),
-                                     QStringLiteral("Show the Assets tab. For checks only."));
+                                     QStringLiteral("Open the Assets window. For checks only."));
     QCommandLineOption selectAssetOption(QStringLiteral("select-asset"),
-                                         QStringLiteral("Select the asset with this id in the Assets tab. For checks only."),
+                                         QStringLiteral("Select the asset with this id in the Assets window. For checks only."),
                                          QStringLiteral("id"));
     QCommandLineOption assetCategoriesOption(QStringLiteral("asset-categories"),
                                              QStringLiteral("With --select-asset, scroll the details to the categories. For checks only."));
     QCommandLineOption materialsTabOption(QStringLiteral("materials-tab"),
-                                          QStringLiteral("Show the Materials tab. For checks only."));
+                                          QStringLiteral("Open the Materials window. For checks only."));
     QCommandLineOption selectMaterialOption(QStringLiteral("select-material"),
-                                            QStringLiteral("Select the material with this id in the Materials tab. For checks only."),
+                                            QStringLiteral("Select the material with this id in the Materials window. For checks only."),
                                             QStringLiteral("id"));
     QCommandLineOption materialPickerOption(QStringLiteral("material-picker"),
                                             QStringLiteral("Open the material picker for a target such as w3.outside, r2.floor or default.floor. For checks only."),
@@ -128,7 +127,7 @@ int main(int argc, char* argv[])
                                     QStringLiteral("Queue an import of this file or folder. For checks only."),
                                     QStringLiteral("file"));
     QCommandLineOption importMaterialsOption(QStringLiteral("import-materials"),
-                                             QStringLiteral("Show the material import screen. For checks only."));
+                                             QStringLiteral("Open the Import materials window. For checks only."));
     QCommandLineOption materialSourceOption(QStringLiteral("material-source"),
                                             QStringLiteral("With --import-materials, add this file or folder to the list. For checks only."),
                                             QStringLiteral("path"));
@@ -156,7 +155,7 @@ int main(int argc, char* argv[])
                                      QStringLiteral("Show the 3D overlay on the plan. For checks only."));
     QCommandLineOption buildOption(QStringLiteral("build"),
                                    QStringLiteral("Build the project after opening it and wait for the end. For checks only."));
-    QCommandLineOption buildTabOption(QStringLiteral("build-tab"), QStringLiteral("Show the Build tab. For checks only."));
+    QCommandLineOption buildTabOption(QStringLiteral("build-tab"), QStringLiteral("Open the Build report window. For checks only."));
     QCommandLineOption alignImageOption(QStringLiteral("align-image"),
                                         QStringLiteral("Turn on image alignment of the shown floor. For checks only."));
     QCommandLineOption roofSectionsOption(QStringLiteral("roof-sections"),
@@ -172,15 +171,15 @@ int main(int argc, char* argv[])
                                     QStringLiteral("Export the last build after opening the project and wait for the end. For checks only."));
     QCommandLineOption exportCheckOption(QStringLiteral("export-check"),
                                          QStringLiteral("Run the export quality checks after opening the project and wait for the end. For checks only."));
-    QCommandLineOption exportTabOption(QStringLiteral("export-tab"), QStringLiteral("Show the Export tab. For checks only."));
+    QCommandLineOption exportTabOption(QStringLiteral("export-tab"), QStringLiteral("Open the Export window. For checks only."));
     QCommandLineOption packDialogOption(QStringLiteral("pack-dialog"),
                                         QStringLiteral("Show the pack or the unpack dialog: pack or unpack. For checks only."),
                                         QStringLiteral("kind"));
     parser.addOption(packDialogOption);
     QCommandLineOption integrationsTabOption(QStringLiteral("integrations-tab"),
-                                             QStringLiteral("Show the Integrations tab. For checks only."));
+                                             QStringLiteral("Open the Sources window. For checks only."));
     QCommandLineOption blenderKitAddressOption(QStringLiteral("blenderkit-address"),
-                                               QStringLiteral("Fill the BlenderKit address field of the Integrations tab. For checks only."),
+                                               QStringLiteral("Fill the BlenderKit address field of the Sources window. For checks only."),
                                                QStringLiteral("text"));
     QCommandLineOption fabImportOption(QStringLiteral("fab-import"),
                                        QStringLiteral("Open the Fab import dialog for this model zip. For checks only."),
@@ -189,9 +188,9 @@ int main(int argc, char* argv[])
                                              QStringLiteral("Followed by an integration id and a file: does what its import button does with that file. For checks only."),
                                              QStringLiteral("id"));
     QCommandLineOption exportGroupsExpandedOption(QStringLiteral("export-groups-expanded"),
-                                                  QStringLiteral("Open every group in the Export tab. For checks only."));
+                                                  QStringLiteral("Open every group in the Export window. For checks only."));
     QCommandLineOption exportKitOnOption(QStringLiteral("export-kit-on"),
-                                         QStringLiteral("Tick the modular kit box of the Export tab before --export runs. For checks only."));
+                                         QStringLiteral("Tick the modular kit box of the Export window before --export runs. For checks only."));
     QCommandLineOption lightToolOption(QStringLiteral("light-tool"), QStringLiteral("Activate the Light tool. For checks only."));
     QCommandLineOption addLightOption(QStringLiteral("add-light"),
                                       QStringLiteral("Place a light at x,y in metres on the shown floor, with an optional kind "
@@ -200,7 +199,7 @@ int main(int argc, char* argv[])
     QCommandLineOption projectFinishOption(QStringLiteral("project-finish"),
                                            QStringLiteral("Show the Trim and Variation groups of the project. For checks only."));
     QCommandLineOption exportGameplayOnOption(QStringLiteral("export-gameplay-on"),
-                                              QStringLiteral("Tick the gameplay data box of the Export tab and show the tab. For checks only."));
+                                              QStringLiteral("Tick the gameplay data box of the Export window and open the window. For checks only."));
     QCommandLineOption variationsDialogOption(QStringLiteral("variations-dialog"),
                                               QStringLiteral("Open Build > Make variations. For checks only."));
     QCommandLineOption openingAssetPickerOption(QStringLiteral("opening-asset-picker"),
@@ -211,7 +210,7 @@ int main(int argc, char* argv[])
     parser.addOption(projectFinishOption);
     parser.addOption(exportGameplayOnOption);
     QCommandLineOption exportLicensesOnOption(QStringLiteral("export-licenses-on"),
-                                              QStringLiteral("Tick the license report box of the Export tab and show the tab. For checks only."));
+                                              QStringLiteral("Tick the license report box of the Export window and open the window. For checks only."));
     parser.addOption(exportLicensesOnOption);
     parser.addOption(variationsDialogOption);
     parser.addOption(openingAssetPickerOption);
@@ -234,27 +233,9 @@ int main(int argc, char* argv[])
                                         QStringLiteral("Open the Help window with the hits of a search. For checks only."),
                                         QStringLiteral("text"));
     QCommandLineOption aboutOption(QStringLiteral("about"), QStringLiteral("Open About in the Help window. For checks only."));
-    QCommandLineOption tourOption(QStringLiteral("tour"), QStringLiteral("Start a guided tour. For checks only."),
-                                  QStringLiteral("id"));
-    QCommandLineOption tourStepOption(QStringLiteral("tour-step"),
-                                      QStringLiteral("The step of the tour to show, from 1, or last. For checks only."),
-                                      QStringLiteral("n"));
-    QCommandLineOption firstRunOption(QStringLiteral("first-run"),
-                                      QStringLiteral("Apply the first run rule as if there were no settings file. For checks only."));
-    parser.addOption(firstRunOption);
-    QCommandLineOption tourAuditOption(QStringLiteral("tour-audit"),
-                                       QStringLiteral("List every control on every screen, check it has a tour entry, write the result and exit. For the build check only."),
-                                       QStringLiteral("file"));
-    parser.addOption(tourAuditOption);
-    QCommandLineOption whatIsThisOption(QStringLiteral("what-is-this"),
-                                        QStringLiteral("Turn on What is this? and explain a control. For checks only."),
-                                        QStringLiteral("control id"));
     parser.addOption(helpPageOption);
     parser.addOption(helpSearchOption);
     parser.addOption(aboutOption);
-    parser.addOption(tourOption);
-    parser.addOption(tourStepOption);
-    parser.addOption(whatIsThisOption);
     parser.addOption(integrationsTabOption);
     parser.addOption(blenderKitAddressOption);
     parser.addOption(fabImportOption);
@@ -300,6 +281,15 @@ int main(int argc, char* argv[])
     parser.addOption(wallSideOption);
     parser.addOption(imageOption);
     parser.addOption(terminalOption);
+    QCommandLineOption screenshotWindowOption(QStringLiteral("screenshot-window"),
+                                              QStringLiteral("With --screenshot, open one of the app's own windows and save its picture instead: "
+                                                             "assets, materials, sources, material-import, build or export."),
+                                              QStringLiteral("name"));
+    QCommandLineOption panelOption(QStringLiteral("panel"),
+                                   QStringLiteral("Open or close the side panel, without saving it: open or closed. For checks only."),
+                                   QStringLiteral("state"));
+    parser.addOption(screenshotWindowOption);
+    parser.addOption(panelOption);
     parser.addOption(screenshotOption);
     parser.addOption(sizeOption);
     if (!parser.parse(QApplication::arguments()))
@@ -321,17 +311,14 @@ int main(int argc, char* argv[])
         if (view != QStringLiteral("plan") && view != QStringLiteral("3d"))
             return kExitBadArguments;
     }
+    if (parser.isSet(panelOption)) {
+        const QString state = parser.value(panelOption).toLower();
+        if (state != QStringLiteral("open") && state != QStringLiteral("closed"))
+            return kExitBadArguments;
+    }
     if (parser.isSet(cameraOption)) {
         const QString camera = parser.value(cameraOption).toLower();
         if (camera != QStringLiteral("three-quarter") && camera != QStringLiteral("top"))
-            return kExitBadArguments;
-    }
-    int tourStep = 0;
-    if (parser.isSet(tourStepOption)) {
-        const QString value = parser.value(tourStepOption).toLower();
-        bool ok = value == QStringLiteral("last");
-        tourStep = ok ? -1 : value.toInt(&ok) - 1;
-        if (!ok || tourStep < -1)
             return kExitBadArguments;
     }
     if (parser.isSet(wallSideOption)) {
@@ -374,9 +361,8 @@ int main(int argc, char* argv[])
             return kExitBadArguments;
     }
     const bool wantsScreenshot = parser.isSet(screenshotOption);
-    const bool wantsAudit = parser.isSet(tourAuditOption);
-    // A screenshot and the tour audit both run with no dialogs, no probe and nothing written.
-    const bool quiet = wantsScreenshot || wantsAudit;
+    // A screenshot runs with no dialogs, no probe and nothing written.
+    const bool quiet = wantsScreenshot;
     if (wantsScreenshot && parser.value(screenshotOption).isEmpty())
         return kExitBadArguments;
 
@@ -433,6 +419,16 @@ int main(int argc, char* argv[])
         window.resize(size);
     else
         window.resize(1280, 800);
+    if (quiet)
+        window.setScreenshotSize(window.size());
+    QString pictureWindow;
+    if (parser.isSet(screenshotWindowOption)) {
+        pictureWindow = parser.value(screenshotWindowOption).toLower();
+        if (!window.toolWindowNames().contains(pictureWindow))
+            return kExitBadArguments;
+    }
+    if (parser.isSet(panelOption))
+        window.showSidePanel(parser.value(panelOption).toLower() == QStringLiteral("open"), false);
 
     QString loadError;
     QString loadTitle;
@@ -507,38 +503,16 @@ int main(int argc, char* argv[])
     } else if (parser.isSet(aboutOption)) {
         QTimer::singleShot(0, &window, [&window]() { window.guide()->openAbout(); });
     }
-    if (parser.isSet(firstRunOption)) {
-        window.showHome();
-        QTimer::singleShot(0, &window, [&window]() {
-            window.showSetupCheck();
-            window.runFirstRun(true);
-        });
-    }
-    if (parser.isSet(tourOption)) {
-        const QString tour = parser.value(tourOption);
-        QTimer::singleShot(200, &window, [&window, tour, tourStep]() {
-            if (!window.guide()->tourLoaded())
-                qWarning("The tour text could not be read: %s", qPrintable(window.guide()->tourProblem()));
-            if (!window.guide()->startTour(tour, tourStep))
-                qWarning("The tour %s could not start.", qPrintable(tour));
-        });
-    } else if (parser.isSet(whatIsThisOption)) {
-        const QString control = parser.value(whatIsThisOption);
-        QTimer::singleShot(200, &window, [&window, control]() {
-            if (!window.guide()->explain(control))
-                qWarning("The control %s was not found.", qPrintable(control));
-        });
-    }
     if (parser.isSet(buildTabOption))
         window.showBuildTab();
     if (parser.isSet(exportGroupsExpandedOption))
-        window.findChild<plynth::app::ExportPanel*>()->setGroupsExpanded(true);
+        window.exportPanel()->setGroupsExpanded(true);
     if (parser.isSet(exportKitOnOption))
-        window.findChild<plynth::app::ExportPanel*>()->setKitEnabled(true);
+        window.exportPanel()->setKitEnabled(true);
     if (parser.isSet(exportGameplayOnOption))
-        window.findChild<plynth::app::ExportPanel*>()->setGameplayEnabled(true);
+        window.exportPanel()->setGameplayEnabled(true);
     if (parser.isSet(exportLicensesOnOption))
-        window.findChild<plynth::app::ExportPanel*>()->setLicensesEnabled(true);
+        window.exportPanel()->setLicensesEnabled(true);
     if (parser.isSet(exportTabOption) || parser.isSet(exportGameplayOnOption) || parser.isSet(exportLicensesOnOption))
         window.showExportTab();
     if (parser.isSet(projectFinishOption))
@@ -558,6 +532,10 @@ int main(int argc, char* argv[])
     if (parser.isSet(integrationFileOption)) {
         const QString id = parser.value(integrationFileOption);
         QTimer::singleShot(0, &window, [&window, id, integrationFile]() { window.importIntegrationFile(id, integrationFile); });
+    }
+    if (!pictureWindow.isEmpty()) {
+        window.setPictureWindow(pictureWindow);
+        window.openToolWindow(pictureWindow);
     }
     if (parser.isSet(overlayOption))
         window.setOverlay3d(true);
@@ -626,10 +604,6 @@ int main(int argc, char* argv[])
     }
 
     const bool wantsBuild = parser.isSet(buildOption) || parser.isSet(exportOption) || parser.isSet(exportCheckOption);
-    if (wantsAudit) {
-        const QString file = parser.value(tourAuditOption);
-        QTimer::singleShot(500, &window, [&window, file]() { QApplication::exit(plynth::app::runTourAudit(window, file)); });
-    }
     if (wantsScreenshot) {
         const QString file = parser.value(screenshotOption);
         const QSize target = hasSize ? size : window.size();

@@ -8,8 +8,7 @@ QString guideStyleSheet(const GuideStyle& s)
     const QString pad = QString::number(s.unit * 2);
     const QString radius = QString::number(s.radius);
     return QStringLiteral(
-               "QWidget#guideRoot, QFrame#tourCard { background: %1; color: %2; }"
-               "QFrame#tourCard { border: 1px solid %3; border-radius: %4px; }"
+               "QWidget#guideRoot { background: %1; color: %2; }"
                "QLabel { color: %2; background: transparent; }"
                "QLabel[muted=\"true\"] { color: %5; }"
                "QPushButton { background: %6; color: %2; border: 1px solid %3; border-radius: %4px; padding: %7px %8px; }"

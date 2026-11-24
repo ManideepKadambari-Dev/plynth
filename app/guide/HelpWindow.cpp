@@ -60,12 +60,11 @@ void monoForCode(QTextDocument* document, const QFont& mono)
     }
 }
 
-// A button with its tooltip and tour id.
-QPushButton* navButton(const QString& text, const QString& tip, const QString& tourId, QWidget* parent)
+// A button with its tooltip.
+QPushButton* navButton(const QString& text, const QString& tip, QWidget* parent)
 {
     auto* button = new QPushButton(text, parent);
     button->setToolTip(tip);
-    button->setProperty("tourId", tourId);
     return button;
 }
 
@@ -77,7 +76,6 @@ HelpWindow::HelpWindow(const GuideStyle& style, const std::filesystem::path& doc
     : QWidget(parent, Qt::Window), style_(style), docs_(docs), licenses_(licenses)
 {
     setObjectName(QStringLiteral("guideRoot"));
-    setProperty("tourId", QStringLiteral("help-window"));
     setWindowTitle(tr("Plynth help"));
     setStyleSheet(guideStyleSheet(style));
     setFont(style.uiFont);
@@ -91,12 +89,10 @@ HelpWindow::HelpWindow(const GuideStyle& style, const std::filesystem::path& doc
     search_ = new QLineEdit(this);
     search_->setPlaceholderText(tr("Search help"));
     search_->setToolTip(tr("Type words to find them in every help page"));
-    search_->setProperty("tourId", QStringLiteral("help-search"));
     search_->setClearButtonEnabled(true);
     left->addWidget(search_);
     pages_ = new QListWidget(this);
     pages_->setToolTip(tr("The help pages. Click one to read it"));
-    pages_->setProperty("tourId", QStringLiteral("help-pages"));
     for (const plynth::HelpPageEntry& entry : plynth::helpPages()) {
         if (!entry.listed) continue;
         if (entry.kind == plynth::HelpPageKind::File) {
@@ -116,8 +112,8 @@ HelpWindow::HelpWindow(const GuideStyle& style, const std::filesystem::path& doc
     auto* right = new QVBoxLayout;
     right->setSpacing(style.unit * 2);
     auto* bar = new QHBoxLayout;
-    back_ = navButton(tr("Back"), tr("Go back to the page you saw before (Alt+Left)"), QStringLiteral("help-back"), this);
-    forward_ = navButton(tr("Forward"), tr("Go forward again (Alt+Right)"), QStringLiteral("help-forward"), this);
+    back_ = navButton(tr("Back"), tr("Go back to the page you saw before (Alt+Left)"), this);
+    forward_ = navButton(tr("Forward"), tr("Go forward again (Alt+Right)"), this);
     back_->setShortcut(QKeySequence(Qt::ALT | Qt::Key_Left));
     forward_->setShortcut(QKeySequence(Qt::ALT | Qt::Key_Right));
     title_ = new QLabel(this);
@@ -130,14 +126,12 @@ HelpWindow::HelpWindow(const GuideStyle& style, const std::filesystem::path& doc
 
     stack_ = new QStackedWidget(this);
     page_ = new QTextBrowser(stack_);
-    page_->setProperty("tourId", QStringLiteral("help-page"));
     page_->setToolTip(tr("The help page. Links to other pages open here, web links in your browser"));
     page_->setOpenLinks(false);
     page_->setOpenExternalLinks(false);
     page_->document()->setDefaultFont(style.uiFont);
     page_->document()->setDocumentMargin(style.unit * 4);
     results_ = new QListWidget(stack_);
-    results_->setProperty("tourId", QStringLiteral("help-results"));
     results_->setToolTip(tr("Every place the words appear, headings first. Click one to open the page there"));
     results_->setWordWrap(true);
     about_ = new AboutPage(style, logo, licenses_, stack_);

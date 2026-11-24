@@ -27,7 +27,7 @@ namespace plynth::app {
 class AssetStage;
 class LibraryHost;
 
-// The Assets tab: search, room and category filters, the thumbnail grid and the details of the selected
+// The Assets window: search, room and category filters, the thumbnail grid and the details of the selected
 // asset. It reads the catalog through LibraryHost and changes assets only with catalog calls.
 class AssetsPanel : public QWidget {
     Q_OBJECT

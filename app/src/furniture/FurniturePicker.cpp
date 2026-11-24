@@ -156,7 +156,6 @@ private:
 FurniturePicker::FurniturePicker(LibraryHost& host, QWidget* parent) : QWidget(parent), host_(host)
 {
     setToolTip(tr("Pick what to place: room type, then category, then asset, or one of the generators"));
-    setProperty("tourId", QStringLiteral("furniture-picker"));
     setFocusPolicy(Qt::NoFocus);
     row_ = new QHBoxLayout(this);
     row_->setContentsMargins(1, 1, 1, 1);
@@ -377,19 +376,15 @@ QListWidget* FurniturePicker::addColumn(Kind kind, const QString& key)
     switch (kind) {
     case Kind::RoomTypes:
         list->setToolTip(tr("Room types. Pick one to see its categories"));
-        list->setProperty("tourId", QStringLiteral("picker-room-types"));
         break;
     case Kind::Categories:
         list->setToolTip(tr("Categories. Pick one to see its assets"));
-        list->setProperty("tourId", QStringLiteral("picker-categories"));
         break;
     case Kind::Assets:
         list->setToolTip(tr("Assets. Click one to place it, hover one to see it"));
-        list->setProperty("tourId", QStringLiteral("picker-assets"));
         break;
     case Kind::Generators:
         list->setToolTip(tr("Generators. Click one to place it, hover one to see its parameters"));
-        list->setProperty("tourId", QStringLiteral("picker-generators"));
         break;
     }
     const int index = static_cast<int>(columns_.size());
@@ -507,7 +502,7 @@ void FurniturePicker::fillAssets(QListWidget* list, const QString& category)
         if (record.state == plynth::AssetState::Broken)
             reason = record.problem.empty() ? tr("This asset is broken") : fromCore(record.problem);
         else if (!plynth::isMeasured(record.size))
-            reason = tr("Not measured yet. Use Retry render in the Assets tab to measure it");
+            reason = tr("Not measured yet. Use Retry render in the Assets window to measure it");
         if (!reason.isEmpty()) {
             item->setData(kBlockedRole, reason);
             item->setData(kWarnRole, record.state == plynth::AssetState::Broken);

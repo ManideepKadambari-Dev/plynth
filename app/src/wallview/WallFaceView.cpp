@@ -379,7 +379,7 @@ void WallFaceView::openPickerAt(const QPoint& view, const QPointF& face)
     });
 }
 
-// Accepts an asset tile dragged from the Assets tab.
+// Accepts an asset tile dragged from the Assets window.
 void WallFaceView::dragEnterEvent(QDragEnterEvent* event)
 {
     if (data_.valid && editable() && event->mimeData()->hasFormat(QStringLiteral("application/x-plynth-asset")))

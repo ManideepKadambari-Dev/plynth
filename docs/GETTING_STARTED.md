@@ -52,7 +52,7 @@ The type matters for furniture. The furniture picker starts with the categories 
 
 ## 7. Import and place furniture
 
-1. Press Ctrl+I, or **Import** in the Assets tab, and pick a model file. Plynth comes with a sofa, a bed, a table and a TV in `samples\models`. Import each one and tick a category for it, such as `sofa`.
+1. Press Ctrl+I, or **Import** in the Assets window, and pick a model file. Plynth comes with a sofa, a bed, a table and a TV in `samples\models`. Import each one and tick a category for it, such as `sofa`.
 2. Press **P**, the Furniture tool, and click in a room. A picker opens. Pick a category, then an asset, and it is placed there.
 3. Press **V** to go back to the Select tool. Drag the item to move it. Drag its round handle, or press `]` and `[`, to turn it.
 4. To hang the TV on a wall, press P and click the wall face in the wall view, or select the TV and press **Mount on wall**.
@@ -63,11 +63,11 @@ See "The assets catalog" and "Placing furniture" in the [User guide](USER_GUIDE.
 
 Walls, floors and doors get their paint, brick and wood from the materials catalog. A new project already points at nine sample materials, so add them before your first build.
 
-1. Open the **Materials** tab in the right panel, next to **Assets**, or press Ctrl+Shift+M.
+1. Click **Materials** in the bar above the plan, or press Ctrl+Shift+M, to open the Materials window.
 2. Press **Add the sample materials**. Blender runs in the background and draws a thumbnail for each of the nine. It takes a short while.
 3. To change one, click a wall or a room and pick a material in the Properties panel: **Inside** and **Outside** for a wall, **Floor**, **Wall faces** and **Ceiling** for a room. With nothing selected, Properties shows the default for every kind of surface.
 
-Without the samples the build still works. Each surface gets a plain neutral color and the Build tab says "Missing material". See "The materials catalog" and "Materials on walls, rooms and the project" in the [User guide](USER_GUIDE.md).
+Without the samples the build still works. Each surface gets a plain neutral color and the Build report window says "Missing material". See "The materials catalog" and "Materials on walls, rooms and the project" in the [User guide](USER_GUIDE.md).
 
 ## 9. Build, and look at it in 3D
 
@@ -76,7 +76,7 @@ Without the samples the build still works. Each surface gets a plain neutral col
 3. When it is done, the 3D view opens, with the materials on the walls, floors and doors. Drag with the left button to turn the building, drag with the middle or right button to pan, and use the wheel to zoom. Press Ctrl+0 to fit it in the window again. The **Top** and **Three quarter** buttons in the corner jump to two good views.
 4. Press **3**, or click **Plan**, to go back to the plan. Press Alt+3 to lay the top view of the building over the plan and check that it lines up.
 
-If the bar shows an amber **problems** button, click it. The Build tab lists what the build left out or could not finish, and clicking a line shows it on the plan. A furniture item whose asset is missing is the usual one. Fix it and press Build again.
+If the bar shows an amber **problems** button, click it. The Build report window lists what the build left out or could not finish, and clicking a line shows it on the plan. A furniture item whose asset is missing is the usual one. Fix it and press Build again.
 
 If the 3D view stays empty, see "If the 3D view stays empty" in the [User guide](USER_GUIDE.md).
 
@@ -111,4 +111,4 @@ See "Exporting for Unreal", "The quality gate", "Collision" and "Importing into 
 - [Command line guide](CLI_GUIDE.md): do all of this from a terminal or a script. For example, `plynth place sofa --room living` places the sofa from step 7, and `plynth materials import samples\materials\*` does step 8, `plynth build` does step 9, `plynth floor add`, `plynth stair add` and `plynth roof set` do step 10, and `plynth export` does step 11.
 - [Setting up Plynth](SETUP.md): what each item of the setup check means.
 - [Writing generators](GENERATORS.md): add your own generators, opening shapes, importers and material importers.
-- In the app, F1 opens these pages in the Help window, and **Help > Guided tours** shows each screen one control at a time.
+- In the app, F1 opens these pages in the Help window, with a search across them.

@@ -8,8 +8,9 @@ class QPushButton;
 
 namespace plynth::app {
 
-// The thin bar above the central area: the Plan and 3D view tabs, the build status, the problems button and
-// the Build button. It only shows state and sends requests.
+// The thin bar above the central area: the Plan and 3D view tabs, the build status, the problems button, the
+// buttons that open the app's own windows, the Build button and the button that opens or closes the side panel.
+// It only shows state and sends requests.
 class BuildBar : public QWidget {
     Q_OBJECT
 public:
@@ -30,12 +31,18 @@ public:
     void setProblems(int errors, int warnings);
     // Enables or disables the Build button and sets its tooltip.
     void setBuildEnabled(bool enabled, const QString& tip);
+    // Adds a button that asks for one of the app's windows by its name.
+    void addWindowButton(const QString& name, const QString& text, const QString& tip);
+    // Checks the side panel button without sending a request.
+    void setPanelOpen(bool open);
 
 signals:
     void viewRequested(plynth::app::BuildBar::View view);
     void buildRequested();
     void cancelRequested();
     void problemsRequested();
+    void windowRequested(const QString& name);
+    void panelToggled(bool open);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -49,6 +56,8 @@ private:
     QPushButton* cancel_ = nullptr;
     QPushButton* problems_ = nullptr;
     QPushButton* build_ = nullptr;
+    QWidget* windows_ = nullptr;
+    QPushButton* panel_ = nullptr;
 };
 
 }

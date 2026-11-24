@@ -21,7 +21,7 @@ namespace plynth::app {
 
 class GroupsTree;
 
-// The list of export groups shown in the Export tab, with their members and edit actions. Every edit goes through
+// The list of export groups shown in the Export window, with their members and edit actions. Every edit goes through
 // its owner's guard, with the ticket taken when the menu, box, name editor or drag opened.
 class ExportGroupsList : public QWidget {
     Q_OBJECT

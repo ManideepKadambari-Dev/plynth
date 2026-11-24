@@ -22,7 +22,7 @@ class ImportQueueView;
 class LibraryHost;
 class MaterialImportQueue;
 
-// The material import screen: pick folders, zips, image files or a .blend, set the fields of the material and
+// The Import materials window: pick folders, zips, image files or a .blend, set the fields of the material and
 // queue the imports. It only builds requests; the queue runs them.
 class MaterialImportScreen : public QWidget {
     Q_OBJECT

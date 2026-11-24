@@ -16,7 +16,7 @@
 namespace plynth {
 
 // Importers are registry entries. Each is one route assets come in by: own files, BlenderKit addresses and
-// Fab zips (BlenderKit.h and FabZip.h). Each route also has one entry in the Integrations tab
+// Fab zips (BlenderKit.h and FabZip.h). Each route also has one entry in the Sources window
 // (Integrations.h). An importer lives in its own file in
 // core/src/catalog/importers/ with an ImporterRegistrar at namespace scope, built into the OBJECT library
 // plynth_importers like the detectors, so adding one never means editing existing code.

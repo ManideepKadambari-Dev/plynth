@@ -57,7 +57,6 @@ TerminalDock::TerminalDock(QWidget* host, QWidget* area, QObject* parent)
     button_ = new TerminalButton(host_);
     button_->setFixedSize(button_->sizeHint());
     button_->setToolTip(tr("Show or hide the terminal (Ctrl+`)"));
-    button_->setProperty("tourId", QStringLiteral("terminal-button"));
     connect(button_, &QAbstractButton::clicked, this, &TerminalDock::toggle);
     area_->installEventFilter(this);
     layoutOverlay();
@@ -159,13 +158,11 @@ void TerminalDock::ensureCreated()
     const Theme& t = Theme::instance();
     panel_ = new TerminalPanel(host_);
     panel_->setToolTip(tr("Terminal"));
-    panel_->setProperty("tourId", QStringLiteral("terminal-panel"));
     panel_->hide();
 
     session_ = new plynth::terminal::TerminalSession(24, 80, this);
     view_ = new plynth::terminal::TerminalView(session_, makePalette(), panel_);
     view_->setToolTip(tr("Terminal: your shell, started in the project folder"));
-    view_->setProperty("tourId", QStringLiteral("terminal-view"));
     view_->installEventFilter(this);
 
     endedLabel_ = new QLabel(panel_);
