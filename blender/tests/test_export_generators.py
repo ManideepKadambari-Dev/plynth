@@ -30,8 +30,9 @@ class GeneratorExportTests(GeneratorTest):
         super().setUp()
         isolate(self)
 
-    # Builds the square room with a column and a turned railing. A name in neutral gets no material.
-    def build_room(self, neutral=(), furniture=False):
+    # Builds the square room with a column and a turned railing. A name in neutral gets no material. preview asks
+    # the build for its preview parts, which it writes only when the job names a preview folder.
+    def build_room(self, neutral=(), furniture=False, preview=False):
         paint = self.make_material("paint_a")
         params = upgrade(copy.deepcopy(collision_params()))
         params["materials"] = [paint]
@@ -63,6 +64,8 @@ class GeneratorExportTests(GeneratorTest):
                                              "size": {"width": 0.4, "depth": 0.4, "height": 0.4}}]
         params["output_folder"] = self.path("project", "build")
         params["blend_file"] = "building.blend"
+        if preview:
+            params["preview_folder"] = "preview"
         result = self.run_task("build", params, job_id="build-1")
         self.assertTrue(result["ok"], result["error"])
         self.assert_result_valid(result)
@@ -112,9 +115,11 @@ class GeneratorExportTests(GeneratorTest):
         self.staging = params["output_folder"]
         return {check["id"]: check for check in self.output["checks"]}
 
-    # Returns the ids of the checks that did not pass.
+    # Returns the ids of the checks that did not pass. The kit file check may be skipped, as these jobs ask for
+    # no kit, but it must then say skipped and nothing else.
     def not_passed(self, checks):
-        return [check_id for check_id, check in checks.items() if check["status"] != "pass"]
+        return [check_id for check_id, check in checks.items()
+                if check["status"] != "pass" and not (check_id == "kit_file" and check["status"] == "skipped")]
 
     # Fails unless the object has the bounds it had in the build.
     def assert_bounds(self, obj):
@@ -181,7 +186,7 @@ class GeneratorExportTests(GeneratorTest):
 
     # The preview shows the generators and not their hulls.
     def test_preview(self):
-        self.build_room()
+        self.build_room(preview=True)
         scene.clear_scene()
         bpy.ops.import_scene.fbx(filepath=self.path("project", "build", "preview", "f1.fbx"))
         names = [o.name for o in bpy.data.objects]
