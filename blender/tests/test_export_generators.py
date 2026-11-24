@@ -170,7 +170,7 @@ class GeneratorExportTests(GeneratorTest):
     # A group of generators takes their hulls with them.
     def test_group_of_generators(self):
         self.build_room()
-        groups = [{"id": "building", "file": "Square.fbx", "kinds": [], "ids": []},
+        groups = [{"id": "building", "file": "Square.fbx", "kinds": [], "ids": [], "rest": True},
                   {"id": "generators", "file": "Generators.fbx", "kinds": ["generator"], "ids": []}]
         self.export_room(groups=groups)
         self.assertTrue(self.output["written"])

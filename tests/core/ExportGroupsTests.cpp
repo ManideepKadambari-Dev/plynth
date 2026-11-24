@@ -459,6 +459,21 @@ TEST_CASE("members have plain labels", "[core][exportgroups]") {
     CHECK(exportMemberLabel(plan, {"floor", "r9"}) == "floor r9");
 }
 
+TEST_CASE("a generator item goes to its room's furniture group, labelled by its generator", "[core][exportgroups][generator]") {
+    Project project = flatProject();
+    project.settings.exportMode = ExportMode::Grouped;
+    Item column = itemIn("i4", "", "r1");
+    column.generator = GeneratorUse{"column", {{"diameter", GeneratorValue{0.3}}}};
+    project.plan.floors[0].items.push_back(column);
+
+    const std::vector<ExportGroup> groups = automaticExportGroups(project);
+    REQUIRE(group(groups, "furniture_r1"));
+    CHECK(group(groups, "furniture_r1")->members == std::vector<ExportMember>{{"item", "i1"}, {"generator", "i4"}});
+    for (const ExportGroup& g : groups) CHECK_FALSE(holds(g, "item", "i4"));
+    CHECK(exportMemberLabel(project.plan, {"generator", "i4"}) == "column i4");
+    CHECK(exportMemberLabel(project.plan, {"item", "i1"}) == "sofa i1");
+}
+
 TEST_CASE("the grouped exporter is reviewable and gives named files", "[core][exportgroups]") {
     const Exporter* exporter = findExporter("grouped");
     REQUIRE(exporter);
