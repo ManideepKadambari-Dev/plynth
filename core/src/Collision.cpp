@@ -18,6 +18,8 @@ constexpr int kPrecision = 8;
 constexpr double kPointClose = 1e-7;
 constexpr double kLevelEps = 1e-9;
 constexpr double kFarKey = 1e18;
+// How far a point may lie off the line through its neighbours and still count as on it.
+constexpr double kStraightGap = 1e-9;
 
 // One cross section line of a wall: a point on the centre line, the direction across the wall, and how far
 // the line reaches to each side. key is the distance along the centre line.
@@ -67,7 +69,15 @@ double cross(Vec2 a, Vec2 b, Vec2 c)
     return (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
 }
 
-// Drops repeated points and points that lie on a straight line between their neighbours.
+// How far b lies to the left of the line from a to c, negative when it lies to the right.
+double offLine(Vec2 a, Vec2 b, Vec2 c)
+{
+    const double span = distance(a, c);
+    return span > 0.0 ? cross(a, b, c) / span : cross(a, b, c);
+}
+
+// Drops repeated points and points that lie on a straight line between their neighbours. The line test is a
+// distance, not an area, so a sharp corner between two short edges is never taken for a straight point.
 std::vector<Vec2> cleanRing(std::vector<Vec2> ring)
 {
     bool changed = true;
@@ -79,7 +89,7 @@ std::vector<Vec2> cleanRing(std::vector<Vec2> ring)
             const Vec2 c = ring[(i + 1) % ring.size()];
             const bool same = distance(a, b) < kPointClose;
             const double along = (b.x - a.x) * (c.x - b.x) + (b.y - a.y) * (c.y - b.y);
-            const bool straight = std::fabs(cross(a, b, c)) < 1e-9 && along > 0.0;
+            const bool straight = std::fabs(offLine(a, b, c)) < kStraightGap && along > 0.0;
             if (same || straight) {
                 ring.erase(ring.begin() + static_cast<std::ptrdiff_t>(i));
                 changed = true;
@@ -398,7 +408,8 @@ std::optional<CollisionTargetKind> collisionTargetKindFromName(std::string_view 
     return std::nullopt;
 }
 
-// True when the ring is convex and anticlockwise.
+// True when the ring is convex and anticlockwise. A corner turns the wrong way when it lies more than
+// kStraightGap outside the line through its neighbours, however short its edges are.
 bool isConvexRing(const std::vector<Vec2>& ring)
 {
     const std::size_t n = ring.size();
@@ -410,7 +421,7 @@ bool isConvexRing(const std::vector<Vec2>& ring)
         const Vec2 b = ring[(i + 1) % n];
         const Vec2 c = ring[(i + 2) % n];
         const double turn = cross(a, b, c);
-        if (turn < -1e-9) return false;
+        if (offLine(a, b, c) < -kStraightGap) return false;
         const double along = (b.x - a.x) * (c.x - b.x) + (b.y - a.y) * (c.y - b.y);
         turning += std::atan2(turn, along);
     }
@@ -467,7 +478,12 @@ std::vector<std::vector<Vec2>> convexPieces(const WorldPolygon& polygon)
                 const Vec2 b = (*ring)[(i + 1) % ring->size()];
                 if (std::fabs(a.y - b.y) < 1e-12) continue;
                 if (std::min(a.y, b.y) > y0 + 1e-9 || std::max(a.y, b.y) < y1 - 1e-9) continue;
-                const auto xAt = [&](double y) { return a.x + (b.x - a.x) * (y - a.y) / (b.y - a.y); };
+                // A level that lies just past the edge's end uses that end, so a nearly level edge is not drawn
+                // on past its corner.
+                const auto xAt = [&](double y) {
+                    y = std::clamp(y, std::min(a.y, b.y), std::max(a.y, b.y));
+                    return a.x + (b.x - a.x) * (y - a.y) / (b.y - a.y);
+                };
                 crossings.push_back({xAt((y0 + y1) / 2.0), xAt(y0), xAt(y1)});
             }
         }

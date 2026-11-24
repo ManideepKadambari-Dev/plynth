@@ -17,9 +17,10 @@ if ($LASTEXITCODE -ge 8) { throw "copying the program failed with code $LASTEXIT
 $global:LASTEXITCODE = 0
 
 # Only committed files go in, so nothing that is not in the repository can reach the copy.
-$tracked = git -C $root ls-files -- blender samples docs schema LICENSE README.md
+$tracked = git -C $root ls-files -- blender samples docs schema licenses LICENSE AUTHORS README.md
 foreach ($file in $tracked) {
     if ($file -like 'blender/tests/*' -or $file -like 'blender/experiments/*' -or $file -eq 'blender/CMakeLists.txt') { continue }
+    if ($file -like 'docs/architecture/*') { continue }
     $target = Join-Path $Destination $file
     New-Item -ItemType Directory -Force (Split-Path $target) | Out-Null
     Copy-Item (Join-Path $root $file) $target

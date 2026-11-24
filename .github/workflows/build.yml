@@ -274,6 +274,51 @@ jobs:
           if-no-files-found: error
           retention-days: ${{ env.PLYNTH_GATE == 'true' && 30 || 14 }}
 
+      # A branch without the notices scripts skips these steps with a note.
+      - name: Gather the notice inputs
+        id: notice-inputs
+        if: ${{ !cancelled() && steps.package.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          $script = "$env:GITHUB_WORKSPACE/.github/scripts/notice-inputs.ps1"
+          if (-not (Test-Path $script)) {
+            'The notice inputs were not gathered: .github/scripts/notice-inputs.ps1 is not in this branch.' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+            'ran=false' | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            exit 0
+          }
+          # The script runs no program, so the exit code is reset first: an unset one would read as a failure.
+          $global:LASTEXITCODE = 0
+          & $script -Package "$env:GITHUB_WORKSPACE/out/package/plynth" -OutFolder "$env:GITHUB_WORKSPACE/out/notice-inputs"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          'ran=true' | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Upload the notice inputs
+        if: ${{ !cancelled() && steps.notice-inputs.outcome == 'success' && steps.notice-inputs.outputs.ran == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: notice-inputs
+          path: out/notice-inputs/
+          if-no-files-found: error
+          retention-days: 14
+
+      # It does not fail the run until the texts of the vcpkg libraries are copied in from notice-inputs.
+      # A tag without the script is an error here too.
+      - name: Check the third party notices
+        if: ${{ !cancelled() && steps.package.outcome == 'success' }}
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $script = "$env:GITHUB_WORKSPACE/.github/scripts/check-notices.ps1"
+          if (-not (Test-Path $script)) {
+            if ($env:GITHUB_REF_TYPE -eq 'tag') {
+              Write-Host '::error::.github/scripts/check-notices.ps1 is missing, and a tag needs the notices check'
+              exit 1
+            }
+            'The notices were not checked: .github/scripts/check-notices.ps1 is not in this branch.' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+            exit 0
+          }
+          & $script -Stage "$env:GITHUB_WORKSPACE/out/package/plynth"
+
       # Failures here do not fail the run yet. The outcome goes into the summary.
       - name: Run the graphics tests
         id: graphics

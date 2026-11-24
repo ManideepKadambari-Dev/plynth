@@ -191,13 +191,13 @@ class StairFixtureTests(StoreyTest):
 class SlabFaceTests(StoreyTest):
     # Builds a slab of the given polygons, sides and tops at 3.0 to 3.2 with the edge and well materials told
     # apart, and returns the result. Opens the built file.
-    def slab_of(self, polygons, sides, tops=()):
+    def slab_of(self, polygons, sides, tops=(), undersides=()):
         params = sharp("two_floors_stair")
         slab = params["floors"][0]["slab"]
         slab["polygons"] = polygons
         slab["sides"] = sides
         slab["tops"] = list(tops)
-        slab["undersides"] = []
+        slab["undersides"] = list(undersides)
         slab["slots"] = {"edge": "edge_mat", "well": "well_mat", "underside": "Soffit"}
         result = self.build(params)
         self.assertTrue(result["ok"], result["error"])
@@ -266,6 +266,47 @@ class SlabFaceTests(StoreyTest):
                   any(f.normal.z > 0.5 for f in e.link_faces) and any(abs(f.normal.z) < 1e-6 for f in e.link_faces)]
         self.assertEqual(len(shared), 1)
         self.assertTrue(all(abs(v.co.y) < 1e-6 and abs(v.co.z - 3.2) < 1e-6 for v in shared[0].verts))
+
+    # An overhang underside as thin as 1e-6 square metres (a needle 3 m long, from a setback rotated 20 degrees)
+    # still builds: a downward face at the bottom with the underside slot, welded to the bottom of the band along
+    # the shared edge. The usual triangulation answers it with a triangle that repeats a corner, which used to fail
+    # the whole slab.
+    def test_needle_underside_meets_the_band(self):
+        outline = [[-0.08746400475502014, 0.05207504332065582], [-1.496252290904522, -3.8185372352600098],
+                   [2.450457252562046, -5.255022287368774], [3.886941261589527, -1.3083137646317482],
+                   [2.9472489804029465, -0.9662935882806778], [0.03992893546819687, 0.09188482910394669],
+                   [-0.059767261147499084, 0.12817126512527466]]
+        needle = {"outline": [[2.9472489804029465, -0.9662935882806778], [2.9472492933273315, -0.9662927389144897],
+                              [0.03992893546819687, 0.09188482910394669]], "holes": []}
+        result = self.slab_of([{"outline": outline, "holes": []}], [{"outline": ["edge"] * 7, "holes": []}],
+                              undersides=[needle])
+        self.assertEqual(result["output"]["problems"], [])
+        bm = mesh_of("SM_f1_Slab")
+        downs = [f for f in bm.faces if f.normal.z < -0.5]
+        self.assertTrue(downs)
+        area = sum(f.calc_area() for f in downs)
+        self.assertTrue(5e-7 < area < 3e-6, area)
+        self.assertTrue(all(abs(v.co.z - 3.0) < 1e-6 for f in downs for v in f.verts))
+        obj = bpy.data.objects["SM_f1_Slab"]
+        self.assertEqual({obj.data.materials[f.material_index].name for f in downs}, {"Soffit"})
+        shared = [e for e in bm.edges if len(e.link_faces) == 2 and any(f.normal.z < -0.5 for f in e.link_faces)
+                  and any(abs(f.normal.z) < 1e-6 for f in e.link_faces)]
+        self.assertEqual(len(shared), 1)
+        self.assertTrue(all(abs(v.co.z - 3.0) < 1e-6 for v in shared[0].verts))
+
+    # An underside with a hole, 100 m from the origin, builds without a problem and keeps its area within 0.1
+    # percent.
+    def test_far_underside_with_a_hole(self):
+        outline = [[98.0, 98.0], [102.0, 98.0], [102.0, 102.0], [98.0, 102.0]]
+        hole = [[99.5, 99.5], [99.5, 100.5], [100.5, 100.5], [100.5, 99.5]]
+        result = self.slab_of([{"outline": [[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]], "holes": []}],
+                              [{"outline": ["edge"] * 4, "holes": []}],
+                              undersides=[{"outline": outline, "holes": [hole]}])
+        self.assertEqual(result["output"]["problems"], [])
+        bm = mesh_of("SM_f1_Slab")
+        downs = [f for f in bm.faces if f.normal.z < -0.5 and f.calc_center_median().x > 50.0]
+        area = sum(f.calc_area() for f in downs)
+        self.assertTrue(abs(area - 15.0) <= 1e-3 * 15.0, area)
 
     # The top faces take world X and Y as UVs.
     def test_ledge_uvs(self):
