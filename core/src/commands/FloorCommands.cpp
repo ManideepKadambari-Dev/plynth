@@ -126,7 +126,8 @@ void SetScaleCommand::undo(Project& project)
 
 unsigned SetScaleCommand::changes() const
 {
-    return moved_ ? (Change::Scale | Change::Points | Change::Walls | Change::Openings | Change::Items | Change::Stairs | Change::Roofs)
+    return moved_ ? (Change::Scale | Change::Points | Change::Walls | Change::Openings | Change::Items | Change::Stairs | Change::Roofs |
+                     Change::Lights)
                   : Change::Scale;
 }
 
@@ -313,7 +314,7 @@ void RemoveFloorCommand::undo(Project& project)
 unsigned RemoveFloorCommand::changes() const
 {
     return Change::Floors | Change::Points | Change::Walls | Change::Rooms | Change::Openings | Change::Items | Change::Stairs |
-           Change::Roofs;
+           Change::Roofs | Change::Lights;
 }
 
 SetFloorNameCommand::SetFloorNameCommand(Id floorId, std::string name) : floorId_(std::move(floorId)), name_(std::move(name)) {}
@@ -458,7 +459,9 @@ void SetFloorImageOffsetCommand::undo(Project& project)
 unsigned SetFloorImageOffsetCommand::changes() const
 {
     unsigned flags = Change::FloorImage;
-    if (moveMarks_) flags |= Change::Points | Change::Walls | Change::Openings | Change::Items | Change::Stairs | Change::Roofs;
+    if (moveMarks_) {
+        flags |= Change::Points | Change::Walls | Change::Openings | Change::Items | Change::Stairs | Change::Roofs | Change::Lights;
+    }
     return flags;
 }
 

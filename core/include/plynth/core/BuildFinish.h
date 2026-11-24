@@ -5,6 +5,7 @@
 #include "FinishSettings.h"
 #include "OpeningAssets.h"
 #include "Plan.h"
+#include "StairRailings.h"
 #include "Trim.h"
 
 #include <string>
@@ -55,6 +56,11 @@ struct FloorFinish {
     std::vector<OpeningAssetPlacement> openingAssets;
     std::vector<DressingPlacement> dressing;
     std::vector<LightBuild> lights;
+    // The railings of stairs on this floor and the guards round holes of stairs arriving here, with their
+    // material and slot.
+    std::vector<StairRailing> railings;
+    std::string railingMaterial;
+    std::string railingSlot;
 
     bool operator==(const FloorFinish&) const = default;
 };

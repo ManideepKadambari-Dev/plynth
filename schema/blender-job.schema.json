@@ -681,7 +681,7 @@
           "required": ["kind", "id"],
           "additionalProperties": false,
           "properties": {
-            "kind": { "enum": ["walls", "floor", "ceiling", "thresholds", "slab", "stair", "roof"] },
+            "kind": { "enum": ["walls", "floor", "ceiling", "thresholds", "slab", "stair", "roof", "railing", "guard"] },
             "id": { "$ref": "#/definitions/planId" }
           }
         },

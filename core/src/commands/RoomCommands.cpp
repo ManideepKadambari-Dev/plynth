@@ -96,7 +96,7 @@ void AddRoomCommand::undo(Project& project)
 
 unsigned AddRoomCommand::changes() const
 {
-    return Change::Rooms | Change::Items;
+    return Change::Rooms | Change::Items | Change::Lights;
 }
 
 Id AddRoomCommand::floorId() const
@@ -153,7 +153,7 @@ void RemoveRoomCommand::undo(Project& project)
 
 unsigned RemoveRoomCommand::changes() const
 {
-    return Change::Rooms | Change::Items;
+    return Change::Rooms | Change::Items | Change::Lights;
 }
 
 Id RemoveRoomCommand::floorId() const

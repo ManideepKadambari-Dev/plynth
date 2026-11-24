@@ -151,21 +151,26 @@ TEST_CASE("room changes, scale, image offset and delete carry the lights", "[com
 
     AddRoomCommand room("f1", {2.0, 2.0});
     applyUndoRedo(p, room);
+    CHECK((room.changes() & Change::Lights) != 0);
     const Id roomId = room.roomId();
     CHECK(findLight(p.plan.floors[0], id)->room == std::optional<Id>(roomId));
     RemoveRoomCommand removeRoom(roomId);
     applyUndoRedo(p, removeRoom);
+    CHECK((removeRoom.changes() & Change::Lights) != 0);
     CHECK_FALSE(findLight(p.plan.floors[0], id)->room.has_value());
     removeRoom.undo(p);
     CHECK(findLight(p.plan.floors[0], id)->room == std::optional<Id>(roomId));
 
     SetScaleCommand scale(50.0);
     applyUndoRedo(p, scale);
+    CHECK((scale.changes() & Change::Lights) != 0);
     CHECK_THAT(findLight(p.plan.floors[0], id)->x, WithinAbs(4.0, 1e-9));
     scale.undo(p);
 
     SetFloorImageOffsetCommand offset("f1", {1.0, 0.5}, true);
     applyUndoRedo(p, offset);
+    CHECK((offset.changes() & Change::Lights) != 0);
+    CHECK((SetFloorImageOffsetCommand("f1", {1.0, 0.5}, false).changes() & Change::Lights) == 0);
     CHECK_THAT(findLight(p.plan.floors[0], id)->x, WithinAbs(3.0, 1e-9));
     CHECK_THAT(findLight(p.plan.floors[0], id)->y, WithinAbs(2.5, 1e-9));
     offset.undo(p);
