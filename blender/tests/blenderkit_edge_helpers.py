@@ -28,9 +28,12 @@ MODEL = fetch_rig.MODEL
 MATERIAL = fetch_rig.MATERIAL
 
 
-# Runs Blender in a scratch environment with the fixed safe options before any script.
-def run_blender(env, arguments, timeout=200):
+# Runs Blender in a scratch environment with the fixed safe options before any script. low starts it at low
+# integrity, as core does for a fetch.
+def run_blender(env, arguments, timeout=200, low=False):
     command = [bpy.app.binary_path, "-b", "-t", "6", "--offline-mode"] + arguments
+    if low:
+        return fetch_rig._run_low(command, env, env["USERPROFILE"], timeout)
     return subprocess.run(command, env=env, cwd=env["USERPROFILE"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                           text=True, errors="replace", timeout=timeout)
 
@@ -82,13 +85,19 @@ class EdgeTest(helpers.TempFolderTest):
         self.runner = concurrent.futures.ThreadPoolExecutor(max_workers=2)
         self.addCleanup(self.runner.shutdown)
 
-    # Starts a fetch of an item. scenario may hold "helper" and "addon" parts for the two fakes. Returns what
-    # finish needs.
+    # Starts a fetch of an item at low integrity, as core does. scenario may hold "helper" and "addon" parts for
+    # the two fakes. Returns what finish needs.
     def start(self, item, scenario, wait=60, extra=("--disable-autoexec",)):
         folder = tempfile.mkdtemp(prefix="run", dir=self.folder)
         private = os.path.join(folder, "f")
-        os.makedirs(os.path.join(private, "tmp"))
+        os.makedirs(private)
+        # Labelled first, so the folders made in it afterwards carry the label too.
         fetch_rig.label_low(private)
+        os.makedirs(os.path.join(private, "tmp"))
+        # The helper runs at low integrity, so its log lies in a folder labelled for it, outside the fetch folder.
+        logs = os.path.join(folder, "logs")
+        os.makedirs(logs)
+        fetch_rig.label_low(logs)
         result = os.path.join(private, "result.json").replace("\\", "/")
         output = os.path.join(private, "out")
         job = {"format": "plynth-blender-job", "version": 1, "task": "blenderkit_fetch", "job_id": "edge-1",
@@ -107,12 +116,12 @@ class EdgeTest(helpers.TempFolderTest):
         child.update({"BLENDER_SYSTEM_SCRIPTS": GUARD, "PLYNTH_FETCH_PRIVATE": private, "PYTHONDONTWRITEBYTECODE": "1",
                       "TEMP": os.path.join(private, "tmp"), "TMP": os.path.join(private, "tmp"),
                       "FAKE_STORE_SCENARIO": os.path.join(folder, "helper.json"),
-                      "FAKE_STORE_LOG": os.path.join(folder, "helper.log"),
+                      "FAKE_STORE_LOG": os.path.join(logs, "helper.log"),
                       "FAKE_BK_SCENARIO": os.path.join(folder, "addon.json"),
                       "FAKE_BK_EVENTS": os.path.join(private, "events.jsonl")})
         arguments = list(extra) + ["--python-exit-code", "3", "--python", WORKER, "--", "--job",
                                    os.path.join(private, "job.json")]
-        return self.runner.submit(run_blender, child, arguments), result, output
+        return self.runner.submit(run_blender, child, arguments, low=True), result, output
 
     # Waits for a started fetch. Returns (result, output folder).
     def finish(self, started):

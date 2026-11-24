@@ -236,7 +236,12 @@ class Rig:
         self.source = os.path.join(self.root, "src", "item.blend")
         self.write(self.source, json.dumps({"fake_blend": 1, "objects": ["Item A"], "materials": ["Oak floor"]}))
         self.helper_scenario = {"search": [MODEL.record()], "download": {"source": self.source}, "linger_s": 2}
-        self.helper_log = os.path.join(self.root, "helper.log")
+        # The helper runs at low integrity, so its log lies in a folder labelled for it, outside the fetch folder.
+        # It is labelled also when the fetch folder is not, so an empty log always means nothing reached the helper.
+        self.logs = os.path.join(self.root, "logs")
+        os.makedirs(self.logs)
+        label_low(self.logs)
+        self.helper_log = os.path.join(self.logs, "helper.log")
         self.events_file = os.path.join(self.private, "events.jsonl")
         self.extra_env = {}
         self.extra_addons = {}
@@ -311,7 +316,8 @@ class Rig:
     def marker(self, name):
         return os.path.join(self.private, name + ".marker")
 
-    # Runs one fetch in the stand-in Blender. Returns the result as read, or None when there is none.
+    # Runs one fetch in the stand-in Blender at low integrity, as core does. Returns the result as read, or None
+    # when there is none.
     def fetch(self, item, resolution="2k", wait=60, guard=True, timeout=300):
         self.reset()
         self.prepare()
@@ -322,7 +328,7 @@ class Rig:
         if not guard:
             env["BLENDER_SYSTEM_SCRIPTS"] = os.path.join(self.root, "no_guard")
         self.done = run_child(env, ["--disable-autoexec", "--python-exit-code", "3", "--python", WORKER, "--",
-                                    "--job", job_file], self.private, timeout)
+                                    "--job", job_file], self.private, timeout, low=True)
         if not os.path.isfile(job["result_file"]):
             return None
         with open(job["result_file"], "r", encoding="utf-8") as handle:

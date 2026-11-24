@@ -138,6 +138,9 @@ class GoodFetches(FetchCase):
     # Search timeout: the operator's search waits longer than the add-on's 1 second.
     def test_slow_search_still_lands(self):
         self.rig.helper_scenario["search_delay_ms"] = 3000
+        # The search blocks the add-on's timer, so no report reaches the helper while it waits. The helper must
+        # outlive that wait, or it would end in the middle of the search for a reason this test does not ask about.
+        self.rig.helper_scenario["linger_s"] = 10
         self.assert_ok(self.rig.fetch(MODEL))
 
     # W6, B1: no secret of the task, the record or the add-on's own log reaches the result or the output.
@@ -425,11 +428,18 @@ class FetchSetup(FetchCase):
         self.assertEqual(self.rig.events("client_started"), [])
         self.assertEqual(self.rig.requests(), [])
 
-    # Step 1: a private folder that is not labelled low integrity is refused.
+    # Step 1: in a private folder that is not labelled low integrity, the low integrity fetch can do nothing.
+    # Windows refuses every write there, so no result can be written: no helper starts or is asked anything,
+    # the folder holds only what the test put there, and the home is unchanged.
     def test_folder_not_labelled(self):
         self.rig = Rig(self, low=False)
-        self.assert_failed(self.rig.fetch(MODEL), "download_failed", "bad_job")
-        self.assertEqual(self.rig.requests(), [])
+        before = self.rig.fingerprint()
+        self.assertIsNone(self.rig.fetch(MODEL), self.rig.output())
+        self.assertEqual(self.rig.requests(), [], self.rig.output())
+        left = sorted(os.path.relpath(os.path.join(current, name), self.rig.private).replace("\\", "/")
+                      for current, folders, names in os.walk(self.rig.private) for name in folders + names)
+        self.assertEqual(left, ["job.json", "tmp"], self.rig.output())
+        self.assertEqual(self.rig.fingerprint(), before)
 
     # D7: an add-on that cannot make its updater folder: addon_missing with its sentence, nothing made.
     def test_updater_folder_missing(self):

@@ -704,10 +704,14 @@ class EdgeChildTests(StoreSandbox):
         tests.setUpClass()
         case = tests("test_disable_autoexec_wins" if changes else "runTest")
         case.setUp()
-        try:
-            case.start(helper.MODEL, {})
-        finally:
-            case.doCleanups()
+        # The fetch starts Blender at low integrity. That start is replaced by a record until the helper's
+        # thread is done, so nothing starts.
+        low = lambda command, env, cwd, timeout: self.record_start(command, env=env)
+        with mock.patch.object(helper.fetch_rig, "_run_low", low):
+            try:
+                case.start(helper.MODEL, {})
+            finally:
+                case.doCleanups()
         self.assertEqual(len(self.starts), before + (3 if changes else 2))
         return self.starts[before:]
 
@@ -747,12 +751,15 @@ class PlainAndScratchChildTests(Sandbox):
         case = rules.FetchCase("assert_ok")
         case.setUp()
         found = []
+        low = lambda command, env, cwd, timeout: self.record_start(command, env=env)
         try:
-            found.append(self.child_of(lambda: case.rig.fetch(rig.MODEL)))
-            low = lambda command, env, cwd, timeout: self.record_start(command, env=env)
             with mock.patch.object(rig, "_run_low", low):
+                # A fetch starts the stand-in at low integrity, as core does.
+                found.append(self.child_of(lambda: case.rig.fetch(rig.MODEL)))
                 found.append(self.child_of(lambda: rig.run_child(case.rig.environment(), ["--python", "probe.py"],
                                                                  case.rig.private, 60, low=True)))
+            found.append(self.child_of(lambda: rig.run_child(case.rig.environment(), ["--python", "probe.py"],
+                                                             case.rig.private, 60)))
         finally:
             case.doCleanups()
         return found
