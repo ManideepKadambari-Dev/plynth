@@ -73,9 +73,11 @@ TEST_CASE("a cancel request stops a running build and leaves no marker for the n
     fs::create_directories(project / "build");
     std::ofstream(project / "build" / "cancel.request") << "left from before";
     std::atomic<bool> done = false;
+    // Asks once the build holds its lock, and then never again. A request sent while the build is ending can land
+    // after the build removed the marker; the next build clears such a marker when it starts.
     std::thread canceller([&] {
         for (int i = 0; i < 300 && !done; ++i) {
-            requestCancel(project);
+            if (requestCancel(project)) return;
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
     });
@@ -91,7 +93,7 @@ TEST_CASE("a cancel request stops a running build and leaves no marker for the n
     std::string line;
     int starts = 0;
     while (std::getline(log, line)) {
-        if (line.find_first_not_of('') == std::string::npos) continue;
+        if (line.find_first_not_of('\r') == std::string::npos) continue;
         ++starts;
         INFO(line);
         CHECK(line.find("--disable-autoexec") != std::string::npos);
