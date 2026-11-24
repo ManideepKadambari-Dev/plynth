@@ -21,6 +21,10 @@ on:
         description: Exact name of a core test case, hidden ones too, to run after the Debug build. The files it changes under tests are uploaded.
         type: string
         default: ''
+      test_programs:
+        description: Upload the Debug core test programs, their helpers, libraries and data as test-programs.
+        type: boolean
+        default: false
       screens:
         description: Take app screenshots at three sizes from the ready to run copy.
         type: boolean
@@ -33,9 +37,10 @@ on:
 permissions:
   contents: read
 
-# A branch push and a gate on the same branch do not cancel each other.
+# A newer push cancels an older push of the same branch and mode. Every manual run has a group of its own,
+# so it never cancels another run and is never cancelled by one.
 concurrency:
-  group: build-${{ github.ref }}-${{ (github.ref == 'refs/heads/main' || github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && inputs.config != 'debug')) && 'gate' || 'debug' }}
+  group: build-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && format('dispatch-{0}', github.run_id) || ((github.ref == 'refs/heads/main' || github.ref_type == 'tag') && 'gate' || 'debug') }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
@@ -62,6 +67,7 @@ jobs:
       TEST_LABELS: ${{ inputs.labels }}
       WRITE_FIXTURE: ${{ inputs.write_fixture }}
       SCREENS: ${{ inputs.screens }}
+      TEST_PROGRAMS: ${{ inputs.test_programs }}
       APP_OPTIONS: ${{ inputs.app_options }}
     steps:
       - name: Check out
@@ -204,6 +210,21 @@ jobs:
         shell: pwsh
         run: cmake --build --preset debug
 
+      - name: Pack the test programs
+        id: test-programs
+        if: github.event_name == 'workflow_dispatch' && env.TEST_PROGRAMS == 'true' && steps.build-debug.outcome == 'success'
+        shell: pwsh
+        run: '& "$env:GITHUB_WORKSPACE/.github/scripts/pack-test-programs.ps1" -Destination "$env:GITHUB_WORKSPACE/out/test-programs"'
+
+      - name: Upload the test programs
+        if: ${{ !cancelled() && steps.test-programs.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-programs
+          path: out/test-programs/
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Write fixtures
         id: write-fixture
         if: github.event_name == 'workflow_dispatch' && env.WRITE_FIXTURE != ''
@@ -252,6 +273,23 @@ jobs:
           path: out/package/plynth/
           if-no-files-found: error
           retention-days: ${{ env.PLYNTH_GATE == 'true' && 30 || 14 }}
+
+      # Failures here do not fail the run yet. The outcome goes into the summary.
+      - name: Run the graphics tests
+        id: graphics
+        if: ${{ !cancelled() && steps.package.outcome == 'success' }}
+        continue-on-error: true
+        shell: pwsh
+        run: '& "$env:GITHUB_WORKSPACE/.github/scripts/graphics-tests.ps1" -Package "$env:GITHUB_WORKSPACE/out/package/plynth"'
+
+      - name: Report the graphics tests
+        if: ${{ !cancelled() && steps.graphics.outcome != 'skipped' && steps.graphics.outcome != '' }}
+        shell: pwsh
+        env:
+          GRAPHICS_OUTCOME: ${{ steps.graphics.outcome }}
+        run: |
+          "Graphics tests: $env:GRAPHICS_OUTCOME. They do not fail the run yet." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          if ($env:GRAPHICS_OUTCOME -ne 'success') { Write-Host "::warning::The graphics tests ended with $env:GRAPHICS_OUTCOME" }
 
       - name: Take screenshots
         id: screens
