@@ -150,12 +150,13 @@ TEST_CASE("the automatic groups of a project", "[core][exportgroups]") {
 
     const ExportGroup& structure = groups[0];
     CHECK(structure.name == "Walls");
-    CHECK(structure.members == std::vector<ExportMember>{{"walls", "f1"}, {"door", "o1"}, {"window", "o2"}});
+    CHECK(structure.members == std::vector<ExportMember>{{"walls", "f1"}, {"trim", "f1"}, {"door", "o1"}, {"window", "o2"}});
 
     const ExportGroup& surfaces = groups[1];
     CHECK(surfaces.name == "Floors");
     CHECK(surfaces.members == std::vector<ExportMember>{{"floor", "r1"}, {"ceiling", "r1"}, {"floor", "r2"}, {"ceiling", "r2"},
-                                                        {"thresholds", "f1"}, {"slab", ""}, {"stair", ""}, {"roof", ""}, {"light", ""}});
+                                                        {"thresholds", "f1"}, {"slab", ""}, {"stair", ""}, {"roof", ""}, {"light", ""},
+                                                        {"railing", ""}, {"guard", ""}});
 
     CHECK(groups[2].name == "Furniture Living");
     CHECK(groups[2].members == std::vector<ExportMember>{{"item", "i1"}});
@@ -311,7 +312,8 @@ TEST_CASE("edits move members between groups", "[core][exportgroups]") {
     ExportGroupsApplied applied = applyExportGroupEdits(base, edits, "Flat");
     CHECK(holds(*group(applied.groups, "structure"), "item", "i1"));
     CHECK_FALSE(holds(*group(applied.groups, "furniture_r1"), "item", "i1"));
-    CHECK(group(applied.groups, "furniture_r1")->members.empty());
+    // The room's set dressing stays with the room.
+    CHECK(group(applied.groups, "furniture_r1")->members == std::vector<ExportMember>{{"dressing", "r1"}});
 
     edits = {};
     edits.added = {{"group_1", "Hero"}};
@@ -365,7 +367,7 @@ TEST_CASE("a group emptied by moves stays in the list", "[core][exportgroups]") 
     edits.moves = {{{"item", "i1"}, "structure"}};
     const ExportGroupsApplied applied = applyExportGroupEdits(automatic(project), edits, "Flat");
     REQUIRE(group(applied.groups, "furniture_r1"));
-    CHECK(group(applied.groups, "furniture_r1")->members.empty());
+    CHECK(group(applied.groups, "furniture_r1")->members == std::vector<ExportMember>{{"dressing", "r1"}});
 }
 
 TEST_CASE("renaming refuses bad names and names in use", "[core][exportgroups]") {
@@ -474,7 +476,8 @@ TEST_CASE("a generator item goes to its room's furniture group, labelled by its 
 
     const std::vector<ExportGroup> groups = automaticExportGroups(project);
     REQUIRE(group(groups, "furniture_r1"));
-    CHECK(group(groups, "furniture_r1")->members == std::vector<ExportMember>{{"item", "i1"}, {"generator", "i4"}});
+    CHECK(group(groups, "furniture_r1")->members ==
+          std::vector<ExportMember>{{"item", "i1"}, {"generator", "i4"}, {"dressing", "r1"}});
     for (const ExportGroup& g : groups) CHECK_FALSE(holds(g, "item", "i4"));
     CHECK(exportMemberLabel(project.plan, {"generator", "i4"}) == "column i4");
     CHECK(exportMemberLabel(project.plan, {"item", "i1"}) == "sofa i1");
@@ -642,7 +645,7 @@ TEST_CASE("an item is one member, never an asset and a generator", "[core][expor
     for (const ExportGroup& g : groups) {
         for (const ExportMember& m : g.members) CHECK(m.kind != "generator");
     }
-    CHECK(group(groups, "furniture_r1")->members.size() == 1);
+    CHECK(group(groups, "furniture_r1")->members.size() == 2);
 }
 
 TEST_CASE("the kit file name is never given to a group", "[core][exportgroups]") {

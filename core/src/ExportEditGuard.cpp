@@ -301,6 +301,22 @@ ExportEditResult ExportEditGuard::setKit(SessionTime now, bool enabled)
     return {ExportEditDecision::Allowed, writeExportOptions(d.folder, read.options)};
 }
 
+// Writes the gameplay data switch into the fresh options, refused only by a session.
+ExportEditResult ExportEditGuard::setGameplay(SessionTime now, bool enabled)
+{
+    State& d = *d_;
+    if (d.folder.empty()) return d.refuse(ExportEditDecision::ChangedOutside, kNoProjectText);
+    d.lookForSession(now);
+    if (d.sessionLock) return d.refuseLocked();
+
+    ExportOptionsRead read = readExportOptions(d.folder);
+    if (!read.status.ok()) return {ExportEditDecision::Allowed, read.status};
+    if (read.options.gameplay.enabled == enabled) return {};
+    read.options.gameplay.enabled = enabled;
+    if (d.lookForSession(now)) return d.refuseLocked();
+    return {ExportEditDecision::Allowed, writeExportOptions(d.folder, read.options)};
+}
+
 // Replaces the unreadable options file the person was asked about, or refuses.
 ExportEditResult ExportEditGuard::repair(ExportEditTicket ticket, SessionTime now)
 {

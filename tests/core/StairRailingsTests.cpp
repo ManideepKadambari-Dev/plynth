@@ -79,18 +79,25 @@ int railCount(const StairRailing& r)
     return n;
 }
 
-// Checks the posts of a railing stand at most kMaxPostSpacing apart along its rails.
+// Checks the posts of a railing stand at most kMaxPostSpacing apart along each of its rails. Each rail's posts
+// follow it in the list of sweeps.
 void checkPosts(const StairRailing& r)
 {
-    std::vector<Vec3> posts;
+    std::vector<std::vector<Vec3>> rails;
     for (const Sweep& s : r.sweeps) {
-        if (isPost(s)) posts.push_back(middle(s.sections[1]));
+        if (!isPost(s)) {
+            rails.emplace_back();
+        } else if (!rails.empty()) {
+            rails.back().push_back(middle(s.sections[1]));
+        }
     }
-    REQUIRE(posts.size() >= 2);
-    for (std::size_t i = 1; i < posts.size(); ++i) {
-        const double gap = std::hypot(posts[i].x - posts[i - 1].x, posts[i].y - posts[i - 1].y);
-        if (gap < 1e-9) continue;
-        CHECK(gap <= kMaxPostSpacing + 1e-6);
+    REQUIRE_FALSE(rails.empty());
+    for (const std::vector<Vec3>& posts : rails) {
+        REQUIRE(posts.size() >= 2);
+        for (std::size_t i = 1; i < posts.size(); ++i) {
+            const double gap = std::hypot(posts[i].x - posts[i - 1].x, posts[i].y - posts[i - 1].y);
+            CHECK(gap <= kMaxPostSpacing + 1e-6);
+        }
     }
 }
 

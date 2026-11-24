@@ -335,7 +335,10 @@ TEST_CASE("an item is one member of its group", "[cli][export][groups]") {
     CHECK(itemMembers == 1);
     const auto moved = flat.run({"export", "groups", "move", "item:i1", "--to", "structure"});
     REQUIRE(moved.exitCode == kExitOk);
-    CHECK(GroupedSample::group(moved, "furniture_r1").at("members").empty());
+    // The room's set dressing stays with the room's group.
+    const auto& left = GroupedSample::group(moved, "furniture_r1").at("members");
+    REQUIRE(left.size() == 1);
+    CHECK(left[0].at("kind") == "dressing");
 }
 
 TEST_CASE("a single project lists its one group and refuses edits", "[cli][export][groups]") {

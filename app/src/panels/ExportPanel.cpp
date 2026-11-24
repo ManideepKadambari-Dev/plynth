@@ -50,19 +50,6 @@ QString nativePath(const std::filesystem::path& path)
     return QDir::toNativeSeparators(QString::fromStdWString(path.wstring()));
 }
 
-// Writes the gameplay data switch through the guard when it has a setter for it. Without one, nothing is written
-// and the reason says so.
-template <typename Guard>
-plynth::ExportEditResult setGameplayThrough([[maybe_unused]] Guard& guard, [[maybe_unused]] plynth::SessionTime now,
-                                            [[maybe_unused]] bool enabled)
-{
-    if constexpr (requires(Guard& g, plynth::SessionTime n, bool e) { g.setGameplay(n, e); })
-        return guard.setGameplay(now, enabled);
-    else
-        return {plynth::ExportEditDecision::Allowed,
-                plynth::fail(plynth::ErrorCode::CannotWrite, "This version of Plynth cannot save the gameplay data switch.")};
-}
-
 // Draws the mark of a check: a blue tick in a circle for pass, an amber outline triangle for a warning, a filled
 // amber triangle for a fail and a grey dash in a circle for a check that did not run.
 void paintQualityMark(QPainter& p, const QRectF& box, plynth::QualityStatus status)
@@ -446,7 +433,7 @@ void ExportPanel::setKitEnabled(bool enabled)
 // Hands the gameplay data switch to the guard and asks for a new review.
 void ExportPanel::setGameplayEnabled(bool enabled)
 {
-    const plynth::ExportEditResult result = setGameplayThrough(guard_, plynth::sessionNow(), enabled);
+    const plynth::ExportEditResult result = guard_.setGameplay(plynth::sessionNow(), enabled);
     const bool failed = result.decision == plynth::ExportEditDecision::Allowed && !result.status.ok();
     gameplayError_ = failed ? fromCore(result.status.message) : QString();
     afterWrite();

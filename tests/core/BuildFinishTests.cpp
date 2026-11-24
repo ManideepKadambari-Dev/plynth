@@ -86,7 +86,8 @@ TEST_CASE("the build plan carries the trim of every floor with its slot", "[buil
     CHECK(finish.trim[1].kind == TrimKind::Cornice);
     CHECK(finish.trim[2].kind == TrimKind::Casing);
     CHECK(finish.trimSlot == "Trim");
-    CHECK(hasSlot(plan, "Trim", "painted_wood", "Trim"));
+    // The build fixtures clear every default material, so the trim gets its neutral look.
+    CHECK(hasSlot(plan, "Trim", "", "Trim"));
     CHECK(problemsWith(plan, "trim_profile_missing").empty());
 
     const Json job = checkedJob(p, plan);

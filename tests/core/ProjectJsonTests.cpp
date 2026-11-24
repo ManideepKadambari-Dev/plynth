@@ -46,7 +46,7 @@ TEST_CASE("plan JSON round trip", "[core][json]") {
     const PlanRead r = planFromJson(planToJson(plan));
     plynth::test::requireOk(r.status);
     REQUIRE(r.plan == plan);
-    REQUIRE(r.fileVersion == 6);
+    REQUIRE(r.fileVersion == 7);
     REQUIRE_FALSE(r.migrated);
 }
 
@@ -79,11 +79,12 @@ TEST_CASE("plan keys are written in schema order", "[core][json]") {
     std::vector<std::string> floorKeys;
     for (auto it = j["floors"][0].begin(); it != j["floors"][0].end(); ++it) floorKeys.push_back(it.key());
     REQUIRE(floorKeys == std::vector<std::string>{"id", "name", "image", "ceiling_height", "points", "walls", "rooms", "openings", "items",
-                                                    "slab_thickness", "image_offset", "stairs"});
+                                                    "slab_thickness", "image_offset", "stairs", "lights"});
 
     std::vector<std::string> openingKeys;
     for (auto it = j["floors"][0]["openings"][0].begin(); it != j["floors"][0]["openings"][0].end(); ++it) openingKeys.push_back(it.key());
-    REQUIRE(openingKeys == std::vector<std::string>{"id", "wall", "offset", "type", "shape", "width", "height", "sill", "hinge", "swing", "frame"});
+    REQUIRE(openingKeys == std::vector<std::string>{"id", "wall", "offset", "type", "shape", "width", "height", "sill", "hinge", "swing", "frame",
+                                                      "auto_frame"});
 
     std::vector<std::string> wallKeys;
     for (auto it = j["floors"][0]["walls"][0].begin(); it != j["floors"][0]["walls"][0].end(); ++it) wallKeys.push_back(it.key());
@@ -194,10 +195,10 @@ TEST_CASE("the reader refuses what breaks the format", "[core][json]") {
     }
     SECTION("a newer version") {
         Json j = minimalPlanJson();
-        j["version"] = 7;
+        j["version"] = 8;
         const PlanRead r = planFromJson(j);
         REQUIRE(r.status.code == ErrorCode::UnsupportedVersion);
-        REQUIRE(r.fileVersion == 7);
+        REQUIRE(r.fileVersion == 8);
     }
     SECTION("a bad opening type, hinge or swing") {
         Json j = planToJson(fullPlan());
@@ -237,9 +238,10 @@ TEST_CASE("settings keys are in schema order and defaults apply", "[core][json]"
     const Json j = settingsToJson(ProjectSettings{});
     std::vector<std::string> keys;
     for (auto it = j.begin(); it != j.end(); ++it) keys.push_back(it.key());
-    REQUIRE(keys == std::vector<std::string>{"format", "version", "name", "export_mode", "grid_size", "defaults", "materials"});
+    REQUIRE(keys == std::vector<std::string>{"format", "version", "name", "export_mode", "grid_size", "defaults", "materials",
+                                             "trim", "variation"});
 
-    const SettingsRead r = settingsFromJson(Json::parse(R"({"format":"plynth-project","version":5,"name":"A"})"));
+    const SettingsRead r = settingsFromJson(Json::parse(R"({"format":"plynth-project","version":6,"name":"A"})"));
     plynth::test::requireOk(r.status);
     REQUIRE(r.settings.exportMode == ExportMode::Single);
     REQUIRE(r.settings.gridSize == kDefaultGridSize);
@@ -263,7 +265,7 @@ TEST_CASE("settings refuse bad values", "[core][json]") {
     refused(R"({"format":"plynth-project","version":5,"name":"A","extra":1})", ErrorCode::BadFile, "/extra");
     refused(R"({"format":"plynth-plan","version":5,"name":"A"})", ErrorCode::BadFile, "/format");
     refused(R"({"format":"plynth-project","name":"A"})", ErrorCode::BadFile, "/version");
-    refused(R"({"format":"plynth-project","version":6,"name":"A"})", ErrorCode::UnsupportedVersion, "/version");
+    refused(R"({"format":"plynth-project","version":7,"name":"A"})", ErrorCode::UnsupportedVersion, "/version");
     refused(R"({"format":"plynth-project","version":5,"name":"A","defaults":{"extra":1}})", ErrorCode::BadFile, "/defaults/extra");
     refused(R"({"format":"plynth-project","version":5,"name":"A","defaults":{"door_width":0}})", ErrorCode::BadFile, "/defaults");
     refused(R"({"format":"plynth-project","version":5,"name":"A","defaults":{"door_width":"wide"}})", ErrorCode::BadFile,
@@ -301,7 +303,7 @@ TEST_CASE("settings write every surface and read them back", "[core][json][mater
     std::vector<std::string> keys;
     for (auto it = j["materials"].begin(); it != j["materials"].end(); ++it) keys.push_back(it.key());
     REQUIRE(keys == std::vector<std::string>{"wall_inside", "wall_outside", "wall_top", "floor", "ceiling", "door", "frame", "glass", "handle",
-                                                    "roof", "flat_roof", "stair"});
+                                                    "roof", "flat_roof", "stair", "trim", "railing"});
     const SettingsRead r = settingsFromJson(j);
     plynth::test::requireOk(r.status);
     REQUIRE(r.settings == s);
@@ -776,7 +778,7 @@ TEST_CASE("a version 4 plan upgrades to 6 with no generators", "[core][json][mig
         for (const Floor& f : r.plan.floors) {
             for (const Item& it : f.items) REQUIRE_FALSE(it.generator.has_value());
         }
-        REQUIRE(planToJson(r.plan)["version"] == 6);
+        REQUIRE(planToJson(r.plan)["version"] == 7);
     }
 }
 

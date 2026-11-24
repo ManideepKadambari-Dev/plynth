@@ -835,6 +835,12 @@ TEST_CASE("a stair without a type reads as straight and fits the plan schemas", 
 
     Json older = json;
     older["version"] = 5;
+    // Plan 7 fields are not part of version 5.
+    for (Json& floor : older["floors"]) {
+        floor.erase("lights");
+        for (Json& room : floor["rooms"]) room.erase("dressing");
+        for (Json& opening : floor["openings"]) opening.erase("auto_frame");
+    }
     CHECK(schemaProblem("plan.v5.schema.json", nlohmann::json::parse(older.dump())) == "");
     const PlanRead migrated = planFromJson(older);
     requireOk(migrated.status);

@@ -112,6 +112,9 @@ public:
     // to the groups is kept, and is still found afterwards as a change.
     ExportEditResult setKit(SessionTime now, bool enabled);
 
+    // Writes the gameplay data switch the same way as setKit.
+    ExportEditResult setGameplay(SessionTime now, bool enabled);
+
     // Runs repairExportOptions after the same checks of session, lock and ticket, in every mode, and reads the
     // session again right before it. Only a file that was shown as unreadable and still is gets repaired.
     // Otherwise it is refused as ChangedOutside and nothing is written: nobody was asked about that file.
