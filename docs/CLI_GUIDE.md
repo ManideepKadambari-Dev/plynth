@@ -1860,6 +1860,7 @@ The stages are `preparing`, `blender` (one line per step, `index` counting from 
 |---|---|---|
 | `opening_does_not_fit` | error | The opening reaches past its wall or the wall's height. It is not cut. The message says how far. |
 | `room_not_closed` | error | The room's walls do not close a shape, so it gets no floor and no ceiling. |
+| `outline_failed` | error | An outline of the floor could not be worked out, so its slab or roof would be wrong. The `object` is empty. Report the plan. |
 | `missing_asset` | error | The item's asset is not in the library. The item is left out. |
 | `asset_broken` | error | The library lists the asset, but it is marked broken or its folder or `asset.blend` is gone. The item is left out. |
 | `no_library` | error | No usable library. Every item is left out. When the plan has no items and only uses materials, it is a warning and every surface gets its neutral look. |

@@ -24,7 +24,8 @@ BuildChoices buildChoicesFrom(const AssetCatalog* assets, const MaterialCatalog*
     BuildChoices out;
     if (assets) {
         for (const AssetRecord& record : assets->search(AssetQuery{})) {
-            if (record.state != AssetState::Ready) continue;
+            // An asset waiting for a refresh is still built where it is placed, so it may be chosen too.
+            if (record.state == AssetState::Broken) continue;
             if (!(record.size.width > 0.0 && record.size.depth > 0.0 && record.size.height > 0.0)) continue;
             AssetChoice choice;
             choice.id = record.id;

@@ -12,6 +12,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#include <shlobj.h>
 
 #include <catch2/catch_test_macros.hpp>
 #include <nlohmann/json.hpp>
@@ -183,6 +184,40 @@ struct PrivateFolderScope {
     plynth::test::ScopedEnv env;
 };
 
+// The private folder in the Win32 environment, empty when it is not set.
+std::wstring win32PrivateFolder()
+{
+    const DWORD size = GetEnvironmentVariableW(L"PLYNTH_BLENDER_PRIVATE", nullptr, 0);
+    if (size == 0) return {};
+    std::wstring value(size, L'\0');
+    value.resize(GetEnvironmentVariableW(L"PLYNTH_BLENDER_PRIVATE", value.data(), size));
+    return value;
+}
+
+// The private folder in the C runtime environment, empty when it is not set.
+std::wstring runtimePrivateFolder()
+{
+    wchar_t* text = nullptr;
+    std::size_t size = 0;
+    std::wstring value;
+    if (_wdupenv_s(&text, &size, L"PLYNTH_BLENDER_PRIVATE") == 0 && text) value = text;
+    free(text);
+    return value;
+}
+
+// The private folder a child process is given, read back from the program that prints its environment.
+std::string childPrivateFolder()
+{
+    ProcessSpec spec;
+    spec.program = fs::path(PLYNTH_ECHO_LINES);
+    spec.arguments = {"--env", "PLYNTH_BLENDER_PRIVATE"};
+    std::string line;
+    plynth::test::requireOk(runProcess(spec, [&](std::string_view text) { line = text; }).status);
+    const std::string start = "env:PLYNTH_BLENDER_PRIVATE=";
+    REQUIRE(line.rfind(start, 0) == 0);
+    return line.substr(start.size());
+}
+
 // The lines the fake wrote about the variables it saw.
 std::vector<std::string> fakeEnvLines(const JobFixture& f)
 {
@@ -192,6 +227,77 @@ std::vector<std::string> fakeEnvLines(const JobFixture& f)
     return lines;
 }
 
+// Says whether a path is a folder or lies below it, by its text.
+bool liesIn(const fs::path& path, const fs::path& folder)
+{
+    if (folder.empty()) return false;
+    const fs::path rest = path.lexically_normal().lexically_relative(folder.lexically_normal());
+    return !rest.empty() && rest.begin()->wstring() != L"..";
+}
+
+// The scratch root of this test program (TestSetup.cpp): the folder plynth-<pid>-<number> that the temp folder
+// lies in. Empty when the temp folder is not inside one.
+fs::path scratchRoot()
+{
+    const std::wstring prefix = L"plynth-" + std::to_wstring(GetCurrentProcessId()) + L"-";
+    for (fs::path folder = fs::temp_directory_path().lexically_normal(); !folder.empty(); folder = folder.parent_path()) {
+        const std::wstring name = folder.filename().wstring();
+        const bool numbered = name.size() > prefix.size() && name.compare(0, prefix.size(), prefix) == 0 &&
+                              name.find_first_not_of(L"0123456789", prefix.size()) == std::wstring::npos;
+        if (numbered) return folder;
+        if (folder == folder.parent_path()) break;
+    }
+    return {};
+}
+
+// The user's real local app data folder, whatever LOCALAPPDATA says. Only the path is asked for.
+fs::path realLocalAppData()
+{
+    PWSTR found = nullptr;
+    fs::path folder;
+    if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &found))) folder = found;
+    CoTaskMemFree(found);
+    return folder;
+}
+
+}
+
+TEST_CASE("the tests keep the private Blender folder under the temp folder", "[core][blenderjob][privatefolder]") {
+    plynth::test::TempDir tmp("private-guard");
+    // Should the guard ever be wrong, the fallback folder lands here and not in the user's own.
+    plynth::test::ScopedEnv local("LOCALAPPDATA", pathToUtf8(tmp.path() / "local"));
+
+    const std::wstring atStart = win32PrivateFolder();
+    REQUIRE_FALSE(atStart.empty());
+    // The folder is this program's own: inside its scratch root, or else in the system temp folder, and never
+    // Plynth's shared folder in the user's real local app data.
+    const fs::path start(atStart);
+    const fs::path root = scratchRoot();
+    const fs::path systemTemp = root.empty() ? fs::temp_directory_path() : root.parent_path();
+    INFO(pathToUtf8(start) + " root " + pathToUtf8(root) + " temp " + pathToUtf8(systemTemp));
+    REQUIRE((liesIn(start, root) || liesIn(start, systemTemp)));
+    REQUIRE_FALSE(start.lexically_normal() == root.lexically_normal());
+    REQUIRE_FALSE(start.lexically_normal() == systemTemp.lexically_normal());
+    REQUIRE_FALSE(liesIn(start, realLocalAppData() / "Plynth"));
+    REQUIRE(runtimePrivateFolder() == atStart);
+    REQUIRE(childPrivateFolder() == fs::path(atStart).string());
+    {
+        const fs::path other = fs::temp_directory_path() / ("plynth-tests-private-scope-" + std::to_string(GetCurrentProcessId()));
+        const PrivateFolderScope scope(other);
+        REQUIRE(fs::path(win32PrivateFolder()) == other);
+        REQUIRE(childPrivateFolder() == fs::path(win32PrivateFolder()).string());
+    }
+    REQUIRE(win32PrivateFolder() == atStart);
+    REQUIRE(runtimePrivateFolder() == atStart);
+    REQUIRE(childPrivateFolder() == fs::path(atStart).string());
+
+    // Only now is Blender's folder resolved, so a failed check above creates nothing.
+    const fs::path exe = plynth::test::makeFakeBlender(tmp.path() / "blender", "5.2.0");
+    plynth::test::requireOk(inspectBlender(exe).status);
+    std::ifstream log(exe.parent_path() / "fake_env.log", std::ios::binary);
+    std::string seen;
+    REQUIRE(std::getline(log, seen).good());
+    REQUIRE(seen.find("|BLENDER_USER_RESOURCES=" + pathToUtf8(fs::path(atStart)) + "|") != std::string::npos);
 }
 
 TEST_CASE("a factory startup job and the version probe run in the private folder", "[core][blenderjob]") {

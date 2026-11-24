@@ -195,11 +195,13 @@ struct BuildSettings {
 // asset_load_failed (error), bevel_failed (warning, the walls are left sharp), material_failed (warning, a
 // map could not be loaded and the surface got its neutral look), collision_failed (warning, a collision piece
 // or a hull could not be made; object is the room, floor, stair or item). New steps may add codes.
-// Also found by core: the StairProblem codes of Stairs.h (object the stair) and the RoofProblem codes
-// of Roofs.h (object the roof section entry, or empty). Found by the worker: slab_failed, stair_failed and
-// roof_failed (errors: the mesh could not be made and is left out, so the export's build_complete check
-// fails; floor is always set; object is a plan id, never an object name: the floor for a slab, the stair for
-// a stair, and for a roof its section entry, or the floor when the section follows the plan's default),
+// Also found by core: the StairProblem codes of Stairs.h (object the stair), the RoofProblem codes
+// of Roofs.h (object the roof section entry, or empty), and outline_failed (error: an outline of the floor could
+// not be worked out by the rules of Storeys.h, so its slab or roof would be wrong; object empty). Found by the
+// worker: slab_failed, stair_failed and roof_failed (errors: the mesh could not be made and is left out, so the
+// export's build_complete check fails; floor is always set; object is a plan id, never an object name: the
+// floor for a slab, the stair for a stair, and for a roof its section entry, or the floor when the section
+// follows the plan's default),
 // preview_failed (warning: a preview part could not be written; the 3D view then loads building.fbx).
 // Generator items (GeneratorBuild.h): found by core missing_generator, generator_broken (errors),
 // generator_unavailable, generator_changed (warnings); found by the worker generator_failed (error),

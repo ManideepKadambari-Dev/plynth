@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <numbers>
+#include <numeric>
 
 namespace plynth {
 
@@ -31,6 +32,119 @@ std::vector<Vec2> withoutStraightPoints(std::vector<Vec2> ring)
         }
     }
     return ring;
+}
+
+constexpr double kOnEaves = 1e-7;    // metres: a point this near an edge of the eaves lies on the eaves
+constexpr double kWeldDistance = 1e-4; // metres: inner points this near each other, along a chain, are one point
+constexpr double kWeldReach = 2e-4;    // metres: a group of points spread wider than this is left as it is
+
+// The distance from a point to the segment from a to b.
+double toSegment(Vec2 p, Vec2 a, Vec2 b)
+{
+    const double dx = b.x - a.x;
+    const double dy = b.y - a.y;
+    const double size2 = dx * dx + dy * dy;
+    double t = size2 > 0.0 ? ((p.x - a.x) * dx + (p.y - a.y) * dy) / size2 : 0.0;
+    t = std::clamp(t, 0.0, 1.0);
+    return std::hypot(p.x - a.x - t * dx, p.y - a.y - t * dy);
+}
+
+// Says whether a point lies on an edge of the eaves.
+bool onEaves(Vec2 p, const std::vector<WorldPolygon>& eaves)
+{
+    const auto onRing = [&p](const std::vector<Vec2>& ring) {
+        for (std::size_t i = 0; i < ring.size(); ++i) {
+            if (toSegment(p, ring[i], ring[(i + 1) % ring.size()]) <= kOnEaves) return true;
+        }
+        return false;
+    };
+    for (const WorldPolygon& poly : eaves) {
+        if (onRing(poly.outline)) return true;
+        for (const std::vector<Vec2>& hole : poly.holes) {
+            if (onRing(hole)) return true;
+        }
+    }
+    return false;
+}
+
+// The ring without a point that repeats the one before it.
+void dropRepeats(std::vector<Vec2>& ring)
+{
+    std::vector<Vec2> kept;
+    for (const Vec2& p : ring) {
+        if (kept.empty() || !(kept.back() == p)) kept.push_back(p);
+    }
+    while (kept.size() > 1 && kept.back() == kept.front()) kept.pop_back();
+    ring = std::move(kept);
+}
+
+// Moves the inner points of the faces that come within kWeldDistance of each other, along a chain, to their mean,
+// so faces that meet at one apex share it exactly. Rounding in the outline otherwise spreads the apex of a round
+// room over ridges up to some 3e-5 m long, and tidying then cuts a face back from it. Points on the eaves never
+// move.
+void weldInnerPoints(std::vector<roofparts::Piece>& pieces, const std::vector<WorldPolygon>& eaves)
+{
+    std::vector<Vec2*> inner;
+    for (roofparts::Piece& piece : pieces) {
+        for (WorldPolygon& poly : piece.area) {
+            for (Vec2& p : poly.outline) {
+                if (!onEaves(p, eaves)) inner.push_back(&p);
+            }
+            for (std::vector<Vec2>& hole : poly.holes) {
+                for (Vec2& p : hole) {
+                    if (!onEaves(p, eaves)) inner.push_back(&p);
+                }
+            }
+        }
+    }
+    const std::size_t count = inner.size();
+    std::vector<std::size_t> group(count);
+    std::iota(group.begin(), group.end(), std::size_t{0});
+    const auto root = [&group](std::size_t i) {
+        while (group[i] != i) i = group[i] = group[group[i]];
+        return i;
+    };
+    for (std::size_t i = 0; i < count; ++i) {
+        for (std::size_t j = i + 1; j < count; ++j) {
+            if (std::hypot(inner[i]->x - inner[j]->x, inner[i]->y - inner[j]->y) < kWeldDistance) {
+                group[root(i)] = root(j);
+            }
+        }
+    }
+    std::vector<std::vector<std::size_t>> members(count);
+    for (std::size_t i = 0; i < count; ++i) members[root(i)].push_back(i);
+    for (const std::vector<std::size_t>& list : members) {
+        if (list.size() < 2) continue;
+        Vec2 mean{0.0, 0.0};
+        for (const std::size_t k : list) {
+            mean.x += inner[k]->x;
+            mean.y += inner[k]->y;
+        }
+        mean = {mean.x / static_cast<double>(list.size()), mean.y / static_cast<double>(list.size())};
+        bool tight = true;
+        for (const std::size_t k : list) {
+            tight = tight && std::hypot(inner[k]->x - mean.x, inner[k]->y - mean.y) <= kWeldReach;
+        }
+        if (!tight) continue;
+        for (const std::size_t k : list) *inner[k] = mean;
+    }
+
+    for (roofparts::Piece& piece : pieces) {
+        std::vector<WorldPolygon> kept;
+        for (WorldPolygon& poly : piece.area) {
+            dropRepeats(poly.outline);
+            if (poly.outline.size() < 3) continue;
+            std::vector<std::vector<Vec2>> holes;
+            for (std::vector<Vec2>& hole : poly.holes) {
+                dropRepeats(hole);
+                if (hole.size() >= 3) holes.push_back(std::move(hole));
+            }
+            poly.holes = std::move(holes);
+            kept.push_back(std::move(poly));
+        }
+        piece.area = std::move(kept);
+    }
+    std::erase_if(pieces, [](const roofparts::Piece& piece) { return piece.area.empty(); });
 }
 
 // Says whether a ring turns left at every point.
@@ -103,6 +217,8 @@ public:
             piece.top = {slope * normals[i].x, slope * normals[i].y, base - slope * offsets[i]};
             pieces.push_back(std::move(piece));
         }
+
+        weldInnerPoints(pieces, input.eaves);
 
         auto height = [=](Vec2 p) {
             double lowest = 1e18;

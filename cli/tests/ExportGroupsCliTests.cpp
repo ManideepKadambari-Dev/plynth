@@ -336,7 +336,8 @@ TEST_CASE("an item is one member of its group", "[cli][export][groups]") {
     const auto moved = flat.run({"export", "groups", "move", "item:i1", "--to", "structure"});
     REQUIRE(moved.exitCode == kExitOk);
     // The room's set dressing stays with the room's group.
-    const auto& left = GroupedSample::group(moved, "furniture_r1").at("members");
+    // A copy: group() returns its answer by value.
+    const auto left = GroupedSample::group(moved, "furniture_r1").at("members");
     REQUIRE(left.size() == 1);
     CHECK(left[0].at("kind") == "dressing");
 }
