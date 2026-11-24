@@ -1,5 +1,6 @@
 #include "../CatalogCommon.h"
 #include "../Common.h"
+#include "../SessionKeeper.h"
 
 #include <plynth/core/Build.h>
 #include <plynth/core/BuildJob.h>
@@ -192,7 +193,8 @@ Answer buildProject(const RunContext& context, const BuildOptions& options) {
         }
         lastStage = step.stage;
     };
-    const BuildReport report = runBuild(request, onProgress);
+    const SessionKeeper keeper(folder);
+    const BuildReport report = runBuild(request, onProgress, stopToken(context));
     if (!report.status.ok()) {
         return failure(command, report.status);
     }

@@ -51,6 +51,39 @@ void MainWindow::packProjectDialog()
     dialog.exec();
 }
 
+// Shows one of the two dialogs without blocking, for the screenshot checks. Pack runs as a check, so nothing is
+// written; unpack only plans.
+void MainWindow::showPackDialogForCheck(const QString& kind)
+{
+    if (!doc_.hasFolder() || !host_->hasLibrary()) {
+        statusBar_->showMessage(tr("Open a saved project and set a library folder first."));
+        return;
+    }
+    delete checkPackDialog_.data();
+    if (kind == QStringLiteral("unpack")) {
+        const plynth::UnpackPlan plan = plynth::planUnpack(doc_.folder(), host_->paths());
+        if (!plan.status.ok()) {
+            statusBar_->showMessage(fromCore(plan.status.message));
+            return;
+        }
+        checkPackDialog_ = new PackDialog(plan, this);
+    } else {
+        plynth::PackRequest request;
+        request.projectFolder = doc_.folder();
+        request.contents = plynth::packContents(doc_.project(), host_->paths());
+        request.library = host_->paths();
+        request.checkOnly = true;
+        const plynth::PackReport report = plynth::packProject(request);
+        if (!report.status.ok()) {
+            statusBar_->showMessage(fromCore(report.status.message));
+            return;
+        }
+        checkPackDialog_ = new PackDialog(report, this);
+    }
+    checkPackDialog_->setAttribute(Qt::WA_DeleteOnClose);
+    checkPackDialog_->show();
+}
+
 // File > Unpack into library: shows what the project's pack would add, and on Unpack copies it in through the
 // same unpackProject as "plynth unpack". A conflict keeps the library's items.
 void MainWindow::unpackProjectDialog()

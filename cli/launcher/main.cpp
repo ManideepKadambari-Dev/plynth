@@ -129,10 +129,20 @@ std::vector<std::string> readArguments() {
     return result;
 }
 
-// Swallows Ctrl+C and Ctrl+Break so they only reach plynth.exe, and plynth.com keeps waiting for it.
+// The event plynth.exe watches to stop the running command. plynth.exe has no console of its own, so Ctrl+C
+// in the terminal reaches only plynth.com, which passes it on through this event.
+HANDLE gCancelEvent = nullptr;
+
+// Turns Ctrl+C and Ctrl+Break into a stop request for plynth.exe, and keeps plynth.com waiting for its answer.
 // A handler function is used, not the "ignore" setting, because that setting would pass to the child.
-BOOL WINAPI ignoreInterrupt(DWORD type) {
-    return type == CTRL_C_EVENT || type == CTRL_BREAK_EVENT;
+BOOL WINAPI passInterrupt(DWORD type) {
+    if (type != CTRL_C_EVENT && type != CTRL_BREAK_EVENT) {
+        return FALSE;
+    }
+    if (gCancelEvent != nullptr) {
+        SetEvent(gCancelEvent);
+    }
+    return TRUE;
 }
 
 // The folder this program lives in.
@@ -207,7 +217,14 @@ int main() {
     if (oldCodePage != 0) {
         SetConsoleOutputCP(CP_UTF8);
     }
-    SetConsoleCtrlHandler(ignoreInterrupt, TRUE);
+    // A name of its own for each run, handed to plynth.exe in PLYNTH_CANCEL_EVENT.
+    const std::wstring eventName = L"Local\\plynth-cancel-" + std::to_wstring(GetCurrentProcessId()) + L"-" +
+                                   std::to_wstring(GetTickCount64());
+    gCancelEvent = CreateEventW(nullptr, TRUE, FALSE, eventName.c_str());
+    if (gCancelEvent != nullptr) {
+        SetEnvironmentVariableW(L"PLYNTH_CANCEL_EVENT", eventName.c_str());
+    }
+    SetConsoleCtrlHandler(passInterrupt, TRUE);
 
     PROCESS_INFORMATION process{};
     if (!CreateProcessW(child.c_str(), commandLine.data(), nullptr, nullptr, TRUE, 0, nullptr, nullptr, &startup,

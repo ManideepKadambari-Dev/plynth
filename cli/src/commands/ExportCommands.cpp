@@ -1,5 +1,6 @@
 #include "../CatalogCommon.h"
 #include "../Common.h"
+#include "../SessionKeeper.h"
 
 #include <plynth/core/Blender.h>
 #include <plynth/core/Export.h>
@@ -122,7 +123,8 @@ Answer exportProject(const RunContext& context, const ExportOptions& options) {
         }
         lastStage = step.stage;
     };
-    const ExportReport report = runExport(request, onProgress);
+    const SessionKeeper keeper(folder);
+    const ExportReport report = runExport(request, onProgress, stopToken(context));
     if (!report.status.ok()) {
         return failure(command, report.status);
     }

@@ -18,6 +18,7 @@
 #include <optional>
 
 class QAction;
+class QDialog;
 class QCloseEvent;
 class QDragEnterEvent;
 class QDropEvent;
@@ -253,6 +254,9 @@ private:
     void save3dPicture();
     void packProjectDialog();
     void unpackProjectDialog();
+    // For checks only: shows the pack dialog ("pack", from a check that writes nothing) or the unpack dialog
+    // ("unpack") without waiting, so a screenshot includes it.
+    void showPackDialogForCheck(const QString& kind);
     bool buildBlocked(QString* reason) const;
     QString exportNotice(bool* offerBuild) const;
     void exportFinished(const plynth::ExportReport& report);
@@ -334,6 +338,7 @@ private:
     QAction* buildFolderAction_ = nullptr;
     QAction* openBlenderAction_ = nullptr;
     QAction* save3dPictureAction_ = nullptr;
+    QPointer<QDialog> checkPackDialog_;
     std::optional<plynth::BuildReport> report_;
     QTimer* buildUiTimer_ = nullptr;
     QString buildProgressText_;

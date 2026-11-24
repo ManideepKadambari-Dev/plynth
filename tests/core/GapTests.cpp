@@ -89,7 +89,7 @@ TEST_CASE("a cancel request stops a running build and leaves no marker for the n
     std::string line;
     int starts = 0;
     while (std::getline(log, line)) {
-        if (line.empty() || line == "") continue;
+        if (line.find_first_not_of('') == std::string::npos) continue;
         ++starts;
         INFO(line);
         CHECK(line.find("--disable-autoexec") != std::string::npos);

@@ -73,7 +73,7 @@ Answer renderProject(const RunContext& context, const RenderCliOptions& o) {
     options.out = pathFromUtf8(o.out);
 
     const SceneRenderer renderer = context.host != nullptr ? context.host->render : SceneRenderer{};
-    const RenderReport report = renderBuilding(folder, document.project(), options, renderer);
+    const RenderReport report = renderBuilding(folder, document.project(), options, renderer, stopToken(context));
     if (!report.status.ok()) {
         return failure(command, report.status);
     }

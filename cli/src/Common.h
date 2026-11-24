@@ -92,6 +92,9 @@ Json openingEntry(const Floor& floor, const Opening& opening);
 // The room entry shared by the room commands: type, type name, walls, whether it is closed, area and label spot.
 Json roomEntry(const Floor& floor, const Room& room);
 
+// The stop request of the program around the CLI (Ctrl+C through plynth.com). Never stops when there is none.
+std::stop_token stopToken(const RunContext& context);
+
 // Asks the build or export running on the project to stop (requestCancel) and answers {"requested": bool}.
 Answer cancelRunning(const std::string& command, const RunContext& context, const std::string& projectOption);
 

@@ -72,6 +72,7 @@
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QEvent>
+#include <QDialog>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QIcon>
@@ -814,9 +815,14 @@ void MainWindow::openSetupCheckIfNeeded()
 QImage MainWindow::grabPicture()
 {
     QImage image = grab().toImage();
-    if (setupDialog_ && setupDialog_->isVisible()) {
+    QWidget* shownDialog = nullptr;
+    if (setupDialog_ && setupDialog_->isVisible())
+        shownDialog = setupDialog_;
+    else if (checkPackDialog_ && checkPackDialog_->isVisible())
+        shownDialog = checkPackDialog_;
+    if (shownDialog != nullptr) {
         const Theme& t = Theme::instance();
-        const QImage dialog = setupDialog_->grab().toImage();
+        const QImage dialog = shownDialog->grab().toImage();
         const QSizeF shown = QSizeF(dialog.size()) / dialog.devicePixelRatio();
         const QSizeF whole = QSizeF(image.size()) / image.devicePixelRatio();
         QPainter p(&image);

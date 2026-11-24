@@ -35,6 +35,7 @@ add_executable(plynth_cli_tests
     RenderProcessTests.cpp
     GapCliTests.cpp
     PackCliTests.cpp
+    SessionKeeperTests.cpp
     TestSetup.cpp
     TestSupport.cpp
 )

@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <ostream>
 #include <span>
+#include <stop_token>
 #include <string>
 #include <string_view>
 
@@ -19,6 +20,7 @@ inline constexpr int kExitBadArguments = 2; // unknown command or bad options, t
 // What the program around the CLI can do for it. An empty member means "not available here".
 struct CliHost {
     plynth::SceneRenderer render; // draws the 3D view for "plynth render"
+    std::stop_token stop;         // asks a running command to stop, for Ctrl+C; a long command then answers cancelled
 };
 
 // Runs one command. args are the words after the program name, in UTF-8. Writes exactly one JSON answer
@@ -29,7 +31,8 @@ int run(std::span<const std::string> args, std::ostream& out, const std::filesys
         std::ostream* progress = nullptr, const CliHost& host = {});
 
 // Entry point for main: connects to the console or pipe it was started from, reads the arguments as
-// UTF-8 from the Windows command line and runs the command in the process's current folder.
+// UTF-8 from the Windows command line and runs the command in the process's current folder. When plynth.com
+// started it, the event named in PLYNTH_CANCEL_EVENT stops the running command (Ctrl+C in the terminal).
 int runFromProcess(int argc, char* argv[], const CliHost& host = {});
 
 }

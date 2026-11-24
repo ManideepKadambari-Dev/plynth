@@ -286,7 +286,7 @@ Answer materialsImport(const RunContext& context, const ImportOptions& options) 
         request.source.file = path;
         const std::string name = pathToUtf8(path.filename());
         const MaterialImportOutcome outcome = importMaterial(*opened.catalog, importContext, request,
-                                                             progressWriter(context, options.quiet, name));
+                                                             progressWriter(context, options.quiet, name), stopToken(context));
         if (!outcome.status.ok()) {
             std::string message = outcome.status.message;
             if (!imported.empty()) {
@@ -430,7 +430,7 @@ Answer materialsFromAsset(const RunContext& context, const FromAssetOptions& opt
         return failed;
     }
     const MaterialImportOutcome outcome = importMaterial(*opened.catalog, importContext, made.request,
-                                                         progressWriter(context, options.quiet, options.asset));
+                                                         progressWriter(context, options.quiet, options.asset), stopToken(context));
     if (!outcome.status.ok()) {
         return failure(command, outcome.status);
     }
@@ -468,7 +468,7 @@ Answer addSampleMaterials(const RunContext& context, const SamplesOptions& optio
     for (const MaterialImportRequest& request : requests) {
         const std::string name = pathToUtf8(request.source.file.filename());
         const MaterialImportOutcome outcome =
-            importMaterial(*opened.catalog, importContext, request, progressWriter(context, options.quiet, name));
+            importMaterial(*opened.catalog, importContext, request, progressWriter(context, options.quiet, name), stopToken(context));
         if (!outcome.status.ok()) {
             Status status = outcome.status;
             status.message = name + ": " + status.message + " " + std::to_string(added.size()) +

@@ -33,6 +33,10 @@ std::filesystem::path resolveProjectFolder(const RunContext& context, const std:
     return folder;
 }
 
+std::stop_token stopToken(const RunContext& context) {
+    return context.host != nullptr ? context.host->stop : std::stop_token{};
+}
+
 bool checkLock(const std::string& command, const std::filesystem::path& folder, bool readOnly, Answer& failed) {
     const Status allowed = allowCliCommand(folder, sessionNow(), readOnly);
     if (!allowed.ok()) {

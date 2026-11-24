@@ -1,5 +1,6 @@
 #include "../CatalogCommon.h"
 #include "../Common.h"
+#include "../SessionKeeper.h"
 
 #include <plynth/core/Pack.h>
 
@@ -43,7 +44,8 @@ Answer packCommand(const RunContext& context, const PackOptions& options) {
     request.contents = packContents(document.project(), opened.paths);
     request.library = opened.paths;
     request.checkOnly = options.check;
-    const PackReport report = packProject(request);
+    const SessionKeeper keeper(folder);
+    const PackReport report = packProject(request, stopToken(context));
     if (!report.status.ok()) {
         return failure(command, report.status);
     }
@@ -83,9 +85,10 @@ Answer unpackCommand(const RunContext& context, const UnpackCliOptions& options)
             }
         }
     } else {
+        const SessionKeeper keeper(folder);
         plynth::UnpackOptions unpack;
         unpack.keepLibrary = options.keepLibrary;
-        report = unpackProject(folder, opened.paths, unpack);
+        report = unpackProject(folder, opened.paths, unpack, stopToken(context));
     }
     if (!report.status.ok()) {
         return failure(command, report.status);

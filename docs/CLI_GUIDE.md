@@ -72,6 +72,10 @@ Help text from the command parser is never printed. `--help` or `-h` on any comm
 
 The app itself, when you give it `--screenshot`, uses its own codes. 0 means the picture was saved. 1 means the picture could not be saved. 2 means bad options. 3 means the picture was saved but the project or the image could not be loaded. 4 means the terminal shell could not start.
 
+**Stopping a command.** Ctrl+C or Ctrl+Break in the terminal asks the running command to stop. A long command (`build`, `export`, `render`, `pack`, `unpack`, the material imports) then answers `cancelled` with exit code 1, and keeps nothing it was making. `plynth` waits for that answer, so the terminal never loses it. A script that started a build in another terminal can stop it with `plynth build cancel`.
+
+**Long commands and sessions.** While `build`, `export`, `pack` or `unpack` runs, it keeps an active edit session alive, so the session does not expire in the middle of a long build.
+
 ## Error codes
 
 | Code | When |

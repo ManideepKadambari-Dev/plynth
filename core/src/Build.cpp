@@ -623,8 +623,7 @@ bool requestCancel(const fs::path& projectFolder)
     const fs::path lock = folder / pathFromUtf8(kBuildLockFileName);
     std::error_code ec;
     if (!fs::exists(lock, ec) || !lockIsLive(lock)) return false;
-    return fileio::writeAtomic(folder / pathFromUtf8(kBuildCancelFileName), "cancel
-").ok();
+    return fileio::writeAtomic(folder / pathFromUtf8(kBuildCancelFileName), "cancel\n").ok();
 }
 
 // The report in the file form.
