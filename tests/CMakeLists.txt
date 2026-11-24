@@ -72,6 +72,11 @@ add_executable(plynth_core_tests
     core/MaterialSlotsTests.cpp
     core/ExportTests.cpp
     core/ExportJobTests.cpp
+    core/ExportGroupsTests.cpp
+    core/ExportOptionsTests.cpp
+    core/KitTests.cpp
+    core/ExportEdgeCaseTests.cpp
+    core/ExportEditGuardTests.cpp
     core/BuildAssetMapsTests.cpp
     core/SnappingTests.cpp
     core/RoomTypesTests.cpp
@@ -94,6 +99,9 @@ add_executable(plynth_core_tests
     core/DressingTests.cpp
     core/TrimTests.cpp
     core/VariationTests.cpp
+    core/IdTests.cpp
+    core/IdGroupTests.cpp
+    core/IdTestListener.cpp
 )
 target_link_libraries(plynth_core_tests PRIVATE
     plynth::core

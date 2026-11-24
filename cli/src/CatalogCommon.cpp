@@ -190,6 +190,10 @@ Json rescanAndRefresh(const std::string& command, const RunContext& context, Ope
     return rescanEntry(report, refreshed, refreshFailed);
 }
 
+void registerShapesOf(const LibraryPaths& paths) {
+    registerShapes(paths);
+}
+
 void registerLibraryShapes() {
     if (const auto paths = settingsLibrary()) {
         registerShapes(*paths);

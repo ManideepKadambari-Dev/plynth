@@ -703,3 +703,39 @@ TEST_CASE("two islands that cross each other leave no hole along their bands", "
     CHECK(footprintCovers(footprint, {10.0, 10.0}));
     requireBandsCovered(f);
 }
+
+TEST_CASE("the footprint of a turned room with a half wall lies on its cleaned wall solids", "[storeys][footprint]")
+{
+    for (const double degrees : {0.0, 30.0, 45.0}) {
+        INFO("angle " << degrees);
+        const double a = degrees * std::numbers::pi / 180.0;
+        std::vector<Vec2> corners;
+        for (const Vec2& c : std::vector<Vec2>{{0.0, 0.0}, {4.0, 0.0}, {4.0, 4.0}, {0.0, 4.0}}) {
+            corners.push_back({c.x * std::cos(a) - c.y * std::sin(a) + 3.0, c.x * std::sin(a) + c.y * std::cos(a) + 3.0});
+        }
+        Floor f;
+        f.id = "f1";
+        addPolygonRoom(f, 1, corners, 0.2, "r1");
+        f.walls[0].height = 1.0;
+
+        const std::vector<PlanArea> footprint = floorFootprint(f);
+        REQUIRE(footprint.size() == 1);
+        CHECK(footprint[0].holes.empty());
+        CHECK(planAreaSize(footprint[0]) == Approx(4.2 * 4.2).margin(1e-6));
+        const std::vector<Vec2>& covered = footprint[0].outline;
+
+        std::vector<std::vector<Vec2>> walls;
+        for (const WallSolid& solid : wallSolids(f)) {
+            std::vector<Vec2> ring;
+            for (const Vec2& w : solid.outline.points) ring.push_back({w.x, -w.y});
+            for (const Vec2& p : ring) CHECK((insidePolygon(p, covered) || distanceToRing(covered, p) < 1e-6));
+            walls.push_back(std::move(ring));
+        }
+        REQUIRE_FALSE(walls.empty());
+        for (const Vec2& p : covered) {
+            double nearest = 1e18;
+            for (const std::vector<Vec2>& ring : walls) nearest = std::min(nearest, distanceToRing(ring, p));
+            CHECK(nearest < 1e-6);
+        }
+    }
+}

@@ -159,7 +159,7 @@ class FromCoreExportTests(helpers.TempFolderTest):
         self.assertEqual(validate(result, load_schema("blender-result")), [])
         output = result["output"]
         statuses = {c["id"]: c["status"] for c in output["checks"]}
-        self.assertEqual(len(output["checks"]), 11)
+        self.assertEqual(len(output["checks"]), 13)
         self.assertEqual([i for i, s in statuses.items() if s == "fail"], [])
         self.assertEqual([i for i, s in statuses.items() if s == "warning"], ["uvs"])
         self.assertEqual(statuses["fbx_scale"], "pass")
@@ -268,7 +268,7 @@ class HouseExportTests(helpers.TempFolderTest):
         self.assertEqual(validate(result, load_schema("blender-result")), [])
         output = result["output"]
         statuses = {c["id"]: c["status"] for c in output["checks"]}
-        self.assertEqual(len(output["checks"]), 11)
+        self.assertEqual(len(output["checks"]), 13)
         self.assertEqual([i for i, s in statuses.items() if s == "fail"], [])
         self.assertEqual([i for i, s in statuses.items() if s == "warning"], ["uvs"])
         for check in ("collision", "materials", "naming", "scale", "transforms"):
@@ -279,6 +279,57 @@ class HouseExportTests(helpers.TempFolderTest):
         for name in about:
             self.assertFalse(name.endswith(("_Slab", "_Stair")) or "_Roof_" in name, name)
         self.assertTrue(output["written"])
+
+    # In a grouped export with a kit, every object of the house is in one file: the slabs, the stair and the roofs
+    # in the Floors file with all their UCX_ meshes. The totals count the building and not the kit.
+    def test_grouped_with_kit(self):
+        job = self.job()
+        single = self.run_task("export", job["params"], job_id=job["job_id"])
+        self.assertTrue(single["ok"], single["error"])
+        plain = single["output"]
+        scene.clear_scene()
+        bpy.ops.import_scene.fbx(filepath=self.path("export", ".staging", job["params"]["groups"][0]["file"]))
+        everything = {o.name for o in bpy.data.objects if o.type == "MESH"}
+
+        from test_export_kit import make_kit, wall_piece
+        piece = wall_piece()
+        for edge in piece["wall_solids"][0]["outline"]["edges"]:
+            if edge["slot"] == "Living_Wall":
+                edge["slot"] = "Room_Wall"
+        job = self.job()
+        params = job["params"]
+        params["output_folder"] = self.path("grouped", ".staging")
+        params["groups"] = [
+            {"id": "structure", "file": "House_Walls.fbx", "kinds": [], "ids": [], "name": "Walls", "rest": True,
+             "members": [{"kind": kind, "id": None} for kind in ("walls", "door", "window")]},
+            {"id": "surfaces", "file": "House_Floors.fbx", "kinds": [], "ids": [], "name": "Floors",
+             "members": [{"kind": kind, "id": None}
+                         for kind in ("floor", "ceiling", "thresholds", "slab", "stair", "roof")]}]
+        params["kit"] = make_kit([piece])
+        self.assertEqual(validate(job, load_schema("blender-job")), [])
+        result = self.run_task("export", params, job_id=job["job_id"])
+        self.assertTrue(result["ok"], result["error"])
+        self.assertEqual(validate(result, load_schema("blender-result")), [])
+        output = result["output"]
+        statuses = {c["id"]: c["status"] for c in output["checks"]}
+        for check in ("collision", "groups", "fbx_scale", "kit_file"):
+            self.assertEqual(statuses[check], "pass", check)
+        for key in ("objects", "triangles", "collision_objects"):
+            self.assertEqual(output[key], plain[key], key)
+        self.assertEqual(output["kit"]["objects"], 1 + len(piece["collision"]))
+
+        names = {}
+        for entry in output["files"]:
+            scene.clear_scene()
+            bpy.ops.import_scene.fbx(filepath=self.path("grouped", ".staging", entry["file"]))
+            names[entry["group"]] = {o.name for o in bpy.data.objects if o.type == "MESH"}
+        self.assertEqual(names["structure"] & names["surfaces"], set())
+        self.assertEqual(names["structure"] | names["surfaces"], everything)
+        for target in ("SM_f1_Slab", "SM_f2_Slab", "SM_f1_s1_Stair", "SM_f1_Roof_00", "SM_f2_Roof_00"):
+            self.assertIn(target, names["surfaces"])
+            hulls = {n for n in everything if n.startswith("UCX_%s_" % target)}
+            self.assertTrue(hulls, target)
+            self.assertLessEqual(hulls, names["surfaces"], target)
 
     # Takes the collision of every slab, then every stair, then every roof out of the build in turn: the export then
     # fails the collision check and names each of those objects.
