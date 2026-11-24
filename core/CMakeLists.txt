@@ -93,6 +93,8 @@ add_library(plynth_core STATIC
     src/commands/LightCommands.cpp
     src/commands/FinishCommands.cpp
     src/trim/StairRailings.cpp
+    src/BuildResolve.cpp
+    src/catalog/BuildChoices.cpp
 )
 if(WIN32)
     target_sources(plynth_core PRIVATE src/Process_win.cpp)

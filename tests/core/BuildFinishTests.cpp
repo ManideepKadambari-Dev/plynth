@@ -2,6 +2,7 @@
 #include "SchemaSupport.h"
 
 #include <plynth/core/BuildJob.h>
+#include <plynth/core/Kit.h>
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
@@ -240,4 +241,44 @@ TEST_CASE("with choices, doors are picked and rooms are dressed", "[buildjob][fi
     const BuildPlan without = makeBuildPlan(finishProject(), sizedSource());
     CHECK(without.finish[0].openingAssets.empty());
     CHECK(without.finish[0].dressing.empty());
+}
+
+TEST_CASE("the kit carries a door's catalog asset and tells doors with other assets apart", "[kit][finish]")
+{
+    Project p = finishProject();
+    Opening second = test::doorOn("w3", 2.0);
+    second.id = "o9";
+    p.plan.floors[0].openings.push_back(second);
+    const auto openingPieces = [](const ModularKit& kit) {
+        std::vector<const KitPiece*> out;
+        for (const KitPiece& piece : kit.pieces) {
+            if (piece.kind == KitPieceKind::Opening) out.push_back(&piece);
+        }
+        return out;
+    };
+
+    const std::size_t plain = openingPieces(modularKit(p, makeBuildPlan(p, sizedSource()))).size();
+    p.plan.floors[0].openings[0].frame = "door_a";
+    p.plan.floors[0].openings[1].frame = "door_a";
+    BuildPlan plan = makeBuildPlan(p, sizedSource());
+    ModularKit kit = modularKit(p, plan);
+    std::vector<const KitPiece*> pieces = openingPieces(kit);
+    REQUIRE_FALSE(pieces.empty());
+    bool carries = false;
+    for (const KitPiece* piece : pieces) {
+        for (const KitOpening& o : piece->openings) {
+            if (o.asset) {
+                carries = true;
+                CHECK(o.asset->asset == "door_a");
+            }
+        }
+    }
+    CHECK(carries);
+    // Doors with the same asset are as alike as doors with none.
+    CHECK(pieces.size() == plain);
+
+    p.plan.floors[0].openings[1].frame = "door_wide";
+    plan = makeBuildPlan(p, sizedSource());
+    kit = modularKit(p, plan);
+    CHECK(openingPieces(kit).size() >= 2);
 }
