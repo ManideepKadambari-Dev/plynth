@@ -114,7 +114,7 @@ Your choices are saved in one file for your Windows account:
 %APPDATA%\Plynth\settings.json
 ```
 
-That is usually `C:\Users\<you>\AppData\Roaming\Plynth\settings.json`. It holds the library folder, the projects folder, the Blender you chose, whether to keep imported zips, the triangle warning limit and the Plynth version whose setup check last passed. You can read it in any text editor. The usual way to change it is the setup check or `plynth settings set`.
+`%APPDATA%` is the Roaming folder of your Windows account. Type `%APPDATA%\Plynth` in the Explorer address bar to open it. The file holds the library folder, the projects folder, the Blender you chose, whether to keep imported zips, the triangle warning limit and the Plynth version whose setup check last passed. You can read it in any text editor. The usual way to change it is the setup check or `plynth settings set`.
 
 Settings belong to the computer, not to a project, so they are not saved in your project folders.
 
