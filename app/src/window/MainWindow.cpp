@@ -656,6 +656,10 @@ void MainWindow::buildMenus()
                                        tr("Open the built Blender file in Blender"),
                                        QStringLiteral("build-open-blender-action"), {});
     connect(openBlenderAction_, &QAction::triggered, this, &MainWindow::openInBlender);
+    save3dPictureAction_ = addMenuAction(build, tr("Save 3D &picture..."),
+                                         tr("Save a picture of the last build as the 3D view shows it, with its camera, roofs and cut"),
+                                         QStringLiteral("render-save"), {});
+    connect(save3dPictureAction_, &QAction::triggered, this, &MainWindow::save3dPicture);
     build->addSeparator();
     exportAction_ = addMenuAction(build, tr("&Export"), tr("Write the FBX and textures for Unreal (Ctrl+E)"),
                                   QStringLiteral("export-run-action"), {QKeySequence(Qt::CTRL | Qt::Key_E)});

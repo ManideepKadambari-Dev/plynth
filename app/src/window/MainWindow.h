@@ -250,6 +250,7 @@ private:
     void showProblem(const QString& objectId);
     void openBuildFolder();
     void openInBlender();
+    void save3dPicture();
     bool buildBlocked(QString* reason) const;
     QString exportNotice(bool* offerBuild) const;
     void exportFinished(const plynth::ExportReport& report);
@@ -330,6 +331,7 @@ private:
     QAction* reportAction_ = nullptr;
     QAction* buildFolderAction_ = nullptr;
     QAction* openBlenderAction_ = nullptr;
+    QAction* save3dPictureAction_ = nullptr;
     std::optional<plynth::BuildReport> report_;
     QTimer* buildUiTimer_ = nullptr;
     QString buildProgressText_;

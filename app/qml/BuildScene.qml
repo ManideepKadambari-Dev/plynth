@@ -77,10 +77,15 @@ Item {
         updateCamera()
     }
 
-    // Sets the angle of a named view, then frames the model.
+    // Sets the angle of a named view, or the free angle the host gave, then frames the model.
     function applyPreset() {
-        root.yaw = scene.preset === 1 ? 0 : 45
-        root.pitch = scene.preset === 1 ? root.maxPitch : 25
+        if (scene.customAngle) {
+            root.yaw = scene.angleYaw
+            root.pitch = Math.max(root.minPitch, Math.min(root.maxPitch, scene.anglePitch))
+        } else {
+            root.yaw = scene.preset === 1 ? 0 : 45
+            root.pitch = scene.preset === 1 ? root.maxPitch : 25
+        }
         fit()
     }
 

@@ -258,6 +258,16 @@ void ModelView::clearModel(const QString& emptyText)
 void ModelView::setPreset(Preset preset)
 {
     preset_ = preset;
+    customAngle_ = false;
+    emit presetChanged();
+}
+
+// Switches to a free angle and frames the model.
+void ModelView::setAngle(double yaw, double pitch)
+{
+    customAngle_ = true;
+    angleYaw_ = yaw;
+    anglePitch_ = pitch;
     emit presetChanged();
 }
 

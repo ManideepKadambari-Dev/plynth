@@ -30,6 +30,9 @@ add_executable(plynth_cli_tests
     MaterialImportCliTests.cpp
     RecentCliTests.cpp
     EnvironmentCliTests.cpp
+    ErrorListTests.cpp
+    RenderCliTests.cpp
+    RenderProcessTests.cpp
     TestSetup.cpp
     TestSupport.cpp
 )
@@ -41,6 +44,7 @@ target_compile_definitions(plynth_cli_tests PRIVATE
     PLYNTH_TEST_GENERATORS="${PROJECT_SOURCE_DIR}/tests/core/data/generators"
     PLYNTH_SAMPLE_PLAN="${PROJECT_SOURCE_DIR}/samples/plans/apartment-01.png"
     PLYNTH_SAMPLE_CHAIR_FOLDER="${PROJECT_SOURCE_DIR}/samples/models/chair"
+    PLYNTH_RENDER_FIXTURES="${PROJECT_SOURCE_DIR}/tests/data/render"
     PLYNTH_FAKE_BLENDER="$<TARGET_FILE:plynth_fake_blender>")
 add_dependencies(plynth_cli_tests plynth_fake_blender)
 

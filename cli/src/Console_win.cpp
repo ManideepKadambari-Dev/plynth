@@ -109,14 +109,14 @@ private:
 
 }
 
-int runFromProcess(int, char*[]) {
+int runFromProcess(int, char*[], const CliHost& host) {
     const std::vector<std::string> args = readArguments();
     std::ostringstream buffer;
     HANDLE errorHandle = GetStdHandle(STD_ERROR_HANDLE);
     HandleBuffer errorBuffer(errorHandle);
     std::ostream progress(&errorBuffer);
     const int code =
-        run(args, buffer, std::filesystem::current_path(), isUsable(errorHandle) ? &progress : nullptr);
+        run(args, buffer, std::filesystem::current_path(), isUsable(errorHandle) ? &progress : nullptr, host);
 
     bool ownsHandle = false;
     HANDLE output = openOutput(ownsHandle);

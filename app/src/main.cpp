@@ -1,6 +1,7 @@
 #include "theme/Theme.h"
 #include "catalog/LibraryHost.h"
 #include "window/MainWindow.h"
+#include "preview/RenderHost.h"
 
 #include <plynth/cli/Cli.h>
 #include <plynth/core/Version.h>
@@ -11,6 +12,8 @@
 #include <QImage>
 #include <QRegularExpression>
 #include <QTimer>
+
+#include <string_view>
 
 namespace {
 
@@ -54,8 +57,13 @@ bool saveScreenshot(plynth::app::MainWindow& window, const QString& file, const 
 // Parses the options, opens the window and optionally saves a screenshot.
 int main(int argc, char* argv[])
 {
-    if (argc > 1 && plynth::cli::isCommandWord(argv[1]))
-        return plynth::cli::runFromProcess(argc, argv);
+    if (argc > 1 && plynth::cli::isCommandWord(argv[1])) {
+        // Only render gets the 3D view, so no other command starts Qt.
+        plynth::cli::CliHost host;
+        if (std::string_view(argv[1]) == "render")
+            host.render = plynth::app::renderShot;
+        return plynth::cli::runFromProcess(argc, argv, host);
+    }
 
     QApplication app(argc, argv);
     QApplication::setApplicationName(QStringLiteral("Plynth"));

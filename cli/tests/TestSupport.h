@@ -1,5 +1,7 @@
 #pragma once
 
+#include <plynth/cli/Cli.h>
+
 #include <nlohmann/json.hpp>
 
 #include <filesystem>
@@ -17,9 +19,10 @@ struct Outcome {
 };
 
 // Runs the CLI in a folder, checks that the output is one line of JSON that matches
-// schema/cli-answer.schema.json, and returns it. Fails the current test when it is not.
+// schema/cli-answer.schema.json, and returns it. Fails the current test when it is not. host is passed to the CLI.
 Outcome runChecked(const std::vector<std::string>& args,
-                   const std::filesystem::path& currentFolder = std::filesystem::current_path());
+                   const std::filesystem::path& currentFolder = std::filesystem::current_path(),
+                   const CliHost& host = {});
 
 // A new empty folder under the temp folder, with a non ASCII name, removed when this object goes away.
 class TempFolder {

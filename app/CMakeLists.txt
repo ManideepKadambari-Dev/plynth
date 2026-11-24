@@ -75,6 +75,8 @@ add_executable(plynth WIN32
     src/preview/ModelView.cpp
     src/preview/PreviewView.h
     src/preview/PreviewView.cpp
+    src/preview/RenderHost.h
+    src/preview/RenderHost.cpp
     src/preview/ThemeQml.h
     src/preview/ThemeQml.cpp
     src/panels/AssetsPanel.h
