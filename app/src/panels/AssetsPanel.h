@@ -111,6 +111,8 @@ private:
     QLabel* trianglesLabel_ = nullptr;
     QLabel* sourceLabel_ = nullptr;
     QComboBox* license_ = nullptr;
+    QLineEdit* author_ = nullptr;
+    QString shownAuthor_; // the author of the shown asset as saved
     QListWidget* categories_ = nullptr;
     QLineEdit* tags_ = nullptr;
     QLabel* problems_ = nullptr;

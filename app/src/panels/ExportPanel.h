@@ -39,6 +39,8 @@ struct ExportPanelState {
     bool kitEnabled = false;   // export-options.json switches the modular kit on
     bool gameplayEnabled = false; // export-options.json switches the gameplay data file on
     QString gameplayFile;      // where the gameplay data file goes, export/<Stem>_gameplay.json; empty without a folder
+    bool licensesEnabled = false; // export-options.json switches the license report on
+    QString licensesFile;      // where the report goes, export/<Stem>_licenses.json; empty without a folder
     std::filesystem::path projectFolder;               // empty when the project is not saved
     const plynth::Project* project = nullptr;          // used only during setReport; null when there is no project
     const plynth::ExportGroupReview* review = nullptr; // as core gave it, in every mode; null without a project folder
@@ -59,6 +61,8 @@ public:
     void setKitEnabled(bool enabled);
     // For checks only: switches the gameplay data file on in the project's export options, as the checkbox does.
     void setGameplayEnabled(bool enabled);
+    // Switches the license report on or off in the project's export options, as the checkbox does.
+    void setLicensesEnabled(bool enabled);
 
 protected:
     void showEvent(QShowEvent* event) override;
@@ -83,6 +87,8 @@ private:
     void addGroups(const ExportPanelState& state);
     void addKitSwitch(const ExportPanelState& state);
     void addGameplaySwitch(const ExportPanelState& state);
+    void addLicensesSwitch(const ExportPanelState& state);
+    void addLicensesReport(const plynth::ExportReport& report);
     void addGameplayReport(const plynth::ExportReport& report);
     void addLockLine();
     void addOptionsProblem(const ExportPanelState& state);
@@ -106,6 +112,7 @@ private:
     bool refreshAsked_ = false; // a request for a new review is on its way
     QPointer<QCheckBox> kitBox_;
     QPointer<QCheckBox> gameplayBox_;
+    QPointer<QCheckBox> licensesBox_;
     QPointer<QPushButton> repairButton_;
     QPointer<QLabel> lockLine_; // the guard's message where the list is not shown
     QTreeWidget* groupsTree_ = nullptr;
@@ -119,6 +126,7 @@ private:
     std::filesystem::path projectFolder_;
     QString kitError_; // why the last change of the kit switch was not saved; empty when it was
     QString gameplayError_; // the same for the gameplay data switch
+    QString licensesError_; // the same for the license report switch
 };
 
 }

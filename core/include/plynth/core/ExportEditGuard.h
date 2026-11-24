@@ -114,6 +114,8 @@ public:
 
     // Writes the gameplay data switch the same way as setKit.
     ExportEditResult setGameplay(SessionTime now, bool enabled);
+    // The same for the license report switch.
+    ExportEditResult setLicenses(SessionTime now, bool enabled);
 
     // Runs repairExportOptions after the same checks of session, lock and ticket, in every mode, and reads the
     // session again right before it. Only a file that was shown as unreadable and still is gets repaired.

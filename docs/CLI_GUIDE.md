@@ -2099,14 +2099,30 @@ plynth export gameplay off
 
 `export gameplay` only reads the switch and is never refused by the lock. `on` and `off` write it, with the rules of the other edit commands. `export gameplay maybe` is `bad_arguments`. An export with the switch off removes an old gameplay file, and a blocked export leaves it. The export report lists it under `gameplay`.
 
+### export licenses
+
+Shows or changes the license report switch, which is saved in `export-options.json`. With it on, `export` also writes `export\<Name>_licenses.json` and `export\<Name>_licenses.txt`, which list every asset and material the last build used with its source, author and license. `export licenses` also prints that report, looked up in the library (the `--library` value, or the settings).
+
+```
+plynth export licenses
+plynth export licenses on
+plynth export licenses off
+```
+
+```json
+{"ok":true,"command":"export licenses","result":{"enabled":true,"report":{"format":"plynth-license-report","version":1,"project":"Flat","plan_fingerprint":"9c1e...","items":[],"warnings":[]},"reason":null}}
+```
+
+The report describes the last build, read from `build\used-items.json`, so build again after you change the plan. Without a build, `report` is null and `reason` says "Build the project first."; the export still works and writes no report. Warnings in the report are `unknown_license`, `missing_item`, `missing_author` (a CC BY item with no author) and `personal_use`. They never block an export. A file name stands in for a local source path, so the report never shows your folders. `on` and `off` follow the rules of the other edit commands. The report lists what Plynth knows about each item. It is not legal advice.
+
 ### export-options.json
 
-The file in the project folder that holds the group edits, the kit switch and the gameplay data switch. It only exists once you change something, and writing the default settings removes it again. It is separate from `plan.json` and `project.json`, so editing it never makes the build out of date. Its shape is in `schema/export-options.schema.json`, version 2:
+The file in the project folder that holds the group edits, the kit switch, the gameplay data switch and the license report switch. It only exists once you change something, and writing the default settings removes it again. It is separate from `plan.json` and `project.json`, so editing it never makes the build out of date. Its shape is in `schema/export-options.schema.json`, version 3:
 
 ```json
 {
   "format": "plynth-export-options",
-  "version": 2,
+  "version": 3,
   "groups": {
     "added": [{"id": "group_1", "name": "Hero"}],
     "renames": [{"group": "furniture_r1", "name": "Lounge props"}],
@@ -2114,11 +2130,12 @@ The file in the project folder that holds the group edits, the kit switch and th
     "moves": [{"kind": "item", "id": "i1", "to": "group_1"}, {"kind": "slab", "id": null, "to": "structure"}]
   },
   "kit": {"enabled": true},
-  "gameplay": {"enabled": false}
+  "gameplay": {"enabled": false},
+  "licenses": {"enabled": false}
 }
 ```
 
-A version 1 file, written before the gameplay switch, reads with the switch off and is written as version 2 the next time it changes.
+A version 1 file, written before the gameplay switch, reads with that switch off. A version 1 or 2 file, written before the license report, reads with it off. Either is written as version 3 the next time it changes.
 
 The edits are applied to the automatic groups in this order: `added`, `merges`, `moves`, `renames`. An edit that names a group or a plan id that is gone is skipped, and the skip is listed under `notes`. You can edit the file by hand. An unreadable file is `bad_file`, and until `export groups reset` repairs it (the old file is kept as `export-options.json.bad`) every other group and kit command answers `bad_file`. A file with a newer `version` is `unsupported_version` and is never changed. Deleting the file goes back to the automatic groups with the kit off.
 
@@ -2308,6 +2325,95 @@ plynth session status
 ```
 
 `state` is `none`, `active` or `expired`. The other fields are filled in when a session exists.
+
+## Help pages, About and samples
+
+### about
+
+Shows the version, the licenses of Plynth and of its samples, the copyright line, and where the third party notices and the license texts are. The licenses folder is found beside the program, or where `PLYNTH_LICENSES` points.
+
+```
+plynth about
+```
+
+```json
+{"ok":true,"command":"about","result":{"version":"0.0.1","copyright":"Copyright 2026 the Plynth authors (see AUTHORS)","source_license":"GPL-3.0-or-later","program_license":"GPL-3.0-only","sample_license":"CC0-1.0","notices_file":"D:/Plynth/licenses/THIRD_PARTY_NOTICES.md","license_files":["D:/Plynth/licenses/texts/CC0-1.0.txt"]}}
+```
+
+Without the licenses folder the answer is still ok, with `notices_file` null and a `not_found` warning.
+
+### docs list
+
+Lists the help pages, the same Markdown files the app's Help window shows. The docs folder is found beside the program, or where `PLYNTH_DOCS` points. `found` is false for a page whose file is missing. `listed` is false for the setup page, which the Help list leaves out.
+
+```
+plynth docs list
+```
+
+```json
+{"ok":true,"command":"docs list","result":{"folder":"D:/Plynth/docs","pages":[{"id":"getting-started","title":"Getting started","file":"GETTING_STARTED.md","listed":true,"found":true}]}}
+```
+
+### docs show
+
+Prints one page as Markdown with its headings. Each heading has the anchor a link uses, made the way GitHub makes it.
+
+```
+plynth docs show getting-started
+```
+
+An unknown id or a missing file is `not_found`.
+
+### docs search
+
+Finds every word of a text in the help pages, ignoring case. Hits in a heading come first, then the others in page order. `--limit` caps the list (default 50).
+
+```
+plynth docs search stairs
+plynth docs search "roof section" --limit 5
+```
+
+```json
+{"ok":true,"command":"docs search","result":{"text":"stairs","count":1,"hits":[{"page":"user-guide","title":"User guide","heading":"Stairs","anchor":"stairs","snippet":"Stairs"}]}}
+```
+
+### samples list
+
+Lists what comes in the `samples` folder beside the program (or where `PLYNTH_SAMPLES` points): the sample projects, models and materials, and their license, `cc0`.
+
+```
+plynth samples list
+```
+
+### samples open
+
+Copies a sample project into a new folder, so you can change it and the sample stays as it was. The copy goes into the projects folder of the settings, or into the folder `--to` names, under the sample's name: "Apartment", then "Apartment (2)". Only the project files and the plan images are copied, never build output.
+
+```
+plynth samples open apartment
+plynth samples open house --to D:\Work
+```
+
+```json
+{"ok":true,"command":"samples open","result":{"id":"apartment","project_folder":"D:/Work/Apartment"}}
+```
+
+An unknown sample is `not_found`. A `--to` folder inside the samples folder is `invalid_value`.
+
+### samples add
+
+Adds the samples to the library: every sample model and material, imported with license `cc0`, and copies of the sample shapes and generators. An item the library has already is skipped and keeps its own license. The sample files are never changed. It runs Blender for the models and materials.
+
+```
+plynth samples add
+plynth samples add --library D:\Library
+```
+
+```json
+{"ok":true,"command":"samples add","result":{"added":[{"kind":"asset","id":"sofa"}],"skipped":[{"kind":"generator","id":"column.py"}],"failed":[]}}
+```
+
+An item that fails is listed under `failed` with its code and message, and the rest are still added. No Blender is `blender_not_found`.
 
 ## Machine settings, the library and the assets catalog
 
@@ -2726,6 +2832,7 @@ Changes the name, categories, tags or license of an asset. Give at least one opt
 ```
 plynth assets set chair_2 --name "Tiny chair" --license own_work --add-tag small
 plynth assets set chair --categories chair,desk --tags ""
+plynth assets set chair --author "A. Maker"
 ```
 
 Options:
@@ -3029,6 +3136,7 @@ Changes the name, groups, tags, license or tile size of a material. Give at leas
 ```
 plynth materials set red_brick --tile 1.2x0.6 --group wall --group exterior
 plynth materials set oak_planks --name "Oak boards" --tag wood --tag oak
+plynth materials set oak_planks --author "Studio A"
 plynth materials set red_brick --no-groups
 ```
 

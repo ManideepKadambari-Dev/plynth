@@ -164,9 +164,12 @@ void MainWindow::updateExportUi()
         const plynth::ExportOptionsRead options = plynth::readExportOptions(doc_.folder());
         state.kitEnabled = options.status.ok() && options.options.kit.enabled;
         state.gameplayEnabled = options.status.ok() && options.options.gameplay.enabled;
+        state.licensesEnabled = options.status.ok() && options.options.licenses.enabled;
         const std::string stem = plynth::exportFileStem(doc_.project().settings.name);
         state.gameplayFile = QString::fromStdWString(
             (plynth::exportFolder(doc_.folder()) / (stem + std::string(plynth::kGameplayFileSuffix))).make_preferred().wstring());
+        state.licensesFile = QString::fromStdWString(
+            (plynth::exportFolder(doc_.folder()) / (stem + std::string(plynth::kLicensesJsonSuffix))).make_preferred().wstring());
         if (!options.status.ok()) {
             state.optionsProblem = fromCore(options.status.message);
             state.optionsRepairable = options.status.code != plynth::ErrorCode::UnsupportedVersion;

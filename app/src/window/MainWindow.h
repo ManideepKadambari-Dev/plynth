@@ -138,6 +138,9 @@ public:
     bool importPictureReady() const;
     // Opens the setup check at start when this is the first run, after an update, or a required item blocks.
     void openSetupCheckIfNeeded();
+    // Starts the plan view tour once on the first run (no settings file and the tour not done), after the setup
+    // check closes, and saves that it was shown. pretend applies the rule as if there were no settings file.
+    void runFirstRun(bool pretend);
 
     // For checks only: opens the furniture picker at a place on the plan (metres) and hovers an asset when
     // an id is given. False when there is no scale or no library.
@@ -182,6 +185,11 @@ public:
     void importFromBlenderKit();
     // Queues every folder of samples/materials, skipping ids already in the library.
     void addSampleMaterials();
+    // Adds every sample model and material with license cc0 and copies the sample shapes and generators, as
+    // "plynth samples add" does. Items the library has already are skipped.
+    void addSampleItems();
+    // Copies a sample project into the projects folder and opens the copy. False when it cannot.
+    bool openSampleProject(const QString& id);
     // For checks only: takes a material of an asset into the materials catalog, as its button does.
     void addAssetMaterialForCheck(const QString& assetId, const QString& materialName) { addMaterialFromAsset(assetId, materialName); }
     // For checks only: adds a path to the import screen list.
@@ -390,6 +398,7 @@ private:
     QAction* importBlenderKitAction_ = nullptr;
     QAction* importFabAction_ = nullptr;
     QAction* addSamplesAction_ = nullptr;
+    QAction* addSampleItemsAction_ = nullptr;
     QAction* addShapesAction_ = nullptr;
     QAction* reloadGeneratorsAction_ = nullptr;
     QAction* checkAddonsAction_ = nullptr;

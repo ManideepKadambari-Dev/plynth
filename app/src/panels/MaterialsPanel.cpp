@@ -6,6 +6,8 @@
 #include "theme/Theme.h"
 
 #include <plynth/core/catalog/AssetInfo.h>
+#include <plynth/core/ProjectFiles.h>
+#include <plynth/core/catalog/MaterialInfo.h>
 
 #include <QComboBox>
 #include <QEvent>
@@ -457,6 +459,23 @@ void MaterialsPanel::buildDetails()
             return;
         plynth::MaterialEdit edit;
         edit.license = toCore(license_->itemData(index).toString());
+        applyEdit(edit);
+    });
+
+    box->addWidget(mutedLabel(tr("Author"), body));
+    author_ = new QLineEdit(body);
+    author_->setFont(t.uiFont(t.sizeNormal()));
+    author_->setStyle(t.controlStyle());
+    author_->setMaxLength(static_cast<int>(plynth::kMaxAuthorLength));
+    author_->setPlaceholderText(tr("Unknown"));
+    author_->setToolTip(tr("Who made the material, shown in the license report. Press Enter to save"));
+    author_->setProperty("tourId", QStringLiteral("materials-author"));
+    box->addWidget(author_);
+    connect(author_, &QLineEdit::editingFinished, this, [this]() {
+        if (refreshing_ || !current_ || author_->text().trimmed() == shownAuthor_)
+            return;
+        plynth::MaterialEdit edit;
+        edit.author = toCore(author_->text().trimmed());
         applyEdit(edit);
     });
 
@@ -930,6 +949,9 @@ void MaterialsPanel::showDetails()
     for (const plynth::LicenseEntry& entry : host_.materialCatalog()->licenses())
         license_->addItem(fromCore(entry.name), fromCore(entry.id));
     license_->setCurrentIndex(std::max(0, license_->findData(fromCore(record.license))));
+    const plynth::MaterialInfoRead info = plynth::readMaterialInfo(record.folder / plynth::pathFromUtf8(plynth::kMaterialInfoFileName), record.id);
+    shownAuthor_ = info.status.ok() ? fromCore(info.info.author) : QString();
+    author_->setText(shownAuthor_);
 
     groups_->clear();
     for (const plynth::MaterialGroupEntry& entry : host_.materialCatalog()->groups()) {

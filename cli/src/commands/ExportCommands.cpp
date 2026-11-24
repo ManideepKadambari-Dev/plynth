@@ -7,6 +7,7 @@
 #include <plynth/core/ExportGroups.h>
 #include <plynth/core/ProjectJson.h>
 #include <plynth/core/Settings.h>
+#include <plynth/core/catalog/LicensedItems.h>
 
 #include <algorithm>
 #include <fstream>
@@ -352,9 +353,31 @@ Answer groupsEdit(const std::string& what, const std::string& target, const Expo
     return success(command, std::move(result));
 }
 
-// The switch of export-options.json that 'export kit' or 'export gameplay' names.
+// The switch of export-options.json that 'export kit', 'export gameplay' or 'export licenses' names.
 bool& exportSwitch(ExportOptions& options, const std::string& name) {
-    return name == "kit" ? options.kit.enabled : options.gameplay.enabled;
+    if (name == "kit") {
+        return options.kit.enabled;
+    }
+    return name == "gameplay" ? options.gameplay.enabled : options.licenses.enabled;
+}
+
+// The license report of the last build, looked up in the library when there is one, or null with the reason.
+void addLicenseReport(Json& result, const RunContext& context, const std::string& libraryOption,
+                      const std::filesystem::path& folder, const std::string& projectName) {
+    OpenedCatalog assets;
+    OpenedMaterialCatalog materials;
+    Answer ignored;
+    const bool haveAssets = openCatalog("export licenses", context, libraryOption, assets, ignored);
+    const bool haveMaterials = openMaterialCatalog("export licenses", context, libraryOption, materials, ignored);
+    const LicenseReportRead report = projectLicenseReport(folder, projectName, haveAssets ? assets.catalog.get() : nullptr,
+                                                          haveMaterials ? materials.catalog.get() : nullptr);
+    if (report.status.ok()) {
+        result["report"] = licenseReportToJson(report.report);
+        result["reason"] = nullptr;
+    } else {
+        result["report"] = nullptr;
+        result["reason"] = report.status.message;
+    }
 }
 
 // Shows the modular kit or the gameplay data switch, or turns it on or off. what[0] is "kit" or "gameplay".
@@ -388,6 +411,9 @@ Answer optionSwitch(const std::vector<std::string>& what, const ExportArgs& args
     }
     Json result = Json::object();
     result["enabled"] = exportSwitch(read.options, name);
+    if (name == "licenses" && !change) {
+        addLicenseReport(result, context, args.library, folder, document.project().settings.name);
+    }
     return success(command, std::move(result));
 }
 
@@ -413,13 +439,13 @@ Answer exportDispatch(const RunContext& context, const ExportArgs& args) {
             return groupsEdit(what[1], what.size() == 3 ? what[2] : std::string(), args, context);
         }
     }
-    if ((what[0] == "kit" || what[0] == "gameplay") && plain && what.size() <= 2) {
+    if ((what[0] == "kit" || what[0] == "gameplay" || what[0] == "licenses") && plain && what.size() <= 2) {
         return optionSwitch(what, args, context);
     }
     return badArguments("export", "bad_arguments",
                         "Unknown form of 'export'. Use: export, export report, export cancel, export groups, export groups "
                         "rename|merge|move|new|reset, export kit, export kit on|off, export gameplay, export "
-                        "gameplay on|off.");
+                        "gameplay on|off, export licenses, export licenses on|off.");
 }
 
 }
@@ -436,12 +462,14 @@ std::vector<CommandSpec> exportCommands() {
         "'export groups move <kind>:<id> --to <group>' (<kind>:* for every object of a kind), "
         "'export groups new --name <text>' and 'export groups reset' edit them. "
         "'export kit' shows the modular kit switch; 'export kit on' and 'export kit off' change it. "
-        "'export gameplay' shows the gameplay data switch; 'export gameplay on' and 'export gameplay off' change it.";
+        "'export gameplay' shows the gameplay data switch; 'export gameplay on' and 'export gameplay off' change it. "
+        "'export licenses' shows the license report switch and the report of the last build; 'export licenses on' and "
+        "'export licenses off' change the switch.";
     spec.setup = [](CLI::App& sub) -> Handler {
         auto options = std::make_shared<ExportArgs>();
         sub.add_option("what", options->what,
                        "Nothing to export; 'report'; 'cancel'; 'groups' with rename, merge, move, new or reset and its "
-                       "group or member; 'kit' or 'gameplay' with on or off.")
+                       "group or member; 'kit', 'gameplay' or 'licenses' with on or off.")
             ->expected(0, 3);
         addProjectOption(sub, options->project);
         addBlenderOption(sub, options->blender);

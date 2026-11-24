@@ -56,6 +56,7 @@ public:
 
 signals:
     void whatIsThisChanged(bool on);
+    void tourFinished(const QString& tourId);
     void setupCheckRequested();
 
 private:

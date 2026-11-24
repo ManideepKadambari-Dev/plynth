@@ -1358,7 +1358,7 @@ A generator is a small Blender script that makes a piece of the building from a 
 
 **Help > Help** (F1) opens the Help window. Its pages are the files in the `docs` folder that comes with Plynth, so the help in the app and the files are the same.
 
-- The list on the left holds the pages: Getting started, User guide, Keyboard shortcuts, CLI developer guide, Writing generators, About and licenses, and Setup check. A page whose file is missing is left out.
+- The list on the left holds the pages: Getting started, User guide, Keyboard shortcuts, CLI developer guide, AI integration guide, Writing generators, About and licenses, and Setup check. A page whose file is missing is left out.
 - Type in **Search help** to find words in every page. A hit in a heading comes first, then the other hits in page order. Each hit shows the page, the heading above it and the line. Click one to open the page at that heading.
 - Links to other pages open in the window. Links to web pages open in your browser.
 - **Back** (Alt+Left) and **Forward** (Alt+Right) step through the pages you saw.
@@ -1373,6 +1373,7 @@ The help links on the home screen open the same window.
 - **Next** (Right or Enter) goes on, **Back** (Left) goes back and **Skip** (Esc) ends the tour.
 - A control that is not on screen just now, such as the wall view when no wall is selected, is skipped.
 - A tour may switch to the screen it explains and puts the screen back when it ends. It never changes your project, so there is nothing to undo.
+- The first time Plynth starts, the plan view tour starts by itself once the setup check closes. It does not start again, and an update does not start it.
 
 ### What is this?
 
@@ -1387,3 +1388,22 @@ The help links on the home screen open the same window.
 - The notices list every library, font and data file Plynth ships that was not written for it, with its license and copyright. Click a license text in the list to read it in full.
 
 The texts are also in the `licenses` folder beside the program, and the notices file there is `THIRD_PARTY_NOTICES.md`.
+
+## Samples
+
+Plynth comes with samples drawn for it: plan images, furniture models, materials, an opening shape, generators and, when present, whole sample projects. They are dedicated to the public domain under CC0 1.0, so you may use them for anything.
+
+- **Sample projects** on the home screen open a copy of the sample in your projects folder, named after it: "Apartment", then "Apartment (2)". The sample itself never changes. If the project uses items your library does not have yet, add the sample items and build.
+- **Catalog > Add the sample items** imports every sample model and material with the license CC0 and copies the sample shapes and generators into your library. An item the library has already is skipped and keeps its own license.
+- **Sample plans** on the home screen start a new project from a sample plan image.
+
+## Author and the license report
+
+The assets and materials catalogs have an **Author** field under License. Type who made the item and press Enter. It is empty when unknown. Items imported from BlenderKit get their author from the store.
+
+**Also write the license report** in the Export tab makes every export write two more files beside the FBX: `<Name>_licenses.json` and `<Name>_licenses.txt`. They list every asset and material the last build used, with its name, where it came from (the file name or the web address, never your folders), its author and its license. The switch is saved with the project and is off for a new one.
+
+- The report describes the last build, so build again after you change the plan. Without a build the export goes on and the tab says why no report was written.
+- Notes in amber point at items with an unknown license, a CC BY item with no author, an item that is no longer in the library, or a personal use license. They never block an export.
+- Materials inside an asset are covered by that asset. Generators and changes you make by hand in `building.blend` are not listed.
+- The report lists what Plynth knows about each item. It is not legal advice.

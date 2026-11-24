@@ -10,6 +10,7 @@
 #include <plynth/core/HelpPages.h>
 #include <plynth/core/ProjectFiles.h>
 #include <plynth/core/Resources.h>
+#include <plynth/core/Samples.h>
 #include <plynth/core/SetupCheck.h>
 #include <plynth/core/Settings.h>
 #include <plynth/core/Version.h>
@@ -22,6 +23,8 @@
 #include <QFileInfo>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QIcon>
+#include <QPixmap>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMouseEvent>
@@ -389,6 +392,23 @@ void HomeScreen::fillSide()
                                         QStringLiteral("home-sample-") + image.completeBaseName());
             const QString file = image.absoluteFilePath();
             connect(link, &QPushButton::clicked, this, [this, file]() { emit openSampleRequested(file); });
+        }
+    }
+    const std::filesystem::path sampleRoot = plynth::resourceFolder(plynth::ResourceKind::Samples);
+    const plynth::SamplesRead index = sampleRoot.empty() ? plynth::SamplesRead{} : plynth::readSamples(sampleRoot);
+    if (index.status.ok() && !index.index.projects.empty()) {
+        samplesColumn_->addWidget(sectionTitle(tr("Sample projects"), samplesBox_));
+        for (const plynth::SampleProject& project : index.index.projects) {
+            QPushButton* link = addLink(samplesColumn_, fromCore(project.name),
+                                        tr("Open a copy of this sample project that you can change. %1").arg(fromCore(project.description)),
+                                        QStringLiteral("home-sample-project-") + fromCore(project.id));
+            const QPixmap picture(QString::fromStdWString((sampleRoot / plynth::pathFromUtf8(project.image)).wstring()));
+            if (!picture.isNull()) {
+                link->setIcon(QIcon(picture.scaled(t.unit() * 12, t.unit() * 8, Qt::KeepAspectRatio, Qt::SmoothTransformation)));
+                link->setIconSize(QSize(t.unit() * 12, t.unit() * 8));
+            }
+            const QString id = fromCore(project.id);
+            connect(link, &QPushButton::clicked, this, [this, id]() { emit openSampleProjectRequested(id); });
         }
     }
     samplesBox_->setVisible(samplesColumn_->count() > 0);

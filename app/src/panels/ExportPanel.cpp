@@ -356,6 +356,8 @@ void ExportPanel::updateLock()
         kitBox_->setEnabled(usable && lock != plynth::ExportEditDecision::Locked);
     if (gameplayBox_)
         gameplayBox_->setEnabled(usable && lock != plynth::ExportEditDecision::Locked);
+    if (licensesBox_)
+        licensesBox_->setEnabled(usable && lock != plynth::ExportEditDecision::Locked);
     if (repairButton_)
         repairButton_->setEnabled(usable && open);
     if (lockLine_) {
@@ -446,6 +448,74 @@ void ExportPanel::setGameplayEnabled(bool enabled)
     const bool failed = result.decision == plynth::ExportEditDecision::Allowed && !result.status.ok();
     gameplayError_ = failed ? fromCore(result.status.message) : QString();
     afterWrite();
+}
+
+// Hands the license report switch to the guard and asks for a new review.
+void ExportPanel::setLicensesEnabled(bool enabled)
+{
+    const plynth::ExportEditResult result = guard_.setLicenses(plynth::sessionNow(), enabled);
+    const bool failed = result.decision == plynth::ExportEditDecision::Allowed && !result.status.ok();
+    licensesError_ = failed ? fromCore(result.status.message) : QString();
+    afterWrite();
+}
+
+// Adds the checkbox that switches the license report on, with the file it writes in mono below it.
+void ExportPanel::addLicensesSwitch(const ExportPanelState& state)
+{
+    const Theme& t = Theme::instance();
+    auto* box = new QCheckBox(tr("Also write the license report"), body_);
+    licensesBox_ = box;
+    box->setFont(t.uiFont(t.sizeNormal()));
+    box->setChecked(state.licensesEnabled);
+    box->setProperty("tourId", QStringLiteral("export-licenses"));
+    box->setToolTip(tr("Also write a list of every asset and material the last build used, with its source, author "
+                       "and license. It is not legal advice."));
+    connect(box, &QCheckBox::clicked, this, [this](bool on) { setLicensesEnabled(on); });
+    column_->addWidget(box);
+    if (!state.licensesFile.isEmpty()) {
+        auto* file = new QLabel(state.licensesFile, body_);
+        file->setWordWrap(true);
+        file->setFont(t.monoFont(t.sizeSmall()));
+        file->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
+        file->setToolTip(tr("The license report the next export writes, beside a plain text copy"));
+        file->setProperty("tourId", QStringLiteral("export-licenses-file"));
+        file->setEnabled(state.licensesEnabled);
+        column_->addWidget(file);
+    }
+    if (!licensesError_.isEmpty()) {
+        auto* error = new QLabel(licensesError_, body_);
+        error->setWordWrap(true);
+        error->setFont(t.uiFont(t.sizeSmall()));
+        error->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
+        error->setToolTip(tr("Why the license report switch was not saved"));
+        column_->addWidget(error);
+    }
+}
+
+// Adds what the last export wrote as a license report, with its warnings in amber.
+void ExportPanel::addLicensesReport(const plynth::ExportReport& report)
+{
+    const plynth::ExportLicenseReport& licenses = report.licenses;
+    if (!licenses.enabled)
+        return;
+    QWidget* section = addSection(tr("License report"));
+    if (!licenses.written) {
+        addRow(section, tr("Not written"), fromCore(licenses.reason), false);
+        return;
+    }
+    addRow(section, tr("File"), nativePath(licenses.jsonFile), true);
+    addRow(section, tr("Text"), nativePath(licenses.textFile), true);
+    addRow(section, tr("Items"), QLocale().toString(licenses.items), true);
+    if (licenses.warnings > 0) {
+        const Theme& t = Theme::instance();
+        auto* warn = new QLabel(tr("Warnings: %1. They are listed in the report.").arg(licenses.warnings), body_);
+        warn->setWordWrap(true);
+        warn->setFont(t.uiFont(t.sizeSmall()));
+        warn->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
+        warn->setToolTip(tr("Items with an unknown license, a missing author or other notes"));
+        warn->setProperty("tourId", QStringLiteral("export-licenses-warnings"));
+        column_->addWidget(warn);
+    }
 }
 
 // Adds the checkbox that switches the gameplay data file on, with the file it writes in mono below it.
@@ -802,6 +872,7 @@ void ExportPanel::setReport(const plynth::ExportReport* report, const ExportPane
     addGroups(state);
     addKitSwitch(state);
     addGameplaySwitch(state);
+    addLicensesSwitch(state);
     updateLock();
 
     if (report == nullptr) {
@@ -863,6 +934,7 @@ void ExportPanel::setReport(const plynth::ExportReport* report, const ExportPane
 
     addKitReport(*report);
     addGameplayReport(*report);
+    addLicensesReport(*report);
 
     if (report->exported || !report->reportFile.empty()) {
         QWidget* files = addSection(tr("Files"));

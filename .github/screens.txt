@@ -30,3 +30,7 @@ tour-materials-mid: {project} --tour materials --tour-step 6
 tour-materials-last: {project} --tour materials --tour-step last
 tour-3d: {project} --view 3d --tour build_export --tour-step 7
 what-is-this: {project} --what-is-this tool-button-wall
+home-samples: --home
+first-run: --home --first-run
+export-licenses: {project} --export-licenses-on
+assets-author: {project} --catalog --select-asset chair

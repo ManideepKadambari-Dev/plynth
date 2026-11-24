@@ -79,6 +79,7 @@ GuideHost::GuideHost(MainWindow* window) : QObject(window), window_(window)
     tour_ = new plynth::guide::TourController(data_, this, style, this);
     whatIsThis_ = new plynth::guide::WhatIsThis(data_, this, style, this);
     connect(whatIsThis_, &plynth::guide::WhatIsThis::activeChanged, this, &GuideHost::whatIsThisChanged);
+    connect(tour_, &plynth::guide::TourController::finished, this, &GuideHost::tourFinished);
 }
 
 GuideHost::~GuideHost() = default;

@@ -45,6 +45,7 @@ struct SetAssetOptions {
     std::vector<std::string> addTags;
     std::vector<std::string> removeTags;
     std::optional<std::string> license;
+    std::optional<std::string> author;
 };
 
 struct RoomAddOptions {
@@ -187,7 +188,7 @@ std::vector<std::string> changedList(std::vector<std::string> current, const std
     return unique;
 }
 
-// Changes the name, categories, tags and license of an asset.
+// Changes the name, categories, tags, license and author of an asset.
 Answer assetsSet(const RunContext& context, const SetAssetOptions& options) {
     const std::string command = "assets set";
     Answer badId;
@@ -196,7 +197,7 @@ Answer assetsSet(const RunContext& context, const SetAssetOptions& options) {
     }
     const bool categoryChange = options.categories || !options.addCategories.empty() || !options.removeCategories.empty();
     const bool tagChange = options.tags || !options.addTags.empty() || !options.removeTags.empty();
-    if (!options.name && !categoryChange && !tagChange && !options.license) {
+    if (!options.name && !categoryChange && !tagChange && !options.license && !options.author) {
         return badArguments(command, "bad_arguments", "Give at least one option to change. Run 'plynth help'.");
     }
     OpenedCatalog opened;
@@ -211,6 +212,7 @@ Answer assetsSet(const RunContext& context, const SetAssetOptions& options) {
     AssetEdit edit;
     edit.name = options.name;
     edit.license = options.license;
+    edit.author = options.author;
     if (categoryChange) {
         edit.categories =
             changedList(record->categories, options.categories, options.addCategories, options.removeCategories);
@@ -534,6 +536,8 @@ std::vector<CommandSpec> assetCommands() {
         sub.add_option("--add-tag", options->addTags, "Add a tag. Repeatable.")->type_name("tag");
         sub.add_option("--remove-tag", options->removeTags, "Remove a tag. Repeatable.")->type_name("tag");
         sub.add_option("--license", options->license, "License id.")->type_name("id");
+        sub.add_option("--author", options->author, "Who made it, at most 120 characters. An empty text clears it.")
+            ->type_name("text");
         return [options](const RunContext& context) { return assetsSet(context, *options); };
     };
 
