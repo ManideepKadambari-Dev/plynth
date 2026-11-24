@@ -12,6 +12,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#include <shlobj.h>
 
 #include <catch2/catch_test_macros.hpp>
 #include <nlohmann/json.hpp>
@@ -226,6 +227,39 @@ std::vector<std::string> fakeEnvLines(const JobFixture& f)
     return lines;
 }
 
+// Says whether a path is a folder or lies below it, by its text.
+bool liesIn(const fs::path& path, const fs::path& folder)
+{
+    if (folder.empty()) return false;
+    const fs::path rest = path.lexically_normal().lexically_relative(folder.lexically_normal());
+    return !rest.empty() && rest.begin()->wstring() != L"..";
+}
+
+// The scratch root of this test program (TestSetup.cpp): the folder plynth-<pid>-<number> that the temp folder
+// lies in. Empty when the temp folder is not inside one.
+fs::path scratchRoot()
+{
+    const std::wstring prefix = L"plynth-" + std::to_wstring(GetCurrentProcessId()) + L"-";
+    for (fs::path folder = fs::temp_directory_path().lexically_normal(); !folder.empty(); folder = folder.parent_path()) {
+        const std::wstring name = folder.filename().wstring();
+        const bool numbered = name.size() > prefix.size() && name.compare(0, prefix.size(), prefix) == 0 &&
+                              name.find_first_not_of(L"0123456789", prefix.size()) == std::wstring::npos;
+        if (numbered) return folder;
+        if (folder == folder.parent_path()) break;
+    }
+    return {};
+}
+
+// The user's real local app data folder, whatever LOCALAPPDATA says. Only the path is asked for.
+fs::path realLocalAppData()
+{
+    PWSTR found = nullptr;
+    fs::path folder;
+    if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &found))) folder = found;
+    CoTaskMemFree(found);
+    return folder;
+}
+
 }
 
 TEST_CASE("the tests keep the private Blender folder under the temp folder", "[core][blenderjob][privatefolder]") {
@@ -235,11 +269,16 @@ TEST_CASE("the tests keep the private Blender folder under the temp folder", "[c
 
     const std::wstring atStart = win32PrivateFolder();
     REQUIRE_FALSE(atStart.empty());
-    const fs::path fromTemp = fs::path(atStart).lexically_normal().lexically_relative(fs::temp_directory_path());
-    REQUIRE_FALSE(fromTemp.empty());
-    const std::wstring firstPart = fromTemp.begin()->wstring();
-    REQUIRE(firstPart != L"..");
-    REQUIRE(firstPart != L".");
+    // The folder is this program's own: inside its scratch root, or else in the system temp folder, and never
+    // Plynth's shared folder in the user's real local app data.
+    const fs::path start(atStart);
+    const fs::path root = scratchRoot();
+    const fs::path systemTemp = root.empty() ? fs::temp_directory_path() : root.parent_path();
+    INFO(pathToUtf8(start) + " root " + pathToUtf8(root) + " temp " + pathToUtf8(systemTemp));
+    REQUIRE((liesIn(start, root) || liesIn(start, systemTemp)));
+    REQUIRE_FALSE(start.lexically_normal() == root.lexically_normal());
+    REQUIRE_FALSE(start.lexically_normal() == systemTemp.lexically_normal());
+    REQUIRE_FALSE(liesIn(start, realLocalAppData() / "Plynth"));
     REQUIRE(runtimePrivateFolder() == atStart);
     REQUIRE(childPrivateFolder() == fs::path(atStart).string());
     {
