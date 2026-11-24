@@ -29,12 +29,13 @@ nlohmann::json_schema::json_validator& answerValidator() {
 
 }
 
-Outcome runChecked(const std::vector<std::string>& args, const std::filesystem::path& currentFolder) {
+Outcome runChecked(const std::vector<std::string>& args, const std::filesystem::path& currentFolder,
+                   const CliHost& host) {
     requireSafeSettings("running a CLI command");
     Outcome outcome;
     std::ostringstream out;
     std::ostringstream progress;
-    outcome.exitCode = run(args, out, currentFolder, &progress);
+    outcome.exitCode = run(args, out, currentFolder, &progress, host);
     outcome.text = out.str();
     outcome.progress = progress.str();
 

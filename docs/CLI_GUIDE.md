@@ -1,8 +1,8 @@
 # Command line guide
 
-Plynth can be driven from a terminal, a script or a coding assistant. Every command prints one JSON answer, so a program can read the result without parsing text meant for people.
+Plynth can be driven from a terminal, a script or another program. Every command prints one JSON answer, so a program can read the result without parsing text meant for people.
 
-This page covers the commands that exist today: version, help, creating and reading a project, setting the scale, grid and default sizes, floors, stairs, roofs, points, walls (straight and curved), rounded corners, doors, windows and other openings, rooms, placing furniture with `place` and `item`, finding walls and openings in the plan image with `detect`, building the project in Blender with `build`, the edit session that keeps the app and the command line from overwriting each other, and the machine commands: `doctor`, `settings`, `library` and `assets`. More commands arrive in later releases.
+This page covers every command: version and help; creating, reading, saving elsewhere and recovering a project; the scale, grid and default sizes; floors, stairs, roofs, points, walls (straight and curved), rounded corners, doors, windows and other openings, rooms and light markers; placing furniture with `place` and `item`; finding walls and openings in the plan image with `detect`; trim, set dressing and variations; building the project in Blender with `build`; saving pictures of the build with `render`; exporting with `export`, its groups, the modular kit and gameplay data; moving a project to another machine with `pack` and `unpack`; the edit session that keeps the app and the command line from overwriting each other; and the machine commands: `doctor`, `settings`, `library`, `assets`, `materials` and the integrations. The worked examples near the end show the right order for whole buildings.
 
 The plan file is now at format version 7 and the project file at version 6. Older projects open and upgrade by themselves. See "File format version 7" and the sections after it below.
 
@@ -72,6 +72,10 @@ Help text from the command parser is never printed. `--help` or `-h` on any comm
 
 The app itself, when you give it `--screenshot`, uses its own codes. 0 means the picture was saved. 1 means the picture could not be saved. 2 means bad options. 3 means the picture was saved but the project or the image could not be loaded. 4 means the terminal shell could not start.
 
+**Stopping a command.** Ctrl+C or Ctrl+Break in the terminal asks the running command to stop. A long command (`build`, `export`, `render`, `pack`, `unpack`, the material imports) then answers `cancelled` with exit code 1, and keeps nothing it was making. `plynth` waits for that answer, so the terminal never loses it. A script that started a build in another terminal can stop it with `plynth build cancel`.
+
+**Long commands and sessions.** While `build`, `export`, `pack` or `unpack` runs, it keeps an active edit session alive, so the session does not expire in the middle of a long build.
+
 ## Error codes
 
 | Code | When |
@@ -96,7 +100,11 @@ The app itself, when you give it `--screenshot`, uses its own codes. 0 means the
 | `quality_failed` | `export` found a failed quality check and `--force` was not given. Exit 1. The report is still written. |
 | `cancelled` | The job was stopped before it finished. Nothing is kept. |
 | `database_error` | The catalog database could not be opened or written. `assets rescan` rebuilds it from the folders. |
+| `graphics_unavailable` | `render` could not start the 3D view: there is no graphics device, the driver cannot run it, or the program was started without the app's 3D view. |
+| `render_failed` | `render` started the 3D view but got no usable picture, for example only the background, the wrong size, or no picture within the time limit. The old picture is kept. |
 | `internal_error` | Something unexpected went wrong inside Plynth. Exit 1. The message says what. |
+
+`plynth help` lists the same codes under `error_codes`, each with `code`, `description` and `from` (`core` for codes the shared engine gives, `cli` for the three only the command line gives), and the exit codes under `exit_codes`. A script can read both lists instead of copying this table.
 
 ## Commands
 
@@ -109,24 +117,24 @@ plynth version
 ```
 
 ```json
-{"ok":true,"command":"version","result":{"version":"0.0.1","plan_format":2,"project_format":2}}
+{"ok":true,"command":"version","result":{"version":"0.1.0","plan_format":7,"project_format":6}}
 ```
 
 `plan_format` and `project_format` are the versions this program writes. It reads these and older ones.
 
 ### help
 
-Lists every command with its options. The list is built from the real commands, so it is always current.
+Lists every command with its options, every error code and every exit code. The lists are built from the real commands and codes, so they are always current.
 
 ```
 plynth help
 ```
 
 ```json
-{"ok":true,"command":"help","result":{"commands":[{"command":"project new","description":"Create a project folder, optionally with a plan image.","options":[{"name":"--image","value":"file","required":false,"description":"Plan image to use for the first floor (PNG, JPEG or BMP)."}]}]}}
+{"ok":true,"command":"help","result":{"commands":[{"command":"project new","description":"Create a project folder, optionally with a plan image.","options":[{"name":"--image","value":"file","positional":false,"required":false,"description":"Plan image to use for the first floor (PNG, JPEG or BMP)."}]}],"error_codes":[{"code":"invalid_value","description":"A number or name is out of range or malformed.","from":"core"},{"code":"unknown_command","description":"The first words name no command. Run plynth help to list them.","from":"cli"}],"exit_codes":[{"code":0,"description":"The command worked. The answer has ok true."},{"code":1,"description":"The command ran and refused. The answer has the error code and the reason."},{"code":2,"description":"Unknown command or bad options. The answer has unknown_command or bad_arguments."}]}}
 ```
 
-The example is shortened. The real answer lists every command.
+The example is shortened. The real answer lists every command and every error code.
 
 Each option has `name`, `value` (what to type, such as `metres` or `id`), `positional`, `required` and `description`. `positional` is true for a value you write without a name, such as the id in `point move p3 --x 2 --y 1`. Options with `positional` false are written with their `--name`.
 
@@ -253,6 +261,27 @@ plynth project recent --remove D:/Plans/OldFlat
 ```
 
 A folder that is not on the list is refused with `not_found`.
+
+### project save-as
+
+Saves the project into another folder with its plan images, as File > Save as does. The first folder stays as it is, and later commands keep working on it unless you point them at the new one.
+
+```
+plynth project save-as D:\Plans\MyApartment-copy
+```
+
+The answer is the same as `project info` for the new folder. A relative folder is taken from the current folder. `already_exists` when the new folder already holds a project, `not_found` when a plan image is missing. Images the save could not find are listed as `image_missing` warnings.
+
+### project recover
+
+When the app stopped with unsaved changes, it leaves an autosave in the project folder, and `project info` reports `"has_autosave": true`. The app asks "Load" or "Keep mine" when it opens such a project. These are the same two choices:
+
+```
+plynth project recover
+plynth project recover --discard
+```
+
+Without `--discard` the autosave becomes the saved project and is removed. With `--discard` only the autosave is removed. The answer is the same as `project info`, plus `recovered` and `discarded`. `not_found` when there is no autosave. It changes the project, so it follows the edit lock like every edit command.
 
 ### scale set
 
@@ -1480,6 +1509,27 @@ Takes an item off its wall. It keeps its place, rotation and height, and becomes
 plynth item detach i4
 ```
 
+### item params
+
+Changes the values of a generator item, as the generator's fields in Properties do. An item that places an asset has no values and is refused with `invalid_value`.
+
+```
+plynth item params i4 --param steps=14 --param width=1.1
+plynth item params i4 --reset
+plynth item params i4 --fit
+```
+
+| Option | Meaning |
+|---|---|
+| `<id>` | Required. The item. |
+| `--param <id>=<value>` | One value. Repeat for more. `generator info` lists the ids, kinds and ranges. |
+| `--reset` | Put every value back to the generator's default ("Reset to defaults" in the app). |
+| `--fit` | Keep the values that still fit the generator, for example after the generator file changed, and default the rest. |
+| `--strict` | Refuse when the item would have any problem. |
+| `--library <folder>` | Default: the library in the settings. |
+
+The answer is the item entry, as `item list` gives it, with its new `size`.
+
 ### item remove
 
 Removes an item. The answer is the extended `removed` shape described under `point remove`.
@@ -2073,6 +2123,147 @@ A version 1 file, written before the gameplay switch, reads with the switch off 
 
 The edits are applied to the automatic groups in this order: `added`, `merges`, `moves`, `renames`. An edit that names a group or a plan id that is gone is skipped, and the skip is listed under `notes`. You can edit the file by hand. An unreadable file is `bad_file`, and until `export groups reset` repairs it (the old file is kept as `export-options.json.bad`) every other group and kit command answers `bad_file`. A file with a newer `version` is `unsupported_version` and is never changed. Deleting the file goes back to the automatic groups with the kit off.
 
+### render
+
+Saves a picture of the last build as a PNG. It is drawn by Plynth's own real-time 3D view, the same scene as the app's 3D page, so it looks the way the 3D preview does. It never starts Blender, never builds and writes nothing but the picture. It only reads the project, so it works while the app has the project open and during an edit session. The app's Build menu entry "Save 3D picture..." does the same thing with the view, roofs and cut it shows.
+
+```
+plynth render
+plynth render --view top --out renders/top.png
+plynth render --size 1920x1080 --yaw 200 --pitch 35 --out renders/back.png
+plynth render --floor f1 --view top
+plynth render --no-roofs
+```
+
+| Option | Meaning |
+|---|---|
+| `--out <file>` | The PNG to write. It must end in `.png`. A relative path is inside the project folder. It may not be inside the project's `plans`, `build`, `export` or `pack` folders. Default: `renders/three-quarter.png` or `renders/top.png`. |
+| `--size <WxH>` | Width and height in pixels, 64 to 4096 each. Default: `1280x720`. |
+| `--view <name>` | `three-quarter` (from the front right, yaw 45, pitch 25, the default) or `top` (straight down, yaw 0, pitch 89.9). |
+| `--yaw <degrees>` | Turns the camera around the building, at least 0 and below 360. 0 looks from the front of the plan, 90 from the right. Default: the view's. |
+| `--pitch <degrees>` | How far the camera looks down, 2 to 89.9. Default: the view's. |
+| `--floor <id>` | Cuts the building at this floor: it and the floors below are shown, the floors above and this floor's roofs and slab are not. The id is looked up in the last build. |
+| `--no-roofs` | Hides every roof. |
+| `--project <folder>` | The project. Default: the current folder. |
+
+The camera always frames the whole building, or what is left of it after the cut, as tightly as the picture allows.
+
+```json
+{"ok":true,"command":"render","result":{"file":"D:/Plans/MyApartment/renders/three-quarter.png","width":1280,"height":720,"view":"three-quarter","yaw":45.0,"pitch":25.0,"floor":null,"roofs":true,"current":true}}
+```
+
+`current` is false when the plan or the project settings changed since the last build. The picture is still saved and shows the last build, and the answer has the warning `build_out_of_date`:
+
+```json
+{"ok":true,"command":"render","result":{"file":"D:/Plans/MyApartment/renders/top.png","width":1280,"height":720,"view":"top","yaw":0.0,"pitch":89.9,"floor":"f1","roofs":true,"current":false},"warnings":[{"code":"build_out_of_date","message":"The plan changed since the last build. The picture shows the last build."}]}
+```
+
+An existing picture is replaced only by a good new one. When a render fails or is stopped, the old file stays as it was.
+
+| Code | When |
+|---|---|
+| `not_found` | The project has never been built ("Build the project first."), or the last build has no floor with the `--floor` id. |
+| `in_use` | A build or an export of the project is running. Render when it ends. |
+| `invalid_value` | The size, yaw, pitch or output file is out of range, or `--size` is not two whole numbers such as `1280x720`. |
+| `bad_arguments` | `--view` is not `three-quarter` or `top`, or `--yaw` or `--pitch` is not a number. Exit 2. |
+| `cannot_write` | The picture or its folder could not be written. |
+| `graphics_unavailable` | The 3D view cannot start on this machine. |
+| `render_failed` | The 3D view gave no usable picture within the time limit of 60 seconds. |
+
+A graphics driver that hangs cannot always be stopped from inside Plynth, so a script that renders unattended should set its own time limit around the command.
+
+### build report, build cancel, export cancel
+
+`plynth build report` answers with the last build report, read from `build\build.json`, in the same shape as `build`. It reads only, so it works during a session and while the app has the project open. `not_found` when the project was never built.
+
+`plynth build cancel` and `plynth export cancel` stop a build or an export that runs on the project, started from the app or from another command. Both stop whichever of the two runs, because a build and an export never run at the same time. The running command then answers `cancelled`, and nothing it was making is kept.
+
+```
+plynth build cancel
+```
+
+```json
+{"ok":true,"command":"build","result":{"requested":true}}
+```
+
+`requested` is false when nothing was running. It takes only `--project`.
+
+### pack
+
+Copies the library items the project uses into the project's `pack` folder, so the project can move to another machine and be unpacked into the library there. The project keeps pointing to its items by id, as it always does.
+
+```
+plynth pack
+plynth pack --check
+```
+
+| Option | Meaning |
+|---|---|
+| `--check` | Say what the pack would hold, and write nothing. |
+| `--library <folder>` | Default: the library in the settings. |
+| `--project <folder>` | Default: the current folder. |
+
+What goes into the pack:
+
+| Item | In the pack |
+|---|---|
+| Assets and materials you imported yourself | Copied: `info.json`, the model, the preview model, the thumbnail and the textures and maps `info.json` lists. Nothing else in the item folder is copied. |
+| Items with the license `unknown` | Copied, with the warning `license_unknown`. Check that you may share them. |
+| Items from a store (BlenderKit, Fab, and any store an integration adds) | Only named: id, name, source and license. No file of them is copied. A material taken from a store asset with `materials from-asset` counts as a store item too. |
+| Items with the license `royalty_free` or `personal_use` | Only named, reason `license`. |
+| Items whose origin is not known, such as one indexed from a bare `asset.blend` | Only named, reason `unknown_origin`. |
+| Custom opening shapes | Copied. |
+| Generators | Only named, reason `script`. Scripts are never copied. |
+| Items the library lacks or that are broken | Listed as missing, with the warning `item_missing`. The pack is still written and `complete` is false. |
+
+The pack is made in a hidden folder and then swapped in, so a failed or stopped pack leaves the old one. Copies keep their file times, so the other library renders nothing again.
+
+```json
+{"ok":true,"command":"pack","result":{"folder":"D:/Plans/MyApartment/pack","checked_only":false,"complete":true,"bytes":5820412,"copied":1,"references":1,"missing":0,"room_types":[{"id":"gaming","name":"Gaming room"}],"entries":[{"kind":"asset","id":"sofa","name":"Sofa","state":"copied","license":"own_work","source":{"kind":"local_file","reference":"sofa.fbx","imported_at":"2026-11-20T10:00:00Z"},"files":["assets/sofa/asset.blend","assets/sofa/info.json"]},{"kind":"asset","id":"chair","name":"Chair","state":"reference","reason":"store","license":"royalty_free","source":{"kind":"blenderkit","reference":"https://www.blenderkit.com/get/abc","imported_at":"2026-11-20T10:00:00Z"},"files":[]}]}}
+```
+
+`pack\pack.json` holds the same entries, described by `schema/pack.schema.json`, with no absolute path. Share the project folder with its `pack` folder, but not `build` and `export`: they can hold store models and textures.
+
+| Code | When |
+|---|---|
+| `unsaved_changes` | The app has unsaved changes in the project. Save first. |
+| `no_library` | No library is set. |
+| `not_a_project` | The folder holds no project. |
+| `cannot_write` | The pack could not be written. The old pack is kept. |
+
+### unpack
+
+Copies the items of the project's pack into this machine's library and indexes them. It never overwrites an item and never downloads anything.
+
+```
+plynth unpack --check
+plynth unpack
+plynth unpack --keep-library
+```
+
+| Option | Meaning |
+|---|---|
+| `--check` | Say what unpack would do, and write nothing. |
+| `--keep-library` | When the library has a different item with the same id, keep the library's item and go on. |
+| `--library <folder>` | Default: the library in the settings. |
+| `--project <folder>` | Default: the current folder. |
+
+Each entry gets an `action`:
+
+| Action | Meaning |
+|---|---|
+| `add` | It is copied into the library. |
+| `present` | The library already has the same item: the same files, or for a named item the same source. |
+| `conflict` | The library has a different item with this id. Without `--keep-library` nothing at all is written and the answer is `already_exists` naming the ids. |
+| `needs_download` | A named item the library lacks. `command` is the command that gets it, and a `needs_download` warning repeats it. A store address is imported as it is, for example `plynth assets import "https://www.blenderkit.com/get/abc"`. A store file has to be downloaded again first; the command names its file and its importer, for example `plynth assets import "Table_pack.zip" --importer fab_zip`, run in the folder you downloaded it to. |
+| `missing` | Neither the pack nor the library has it. |
+
+```json
+{"ok":true,"command":"unpack","result":{"added":1,"complete":false,"entries":[{"kind":"asset","id":"sofa","name":"Sofa","state":"copied","license":"own_work","source":{"kind":"local_file","reference":"sofa.fbx","imported_at":"2026-11-20T10:00:00Z"},"files":["assets/sofa/asset.blend","assets/sofa/info.json"],"action":"add"},{"kind":"asset","id":"chair","name":"Chair","state":"reference","reason":"store","license":"royalty_free","source":{"kind":"blenderkit","reference":"https://www.blenderkit.com/get/abc","imported_at":"2026-11-20T10:00:00Z"},"files":[],"action":"needs_download","command":"plynth assets import \"https://www.blenderkit.com/get/abc\""}],"checked_only":false},"warnings":[{"code":"needs_download","message":"Get chair on this machine: plynth assets import \"https://www.blenderkit.com/get/abc\""}]}
+```
+
+A pack comes from someone else, so unpack checks all of it before it writes anything: the format and version, every path (relative, inside its item's folder, no `..`, no drive or network path, no name Windows reserves, a known file type), no links, no file that is not listed, every listed file present, and each copied item's own `info.json` against `pack.json`, so a store item cannot be passed off as copied. Any of these gives `bad_file` and the library is unchanged. Unpack is all or nothing: when a step fails halfway, what it added is removed again. The custom room types of the pack are added when the library lacks them. Nothing from a pack is ever run.
+
 ### session begin
 
 Starts an edit session. See the next section.
@@ -2239,6 +2430,30 @@ Options: `--library <folder>`, and `--from <folder>` for another folder of `.sha
 ```
 
 `copied` lists the files added and `skipped` the ones already there. A `--from` folder that does not exist is `not_found`. A shape added this way is listed by `opening shapes` the next time a command runs.
+
+### library add-sample-materials
+
+Imports the sample materials that ship with Plynth (`samples\materials`), as the Materials panel's "Add the sample materials" does. Materials the library already has keep their ids and are skipped. It runs Blender in the background.
+
+```
+plynth library add-sample-materials
+```
+
+```json
+{"ok":true,"command":"library add-sample-materials","result":{"folder":"C:/Program Files/Plynth/samples/materials","added":["oak_planks","red_brick"],"skipped":["concrete"]}}
+```
+
+It takes `--library`, `--blender` and `--quiet`. `not_found` when the samples are not next to the program.
+
+### library add-sample-generators
+
+Copies the sample generators that come with Plynth into the library's `generators` folder, as Catalog > Add the sample generators does. Files that are already there are kept.
+
+```
+plynth library add-sample-generators
+```
+
+The answer lists `copied` and `skipped` file names. `--from <folder>` copies from another folder.
 
 ### library info
 
@@ -2882,6 +3097,23 @@ Cleans a material again and renders a new thumbnail. Use it after `materials set
 plynth materials thumbnail red_brick
 ```
 
+### materials from-asset
+
+Takes one material of an asset into the materials catalog, as the Assets panel's "Add to materials catalog" does. The material is made from the asset's `asset.blend` and keeps the asset's source and license, so the material of a store asset stays a store item, for example in a pack.
+
+```
+plynth materials from-asset chair Seat --group fabric
+```
+
+| Option | Meaning |
+|---|---|
+| `<asset>` | Required. The asset id. |
+| `<material>` | Required. The material's name inside the asset, as `assets info` lists it under `materials`. |
+| `--group <id>` | A group for the new material. Repeat for several. |
+| `--library`, `--blender`, `--quiet` | As for `materials import`. |
+
+The answer is one entry as `materials import` lists them, plus `material`, the new material's entry. `not_found` for an unknown asset, or a material the asset does not have (the message lists the ones it has).
+
 ### materials importers
 
 Lists the ways a material can be imported.
@@ -2892,6 +3124,39 @@ plynth materials importers
 
 ```json
 {"ok":true,"command":"materials importers","result":{"importers":[{"id":"blend_material","name":"Material from a .blend file","description":"One material of a Blender file, made into texture maps.","suffixes":[".blend"]},{"id":"blenderkit","name":"BlenderKit","description":"A BlenderKit material address. Blender downloads it through your own BlenderKit add-on.","suffixes":[]},{"id":"fab_zip","name":"Fab zip","description":"A zip file of texture maps downloaded from fab.com. Takes the largest resolution the options allow.","suffixes":[".zip"]},{"id":"texture_set","name":"Texture set","description":"A folder, zip file or picture file of texture maps such as base color, normal and roughness.","suffixes":[".png",".jpg",".jpeg",".tga",".tif",".tiff",".bmp",".exr",".zip"]}]}}
+```
+
+## Generators
+
+Generators are Python files in the library's `generators` folder that make furniture or parts of a building in Blender, such as a spiral stair or a fence. [Writing generators](GENERATORS.md) explains how to write one. Place one with `place --generator <id>` instead of an asset id, and change its values with `item params`.
+
+### generator list
+
+Lists the generators of the library with their names, parameters, the add-ons they need and whether those are on, and the files that were refused with the reason.
+
+```
+plynth generator list
+plynth generator list --probe
+```
+
+`--probe` asks Blender which add-ons are enabled first, as `generator check-addons` does. Without it the last answer of that check is used. It takes `--library` and `--blender`.
+
+### generator info
+
+Describes one generator: its parameters with their kinds, defaults and ranges, the add-ons it needs and its default size.
+
+```
+plynth generator info spiral_stair
+```
+
+`not_found` for a generator the library does not have.
+
+### generator check-addons
+
+Asks Blender which add-ons are enabled and keeps the answer for `generator list`, the build and the app, as Catalog > Check add-ons does. Blender runs in the background with a clean startup and reads your add-on settings as data, so none of your add-ons runs during the check. It takes `--library` and `--blender`.
+
+```
+plynth generator check-addons
 ```
 
 ## Integrations
@@ -3107,9 +3372,115 @@ plynth build
 
 Read `problems` in `stair list` before building: a stair that crosses a wall or arrives outside a room says so there. `roof list` shows what the build will make, including `type_built` when a hip roof had to fall back to a gable. `build` reports `slabs`, `stairs` and `roofs` in its counts.
 
+## Worked examples
+
+Each example runs from an empty folder with a library set up (`plynth library init` and `plynth library add-sample-materials` once). Every command takes `--project`, left out here: run them in the project folder. The ids in the answers are the ones to use next; they are shown here as `w1`, `r1` and so on, and a real run may print other ids, so read them from each answer.
+
+### A flat
+
+```
+plynth project new --image plans\flat.png --name Flat
+plynth scale from-points --x1 120 --y1 840 --x2 940 --y2 840 --distance 8.2
+plynth detect --apply
+plynth wall list
+plynth room find
+plynth room set r1 --type living
+plynth room set r2 --type bedroom
+plynth assets search --room bedroom
+plynth place bed_double --room r2 --strict
+plynth item list
+plynth materials search --group floor
+plynth material set r1.floor oak_planks
+plynth build --check
+plynth build
+plynth render --view top --no-roofs --out renders\top.png
+plynth render --yaw 45 --pitch 30 --out renders\front.png
+plynth export --check
+plynth export
+```
+
+Read `problems` in `wall list`, `opening list` and `item list` after each step, and fix them before building. `build --check` is quick and finds most of what a build would refuse.
+
+### A house with two floors
+
+```
+plynth project new --image plans\house-ground.png --name House
+plynth scale set --pixels-per-metre 100
+plynth detect --apply
+plynth room find
+plynth floor add --name "Upper floor" --image plans\house-upper.png
+plynth detect --floor f2 --apply
+plynth floor set --floor f2 --image-offset 0.05,0
+plynth room find --floor f2
+plynth stair add --floor f1 --x 4.2 --y 2.1 --rot 90 --type u_shape
+plynth stair list
+plynth roof set --floor f2 --at 3,2 --type gable --pitch 35
+plynth trim set railing --on
+plynth light add --x 3 --y 3 --kind ceiling
+plynth build
+plynth render --floor f1 --view top --out renders\ground.png
+plynth render --yaw 135 --pitch 25 --out renders\back.png
+plynth export groups
+plynth export
+```
+
+Add the upper floor before the stair: a stair needs the floor it climbs to. `stair list` says whether a stair crosses a wall or arrives outside a room. Cut views with `--floor` show one storey from above with the floors above it taken off.
+
+### A street of variations
+
+One marked house, several finished copies that differ in furniture and materials:
+
+```
+plynth variation show
+plynth variation set --seed 7 --furniture on --materials on
+plynth variation preview
+plynth build
+plynth render --out renders\seed-7.png
+plynth variation copies --seeds 1,2,3,4 --out D:\Street
+```
+
+Seed 0 always builds the plan exactly as marked. `variation preview` lists what a seed would change without building. `variation copies` writes one project folder per seed; build and export each as above. A copy carries its seed, so it builds the same picks on another machine as long as that library has the same items (`pack` carries the picks, not every candidate).
+
+## What the app does and the command for it
+
+Every action of the app that changes or checks a project or the library has a command. Undo and redo are the one exception: they live in the app only.
+
+| App | Command |
+|---|---|
+| File > New project, New project from image | `project new`, `project new --image` |
+| File > Save as | `project save-as <folder>` |
+| Open dialog: Load or Keep mine | `project recover`, `project recover --discard` |
+| File > Pack project, Unpack into library | `pack`, `unpack` |
+| Scale tool | `scale set`, `scale from-points` |
+| Wall, point, room, opening, stair and light tools | `wall`, `point`, `room`, `opening`, `stair`, `light` |
+| Detect | `detect`, `detect --apply` |
+| Floor tabs | `floor add`, `floor set`, `floor remove` |
+| Roof sections | `roof set`, `roof clear`, `roof list` |
+| Properties: furniture, swap, mount, Update item size | `place`, `item move`, `item rotate`, `item swap`, `item attach`, `item detach`, `item params` |
+| Properties: door and window assets | `opening set --frame` |
+| Properties: materials | `material set` |
+| Room set dressing | `room set --dressing` |
+| Trim | `trim set`, `trim show`, `trim profiles` |
+| Variation, Make variations | `variation set`, `variation preview`, `variation copies` |
+| Build, Cancel build, Show build report | `build`, `build cancel`, `build report` |
+| Save 3D picture | `render` |
+| Export, Check export, Export anyway, Cancel | `export`, `export --check`, `export --force`, `export cancel` |
+| Export tab: groups, modular kit, gameplay data | `export groups ...`, `export kit on\|off`, `export gameplay on\|off` |
+| Assets and materials catalogs, imports, inboxes, rescans, thumbnails | `assets ...`, `materials ...` |
+| Add to materials catalog | `materials from-asset` |
+| Add the sample materials, shapes and generators | `library add-sample-materials`, `library add-sample-shapes`, `library add-sample-generators` |
+| Integrations | `library integrations`, `library integration ...` |
+| Setup check | `doctor` |
+| Settings | `settings show`, `settings set` |
+| Home screen recent projects | `project recent` |
+| Command line editing banner | `session begin`, `session end`, `session status` |
+| About | `version` |
+
+Zoom, pan, the tools themselves, the tour, the help pages, the terminal and opening folders need no command: every answer names the files and folders it used.
+
 ## Working while the app is open
 
-Plynth's app and the command line can both work on the same project folder. To keep one from overwriting the other, the command line uses an edit session. The steps for a script or a coding assistant:
+Plynth's app and the command line can both work on the same project folder. To keep one from overwriting the other, the command line uses an edit session. The steps for a script or other program:
 
 1. **Begin.** Run `plynth session begin --tool <name>`. If the app has the project open, it turns read only: a banner appears saying "Being edited from the command line by <name>", the canvas is dimmed, and Undo, Redo, Save, Save as and Set plan image are disabled.
 2. **Edit.** Run commands such as `point add`, `wall draw` and `room add`. Each one saves to the project folder. The app notices the change within a second and shows it live. Zoom and pan stay where they were.

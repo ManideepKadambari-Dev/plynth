@@ -13,6 +13,7 @@
 
 #include <plynth/cli/Words.h>
 
+#include <cwchar>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -128,10 +129,20 @@ std::vector<std::string> readArguments() {
     return result;
 }
 
-// Swallows Ctrl+C and Ctrl+Break so they only reach plynth.exe, and plynth.com keeps waiting for it.
+// The event plynth.exe watches to stop the running command. plynth.exe has no console of its own, so Ctrl+C
+// in the terminal reaches only plynth.com, which passes it on through this event.
+HANDLE gCancelEvent = nullptr;
+
+// Turns Ctrl+C and Ctrl+Break into a stop request for plynth.exe, and keeps plynth.com waiting for its answer.
 // A handler function is used, not the "ignore" setting, because that setting would pass to the child.
-BOOL WINAPI ignoreInterrupt(DWORD type) {
-    return type == CTRL_C_EVENT || type == CTRL_BREAK_EVENT;
+BOOL WINAPI passInterrupt(DWORD type) {
+    if (type != CTRL_C_EVENT && type != CTRL_BREAK_EVENT) {
+        return FALSE;
+    }
+    if (gCancelEvent != nullptr) {
+        SetEvent(gCancelEvent);
+    }
+    return TRUE;
 }
 
 // The folder this program lives in.
@@ -142,9 +153,19 @@ std::filesystem::path ownFolder() {
     return std::filesystem::path(path).parent_path();
 }
 
+// Where plynth.exe is: in the parent folder when this program sits in a folder named cli, as the installer puts
+// it so that only plynth.com is on the command path, otherwise next to this program.
+std::filesystem::path childProgram() {
+    const std::filesystem::path folder = ownFolder();
+    if (_wcsicmp(folder.filename().c_str(), L"cli") == 0) {
+        return folder.parent_path() / L"plynth.exe";
+    }
+    return folder / L"plynth.exe";
 }
 
-// Starts plynth.exe from this folder, waits for it and returns its exit code.
+}
+
+// Starts plynth.exe, waits for it and returns its exit code.
 int main() {
     const std::vector<std::string> arguments = readArguments();
     const Mode mode = modeOf(arguments);
@@ -152,11 +173,11 @@ int main() {
         writeOut(plynth::cli::unknownCommandAnswer(arguments));
         return kExitBadArguments;
     }
-    const std::filesystem::path child = ownFolder() / L"plynth.exe";
+    const std::filesystem::path child = childProgram();
     std::error_code ignored;
     if (!std::filesystem::exists(child, ignored)) {
         writeOut("{\"ok\":false,\"command\":\"\",\"error\":{\"code\":\"not_found\","
-                 "\"message\":\"plynth.exe was not found next to plynth.com.\"}}\n");
+                 "\"message\":\"plynth.exe was not found next to plynth.com, or above it when plynth.com is in a cli folder.\"}}\n");
         return kExitFailed;
     }
 
@@ -196,7 +217,14 @@ int main() {
     if (oldCodePage != 0) {
         SetConsoleOutputCP(CP_UTF8);
     }
-    SetConsoleCtrlHandler(ignoreInterrupt, TRUE);
+    // A name of its own for each run, handed to plynth.exe in PLYNTH_CANCEL_EVENT.
+    const std::wstring eventName = L"Local\\plynth-cancel-" + std::to_wstring(GetCurrentProcessId()) + L"-" +
+                                   std::to_wstring(GetTickCount64());
+    gCancelEvent = CreateEventW(nullptr, TRUE, FALSE, eventName.c_str());
+    if (gCancelEvent != nullptr) {
+        SetEnvironmentVariableW(L"PLYNTH_CANCEL_EVENT", eventName.c_str());
+    }
+    SetConsoleCtrlHandler(passInterrupt, TRUE);
 
     PROCESS_INFORMATION process{};
     if (!CreateProcessW(child.c_str(), commandLine.data(), nullptr, nullptr, TRUE, 0, nullptr, nullptr, &startup,

@@ -61,6 +61,9 @@ struct MaterialImportRequest {
     int bakeSize = kDefaultBakeSize;
     std::optional<bool> keepOriginal; // empty: the keepImportedZips setting
     bool skipExisting = false;        // an id that is taken skips the import instead of making a new id
+    // Written as the source in info.json instead of the import's own. A material taken from an asset keeps the
+    // asset's source this way, so a store asset's material stays a store item (AssetMaterials.h).
+    std::optional<AssetSource> origin;
     // As in ImportRequest: the importer by id (empty: pickMaterialImporter) and options for this import
     // only, checked by the importer's integration.
     std::string importer;

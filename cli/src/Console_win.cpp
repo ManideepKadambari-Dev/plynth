@@ -13,6 +13,8 @@
 #include <ostream>
 #include <sstream>
 #include <streambuf>
+#include <stop_token>
+#include <thread>
 #include <string>
 #include <vector>
 
@@ -109,14 +111,44 @@ private:
 
 }
 
-int runFromProcess(int, char*[]) {
+int runFromProcess(int, char*[], const CliHost& host) {
     const std::vector<std::string> args = readArguments();
+
+    // plynth.com sets this event on Ctrl+C. A thread turns it into a stop request for the command.
+    std::stop_source cancel;
+    HANDLE cancelEvent = nullptr;
+    wchar_t eventName[256] = {};
+    if (GetEnvironmentVariableW(L"PLYNTH_CANCEL_EVENT", eventName, 256) > 0) {
+        cancelEvent = OpenEventW(SYNCHRONIZE, FALSE, eventName);
+    }
+    std::jthread watcher;
+    if (cancelEvent != nullptr) {
+        watcher = std::jthread([cancelEvent, &cancel](std::stop_token done) {
+            while (!done.stop_requested()) {
+                if (WaitForSingleObject(cancelEvent, 200) == WAIT_OBJECT_0) {
+                    cancel.request_stop();
+                    return;
+                }
+            }
+        });
+    }
+    std::stop_callback forward(host.stop, [&cancel]() { cancel.request_stop(); });
+    CliHost withStop = host;
+    withStop.stop = cancel.get_token();
+
     std::ostringstream buffer;
     HANDLE errorHandle = GetStdHandle(STD_ERROR_HANDLE);
     HandleBuffer errorBuffer(errorHandle);
     std::ostream progress(&errorBuffer);
     const int code =
-        run(args, buffer, std::filesystem::current_path(), isUsable(errorHandle) ? &progress : nullptr);
+        run(args, buffer, std::filesystem::current_path(), isUsable(errorHandle) ? &progress : nullptr, withStop);
+    if (watcher.joinable()) {
+        watcher.request_stop();
+        watcher.join();
+    }
+    if (cancelEvent != nullptr) {
+        CloseHandle(cancelEvent);
+    }
 
     bool ownsHandle = false;
     HANDLE output = openOutput(ownsHandle);

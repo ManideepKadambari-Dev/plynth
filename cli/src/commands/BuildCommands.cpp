@@ -1,5 +1,6 @@
 #include "../CatalogCommon.h"
 #include "../Common.h"
+#include "../SessionKeeper.h"
 
 #include <plynth/core/Build.h>
 #include <plynth/core/BuildJob.h>
@@ -18,6 +19,7 @@ namespace plynth::cli {
 namespace {
 
 struct BuildOptions {
+    std::string what;
     std::string project;
     std::string library;
     BlenderOption blender;
@@ -101,8 +103,45 @@ Answer buildCheck(const std::string& command, const Project& project, const Open
     return success(command, std::move(result));
 }
 
+// Answers with the last build report, read from build/build.json.
+Answer buildReport(const RunContext& context, const BuildOptions& options) {
+    const std::string command = "build";
+    const std::filesystem::path folder = resolveProjectFolder(context, options.project);
+    Document document;
+    Answer failed;
+    if (!openProject(command, folder, document, failed, true)) {
+        return failed;
+    }
+    const BuildReportRead read = readBuildReport(folder);
+    if (!read.status.ok()) {
+        return failure(command, read.status);
+    }
+    return success(command, buildReportToJson(read.report));
+}
+
+}
+
+// Asks the build or export running on a project, from the app or another command, to stop. Shared with export.
+Answer cancelRunning(const std::string& command, const RunContext& context, const std::string& projectOption) {
+    const std::filesystem::path folder = resolveProjectFolder(context, projectOption);
+    if (!isProjectFolder(folder)) {
+        return failure(command, fail(ErrorCode::NotAProject, "The folder " + pathToUtf8(folder) + " holds no project."));
+    }
+    Json result = Json::object();
+    result["requested"] = requestCancel(folder);
+    return success(command, std::move(result));
+}
+
+namespace {
+
 // Builds the project in Blender, or only checks it with --check.
 Answer buildProject(const RunContext& context, const BuildOptions& options) {
+    if (options.what == "report") {
+        return buildReport(context, options);
+    }
+    if (options.what == "cancel") {
+        return cancelRunning("build", context, options.project);
+    }
     const std::string command = "build";
     Answer failed;
     if (refuseEmptyBlender(command, options.blender, failed)) {
@@ -161,7 +200,8 @@ Answer buildProject(const RunContext& context, const BuildOptions& options) {
         }
         lastStage = step.stage;
     };
-    const BuildReport report = runBuild(request, onProgress);
+    const SessionKeeper keeper(folder);
+    const BuildReport report = runBuild(request, onProgress, stopToken(context));
     if (!report.status.ok()) {
         return failure(command, report.status);
     }
@@ -178,9 +218,13 @@ std::vector<CommandSpec> buildCommands() {
     CommandSpec build;
     build.words = {"build"};
     build.description = "Build the project in Blender: walls, openings, floors, ceilings, furniture and "
-                        "generators. With --check, only list the problems.";
+                        "generators. With --check, only list the problems. 'build report' shows the last report and 'build cancel' "
+                        "stops a running build.";
     build.setup = [](CLI::App& sub) -> Handler {
         auto options = std::make_shared<BuildOptions>();
+        sub.add_option("what", options->what,
+                       "Use 'report' to show the last build report, or 'cancel' to stop the build running on the project.")
+            ->check(CLI::IsMember({"report", "cancel"}));
         addProjectOption(sub, options->project);
         addLibraryOption(sub, options->library);
         addBlenderOption(sub, options->blender);

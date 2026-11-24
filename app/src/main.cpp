@@ -2,6 +2,7 @@
 #include "theme/Theme.h"
 #include "catalog/LibraryHost.h"
 #include "window/MainWindow.h"
+#include "preview/RenderHost.h"
 
 #include <plynth/cli/Cli.h>
 #include <plynth/core/Version.h>
@@ -12,6 +13,8 @@
 #include <QImage>
 #include <QRegularExpression>
 #include <QTimer>
+
+#include <string_view>
 
 namespace {
 
@@ -55,8 +58,13 @@ bool saveScreenshot(plynth::app::MainWindow& window, const QString& file, const 
 // Parses the options, opens the window and optionally saves a screenshot.
 int main(int argc, char* argv[])
 {
-    if (argc > 1 && plynth::cli::isCommandWord(argv[1]))
-        return plynth::cli::runFromProcess(argc, argv);
+    if (argc > 1 && plynth::cli::isCommandWord(argv[1])) {
+        // Only render gets the 3D view, so no other command starts Qt.
+        plynth::cli::CliHost host;
+        if (std::string_view(argv[1]) == "render")
+            host.render = plynth::app::renderShot;
+        return plynth::cli::runFromProcess(argc, argv, host);
+    }
 
     QApplication app(argc, argv);
     QApplication::setApplicationName(QStringLiteral("Plynth"));
@@ -163,6 +171,10 @@ int main(int argc, char* argv[])
     QCommandLineOption exportCheckOption(QStringLiteral("export-check"),
                                          QStringLiteral("Run the export quality checks after opening the project and wait for the end. For checks only."));
     QCommandLineOption exportTabOption(QStringLiteral("export-tab"), QStringLiteral("Show the Export tab. For checks only."));
+    QCommandLineOption packDialogOption(QStringLiteral("pack-dialog"),
+                                        QStringLiteral("Show the pack or the unpack dialog: pack or unpack. For checks only."),
+                                        QStringLiteral("kind"));
+    parser.addOption(packDialogOption);
     QCommandLineOption integrationsTabOption(QStringLiteral("integrations-tab"),
                                              QStringLiteral("Show the Integrations tab. For checks only."));
     QCommandLineOption blenderKitAddressOption(QStringLiteral("blenderkit-address"),
@@ -512,6 +524,10 @@ int main(int argc, char* argv[])
         window.checkAddonsAndWait();
     if (parser.isSet(addSamplesOption))
         QTimer::singleShot(0, &window, [&window]() { window.addSampleMaterials(); });
+    if (parser.isSet(packDialogOption)) {
+        const QString kind = parser.value(packDialogOption);
+        QTimer::singleShot(0, &window, [&window, kind]() { window.showPackDialogForCheck(kind); });
+    }
     if (parser.isSet(setupOption) || parser.isSet(setupItemOption)) {
         const QString item = parser.value(setupItemOption);
         QTimer::singleShot(0, &window, [&window, item]() { window.showSetupCheck(item); });

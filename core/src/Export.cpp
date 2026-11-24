@@ -234,6 +234,9 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
     const fs::path work = build / pathFromUtf8(kExportWorkFolder);
     report.reportFile = exportDir / pathFromUtf8(kExportReportFileName);
 
+    // Made before the lock, so it ends after the lock is gone and no cancel marker outlives the job.
+    const lockfile::CancelWatch cancelWatch(build, stop);
+    stop = cancelWatch.token();
     ExportLock lock;
     if (!lock.take(build / pathFromUtf8(kBuildLockFileName))) {
         report.status = fail(ErrorCode::InUse, "A build or another export of this project is running.");

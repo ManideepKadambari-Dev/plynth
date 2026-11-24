@@ -90,4 +90,9 @@ ProjectLoad loadAutosave(const std::filesystem::path& folder);
 // Deletes folder/autosave/. Ok when there is nothing to delete.
 Status removeAutosave(const std::filesystem::path& folder);
 
+// The app's "Load" and "Keep mine" for an autosave left behind, as "plynth project recover" and its --discard:
+// saves the autosave as the project and removes it, or with discard only removes it. NotAProject, NotFound when
+// there is no autosave, and the errors of loadAutosave and saveProject; a failed load or save changes nothing.
+Status recoverAutosave(const std::filesystem::path& folder, bool discard);
+
 }

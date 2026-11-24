@@ -464,6 +464,9 @@ BuildReport runBuild(const BuildRequest& request, const std::function<void(const
         report.status = fail(ErrorCode::CannotWrite, "The folder " + pathToUtf8(folder) + " could not be created.");
         return report;
     }
+    // Made before the lock, so it ends after the lock is gone and no cancel marker outlives the job.
+    const lockfile::CancelWatch cancelWatch(folder, stop);
+    stop = cancelWatch.token();
     BuildLock lock;
     if (!lock.take(folder / pathFromUtf8(kBuildLockFileName))) {
         report.status = fail(ErrorCode::InUse, "Another build of this project is running.");
@@ -622,6 +625,16 @@ BuildReport runBuild(const BuildRequest& request, const std::function<void(const
     }
     progress(BuildStage::Done);
     return report;
+}
+
+// Writes the cancel marker when a build or an export holds a live lock.
+bool requestCancel(const fs::path& projectFolder)
+{
+    const fs::path folder = buildFolder(projectFolder);
+    const fs::path lock = folder / pathFromUtf8(kBuildLockFileName);
+    std::error_code ec;
+    if (!fs::exists(lock, ec) || !lockIsLive(lock)) return false;
+    return fileio::writeAtomic(folder / pathFromUtf8(kBuildCancelFileName), "cancel\n").ok();
 }
 
 // The report in the file form.

@@ -159,3 +159,77 @@ TEST_CASE("the launcher prints the exact unknown_command answer without plynth.e
           "    \"message\": \"Unknown command '--bogus'. Run 'plynth help' to list the commands.\"\n  }\n}\n");
 }
 
+
+TEST_CASE("the launcher in a folder named cli starts the plynth.exe one folder up", "[launcher]") {
+    TempFolder temp;
+    const fs::path cli = temp.path() / "app" / "CLI";
+    fs::create_directories(cli);
+    fs::copy_file(PLYNTH_LAUNCHER_FILE, cli / "plynth.com");
+    fs::copy_file(PLYNTH_FAKE_CHILD, temp.path() / "app" / "plynth.exe");
+
+    const auto outcome = runLauncher(cli / "plynth.com", L"version exit=4", temp.path());
+    CHECK(outcome.exitCode == 4);
+    CHECK(outcome.output == "version\nexit=4\n");
+}
+
+TEST_CASE("the launcher in another folder does not look one folder up", "[launcher]") {
+    TempFolder temp;
+    const fs::path tools = temp.path() / "app" / "tools";
+    fs::create_directories(tools);
+    fs::copy_file(PLYNTH_LAUNCHER_FILE, tools / "plynth.com");
+    fs::copy_file(PLYNTH_FAKE_CHILD, temp.path() / "app" / "plynth.exe");
+
+    const auto outcome = runLauncher(tools / "plynth.com", L"version", temp.path());
+    CHECK(outcome.exitCode == 1);
+    const auto answer = nlohmann::json::parse(outcome.output);
+    CHECK(answer.at("error").at("code") == "not_found");
+}
+
+TEST_CASE("Ctrl+Break in the terminal reaches plynth.exe as a stop request and the launcher waits for it", "[launcher]") {
+    TempFolder temp;
+    fs::copy_file(PLYNTH_LAUNCHER_FILE, temp.path() / "plynth.com");
+    fs::copy_file(PLYNTH_FAKE_CHILD, temp.path() / "plynth.exe");
+
+    // A console event needs a console. When the test runs without one, it makes one for this test only.
+    const bool madeConsole = GetConsoleWindow() == nullptr && AllocConsole();
+
+    const fs::path outFile = temp.path() / "out.txt";
+    SECURITY_ATTRIBUTES inherit{sizeof(inherit), nullptr, TRUE};
+    HANDLE out = CreateFileW(outFile.c_str(), GENERIC_WRITE, FILE_SHARE_READ, &inherit, CREATE_ALWAYS,
+                             FILE_ATTRIBUTE_NORMAL, nullptr);
+    REQUIRE(out != INVALID_HANDLE_VALUE);
+    STARTUPINFOW startup{};
+    startup.cb = sizeof(startup);
+    startup.dwFlags = STARTF_USESTDHANDLES;
+    startup.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+    startup.hStdOutput = out;
+    startup.hStdError = out;
+    const fs::path launcher = temp.path() / "plynth.com";
+    std::wstring commandLine = L"\"" + launcher.wstring() + L"\" build wait-cancel";
+    PROCESS_INFORMATION process{};
+    // Its own process group, so the Ctrl+Break below reaches the launcher and its child but not this test.
+    REQUIRE(CreateProcessW(launcher.c_str(), commandLine.data(), nullptr, nullptr, TRUE, CREATE_NEW_PROCESS_GROUP,
+                           nullptr, nullptr, &startup, &process));
+    Sleep(1500);
+    CHECK(GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, process.dwProcessId));
+    const DWORD waited = WaitForSingleObject(process.hProcess, 30000);
+    DWORD exitCode = 0;
+    GetExitCodeProcess(process.hProcess, &exitCode);
+    if (waited != WAIT_OBJECT_0) {
+        TerminateProcess(process.hProcess, 1);
+    }
+    CloseHandle(process.hThread);
+    CloseHandle(process.hProcess);
+    CloseHandle(out);
+    if (madeConsole) {
+        FreeConsole();
+    }
+
+    std::ifstream in(outFile, std::ios::binary);
+    const std::string output((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    INFO(output);
+    CHECK(waited == WAIT_OBJECT_0);
+    CHECK(exitCode == 5);
+    CHECK(output.find("cancelled\n") != std::string::npos);
+    CHECK(output.find("not cancelled") == std::string::npos);
+}

@@ -441,6 +441,7 @@ MaterialImportOutcome importMaterial(MaterialCatalog& catalog, const ImportConte
     else info.license = std::string(kUnknownLicenseId);
 
     info.source = {plan.sourceKind, plan.reference, sessionNow()};
+    if (request.origin) info.source = *request.origin;
     info.tileSize = request.tileSize ? *request.tileSize : out.tileSize;
     info.maps = out.maps;
     info.textureSize = out.textureSize;

@@ -542,7 +542,7 @@ BlenderInstall inspectBlender(const fs::path& executable, std::stop_token stop)
 
     ProcessSpec spec;
     spec.program = executable;
-    spec.arguments = {"--background", "--factory-startup", "--version"};
+    spec.arguments = {"--background", "--disable-autoexec", "--factory-startup", "--version"};
     spec.timeout = versionTimeout();
     if (const Status s = useBlenderPrivateFolder(spec); !s.ok()) {
         install.status = fail(ErrorCode::BlenderFailed, s.message);
@@ -805,7 +805,8 @@ BlenderJobRun runBlenderJob(const fs::path& blender, const Json& job, const fs::
 
     ProcessSpec spec;
     spec.program = blender;
-    spec.arguments = {"--background"};
+    // Scripts stored inside .blend files never run: packed assets can come from other people (Pack.h).
+    spec.arguments = {"--background", "--disable-autoexec"};
     // Without factory startup the user's add-ons run, and what they print may hold their secrets.
     const bool trusted = options.factoryStartup || isProbe;
     if (trusted) {
@@ -826,7 +827,7 @@ BlenderJobRun runBlenderJob(const fs::path& blender, const Json& job, const fs::
         spec.arguments.emplace_back("-t");
         spec.arguments.push_back(threads);
     }
-    for (const char* arg : {"--disable-autoexec", "-noaudio", "--python-exit-code", "3", "--python"}) spec.arguments.emplace_back(arg);
+    for (const char* arg : {"-noaudio", "--python-exit-code", "3", "--python"}) spec.arguments.emplace_back(arg);
     spec.arguments.push_back(pathToUtf8(scripts / pathFromUtf8(kWorkerScriptName)));
     for (const char* arg : {"--", "--job"}) spec.arguments.emplace_back(arg);
     spec.arguments.push_back(pathToUtf8(jobFile));
