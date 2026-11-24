@@ -7,6 +7,7 @@
 #include "plynth/core/Build.h"
 #include "plynth/core/BuildJob.h"
 #include "plynth/core/GameplayData.h"
+#include "plynth/core/catalog/LicensedItems.h"
 #include "plynth/core/catalog/MaterialCatalog.h"
 #include "plynth/core/ProjectFiles.h"
 #include "plynth/core/ProjectJson.h"
@@ -495,6 +496,41 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
     } else {
         fs::remove(gameplayFile, ec);
     }
+
+    // The license report describes the last build and never blocks the export.
+    report.licenses.enabled = review.options.licenses.enabled;
+    const fs::path licensesJson = exportDir / pathFromUtf8(kitStem + std::string(kLicensesJsonSuffix));
+    const fs::path licensesText = exportDir / pathFromUtf8(kitStem + std::string(kLicensesTextSuffix));
+    if (report.licenses.enabled) {
+        std::unique_ptr<AssetCatalog> assetCatalog;
+        std::unique_ptr<MaterialCatalog> materialCatalog;
+        if (request.library) {
+            Status opened;
+            assetCatalog = AssetCatalog::open(*request.library, opened);
+            materialCatalog = MaterialCatalog::open(*request.library, opened);
+        }
+        const LicenseReportRead licenses = projectLicenseReport(request.projectFolder, request.project.settings.name,
+                                                                assetCatalog.get(), materialCatalog.get());
+        if (!licenses.status.ok()) {
+            report.licenses.reason = licenses.status.message;
+        } else {
+            const std::string jsonText = licenseReportToJson(licenses.report).dump(2, ' ', false, Json::error_handler_t::replace) + "\n";
+            const Status a = fileio::writeAtomic(licensesJson, jsonText);
+            const Status b = a.ok() ? fileio::writeAtomic(licensesText, licenseReportText(licenses.report)) : a;
+            if (!b.ok()) {
+                report.licenses.reason = b.message;
+            } else {
+                report.licenses.written = true;
+                report.licenses.jsonFile = licensesJson;
+                report.licenses.textFile = licensesText;
+                report.licenses.items = static_cast<int>(licenses.report.items.size());
+                report.licenses.warnings = static_cast<int>(licenses.report.warnings.size());
+            }
+        }
+    } else {
+        fs::remove(licensesJson, ec);
+        fs::remove(licensesText, ec);
+    }
     report.exported = true;
     report.texturesFolder = textures;
     report.textureCount = static_cast<int>(out.textures.size());
@@ -593,6 +629,15 @@ Json exportReportToJson(const ExportReport& report)
     gameplay["doors"] = report.gameplay.doors;
     gameplay["lights"] = report.gameplay.lights;
     json["gameplay"] = std::move(gameplay);
+    Json licenses = Json::object();
+    licenses["enabled"] = report.licenses.enabled;
+    licenses["written"] = report.licenses.written;
+    licenses["reason"] = report.licenses.reason.empty() ? Json(nullptr) : Json(report.licenses.reason);
+    licenses["json_file"] = pathOrNull(report.licenses.jsonFile);
+    licenses["text_file"] = pathOrNull(report.licenses.textFile);
+    licenses["items"] = report.licenses.items;
+    licenses["warnings"] = report.licenses.warnings;
+    json["licenses"] = std::move(licenses);
 
     Json steps = Json::array();
     for (const BuildStepTime& s : report.steps) steps.push_back(Json{{"step", s.step}, {"ms", s.ms}});
@@ -770,6 +815,19 @@ ExportReportRead readExportReport(const fs::path& projectFolder)
             report.gameplay.rooms = static_cast<int>(whole(gameplay, "rooms", "/gameplay"));
             report.gameplay.doors = static_cast<int>(whole(gameplay, "doors", "/gameplay"));
             report.gameplay.lights = static_cast<int>(whole(gameplay, "lights", "/gameplay"));
+        }
+        if (json.contains("licenses")) {
+            const Json& licenses = json["licenses"];
+            if (!licenses.is_object()) throw std::string("/licenses");
+            report.licenses.enabled = flag(licenses, "enabled", "/licenses");
+            report.licenses.written = flag(licenses, "written", "/licenses");
+            report.licenses.reason = optionalText(licenses, "reason", "/licenses");
+            const std::string jsonFile = optionalText(licenses, "json_file", "/licenses");
+            if (!jsonFile.empty()) report.licenses.jsonFile = pathFromUtf8(jsonFile);
+            const std::string textFile = optionalText(licenses, "text_file", "/licenses");
+            if (!textFile.empty()) report.licenses.textFile = pathFromUtf8(textFile);
+            report.licenses.items = static_cast<int>(whole(licenses, "items", "/licenses"));
+            report.licenses.warnings = static_cast<int>(whole(licenses, "warnings", "/licenses"));
         }
         const Json& steps = array(json, "steps", "");
         for (std::size_t i = 0; i < steps.size(); ++i) {

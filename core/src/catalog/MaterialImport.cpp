@@ -439,6 +439,7 @@ MaterialImportOutcome importMaterial(MaterialCatalog& catalog, const ImportConte
     else if (said.license && checkCatalogId(*said.license).ok()) info.license = *said.license;
     else if (!plan.license.empty() && licenseKnown(catalog, plan.license)) info.license = plan.license;
     else info.license = std::string(kUnknownLicenseId);
+    if (checkAuthor(plan.author).ok()) info.author = plan.author;
 
     info.source = {plan.sourceKind, plan.reference, sessionNow()};
     info.tileSize = request.tileSize ? *request.tileSize : out.tileSize;

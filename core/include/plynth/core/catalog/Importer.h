@@ -69,6 +69,7 @@ struct ImportPlan {
     std::string reference;       // for info.json: the original file name or the address
     std::string defaultName;     // used when the request has no name
     std::string license;         // used when the request has none; empty means kUnknownLicenseId
+    std::string author;          // who made it, when the source says; empty when unknown
     // True when the original is a zip file to remove after a successful import (moveToRecycleBin), unless
     // the request or the settings keep it.
     bool originalIsZip = false;

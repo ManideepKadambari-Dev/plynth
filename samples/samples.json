@@ -4,10 +4,16 @@
   "license": "cc0",
   "assets": [
     {"id": "bed", "name": "Bed", "file": "models/bed/bed.obj", "categories": ["bed"], "tags": []},
+    {"id": "books", "name": "Books", "file": "models/books/books.obj", "categories": ["decor"], "tags": ["book"]},
     {"id": "chair", "name": "Chair", "file": "models/chair/chair.obj", "categories": ["chair"], "tags": []},
+    {"id": "door", "name": "Door", "file": "models/door/door.obj", "categories": ["door"], "tags": []},
+    {"id": "picture", "name": "Picture", "file": "models/picture/picture.obj", "categories": ["decor"], "tags": ["wall_art"]},
+    {"id": "shelf", "name": "Shelf", "file": "models/shelf/shelf.obj", "categories": ["shelf"], "tags": []},
     {"id": "sofa", "name": "Sofa", "file": "models/sofa/sofa.obj", "categories": ["sofa"], "tags": []},
     {"id": "table", "name": "Table", "file": "models/table/table.obj", "categories": ["table"], "tags": []},
-    {"id": "tv", "name": "TV", "file": "models/tv/tv.obj", "categories": ["tv"], "tags": []}
+    {"id": "tv", "name": "TV", "file": "models/tv/tv.obj", "categories": ["tv"], "tags": []},
+    {"id": "vase", "name": "Vase", "file": "models/vase/vase.obj", "categories": ["decor"], "tags": ["tabletop"]},
+    {"id": "window", "name": "Window", "file": "models/window/window.obj", "categories": ["window"], "tags": []}
   ],
   "materials": [
     {"id": "brushed_steel", "folder": "materials/brushed_steel"},

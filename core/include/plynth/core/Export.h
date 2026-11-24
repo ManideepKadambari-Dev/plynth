@@ -84,6 +84,23 @@ struct ExportGameplayReport {
     int lights = 0;
 };
 
+// The license report of an export (LicenseReport.h), written when the export options switch it on:
+// export/<Stem>_licenses.json and export/<Stem>_licenses.txt. It describes the last build, read from
+// build/used-items.json and looked up in the library. Without used items it is not written and the export goes
+// on. An export with the switch off removes old report files; a blocked export or a check leaves them.
+inline constexpr std::string_view kLicensesJsonSuffix = "_licenses.json";
+inline constexpr std::string_view kLicensesTextSuffix = "_licenses.txt";
+
+struct ExportLicenseReport {
+    bool enabled = false;            // the project's export options switch it on
+    bool written = false;
+    std::string reason;              // why it was not written although enabled; empty otherwise
+    std::filesystem::path jsonFile;  // absolute; empty unless written
+    std::filesystem::path textFile;
+    int items = 0;
+    int warnings = 0;
+};
+
 enum class ExportStage {
     Preparing, // "preparing": the exporter's groups, the last build's report and materials, the job
     Blender,   // "blender": the worker runs; step, index and count come from it
@@ -134,6 +151,7 @@ struct ExportReport {
     std::vector<std::string> groupNotes;      // group edits that no longer apply (ExportGroupsApplied::notes)
     ExportKitReport kit;
     ExportGameplayReport gameplay;
+    ExportLicenseReport licenses;
 
     bool passed() const;      // no check failed
     int failCount() const;

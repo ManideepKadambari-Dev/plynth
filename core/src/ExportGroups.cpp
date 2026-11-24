@@ -556,6 +556,9 @@ Json exportOptionsToJson(const ExportOptions& options)
     Json gameplay = Json::object();
     gameplay["enabled"] = options.gameplay.enabled;
     json["gameplay"] = std::move(gameplay);
+    Json licenses = Json::object();
+    licenses["enabled"] = options.licenses.enabled;
+    json["licenses"] = std::move(licenses);
     return json;
 }
 
@@ -582,10 +585,12 @@ ExportOptionsRead exportOptionsFromJson(const Json& json)
         return bad(fail(ErrorCode::UnsupportedVersion, "The export options were written by a newer Plynth.", "/version"));
     }
     if (fileVersion < 1) return bad(fail(ErrorCode::BadFile, "The export options version is not valid.", "/version"));
-    // Version 1 had no gameplay switch, so it may not carry one.
+    // Version 1 had no gameplay switch and versions 1 and 2 no license switch, so they may not carry one.
     if (fileVersion == 1) {
         if (Status s = checkFields(json, {"format", "version", "groups", "kit"}, ""); !s.ok()) return bad(s);
-    } else if (Status s = checkFields(json, {"format", "version", "groups", "kit", "gameplay"}, ""); !s.ok()) {
+    } else if (fileVersion == 2) {
+        if (Status s = checkFields(json, {"format", "version", "groups", "kit", "gameplay"}, ""); !s.ok()) return bad(s);
+    } else if (Status s = checkFields(json, {"format", "version", "groups", "kit", "gameplay", "licenses"}, ""); !s.ok()) {
         return bad(s);
     }
 
@@ -660,6 +665,16 @@ ExportOptionsRead exportOptionsFromJson(const Json& json)
             options.gameplay.enabled = enabled->get<bool>();
         }
     }
+    if (const auto licenses = json.find("licenses"); licenses != json.end()) {
+        if (!licenses->is_object()) return bad(fail(ErrorCode::BadFile, "\"licenses\" must be an object.", "/licenses"));
+        if (Status s = checkFields(*licenses, {"enabled"}, "/licenses"); !s.ok()) return bad(s);
+        if (const auto enabled = licenses->find("enabled"); enabled != licenses->end()) {
+            if (!enabled->is_boolean()) {
+                return bad(fail(ErrorCode::BadFile, "\"enabled\" must be true or false.", "/licenses/enabled"));
+            }
+            options.licenses.enabled = enabled->get<bool>();
+        }
+    }
     result.options = std::move(options);
     return result;
 }
@@ -706,7 +721,7 @@ Status writeExportOptions(const fs::path& projectFolder, const ExportOptions& op
     return fileio::writeAtomic(file, text);
 }
 
-// Replaces a bad options file with the defaults, keeping the kit and gameplay switches and a copy of the old file.
+// Replaces a bad options file with the defaults, keeping the kit, gameplay and license switches and a copy of the old file.
 ExportOptionsRepair repairExportOptions(const fs::path& projectFolder)
 {
     ExportOptionsRepair repair;
@@ -734,6 +749,11 @@ ExportOptionsRepair repairExportOptions(const fs::path& projectFolder)
         if (gameplay != json.end() && gameplay->is_object()) {
             const auto enabled = gameplay->find("enabled");
             if (enabled != gameplay->end() && enabled->is_boolean()) fresh.gameplay.enabled = enabled->get<bool>();
+        }
+        const auto licenses = json.find("licenses");
+        if (licenses != json.end() && licenses->is_object()) {
+            const auto enabled = licenses->find("enabled");
+            if (enabled != licenses->end() && enabled->is_boolean()) fresh.licenses.enabled = enabled->get<bool>();
         }
     }
     const fs::path backup = projectFolder / pathFromUtf8(std::string(kExportOptionsFileName) + ".bad");

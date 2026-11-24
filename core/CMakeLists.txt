@@ -86,6 +86,7 @@ add_library(plynth_core STATIC
     src/guide/Samples.cpp
     src/guide/Tour.cpp
     src/guide/LicenseReport.cpp
+    src/catalog/LicensedItems.cpp
     src/SeededChoice.cpp
     src/FinishSettings.cpp
     src/catalog/AssetSupports.cpp

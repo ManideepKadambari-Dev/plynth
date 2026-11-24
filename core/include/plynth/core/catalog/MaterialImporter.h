@@ -39,6 +39,7 @@ struct MaterialImportPlan {
     std::string reference;      // for info.json: the original file or folder name, or the address
     std::string defaultName;    // used when neither the request nor material.json names it
     std::string license;        // used when neither names one; empty means kUnknownLicenseId
+    std::string author;         // who made it, when the source says; empty when unknown
     bool originalIsZip = false; // the original is removed after the import unless kept, as for assets
     // As in ImportPlan: a Blender job that fetches the source first (path and workerSource are then filled
     // from it, and defaultName, license and reference where still empty), and what the importer chose.

@@ -203,23 +203,32 @@ struct GameplayOptions {
     bool operator==(const GameplayOptions&) const = default;
 };
 
+// The license report switch (LicenseReport.h). Off by default.
+struct LicenseOptions {
+    bool enabled = false;
+
+    bool operator==(const LicenseOptions&) const = default;
+};
+
 // The project's export options file: projectFolder/export-options.json, schema/export-options.schema.json.
 // It belongs to the project like project.json (it is not in build/ or export/, which can be deleted).
 inline constexpr std::string_view kExportOptionsFileName = "export-options.json";
 inline constexpr std::string_view kExportOptionsFormat = "plynth-export-options";
 // Version 2 adds "gameplay". A version 1 file reads with gameplay data off and is written as version 2.
-inline constexpr int kExportOptionsVersion = 2;
+// Version 3 adds "licenses". Older files read with the license report off.
+inline constexpr int kExportOptionsVersion = 3;
 
 struct ExportOptions {
     ExportGroupEdits groups;
     KitOptions kit;
     GameplayOptions gameplay;
+    LicenseOptions licenses;
 
     bool operator==(const ExportOptions&) const = default;
 };
 
 // The file form: {"format", "version", "groups": {"added", "renames", "merges", "moves"}, "kit": {"enabled"},
-// "gameplay": {"enabled"}}.
+// "gameplay": {"enabled"}, "licenses": {"enabled"}}.
 Json exportOptionsToJson(const ExportOptions& options);
 
 struct ExportOptionsRead {
@@ -249,7 +258,7 @@ struct ExportOptionsRepair {
 // Makes a bad export-options.json usable again, for "plynth export groups reset" and the app's Reset groups.
 // A missing or valid file is left alone (repaired false). A file written by a newer Plynth is never touched
 // (UnsupportedVersion). Any other bad file, whether it is not JSON or breaks a rule such as a group name, is
-// copied to export-options.json.bad and replaced by the default options, keeping the kit and gameplay switches
+// copied to export-options.json.bad and replaced by the default options, keeping the kit, gameplay and license switches
 // when the old file still has readable ones. All group edits in it are dropped.
 ExportOptionsRepair repairExportOptions(const std::filesystem::path& projectFolder);
 

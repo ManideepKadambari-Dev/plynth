@@ -180,6 +180,7 @@ Json settingsToJson(const MachineSettings& settings)
         recent.push_back(std::move(entry));
     }
     json["recent_projects"] = std::move(recent);
+    json["tour_done"] = settings.tourDone;
     return json;
 }
 
@@ -208,9 +209,10 @@ Status settingsFromJson(const Json& json, MachineSettings& out)
 
     static const std::set<std::string> known{"format", "version", "library", "projects", "blender",
                                              "keep_imported_zips", "triangle_warning",
-                                             "setup_checked_version", "recent_projects"};
+                                             "setup_checked_version", "recent_projects", "tour_done"};
     for (const auto& [key, value] : json.items()) {
-        if (!known.count(key) && !(key == "thumbnail_engine" && fileVersion < 3)) {
+        if ((!known.count(key) && !(key == "thumbnail_engine" && fileVersion < 3)) ||
+            (key == "tour_done" && fileVersion < 4)) {
             return fail(ErrorCode::BadFile, "Unknown field \"" + key + "\".", "/" + key);
         }
     }
@@ -246,6 +248,12 @@ Status settingsFromJson(const Json& json, MachineSettings& out)
             return fail(ErrorCode::BadFile, "\"setup_checked_version\" must be text or null.", "/setup_checked_version");
         }
         result.setupCheckedVersion = it->get<std::string>();
+    }
+    // An older file belongs to someone who used Plynth before, so the first run tour is not started for them.
+    result.tourDone = fileVersion < 4;
+    if (const auto it = json.find("tour_done"); it != json.end()) {
+        if (!it->is_boolean()) return fail(ErrorCode::BadFile, "\"tour_done\" must be true or false.", "/tour_done");
+        result.tourDone = it->get<bool>();
     }
     if (const auto it = json.find("recent_projects"); it != json.end()) {
         if (fileVersion < 2) return fail(ErrorCode::BadFile, "Unknown field \"recent_projects\".", "/recent_projects");

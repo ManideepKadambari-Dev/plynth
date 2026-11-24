@@ -59,7 +59,7 @@ TEST_CASE("export gameplay shows the switch and on and off change it in export-o
     CHECK(on.answer.at("command") == "export gameplay on");
     CHECK(on.answer.at("result").at("enabled") == true);
     const auto options = nlohmann::json::parse(readFile(sample.folder / "export-options.json"));
-    CHECK(options.at("version") == 2);
+    CHECK(options.at("version") == 3);
     CHECK(options.at("gameplay").at("enabled") == true);
     CHECK(options.at("kit").at("enabled") == false);
     CHECK(sample.run({"export", "gameplay"}).answer.at("result").at("enabled") == true);

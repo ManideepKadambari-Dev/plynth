@@ -378,6 +378,7 @@ Status applyFetch(const FetchRun& run, const ImportFetch& fetch, ImportPlan& pla
     plan.format = run.output.format;
     if (plan.defaultName.empty()) plan.defaultName = run.output.name;
     if (plan.license.empty()) plan.license = run.output.license;
+    if (plan.author.empty()) plan.author = run.output.author;
     if (plan.reference.empty()) plan.reference = run.output.reference;
     return {};
 }
@@ -391,6 +392,7 @@ Status applyFetch(const FetchRun& run, const ImportFetch& fetch, MaterialImportP
     if (!run.output.material.empty()) plan.blendMaterial = run.output.material;
     if (plan.defaultName.empty()) plan.defaultName = run.output.name;
     if (plan.license.empty()) plan.license = run.output.license;
+    if (plan.author.empty()) plan.author = run.output.author;
     if (plan.reference.empty()) plan.reference = run.output.reference;
     return {};
 }

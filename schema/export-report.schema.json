@@ -93,6 +93,21 @@
         "triangles": { "type": "integer", "minimum": 0 }
       }
     },
+    "licenses": {
+      "description": "The license report of the last build (license-report.schema.json). May be missing in older reports. It is not legal advice.",
+      "type": "object",
+      "required": ["enabled", "written", "reason", "json_file", "text_file", "items", "warnings"],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "description": "The project's export options switch it on.", "type": "boolean" },
+        "written": { "type": "boolean" },
+        "reason": { "description": "Why it was not written although switched on, or null.", "type": ["string", "null"] },
+        "json_file": { "description": "export/<Stem>_licenses.json, or null unless written.", "type": ["string", "null"] },
+        "text_file": { "description": "export/<Stem>_licenses.txt, or null unless written.", "type": ["string", "null"] },
+        "items": { "type": "integer", "minimum": 0 },
+        "warnings": { "type": "integer", "minimum": 0 }
+      }
+    },
     "gameplay": {
       "description": "The gameplay data file (gameplay.schema.json). May be missing in older reports.",
       "type": "object",

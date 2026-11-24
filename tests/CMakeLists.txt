@@ -113,6 +113,7 @@ add_executable(plynth_core_tests
     core/BuildFinishTests.cpp
     core/LightCommandTests.cpp
     core/GameplayExportTests.cpp
+    core/LicenseExportTests.cpp
     core/StairRailingsTests.cpp
     core/BuildResolveTests.cpp
     core/VariationCopiesTests.cpp

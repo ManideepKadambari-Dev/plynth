@@ -106,8 +106,8 @@ TEST_CASE("settings data files", "[core][settings]") {
         REQUIRE(l.status.where == "/colour");
         REQUIRE(l.exists);
     }
-    SECTION("version 4 is unsupported_version") {
-        const SettingsLoad l = loadSettings(dataFile("settings-version-4.json"));
+    SECTION("version 5 is unsupported_version") {
+        const SettingsLoad l = loadSettings(dataFile("settings-version-5.json"));
         REQUIRE(l.status.code == ErrorCode::UnsupportedVersion);
     }
     SECTION("a version 3 file may not carry the engine") {
@@ -159,7 +159,7 @@ TEST_CASE("settingsToJson validates against the schema", "[core][settings][schem
         const auto json = nlohmann::json::parse(plynth::test::readTextFile(dataFile(name)));
         REQUIRE(plynth::test::schemaProblem("settings.schema.json", json).empty());
     }
-    for (const char* name : {"settings-unknown-field.json", "settings-version-4.json", "settings-bad-engine.json",
+    for (const char* name : {"settings-unknown-field.json", "settings-version-5.json", "settings-bad-engine.json",
                                   "settings-v3-with-engine.json", "settings-v2.json"}) {
         INFO(name);
         const auto json = nlohmann::json::parse(plynth::test::readTextFile(dataFile(name)));
@@ -167,7 +167,7 @@ TEST_CASE("settingsToJson validates against the schema", "[core][settings][schem
     }
 }
 
-TEST_CASE("a version 1 settings file is read and written back as version 3", "[core][settings][migrate]") {
+TEST_CASE("a version 1 settings file is read and written back as version 4", "[core][settings][migrate]") {
     plynth::test::TempDir tmp("settings-v1");
     const SettingsLoad l = loadSettings(dataFile("settings-v1.json"));
     plynth::test::requireOk(l.status);
@@ -183,7 +183,7 @@ TEST_CASE("a version 1 settings file is read and written back as version 3", "[c
     const fs::path file = tmp.path() / "settings.json";
     plynth::test::requireOk(saveSettings(l.settings, file));
     const std::string text = plynth::test::readTextFile(file);
-    REQUIRE(text.find("\"version\": 3") != std::string::npos);
+    REQUIRE(text.find("\"version\": 4") != std::string::npos);
     REQUIRE(text.find("\"recent_projects\": []") != std::string::npos);
     REQUIRE(plynth::test::schemaProblem("settings.schema.json", plain(settingsToJson(l.settings))).empty());
 
@@ -309,7 +309,7 @@ TEST_CASE("default folders sit under Documents\\Plynth", "[core][settings]") {
     REQUIRE(library.parent_path().filename() == "Plynth");
 }
 
-TEST_CASE("a version 2 settings file with an engine is read and saved as version 3", "[core][settings][migrate]") {
+TEST_CASE("a version 2 settings file with an engine is read and saved as version 4", "[core][settings][migrate]") {
     plynth::test::TempDir tmp("settings-v2");
     const SettingsLoad l = loadSettings(dataFile("settings-v2.json"));
     plynth::test::requireOk(l.status);
@@ -325,8 +325,51 @@ TEST_CASE("a version 2 settings file with an engine is read and saved as version
     const fs::path file = tmp.path() / "settings.json";
     plynth::test::requireOk(saveSettings(l.settings, file));
     const std::string text = plynth::test::readTextFile(file);
-    REQUIRE(text.find("\"version\": 3") != std::string::npos);
+    REQUIRE(text.find("\"version\": 4") != std::string::npos);
     REQUIRE(text.find("thumbnail_engine") == std::string::npos);
     const auto saved = nlohmann::json::parse(text);
     REQUIRE(plynth::test::schemaProblem("settings.schema.json", saved).empty());
+}
+
+TEST_CASE("settings of version 1 to 3 read with the tour done, a fresh one without", "[core][settings][migrate]") {
+    CHECK_FALSE(MachineSettings{}.tourDone);
+    for (const char* name : {"settings-v1.json", "settings-v2.json"}) {
+        INFO(name);
+        const SettingsLoad l = loadSettings(dataFile(name));
+        plynth::test::requireOk(l.status);
+        CHECK(l.settings.tourDone);
+    }
+    MachineSettings v3;
+    REQUIRE(settingsFromJson(Json::parse(R"({"format": "plynth-settings", "version": 3})"), v3).ok());
+    CHECK(v3.tourDone);
+    MachineSettings v4;
+    REQUIRE(settingsFromJson(Json::parse(R"({"format": "plynth-settings", "version": 4})"), v4).ok());
+    CHECK_FALSE(v4.tourDone);
+    REQUIRE(settingsFromJson(Json::parse(R"({"format": "plynth-settings", "version": 4, "tour_done": true})"), v4).ok());
+    CHECK(v4.tourDone);
+}
+
+TEST_CASE("tour_done is refused in older files and must be true or false", "[core][settings]") {
+    MachineSettings s;
+    const Status old = settingsFromJson(Json::parse(R"({"format": "plynth-settings", "version": 3, "tour_done": true})"), s);
+    CHECK(old.code == ErrorCode::BadFile);
+    CHECK(old.where == "/tour_done");
+    const Status bad = settingsFromJson(Json::parse(R"({"format": "plynth-settings", "version": 4, "tour_done": "yes"})"), s);
+    CHECK(bad.code == ErrorCode::BadFile);
+    CHECK(bad.where == "/tour_done");
+}
+
+TEST_CASE("tour_done survives a save and a load", "[core][settings]") {
+    plynth::test::TempDir tmp("settings-tour");
+    MachineSettings s;
+    s.tourDone = true;
+    const fs::path file = tmp.path() / "settings.json";
+    plynth::test::requireOk(saveSettings(s, file));
+    const SettingsLoad l = loadSettings(file);
+    plynth::test::requireOk(l.status);
+    CHECK(l.settings == s);
+    const auto plain = [](const Json& j) { return nlohmann::json::parse(j.dump()); };
+    CHECK(plynth::test::schemaProblem("settings.schema.json", plain(settingsToJson(s))).empty());
+    const auto v3 = nlohmann::json::parse(R"({"format": "plynth-settings", "version": 3})");
+    CHECK(plynth::test::schemaProblem("settings.v3.schema.json", v3).empty());
 }

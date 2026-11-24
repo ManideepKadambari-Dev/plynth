@@ -7,6 +7,7 @@ add_executable(plynth_guide_tests
     TourTests.cpp
     LicenseReportTests.cpp
     LogoTests.cpp
+    AuthorTests.cpp
 )
 target_link_libraries(plynth_guide_tests PRIVATE
     plynth::core
@@ -19,6 +20,7 @@ target_compile_definitions(plynth_guide_tests PRIVATE
     PLYNTH_DOCS_DIR="${PROJECT_SOURCE_DIR}/docs"
     PLYNTH_LICENSES_DIR="${PROJECT_SOURCE_DIR}/licenses"
     PLYNTH_APP_RESOURCES_DIR="${PROJECT_SOURCE_DIR}/app/resources"
-    PLYNTH_APP_DIR="${PROJECT_SOURCE_DIR}/app")
+    PLYNTH_APP_DIR="${PROJECT_SOURCE_DIR}/app"
+    PLYNTH_CORE_TEST_DATA_DIR="${PROJECT_SOURCE_DIR}/tests/core/data")
 
 catch_discover_tests(plynth_guide_tests DISCOVERY_MODE PRE_TEST ADD_TAGS_AS_LABELS)

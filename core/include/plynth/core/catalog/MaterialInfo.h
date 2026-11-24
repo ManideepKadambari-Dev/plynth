@@ -96,6 +96,7 @@ struct MaterialInfo {
     std::vector<std::string> groups;  // group ids; empty means uncategorized
     std::vector<std::string> tags;    // sorted, no repeats
     std::string license = std::string(kUnknownLicenseId);
+    std::string author;               // who made it, empty when unknown; info.json "author", optional
     AssetSource source;               // kind is kSourceTextureSet, kSourceBlendMaterial and so on
     TileSize tileSize;
     MaterialMaps maps;

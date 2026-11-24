@@ -813,6 +813,9 @@ Status AssetCatalog::editAsset(std::string_view id, const AssetEdit& edit)
         if (edit.license && !exists(db, "SELECT 1 FROM licenses WHERE id = ?", *edit.license)) {
             return fail(ErrorCode::NotFound, "There is no license \"" + *edit.license + "\".");
         }
+        if (edit.author) {
+            if (Status s = checkAuthor(*edit.author); !s.ok()) return s;
+        }
         const fs::path file = impl_->paths.assetItems / pathFromUtf8(id) / pathFromUtf8(kAssetInfoFileName);
         AssetInfoRead read = readAssetInfo(file, id);
         if (!read.status.ok()) return read.status;
@@ -833,6 +836,7 @@ Status AssetCatalog::editAsset(std::string_view id, const AssetEdit& edit)
             info.tags.erase(std::unique(info.tags.begin(), info.tags.end()), info.tags.end());
         }
         if (edit.license) info.license = *edit.license;
+        if (edit.author) info.author = *edit.author;
 
         if (Status s = writeAssetInfo(file, info); !s.ok()) return s;
         impl_->index(info);

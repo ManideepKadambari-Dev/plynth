@@ -60,6 +60,8 @@ inline constexpr int kPreviewTextureSize = 1024;
 inline constexpr std::size_t kMaxAssetIdLength = 64;
 inline constexpr std::size_t kMaxAssetNameLength = 120;
 inline constexpr std::size_t kMaxTagLength = 40;
+// The longest author, in characters. The author is optional and shown in the license report.
+inline constexpr std::size_t kMaxAuthorLength = 120;
 
 // Source kinds. Each importer names its own. The two store kinds are used by materials too.
 inline constexpr std::string_view kSourceLocalFile = "local_file";   // the user's own files
@@ -116,6 +118,7 @@ struct AssetInfo {
     std::vector<std::string> categories; // category ids; empty means uncategorized
     std::vector<std::string> tags;       // sorted, no repeats
     std::string license = std::string(kUnknownLicenseId);
+    std::string author;                  // who made it, empty when unknown; info.json "author", optional
     AssetSource source;
     AssetSize size;
     long long triangles = 0;
@@ -160,6 +163,10 @@ Status checkCatalogId(std::string_view id);
 
 // Tags: lower case letters, digits, "_" and "-", starting with a letter or digit, at most kMaxTagLength.
 Status checkTag(std::string_view tag);
+
+// Authors: empty, or at most kMaxAuthorLength characters (not bytes) with no line breaks or other control
+// characters. InvalidValue saying which rule was broken.
+Status checkAuthor(std::string_view author);
 
 // Names: 1 to kMaxAssetNameLength characters (not bytes), not only spaces.
 Status checkCatalogName(std::string_view name);

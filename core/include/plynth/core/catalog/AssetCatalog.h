@@ -127,6 +127,7 @@ struct AssetEdit {
     std::optional<std::vector<std::string>> categories;
     std::optional<std::vector<std::string>> tags;
     std::optional<std::string> license;
+    std::optional<std::string> author; // empty clears it
 };
 
 // What a rescan found and did.
