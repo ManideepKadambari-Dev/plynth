@@ -3,6 +3,8 @@
 #include "plynth/core/OpeningShapes.h"
 #include "plynth/core/ProjectFiles.h"
 #include "plynth/core/catalog/AssetCatalog.h"
+#include "plynth/core/catalog/Importer.h"
+#include "plynth/core/catalog/MaterialImporter.h"
 #include "plynth/core/catalog/MaterialCatalog.h"
 
 #include <fstream>
@@ -98,11 +100,18 @@ Status checkCopied(const PackEntry& entry, const fs::path& packItem, Read read, 
     return {};
 }
 
-// The command that gets a referenced item on this machine.
+// The command that gets a referenced item on this machine. A store address is imported as it is; a file such as a
+// Fab zip has to be downloaded again first, and the command names the importer its source kind came from.
 std::string importCommand(const PackEntry& entry)
 {
-    const std::string group = entry.kind == PackKind::Material ? "materials" : "assets";
-    return "plynth " + group + " import \"" + entry.source.reference + "\"";
+    const bool material = entry.kind == PackKind::Material;
+    const std::string group = material ? "materials" : "assets";
+    std::string command = "plynth " + group + " import \"" + entry.source.reference + "\"";
+    const std::string& kind = entry.source.kind;
+    const bool address = entry.source.reference.rfind("http://", 0) == 0 || entry.source.reference.rfind("https://", 0) == 0;
+    const bool importerNamed = material ? findMaterialImporter(kind) != nullptr : findImporter(kind) != nullptr;
+    if (!address && importerNamed) command += " --importer " + kind;
+    return command;
 }
 
 // Removes what an unpack added, ignoring errors, so a failure leaves the library as it was.

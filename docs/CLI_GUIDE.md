@@ -1963,7 +1963,7 @@ What goes into the pack:
 |---|---|
 | Assets and materials you imported yourself | Copied: `info.json`, the model, the preview model, the thumbnail and the textures and maps `info.json` lists. Nothing else in the item folder is copied. |
 | Items with the license `unknown` | Copied, with the warning `license_unknown`. Check that you may share them. |
-| Items from a store (BlenderKit, Fab) | Only named: id, name, source and license. No file of them is copied. |
+| Items from a store (BlenderKit, Fab, and any store an integration adds) | Only named: id, name, source and license. No file of them is copied. A material taken from a store asset with `materials from-asset` counts as a store item too. |
 | Items with the license `royalty_free` or `personal_use` | Only named, reason `license`. |
 | Items whose origin is not known, such as one indexed from a bare `asset.blend` | Only named, reason `unknown_origin`. |
 | Custom opening shapes | Copied. |
@@ -2009,7 +2009,7 @@ Each entry gets an `action`:
 | `add` | It is copied into the library. |
 | `present` | The library already has the same item: the same files, or for a named item the same source. |
 | `conflict` | The library has a different item with this id. Without `--keep-library` nothing at all is written and the answer is `already_exists` naming the ids. |
-| `needs_download` | A named item the library lacks. `command` is the command that gets it, for example `plynth assets import "https://www.blenderkit.com/get/abc"`, and a `needs_download` warning repeats it. |
+| `needs_download` | A named item the library lacks. `command` is the command that gets it, and a `needs_download` warning repeats it. A store address is imported as it is, for example `plynth assets import "https://www.blenderkit.com/get/abc"`. A store file has to be downloaded again first; the command names its file and its importer, for example `plynth assets import "Table_pack.zip" --importer fab_zip`, run in the folder you downloaded it to. |
 | `missing` | Neither the pack nor the library has it. |
 
 ```json

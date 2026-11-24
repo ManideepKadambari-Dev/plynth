@@ -150,7 +150,7 @@ Answer assetsImport(const RunContext& context, const ImportOptions& options) {
     if (!makeImportContext(command, context, opened, options.blender, importContext, failed)) {
         return failed;
     }
-    const ImportOutcome outcome = importAsset(*opened.catalog, importContext, request);
+    const ImportOutcome outcome = importAsset(*opened.catalog, importContext, request, {}, stopToken(context));
     if (!outcome.status.ok()) {
         return failure(command, outcome.status);
     }
@@ -187,7 +187,11 @@ Answer assetsInbox(const RunContext& context, const InboxOptions& options) {
             return failed;
         }
         for (const std::filesystem::path& entry : entries) {
-            const ImportOutcome outcome = importInboxEntry(*opened.catalog, importContext, entry);
+            const ImportOutcome outcome = importInboxEntry(*opened.catalog, importContext, entry, {}, stopToken(context));
+            // Ctrl+C ends the whole run, not only this entry.
+            if (outcome.status.code == ErrorCode::Cancelled) {
+                return failure(command, outcome.status);
+            }
             if (outcome.status.ok()) {
                 imported.push_back(outcome.assetId);
             } else {
@@ -242,7 +246,7 @@ Answer assetsThumbnail(const RunContext& context, const ThumbnailOptions& option
     if (!makeImportContext(command, context, opened, options.blender, importContext, failed)) {
         return failed;
     }
-    const ImportOutcome outcome = refreshAsset(*opened.catalog, importContext, options.id);
+    const ImportOutcome outcome = refreshAsset(*opened.catalog, importContext, options.id, {}, stopToken(context));
     if (!outcome.status.ok()) {
         return failure(command, outcome.status);
     }

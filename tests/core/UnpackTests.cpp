@@ -1,5 +1,7 @@
 #include "PackSupportTests.h"
 
+#include <plynth/core/catalog/Integrations.h>
+
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
@@ -280,4 +282,27 @@ TEST_CASE("the pack and unpack answers have their fields", "[unpack]") {
     CHECK(out.at("entries").at(0).at("action") == "add");
     CHECK(out.at("entries").at(1).at("action") == "needs_download");
     CHECK(out.at("entries").at(1).contains("command"));
+}
+
+TEST_CASE("a Fab item is only named and unpack names the importer to bring it back", "[unpack]") {
+    PackFixture f("unpack-fab");
+    f.asset("table", "fab_zip", "cc0", "Table_pack.zip");
+    f.material("oak", "cc0", "fab_zip");
+    requireOk(f.pack({{PackKind::Asset, "table"}, {PackKind::Material, "oak"}}).status);
+    const PackRead read = readPack(f.project);
+    requireOk(read.status);
+    CHECK(findEntry(read.manifest, "table")->reason == PackReason::Store);
+    CHECK(findEntry(read.manifest, "oak")->reason == PackReason::Store);
+
+    const UnpackPlan plan = planUnpack(f.project, f.b);
+    requireOk(plan.status);
+    for (const UnpackEntry& entry : plan.entries) {
+        INFO(entry.entry.id);
+        CHECK(entry.action == UnpackAction::NeedsDownload);
+        if (entry.entry.id == "table") CHECK(entry.command == "plynth assets import \"Table_pack.zip\" --importer fab_zip");
+        if (entry.entry.id == "oak") CHECK(entry.command.rfind("plynth materials import \"", 0) == 0);
+    }
+    CHECK(isStoreSource("fab_zip"));
+    CHECK(isStoreSource("blenderkit"));
+    CHECK_FALSE(isStoreSource("local_file"));
 }

@@ -1,6 +1,7 @@
 #include "PackSupport.h"
 
 #include "plynth/core/ProjectFiles.h"
+#include "plynth/core/catalog/Integrations.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -154,7 +155,9 @@ PackReason packCopyRule(PackKind kind, const AssetSource& source, std::string_vi
 {
     if (kind == PackKind::Generator) return PackReason::Script;
     if (kind == PackKind::Shape || kind == PackKind::TrimProfile) return PackReason::None;
-    if (source.kind == kSourceBlenderKit || source.kind == kSourceFabZip) return PackReason::Store;
+    // A store kind is any one a registered integration names, so a new store needs no change here.
+    if (isStoreSource(source.kind) || source.kind == kSourceBlenderKit || source.kind == kSourceFabZip)
+        return PackReason::Store;
     if (!knownOwnSource(source.kind)) return PackReason::UnknownOrigin;
     if (lower(source.reference) == kAssetBlendFileName) return PackReason::UnknownOrigin;
     if (license == "royalty_free" || license == "personal_use") return PackReason::License;
