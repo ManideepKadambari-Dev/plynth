@@ -56,7 +56,7 @@ struct InboxOptions {
 
 struct FromAssetOptions {
     std::string library;
-    std::string blender;
+    BlenderOption blender;
     std::string asset;
     std::string material;
     std::vector<std::string> groups;
@@ -65,7 +65,7 @@ struct FromAssetOptions {
 
 struct SamplesOptions {
     std::string library;
-    std::string blender;
+    BlenderOption blender;
     bool quiet = false;
 };
 
@@ -488,6 +488,9 @@ Answer materialsFromAsset(const RunContext& context, const FromAssetOptions& opt
     const std::string command = "materials from-asset";
     OpenedMaterialCatalog opened;
     Answer failed;
+    if (refuseEmptyBlender(command, options.blender, failed)) {
+        return failed;
+    }
     if (!openMaterialCatalog(command, context, options.library, opened, failed)) {
         return failed;
     }
@@ -520,6 +523,9 @@ Answer addSampleMaterials(const RunContext& context, const SamplesOptions& optio
     const std::string command = "library add-sample-materials";
     OpenedMaterialCatalog opened;
     Answer failed;
+    if (refuseEmptyBlender(command, options.blender, failed)) {
+        return failed;
+    }
     if (!openMaterialCatalog(command, context, options.library, opened, failed)) {
         return failed;
     }
