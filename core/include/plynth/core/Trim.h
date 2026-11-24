@@ -54,8 +54,8 @@ std::vector<TrimBuild> trimBuild(const Floor& floor, const FloorBuild& build, co
                                  const std::vector<WorldPolygon>& skipAtFloor,
                                  const std::vector<WorldPolygon>& skipAtCeiling);
 
-// Sweeps a profile along a path of world points. Profile x is placed along the side direction (up crossed with
-// the path's direction, so to the right of the path seen from up), profile y along up. At an inner point the
+// Sweeps a profile along a path of world points. Profile x is placed along the side direction (the path's
+// direction crossed with up, so to the right of the path seen from up), profile y along up. At an inner point the
 // section lies on the plane halfway between the two segments (a mitre), its side offset stretched so both faces
 // stay parallel to the path. An open path's end sections stand square to the first and last segment. Points
 // closer than 1e-6 are dropped. Empty when fewer than two distinct points remain.

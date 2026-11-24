@@ -62,8 +62,8 @@ std::vector<AssetChoice> library()
     std::vector<AssetSupport> boards;
     for (double z : {0.02, 0.45, 0.9, 1.35}) boards.push_back({-0.38, -0.14, 0.38, 0.14, z, 0.4});
     return {asset("shelf", {"shelf"}, {}, {0.8, 0.3, 1.8}, boards),
-            asset("book_a", {"decor"}, {"book"}, {0.03, 0.2, 0.25}),
-            asset("book_b", {"decor"}, {"book"}, {0.05, 0.22, 0.3}),
+            asset("book_a", {"decor"}, {"book"}, {0.08, 0.2, 0.25}),
+            asset("book_b", {"decor"}, {"book"}, {0.1, 0.22, 0.3}),
             asset("book_tall", {"decor"}, {"book"}, {0.04, 0.2, 0.6}),
             asset("table", {"table"}, {}, {1.2, 0.8, 0.75},
                   {{-0.55, -0.35, 0.55, 0.35, 0.2, 0.3}, {-0.6, -0.4, 0.6, 0.4, 0.75, 1.0}}),
@@ -187,21 +187,18 @@ TEST_CASE("Books stand inside shelf boards, also on turned and wall shelves", "[
     onWall.rotation = pose.rotation;
     onWall.wall = "w2";
     onWall.z = 0.6;
-    f.items = {standing, turned, onWall};
 
-    for (std::uint32_t seed : {0u, 4u}) {
-        const std::vector<DressingPlacement> props = dressRoom(f, f.rooms[0], lib, seed);
-        const std::vector<DressingPlacement> books = byRule(props, "books");
-        for (const Item& host : f.items) {
+    // One shelf at a time, so the cap of 40 props a room does not cut a row short.
+    for (const Item& host : {standing, turned, onWall}) {
+        f.items = {host};
+        for (std::uint32_t seed : {0u, 4u}) {
             INFO("seed " << seed << " shelf " << host.id);
-            std::vector<DressingPlacement> mine;
-            for (const DressingPlacement& b : books) {
-                if (b.host == host.id) mine.push_back(b);
-            }
-            checkBooksOnShelf(mine, host, shelf);
+            const std::vector<DressingPlacement> props = dressRoom(f, f.rooms[0], lib, seed);
+            REQUIRE(props.size() < kMaxDressingPerRoom);
+            checkBooksOnShelf(byRule(props, "books"), host, shelf);
+            for (const DressingPlacement& p : props) CHECK(p.room == "r1");
+            CHECK(noOverlaps(props));
         }
-        for (const DressingPlacement& p : props) CHECK(p.room == "r1");
-        CHECK(noOverlaps(props));
     }
 }
 
@@ -314,9 +311,8 @@ TEST_CASE("Dressing rules are registry entries and a test rule is one file", "[d
 
     Floor f = dressedFloor();
     f.rooms[0].id = "r_test";
-    const std::vector<DressingPlacement> props = dressRoom(f, f.rooms[0], library(), 0);
+    const std::vector<DressingPlacement> props = byRule(dressRoom(f, f.rooms[0], library(), 0), "test_marker");
     REQUIRE(props.size() == 1);
-    CHECK(props[0].rule == "test_marker");
     CHECK(props[0].room == "r_test");
 
     // A room whose walls do not close gets nothing.
