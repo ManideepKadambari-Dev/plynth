@@ -157,7 +157,7 @@ TEST_CASE("a failed write leaves the old options file", "[core][exportoptions]")
 
 TEST_CASE("the schema takes English group names only", "[core][exportoptions]") {
     const auto problem = [](const std::string& name) {
-        nlohmann::json json = {{"format", "plynth-export-options"}, {"version", 2}, {"groups", {{"renames", {{{"group", "a"}, {"name", name}}}}}}};
+        nlohmann::json json = {{"format", "plynth-export-options"}, {"version", 3}, {"groups", {{"renames", {{{"group", "a"}, {"name", name}}}}}}};
         return schemaProblem("export-options.schema.json", json);
     };
     REQUIRE(problem("Living room-2_a").empty());

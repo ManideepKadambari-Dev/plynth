@@ -225,8 +225,15 @@ TEST_CASE("The shipped samples index lists every sample model and material", "[s
     }
 
     std::set<std::string> modelFolders;
+    // A model folder holds an .obj file. Other folders, such as a Python cache, are not models.
     for (const auto& entry : std::filesystem::directory_iterator(samples / "models")) {
-        if (entry.is_directory()) modelFolders.insert(entry.path().filename().string());
+        if (!entry.is_directory()) continue;
+        for (const auto& file : std::filesystem::directory_iterator(entry.path())) {
+            if (file.path().extension() == ".obj") {
+                modelFolders.insert(entry.path().filename().string());
+                break;
+            }
+        }
     }
     std::set<std::string> materialFolders;
     for (const auto& entry : std::filesystem::directory_iterator(samples / "materials")) {

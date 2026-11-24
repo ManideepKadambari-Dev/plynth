@@ -301,11 +301,9 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      # It does not fail the run until the texts of the vcpkg libraries are copied in from notice-inputs.
       # A tag without the script is an error here too.
       - name: Check the third party notices
         if: ${{ !cancelled() && steps.package.outcome == 'success' }}
-        continue-on-error: true
         shell: pwsh
         run: |
           $script = "$env:GITHUB_WORKSPACE/.github/scripts/check-notices.ps1"

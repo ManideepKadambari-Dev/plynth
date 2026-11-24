@@ -1,5 +1,6 @@
 #include "FakeBlender.h"
 #include "SampleProject.h"
+#include "SettingsGuard.h"
 
 #include <plynth/core/LicenseReport.h>
 
@@ -125,10 +126,12 @@ TEST_CASE("samples list and samples open copy only the project files", "[cli][gu
     CHECK(errorCode(runChecked({"samples", "open", "apartment", "--to", utf8(samples / "inside")})) == "invalid_value");
 }
 
-TEST_CASE("samples add refuses an empty Blender", "[cli][guide][samples]") {
+TEST_CASE("samples add refuses a Blender that is not there", "[cli][guide][samples]") {
+    const plynth::cli::testing::GuardedSettingsReset reset;
     TempFolder temp("guide-samples-add");
     const ScopedEnvironment variable("PLYNTH_SAMPLES", utf8(makeSamples(temp.path())));
-    const auto outcome = runChecked({"samples", "add", "--blender", ""});
+    REQUIRE(runChecked({"library", "init", utf8(temp.path() / "Library"), "--use"}).exitCode == kExitOk);
+    const auto outcome = runChecked({"samples", "add", "--blender", utf8(temp.path() / "no-blender.exe")});
     CHECK(outcome.exitCode != kExitOk);
     CHECK(errorCode(outcome) == "blender_not_found");
 }
