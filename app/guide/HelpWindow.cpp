@@ -216,7 +216,7 @@ void HelpWindow::go(const Place& place, bool remember)
                 page_->document()->setDefaultFont(style_.uiFont);
                 if (read.status.ok()) {
                     page_->document()->setMarkdown(fromCore(read.markdown),
-                                       QTextDocument::MarkdownDialectGitHub | QTextDocument::MarkdownNoHTML);
+                                       QTextDocument::MarkdownFeatures(QTextDocument::MarkdownDialectGitHub | QTextDocument::MarkdownNoHTML));
                     monoForCode(page_->document(), style_.monoFont);
                 } else {
                     page_->setPlainText(fromCore(read.status.message));

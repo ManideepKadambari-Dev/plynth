@@ -89,7 +89,7 @@ AboutPage::AboutPage(const GuideStyle& style, const QPixmap& logo, const std::fi
     notices_->setFont(style.uiFont);
     notices_->document()->setDefaultFont(style.uiFont);
     notices_->document()->setMarkdown(fromCore(info.notices),
-                          QTextDocument::MarkdownDialectGitHub | QTextDocument::MarkdownNoHTML);
+                          QTextDocument::MarkdownFeatures(QTextDocument::MarkdownDialectGitHub | QTextDocument::MarkdownNoHTML));
     connect(notices_, &QTextBrowser::anchorClicked, this, &AboutPage::linkClicked);
     lists->addWidget(notices_, 3);
 
