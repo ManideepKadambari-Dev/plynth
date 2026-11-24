@@ -10,6 +10,8 @@
 #include "plynth/core/Storeys.h"
 #include "plynth/core/catalog/AssetInfo.h"
 
+#include "PlanRingClean.h"
+
 #include <algorithm>
 #include <map>
 #include <set>
@@ -817,6 +819,8 @@ BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, 
     for (std::size_t index = 0; index < project.plan.floors.size(); ++index) {
         const Floor& floor = project.plan.floors[index];
         const double level = levels[index];
+        // Everything worked out for this floor below, up to its collision, is watched for broken outlines.
+        RingFaultScope ringFaults;
         FloorBuild build;
         build.id = floor.id;
         build.elevation = level;
@@ -918,6 +922,12 @@ BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, 
         }
         plan.floorMaterials.push_back(floorMaterials(project, floor, build, checker, namer));
         plan.collision.push_back(floorCollision(floor, build));
+        if (ringFaults.any()) {
+            plan.problems.push_back(checkProblem("outline_failed", BuildSeverity::Error,
+                                                 "An outline of floor " + floor.id +
+                                                     " could not be worked out, so its slab or roof would be wrong. Report this plan.",
+                                                 floor.id, {}));
+        }
         plan.floors.push_back(std::move(build));
     }
     for (auto& [id, asset] : used) plan.assets.push_back(std::move(asset));

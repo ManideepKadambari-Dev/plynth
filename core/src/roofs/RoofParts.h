@@ -34,6 +34,9 @@ struct Piece {
 // The part of the polygons on the side of the line through point where (p - point) . normal >= 0.
 std::vector<WorldPolygon> keepHalf(const std::vector<WorldPolygon>& polygons, Vec2 point, Vec2 normal);
 
+// The polygons cleaned of rounding noise as the finished eaves are: once by width, then piece by piece.
+std::vector<WorldPolygon> tidied(const std::vector<WorldPolygon>& polygons);
+
 // The polygons shrunk by distance on every side, holes grown.
 std::vector<WorldPolygon> inset(const std::vector<WorldPolygon>& polygons, double distance);
 

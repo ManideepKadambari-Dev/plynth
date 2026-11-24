@@ -9,6 +9,24 @@ namespace plynth {
 
 namespace {
 
+// How near a bay line a side counts as on it, and how far below the line glass looks for roof (three quarters
+// of it), in metres. It is wider than rounding and cleaning together can move a point.
+constexpr double kSideBand = 1e-4;
+
+// A stretch along the roof's direction.
+struct Span {
+    double from = 0.0;
+    double to = 0.0;
+};
+
+// A piece of a side: the bay whose plane it takes, and whether glass stands on it.
+struct SidePart {
+    Vec2 a;
+    Vec2 b;
+    std::size_t bay = 0;
+    bool underGlass = false;
+};
+
 // A sawtooth roof: bays kSawtoothBaySpan wide across the direction, each a plane rising toward the left of the
 // direction, with a vertical glazed face at the high side of each bay.
 class SawtoothRoof final : public RoofType {
@@ -49,8 +67,10 @@ public:
         };
         auto onLine = [&](double s) { return Vec2{n.x * s, n.y * s}; };
 
-        // Nothing stands beyond the high side of the last bay.
-        const std::vector<WorldPolygon> eaves = roofparts::keepHalf(input.eaves, onLine(hi), backward);
+        // Nothing stands beyond the high side of the last bay. The cut is cleaned again, since where a ring meets
+        // that line within rounding it leaves a hairline spike along it.
+        const std::vector<WorldPolygon> eaves =
+            roofparts::tidied(roofparts::keepHalf(input.eaves, onLine(hi), backward));
 
         std::vector<RoofFace> faces;
         std::vector<std::vector<WorldPolygon>> areas(starts.size());
@@ -87,24 +107,100 @@ public:
             for (const auto& h : poly.holes) all.push_back(&h);
             return all;
         };
-        auto onHighSide = [&](Vec2 p, Vec2 q) {
-            return std::fabs(across(p) - hi) < 1e-6 && std::fabs(across(q) - hi) < 1e-6;
+        auto alongOf = [&](Vec2 p) { return d.x * p.x + d.y * p.y; };
+
+        // Glass stands where the roof is just below a bay line: where a line a little below it lies in the eaves.
+        std::vector<std::vector<Span>> panes(starts.size());
+        for (std::size_t k = 0; k < starts.size(); ++k) {
+            const double probe = endOf(k) - 0.75 * kSideBand;
+            std::vector<double> crossings;
+            for (const WorldPolygon& poly : eaves) {
+                for (const std::vector<Vec2>* ring : rings(poly)) {
+                    for (std::size_t i = 0; i < ring->size(); ++i) {
+                        const Vec2 p = (*ring)[i];
+                        const Vec2 q = (*ring)[(i + 1) % ring->size()];
+                        const double sp = across(p);
+                        const double sq = across(q);
+                        if ((sp <= probe) == (sq <= probe)) continue;
+                        crossings.push_back(alongOf(at(p, q, (probe - sp) / (sq - sp))));
+                    }
+                }
+            }
+            std::sort(crossings.begin(), crossings.end());
+            for (std::size_t i = 0; i + 1 < crossings.size(); i += 2) {
+                if (crossings[i + 1] - crossings[i] < 1e-6) continue;
+                panes[k].push_back({crossings[i], crossings[i + 1]});
+            }
+        }
+
+        // A side on a bay line takes one bay's plane whole. A high side is cut where glass on it ends, a low side
+        // nowhere. Any other edge is cut where the bays change.
+        auto sideParts = [&](Vec2 p, Vec2 q) {
+            const Vec2 left = roofparts::leftOf({q.x - p.x, q.y - p.y});
+            const double facing = left.x * n.x + left.y * n.y;
+            auto bothOn = [&](double s) {
+                return std::fabs(across(p) - s) <= kSideBand && std::fabs(across(q) - s) <= kSideBand;
+            };
+            std::vector<SidePart> parts;
+            for (std::size_t k = 0; facing < 0.0 && k < starts.size(); ++k) {
+                if (!bothOn(endOf(k))) continue;
+                const double dp = alongOf(p);
+                const double dq = alongOf(q);
+                std::vector<double> ts{0.0, 1.0};
+                for (const Span& pane : panes[k]) {
+                    for (const double end : {pane.from, pane.to}) {
+                        if (end > std::min(dp, dq) && end < std::max(dp, dq)) ts.push_back((end - dp) / (dq - dp));
+                    }
+                }
+                std::sort(ts.begin(), ts.end());
+                for (std::size_t m = 0; m + 1 < ts.size(); ++m) {
+                    const double middle = alongOf(at(p, q, (ts[m] + ts[m + 1]) / 2.0));
+                    bool held = false;
+                    for (const Span& pane : panes[k]) held = held || (middle >= pane.from && middle <= pane.to);
+                    parts.push_back({at(p, q, ts[m]), at(p, q, ts[m + 1]), k, held});
+                }
+                return parts;
+            }
+            for (std::size_t k = 1; facing > 0.0 && k < starts.size(); ++k) {
+                if (!bothOn(starts[k])) continue;
+                parts.push_back({p, q, k, false});
+                return parts;
+            }
+            const std::vector<double> ts = cuts(p, q);
+            for (std::size_t m = 0; m + 1 < ts.size(); ++m) {
+                parts.push_back({at(p, q, ts[m]), at(p, q, ts[m + 1]),
+                                 bayAt(across(at(p, q, (ts[m] + ts[m + 1]) / 2.0))), false});
+            }
+            return parts;
         };
 
         for (const WorldPolygon& poly : eaves) {
             for (const std::vector<Vec2>* ring : rings(poly)) {
                 for (std::size_t i = 0; i < ring->size(); ++i) {
-                    const Vec2 p = (*ring)[i];
-                    const Vec2 q = (*ring)[(i + 1) % ring->size()];
-                    if (onHighSide(p, q)) continue;
-                    const std::vector<double> ts = cuts(p, q);
-                    for (std::size_t m = 0; m + 1 < ts.size(); ++m) {
-                        const Vec2 a = at(p, q, ts[m]);
-                        const Vec2 b = at(p, q, ts[m + 1]);
+                    for (const SidePart& part : sideParts((*ring)[i], (*ring)[(i + 1) % ring->size()])) {
+                        Vec2 a = part.a;
+                        Vec2 b = part.b;
+                        const roofparts::Plane plane = planeOf(part.bay);
+                        double topA = plane.at(a);
+                        double topB = plane.at(b);
+                        double bottomA = topA - kRoofThickness;
+                        double bottomB = topB - kRoofThickness;
+                        if (part.underGlass) {
+                            // The glass starts at the base, so only what hangs below that is fascia.
+                            if (bottomA >= base && bottomB >= base) continue;
+                            const double t = bottomA == bottomB ? 0.0 : (base - bottomA) / (bottomB - bottomA);
+                            if (bottomA > base) {
+                                a = at(part.a, part.b, t);
+                                bottomA = base;
+                            } else if (bottomB > base) {
+                                b = at(part.a, part.b, t);
+                                bottomB = base;
+                            }
+                            topA = base;
+                            topB = base;
+                        }
                         if (std::hypot(b.x - a.x, b.y - a.y) < 1e-6) continue;
-                        const roofparts::Plane plane = planeOf(bayAt(across(at(p, q, (ts[m] + ts[m + 1]) / 2.0))));
-                        faces.push_back(roofparts::wallFace(a, b, plane.at(a) - kRoofThickness, plane.at(b) - kRoofThickness,
-                                                            plane.at(a), plane.at(b), RoofPart::Edge));
+                        faces.push_back(roofparts::wallFace(a, b, bottomA, bottomB, topA, topB, RoofPart::Edge));
                     }
                 }
             }
@@ -113,36 +209,22 @@ public:
         // Glazing on the high side of each bay, as long as the roof is there.
         for (std::size_t k = 0; k < starts.size(); ++k) {
             const double s = endOf(k);
-            std::vector<WorldPolygon> strip = roofparts::keepHalf(eaves, onLine(s - 1e-4), n);
-            strip = roofparts::keepHalf(strip, onLine(s), backward);
-            for (const WorldPolygon& poly : strip) {
-                double t0 = 1e18;
-                double t1 = -1e18;
-                for (const Vec2& p : poly.outline) {
-                    t0 = std::min(t0, d.x * p.x + d.y * p.y);
-                    t1 = std::max(t1, d.x * p.x + d.y * p.y);
-                }
-                if (t1 - t0 < 1e-6) continue;
-                const Vec2 from{n.x * s + d.x * t1, n.y * s + d.y * t1};
-                const Vec2 to{n.x * s + d.x * t0, n.y * s + d.y * t0};
+            for (const Span& pane : panes[k]) {
+                const Vec2 from{n.x * s + d.x * pane.to, n.y * s + d.y * pane.to};
+                const Vec2 to{n.x * s + d.x * pane.from, n.y * s + d.y * pane.from};
                 const double top = base + (s - starts[k]) * slope;
                 faces.push_back(roofparts::wallFace(from, to, base, base, top, top, RoofPart::Glazing));
             }
         }
 
-        // Gable fills on the outline of the section, bay by bay.
+        // Gable fills on the outline of the section, bay by bay, but where glass closes it.
         for (const std::vector<Vec2>* ring : rings(input.section)) {
             for (std::size_t i = 0; i < ring->size(); ++i) {
-                const Vec2 p = (*ring)[i];
-                const Vec2 q = (*ring)[(i + 1) % ring->size()];
-                if (onHighSide(p, q)) continue;
-                const std::vector<double> ts = cuts(p, q);
-                for (std::size_t m = 0; m + 1 < ts.size(); ++m) {
-                    const Vec2 a = at(p, q, ts[m]);
-                    const Vec2 b = at(p, q, ts[m + 1]);
-                    const roofparts::Plane plane = planeOf(bayAt(across(at(p, q, (ts[m] + ts[m + 1]) / 2.0))));
-                    if (const auto fill = roofparts::gableFill(a, b, base, plane.at(a) - kRoofThickness - base,
-                                                              plane.at(b) - kRoofThickness - base)) {
+                for (const SidePart& part : sideParts((*ring)[i], (*ring)[(i + 1) % ring->size()])) {
+                    if (part.underGlass) continue;
+                    const roofparts::Plane plane = planeOf(part.bay);
+                    if (const auto fill = roofparts::gableFill(part.a, part.b, base, plane.at(part.a) - kRoofThickness - base,
+                                                              plane.at(part.b) - kRoofThickness - base)) {
                         faces.push_back(*fill);
                     }
                 }

@@ -109,18 +109,25 @@ def ear_clip(ring):
     return triangles
 
 
-# Adds a face up at height z for a ledge polygon and returns the faces. The ledges can be slivers that the usual
-# triangulation drops or doubles up, so its answer is checked against the area and, for a polygon without holes,
-# replaced by ear clipping.
-def add_ledge(bm, outline, holes, z):
-    triangles = meshes.triangulate(outline, holes)
+# Adds a face at height z for a ledge top (up) or an overhang underside (down) and returns the faces. Both can be
+# slivers that the usual triangulation drops or doubles up, so its answer is checked against the area and, for a
+# polygon without holes, replaced by ear clipping.
+def add_ledge(bm, outline, holes, z, up=True):
+    # Measured from the outline's first point, so points far from the origin stay apart in float32. The
+    # vertices keep their own places.
+    ox, oy = outline[0][0], outline[0][1]
+    near = [[[p[0] - ox, p[1] - oy] for p in ring] for ring in [outline] + list(holes)]
+    triangles = meshes.triangulate(near[0], near[1:])
     points = outline + [p for hole in holes for p in hole]
-    wanted = meshes.polygon_area(outline) + sum(meshes.polygon_area(h) for h in holes)
-    got = sum(abs(meshes.polygon_area([points[i] for i in t])) for t in triangles)
+    flat = [p for ring in near for p in ring]
+    wanted = meshes.polygon_area(near[0]) + sum(meshes.polygon_area(h) for h in near[1:])
+    got = sum(abs(meshes.polygon_area([flat[i] for i in t])) for t in triangles)
     if any(len(set(t)) < 3 for t in triangles) or abs(got - wanted) > 1e-3 * wanted:
         if holes:
             raise ValueError("a ledge with holes could not be filled")
-        triangles = ear_clip(outline)
+        triangles = ear_clip(near[0])
+    if not up:
+        triangles = [(a, c, b) for a, b, c in triangles]
     verts = [bm.verts.new((p[0], p[1], z)) for p in points]
     return [bm.faces.new([verts[i] for i in t]) for t in triangles]
 
@@ -152,7 +159,7 @@ def make_slab(ctx, floor, slab):
         for polygon in slab["undersides"]:
             outline = oriented(polygon["outline"], True)
             holes = [oriented(hole, False) for hole in polygon["holes"]]
-            faces = meshes.add_flat(bm, outline, holes, slab["bottom"], False)
+            faces = add_ledge(bm, outline, holes, slab["bottom"], False)
             meshes.world_uvs(bm, faces, flip_y=True)
             for face in faces:
                 face.material_index = slot(used, names[2])

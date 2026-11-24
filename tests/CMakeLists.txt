@@ -40,6 +40,7 @@ add_executable(plynth_core_tests
     core/SchemaTests.cpp
     core/DoorApplyTests.cpp
     core/RotatedBuildingTests.cpp
+    core/OutlineEdgeCaseTests.cpp
     core/CommandTests.cpp
     core/CommandStackTests.cpp
     core/ProjectFilesTests.cpp

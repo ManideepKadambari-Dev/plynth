@@ -21,9 +21,24 @@ namespace plynth {
 // a section into finished faces in world coordinates; the Blender build only makes meshes from them.
 //
 // Every roof sits on the slab of its floor, at base = level(i + 1) (BuildGeometry.h floorElevations). The
-// roof's eaves outline is the section offset outward by the overhang (mitred corners), minus the footprint of
-// the floor above, so a roof never reaches into the storey beside it. Pitched roofs are kRoofThickness thick,
-// measured straight down; their top surface passes through base at the section's outline where it is lowest.
+// roof's eaves outline is the section offset outward by the overhang, each of its rings by itself (mitred
+// corners, limit 5, so a sharp
+// corner reaches at most 5 times the overhang), minus the footprint of the floor above, so a roof never
+// reaches into the storey beside it. Pitched roofs are kRoofThickness thick, measured straight down; their top
+// surface passes through base at the section's outline where it is lowest.
+//
+// Rounding noise (the numbers and rules of Storeys.h) is cleaned in three places only:
+// - the finished eaves, once, by width (so the eaves may reach kSlabSideTolerance into the storey beside it,
+//   no more). The clips and insets inside a type are never cleaned by width, so a hip of many planes keeps its
+//   apex and its covering still adds up to the eaves.
+// - the sawtooth's eaves after its cut at the high line, once, by width and then piece by piece as the
+//   finished eaves are, since a ring that meets that line within rounding leaves a hairline spike along it.
+//   No other cut of the sawtooth, and none of another type, is cleaned.
+// - every finished face, once, ring by ring in space: points nearer than kRingMergeDistance, spike tips, and
+//   rings left under three points or kMinPlanAreaSize. A hole so dropped is filled, an outline so dropped takes
+//   the face along. A face keeps its holes and their turning. It is cut only where it comes within w of
+//   itself, each loop keeping its turning. A face whose rings cross is united again as a piece is
+//   (Storeys.h), and a new point that brings goes on the face's plane.
 //
 // The built-in types (sort key in brackets), and the fields each uses:
 //   flat     (10)  pitch no, direction no, overhang only without a parapet, parapet yes. A layer kRoofThickness
