@@ -1,6 +1,8 @@
 #include "PackSupportTests.h"
 
 #include <plynth/core/catalog/Integrations.h>
+#include <plynth/core/BuildResolve.h>
+#include <plynth/core/catalog/BuildChoices.h>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -305,4 +307,47 @@ TEST_CASE("a Fab item is only named and unpack names the importer to bring it ba
     CHECK(isStoreSource("fab_zip"));
     CHECK(isStoreSource("blenderkit"));
     CHECK_FALSE(isStoreSource("local_file"));
+}
+
+TEST_CASE("a project unpacked into a library with the same candidates resolves to the same build", "[unpack][resolved]") {
+    PackFixture f("unpack-resolved");
+    Project project = squareProjectWithWalls();
+    int n = 0;
+    for (const char* id : {"sofa_a", "sofa_b", "sofa_c"}) {
+        AssetInfo info = f.asset(id);
+        info.categories = {"sofa"};
+        requireOk(writeAssetInfo(f.a.assetItems / id / "info.json", info));
+        requireOk(f.assets->indexAsset(info));
+        Item item;
+        item.id = "i" + std::to_string(++n);
+        item.asset = id;
+        item.x = n;
+        item.y = 2;
+        item.size = {info.size.width, info.size.depth, info.size.height};
+        project.plan.floors[0].items.push_back(item);
+    }
+    const PackContents contents = packContents(project, f.a);
+    requireOk(f.pack(contents.used).status);
+    const UnpackReport unpacked = unpackProject(f.project, f.b, {});
+    requireOk(unpacked.status);
+
+    Status status;
+    const auto assetsB = AssetCatalog::open(f.b, status);
+    requireOk(status);
+    const auto materialsB = MaterialCatalog::open(f.b, status);
+    requireOk(status);
+    const BuildChoices choicesA = buildChoicesFrom(f.assets.get(), f.materials.get());
+    const BuildChoices choicesB = buildChoicesFrom(assetsB.get(), materialsB.get());
+    REQUIRE(choicesA.assets.size() == 3);
+    REQUIRE(choicesB.assets == choicesA.assets);
+    for (std::uint32_t seed : {0u, 1u, 7u, 12u}) {
+        INFO("seed " << seed);
+        project.settings.variation.seed = seed;
+        const ResolvedBuild here = resolveBuild(project, choicesA);
+        const ResolvedBuild there = resolveBuild(project, choicesB);
+        CHECK(here.project == there.project);
+        CHECK(here.changes == there.changes);
+        CHECK(here.dressing == there.dressing);
+        CHECK(here.frames == there.frames);
+    }
 }

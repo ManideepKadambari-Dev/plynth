@@ -1307,7 +1307,7 @@ If the file of a plan image has been moved or deleted, Plynth still opens the pr
 
 ## When the command line is editing
 
-A script or a coding assistant can edit the project while Plynth has it open. To keep your work and its work apart, it first begins an edit session. While one is active:
+A script or another program can edit the project while Plynth has it open. To keep your work and its work apart, it first begins an edit session. While one is active:
 
 - A banner under the title bar says "Being edited from the command line by <name>. Changes appear here as they are saved."
 - The plan is dimmed. Undo, Redo, Save, Save as and Set plan image are disabled. New project and Open project still work.

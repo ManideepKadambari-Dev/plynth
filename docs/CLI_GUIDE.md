@@ -1509,6 +1509,27 @@ Takes an item off its wall. It keeps its place, rotation and height, and becomes
 plynth item detach i4
 ```
 
+### item params
+
+Changes the values of a generator item, as the generator's fields in Properties do. An item that places an asset has no values and is refused with `invalid_value`.
+
+```
+plynth item params i4 --param steps=14 --param width=1.1
+plynth item params i4 --reset
+plynth item params i4 --fit
+```
+
+| Option | Meaning |
+|---|---|
+| `<id>` | Required. The item. |
+| `--param <id>=<value>` | One value. Repeat for more. `generator info` lists the ids, kinds and ranges. |
+| `--reset` | Put every value back to the generator's default ("Reset to defaults" in the app). |
+| `--fit` | Keep the values that still fit the generator, for example after the generator file changed, and default the rest. |
+| `--strict` | Refuse when the item would have any problem. |
+| `--library <folder>` | Default: the library in the settings. |
+
+The answer is the item entry, as `item list` gives it, with its new `size`.
+
 ### item remove
 
 Removes an item. The answer is the extended `removed` shape described under `point remove`.
@@ -2423,6 +2444,16 @@ plynth library add-sample-materials
 
 It takes `--library`, `--blender` and `--quiet`. `not_found` when the samples are not next to the program.
 
+### library add-sample-generators
+
+Copies the sample generators that come with Plynth into the library's `generators` folder, as Catalog > Add the sample generators does. Files that are already there are kept.
+
+```
+plynth library add-sample-generators
+```
+
+The answer lists `copied` and `skipped` file names. `--from <folder>` copies from another folder.
+
 ### library info
 
 Describes the library: its folder, free space, how many assets it holds, and the custom opening shapes found in `shapes/`.
@@ -3092,6 +3123,39 @@ plynth materials importers
 
 ```json
 {"ok":true,"command":"materials importers","result":{"importers":[{"id":"blend_material","name":"Material from a .blend file","description":"One material of a Blender file, made into texture maps.","suffixes":[".blend"]},{"id":"blenderkit","name":"BlenderKit","description":"A BlenderKit material address. Blender downloads it through your own BlenderKit add-on.","suffixes":[]},{"id":"fab_zip","name":"Fab zip","description":"A zip file of texture maps downloaded from fab.com. Takes the largest resolution the options allow.","suffixes":[".zip"]},{"id":"texture_set","name":"Texture set","description":"A folder, zip file or picture file of texture maps such as base color, normal and roughness.","suffixes":[".png",".jpg",".jpeg",".tga",".tif",".tiff",".bmp",".exr",".zip"]}]}}
+```
+
+## Generators
+
+Generators are Python files in the library's `generators` folder that make furniture or parts of a building in Blender, such as a spiral stair or a fence. [Writing generators](GENERATORS.md) explains how to write one. Place one with `place --generator <id>` instead of an asset id, and change its values with `item params`.
+
+### generator list
+
+Lists the generators of the library with their names, parameters, the add-ons they need and whether those are on, and the files that were refused with the reason.
+
+```
+plynth generator list
+plynth generator list --probe
+```
+
+`--probe` asks Blender which add-ons are enabled first, as `generator check-addons` does. Without it the last answer of that check is used. It takes `--library` and `--blender`.
+
+### generator info
+
+Describes one generator: its parameters with their kinds, defaults and ranges, the add-ons it needs and its default size.
+
+```
+plynth generator info spiral_stair
+```
+
+`not_found` for a generator the library does not have.
+
+### generator check-addons
+
+Asks Blender which add-ons are enabled and keeps the answer for `generator list`, the build and the app, as Catalog > Check add-ons does. Blender runs in the background with a clean startup and reads your add-on settings as data, so none of your add-ons runs during the check. It takes `--library` and `--blender`.
+
+```
+plynth generator check-addons
 ```
 
 ## Integrations

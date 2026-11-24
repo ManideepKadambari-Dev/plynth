@@ -115,6 +115,26 @@ void writeAnswer(const Answer& answer, bool pretty, std::ostream& out) {
 
 }
 
+std::string parseProblem(std::span<const std::string> args) {
+    std::vector<std::string> words(args.begin(), args.end());
+    takePretty(words);
+    bool groupOnly = false;
+    if (matchCommand(words, groupOnly) == nullptr) {
+        return "No command matches the words.";
+    }
+    CLI::App root{"plynth", "plynth"};
+    root.require_subcommand(1);
+    std::map<std::string, Handler> handlers;
+    buildTree(root, handlers);
+    try {
+        std::vector<std::string> reversed(words.rbegin(), words.rend());
+        root.parse(std::move(reversed));
+    } catch (const CLI::ParseError& error) {
+        return error.what();
+    }
+    return {};
+}
+
 int run(std::span<const std::string> args, std::ostream& out, const std::filesystem::path& currentFolder,
         std::ostream* progress, const CliHost& host) {
     std::vector<std::string> words(args.begin(), args.end());

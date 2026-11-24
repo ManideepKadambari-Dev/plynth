@@ -30,6 +30,10 @@ struct CliHost {
 int run(std::span<const std::string> args, std::ostream& out, const std::filesystem::path& currentFolder,
         std::ostream* progress = nullptr, const CliHost& host = {});
 
+// Checks that arguments name a command and that its options parse, without running it. Empty when they do,
+// otherwise the reason. The guide test uses it to keep every example in docs/CLI_GUIDE.md true.
+std::string parseProblem(std::span<const std::string> args);
+
 // Entry point for main: connects to the console or pipe it was started from, reads the arguments as
 // UTF-8 from the Windows command line and runs the command in the process's current folder. When plynth.com
 // started it, the event named in PLYNTH_CANCEL_EVENT stops the running command (Ctrl+C in the terminal).
