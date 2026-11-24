@@ -20,6 +20,8 @@ add_executable(plynth WIN32
     src/catalog/LibraryWatcher.cpp
     src/canvas/OpeningPaint.h
     src/canvas/OpeningPaint.cpp
+    src/canvas/LightPaint.h
+    src/canvas/LightPaint.cpp
     src/canvas/StairPaint.h
     src/canvas/StairPaint.cpp
     src/canvas/OverlayBuilder.h
@@ -57,6 +59,8 @@ add_executable(plynth WIN32
     src/dialogs/RoomTypesDialog.cpp
     src/dialogs/ScaleDialog.h
     src/dialogs/ScaleDialog.cpp
+    src/dialogs/VariationsDialog.h
+    src/dialogs/VariationsDialog.cpp
     src/document/FloorFocus.h
     src/document/FloorFocus.cpp
     src/document/Selection.h
@@ -87,6 +91,10 @@ add_executable(plynth WIN32
     src/panels/MaterialsPanel.cpp
     src/panels/ImportQueueView.h
     src/panels/ImportQueueView.cpp
+    src/panels/FinishGroups.h
+    src/panels/FinishGroups.cpp
+    src/panels/OpeningAssetPicker.h
+    src/panels/OpeningAssetPicker.cpp
     src/panels/PropertiesPanel.h
     src/panels/PropertiesPanel.cpp
     src/panels/RightPanel.h
@@ -97,6 +105,8 @@ add_executable(plynth WIN32
     src/tools/FurnitureTool.cpp
     src/tools/DetectTool.h
     src/tools/DetectTool.cpp
+    src/tools/LightTool.h
+    src/tools/LightTool.cpp
     src/tools/OpeningTool.h
     src/tools/OpeningTool.cpp
     src/tools/RoomTool.h

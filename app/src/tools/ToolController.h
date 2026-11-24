@@ -99,6 +99,11 @@ public:
     // Makes the item a generator item would be at the default values, for the footprint preview. Empty when
     // the generator is unknown.
     std::optional<plynth::Item> generatorItem(const QString& generatorId) const;
+    // Rounds a light position to the grid, or leaves it when the grid is off or free is set (Ctrl).
+    plynth::Vec2 snapLight(plynth::Vec2 wanted, bool free) const;
+    // Adds a light marker of a kind on the shown floor at a place, snapped unless free, at the kind's start
+    // height, and selects it. Refusals show as messages. Returns true when placed.
+    bool placeLight(plynth::Vec2 wanted, plynth::LightKind kind, bool free);
     // Turns the selected floor item by degrees (positive is clockwise). Refusals show as messages.
     bool turnSelectedItem(double degrees);
     // For checks: switches to the Furniture tool and opens its picker at a place in metres, then hovers an

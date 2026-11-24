@@ -10,6 +10,7 @@
 #include "furniture/FurniturePicker.h"
 #include "tools/DetectTool.h"
 #include "tools/FurnitureTool.h"
+#include "tools/LightTool.h"
 #include "tools/OpeningTool.h"
 #include "tools/RoomTool.h"
 #include "tools/ScaleTool.h"
@@ -25,6 +26,9 @@
 #include <plynth/core/catalog/ItemAssets.h>
 #include <plynth/core/commands/FloorCommands.h>
 #include <plynth/core/commands/ItemCommands.h>
+#include <plynth/core/commands/LightCommands.h>
+
+#include <cmath>
 
 namespace plynth::app {
 
@@ -50,6 +54,7 @@ ToolController::ToolController(plynth::Document& document, PlanCanvas* canvas, S
     tools_[static_cast<size_t>(ToolId::Room)] = std::make_unique<RoomTool>(*this);
     tools_[static_cast<size_t>(ToolId::Furniture)] = std::make_unique<FurnitureTool>(*this);
     tools_[static_cast<size_t>(ToolId::Stair)] = std::make_unique<StairTool>(*this);
+    tools_[static_cast<size_t>(ToolId::Light)] = std::make_unique<LightTool>(*this);
     detection_ = new DetectionSession(*this, this);
     tools_[static_cast<size_t>(ToolId::Detect)] = std::make_unique<DetectTool>(*this);
     connect(detection_, &DetectionSession::changed, this, [this]() {
@@ -180,6 +185,35 @@ bool ToolController::showStairPreview(double fromX, double fromY, double toX, do
     if (!setActive(ToolId::Stair))
         return false;
     static_cast<StairTool*>(tool(ToolId::Stair))->previewDrag(plynth::Vec2{fromX, fromY}, plynth::Vec2{toX, toY});
+    return true;
+}
+
+// Rounds a light position to the grid step of the project.
+plynth::Vec2 ToolController::snapLight(plynth::Vec2 wanted, bool free) const
+{
+    const double step = document_.project().settings.gridSize;
+    if (free || !snapToGrid_ || step <= 0.0)
+        return wanted;
+    return plynth::Vec2{std::round(wanted.x / step) * step, std::round(wanted.y / step) * step};
+}
+
+// Runs AddLightCommand on the shown floor and selects the new light.
+bool ToolController::placeLight(plynth::Vec2 wanted, plynth::LightKind kind, bool free)
+{
+    const plynth::Floor* current = floor();
+    if (current == nullptr || document_.isReadOnly())
+        return false;
+    const plynth::Vec2 at = snapLight(wanted, free);
+    plynth::LightMarker light;
+    light.kind = kind;
+    light.x = at.x;
+    light.y = at.y;
+    light.z = plynth::defaultLightHeight(kind, current->ceilingHeight);
+    auto command = std::make_unique<plynth::AddLightCommand>(current->id, light);
+    plynth::AddLightCommand* raw = command.get();
+    if (!run(std::move(command)).ok())
+        return false;
+    selection_->set(SelectionKind::Light, QString::fromStdString(raw->newLightId()));
     return true;
 }
 

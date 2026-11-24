@@ -79,10 +79,10 @@ int main(int argc, char* argv[])
                                       QStringLiteral("Open the terminal and type this text. For checks only."),
                                       QStringLiteral("text"));
     QCommandLineOption toolOption(QStringLiteral("tool"),
-                                  QStringLiteral("Activate a tool: select, scale, wall, opening, room, stair, furniture or detect. For checks only."),
+                                  QStringLiteral("Activate a tool: select, scale, wall, opening, room, stair, light, furniture or detect. For checks only."),
                                   QStringLiteral("name"));
     QCommandLineOption selectOption(QStringLiteral("select"),
-                                    QStringLiteral("Select the point, wall, opening, room, item or stair with this id. For checks only."),
+                                    QStringLiteral("Select the point, wall, opening, room, item, stair or light with this id. For checks only."),
                                     QStringLiteral("id"));
     QCommandLineOption floorOption(QStringLiteral("floor"),
                                    QStringLiteral("Show the floor with this id, such as f2. For checks only."), QStringLiteral("id"));
@@ -167,6 +167,26 @@ int main(int argc, char* argv[])
                                                   QStringLiteral("Open every group in the Export tab. For checks only."));
     QCommandLineOption exportKitOnOption(QStringLiteral("export-kit-on"),
                                          QStringLiteral("Tick the modular kit box of the Export tab before --export runs. For checks only."));
+    QCommandLineOption lightToolOption(QStringLiteral("light-tool"), QStringLiteral("Activate the Light tool. For checks only."));
+    QCommandLineOption addLightOption(QStringLiteral("add-light"),
+                                      QStringLiteral("Place a light at x,y in metres on the shown floor, with an optional kind "
+                                                     "(ceiling, wall or standing), and select it. Repeat for several. For checks only."),
+                                      QStringLiteral("x,y[,kind]"));
+    QCommandLineOption projectFinishOption(QStringLiteral("project-finish"),
+                                           QStringLiteral("Show the Trim and Variation groups of the project. For checks only."));
+    QCommandLineOption exportGameplayOnOption(QStringLiteral("export-gameplay-on"),
+                                              QStringLiteral("Tick the gameplay data box of the Export tab and show the tab. For checks only."));
+    QCommandLineOption variationsDialogOption(QStringLiteral("variations-dialog"),
+                                              QStringLiteral("Open Build > Make variations. For checks only."));
+    QCommandLineOption openingAssetPickerOption(QStringLiteral("opening-asset-picker"),
+                                                QStringLiteral("Open the door and window picker of the selected opening, or of the "
+                                                               "first door. For checks only."));
+    parser.addOption(lightToolOption);
+    parser.addOption(addLightOption);
+    parser.addOption(projectFinishOption);
+    parser.addOption(exportGameplayOnOption);
+    parser.addOption(variationsDialogOption);
+    parser.addOption(openingAssetPickerOption);
     QCommandLineOption homeOption(QStringLiteral("home"), QStringLiteral("Show the home screen. For checks only."));
     parser.addOption(zoomOption);
     parser.addOption(overlayOption);
@@ -233,7 +253,7 @@ int main(int argc, char* argv[])
     if (parser.isSet(toolOption)) {
         const QStringList names{QStringLiteral("select"), QStringLiteral("scale"), QStringLiteral("wall"),
                                 QStringLiteral("opening"), QStringLiteral("room"), QStringLiteral("stair"),
-                                QStringLiteral("furniture"), QStringLiteral("detect")};
+                                QStringLiteral("furniture"), QStringLiteral("detect"), QStringLiteral("light")};
         if (!names.contains(parser.value(toolOption).toLower()))
             return kExitBadArguments;
     }
@@ -254,6 +274,27 @@ int main(int argc, char* argv[])
     }
     double furnitureX = 0.0;
     double furnitureY = 0.0;
+    struct LightPlace {
+        double x = 0.0;
+        double y = 0.0;
+        QString kind;
+    };
+    QList<LightPlace> lightPlaces;
+    for (const QString& value : parser.values(addLightOption)) {
+        const QStringList parts = value.split(QLatin1Char(','));
+        bool okX = false;
+        bool okY = false;
+        LightPlace place;
+        if (parts.size() == 2 || parts.size() == 3) {
+            place.x = parts[0].toDouble(&okX);
+            place.y = parts[1].toDouble(&okY);
+            place.kind = parts.size() == 3 ? parts[2].trimmed().toLower() : QStringLiteral("ceiling");
+        }
+        if (!okX || !okY || (place.kind != QStringLiteral("ceiling") && place.kind != QStringLiteral("wall") &&
+                             place.kind != QStringLiteral("standing")))
+            return kExitBadArguments;
+        lightPlaces.append(place);
+    }
     if (parser.isSet(furnitureAtOption)) {
         const QStringList parts = parser.value(furnitureAtOption).split(QLatin1Char(','));
         bool okX = false;
@@ -328,6 +369,10 @@ int main(int argc, char* argv[])
         window.showFloor(parser.value(floorOption));
     if (parser.isSet(toolOption))
         window.activateToolByName(parser.value(toolOption));
+    if (parser.isSet(lightToolOption))
+        window.activateToolByName(QStringLiteral("light"));
+    for (const LightPlace& place : lightPlaces)
+        window.addLightForCheck(place.x, place.y, place.kind);
     if (parser.isSet(alignImageOption))
         window.setAlignImage(true);
     if (parser.isSet(roofSectionsOption))
@@ -371,8 +416,16 @@ int main(int argc, char* argv[])
         window.findChild<plynth::app::ExportPanel*>()->setGroupsExpanded(true);
     if (parser.isSet(exportKitOnOption))
         window.findChild<plynth::app::ExportPanel*>()->setKitEnabled(true);
-    if (parser.isSet(exportTabOption))
+    if (parser.isSet(exportGameplayOnOption))
+        window.findChild<plynth::app::ExportPanel*>()->setGameplayEnabled(true);
+    if (parser.isSet(exportTabOption) || parser.isSet(exportGameplayOnOption))
         window.showExportTab();
+    if (parser.isSet(projectFinishOption))
+        QTimer::singleShot(100, &window, [&window]() { window.showProjectFinish(); });
+    if (parser.isSet(variationsDialogOption))
+        QTimer::singleShot(0, &window, [&window]() { window.showVariationsDialog(false); });
+    if (parser.isSet(openingAssetPickerOption))
+        QTimer::singleShot(250, &window, [&window]() { window.showOpeningAssetPicker(QString()); });
     if (parser.isSet(overlayOption))
         window.setOverlay3d(true);
     if (parser.isSet(zoomOption) && parser.value(zoomOption).toLower() == QStringLiteral("actual"))
