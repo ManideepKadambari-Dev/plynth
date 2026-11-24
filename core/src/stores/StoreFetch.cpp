@@ -334,8 +334,11 @@ FetchRun runImportFetch(const ImportFetch& fetch, const fs::path& blender, const
     options.steps = fetch.steps;
     options.privateFolder = folder;
     const BlenderJobRun blenderRun = runBlenderJob(blender, job, folder, options, onProgress, stop);
-    // The log holds only the rebuilt step lines, so it may stay with the import.
-    copyFileBytes(longPath(folder / pathFromUtf8(kBlenderLogFileName)), longPath(work / pathFromUtf8(kBlenderLogFileName)));
+    // The job and the log stay with the import, as for its cleanup job. The log holds only the rebuilt step
+    // lines and the job only what Plynth wrote, so neither holds what Blender or an add-on printed.
+    for (const std::string_view name : {kJobFileName, kBlenderLogFileName}) {
+        copyFileBytes(longPath(folder / pathFromUtf8(name)), longPath(work / pathFromUtf8(name)));
+    }
 
     const auto finish = [&](Status status) {
         emptyFetchFolder(inside);
