@@ -122,6 +122,9 @@ public:
     QImage grabPicture();
     // For checks only: opens the setup check and keeps it open.
     void showSetupCheck(const QString& scrollToTitle = QString());
+    // For checks only: shows the pack dialog ("pack", from a check that writes nothing) or the unpack dialog
+    // ("unpack") without waiting, so a screenshot includes it.
+    void showPackDialogForCheck(const QString& kind);
     // For checks only: true when no setup check is open, or its check has finished.
     bool setupPictureReady();
     // For checks only: queues an import of a file or folder.
@@ -254,9 +257,6 @@ private:
     void save3dPicture();
     void packProjectDialog();
     void unpackProjectDialog();
-    // For checks only: shows the pack dialog ("pack", from a check that writes nothing) or the unpack dialog
-    // ("unpack") without waiting, so a screenshot includes it.
-    void showPackDialogForCheck(const QString& kind);
     bool buildBlocked(QString* reason) const;
     QString exportNotice(bool* offerBuild) const;
     void exportFinished(const plynth::ExportReport& report);
