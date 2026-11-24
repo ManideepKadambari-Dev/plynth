@@ -1,0 +1,6 @@
+{
+  "format": "plynth-export-options",
+  "version": 2,
+  "kit": {"enabled": true},
+  "gameplay": {"enabled": true}
+}

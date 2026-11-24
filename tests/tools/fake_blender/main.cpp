@@ -799,8 +799,9 @@ int main()
         output["picked_file"] = zip ? Json("model.obj") : Json(nullptr);
         output["missing_textures"] = Json::array();
         output["thumbnail"] = thumbnail;
+        output["supports"] = Json::array();
         Json ordered = Json::object();
-        for (const char* key : {"blend_file", "fbx_file", "picked_file", "size", "triangles", "objects", "materials", "textures", "missing_textures", "material_maps", "thumbnail"}) {
+        for (const char* key : {"blend_file", "fbx_file", "picked_file", "size", "triangles", "objects", "materials", "textures", "missing_textures", "material_maps", "thumbnail", "supports"}) {
             ordered[key] = output[key];
         }
         result["output"] = ordered;

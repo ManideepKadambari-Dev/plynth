@@ -3,6 +3,7 @@
 
 #include <plynth/core/RoomTypes.h>
 #include <plynth/core/Rooms.h>
+#include <plynth/core/commands/FinishCommands.h>
 #include <plynth/core/commands/RoomCommands.h>
 
 #include <cmath>
@@ -25,6 +26,7 @@ struct SetOptions {
     std::string project;
     std::string id;
     std::string type;
+    std::string dressing;
 };
 
 struct RemoveOptions {
@@ -73,21 +75,31 @@ Answer roomAdd(const RunContext& context, const AddOptions& options) {
     });
 }
 
-// Sets or clears the type of a room.
+// Sets or clears the type of a room and turns its set dressing on or off, as one step. What is left out stays.
 Answer roomSet(const RunContext& context, const SetOptions& options) {
     const std::string name = "room set";
+    if (options.type.empty() && options.dressing.empty()) {
+        return badArguments(name, "bad_arguments", "Give at least one of --type and --dressing.");
+    }
     useSettingsRoomTypes();
     return editProject(name, context, options.project, [&](Document& document) {
-        std::optional<std::string> type;
-        if (options.type != "none") {
-            const Status known = checkRoomType(options.type);
-            if (!known.ok()) {
-                return failure(name, known);
+        auto group = std::make_unique<CommandGroup>("Change room");
+        if (!options.type.empty()) {
+            std::optional<std::string> type;
+            if (options.type != "none") {
+                const Status known = checkRoomType(options.type);
+                if (!known.ok()) {
+                    return failure(name, known);
+                }
+                type = options.type;
             }
-            type = options.type;
+            group->add(std::make_unique<SetRoomTypeCommand>(options.id, type));
+        }
+        if (!options.dressing.empty()) {
+            group->add(std::make_unique<SetRoomDressingCommand>(options.id, options.dressing == "on"));
         }
         Answer failed;
-        if (!runCommand(name, document, std::make_unique<SetRoomTypeCommand>(options.id, type), failed)) {
+        if (!runCommand(name, document, std::move(group), failed)) {
             return failed;
         }
         return success(name, entryFor(document.plan(), options.id));
@@ -197,6 +209,7 @@ Json roomEntry(const Floor& floor, const Room& room) {
     entry["closed"] = shape.closed;
     entry["area"] = roundedArea(shape.area);
     entry["label"] = std::move(label);
+    entry["dressing"] = room.dressing;
     return entry;
 }
 
@@ -220,12 +233,15 @@ std::vector<CommandSpec> roomCommands() {
 
     CommandSpec set;
     set.words = {"room", "set"};
-    set.description = "Change the type of a room.";
+    set.description = "Change the type of a room, or turn its set dressing on or off.";
     set.setup = [](CLI::App& sub) -> Handler {
         auto options = std::make_shared<SetOptions>();
         addProjectOption(sub, options->project);
         sub.add_option("id", options->id, "Id of the room.")->type_name("id")->required();
-        sub.add_option("--type", options->type, "Room type id, or none to clear it.")->type_name("id|none")->required();
+        sub.add_option("--type", options->type, "Room type id, or none to clear it.")->type_name("id|none");
+        sub.add_option("--dressing", options->dressing, "Whether the build adds small props to the room.")
+            ->type_name("on|off")
+            ->check(CLI::IsMember({"on", "off"}));
         return [options](const RunContext& context) { return roomSet(context, *options); };
     };
 

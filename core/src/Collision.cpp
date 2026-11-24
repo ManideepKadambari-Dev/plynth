@@ -393,6 +393,8 @@ std::string_view collisionTargetKindName(CollisionTargetKind kind)
     case CollisionTargetKind::Slab: return "slab";
     case CollisionTargetKind::Stair: return "stair";
     case CollisionTargetKind::Roof: return "roof";
+    case CollisionTargetKind::Railing: return "railing";
+    case CollisionTargetKind::Guard: return "guard";
     }
     return "walls";
 }
@@ -402,7 +404,8 @@ std::optional<CollisionTargetKind> collisionTargetKindFromName(std::string_view 
 {
     for (const CollisionTargetKind kind : {CollisionTargetKind::Walls, CollisionTargetKind::Floor,
                                            CollisionTargetKind::Ceiling, CollisionTargetKind::Thresholds,
-                                           CollisionTargetKind::Slab, CollisionTargetKind::Stair, CollisionTargetKind::Roof}) {
+                                           CollisionTargetKind::Slab, CollisionTargetKind::Stair, CollisionTargetKind::Roof,
+                                           CollisionTargetKind::Railing, CollisionTargetKind::Guard}) {
         if (collisionTargetKindName(kind) == name) return kind;
     }
     return std::nullopt;

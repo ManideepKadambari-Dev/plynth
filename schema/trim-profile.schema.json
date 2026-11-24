@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:trim-profile:1",
+  "title": "Plynth custom trim profile, version 1",
+  "description": "A custom cross section for skirting boards, cornices, casings, sills and railings, saved as Library/shapes/<id>.profile.json. The outline is drawn in a unit box: x from 0 at the wall to 1 out from it, y from 0 at the bottom to 1 at the top. It is stretched to the trim's depth and height. The outline is a simple closed polygon: the first point is not repeated, no two edges cross, it has an area, and its points reach all four sides of the box.",
+  "type": "object",
+  "required": ["format", "version", "id", "name", "outline"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "plynth-trim-profile" },
+    "version": { "const": 1 },
+    "id": {
+      "description": "The id stored in project.json trim styles. Must differ from the built-in ids square, bevel, rounded, classic, cove and round.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "maxLength": 64
+    },
+    "name": { "description": "Shown in the app's profile list.", "type": "string", "minLength": 1, "maxLength": 64 },
+    "outline": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 1000,
+      "items": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 2,
+        "items": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    }
+  }
+}

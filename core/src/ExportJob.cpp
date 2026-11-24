@@ -176,6 +176,14 @@ Json kitOpeningJson(const KitOpening& k)
     json["slots"] = Json{{"reveal", slot(ids.revealSlot, kExteriorWallSlot)}, {"threshold", slot(ids.thresholdSlot, kThresholdSlot)},
                          {"door", slot(ids.doorSlot, kDoorSlot)},             {"frame", slot(ids.frameSlot, kFrameSlot)},
                          {"glass", slot(ids.glassSlot, kGlassSlot)},          {"handle", slot(ids.handleSlot, kHandleSlot)}};
+    if (k.asset) {
+        Json asset = Json::object();
+        asset["id"] = k.asset->asset;
+        asset["location"] = Json::array({k.asset->location.x, k.asset->location.y, k.asset->location.z});
+        asset["rotation_z"] = k.asset->rotationZ;
+        asset["scale"] = Json::array({k.asset->scale.x, k.asset->scale.y, k.asset->scale.z});
+        json["asset"] = std::move(asset);
+    }
     return json;
 }
 

@@ -25,7 +25,7 @@ def run(ctx):
             shutil.rmtree(folder, ignore_errors=True)
         ctx.state["textures"] = []
         return
-    found, _ = assign(params["groups"], ctx.state["meshes"], ctx.state["collision"])
+    found, _ = assign(params["groups"], ctx.state["meshes"] + ctx.state.get("lights", []), ctx.state["collision"])
     for group in params["groups"]:
         objects = found[group["id"]]
         if not objects:
@@ -37,7 +37,7 @@ def run(ctx):
             exporters.write_file("fbx", objects, target, "RELATIVE")
         except Exception as error:
             raise WorkerError("export_failed", "%s could not be written: %s" % (group["file"], error))
-        visible = [o for o in objects if o.get("plynth_kind") != "collision"]
+        visible = [o for o in objects if o.get("plynth_kind") != "collision" and o.type == "MESH"]
         ctx.state["written_files"].append({"group": group["id"], "file": group["file"], "path": target,
                                            "objects": [o.name for o in objects],
                                            "triangles": scene.triangle_count(visible)})

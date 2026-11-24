@@ -234,10 +234,19 @@ std::string exportMemberLabel(const Plan& plan, const ExportMember& member)
 {
     if (member.id.empty()) return "Every " + member.kind;
     const std::string pair = member.kind + " " + member.id;
-    if (member.kind == kKindWalls || member.kind == kKindThresholds) {
+    if (member.kind == kKindWalls || member.kind == kKindThresholds || member.kind == kKindTrim) {
         const Floor* floor = findFloor(plan, member.id);
         if (!floor) return pair;
-        return std::string(member.kind == kKindWalls ? "Walls" : "Thresholds") + ", " + floor->name;
+        const char* what = member.kind == kKindWalls ? "Walls" : (member.kind == kKindTrim ? "Trim" : "Thresholds");
+        return std::string(what) + ", " + floor->name;
+    }
+    if (member.kind == kKindRailing || member.kind == kKindGuard) {
+        return std::string(member.kind == kKindRailing ? "Railing of stair " : "Guard of stair ") + member.id;
+    }
+    if (member.kind == kKindDressing) {
+        const Room* room = findRoomAnywhere(plan, member.id);
+        if (!room) return pair;
+        return "Set dressing of " + roomLabelWithId(*room);
     }
     if (member.kind == kKindFloor || member.kind == kKindCeiling) {
         const Room* room = findRoomAnywhere(plan, member.id);
@@ -544,6 +553,9 @@ Json exportOptionsToJson(const ExportOptions& options)
     Json kit = Json::object();
     kit["enabled"] = options.kit.enabled;
     json["kit"] = std::move(kit);
+    Json gameplay = Json::object();
+    gameplay["enabled"] = options.gameplay.enabled;
+    json["gameplay"] = std::move(gameplay);
     return json;
 }
 
@@ -569,8 +581,13 @@ ExportOptionsRead exportOptionsFromJson(const Json& json)
     if (fileVersion > kExportOptionsVersion) {
         return bad(fail(ErrorCode::UnsupportedVersion, "The export options were written by a newer Plynth.", "/version"));
     }
-    if (fileVersion < kExportOptionsVersion) return bad(fail(ErrorCode::BadFile, "The export options version is not valid.", "/version"));
-    if (Status s = checkFields(json, {"format", "version", "groups", "kit"}, ""); !s.ok()) return bad(s);
+    if (fileVersion < 1) return bad(fail(ErrorCode::BadFile, "The export options version is not valid.", "/version"));
+    // Version 1 had no gameplay switch, so it may not carry one.
+    if (fileVersion == 1) {
+        if (Status s = checkFields(json, {"format", "version", "groups", "kit"}, ""); !s.ok()) return bad(s);
+    } else if (Status s = checkFields(json, {"format", "version", "groups", "kit", "gameplay"}, ""); !s.ok()) {
+        return bad(s);
+    }
 
     ExportOptions options;
     if (const auto groups = json.find("groups"); groups != json.end()) {
@@ -633,6 +650,16 @@ ExportOptionsRead exportOptionsFromJson(const Json& json)
             options.kit.enabled = enabled->get<bool>();
         }
     }
+    if (const auto gameplay = json.find("gameplay"); gameplay != json.end()) {
+        if (!gameplay->is_object()) return bad(fail(ErrorCode::BadFile, "\"gameplay\" must be an object.", "/gameplay"));
+        if (Status s = checkFields(*gameplay, {"enabled"}, "/gameplay"); !s.ok()) return bad(s);
+        if (const auto enabled = gameplay->find("enabled"); enabled != gameplay->end()) {
+            if (!enabled->is_boolean()) {
+                return bad(fail(ErrorCode::BadFile, "\"enabled\" must be true or false.", "/gameplay/enabled"));
+            }
+            options.gameplay.enabled = enabled->get<bool>();
+        }
+    }
     result.options = std::move(options);
     return result;
 }
@@ -679,7 +706,7 @@ Status writeExportOptions(const fs::path& projectFolder, const ExportOptions& op
     return fileio::writeAtomic(file, text);
 }
 
-// Replaces a bad options file with the defaults, keeping the kit switch and a copy of the old file.
+// Replaces a bad options file with the defaults, keeping the kit and gameplay switches and a copy of the old file.
 ExportOptionsRepair repairExportOptions(const fs::path& projectFolder)
 {
     ExportOptionsRepair repair;
@@ -702,6 +729,11 @@ ExportOptionsRepair repairExportOptions(const fs::path& projectFolder)
         if (kit != json.end() && kit->is_object()) {
             const auto enabled = kit->find("enabled");
             if (enabled != kit->end() && enabled->is_boolean()) fresh.kit.enabled = enabled->get<bool>();
+        }
+        const auto gameplay = json.find("gameplay");
+        if (gameplay != json.end() && gameplay->is_object()) {
+            const auto enabled = gameplay->find("enabled");
+            if (enabled != gameplay->end() && enabled->is_boolean()) fresh.gameplay.enabled = enabled->get<bool>();
         }
     }
     const fs::path backup = projectFolder / pathFromUtf8(std::string(kExportOptionsFileName) + ".bad");

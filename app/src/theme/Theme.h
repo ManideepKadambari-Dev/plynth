@@ -77,6 +77,7 @@ public:
     int terminalPanelHeight() const { return terminalPanelHeight_; }
     int buildBarHeight() const { return buildBarHeight_; }
     int problemMarker() const { return problemMarker_; }
+    int lightMarker() const { return lightMarker_; }
     int qualityMark() const { return qualityMark_; }
     double markStroke() const { return markStroke_; }
     int previewButton() const { return previewButton_; }
@@ -146,6 +147,7 @@ private:
     int terminalPanelHeight_ = 420;
     int buildBarHeight_ = 40;
     int problemMarker_ = 12;
+    int lightMarker_ = 14;
     int qualityMark_ = 14;
     int previewButton_ = 28;
     double overlay3dOpacity_ = 0.85;

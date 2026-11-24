@@ -70,6 +70,8 @@ public:
             const std::size_t room = kMaxExportGroupName > prefix.size() + suffix.size() ? kMaxExportGroupName - prefix.size() - suffix.size() : 1;
             group.name = prefix + label.substr(0, room) + suffix;
             addItems(group, entry.items);
+            // A room's set dressing props go with its furniture.
+            if (entry.room->dressing) group.members.push_back({std::string(kKindDressing), entry.room->id});
             out.push_back(std::move(group));
         }
         if (!loose.empty()) {

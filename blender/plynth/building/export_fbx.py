@@ -37,9 +37,10 @@ def realize_instances():
     bpy.context.view_layer.update()
 
 
-# Returns the objects building.fbx holds: everything in the scene except the collision meshes.
+# Returns the objects building.fbx holds: everything in the scene except the collision meshes and the lights,
+# so the 3D preview's lighting stays as it is.
 def fbx_objects():
-    return [o for o in scene.scene_objects() if o.get("plynth_kind") != "collision"]
+    return [o for o in scene.scene_objects() if o.get("plynth_kind") not in ("collision", "light")]
 
 
 # Makes instances real, points big images at preview copies, exports the scene without the collision meshes to

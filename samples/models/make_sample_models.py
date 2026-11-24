@@ -83,7 +83,8 @@ def chair_mtl():
 
 
 # Front is -Y and the back is +Y in every model below. Sizes in metres:
-# sofa 2.00 x 0.90 x 0.85, bed 1.60 x 2.10 x 1.00, table 1.20 x 0.80 x 0.75, tv 1.23 x 0.06 x 0.71.
+# sofa 2.00 x 0.90 x 0.85, bed 1.60 x 2.10 x 1.00, table 1.20 x 0.80 x 0.75, tv 1.23 x 0.06 x 0.71, and the
+# finishing models below.
 SOFA_BOXES = [
     ("Foot_FL", (0.05, 0.11), (0.05, 0.11), (0.00, 0.08), "Legs"),
     ("Foot_FR", (1.89, 1.95), (0.05, 0.11), (0.00, 0.08), "Legs"),
@@ -114,12 +115,69 @@ TV_BOXES = [
     ("Screen", (0.03, 1.20), (0.00, 0.005), (0.03, 0.68), "Screen"),
 ]
 
+# Door 0.90 x 0.05 x 2.10: the leaf hangs on its left jamb seen from the front (low x), the handle on the right.
+DOOR_BOXES = [
+    ("Frame_L", (0.00, 0.05), (0.00, 0.05), (0.00, 2.10), "Wood"),
+    ("Frame_R", (0.85, 0.90), (0.00, 0.05), (0.00, 2.10), "Wood"),
+    ("Frame_T", (0.05, 0.85), (0.00, 0.05), (2.05, 2.10), "Wood"),
+    ("Leaf", (0.05, 0.85), (0.015, 0.04), (0.00, 2.05), "Wood"),
+    ("Handle", (0.72, 0.80), (0.00, 0.015), (1.00, 1.04), "Metal"),
+]
+
+# Window 1.20 x 0.08 x 1.20: a frame round one pane of glass.
+WINDOW_BOXES = [
+    ("Frame_B", (0.00, 1.20), (0.00, 0.08), (0.00, 0.06), "Frame"),
+    ("Frame_T", (0.00, 1.20), (0.00, 0.08), (1.14, 1.20), "Frame"),
+    ("Frame_L", (0.00, 0.06), (0.00, 0.08), (0.06, 1.14), "Frame"),
+    ("Frame_R", (1.14, 1.20), (0.00, 0.08), (0.06, 1.14), "Frame"),
+    ("Glass", (0.06, 1.14), (0.035, 0.045), (0.06, 1.14), "Glass"),
+]
+
+# Shelf 0.80 x 0.30 x 1.80: two sides, a back and four boards below the top, so set dressing finds supports.
+SHELF_BOXES = [
+    ("Side_L", (0.00, 0.02), (0.00, 0.30), (0.00, 1.80), "Wood"),
+    ("Side_R", (0.78, 0.80), (0.00, 0.30), (0.00, 1.80), "Wood"),
+    ("Back", (0.02, 0.78), (0.29, 0.30), (0.00, 1.80), "Wood"),
+    ("Board_1", (0.02, 0.78), (0.00, 0.29), (0.00, 0.02), "Wood"),
+    ("Board_2", (0.02, 0.78), (0.00, 0.29), (0.45, 0.47), "Wood"),
+    ("Board_3", (0.02, 0.78), (0.00, 0.29), (0.90, 0.92), "Wood"),
+    ("Board_4", (0.02, 0.78), (0.00, 0.29), (1.35, 1.37), "Wood"),
+    ("Top", (0.00, 0.80), (0.00, 0.30), (1.78, 1.80), "Wood"),
+]
+
+# Books 0.30 x 0.20 x 0.25: a short row of five, for shelves.
+BOOKS_BOXES = [
+    ("Book_1", (0.00, 0.05), (0.00, 0.20), (0.00, 0.25), "Red"),
+    ("Book_2", (0.05, 0.11), (0.01, 0.20), (0.00, 0.22), "Blue"),
+    ("Book_3", (0.11, 0.16), (0.00, 0.20), (0.00, 0.24), "Green"),
+    ("Book_4", (0.16, 0.24), (0.02, 0.20), (0.00, 0.20), "Red"),
+    ("Book_5", (0.24, 0.30), (0.00, 0.20), (0.00, 0.23), "Blue"),
+]
+
+# Vase 0.15 x 0.15 x 0.30, for tables.
+VASE_BOXES = [
+    ("Body", (0.00, 0.15), (0.00, 0.15), (0.00, 0.20), "Clay"),
+    ("Neck", (0.045, 0.105), (0.045, 0.105), (0.20, 0.30), "Clay"),
+]
+
+# Picture 0.60 x 0.03 x 0.45: a frame and a canvas, the back flat for hanging on a wall.
+PICTURE_BOXES = [
+    ("Frame", (0.00, 0.60), (0.01, 0.03), (0.00, 0.45), "Frame"),
+    ("Canvas", (0.03, 0.57), (0.00, 0.01), (0.03, 0.42), "Canvas"),
+]
+
 # Folder name, label, boxes, and the material colors (Kd) in the order they first appear.
 MODELS = [
     ("sofa", SOFA_BOXES, [("Fabric", (0.25, 0.32, 0.42)), ("Legs", (0.12, 0.09, 0.07))]),
     ("bed", BED_BOXES, [("Wood", (0.40, 0.27, 0.17)), ("Linen", (0.85, 0.84, 0.80))]),
     ("table", TABLE_BOXES, [("Wood", (0.55, 0.38, 0.24))]),
     ("tv", TV_BOXES, [("Plastic", (0.05, 0.05, 0.06)), ("Screen", (0.02, 0.03, 0.05))]),
+    ("door", DOOR_BOXES, [("Wood", (0.62, 0.48, 0.34)), ("Metal", (0.60, 0.60, 0.62))]),
+    ("window", WINDOW_BOXES, [("Frame", (0.90, 0.90, 0.88)), ("Glass", (0.70, 0.82, 0.88))]),
+    ("shelf", SHELF_BOXES, [("Wood", (0.50, 0.35, 0.22))]),
+    ("books", BOOKS_BOXES, [("Red", (0.55, 0.12, 0.10)), ("Blue", (0.12, 0.22, 0.45)), ("Green", (0.15, 0.40, 0.20))]),
+    ("vase", VASE_BOXES, [("Clay", (0.72, 0.45, 0.30))]),
+    ("picture", PICTURE_BOXES, [("Frame", (0.20, 0.15, 0.10)), ("Canvas", (0.80, 0.70, 0.45))]),
 ]
 
 

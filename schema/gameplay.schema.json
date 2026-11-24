@@ -1,0 +1,125 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:gameplay:1",
+  "title": "Plynth gameplay data, version 1",
+  "description": "Written by the export as export/<Stem>_gameplay.json when gameplay data is switched on. Room volumes, door positions and light positions for audio zones, navigation and spawn points. Positions are Blender world metres with Z up, the same frame as the exported FBX files: X is plan x, Y is minus plan y, Z rises from the first floor's level.",
+  "type": "object",
+  "required": ["format", "version", "project", "units", "up", "floors", "rooms", "doors", "lights"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "plynth-gameplay" },
+    "version": { "const": 1 },
+    "project": { "type": "string" },
+    "units": { "const": "metres" },
+    "up": { "const": "Z" },
+    "floors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "elevation", "ceiling_height"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "$ref": "#/definitions/id" },
+          "name": { "type": "string" },
+          "elevation": { "type": "number" },
+          "ceiling_height": { "type": "number", "exclusiveMinimum": 0 }
+        }
+      }
+    },
+    "rooms": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "floor", "type", "area", "floor_z", "ceiling_z", "bounds", "polygons", "volumes", "spawn"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "$ref": "#/definitions/id" },
+          "floor": { "$ref": "#/definitions/id" },
+          "type": { "type": ["string", "null"] },
+          "area": { "type": "number", "minimum": 0 },
+          "floor_z": { "type": "number" },
+          "ceiling_z": { "type": "number" },
+          "bounds": {
+            "type": "object",
+            "required": ["min", "max"],
+            "additionalProperties": false,
+            "properties": { "min": { "$ref": "#/definitions/vec3" }, "max": { "$ref": "#/definitions/vec3" } }
+          },
+          "polygons": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["outline", "holes"],
+              "additionalProperties": false,
+              "properties": {
+                "outline": { "$ref": "#/definitions/ring" },
+                "holes": { "type": "array", "items": { "$ref": "#/definitions/ring" } }
+              }
+            }
+          },
+          "volumes": {
+            "description": "Convex pieces of the floor polygons, raised from bottom to top.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["outline", "bottom", "top"],
+              "additionalProperties": false,
+              "properties": {
+                "outline": { "$ref": "#/definitions/ring" },
+                "bottom": { "type": "number" },
+                "top": { "type": "number" }
+              }
+            }
+          },
+          "spawn": { "oneOf": [{ "$ref": "#/definitions/vec3" }, { "type": "null" }] }
+        }
+      }
+    },
+    "doors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "floor", "kind", "position", "along", "facing", "width", "height", "rooms"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "$ref": "#/definitions/id" },
+          "floor": { "$ref": "#/definitions/id" },
+          "kind": { "enum": ["door", "passage"] },
+          "position": { "$ref": "#/definitions/vec3" },
+          "along": { "$ref": "#/definitions/vec2" },
+          "facing": { "$ref": "#/definitions/vec2" },
+          "width": { "type": "number", "exclusiveMinimum": 0 },
+          "height": { "type": "number", "exclusiveMinimum": 0 },
+          "rooms": {
+            "description": "The room on the facing side, then the room behind. Null is outside.",
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": { "oneOf": [{ "$ref": "#/definitions/id" }, { "type": "null" }] }
+          }
+        }
+      }
+    },
+    "lights": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "floor", "room", "kind", "position"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "$ref": "#/definitions/id" },
+          "floor": { "$ref": "#/definitions/id" },
+          "room": { "oneOf": [{ "$ref": "#/definitions/id" }, { "type": "null" }] },
+          "kind": { "enum": ["ceiling", "wall", "standing"] },
+          "position": { "$ref": "#/definitions/vec3" }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "id": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]*$" },
+    "vec2": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
+    "vec3": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
+    "ring": { "type": "array", "minItems": 3, "items": { "$ref": "#/definitions/vec2" } }
+  }
+}

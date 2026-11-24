@@ -1,8 +1,10 @@
 #pragma once
 
 #include "BlenderJob.h"
+#include "BuildFinish.h"
 #include "BuildGeometry.h"
 #include "BuildProblem.h"
+#include "Choices.h"
 #include "Collision.h"
 #include "GeneratorBuild.h"
 #include "MaterialSlots.h"
@@ -53,7 +55,15 @@ using Json = nlohmann::ordered_json;
 //                "slab": slab, "stairs": [stair, ...], "roofs": [roof, ...],
 //                "collision": [{"target": {"kind": "walls", "id": "f1"},
 //                               "pieces": [{"outline": [[x, y], ...], "bottom": 0.0, "top": 3.0}]}, ...],
-//                "generator_items": [generator item, ...]}]}
+//                "generator_items": [generator item, ...],
+//                "trim": [trim, ...], "dressing": [prop, ...], "lights": [light, ...]}]}
+//   The last three are left out when empty, and an opening carries "asset" only when a catalog door or window is
+//   fitted (schema/blender-job-finish.schema.json):
+//   trim: {"kind", "plan_id", "object": "SM_<floor>_Skirting", "plynth_kind": "trim", "slot", "material",
+//          "sweeps": [{"closed", "sections": [[[x, y, z], ...], ...]}]}
+//   prop: {"id": "<room>_d01", "room", "rule", "host", "asset", "location": [x, y, z], "rotation_z", "size"}
+//   light: {"id", "kind", "location": [x, y, z], "power", "color": [r, g, b]}
+//   opening asset: {"id", "location": [x, y, z], "rotation_z", "scale": [x, y, z]}
 //   ring: {"points": [[x, y], ...],
 //          "edges": [{"wall": "w1", "side": "right", "room": "r1", "material": "white_paint",
 //                     "slot": "Living_Wall"}, ...]}
@@ -171,6 +181,9 @@ struct BuildSettings {
 //   opening_does_not_fit (error, the opening is not cut; the message is checkOpeningFit's),
 //   room_not_closed (error, no floor or ceiling), missing_asset (error, the item is left out),
 //   asset_broken (error, the asset is Broken or its asset.blend is gone; the item is left out),
+//   missing_asset and asset_broken also for an opening's catalog door or window (error; object the opening; it
+//   gets the fill Plynth builds), stretched_frame (warning, a named door or window needs more than
+//   kMaxOpeningAssetStretch), trim_profile_missing (warning, the square profile was used; object the floor),
 //   no_library (error, no library is set or it cannot open; every item is left out, object empty),
 //   and every other itemProblemName (warnings: no_room, outside_room, overlaps_item, overlaps_wall,
 //   overlaps_opening, off_wall, too_tall, size_changed),
@@ -216,6 +229,7 @@ struct BuildAssetState {
     bool broken = false;             // AssetState::Broken, or asset.blend is not there
     std::string problem;             // why, when broken
     std::vector<BuildAssetMaterial> materials; // AssetInfo::materialMaps; empty before the asset is refreshed
+    std::optional<ItemSize> size;    // the measured size, for fitting it into an opening; empty when unknown
 };
 
 // Says what the library has for an asset id. Empty when the asset is not in the library.
@@ -381,6 +395,8 @@ struct BuildPlan {
     // the library counts as empty, so no item is dropped silently. Without an assets source there is no library:
     // no_library and no items of either kind.
     GeneratorBuildPlan generators;
+    // Trim, catalog doors and windows, set dressing and lights, one entry per entry of floors (BuildFinish.h).
+    std::vector<FloorFinish> finish;
 
     bool operator==(const BuildPlan&) const = default;
 };
@@ -401,9 +417,14 @@ struct BuildPlan {
 BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets,
                         const BuildMaterialSource& materials = {});
 
-// The same with the library's generators, and the add-on cache when it matches the build's Blender.
+// The same with the library's generators, and the add-on cache when it matches the build's Blender. Every floor
+// also gets its trim (Trim.h, skipped inside the stair footprints and holes), its lights, and the catalog door or
+// window an opening's frame names. With choices, rectangular doors and windows with autoFrame and no frame get a
+// fitting catalog asset (OpeningAssets.h) and every room with dressing on gets its props (Dressing.h), both by
+// the project's variation seed; the assets they use go into assets like the items'.
 BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, const BuildMaterialSource& materials,
-                        const GeneratorLibrary* generators, const std::optional<AddonCache>& addons);
+                        const GeneratorLibrary* generators, const std::optional<AddonCache>& addons,
+                        const BuildChoices* choices = nullptr);
 
 // A problem in its file form: {"code", "severity", "message", "floor", "object", "step"}, with null for an
 // empty floor or object. The worker's result, build.json and "plynth build --check" all use it.

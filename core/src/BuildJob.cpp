@@ -403,9 +403,92 @@ Json collisionJson(const std::vector<CollisionShape>* shapes)
     return list;
 }
 
+// The trim of a floor as the worker reads it, one entry per kind.
+Json finishTrimJson(const FloorFinish& finish)
+{
+    Json list = Json::array();
+    const auto sweepsJson = [](const std::vector<Sweep>& all) {
+        Json sweeps = Json::array();
+        for (const Sweep& s : all) {
+            Json sections = Json::array();
+            for (const auto& section : s.sections) sections.push_back(xyzList(section));
+            sweeps.push_back(Json{{"closed", s.closed}, {"sections", std::move(sections)}});
+        }
+        return sweeps;
+    };
+    for (const TrimBuild& t : finish.trim) {
+        Json sweeps = Json::array();
+        for (const Sweep& s : t.sweeps) {
+            Json sections = Json::array();
+            for (const auto& section : s.sections) sections.push_back(xyzList(section));
+            sweeps.push_back(Json{{"closed", s.closed}, {"sections", std::move(sections)}});
+        }
+        Json entry = Json::object();
+        entry["kind"] = std::string(trimKindName(t.kind));
+        entry["plan_id"] = finish.floor;
+        entry["object"] = trimObjectName(finish.floor, t.kind);
+        entry["plynth_kind"] = "trim";
+        entry["slot"] = finish.trimSlot;
+        entry["material"] = textOrNull(finish.trimMaterial);
+        entry["sweeps"] = std::move(sweeps);
+        list.push_back(std::move(entry));
+    }
+    for (const StairRailing& r : finish.railings) {
+        Json entry = Json::object();
+        entry["kind"] = r.kind;
+        entry["plan_id"] = r.stair;
+        entry["object"] = railingObjectName(r);
+        entry["plynth_kind"] = r.kind;
+        entry["slot"] = finish.railingSlot;
+        entry["material"] = textOrNull(finish.railingMaterial);
+        entry["sweeps"] = sweepsJson(r.sweeps);
+        list.push_back(std::move(entry));
+    }
+    return list;
+}
+
+// The set dressing props of a floor at its level as the worker reads them, numbered per room.
+Json finishDressingJson(const FloorFinish& finish, double elevation)
+{
+    Json list = Json::array();
+    std::map<Id, int> numbers;
+    for (const DressingPlacement& p : finish.dressing) {
+        const int number = ++numbers[p.room];
+        std::string id = p.room + "_d" + (number < 10 ? "0" : "") + std::to_string(number);
+        const Vec2 world = planToWorld(p.position);
+        Json entry = Json::object();
+        entry["id"] = std::move(id);
+        entry["room"] = p.room;
+        entry["rule"] = p.rule;
+        entry["host"] = p.host;
+        entry["asset"] = p.asset;
+        entry["location"] = xyz({world.x, world.y, elevation + p.z});
+        entry["rotation_z"] = -p.rotation * 3.14159265358979323846 / 180.0;
+        entry["size"] = Json{{"width", p.size.width}, {"depth", p.size.depth}, {"height", p.size.height}};
+        list.push_back(std::move(entry));
+    }
+    return list;
+}
+
+// The lights of a floor as the worker reads them.
+Json finishLightsJson(const FloorFinish& finish)
+{
+    Json list = Json::array();
+    for (const LightBuild& l : finish.lights) {
+        Json entry = Json::object();
+        entry["id"] = l.id;
+        entry["kind"] = std::string(lightKindName(l.kind));
+        entry["location"] = xyz(l.location);
+        entry["power"] = l.power;
+        entry["color"] = xyz(kLightColour);
+        list.push_back(std::move(entry));
+    }
+    return list;
+}
+
 // One floor as the worker reads it.
 Json floorJson(const FloorBuild& f, const FloorMaterials* materials, const std::vector<CollisionShape>* collision,
-               const GeneratorFloorBuild* generators, const MaterialUsable& usable)
+               const GeneratorFloorBuild* generators, const MaterialUsable& usable, const FloorFinish* finish)
 {
     Json solids = Json::array();
     for (const WallSolid& s : f.wallSolids) {
@@ -422,7 +505,19 @@ Json floorJson(const FloorBuild& f, const FloorMaterials* materials, const std::
     Json openings = Json::array();
     for (std::size_t i = 0; i < f.openings.size(); ++i) {
         const bool known = materials && i < materials->openings.size();
-        openings.push_back(openingJson(f.openings[i], known ? materials->openings[i] : OpeningMaterialIds{}));
+        Json opening = openingJson(f.openings[i], known ? materials->openings[i] : OpeningMaterialIds{});
+        if (finish) {
+            for (const OpeningAssetPlacement& a : finish->openingAssets) {
+                if (a.opening != f.openings[i].id) continue;
+                Json asset = Json::object();
+                asset["id"] = a.build.asset;
+                asset["location"] = xyz(a.build.location);
+                asset["rotation_z"] = a.build.rotationZ;
+                asset["scale"] = xyz(a.build.scale);
+                opening["asset"] = std::move(asset);
+            }
+        }
+        openings.push_back(std::move(opening));
     }
     Json rooms = Json::array();
     for (std::size_t i = 0; i < f.rooms.size(); ++i) {
@@ -453,6 +548,9 @@ Json floorJson(const FloorBuild& f, const FloorMaterials* materials, const std::
     json["roofs"] = std::move(roofs);
     json["collision"] = collisionJson(collision);
     json["generator_items"] = generators ? generatorJobItems(*generators, usable) : Json::array();
+    if (finish && (!finish->trim.empty() || !finish->railings.empty())) json["trim"] = finishTrimJson(*finish);
+    if (finish && !finish->dressing.empty()) json["dressing"] = finishDressingJson(*finish, f.elevation);
+    if (finish && !finish->lights.empty()) json["lights"] = finishLightsJson(*finish);
     return json;
 }
 
@@ -875,6 +973,10 @@ void finishSlots(BuildPlan& plan, const SlotNamer& namer)
             fix(roof.glazingSlot, kGlassSlot, roof.glazing, "Glass");
         }
     }
+    for (FloorFinish& finish : plan.finish) {
+        if (!finish.trim.empty()) fix(finish.trimSlot, kTrimSlot, finish.trimMaterial, "Trim");
+        if (!finish.railings.empty()) fix(finish.railingSlot, kRailingSlot, finish.railingMaterial, "Railing");
+    }
     std::sort(table.begin(), table.end(), [](const BuildSlot& a, const BuildSlot& b) { return a.name < b.name; });
     plan.materialSlots = std::move(table);
 }
@@ -919,8 +1021,11 @@ BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, 
 
 // Works out the build plan of a project with the library's generators.
 BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, const BuildMaterialSource& materials,
-                        const GeneratorLibrary* generators, const std::optional<AddonCache>& addons)
+                        const GeneratorLibrary* generators, const std::optional<AddonCache>& addons,
+                        const BuildChoices* choices)
 {
+    const std::uint32_t seed = project.settings.variation.seed;
+    static const std::vector<AssetChoice> noChoices;
     BuildPlan plan;
     MaterialChecker checker(materials);
     SlotNamer namer;
@@ -1074,6 +1179,74 @@ BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, 
         for (const RoofProblem& problem : roofs.problems) {
             plan.problems.push_back(checkProblem(problem.code, BuildSeverity::Warning, problem.message, floor.id, problem.object));
         }
+        FloorFinish finish;
+        finish.floor = floor.id;
+        {
+            std::vector<WorldPolygon> atFloor = floorHoles;
+            atFloor.insert(atFloor.end(), ceilingHoles.begin(), ceilingHoles.end());
+            finish.trim = trimBuild(floor, build, project.settings.trim, atFloor, ceilingHoles);
+            for (const TrimBuild& t : finish.trim) {
+                if (!t.profileMissing) continue;
+                const std::string kind(trimKindName(t.kind));
+                plan.problems.push_back(checkProblem("trim_profile_missing", BuildSeverity::Warning,
+                                                     "The " + kind + " profile " + trimStyle(project.settings.trim, t.kind).profile +
+                                                         " is not installed, so the square profile is used.",
+                                                     floor.id, floor.id));
+            }
+            if (!finish.trim.empty()) {
+                finish.trimMaterial = checker.use(surfaceDefaultMaterial(project, Surface::Trim), floor.id);
+                finish.trimSlot = namer.use(std::string(kTrimSlot), finish.trimMaterial, "Trim");
+            }
+        }
+        for (const OpeningBuild& built : build.openings) {
+            const Opening* opening = findOpening(floor, built.id);
+            if (!opening || !assets) continue;
+            const std::vector<AssetChoice>& offered = choices ? choices->assets : noChoices;
+            const std::optional<std::string> chosen = chooseOpeningAsset(*opening, opening->autoFrame && choices, offered, seed);
+            if (!chosen) continue;
+            const std::optional<BuildAssetState> state = assets(*chosen);
+            if (!state || state->broken) {
+                std::string message = "Opening " + opening->id + " names the asset " + *chosen;
+                if (!state) message += ", which is not in the library";
+                else message += ", which is broken" + (state->problem.empty() ? std::string() : ": " + state->problem);
+                message += ", so it gets the fill Plynth builds.";
+                plan.problems.push_back(checkProblem(state ? "asset_broken" : "missing_asset", BuildSeverity::Error, message,
+                                                     floor.id, opening->id));
+                continue;
+            }
+            ItemSize size{built.width, kOpeningFrameWidth, built.height};
+            if (state->size) {
+                size = *state->size;
+            } else {
+                for (const AssetChoice& c : offered) {
+                    if (c.id == *chosen) size = c.size;
+                }
+            }
+            if (opening->frame && openingAssetStretch(*opening, size) > kMaxOpeningAssetStretch + 1e-9) {
+                plan.problems.push_back(checkProblem("stretched_frame", BuildSeverity::Warning,
+                                                     "The asset " + *chosen + " is stretched more than 10 percent to fill opening " +
+                                                         opening->id + ".",
+                                                     floor.id, opening->id));
+            }
+            const OpeningRooms sides = openingRooms(floor, *opening);
+            const bool outsideOnRight = !(sides.right && !sides.left);
+            finish.openingAssets.push_back({built.id, openingAssetBuild(built, level, *chosen, size, outsideOnRight)});
+            used.emplace(*chosen, BuildAsset{*chosen, state->blendFile, state->materials});
+        }
+        if (choices && assets) {
+            for (const RoomBuild& built : build.rooms) {
+                const Room* room = findRoom(floor, built.id);
+                if (!room || !room->dressing) continue;
+                for (DressingPlacement& prop : dressRoom(floor, *room, choices->assets, seed)) {
+                    const std::optional<BuildAssetState> state = assets(prop.asset);
+                    if (!state || state->broken) continue;
+                    used.emplace(prop.asset, BuildAsset{prop.asset, state->blendFile, state->materials});
+                    finish.dressing.push_back(std::move(prop));
+                }
+            }
+        }
+        finish.lights = floorLights(floor, level);
+        plan.finish.push_back(std::move(finish));
         plan.floorMaterials.push_back(floorMaterials(project, floor, build, checker, namer));
         plan.collision.push_back(floorCollision(floor, build));
         if (ringFaults.any()) {
@@ -1085,6 +1258,29 @@ BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, 
         plan.floors.push_back(std::move(build));
     }
     while (nextProblem < made.problems.size()) plan.problems.push_back(made.problems[nextProblem++]);
+
+    // Railings and guards need every floor, so they come once all floors are worked out.
+    for (StairRailing& railing : stairRailings(project.plan, project.settings.trim, levels)) {
+        const auto index = floorIndex(project.plan, railing.floor);
+        if (!index || *index >= plan.finish.size()) continue;
+        FloorFinish& finish = plan.finish[*index];
+        if (railing.profileMissing) {
+            plan.problems.push_back(checkProblem("trim_profile_missing", BuildSeverity::Warning,
+                                                 "The railing profile " + project.settings.trim.railing.profile +
+                                                     " is not installed, so the square profile is used.",
+                                                 railing.floor, railing.stair));
+        }
+        if (finish.railings.empty()) {
+            finish.railingMaterial = checker.use(surfaceDefaultMaterial(project, Surface::Railing), railing.floor);
+            finish.railingSlot = namer.use(std::string(kRailingSlot), finish.railingMaterial, "Railing");
+        }
+        CollisionShape shape;
+        shape.kind = railing.kind == "guard" ? CollisionTargetKind::Guard : CollisionTargetKind::Railing;
+        shape.id = railing.stair;
+        shape.pieces = railing.collision;
+        if (!shape.pieces.empty() && *index < plan.collision.size()) plan.collision[*index].push_back(std::move(shape));
+        finish.railings.push_back(std::move(railing));
+    }
     plan.generators = std::move(made);
     for (auto& [id, asset] : used) plan.assets.push_back(std::move(asset));
     const bool noLibrary = std::any_of(plan.problems.begin(), plan.problems.end(),
@@ -1202,8 +1398,10 @@ Json makeBuildJob(const Project& project, const BuildPlan& plan, const BuildSett
         const std::vector<CollisionShape>* collision = index < plan.collision.size() ? &plan.collision[index] : nullptr;
         const auto generators = std::find_if(plan.generators.floors.begin(), plan.generators.floors.end(),
                                              [&f](const GeneratorFloorBuild& g) { return g.floor == f.id; });
+        const auto finish = std::find_if(plan.finish.begin(), plan.finish.end(), [&f](const FloorFinish& x) { return x.floor == f.id; });
         floors.push_back(floorJson(f, it == plan.floorMaterials.end() ? nullptr : &*it, collision,
-                                   generators == plan.generators.floors.end() ? nullptr : &*generators, usable));
+                                   generators == plan.generators.floors.end() ? nullptr : &*generators, usable,
+                                   finish == plan.finish.end() ? nullptr : &*finish));
     }
     params["floors"] = std::move(floors);
     return makeBlenderJob(kBuildTask, jobId, resultFile, std::move(params));

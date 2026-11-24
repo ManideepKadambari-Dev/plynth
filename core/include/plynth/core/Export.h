@@ -72,6 +72,18 @@ struct ExportKitReport {
     long long triangles = 0;
 };
 
+// The gameplay data file of an export (GameplayData.h), written by core when the export options switch it on:
+// export/<Stem>_gameplay.json. An export with the switch off removes an old one; a blocked export leaves it.
+inline constexpr std::string_view kGameplayFileSuffix = "_gameplay.json";
+
+struct ExportGameplayReport {
+    bool enabled = false;         // the project's export options switch it on
+    std::filesystem::path file;   // absolute; empty unless written
+    int rooms = 0;
+    int doors = 0;
+    int lights = 0;
+};
+
 enum class ExportStage {
     Preparing, // "preparing": the exporter's groups, the last build's report and materials, the job
     Blender,   // "blender": the worker runs; step, index and count come from it
@@ -121,6 +133,7 @@ struct ExportReport {
     std::vector<std::string> emptyGroups;     // group ids that got no object and were not written
     std::vector<std::string> groupNotes;      // group edits that no longer apply (ExportGroupsApplied::notes)
     ExportKitReport kit;
+    ExportGameplayReport gameplay;
 
     bool passed() const;      // no check failed
     int failCount() const;

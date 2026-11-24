@@ -1,14 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "urn:plynth:schema:project:5",
-  "title": "Plynth project settings, version 5",
-  "description": "The project.json file in a project folder. Lengths are in metres. Older files are upgraded when read: version 1 (project.v1.schema.json) gets defaults with the built-in sizes, version 2 (project.v2.schema.json) gets wall_item_centre 1.2, version 3 (project.v3.schema.json) gets materials with the built-in defaults, version 4 (project.v4.schema.json) gets the roof, flat_roof and stair materials.",
+  "$id": "urn:plynth:schema:project:6",
+  "title": "Plynth project settings, version 6",
+  "description": "The project.json file in a project folder. Lengths are in metres. Older files are upgraded when read: version 1 (project.v1.schema.json) gets defaults with the built-in sizes, version 2 (project.v2.schema.json) gets wall_item_centre 1.2, version 3 (project.v3.schema.json) gets materials with the built-in defaults, version 4 (project.v4.schema.json) gets the roof, flat_roof and stair materials, version 5 (project.v5.schema.json) gets the trim and railing materials and trim and variation with their defaults.",
   "type": "object",
   "required": ["format", "version", "name"],
   "additionalProperties": false,
   "properties": {
     "format": { "const": "plynth-project" },
-    "version": { "const": 5 },
+    "version": { "const": 6 },
     "name": { "type": "string", "minLength": 1 },
     "export_mode": {
       "description": "single gives one FBX for the whole building, grouped gives one FBX per group.",
@@ -67,12 +67,40 @@
         "handle": { "description": "Door handles.", "$ref": "#/definitions/optionalName", "default": "brushed_steel" },
         "roof": { "description": "The covering of pitched roofs: gable, hip, shed and sawtooth.", "$ref": "#/definitions/optionalName", "default": "roof_tiles" },
         "flat_roof": { "description": "The covering of flat roofs.", "$ref": "#/definitions/optionalName", "default": "concrete" },
-        "stair": { "description": "Steps, landings and the column of a spiral stair.", "$ref": "#/definitions/optionalName", "default": "oak_planks" }
+        "stair": { "description": "Steps, landings and the column of a spiral stair.", "$ref": "#/definitions/optionalName", "default": "oak_planks" },
+        "trim": { "description": "Skirting boards, cornices, casings and sills.", "$ref": "#/definitions/optionalName", "default": "painted_wood" },
+        "railing": { "description": "Stair railings and guards.", "$ref": "#/definitions/optionalName", "default": "brushed_steel" }
+      },
+      "default": {}
+    },
+    "trim": {
+      "description": "How each kind of trim is made. A missing field takes its default: skirting classic 0.10 by 0.015, cornice cove 0.08 by 0.08, casing bevel 0.07 by 0.018, sill rounded 0.03 by 0.04, railing round 0.05 by 0.05, railing_height 0.9.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "skirting": { "$ref": "#/definitions/trimStyle" },
+        "cornice": { "$ref": "#/definitions/trimStyle" },
+        "casing": { "$ref": "#/definitions/trimStyle" },
+        "sill": { "$ref": "#/definitions/trimStyle" },
+        "railing": { "$ref": "#/definitions/trimStyle" },
+        "railing_height": { "type": "number", "minimum": 0.5, "maximum": 1.5, "default": 0.9 }
+      },
+      "default": {}
+    },
+    "variation": {
+      "description": "The seed of the build's variation. Seed 0 builds the plan as marked.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "seed": { "type": "integer", "minimum": 0, "maximum": 4294967295, "default": 0 },
+        "furniture": { "type": "boolean", "default": true },
+        "materials": { "type": "boolean", "default": true }
       },
       "default": {}
     }
   },
   "definitions": {
+    "trimStyle": { "type": "object", "additionalProperties": false, "properties": { "enabled": { "type": "boolean", "default": true }, "profile": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 64 }, "height": { "type": "number", "minimum": 0.005, "maximum": 0.5 }, "depth": { "type": "number", "minimum": 0.005, "maximum": 0.5 } } },
     "optionalName": {
       "oneOf": [
         { "type": "string", "pattern": "^[A-Za-z0-9_-]+$", "maxLength": 128 },

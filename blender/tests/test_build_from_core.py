@@ -33,7 +33,8 @@ def materials_problems(data):
 TARGET_NAMES = {"walls": "SM_%(floor)s_Walls", "floor": "SM_%(floor)s_%(id)s_Floor",
                 "ceiling": "SM_%(floor)s_%(id)s_Ceiling", "thresholds": "SM_%(floor)s_Thresholds",
                 "slab": "SM_%(floor)s_Slab", "stair": "SM_%(floor)s_%(id)s_Stair",
-                "roof": "SM_%(floor)s_Roof_%(index)02d"}
+                "roof": "SM_%(floor)s_Roof_%(index)02d", "railing": "SM_%(floor)s_%(id)s_Railing",
+                "guard": "SM_%(floor)s_%(id)s_Guard"}
 
 
 # Returns the UCX object names the job's collision lists ask for, in order.

@@ -17,6 +17,7 @@ struct DeleteSet {
     std::vector<Id> walls;
     std::vector<Id> points;
     std::vector<Id> stairs;    // stairs named in the list, removed first (RemoveStairCommand)
+    std::vector<Id> lights;    // light markers named in the list, removed with them (RemoveLightCommand)
 };
 
 // A delete command ready to run, or the reason it cannot be built.

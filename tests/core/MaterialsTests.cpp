@@ -30,7 +30,7 @@ Wall& wall(Project& p, const std::string& id)
 }
 
 TEST_CASE("the surfaces have names that read back", "[core][materials]") {
-    REQUIRE(allSurfaces().size() == 12);
+    REQUIRE(allSurfaces().size() == 14);
     for (const Surface s : allSurfaces()) {
         REQUIRE(surfaceFromName(surfaceName(s)) == s);
     }
@@ -309,6 +309,7 @@ TEST_CASE("materialsUsed is sorted and has no repeats", "[core][materials]") {
 
     setMaterialDefault(p.settings.materials, Surface::Glass, std::nullopt);
     setMaterialDefault(p.settings.materials, Surface::Door, std::nullopt);
+    setMaterialDefault(p.settings.materials, Surface::Trim, std::nullopt);
     const std::vector<std::string> fewer = materialsUsed(p);
     REQUIRE(std::find(fewer.begin(), fewer.end(), "clear_glass") == fewer.end());
     REQUIRE(std::find(fewer.begin(), fewer.end(), "painted_wood") == fewer.end());
@@ -630,4 +631,30 @@ TEST_CASE("materialsUsed includes stair and roof materials only where they are u
     REQUIRE(std::is_sorted(used.begin(), used.end()));
     p.plan.floors[0].stairs[0].material.reset();
     REQUIRE(listHas(materialsUsed(p), "stair_stone"));
+}
+
+TEST_CASE("materialsUsed includes trim and railing only where they are built", "[core][materials]") {
+    Project p = splitRoomProject();
+    setMaterialDefault(p.settings.materials, Surface::Trim, "oak_trim");
+    setMaterialDefault(p.settings.materials, Surface::Railing, "black_steel");
+    REQUIRE(listHas(materialsUsed(p), "oak_trim"));
+    REQUIRE_FALSE(listHas(materialsUsed(p), "black_steel"));
+    for (TrimKind kind : {TrimKind::Skirting, TrimKind::Cornice, TrimKind::Casing, TrimKind::Sill}) {
+        trimStyle(p.settings.trim, kind).enabled = false;
+    }
+    REQUIRE_FALSE(listHas(materialsUsed(p), "oak_trim"));
+
+    Floor f2;
+    f2.id = "f2";
+    p.plan.floors.push_back(f2);
+    Stair stair;
+    stair.id = "s1";
+    p.plan.floors[0].stairs.push_back(stair);
+    REQUIRE(listHas(materialsUsed(p), "black_steel"));
+    p.settings.trim.railing.enabled = false;
+    REQUIRE_FALSE(listHas(materialsUsed(p), "black_steel"));
+    REQUIRE(surfaceName(Surface::Trim) == "trim");
+    REQUIRE(surfaceFromName("railing") == Surface::Railing);
+    REQUIRE(MaterialDefaults{}.trim == std::optional<std::string>("painted_wood"));
+    REQUIRE(MaterialDefaults{}.railing == std::optional<std::string>("brushed_steel"));
 }

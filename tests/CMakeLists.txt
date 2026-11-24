@@ -101,6 +101,23 @@ add_executable(plynth_core_tests
     core/GrayImageTests.cpp
     core/OrthogonalDetectorTests.cpp
     core/DetectionPerfTests.cpp
+    core/FinishHeadersTests.cpp
+    core/SeededChoiceTests.cpp
+    core/AssetSupportsTests.cpp
+    core/TrimProfileTests.cpp
+    core/GameplayDataTests.cpp
+    core/OpeningAssetsTests.cpp
+    core/DressingTests.cpp
+    core/TrimTests.cpp
+    core/VariationTests.cpp
+    core/FinishFormatTests.cpp
+    core/BuildFinishTests.cpp
+    core/LightCommandTests.cpp
+    core/GameplayExportTests.cpp
+    core/StairRailingsTests.cpp
+    core/BuildResolveTests.cpp
+    core/VariationCopiesTests.cpp
+    core/AssetSupportsInfoTests.cpp
     core/ZipListingTests.cpp
     core/FabZipTests.cpp
     core/FabImporterTests.cpp

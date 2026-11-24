@@ -9,7 +9,9 @@
 #include "panels/RightPanel.h"
 
 #include <plynth/core/Build.h>
+#include <plynth/core/Export.h>
 #include <plynth/core/ExportGroups.h>
+#include <plynth/core/Exporter.h>
 
 #include <QAction>
 #include <QDesktopServices>
@@ -161,6 +163,10 @@ void MainWindow::updateExportUi()
     if (doc_.hasFolder()) {
         const plynth::ExportOptionsRead options = plynth::readExportOptions(doc_.folder());
         state.kitEnabled = options.status.ok() && options.options.kit.enabled;
+        state.gameplayEnabled = options.status.ok() && options.options.gameplay.enabled;
+        const std::string stem = plynth::exportFileStem(doc_.project().settings.name);
+        state.gameplayFile = QString::fromStdWString(
+            (plynth::exportFolder(doc_.folder()) / (stem + std::string(plynth::kGameplayFileSuffix))).make_preferred().wstring());
         if (!options.status.ok()) {
             state.optionsProblem = fromCore(options.status.message);
             state.optionsRepairable = options.status.code != plynth::ErrorCode::UnsupportedVersion;

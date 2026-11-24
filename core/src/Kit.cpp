@@ -367,6 +367,7 @@ std::vector<Vec2> footprintOf(const OpeningBuild& o)
 struct OpeningInfo {
     OpeningBuild build;
     OpeningMaterialIds materials;
+    std::optional<OpeningAssetBuild> asset; // its catalog door or window, world coordinates
     std::vector<Vec2> footprint;
 };
 
@@ -961,6 +962,15 @@ KitPiece localPiece(const Cand& c, const FloorCtx& ctx, const Frame& f)
         }
         o.materials = info.materials;
         o.fill = ref.fill;
+        if (info.asset) {
+            OpeningAssetBuild local = *info.asset;
+            const Vec2 at = toLocal({local.location.x, local.location.y}, f);
+            local.location = {at.x, at.y, cleanValue(local.location.z - ctx.build->elevation)};
+            double turn = std::fmod(local.rotationZ - f.theta, 2.0 * 3.14159265358979323846);
+            if (turn < 0.0) turn += 2.0 * 3.14159265358979323846;
+            local.rotationZ = cleanValue(turn);
+            o.asset = std::move(local);
+        }
         p.openings.push_back(std::move(o));
     }
     normalize(p);
@@ -1026,7 +1036,12 @@ std::string serialize(const KitPiece& p)
           << key.hingeSide << ',' << key.swingSide << ',' << q(b.centre.x) << ',' << q(b.centre.y) << ',' << q(b.thickness) << ','
           << b.curved << ',' << k.fill << ',' << m.reveal << ',' << m.threshold << ',' << m.door << ',' << m.frame << ',' << m.glass
           << ',' << m.handle << ',' << m.revealSlot << ',' << m.thresholdSlot << ',' << m.doorSlot << ',' << m.frameSlot << ','
-          << m.glassSlot << ',' << m.handleSlot << '[';
+          << m.glassSlot << ',' << m.handleSlot;
+        if (k.asset) {
+            o << ",A" << k.asset->asset << ',' << q(k.asset->location.x) << ',' << q(k.asset->location.y) << ',' << q(k.asset->location.z)
+              << ',' << q(k.asset->rotationZ) << ',' << q(k.asset->scale.x) << ',' << q(k.asset->scale.y) << ',' << q(k.asset->scale.z);
+        }
+        o << '[';
         for (const Vec3& pt : key.cutter) o << q(pt.x) << ',' << q(pt.y) << ',' << q(pt.z) << ';';
         o << '/';
         for (const Vec2& pt : key.outline) o << q(pt.x) << ',' << q(pt.y) << ';';
@@ -1081,6 +1096,16 @@ bool sameOpening(const KitOpening& a, const KitOpening& b)
     if (kx.outline.size() != ky.outline.size()) return false;
     for (std::size_t i = 0; i < kx.outline.size(); ++i) {
         if (!nearV(kx.outline[i], ky.outline[i])) return false;
+    }
+    if (a.asset.has_value() != b.asset.has_value()) return false;
+    if (a.asset) {
+        const OpeningAssetBuild& p = *a.asset;
+        const OpeningAssetBuild& r = *b.asset;
+        if (p.asset != r.asset || !near(p.location.x, r.location.x) || !near(p.location.y, r.location.y) ||
+            !near(p.location.z, r.location.z) || !near(p.rotationZ, r.rotationZ) || !near(p.scale.x, r.scale.x) ||
+            !near(p.scale.y, r.scale.y) || !near(p.scale.z, r.scale.z)) {
+            return false;
+        }
     }
     const OpeningMaterialIds& m = a.materials;
     const OpeningMaterialIds& n = b.materials;
@@ -1387,6 +1412,11 @@ FloorCtx makeContext(const Project& project, const BuildPlan& plan, std::size_t 
         OpeningInfo info;
         info.build = ctx.build->openings[i];
         if (i < ctx.materials.openings.size()) info.materials = ctx.materials.openings[i];
+        if (index < plan.finish.size()) {
+            for (const OpeningAssetPlacement& a : plan.finish[index].openingAssets) {
+                if (a.opening == info.build.id) info.asset = a.build;
+            }
+        }
         info.footprint = footprintOf(info.build);
         ctx.openings.push_back(std::move(info));
     }

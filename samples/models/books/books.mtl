@@ -1,0 +1,9 @@
+# Materials of the sample books
+newmtl Red
+Kd 0.550000 0.120000 0.100000
+
+newmtl Blue
+Kd 0.120000 0.220000 0.450000
+
+newmtl Green
+Kd 0.150000 0.400000 0.200000

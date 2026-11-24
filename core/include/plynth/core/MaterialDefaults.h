@@ -24,6 +24,8 @@ enum class Surface {
     Roof,        // "roof": the covering of pitched roofs (gable, hip, shed, sawtooth); project format 5
     FlatRoof,    // "flat_roof": the covering of flat roofs; project format 5
     Stair,       // "stair": steps, landings and the column of a spiral stair; project format 5
+    Trim,        // "trim": skirting boards, cornices, casings and sills (Trim.h); project format 6
+    Railing,     // "railing": stair railings and guards; project format 6
 };
 
 // Every surface, in the order above.
@@ -47,7 +49,8 @@ inline constexpr std::string_view kSampleConcrete = "concrete";
 
 // The material each surface gets when the plan names none. Empty means no material: the build gives that
 // surface its neutral look. A new project, and a project file from before version 4, starts with the
-// sample materials shown here; a version 4 file gets the last three when it is read.
+// sample materials shown here; a version 4 file gets roof, flat_roof and stair when it is read, and a version 5
+// file gets trim and railing.
 struct MaterialDefaults {
     std::optional<std::string> wallInside = std::string(kSampleWhitePaint);
     std::optional<std::string> wallOutside = std::string(kSampleRedBrick);
@@ -61,6 +64,8 @@ struct MaterialDefaults {
     std::optional<std::string> roof = std::string(kSampleRoofTiles);
     std::optional<std::string> flatRoof = std::string(kSampleConcrete);
     std::optional<std::string> stair = std::string(kSampleOakPlanks);
+    std::optional<std::string> trim = std::string(kSamplePaintedWood);
+    std::optional<std::string> railing = std::string(kSampleBrushedSteel);
 
     bool operator==(const MaterialDefaults&) const = default;
 };

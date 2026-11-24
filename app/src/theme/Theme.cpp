@@ -109,6 +109,7 @@ bool Theme::load(const QString& resourcePath)
     itemLabelMinPixels_ = spacing["itemLabelMinPixels"].toInt(itemLabelMinPixels_);
     buildBarHeight_ = spacing["buildBarHeight"].toInt(buildBarHeight_);
     problemMarker_ = spacing["problemMarker"].toInt(problemMarker_);
+    lightMarker_ = spacing["lightMarker"].toInt(lightMarker_);
     qualityMark_ = spacing["qualityMark"].toInt(qualityMark_);
     markStroke_ = spacing["markStroke"].toDouble(markStroke_);
     previewButton_ = spacing["previewButton"].toInt(previewButton_);
