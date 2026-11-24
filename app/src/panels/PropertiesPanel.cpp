@@ -283,6 +283,18 @@ void PropertiesPanel::buildNothingPage()
         controller_.run(std::make_unique<plynth::SetGridSizeCommand>(gridSpin_->value()));
     });
 
+    exportModeCombo_ = addComboRow(grid, tr("Export mode"),
+                                   tr("Single FBX writes one file. Grouped FBX writes one file for each group, which you "
+                                      "review in the Export tab. Changing it does not make the build out of date."),
+                                   QStringLiteral("panel-export-mode"));
+    exportModeCombo_->addItem(tr("Single FBX"), static_cast<int>(plynth::ExportMode::Single));
+    exportModeCombo_->addItem(tr("Grouped FBX"), static_cast<int>(plynth::ExportMode::Grouped));
+    connect(exportModeCombo_, &QComboBox::activated, this, [this](int index) {
+        const auto mode = static_cast<plynth::ExportMode>(exportModeCombo_->itemData(index).toInt());
+        if (!refreshing_ && mode != document_.project().settings.exportMode)
+            controller_.run(std::make_unique<plynth::SetExportModeCommand>(mode));
+    });
+
     wallCentreSpin_ = addKeyedSpinRow(grid, tr("Wall item centre"), 0.05, 100.0, 0.05,
                                       tr("Height of the middle of a newly mounted wall item, such as a TV. It is saved with the project."),
                                       QStringLiteral("panel-wall-item-centre"));
@@ -1599,6 +1611,11 @@ void PropertiesPanel::refreshNothing()
     }
     scaleHint_->setVisible(!scaleHint_->text().isEmpty());
     setSpin(gridSpin_, document_.project().settings.gridSize);
+    {
+        const int index = exportModeCombo_->findData(static_cast<int>(document_.project().settings.exportMode));
+        const QSignalBlocker blocker(exportModeCombo_);
+        exportModeCombo_->setCurrentIndex(index);
+    }
     const plynth::Floor* floor = controller_.floor();
     const bool otherFloor = floor != nullptr && floor->id != shownFloorId_;
     if (floor != nullptr)

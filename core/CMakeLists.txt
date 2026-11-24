@@ -25,6 +25,7 @@ add_library(plynth_core STATIC
     src/catalog/AssetMaterials.cpp
     src/catalog/BuiltInCatalog.cpp
     src/catalog/Database.cpp
+    src/IdSource.cpp
     src/Plan.cpp
     src/Project.cpp
     src/ProjectJson.cpp
@@ -64,6 +65,9 @@ add_library(plynth_core STATIC
     src/PackPolicy.cpp
     src/PackRead.cpp
     src/PackWrite.cpp
+    src/ExportGroups.cpp
+    src/ExportEditGuard.cpp
+    src/Kit.cpp
     src/openings/OpeningShapes.cpp
     src/openings/ShapeFiles.cpp
     src/commands/FloorCommands.cpp

@@ -36,6 +36,7 @@ A project is one folder:
 MyApartment/
   project.json      settings, export mode, grid size
   plan.json         all marks
+  export-options.json  your group edits and the modular kit switch (only once you change one)
   plans/            floor1.png, floor2.png
   build/            building.blend, building.fbx, build.json, blender.log
   export/           FBX files, Textures/, reports
@@ -1024,7 +1025,7 @@ The texture paths in the file point into your library. If you move the library, 
 
 ## Exporting for Unreal
 
-Exporting turns the last build into one FBX file that Unreal can import, with its textures and its collision shapes. It does not build. It takes `build\building.blend` as it is, hand edits included, so build first.
+Exporting turns the last build into FBX files that Unreal can import, with their textures and collision shapes. A single project writes one file. A grouped project writes one file for each group (see "Grouped export"). It does not build. It takes `build\building.blend` as it is, hand edits included, so build first.
 
 **To export**, open the **Export** tab in the right panel, press **Export** or Ctrl+E, or use **Build > Export**. First the quality checks run (see "The quality gate"). If none failed, the files are written. If the project has not been built, the tab says "Build the project first." and has a **Build** button.
 
@@ -1036,7 +1037,9 @@ The export runs in the background with a progress bar and a **Cancel** button. I
 
 Everything goes into the project's `export` folder:
 
-- `<Name>.fbx`, named after the project. A project called "My Flat 2" gives `My_Flat_2.fbx`. Walls, floors, ceilings, slabs, stairs, roofs, doors, windows and furniture are all in it. The collision shapes go in the same file.
+- A single project: `<Name>.fbx`, named after the project. A project called "My Flat 2" gives `My_Flat_2.fbx`. Walls, floors, ceilings, slabs, stairs, roofs, doors, windows and furniture are all in it. The collision shapes go in the same file.
+- A grouped project: one FBX for each group, named `<Name>_<Group>.fbx`, for example `My_Flat_2_Walls.fbx`. See "Grouped export".
+- With the modular kit switched on: `<Name>_Kit.fbx` and `<Name>_Kit_layout.json`. See "Modular kit".
 - `Textures`, the images the FBX uses and no others. The names are `T_<Material>_<Channel>`, for example `T_OakPlanks_BaseColor.jpg` and `T_OakPlanks_Normal.png`. A surface with no material gets a plain image named after its slot.
 - `export_report.json`, the report of the last export. It lists the checks, the files and the time.
 
@@ -1044,13 +1047,99 @@ The FBX holds only relative texture paths. You can copy or move the whole `expor
 
 **Open folder** in the Export tab, or **Build > Open export folder**, shows the folder in Explorer. The folder can be deleted at any time. A new export replaces the old files. An export that is blocked by a failed check leaves the old files exactly as they were, so check the time in the tab to know which export is on disk.
 
-The Export tab shows the last export: when it ran, how long it took, the result, the number of objects, triangles and collision meshes, and the file paths. If the plan changed after the last build, the "Build is up to date" check fails. Build again, then export.
-
-Grouped projects cannot be exported yet. The tab says "Grouped export is not available yet." and the buttons are greyed. Set the project's export mode back to single to export.
+The Export tab shows the last export: when it ran, how long it took, the result, the number of objects, triangles and collision meshes, and the file paths. A grouped export lists each file with its group's name. If the plan changed after the last build, the "Build is up to date" check fails. Build again, then export.
 
 ### Export anyway
 
 When a check fails, the tab says "Export blocked: 2 checks failed." and shows **Export anyway...**. Pressing it asks first. If you confirm, the files are written even though the checks failed. The report records that the export was forced and names the failed checks it went past, so you can see later what was ignored. Warnings never block an export.
+
+### Export mode
+
+A project exports in one of two modes:
+
+- **Single FBX**: one file for the whole building. Import it once and everything is in place.
+- **Grouped FBX**: one file for each group of things, such as the walls, the floors, and the furniture of each room. See "Grouped export".
+
+You choose the mode when you make the project, and you can change it at any time. With nothing selected, open **Properties** and set **Export mode** in the project section. It is one undo step, like the grid size. Changing it does not make the build out of date, so you do not have to build again. Your group edits stay in the project when you switch back to single, and are used again when you switch to grouped.
+
+From the command line the same change is `plynth project set --export grouped` (or `single`).
+
+A single project shows one line in the Export tab: "Single FBX: one file. Switch to grouped in Properties > Project."
+
+### Grouped export
+
+A grouped export writes several FBX files instead of one. Every file uses the building's own origin, so when you bring them all into the same spot in Unreal they line up with no manual placing.
+
+**The automatic groups.** Plynth makes these for you:
+
+| Group | File ends with | What is in it |
+|---|---|---|
+| Walls | `_Walls.fbx` | The walls of every floor, and the door and window parts. It also takes anything Plynth cannot place, such as an object you added by hand in `building.blend`. |
+| Floors | `_Floors.fbx` | Every room's floor and ceiling, the door thresholds, and every slab, stair and roof. Lights go here too once the plan has them. |
+| Furniture, one for each room | `_Furniture_Living.fbx` | The furniture of one room, named by the room type. Two rooms of one type get the room id added to the name, so their files stay apart. |
+| Furniture | `_Furniture.fbx` | Furniture that is not in any room. Only made when there is some. |
+
+A group with nothing in it is not written. A collision shape always goes into the same file as the thing it belongs to.
+
+**The groups come from the last build.** The list is made from the plan as it was when you last built, because that is what is in `building.blend`. After you change the plan and build again, the groups are made again from the new plan.
+
+**Reviewing the groups.** Open the **Export** tab. For a grouped project it has a **Groups** section below the Export and Check buttons, followed by the modular kit tick box:
+
+- One row for each group, with its name, its file name and how many members it holds. Open a row to see its members, such as "Floor of Living r1" or "Window o3".
+- The group that takes anything left over (Walls, at first) says "Also takes anything added by hand".
+- A group with no members says "Not written: nothing in it".
+- Before the first build the section says "Build the project to see its groups."
+- While a command line session has the project open, the list is read only (see "When the command line is editing").
+
+**Editing the groups.** The edits are kept in the project, so every later export uses them:
+
+- **Rename.** Double click a group or press F2. The file is renamed too, and the old file is removed at the next export. A name uses English letters (A to Z, a to z), digits, spaces, hyphens and underscores only, with at least one letter or digit, up to 64 characters. Two groups cannot have the same name.
+- **Merge.** Right click a group and choose **Merge into**, then the group that should take its members. The first group goes away.
+- **Move a member.** Right click a member and choose **Move to**, then a group or **New group...**. Or drag the member onto a group.
+- **New group.** The **New group...** button makes an empty group. Move members into it.
+- **Reset groups.** The button asks first, then throws away every edit and goes back to the automatic groups. The kit switch is not touched. If `export-options.json` is damaged, **Reset groups** also repairs it: the old file is kept beside it as `export-options.json.bad`.
+
+A refused edit shows its reason in amber under the list. Group edits are export settings, not plan changes, so they have no undo. Use **Reset groups** to go back.
+
+**What happens to edits when the plan changes.** Plynth keeps an edit as what you did (move this item to that group, merge these two groups), not as a finished list. After a new build it makes the automatic groups again and applies your edits in this order: new groups, merges, moves, renames. An edit that no longer fits, for example a move of a sofa you have since deleted, is skipped. A line in amber above the list says which one and why, for example "Group furniture_r9 is gone, so its new name was not used." Nothing else breaks.
+
+**File names.** A file is called `<Project>_<Group name>.fbx`, with anything other than letters, digits, `_` and `-` turned into `_`. A project "My Flat" with a group "Lounge props" gives `My_Flat_Lounge_props.fbx`. If two names would give the same file, the second gets `_2`.
+
+**The checks run over all the files together.** The new **Groups** check fails when an object of the building belongs to no group, so nothing is left out in silence, and warns about a group that gets no object. The FBX scale check reads every file back and compares the walls' size over all of them.
+
+### Modular kit
+
+The modular kit is an optional extra of either export mode. Instead of one large mesh of walls, it gives you the few unique wall pieces the building is made of, each once, and a layout file that says where each copy goes. In Unreal you can place the pieces yourself, reuse them in other levels or build new walls from them.
+
+To switch it on, tick **Also write the modular kit** in the Export tab. From the command line it is `plynth export kit on`. The kit needs the library, because its pieces use the same material slot names as the building. Without one the export goes on without the kit and the Export tab says "No library is set, so the kit was left out." in amber. A plan with no walls gives no kit. The kit uses the custom opening shapes of its library. If an opening cannot be built, the kit is left out and the tab says why, in amber; the rest of the export still goes ahead. After an export with the kit, the tab shows the kit file and the layout file, how many pieces there are and how many placements.
+
+**What a piece is.** A piece is a short stretch of wall, cut so it can be used again. There are four kinds:
+
+- **Wall**: a straight stretch with nothing in it.
+- **Opening**: a stretch that holds a door or a window, with the hole cut and the door or window in it.
+- **Corner**: where walls meet, such as an L corner, a T junction or a cross. It has a cut face on each arm.
+- **Curved**: one piece for each curved wall.
+
+Floors, ceilings, thresholds, slabs, stairs, roofs and furniture are not in the kit.
+
+**How the walls are cut.** Each wall is cut on the project's grid (the grid size in Properties, 0.5 m at first). Plynth finds the places where walls meet and keeps them for the corner pieces. Between them it cuts the wall at every whole multiple of the grid, counted from the wall's lower end (the end with the smaller X, then the smaller Y, on the plan's world axes), not from where you started drawing. A door or window is never cut through. If a grid line would fall inside an opening, that cut is dropped, so the opening sits inside one piece. Grid cuts that would leave a sliver under 5 cm are dropped, but a stretch between two junctions can still be shorter than that. A plain square room with 4 m walls, 0.2 m thick, on a 0.5 m grid gives one corner piece used four times and two wall pieces, 0.5 m and 0.4 m long, used between the corners.
+
+**The same piece is made once.** Two pieces are the same when their shape, materials, openings and heights match within a millimetre. A wall drawn from right to left gives the same piece as one drawn from left to right, and a corner matches when turned. A piece used many times is one mesh in the kit and many placements in the layout.
+
+**Names.** A piece is called `<Kind>_<length>x<height>x<thickness>_<hash>`, with the sizes in whole centimetres, for example `Wall_50x300x20_a1b2c3` (an example, not a real hash). The mesh in the FBX is `SM_Kit_` followed by that name. The hash comes from the piece's shape, so a piece keeps its name from one export to the next while it does not change. Its collision meshes are `UCX_SM_Kit_<name>_<number>`.
+
+**Cut faces are not rounded.** The building's wall edges are slightly rounded (bevelled). The faces where one piece is cut from the next are left sharp, so two pieces placed side by side meet with no groove.
+
+**Each piece has its own origin.** In the kit FBX every piece sits at its own origin, so they overlap in the file. Import it with **Combine Meshes** off, and each piece becomes its own static mesh. A wall, opening or curved piece has its origin at floor level at one end of the piece, with X along it. Which end depends on the piece's shape and not on the way the wall was drawn, so always place pieces by the layout's `location` and `rotation_z_degrees`. A corner has its origin at the plan point where its walls meet. Its X runs along one of those walls.
+
+**The layout file.** `<Name>_Kit_layout.json` lists the floors with their grid, every piece (`id`, `mesh`, `kind`, `length`, `height`, `thickness`, `count`) and every placement. A placement has the piece, its mesh, the floor, the wall or plan point it comes from, a `location` and a `rotation_z_degrees`. The coordinates are Blender's world: metres, X as the plan's x, Y as minus the plan's y, Z up from the first floor. That is the frame every exported FBX is written in. A rotation is in degrees about Z, turning anticlockwise seen from above, from 0 up to but not including 360. The shape of the file is in `schema/kit-layout.schema.json`.
+
+**Placing the pieces in Unreal.** This is advice. Plynth does not run Unreal, and the kit was not tried there. Two things differ:
+
+- Unreal counts in centimetres, so multiply every `location` by 100.
+- Unreal's axes are not Blender's. The FBX import turns the model to suit Unreal, and the layout numbers have to be turned the same way. Expect the Y sign to flip, so a placement at (x, y, z) would go to (x*100, -y*100, z*100) and the turn would go the other way, -rotation_z_degrees. Treat this as a first guess.
+
+To check the signs, import the walls file (or the single file) and the kit file with the same import settings, place one corner piece and one wall piece from the layout, and see whether they sit on the walls. If they are mirrored or turned, change the signs once. The same signs then hold for every placement, because every file shares one origin.
 
 ## The quality gate
 
@@ -1069,8 +1158,10 @@ The checks look at the real objects that go into the FBX. The Export tab lists t
 | Texture sharpness | How many pixels of texture each metre of surface gets. A warning below half the median of the building or below 256 pixels per metre. A fail below a quarter of the median. | Use a bigger texture, or a smaller tile size, for the material the finding names. |
 | Triangle counts | A mesh with no triangles fails. A warning above 1,000,000 triangles in one mesh or 10,000,000 in all. | Remove the empty mesh, or use lighter furniture. |
 | Materials and textures | Every mesh has materials, every slot has a real material, every image file exists, and every base color is an image. An unassigned material blocks the export. | Pick a material for the surface. |
-| Collision | Every wall, floor, slab, stair, roof and furniture item has a `UCX_` mesh, and each one is closed and convex. Ceilings, door leaves and window glass need none. | Build again. |
-| FBX scale | After writing, Plynth reads the FBX back and checks the walls' size and the object count. Skipped when nothing was written. | Report it. It means the file is wrong. |
+| Collision | Every wall, floor, slab, stair, roof, furniture item and kit piece has a `UCX_` mesh, and each one is closed and convex. Ceilings, door leaves and window glass need none. | Build again. |
+| Groups | Every object of the building belongs to a group, so no file leaves anything out. A group with no object is a warning, since its file is not written. | Move the object into a group. |
+| FBX scale | After writing, Plynth reads the FBX files back and checks the walls' size over all of them and the object count. Skipped when nothing was written. | Report it. It means the file is wrong. |
+| Modular kit | After writing, Plynth reads the kit file back. Every piece must be there once, with no move, turn or scale, and have collision. Skipped when the kit is off or was not written. | Report it. It means the kit file is wrong. |
 
 A ceiling set to "No material" fails the Materials check. Choose a material for it, or use **Export anyway...** if you want it plain.
 
@@ -1121,13 +1212,13 @@ The same names are used in `building.blend` and in `building.fbx`. Builds from e
 
 ## Importing into Unreal
 
-This is advice, since Plynth does not run Unreal. Import `<Name>.fbx` with these settings in the import dialog:
+This is advice, since Plynth does not run Unreal. Import `<Name>.fbx` (or every group file, and the kit file if you wrote one) with these settings in the import dialog:
 
 - Turn **Combine Meshes** off, so each `SM_` mesh stays its own static mesh and picks up the `UCX_` collision that has its name.
 - Keep the `Textures` folder beside the FBX when you import, so Unreal finds the images.
 - Turn on **Generate Lightmap UVs** if you will use baked lighting. Plynth does not make a second UV set.
 
-Repeated furniture becomes separate meshes in the FBX. Ten identical chairs are ten meshes.
+Repeated furniture becomes separate meshes in the FBX. Ten identical chairs are ten meshes. The group files all share the building's origin, so import them at the same location and they line up. Placing the modular kit is described under "Modular kit".
 
 ## Furniture materials
 

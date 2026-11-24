@@ -53,6 +53,9 @@ bool openMaterialCatalogIfAny(const std::string& command, const RunContext& cont
 // never fails: a command that only needs shapes still works without a library.
 void registerLibraryShapes();
 
+// Registers the custom opening shapes of one library folder, once per folder in a process.
+void registerShapesOf(const LibraryPaths& paths);
+
 // Makes the room types in use the library's list when the settings name a working library, and the built-in
 // list otherwise.
 void useSettingsRoomTypes();

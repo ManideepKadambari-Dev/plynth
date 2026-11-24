@@ -60,6 +60,43 @@ def load_job(name):
         return json.load(handle)
 
 
+# Returns the three groups of the grouped tests: structure with the walls, openings and the rest, surfaces and
+# one furniture group of both sofas.
+def grouped_groups():
+    def group(group_id, name, members, rest=False):
+        entry = {"id": group_id, "file": "Square_%s.fbx" % name, "kinds": [], "ids": [], "name": name,
+                 "members": members}
+        if rest:
+            entry["rest"] = True
+        return entry
+
+    return [
+        group("structure", "Walls", [{"kind": "walls", "id": "f1"}, {"kind": "door", "id": "o1"},
+                                     {"kind": "window", "id": "o2"}], rest=True),
+        group("surfaces", "Floors", [{"kind": "floor", "id": "r1"}, {"kind": "ceiling", "id": "r1"},
+                                     {"kind": "thresholds", "id": "f1"}, {"kind": "slab", "id": None}]),
+        group("furniture_r1", "Furniture_Living", [{"kind": "item", "id": "i1"}, {"kind": "item", "id": "i2"}]),
+    ]
+
+
+# Returns the grouped groups plus one whose members match nothing.
+def groups_with_empty():
+    return grouped_groups() + [{"id": "lights", "file": "Square_Lights.fbx", "kinds": [], "ids": [],
+                                "name": "Lights", "members": [{"kind": "light", "id": None}]}]
+
+
+# Writes the grouped fixture job files of tests/data/export.
+def write_grouped_fixtures():
+    os.makedirs(DATA_FOLDER, exist_ok=True)
+    for name, groups in (("grouped_three", grouped_groups()), ("grouped_empty_group", groups_with_empty())):
+        params = job_params()
+        params["groups"] = groups
+        data = {"format": "plynth-blender-job", "version": 1, "task": "export", "job_id": "export-1",
+                "result_file": "result.json", "params": params}
+        with open(os.path.join(DATA_FOLDER, name + ".json"), "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(json.dumps(data, indent=1) + "\n")
+
+
 class FixtureBuilder(BuildTest):
     # Not a test. A BuildTest that builds the shared project once.
     def runTest(self):

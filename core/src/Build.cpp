@@ -254,12 +254,15 @@ fs::path buildFolder(const fs::path& projectFolder)
     return projectFolder / pathFromUtf8(kBuildFolderName);
 }
 
-// Sixteen hex digits that change when the plan or the project settings change.
+// Sixteen hex digits that change when the plan or the project settings change. The export mode is left out, so
+// switching it never makes a build out of date.
 std::string planFingerprint(const Project& project)
 {
+    ProjectSettings settings = project.settings;
+    settings.exportMode = ExportMode::Single;
     std::string text = planToJson(project.plan).dump();
     text += '\n';
-    text += settingsToJson(project.settings).dump();
+    text += settingsToJson(settings).dump();
     char out[17];
     std::snprintf(out, sizeof out, "%016llx", static_cast<unsigned long long>(fnv1a(text)));
     return out;
@@ -858,6 +861,16 @@ BuiltMaterialsRead readBuiltMaterials(const fs::path& projectFolder)
             if (mode == "opaque") built.alphaMode = AlphaMode::Opaque;
             else if (mode == "blend") built.alphaMode = AlphaMode::Blend;
             else throw std::string(where + "/alpha_mode");
+            if (m.contains("tile_size")) {
+                const Json& tile = m["tile_size"];
+                const auto number = [&](const char* key) -> double {
+                    if (!tile.is_object() || !tile.contains(key) || !tile[key].is_number() || !(tile[key].get<double>() > 0.0)) {
+                        throw std::string(where + "/tile_size/" + key);
+                    }
+                    return tile[key].get<double>();
+                };
+                built.tileSize = TileSize{number("width"), number("height")};
+            }
             result.materials.push_back(std::move(built));
         }
         const Json& objects = array(json, "objects");

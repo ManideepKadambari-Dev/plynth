@@ -1103,13 +1103,16 @@ void MainWindow::onDocumentChanged(unsigned changes)
     if (changes & (plynth::Change::Points | plynth::Change::Walls | plynth::Change::Rooms | plynth::Change::Openings | plynth::Change::Items | plynth::Change::Scale |
                    plynth::Change::Stairs | plynth::Change::FloorImage | plynth::Change::Floors | plynth::Change::Folder))
         refreshOverlay();
-    if (report_.has_value())
-        buildUiTimer_->start();
+    // Without a build report the export groups can still follow the plan, so the refresh never waits for one.
+    buildUiTimer_->start();
     validateSelection();
     wallView_->refresh();
     updateWallView();
     if (changes & plynth::Change::ReadOnly)
         updateReadOnlyUi();
+    // The lock and the export mode cannot wait for the timer. A change of folder refreshes further down.
+    if ((changes & (plynth::Change::ReadOnly | plynth::Change::Settings)) && !(changes & plynth::Change::Folder))
+        updateExportUi();
     floorTabs_->setEditable(!doc_.isReadOnly());
     updateAlignAction();
     tools_->documentChanged(changes);

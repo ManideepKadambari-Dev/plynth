@@ -25,6 +25,7 @@ add_executable(plynth_cli_tests
     StairCliTests.cpp
     RoofCliTests.cpp
     ExportCliTests.cpp
+    ExportGroupsCliTests.cpp
     MaterialCliTests.cpp
     MaterialCatalogCliTests.cpp
     MaterialImportCliTests.cpp
@@ -36,6 +37,8 @@ add_executable(plynth_cli_tests
     GapCliTests.cpp
     PackCliTests.cpp
     SessionKeeperTests.cpp
+    IdCliTests.cpp
+    IdTestListener.cpp
     TestSetup.cpp
     TestSupport.cpp
 )

@@ -240,7 +240,7 @@
               "output_folder": { "description": "An empty staging folder, export/.staging. The worker writes the group files and textures_folder into it.", "type": "string", "minLength": 1 },
               "textures_folder": { "const": "Textures" },
               "groups": {
-                "description": "The files to write, from the project's exporter. A UCX_ collision mesh goes into the file of the object it belongs to.",
+                "description": "The files to write, from the project's exporter. A UCX_ collision mesh goes into the file of the object it belongs to. An object goes to the group whose members name its kind and id, else the group whose members name its kind with a null id, else the first group without members whose kinds and ids take it, else the group with rest (core/include/plynth/core/Exporter.h). When any group has rest, a group with no members, kinds or ids takes nothing unless it is the rest group; when none has rest, such a group takes every object, as in a single export. A UCX_ mesh without its object is placed like an object with no kind and no id. Objects of kind kit never go into a group. A group that gets no object is not written.",
                 "type": "array",
                 "minItems": 1,
                 "items": {
@@ -250,15 +250,49 @@
                   "properties": {
                     "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
                     "file": { "type": "string", "pattern": "^[A-Za-z0-9_-]+\\.fbx$" },
-                    "kinds": { "description": "plynth_kind values the group takes; empty takes every kind.", "type": "array", "items": { "type": "string", "minLength": 1 } },
-                    "ids": { "description": "plynth_id values the group takes; empty takes every id.", "type": "array", "items": { "$ref": "#/definitions/planId" } }
+                    "kinds": { "description": "plynth_kind values the group takes; empty does not narrow by kind. Not used when members is not empty.", "type": "array", "items": { "type": "string", "minLength": 1 } },
+                    "ids": { "description": "plynth_id values the group takes; empty does not narrow by id. Not used when members is not empty.", "type": "array", "items": { "$ref": "#/definitions/planId" } },
+                    "name": { "description": "The group's name as the user sees it.", "type": "string", "minLength": 1, "maxLength": 64 },
+                    "members": { "description": "The objects the group takes. Missing or empty: kinds and ids decide. With those empty too, the group takes everything when no group has rest, and otherwise nothing except what rest gives it.", "type": "array", "items": { "$ref": "#/definitions/exportMember" } },
+                    "rest": { "description": "Takes every object no other group takes. At most one group has it. Missing means false.", "type": "boolean" }
                   }
                 }
               },
+              "kit": {
+                "description": "The modular kit to make and write (core/include/plynth/core/Kit.h), or null. Missing means null.",
+                "oneOf": [
+                  { "type": "null" },
+                  {
+                    "type": "object",
+                    "required": ["file", "fill_openings", "bevel", "pieces"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "file": { "type": "string", "pattern": "^[A-Za-z0-9_-]+_Kit\\.fbx$" },
+                      "fill_openings": { "description": "Put the door or window into the pieces listed in their fills.", "type": "boolean" },
+                      "bevel": {
+                        "description": "The build's bevel. Edges of faces with kit_cut are not bevelled.",
+                        "type": "object",
+                        "required": ["width", "segments"],
+                        "additionalProperties": false,
+                        "properties": {
+                          "width": { "type": "number", "minimum": 0 },
+                          "segments": { "type": "integer", "minimum": 1 }
+                        }
+                      },
+                      "pieces": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/kitPiece" } }
+                    }
+                  }
+                ]
+              },
               "materials": {
-                "description": "The materials list of build/materials.json (schema build-materials), so textures are named after their catalog material. Empty when the file is missing.",
+                "description": "The materials list of build/materials.json (schema build-materials), so textures are named after their catalog material. Empty when the file is missing. tile_size is the one the build used, from that file. Only for a catalog material without one there does core add the library's, when it can look it up. The kit's UVs are divided by it.",
                 "type": "array",
-                "items": { "type": "object" }
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "tile_size": { "$ref": "#/definitions/tileSize" }
+                  }
+                }
               },
               "expected_bounds": {
                 "description": "World bounds of every wall solid, worked out by core from the plan, for the scale checks. null when the plan has no walls.",
@@ -464,6 +498,61 @@
     },
     "unit": { "type": "number", "minimum": 0, "maximum": 1 },
     "planId": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]*$" },
+    "exportMember": {
+      "description": "One built object an export group takes: its plynth_kind and plynth_id. A null id takes every object of the kind that no exact member takes.",
+      "type": "object",
+      "required": ["kind", "id"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "id": { "oneOf": [{ "$ref": "#/definitions/planId" }, { "type": "null" }] }
+      }
+    },
+    "kitPiece": {
+      "description": "One unique piece of the modular kit in the one frame stored for it (core/include/plynth/core/Kit.h rules 8 and 9): origin at floor level, X along a wall in either direction (for a curved piece along its chord, world X for a corner with no plan point), Y a quarter turn anticlockwise from X seen from above, Z up. The origin is not always at the first end of the piece along its wall.",
+      "type": "object",
+      "required": ["id", "mesh", "kind", "wall_solids", "openings", "fills", "collision"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^(Wall|Corner|Opening|Curved)_[0-9]+x[0-9]+x[0-9]+_[0-9a-f]{6}$" },
+        "mesh": { "description": "SM_Kit_ and the id.", "type": "string", "pattern": "^SM_Kit_[A-Za-z0-9_]+$" },
+        "kind": { "enum": ["wall", "corner", "opening", "curved"] },
+        "wall_solids": {
+          "description": "The piece's solids, raised from z 0, in the form of a build floor's wall_solids.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["height", "top_material", "top_slot", "outline", "holes"],
+            "additionalProperties": false,
+            "properties": {
+              "height": { "type": "number", "exclusiveMinimum": 0 },
+              "top_material": { "$ref": "#/definitions/materialRef" },
+              "top_slot": { "$ref": "#/definitions/slotRef" },
+              "outline": { "$ref": "#/definitions/wallRing" },
+              "holes": { "type": "array", "items": { "$ref": "#/definitions/wallRing" } }
+            }
+          }
+        },
+        "openings": { "description": "Every opening whose cut reaches into the piece, in the piece's frame, with an empty threshold.", "type": "array", "items": { "$ref": "#/definitions/buildOpening" } },
+        "fills": { "description": "Ids of the openings whose door or window this piece gets.", "type": "array", "items": { "$ref": "#/definitions/planId" } },
+        "collision": {
+          "description": "Convex prisms in the piece's frame, named UCX_<mesh>_<NN> in this order.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["outline", "bottom", "top"],
+            "additionalProperties": false,
+            "properties": {
+              "outline": { "description": "Convex, anticlockwise seen from above.", "$ref": "#/definitions/points" },
+              "bottom": { "type": "number" },
+              "top": { "type": "number" }
+            }
+          }
+        }
+      }
+    },
     "xy": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
     "xyz": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
     "points": { "type": "array", "minItems": 3, "items": { "$ref": "#/definitions/xy" } },
@@ -492,11 +581,12 @@
             "required": ["wall", "side", "room", "material", "slot"],
             "additionalProperties": false,
             "properties": {
-              "wall": { "$ref": "#/definitions/planId" },
+              "wall": { "description": "The wall the face belongs to. null only on a kit_cut face, which lies between two pieces.", "oneOf": [{ "$ref": "#/definitions/planId" }, { "type": "null" }] },
               "side": { "description": "The face of the wall this edge belongs to, or null for an end face across the wall.", "enum": ["left", "right", null] },
               "room": { "description": "The room the face looks into, or null when it looks into no room.", "oneOf": [{ "$ref": "#/definitions/planId" }, { "type": "null" }] },
               "material": { "description": "The material of the face: the wall's inside material for its room, or its outside one when room is null.", "$ref": "#/definitions/materialRef" },
-              "slot": { "description": "<Room label>_Wall when room is set, Exterior_Wall otherwise (or the same with the material added, see MaterialSlots.h).", "$ref": "#/definitions/slotRef" }
+              "slot": { "description": "<Room label>_Wall when room is set, Exterior_Wall otherwise (or the same with the material added, see MaterialSlots.h).", "$ref": "#/definitions/slotRef" },
+              "kit_cut": { "description": "Kit pieces only: the face lies on a cut between two pieces; side and room are null and its edges are not bevelled. Missing means false.", "type": "boolean" }
             }
           }
         }

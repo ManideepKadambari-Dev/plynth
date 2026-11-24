@@ -93,12 +93,15 @@ const Stair* findStairAnywhere(const Plan& plan, std::string_view id)
     return nullptr;
 }
 
-// Says whether a text is a wall or room style id: the prefix letter and digits.
+// Says whether a text has the shape of an id with this prefix: the prefix, a digit, then letters and digits.
 bool looksLikeId(std::string_view text, std::string_view prefix)
 {
     if (text.size() <= prefix.size() || text.substr(0, prefix.size()) != prefix) return false;
-    for (char c : text.substr(prefix.size())) {
-        if (c < '0' || c > '9') return false;
+    const std::string_view rest = text.substr(prefix.size());
+    if (rest.front() < '0' || rest.front() > '9') return false;
+    for (char c : rest) {
+        const bool ok = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+        if (!ok) return false;
     }
     return true;
 }
@@ -412,20 +415,21 @@ MaterialTargetParse parseMaterialTarget(const Plan& plan, std::string_view text)
     }
 
     const Room* room = findRoomAnywhere(plan, head);
-    if (!room && looksLikeId(head, kWallIdPrefix)) {
-        out.status = fail(ErrorCode::NotFound, "There is no wall " + std::string(head) + ".");
-        return out;
-    }
-    if (!room && looksLikeId(head, kRoomIdPrefix)) {
-        out.status = fail(ErrorCode::NotFound, "There is no room " + std::string(head) + ".");
-        return out;
-    }
     if (!room) {
         std::vector<const Room*> matches;
         for (const Floor& floor : plan.floors) {
             for (const Room& candidate : floor.rooms) {
                 if (candidate.type && *candidate.type == head) matches.push_back(&candidate);
             }
+        }
+        // A room type comes before the id shape, so a type such as "r2d2" still finds its room.
+        if (matches.empty() && looksLikeId(head, kWallIdPrefix)) {
+            out.status = fail(ErrorCode::NotFound, "There is no wall " + std::string(head) + ".");
+            return out;
+        }
+        if (matches.empty() && looksLikeId(head, kRoomIdPrefix)) {
+            out.status = fail(ErrorCode::NotFound, "There is no room " + std::string(head) + ".");
+            return out;
         }
         if (matches.empty()) {
             out.status = fail(ErrorCode::NotFound, "There is no room or wall \"" + std::string(head) + "\".");

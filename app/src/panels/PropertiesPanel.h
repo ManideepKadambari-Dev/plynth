@@ -177,6 +177,7 @@ private:
     QLabel* scaleValue_ = nullptr;
     QLabel* scaleHint_ = nullptr;
     QDoubleSpinBox* gridSpin_ = nullptr;
+    QComboBox* exportModeCombo_ = nullptr;
     QLabel* pointCount_ = nullptr;
     QLabel* wallCount_ = nullptr;
     QLabel* roomCount_ = nullptr;
