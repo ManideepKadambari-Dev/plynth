@@ -50,7 +50,9 @@ namespace plynth {
 //                  base and the roof's underside along the section's outline
 //   hip      (30)  pitch, overhang. One plane per outline edge rising from it; a face is where its plane is the
 //                  lowest. Needs a convex section outline (after dropping points in line within 1e-3 m); other
-//                  sections fall back to gable
+//                  sections fall back to gable. Inner face points within 1e-4 m of each other, along a chain,
+//                  become one shared point (unless the group spreads over 2e-4 m), so a round room's faces meet
+//                  in one apex despite rounding in the outline. Points on the eaves never move.
 //   shed     (40)  pitch, direction (the way it falls), overhang. One plane; gable fills as for gable
 //   sawtooth (50)  pitch, direction (the ridges), overhang. Bays kSawtoothBaySpan wide across the direction, each
 //                  a plane rising across its bay, with a vertical glazed face at the high side of each bay

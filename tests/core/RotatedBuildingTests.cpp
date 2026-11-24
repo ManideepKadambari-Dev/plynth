@@ -1257,9 +1257,7 @@ TEST_CASE("a hip on a round room or a D bay keeps its apex", "[core][build][rota
     checkHipApex({2.0, 4.0, 0.0});
 }
 
-// Known flaw: at radius 10 one hip face of the 100 may stop 2.86e-5 m short of the apex, where the promise is
-// 2.4e-5 m. The spike rule drops a wedge's tip when a point next to it lies within w of its other edge.
-TEST_CASE("a hip on a round room of radius 10 keeps its apex", "[core][build][rotated][!mayfail]")
+TEST_CASE("a hip on a round room of radius 10 keeps its apex", "[core][build][rotated]")
 {
     checkHipApex({10.0});
 }

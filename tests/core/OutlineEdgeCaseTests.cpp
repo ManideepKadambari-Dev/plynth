@@ -1448,9 +1448,7 @@ TEST_CASE("edge cases a round hip of radius 4 keeps its apex", "[core][edges]")
     checkRoundHip(4.0);
 }
 
-// Known flaw: one hip face may stop 2.86e-5 m short of the apex, where the promise is 2.4e-5 m. The spike rule
-// drops a wedge's tip when a point next to it lies within w of its other edge.
-TEST_CASE("edge cases a round hip of radius 10 keeps its apex", "[core][edges][!mayfail]")
+TEST_CASE("edge cases a round hip of radius 10 keeps its apex", "[core][edges]")
 {
     checkRoundHip(10.0);
 }
