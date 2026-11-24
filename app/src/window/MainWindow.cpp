@@ -49,6 +49,7 @@
 #include <plynth/core/PlanImage.h>
 #include <plynth/core/ProjectFiles.h>
 #include <plynth/core/Resources.h>
+#include <plynth/core/Samples.h>
 #include <plynth/core/Version.h>
 #include <plynth/core/RoomTypes.h>
 #include <plynth/core/Rooms.h>
@@ -56,6 +57,7 @@
 #include <plynth/core/commands/DeleteCommands.h>
 #include <plynth/core/SetupCheck.h>
 #include <plynth/core/catalog/AssetImport.h>
+#include <plynth/core/catalog/AssetMaterials.h>
 #include <plynth/core/catalog/FabZip.h>
 #include <plynth/core/catalog/Integrations.h>
 #include <plynth/core/commands/FloorCommands.h>
@@ -80,6 +82,7 @@
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QEvent>
+#include <QDialog>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QIcon>
@@ -265,6 +268,10 @@ MainWindow::MainWindow(QWidget* parent)
     connect(home_, &HomeScreen::newFromImageRequested, this, &MainWindow::newProjectFromImage);
     connect(home_, &HomeScreen::openProjectRequested, this, &MainWindow::openProjectDialog);
     connect(home_, &HomeScreen::openRecentRequested, this, &MainWindow::openRecent);
+    connect(home_, &HomeScreen::openSampleProjectRequested, this, [this](const QString& id) {
+        if (confirmDiscardChanges())
+            openSampleProject(id);
+    });
     connect(home_, &HomeScreen::openSampleRequested, this, [this](const QString& file) {
         if (!confirmDiscardChanges())
             return;
@@ -344,6 +351,7 @@ MainWindow::MainWindow(QWidget* parent)
     connect(materials_, &MaterialsPanel::samplesRequested, this, &MainWindow::addSampleMaterials);
     connect(importMaterialsAction_, &QAction::triggered, this, &MainWindow::showMaterialImport);
     connect(addSamplesAction_, &QAction::triggered, this, &MainWindow::addSampleMaterials);
+    connect(addSampleItemsAction_, &QAction::triggered, this, &MainWindow::addSampleItems);
     connect(assets_, &AssetsPanel::addMaterialRequested, this, &MainWindow::addMaterialFromAsset);
     connect(materialRefresher_, &MaterialRefresher::busyChanged, this,
             [this]() { materials_->setBusyMaterials(materialRefresher_->busyIds()); });
@@ -387,6 +395,7 @@ MainWindow::MainWindow(QWidget* parent)
         importMaterialsAction_->setEnabled(materialsOpen);
         importFabAction_->setEnabled(open);
         addSamplesAction_->setEnabled(materialsOpen);
+        addSampleItemsAction_->setEnabled(materialsOpen);
         openGeneratorsAction_->setEnabled(open);
         reloadGeneratorsAction_->setEnabled(open);
         checkAddonsAction_->setEnabled(open);
@@ -499,6 +508,15 @@ void MainWindow::buildMenus()
                                   QStringLiteral("file-save-as"),
                                   {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S)});
     connect(saveAsAction_, &QAction::triggered, this, [this]() { saveDocumentAs(); });
+    file->addSeparator();
+    QAction* packAction = addMenuAction(file, tr("&Pack project..."),
+                                        tr("Copy the library items the project uses into its pack folder, to move it to another machine"),
+                                        QStringLiteral("project-pack"), {});
+    connect(packAction, &QAction::triggered, this, &MainWindow::packProjectDialog);
+    QAction* unpackAction = addMenuAction(file, tr("&Unpack into library..."),
+                                          tr("Copy the items of the project's pack into this machine's library"),
+                                          QStringLiteral("project-unpack"), {});
+    connect(unpackAction, &QAction::triggered, this, &MainWindow::unpackProjectDialog);
     file->addSeparator();
     QAction* exitAction = addMenuAction(file, tr("E&xit"), tr("Exit Plynth (Alt+F4)"),
                                         QStringLiteral("file-exit"), {QKeySequence(Qt::ALT | Qt::Key_F4)});
@@ -689,6 +707,10 @@ void MainWindow::buildMenus()
                                        tr("Open the built Blender file in Blender"),
                                        QStringLiteral("build-open-blender-action"), {});
     connect(openBlenderAction_, &QAction::triggered, this, &MainWindow::openInBlender);
+    save3dPictureAction_ = addMenuAction(build, tr("Save 3D &picture..."),
+                                         tr("Save a picture of the last build as the 3D view shows it, with its camera, roofs and cut"),
+                                         QStringLiteral("render-save"), {});
+    connect(save3dPictureAction_, &QAction::triggered, this, &MainWindow::save3dPicture);
     build->addSeparator();
     exportAction_ = addMenuAction(build, tr("&Export"), tr("Write the FBX and textures for Unreal (Ctrl+E)"),
                                   QStringLiteral("export-run-action"), {QKeySequence(Qt::CTRL | Qt::Key_E)});
@@ -787,6 +809,9 @@ void MainWindow::buildCatalogMenu()
     addSamplesAction_ = addMenuAction(menu, tr("Add the &sample materials"),
                                       tr("Import the nine sample materials that come with Plynth"),
                                       QStringLiteral("materials-samples-action"), {});
+    addSampleItemsAction_ = addMenuAction(menu, tr("Add the sample &items"),
+                                          tr("Add the sample models and materials with license CC0, and the sample shapes and generators"),
+                                          QStringLiteral("samples-add-action"), {});
     rescanMaterialsAction_ = addMenuAction(menu, tr("Rescan m&aterials"),
                                            tr("Read the materials folder again and update the index"),
                                            QStringLiteral("materials-rescan-action"), {});
@@ -878,6 +903,27 @@ void MainWindow::openSetupCheckIfNeeded()
     const plynth::SetupReport quick = plynth::quickSetupCheck(host_->settings(), host_->settingsExisted(), appGraphics());
     if (plynth::setupNeeded(quick))
         openSetupCheck();
+    runFirstRun(false);
+}
+
+// Waits for the setup check to close, then shows the plan view tour and remembers that it was shown.
+void MainWindow::runFirstRun(bool pretend)
+{
+    const bool first = pretend || (!host_->settingsExisted() && !host_->settings().tourDone);
+    if (!first || guide_ == nullptr)
+        return;
+    const auto start = [this]() {
+        connect(guide_, &GuideHost::tourFinished, this, [this](const QString&) {
+            if (!screenshotMode_)
+                host_->apply([](plynth::MachineSettings& settings) { settings.tourDone = true; });
+        }, Qt::SingleShotConnection);
+        if (!guide_->startTour(QStringLiteral("plan")) && !screenshotMode_)
+            host_->apply([](plynth::MachineSettings& settings) { settings.tourDone = true; });
+    };
+    if (setupDialog_)
+        connect(setupDialog_.data(), &QObject::destroyed, this, start);
+    else
+        QTimer::singleShot(0, this, start);
 }
 
 // For checks only: shows the Integrations tab.
@@ -935,6 +981,8 @@ QImage MainWindow::grabPicture()
     QWidget* shownDialog = nullptr;
     if (setupDialog_ && setupDialog_->isVisible())
         shownDialog = setupDialog_;
+    else if (checkPackDialog_ && checkPackDialog_->isVisible())
+        shownDialog = checkPackDialog_;
     else if (variationsDialog_ && variationsDialog_->isVisible())
         shownDialog = variationsDialog_;
     if (shownDialog != nullptr) {
@@ -1824,28 +1872,82 @@ void MainWindow::showMaterialImport()
     statusBar_->setHint(QString());
 }
 
-// Queues every folder of samples/materials, in the samples folder core finds.
+// Queues the sample materials, the same requests "plynth library add-sample-materials" runs.
 void MainWindow::addSampleMaterials()
 {
     if (!host_->hasLibrary())
         return;
-    const std::filesystem::path samples = plynth::resourceFolder(plynth::ResourceKind::Samples);
-    const QString folder = samples.empty() ? QString() : QString::fromStdWString((samples / L"materials").wstring());
-    if (folder.isEmpty() || !QFileInfo(folder).isDir()) {
+    const std::vector<plynth::MaterialImportRequest> requests = plynth::sampleMaterialRequests(plynth::sampleMaterialsFolder());
+    if (requests.empty()) {
         statusBar_->showMessage(tr("The sample materials folder was not found next to the program."));
         return;
     }
     materialImportAsked_ = true;
     right_->showTab(RightPanel::Tab::Materials);
-    int count = 0;
-    for (const QFileInfo& info : QDir(folder).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
-        plynth::MaterialImportRequest request;
-        request.source.file = std::filesystem::path(info.absoluteFilePath().toStdWString());
-        request.skipExisting = true;
+    for (const plynth::MaterialImportRequest& request : requests)
         materialQueue_->enqueueImport(request);
-        ++count;
+    statusBar_->showMessage(tr("Adding %1 sample materials.").arg(requests.size()), false);
+}
+
+// Queues the sample models the library does not have, the sample materials, and copies the shapes and generators.
+void MainWindow::addSampleItems()
+{
+    if (!host_->hasLibrary() || host_->catalog() == nullptr)
+        return;
+    const std::filesystem::path samples = plynth::resourceFolder(plynth::ResourceKind::Samples);
+    const plynth::SamplesRead read = samples.empty() ? plynth::SamplesRead{} : plynth::readSamples(samples);
+    if (samples.empty() || !read.status.ok()) {
+        statusBar_->showMessage(tr("The samples were not found next to the program."));
+        return;
     }
-    statusBar_->showMessage(tr("Adding %1 sample materials.").arg(count), false);
+    int queued = 0;
+    int skipped = 0;
+    for (const plynth::SampleAsset& asset : read.index.assets) {
+        if (host_->catalog()->idTaken(asset.id)) {
+            ++skipped;
+            continue;
+        }
+        plynth::ImportRequest request;
+        request.source.file = samples / plynth::pathFromUtf8(asset.file);
+        request.id = asset.id;
+        request.name = asset.name;
+        request.categories = asset.categories;
+        request.tags = asset.tags;
+        request.license = read.index.license;
+        request.keepOriginal = true;
+        queue_->enqueueRequest(request);
+        ++queued;
+    }
+    host_->addSampleShapes();
+    host_->addSampleGenerators();
+    addSampleMaterials();
+    statusBar_->showMessage(tr("Adding %1 sample models and the sample materials. %2 models were in the library already.")
+                                .arg(queued)
+                                .arg(skipped),
+                            false);
+}
+
+// Copies the sample into the projects folder under a free name and opens the copy.
+bool MainWindow::openSampleProject(const QString& id)
+{
+    const std::filesystem::path samples = plynth::resourceFolder(plynth::ResourceKind::Samples);
+    const QString projects = host_->projectsFolder();
+    if (samples.empty() || projects.isEmpty()) {
+        showError(tr("Open sample project"), tr("The samples or the projects folder were not found. Run the setup check."));
+        return false;
+    }
+    const plynth::SampleCopy copy = plynth::copySampleProject(samples, id.toStdString(), std::filesystem::path(projects.toStdWString()));
+    if (!copy.status.ok()) {
+        showError(tr("Open sample project"), fromCore(copy.status.message));
+        return false;
+    }
+    QString error;
+    if (!openProject(QString::fromStdWString(copy.projectFolder.wstring()), &error)) {
+        showError(tr("Open sample project"), error);
+        return false;
+    }
+    showWork();
+    return true;
 }
 
 // For checks only: adds a path to the import screen list.
@@ -1887,19 +1989,20 @@ void MainWindow::materialImportFinished(bool ok, const QString& materialId, cons
     }
 }
 
-// Takes one material of an asset asset.blend into the materials catalog.
+// Takes one material of an asset asset.blend into the materials catalog, keeping the asset's source and license,
+// the same request "plynth materials from-asset" makes.
 void MainWindow::addMaterialFromAsset(const QString& assetId, const QString& materialName)
 {
     if (!host_->hasLibrary() || host_->catalog() == nullptr)
         return;
-    const std::optional<plynth::AssetRecord> record = host_->catalog()->asset(assetId.toStdString());
-    if (!record)
+    const plynth::AssetMaterialRequest made =
+        plynth::assetMaterialRequest(host_->paths(), assetId.toStdString(), materialName.toUtf8().toStdString());
+    if (!made.status.ok()) {
+        statusBar_->showMessage(fromCore(made.status.message));
         return;
-    plynth::MaterialImportRequest request;
-    request.source.file = record->folder / "asset.blend";
-    request.blendMaterial = materialName.toUtf8().toStdString();
+    }
     materialImportAsked_ = true;
-    materialQueue_->enqueueImport(request);
+    materialQueue_->enqueueImport(made.request);
     statusBar_->showMessage(tr("Adding the material %1 to the materials catalog.").arg(materialName), false);
 }
 

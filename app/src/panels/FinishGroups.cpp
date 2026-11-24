@@ -109,7 +109,7 @@ TrimGroup::TrimGroup(plynth::Document& document, ToolController& controller, QGr
     connect(railingHeight_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
         if (refreshing_)
             return;
-        plynth::TrimSettings trim = document_.project().trim;
+        plynth::TrimSettings trim = document_.project().settings.trim;
         trim.railingHeight = value;
         if (!controller_.run(std::make_unique<plynth::SetTrimCommand>(trim)).ok())
             refresh();
@@ -172,13 +172,13 @@ void TrimGroup::edit(const KindRow& row)
 {
     if (refreshing_)
         return;
-    plynth::TrimSettings trim = document_.project().trim;
+    plynth::TrimSettings trim = document_.project().settings.trim;
     plynth::TrimStyle& style = plynth::trimStyle(trim, row.kind);
     style.enabled = row.on->isChecked();
     style.profile = row.profile->currentData().toString().toStdString();
     style.height = row.height->value();
     style.depth = row.depth->value();
-    if (trim == document_.project().trim)
+    if (trim == document_.project().settings.trim)
         return;
     if (!controller_.run(std::make_unique<plynth::SetTrimCommand>(trim)).ok())
         refresh();
@@ -188,7 +188,7 @@ void TrimGroup::edit(const KindRow& row)
 void TrimGroup::refresh()
 {
     refreshing_ = true;
-    const plynth::TrimSettings& trim = document_.project().trim;
+    const plynth::TrimSettings& trim = document_.project().settings.trim;
     const bool editable = !document_.isReadOnly();
     const std::vector<const plynth::TrimProfile*> profiles = plynth::allTrimProfiles();
     for (const KindRow& row : rows_) {
@@ -271,22 +271,22 @@ VariationGroup::VariationGroup(plynth::Document& document, ToolController& contr
 
     editors_ = {seed_, randomize_, furniture_, materials_};
     connect(seed_, &QSpinBox::valueChanged, this, [this](int value) {
-        plynth::VariationSettings settings = document_.project().variation;
+        plynth::VariationSettings settings = document_.project().settings.variation;
         settings.seed = static_cast<std::uint32_t>(value);
         edit(settings);
     });
     connect(randomize_, &QPushButton::clicked, this, [this]() {
-        plynth::VariationSettings settings = document_.project().variation;
+        plynth::VariationSettings settings = document_.project().settings.variation;
         settings.seed = static_cast<std::uint32_t>(QRandomGenerator::global()->bounded(1, INT_MAX));
         edit(settings);
     });
     connect(furniture_, &QCheckBox::clicked, this, [this](bool on) {
-        plynth::VariationSettings settings = document_.project().variation;
+        plynth::VariationSettings settings = document_.project().settings.variation;
         settings.furniture = on;
         edit(settings);
     });
     connect(materials_, &QCheckBox::clicked, this, [this](bool on) {
-        plynth::VariationSettings settings = document_.project().variation;
+        plynth::VariationSettings settings = document_.project().settings.variation;
         settings.materials = on;
         edit(settings);
     });
@@ -296,7 +296,7 @@ VariationGroup::VariationGroup(plynth::Document& document, ToolController& contr
 // Runs SetVariationCommand when the settings changed. The controls go back to the project on a refusal.
 void VariationGroup::edit(plynth::VariationSettings settings)
 {
-    if (refreshing_ || settings == document_.project().variation)
+    if (refreshing_ || settings == document_.project().settings.variation)
         return;
     if (!controller_.run(std::make_unique<plynth::SetVariationCommand>(settings)).ok())
         refresh();
@@ -306,7 +306,7 @@ void VariationGroup::edit(plynth::VariationSettings settings)
 void VariationGroup::refresh()
 {
     refreshing_ = true;
-    const plynth::VariationSettings& variation = document_.project().variation;
+    const plynth::VariationSettings& variation = document_.project().settings.variation;
     {
         const QSignalBlocker blocker(seed_);
         seed_->setValue(static_cast<int>(std::min<std::uint32_t>(variation.seed, INT_MAX)));

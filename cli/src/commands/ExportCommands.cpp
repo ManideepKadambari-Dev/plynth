@@ -1,5 +1,6 @@
 #include "../CatalogCommon.h"
 #include "../Common.h"
+#include "../SessionKeeper.h"
 
 #include <plynth/core/Blender.h>
 #include <plynth/core/Export.h>
@@ -155,7 +156,8 @@ Answer exportProject(const RunContext& context, const ExportArgs& options) {
         }
         lastStage = step.stage;
     };
-    const ExportReport report = runExport(request, onProgress);
+    const SessionKeeper keeper(folder);
+    const ExportReport report = runExport(request, onProgress, stopToken(context));
     if (!report.status.ok()) {
         return failure(command, report.status);
     }
@@ -399,6 +401,9 @@ Answer exportDispatch(const RunContext& context, const ExportArgs& args) {
     if (what[0] == "report" && what.size() == 1) {
         return exportReport("export", args, context);
     }
+    if (what[0] == "cancel" && what.size() == 1 && plain) {
+        return cancelRunning("export", context, args.project);
+    }
     if (what[0] == "groups" && plain) {
         if (what.size() == 1) {
             return groupsList(args, context);
@@ -412,7 +417,7 @@ Answer exportDispatch(const RunContext& context, const ExportArgs& args) {
         return optionSwitch(what, args, context);
     }
     return badArguments("export", "bad_arguments",
-                        "Unknown form of 'export'. Use: export, export report, export groups, export groups "
+                        "Unknown form of 'export'. Use: export, export report, export cancel, export groups, export groups "
                         "rename|merge|move|new|reset, export kit, export kit on|off, export gameplay, export "
                         "gameplay on|off.");
 }
@@ -425,7 +430,7 @@ std::vector<CommandSpec> exportCommands() {
     spec.description =
         "Export the last build as FBX files for Unreal behind the quality checks. "
         "With --check, only run the checks. With --force, export past failed checks. "
-        "'export report' shows the last export report. "
+        "'export report' shows the last export report and 'export cancel' stops a running export. "
         "'export groups' lists the files a grouped export writes. "
         "'export groups rename <group> --name <text>', 'export groups merge <group> --into <group>', "
         "'export groups move <kind>:<id> --to <group>' (<kind>:* for every object of a kind), "
@@ -435,7 +440,7 @@ std::vector<CommandSpec> exportCommands() {
     spec.setup = [](CLI::App& sub) -> Handler {
         auto options = std::make_shared<ExportArgs>();
         sub.add_option("what", options->what,
-                       "Nothing to export; 'report'; 'groups' with rename, merge, move, new or reset and its "
+                       "Nothing to export; 'report'; 'cancel'; 'groups' with rename, merge, move, new or reset and its "
                        "group or member; 'kit' or 'gameplay' with on or off.")
             ->expected(0, 3);
         addProjectOption(sub, options->project);

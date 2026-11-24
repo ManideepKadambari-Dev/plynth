@@ -91,6 +91,9 @@ Status initLibrary(const std::filesystem::path& root);
 inline constexpr std::string_view kSamplesVariable = "PLYNTH_SAMPLES";
 std::filesystem::path sampleShapesFolder();
 
+// The sample materials folder (samples/materials), found the same way. Empty when none exists.
+std::filesystem::path sampleMaterialsFolder();
+
 struct SampleShapesCopy {
     Status status;                   // NotFound when from does not exist, CannotWrite
     std::vector<std::string> copied;  // file names copied into shapes/

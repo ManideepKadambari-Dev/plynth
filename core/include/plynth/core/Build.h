@@ -71,6 +71,8 @@ using Json = nlohmann::ordered_json;
 inline constexpr std::string_view kBuildReportFileName = "build.json";
 inline constexpr std::string_view kBuiltPlanFileName = "built-plan.json";
 inline constexpr std::string_view kBuildLockFileName = "build.lock";
+// Written by requestCancel; a running build or export stops when it appears (BuildLockFiles.h).
+inline constexpr std::string_view kBuildCancelFileName = "cancel.request";
 inline constexpr std::string_view kBuildReportFormat = "plynth-build-report";
 inline constexpr int kBuildReportVersion = 1;
 
@@ -160,6 +162,12 @@ struct BuildReport {
 // failed or not. Blocks; the app runs it on a worker thread and passes stop for its Cancel button.
 BuildReport runBuild(const BuildRequest& request, const std::function<void(const BuildProgress&)>& onProgress = {},
                      std::stop_token stop = {});
+
+// Asks the build or the export running on a project, in this process or another, to stop: writes
+// build/cancel.request, which the running job watches. False, writing nothing, when no live lock says one runs.
+// The app's Cancel button, "plynth build cancel" and "plynth export cancel" all end up here or at the job's
+// own stop token.
+bool requestCancel(const std::filesystem::path& projectFolder);
 
 // The report in the form of schema/build-report.schema.json. Paths are absolute, UTF-8, forward slashes.
 Json buildReportToJson(const BuildReport& report);

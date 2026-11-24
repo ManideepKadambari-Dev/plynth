@@ -26,6 +26,9 @@ class ModelView : public QQuickWidget {
     Q_PROPERTY(double orthoScale READ orthoScale CONSTANT)
     Q_PROPERTY(bool transparent READ transparent CONSTANT)
     Q_PROPERTY(int preset READ presetIndex NOTIFY presetChanged)
+    Q_PROPERTY(bool customAngle READ customAngle NOTIFY presetChanged)
+    Q_PROPERTY(double angleYaw READ angleYaw NOTIFY presetChanged)
+    Q_PROPERTY(double anglePitch READ anglePitch NOTIFY presetChanged)
     Q_PROPERTY(QString emptyText READ emptyText NOTIFY emptyTextChanged)
     Q_PROPERTY(QString failure READ failure NOTIFY stateChanged)
     Q_PROPERTY(QVariantList builtMaterials READ builtMaterials NOTIFY materialsChanged)
@@ -96,6 +99,12 @@ public:
     void clearModel(const QString& emptyText);
     void setPreset(Preset preset);
     Preset preset() const { return preset_; }
+    // Puts the camera at this yaw and pitch in degrees instead of a named view, then frames the model. A later
+    // setPreset goes back to the named view.
+    void setAngle(double yaw, double pitch);
+    bool customAngle() const { return customAngle_; }
+    double angleYaw() const { return angleYaw_; }
+    double anglePitch() const { return anglePitch_; }
     // Frames the whole model again.
     void fit();
 
@@ -138,6 +147,9 @@ private:
     QVector3D boundsMin_;
     QVector3D boundsMax_{1.0f, 1.0f, 1.0f};
     Preset preset_ = Preset::ThreeQuarter;
+    bool customAngle_ = false;
+    double angleYaw_ = 45.0;
+    double anglePitch_ = 25.0;
     QString emptyText_;
     QString error_;
     State state_ = State::Empty;

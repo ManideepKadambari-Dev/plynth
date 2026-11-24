@@ -1,3 +1,4 @@
+#include "../ErrorList.h"
 #include "../Registry.h"
 
 #include <string>
@@ -44,7 +45,8 @@ void collect(const CLI::App& app, const std::string& prefix, Json& commands) {
     }
 }
 
-// Answers with every command and its options, read from the command tree so it never goes stale.
+// Answers with every command and its options, read from the command tree so it never goes stale, and with
+// every error and exit code.
 Answer helpAnswer(const RunContext& context) {
     Json commands = Json::array();
     if (context.root != nullptr) {
@@ -52,6 +54,8 @@ Answer helpAnswer(const RunContext& context) {
     }
     Json result = Json::object();
     result["commands"] = std::move(commands);
+    result["error_codes"] = errorCodesJson();
+    result["exit_codes"] = exitCodesJson();
     return success("help", std::move(result));
 }
 
@@ -60,7 +64,7 @@ Answer helpAnswer(const RunContext& context) {
 std::vector<CommandSpec> helpCommands() {
     CommandSpec spec;
     spec.words = {"help"};
-    spec.description = "List every command with its options.";
+    spec.description = "List every command with its options, and every error and exit code.";
     spec.setup = [](CLI::App&) -> Handler { return helpAnswer; };
     return {spec};
 }
