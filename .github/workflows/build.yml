@@ -286,6 +286,8 @@ jobs:
             'ran=false' | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
             exit 0
           }
+          # The script runs no program, so the exit code is reset first: an unset one would read as a failure.
+          $global:LASTEXITCODE = 0
           & $script -Package "$env:GITHUB_WORKSPACE/out/package/plynth" -OutFolder "$env:GITHUB_WORKSPACE/out/notice-inputs"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           'ran=true' | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
