@@ -41,9 +41,10 @@ on:
 permissions:
   contents: read
 
-# A branch push and a gate on the same branch do not cancel each other.
+# A newer push cancels an older push of the same branch and mode. Every manual run has a group of its own,
+# so it never cancels another run and is never cancelled by one.
 concurrency:
-  group: build-${{ github.ref }}-${{ (github.ref == 'refs/heads/main' || github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && inputs.config != 'debug')) && 'gate' || 'debug' }}
+  group: build-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && format('dispatch-{0}', github.run_id) || ((github.ref == 'refs/heads/main' || github.ref_type == 'tag') && 'gate' || 'debug') }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref_type != 'tag' }}
 
 env:
