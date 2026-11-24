@@ -159,9 +159,9 @@ TEST_CASE("the automatic groups of a project", "[core][exportgroups]") {
                                                         {"railing", ""}, {"guard", ""}});
 
     CHECK(groups[2].name == "Furniture Living");
-    CHECK(groups[2].members == std::vector<ExportMember>{{"item", "i1"}});
+    CHECK(groups[2].members == std::vector<ExportMember>{{"item", "i1"}, {"dressing", "r1"}});
     CHECK(groups[3].name == "Furniture Bedroom");
-    CHECK(groups[3].members == std::vector<ExportMember>{{"item", "i2"}});
+    CHECK(groups[3].members == std::vector<ExportMember>{{"item", "i2"}, {"dressing", "r2"}});
     CHECK(groups[4].name == "Furniture");
     CHECK(groups[4].members == std::vector<ExportMember>{{"item", "i3"}});
 
