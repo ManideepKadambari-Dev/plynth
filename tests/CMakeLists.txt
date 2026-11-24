@@ -105,6 +105,7 @@ add_executable(plynth_core_tests
     core/GameplayExportTests.cpp
     core/StairRailingsTests.cpp
     core/BuildResolveTests.cpp
+    core/VariationCopiesTests.cpp
     core/IdTests.cpp
     core/IdGroupTests.cpp
     core/IdTestListener.cpp

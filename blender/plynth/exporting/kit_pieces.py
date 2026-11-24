@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import bmesh
 import bpy
+from mathutils import Matrix
 
 from . import Step, sanitize
 from .. import fills as fills_package
@@ -227,13 +228,42 @@ def join_fills(obj, parts):
                 attribute.data[index].value = value
 
 
-# Makes the door and window parts of the openings a piece gets and joins them into the piece.
+# Copies the meshes of a catalog door or window into the piece's place for it, in the piece's frame. Returns the
+# copies, or None when the asset's collection is not in building.blend, so the built fill is used instead.
+def asset_parts(asset, collection):
+    source = bpy.data.collections.get(asset["id"])
+    if source is None:
+        return None
+    sx, sy, sz = asset["scale"]
+    placement = (Matrix.Translation(asset["location"]) @ Matrix.Rotation(asset["rotation_z"], 4, "Z")
+                 @ Matrix.Diagonal((sx, sy, sz, 1.0)))
+    parts = []
+    for part in sorted(source.all_objects, key=lambda o: o.name):
+        if part.type != "MESH":
+            continue
+        copy = bpy.data.objects.new(part.name + "_kit", part.data.copy())
+        matrix = placement @ part.matrix_world
+        copy.data.transform(matrix)
+        if matrix.determinant() < 0:
+            copy.data.flip_normals()
+        collection.objects.link(copy)
+        parts.append(copy)
+    return parts
+
+
+# Makes the door and window parts of the openings a piece gets and joins them into the piece. An opening with a
+# catalog asset gets copies of that asset instead of the built fill.
 def add_fills(ctx, shim, piece, obj):
     floor = {"id": "kit", "elevation": 0.0}
     parts = []
     for opening in piece["openings"]:
         if opening["id"] not in piece["fills"]:
             continue
+        if opening.get("asset"):
+            copies = asset_parts(opening["asset"], obj.users_collection[0])
+            if copies is not None:
+                parts += copies
+                continue
         entry = opening_fills.entry_for(opening["type"])
         if entry is None:
             continue

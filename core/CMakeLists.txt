@@ -95,6 +95,7 @@ add_library(plynth_core STATIC
     src/trim/StairRailings.cpp
     src/BuildResolve.cpp
     src/catalog/BuildChoices.cpp
+    src/VariationCopies.cpp
 )
 if(WIN32)
     target_sources(plynth_core PRIVATE src/Process_win.cpp)

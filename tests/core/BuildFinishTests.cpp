@@ -8,6 +8,8 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include <algorithm>
+#include <filesystem>
+#include <fstream>
 #include <cmath>
 #include <string>
 #include <vector>
@@ -281,4 +283,79 @@ TEST_CASE("the kit carries a door's catalog asset and tells doors with other ass
     plan = makeBuildPlan(p, sizedSource());
     kit = modularKit(p, plan);
     CHECK(openingPieces(kit).size() >= 2);
+}
+
+namespace {
+
+// Replaces every copy of a text.
+std::string replaced(std::string text, const std::string& from, const std::string& to)
+{
+    for (std::size_t at = text.find(from); at != std::string::npos; at = text.find(from, at + to.size())) text.replace(at, from.size(), to);
+    return text;
+}
+
+// The finishing job the Blender tests build: the square room with a catalog door, a window with a sill, a shelf
+// dressed with books, a ceiling light and trim. Library paths are @LIBRARY@ and the project @PROJECT@.
+std::string finishFixtureText()
+{
+    Project p = test::buildProject();
+    Floor& f = p.plan.floors[0];
+    f.rooms.resize(1);
+    f.openings[0].frame = "door";
+    f.openings[1].offset = 2.0;
+    f.items = {test::buildItem("i1", "shelf", 2.0, 3.6, {0.8, 0.3, 1.8})};
+    f.items[0].rotation = 180.0;
+    LightMarker light;
+    light.id = "l1";
+    light.room = "r1";
+    light.x = 2.0;
+    light.y = 2.0;
+    light.z = 2.9;
+    f.lights = {light};
+    const BuildAssetSource source = [](std::string_view id) -> std::optional<BuildAssetState> {
+        const std::string path = "C:/plynth-fixture/library/" + std::string(id) + "/asset.blend";
+        if (id == "door") return BuildAssetState{path, false, "", {}, ItemSize{0.9, 0.05, 2.1}};
+        if (id == "shelf") return BuildAssetState{path, false, "", {}, ItemSize{0.8, 0.3, 1.8}};
+        if (id == "books") return BuildAssetState{path, false, "", {}, ItemSize{0.3, 0.2, 0.25}};
+        return std::nullopt;
+    };
+    BuildChoices choices;
+    AssetChoice books;
+    books.id = "books";
+    books.categories = {"decor"};
+    books.tags = {"book"};
+    books.size = {0.3, 0.2, 0.25};
+    AssetChoice shelf;
+    shelf.id = "shelf";
+    shelf.categories = {"shelf"};
+    shelf.size = {0.8, 0.3, 1.8};
+    for (double z : {0.02, 0.47, 0.92, 1.37}) shelf.supports.push_back({-0.38, -0.145, 0.38, 0.145, z, 0.43});
+    choices.assets = {books, shelf};
+    const BuildPlan plan = makeBuildPlan(p, source, {}, nullptr, std::nullopt, &choices);
+    const Json job = makeBuildJob(p, plan, BuildSettings{}, "@PROJECT@", "build-fixture", "@PROJECT@/build/result.json");
+    return replaced(job.dump(2) + "
+", "C:/plynth-fixture/library", "@LIBRARY@");
+}
+
+// Where the finishing job for the Blender tests is kept.
+std::filesystem::path finishFixtureFile()
+{
+    return std::filesystem::path(PLYNTH_TEST_DATA_DIR) / "buildjob" / "from_core_finish.json";
+}
+
+}
+
+TEST_CASE("the finishing job for the Blender tests matches the saved copy", "[buildjob][finish][fixture]")
+{
+    const std::string text = finishFixtureText();
+    CHECK(test::schemaProblemForText("blender-job.schema.json", text) == "");
+    if (!std::filesystem::exists(finishFixtureFile())) SKIP("from_core_finish.json is written by the write-fixture run");
+    INFO("Regenerate with the test case \"write the finishing job for the Blender tests\"");
+    REQUIRE(test::readTextFile(finishFixtureFile()) == text);
+}
+
+TEST_CASE("write the finishing job for the Blender tests", "[.write-fixture]")
+{
+    std::ofstream(finishFixtureFile(), std::ios::binary | std::ios::trunc) << finishFixtureText();
+    REQUIRE(std::filesystem::exists(finishFixtureFile()));
 }
