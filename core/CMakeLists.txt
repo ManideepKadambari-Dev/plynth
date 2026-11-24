@@ -122,8 +122,6 @@ add_library(plynth::core ALIAS plynth_core)
 target_include_directories(plynth_core PUBLIC include)
 target_compile_features(plynth_core PUBLIC cxx_std_20)
 target_link_libraries(plynth_core PUBLIC nlohmann_json::nlohmann_json)
-set_source_files_properties(src/Blender.cpp PROPERTIES
-    COMPILE_DEFINITIONS PLYNTH_SOURCE_BLENDER_DIR="${PROJECT_SOURCE_DIR}/blender")
 # AUTO looks for the samples in the source tree in Debug builds only. ON or OFF forces it for every build type.
 set(PLYNTH_DEV_SAMPLES AUTO CACHE STRING "Find samples through the source path: AUTO (Debug only), ON or OFF")
 set_property(CACHE PLYNTH_DEV_SAMPLES PROPERTY STRINGS AUTO ON OFF)
@@ -134,6 +132,16 @@ elseif(PLYNTH_DEV_SAMPLES STREQUAL "OFF")
 else()
     set(PLYNTH_DEV_SAMPLES_VALUE "$<CONFIG:Debug>")
 endif()
+# The source blender/ path is compiled in only when the same switch allows it, so Release builds carry no build path.
+if(PLYNTH_DEV_SAMPLES STREQUAL "ON")
+    set(PLYNTH_SOURCE_BLENDER_DEFINE "PLYNTH_SOURCE_BLENDER_DIR=\"${PROJECT_SOURCE_DIR}/blender\"")
+elseif(PLYNTH_DEV_SAMPLES STREQUAL "OFF")
+    set(PLYNTH_SOURCE_BLENDER_DEFINE "")
+else()
+    set(PLYNTH_SOURCE_BLENDER_DEFINE "$<$<CONFIG:Debug>:PLYNTH_SOURCE_BLENDER_DIR=\"${PROJECT_SOURCE_DIR}/blender\">")
+endif()
+set_source_files_properties(src/Blender.cpp PROPERTIES
+    COMPILE_DEFINITIONS "${PLYNTH_SOURCE_BLENDER_DEFINE}")
 set_source_files_properties(src/Library.cpp src/guide/Resources.cpp PROPERTIES
     COMPILE_DEFINITIONS PLYNTH_DEV_SAMPLES=${PLYNTH_DEV_SAMPLES_VALUE})
 set_source_files_properties(src/Version.cpp PROPERTIES
