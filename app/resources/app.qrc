@@ -3,6 +3,7 @@
         <file>logo.png</file>
         <file alias="qml/BuildScene.qml">../qml/BuildScene.qml</file>
         <file>themes/drafting-dark.json</file>
+        <file>tour.json</file>
         <file>fonts/Inter-Regular.ttf</file>
         <file>fonts/Inter-Medium.ttf</file>
         <file>fonts/Inter-SemiBold.ttf</file>

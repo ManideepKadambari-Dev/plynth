@@ -364,7 +364,7 @@ def main():
         draw(folder)
         source = {"format": "plynth-material-source", "version": 1, "id": material_id}
         source.update(info)
-        source["license"] = "own_work"
+        source["license"] = "cc0"
         with open(os.path.join(folder, "material.json"), "w", encoding="utf-8", newline="\n") as handle:
             json.dump(source, handle, indent=2)
             handle.write("\n")

@@ -4,6 +4,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <regex>
 #include <set>
 #include <string>
 #include <vector>
@@ -176,4 +177,41 @@ TEST_CASE("The tour example validates against its schema", "[tour]")
 {
     CHECK(plynth::test::schemaProblem("tour.schema.json", nlohmann::json::parse(kTour)).empty());
     CHECK(!plynth::test::schemaProblem("tour.schema.json", nlohmann::json::parse(tourWith("plynth-tour", "x"))).empty());
+}
+
+TEST_CASE("The shipped tour file is read and covers every control id set in the app", "[tour]")
+{
+    const std::filesystem::path app = PLYNTH_APP_DIR;
+    const std::string text = plynth::test::readFile(app / "resources" / "tour.json");
+    REQUIRE(!text.empty());
+    const TourRead read = readTour(text);
+    INFO(read.status.message << " at " << read.status.where);
+    REQUIRE(read.status.ok());
+    CHECK(plynth::test::schemaProblem("tour.schema.json", nlohmann::json::parse(text)).empty());
+
+    for (std::string_view id : tourIds()) {
+        INFO(id);
+        const TourInfo* tour = findTour(read.data, id);
+        REQUIRE(tour != nullptr);
+        CHECK(tour->steps.size() >= 5);
+        CHECK(tour->steps.size() <= 12);
+    }
+
+    const std::regex literal(R"re(setProperty\("tourId",\s*QStringLiteral\("([a-z0-9-]+)"\)\))re");
+    std::size_t found = 0;
+    for (const char* folder : {"src", "guide"}) {
+        if (!std::filesystem::is_directory(app / folder)) continue;
+        for (const auto& entry : std::filesystem::recursive_directory_iterator(app / folder)) {
+            const auto ext = entry.path().extension();
+            if (ext != ".cpp" && ext != ".h") continue;
+            const std::string source = plynth::test::readFile(entry.path());
+            for (std::sregex_iterator it(source.begin(), source.end(), literal), end; it != end; ++it) {
+                const std::string id = (*it)[1].str();
+                INFO(entry.path().filename().string() << ": " << id);
+                CHECK(tourEntry(read.data, id) != nullptr);
+                ++found;
+            }
+        }
+    }
+    CHECK(found > 50);
 }

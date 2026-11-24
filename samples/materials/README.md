@@ -2,7 +2,7 @@
 
 Nine materials drawn for Plynth by `make_sample_materials.py`. Nothing here was downloaded, and the drawing
 is the same every time it runs. Each folder is a texture set with a `material.json` that gives its id, name,
-groups, tags, license (`own_work`) and tile size.
+groups, tags, license (`cc0`) and tile size.
 
 | Id | Tile size (m) | Maps |
 |---|---|---|
