@@ -13,8 +13,8 @@
   ],
   "pieces": [
     {
-      "id": "Corner_12x300x12_11c064",
-      "mesh": "SM_Kit_Corner_12x300x12_11c064",
+      "id": "Corner_12x300x12_071345",
+      "mesh": "SM_Kit_Corner_12x300x12_071345",
       "kind": "corner",
       "length": 0.12,
       "height": 3.0,
@@ -22,17 +22,8 @@
       "count": 3
     },
     {
-      "id": "Corner_30x300x30_1834cf",
-      "mesh": "SM_Kit_Corner_30x300x30_1834cf",
-      "kind": "corner",
-      "length": 0.3,
-      "height": 3.0,
-      "thickness": 0.3,
-      "count": 4
-    },
-    {
-      "id": "Corner_30x300x30_ec9a75",
-      "mesh": "SM_Kit_Corner_30x300x30_ec9a75",
+      "id": "Corner_30x300x30_392340",
+      "mesh": "SM_Kit_Corner_30x300x30_392340",
       "kind": "corner",
       "length": 0.3,
       "height": 3.0,
@@ -40,8 +31,17 @@
       "count": 5
     },
     {
-      "id": "Opening_150x300x12_ac1517",
-      "mesh": "SM_Kit_Opening_150x300x12_ac1517",
+      "id": "Corner_30x300x30_ff5d5f",
+      "mesh": "SM_Kit_Corner_30x300x30_ff5d5f",
+      "kind": "corner",
+      "length": 0.3,
+      "height": 3.0,
+      "thickness": 0.3,
+      "count": 4
+    },
+    {
+      "id": "Opening_150x300x12_03e6bd",
+      "mesh": "SM_Kit_Opening_150x300x12_03e6bd",
       "kind": "opening",
       "length": 1.5,
       "height": 3.0,
@@ -49,8 +49,8 @@
       "count": 1
     },
     {
-      "id": "Opening_150x300x12_c154c9",
-      "mesh": "SM_Kit_Opening_150x300x12_c154c9",
+      "id": "Opening_150x300x12_e2c8ab",
+      "mesh": "SM_Kit_Opening_150x300x12_e2c8ab",
       "kind": "opening",
       "length": 1.5,
       "height": 3.0,
@@ -58,8 +58,8 @@
       "count": 1
     },
     {
-      "id": "Opening_150x300x30_1860d0",
-      "mesh": "SM_Kit_Opening_150x300x30_1860d0",
+      "id": "Opening_150x300x30_c451ed",
+      "mesh": "SM_Kit_Opening_150x300x30_c451ed",
       "kind": "opening",
       "length": 1.5,
       "height": 3.0,
@@ -67,8 +67,8 @@
       "count": 1
     },
     {
-      "id": "Opening_200x300x30_63770c",
-      "mesh": "SM_Kit_Opening_200x300x30_63770c",
+      "id": "Opening_200x300x30_40676b",
+      "mesh": "SM_Kit_Opening_200x300x30_40676b",
       "kind": "opening",
       "length": 2.0,
       "height": 3.0,
@@ -76,8 +76,8 @@
       "count": 1
     },
     {
-      "id": "Opening_250x300x30_278073",
-      "mesh": "SM_Kit_Opening_250x300x30_278073",
+      "id": "Opening_250x300x30_39202f",
+      "mesh": "SM_Kit_Opening_250x300x30_39202f",
       "kind": "opening",
       "length": 2.5,
       "height": 3.0,
@@ -85,8 +85,8 @@
       "count": 1
     },
     {
-      "id": "Opening_250x300x30_cae5d7",
-      "mesh": "SM_Kit_Opening_250x300x30_cae5d7",
+      "id": "Opening_250x300x30_3ddcc7",
+      "mesh": "SM_Kit_Opening_250x300x30_3ddcc7",
       "kind": "opening",
       "length": 2.5,
       "height": 3.0,
@@ -94,8 +94,8 @@
       "count": 1
     },
     {
-      "id": "Opening_300x300x12_b8e72f",
-      "mesh": "SM_Kit_Opening_300x300x12_b8e72f",
+      "id": "Opening_300x300x12_e5e6ce",
+      "mesh": "SM_Kit_Opening_300x300x12_e5e6ce",
       "kind": "opening",
       "length": 3.0,
       "height": 3.0,
@@ -103,8 +103,8 @@
       "count": 1
     },
     {
-      "id": "Opening_300x300x30_0d483b",
-      "mesh": "SM_Kit_Opening_300x300x30_0d483b",
+      "id": "Opening_300x300x30_0ffded",
+      "mesh": "SM_Kit_Opening_300x300x30_0ffded",
       "kind": "opening",
       "length": 3.0,
       "height": 3.0,
@@ -112,8 +112,8 @@
       "count": 1
     },
     {
-      "id": "Opening_88x300x12_c2a9a6",
-      "mesh": "SM_Kit_Opening_88x300x12_c2a9a6",
+      "id": "Opening_88x300x12_0ec89c",
+      "mesh": "SM_Kit_Opening_88x300x12_0ec89c",
       "kind": "opening",
       "length": 0.880234,
       "height": 3.0,
@@ -121,8 +121,8 @@
       "count": 1
     },
     {
-      "id": "Wall_14x300x30_9526f2",
-      "mesh": "SM_Kit_Wall_14x300x30_9526f2",
+      "id": "Wall_14x300x30_3ed888",
+      "mesh": "SM_Kit_Wall_14x300x30_3ed888",
       "kind": "wall",
       "length": 0.14,
       "height": 3.0,
@@ -130,8 +130,8 @@
       "count": 1
     },
     {
-      "id": "Wall_20x300x12_b40282",
-      "mesh": "SM_Kit_Wall_20x300x12_b40282",
+      "id": "Wall_20x300x12_871426",
+      "mesh": "SM_Kit_Wall_20x300x12_871426",
       "kind": "wall",
       "length": 0.2,
       "height": 3.0,
@@ -139,8 +139,8 @@
       "count": 3
     },
     {
-      "id": "Wall_20x300x30_2f93a2",
-      "mesh": "SM_Kit_Wall_20x300x30_2f93a2",
+      "id": "Wall_20x300x30_9a1d70",
+      "mesh": "SM_Kit_Wall_20x300x30_9a1d70",
       "kind": "wall",
       "length": 0.2,
       "height": 3.0,
@@ -148,8 +148,8 @@
       "count": 5
     },
     {
-      "id": "Wall_26x300x30_4479b5",
-      "mesh": "SM_Kit_Wall_26x300x30_4479b5",
+      "id": "Wall_26x300x30_cfeefe",
+      "mesh": "SM_Kit_Wall_26x300x30_cfeefe",
       "kind": "wall",
       "length": 0.26,
       "height": 3.0,
@@ -157,8 +157,8 @@
       "count": 2
     },
     {
-      "id": "Wall_29x300x12_56c477",
-      "mesh": "SM_Kit_Wall_29x300x12_56c477",
+      "id": "Wall_29x300x12_aff3a1",
+      "mesh": "SM_Kit_Wall_29x300x12_aff3a1",
       "kind": "wall",
       "length": 0.289766,
       "height": 3.0,
@@ -166,8 +166,8 @@
       "count": 1
     },
     {
-      "id": "Wall_29x300x30_d16815",
-      "mesh": "SM_Kit_Wall_29x300x30_d16815",
+      "id": "Wall_29x300x30_bf32ed",
+      "mesh": "SM_Kit_Wall_29x300x30_bf32ed",
       "kind": "wall",
       "length": 0.29,
       "height": 3.0,
@@ -175,8 +175,8 @@
       "count": 1
     },
     {
-      "id": "Wall_35x300x12_d0236c",
-      "mesh": "SM_Kit_Wall_35x300x12_d0236c",
+      "id": "Wall_35x300x12_f01ca6",
+      "mesh": "SM_Kit_Wall_35x300x12_f01ca6",
       "kind": "wall",
       "length": 0.35,
       "height": 3.0,
@@ -184,8 +184,8 @@
       "count": 3
     },
     {
-      "id": "Wall_35x300x30_dff816",
-      "mesh": "SM_Kit_Wall_35x300x30_dff816",
+      "id": "Wall_35x300x30_8e584e",
+      "mesh": "SM_Kit_Wall_35x300x30_8e584e",
       "kind": "wall",
       "length": 0.35,
       "height": 3.0,
@@ -193,8 +193,8 @@
       "count": 9
     },
     {
-      "id": "Wall_38x300x12_0467fb",
-      "mesh": "SM_Kit_Wall_38x300x12_0467fb",
+      "id": "Wall_38x300x12_55c31d",
+      "mesh": "SM_Kit_Wall_38x300x12_55c31d",
       "kind": "wall",
       "length": 0.38,
       "height": 3.0,
@@ -202,8 +202,8 @@
       "count": 1
     },
     {
-      "id": "Wall_44x300x12_49c308",
-      "mesh": "SM_Kit_Wall_44x300x12_49c308",
+      "id": "Wall_44x300x12_816548",
+      "mesh": "SM_Kit_Wall_44x300x12_816548",
       "kind": "wall",
       "length": 0.44,
       "height": 3.0,
@@ -211,8 +211,8 @@
       "count": 4
     },
     {
-      "id": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "id": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "kind": "wall",
       "length": 0.5,
       "height": 3.0,
@@ -220,8 +220,8 @@
       "count": 30
     },
     {
-      "id": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "id": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "kind": "wall",
       "length": 0.5,
       "height": 3.0,
@@ -231,10 +231,10 @@
   ],
   "placements": [
     {
-      "piece": "Wall_35x300x30_dff816",
-      "mesh": "SM_Kit_Wall_35x300x30_dff816",
+      "piece": "Wall_35x300x30_8e584e",
+      "mesh": "SM_Kit_Wall_35x300x30_8e584e",
       "floor": "f1",
-      "wall": "w1",
+      "wall": "w459ccepa",
       "point": null,
       "location": [
         5.65,
@@ -244,10 +244,10 @@
       "rotation_z_degrees": 180.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w1",
+      "wall": "w459ccepa",
       "point": null,
       "location": [
         6.15,
@@ -257,10 +257,10 @@
       "rotation_z_degrees": 180.0
     },
     {
-      "piece": "Opening_250x300x30_278073",
-      "mesh": "SM_Kit_Opening_250x300x30_278073",
+      "piece": "Opening_250x300x30_39202f",
+      "mesh": "SM_Kit_Opening_250x300x30_39202f",
       "floor": "f1",
-      "wall": "w1",
+      "wall": "w459ccepa",
       "point": null,
       "location": [
         8.65,
@@ -270,10 +270,10 @@
       "rotation_z_degrees": 180.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w1",
+      "wall": "w459ccepa",
       "point": null,
       "location": [
         9.15,
@@ -283,10 +283,10 @@
       "rotation_z_degrees": 180.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w1",
+      "wall": "w459ccepa",
       "point": null,
       "location": [
         9.65,
@@ -296,10 +296,10 @@
       "rotation_z_degrees": 180.0
     },
     {
-      "piece": "Wall_26x300x30_4479b5",
-      "mesh": "SM_Kit_Wall_26x300x30_4479b5",
+      "piece": "Wall_26x300x30_cfeefe",
+      "mesh": "SM_Kit_Wall_26x300x30_cfeefe",
       "floor": "f1",
-      "wall": "w1",
+      "wall": "w459ccepa",
       "point": null,
       "location": [
         9.91,
@@ -309,10 +309,10 @@
       "rotation_z_degrees": 180.0
     },
     {
-      "piece": "Wall_35x300x30_dff816",
-      "mesh": "SM_Kit_Wall_35x300x30_dff816",
+      "piece": "Wall_35x300x30_8e584e",
+      "mesh": "SM_Kit_Wall_35x300x30_8e584e",
       "floor": "f1",
-      "wall": "w2",
+      "wall": "w8mpew9cm",
       "point": null,
       "location": [
         10.56,
@@ -322,10 +322,10 @@
       "rotation_z_degrees": 180.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w2",
+      "wall": "w8mpew9cm",
       "point": null,
       "location": [
         11.06,
@@ -335,10 +335,10 @@
       "rotation_z_degrees": 180.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w2",
+      "wall": "w8mpew9cm",
       "point": null,
       "location": [
         11.56,
@@ -348,10 +348,10 @@
       "rotation_z_degrees": 180.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w2",
+      "wall": "w8mpew9cm",
       "point": null,
       "location": [
         12.06,
@@ -361,10 +361,10 @@
       "rotation_z_degrees": 180.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w2",
+      "wall": "w8mpew9cm",
       "point": null,
       "location": [
         12.56,
@@ -374,10 +374,10 @@
       "rotation_z_degrees": 180.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w2",
+      "wall": "w8mpew9cm",
       "point": null,
       "location": [
         13.06,
@@ -387,10 +387,10 @@
       "rotation_z_degrees": 180.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w2",
+      "wall": "w8mpew9cm",
       "point": null,
       "location": [
         13.56,
@@ -400,10 +400,10 @@
       "rotation_z_degrees": 180.0
     },
     {
-      "piece": "Wall_29x300x30_d16815",
-      "mesh": "SM_Kit_Wall_29x300x30_d16815",
+      "piece": "Wall_29x300x30_bf32ed",
+      "mesh": "SM_Kit_Wall_29x300x30_bf32ed",
       "floor": "f1",
-      "wall": "w2",
+      "wall": "w8mpew9cm",
       "point": null,
       "location": [
         13.85,
@@ -413,10 +413,10 @@
       "rotation_z_degrees": 180.0
     },
     {
-      "piece": "Wall_35x300x30_dff816",
-      "mesh": "SM_Kit_Wall_35x300x30_dff816",
+      "piece": "Wall_35x300x30_8e584e",
+      "mesh": "SM_Kit_Wall_35x300x30_8e584e",
       "floor": "f1",
-      "wall": "w3",
+      "wall": "w4zpnnr2h",
       "point": null,
       "location": [
         14.5,
@@ -426,10 +426,10 @@
       "rotation_z_degrees": 180.0
     },
     {
-      "piece": "Opening_300x300x30_0d483b",
-      "mesh": "SM_Kit_Opening_300x300x30_0d483b",
+      "piece": "Opening_300x300x30_0ffded",
+      "mesh": "SM_Kit_Opening_300x300x30_0ffded",
       "floor": "f1",
-      "wall": "w3",
+      "wall": "w4zpnnr2h",
       "point": null,
       "location": [
         17.5,
@@ -439,10 +439,10 @@
       "rotation_z_degrees": 180.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w3",
+      "wall": "w4zpnnr2h",
       "point": null,
       "location": [
         18.0,
@@ -452,10 +452,10 @@
       "rotation_z_degrees": 180.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w3",
+      "wall": "w4zpnnr2h",
       "point": null,
       "location": [
         18.5,
@@ -465,10 +465,10 @@
       "rotation_z_degrees": 180.0
     },
     {
-      "piece": "Wall_20x300x30_2f93a2",
-      "mesh": "SM_Kit_Wall_20x300x30_2f93a2",
+      "piece": "Wall_20x300x30_9a1d70",
+      "mesh": "SM_Kit_Wall_20x300x30_9a1d70",
       "floor": "f1",
-      "wall": "w3",
+      "wall": "w4zpnnr2h",
       "point": null,
       "location": [
         18.7,
@@ -478,10 +478,10 @@
       "rotation_z_degrees": 180.0
     },
     {
-      "piece": "Wall_35x300x12_d0236c",
-      "mesh": "SM_Kit_Wall_35x300x12_d0236c",
+      "piece": "Wall_35x300x12_f01ca6",
+      "mesh": "SM_Kit_Wall_35x300x12_f01ca6",
       "floor": "f1",
-      "wall": "w4",
+      "wall": "w9cgxr6r5",
       "point": null,
       "location": [
         5.3,
@@ -491,10 +491,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "piece": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "floor": "f1",
-      "wall": "w4",
+      "wall": "w9cgxr6r5",
       "point": null,
       "location": [
         5.65,
@@ -504,10 +504,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "piece": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "floor": "f1",
-      "wall": "w4",
+      "wall": "w9cgxr6r5",
       "point": null,
       "location": [
         6.15,
@@ -517,10 +517,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "piece": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "floor": "f1",
-      "wall": "w4",
+      "wall": "w9cgxr6r5",
       "point": null,
       "location": [
         6.65,
@@ -530,10 +530,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "piece": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "floor": "f1",
-      "wall": "w4",
+      "wall": "w9cgxr6r5",
       "point": null,
       "location": [
         7.15,
@@ -543,10 +543,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "piece": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "floor": "f1",
-      "wall": "w4",
+      "wall": "w9cgxr6r5",
       "point": null,
       "location": [
         7.65,
@@ -556,10 +556,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "piece": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "floor": "f1",
-      "wall": "w4",
+      "wall": "w9cgxr6r5",
       "point": null,
       "location": [
         8.15,
@@ -569,10 +569,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "piece": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "floor": "f1",
-      "wall": "w4",
+      "wall": "w9cgxr6r5",
       "point": null,
       "location": [
         8.65,
@@ -582,10 +582,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "piece": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "floor": "f1",
-      "wall": "w4",
+      "wall": "w9cgxr6r5",
       "point": null,
       "location": [
         9.15,
@@ -595,10 +595,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_35x300x12_d0236c",
-      "mesh": "SM_Kit_Wall_35x300x12_d0236c",
+      "piece": "Wall_35x300x12_f01ca6",
+      "mesh": "SM_Kit_Wall_35x300x12_f01ca6",
       "floor": "f1",
-      "wall": "w4",
+      "wall": "w9cgxr6r5",
       "point": null,
       "location": [
         9.65,
@@ -608,10 +608,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_35x300x30_dff816",
-      "mesh": "SM_Kit_Wall_35x300x30_dff816",
+      "piece": "Wall_35x300x30_8e584e",
+      "mesh": "SM_Kit_Wall_35x300x30_8e584e",
       "floor": "f1",
-      "wall": "w5",
+      "wall": "w2qafra4p",
       "point": null,
       "location": [
         5.3,
@@ -621,10 +621,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w5",
+      "wall": "w2qafra4p",
       "point": null,
       "location": [
         5.65,
@@ -634,10 +634,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w5",
+      "wall": "w2qafra4p",
       "point": null,
       "location": [
         6.15,
@@ -647,10 +647,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w5",
+      "wall": "w2qafra4p",
       "point": null,
       "location": [
         6.65,
@@ -660,10 +660,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w5",
+      "wall": "w2qafra4p",
       "point": null,
       "location": [
         7.15,
@@ -673,10 +673,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w5",
+      "wall": "w2qafra4p",
       "point": null,
       "location": [
         7.65,
@@ -686,10 +686,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w5",
+      "wall": "w2qafra4p",
       "point": null,
       "location": [
         8.15,
@@ -699,10 +699,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w5",
+      "wall": "w2qafra4p",
       "point": null,
       "location": [
         8.65,
@@ -712,10 +712,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w5",
+      "wall": "w2qafra4p",
       "point": null,
       "location": [
         9.15,
@@ -725,10 +725,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_26x300x30_4479b5",
-      "mesh": "SM_Kit_Wall_26x300x30_4479b5",
+      "piece": "Wall_26x300x30_cfeefe",
+      "mesh": "SM_Kit_Wall_26x300x30_cfeefe",
       "floor": "f1",
-      "wall": "w5",
+      "wall": "w2qafra4p",
       "point": null,
       "location": [
         9.65,
@@ -738,10 +738,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_35x300x30_dff816",
-      "mesh": "SM_Kit_Wall_35x300x30_dff816",
+      "piece": "Wall_35x300x30_8e584e",
+      "mesh": "SM_Kit_Wall_35x300x30_8e584e",
       "floor": "f1",
-      "wall": "w6",
+      "wall": "w2bp2enfd",
       "point": null,
       "location": [
         10.21,
@@ -751,10 +751,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Opening_150x300x30_1860d0",
-      "mesh": "SM_Kit_Opening_150x300x30_1860d0",
+      "piece": "Opening_150x300x30_c451ed",
+      "mesh": "SM_Kit_Opening_150x300x30_c451ed",
       "floor": "f1",
-      "wall": "w6",
+      "wall": "w2bp2enfd",
       "point": null,
       "location": [
         10.56,
@@ -764,10 +764,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w6",
+      "wall": "w2bp2enfd",
       "point": null,
       "location": [
         12.06,
@@ -777,10 +777,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w6",
+      "wall": "w2bp2enfd",
       "point": null,
       "location": [
         12.56,
@@ -790,10 +790,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w6",
+      "wall": "w2bp2enfd",
       "point": null,
       "location": [
         13.06,
@@ -803,10 +803,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w6",
+      "wall": "w2bp2enfd",
       "point": null,
       "location": [
         13.56,
@@ -816,10 +816,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w6",
+      "wall": "w2bp2enfd",
       "point": null,
       "location": [
         14.06,
@@ -829,10 +829,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w6",
+      "wall": "w2bp2enfd",
       "point": null,
       "location": [
         14.56,
@@ -842,10 +842,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w6",
+      "wall": "w2bp2enfd",
       "point": null,
       "location": [
         15.06,
@@ -855,10 +855,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w6",
+      "wall": "w2bp2enfd",
       "point": null,
       "location": [
         15.56,
@@ -868,10 +868,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w6",
+      "wall": "w2bp2enfd",
       "point": null,
       "location": [
         16.06,
@@ -881,10 +881,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w6",
+      "wall": "w2bp2enfd",
       "point": null,
       "location": [
         16.56,
@@ -894,10 +894,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w6",
+      "wall": "w2bp2enfd",
       "point": null,
       "location": [
         17.06,
@@ -907,10 +907,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w6",
+      "wall": "w2bp2enfd",
       "point": null,
       "location": [
         17.56,
@@ -920,10 +920,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w6",
+      "wall": "w2bp2enfd",
       "point": null,
       "location": [
         18.06,
@@ -933,10 +933,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_14x300x30_9526f2",
-      "mesh": "SM_Kit_Wall_14x300x30_9526f2",
+      "piece": "Wall_14x300x30_3ed888",
+      "mesh": "SM_Kit_Wall_14x300x30_3ed888",
       "floor": "f1",
-      "wall": "w6",
+      "wall": "w2bp2enfd",
       "point": null,
       "location": [
         18.56,
@@ -946,10 +946,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_44x300x12_49c308",
-      "mesh": "SM_Kit_Wall_44x300x12_49c308",
+      "piece": "Wall_44x300x12_816548",
+      "mesh": "SM_Kit_Wall_44x300x12_816548",
       "floor": "f1",
-      "wall": "w7",
+      "wall": "w1s4ydbke",
       "point": null,
       "location": [
         10.12,
@@ -959,10 +959,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Opening_150x300x12_ac1517",
-      "mesh": "SM_Kit_Opening_150x300x12_ac1517",
+      "piece": "Opening_150x300x12_e2c8ab",
+      "mesh": "SM_Kit_Opening_150x300x12_e2c8ab",
       "floor": "f1",
-      "wall": "w7",
+      "wall": "w1s4ydbke",
       "point": null,
       "location": [
         10.56,
@@ -972,10 +972,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "piece": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "floor": "f1",
-      "wall": "w7",
+      "wall": "w1s4ydbke",
       "point": null,
       "location": [
         12.06,
@@ -985,10 +985,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "piece": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "floor": "f1",
-      "wall": "w7",
+      "wall": "w1s4ydbke",
       "point": null,
       "location": [
         12.56,
@@ -998,10 +998,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "piece": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "floor": "f1",
-      "wall": "w7",
+      "wall": "w1s4ydbke",
       "point": null,
       "location": [
         13.06,
@@ -1011,10 +1011,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_38x300x12_0467fb",
-      "mesh": "SM_Kit_Wall_38x300x12_0467fb",
+      "piece": "Wall_38x300x12_55c31d",
+      "mesh": "SM_Kit_Wall_38x300x12_55c31d",
       "floor": "f1",
-      "wall": "w7",
+      "wall": "w1s4ydbke",
       "point": null,
       "location": [
         13.56,
@@ -1024,10 +1024,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_44x300x12_49c308",
-      "mesh": "SM_Kit_Wall_44x300x12_49c308",
+      "piece": "Wall_44x300x12_816548",
+      "mesh": "SM_Kit_Wall_44x300x12_816548",
       "floor": "f1",
-      "wall": "w8",
+      "wall": "w29c293n3",
       "point": null,
       "location": [
         14.06,
@@ -1037,10 +1037,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "piece": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "floor": "f1",
-      "wall": "w8",
+      "wall": "w29c293n3",
       "point": null,
       "location": [
         14.5,
@@ -1050,10 +1050,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "piece": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "floor": "f1",
-      "wall": "w8",
+      "wall": "w29c293n3",
       "point": null,
       "location": [
         15.0,
@@ -1063,10 +1063,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Opening_300x300x12_b8e72f",
-      "mesh": "SM_Kit_Opening_300x300x12_b8e72f",
+      "piece": "Opening_300x300x12_e5e6ce",
+      "mesh": "SM_Kit_Opening_300x300x12_e5e6ce",
       "floor": "f1",
-      "wall": "w8",
+      "wall": "w29c293n3",
       "point": null,
       "location": [
         15.5,
@@ -1076,10 +1076,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_20x300x12_b40282",
-      "mesh": "SM_Kit_Wall_20x300x12_b40282",
+      "piece": "Wall_20x300x12_871426",
+      "mesh": "SM_Kit_Wall_20x300x12_871426",
       "floor": "f1",
-      "wall": "w8",
+      "wall": "w29c293n3",
       "point": null,
       "location": [
         18.5,
@@ -1089,10 +1089,10 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Wall_20x300x30_2f93a2",
-      "mesh": "SM_Kit_Wall_20x300x30_2f93a2",
+      "piece": "Wall_20x300x30_9a1d70",
+      "mesh": "SM_Kit_Wall_20x300x30_9a1d70",
       "floor": "f1",
-      "wall": "w9",
+      "wall": "w2wxvhcd6",
       "point": null,
       "location": [
         5.15,
@@ -1102,10 +1102,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w9",
+      "wall": "w2wxvhcd6",
       "point": null,
       "location": [
         5.15,
@@ -1115,10 +1115,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w9",
+      "wall": "w2wxvhcd6",
       "point": null,
       "location": [
         5.15,
@@ -1128,10 +1128,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w9",
+      "wall": "w2wxvhcd6",
       "point": null,
       "location": [
         5.15,
@@ -1141,10 +1141,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w9",
+      "wall": "w2wxvhcd6",
       "point": null,
       "location": [
         5.15,
@@ -1154,10 +1154,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w9",
+      "wall": "w2wxvhcd6",
       "point": null,
       "location": [
         5.15,
@@ -1167,10 +1167,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w9",
+      "wall": "w2wxvhcd6",
       "point": null,
       "location": [
         5.15,
@@ -1180,10 +1180,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w9",
+      "wall": "w2wxvhcd6",
       "point": null,
       "location": [
         5.15,
@@ -1193,10 +1193,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w9",
+      "wall": "w2wxvhcd6",
       "point": null,
       "location": [
         5.15,
@@ -1206,10 +1206,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_35x300x30_dff816",
-      "mesh": "SM_Kit_Wall_35x300x30_dff816",
+      "piece": "Wall_35x300x30_8e584e",
+      "mesh": "SM_Kit_Wall_35x300x30_8e584e",
       "floor": "f1",
-      "wall": "w9",
+      "wall": "w2wxvhcd6",
       "point": null,
       "location": [
         5.15,
@@ -1219,10 +1219,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_20x300x30_2f93a2",
-      "mesh": "SM_Kit_Wall_20x300x30_2f93a2",
+      "piece": "Wall_20x300x30_9a1d70",
+      "mesh": "SM_Kit_Wall_20x300x30_9a1d70",
       "floor": "f1",
-      "wall": "w10",
+      "wall": "w45cj7v3z",
       "point": null,
       "location": [
         5.15,
@@ -1232,10 +1232,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w10",
+      "wall": "w45cj7v3z",
       "point": null,
       "location": [
         5.15,
@@ -1245,10 +1245,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w10",
+      "wall": "w45cj7v3z",
       "point": null,
       "location": [
         5.15,
@@ -1258,10 +1258,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Opening_250x300x30_cae5d7",
-      "mesh": "SM_Kit_Opening_250x300x30_cae5d7",
+      "piece": "Opening_250x300x30_3ddcc7",
+      "mesh": "SM_Kit_Opening_250x300x30_3ddcc7",
       "floor": "f1",
-      "wall": "w10",
+      "wall": "w45cj7v3z",
       "point": null,
       "location": [
         5.15,
@@ -1271,10 +1271,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w10",
+      "wall": "w45cj7v3z",
       "point": null,
       "location": [
         5.15,
@@ -1284,10 +1284,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_35x300x30_dff816",
-      "mesh": "SM_Kit_Wall_35x300x30_dff816",
+      "piece": "Wall_35x300x30_8e584e",
+      "mesh": "SM_Kit_Wall_35x300x30_8e584e",
       "floor": "f1",
-      "wall": "w10",
+      "wall": "w45cj7v3z",
       "point": null,
       "location": [
         5.15,
@@ -1297,10 +1297,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_20x300x12_b40282",
-      "mesh": "SM_Kit_Wall_20x300x12_b40282",
+      "piece": "Wall_20x300x12_871426",
+      "mesh": "SM_Kit_Wall_20x300x12_871426",
       "floor": "f1",
-      "wall": "w11",
+      "wall": "w5xnzcfs1",
       "point": null,
       "location": [
         10.06,
@@ -1310,10 +1310,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "piece": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "floor": "f1",
-      "wall": "w11",
+      "wall": "w5xnzcfs1",
       "point": null,
       "location": [
         10.06,
@@ -1323,10 +1323,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "piece": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "floor": "f1",
-      "wall": "w11",
+      "wall": "w5xnzcfs1",
       "point": null,
       "location": [
         10.06,
@@ -1336,10 +1336,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "piece": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "floor": "f1",
-      "wall": "w11",
+      "wall": "w5xnzcfs1",
       "point": null,
       "location": [
         10.06,
@@ -1349,10 +1349,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "piece": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "floor": "f1",
-      "wall": "w11",
+      "wall": "w5xnzcfs1",
       "point": null,
       "location": [
         10.06,
@@ -1362,10 +1362,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "piece": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "floor": "f1",
-      "wall": "w11",
+      "wall": "w5xnzcfs1",
       "point": null,
       "location": [
         10.06,
@@ -1375,10 +1375,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "piece": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "floor": "f1",
-      "wall": "w11",
+      "wall": "w5xnzcfs1",
       "point": null,
       "location": [
         10.06,
@@ -1388,10 +1388,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_44x300x12_49c308",
-      "mesh": "SM_Kit_Wall_44x300x12_49c308",
+      "piece": "Wall_44x300x12_816548",
+      "mesh": "SM_Kit_Wall_44x300x12_816548",
       "floor": "f1",
-      "wall": "w11",
+      "wall": "w5xnzcfs1",
       "point": null,
       "location": [
         10.06,
@@ -1401,10 +1401,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Opening_88x300x12_c2a9a6",
-      "mesh": "SM_Kit_Opening_88x300x12_c2a9a6",
+      "piece": "Opening_88x300x12_0ec89c",
+      "mesh": "SM_Kit_Opening_88x300x12_0ec89c",
       "floor": "f1",
-      "wall": "w12",
+      "wall": "w06d43cxd",
       "point": null,
       "location": [
         10.06,
@@ -1414,10 +1414,10 @@
       "rotation_z_degrees": 90.0
     },
     {
-      "piece": "Wall_29x300x12_56c477",
-      "mesh": "SM_Kit_Wall_29x300x12_56c477",
+      "piece": "Wall_29x300x12_aff3a1",
+      "mesh": "SM_Kit_Wall_29x300x12_aff3a1",
       "floor": "f1",
-      "wall": "w13",
+      "wall": "w740z2mcf",
       "point": null,
       "location": [
         10.06,
@@ -1427,10 +1427,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "piece": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "floor": "f1",
-      "wall": "w13",
+      "wall": "w740z2mcf",
       "point": null,
       "location": [
         10.06,
@@ -1440,10 +1440,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "piece": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "floor": "f1",
-      "wall": "w13",
+      "wall": "w740z2mcf",
       "point": null,
       "location": [
         10.06,
@@ -1453,10 +1453,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "piece": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "floor": "f1",
-      "wall": "w13",
+      "wall": "w740z2mcf",
       "point": null,
       "location": [
         10.06,
@@ -1466,10 +1466,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Opening_150x300x12_c154c9",
-      "mesh": "SM_Kit_Opening_150x300x12_c154c9",
+      "piece": "Opening_150x300x12_03e6bd",
+      "mesh": "SM_Kit_Opening_150x300x12_03e6bd",
       "floor": "f1",
-      "wall": "w13",
+      "wall": "w740z2mcf",
       "point": null,
       "location": [
         10.06,
@@ -1479,10 +1479,10 @@
       "rotation_z_degrees": 90.0
     },
     {
-      "piece": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "piece": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "floor": "f1",
-      "wall": "w13",
+      "wall": "w740z2mcf",
       "point": null,
       "location": [
         10.06,
@@ -1492,10 +1492,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "piece": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "floor": "f1",
-      "wall": "w13",
+      "wall": "w740z2mcf",
       "point": null,
       "location": [
         10.06,
@@ -1505,10 +1505,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_35x300x12_d0236c",
-      "mesh": "SM_Kit_Wall_35x300x12_d0236c",
+      "piece": "Wall_35x300x12_f01ca6",
+      "mesh": "SM_Kit_Wall_35x300x12_f01ca6",
       "floor": "f1",
-      "wall": "w13",
+      "wall": "w740z2mcf",
       "point": null,
       "location": [
         10.06,
@@ -1518,10 +1518,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_20x300x12_b40282",
-      "mesh": "SM_Kit_Wall_20x300x12_b40282",
+      "piece": "Wall_20x300x12_871426",
+      "mesh": "SM_Kit_Wall_20x300x12_871426",
       "floor": "f1",
-      "wall": "w14",
+      "wall": "w2766xwmx",
       "point": null,
       "location": [
         14.0,
@@ -1531,10 +1531,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "piece": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "floor": "f1",
-      "wall": "w14",
+      "wall": "w2766xwmx",
       "point": null,
       "location": [
         14.0,
@@ -1544,10 +1544,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "piece": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "floor": "f1",
-      "wall": "w14",
+      "wall": "w2766xwmx",
       "point": null,
       "location": [
         14.0,
@@ -1557,10 +1557,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "piece": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "floor": "f1",
-      "wall": "w14",
+      "wall": "w2766xwmx",
       "point": null,
       "location": [
         14.0,
@@ -1570,10 +1570,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "piece": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "floor": "f1",
-      "wall": "w14",
+      "wall": "w2766xwmx",
       "point": null,
       "location": [
         14.0,
@@ -1583,10 +1583,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "piece": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "floor": "f1",
-      "wall": "w14",
+      "wall": "w2766xwmx",
       "point": null,
       "location": [
         14.0,
@@ -1596,10 +1596,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_50x300x12_dbc004",
-      "mesh": "SM_Kit_Wall_50x300x12_dbc004",
+      "piece": "Wall_50x300x12_c4ebaa",
+      "mesh": "SM_Kit_Wall_50x300x12_c4ebaa",
       "floor": "f1",
-      "wall": "w14",
+      "wall": "w2766xwmx",
       "point": null,
       "location": [
         14.0,
@@ -1609,10 +1609,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_44x300x12_49c308",
-      "mesh": "SM_Kit_Wall_44x300x12_49c308",
+      "piece": "Wall_44x300x12_816548",
+      "mesh": "SM_Kit_Wall_44x300x12_816548",
       "floor": "f1",
-      "wall": "w14",
+      "wall": "w2766xwmx",
       "point": null,
       "location": [
         14.0,
@@ -1622,10 +1622,10 @@
       "rotation_z_degrees": 270.0
     },
     {
-      "piece": "Wall_20x300x30_2f93a2",
-      "mesh": "SM_Kit_Wall_20x300x30_2f93a2",
+      "piece": "Wall_20x300x30_9a1d70",
+      "mesh": "SM_Kit_Wall_20x300x30_9a1d70",
       "floor": "f1",
-      "wall": "w15",
+      "wall": "w3an9t6nt",
       "point": null,
       "location": [
         18.85,
@@ -1635,10 +1635,10 @@
       "rotation_z_degrees": 90.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w15",
+      "wall": "w3an9t6nt",
       "point": null,
       "location": [
         18.85,
@@ -1648,10 +1648,10 @@
       "rotation_z_degrees": 90.0
     },
     {
-      "piece": "Opening_200x300x30_63770c",
-      "mesh": "SM_Kit_Opening_200x300x30_63770c",
+      "piece": "Opening_200x300x30_40676b",
+      "mesh": "SM_Kit_Opening_200x300x30_40676b",
       "floor": "f1",
-      "wall": "w15",
+      "wall": "w3an9t6nt",
       "point": null,
       "location": [
         18.85,
@@ -1661,10 +1661,10 @@
       "rotation_z_degrees": 90.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w15",
+      "wall": "w3an9t6nt",
       "point": null,
       "location": [
         18.85,
@@ -1674,10 +1674,10 @@
       "rotation_z_degrees": 90.0
     },
     {
-      "piece": "Wall_35x300x30_dff816",
-      "mesh": "SM_Kit_Wall_35x300x30_dff816",
+      "piece": "Wall_35x300x30_8e584e",
+      "mesh": "SM_Kit_Wall_35x300x30_8e584e",
       "floor": "f1",
-      "wall": "w15",
+      "wall": "w3an9t6nt",
       "point": null,
       "location": [
         18.85,
@@ -1687,10 +1687,10 @@
       "rotation_z_degrees": 90.0
     },
     {
-      "piece": "Wall_20x300x30_2f93a2",
-      "mesh": "SM_Kit_Wall_20x300x30_2f93a2",
+      "piece": "Wall_20x300x30_9a1d70",
+      "mesh": "SM_Kit_Wall_20x300x30_9a1d70",
       "floor": "f1",
-      "wall": "w16",
+      "wall": "w1s247gfy",
       "point": null,
       "location": [
         18.85,
@@ -1700,10 +1700,10 @@
       "rotation_z_degrees": 90.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w16",
+      "wall": "w1s247gfy",
       "point": null,
       "location": [
         18.85,
@@ -1713,10 +1713,10 @@
       "rotation_z_degrees": 90.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w16",
+      "wall": "w1s247gfy",
       "point": null,
       "location": [
         18.85,
@@ -1726,10 +1726,10 @@
       "rotation_z_degrees": 90.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w16",
+      "wall": "w1s247gfy",
       "point": null,
       "location": [
         18.85,
@@ -1739,10 +1739,10 @@
       "rotation_z_degrees": 90.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w16",
+      "wall": "w1s247gfy",
       "point": null,
       "location": [
         18.85,
@@ -1752,10 +1752,10 @@
       "rotation_z_degrees": 90.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w16",
+      "wall": "w1s247gfy",
       "point": null,
       "location": [
         18.85,
@@ -1765,10 +1765,10 @@
       "rotation_z_degrees": 90.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w16",
+      "wall": "w1s247gfy",
       "point": null,
       "location": [
         18.85,
@@ -1778,10 +1778,10 @@
       "rotation_z_degrees": 90.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w16",
+      "wall": "w1s247gfy",
       "point": null,
       "location": [
         18.85,
@@ -1791,10 +1791,10 @@
       "rotation_z_degrees": 90.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w16",
+      "wall": "w1s247gfy",
       "point": null,
       "location": [
         18.85,
@@ -1804,10 +1804,10 @@
       "rotation_z_degrees": 90.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w16",
+      "wall": "w1s247gfy",
       "point": null,
       "location": [
         18.85,
@@ -1817,10 +1817,10 @@
       "rotation_z_degrees": 90.0
     },
     {
-      "piece": "Wall_50x300x30_e29c20",
-      "mesh": "SM_Kit_Wall_50x300x30_e29c20",
+      "piece": "Wall_50x300x30_7b89bb",
+      "mesh": "SM_Kit_Wall_50x300x30_7b89bb",
       "floor": "f1",
-      "wall": "w16",
+      "wall": "w1s247gfy",
       "point": null,
       "location": [
         18.85,
@@ -1830,10 +1830,10 @@
       "rotation_z_degrees": 90.0
     },
     {
-      "piece": "Wall_35x300x30_dff816",
-      "mesh": "SM_Kit_Wall_35x300x30_dff816",
+      "piece": "Wall_35x300x30_8e584e",
+      "mesh": "SM_Kit_Wall_35x300x30_8e584e",
       "floor": "f1",
-      "wall": "w16",
+      "wall": "w1s247gfy",
       "point": null,
       "location": [
         18.85,
@@ -1843,76 +1843,11 @@
       "rotation_z_degrees": 90.0
     },
     {
-      "piece": "Corner_30x300x30_1834cf",
-      "mesh": "SM_Kit_Corner_30x300x30_1834cf",
+      "piece": "Corner_12x300x12_071345",
+      "mesh": "SM_Kit_Corner_12x300x12_071345",
       "floor": "f1",
       "wall": null,
-      "point": "p1",
-      "location": [
-        5.15,
-        -3.15,
-        0.0
-      ],
-      "rotation_z_degrees": 270.0
-    },
-    {
-      "piece": "Corner_30x300x30_ec9a75",
-      "mesh": "SM_Kit_Corner_30x300x30_ec9a75",
-      "floor": "f1",
-      "wall": null,
-      "point": "p2",
-      "location": [
-        10.06,
-        -3.15,
-        0.0
-      ],
-      "rotation_z_degrees": 180.0
-    },
-    {
-      "piece": "Corner_30x300x30_1834cf",
-      "mesh": "SM_Kit_Corner_30x300x30_1834cf",
-      "floor": "f1",
-      "wall": null,
-      "point": "p7",
-      "location": [
-        5.15,
-        -12.85,
-        0.0
-      ],
-      "rotation_z_degrees": 0.0
-    },
-    {
-      "piece": "Corner_30x300x30_ec9a75",
-      "mesh": "SM_Kit_Corner_30x300x30_ec9a75",
-      "floor": "f1",
-      "wall": null,
-      "point": "p5",
-      "location": [
-        5.15,
-        -8.000234,
-        0.0
-      ],
-      "rotation_z_degrees": 270.0
-    },
-    {
-      "piece": "Corner_12x300x12_11c064",
-      "mesh": "SM_Kit_Corner_12x300x12_11c064",
-      "floor": "f1",
-      "wall": null,
-      "point": "p10",
-      "location": [
-        10.06,
-        -7.0,
-        0.0
-      ],
-      "rotation_z_degrees": 270.0
-    },
-    {
-      "piece": "Corner_12x300x12_11c064",
-      "mesh": "SM_Kit_Corner_12x300x12_11c064",
-      "floor": "f1",
-      "wall": null,
-      "point": "p6",
+      "point": "p0tg17hxv",
       "location": [
         10.06,
         -8.000234,
@@ -1921,11 +1856,76 @@
       "rotation_z_degrees": 90.0
     },
     {
-      "piece": "Corner_30x300x30_ec9a75",
-      "mesh": "SM_Kit_Corner_30x300x30_ec9a75",
+      "piece": "Corner_12x300x12_071345",
+      "mesh": "SM_Kit_Corner_12x300x12_071345",
       "floor": "f1",
       "wall": null,
-      "point": "p8",
+      "point": "p5z3n99tp",
+      "location": [
+        10.06,
+        -7.0,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Corner_30x300x30_ff5d5f",
+      "mesh": "SM_Kit_Corner_30x300x30_ff5d5f",
+      "floor": "f1",
+      "wall": null,
+      "point": "p50djwvsn",
+      "location": [
+        18.85,
+        -12.85,
+        0.0
+      ],
+      "rotation_z_degrees": 90.0
+    },
+    {
+      "piece": "Corner_30x300x30_392340",
+      "mesh": "SM_Kit_Corner_30x300x30_392340",
+      "floor": "f1",
+      "wall": null,
+      "point": "p7w3ae6hy",
+      "location": [
+        18.85,
+        -7.0,
+        0.0
+      ],
+      "rotation_z_degrees": 90.0
+    },
+    {
+      "piece": "Corner_12x300x12_071345",
+      "mesh": "SM_Kit_Corner_12x300x12_071345",
+      "floor": "f1",
+      "wall": null,
+      "point": "p8xw8e1yd",
+      "location": [
+        14.0,
+        -7.0,
+        0.0
+      ],
+      "rotation_z_degrees": 0.0
+    },
+    {
+      "piece": "Corner_30x300x30_392340",
+      "mesh": "SM_Kit_Corner_30x300x30_392340",
+      "floor": "f1",
+      "wall": null,
+      "point": "p65ckg5js",
+      "location": [
+        14.0,
+        -3.15,
+        0.0
+      ],
+      "rotation_z_degrees": 180.0
+    },
+    {
+      "piece": "Corner_30x300x30_392340",
+      "mesh": "SM_Kit_Corner_30x300x30_392340",
+      "floor": "f1",
+      "wall": null,
+      "point": "p5jmd34xm",
       "location": [
         10.06,
         -12.85,
@@ -1934,69 +1934,69 @@
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Corner_12x300x12_11c064",
-      "mesh": "SM_Kit_Corner_12x300x12_11c064",
+      "piece": "Corner_30x300x30_ff5d5f",
+      "mesh": "SM_Kit_Corner_30x300x30_ff5d5f",
       "floor": "f1",
       "wall": null,
-      "point": "p11",
+      "point": "p54y9vgmf",
       "location": [
-        14.0,
-        -7.0,
+        5.15,
+        -12.85,
         0.0
       ],
       "rotation_z_degrees": 0.0
     },
     {
-      "piece": "Corner_30x300x30_ec9a75",
-      "mesh": "SM_Kit_Corner_30x300x30_ec9a75",
+      "piece": "Corner_30x300x30_392340",
+      "mesh": "SM_Kit_Corner_30x300x30_392340",
       "floor": "f1",
       "wall": null,
-      "point": "p3",
+      "point": "p8vxenz2b",
       "location": [
-        14.0,
+        5.15,
+        -8.000234,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Corner_30x300x30_ff5d5f",
+      "mesh": "SM_Kit_Corner_30x300x30_ff5d5f",
+      "floor": "f1",
+      "wall": null,
+      "point": "p1675qke7",
+      "location": [
+        5.15,
+        -3.15,
+        0.0
+      ],
+      "rotation_z_degrees": 270.0
+    },
+    {
+      "piece": "Corner_30x300x30_ff5d5f",
+      "mesh": "SM_Kit_Corner_30x300x30_ff5d5f",
+      "floor": "f1",
+      "wall": null,
+      "point": "p3b3gjgyp",
+      "location": [
+        18.85,
         -3.15,
         0.0
       ],
       "rotation_z_degrees": 180.0
     },
     {
-      "piece": "Corner_30x300x30_ec9a75",
-      "mesh": "SM_Kit_Corner_30x300x30_ec9a75",
+      "piece": "Corner_30x300x30_392340",
+      "mesh": "SM_Kit_Corner_30x300x30_392340",
       "floor": "f1",
       "wall": null,
-      "point": "p12",
+      "point": "p7mgkxgyw",
       "location": [
-        18.85,
-        -7.0,
-        0.0
-      ],
-      "rotation_z_degrees": 90.0
-    },
-    {
-      "piece": "Corner_30x300x30_1834cf",
-      "mesh": "SM_Kit_Corner_30x300x30_1834cf",
-      "floor": "f1",
-      "wall": null,
-      "point": "p4",
-      "location": [
-        18.85,
+        10.06,
         -3.15,
         0.0
       ],
       "rotation_z_degrees": 180.0
-    },
-    {
-      "piece": "Corner_30x300x30_1834cf",
-      "mesh": "SM_Kit_Corner_30x300x30_1834cf",
-      "floor": "f1",
-      "wall": null,
-      "point": "p9",
-      "location": [
-        18.85,
-        -12.85,
-        0.0
-      ],
-      "rotation_z_degrees": 90.0
     }
   ]
 }

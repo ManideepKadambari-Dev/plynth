@@ -138,7 +138,7 @@ void recordFetchRun(const Json& job, const std::string& jobPath, const std::stri
     entry["integrity"] = integrity();
     entry["start_ms"] = clockMs();
     Json vars = Json::object();
-    for (const wchar_t* name : {L"PLYNTH_FETCH_PRIVATE", L"TEMP", L"TMP", L"PYTHONDONTWRITEBYTECODE", L"BLENDER_SYSTEM_SCRIPTS",
+    for (const wchar_t* name : {L"PLYNTH_FETCH_PRIVATE", L"TEMP", L"TMP", L"TMPDIR", L"PYTHONDONTWRITEBYTECODE", L"BLENDER_SYSTEM_SCRIPTS",
                                 L"BLENDKIT_CLIENT_SETTINGS", L"BLENDKIT_SERVER", L"BLENDERKIT_SERVER", L"BLENDKIT_DEBUG",
                                 L"BLENDKIT_TOOLS_DIR", L"BLENDER_USER_CONFIG", L"BLENDER_USER_SCRIPTS"}) {
         vars[toUtf8(fs::path(name))] = variable(name);

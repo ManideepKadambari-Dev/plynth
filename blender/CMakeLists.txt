@@ -59,8 +59,13 @@ if(PLYNTH_BLENDER AND EXISTS "${PLYNTH_BLENDER}")
     add_test(NAME blender_private_folders
         COMMAND "${CMAKE_COMMAND}" -E make_directory ${_plynth_private_folders})
     set_tests_properties(blender_private_folders PROPERTIES LABELS blender FIXTURES_SETUP blender_private)
+    # The fetch tests in Blender start the fake store helper that the test build makes.
+    set(_plynth_python_env ${_plynth_private_env})
+    if(PLYNTH_BUILD_TESTS)
+        list(APPEND _plynth_python_env "PLYNTH_FAKE_STORE_HELPER=$<TARGET_FILE:plynth_fake_store_helper>")
+    endif()
     set_tests_properties(blender_python PROPERTIES LABELS blender TIMEOUT 1800 FIXTURES_REQUIRED blender_private
-        ENVIRONMENT "${_plynth_private_env}")
+        ENVIRONMENT "${_plynth_python_env}")
     set_tests_properties(blender_addons PROPERTIES LABELS "blender;addons" TIMEOUT 1800
         FIXTURES_REQUIRED blender_private ENVIRONMENT "${_plynth_private_env}")
 else()
