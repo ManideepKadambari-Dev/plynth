@@ -249,6 +249,27 @@ plynth project recent --remove D:/Plans/OldFlat
 
 A folder that is not on the list is refused with `not_found`.
 
+### project save-as
+
+Saves the project into another folder with its plan images, as File > Save as does. The first folder stays as it is, and later commands keep working on it unless you point them at the new one.
+
+```
+plynth project save-as D:\Plans\MyApartment-copy
+```
+
+The answer is the same as `project info` for the new folder. A relative folder is taken from the current folder. `already_exists` when the new folder already holds a project, `not_found` when a plan image is missing. Images the save could not find are listed as `image_missing` warnings.
+
+### project recover
+
+When the app stopped with unsaved changes, it leaves an autosave in the project folder, and `project info` reports `"has_autosave": true`. The app asks "Load" or "Keep mine" when it opens such a project. These are the same two choices:
+
+```
+plynth project recover
+plynth project recover --discard
+```
+
+Without `--discard` the autosave becomes the saved project and is removed. With `--discard` only the autosave is removed. The answer is the same as `project info`, plus `recovered` and `discarded`. `not_found` when there is no autosave. It changes the project, so it follows the edit lock like every edit command.
+
 ### scale set
 
 Sets how many image pixels make one metre.
@@ -1760,6 +1781,98 @@ An existing picture is replaced only by a good new one. When a render fails or i
 
 A graphics driver that hangs cannot always be stopped from inside Plynth, so a script that renders unattended should set its own time limit around the command.
 
+### build report, build cancel, export cancel
+
+`plynth build report` answers with the last build report, read from `build\build.json`, in the same shape as `build`. It reads only, so it works during a session and while the app has the project open. `not_found` when the project was never built.
+
+`plynth build cancel` and `plynth export cancel` stop a build or an export that runs on the project, started from the app or from another command. Both stop whichever of the two runs, because a build and an export never run at the same time. The running command then answers `cancelled`, and nothing it was making is kept.
+
+```
+plynth build cancel
+```
+
+```json
+{"ok":true,"command":"build","result":{"requested":true}}
+```
+
+`requested` is false when nothing was running. It takes only `--project`.
+
+### pack
+
+Copies the library items the project uses into the project's `pack` folder, so the project can move to another machine and be unpacked into the library there. The project keeps pointing to its items by id, as it always does.
+
+```
+plynth pack
+plynth pack --check
+```
+
+| Option | Meaning |
+|---|---|
+| `--check` | Say what the pack would hold, and write nothing. |
+| `--library <folder>` | Default: the library in the settings. |
+| `--project <folder>` | Default: the current folder. |
+
+What goes into the pack:
+
+| Item | In the pack |
+|---|---|
+| Assets and materials you imported yourself | Copied: `info.json`, the model, the preview model, the thumbnail and the textures and maps `info.json` lists. Nothing else in the item folder is copied. |
+| Items with the license `unknown` | Copied, with the warning `license_unknown`. Check that you may share them. |
+| Items from a store (BlenderKit, Fab) | Only named: id, name, source and license. No file of them is copied. |
+| Items with the license `royalty_free` or `personal_use` | Only named, reason `license`. |
+| Items whose origin is not known, such as one indexed from a bare `asset.blend` | Only named, reason `unknown_origin`. |
+| Custom opening shapes | Copied. |
+| Generators | Only named, reason `script`. Scripts are never copied. |
+| Items the library lacks or that are broken | Listed as missing, with the warning `item_missing`. The pack is still written and `complete` is false. |
+
+The pack is made in a hidden folder and then swapped in, so a failed or stopped pack leaves the old one. Copies keep their file times, so the other library renders nothing again.
+
+```json
+{"ok":true,"command":"pack","result":{"folder":"D:/Plans/MyApartment/pack","checked_only":false,"complete":true,"bytes":5820412,"copied":1,"references":1,"missing":0,"room_types":[{"id":"gaming","name":"Gaming room"}],"entries":[{"kind":"asset","id":"sofa","name":"Sofa","state":"copied","license":"own_work","source":{"kind":"local_file","reference":"sofa.fbx","imported_at":"2026-11-20T10:00:00Z"},"files":["assets/sofa/asset.blend","assets/sofa/info.json"]},{"kind":"asset","id":"chair","name":"Chair","state":"reference","reason":"store","license":"royalty_free","source":{"kind":"blenderkit","reference":"https://www.blenderkit.com/get/abc","imported_at":"2026-11-20T10:00:00Z"},"files":[]}]}}
+```
+
+`pack\pack.json` holds the same entries, described by `schema/pack.schema.json`, with no absolute path. Share the project folder with its `pack` folder, but not `build` and `export`: they can hold store models and textures.
+
+| Code | When |
+|---|---|
+| `unsaved_changes` | The app has unsaved changes in the project. Save first. |
+| `no_library` | No library is set. |
+| `not_a_project` | The folder holds no project. |
+| `cannot_write` | The pack could not be written. The old pack is kept. |
+
+### unpack
+
+Copies the items of the project's pack into this machine's library and indexes them. It never overwrites an item and never downloads anything.
+
+```
+plynth unpack --check
+plynth unpack
+plynth unpack --keep-library
+```
+
+| Option | Meaning |
+|---|---|
+| `--check` | Say what unpack would do, and write nothing. |
+| `--keep-library` | When the library has a different item with the same id, keep the library's item and go on. |
+| `--library <folder>` | Default: the library in the settings. |
+| `--project <folder>` | Default: the current folder. |
+
+Each entry gets an `action`:
+
+| Action | Meaning |
+|---|---|
+| `add` | It is copied into the library. |
+| `present` | The library already has the same item: the same files, or for a named item the same source. |
+| `conflict` | The library has a different item with this id. Without `--keep-library` nothing at all is written and the answer is `already_exists` naming the ids. |
+| `needs_download` | A named item the library lacks. `command` is the command that gets it, for example `plynth assets import "https://www.blenderkit.com/get/abc"`, and a `needs_download` warning repeats it. |
+| `missing` | Neither the pack nor the library has it. |
+
+```json
+{"ok":true,"command":"unpack","result":{"added":1,"complete":false,"entries":[{"kind":"asset","id":"sofa","name":"Sofa","state":"copied","license":"own_work","source":{"kind":"local_file","reference":"sofa.fbx","imported_at":"2026-11-20T10:00:00Z"},"files":["assets/sofa/asset.blend","assets/sofa/info.json"],"action":"add"},{"kind":"asset","id":"chair","name":"Chair","state":"reference","reason":"store","license":"royalty_free","source":{"kind":"blenderkit","reference":"https://www.blenderkit.com/get/abc","imported_at":"2026-11-20T10:00:00Z"},"files":[],"action":"needs_download","command":"plynth assets import \"https://www.blenderkit.com/get/abc\""}],"checked_only":false},"warnings":[{"code":"needs_download","message":"Get chair on this machine: plynth assets import \"https://www.blenderkit.com/get/abc\""}]}
+```
+
+A pack comes from someone else, so unpack checks all of it before it writes anything: the format and version, every path (relative, inside its item's folder, no `..`, no drive or network path, no name Windows reserves, a known file type), no links, no file that is not listed, every listed file present, and each copied item's own `info.json` against `pack.json`, so a store item cannot be passed off as copied. Any of these gives `bad_file` and the library is unchanged. Unpack is all or nothing: when a step fails halfway, what it added is removed again. The custom room types of the pack are added when the library lacks them. Nothing from a pack is ever run.
+
 ### session begin
 
 Starts an edit session. See the next section.
@@ -1926,6 +2039,20 @@ Options: `--library <folder>`, and `--from <folder>` for another folder of `.sha
 ```
 
 `copied` lists the files added and `skipped` the ones already there. A `--from` folder that does not exist is `not_found`. A shape added this way is listed by `opening shapes` the next time a command runs.
+
+### library add-sample-materials
+
+Imports the sample materials that ship with Plynth (`samples\materials`), as the Materials panel's "Add the sample materials" does. Materials the library already has keep their ids and are skipped. It runs Blender in the background.
+
+```
+plynth library add-sample-materials
+```
+
+```json
+{"ok":true,"command":"library add-sample-materials","result":{"folder":"C:/Program Files/Plynth/samples/materials","added":["oak_planks","red_brick"],"skipped":["concrete"]}}
+```
+
+It takes `--library`, `--blender` and `--quiet`. `not_found` when the samples are not next to the program.
 
 ### library info
 
@@ -2456,6 +2583,23 @@ Cleans a material again and renders a new thumbnail. Use it after `materials set
 ```
 plynth materials thumbnail red_brick
 ```
+
+### materials from-asset
+
+Takes one material of an asset into the materials catalog, as the Assets panel's "Add to materials catalog" does. The material is made from the asset's `asset.blend` and keeps the asset's source and license, so the material of a store asset stays a store item, for example in a pack.
+
+```
+plynth materials from-asset chair Seat --group fabric
+```
+
+| Option | Meaning |
+|---|---|
+| `<asset>` | Required. The asset id. |
+| `<material>` | Required. The material's name inside the asset, as `assets info` lists it under `materials`. |
+| `--group <id>` | A group for the new material. Repeat for several. |
+| `--library`, `--blender`, `--quiet` | As for `materials import`. |
+
+The answer is one entry as `materials import` lists them, plus `material`, the new material's entry. `not_found` for an unknown asset, or a material the asset does not have (the message lists the ones it has).
 
 ### materials importers
 

@@ -2,6 +2,7 @@
 #include "../Common.h"
 
 #include <plynth/core/ProjectFiles.h>
+#include <plynth/core/catalog/AssetMaterials.h>
 #include <plynth/core/catalog/MaterialImport.h>
 #include <plynth/core/catalog/MaterialInfo.h>
 
@@ -36,6 +37,21 @@ struct ImportOptions {
 };
 
 struct InboxOptions {
+    std::string library;
+    std::string blender;
+    bool quiet = false;
+};
+
+struct FromAssetOptions {
+    std::string library;
+    std::string blender;
+    std::string asset;
+    std::string material;
+    std::vector<std::string> groups;
+    bool quiet = false;
+};
+
+struct SamplesOptions {
     std::string library;
     std::string blender;
     bool quiet = false;
@@ -383,6 +399,102 @@ Answer materialsImporters() {
 
 }
 
+namespace {
+
+// One imported material as the answers list it.
+Json importedJson(const MaterialImportOutcome& outcome) {
+    Json item = Json::object();
+    item["id"] = outcome.materialId;
+    item["importer"] = outcome.importer;
+    item["skipped"] = outcome.skipped;
+    item["warnings"] = warningsJson(outcome.warnings);
+    item["thumbnail_failed"] = outcome.thumbnailFailed;
+    item["original_removed"] = outcome.originalRemoved;
+    return item;
+}
+
+// Takes one material of an asset into the materials catalog, keeping the asset's source and license.
+Answer materialsFromAsset(const RunContext& context, const FromAssetOptions& options) {
+    const std::string command = "materials from-asset";
+    OpenedMaterialCatalog opened;
+    Answer failed;
+    if (!openMaterialCatalog(command, context, options.library, opened, failed)) {
+        return failed;
+    }
+    const AssetMaterialRequest made = assetMaterialRequest(opened.paths, options.asset, options.material, options.groups);
+    if (!made.status.ok()) {
+        return failure(command, made.status);
+    }
+    ImportContext importContext;
+    if (!makeMaterialImportContext(command, context, opened, options.blender, importContext, failed)) {
+        return failed;
+    }
+    const MaterialImportOutcome outcome = importMaterial(*opened.catalog, importContext, made.request,
+                                                         progressWriter(context, options.quiet, options.asset));
+    if (!outcome.status.ok()) {
+        return failure(command, outcome.status);
+    }
+    Json result = importedJson(outcome);
+    if (const std::optional<MaterialRecord> record = opened.catalog->material(outcome.materialId)) {
+        result["material"] = materialEntry(*record);
+    }
+    Answer answer = success(command, std::move(result));
+    for (const BlenderWarning& warning : outcome.warnings) {
+        answer.warnings.push_back({warning.code, warning.message});
+    }
+    return answer;
+}
+
+// Imports the sample materials that the library does not have yet.
+Answer addSampleMaterials(const RunContext& context, const SamplesOptions& options) {
+    const std::string command = "library add-sample-materials";
+    OpenedMaterialCatalog opened;
+    Answer failed;
+    if (!openMaterialCatalog(command, context, options.library, opened, failed)) {
+        return failed;
+    }
+    const std::filesystem::path from = sampleMaterialsFolder();
+    const std::vector<MaterialImportRequest> requests = sampleMaterialRequests(from);
+    if (requests.empty()) {
+        return failure(command, fail(ErrorCode::NotFound, "The sample materials were not found next to the program."));
+    }
+    ImportContext importContext;
+    if (!makeMaterialImportContext(command, context, opened, options.blender, importContext, failed)) {
+        return failed;
+    }
+    Json added = Json::array();
+    Json skipped = Json::array();
+    std::vector<AnswerWarning> warnings;
+    for (const MaterialImportRequest& request : requests) {
+        const std::string name = pathToUtf8(request.source.file.filename());
+        const MaterialImportOutcome outcome =
+            importMaterial(*opened.catalog, importContext, request, progressWriter(context, options.quiet, name));
+        if (!outcome.status.ok()) {
+            Status status = outcome.status;
+            status.message = name + ": " + status.message + " " + std::to_string(added.size()) +
+                             " sample materials were added before it.";
+            return failure(command, status);
+        }
+        if (outcome.skipped) {
+            skipped.push_back(name);
+        } else {
+            added.push_back(outcome.materialId);
+        }
+        for (const BlenderWarning& warning : outcome.warnings) {
+            warnings.push_back({warning.code, name + ": " + warning.message});
+        }
+    }
+    Json result = Json::object();
+    result["folder"] = pathToUtf8(from);
+    result["added"] = std::move(added);
+    result["skipped"] = std::move(skipped);
+    Answer answer = success(command, std::move(result));
+    answer.warnings = std::move(warnings);
+    return answer;
+}
+
+}
+
 std::vector<CommandSpec> materialImportCommands() {
     CommandSpec import;
     import.words = {"materials", "import"};
@@ -450,7 +562,35 @@ std::vector<CommandSpec> materialImportCommands() {
         return [](const RunContext&) { return materialsImporters(); };
     };
 
-    return {import, inbox, thumbnail, importers};
+    CommandSpec fromAsset;
+    fromAsset.words = {"materials", "from-asset"};
+    fromAsset.description = "Take one material of an asset into the materials catalog. It keeps the asset's source "
+                            "and license.";
+    fromAsset.setup = [](CLI::App& sub) -> Handler {
+        auto options = std::make_shared<FromAssetOptions>();
+        sub.add_option("asset", options->asset, "Id of the asset.")->type_name("id")->required();
+        sub.add_option("material", options->material, "Name of the material inside the asset, as assets info lists it.")
+            ->type_name("name")
+            ->required();
+        sub.add_option("--group", options->groups, "A group id. Repeatable.")->type_name("id");
+        addLibraryOption(sub, options->library);
+        addBlenderOption(sub, options->blender);
+        sub.add_flag("--quiet", options->quiet, "Write no progress lines to standard error.");
+        return [options](const RunContext& context) { return materialsFromAsset(context, *options); };
+    };
+
+    CommandSpec samples;
+    samples.words = {"library", "add-sample-materials"};
+    samples.description = "Import the sample materials the library does not have yet. Ones it has are skipped.";
+    samples.setup = [](CLI::App& sub) -> Handler {
+        auto options = std::make_shared<SamplesOptions>();
+        addLibraryOption(sub, options->library);
+        addBlenderOption(sub, options->blender);
+        sub.add_flag("--quiet", options->quiet, "Write no progress lines to standard error.");
+        return [options](const RunContext& context) { return addSampleMaterials(context, *options); };
+    };
+
+    return {import, inbox, thumbnail, importers, fromAsset, samples};
 }
 
 }

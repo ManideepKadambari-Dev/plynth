@@ -50,6 +50,7 @@
 #include <plynth/core/commands/DeleteCommands.h>
 #include <plynth/core/SetupCheck.h>
 #include <plynth/core/catalog/AssetImport.h>
+#include <plynth/core/catalog/AssetMaterials.h>
 #include <plynth/core/commands/FloorCommands.h>
 
 #include <QEventLoop>
@@ -466,6 +467,15 @@ void MainWindow::buildMenus()
                                   QStringLiteral("file-save-as"),
                                   {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S)});
     connect(saveAsAction_, &QAction::triggered, this, [this]() { saveDocumentAs(); });
+    file->addSeparator();
+    QAction* packAction = addMenuAction(file, tr("&Pack project..."),
+                                        tr("Copy the library items the project uses into its pack folder, to move it to another machine"),
+                                        QStringLiteral("project-pack"), {});
+    connect(packAction, &QAction::triggered, this, &MainWindow::packProjectDialog);
+    QAction* unpackAction = addMenuAction(file, tr("&Unpack into library..."),
+                                          tr("Copy the items of the project's pack into this machine's library"),
+                                          QStringLiteral("project-unpack"), {});
+    connect(unpackAction, &QAction::triggered, this, &MainWindow::unpackProjectDialog);
     file->addSeparator();
     QAction* exitAction = addMenuAction(file, tr("E&xit"), tr("Exit Plynth (Alt+F4)"),
                                         QStringLiteral("file-exit"), {QKeySequence(Qt::ALT | Qt::Key_F4)});
@@ -1611,34 +1621,21 @@ void MainWindow::showMaterialImport()
     statusBar_->setHint(QString());
 }
 
-// Queues every folder of samples/materials, found by walking up from the program folder as the home screen does.
+// Queues the sample materials, the same requests "plynth library add-sample-materials" runs.
 void MainWindow::addSampleMaterials()
 {
     if (!host_->hasLibrary())
         return;
-    QDir dir(QCoreApplication::applicationDirPath());
-    QString folder;
-    for (int level = 0; level < 8 && folder.isEmpty(); ++level) {
-        if (QFileInfo(dir.filePath(QStringLiteral("samples/materials"))).isDir())
-            folder = dir.filePath(QStringLiteral("samples/materials"));
-        else if (!dir.cdUp())
-            break;
-    }
-    if (folder.isEmpty()) {
+    const std::vector<plynth::MaterialImportRequest> requests = plynth::sampleMaterialRequests(plynth::sampleMaterialsFolder());
+    if (requests.empty()) {
         statusBar_->showMessage(tr("The sample materials folder was not found next to the program."));
         return;
     }
     materialImportAsked_ = true;
     right_->showTab(RightPanel::Tab::Materials);
-    int count = 0;
-    for (const QFileInfo& info : QDir(folder).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
-        plynth::MaterialImportRequest request;
-        request.source.file = std::filesystem::path(info.absoluteFilePath().toStdWString());
-        request.skipExisting = true;
+    for (const plynth::MaterialImportRequest& request : requests)
         materialQueue_->enqueueImport(request);
-        ++count;
-    }
-    statusBar_->showMessage(tr("Adding %1 sample materials.").arg(count), false);
+    statusBar_->showMessage(tr("Adding %1 sample materials.").arg(requests.size()), false);
 }
 
 // For checks only: adds a path to the import screen list.
@@ -1680,19 +1677,20 @@ void MainWindow::materialImportFinished(bool ok, const QString& materialId, cons
     }
 }
 
-// Takes one material of an asset asset.blend into the materials catalog.
+// Takes one material of an asset asset.blend into the materials catalog, keeping the asset's source and license,
+// the same request "plynth materials from-asset" makes.
 void MainWindow::addMaterialFromAsset(const QString& assetId, const QString& materialName)
 {
     if (!host_->hasLibrary() || host_->catalog() == nullptr)
         return;
-    const std::optional<plynth::AssetRecord> record = host_->catalog()->asset(assetId.toStdString());
-    if (!record)
+    const plynth::AssetMaterialRequest made =
+        plynth::assetMaterialRequest(host_->paths(), assetId.toStdString(), materialName.toUtf8().toStdString());
+    if (!made.status.ok()) {
+        statusBar_->showMessage(fromCore(made.status.message));
         return;
-    plynth::MaterialImportRequest request;
-    request.source.file = record->folder / "asset.blend";
-    request.blendMaterial = materialName.toUtf8().toStdString();
+    }
     materialImportAsked_ = true;
-    materialQueue_->enqueueImport(request);
+    materialQueue_->enqueueImport(made.request);
     statusBar_->showMessage(tr("Adding the material %1 to the materials catalog.").arg(materialName), false);
 }
 

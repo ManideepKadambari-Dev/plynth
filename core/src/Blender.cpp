@@ -515,7 +515,7 @@ BlenderInstall inspectBlender(const fs::path& executable, std::stop_token stop)
 
     ProcessSpec spec;
     spec.program = executable;
-    spec.arguments = {"--background", "--factory-startup", "--version"};
+    spec.arguments = {"--background", "--disable-autoexec", "--factory-startup", "--version"};
     spec.timeout = versionTimeout();
     if (const Status s = useBlenderPrivateFolder(spec); !s.ok()) {
         install.status = fail(ErrorCode::BlenderFailed, s.message);
@@ -767,7 +767,8 @@ BlenderJobRun runBlenderJob(const fs::path& blender, const Json& job, const fs::
 
     ProcessSpec spec;
     spec.program = blender;
-    spec.arguments = {"--background"};
+    // Scripts stored inside .blend files never run: packed assets can come from other people (Pack.h).
+    spec.arguments = {"--background", "--disable-autoexec"};
     if (options.factoryStartup || isProbe) {
         // Offline mode goes with every factory startup, so a copied add-on never goes online.
         spec.arguments.emplace_back("--factory-startup");

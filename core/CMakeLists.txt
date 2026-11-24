@@ -22,6 +22,7 @@ add_library(plynth_core STATIC
     src/catalog/MaterialImport.cpp
     src/catalog/MaterialImporterRegistry.cpp
     src/catalog/ItemAssets.cpp
+    src/catalog/AssetMaterials.cpp
     src/catalog/BuiltInCatalog.cpp
     src/catalog/Database.cpp
     src/Plan.cpp
@@ -58,6 +59,7 @@ add_library(plynth_core STATIC
     src/ExportJob.cpp
     src/Export.cpp
     src/Render.cpp
+    src/PackContents.cpp
     src/PackManifest.cpp
     src/PackPolicy.cpp
     src/PackRead.cpp

@@ -22,6 +22,7 @@ add_library(plynth_cli STATIC
     src/commands/MaterialCatalogCommands.cpp
     src/commands/MaterialImportCommands.cpp
     src/commands/OpeningCommands.cpp
+    src/commands/PackCommands.cpp
     src/commands/RenderCommands.cpp
     src/commands/PointCommands.cpp
     src/commands/DetectCommands.cpp

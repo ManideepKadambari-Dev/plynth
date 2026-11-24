@@ -3,6 +3,7 @@
 #include "BuildProblem.h"
 #include "EditSession.h"
 #include "Library.h"
+#include "Project.h"
 #include "RoomTypes.h"
 #include "Status.h"
 #include "catalog/AssetInfo.h"
@@ -103,6 +104,13 @@ struct PackContents {
     std::vector<PackUse> used;
     std::vector<RoomType> roomTypes;
 };
+
+// What a project as marked uses from a library: the asset of every item, the generator of every generator item,
+// every material materialsUsed names (with the generator items' materials, read from the library's generators),
+// every opening shape that is not built in, and every room type that is not built in, named as the library's
+// assets catalog names it. Each once, in that order. The varied and dressed items a build picks are added when
+// variations and set dressing come in.
+PackContents packContents(const Project& project, const LibraryPaths& library);
 
 // None when the item may be copied, otherwise why it becomes a reference. Generators are always Script. Assets
 // and materials from a store are Store; ones with a source kind other than local_file, texture_set and

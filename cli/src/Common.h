@@ -92,6 +92,9 @@ Json openingEntry(const Floor& floor, const Opening& opening);
 // The room entry shared by the room commands: type, type name, walls, whether it is closed, area and label spot.
 Json roomEntry(const Floor& floor, const Room& room);
 
+// Asks the build or export running on the project to stop (requestCancel) and answers {"requested": bool}.
+Answer cancelRunning(const std::string& command, const RunContext& context, const std::string& projectOption);
+
 // Removes one point or wall together with everything that depends on it, as one step (makeDeleteCommand).
 // kind is "point" or "wall": an id of another kind is refused with invalid_value. The answer lists what was removed.
 Answer removeCascade(const std::string& command, const std::string& kind, const RunContext& context,

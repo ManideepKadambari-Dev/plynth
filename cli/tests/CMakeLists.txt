@@ -33,6 +33,8 @@ add_executable(plynth_cli_tests
     ErrorListTests.cpp
     RenderCliTests.cpp
     RenderProcessTests.cpp
+    GapCliTests.cpp
+    PackCliTests.cpp
     TestSetup.cpp
     TestSupport.cpp
 )

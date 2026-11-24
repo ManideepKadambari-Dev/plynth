@@ -154,6 +154,12 @@ fs::path sampleShapesFolder()
     return findSamplesFolder(L"shapes");
 }
 
+// Looks for the sample materials.
+fs::path sampleMaterialsFolder()
+{
+    return findSamplesFolder(L"materials");
+}
+
 // Looks for the sample generators.
 fs::path sampleGeneratorsFolder()
 {

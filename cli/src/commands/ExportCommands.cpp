@@ -76,6 +76,9 @@ Answer exportProject(const RunContext& context, const ExportOptions& options) {
     if (options.what == "report") {
         return exportReport(command, options, context);
     }
+    if (options.what == "cancel") {
+        return cancelRunning("export", context, options.project);
+    }
     const std::filesystem::path folder = resolveProjectFolder(context, options.project);
     Document document;
     Answer failed;
@@ -141,11 +144,12 @@ std::vector<CommandSpec> exportCommands() {
     spec.words = {"export"};
     spec.description = "Export the last build as FBX files for Unreal behind the quality checks. "
                        "With --check, only run the checks. With --force, export past failed checks. "
-                       "'export report' shows the last export report.";
+                       "'export report' shows the last export report and 'export cancel' stops a running export.";
     spec.setup = [](CLI::App& sub) -> Handler {
         auto options = std::make_shared<ExportOptions>();
-        sub.add_option("what", options->what, "Use 'report' to show the last export report.")
-            ->check(CLI::IsMember({"report"}));
+        sub.add_option("what", options->what,
+                       "Use 'report' to show the last export report, or 'cancel' to stop the export running on the project.")
+            ->check(CLI::IsMember({"report", "cancel"}));
         addProjectOption(sub, options->project);
         addBlenderOption(sub, options->blender);
         sub.add_flag("--quiet", options->quiet, "Write no progress lines to standard error.");

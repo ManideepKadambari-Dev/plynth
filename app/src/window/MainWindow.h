@@ -251,6 +251,8 @@ private:
     void openBuildFolder();
     void openInBlender();
     void save3dPicture();
+    void packProjectDialog();
+    void unpackProjectDialog();
     bool buildBlocked(QString* reason) const;
     QString exportNotice(bool* offerBuild) const;
     void exportFinished(const plynth::ExportReport& report);
