@@ -3,6 +3,7 @@
 #include <QTextBlock>
 #include <QTextCharFormat>
 #include <QTextCursor>
+#include <QTextFormat>
 #include <QTextFragment>
 
 #include <utility>
@@ -22,12 +23,24 @@ std::unique_ptr<QTextDocument> emptyDocument(const QFont& font, qreal margin)
     return document;
 }
 
+// Says whether a block is a line of a code block. Qt marks those on the block, not on their text.
+bool isCodeBlock(const QTextBlock& block)
+{
+    const QTextBlockFormat format = block.blockFormat();
+    return format.hasProperty(QTextFormat::BlockCodeFence) || format.hasProperty(QTextFormat::BlockCodeLanguage) ||
+           format.nonBreakableLines();
+}
+
 // Sets every code span and code block in the mono font. The places are found first and then changed in one
 // edit, because changing text while walking it, or one change at a time, is slow on long pages.
 void monoForCode(QTextDocument* document, const QFont& mono)
 {
     std::vector<std::pair<int, int>> spans;
     for (QTextBlock block = document->begin(); block.isValid(); block = block.next()) {
+        if (isCodeBlock(block)) {
+            if (block.length() > 1) spans.emplace_back(block.position(), block.position() + block.length() - 1);
+            continue;
+        }
         for (auto it = block.begin(); !it.atEnd(); ++it) {
             const QTextFragment fragment = it.fragment();
             if (!fragment.isValid() || !fragment.charFormat().fontFixedPitch()) continue;
@@ -40,6 +53,7 @@ void monoForCode(QTextDocument* document, const QFont& mono)
     if (spans.empty()) return;
     QTextCharFormat format;
     format.setFontFamilies({mono.family()});
+    format.setFontFixedPitch(true);
     QTextCursor cursor(document);
     cursor.beginEditBlock();
     for (const auto& [start, end] : spans) {
