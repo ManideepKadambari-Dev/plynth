@@ -292,6 +292,23 @@ jobs:
           if-no-files-found: error
           retention-days: ${{ env.PLYNTH_GATE == 'true' && 30 || 14 }}
 
+      # Failures here do not fail the run yet. The outcome goes into the summary.
+      - name: Run the graphics tests
+        id: graphics
+        if: ${{ !cancelled() && steps.package.outcome == 'success' }}
+        continue-on-error: true
+        shell: pwsh
+        run: '& "$env:GITHUB_WORKSPACE/.github/scripts/graphics-tests.ps1" -Package "$env:GITHUB_WORKSPACE/out/package/plynth"'
+
+      - name: Report the graphics tests
+        if: ${{ !cancelled() && steps.graphics.outcome != 'skipped' && steps.graphics.outcome != '' }}
+        shell: pwsh
+        env:
+          GRAPHICS_OUTCOME: ${{ steps.graphics.outcome }}
+        run: |
+          "Graphics tests: $env:GRAPHICS_OUTCOME. They do not fail the run yet." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          if ($env:GRAPHICS_OUTCOME -ne 'success') { Write-Host "::warning::The graphics tests ended with $env:GRAPHICS_OUTCOME" }
+
       # From here the Release build becomes the installer. Every gate run does this, so a fault shows before a tag.
       - name: Find or install Inno Setup
         id: inno
