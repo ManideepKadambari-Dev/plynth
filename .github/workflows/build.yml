@@ -316,16 +316,43 @@ jobs:
         if: ${{ !cancelled() && env.PLYNTH_GATE == 'true' && steps.build-release.outcome == 'success' }}
         shell: pwsh
         run: |
-          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
-          $ok = (Test-Path $iscc) -and ([version](Get-Item $iscc).VersionInfo.FileVersion -ge [version]'6.3')
-          if (-not $ok) {
+          # Finds ISCC.exe in the usual folders or on PATH.
+          function Find-Iscc {
+            $places = @((Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'), (Join-Path $env:ProgramFiles 'Inno Setup 6\ISCC.exe'),
+                        (Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 6\ISCC.exe'))
+            $command = Get-Command ISCC.exe -ErrorAction SilentlyContinue
+            if ($command) { $places += $command.Source }
+            return $places | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+          }
+          # Reads the version from the compiler's banner, then from the version resources of its files.
+          # Returns null when none of them names it.
+          function Get-IsccVersion([string]$iscc) {
+            $banner = (& $iscc '/?' 2>&1 | Out-String)
+            $global:LASTEXITCODE = 0
+            if ($banner -match 'Inno Setup[^\r\n]*?(\d+\.\d+\.\d+)') { return [version]$Matches[1] }
+            foreach ($file in @($iscc, (Join-Path (Split-Path $iscc) 'ISCmplr.dll'), (Join-Path (Split-Path $iscc) 'Compil32.exe'))) {
+              if (-not (Test-Path $file)) { continue }
+              $info = (Get-Item $file).VersionInfo
+              foreach ($text in @($info.ProductVersion, $info.FileVersion)) {
+                if ($text -match '^(\d+)\.(\d+)\.(\d+)' -and $Matches[1] -ne '0') { return [version]"$($Matches[1]).$($Matches[2]).$($Matches[3])" }
+              }
+            }
+            return $null
+          }
+          $iscc = Find-Iscc
+          $version = if ($iscc) { Get-IsccVersion $iscc } else { $null }
+          if (-not $iscc -or ($version -and $version -lt [version]'6.3')) {
             choco install innosetup -y --no-progress
             if ($LASTEXITCODE -ne 0) { throw "installing Inno Setup failed with code $LASTEXITCODE" }
+            $iscc = Find-Iscc
+            if (-not $iscc) { throw 'ISCC.exe was not found after installing Inno Setup' }
+            $version = Get-IsccVersion $iscc
           }
-          $version = (Get-Item $iscc).VersionInfo.FileVersion
-          if ([version]$version -lt [version]'6.3') { throw "Inno Setup $version is older than 6.3" }
+          if ($version -and $version -lt [version]'6.3') { throw "Inno Setup $version at $iscc is older than 6.3" }
+          # The script needs 6.3 or newer. An unreadable version is only a warning: an older compiler fails on the script anyway.
+          if (-not $version) { Write-Host "::warning::The version of $iscc could not be read"; $version = 'of unknown version' }
           "ISCC=$iscc" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          "Inno Setup $version, SHA-256 of ISCC.exe $((Get-FileHash -Algorithm SHA256 $iscc).Hash)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "Inno Setup $version at $iscc, SHA-256 of ISCC.exe $((Get-FileHash -Algorithm SHA256 $iscc).Hash)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
 
       - name: Stage the package
         id: stage
