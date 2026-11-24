@@ -16,6 +16,7 @@ using plynth::cli::kExitOk;
 using plynth::cli::testing::Outcome;
 using plynth::cli::testing::runChecked;
 using plynth::cli::testing::TempFolder;
+using plynth::cli::testing::utf8;
 
 namespace {
 
@@ -28,12 +29,6 @@ std::string readFile(const std::filesystem::path& file) {
 // The code of a failed answer.
 std::string errorCode(const Outcome& outcome) {
     return outcome.answer.at("error").at("code").get<std::string>();
-}
-
-// A path as UTF-8 text.
-std::string utf8(const std::filesystem::path& path) {
-    const auto text = path.generic_u8string();
-    return std::string(text.begin(), text.end());
 }
 
 // Makes a project with the sample image in a new temp folder and returns its path.

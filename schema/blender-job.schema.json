@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "urn:plynth:schema:blender-job:1",
   "title": "Plynth Blender job, version 1",
-  "description": "Written by Plynth as job.json in a work folder and passed to Blender with: blender --background [--factory-startup] -noaudio --python-exit-code 3 --python <scripts>/plynth_worker.py -- --job <work>/job.json. The worker runs the task and writes the result file named by result_file (schema blender-result). While it runs it prints progress lines of the form PLYNTH:{\"progress\": {\"step\": \"...\", \"index\": 1, \"count\": 9, \"message\": \"...\"}}. Paths are absolute with forward slashes. Lengths are metres.",
+  "description": "Written by Plynth as job.json in a work folder and passed to Blender with: blender --background [--factory-startup] --disable-autoexec -noaudio --python-exit-code 3 --python <scripts>/plynth_worker.py -- --job <work>/job.json. The worker runs the task and writes the result file named by result_file (schema blender-result). While it runs it prints progress lines of the form PLYNTH:{\"progress\": {\"step\": \"...\", \"index\": 1, \"count\": 9, \"message\": \"...\"}}. Paths are absolute with forward slashes. Lengths are metres.",
   "type": "object",
   "required": ["format", "version", "task", "job_id", "result_file", "params"],
   "additionalProperties": false,
@@ -43,6 +43,27 @@
       }
     },
     {
+      "if": { "properties": { "task": { "const": "blenderkit_fetch" } } },
+      "then": {
+        "properties": {
+          "params": {
+            "description": "Download one BlenderKit item through the BlenderKit add-on the user installed and signed in to (core/include/plynth/core/catalog/BlenderKit.h). Run without --factory-startup and with --disable-autoexec. Nothing it prints is kept, Plynth only knows its steps by id. The worker never calls a BlenderKit web address itself and never reads out the add-on's key.",
+            "type": "object",
+            "required": ["asset_base_id", "kind", "resolution", "output_folder", "private_folder", "wait_seconds"],
+            "additionalProperties": false,
+            "properties": {
+              "asset_base_id": { "type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" },
+              "kind": { "description": "What the import expects. Another kind fails with wrong_asset_kind.", "enum": ["model", "material"] },
+              "resolution": { "description": "Texture resolution, set in the add-on's preference in memory. The store gives the nearest one it has.", "enum": ["0.5k", "1k", "2k", "4k", "8k", "original"] },
+              "output_folder": { "description": "An empty folder inside private_folder. The worker copies into it the .blend the add-on names for the id and the textures folders beside it, out of private_folder only. Plynth moves it into the import's work folder afterwards. Never another item's file, a config folder or preferences.json.", "type": "string", "minLength": 1 },
+              "private_folder": { "description": "Plynth's own fetch folder (core/include/plynth/core/catalog/StoreFetch.h): labelled low integrity, emptied before and after, at most 95 bytes in UTF-8. The add-on's global folder for this run and the only place Blender, the add-on and its helper may write. The worker refuses a job without it.", "type": "string", "pattern": "^([A-Za-z]:/|/)" },
+              "wait_seconds": { "description": "How long to wait for the download.", "type": "integer", "minimum": 60, "maximum": 3600 }
+            }
+          }
+        }
+      }
+    },
+    {
       "if": { "properties": { "task": { "const": "cleanup_asset" } } },
       "then": {
         "properties": {
@@ -57,7 +78,7 @@
                 "additionalProperties": false,
                 "properties": {
                   "file": { "type": "string", "minLength": 1 },
-                  "format": { "description": "An importer of the worker's importer registry (blender/plynth/importers/).", "enum": ["blend", "fbx", "obj", "gltf", "zip"] }
+                  "format": { "description": "An importer of the worker's importer registry (blender/plynth/importers/). fab: file is a Fab source file (schema/fab-source.schema.json).", "enum": ["blend", "fbx", "obj", "gltf", "zip", "fab"] }
                 }
               },
               "asset_id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 64 },
@@ -355,8 +376,8 @@
                 "required": ["kind", "path", "material", "maps", "values", "normal"],
                 "additionalProperties": false,
                 "properties": {
-                  "kind": { "description": "A source of the worker's material source registry (blender/plynth/materials/sources/).", "enum": ["texture_set", "blend"] },
-                  "path": { "description": "texture_set: a folder, a zip or one image file. blend: a .blend file, opened and never saved.", "type": "string", "minLength": 1 },
+                  "kind": { "description": "A source of the worker's material source registry (blender/plynth/materials/sources/).", "enum": ["texture_set", "blend", "fab"] },
+                  "path": { "description": "texture_set: a folder, a zip or one image file. blend: a .blend file, opened and never saved. fab: a Fab source file (schema/fab-source.schema.json) of kind material.", "type": "string", "minLength": 1 },
                   "material": { "description": "blend: the material's name, or null for the only one. Always null for texture_set.", "type": ["string", "null"], "minLength": 1 },
                   "maps": {
                     "description": "Absolute image files the user picked for channels. They win over names and material.json.",

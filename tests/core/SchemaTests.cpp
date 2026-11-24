@@ -43,7 +43,7 @@ TEST_CASE("the schema files are valid schemas", "[core][schema]") {
                              "project.v2.schema.json", "plan.v3.schema.json", "project.v3.schema.json", "plan.v4.schema.json", "project.v4.schema.json",
                              "plan.v5.schema.json", "settings.schema.json", "settings.v1.schema.json",
                              "settings.v2.schema.json", "export-report.schema.json", "export-options.schema.json",
-                             "kit-layout.schema.json"}) {
+                             "kit-layout.schema.json", "fab-source.schema.json", "integrations.schema.json"}) {
         INFO(file);
         // An empty object is not a plan or a project, so a working validator complains about it
         // with a message about the instance, not about reading or loading the schema.

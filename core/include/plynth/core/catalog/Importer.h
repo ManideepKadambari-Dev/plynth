@@ -2,6 +2,9 @@
 
 #include "../Status.h"
 #include "AssetInfo.h"
+#include "ImportFetch.h"
+
+#include <nlohmann/json.hpp>
 
 #include <filesystem>
 #include <memory>
@@ -12,22 +15,34 @@
 
 namespace plynth {
 
-// Importers are registry entries (DESIGN.md sections 4 and 7.12). Each is one route assets come in by: own
-// files now, BlenderKit and Fab zips in milestone 13. An importer lives in its own file in
+// Importers are registry entries. Each is one route assets come in by: own files, BlenderKit addresses and
+// Fab zips (BlenderKit.h and FabZip.h). Each route also has one entry in the Integrations tab
+// (Integrations.h). An importer lives in its own file in
 // core/src/catalog/importers/ with an ImporterRegistrar at namespace scope, built into the OBJECT library
 // plynth_importers like the detectors, so adding one never means editing existing code.
 //
 // An importer only decides what Blender should read. The shared steps (staging, the Blender cleanup job,
 // info.json, the index, removing the original) are done once for every route by importAsset in AssetImport.h.
 
+using Json = nlohmann::ordered_json;
+
 // What the user handed in: a file or folder on disk, or a web address. Exactly one is set.
 struct ImportSource {
     std::filesystem::path file;
     std::string url;
+    // The importer's options: its integration's defaults, then what integrations.json saves,
+    // then the request's importerOptions on top (optionsForImporter in Integrations.h). Filled by the import
+    // before plan is called; an empty object for score and for importers without options.
+    Json options = Json::object();
+    // True when Plynth guessed where the source is from: the request names no importer, so the best score
+    // picked it, and gives no "license" option for this import. An importer then claims no license of its own
+    // (Fab gives unknown). Filled by the import and the dry run before plan is called.
+    bool guessed = false;
 };
 
-// What the user asked for. Empty fields take defaults: the id and name from the file name, no categories
-// (uncategorized), no tags, the importer's license or kUnknownLicenseId.
+// What the user asked for. Empty fields take defaults: the id and name from the file name (for an address
+// from the name the fetch reports), no categories (uncategorized), no tags, the importer's license or
+// kUnknownLicenseId.
 struct ImportRequest {
     ImportSource source;
     std::string id;
@@ -38,6 +53,12 @@ struct ImportRequest {
     double scale = 1.0;
     int rotateZ = 0;
     std::optional<bool> keepOriginal; // empty: the keepImportedZips setting
+    // The importer to use by id; empty picks the one with the highest score (pickImporter).
+    // NotFound for an unknown id, InvalidValue "<name> cannot read this." when its score is 0.
+    std::string importer;
+    // Options for this import only, checked by the importer's integration (Integrations.h) and put on top of
+    // the saved ones, for example {"quality": "high"} or {"model": "Chair/FBX/High/Chair.fbx"} for a Fab zip.
+    Json importerOptions = Json::object();
 };
 
 // What an importer decided.
@@ -48,9 +69,17 @@ struct ImportPlan {
     std::string reference;       // for info.json: the original file name or the address
     std::string defaultName;     // used when the request has no name
     std::string license;         // used when the request has none; empty means kUnknownLicenseId
-    // True when the original is a zip file that DESIGN.md section 5 rule 4 says to remove after a
-    // successful import (moveToRecycleBin), unless the request or the settings keep it.
+    // True when the original is a zip file to remove after a successful import (moveToRecycleBin), unless
+    // the request or the settings keep it.
     bool originalIsZip = false;
+    // A Blender job to run before the cleanup when the source is not a file yet (a store
+    // address). file and format are then filled from what it fetched (applyFetch in StoreFetch.h), and so are
+    // defaultName, license and reference where the fetch reports them.
+    std::optional<ImportFetch> fetch;
+    // What the importer chose and why, for "assets import --dry-run" and the app's import check, for example
+    // the Fab zip's model variants and the textures taken (FabZip.h). An empty object when there is nothing
+    // to say.
+    Json details = Json::object();
 };
 
 class Importer {
@@ -70,7 +99,10 @@ public:
     // endings, so a later importer that recognises a particular kind of zip can win by giving more.
     virtual int score(const ImportSource& source) const = 0;
     // Decides what Blender reads. workFolder is an empty folder of this import, for files it needs to make.
-    // InvalidValue with a plain sentence when the source cannot be used after all.
+    // InvalidValue with a plain sentence when the source cannot be used after all; out.details may still say
+    // what it found. An importer that lets the user pick lists {"models": [{"entry": "..."}...]} there and
+    // takes the option "model" with an entry. The front ends offer the pick from that list, whatever the
+    // sentence says.
     virtual Status plan(const ImportSource& source, const std::filesystem::path& workFolder,
                         ImportPlan& out) const = 0;
 };

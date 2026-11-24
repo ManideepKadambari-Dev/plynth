@@ -20,8 +20,8 @@
           "required": ["code", "message"],
           "additionalProperties": false,
           "properties": {
-            "code": { "enum": ["bad_job", "unknown_task", "unsupported_format", "import_failed", "no_geometry", "several_models", "several_materials", "no_base_color", "bake_failed", "unpack_failed", "save_failed", "render_failed", "export_failed", "preferences_unreadable", "internal"] },
-            "message": { "type": "string", "minLength": 1 }
+            "code": { "enum": ["bad_job", "unknown_task", "unsupported_format", "import_failed", "no_geometry", "several_models", "several_materials", "no_base_color", "bake_failed", "unpack_failed", "save_failed", "render_failed", "export_failed", "preferences_unreadable", "internal", "addon_missing", "not_signed_in", "download_failed", "download_timeout", "wrong_asset_kind"] },
+            "message": { "description": "From a store fetch: a fixed sentence, with the add-on's version (digits, dots and hyphens) and at most an exception's type name. Never add-on output, log or exception text.", "type": "string", "minLength": 1 }
           }
         }
       ]
@@ -51,6 +51,10 @@
     {
       "if": { "properties": { "ok": { "const": true }, "task": { "const": "probe" } } },
       "then": { "properties": { "output": { "$ref": "#/definitions/probeOutput" } } }
+    },
+    {
+      "if": { "properties": { "ok": { "const": true }, "task": { "const": "blenderkit_fetch" } } },
+      "then": { "properties": { "output": { "$ref": "#/definitions/fetchOutput" } } }
     },
     {
       "if": { "properties": { "ok": { "const": true }, "task": { "const": "cleanup_asset" } } },
@@ -92,6 +96,22 @@
         "file": { "description": "The file name inside the output folder, or null when the render failed.", "type": ["string", "null"] },
         "engine": { "description": "Thumbnails are rendered with Eevee only.", "enum": ["eevee", null] },
         "error": { "type": ["string", "null"] }
+      }
+    },
+    "fetchOutput": {
+      "description": "What a store fetch task brought into its output_folder (core/include/plynth/core/catalog/StoreFetch.h). Every fetch task reports this shape.",
+      "type": "object",
+      "required": ["file", "format", "kind", "name", "author", "license", "reference", "material"],
+      "additionalProperties": false,
+      "properties": {
+        "file": { "description": "Relative to output_folder, forward slashes, never leaving it.", "type": "string", "minLength": 1 },
+        "format": { "description": "A cleanup_asset format for a model, a cleanup_material source kind for a material.", "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "kind": { "enum": ["model", "material"] },
+        "name": { "type": ["string", "null"] },
+        "author": { "type": ["string", "null"] },
+        "license": { "description": "A license id of the catalogs, or null when the store's license is not known.", "oneOf": [{ "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 64 }, { "type": "null" }] },
+        "reference": { "description": "The item's page address or the store's id for it.", "type": ["string", "null"] },
+        "material": { "description": "The material inside file for a material fetch; null for a model.", "type": ["string", "null"], "minLength": 1 }
       }
     },
     "probeOutput": {

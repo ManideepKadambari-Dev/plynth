@@ -60,10 +60,10 @@ inline constexpr std::size_t kMaxAssetIdLength = 64;
 inline constexpr std::size_t kMaxAssetNameLength = 120;
 inline constexpr std::size_t kMaxTagLength = 40;
 
-// Source kinds. Each importer names its own; these are the ones planned.
-inline constexpr std::string_view kSourceLocalFile = "local_file";   // milestone 6
-inline constexpr std::string_view kSourceBlenderKit = "blenderkit";  // milestone 13
-inline constexpr std::string_view kSourceFabZip = "fab_zip";         // milestone 13
+// Source kinds. Each importer names its own. The two store kinds are used by materials too.
+inline constexpr std::string_view kSourceLocalFile = "local_file";   // the user's own files
+inline constexpr std::string_view kSourceBlenderKit = "blenderkit";  // catalog/BlenderKit.h
+inline constexpr std::string_view kSourceFabZip = "fab_zip";         // catalog/FabZip.h
 
 // The license every new asset gets until the user sets one.
 inline constexpr std::string_view kUnknownLicenseId = "unknown";
