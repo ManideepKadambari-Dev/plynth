@@ -1,14 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "urn:plynth:schema:export-options:1",
-  "title": "Plynth export options, version 1",
-  "description": "The export-options.json file in a project folder (core/include/plynth/core/ExportGroups.h): the user's edits to the automatic export groups and the modular kit switch. It is only there once something was changed. Edits refer to group ids and plan ids; one that no longer applies is skipped with a note at export time.",
+  "$id": "urn:plynth:schema:export-options:2",
+  "title": "Plynth export options, version 2",
+  "description": "The export-options.json file in a project folder (core/include/plynth/core/ExportGroups.h): the user's edits to the automatic export groups and the modular kit and gameplay data switches. Version 1 files (export-options.v1.schema.json) had no gameplay switch and read with it off. It is only there once something was changed. Edits refer to group ids and plan ids; one that no longer applies is skipped with a note at export time.",
   "type": "object",
   "required": ["format", "version"],
   "additionalProperties": false,
   "properties": {
     "format": { "const": "plynth-export-options" },
-    "version": { "const": 1 },
+    "version": { "const": 2 },
     "groups": {
       "description": "Applied in this order: added, merges, moves, renames.",
       "type": "object",
@@ -77,6 +77,14 @@
       "additionalProperties": false,
       "properties": {
         "enabled": { "description": "Also write the modular kit with every export.", "type": "boolean", "default": false }
+      },
+      "default": {}
+    },
+    "gameplay": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "description": "Also write the gameplay data file (rooms, doors and lights) with every export.", "type": "boolean", "default": false }
       },
       "default": {}
     }

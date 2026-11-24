@@ -7,7 +7,7 @@ from ..exporters import fbx  # noqa: F401
 from ..registry import BUILD_STEPS
 
 ORDER = 135
-HIDDEN_KINDS = ("roof", "collision")
+HIDDEN_KINDS = ("roof", "collision", "light")
 
 
 # Writes the preview parts: for every floor one FBX with everything of the floor but its slab and roofs, one with

@@ -1,5 +1,7 @@
 import copy
+import json
 import math
+import os
 import unittest
 
 import bmesh
@@ -148,6 +150,26 @@ class FinishBuildTests(BuildTest):
         self.assertEqual(first["plynth_id"], "r1")
         self.assertEqual(ctx.state["counts"]["dressing"], 2)
         self.assertEqual([p["code"] for p in ctx.state["problems"]], ["dressing_failed"])
+
+    def test_trim_gets_its_material_after_the_materials_step(self):
+        params = copy.deepcopy(load_params("square_room"))
+        entry = trim_entry("skirting", "SM_f1_Skirting", [square_ring(0.1, 3.9, 0.0)])
+        entry["slot"] = "Trim"
+        params["floors"][0]["trim"] = [entry]
+        params["floors"][0]["lights"] = [{"id": "l1", "kind": "wall", "location": [1.0, -1.0, 1.8], "power": 30,
+                                          "color": [1.0, 0.9, 0.8]}]
+        result = self.build(params)
+        self.assertTrue(result["ok"], result.get("error"))
+        skirting = bpy.data.objects["SM_f1_Skirting"]
+        self.assertEqual(skirting.data.materials[0].name, "Trim")
+        self.assertTrue(skirting.data.materials[0].use_nodes)
+        with open(os.path.join(self.path("build"), result["output"]["materials_file"]), encoding="utf-8") as handle:
+            written = json.load(handle)
+        names = [m["name"] for m in written["materials"]]
+        self.assertIn("Trim", names)
+        objects = [o["name"] for o in written["objects"]]
+        self.assertIn("SM_f1_Skirting", objects)
+        self.assertNotIn("Light_f1_l1", objects)
 
     def test_steps_skip_floors_without_their_fields(self):
         ctx = FakeContext([{"id": "f1"}], {})

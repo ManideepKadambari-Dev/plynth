@@ -1,13 +1,16 @@
+import os
+
 import bpy
 
-from . import Step, count, report
+from . import Step, count, opening_fills, report
 from ..registry import BUILD_STEPS
 
 ORDER = 65
 
 
 # Places the catalog door or window of every opening that names one, as an instance of the asset's collection
-# at the placement core worked out. An asset that did not load keeps the fill Plynth built and gives a warning.
+# at the placement core worked out. An asset that did not load gives a warning and gets the fill Plynth builds,
+# unless the fills step already made one because the asset file was missing.
 def run(ctx):
     loaded = ctx.state.get("asset_collections", {})
     for floor in ctx.params["floors"]:
@@ -21,6 +24,7 @@ def run(ctx):
                        "The %s asset %s could not be loaded, so the built fill is used." % (opening.get("type", "opening"),
                                                                                            asset["id"]),
                        floor["id"], opening["id"])
+                fill_after_all(ctx, floor, opening)
                 continue
             try:
                 place(ctx, floor, opening, asset, collection)
@@ -29,6 +33,16 @@ def run(ctx):
                     opening["id"], error), floor["id"], opening["id"])
                 continue
             count(ctx, "opening_assets")
+
+
+# Builds the fill of an opening whose asset did not load, when the fills step left it out for the asset.
+def fill_after_all(ctx, floor, opening):
+    if "settings" not in ctx.params or not ctx.params["settings"].get("fill_openings"):
+        return
+    asset_files = {a["id"]: a.get("blend_file") for a in ctx.params.get("assets", [])}
+    path = asset_files.get(opening["asset"]["id"])
+    if path and os.path.isfile(path):
+        opening_fills.build_fill(ctx, floor, opening)
 
 
 # Makes the instance empty of one opening's asset: location, turn about Z and scale from the job. A negative x

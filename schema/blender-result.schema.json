@@ -156,7 +156,26 @@
         "materials": { "type": "array", "items": { "type": "string" } },
         "textures": { "type": "array", "items": { "type": "string" } },
         "missing_textures": { "description": "Image files the model names that were not found.", "type": "array", "items": { "type": "string" } },
-        "thumbnail": { "$ref": "#/definitions/thumbnail" }
+        "thumbnail": { "$ref": "#/definitions/thumbnail" },
+        "supports": {
+          "description": "The flat places set dressing may use, as asset-supports.schema.json. Missing from workers before milestone 15.",
+          "type": "array",
+          "maxItems": 16,
+          "items": { "$ref": "#/definitions/support" }
+        }
+      }
+    },
+    "support": {
+      "type": "object",
+      "required": ["x0", "y0", "x1", "y1", "z", "clearance"],
+      "additionalProperties": false,
+      "properties": {
+        "x0": { "type": "number" },
+        "y0": { "type": "number" },
+        "x1": { "type": "number" },
+        "y1": { "type": "number" },
+        "z": { "type": "number", "minimum": 0 },
+        "clearance": { "type": "number", "minimum": 0.1 }
       }
     },
     "thumbnailOutput": {
@@ -212,7 +231,11 @@
             "slabs": { "description": "Slab meshes made.", "type": "integer", "minimum": 0 },
             "stairs": { "description": "Stair meshes made.", "type": "integer", "minimum": 0 },
             "roofs": { "description": "Roof section meshes made.", "type": "integer", "minimum": 0 },
-            "generators": { "description": "Items built by generators. Missing when the job had none.", "type": "integer", "minimum": 0 }
+            "generators": { "description": "Items built by generators. Missing when the job had none.", "type": "integer", "minimum": 0 },
+            "opening_assets": { "description": "Catalog doors and windows placed. Missing when none was.", "type": "integer", "minimum": 0 },
+            "trim": { "description": "Trim, railing and guard meshes made. Missing when none was.", "type": "integer", "minimum": 0 },
+            "dressing": { "description": "Set dressing props placed. Missing when none was.", "type": "integer", "minimum": 0 },
+            "lights": { "description": "Point lights made at light markers. Missing when none was.", "type": "integer", "minimum": 0 }
           }
         },
         "steps": {

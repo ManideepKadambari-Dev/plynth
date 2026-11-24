@@ -1,6 +1,6 @@
 import bmesh
 
-from . import Step, count, report, slot_name
+from . import Step, count, materials, report, slot_name
 from .. import meshes, sweep_mesh
 from ..registry import BUILD_STEPS
 
@@ -8,8 +8,10 @@ ORDER = 90
 
 
 # Builds every trim entry of every floor as one mesh object from its sweeps: skirting, cornices, casings, sills,
-# railings and guards. A sweep that cannot be skinned gives trim_failed and the build goes on.
+# railings and guards. A sweep that cannot be skinned gives trim_failed and the build goes on. The objects then
+# get their materials, since the materials step ran before them.
 def run(ctx):
+    made_objects = []
     for floor in ctx.params["floors"]:
         for entry in floor.get("trim", []):
             try:
@@ -18,11 +20,13 @@ def run(ctx):
                 report(ctx, "trim_failed", "warning", "The %s %s could not be built: %s" % (
                     entry.get("kind", "trim"), entry.get("object", ""), error), floor["id"], entry.get("plan_id"))
                 continue
-            if made:
+            if made is not None:
+                made_objects.append(made)
                 count(ctx, "trim")
+    materials.finish_late_objects(ctx, made_objects)
 
 
-# Makes the object of one trim entry, named as the job says. Returns false when it has no sweep left.
+# Makes the object of one trim entry, named as the job says. Returns None when it has no sweep left.
 def make_trim(ctx, floor, entry):
     bm = bmesh.new()
     try:
@@ -39,7 +43,7 @@ def make_trim(ctx, floor, entry):
                 faces += 1
         if faces == 0:
             bm.free()
-            return False
+            return None
         collection = ctx.state["collections"][floor["id"]]
         obj = meshes.make_object(entry["object"], bm, collection, entry["plan_id"], entry["plynth_kind"])
     except Exception:
@@ -48,7 +52,7 @@ def make_trim(ctx, floor, entry):
         raise
     meshes.add_slots(obj, [slot_name(ctx, entry["slot"])])
     obj["plynth_trim"] = entry["kind"]
-    return True
+    return obj
 
 
 BUILD_STEPS.register("trim", Step(ORDER, "Adding trim", run))

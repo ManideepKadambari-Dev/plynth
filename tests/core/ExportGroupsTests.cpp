@@ -457,6 +457,12 @@ TEST_CASE("members have plain labels", "[core][exportgroups]") {
     CHECK(exportMemberLabel(plan, {"slab", ""}) == "Every slab");
     CHECK(exportMemberLabel(plan, {"stair", "s1"}) == "stair s1");
     CHECK(exportMemberLabel(plan, {"floor", "r9"}) == "floor r9");
+    CHECK(exportMemberLabel(plan, {"trim", "f1"}) == "Trim, Floor 1");
+    CHECK(exportMemberLabel(plan, {"railing", "s1"}) == "Railing of stair s1");
+    CHECK(exportMemberLabel(plan, {"guard", "s1"}) == "Guard of stair s1");
+    CHECK(exportMemberLabel(plan, {"dressing", "r1"}) == "Set dressing of Living r1");
+    CHECK(exportMemberLabel(plan, {"dressing", "r9"}) == "dressing r9");
+    CHECK(exportMemberLabel(plan, {"trim", ""}) == "Every trim");
 }
 
 TEST_CASE("a generator item goes to its room's furniture group, labelled by its generator", "[core][exportgroups][generator]") {

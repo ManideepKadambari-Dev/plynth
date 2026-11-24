@@ -76,7 +76,8 @@ TEST_CASE("an options file with only the required fields reads as the defaults",
 
 TEST_CASE("the sample options file validates and reads", "[core][exportoptions]") {
     const nlohmann::json json = nlohmann::json::parse(readTextFile(dataFile("options_valid.json")));
-    REQUIRE(schemaProblem("export-options.schema.json", json).empty());
+    // The sample is a version 1 file, so it matches the frozen version 1 schema.
+    REQUIRE(schemaProblem("export-options.v1.schema.json", json).empty());
     const ExportOptionsRead read = exportOptionsFromJson(Json::parse(json.dump()));
     REQUIRE(read.status.ok());
     REQUIRE(read.options == busyOptions());
@@ -101,7 +102,7 @@ TEST_CASE("an options file with an unknown field is a bad file", "[core][exporto
 
 TEST_CASE("a newer options file is an unsupported version", "[core][exportoptions]") {
     const TempDir dir("options-version");
-    writeOptionsText(dir.path(), readTextFile(dataFile("options_version_2.json")));
+    writeOptionsText(dir.path(), readTextFile(dataFile("options_version_3.json")));
     REQUIRE(readExportOptions(dir.path()).status.code == ErrorCode::UnsupportedVersion);
 }
 
@@ -156,7 +157,7 @@ TEST_CASE("a failed write leaves the old options file", "[core][exportoptions]")
 
 TEST_CASE("the schema takes English group names only", "[core][exportoptions]") {
     const auto problem = [](const std::string& name) {
-        nlohmann::json json = {{"format", "plynth-export-options"}, {"version", 1}, {"groups", {{"renames", {{{"group", "a"}, {"name", name}}}}}}};
+        nlohmann::json json = {{"format", "plynth-export-options"}, {"version", 2}, {"groups", {{"renames", {{{"group", "a"}, {"name", name}}}}}}};
         return schemaProblem("export-options.schema.json", json);
     };
     REQUIRE(problem("Living room-2_a").empty());
@@ -208,11 +209,60 @@ TEST_CASE("repairing never touches a newer file or a missing one", "[core][expor
     REQUIRE_FALSE(none.repaired);
     REQUIRE_FALSE(fs::exists(dir.path() / "export-options.json"));
 
-    const std::string newer = readTextFile(dataFile("options_version_2.json"));
+    const std::string newer = readTextFile(dataFile("options_version_3.json"));
     writeOptionsText(dir.path(), newer);
     const ExportOptionsRepair repair = repairExportOptions(dir.path());
     REQUIRE(repair.status.code == ErrorCode::UnsupportedVersion);
     REQUIRE_FALSE(repair.repaired);
     REQUIRE(readTextFile(dir.path() / "export-options.json") == newer);
     REQUIRE_FALSE(fs::exists(dir.path() / "export-options.json.bad"));
+}
+
+TEST_CASE("version 1 options read with gameplay data off and are written as version 2", "[core][exportoptions]") {
+    const ExportOptionsRead old = exportOptionsFromJson(Json::parse(readTextFile(dataFile("options_valid.json"))));
+    REQUIRE(old.status.ok());
+    REQUIRE(old.options == busyOptions());
+    REQUIRE_FALSE(old.options.gameplay.enabled);
+    const Json written = exportOptionsToJson(old.options);
+    REQUIRE(written["version"] == 2);
+    REQUIRE(written["gameplay"]["enabled"] == false);
+    REQUIRE(schemaProblem("export-options.schema.json", plain(written)).empty());
+    REQUIRE(exportOptionsFromJson(written).options == old.options);
+    // Version 1 had no gameplay switch, so a version 1 file that carries one is bad.
+    REQUIRE(exportOptionsFromJson(Json::parse(R"({"format": "plynth-export-options", "version": 1, "gameplay": {"enabled": true}})"))
+                .status.code == ErrorCode::BadFile);
+}
+
+TEST_CASE("the gameplay switch round trips through a version 2 file", "[core][exportoptions]") {
+    const TempDir dir("options-gameplay");
+    const nlohmann::json json = nlohmann::json::parse(readTextFile(dataFile("options_gameplay.json")));
+    REQUIRE(schemaProblem("export-options.schema.json", json).empty());
+    REQUIRE(schemaProblem("export-options.v1.schema.json", json) != "");
+    const ExportOptionsRead read = exportOptionsFromJson(Json::parse(json.dump()));
+    REQUIRE(read.status.ok());
+    REQUIRE(read.options.gameplay.enabled);
+    REQUIRE(read.options.kit.enabled);
+
+    ExportOptions options;
+    options.gameplay.enabled = true;
+    plynth::test::requireOk(writeExportOptions(dir.path(), options));
+    REQUIRE(readExportOptions(dir.path()).options == options);
+    options.gameplay.enabled = false;
+    plynth::test::requireOk(writeExportOptions(dir.path(), options));
+    REQUIRE_FALSE(fs::exists(dir.path() / "export-options.json"));
+
+    REQUIRE(exportOptionsFromJson(Json::parse(R"({"format": "plynth-export-options", "version": 2, "gameplay": {"enabled": 1}})"))
+                .status.code == ErrorCode::BadFile);
+    REQUIRE(exportOptionsFromJson(Json::parse(R"({"format": "plynth-export-options", "version": 2, "gameplay": {"on": true}})"))
+                .status.code == ErrorCode::BadFile);
+    REQUIRE(exportOptionsFromJson(Json::parse(readTextFile(dataFile("options_version_2.json")))).status.ok());
+}
+
+TEST_CASE("repairing a bad options file keeps the gameplay switch", "[core][exportoptions]") {
+    const TempDir dir("options-repair-gameplay");
+    writeOptionsText(dir.path(), R"({"format": "plynth-export-options", "version": 2, "groups": [], "gameplay": {"enabled": true}})");
+    const ExportOptionsRepair repair = repairExportOptions(dir.path());
+    REQUIRE(repair.status.ok());
+    REQUIRE(repair.repaired);
+    REQUIRE(repair.options.gameplay.enabled);
 }
