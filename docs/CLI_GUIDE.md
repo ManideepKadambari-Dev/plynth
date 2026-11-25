@@ -149,16 +149,19 @@ Creates a project folder. The folder is made when it does not exist. If the fold
 | `--export single\|grouped` | Export mode. Default: `single`. |
 | `--grid <metres>` | Grid size. Default: 0.5. |
 | `--name <text>` | Project name. Default: the folder name. |
+| `--no-agent-guide` | Do not write `AGENTS.md` into the project. |
 
 ```
 plynth project new --project D:\Plans\MyApartment --image plan.png
 ```
 
 ```json
-{"ok":true,"command":"project new","result":{"folder":"D:/Plans/MyApartment","name":"MyApartment","export_mode":"single","grid_size":0.5,"defaults":{"ceiling_height":3.0,"door_width":0.9,"door_height":2.1,"window_width":1.2,"window_height":1.2,"window_sill":0.9},"has_autosave":false,"plan":{"version":2,"pixels_per_metre":null,"floors":[{"id":"f1","name":"Floor 1","image":"plans/plan.png","image_found":true,"ceiling_height":3.0,"points":0,"walls":0,"rooms":0,"openings":0}]}}}
+{"ok":true,"command":"project new","result":{"folder":"D:/Plans/MyApartment","name":"MyApartment","export_mode":"single","grid_size":0.5,"defaults":{"ceiling_height":3.0,"door_width":0.9,"door_height":2.1,"window_width":1.2,"window_height":1.2,"window_sill":0.9},"has_autosave":false,"plan":{"version":2,"pixels_per_metre":null,"floors":[{"id":"f1","name":"Floor 1","image":"plans/plan.png","image_found":true,"ceiling_height":3.0,"points":0,"walls":0,"rooms":0,"openings":0}]},"agent_guide":"written"}}
 ```
 
 Without `--image` the floor has no image and `image` is `null`. `defaults` holds the default sizes, see `project set`.
+
+`project new` also writes `AGENTS.md` into the project: the rules and the check loop for a tool that works on the project, see `agent-guide`. `agent_guide` says `written`, `kept` (a file of that name was already there and is left as it was) or `skipped` (`--no-agent-guide`, or the master copy was not found, which adds a `not_found` warning). The project is made in every case.
 
 ### project info
 
@@ -2189,6 +2192,58 @@ An existing picture is replaced only by a good new one. When a render fails or i
 
 A graphics driver that hangs cannot always be stopped from inside Plynth, so a script that renders unattended should set its own time limit around the command.
 
+### render --plan
+
+Saves a picture of one floor's plan with the marks drawn on top, so the result of `detect` and every edit can be checked against the drawing without the app. It needs no build and no graphics driver. It only reads the project, so it works while the app has the project open and during an edit session.
+
+```
+plynth render --plan
+plynth render --plan --floor f2 --out renders/upstairs.png
+plynth render --plan --size 1200 --grid
+plynth render --plan --no-image
+```
+
+What the picture shows, in the colors of the plan view:
+
+- The floor's plan image, dimmed so the marks stand out. It is drawn only once the plan has a scale, since the marks are in metres.
+- Walls as signal blue bands of their real thickness. Each opening cuts its band, so the drawing shows through the gap.
+- Doors with their leaf and swing arc, windows with two thin glass lines, plain openings with their two jambs.
+- Points as blue dots, rooms filled light blue, stairs with their steps and climb arrow, item footprints with a tick on the front edge, and light markers as small rings.
+- Labels with the ids the other commands take: `w3`, `o5` with its type, `i4` with its asset, `s1` with its stair type, and `r2` with its room type and floor area, such as `r2 bedroom` over `15.20 m2`. The top left label names the floor and the picture's pixels per metre. Point labels are left out where they would cover another label.
+
+| Option | Meaning |
+|---|---|
+| `--plan` | Draws the plan picture instead of a picture of the build. |
+| `--floor <id>` | The floor to draw. Default: the first floor. |
+| `--out <file>` | The PNG to write, with the same rules as above. Default: `renders/plan-<floor>.png`. |
+| `--size <pixels>` | One whole number: the pixels on the long side, 64 to 4096. The other side follows the plan's shape. Default: `2000`. |
+| `--no-image` | Leaves the plan image out and draws the marks only. |
+| `--no-labels` | Leaves the labels out. |
+| `--grid` | Adds a 1 m grid, stronger every 5 m, and a scale bar in the bottom left corner. The grid steps up to 5 m or 25 m when 1 m lines would sit too close. |
+| `--project <folder>` | The project. Default: the current folder. |
+
+`--view`, `--yaw`, `--pitch` and `--no-roofs` belong to pictures of the build and are refused with `--plan`, and `--no-image`, `--no-labels` and `--grid` are refused without it.
+
+```json
+{"ok":true,"command":"render","result":{"file":"D:/Plans/MyApartment/renders/plan-f1.png","width":2000,"height":1412,"scale":181.818,"origin":{"x":-0.55,"y":-0.55},"floor":"f1","image":true,"labels":[{"id":"f1","kind":"floor","x":7,"y":7,"width":141,"height":43},{"id":"r2","kind":"room","x":1380,"y":690,"width":128,"height":43}]}}
+```
+
+`scale` is the picture's pixels per metre and `origin` is the plan position, in metres, of the top left pixel, so a plan position (x, y) is at pixel ((x - origin.x) * scale, (y - origin.y) * scale). `image` says whether the plan image is under the marks. `labels` lists every label with its id, its kind (`floor`, `room`, `wall`, `opening`, `stair`, `item`, `light` or `point`) and its box in pixels.
+
+Warnings, with the picture still saved:
+
+| Code | When |
+|---|---|
+| `no_scale` | The floor has a plan image but the plan has no scale yet, so the image is not drawn. Set it with `plynth scale set`. |
+| `image_missing` | The floor's plan image could not be found or read. The marks are drawn on the plain sheet. |
+
+| Code | When |
+|---|---|
+| `not_found` | The plan has no floor with the `--floor` id. |
+| `invalid_value` | The size is not one whole number from 64 to 4096, or the output file breaks the rules above. |
+| `bad_arguments` | An option of the other kind of picture was given. Exit 2. |
+| `cannot_write` | The picture or its folder could not be written. |
+
 ### build report, build cancel, export cancel
 
 `plynth build report` answers with the last build report, read from `build\build.json`, in the same shape as `build`. It reads only, so it works during a session and while the app has the project open. `not_found` when the project was never built.
@@ -2388,7 +2443,7 @@ plynth samples list
 
 ### samples open
 
-Copies a sample project into a new folder, so you can change it and the sample stays as it was. The copy goes into the projects folder of the settings, or into the folder `--to` names, under the sample's name: "Apartment", then "Apartment (2)". Only the project files and the plan images are copied, never build output.
+Copies a sample project into a new folder, so you can change it and the sample stays as it was. The copy goes into the projects folder of the settings, or into the folder `--to` names, under the sample's name: "Apartment", then "Apartment (2)". Only the project files and the plan images are copied, never build output. The copy also gets an `AGENTS.md`, see `agent-guide`.
 
 ```
 plynth samples open apartment
@@ -2400,6 +2455,26 @@ plynth samples open house --to D:\Work
 ```
 
 An unknown sample is `not_found`. A `--to` folder inside the samples folder is `invalid_value`.
+
+### agent-guide
+
+Writes `AGENTS.md` into a project. The file holds the rules and the check loop for a tool that works on the project: what the folder holds, the session, the command order, checking before placing, the render loop and how to read errors. Many tools read a file of this name when they start in a folder. `project new` writes it for a new project. This command writes it into a project that has none, or refreshes it after an update of Plynth. The master copy is the file `docs/templates/project-agents.md` beside the program.
+
+| Option | Meaning |
+|---|---|
+| `--project <folder>` | The project. Default: the current folder. |
+| `--force` | Replace an `AGENTS.md` that is already there. Without it the command is refused and the file is not touched. |
+
+```
+plynth agent-guide
+plynth agent-guide --project D:\Plans\MyApartment --force
+```
+
+```json
+{"ok":true,"command":"agent-guide","result":{"file":"D:/Plans/MyApartment/AGENTS.md","agent_guide":"written"}}
+```
+
+A folder with no project is `not_a_project`. An existing `AGENTS.md` without `--force` is `already_exists`. A missing master copy is `not_found`. The command changes nothing but `AGENTS.md`, so it needs no edit session.
 
 ### samples add
 
@@ -3556,6 +3631,7 @@ Every action of the app that changes or checks a project or the library has a co
 | App | Command |
 |---|---|
 | File > New project, New project from image | `project new`, `project new --image` |
+| Instructions file for tools that work on a project | `agent-guide` |
 | File > Save as | `project save-as <folder>` |
 | Open dialog: Load or Keep mine | `project recover`, `project recover --discard` |
 | File > Pack project, Unpack into library | `pack`, `unpack` |

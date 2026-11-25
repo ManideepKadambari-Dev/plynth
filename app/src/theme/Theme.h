@@ -91,6 +91,7 @@ public:
     double markStroke() const { return markStroke_; }
     int previewButton() const { return previewButton_; }
     int helpListWidth() const { return helpListWidth_; }
+    int scrollBarWidth() const { return scrollBarWidth_; }
     double overlay3dOpacity() const { return overlay3dOpacity_; }
     double floorBelowOpacity() const { return floorBelowOpacity_; }
     double roofAreaOpacity() const { return roofAreaOpacity_; }
@@ -106,14 +107,13 @@ public:
     QString monoFamily() const { return monoFamily_; }
 
     QString styleSheet() const;
-    // Style sheet for one scroll bar, from theme colors. Applied to the scroll bars that need it.
-    QString scrollBarStyleSheet() const;
     // Rich text for a sentence, with every file name and path set in the mono font.
     QString withMonoPaths(const QString& text) const;
     void apply() const;
 
 private:
     Theme();
+    QString scrollStyleSheet() const;
 
     QColor ground_, panel_, raised_, line_, text_, muted_;
     QColor signalBlue_, signalAmber_, onBlue_;
@@ -170,6 +170,8 @@ private:
     int qualityMark_ = 14;
     int previewButton_ = 28;
     int helpListWidth_ = 240;
+    int scrollBarWidth_ = 6;
+    int scrollHandleAlpha_ = 110;
     double overlay3dOpacity_ = 0.85;
     double floorBelowOpacity_ = 0.35;
     double roofAreaOpacity_ = 0.15;

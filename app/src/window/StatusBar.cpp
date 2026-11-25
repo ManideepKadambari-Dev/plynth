@@ -78,8 +78,6 @@ StatusBar::StatusBar(QWidget* parent)
     zoomLabel_->setStyleSheet(mutedStyle);
     zoomLabel_->setToolTip(tr("Zoom level of the plan sheet"));
     layout->addWidget(zoomLabel_);
-
-    setToolTip(tr("Status bar: image name, image size and zoom"));
 }
 
 // Shows the file name and pixel size.

@@ -8,6 +8,8 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 
+#include <algorithm>
+
 namespace plynth::app {
 
 namespace {
@@ -20,7 +22,6 @@ constexpr int kBorderWidth = 1;
 RightPanel::RightPanel(QWidget* properties, QWidget* parent) : QWidget(parent)
 {
     const Theme& t = Theme::instance();
-    setMinimumWidth(t.sidePanelMinWidth());
     setMaximumWidth(t.sidePanelMaxWidth());
     auto* column = new QVBoxLayout(this);
     column->setContentsMargins(kBorderWidth, 0, 0, 0);
@@ -50,6 +51,14 @@ RightPanel::RightPanel(QWidget* properties, QWidget* parent) : QWidget(parent)
     properties->setParent(this);
     column->addWidget(properties, 1);
     connect(close_, &QPushButton::clicked, this, &RightPanel::closeRequested);
+}
+
+// The narrowest the panel may be: the theme's width, or more when the shown properties need it, so a saved
+// or dragged width never cuts them off.
+QSize RightPanel::minimumSizeHint() const
+{
+    const QSize content = QWidget::minimumSizeHint();
+    return QSize(std::max(Theme::instance().sidePanelMinWidth(), content.width()), content.height());
 }
 
 // Paints the Panel background with the Line border on its left edge.

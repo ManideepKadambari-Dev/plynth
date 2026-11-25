@@ -45,7 +45,6 @@ RoomTypesDialog::RoomTypesDialog(LibraryHost& host, QWidget* parent) : QDialog(p
 {
     const Theme& t = Theme::instance();
     setWindowTitle(tr("Room types and categories"));
-    setToolTip(tr("Edit the room types and the categories of the assets catalog"));
     resize(t.unit() * 160, t.unit() * 130);
 
     auto* outer = new QVBoxLayout(this);

@@ -68,7 +68,8 @@
     "qualityMark": 14,
     "markStroke": 1.4,
     "previewButton": 28,
-    "helpListWidth": 240
+    "helpListWidth": 240,
+    "scrollBarWidth": 6
   },
   "opacity": {
     "overlay3d": 0.85,
@@ -92,7 +93,8 @@
     "roomFillAlpha": 36,
     "proposalFillAlpha": 40,
     "proposalLineAlpha": 220,
-    "itemFillAlpha": 153
+    "itemFillAlpha": 153,
+    "scrollHandleAlpha": 110
   },
   "terminal": {
     "ansi": [

@@ -158,7 +158,6 @@ ToolStrip::ToolStrip(ToolController* controller, QWidget* parent)
 {
     const Theme& t = Theme::instance();
     setFixedWidth(t.toolStripWidth());
-    setToolTip(tr("Tools: Select, Scale, Wall, Opening, Room, Stair, Light, Furniture and Detect"));
 
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins((t.toolStripWidth() - kBorderWidth - t.toolButton()) / 2, t.unit() * 2,

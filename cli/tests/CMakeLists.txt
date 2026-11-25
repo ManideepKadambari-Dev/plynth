@@ -38,12 +38,14 @@ add_executable(plynth_cli_tests
     ErrorListTests.cpp
     RenderCliTests.cpp
     RenderProcessTests.cpp
+    PlanRenderCliTests.cpp
     GapCliTests.cpp
     PackCliTests.cpp
     SessionKeeperTests.cpp
     WholeCliTests.cpp
     GuideTests.cpp
     GuideCliTests.cpp
+    AgentGuideCliTests.cpp
     IdCliTests.cpp
     FormatCliTests.cpp
     LightCliTests.cpp

@@ -48,6 +48,7 @@ add_library(plynth_core STATIC
     src/BuildGeometry.cpp
     src/BuildJob.cpp
     src/Build.cpp
+    src/JobProgress.cpp
     src/MaterialDefaults.cpp
     src/Materials.cpp
     src/Stairs.cpp
@@ -60,6 +61,7 @@ add_library(plynth_core STATIC
     src/ExportJob.cpp
     src/Export.cpp
     src/Render.cpp
+    src/PlanPicture.cpp
     src/PackContents.cpp
     src/PackManifest.cpp
     src/PackPolicy.cpp

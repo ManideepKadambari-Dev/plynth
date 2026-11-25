@@ -13,7 +13,6 @@
 #include <QKeyEvent>
 #include <QListWidget>
 #include <QPainter>
-#include <QScrollBar>
 #include <QStyledItemDelegate>
 
 namespace plynth::app {
@@ -81,7 +80,6 @@ public:
 OpeningAssetPicker::OpeningAssetPicker(LibraryHost& host, QWidget* parent) : QWidget(parent), host_(host)
 {
     const Theme& t = Theme::instance();
-    setToolTip(tr("Pick the door or window of this opening"));
     setFocusPolicy(Qt::NoFocus);
     auto* row = new QHBoxLayout(this);
     row->setContentsMargins(1, 1, 1, 1);
@@ -90,7 +88,6 @@ OpeningAssetPicker::OpeningAssetPicker(LibraryHost& host, QWidget* parent) : QWi
     list_->setFrameShape(QFrame::NoFrame);
     list_->setFixedWidth(t.pickerColumnWidth());
     list_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    list_->verticalScrollBar()->setStyleSheet(t.scrollBarStyleSheet());
     list_->setStyleSheet(QStringLiteral("QListWidget { background: transparent; border: none; border-right: 1px solid %1; "
                                         "padding: %2px 0px; outline: none; }")
                              .arg(t.line().name())

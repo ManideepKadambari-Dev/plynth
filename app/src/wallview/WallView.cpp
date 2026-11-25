@@ -36,7 +36,6 @@ WallView::WallView(plynth::Document& document, Selection& selection, ToolControl
     : QWidget(parent), document_(document), selection_(selection), controller_(controller)
 {
     const Theme& t = Theme::instance();
-    setToolTip(tr("The face of the selected wall at true scale. Drag openings to move them, drag their edges to resize."));
     setMinimumHeight(t.wallViewMinHeight());
 
     auto* column = new QVBoxLayout(this);
