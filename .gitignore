@@ -82,3 +82,6 @@ samples/projects/*/session.lock
 samples/projects/*/build.lock
 samples/projects/*/app-state.json
 samples/projects/*/autosave/
+
+# Private signing keys never belong in the repo
+*.key

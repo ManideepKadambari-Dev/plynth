@@ -425,6 +425,25 @@ jobs:
             Write-Host '::warning::.github/scripts/check-notices.ps1 is not in this branch yet, so the notices were not checked'
           }
 
+      # Each library license text in the repo must equal the copyright file vcpkg installed for that port.
+      # A difference fails a tag and warns elsewhere, and notice-inputs carries the right text.
+      - name: Compare the library license texts
+        if: ${{ !cancelled() && steps.stage.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          $share = Get-ChildItem -Directory "$env:GITHUB_WORKSPACE/out/build/msvc/vcpkg_installed" | ForEach-Object { Join-Path $_.FullName 'share' } |
+            Where-Object { Test-Path $_ } | Select-Object -First 1
+          $level = if ($env:GITHUB_REF_TYPE -eq 'tag') { 'error' } else { 'warning' }
+          $bad = 0
+          foreach ($text in Get-ChildItem -File "$env:GITHUB_WORKSPACE/licenses/texts/vcpkg" -Filter *.txt) {
+            $installed = Join-Path $share "$($text.BaseName)/copyright"
+            if (-not (Test-Path $installed)) { Write-Host "::$level::$($text.Name) has no installed copyright file to compare with"; $bad++; continue }
+            $a = (Get-Content -Raw $text.FullName).Replace("`r`n", "`n").TrimEnd()
+            $b = (Get-Content -Raw $installed).Replace("`r`n", "`n").TrimEnd()
+            if ($a -ne $b) { Write-Host "::$level::licenses/texts/vcpkg/$($text.Name) differs from the copyright file vcpkg installed for $($text.BaseName)"; $bad++ }
+          }
+          if ($bad -and $level -eq 'error') { exit 1 }
+
       - name: Smoke test the stage
         if: ${{ !cancelled() && steps.stage.outcome == 'success' }}
         shell: pwsh
@@ -437,20 +456,78 @@ jobs:
         run: |
           $package = Get-Content -Raw "$env:RUNNER_TEMP/plynth-stage/package.json" | ConvertFrom-Json
           $major, $minor = $package.runtime_minimum -split '\.'
-          $common = @("/DAppVersion=$($package.app_version)", "/DStage=$env:RUNNER_TEMP\plynth-stage", "/DRuntimeMajor=$major",
-                      "/DRuntimeMinor=$minor", "/DPathEntry=$env:PLYNTH_PATH_ENTRY")
-          & $env:ISCC /Q @common "/DOutDir=$env:RUNNER_TEMP\plynth-setup" "$env:GITHUB_WORKSPACE\installer\plynth.iss"
+          # The mutex names come from the header the programs use, so installer and programs always agree.
+          $names = Get-Content -Raw "$env:GITHUB_WORKSPACE/core/include/plynth/core/UpdateNames.h"
+          if ($names -notmatch 'kRunningMutex\[\]\s*=\s*L"([A-Za-z]+)"') { throw 'kRunningMutex was not found in UpdateNames.h' }
+          $runningMutex = $Matches[1]
+          if ($names -notmatch 'kSetupMutex\[\]\s*=\s*L"([A-Za-z]+)"') { throw 'kSetupMutex was not found in UpdateNames.h' }
+          $setupMutex = $Matches[1]
+          $script = "$env:GITHUB_WORKSPACE\installer\plynth.iss"
+          $common = @("/DRuntimeMajor=$major", "/DRuntimeMinor=$minor", "/DPathEntry=$env:PLYNTH_PATH_ENTRY",
+                      "/DRunningMutex=$runningMutex", "/DSetupMutex=$setupMutex")
+          $release = @("/DAppVersion=$($package.app_version)", "/DStage=$env:RUNNER_TEMP\plynth-stage") + $common
+          & $env:ISCC /Q @release "/DOutDir=$env:RUNNER_TEMP\plynth-setup" $script
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed with code $LASTEXITCODE" }
-          # A second build points the runtime check at a key that does not exist, for the install test only.
-          & $env:ISCC /Q @common "/DOutDir=$env:RUNNER_TEMP\plynth-setup-no-runtime" '/DRuntimeKey=SOFTWARE\Plynth\NoRuntimeForTest' "$env:GITHUB_WORKSPACE\installer\plynth.iss"
+
+          # Test installers only, never uploaded: a missing runtime, and the versions around this one for the
+          # update tests. They compress fast and wait 10 seconds instead of 60 for Plynth to close.
+          $test = @('/DTestBuild=1', '/DWaitSeconds=10') + $common
+          $missing = '/DRuntimeKey=SOFTWARE\Plynth\NoRuntimeForTest'
+          & $env:ISCC /Q @release @test $missing "/DOutDir=$env:RUNNER_TEMP\plynth-setup-no-runtime" $script
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed with code $LASTEXITCODE" }
+          $v = [version]$package.app_version
+          $newer = "$($v.Major).$($v.Minor + 1).0"
+          $lower = if ($v.Build -gt 0) { "$($v.Major).$($v.Minor).$($v.Build - 1)" } elseif ($v.Minor -gt 0) { "$($v.Major).$($v.Minor - 1).0" } else { "$($v.Major - 1).0.0" }
+          & "$env:GITHUB_WORKSPACE/installer/MakeTestStage.ps1" -Stage "$env:RUNNER_TEMP\plynth-stage" -Out "$env:RUNNER_TEMP\plynth-stage-newer"
+          $newerStage = "/DStage=$env:RUNNER_TEMP\plynth-stage-newer"
+          & $env:ISCC /Q "/DAppVersion=$newer" $newerStage @test "/DOutDir=$env:RUNNER_TEMP\plynth-setup-newer" $script
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with code $LASTEXITCODE" }
+          & $env:ISCC /Q "/DAppVersion=$newer" $newerStage @test $missing "/DOutDir=$env:RUNNER_TEMP\plynth-setup-newer-no-runtime" $script
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with code $LASTEXITCODE" }
+          & $env:ISCC /Q "/DAppVersion=$lower" "/DStage=$env:RUNNER_TEMP\plynth-stage" @test "/DOutDir=$env:RUNNER_TEMP\plynth-setup-lower" $script
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with code $LASTEXITCODE" }
+          "PLYNTH_TEST_NEWER=$newer" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "PLYNTH_TEST_LOWER=$lower" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Test the installer
         id: install-test
         if: ${{ !cancelled() && steps.installer.outcome == 'success' }}
         shell: pwsh
         run: |
-          & "$env:GITHUB_WORKSPACE/installer/TestInstall.ps1" -Setup "$env:RUNNER_TEMP\plynth-setup\PlynthSetup.exe" -Stage "$env:RUNNER_TEMP\plynth-stage" -NoRuntimeSetup "$env:RUNNER_TEMP\plynth-setup-no-runtime\PlynthSetup.exe"
+          & "$env:GITHUB_WORKSPACE/installer/TestInstall.ps1" -Setup "$env:RUNNER_TEMP\plynth-setup\PlynthSetup.exe" -Stage "$env:RUNNER_TEMP\plynth-stage" `
+            -NoRuntimeSetup "$env:RUNNER_TEMP\plynth-setup-no-runtime\PlynthSetup.exe" `
+            -NewerSetup "$env:RUNNER_TEMP\plynth-setup-newer\PlynthSetup.exe" -NewerStage "$env:RUNNER_TEMP\plynth-stage-newer" `
+            -NewerVersion $env:PLYNTH_TEST_NEWER -NewerNoRuntimeSetup "$env:RUNNER_TEMP\plynth-setup-newer-no-runtime\PlynthSetup.exe" `
+            -LowerSetup "$env:RUNNER_TEMP\plynth-setup-lower\PlynthSetup.exe"
+
+      # The update driver links core's private test hooks, so it is built here only, after the stage was made
+      # and checked, and it never reaches a package. A branch without update code skips this with a note.
+      - name: Build the update driver
+        id: update-driver
+        if: ${{ !cancelled() && steps.install-test.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "$env:GITHUB_WORKSPACE/core/src/update/UpdateInternals.h")) {
+            'The update test was skipped: core has no update code in this branch.' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+            'built=false' | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            exit 0
+          }
+          cmake --preset msvc -DPLYNTH_UPDATE_DRIVER=ON
+          if ($LASTEXITCODE -ne 0) { throw "configuring the update driver failed with code $LASTEXITCODE" }
+          cmake --build --preset release --target plynth_update_driver
+          if ($LASTEXITCODE -ne 0) { throw "building the update driver failed with code $LASTEXITCODE" }
+          $driver = Get-ChildItem -Recurse -File "$env:GITHUB_WORKSPACE/out/build/msvc/tests" -Filter update_driver.exe | Where-Object { $_.FullName -match '\\Release\\' } | Select-Object -First 1
+          if (-not $driver) { throw 'update_driver.exe was not found after the build' }
+          "UPDATE_DRIVER=$($driver.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          'built=true' | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Test the update
+        if: ${{ !cancelled() && steps.update-driver.outcome == 'success' && steps.update-driver.outputs.built == 'true' }}
+        shell: pwsh
+        run: |
+          & "$env:GITHUB_WORKSPACE/installer/TestUpdate.ps1" -Setup "$env:RUNNER_TEMP\plynth-setup\PlynthSetup.exe" `
+            -NewerSetup "$env:RUNNER_TEMP\plynth-setup-newer\PlynthSetup.exe" -NewerStage "$env:RUNNER_TEMP\plynth-stage-newer" `
+            -NewerVersion $env:PLYNTH_TEST_NEWER -LowerVersion $env:PLYNTH_TEST_LOWER -Driver $env:UPDATE_DRIVER
 
       # A branch or main run keeps only hashes and the file list, never a program.
       - name: Write the dry run
@@ -565,15 +642,19 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-  # Makes a draft release from the files of a tag run. It checks out nothing and runs none of the repo's
-  # programs. The draft is published by hand after a last look.
+  # Makes a draft release from the files of a tag run. It checks out nothing, runs none of the repo's
+  # programs and holds no signing key. It attests PlynthSetup.exe, so the owner can check where the installer
+  # came from before signing it. The owner then adds PlynthSetup.exe.minisig to the draft, looks it over and
+  # publishes it by hand. This job never publishes.
   draft-release:
     needs: windows
-    if: ${{ github.ref_type == 'tag' && needs.windows.result == 'success' }}
+    if: ${{ github.ref_type == 'tag' && startsWith(github.ref_name, 'v') && github.repository == 'ManideepKadambari-Dev/plynth' && needs.windows.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
@@ -585,7 +666,7 @@ jobs:
           name: release-files
           path: release
 
-      - name: Make the draft release
+      - name: Refuse an existing release and warn about immutable releases
         shell: bash
         run: |
           set -euo pipefail
@@ -593,13 +674,42 @@ jobs:
             echo "::error::A release for $TAG already exists. A release is never replaced."
             exit 1
           fi
+          # A draft still takes the signature. With immutable releases on, nothing can be added once it is published.
+          if enabled=$(gh api "repos/$GH_REPO/immutable-releases" --jq '.enabled' 2>/dev/null); then
+            if [[ "$enabled" == "true" ]]; then
+              echo "::warning::Immutable releases is on for this repository. Add PlynthSetup.exe.minisig to the draft before publishing it, because nothing can be added afterwards."
+            fi
+          else
+            echo "::warning::This job could not read whether immutable releases is on. Add PlynthSetup.exe.minisig to the draft before publishing it."
+          fi
+
+      - name: Attest the installer
+        id: attest
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-path: release/files/PlynthSetup.exe
+
+      - name: Make the draft release
+        shell: bash
+        env:
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: |
+          set -euo pipefail
+          cp "$BUNDLE" release/files/PlynthSetup.exe.sigstore.json
           version="${TAG#v}"
           version="${version%%-*}"
           prerelease=()
-          if [[ "$version" == 0.* || "$TAG" == *-* ]]; then prerelease=(--prerelease); fi
-          gh release create "$TAG" release/files/* --draft "${prerelease[@]}" --verify-tag \
-            --title "Plynth $version early preview" --notes-file release/notes.md
-          echo "Draft release for $TAG made. Publish it by hand after a last look." >> "$GITHUB_STEP_SUMMARY"
+          title="Plynth $version"
+          if [[ "$version" == 0.* || "$TAG" == *-* ]]; then
+            prerelease=(--prerelease)
+            title="Plynth $version early preview"
+          fi
+          gh release create "$TAG" release/files/* --draft "${prerelease[@]}" --verify-tag --title "$title" --notes-file release/notes.md
+          {
+            echo "Draft release for $TAG made with $(ls release/files | xargs)."
+            echo ""
+            echo "Next: sign PlynthSetup.exe, add PlynthSetup.exe.minisig to the draft, look it over, then publish it by hand."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # Downloads license texts from their official sources and uploads them for a commit by hand.
   license-texts:

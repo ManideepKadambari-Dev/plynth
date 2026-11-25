@@ -75,7 +75,40 @@ foreach ($b in $binaries) {
 }
 $global:LASTEXITCODE = 0
 
-$logo = (Get-FileHash -Algorithm SHA256 (Join-Path $root 'app/resources/logo.png')).Hash.ToLowerInvariant()
+# No key or signature file, no test server and no test key may ship. A release holds exactly the trusted keys.
+foreach ($file in Get-ChildItem -Recurse -File $Stage) {
+    $relative = [System.IO.Path]::GetRelativePath($Stage, $file.FullName).Replace('\', '/')
+    $stream = [System.IO.File]::OpenRead($file.FullName)
+    try {
+        $head = New-Object byte[] 32
+        $read = $stream.Read($head, 0, $head.Length)
+    } finally { $stream.Dispose() }
+    if ([System.Text.Encoding]::ASCII.GetString($head, 0, $read) -like 'untrusted comment:*') {
+        Add-Problem "key or signature file in the package: $relative"
+    }
+}
+$testKeys = @(Get-TestKeys $root)
+$trusted = @(Get-TrustedKeys $root)
+foreach ($b in $binaries) {
+    $relative = [System.IO.Path]::GetRelativePath($Stage, $b.FullName).Replace('\', '/')
+    $text = [System.Text.Encoding]::Latin1.GetString([System.IO.File]::ReadAllBytes($b.FullName))
+    if ($text.Contains('cpp-httplib', [System.StringComparison]::Ordinal)) { Add-Problem "$relative holds the test server cpp-httplib" }
+    foreach ($key in $testKeys) {
+        if ($text.Contains($key, [System.StringComparison]::Ordinal)) { Add-Problem "$relative holds a test key: $key" }
+    }
+    if ($relative -eq 'plynth.exe') {
+        foreach ($m in [regex]::Matches($text, 'RW[A-Za-z0-9+/]{54}')) {
+            if ((Test-PublicKeyLine $m.Value) -and $trusted -notcontains $m.Value) { Add-Problem "plynth.exe holds a key that is not trusted: $($m.Value)" }
+        }
+        if ($Release) {
+            foreach ($key in $trusted) {
+                if (-not $text.Contains($key, [System.StringComparison]::Ordinal)) { Add-Problem "plynth.exe lacks the trusted key $key" }
+            }
+        }
+    }
+}
+
+$logo =(Get-FileHash -Algorithm SHA256 (Join-Path $root 'app/resources/logo.png')).Hash.ToLowerInvariant()
 $expected = (Get-Content (Join-Path $PSScriptRoot 'logo.sha256') -TotalCount 1).Trim().ToLowerInvariant()
 if ($logo -ne $expected) { Add-Problem 'app/resources/logo.png differs from the recorded hash' }
 

@@ -182,6 +182,32 @@ target_compile_definitions(plynth_core_tests PRIVATE
     PLYNTH_FAKE_STORE_HELPER="$<TARGET_FILE:plynth_fake_store_helper>"
     PLYNTH_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 
+# Update tests make keys and signatures in memory with libsodium and serve releases on 127.0.0.1 with
+# cpp-httplib. httplib is for tests only and never reaches a shipped program.
+find_package(unofficial-sodium CONFIG REQUIRED)
+find_package(httplib CONFIG REQUIRED)
+file(GLOB PLYNTH_UPDATE_TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/core/update/*.cpp)
+target_sources(plynth_core_tests PRIVATE ${PLYNTH_UPDATE_TEST_SOURCES})
+target_link_libraries(plynth_core_tests PRIVATE unofficial-sodium::sodium httplib::httplib ws2_32)
+
+# A fake PlynthSetup.exe with a version resource of 0.2.0, and a program that starts it from inside a job.
+add_executable(plynth_fake_installer tools/fake_installer/main.cpp tools/fake_installer/version.rc)
+target_link_libraries(plynth_fake_installer PRIVATE nlohmann_json::nlohmann_json)
+set_target_properties(plynth_fake_installer PROPERTIES OUTPUT_NAME fake_installer)
+add_executable(plynth_update_launcher tools/update_launcher/main.cpp)
+target_link_libraries(plynth_update_launcher PRIVATE plynth::core)
+add_dependencies(plynth_core_tests plynth_fake_installer plynth_update_launcher)
+target_compile_definitions(plynth_core_tests PRIVATE
+    PLYNTH_FAKE_INSTALLER="$<TARGET_FILE:plynth_fake_installer>"
+    PLYNTH_UPDATE_LAUNCHER="$<TARGET_FILE:plynth_update_launcher>")
+
+# The end to end update driver links core's private test hooks. It is never staged, and it is built only
+# when asked for, by the update test on GitHub.
+option(PLYNTH_UPDATE_DRIVER "Build the end to end update test driver" OFF)
+if(PLYNTH_UPDATE_DRIVER)
+    add_subdirectory(tools/update_driver)
+endif()
+
 catch_discover_tests(plynth_core_tests DISCOVERY_MODE PRE_TEST ADD_TAGS_AS_LABELS)
 
 add_subdirectory(guide)
