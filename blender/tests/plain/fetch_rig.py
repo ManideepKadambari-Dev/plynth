@@ -30,7 +30,8 @@ HELD_ADDON = os.path.join(BLENDER_FOLDER, "tests", "data", "fake_held_refs", "he
 KEY = "KEY-MARKER-7f31-made-up-key-0000000000"
 REFRESH = "TOKEN-MARKER-92ac-made-up-refresh-00000"
 REMOVED = ("BLENDKIT_CLIENT_SETTINGS", "BLENDKIT_SERVER", "BLENDERKIT_SERVER", "BLENDKIT_DEBUG", "BLENDKIT_TOOLS_DIR")
-RESOLUTION_PREF = {"0.5k": "512", "1k": "1024", "2k": "2048", "4k": "4096", "8k": "8192", "original": "ORIGINAL"}
+RESOLUTION_SERVER = {"0.5k": "resolution_0_5K", "1k": "resolution_1K", "2k": "resolution_2K", "4k": "resolution_4K",
+                     "8k": "resolution_8K", "original": "blend"}
 
 
 # The fake helper program, named by the build. Fails loudly when the build did not name it.
