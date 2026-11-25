@@ -49,5 +49,7 @@ if(PLYNTH_BUILD_TESTS)
                 "$<TARGET_FILE_DIR:plynth_help_view_tests>/platforms/"
             COMMENT "Copying the offscreen platform plugin")
     endif()
-    catch_discover_tests(plynth_help_view_tests DISCOVERY_MODE PRE_TEST PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    # Release programs no longer know the source tree, so the tests name the Blender scripts folder themselves.
+    catch_discover_tests(plynth_help_view_tests DISCOVERY_MODE PRE_TEST PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        ENVIRONMENT_MODIFICATION "PLYNTH_BLENDER_SCRIPTS=set:${PROJECT_SOURCE_DIR}/blender")
 endif()
