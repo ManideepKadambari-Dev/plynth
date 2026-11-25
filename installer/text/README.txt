@@ -57,6 +57,13 @@ Removing the portable copy
   your library, projects and settings.
 
 Updates
-  Plynth does not check for updates and never contacts anyone on its own.
-  To update, download the new version from the releases page: run the new
-  installer over the old one, or replace the portable folder.
+  An installed copy checks the releases page on GitHub when it starts. Turn
+  this off in Help or the setup check, or run
+  plynth settings set --update-check false
+  Help, Check for updates, then Update Plynth installs a new version. On the
+  command line use plynth update (--check only looks, --status shows the
+  state). Every update is verified against the owner's signature before it
+  runs. Your settings, library and projects are kept.
+  The portable copy never checks. To update it, replace the folder.
+  This signature is separate from Windows code signing. It does not remove
+  the SmartScreen warning.
