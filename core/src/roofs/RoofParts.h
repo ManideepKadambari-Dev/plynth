@@ -4,6 +4,7 @@
 
 #include <functional>
 #include <optional>
+#include <utility>
 #include <vector>
 
 // Shared building blocks for roof types. They are written in Roofs.cpp, so a roof type file needs no polygon
@@ -47,7 +48,19 @@ std::vector<WorldPolygon> without(const std::vector<WorldPolygon>& polygons, con
 std::vector<RoofFace> flatFaces(const std::vector<WorldPolygon>& polygons, double z, bool up, RoofPart part);
 
 // Vertical faces on every ring of the polygons from bottom to top, looking away from the polygons' material.
-std::vector<RoofFace> ringWalls(const std::vector<WorldPolygon>& polygons, double bottom, double top, RoofPart part);
+// Parts of a ring that lie along the outline of above get none, since the wall of that storey closes them.
+std::vector<RoofFace> ringWalls(const std::vector<WorldPolygon>& polygons, double bottom, double top, RoofPart part,
+                                const std::vector<WorldPolygon>& above = {});
+
+// The parts of the edge from p to q that do not lie along the outline of above, in order from p. The whole
+// edge, with its ends unchanged, when nothing lies along it.
+std::vector<std::pair<Vec2, Vec2>> freeParts(Vec2 p, Vec2 q, const std::vector<WorldPolygon>& above);
+
+// Says whether some edge of the polygons lies along the outline of above.
+bool meetsAbove(const std::vector<WorldPolygon>& polygons, const std::vector<WorldPolygon>& above);
+
+// The two sets as one, with rounding gaps between them closed.
+std::vector<WorldPolygon> joined(const std::vector<WorldPolygon>& polygons, const std::vector<WorldPolygon>& more);
 
 // One face from a polygon with every point lifted to a plane and lowered by drop. A down face turns every ring.
 RoofFace planeFace(const WorldPolygon& polygon, const Plane& plane, double drop, bool up, RoofPart part);

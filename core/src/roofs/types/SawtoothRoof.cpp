@@ -184,7 +184,14 @@ public:
         for (const WorldPolygon& poly : eaves) {
             for (const std::vector<Vec2>* ring : rings(poly)) {
                 for (std::size_t i = 0; i < ring->size(); ++i) {
-                    for (const SidePart& part : sideParts((*ring)[i], (*ring)[(i + 1) % ring->size()])) {
+                    std::vector<SidePart> parts;
+                    for (const SidePart& whole : sideParts((*ring)[i], (*ring)[(i + 1) % ring->size()])) {
+                        // Where the floor above stands along the side, its wall closes the roof instead.
+                        for (const auto& [from, to] : roofparts::freeParts(whole.a, whole.b, input.above)) {
+                            parts.push_back({from, to, whole.bay, whole.underGlass});
+                        }
+                    }
+                    for (const SidePart& part : parts) {
                         Vec2 a = part.a;
                         Vec2 b = part.b;
                         const roofparts::Plane plane = planeOf(part.bay);

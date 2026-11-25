@@ -5,7 +5,8 @@ namespace plynth {
 
 namespace {
 
-// A flat roof: a thin layer over the eaves outline, with a parapet round the section when one is set.
+// A flat roof: a thin layer over the eaves outline, with a parapet round the section when one is set. Along the
+// floor above it has neither edge faces nor parapet, since that storey's wall rises there.
 class FlatRoof final : public RoofType {
 public:
     std::string_view id() const override { return kFlatRoofId; }
@@ -29,12 +30,17 @@ public:
             faces.insert(faces.end(), std::make_move_iterator(more.begin()), std::make_move_iterator(more.end()));
         };
         add(roofparts::flatFaces(layer, input.base, false, RoofPart::Underside));
-        add(roofparts::ringWalls(layer, input.base, top, RoofPart::Edge));
+        add(roofparts::ringWalls(layer, input.base, top, RoofPart::Edge, input.above));
         if (parapet) {
-            const std::vector<WorldPolygon> band = roofparts::without(layer, roofparts::inset(layer, kParapetThickness));
+            // Joined with the floor above, the outline along that storey's wall is no outline at all, so the
+            // band leaves it out and runs up to the wall.
+            const std::vector<WorldPolygon> outline =
+                roofparts::meetsAbove(layer, input.above) ? roofparts::joined(layer, input.above) : layer;
+            const std::vector<WorldPolygon> inner = roofparts::inset(outline, kParapetThickness);
+            const std::vector<WorldPolygon> band = roofparts::without(layer, inner);
             const double high = top + input.settings.parapet;
             add(roofparts::flatFaces(band, high, true, RoofPart::Parapet));
-            add(roofparts::ringWalls(band, top, high, RoofPart::Parapet));
+            add(roofparts::ringWalls(band, top, high, RoofPart::Parapet, input.above));
         }
         return faces;
     }
