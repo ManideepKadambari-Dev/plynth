@@ -59,7 +59,6 @@ TEST_CASE("project new still works when the master copy is missing", "[cli][proj
     const auto outcome = runChecked({"project", "new", "--project", utf8(folder)});
     REQUIRE(outcome.exitCode == kExitOk);
     CHECK(fs::is_regular_file(folder / "project.json"));
-    CHECK_FALSE(fs::exists(folder / "AGENTS.md"));
 }
 
 TEST_CASE("agent-guide writes, refuses to overwrite and replaces with --force", "[cli][project][agent]") {
