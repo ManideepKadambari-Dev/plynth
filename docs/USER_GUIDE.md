@@ -1029,8 +1029,11 @@ The first time you open the tab, and when you press **Check again** on the Blend
 
 You need your own BlenderKit account and the BlenderKit add-on, installed, enabled and signed in inside Blender. Plynth never installs it, never signs in for you and never shows, logs or copies your key. [Setting up Plynth](SETUP.md) shows how.
 
-1. Open the item on www.blendkit.com (BlenderKit's site, which used to be www.blenderkit.com) and copy its address from the browser. Addresses on either site work.
-2. On the BlenderKit card, paste it into the address box. If the text is not a BlenderKit address, the card says so, and the buttons stay off.
+1. Copy the item in one of these forms:
+   - its address in the browser, on www.blendkit.com (BlenderKit's site, which used to be www.blenderkit.com). Addresses on either site work, for example `https://www.blendkit.com/get-blendkit/<id>/` or the item's gallery page.
+   - the text BlenderKit copies inside Blender when you copy the item's asset ID, such as `asset_base_id:<id> asset_type:model`.
+   - the id alone, five groups of 8, 4, 4, 4 and 12 digits and letters a to f, such as `0c1d4a2e-1111-2222-3333-444455556666`.
+2. On the BlenderKit card, paste it into the address box. If the text is none of these, the card says so, and the buttons stay off.
 3. Press **Import as asset** for a model or **Import as material** for a material.
 
 The import joins the queue under the grid like any other. The row shows the steps: checking the add-on, downloading and copying. A big item can take a few minutes. Plynth waits up to 10 minutes by default. The card's wait option raises that, from 60 to 3600 seconds, as `wait_seconds` does from the command line (see the [command line guide](CLI_GUIDE.md)). The **Texture resolution** option says which size of textures to ask for, 2k by default.

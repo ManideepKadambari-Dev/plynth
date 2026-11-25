@@ -267,7 +267,9 @@ void IntegrationsPanel::buildCard(const plynth::Integration& integration)
         card.address->setFont(t.monoFont(t.sizeNormal()));
         card.address->setPlaceholderText(tr("Paste a %1 address").arg(name));
         card.address->setClearButtonEnabled(true);
-        card.address->setToolTip(tr("The address of one item, copied from its page in your browser"));
+        card.address->setToolTip(plainToolTip(tr("One item: its page address from your browser, the asset ID "
+                                                 "text copied inside Blender, such as asset_base_id:<id> "
+                                                 "asset_type:model, or the id alone")));
         box->addWidget(card.address);
         card.addressNote = warningLabel(frame);
         card.addressNote->setToolTip(tr("Why this address cannot be used"));

@@ -4,7 +4,7 @@ The names are those of add-on 3.21.7.261119 as the source check lists them. They
 interface, so each one is looked up before the fetch uses the add-on, and a missing one fails the fetch
 closed. The worker never calls a BlenderKit address itself, never reads out the key and never puts what the
 add-on or its helper prints into a result: every failure is a fixed sentence, at most with the add-on's
-version or an exception's type name.
+version, an exception's type name or a word of REFUSAL_WORDS.
 """
 import importlib
 import json
@@ -19,7 +19,7 @@ from urllib.parse import urlsplit
 
 import bpy
 
-from ..jobs import WorkerError
+from ..jobs import WorkerError, refusal
 
 ADDON_NAME = "blenderkit"
 OPERATOR = "blenderkit_download"
@@ -41,6 +41,8 @@ SEARCH_TIMEOUT = 15.0
 PUMP_SECONDS = 0.25
 READY_SECONDS = 60.0
 REFUSED_TEXT = "Refused by the fetch"
+REFUSAL_WORDS = ("search_id", "base_id", "kind", "version_id", "helper", "request", "folders", "global_dir",
+                 "behaviour", "unpack", "resolution", "files", "host")
 
 PARTS = {
     "client_lib": ("asset_download", "blocking_request", "refresh_token", "oauth2_logout", "is_using_inplace_client",
@@ -79,7 +81,7 @@ ENDED_EARLY = "The helper of the %s ended before it answered."
 GUARD_REFUSED = "The fetch guard refused to start the helper of the %s."
 START_FAILED = "The helper of the %s could not be started (%s)."
 GUARD_REFUSED_TEXT = "Refused by the fetch guard"
-BAD_REQUEST = "The %s asked for a download that does not match the item, so it was not sent."
+BAD_REQUEST = "The %s asked for a download that does not match the item (%s), so it was not sent."
 OTHER_ITEM = "BlenderKit answered with another item than the one asked for. Copy the address from the item's page."
 NOT_STARTED = "The %s did not start the download. Check the item in BlenderKit inside Blender."
 OPERATOR_FAILED = "The %s could not start the download (%s)."
@@ -374,7 +376,7 @@ class Fetch:
     def lookup(self, original):
         def get_search_simple(parameters, *args, **kwargs):
             if field(parameters, "asset_base_id") != self.base_id:
-                self.refuse(WorkerError("download_failed", OTHER_ITEM))
+                self.refuse(WorkerError("download_failed", OTHER_ITEM), "search_id")
             results = original(parameters, *args, **kwargs)
             if results:
                 self.check_found(results[0])
@@ -384,18 +386,24 @@ class Fetch:
     # Refuses a found item with another base id, another kind or a version id that is not a uuid.
     def check_found(self, item):
         if field(item, "assetBaseId") != self.base_id:
-            self.refuse(WorkerError("download_failed", OTHER_ITEM))
+            self.refuse(WorkerError("download_failed", OTHER_ITEM), "base_id")
         actual = str(field(item, "assetType") or "").lower()
         if actual != self.kind:
-            self.refuse(WorkerError("wrong_asset_kind", kind_sentence(actual)))
+            self.refuse(WorkerError("wrong_asset_kind", kind_sentence(actual)), "kind")
         if not isinstance(field(item, "id"), str) or not UUID.match(field(item, "id")):
-            self.refuse(WorkerError("download_failed", OTHER_ITEM))
+            self.refuse(WorkerError("download_failed", OTHER_ITEM), "version_id")
 
-    # Keeps the first refusal for the result and stops the add-on's call with a PermissionError.
-    def refuse(self, error):
+    # Keeps the first refusal for the result, prints its fixed word and stops the add-on's call with a
+    # PermissionError.
+    def refuse(self, error, word):
         if self.refusal is None:
             self.refusal = error
+            refusal(word if word in REFUSAL_WORDS else "request")
         raise PermissionError(13, REFUSED_TEXT)
+
+    # Refuses a download request that does not match the item, naming the fixed word in the sentence.
+    def refuse_request(self, word):
+        self.refuse(WorkerError("download_failed", BAD_REQUEST % (self.label, word)), word)
 
     # The request gate: checks the download request and raises before it leaves when anything is not as asked.
     def gate(self, original):
@@ -407,39 +415,45 @@ class Fetch:
         return asset_download
 
     # Checks one download request and takes zip and other files that are no .blend out of its file list.
+    # The add-on writes the resolution into the request under the server's name, resolution_2K for 2048, in
+    # the request and in its copy of the preferences, so both names of the asked size pass and no other size.
     def check_request(self, data):
-        bad = WorkerError("download_failed", BAD_REQUEST % self.label)
         if self.task_id is not None or not self.helper_is_ours() or not self.parts["global_vars"].CLIENT_ACCESSIBLE:
-            self.refuse(WorkerError("download_failed", OTHER_HELPER % self.label))
+            self.refuse(WorkerError("download_failed", OTHER_HELPER % self.label), "helper")
         asset = field(data, "asset_data")
         prefs = field(data, "PREFS")
         if not isinstance(data, dict) or not isinstance(asset, dict) or not isinstance(prefs, dict):
-            self.refuse(bad)
+            self.refuse_request("request")
         self.check_found(asset)
         folders = data.get("download_dirs")
         if not isinstance(folders, list) or not folders or not all(isinstance(f, str) and self.inside(f)
                                                                    for f in folders):
-            self.refuse(bad)
+            self.refuse_request("folders")
         try:
             same_root = os.path.normcase(os.path.realpath(prefs.get("global_dir"))).rstrip("\\/") == self.root
         except (OSError, TypeError, ValueError):
             same_root = False
-        if not same_root or prefs.get("directory_behaviour") != "GLOBAL" or "unpack_files" not in prefs:
-            self.refuse(bad)
+        if not same_root:
+            self.refuse_request("global_dir")
+        if prefs.get("directory_behaviour") != "GLOBAL":
+            self.refuse_request("behaviour")
+        if "unpack_files" not in prefs:
+            self.refuse_request("unpack")
         for values in (data, prefs):
             if any("unpack" in str(name).lower() and value for name, value in values.items()):
-                self.refuse(bad)
-        if prefs.get("resolution") != self.resolution:
-            self.refuse(bad)
-        if "resolution" in data and data["resolution"] not in (self.resolution, REQUEST_RESOLUTIONS[self.resolution]):
-            self.refuse(bad)
+                self.refuse_request("unpack")
+        allowed = (self.resolution, REQUEST_RESOLUTIONS[self.resolution])
+        if prefs.get("resolution") not in allowed or data.get("resolution") not in allowed:
+            self.refuse_request("resolution")
         files = asset.get("files")
         if not isinstance(files, list):
-            self.refuse(bad)
+            self.refuse_request("files")
         kept = [entry for entry in files if isinstance(entry, dict)
                 and BLEND_FILE_TYPE.match(str(entry.get("fileType") or "").lower())]
-        if not kept or not all(allowed_address(entry.get("downloadUrl")) for entry in kept):
-            self.refuse(bad)
+        if not kept:
+            self.refuse_request("files")
+        if not all(allowed_address(entry.get("downloadUrl")) for entry in kept):
+            self.refuse_request("host")
         asset["files"] = kept
         self.kind_folders = [os.path.normcase(os.path.realpath(folder)) for folder in folders]
 
