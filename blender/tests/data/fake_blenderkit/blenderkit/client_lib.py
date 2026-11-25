@@ -13,6 +13,8 @@ from . import global_vars
 
 applying_client_settings = False
 HERE = os.path.dirname(os.path.abspath(__file__))
+TIMEOUT = (0.1, 1)
+SECRET_TEXT = "SECRET-ADDRESS in the helper's answer"
 
 
 # The port in use.
@@ -111,10 +113,21 @@ def get_reports(app_id=""):
     return _send({"op": "report", "app_id": app_id})
 
 
-# Asks the helper to download an item. data holds asset_data, download_dirs, PREFS and the key.
+# Asks the helper to download an item. data holds asset_data, download_dirs, PREFS and the key. It waits as
+# long as TIMEOUT says, as the real one does. The scenario can make it raise before sending ("download_raises",
+# an error name) or answer badly after sending ("download_answer": "no_task" or "not_json").
 def asset_download(data):
+    hostile = global_vars.scenario()
+    global_vars.note("asset_download_timeout", value=list(TIMEOUT))
+    if hostile.get("download_raises"):
+        raise type(hostile["download_raises"], (Exception,), {})(SECRET_TEXT)
     global_vars.note("asset_download_sent", base_id=data.get("asset_data", {}).get("assetBaseId"))
-    return _send({"op": "asset_download", "data": data})
+    answer = _send({"op": "asset_download", "data": data}, TIMEOUT[1])
+    if hostile.get("download_answer") == "no_task":
+        return {"error": SECRET_TEXT}
+    if hostile.get("download_answer") == "not_json":
+        raise type("JSONDecodeError", (ValueError,), {})(SECRET_TEXT)
+    return answer
 
 
 # A request that waits for its answer. The operator's search uses it with a short timeout.

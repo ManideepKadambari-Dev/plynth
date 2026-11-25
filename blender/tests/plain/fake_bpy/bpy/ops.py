@@ -5,10 +5,11 @@ unregistered fails once the class is gone. The Python operators are the register
 bundled ones of bl_operators.py. Every other name is a C operator: wm.save_userpref writes the preferences
 file, the rest only note an event. In Blender a C operator writes without Python, so the guard never sees it;
 here it writes with Python, so a test of a C write runs without the guard or at low integrity.
-An error inside an operator reaches the caller as RuntimeError, as in Blender.
+An error inside an operator reaches the caller as RuntimeError with the traceback in its text, as in Blender.
 """
 import json
 import os
+import traceback
 
 from . import utils as _utils
 
@@ -64,7 +65,8 @@ def _create_function(group, name):
             run = getattr(operator, "execute", None) or getattr(operator, "invoke")
             return run(bpy.context) if run.__code__.co_argcount == 2 else run(bpy.context, None)
         except Exception as error:
-            raise RuntimeError("Error: Python: %s" % type(error).__name__) from error
+            trace = "".join(traceback.format_exception(type(error), error, error.__traceback__))
+            raise RuntimeError("Error: Python: %s\nlocation: <unknown location>:-1\n" % trace) from error
 
     call.poll = lambda *args: _utils.operator_class(idname) is not None or not _utils.was_registered(idname)
     call.idname_py = lambda: idname
