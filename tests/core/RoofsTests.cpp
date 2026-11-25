@@ -440,7 +440,9 @@ TEST_CASE("a flat roof meets the wall of the floor above with no parapet and no 
     }
 
     // The upper floor has nothing above it and keeps its parapet all round.
-    const RoofBuild& top = floorRoofs(plan, 1, kTwoLevels).roofs[0];
+    const FloorRoofs upper = floorRoofs(plan, 1, kTwoLevels);
+    REQUIRE(upper.roofs.size() == 1);
+    const RoofBuild& top = upper.roofs[0];
     CHECK(facesOf(top, RoofPart::Edge).size() == 4);
     CHECK(facesOnLine(facesOf(top, RoofPart::Parapet), 3.0, false).size() == 1);
     CHECK(parapetTopArea(top, boxOf(facesOf(top, RoofPart::Parapet)).z1) == Approx(12.0 - 2.6 * 3.6).margin(1e-6));
