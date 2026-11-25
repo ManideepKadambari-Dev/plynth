@@ -209,7 +209,12 @@ try {
         }
         $after = Invoke-Cli $launcher @('update', '--status')
         Write-Host "update --status after the update: $($after.Answer | ConvertTo-Json -Depth 6 -Compress)"
-        if (-not $after.Answer -or -not $after.Answer.result.last -or $after.Answer.result.last.to -ne $NewerVersion) {
+        # A trial never counts as installed, so it shows no last update. A release must name the one that ran.
+        if (-not $after.Answer) {
+            Add-Failure 'update --status gave no answer after the update'
+        } elseif ($trial -and $null -ne $after.Answer.result.last) {
+            Add-Failure 'update --status on a trial names a last update'
+        } elseif (-not $trial -and (-not $after.Answer.result.last -or $after.Answer.result.last.to -ne $NewerVersion)) {
             Add-Failure 'update --status does not name the update that was started'
         }
         foreach ($f in $userData) {
