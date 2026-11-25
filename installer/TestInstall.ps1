@@ -34,17 +34,47 @@ function Add-Failure([string]$text) {
 # Runs one installer or uninstaller silently and waits for it and its setup helpers, not for a Plynth it starts.
 function Invoke-Setup([string]$file, [string[]]$arguments) {
     # Not -Wait: in PowerShell 7 that also waits for every program the setup starts, such as a reopened Plynth.
+    # The uninstaller hands its work to a copy of itself and ends at once, so the helpers it starts are
+    # followed by parent id until all of them have ended.
+    $started = (Get-Date).AddSeconds(-2)
     $p = Start-Process -FilePath $file -ArgumentList $arguments -PassThru
     $null = $p.Handle
-    if (-not $p.WaitForExit(600000)) {
-        $p.Kill($true)
-        Add-Failure "$([System.IO.Path]::GetFileName($file)) did not end within ten minutes"
-        return -1
+    $family = [System.Collections.Generic.HashSet[int]]::new()
+    $null = $family.Add($p.Id)
+    $deadline = (Get-Date).AddMinutes(10)
+    while ($true) {
+        $all = Get-CimInstance Win32_Process -Property ProcessId, ParentProcessId, Name, CreationDate
+        do {
+            $grew = $false
+            foreach ($q in $all) {
+                if ($family.Contains([int]$q.ProcessId) -or -not $family.Contains([int]$q.ParentProcessId)) { continue }
+                if ($q.CreationDate -lt $started -or $q.Name -like 'plynth.*') { continue }
+                $null = $family.Add([int]$q.ProcessId)
+                $grew = $true
+            }
+        } while ($grew)
+        $alive = @($all | Where-Object { $family.Contains([int]$_.ProcessId) -and $_.Name -notlike 'plynth.*' })
+        if ($alive.Count -eq 0) { break }
+        if ((Get-Date) -gt $deadline) {
+            foreach ($q in $alive) { Stop-Process -Id $q.ProcessId -Force -ErrorAction SilentlyContinue }
+            Add-Failure "$([System.IO.Path]::GetFileName($file)) did not end within ten minutes"
+            return -1
+        }
+        Start-Sleep -Milliseconds 300
     }
-    $deadline = (Get-Date).AddMinutes(5)
-    while ((Get-Process | Where-Object { $_.ProcessName -like 'unins*' -or $_.ProcessName -like '_iu*' -or $_.ProcessName -eq 'PlynthSetup' -or $_.ProcessName -like 'is-*' }) -and (Get-Date) -lt $deadline) {
+    $names = (Get-Date).AddMinutes(5)
+    while ((Get-Process | Where-Object { $_.ProcessName -like 'unins*' -or $_.ProcessName -like '_iu*' -or $_.ProcessName -eq 'PlynthSetup' -or $_.ProcessName -like 'is-*' }) -and (Get-Date) -lt $names) {
         Start-Sleep -Milliseconds 500
     }
+    # A setup that is still letting go of its mutex would make the next one refuse to run.
+    $free = (Get-Date).AddSeconds(30)
+    $mutex = $null
+    while ([System.Threading.Mutex]::TryOpenExisting('PlynthSetup', [ref]$mutex) -and (Get-Date) -lt $free) {
+        $mutex.Dispose()
+        Start-Sleep -Milliseconds 300
+    }
+    if ($mutex) { $mutex.Dispose() }
+    $p.WaitForExit()
     return $p.ExitCode
 }
 

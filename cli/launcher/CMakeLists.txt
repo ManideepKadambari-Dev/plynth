@@ -25,5 +25,6 @@ if(PLYNTH_BUILD_TESTS)
     target_compile_definitions(plynth_launcher_tests PRIVATE
         PLYNTH_LAUNCHER_FILE="$<TARGET_FILE:plynth_launcher>"
         PLYNTH_FAKE_CHILD="$<TARGET_FILE:plynth_fake_child>")
-    catch_discover_tests(plynth_launcher_tests DISCOVERY_MODE PRE_TEST)
+    # Some tests hold the real setup mutex, which every launcher test sees, so they run one at a time.
+    catch_discover_tests(plynth_launcher_tests DISCOVERY_MODE PRE_TEST PROPERTIES RESOURCE_LOCK plynth_setup_mutex)
 endif()
