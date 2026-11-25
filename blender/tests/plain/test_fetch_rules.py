@@ -108,10 +108,11 @@ class GoodFetches(FetchCase):
         self.rig.write(self.rig.source, json.dumps({"fake_blend": 1, "materials": ["Walnut", "Pine"]}))
         self.assert_failed(self.rig.fetch(MATERIAL), "download_failed")
 
-    # W5: each resolution reaches the request through the preference; the saved one is unchanged.
+    # W5: each resolution reaches the request through the preference, under the server's name the add-on
+    # writes into the request and its copy of the preferences; the saved one is unchanged.
     def test_each_resolution_reaches_the_request(self):
         saved = os.path.join(self.rig.blender_user, "config", "userpref.json")
-        for resolution, value in fetch_rig.RESOLUTION_PREF.items():
+        for resolution, value in fetch_rig.RESOLUTION_SERVER.items():
             with self.subTest(resolution=resolution):
                 self.assert_ok(self.rig.fetch(MODEL, resolution))
                 data = self.only_request()
@@ -190,17 +191,49 @@ class GateRefusals(FetchCase):
                 self.assert_failed(self.rig.fetch(MODEL), "download_failed", "wrong_asset_kind")
                 self.assert_no_request()
 
-    # D2: a download folder outside, unpack on, another resolution, each set by the add-on after the worker.
+    # D2: a download folder outside, unpack on, another resolution in either of its names, in the request or
+    # only in its preferences, or no resolution in the request, each set by the add-on after the worker. The
+    # sentence and the refusal line name the fixed word of the check.
     def test_hostile_request_fields(self):
         outside = os.path.join(self.rig.root, "outside")
-        for hostile in ({"extra_download_dir": outside}, {"force_unpack": True}, {"force_resolution": "8192"}):
+        cases = (({"extra_download_dir": outside}, "folders"), ({"force_unpack": True}, "unpack"),
+                 ({"force_resolution": "8192"}, "resolution"), ({"force_resolution": "resolution_8K"}, "resolution"),
+                 ({"force_pref_resolution": "8192"}, "resolution"),
+                 ({"force_pref_resolution": "resolution_8K"}, "resolution"),
+                 ({"drop_resolution": True}, "resolution"))
+        for hostile, word in cases:
             with self.subTest(hostile=hostile):
                 self.rig.addon_scenario = dict(self.rig.addon_scenario, **hostile)
-                self.assert_failed(self.rig.fetch(MODEL), "download_failed")
+                result = self.assert_failed(self.rig.fetch(MODEL), "download_failed")
+                self.assertIn("(%s)" % word, result["error"]["message"])
+                self.assertIn("PLYNTH-REFUSAL:%s\n" % word, self.rig.done.stdout)
                 self.assert_no_request()
                 self.assertFalse(os.path.exists(outside))
                 for name in hostile:
                     self.rig.addon_scenario.pop(name)
+
+    # D2: both names of the asked resolution pass, in the request and in its preferences.
+    def test_both_names_of_the_asked_resolution(self):
+        for forced in ("2048", "resolution_2K"):
+            with self.subTest(forced=forced):
+                self.rig.addon_scenario = dict(self.rig.addon_scenario, force_resolution=forced)
+                self.assert_ok(self.rig.fetch(MODEL, "2k"))
+                self.assertEqual(self.only_request()["resolution"], forced)
+                self.rig.addon_scenario.pop("force_resolution")
+
+    # D1: a file list as the store sends it keeps the .blend and its resolution files, in their order, and
+    # drops thumbnails, zips, glTF and proxy files.
+    def test_store_file_list(self):
+        record = MODEL.record()
+        address = "https://www.blendkit.com/api/v1/downloads/%s/"
+        record["files"] = [{"fileType": name, "downloadUrl": address % name} for name in
+                           ("thumbnail", "blend", "resolution_0_5K", "resolution_1K", "resolution_2K", "zip_file",
+                            "gltf", "prxc", "photo_thumbnail")]
+        self.rig.helper_scenario["search"] = [record]
+        self.assert_ok(self.rig.fetch(MODEL))
+        sent = self.only_request()
+        self.assertEqual([entry["fileType"] for entry in sent["asset_data"]["files"]],
+                         ["blend", "resolution_0_5K", "resolution_1K", "resolution_2K"])
 
     # D1: zip files are taken out of the request; only zips is a refusal; other hosts are refused.
     def test_zip_files_and_hosts(self):

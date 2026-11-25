@@ -16,27 +16,41 @@ from . import client_lib, global_vars, paths, reports, search, utils
 bk_logger = logging.getLogger("blenderkit")
 download_tasks = {}
 SILENT_SECONDS = 20
+RESOLUTION_PROPS_TO_SERVER = {"512": "resolution_0_5K", "1024": "resolution_1K", "2048": "resolution_2K",
+                              "4096": "resolution_4K", "8192": "resolution_8K", "ORIGINAL": "blend"}
 
 
-# Starts a download of a record through the helper.
+# Starts a download of a record through the helper. As the real one, it writes the resolution of the call
+# into its copy of the preferences, and an unpack_files of the call too, then copies every argument of the
+# call into the request. The hostile changes come after, as an add-on that changed the request would.
 def download(asset_data, **kwargs):
-    prefs = utils.get_preferences_as_dict()
     hostile = global_vars.scenario()
     if hostile.get("force_unpack"):
-        prefs["unpack_files"] = True
+        kwargs["unpack_files"] = True
+    prefs = utils.get_preferences_as_dict()
+    prefs["resolution"] = kwargs.get("resolution", "original")
+    if "unpack_files" in kwargs:
+        prefs["unpack_files"] = kwargs["unpack_files"]
+    data = {"asset_data": asset_data, "PREFS": prefs, "progress": 0,
+            "text": "downloading %s" % asset_data.get("name", "")}
+    data.update(kwargs)
+    prefs["scene_id"] = "fake-scene"
+    data["download_dirs"] = paths.get_download_dirs(asset_data.get("assetType", "model"))
+    data.setdefault("downloaders", [])
+    data["started_at"] = data["last_report_time"] = time.monotonic()
     if hostile.get("force_resolution"):
-        prefs["resolution"] = hostile["force_resolution"]
-    data = {"asset_data": asset_data, "download_dirs": paths.get_download_dirs(asset_data.get("assetType", "model")),
-            "PREFS": prefs, "resolution": prefs["resolution"], "unpack_files": prefs["unpack_files"],
-            "create_asset_library": prefs["create_asset_library"], "api_key": prefs["api_key"],
-            "binary_path": bpy.app.binary_path, "addon_dir": os.path.dirname(os.path.abspath(__file__))}
+        prefs["resolution"] = data["resolution"] = hostile["force_resolution"]
+    if hostile.get("force_pref_resolution"):
+        prefs["resolution"] = hostile["force_pref_resolution"]
+    if hostile.get("drop_resolution"):
+        data.pop("resolution", None)
     if hostile.get("extra_download_dir"):
         data["download_dirs"].append(hostile["extra_download_dir"])
     bk_logger.info("download %s with key %s", asset_data.get("assetBaseId"), prefs["api_key"])
     answer = client_lib.asset_download(data)
     download_tasks[answer["task_id"]] = {"asset_data": asset_data, "download_dirs": data["download_dirs"],
                                          "progress": 0, "text": "", "started_at": time.time(),
-                                         "last_report_time": time.time(), "resolution": prefs["resolution"],
+                                         "last_report_time": time.time(), "resolution": data.get("resolution"),
                                          "PREFS": prefs, "api_key": prefs["api_key"],
                                          "api_key_refresh": prefs["api_key_refresh"], "kwargs": kwargs}
 
@@ -157,8 +171,8 @@ class BlenderkitDownloadOperator(bpy.types.Operator):
     target_object: StringProperty(default="")  # type: ignore[valid-type]
     max_resolution: IntProperty(default=0)  # type: ignore[valid-type]
 
-    # Finds the item through the search module, leaves edit modes, and starts its download, or hands an add-on
-    # item to its installer.
+    # Finds the item through the search module, leaves edit modes, and starts its download with the arguments
+    # and the server's name of the resolution the real one passes, or hands an add-on item to its installer.
     def execute(self, context):
         if getattr(self, "resolution", None) is not None:
             global_vars.note("operator_resolution", value=self.resolution)
@@ -176,7 +190,13 @@ class BlenderkitDownloadOperator(bpy.types.Operator):
         if asset_data.get("assetType") == "addon":
             bpy.ops.scene.blenderkit_addon_choice(asset_base_id=asset_data.get("assetBaseId", ""))
             return {"FINISHED"}
-        download(asset_data, target_object=self.target_object, resolution=utils.get_prefs().resolution)
+        resolution = RESOLUTION_PROPS_TO_SERVER[utils.get_prefs().resolution]
+        options = {"cast_parent": "", "target_object": self.target_object, "target_collection": "",
+                   "material_target_slot": 0, "model_location": (0.0, 0.0, 0.0), "model_rotation": (0.0, 0.0, 0.0),
+                   "replace": False, "replace_resolution": False, "parent": None, "resolution": resolution,
+                   "node_x": 0, "node_y": 0, "nodegroup_mode": ""}
+        downloader = {"location": options["model_location"], "rotation": options["model_rotation"]}
+        download(asset_data, downloaders=[downloader], **options)
         return {"FINISHED"}
 
 

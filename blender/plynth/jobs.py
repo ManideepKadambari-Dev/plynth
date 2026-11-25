@@ -7,6 +7,7 @@ JOB_FORMAT = "plynth-blender-job"
 RESULT_FORMAT = "plynth-blender-result"
 VERSION = 1
 PROGRESS_PREFIX = "PLYNTH:"
+REFUSAL_PREFIX = "PLYNTH-REFUSAL:"
 JOB_ID_PATTERN = re.compile(r"^[a-z0-9_-]+$")
 TASK_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 
@@ -102,4 +103,11 @@ def write_result(result_file, result):
 def progress(step, index, count, message):
     line = {"progress": {"step": step, "index": index, "count": count, "message": message}}
     sys.stdout.write(PROGRESS_PREFIX + json.dumps(line) + "\n")
+    sys.stdout.flush()
+
+
+# Prints the fixed word that names why a store fetch refused, for the program that started Blender. The word
+# is one of a fixed list and never holds a value from the request.
+def refusal(word):
+    sys.stdout.write(REFUSAL_PREFIX + word + "\n")
     sys.stdout.flush()
