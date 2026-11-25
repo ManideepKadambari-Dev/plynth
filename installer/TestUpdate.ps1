@@ -41,10 +41,50 @@ function Wait-SetupProcesses {
     }
 }
 
-# Runs one installer or uninstaller and waits for it.
+# Runs one installer or uninstaller silently and waits for it and its setup helpers, not for a Plynth it starts.
 function Invoke-Setup([string]$file, [string[]]$arguments) {
-    $p = Start-Process -FilePath $file -ArgumentList $arguments -PassThru -Wait
-    Wait-SetupProcesses
+    # Not -Wait: in PowerShell 7 that also waits for every program the setup starts, such as a reopened Plynth.
+    # The uninstaller hands its work to a copy of itself and ends at once, so the helpers it starts are
+    # followed by parent id until all of them have ended.
+    $started = (Get-Date).AddSeconds(-2)
+    $p = Start-Process -FilePath $file -ArgumentList $arguments -PassThru
+    $null = $p.Handle
+    $family = [System.Collections.Generic.HashSet[int]]::new()
+    $null = $family.Add($p.Id)
+    $deadline = (Get-Date).AddMinutes(10)
+    while ($true) {
+        $all = Get-CimInstance Win32_Process -Property ProcessId, ParentProcessId, Name, CreationDate
+        do {
+            $grew = $false
+            foreach ($q in $all) {
+                if ($family.Contains([int]$q.ProcessId) -or -not $family.Contains([int]$q.ParentProcessId)) { continue }
+                if ($q.CreationDate -lt $started -or $q.Name -like 'plynth.*') { continue }
+                $null = $family.Add([int]$q.ProcessId)
+                $grew = $true
+            }
+        } while ($grew)
+        $alive = @($all | Where-Object { $family.Contains([int]$_.ProcessId) -and $_.Name -notlike 'plynth.*' })
+        if ($alive.Count -eq 0) { break }
+        if ((Get-Date) -gt $deadline) {
+            foreach ($q in $alive) { Stop-Process -Id $q.ProcessId -Force -ErrorAction SilentlyContinue }
+            Add-Failure "$([System.IO.Path]::GetFileName($file)) did not end within ten minutes"
+            return -1
+        }
+        Start-Sleep -Milliseconds 300
+    }
+    $names = (Get-Date).AddMinutes(5)
+    while ((Get-Process | Where-Object { $_.ProcessName -like 'unins*' -or $_.ProcessName -like '_iu*' -or $_.ProcessName -eq 'PlynthSetup' -or $_.ProcessName -like 'is-*' }) -and (Get-Date) -lt $names) {
+        Start-Sleep -Milliseconds 500
+    }
+    # A setup that is still letting go of its mutex would make the next one refuse to run.
+    $free = (Get-Date).AddSeconds(30)
+    $mutex = $null
+    while ([System.Threading.Mutex]::TryOpenExisting('PlynthSetup', [ref]$mutex) -and (Get-Date) -lt $free) {
+        $mutex.Dispose()
+        Start-Sleep -Milliseconds 300
+    }
+    if ($mutex) { $mutex.Dispose() }
+    $p.WaitForExit()
     return $p.ExitCode
 }
 
@@ -74,11 +114,22 @@ function Test-SameSnapshot([hashtable]$a, [hashtable]$b) {
     return $true
 }
 
-# Runs the driver for one case and returns its answer.
+# Runs the driver for one case, five minutes at most, and returns its answer. Its output goes to files, so an
+# installer it starts cannot keep a pipe open.
 function Invoke-Driver([string]$case) {
-    $text = & $Driver --case $case --app $app --installer $NewerSetup --current $current --newer $NewerVersion --lower $LowerVersion 2>&1 | Out-String
-    $code = $LASTEXITCODE
-    $global:LASTEXITCODE = 0
+    Write-Host "Running the driver, case $case"
+    $out = Join-Path $scratch "driver-$case.out"
+    $err = Join-Path $scratch "driver-$case.err"
+    $p = Start-Process -FilePath $Driver -PassThru -NoNewWindow -RedirectStandardOutput $out -RedirectStandardError $err `
+        -ArgumentList @('--case', $case, '--app', "`"$app`"", '--installer', "`"$NewerSetup`"", '--current', $current,
+                        '--newer', $NewerVersion, '--lower', $LowerVersion)
+    $null = $p.Handle
+    if (-not $p.WaitForExit(300000)) {
+        $p.Kill($true)
+        Add-Failure "the driver did not end within five minutes for case $case"
+    }
+    $text = (Get-Content -Raw $out -ErrorAction SilentlyContinue) + (Get-Content -Raw $err -ErrorAction SilentlyContinue)
+    $code = if ($p.HasExited) { $p.ExitCode } else { -1 }
     Write-Host "Driver, case $case, exit $code`: $text"
     $line = ($text -split "`r?`n" | Where-Object { $_.TrimStart().StartsWith('{') } | Select-Object -Last 1)
     try { $answer = $line | ConvertFrom-Json } catch { $answer = $null }
@@ -100,9 +151,11 @@ $userData = @((Join-Path $env:APPDATA 'Plynth\update-keep.txt'), (Join-Path $env
 foreach ($f in $userData) { New-Item -ItemType Directory -Force (Split-Path $f) | Out-Null; "keep $(Split-Path $f -Leaf)" | Out-File $f }
 
 try {
+    Write-Host "Installing $current"
     $code = Invoke-Setup $Setup @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=$scratch\install.log")
     if ($code -ne 0) { throw "the install of $current ended with code $code" }
     $launcher = Join-Path $app 'plynth.com'
+    Write-Host 'Asking the installed copy for update --status'
     $status = Invoke-Cli $launcher @('update', '--status')
     if ($status.Code -ne 0 -or -not $status.Answer -or -not $status.Answer.result) {
         Add-Summary @('Skipped: the installed plynth has no working "update --status" yet, so the update was not tried.')
@@ -114,6 +167,7 @@ try {
     if ($status.Answer.result.install -ne $expected) {
         Add-Failure "the installed copy says $($status.Answer.result.install), and a $(if ($trial) { 'trial' } else { 'release' }) must say $expected"
     }
+    Write-Host 'Switching the update check off'
     $setting = Invoke-Cli $launcher @('settings', 'set', '--update-check', 'false')
     if ($setting.Code -ne 0) { Add-Failure 'the installed copy could not switch the update check off' }
 
@@ -136,8 +190,10 @@ try {
     if ($r.Code -ne 0 -or -not $r.Answer -or -not $r.Answer.started) {
         Add-Failure 'the signed newer release was not installed'
     } else {
+        Write-Host 'Waiting for the started installer'
         Start-Sleep -Seconds 3
         Wait-SetupProcesses
+        Write-Host 'Checking the updated files'
         foreach ($entry in $newerPackage.files) {
             $file = Join-Path $app $entry.path
             if (-not (Test-Path -LiteralPath $file)) { Add-Failure "missing after the update: $($entry.path)"; continue }
@@ -167,6 +223,7 @@ try {
     }
 } finally {
     if (Test-Path (Join-Path $app 'unins000.exe')) {
+        Write-Host 'Uninstalling'
         Invoke-Setup (Join-Path $app 'unins000.exe') @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART') | Out-Null
     }
     Copy-Item (Join-Path $scratch '*.log') $env:RUNNER_TEMP -ErrorAction SilentlyContinue

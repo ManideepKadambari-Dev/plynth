@@ -523,6 +523,7 @@ jobs:
           'built=true' | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Test the update
+        timeout-minutes: 20
         if: ${{ !cancelled() && steps.update-driver.outcome == 'success' && steps.update-driver.outputs.built == 'true' }}
         shell: pwsh
         run: |
