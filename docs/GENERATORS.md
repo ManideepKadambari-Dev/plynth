@@ -273,7 +273,7 @@ An importer only decides **what Blender should read**. Everything else is shared
 | Function | What it does |
 |---|---|
 | `id()` | A stable lower case id, such as `"fab_zip"`. A taken or badly formed id is refused and the importer is dropped. |
-| `name()` | A short name for the import screen. |
+| `name()` | A short name for the Import materials window. |
 | `description()` | One plain sentence on what it takes. |
 | `fileSuffixes()` | The endings it reads, lower case with the dot. They fill the file dialog and `importableSuffixes()`. Empty for an importer that takes web addresses. |
 | `score(source)` | How well it handles this source. 0 means not at all. The highest score wins, and ties go to the lower id. |
@@ -336,7 +336,7 @@ Material importers are a registry of their own, separate from the asset importer
 const MaterialImporterRegistrar registrar(std::make_unique<FabMaterialImporter>());
 ```
 
-The highest score wins and ties go to the lower id, as for assets. A new importer shows up in `plynth materials importers`, the import screen's file dialog and the inbox. No existing code is edited, except the schema line for a new worker material source. Read `TextureSetImporter.cpp` as the worked example. Tests use the fake Blender, see `tests/core/MaterialImportTests.cpp`.
+The highest score wins and ties go to the lower id, as for assets. A new importer shows up in `plynth materials importers`, the file dialog of the Import materials window and the inbox. No existing code is edited, except the schema line for a new worker material source. Read `TextureSetImporter.cpp` as the worked example. Tests use the fake Blender, see `tests/core/MaterialImportTests.cpp`.
 
 ## Blender worker registries
 
@@ -652,7 +652,7 @@ What to know when you write one:
 
 ### Adding a quality check
 
-A quality check is one file in `blender/plynth/quality/`. It has an `ORDER`, a phase, a name shown in the Export tab, and `run(ctx)`. The export task finds every file, so nothing else is edited.
+A quality check is one file in `blender/plynth/quality/`. It has an `ORDER`, a phase, a name shown in the Export window, and `run(ctx)`. The export task finds every file, so nothing else is edited.
 
 ```python
 from . import QualityCheck, finding, result
@@ -681,7 +681,7 @@ QUALITY_CHECKS.register("material_count", QualityCheck(ORDER, "scene", "Material
 - `ctx.state["meshes"]` holds the building and furniture objects, `ctx.state["collision"]` the `UCX_` objects. `ctx.params` is the export job, with the `limits` and the `expected_bounds` that core worked out.
 - A check never stops the export. Do not raise an error for a problem you can report.
 
-Look at `naming.py` for a bigger one. Two checks came with grouped export. `groups.py` (105, scene) fails for an object that no group takes and warns about a group with no object. It uses `assign` from `exporting/groups.py`, the same helper the writer uses, so the check and the files cannot disagree. `kit_file.py` (120, file) reads the kit file back and fails when a piece is missing, moved or has no collision. It says "skipped" when the job has no kit, so a check can stay quiet when its part of the export was not asked for. A new check shows up in the Export tab and in the report at once. Core only needs a change if the check needs a number it does not pass yet.
+Look at `naming.py` for a bigger one. Two checks came with grouped export. `groups.py` (105, scene) fails for an object that no group takes and warns about a group with no object. It uses `assign` from `exporting/groups.py`, the same helper the writer uses, so the check and the files cannot disagree. `kit_file.py` (120, file) reads the kit file back and fails when a piece is missing, moved or has no collision. It says "skipped" when the job has no kit, so a check can stay quiet when its part of the export was not asked for. A new check shows up in the Export window and in the report at once. Core only needs a change if the check needs a number it does not pass yet.
 
 ### Adding an export step
 
@@ -722,7 +722,7 @@ Set these in the same window, and use the same window to run the command. The ru
 
 ## Adding a source
 
-A source is a place assets and materials come from, such as BlenderKit or Fab. It is called an **integration**. This section is for developers. It adds one card to the Integrations tab, its options and its commands, and it needs no edit of existing code. The one exception: a new worker format or material source adds its id to a list in `schema/blender-job.schema.json` (see the two tables above). It is built from the pieces above: an importer, a material importer, and, when the source is not a file on disk, a fetch task and a worker format or material source in Python.
+A source is a place assets and materials come from, such as BlenderKit or Fab. It is called an **integration**. This section is for developers. It adds one card to the Sources window, its options and its commands, and it needs no edit of existing code. The one exception: a new worker format or material source adds its id to a list in `schema/blender-job.schema.json` (see the two tables above). It is built from the pieces above: an importer, a material importer, and, when the source is not a file on disk, a fetch task and a worker format or material source in Python.
 
 The rule behind the design: Plynth never talks to a store itself. A source either takes files you downloaded, or asks a store's own Blender add-on, which you installed and signed in to, to download. It never calls a private web address, never shows, logs or copies a key and never bundles what it brings.
 
@@ -742,7 +742,7 @@ const IntegrationRegistrar integrationRegistrar(std::make_unique<MyIntegration>(
 ```
 
 3. **The options.** A saved option applies to every import from the integration. It is kept in `integrations.json` in the library, and only what the user changed is saved. An option for one import only (such as `model` for Fab) is refused when saving: `checkOptions()` gets `OptionUse::Saved` or `OptionUse::Import` to tell them apart. At import time `optionsForImporter` puts the request's options over the saved ones over the defaults and hands the result to the importer's `plan` as `ImportSource::options`.
-4. **The CLI and the tab.** `plynth library integrations`, `library integration show|set|reset` and the Integrations tab list every registered integration by themselves. The tab draws the card from what the class returns and the options from `optionFields()`, so no app code is needed. The card's import button for files asks `integrationImporter` for the best scoring of the source's own importers and names it in the request, so the item gets this source's kind and options even when another importer would score higher. The CLI treats a text as an address when a registered importer takes it.
+4. **The CLI and the tab.** `plynth library integrations`, `library integration show|set|reset` and the Sources window list every registered integration by themselves. The tab draws the card from what the class returns and the options from `optionFields()`, so no app code is needed. The card's import button for files asks `integrationImporter` for the best scoring of the source's own importers and names it in the request, so the item gets this source's kind and options even when another importer would score higher. The CLI treats a text as an address when a registered importer takes it.
 5. **The license.** When the request names no importer and gives no `license` option, Plynth only guessed the source, and `ImportSource::guessed` is true. The plan then gives no license of its own, so the item gets `unknown`. Fab does this for a zip that only looks like a Fab download. When the user picked the source, use the saved license option.
 6. **A choice for the user.** When a plan refuses because the user must choose, for example between the models of a pack, put the candidates in the plan's `details` as a `models` list. The app's **Pick the model...** button is offered from that list, not from the sentence.
 

@@ -3,34 +3,24 @@
 #include <QWidget>
 
 class QPushButton;
-class QStackedWidget;
 
 namespace plynth::app {
 
-// The right side of the window: a tab for Properties, one for Assets, one for Materials, one for the last Build and one for the Export and one for the Integrations. It draws the panel background
-// and the border, and changes its width with the tab.
+// The right side of the main window: the Properties of what is selected or in use, under a header with a
+// button that closes the panel. It draws the panel background and the border on its left edge.
 class RightPanel : public QWidget {
     Q_OBJECT
 public:
-    RightPanel(QWidget* properties, QWidget* assets, QWidget* materials, QWidget* build, QWidget* exportPage,
-               QWidget* integrations, QWidget* parent = nullptr);
+    RightPanel(QWidget* properties, QWidget* parent = nullptr);
 
-    enum class Tab { Properties, Assets, Materials, Build, Export, Integrations };
-    void showTab(Tab tab);
-    Tab tab() const { return tab_; }
+signals:
+    void closeRequested();
 
 protected:
     void paintEvent(QPaintEvent* event) override;
 
 private:
-    Tab tab_ = Tab::Properties;
-    QPushButton* propertiesButton_ = nullptr;
-    QPushButton* assetsButton_ = nullptr;
-    QPushButton* materialsButton_ = nullptr;
-    QPushButton* buildButton_ = nullptr;
-    QPushButton* exportButton_ = nullptr;
-    QPushButton* integrationsButton_ = nullptr;
-    QStackedWidget* pages_ = nullptr;
+    QPushButton* close_ = nullptr;
 };
 
 }

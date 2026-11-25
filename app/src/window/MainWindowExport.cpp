@@ -6,7 +6,6 @@
 #include "building/ExportController.h"
 #include "catalog/LibraryHost.h"
 #include "panels/ExportPanel.h"
-#include "panels/RightPanel.h"
 
 #include <plynth/core/Build.h>
 #include <plynth/core/Export.h>
@@ -100,7 +99,7 @@ void MainWindow::exportAnyway()
         startExport(true, true);
 }
 
-// Takes the finished export: keeps its report and shows the Export tab.
+// Takes the finished export: keeps its report and shows the Export window.
 void MainWindow::exportFinished(const plynth::ExportReport& report)
 {
     if (report.status.code == plynth::ErrorCode::Cancelled) {
@@ -122,7 +121,7 @@ void MainWindow::exportFinished(const plynth::ExportReport& report)
     }
     updateBuildUi();
     if (report.status.code != plynth::ErrorCode::Cancelled)
-        right_->showTab(RightPanel::Tab::Export);
+        openToolWindow(QStringLiteral("export"));
 }
 
 // Reads export/export_report.json of the open project, if there is one.
@@ -138,7 +137,7 @@ void MainWindow::loadExportReport()
     updateExportUi();
 }
 
-// Shows the Export tab and the Export items of the Build menu from the last export and the state of the work.
+// Shows the Export window and the Export items of the Build menu from the last export and the state of the work.
 void MainWindow::updateExportUi()
 {
     if (exportPanel_ == nullptr || exportAction_ == nullptr)
@@ -159,6 +158,10 @@ void MainWindow::updateExportUi()
     state.grouped = doc_.project().settings.exportMode == plynth::ExportMode::Grouped;
     state.built = doc_.hasFolder() &&
                   std::filesystem::exists(plynth::buildFolder(doc_.folder()) / "building.blend", ignored);
+    // The export records the build it came from. A later build has another plan fingerprint.
+    state.reportOutOfDate = exportReport_ && exportReport_->status.ok() && report_ && report_->status.ok() &&
+                            !exportReport_->buildFingerprint.empty() &&
+                            exportReport_->buildFingerprint != report_->planFingerprint;
     state.project = &doc_.project();
     if (doc_.hasFolder()) {
         const plynth::ExportOptionsRead options = plynth::readExportOptions(doc_.folder());
@@ -201,10 +204,10 @@ void MainWindow::cancelWork()
     exporter_->cancel();
 }
 
-// For checks only: shows the Export tab.
+// For checks only: shows the Export window.
 void MainWindow::showExportTab()
 {
-    right_->showTab(RightPanel::Tab::Export);
+    openToolWindow(QStringLiteral("export"));
 }
 
 }

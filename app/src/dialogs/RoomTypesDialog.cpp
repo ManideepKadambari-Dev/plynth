@@ -45,7 +45,6 @@ RoomTypesDialog::RoomTypesDialog(LibraryHost& host, QWidget* parent) : QDialog(p
 {
     const Theme& t = Theme::instance();
     setWindowTitle(tr("Room types and categories"));
-    setProperty("tourId", QStringLiteral("room-types-dialog"));
     setToolTip(tr("Edit the room types and the categories of the assets catalog"));
     resize(t.unit() * 160, t.unit() * 130);
 
@@ -62,35 +61,28 @@ RoomTypesDialog::RoomTypesDialog(LibraryHost& host, QWidget* parent) : QDialog(p
     rooms_ = new QListWidget(this);
     rooms_->setStyle(t.controlStyle());
     rooms_->setToolTip(tr("The kinds of room, in the order the room picker shows them"));
-    rooms_->setProperty("tourId", QStringLiteral("room-types-list"));
     grid->addWidget(rooms_, 1, 0);
     categories_ = new QListWidget(this);
     categories_->setStyle(t.controlStyle());
     categories_->setToolTip(tr("The categories an asset can have"));
-    categories_->setProperty("tourId", QStringLiteral("room-types-categories"));
     grid->addWidget(categories_, 1, 1);
 
     auto* roomButtons = new QHBoxLayout();
     roomButtons->setSpacing(t.unit() * 2);
-    QPushButton* add = addButton(this, tr("Add"), tr("Add a room type"), QStringLiteral("room-types-add"));
-    renameRoom_ = addButton(this, tr("Rename"), tr("Change the name of the selected room type"),
-                            QStringLiteral("room-types-rename"));
-    removeRoom_ = addButton(this, tr("Remove"), tr("Remove the selected room type. Plans that use it keep its id"),
-                            QStringLiteral("room-types-remove"));
-    up_ = addButton(this, tr("Up"), tr("Move the selected room type up in the picker"), QStringLiteral("room-types-up"));
-    down_ = addButton(this, tr("Down"), tr("Move the selected room type down in the picker"),
-                      QStringLiteral("room-types-down"));
+    QPushButton* add = addButton(this, tr("Add"), tr("Add a room type"));
+    renameRoom_ = addButton(this, tr("Rename"), tr("Change the name of the selected room type"));
+    removeRoom_ = addButton(this, tr("Remove"), tr("Remove the selected room type. Plans that use it keep its id"));
+    up_ = addButton(this, tr("Up"), tr("Move the selected room type up in the picker"));
+    down_ = addButton(this, tr("Down"), tr("Move the selected room type down in the picker"));
     for (QPushButton* b : {add, renameRoom_, removeRoom_, up_, down_})
         roomButtons->addWidget(b);
     grid->addLayout(roomButtons, 2, 0);
 
     auto* categoryButtons = new QHBoxLayout();
     categoryButtons->setSpacing(t.unit() * 2);
-    QPushButton* addCat = addButton(this, tr("Add"), tr("Add a category"), QStringLiteral("categories-add"));
-    renameCategory_ = addButton(this, tr("Rename"), tr("Change the name of the selected category"),
-                                QStringLiteral("categories-rename"));
-    removeCategory_ = addButton(this, tr("Remove"), tr("Remove the selected category from every asset and room type"),
-                                QStringLiteral("categories-remove"));
+    QPushButton* addCat = addButton(this, tr("Add"), tr("Add a category"));
+    renameCategory_ = addButton(this, tr("Rename"), tr("Change the name of the selected category"));
+    removeCategory_ = addButton(this, tr("Remove"), tr("Remove the selected category from every asset and room type"));
     for (QPushButton* b : {addCat, renameCategory_, removeCategory_})
         categoryButtons->addWidget(b);
     categoryButtons->addStretch(1);
@@ -101,7 +93,6 @@ RoomTypesDialog::RoomTypesDialog(LibraryHost& host, QWidget* parent) : QDialog(p
     links_ = new QListWidget(this);
     links_->setStyle(t.controlStyle());
     links_->setToolTip(tr("Tick the categories that belong in the selected room type"));
-    links_->setProperty("tourId", QStringLiteral("room-types-links"));
     grid->addWidget(links_, 4, 0, 1, 2);
     grid->setRowStretch(1, 3);
     grid->setRowStretch(4, 2);
@@ -141,12 +132,11 @@ RoomTypesDialog::RoomTypesDialog(LibraryHost& host, QWidget* parent) : QDialog(p
     fillCategories(QString());
 }
 
-// Makes one dialog button with its tooltip and tour id.
-QPushButton* RoomTypesDialog::addButton(QWidget* parent, const QString& text, const QString& tip, const QString& tourId)
+// Makes one dialog button with its tooltip.
+QPushButton* RoomTypesDialog::addButton(QWidget* parent, const QString& text, const QString& tip)
 {
     auto* button = new QPushButton(text, parent);
     button->setToolTip(tip);
-    button->setProperty("tourId", tourId);
     return button;
 }
 

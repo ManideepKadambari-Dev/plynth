@@ -32,7 +32,7 @@ private:
     void linksEdited();
     void report(const QString& text);
     QString askName(const QString& title, const QString& label, const QString& start, bool* ok);
-    QPushButton* addButton(QWidget* parent, const QString& text, const QString& tip, const QString& tourId);
+    QPushButton* addButton(QWidget* parent, const QString& text, const QString& tip);
 
     LibraryHost& host_;
     bool filling_ = false;

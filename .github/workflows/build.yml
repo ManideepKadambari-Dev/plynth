@@ -334,21 +334,6 @@ jobs:
           "Graphics tests: $env:GRAPHICS_OUTCOME. They do not fail the run yet." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           if ($env:GRAPHICS_OUTCOME -ne 'success') { Write-Host "::warning::The graphics tests ended with $env:GRAPHICS_OUTCOME" }
 
-      - name: Check every control has a tour entry
-        id: tour-audit
-        if: ${{ !cancelled() && steps.package.outcome == 'success' }}
-        shell: pwsh
-        run: '& "$env:GITHUB_WORKSPACE/.github/scripts/tour-audit.ps1" -Package "$env:GITHUB_WORKSPACE/out/package/plynth" -OutFolder "$env:GITHUB_WORKSPACE/out/tour-audit"'
-
-      - name: Upload the tour audit
-        if: ${{ !cancelled() && steps.tour-audit.outcome != 'skipped' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: tour-audit
-          path: out/tour-audit/
-          if-no-files-found: ignore
-          retention-days: 14
-
       - name: Take screenshots
         id: screens
         if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && env.SCREENS == 'true' && steps.package.outcome == 'success' }}

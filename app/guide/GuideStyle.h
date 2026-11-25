@@ -18,14 +18,11 @@ struct GuideStyle {
     QColor blue;
     QColor amber;
     QColor onBlue;
-    int dimAlpha = 0; // how dark the tour layer is, 0 to 255
     QFont uiFont;
     QFont titleFont;
     QFont monoFont;
     int unit = 0;
     int radius = 0;
-    int cardWidth = 0;
-    int outlineWidth = 0;
     int listWidth = 0;
 };
 

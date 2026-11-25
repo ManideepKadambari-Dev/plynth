@@ -59,6 +59,23 @@ plynth::Status LibraryHost::apply(const std::function<void(plynth::MachineSettin
     return status;
 }
 
+// Saves a window layout change without opening the library again.
+plynth::Status LibraryHost::applyLayout(const std::function<void(plynth::MachineSettings&)>& change)
+{
+    plynth::SettingsLoad load = plynth::loadSettings();
+    if (!load.status.ok())
+        return load.status;
+    if (!load.exists) {
+        change(settings_);
+        return {};
+    }
+    change(load.settings);
+    const plynth::Status status = plynth::saveSettings(load.settings);
+    if (status.ok())
+        change(settings_);
+    return status;
+}
+
 // Opens assets.db of the chosen library, hands its room types to core and registers its shapes once.
 void LibraryHost::reopen()
 {

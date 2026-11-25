@@ -1922,7 +1922,7 @@ Two builds of one project at the same time are not allowed: the second gets `in_
 
 ### export
 
-Exports the last build for Unreal: runs the quality checks, then writes the FBX files, `export\Textures\` and `export\export_report.json`. A single project writes `export\<Name>.fbx`. A grouped project writes one file for each group, `export\<Name>_<Group>.fbx` (see "export groups"). With the kit switched on, it also writes `export\<Name>_Kit.fbx` and `export\<Name>_Kit_layout.json` (see "export kit"). The app's Export tab does the same thing, so both give the same result. `export` never builds. It uses `build\building.blend` as it is, hand edits included, and it never changes the plan, the project settings or `building.blend`. It runs while the app has the project open, with no edit session.
+Exports the last build for Unreal: runs the quality checks, then writes the FBX files, `export\Textures\` and `export\export_report.json`. A single project writes `export\<Name>.fbx`. A grouped project writes one file for each group, `export\<Name>_<Group>.fbx` (see "export groups"). With the kit switched on, it also writes `export\<Name>_Kit.fbx` and `export\<Name>_Kit_layout.json` (see "export kit"). The app's Export window does the same thing, so both give the same result. `export` never builds. It uses `build\building.blend` as it is, hand edits included, and it never changes the plan, the project settings or `building.blend`. It runs while the app has the project open, with no edit session.
 
 ```
 plynth export
@@ -1979,7 +1979,7 @@ Answers with the last report of the project, read from `export\export_report.jso
 
 ### export groups
 
-Shows the files a grouped export would write, before you export. It changes nothing and is never refused by the edit lock. The same list is in the app's Export tab.
+Shows the files a grouped export would write, before you export. It changes nothing and is never refused by the edit lock. The same list is in the app's Export window.
 
 ```
 plynth export groups
@@ -2475,10 +2475,10 @@ plynth settings show
 ```
 
 ```json
-{"ok":true,"command":"settings show","result":{"file":"D:/Demo/config/settings.json","exists":true,"settings":{"library":"D:/Demo/Library","projects":"D:/Demo/Projects","blender":null,"keep_imported_zips":false,"triangle_warning":500000,"setup_checked_version":null,"recent_projects":[]}}}
+{"ok":true,"command":"settings show","result":{"file":"D:/Demo/config/settings.json","exists":true,"settings":{"library":"D:/Demo/Library","projects":"D:/Demo/Projects","blender":null,"keep_imported_zips":false,"triangle_warning":500000,"setup_checked_version":null,"recent_projects":[],"side_panel":{"open":true,"width":0},"windows":{}}}}
 ```
 
-`recent_projects` is the list `project recent` prints, with its own `path`, `name` and `last_opened`. `exists` is false until something has been saved, and the settings then show their defaults. `library`, `projects` and `blender` are `null` when not set. `blender` null means Plynth uses the newest supported Blender it finds.
+`recent_projects` is the list `project recent` prints, with its own `path`, `name` and `last_opened`. `side_panel` and `windows` are where the app left its Properties panel and its own windows; only the app changes them. `exists` is false until something has been saved, and the settings then show their defaults. `library`, `projects` and `blender` are `null` when not set. `blender` null means Plynth uses the newest supported Blender it finds.
 
 ### settings set
 
@@ -2634,7 +2634,7 @@ Refusals: an ending no importer reads is `invalid_value` and names the endings. 
 
 ### Store imports
 
-`assets import` and `materials import` also take the address of a BlenderKit item, and Fab zips you downloaded yourself. Each is one more importer, so the answers look the same as for your own files, with `importer` set to `blenderkit` or `fab_zip`. The app does the same from its Sources tab, and the user guide explains it for people.
+`assets import` and `materials import` also take the address of a BlenderKit item, and Fab zips you downloaded yourself. Each is one more importer, so the answers look the same as for your own files, with `importer` set to `blenderkit` or `fab_zip`. The app does the same from its Sources window, and the user guide explains it for people.
 
 #### BlenderKit addresses
 
@@ -2666,7 +2666,7 @@ Refusals and failures:
 
 The reasons in a `blender_failed` message:
 
-- The item is the other kind: `assets import` says "This BlenderKit item is a material. Import it in the Materials tab or with plynth materials import." and `materials import` says "This BlenderKit item is a model. Import it in the Assets tab or with plynth assets import."
+- The item is the other kind: `assets import` says "This BlenderKit item is a material. Import it in the Materials window or with plynth materials import." and `materials import` says "This BlenderKit item is a model. Import it in the Assets window or with plynth assets import."
 - The add-on is missing: "The BlenderKit add-on is not installed. Install it in Blender from Preferences, Get Extensions, and sign in." or "The BlenderKit add-on is installed but not enabled. Open Blender, go to Preferences, Add-ons and enable BlenderKit."
 - Not signed in: "Sign in to BlenderKit inside Blender first: open Blender, go to Preferences, Add-ons, BlenderKit, and log in." When the add-on's saved settings file is damaged, Plynth leaves it exactly as it is and adds "The saved BlenderKit settings file could not be read and was left as it is." (or "... is not in the expected form and was left as it is."). Sign in inside Blender to fix it.
 - The add-on delivered nothing: "The BlenderKit add-on did not deliver the item", then what the add-on said and "Check the item in BlenderKit inside Blender."
@@ -3269,7 +3269,7 @@ plynth generator check-addons
 
 ## Integrations
 
-An integration is a source that assets and materials come from: your own files, BlenderKit and Fab. The Sources tab of the app shows the same list. Options are saved in the library, in `integrations.json` in the library folder, so the machine settings do not change. Only options you changed are saved. Every command takes `--library <folder>`.
+An integration is a source that assets and materials come from: your own files, BlenderKit and Fab. The Sources window of the app shows the same list. Options are saved in the library, in `integrations.json` in the library folder, so the machine settings do not change. Only options you changed are saved. Every command takes `--library <folder>`.
 
 ### library integrations
 
@@ -3426,7 +3426,7 @@ After the second command, `plan.json` and `project.json` both say `"version": 3`
 
 **Files from a newer Plynth** than the one you run are refused with `unsupported_version`, and nothing is changed. The version is in the file's `version` field. The shape of each version is in `schema/plan.schema.json` and `schema/project.schema.json` (version 3), `schema/plan.v2.schema.json` and `schema/project.v2.schema.json` (version 2) and `schema/plan.v1.schema.json` and `schema/project.v1.schema.json` (version 1, kept for reference).
 
-The machine settings file has its own version. Version 2 added `recent_projects`, and a version 1 file is read as having none and written back as version 2.
+The machine settings file has its own version, now 5. Version 2 added `recent_projects`, and a version 1 file is read as having none. Version 5 added `side_panel` and `windows` and dropped `tour_done`, which a version 4 file may still carry. An older file is written back as version 5.
 
 ## The script order
 
@@ -3573,7 +3573,7 @@ Every action of the app that changes or checks a project or the library has a co
 | Build, Cancel build, Show build report | `build`, `build cancel`, `build report` |
 | Save 3D picture | `render` |
 | Export, Check export, Export anyway, Cancel | `export`, `export --check`, `export --force`, `export cancel` |
-| Export tab: groups, modular kit, gameplay data | `export groups ...`, `export kit on\|off`, `export gameplay on\|off` |
+| Export window: groups, modular kit, gameplay data | `export groups ...`, `export kit on\|off`, `export gameplay on\|off` |
 | Assets and materials catalogs, imports, inboxes, rescans, thumbnails | `assets ...`, `materials ...` |
 | Add to materials catalog | `materials from-asset` |
 | Add the sample materials, shapes and generators | `library add-sample-materials`, `library add-sample-shapes`, `library add-sample-generators` |
@@ -3584,7 +3584,7 @@ Every action of the app that changes or checks a project or the library has a co
 | Command line editing banner | `session begin`, `session end`, `session status` |
 | About | `version` |
 
-Zoom, pan, the tools themselves, the tour, the help pages, the terminal and opening folders need no command: every answer names the files and folders it used.
+Zoom, pan, the tools themselves, the help pages, the terminal and opening folders need no command: every answer names the files and folders it used.
 
 ## Working while the app is open
 

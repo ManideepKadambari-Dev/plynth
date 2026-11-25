@@ -36,7 +36,7 @@ using Json = nlohmann::ordered_json;
 //   holds only unreadable models or only inner zips (so the user gets the Fab sentence below), or when the
 //   listing failed with badName (plan then gives the listing's status); 5 for any other zip with a readable
 //   model (the local file importer's 10 wins, so the Fab importer is used for such a zip only when picked by
-//   id, from the Integrations tab or with --importer fab_zip); 0 otherwise
+//   id, from the Sources window or with --importer fab_zip); 0 otherwise
 // - plan: listZipEntries, classifyFabZip, chooseFabModel with the options; writes workFolder/kFabSourceFileName
 //   (fabSourceJson, kind "model", unpack folder workFolder/kFabUnpackFolder); file that source file, format
 //   kFormatFab, sourceKind kSourceFabZip, reference the zip's file name, defaultName catalogNameFromStem of the

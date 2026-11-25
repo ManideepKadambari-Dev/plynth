@@ -150,7 +150,7 @@ public:
     }
 };
 
-// The Fab entry of the Integrations tab.
+// The Fab entry of the Sources window.
 class FabIntegration final : public Integration {
 public:
     std::string_view id() const override { return kFabIntegrationId; }

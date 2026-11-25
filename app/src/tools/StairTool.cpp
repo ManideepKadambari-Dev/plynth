@@ -261,12 +261,6 @@ QString StairTool::hint() const
     return QObject::tr("Click the bottom step and drag toward the top. Alt turns freely. Esc stops.");
 }
 
-// The tour entry id of the tool strip button.
-QString StairTool::tourId()
-{
-    return QStringLiteral("stair-tool");
-}
-
 // The tooltip of the tool strip button.
 QString StairTool::tooltipText()
 {

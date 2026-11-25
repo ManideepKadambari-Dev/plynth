@@ -43,7 +43,7 @@ QString reasonText(plynth::PackReason reason)
 // Lists a written pack.
 PackDialog::PackDialog(const plynth::PackReport& report, QWidget* parent) : QDialog(parent), folder_(report.folder)
 {
-    build(tr("Pack project"), QStringLiteral("pack-dialog"));
+    build(tr("Pack project"));
     int copied = 0, named = 0, missing = 0;
     for (const plynth::PackEntry& entry : report.manifest.entries) {
         if (entry.state == plynth::PackState::Copied) {
@@ -67,7 +67,6 @@ PackDialog::PackDialog(const plynth::PackReport& report, QWidget* parent) : QDia
     auto* buttons = new QDialogButtonBox(this);
     QPushButton* open = buttons->addButton(tr("Open folder"), QDialogButtonBox::ActionRole);
     open->setToolTip(tr("Open the pack folder in Explorer"));
-    open->setProperty("tourId", QStringLiteral("pack-open-folder"));
     connect(open, &QPushButton::clicked, this, [this]() {
         QDesktopServices::openUrl(QUrl::fromLocalFile(QString::fromStdWString(folder_.wstring())));
     });
@@ -80,7 +79,7 @@ PackDialog::PackDialog(const plynth::PackReport& report, QWidget* parent) : QDia
 // Lists what an unpack would do and asks to go on.
 PackDialog::PackDialog(const plynth::UnpackPlan& plan, QWidget* parent) : QDialog(parent)
 {
-    build(tr("Unpack into library"), QStringLiteral("unpack-dialog"));
+    build(tr("Unpack into library"));
     int adds = 0, present = 0, download = 0, missing = 0;
     for (const plynth::UnpackEntry& entry : plan.entries) {
         switch (entry.action) {
@@ -117,7 +116,6 @@ PackDialog::PackDialog(const plynth::UnpackPlan& plan, QWidget* parent) : QDialo
                                          QDialogButtonBox::AcceptRole);
     go->setToolTip(conflicts_ > 0 ? tr("Add the new items and leave the library's own items with the same ids as they are")
                                   : tr("Add the new items to the library"));
-    go->setProperty("tourId", QStringLiteral("unpack-run"));
     go->setEnabled(adds > 0 || conflicts_ > 0);
     QPushButton* cancel = buttons->addButton(QDialogButtonBox::Cancel);
     cancel->setToolTip(tr("Close without changing the library"));
@@ -127,11 +125,10 @@ PackDialog::PackDialog(const plynth::UnpackPlan& plan, QWidget* parent) : QDialo
 }
 
 // Makes the summary line and the list.
-void PackDialog::build(const QString& title, const QString& tourId)
+void PackDialog::build(const QString& title)
 {
     const Theme& t = Theme::instance();
     setWindowTitle(title);
-    setProperty("tourId", tourId);
     resize(t.unit() * 180, t.unit() * 120);
     auto* outer = new QVBoxLayout(this);
     outer->setContentsMargins(t.dialogMargin(), t.dialogMargin(), t.dialogMargin(), t.dialogMargin());
@@ -146,7 +143,6 @@ void PackDialog::build(const QString& title, const QString& tourId)
     list_->setHeaderLabels({tr("Kind"), tr("Id"), tr("Name"), tr("What happens"), tr("Why")});
     list_->header()->setStretchLastSection(true);
     list_->setToolTip(tr("Every library item the project uses"));
-    list_->setProperty("tourId", tourId + QStringLiteral("-list"));
     outer->addWidget(list_, 1);
 }
 

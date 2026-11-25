@@ -36,11 +36,9 @@ ReadOnlyBanner::ReadOnlyBanner(QWidget* parent)
     button_->setFont(t.uiFont(t.sizeNormal()));
     button_->setCursor(Qt::PointingHandCursor);
     button_->setToolTip(tr("End the command line session and make the project editable"));
-    button_->setProperty("tourId", QStringLiteral("banner-unlock"));
     layout->addWidget(button_);
     connect(button_, &QPushButton::clicked, this, &ReadOnlyBanner::unlockRequested);
 
-    setProperty("tourId", QStringLiteral("banner-read-only"));
     setTool(QString());
 }
 

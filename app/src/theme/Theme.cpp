@@ -90,6 +90,15 @@ bool Theme::load(const QString& resourcePath)
     toolStripWidth_ = spacing["toolStripWidth"].toInt(toolStripWidth_);
     propertiesWidth_ = spacing["propertiesWidth"].toInt(propertiesWidth_);
     assetsWidth_ = spacing["assetsWidth"].toInt(assetsWidth_);
+    sidePanelWidth_ = spacing["sidePanelWidth"].toInt(sidePanelWidth_);
+    sidePanelMinWidth_ = spacing["sidePanelMinWidth"].toInt(sidePanelMinWidth_);
+    sidePanelMaxWidth_ = spacing["sidePanelMaxWidth"].toInt(sidePanelMaxWidth_);
+    toolWindowWidth_ = spacing["toolWindowWidth"].toInt(toolWindowWidth_);
+    toolWindowHeight_ = spacing["toolWindowHeight"].toInt(toolWindowHeight_);
+    toolWindowNarrowWidth_ = spacing["toolWindowNarrowWidth"].toInt(toolWindowNarrowWidth_);
+    toolWindowColumnWidth_ = spacing["toolWindowColumnWidth"].toInt(toolWindowColumnWidth_);
+    detailsMinWidth_ = spacing["detailsMinWidth"].toInt(detailsMinWidth_);
+    detailsMaxWidth_ = spacing["detailsMaxWidth"].toInt(detailsMaxWidth_);
     thumbnailTile_ = spacing["thumbnailTile"].toInt(thumbnailTile_);
     thumbnailLarge_ = spacing["thumbnailLarge"].toInt(thumbnailLarge_);
     setupRowGap_ = spacing["setupRowGap"].toInt(setupRowGap_);
@@ -113,8 +122,6 @@ bool Theme::load(const QString& resourcePath)
     qualityMark_ = spacing["qualityMark"].toInt(qualityMark_);
     markStroke_ = spacing["markStroke"].toDouble(markStroke_);
     previewButton_ = spacing["previewButton"].toInt(previewButton_);
-    tourCardWidth_ = spacing["tourCardWidth"].toInt(tourCardWidth_);
-    tourOutline_ = spacing["tourOutline"].toInt(tourOutline_);
     helpListWidth_ = spacing["helpListWidth"].toInt(helpListWidth_);
 
     const QJsonObject opacity = root["opacity"].toObject();
@@ -146,7 +153,6 @@ bool Theme::load(const QString& resourcePath)
     proposalFillAlpha_ = effects["proposalFillAlpha"].toInt(proposalFillAlpha_);
     proposalLineAlpha_ = effects["proposalLineAlpha"].toInt(proposalLineAlpha_);
     itemFillAlpha_ = effects["itemFillAlpha"].toInt(itemFillAlpha_);
-    tourDimAlpha_ = effects["tourDimAlpha"].toInt(tourDimAlpha_);
 
     const QJsonArray ansi = root["terminal"].toObject()["ansi"].toArray();
     for (int i = 0; i < 16 && i < ansi.size(); ++i) {
@@ -288,6 +294,10 @@ void Theme::apply() const
     p.setColor(QPalette::ToolTipText, text_);
     p.setColor(QPalette::Highlight, signalBlue_);
     p.setColor(QPalette::HighlightedText, onBlue_);
+    // Rich text labels, help pages and markdown take their link color from the application palette when the
+    // text is read, so it is set here before any window is made.
+    p.setColor(QPalette::Link, signalBlue_);
+    p.setColor(QPalette::LinkVisited, signalBlue_);
     p.setColor(QPalette::Disabled, QPalette::WindowText, muted_);
     p.setColor(QPalette::Disabled, QPalette::Text, muted_);
     p.setColor(QPalette::Disabled, QPalette::ButtonText, muted_);

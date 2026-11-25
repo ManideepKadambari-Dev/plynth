@@ -82,7 +82,6 @@ OpeningAssetPicker::OpeningAssetPicker(LibraryHost& host, QWidget* parent) : QWi
 {
     const Theme& t = Theme::instance();
     setToolTip(tr("Pick the door or window of this opening"));
-    setProperty("tourId", QStringLiteral("opening-asset-picker"));
     setFocusPolicy(Qt::NoFocus);
     auto* row = new QHBoxLayout(this);
     row->setContentsMargins(1, 1, 1, 1);
@@ -101,7 +100,6 @@ OpeningAssetPicker::OpeningAssetPicker(LibraryHost& host, QWidget* parent) : QWi
     list_->setSelectionMode(QAbstractItemView::SingleSelection);
     list_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     list_->setToolTip(tr("Automatic lets the build pick a fitting asset. Hover an asset to see it, click to use it."));
-    list_->setProperty("tourId", QStringLiteral("opening-asset-picker-list"));
     list_->viewport()->installEventFilter(this);
     row->addWidget(list_);
     preview_ = new AssetPreview(this);
@@ -185,7 +183,7 @@ void OpeningAssetPicker::fill(plynth::OpeningType type, OpeningFrameKind current
     if (assets.empty()) {
         QListWidgetItem* note = add(type == plynth::OpeningType::Window ? tr("No window assets") : tr("No door assets"),
                                     OpeningFrameKind::BuiltIn, QString(), QString(), true);
-        note->setToolTip(tr("Give an asset the category %1 in the Assets tab to list it here").arg(categoryFor(type)));
+        note->setToolTip(tr("Give an asset the category %1 in the Assets window to list it here").arg(categoryFor(type)));
     }
     if (marked != nullptr)
         list_->setCurrentItem(marked);

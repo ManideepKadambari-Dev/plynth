@@ -92,7 +92,6 @@ private:
 BuildPanel::BuildPanel(QWidget* parent) : QWidget(parent)
 {
     const Theme& t = Theme::instance();
-    setProperty("tourId", QStringLiteral("build-panel"));
     setToolTip(tr("The last build: summary, files, steps and problems"));
     auto* outer = new QVBoxLayout(this);
     outer->setContentsMargins(0, 0, 0, 0);
@@ -159,8 +158,11 @@ void BuildPanel::setReport(const plynth::BuildReport* report, bool stale)
         empty_->setWordWrap(true);
         empty_->setFont(t.uiFont(t.sizeNormal()));
         empty_->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
-        column_->addWidget(empty_);
+        empty_->setAlignment(Qt::AlignHCenter);
+        // Before the first build the message sits in the middle of the window.
         column_->addStretch(1);
+        column_->addWidget(empty_);
+        column_->addStretch(2);
         return;
     }
 
@@ -219,10 +221,8 @@ void BuildPanel::setReport(const plynth::BuildReport* report, bool stale)
         row->setContentsMargins(0, t.unit(), 0, 0);
         auto* folder = new QPushButton(tr("Open folder"), buttons);
         folder->setToolTip(tr("Open the build folder in Explorer"));
-        folder->setProperty("tourId", QStringLiteral("build-open-folder"));
         auto* blender = new QPushButton(tr("Open in Blender"), buttons);
         blender->setToolTip(tr("Open building.blend in Blender"));
-        blender->setProperty("tourId", QStringLiteral("build-open-blender"));
         blender->setEnabled(!report->blendFile.empty());
         row->addWidget(folder);
         row->addWidget(blender);

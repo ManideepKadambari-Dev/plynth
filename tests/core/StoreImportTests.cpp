@@ -304,7 +304,7 @@ TEST_CASE("a material address refuses the asset import and keeps nothing", "[sto
     const ImportOutcome outcome = importAsset(*f.lib.catalog, f.context, f.address());
     REQUIRE(outcome.status.code == ErrorCode::InvalidValue);
     REQUIRE(outcome.status.message ==
-            "This BlenderKit item is a material. Import it in the Materials tab or with plynth materials import.");
+            "This BlenderKit item is a material. Import it in the Materials window or with plynth materials import.");
     REQUIRE(tasksOf(f.jobs()) == std::vector<std::string>{"blenderkit_fetch"});
     REQUIRE(f.items() == 0);
     REQUIRE(f.staging() == 0);
@@ -570,7 +570,7 @@ TEST_CASE("a model address refuses the material import and keeps nothing", "[sto
     const MaterialImportOutcome outcome = importMaterial(*f.lib.catalog, f.context, f.address());
     REQUIRE(outcome.status.code == ErrorCode::InvalidValue);
     REQUIRE(outcome.status.message ==
-            "This BlenderKit item is a model. Import it in the Assets tab or with plynth assets import.");
+            "This BlenderKit item is a model. Import it in the Assets window or with plynth assets import.");
     REQUIRE(f.items() == 0);
     REQUIRE(f.staging() == 0);
 }

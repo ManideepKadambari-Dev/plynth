@@ -59,8 +59,7 @@ QLabel* makeName(QGridLayout* grid, const QString& text, const QString& tip)
 }
 
 // A metre spin box in JetBrains Mono that sends its value only when an edit is finished or a step is taken.
-QDoubleSpinBox* makeSpin(QWidget* parent, double min, double max, double step, const QString& tip,
-                         const QString& tourId)
+QDoubleSpinBox* makeSpin(QWidget* parent, double min, double max, double step, const QString& tip)
 {
     const Theme& t = Theme::instance();
     auto* spin = new QDoubleSpinBox(parent);
@@ -72,7 +71,6 @@ QDoubleSpinBox* makeSpin(QWidget* parent, double min, double max, double step, c
     spin->setKeyboardTracking(false);
     spin->setStyle(t.controlStyle());
     spin->setToolTip(tip);
-    spin->setProperty("tourId", tourId);
     return spin;
 }
 
@@ -100,8 +98,7 @@ TrimGroup::TrimGroup(plynth::Document& document, ToolController& controller, QGr
 
     const QString tip = tr("Height of the top of a stair railing above the steps");
     QLabel* name = makeName(grid, tr("Railing height"), tip);
-    railingHeight_ = makeSpin(grid->parentWidget(), plynth::kMinRailingHeight, plynth::kMaxRailingHeight, 0.05, tip,
-                              QStringLiteral("panel-trim-railing-height"));
+    railingHeight_ = makeSpin(grid->parentWidget(), plynth::kMinRailingHeight, plynth::kMaxRailingHeight, 0.05, tip);
     const int row = grid->rowCount();
     grid->addWidget(name, row, 0, Qt::AlignVCenter);
     grid->addWidget(railingHeight_, row, 1);
@@ -127,23 +124,20 @@ void TrimGroup::addKind(QGridLayout* grid, plynth::TrimKind kind, const QString&
     row.on = new QCheckBox(name, grid->parentWidget());
     row.on->setFont(t.uiFont(t.sizeSmall()));
     row.on->setToolTip(tip + tr(". Untick to leave it out of the build."));
-    row.on->setProperty("tourId", QStringLiteral("panel-trim-%1-on").arg(id));
     row.profile = new QComboBox(grid->parentWidget());
     row.profile->setFont(t.uiFont(t.sizeNormal()));
     row.profile->setStyle(t.controlStyle());
     row.profile->setToolTip(tr("The cross section of the %1. Profiles in the library's shapes folder are listed too.")
                                 .arg(name.toLower()));
-    row.profile->setProperty("tourId", QStringLiteral("panel-trim-%1-profile").arg(id));
     int at = grid->rowCount();
     grid->addWidget(row.on, at, 0, Qt::AlignVCenter);
     grid->addWidget(row.profile, at, 1);
 
     const bool casing = kind == plynth::TrimKind::Casing;
     row.height = makeSpin(grid->parentWidget(), plynth::kMinTrimSize, plynth::kMaxTrimSize, 0.005,
-                          casing ? tr("Width of the casing across the wall face") : tr("Size of the profile up the wall"),
-                          QStringLiteral("panel-trim-%1-height").arg(id));
+                          casing ? tr("Width of the casing across the wall face") : tr("Size of the profile up the wall"));
     row.depth = makeSpin(grid->parentWidget(), plynth::kMinTrimSize, plynth::kMaxTrimSize, 0.005,
-                         tr("How far it stands out from the wall"), QStringLiteral("panel-trim-%1-depth").arg(id));
+                         tr("How far it stands out from the wall"));
     auto* sizes = new QWidget(grid->parentWidget());
     auto* line = new QHBoxLayout(sizes);
     line->setContentsMargins(0, 0, 0, 0);
@@ -238,10 +232,8 @@ VariationGroup::VariationGroup(plynth::Document& document, ToolController& contr
     seed_->setKeyboardTracking(false);
     seed_->setStyle(t.controlStyle());
     seed_->setToolTip(seedTip);
-    seed_->setProperty("tourId", QStringLiteral("panel-variation-seed"));
     randomize_ = new QPushButton(tr("Randomize"), grid->parentWidget());
     randomize_->setToolTip(tr("Pick a new random seed"));
-    randomize_->setProperty("tourId", QStringLiteral("panel-variation-randomize"));
     auto* seedRow = new QWidget(grid->parentWidget());
     auto* line = new QHBoxLayout(seedRow);
     line->setContentsMargins(0, 0, 0, 0);
@@ -255,12 +247,10 @@ VariationGroup::VariationGroup(plynth::Document& document, ToolController& contr
     furniture_ = new QCheckBox(tr("Vary furniture"), grid->parentWidget());
     furniture_->setFont(t.uiFont(t.sizeNormal()));
     furniture_->setToolTip(tr("Let the seed swap furniture for other measured assets of the same category and a similar size"));
-    furniture_->setProperty("tourId", QStringLiteral("panel-variation-furniture"));
     grid->addWidget(furniture_, grid->rowCount(), 1);
     materials_ = new QCheckBox(tr("Vary materials"), grid->parentWidget());
     materials_->setFont(t.uiFont(t.sizeNormal()));
     materials_->setToolTip(tr("Let the seed pick other floor, inside wall and outside materials of the same group"));
-    materials_->setProperty("tourId", QStringLiteral("panel-variation-materials"));
     grid->addWidget(materials_, grid->rowCount(), 1);
 
     note_ = new QLabel(grid->parentWidget());

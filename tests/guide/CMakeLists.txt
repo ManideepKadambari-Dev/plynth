@@ -4,7 +4,6 @@ add_executable(plynth_guide_tests
     HelpPagesTests.cpp
     AboutTests.cpp
     SamplesTests.cpp
-    TourTests.cpp
     LicenseReportTests.cpp
     LogoTests.cpp
     AuthorTests.cpp

@@ -36,7 +36,6 @@ WallView::WallView(plynth::Document& document, Selection& selection, ToolControl
     : QWidget(parent), document_(document), selection_(selection), controller_(controller)
 {
     const Theme& t = Theme::instance();
-    setProperty("tourId", QStringLiteral("wall-view"));
     setToolTip(tr("The face of the selected wall at true scale. Drag openings to move them, drag their edges to resize."));
     setMinimumHeight(t.wallViewMinHeight());
 
@@ -65,7 +64,6 @@ WallView::WallView(plynth::Document& document, Selection& selection, ToolControl
     sideLabel_->setToolTip(tr("Which side of the wall the picture shows"));
     flipButton_ = new QPushButton(tr("Flip"), header);
     flipButton_->setToolTip(tr("See the other side of the wall (F)"));
-    flipButton_->setProperty("tourId", QStringLiteral("wall-view-flip"));
     flipButton_->setFocusPolicy(Qt::NoFocus);
     row->addWidget(title_);
     row->addWidget(length_);

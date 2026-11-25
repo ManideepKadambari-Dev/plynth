@@ -120,8 +120,8 @@ int runFakeStoreFetch(const Json& job, const std::string& jobPath, const std::ve
     const bool material = how == "mislabel" ? !wantsMaterial : how == "follow" ? wantsMaterial : how == "material";
     if (how != "mislabel" && material != wantsMaterial) {
         return failure("wrong_asset_kind", material
-            ? "This BlenderKit item is a material. Import it in the Materials tab or with plynth materials import."
-            : "This BlenderKit item is a model. Import it in the Assets tab or with plynth assets import.");
+            ? "This BlenderKit item is a material. Import it in the Materials window or with plynth materials import."
+            : "This BlenderKit item is a model. Import it in the Assets window or with plynth assets import.");
     }
 
     progress("copy", 3, "Copying the download");

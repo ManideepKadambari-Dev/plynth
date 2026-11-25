@@ -7,6 +7,7 @@
 
 #include <filesystem>
 #include <functional>
+#include <map>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -25,13 +26,17 @@ inline constexpr std::string_view kSettingsFileName = "settings.json";
 inline constexpr std::string_view kSettingsFormat = "plynth-settings";
 // Version 2 adds "recent_projects". A version 1 file is read as having none and is written back as version 2.
 // Version 3 drops thumbnail_engine: thumbnails use Eevee only.
-// Version 4 adds "tour_done". A file of version 1 to 3 is read with it true, so an upgrade does not start the
-// first run tour. A fresh default is false.
-inline constexpr int kSettingsFormatVersion = 4;
+// Version 4 added "tour_done". Version 5 drops it again (a version 4 file may still carry it and it is checked,
+// then dropped) and adds "side_panel" and "windows": where the app's side panel and its own windows were left.
+inline constexpr int kSettingsFormatVersion = 5;
 inline constexpr std::string_view kConfigDirVariable = "PLYNTH_CONFIG_DIR";
 
 // An import with more triangles than this gets a warning. Never refused: the target is Nanite.
 inline constexpr long long kDefaultTriangleWarning = 500000;
+
+// The most windows the settings remember a place for, and the longest window name.
+inline constexpr std::size_t kMaxWindowPlaces = 16;
+inline constexpr std::size_t kMaxWindowNameLength = 32;
 
 // The most recent projects kept in the settings.
 inline constexpr std::size_t kMaxRecentProjects = 30;
@@ -45,6 +50,19 @@ struct RecentProject {
     bool operator==(const RecentProject&) const = default;
 };
 
+// Where one of the app's own windows was last left: its frame in desktop pixels, the screen it was on and
+// whether it was maximized.
+struct WindowPlace {
+    int x = 0;
+    int y = 0;
+    int width = 0;  // at least 1
+    int height = 0; // at least 1
+    std::string screen; // the screen's name as the system gives it; empty when unknown
+    bool maximized = false;
+
+    bool operator==(const WindowPlace&) const = default;
+};
+
 struct MachineSettings {
     std::optional<std::filesystem::path> library;  // the Library folder (DESIGN.md section 5)
     std::optional<std::filesystem::path> projects; // where new projects go and where the terminal starts
@@ -56,8 +74,12 @@ struct MachineSettings {
     std::string setupCheckedVersion;
     // Most recent first, at most kMaxRecentProjects. Only the app adds to it (when it opens or saves a project).
     std::vector<RecentProject> recentProjects;
-    // True once the first run tour was shown or skipped. The app starts it once, after the setup check closes.
-    bool tourDone = false;
+    // The right side panel of the main window: open or closed, and its width in pixels (0 means the theme width).
+    bool sidePanelOpen = true;
+    int sidePanelWidth = 0;
+    // The last place of each of the app's own windows, by name, such as "assets" or "export". Names are lower
+    // case letters, digits and dashes.
+    std::map<std::string, WindowPlace> windows;
 
     bool operator==(const MachineSettings&) const = default;
 };

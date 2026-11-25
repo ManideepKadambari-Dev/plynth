@@ -20,7 +20,6 @@ ScaleDialog::ScaleDialog(double pixelDistance, std::optional<double> presetMetre
     const Theme& t = Theme::instance();
     setWindowTitle(tr("Set scale"));
     setModal(true);
-    setProperty("tourId", QStringLiteral("dialog-scale"));
 
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(t.unit() * 5, t.unit() * 5, t.unit() * 5, t.unit() * 4);
@@ -39,7 +38,6 @@ ScaleDialog::ScaleDialog(double pixelDistance, std::optional<double> presetMetre
     distance_->setStyle(t.controlStyle());
     distance_->setValue(presetMetres.has_value() ? std::clamp(*presetMetres, 0.01, 1000.0) : 1.0);
     distance_->setToolTip(tr("The real length between the two points you clicked, in metres"));
-    distance_->setProperty("tourId", QStringLiteral("scale-distance"));
     layout->addWidget(distance_);
 
     auto* pixels = new QLabel(tr("Measured on the image: %1 px").arg(pixelDistance, 0, 'f', 1), this);
@@ -53,7 +51,6 @@ ScaleDialog::ScaleDialog(double pixelDistance, std::optional<double> presetMetre
     keep_->setChecked(true);
     keep_->setVisible(showKeep);
     keep_->setToolTip(tr("On: points and walls stay on the same spot of the image. Off: they keep their real sizes in metres and move on the image."));
-    keep_->setProperty("tourId", QStringLiteral("scale-keep"));
     layout->addWidget(keep_);
 
     auto* buttons = new QDialogButtonBox(this);

@@ -75,8 +75,6 @@ GuideStyle testStyle()
     style.monoFont = QFont(QStringLiteral("Consolas"), 10);
     style.unit = 4;
     style.radius = 4;
-    style.cardWidth = 360;
-    style.outlineWidth = 2;
     style.listWidth = 240;
     return style;
 }
@@ -85,7 +83,7 @@ GuideStyle testStyle()
 QTextBrowser* pageView(HelpWindow& window)
 {
     for (QTextBrowser* browser : window.findChildren<QTextBrowser*>()) {
-        if (browser->property("tourId").toString() == QStringLiteral("help-page")) return browser;
+        if (browser->objectName() == QStringLiteral("helpPage")) return browser;
     }
     return nullptr;
 }

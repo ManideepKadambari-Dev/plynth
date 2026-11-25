@@ -1,12 +1,11 @@
 #include "RightPanel.h"
 
-#include "theme/TabButton.h"
 #include "theme/Theme.h"
 
 #include <QHBoxLayout>
+#include <QLabel>
 #include <QPainter>
 #include <QPushButton>
-#include <QStackedWidget>
 #include <QVBoxLayout>
 
 namespace plynth::app {
@@ -15,82 +14,42 @@ namespace {
 
 constexpr int kBorderWidth = 1;
 
-// Makes one flat tab button of the right panel.
-QPushButton* makeTab(const QString& text, const QString& tip, const QString& tourId, QWidget* parent)
-{
-    const Theme& t = Theme::instance();
-    return makeTabButton(text, tip, tourId, parent, t.unit() * 2, t.unit());
 }
 
-}
-
-// Builds the tabs over a stack holding their pages.
-RightPanel::RightPanel(QWidget* properties, QWidget* assets, QWidget* materials, QWidget* build, QWidget* exportPage, QWidget* integrations, QWidget* parent) : QWidget(parent)
+// Builds the header with the panel name and the close button over the Properties.
+RightPanel::RightPanel(QWidget* properties, QWidget* parent) : QWidget(parent)
 {
     const Theme& t = Theme::instance();
-    setProperty("tourId", QStringLiteral("panel-right"));
+    setMinimumWidth(t.sidePanelMinWidth());
+    setMaximumWidth(t.sidePanelMaxWidth());
     auto* column = new QVBoxLayout(this);
     column->setContentsMargins(kBorderWidth, 0, 0, 0);
     column->setSpacing(0);
 
-    auto* tabs = new QHBoxLayout();
-    tabs->setContentsMargins(t.unit() * 2, t.unit() * 2, t.unit() * 2, 0);
-    tabs->setSpacing(0);
-    propertiesButton_ = makeTab(tr("Properties"), tr("Properties of the selected item, or of the plan"),
-                                QStringLiteral("tab-properties"), this);
-    assetsButton_ = makeTab(tr("Assets"), tr("The assets catalog (Ctrl+Shift+A)"), QStringLiteral("tab-assets"), this);
-    materialsButton_ = makeTab(tr("Materials"), tr("The materials catalog (Ctrl+Shift+M)"), QStringLiteral("tab-materials"), this);
-    buildButton_ = makeTab(tr("Build"), tr("The last build: summary, files, steps and problems"),
-                           QStringLiteral("tab-build"), this);
-    tabs->addWidget(propertiesButton_, 1);
-    tabs->addWidget(assetsButton_, 1);
-    tabs->addWidget(materialsButton_, 1);
-    exportButton_ = makeTab(tr("Export"), tr("Export for Unreal. Ctrl+E exports, Ctrl+Shift+E checks."),
-                            QStringLiteral("tab-export"), this);
-    tabs->addWidget(buildButton_, 1);
-    tabs->addWidget(exportButton_, 1);
-    integrationsButton_ = makeTab(tr("Sources"), tr("Integrations: import from BlenderKit, Fab and your own files"),
-                                  QStringLiteral("tab-integrations"), this);
-    tabs->addWidget(integrationsButton_, 1);
-    column->addLayout(tabs);
+    auto* head = new QHBoxLayout();
+    head->setContentsMargins(t.unit() * 4, t.unit() * 2, t.unit() * 2, t.unit() * 2);
+    head->setSpacing(t.unit() * 2);
+    auto* title = new QLabel(tr("Properties"), this);
+    title->setFont(t.uiFont(t.sizeNormal(), QFont::DemiBold));
+    title->setStyleSheet(QStringLiteral("color: %1;").arg(t.text().name()));
+    title->setToolTip(tr("Properties of the selected item, or of the plan"));
+    head->addWidget(title, 1);
+    close_ = new QPushButton(tr("Hide"), this);
+    close_->setFlat(true);
+    close_->setFocusPolicy(Qt::NoFocus);
+    close_->setFont(t.uiFont(t.sizeSmall()));
+    close_->setToolTip(tr("Close the side panel. Open it again with View > Properties panel (Ctrl+Shift+P)"));
+    close_->setStyleSheet(QStringLiteral("QPushButton { background: transparent; border: none; color: %1; padding: 0px %2px; }"
+                                         "QPushButton:hover { color: %3; }")
+                              .arg(t.muted().name())
+                              .arg(t.unit() * 2)
+                              .arg(t.text().name()));
+    head->addWidget(close_);
+    column->addLayout(head);
 
-    pages_ = new QStackedWidget(this);
-    properties->setParent(pages_);
-    assets->setParent(pages_);
-    materials->setParent(pages_);
-    build->setParent(pages_);
-    exportPage->setParent(pages_);
-    integrations->setParent(pages_);
-    pages_->addWidget(properties);
-    pages_->addWidget(assets);
-    pages_->addWidget(materials);
-    pages_->addWidget(build);
-    pages_->addWidget(exportPage);
-    pages_->addWidget(integrations);
-    column->addWidget(pages_, 1);
-
-    connect(propertiesButton_, &QPushButton::clicked, this, [this]() { showTab(Tab::Properties); });
-    connect(assetsButton_, &QPushButton::clicked, this, [this]() { showTab(Tab::Assets); });
-    connect(materialsButton_, &QPushButton::clicked, this, [this]() { showTab(Tab::Materials); });
-    connect(buildButton_, &QPushButton::clicked, this, [this]() { showTab(Tab::Build); });
-    connect(exportButton_, &QPushButton::clicked, this, [this]() { showTab(Tab::Export); });
-    connect(integrationsButton_, &QPushButton::clicked, this, [this]() { showTab(Tab::Integrations); });
-    showTab(Tab::Properties);
-}
-
-// Shows one tab; the panel keeps one width so all tab labels fit.
-void RightPanel::showTab(Tab tab)
-{
-    const Theme& t = Theme::instance();
-    tab_ = tab;
-    propertiesButton_->setChecked(tab == Tab::Properties);
-    assetsButton_->setChecked(tab == Tab::Assets);
-    materialsButton_->setChecked(tab == Tab::Materials);
-    buildButton_->setChecked(tab == Tab::Build);
-    exportButton_->setChecked(tab == Tab::Export);
-    integrationsButton_->setChecked(tab == Tab::Integrations);
-    pages_->setCurrentIndex(static_cast<int>(tab));
-    setFixedWidth(t.assetsWidth());
+    properties->setParent(this);
+    column->addWidget(properties, 1);
+    connect(close_, &QPushButton::clicked, this, &RightPanel::closeRequested);
 }
 
 // Paints the Panel background with the Line border on its left edge.

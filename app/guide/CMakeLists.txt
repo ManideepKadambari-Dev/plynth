@@ -2,20 +2,11 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets)
 
 set(CMAKE_AUTOMOC ON)
 
-# The guided tour, What is this?, Help and About widgets. They include nothing from app/src and get every
+# The Help and About widgets. They include nothing from app/src and get every
 # color, font and size through GuideStyle.
 add_library(plynth_guide_ui STATIC
     GuideStyle.h
     GuideStyle.cpp
-    TourHost.h
-    TourCard.h
-    TourCard.cpp
-    TourOverlay.h
-    TourOverlay.cpp
-    TourController.h
-    TourController.cpp
-    WhatIsThis.h
-    WhatIsThis.cpp
     AboutPage.h
     AboutPage.cpp
     HelpRender.h

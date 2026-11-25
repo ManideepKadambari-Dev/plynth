@@ -72,8 +72,7 @@ public:
     void documentChanged(unsigned changes) override;
     void paint(QPainter& painter) override;
 
-    // The guided tour id and the tooltip of the tool strip button.
-    static QString tourId();
+    // The tooltip of the tool strip button.
     static QString tooltipText();
 
     // Shows the live preview of a drag from one place to another, in metres, as the mouse would. For checks.

@@ -86,7 +86,7 @@ private:
     QWidget* makePage(QGridLayout** grid);
     QLabel* addLabelRow(QGridLayout* grid, const QString& label, bool mono = true);
     QDoubleSpinBox* addSpinRow(QGridLayout* grid, const QString& label, double min, double max, double step,
-                               const QString& tip, const QString& tourId, QLabel** labelOut = nullptr);
+                               const QString& tip, QLabel** labelOut = nullptr);
     void buildNothingPage();
     void buildPointPage();
     void buildWallPage();
@@ -138,15 +138,14 @@ private:
     void runItemCommand(std::unique_ptr<plynth::Command> command);
     void refreshOpening();
     void refreshOpeningTool();
-    QComboBox* addComboRow(QGridLayout* grid, const QString& label, const QString& tip, const QString& tourId,
-                           QLabel** labelOut = nullptr);
+    QComboBox* addComboRow(QGridLayout* grid, const QString& label, const QString& tip, QLabel** labelOut = nullptr);
     void fillShapeCombo(QComboBox* combo, const std::string& current);
     void runOpeningCommand(std::unique_ptr<plynth::Command> command);
     void editOpeningStyle(int field, int index);
     void editToolSetting(int field, int index);
     void editDefaultSize(int field, double value);
     QSlider* addSliderRow(QGridLayout* grid, const QString& label, int min, int max, const QString& tip,
-                          const QString& tourId, QLabel** valueOut);
+                          QLabel** valueOut);
     void detectSettingsEdited(const QObject* from);
     void refreshNothing();
     void refreshPoint();
@@ -155,11 +154,10 @@ private:
     void refreshDetect();
     void setSpin(QDoubleSpinBox* spin, double value);
     QDoubleSpinBox* addKeyedSpinRow(QGridLayout* grid, const QString& label, double min, double max, double step,
-                                    const QString& tip, const QString& tourId);
+                                    const QString& tip);
     QLabel* addNote(QGridLayout* grid);
     void addMaterialSection(QGridLayout* grid, const QString& title);
-    MaterialRow* addMaterialRow(QGridLayout* grid, const QString& label, const QString& tip, const QString& tourId,
-                                const plynth::MaterialTarget& target);
+    MaterialRow* addMaterialRow(QGridLayout* grid, const QString& label, const QString& tip, const plynth::MaterialTarget& target);
     void refreshMaterialRows(int page);
     void openPicker(size_t slot, const QString& hoverMaterial);
     void applyMaterial(const plynth::MaterialTarget& target, const std::optional<std::string>& material);

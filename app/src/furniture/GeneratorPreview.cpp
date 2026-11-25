@@ -45,7 +45,6 @@ GeneratorPreview::GeneratorPreview(QWidget* parent) : QWidget(parent)
     const Theme& t = Theme::instance();
     setFixedWidth(t.previewWidth());
     setToolTip(tr("The generator under the cursor: its size, parameters and the add-ons it needs"));
-    setProperty("tourId", QStringLiteral("picker-generator-preview"));
 
     auto* column = new QVBoxLayout(this);
     column->setContentsMargins(t.unit() * 4, t.unit() * 4, t.unit() * 4, t.unit() * 4);

@@ -100,7 +100,6 @@ FabImportDialog::FabImportDialog(const plynth::LibraryPaths& library, const QStr
     else
         setWindowTitle(tr("Pick the model"));
     setModal(true);
-    setProperty("tourId", QStringLiteral("fab-import-dialog"));
     setToolTip(tr("Check what Plynth takes from each file before it imports them"));
     resize(t.unit() * 140, t.unit() * 100);
     setMinimumSize(t.unit() * 80, t.unit() * 60);
@@ -118,10 +117,8 @@ FabImportDialog::FabImportDialog(const plynth::LibraryPaths& library, const QStr
     nav->addWidget(where_, 1);
     previous_ = new QPushButton(tr("Previous"), this);
     previous_->setToolTip(tr("Show the previous zip"));
-    previous_->setProperty("tourId", QStringLiteral("fab-previous"));
     next_ = new QPushButton(tr("Next"), this);
     next_->setToolTip(tr("Show the next zip"));
-    next_->setProperty("tourId", QStringLiteral("fab-next"));
     nav->addWidget(previous_);
     nav->addWidget(next_);
     layout->addLayout(nav);
@@ -133,7 +130,6 @@ FabImportDialog::FabImportDialog(const plynth::LibraryPaths& library, const QStr
     keep_->setStyle(t.controlStyle());
     keep_->setChecked(keepZips);
     keep_->setToolTip(tr("On: the zips stay where they are. Off: they go to the Recycle Bin after a good import."));
-    keep_->setProperty("tourId", QStringLiteral("fab-keep-zip"));
     const bool anyZip = std::any_of(zips.begin(), zips.end(),
                                     [](const QString& zip) { return zip.endsWith(QStringLiteral(".zip"), Qt::CaseInsensitive); });
     keep_->setVisible(anyZip);
@@ -144,7 +140,6 @@ FabImportDialog::FabImportDialog(const plynth::LibraryPaths& library, const QStr
     QPushButton* cancel = buttons->addButton(tr("Cancel"), QDialogButtonBox::RejectRole);
     import_->setDefault(true);
     import_->setToolTip(tr("Add the zips that are ready to the import queue"));
-    import_->setProperty("tourId", QStringLiteral("fab-import"));
     cancel->setToolTip(tr("Close without importing anything"));
     connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
@@ -183,7 +178,6 @@ void FabImportDialog::buildPage(int index)
     page.leaveOut = new QCheckBox(tr("Leave this zip out"), widget);
     page.leaveOut->setStyle(t.controlStyle());
     page.leaveOut->setToolTip(tr("Do not import this zip"));
-    page.leaveOut->setProperty("tourId", QStringLiteral("fab-leave-out"));
     connect(page.leaveOut, &QCheckBox::toggled, this, [this]() { updateButtons(); });
     top->addWidget(page.leaveOut);
     box->addLayout(top);
@@ -247,7 +241,6 @@ void FabImportDialog::fill(int index)
                 for (const Json& model : models)
                     combo->addItem(modelLabel(model), textOf(model, "entry"));
                 combo->setToolTip(tr("The file holds several models. Choose the one to import."));
-                combo->setProperty("tourId", QStringLiteral("fab-model"));
                 WheelGuard::guard(combo);
                 connect(combo, &QComboBox::activated, this, [this, index, combo](int at) {
                     const QString entry = combo->itemData(at).toString();
@@ -279,7 +272,6 @@ void FabImportDialog::fill(int index)
         }
         combo->setCurrentIndex(current);
         combo->setToolTip(tr("The model Plynth takes. Choose another version of the model to use it instead."));
-        combo->setProperty("tourId", QStringLiteral("fab-model"));
         WheelGuard::guard(combo);
         connect(combo, &QComboBox::activated, this, [this, index, combo](int at) {
             chooseModel(index, combo->itemData(at).toString());
@@ -330,7 +322,6 @@ void FabImportDialog::fill(int index)
             else
                 which->setCurrentText(shown.material);
             which->setToolTip(tr("The material this texture is for. Type a material name of the model, or keep Every material."));
-            which->setProperty("tourId", QStringLiteral("fab-material"));
             WheelGuard::guard(which);
             connect(which, &QComboBox::activated, this, [this, index, entry, which](int at) {
                 chooseMaterial(index, entry, which->itemData(at).toString());
@@ -351,7 +342,6 @@ void FabImportDialog::fill(int index)
         combo->setCurrentIndex(std::max(0, combo->findData(shown.channel)));
         combo->setToolTip(tr("Which channel this texture is for. Automatic reads it from the file name. "
                              "Each material takes one texture for each channel."));
-        combo->setProperty("tourId", QStringLiteral("fab-channel"));
         WheelGuard::guard(combo);
         connect(combo, &QComboBox::activated, this, [this, index, entry, combo](int at) {
             chooseChannel(index, entry, combo->itemData(at).toString());
