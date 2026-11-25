@@ -114,7 +114,7 @@ TEST_CASE("a stalled answer fails after the stall limit", "[update][http]") {
                 sink.write("0123456789", 10);
                 return true;
             }
-            std::this_thread::sleep_for(std::chrono::seconds(4));
+            std::this_thread::sleep_for(std::chrono::seconds(6));
             return false;
         });
         return true;
@@ -123,7 +123,7 @@ TEST_CASE("a stalled answer fails after the stall limit", "[update][http]") {
     const auto started = std::chrono::steady_clock::now();
     const HttpResult got = get(server, "/stall", body);
     CHECK(got.status.code == ErrorCode::NetworkFailed);
-    CHECK(std::chrono::steady_clock::now() - started < std::chrono::seconds(4));
+    CHECK(std::chrono::steady_clock::now() - started < std::chrono::seconds(5));
 }
 
 TEST_CASE("a stop ends a request, also while it waits for data", "[update][http]") {

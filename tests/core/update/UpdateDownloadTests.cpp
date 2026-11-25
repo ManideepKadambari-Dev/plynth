@@ -19,6 +19,20 @@ std::vector<fs::path> entries(const fs::path& folder)
     return found;
 }
 
+// Reads a whole file with every kind of sharing allowed, as a reader beside the held installer must.
+std::string readShared(const fs::path& file)
+{
+    const HANDLE handle = CreateFileW(file.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                                      nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (handle == INVALID_HANDLE_VALUE) return {};
+    std::string bytes;
+    char buffer[65536];
+    DWORD read = 0;
+    while (ReadFile(handle, buffer, sizeof buffer, &read, nullptr) && read > 0) bytes.append(buffer, read);
+    CloseHandle(handle);
+    return bytes;
+}
+
 // Says whether a file can be opened for writing right now.
 bool canWrite(const fs::path& file)
 {
@@ -66,7 +80,7 @@ TEST_CASE("a verified installer is kept locked under its own name", "[update][do
     CHECK(lastDone == static_cast<long long>(bytes.size()));
     CHECK(lastTotal == static_cast<long long>(bytes.size()));
     CHECK(entries(file.parent_path()).size() == 1);
-    CHECK(readBytes(file) == bytes);
+    CHECK(readShared(file) == bytes);
 
     // No other handle may write, rename, replace or delete the file while it is held.
     CHECK_FALSE(canWrite(file));
@@ -76,7 +90,7 @@ TEST_CASE("a verified installer is kept locked under its own name", "[update][do
     writeBytes(other, "not the installer");
     CHECK_FALSE(MoveFileExW(other.c_str(), file.c_str(), MOVEFILE_REPLACE_EXISTING));
     CHECK_FALSE(DeleteFileW(file.c_str()));
-    CHECK(readBytes(file) == bytes);
+    CHECK(readShared(file) == bytes);
 
     // A moved installer keeps the lock.
     VerifiedInstaller taken = std::move(*download.installer);

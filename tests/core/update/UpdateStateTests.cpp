@@ -106,7 +106,8 @@ TEST_CASE("old downloads are removed only inside download folders of the updates
     const fs::path oldOne = root / "0123456789abcdef0123456789abcdef";
     const fs::path kept = root / "fedcba9876543210fedcba9876543210";
     const fs::path otherName = root / "my-files";
-    const fs::path upper = root / "0123456789ABCDEF0123456789ABCDEF";
+    // Folder names ignore case on Windows, so this one must differ from the others in more than case.
+    const fs::path upper = root / "AAAABBBBCCCCDDDDEEEEFFFF00001111";
     writeBytes(oldOne / "PlynthSetup.exe", "old");
     writeBytes(oldOne / "install.log", "log");
     writeBytes(oldOne / "inner" / "keep.txt", "inner folder");

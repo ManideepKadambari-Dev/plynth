@@ -172,7 +172,7 @@ TEST_CASE("settingsToJson validates against the schema", "[core][settings][schem
     }
 }
 
-TEST_CASE("a version 1 settings file is read and written back as version 5", "[core][settings][migrate]") {
+TEST_CASE("a version 1 settings file is read and written back as the current version", "[core][settings][migrate]") {
     plynth::test::TempDir tmp("settings-v1");
     const SettingsLoad l = loadSettings(dataFile("settings-v1.json"));
     plynth::test::requireOk(l.status);
@@ -188,7 +188,7 @@ TEST_CASE("a version 1 settings file is read and written back as version 5", "[c
     const fs::path file = tmp.path() / "settings.json";
     plynth::test::requireOk(saveSettings(l.settings, file));
     const std::string text = plynth::test::readTextFile(file);
-    REQUIRE(text.find("\"version\": 5") != std::string::npos);
+    REQUIRE(text.find("\"version\": " + std::to_string(kSettingsFormatVersion)) != std::string::npos);
     REQUIRE(text.find("\"recent_projects\": []") != std::string::npos);
     REQUIRE(plynth::test::schemaProblem("settings.schema.json", plain(settingsToJson(l.settings))).empty());
 
@@ -314,7 +314,7 @@ TEST_CASE("default folders sit under Documents\\Plynth", "[core][settings]") {
     REQUIRE(library.parent_path().filename() == "Plynth");
 }
 
-TEST_CASE("a version 2 settings file with an engine is read and saved as version 5", "[core][settings][migrate]") {
+TEST_CASE("a version 2 settings file with an engine is read and saved as the current version", "[core][settings][migrate]") {
     plynth::test::TempDir tmp("settings-v2");
     const SettingsLoad l = loadSettings(dataFile("settings-v2.json"));
     plynth::test::requireOk(l.status);
@@ -330,7 +330,7 @@ TEST_CASE("a version 2 settings file with an engine is read and saved as version
     const fs::path file = tmp.path() / "settings.json";
     plynth::test::requireOk(saveSettings(l.settings, file));
     const std::string text = plynth::test::readTextFile(file);
-    REQUIRE(text.find("\"version\": 5") != std::string::npos);
+    REQUIRE(text.find("\"version\": " + std::to_string(kSettingsFormatVersion)) != std::string::npos);
     REQUIRE(text.find("thumbnail_engine") == std::string::npos);
     const auto saved = nlohmann::json::parse(text);
     REQUIRE(plynth::test::schemaProblem("settings.schema.json", saved).empty());

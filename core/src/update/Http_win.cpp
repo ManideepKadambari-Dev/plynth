@@ -194,6 +194,9 @@ HINTERNET openSession(const UpdateEnvironment& env)
     if (!session) return nullptr;
     const int limit = static_cast<int>(env.stallLimit.count());
     WinHttpSetTimeouts(session, limit, limit, limit, limit);
+    // The wait for the response headers has its own limit, 90 seconds unless set.
+    DWORD responseLimit = static_cast<DWORD>(limit);
+    WinHttpSetOption(session, WINHTTP_OPTION_RECEIVE_RESPONSE_TIMEOUT, &responseLimit, sizeof responseLimit);
     DWORD redirects = WINHTTP_OPTION_REDIRECT_POLICY_NEVER;
     WinHttpSetOption(session, WINHTTP_OPTION_REDIRECT_POLICY, &redirects, sizeof redirects);
     DWORD protocols = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2;
