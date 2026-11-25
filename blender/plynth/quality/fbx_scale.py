@@ -29,15 +29,35 @@ def restore(before):
             collection.remove(collection[name])
 
 
-# Reads one written file back, next to the scene, and returns (mesh objects, walls bounds or None). The
-# objects are the ones the import added.
+# Returns the classes of the property groups render engine add-ons attach to lights.
+def light_setting_groups():
+    names = {p.fixed_type.identifier for p in bpy.types.Light.bl_rna.properties if p.type == "POINTER"}
+    return [c for c in bpy.types.PropertyGroup.__subclasses__() if c.bl_rna.identifier in names]
+
+
+# Gives each light property group that lacks cast_shadow a stand in for it, because the FBX importer of Blender
+# 5.2 still sets it and a file with lights could not be read back otherwise. Returns the groups it was added to.
+def add_light_stand_ins():
+    added = [c for c in light_setting_groups() if "cast_shadow" not in c.bl_rna.properties]
+    for group in added:
+        group.cast_shadow = bpy.props.BoolProperty()
+    return added
+
+
+# Reads one written file back, next to the scene, and returns (mesh and light objects, walls bounds or None).
+# The objects are the ones the import added.
 def read_back(entry, walls):
     before = snapshot()
     known = set(before["objects"])
-    bpy.ops.import_scene.fbx(filepath=entry["path"])
+    stand_ins = add_light_stand_ins()
+    try:
+        bpy.ops.import_scene.fbx(filepath=entry["path"])
+    finally:
+        for group in stand_ins:
+            del group.cast_shadow
     bpy.context.view_layer.update()
-    added = [o for o in bpy.data.objects if o.name not in known and o.type == "MESH"]
-    found = [o for o in added if base_name(o.name) in walls]
+    added = [o for o in bpy.data.objects if o.name not in known and o.type in ("MESH", "LIGHT")]
+    found = [o for o in added if o.type == "MESH" and base_name(o.name) in walls]
     bounds = scene.world_bounds(found) if found else None
     count = len(added)
     restore(before)

@@ -87,14 +87,15 @@ class RoofFixtureTests(RoofBuildTest):
         self.build_open("roof_gable")
         self.assertEqual(bpy.data.objects["SM_f1_Roof_00"]["plynth_roof_section"], "rf1")
 
-    # Material slots use the neutral surfaces of each part.
+    # Material slots use the neutral surfaces of each part. The flat roof's edge lies flush on the outside wall
+    # face, so it takes the outside wall slot instead of the fascia.
     def test_neutral_slots(self):
         self.build_open("roof_gable")
         names = sorted(m.name for m in bpy.data.objects["SM_f1_Roof_00"].data.materials)
         self.assertEqual(names, ["Exterior_Wall", "Fascia", "Roof", "Soffit"])
         self.build_open("roof_flat")
         names = sorted(m.name for m in bpy.data.objects["SM_f1_Roof_00"].data.materials)
-        self.assertEqual(names, ["Exterior_Wall", "Fascia", "Flat_Roof", "Soffit"])
+        self.assertEqual(names, ["Exterior_Wall", "Flat_Roof", "Soffit"])
 
     # The mesh area equals the area of the job faces.
     def test_area(self):

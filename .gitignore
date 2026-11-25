@@ -52,6 +52,9 @@ __pycache__/
 samples/*/build/
 samples/*/export/
 samples/*/renders/
+samples/projects/*/build/
+samples/projects/*/export/
+samples/projects/*/renders/
 
 # Asset library and store downloads never belong in the repo
 Library/
@@ -75,3 +78,7 @@ samples/*/app-state.json
 # Test data and sample models drawn for the project are source files.
 !tests/core/data/build/
 !samples/models/**/*.obj
+samples/projects/*/session.lock
+samples/projects/*/build.lock
+samples/projects/*/app-state.json
+samples/projects/*/autosave/
