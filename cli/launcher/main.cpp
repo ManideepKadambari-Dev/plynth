@@ -12,6 +12,7 @@
 #include <shellapi.h>
 
 #include <plynth/cli/Words.h>
+#include <plynth/core/UpdateNames.h>
 
 #include <cwchar>
 #include <filesystem>
@@ -153,6 +154,33 @@ std::filesystem::path ownFolder() {
     return std::filesystem::path(path).parent_path();
 }
 
+// True when a package.json sits beside this program, or in the parent when it runs from the cli folder. Only
+// then is this an installed or staged release, and only then does it take part in the install guard.
+bool isPackaged() {
+    const std::filesystem::path folder = ownFolder();
+    std::error_code ignored;
+    if (std::filesystem::exists(folder / plynth::kPackageFile, ignored)) {
+        return true;
+    }
+    return _wcsicmp(folder.filename().c_str(), L"cli") == 0 &&
+           std::filesystem::exists(folder.parent_path() / plynth::kPackageFile, ignored);
+}
+
+// Marks Plynth as running for the installer. Returns false when setup is running, so nothing may start.
+// The mutex is released by Windows when this program ends.
+bool enterPackagedRun() {
+    if (!isPackaged()) {
+        return true;
+    }
+    HANDLE setup = OpenMutexW(SYNCHRONIZE, FALSE, plynth::kSetupMutex);
+    if (setup != nullptr) {
+        CloseHandle(setup);
+        return false;
+    }
+    CreateMutexW(nullptr, FALSE, plynth::kRunningMutex);
+    return true;
+}
+
 // Where plynth.exe is: in the parent folder when this program sits in a folder named cli, as the installer puts
 // it so that only plynth.com is on the command path, otherwise next to this program.
 std::filesystem::path childProgram() {
@@ -167,6 +195,11 @@ std::filesystem::path childProgram() {
 
 // Starts plynth.exe, waits for it and returns its exit code.
 int main() {
+    if (!enterPackagedRun()) {
+        writeOut("{\"ok\":false,\"command\":\"\",\"error\":{\"code\":\"update_in_progress\","
+                 "\"message\":\"Plynth is being updated. Run the command again when the installer has finished.\"}}\n");
+        return kExitFailed;
+    }
     const std::vector<std::string> arguments = readArguments();
     const Mode mode = modeOf(arguments);
     if (mode == Mode::Unknown) {

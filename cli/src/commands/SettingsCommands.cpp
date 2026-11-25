@@ -16,11 +16,13 @@ struct SetOptions {
     std::string projects;
     std::string blender;
     std::string keepZips;
+    std::string updateCheck;
     long long triangleWarning = 0;
     bool hasLibrary = false;
     bool hasProjects = false;
     bool hasBlender = false;
     bool hasKeepZips = false;
+    bool hasUpdateCheck = false;
     bool hasTriangleWarning = false;
 };
 
@@ -54,8 +56,8 @@ Answer settingsShow() {
 // Checks every requested change before anything is saved, then saves them together.
 Answer settingsSet(const RunContext& context, const SetOptions& options) {
     const std::string command = "settings set";
-    if (!options.hasLibrary && !options.hasProjects && !options.hasBlender && !options.hasKeepZips &&
-        !options.hasTriangleWarning) {
+    if (!options.hasLibrary && !options.hasProjects && !options.hasBlender &&
+        !options.hasKeepZips && !options.hasUpdateCheck && !options.hasTriangleWarning) {
         return badArguments(command, "bad_arguments", "Give at least one option to change. Run 'plynth help'.");
     }
     const SettingsLoad loaded = loadSettings();
@@ -113,6 +115,9 @@ Answer settingsSet(const RunContext& context, const SetOptions& options) {
     if (options.hasKeepZips) {
         settings.keepImportedZips = options.keepZips == "true";
     }
+    if (options.hasUpdateCheck) {
+        settings.updateCheck = options.updateCheck == "true";
+    }
     if (options.hasTriangleWarning) {
         if (options.triangleWarning < 1) {
             return failure(command, fail(ErrorCode::InvalidValue, "The triangle warning must be at least 1."));
@@ -155,6 +160,10 @@ std::vector<CommandSpec> settingsCommands() {
             ->type_name("true|false")
             ->check(CLI::IsMember({"true", "false"}))
             ->each([options](const std::string&) { options->hasKeepZips = true; });
+        sub.add_option("--update-check", options->updateCheck, "Look for a newer Plynth when the app starts.")
+            ->type_name("true|false")
+            ->check(CLI::IsMember({"true", "false"}))
+            ->each([options](const std::string&) { options->hasUpdateCheck = true; });
         sub.add_option("--triangle-warning", options->triangleWarning,
                        "Imports with more triangles than this get a warning.")
             ->type_name("number")

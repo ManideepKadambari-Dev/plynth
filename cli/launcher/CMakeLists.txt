@@ -1,6 +1,7 @@
 # plynth.com: a console program that starts plynth.exe, placed next to it in the app build folder.
 add_executable(plynth_launcher main.cpp)
 target_link_libraries(plynth_launcher PRIVATE plynth::cli_words)
+target_include_directories(plynth_launcher PRIVATE ${PROJECT_SOURCE_DIR}/core/include)
 
 set_target_properties(plynth_launcher PROPERTIES
     OUTPUT_NAME plynth
