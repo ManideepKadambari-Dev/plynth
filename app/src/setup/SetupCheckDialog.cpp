@@ -4,10 +4,12 @@
 #include "preview/GraphicsProbe.h"
 #include "theme/PlainText.h"
 #include "theme/Theme.h"
+#include "update/UpdateController.h"
 
 #include <plynth/core/Library.h>
 #include <plynth/core/Version.h>
 
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDesktopServices>
 #include <QDir>
@@ -94,7 +96,8 @@ QLabel* textLabel(const QString& text, const QFont& font, const QColor& color, Q
 }
 
 // Builds the summary, the scrolling list of rows and the two buttons, then starts the first check.
-SetupCheckDialog::SetupCheckDialog(LibraryHost& host, QWidget* parent) : QDialog(parent), host_(host)
+SetupCheckDialog::SetupCheckDialog(LibraryHost& host, QWidget* parent, UpdateController* updates)
+    : QDialog(parent), host_(host), updates_(updates)
 {
     const Theme& t = Theme::instance();
     setWindowTitle(tr("Setup check"));
@@ -194,6 +197,7 @@ void SetupCheckDialog::showReport(const plynth::SetupReport& report)
     }
     for (const plynth::SetupItem& item : report.items)
         addRow(item);
+    addUpdateRow();
     rows_->addStretch(1);
     updateSummary();
 }
@@ -343,6 +347,60 @@ void SetupCheckDialog::addRow(const plynth::SetupItem& item)
         box->addLayout(buttons);
     else
         delete buttons;
+    rows_->addWidget(row);
+}
+
+// Adds the row with the switch "Check for updates at start". It never blocks anything.
+void SetupCheckDialog::addUpdateRow()
+{
+    if (updates_ == nullptr)
+        return;
+    const Theme& t = Theme::instance();
+    auto* row = new QFrame(rowsHost_);
+    row->setObjectName(QStringLiteral("setupRow"));
+    row->setStyleSheet(QStringLiteral("QFrame#setupRow { background: %1; border: 1px solid %2; border-radius: %3px; }")
+                           .arg(t.panel().name(), t.line().name())
+                           .arg(t.radius()));
+    auto* box = new QVBoxLayout(row);
+    box->setContentsMargins(t.unit() * 3, t.unit() * 3, t.unit() * 3, t.unit() * 3);
+    box->setSpacing(t.unit() * 2);
+
+    auto* head = new QHBoxLayout();
+    head->setSpacing(t.unit() * 3);
+    auto* name = new QLabel(tr("Updates (optional)"), row);
+    name->setFont(t.uiFont(t.sizeNormal(), QFont::DemiBold));
+    head->addWidget(name, 1);
+    const bool on = updates_->checkAtStart();
+    auto* state = new QLabel(on ? tr("On") : tr("Off"), row);
+    state->setFont(t.uiFont(t.sizeNormal(), QFont::DemiBold));
+    state->setStyleSheet(QStringLiteral("color: %1;").arg((on ? t.signalBlue() : t.muted()).name()));
+    head->addWidget(state);
+    box->addLayout(head);
+
+    box->addWidget(textLabel(tr("Once per start, Plynth asks GitHub whether a newer signed release exists and shows a "
+                                "notice. GitHub sees your IP address and the time. Nothing about you, this computer "
+                                "or your projects is sent. Updating always waits for you."),
+                             t.uiFont(t.sizeSmall()), t.muted(), row));
+    if (!updates_->installed())
+        box->addWidget(textLabel(tr("This copy of Plynth was not installed, so it never checks. The switch is kept "
+                                    "for an installed copy."),
+                                 t.uiFont(t.sizeSmall()), t.muted(), row));
+
+    auto* check = new QCheckBox(tr("Check for updates at start"), row);
+    check->setFont(t.uiFont(t.sizeNormal()));
+    check->setStyle(t.controlStyle());
+    check->setChecked(on);
+    check->setToolTip(tr("Once per start, ask GitHub for a newer signed release and show a notice"));
+    connect(check, &QCheckBox::toggled, this, [this, state](bool checked) {
+        const plynth::Status status = updates_->setCheckAtStart(checked);
+        problem_->setText(status.ok() ? QString() : fromCore(status.message));
+        problem_->setVisible(!status.ok());
+        const Theme& theme = Theme::instance();
+        const bool now = updates_->checkAtStart();
+        state->setText(now ? tr("On") : tr("Off"));
+        state->setStyleSheet(QStringLiteral("color: %1;").arg((now ? theme.signalBlue() : theme.muted()).name()));
+    });
+    box->addWidget(check);
     rows_->addWidget(row);
 }
 

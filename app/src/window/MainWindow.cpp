@@ -21,6 +21,9 @@
 #include "catalog/StoreImports.h"
 #include "panels/ImportQueueView.h"
 #include "setup/SetupCheckDialog.h"
+#include "update/UpdateBar.h"
+#include "update/UpdateController.h"
+#include "update/UpdateDialog.h"
 #include "dialogs/RoomTypesDialog.h"
 #include "dialogs/VariationsDialog.h"
 #include "home/HomeScreen.h"
@@ -224,6 +227,13 @@ MainWindow::MainWindow(QWidget* parent)
     home_ = new HomeScreen(*host_, pages_);
     pages_->addWidget(home_);
     pages_->setCurrentWidget(work);
+    updates_ = new UpdateController(*host_, this);
+    updateBar_ = new UpdateBar(*updates_, central);
+    connect(updateBar_, &UpdateBar::updateRequested, this, [this]() {
+        updates_->update();
+        openUpdateDialog();
+    });
+    column->addWidget(updateBar_);
     column->addWidget(banner_);
     column->addWidget(pages_, 1);
     column->addWidget(statusBar_);
@@ -968,6 +978,7 @@ void MainWindow::buildMenus()
                                          tr("Check that Blender, the library and the projects folder are ready"),
                                          {});
     connect(setupAction, &QAction::triggered, this, &MainWindow::openSetupCheck);
+    buildUpdateActions(help);
     QAction* aboutAction = addMenuAction(help, tr("&About Plynth"),
                                          tr("Show the version, the licenses and the third party notices"),
                                          {});
@@ -1074,7 +1085,7 @@ void MainWindow::openSetupCheck()
         setupDialog_->raise();
         return;
     }
-    setupDialog_ = new SetupCheckDialog(*host_, dialogParent());
+    setupDialog_ = new SetupCheckDialog(*host_, dialogParent(), updates_);
     setupDialog_->setAttribute(Qt::WA_DeleteOnClose);
     setupDialog_->open();
 }
@@ -1166,6 +1177,8 @@ QImage MainWindow::grabPicture()
         shownDialog = checkPackDialog_;
     else if (variationsDialog_ && variationsDialog_->isVisible())
         shownDialog = variationsDialog_;
+    else if (updateDialog_ && updateDialog_->isVisible())
+        shownDialog = updateDialog_;
     if (shownDialog != nullptr) {
         const Theme& t = Theme::instance();
         const QImage dialog = shownDialog->grab().toImage();
@@ -2697,7 +2710,8 @@ void MainWindow::removeAppState()
 // Asks about unsaved changes, then lets the window close.
 void MainWindow::closeEvent(QCloseEvent* event)
 {
-    if (!confirmDiscardChanges()) {
+    // The update asked the close questions once already, before it started the installer.
+    if (!closingForInstaller_ && !confirmDiscardChanges()) {
         event->ignore();
         return;
     }
