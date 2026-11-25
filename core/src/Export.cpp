@@ -7,6 +7,7 @@
 #include "plynth/core/Build.h"
 #include "plynth/core/BuildJob.h"
 #include "plynth/core/GameplayData.h"
+#include "plynth/core/JobProgress.h"
 #include "plynth/core/catalog/LicensedItems.h"
 #include "plynth/core/catalog/MaterialCatalog.h"
 #include "plynth/core/ProjectFiles.h"
@@ -155,6 +156,22 @@ std::string_view exportStageName(ExportStage stage)
     return "preparing";
 }
 
+namespace {
+
+// The sentence the progress file shows for a stage that has no worker step of its own.
+std::string_view exportStageMessage(ExportStage stage)
+{
+    switch (stage) {
+    case ExportStage::Preparing: return "Preparing the export";
+    case ExportStage::Blender: return "Starting Blender";
+    case ExportStage::Finishing: return "Writing the report";
+    case ExportStage::Done: return "Done";
+    }
+    return "Preparing the export";
+}
+
+}
+
 // How many checks failed.
 int ExportReport::failCount() const
 {
@@ -183,7 +200,9 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
     ExportReport report;
     report.forced = request.settings.force;
     report.checkedOnly = !request.settings.write;
+    JobProgressFile* progressFile = nullptr;
     const auto progress = [&](ExportStage stage, const BlenderProgress& blender = {}) {
+        if (progressFile) progressFile->update(exportStageName(stage), blender, exportStageMessage(stage));
         if (!onProgress) return;
         ExportProgress p;
         p.stage = stage;
@@ -246,6 +265,10 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
 
     report.jobId = newJobId("export");
     report.startedAt = sessionNow();
+    // Made after the lock, so the file is removed before the lock and a reader never sees it without one.
+    JobProgressFile shownProgress(build, "export", report.jobId, report.startedAt);
+    shownProgress.update(exportStageName(ExportStage::Preparing), {}, exportStageMessage(ExportStage::Preparing));
+    progressFile = &shownProgress;
     report.planFingerprint = planFingerprint(request.project);
     report.blenderVersion = request.blender.version ? formatBlenderVersion(*request.blender.version) : std::string();
 

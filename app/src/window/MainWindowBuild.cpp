@@ -7,6 +7,7 @@
 #include "building/BuildController.h"
 #include "building/BuildPanel.h"
 #include "building/ExportController.h"
+#include "building/OutsideJobWatch.h"
 #include "panels/ExportPanel.h"
 #include "canvas/PlanCanvas.h"
 #include "catalog/LibraryHost.h"
@@ -60,7 +61,7 @@ bool MainWindow::buildBlocked(QString* reason) const
 // Starts a build of the project as it is in memory.
 void MainWindow::startBuild()
 {
-    if (builder_->running() || exporter_->running())
+    if (workRunning())
         return;
     QString reason;
     if (buildBlocked(&reason)) {
@@ -106,6 +107,49 @@ void MainWindow::buildFinished(const plynth::BuildReport& report)
         refreshPreview();
         showCentreView(true);
     }
+    // A build refused because another program holds the lock leaves that job to be followed.
+    outsideJob_->recheck();
+}
+
+// True while the app's own build or export runs, or one started by another program on this project.
+bool MainWindow::workRunning() const
+{
+    return (builder_ != nullptr && builder_->running()) || (exporter_ != nullptr && exporter_->running()) ||
+           (outsideJob_ != nullptr && outsideJob_->active());
+}
+
+// Takes the end of a build or an export another program ran: reads its report and shows it like the app's own.
+void MainWindow::outsideJobEnded(const QString& kind, const QString& jobId)
+{
+    const QString lastBuild = report_ ? fromCore(report_->jobId) : QString();
+    if (kind != QStringLiteral("export")) {
+        refreshPreview();
+        const QString newBuild = report_ ? fromCore(report_->jobId) : QString();
+        const bool fresh = report_ && (jobId.isEmpty() ? newBuild != lastBuild : newBuild == jobId);
+        if (fresh && report_->status.ok()) {
+            statusBar_->showMessage(tr("Built from the command line."), false);
+            showCentreView(true);
+        } else if (fresh) {
+            statusBar_->showMessage(fromCore(report_->status.message));
+        } else if (kind == QStringLiteral("build")) {
+            statusBar_->showMessage(tr("The build from the command line stopped before it finished. The last building stays as it was."), false);
+        }
+    }
+    if (kind != QStringLiteral("build")) {
+        const QString lastExport = exportReport_ ? fromCore(exportReport_->jobId) : QString();
+        loadExportReport();
+        const QString newExport = exportReport_ ? fromCore(exportReport_->jobId) : QString();
+        const bool fresh = exportReport_ && (jobId.isEmpty() ? newExport != lastExport : newExport == jobId);
+        if (fresh && exportReport_->status.ok())
+            statusBar_->showMessage(exportReport_->exported ? tr("Exported from the command line. The files are in the export folder.")
+                                                            : tr("The export checks from the command line ended. Nothing was written."),
+                                    false);
+        else if (fresh)
+            statusBar_->showMessage(fromCore(exportReport_->status.message));
+        else if (kind == QStringLiteral("export"))
+            statusBar_->showMessage(tr("The export from the command line stopped before it finished. The last export stays as it was."), false);
+    }
+    updateBuildUi();
 }
 
 // Reads build/build.json of the open project, if there is one.
@@ -123,11 +167,23 @@ void MainWindow::loadBuildReport()
 // Shows the state of the last build and of the Build button in the bar, the menu and the Build report window.
 void MainWindow::updateBuildUi()
 {
-    const bool running = (builder_ != nullptr && builder_->running()) || (exporter_ != nullptr && exporter_->running());
+    const bool outside = outsideJob_ != nullptr && outsideJob_->active();
+    const bool running = workRunning();
     const bool stale = report_ && report_->status.ok() && doc_.hasFolder() &&
                        plynth::planFingerprint(doc_.project()) != report_->planFingerprint;
-    if (running) {
+    const QString outsideKind = outside ? outsideJob_->kind() : QString();
+    if (outside) {
+        const QString what = outsideKind == QStringLiteral("export") ? tr("Exporting from the command line")
+                             : outsideKind == QStringLiteral("build") ? tr("Building from the command line")
+                                                                       : tr("A build or an export runs from the command line");
+        const QString message = outsideJob_->message();
+        buildBar_->setProgress(message.isEmpty() ? what : tr("%1: %2").arg(what, message), outsideJob_->percent());
+        buildBar_->setCancelTip(outsideKind == QStringLiteral("export")
+                                    ? tr("Stop the export that runs from the command line. The last export stays as it was")
+                                    : tr("Stop the work that runs from the command line. The last building stays as it was"));
+    } else if (running) {
         buildBar_->setProgress(buildProgressText_, buildProgressPercent_);
+        buildBar_->setCancelTip(tr("Stop the build. The last building stays as it was"));
     } else if (!report_) {
         buildBar_->setStatus(tr("Not built yet"));
     } else if (!report_->status.ok()) {
@@ -144,8 +200,9 @@ void MainWindow::updateBuildUi()
     buildBar_->setProblems(report_ ? report_->errorCount() : 0, report_ ? report_->warningCount() : 0);
     QString reason;
     const bool blocked = buildBlocked(&reason);
-    buildBar_->setBuildEnabled(!running, blocked ? tr("Open the setup check: %1").arg(reason)
-                                                 : tr("Build the building in Blender (Ctrl+B)"));
+    buildBar_->setBuildEnabled(!running, outside   ? tr("A build or an export runs from the command line. Build when it ends")
+                                         : blocked ? tr("Open the setup check: %1").arg(reason)
+                                                   : tr("Build the building in Blender (Ctrl+B)"));
     buildAction_->setEnabled(!running);
     cancelBuildAction_->setEnabled(running);
     const bool files = report_ && !report_->blendFile.empty();
