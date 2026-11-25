@@ -147,21 +147,17 @@ TEST_CASE("A sample copy gets AGENTS.md from the master file and never loses its
 {
     SampleFolder f;
     const auto master = f.root.path() / "docs" / "templates" / "project-agents.md";
-    writeFile(master, "rules
-");
+    writeFile(master, "rules\n");
     const auto into = f.root.path() / "projects";
     const SampleCopy copy = copySampleProject(f.samples, "apartment", into, master);
     REQUIRE(copy.status.ok());
-    CHECK(readFile(copy.projectFolder / "AGENTS.md") == "rules
-");
+    CHECK(readFile(copy.projectFolder / "AGENTS.md") == "rules\n");
     CHECK(filesBelow(copy.projectFolder).count("AGENTS.md") == 1);
 
-    writeFile(f.project / "AGENTS.md", "from the sample
-");
+    writeFile(f.project / "AGENTS.md", "from the sample\n");
     const SampleCopy second = copySampleProject(f.samples, "apartment", into, master);
     REQUIRE(second.status.ok());
-    CHECK(readFile(second.projectFolder / "AGENTS.md") == "rules
-");
+    CHECK(readFile(second.projectFolder / "AGENTS.md") == "rules\n");
 
     const SampleCopy none = copySampleProject(f.samples, "apartment", into, f.root.path() / "missing.md");
     REQUIRE(none.status.ok());
