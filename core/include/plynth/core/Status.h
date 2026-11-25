@@ -30,6 +30,12 @@ enum class ErrorCode {
     QualityFailed,      // "quality_failed": a quality check failed, so the export was not written (Export.h)
     GraphicsUnavailable, // "graphics_unavailable": there is no graphics device, or the 3D view cannot start
     RenderFailed,       // "render_failed": the 3D view started but gave no usable picture
+    UpdateNotAvailable, // "update_not_available": this installed copy has no public key built in, so it cannot update
+    UpdateNotInstalled, // "update_not_installed": this copy was not installed, so it cannot check or update
+    UpdateBlocked,      // "update_blocked": something running now stops the update; the message says what
+    UpdateInProgress,   // "update_in_progress": Plynth is being installed or updated right now
+    SignatureInvalid,   // "signature_invalid": a download failed the signature check and was not used
+    NetworkFailed,      // "network_failed": the release server could not be reached or gave a bad answer
 };
 
 // The outcome of an operation: ok, or an error code with one plain sentence saying why.

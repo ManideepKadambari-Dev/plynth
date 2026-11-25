@@ -295,6 +295,7 @@ Json settingsToJson(const MachineSettings& settings)
         windows[name] = std::move(entry);
     }
     json["windows"] = std::move(windows);
+    json["update_check"] = settings.updateCheck;
     return json;
 }
 
@@ -323,10 +324,12 @@ Status settingsFromJson(const Json& json, MachineSettings& out)
 
     static const std::set<std::string> known{"format", "version", "library", "projects", "blender",
                                              "keep_imported_zips", "triangle_warning",
-                                             "setup_checked_version", "recent_projects", "side_panel", "windows"};
+                                             "setup_checked_version", "recent_projects", "side_panel", "windows",
+                                             "update_check"};
     for (const auto& [key, value] : json.items()) {
         const bool dropped = (key == "thumbnail_engine" && fileVersion < 3) || (key == "tour_done" && fileVersion == 4);
-        const bool added = (key == "side_panel" || key == "windows") && fileVersion < 5;
+        const bool added = ((key == "side_panel" || key == "windows") && fileVersion < 5) ||
+                           (key == "update_check" && fileVersion < 6);
         if ((!known.count(key) && !dropped) || added) {
             return fail(ErrorCode::BadFile, "Unknown field \"" + key + "\".", "/" + key);
         }
@@ -367,6 +370,10 @@ Status settingsFromJson(const Json& json, MachineSettings& out)
             return fail(ErrorCode::BadFile, "\"setup_checked_version\" must be text or null.", "/setup_checked_version");
         }
         result.setupCheckedVersion = it->get<std::string>();
+    }
+    if (const auto it = json.find("update_check"); it != json.end()) {
+        if (!it->is_boolean()) return fail(ErrorCode::BadFile, "\"update_check\" must be true or false.", "/update_check");
+        result.updateCheck = it->get<bool>();
     }
     if (!readSidePanel(json, result, status)) return status;
     if (!readWindowPlaces(json, result, status)) return status;

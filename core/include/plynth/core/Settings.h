@@ -28,7 +28,8 @@ inline constexpr std::string_view kSettingsFormat = "plynth-settings";
 // Version 3 drops thumbnail_engine: thumbnails use Eevee only.
 // Version 4 added "tour_done". Version 5 drops it again (a version 4 file may still carry it and it is checked,
 // then dropped) and adds "side_panel" and "windows": where the app's side panel and its own windows were left.
-inline constexpr int kSettingsFormatVersion = 5;
+// Version 6 adds "update_check". Older files read as true.
+inline constexpr int kSettingsFormatVersion = 6;
 inline constexpr std::string_view kConfigDirVariable = "PLYNTH_CONFIG_DIR";
 
 // An import with more triangles than this gets a warning. Never refused: the target is Nanite.
@@ -80,6 +81,8 @@ struct MachineSettings {
     // The last place of each of the app's own windows, by name, such as "assets" or "export". Names are lower
     // case letters, digits and dashes.
     std::map<std::string, WindowPlace> windows;
+    // Check for a newer Plynth once at each start. Asking by hand works either way.
+    bool updateCheck = true;
 
     bool operator==(const MachineSettings&) const = default;
 };
