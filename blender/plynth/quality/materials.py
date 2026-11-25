@@ -4,6 +4,7 @@ import bpy
 
 from . import QualityCheck, finding, result
 from ._common import base_color_source, image_nodes, plan_id, polygon_materials
+from ..materials import file_is_magenta
 from ..registry import QUALITY_CHECKS
 
 ORDER = 90
@@ -28,10 +29,12 @@ def mesh_findings(meshes):
     return findings
 
 
-# Returns the findings for the materials: the neutral look, a missing file and a base color that is not an image.
+# Returns the findings for the materials: the neutral look, a missing file, a map that is all magenta and a base
+# color that is not an image.
 def material_findings(ctx):
     findings = []
     missing = set()
+    magenta = {}
     for name, material in sorted(ctx.state["materials"].items()):
         entry = material["entry"]
         if entry is not None and entry.get("surface") and not entry.get("asset"):
@@ -42,6 +45,14 @@ def material_findings(ctx):
             if path and not os.path.isfile(path) and (name, path) not in missing:
                 missing.add((name, path))
                 findings.append(finding("The image file %s of %s is missing." % (os.path.basename(path), name), name))
+            elif path and os.path.isfile(path) and (name, path) not in missing:
+                if path not in magenta:
+                    magenta[path] = file_is_magenta(path)
+                if magenta[path]:
+                    missing.add((name, path))
+                    findings.append(finding("The image file %s of %s is all magenta, the colour Blender gives an image "
+                                            "it could not load. Import the asset again." % (
+                                                os.path.basename(path), name), name))
         kind, detail = base_color_source(material["material"])
         if kind == "procedural":
             findings.append(finding("The base color of %s is procedural (%s). This material uses nodes Plynth "

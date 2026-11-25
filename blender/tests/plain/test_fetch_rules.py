@@ -535,5 +535,56 @@ class FetchSetup(FetchCase):
         self.assertFalse(os.path.exists(os.path.join(self.rig.addon, "__pycache__")))
 
 
+class AddOnFailures(FetchCase):
+    # Asserts a failed fetch whose sentence ends with the error name, when one is given, and whose result holds
+    # nothing of the error's text. With a word, the refusal line names it.
+    def assert_named(self, result, name, word=None):
+        message = self.assert_failed(result, "download_failed")["error"]["message"]
+        if name:
+            self.assertTrue(message.endswith("(%s)." % name), message)
+        for secret in SECRETS:
+            self.assertNotIn(secret, json.dumps(result))
+        if word:
+            self.assertIn("PLYNTH-REFUSAL:%s\n" % word, self.rig.done.stdout)
+        return message
+
+    # The add-on's own download request waits up to 15 seconds for the helper, not its one second.
+    def test_download_request_waits_longer(self):
+        self.assert_ok(self.rig.fetch(MODEL))
+        timeouts = self.rig.events("asset_download_timeout")
+        self.assertEqual(len(timeouts), 1, self.rig.output())
+        self.assertGreaterEqual(timeouts[0]["value"][1], 15)
+
+    # A request the helper does not take ends the fetch with the error's name and no second request.
+    def test_request_not_taken(self):
+        self.rig.addon_scenario = dict(self.rig.addon_scenario, download_raises="ReadTimeout")
+        self.assert_named(self.rig.fetch(MODEL), "ReadTimeout", "send")
+        self.assert_no_request()
+
+    # An answer that is not JSON, or JSON without a task, ends the fetch after the one request.
+    def test_bad_answers(self):
+        for answer, name, word in (("not_json", "JSONDecodeError", "send"), ("no_task", None, "answer")):
+            with self.subTest(answer=answer):
+                self.rig.addon_scenario = dict(self.rig.addon_scenario, download_answer=answer)
+                self.assert_named(self.rig.fetch(MODEL), name, word)
+                self.assertEqual(len(self.rig.requests("asset_download")), 1, self.rig.output())
+                self.rig.addon_scenario.pop("download_answer")
+
+    # An error inside the add-on's operator is named by its own type, read from Blender's traceback text,
+    # not as RuntimeError, and its message is not kept.
+    def test_operator_error_is_named(self):
+        self.rig.addon_scenario = dict(self.rig.addon_scenario, operator_raises=True)
+        message = self.assert_named(self.rig.fetch(MODEL), "KeyError")
+        self.assertNotIn("RuntimeError", message)
+        self.assert_no_request()
+
+    # A search without results says the id was not found, before the add-on takes a first result.
+    def test_id_not_found(self):
+        self.rig.helper_scenario["search"] = []
+        message = self.assert_named(self.rig.fetch(MODEL), None, "not_found")
+        self.assertIn("found no item with this id", message)
+        self.assert_no_request()
+
+
 if __name__ == "__main__":
     unittest.main()

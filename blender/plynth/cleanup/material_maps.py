@@ -8,7 +8,7 @@ import numpy as np
 from . import Step
 from .. import registry, shading
 from ..jobs import WorkerError
-from ..materials import CHANNELS, read_size, to_bytes, write_png
+from ..materials import CHANNELS, ImageMissing, read_size, to_bytes, write_png
 from ..materials import bakers
 from ..materials.sources import blend
 from ..registry import CLEANUP_STEPS
@@ -96,10 +96,11 @@ def is_object_bound(node):
     return False
 
 
-# Returns the Principled BSDF of a material, or None.
+# Returns the Principled BSDF to read a material from, possibly one made from a node group, a mix of shaders or
+# another shader, or None.
 def principled_of(material):
     tree = material.node_tree if material.use_nodes else None
-    return blend.find_principled(tree) if tree is not None else None
+    return blend.readable_principled(tree) if tree is not None else None
 
 
 # Returns the plan for one channel: the blend source's plan, or a constant when it reads an image that is missing.
@@ -172,6 +173,8 @@ def make_material_maps(ctx, material, key):
                     reasons.append("its %s uses object or generated coordinates" % label)
             try:
                 entry = bake_plan(ctx, plan, folder)
+            except ImageMissing:
+                raise
             except (WorkerError, ValueError, OSError) as error:
                 message = getattr(error, "message", str(error))
                 if plan.kind != "node":
@@ -273,12 +276,10 @@ def remember_scene():
     return restore
 
 
-# Rebuilds a material from its maps and points the image nodes at relative paths into textures/maps/.
+# Rebuilds a material from its maps in textures/maps/. Saving asset.blend makes the image paths relative.
 def rebuild_material(output, material, maps):
     paths = {channel: absolute(output, entry) for channel, entry in maps.items() if entry["file"]}
-    images = shading.apply_maps(material, paths)
-    for channel, image in images.items():
-        image.filepath = "//" + maps[channel]["file"]
+    shading.apply_maps(material, paths)
 
 
 # Lists the image files the rebuilt materials use, relative to the output folder, and deletes the copies of

@@ -19,8 +19,9 @@ def is_closed(mesh):
     return closed
 
 
-# Says whether the mesh is convex: every vertex lies on one side of the plane of every face.
-def is_convex(mesh):
+# Says whether the mesh is convex: every vertex lies on one side of the plane of every face, give or take the
+# tolerance in metres.
+def is_convex(mesh, tolerance=TOLERANCE):
     count = len(mesh.polygons)
     if count == 0:
         return False
@@ -29,7 +30,7 @@ def is_convex(mesh):
     points = points.reshape(-1, 3)
     for polygon in mesh.polygons:
         distances = (points - np.array(polygon.center)) @ np.array(polygon.normal)
-        if distances.max() > TOLERANCE and distances.min() < -TOLERANCE:
+        if distances.max() > tolerance and distances.min() < -tolerance:
             return False
     return True
 

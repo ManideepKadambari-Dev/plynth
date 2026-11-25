@@ -250,3 +250,27 @@ def heal_t_junctions(obj, tolerance=1e-5):
     bm.to_mesh(obj.data)
     bm.free()
     return closed
+
+
+
+# Makes a mesh safe for every viewer that reads the FBX: removes points and edges that belong to no face, and
+# splits each face with more than four corners into triangles. A part of a mesh made only of such large faces is
+# otherwise refused by the 3D view, which reads it as a shape that is not made of triangles. Returns how many
+# faces were split.
+def make_viewer_safe(mesh):
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    loose_edges = [edge for edge in bm.edges if not edge.link_faces]
+    if loose_edges:
+        bmesh.ops.delete(bm, geom=loose_edges, context="EDGES_FACES")
+    loose_verts = [vert for vert in bm.verts if not vert.link_faces]
+    if loose_verts:
+        bmesh.ops.delete(bm, geom=loose_verts, context="VERTS")
+    big = [face for face in bm.faces if len(face.verts) > 4]
+    if big:
+        bmesh.ops.triangulate(bm, faces=big, quad_method="BEAUTY", ngon_method="EAR_CLIP")
+    if loose_edges or loose_verts or big:
+        bm.to_mesh(mesh)
+        mesh.update()
+    bm.free()
+    return len(big)

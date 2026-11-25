@@ -39,7 +39,7 @@ TEST_CASE("W9: both hosts are read, the new one is the site", "[core][blenderkit
     REQUIRE(kBlenderKitSite == "https://www.blendkit.com/");
     for (const std::string host : {"https://www.blendkit.com", "https://blendkit.com", "http://www.blendkit.com",
                                    "https://www.blenderkit.com", "https://blenderkit.com", "HTTPS://WWW.BLENDKIT.COM"}) {
-        requireItem(host + "/get-blendkit/" + kId + "/");
+        requireItem(host + "/asset-gallery-detail/" + kId + "/");
         requireItem(host + "/asset-gallery-detail/" + kId + "/?utm_source=x");
     }
 }
