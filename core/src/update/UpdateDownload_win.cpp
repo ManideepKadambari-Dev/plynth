@@ -157,9 +157,10 @@ void* InstallerAccess::handle(const VerifiedInstaller& installer)
 }
 
 // Opens a file read only with no write or delete sharing, refusing links and anything but a plain file.
-void* openLocked(const fs::path& file)
+void* openLocked(const fs::path& file, bool forRename)
 {
-    const HANDLE handle = CreateFileW(file.c_str(), GENERIC_READ | DELETE, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+    const DWORD access = forRename ? GENERIC_READ | DELETE : GENERIC_READ;
+    const HANDLE handle = CreateFileW(file.c_str(), access, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
                                       FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
     if (handle == INVALID_HANDLE_VALUE) return nullptr;
     BY_HANDLE_FILE_INFORMATION info{};
@@ -312,7 +313,7 @@ UpdateDownload downloadUpdate(const UpdateOffer& offer, const std::function<void
         return result;
     }
 
-    void* locked = openLocked(part);
+    void* locked = openLocked(part, true);
     if (!locked) {
         removeFailed(folder);
         result.status = fail(ErrorCode::SignatureInvalid, "The downloaded installer could not be opened for the check.");
@@ -322,6 +323,7 @@ UpdateDownload downloadUpdate(const UpdateOffer& offer, const std::function<void
     LARGE_INTEGER length{};
     GetFileSizeEx(handle, &length);
     Status verdict;
+    FileHash checkedHash{};
     {
         const FileView view(handle, length.QuadPart);
         if (!view.data) {
@@ -329,7 +331,8 @@ UpdateDownload downloadUpdate(const UpdateOffer& offer, const std::function<void
         } else {
             const std::string_view bytes(view.data, view.size);
             const auto ownVersion = programVersion(bytes);
-            if (!fileMatches(checked, hashBytes(bytes))) {
+            checkedHash = hashBytes(bytes);
+            if (!fileMatches(checked, checkedHash)) {
                 verdict = fail(ErrorCode::SignatureInvalid, "The downloaded installer does not match its signature, so it is not used.");
             } else if (!ownVersion || *ownVersion != *offered) {
                 verdict = fail(ErrorCode::SignatureInvalid, "The downloaded installer is not version " + offer.version +
@@ -346,7 +349,29 @@ UpdateDownload downloadUpdate(const UpdateOffer& offer, const std::function<void
         result.status = verdict;
         return result;
     }
-    result.installer = InstallerAccess::make(locked, installerFile, offer.version, length.QuadPart);
+    // The handle with delete access is swapped for a read only one, so the installer can open itself. The file is
+    // hashed again through the new handle, which covers the moment between the two.
+    CloseHandle(handle);
+    void* kept = openLocked(installerFile);
+    Status again;
+    LARGE_INTEGER keptLength{};
+    if (!kept || !GetFileSizeEx(static_cast<HANDLE>(kept), &keptLength) || keptLength.QuadPart != length.QuadPart) {
+        again = fail(ErrorCode::SignatureInvalid, "The checked installer changed before it could be kept, so it is not used.");
+    } else {
+        const FileView view(static_cast<HANDLE>(kept), keptLength.QuadPart);
+        const std::string_view bytes = view.data ? std::string_view(view.data, view.size) : std::string_view();
+        const auto ownVersion = programVersion(bytes);
+        if (!view.data || hashBytes(bytes) != checkedHash || !ownVersion || *ownVersion != *offered) {
+            again = fail(ErrorCode::SignatureInvalid, "The checked installer changed before it could be kept, so it is not used.");
+        }
+    }
+    if (!again.ok()) {
+        if (kept) CloseHandle(static_cast<HANDLE>(kept));
+        removeFailed(folder);
+        result.status = again;
+        return result;
+    }
+    result.installer = InstallerAccess::make(kept, installerFile, offer.version, keptLength.QuadPart);
     return result;
 }
 

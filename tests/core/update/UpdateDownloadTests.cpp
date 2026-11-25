@@ -92,6 +92,13 @@ TEST_CASE("a verified installer is kept locked under its own name", "[update][do
     CHECK_FALSE(DeleteFileW(file.c_str()));
     CHECK(readShared(file) == bytes);
 
+    // The installer opens itself to read with only read sharing, so the kept handle must allow exactly that.
+    const HANDLE asSetup = CreateFileW(file.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+                                       FILE_ATTRIBUTE_NORMAL, nullptr);
+    CHECK(asSetup != INVALID_HANDLE_VALUE);
+    if (asSetup != INVALID_HANDLE_VALUE) CloseHandle(asSetup);
+    CHECK_FALSE(canWrite(file));
+
     // A moved installer keeps the lock.
     VerifiedInstaller taken = std::move(*download.installer);
     download.installer.reset();

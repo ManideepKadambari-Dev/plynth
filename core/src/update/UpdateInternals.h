@@ -266,8 +266,10 @@ struct InstallerAccess {
 };
 
 // Opens a file the way a verified installer is kept: read only, no write or delete sharing, no reparse point
-// followed. Null when it cannot be opened or is not a plain file.
-void* openLocked(const std::filesystem::path& file);
+// followed. Null when it cannot be opened or is not a plain file. forRename adds delete access, which the
+// rename needs, but then every later open of the file must share delete, which the installer's own open of
+// itself does not. So the kept handle is always opened without it.
+void* openLocked(const std::filesystem::path& file, bool forRename = false);
 
 // The mark of a packaged program, with the mutex names given so tests can use their own.
 Status beginPackagedRunIn(const std::filesystem::path& programFolder, const wchar_t* runningMutex,
