@@ -10,7 +10,7 @@ namespace plynth::cli {
 
 namespace {
 
-constexpr std::array<std::string_view, 34> kWords = {"version", "help",    "project", "scale",  "point",    "wall",
+constexpr std::array<std::string_view, 35> kWords = {"version", "help",    "project", "scale",  "point",    "wall",
                                                      "opening", "floor",   "room",    "detect", "session",  "settings",
                                                      "library", "assets",  "doctor",  "place",  "item",     "build",
                                                      "material", "materials", "stair", "roof", "export", "generator",
