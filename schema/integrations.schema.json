@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "urn:plynth:schema:integrations:1",
   "title": "Plynth integrations, version 1",
-  "description": "Library/integrations.json: the options of the sources in the Integrations tab (core/include/plynth/core/catalog/Integrations.h). Only options the user changed are saved; the others take their defaults. Entries of integrations this Plynth does not know are kept as they are.",
+  "description": "Library/integrations.json: the options of the sources in the Sources window (core/include/plynth/core/catalog/Integrations.h). Only options the user changed are saved; the others take their defaults. Entries of integrations this Plynth does not know are kept as they are.",
   "type": "object",
   "required": ["format", "version", "integrations"],
   "additionalProperties": false,

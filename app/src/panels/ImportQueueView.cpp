@@ -55,7 +55,6 @@ ImportQueueView::ImportQueueView(MaterialImportQueue& queue, QWidget* parent) : 
 // Builds an empty list that shows itself when the queue has items.
 void ImportQueueView::start()
 {
-    setProperty("tourId", QStringLiteral("catalog-queue"));
     setToolTip(tr("The imports that are running or waiting"));
     rows_ = new QVBoxLayout(this);
     rows_->setContentsMargins(0, 0, 0, 0);
@@ -159,7 +158,6 @@ void ImportQueueView::rebuild()
         if (item.canPick) {
             auto* pick = new QPushButton(tr("Pick the model..."), row);
             pick->setToolTip(tr("Choose which model of the file to import"));
-            pick->setProperty("tourId", QStringLiteral("queue-pick-model"));
             const int pickId = item.id;
             connect(pick, &QPushButton::clicked, this, [this, pickId]() { emit pickModelRequested(pickId); });
             buttons->addWidget(pick);
@@ -167,7 +165,6 @@ void ImportQueueView::rebuild()
         if (failed && !item.workFolder.isEmpty()) {
             auto* log = new QPushButton(tr("Show log"), row);
             log->setToolTip(tr("Open the Blender log of this import"));
-            log->setProperty("tourId", QStringLiteral("queue-show-log"));
             const QString folder = item.workFolder;
             connect(log, &QPushButton::clicked, this, [folder]() {
                 const QString file = QDir(folder).filePath(QStringLiteral("blender.log"));
@@ -177,7 +174,6 @@ void ImportQueueView::rebuild()
         }
         auto* action = new QPushButton(failed ? tr("Dismiss") : tr("Cancel"), row);
         action->setToolTip(failed ? tr("Remove this line from the list") : tr("Stop this import. Nothing is kept"));
-        action->setProperty("tourId", failed ? QStringLiteral("queue-dismiss") : QStringLiteral("queue-cancel"));
         connect(action, &QPushButton::clicked, this, [this, id]() { cancel_(id); });
         buttons->addWidget(action);
         box->addLayout(buttons);

@@ -147,7 +147,6 @@ QLabel* sectionTitle(const QString& text, QWidget* parent)
 // Builds the two columns. Nothing is filled until refresh.
 HomeScreen::HomeScreen(LibraryHost& host, QWidget* parent) : QWidget(parent), host_(host)
 {
-    setProperty("tourId", QStringLiteral("home-screen"));
     setToolTip(tr("The home screen: recent projects, new project and help"));
     auto* row = new QHBoxLayout(this);
     row->setContentsMargins(0, 0, 0, 0);
@@ -167,7 +166,7 @@ void HomeScreen::paintEvent(QPaintEvent*)
 }
 
 // A flat link style button in the left column.
-QPushButton* HomeScreen::addLink(QVBoxLayout* column, const QString& text, const QString& tip, const QString& tourId)
+QPushButton* HomeScreen::addLink(QVBoxLayout* column, const QString& text, const QString& tip)
 {
     const Theme& t = Theme::instance();
     auto* button = new QPushButton(text, column->parentWidget());
@@ -179,7 +178,6 @@ QPushButton* HomeScreen::addLink(QVBoxLayout* column, const QString& text, const
                               .arg(t.unit())
                               .arg(t.text().name(), t.signalBlue().name()));
     button->setToolTip(tip);
-    button->setProperty("tourId", tourId);
     column->addWidget(button);
     return button;
 }
@@ -218,17 +216,14 @@ QWidget* HomeScreen::buildSide()
     auto* create = new QPushButton(tr("New project"), side);
     create->setDefault(true);
     create->setToolTip(tr("Start a new empty project (Ctrl+N)"));
-    create->setProperty("tourId", QStringLiteral("home-new"));
     connect(create, &QPushButton::clicked, this, &HomeScreen::newProjectRequested);
     column->addWidget(create);
     auto* fromImage = new QPushButton(tr("New project from plan image"), side);
     fromImage->setToolTip(tr("Start a new project from a plan image (Ctrl+Shift+N)"));
-    fromImage->setProperty("tourId", QStringLiteral("home-new-from-image"));
     connect(fromImage, &QPushButton::clicked, this, &HomeScreen::newFromImageRequested);
     column->addWidget(fromImage);
     auto* open = new QPushButton(tr("Open project"), side);
     open->setToolTip(tr("Open a project folder (Ctrl+O)"));
-    open->setProperty("tourId", QStringLiteral("home-open"));
     connect(open, &QPushButton::clicked, this, &HomeScreen::openProjectRequested);
     column->addWidget(open);
     column->addSpacing(t.unit() * 3);
@@ -249,17 +244,14 @@ QWidget* HomeScreen::buildSide()
     setupStatus_->setFont(t.uiFont(t.sizeSmall()));
     setupStatus_->setWordWrap(true);
     setupStatus_->setToolTip(tr("Whether Blender, the library folder and the add-ons are ready"));
-    setupStatus_->setProperty("tourId", QStringLiteral("home-setup-status"));
     column->addWidget(setupStatus_);
     setupPath_ = new ElideLabel(side);
     setupPath_->setFont(t.monoFont(t.sizeSmall()));
     setupPath_->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
-    setupPath_->setProperty("tourId", QStringLiteral("home-setup-path"));
     setupPath_->hide();
     column->addWidget(setupPath_);
     setupFix_ = new QPushButton(tr("Fix"), side);
     setupFix_->setToolTip(tr("Open the setup check"));
-    setupFix_->setProperty("tourId", QStringLiteral("home-setup-fix"));
     connect(setupFix_, &QPushButton::clicked, this, &HomeScreen::setupRequested);
     column->addWidget(setupFix_, 0, Qt::AlignLeft);
 
@@ -273,7 +265,6 @@ QWidget* HomeScreen::buildSide()
                                      .arg(t.unit() / 2)
                                      .arg(t.text().name(), t.signalBlue().name()));
     projectsLink_->setToolTip(tr("Open the folder where new projects go"));
-    projectsLink_->setProperty("tourId", QStringLiteral("home-projects-folder"));
     connect(projectsLink_, &QPushButton::clicked, this, [this]() {
         QDesktopServices::openUrl(QUrl::fromLocalFile(host_.projectsFolder()));
     });
@@ -303,14 +294,12 @@ QWidget* HomeScreen::buildRecent()
     search_->setStyle(t.controlStyle());
     search_->setFixedWidth(t.unit() * 70);
     search_->setToolTip(tr("Type part of a project name or folder to filter the list"));
-    search_->setProperty("tourId", QStringLiteral("home-search"));
     connect(search_, &QLineEdit::textChanged, this, &HomeScreen::fillRecent);
     head->addWidget(search_);
     column->addLayout(head);
 
     back_ = new QPushButton(page);
     back_->setToolTip(tr("Go back to the project that is open"));
-    back_->setProperty("tourId", QStringLiteral("home-back"));
     back_->hide();
     connect(back_, &QPushButton::clicked, this, &HomeScreen::backRequested);
     column->addWidget(back_, 0, Qt::AlignLeft);
@@ -326,7 +315,6 @@ QWidget* HomeScreen::buildRecent()
     recentColumn_->setContentsMargins(0, 0, t.unit() * 2, 0);
     recentColumn_->setSpacing(t.unit());
     scroll->setWidget(recentBody_);
-    scroll->setProperty("tourId", QStringLiteral("home-recent-list"));
     scroll->setToolTip(tr("Projects you opened or saved lately. Click one to open it"));
     column->addWidget(scroll, 1);
     return page;
@@ -374,8 +362,7 @@ void HomeScreen::fillSide()
                 any = true;
             }
             const QString id = fromCore(page.id);
-            QPushButton* link = addLink(helpColumn_, fromCore(page.title), tr("Open this help page in the Help window"),
-                                        QStringLiteral("home-help-") + id);
+            QPushButton* link = addLink(helpColumn_, fromCore(page.title), tr("Open this help page in the Help window"));
             connect(link, &QPushButton::clicked, this, [this, id]() { emit helpPageRequested(id); });
         }
     }
@@ -388,8 +375,7 @@ void HomeScreen::fillSide()
             samplesColumn_->addWidget(sectionTitle(tr("Sample plans"), samplesBox_));
         for (const QFileInfo& image : images) {
             QPushButton* link = addLink(samplesColumn_, image.completeBaseName(),
-                                        tr("Start a new project from this sample plan image"),
-                                        QStringLiteral("home-sample-") + image.completeBaseName());
+                                        tr("Start a new project from this sample plan image"));
             const QString file = image.absoluteFilePath();
             connect(link, &QPushButton::clicked, this, [this, file]() { emit openSampleRequested(file); });
         }
@@ -400,8 +386,7 @@ void HomeScreen::fillSide()
         samplesColumn_->addWidget(sectionTitle(tr("Sample projects"), samplesBox_));
         for (const plynth::SampleProject& project : index.index.projects) {
             QPushButton* link = addLink(samplesColumn_, fromCore(project.name),
-                                        tr("Open a copy of this sample project that you can change. %1").arg(fromCore(project.description)),
-                                        QStringLiteral("home-sample-project-") + fromCore(project.id));
+                                        tr("Open a copy of this sample project that you can change. %1").arg(fromCore(project.description)));
             const QPixmap picture(QString::fromStdWString((sampleRoot / plynth::pathFromUtf8(project.image)).wstring()));
             if (!picture.isNull()) {
                 link->setIcon(QIcon(picture.scaled(t.unit() * 12, t.unit() * 8, Qt::KeepAspectRatio, Qt::SmoothTransformation)));
@@ -461,7 +446,6 @@ void HomeScreen::fillRecent()
         ++shown;
         const bool missing = !std::filesystem::is_directory(recent.path);
         auto* row = new RecentRow(!missing, recentBody_);
-        row->setProperty("tourId", QStringLiteral("home-recent-row"));
         row->setToolTip(missing ? tr("This project folder is gone. Remove it from the list")
                                 : tr("Open %1").arg(name));
         row->setFixedHeight(t.unit() * 20);
@@ -515,21 +499,18 @@ void HomeScreen::fillRecent()
         texts->addStretch(1);
         box->addLayout(texts, 1);
 
-        const auto addAction = [&](const QString& text, const QString& tip, const QString& tourId) {
+        const auto addAction = [&](const QString& text, const QString& tip) {
             auto* button = new QPushButton(text, row);
             button->setToolTip(tip);
-            button->setProperty("tourId", tourId);
             button->setFont(t.uiFont(t.sizeSmall()));
             box->addWidget(button, 0, Qt::AlignVCenter);
             return button;
         };
         if (!missing) {
-            QPushButton* show = addAction(tr("Show folder"), tr("Open the project folder in the file explorer"),
-                                          QStringLiteral("home-recent-show"));
+            QPushButton* show = addAction(tr("Show folder"), tr("Open the project folder in the file explorer"));
             connect(show, &QPushButton::clicked, this, [folder]() { QDesktopServices::openUrl(QUrl::fromLocalFile(folder)); });
         }
-        QPushButton* remove = addAction(tr("Remove"), tr("Take this project off the list. Nothing on disk is deleted"),
-                                        QStringLiteral("home-recent-remove"));
+        QPushButton* remove = addAction(tr("Remove"), tr("Take this project off the list. Nothing on disk is deleted"));
         const std::filesystem::path path2 = recent.path;
         connect(remove, &QPushButton::clicked, this, [this, path2]() { host_.forgetProject(path2); });
         row->onClick = [this, folder]() { emit openRecentRequested(folder); };
@@ -552,7 +533,6 @@ void HomeScreen::fillRecent()
         note->setWordWrap(true);
         note->setFont(t.uiFont(t.sizeNormal()));
         note->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
-        note->setProperty("tourId", QStringLiteral("home-recent-empty"));
         recentColumn_->addWidget(note);
     }
     recentColumn_->addStretch(1);

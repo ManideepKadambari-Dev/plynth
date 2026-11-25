@@ -88,8 +88,8 @@ NO_MATERIAL = "The downloaded file holds no material with the item's name."
 TIMED_OUT = "Nothing arrived from BlenderKit after %d seconds (%s). Try again, or check the item in BlenderKit " \
             "inside Blender."
 OTHER_TAB = {
-    "model": "This BlenderKit item is a model. Import it in the Assets tab or with plynth assets import.",
-    "material": "This BlenderKit item is a material. Import it in the Materials tab or with plynth materials import.",
+    "model": "This BlenderKit item is a model. Import it in the Assets window or with plynth assets import.",
+    "material": "This BlenderKit item is a material. Import it in the Materials window or with plynth materials import.",
 }
 KNOWN_KINDS = {"hdr": "an HDR", "scene": "a scene", "brush": "a brush", "addon": "an add-on",
                "nodegroup": "a node group", "printable": "a printable item"}

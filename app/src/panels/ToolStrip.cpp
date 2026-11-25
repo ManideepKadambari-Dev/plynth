@@ -158,7 +158,6 @@ ToolStrip::ToolStrip(ToolController* controller, QWidget* parent)
 {
     const Theme& t = Theme::instance();
     setFixedWidth(t.toolStripWidth());
-    setProperty("tourId", QStringLiteral("tool-strip"));
     setToolTip(tr("Tools: Select, Scale, Wall, Opening, Room, Stair, Light, Furniture and Detect"));
 
     auto* layout = new QVBoxLayout(this);
@@ -170,8 +169,6 @@ ToolStrip::ToolStrip(ToolController* controller, QWidget* parent)
     for (size_t i = 0; i < ids.size(); ++i) {
         auto* button = new ToolButton(ids[i], this);
         button->setFixedSize(button->sizeHint());
-        button->setProperty("tourId", ids[i] == ToolId::Light ? QStringLiteral("light-tool")
-                                                              : QStringLiteral("tool-button-") + toolName(ids[i]).toLower());
         connect(button, &QAbstractButton::clicked, this, [this, id = ids[i]]() {
             controller_->setActive(id);
             refresh();

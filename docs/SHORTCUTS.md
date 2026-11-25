@@ -99,25 +99,38 @@ E and F work when the canvas or the wall view has focus. F does something only w
 
 Ctrl+B builds while a build is not already running. Cancel the build with the **Cancel** button in the build bar or Build > Cancel build.
 
-Ctrl+E and Ctrl+Shift+E need a build, and do nothing while a build or another export is running. Cancel an export with the **Cancel** button in the Export tab. **Export anyway...** and **Open export folder** are in the Build menu and have no key.
+Ctrl+E and Ctrl+Shift+E need a build, and do nothing while a build or another export is running. Cancel an export with the **Cancel** button in the Export window. **Export anyway...** and **Open export folder** are in the Build menu and have no key.
 
 In the 3D view the two small buttons in the top right corner look straight down (**Top**) or from the front right (**Three quarter**). They have no shortcut.
 
 While the terminal or a text box has focus, the keys go there first, so click the plan or the 3D view before pressing 3. Ctrl+= and Ctrl+- zoom the plan only.
 
+## The side panel and the app's windows
+
+| Shortcut | Action |
+|---|---|
+| Ctrl+Shift+P | Open or close the Properties panel on the right (View > Properties panel) |
+| Ctrl+Shift+A | Open the Assets window (Catalog > Assets catalog) |
+| Ctrl+Shift+M | Open the Materials window (Catalog > Materials catalog) |
+| Ctrl+Shift+I | Open the Sources window (Catalog > Sources and integrations) |
+| Ctrl+Shift+B | Open the Build report window (Build > Build report window) |
+| Ctrl+Shift+X | Open the Export window (Build > Export window) |
+
+Each window opens once. Its shortcut brings it to the front when it is open already. The buttons **Assets**, **Materials**, **Sources**, **Report** and **Export** in the bar above the plan do the same, and **Properties** at the right end of the bar opens or closes the side panel. The Import materials window opens from Catalog > Import materials... and has no key.
+
+The shortcuts with Ctrl, Alt or a function key work in the app's windows as well as in the main window. The single letter keys, such as the tool keys, work only in the main window. Alt+F4 in one of the app's windows closes that window.
+
 ## Catalog
 
 | Shortcut | Action |
 |---|---|
-| Ctrl+Shift+A | Show the Assets tab |
-| Ctrl+Shift+M | Show the Materials tab |
 | Ctrl+I | Import model files into the library |
 
 Rescan library, Import materials, Add the sample materials, Add the sample shapes, Rescan materials, Room types and categories, Open library folder, the generator entries (Check add-ons, Open the generators folder, Reload generators and Add the sample generators) and Help, Setup check have no shortcut. They are in the Catalog menu and the Help menu.
 
 While you type in the search box or edit a name or the tags of an asset, letters go into the box and do not switch tools. Press Enter to save a name or the tags.
 
-You can also import by dropping model files, zips or folders on the Assets tab, or by copying them into the `inbox` folder of the library. See the [user guide](USER_GUIDE.md).
+You can also import by dropping model files, zips or folders on the Assets window, or by copying them into the `inbox` folder of the library. See the [user guide](USER_GUIDE.md).
 
 ## Drawing and selecting
 
@@ -173,7 +186,7 @@ The wall view appears under the plan when a wall or an opening is selected. It h
 | Left button and drag on a handle | Resize the selected opening. There are eight handles. The opposite edges stay put. |
 | Left click on the wall face, with the Opening tool | Add an opening at that place, at the default sill. |
 | Left click on the wall face, with the Furniture tool | Open the picker. The asset you pick hangs there, with its centre at the wall item centre. |
-| Drop an asset tile from the Assets tab | Hang that asset at the place you drop it |
+| Drop an asset tile from the Assets window | Hang that asset at the place you drop it |
 | Mouse wheel | Zoom at the cursor |
 | Middle button and drag | Pan |
 | Home | Fit the wall in the view again |
@@ -206,7 +219,7 @@ With the mouse, drag to select text. The wheel scrolls back through the last 500
 | Middle button and drag | Pan the plan |
 | Hold Space, then left button and drag | Pan the plan |
 | Drop an image file on the window | Set it as the plan image of the current floor |
-| Drag an asset tile from the Assets tab and drop it on the plan | Place the asset there. Ctrl places it freely. |
+| Drag an asset tile from the Assets window and drop it on the plan | Place the asset there. Ctrl places it freely. |
 
 While Space is held, the cursor becomes an open hand. It closes while you drag.
 
@@ -256,21 +269,12 @@ The first opens a project folder. The second starts a new project with the image
 
 The command line can also create and edit projects without opening the window. See the command line guide.
 
-## Help, tours and What is this?
+## Help
 
 | Shortcut | Action |
 |---|---|
 | F1 | Open the Help window |
-| Shift+F1 | Turn What is this? on or off |
 | Alt+Left | In the Help window, go back to the page before |
 | Alt+Right | In the Help window, go forward again |
 
-While a guided tour is shown:
-
-| Key | Action |
-|---|---|
-| Right or Enter | Next step. On the last step it ends the tour |
-| Left | The step before |
-| Esc | End the tour |
-
-While What is this? is on, a click on any control explains it and does not run it. Esc turns it off. The guided tours, Setup check and About Plynth are in the Help menu and have no key.
+Setup check and About Plynth are in the Help menu and have no key.

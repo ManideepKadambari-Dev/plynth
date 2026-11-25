@@ -28,7 +28,7 @@ public:
     void setActive(bool active);
     // Reads the inbox now and rescans now, without waiting. For the Rescan button.
     void rescanNow();
-    // Rescans the materials now, without waiting. For the Materials tab's Rescan button.
+    // Rescans the materials now, without waiting. For the Materials window's Rescan button.
     void rescanMaterialsNow();
     // Where changed materials go to be cleaned and rendered again. Without one they are only reindexed.
     void setMaterialRefresher(MaterialRefresher* refresher) { materialRefresher_ = refresher; }

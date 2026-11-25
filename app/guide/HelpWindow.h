@@ -1,14 +1,18 @@
 #pragma once
 
 #include "GuideStyle.h"
+#include "HelpRender.h"
 
 #include <plynth/core/HelpPages.h>
 
 #include <QPixmap>
+#include <QThreadPool>
 #include <QUrl>
 #include <QWidget>
 
 #include <filesystem>
+#include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -18,6 +22,7 @@ class QListWidget;
 class QPushButton;
 class QStackedWidget;
 class QTextBrowser;
+class QTextDocument;
 class QTimer;
 
 namespace plynth::guide {
@@ -31,6 +36,11 @@ class HelpWindow : public QWidget {
 public:
     HelpWindow(const GuideStyle& style, const std::filesystem::path& docs, const std::filesystem::path& licenses,
                const QPixmap& logo, QWidget* parent = nullptr);
+    ~HelpWindow() override;
+
+    // Builds pages away from the main thread when on, the default, or at once when off, as the screenshot
+    // checks need.
+    void setBackgroundRendering(bool on) { background_ = on; }
 
     // Shows a page by id, scrolled to the heading with this anchor when one is given.
     void showPage(const QString& id, const QString& anchor = {});
@@ -53,7 +63,18 @@ private:
         bool operator==(const Place&) const = default;
     };
 
+    // A built page kept for the next time it is shown. The document belongs to this window.
+    struct CachedPage {
+        QTextDocument* document = nullptr;
+        std::vector<plynth::HelpHeading> headings;
+    };
+
     void go(const Place& place, bool remember);
+    void showFilePage(const Place& place);
+    void renderPage(const QString& id);
+    void keepPage(const QString& id, RenderedHelpPage page);
+    void showDocument(QTextDocument* document);
+    HelpPageLook look() const;
     void showLicenseFile(const std::filesystem::path& file);
     void scrollToAnchor(const QString& anchor);
     void followLink(const QUrl& url);
@@ -73,6 +94,12 @@ private:
     QListWidget* results_ = nullptr;
     AboutPage* about_ = nullptr;
     QTimer* searchTimer_ = nullptr;
+    QTextDocument* waiting_ = nullptr;
+    QTextDocument* licenseDocument_ = nullptr;
+    std::map<QString, CachedPage> cache_;
+    std::set<QString> rendering_;
+    QThreadPool renderPool_;
+    bool background_ = true;
     std::vector<plynth::HelpHeading> headings_;
     std::vector<Place> history_;
     int historyIndex_ = -1;

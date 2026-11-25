@@ -1,6 +1,5 @@
 #include "FramelessWindow_win.h"
 
-#include "MainWindow.h"
 #include "TitleBar.h"
 #include "theme/Theme.h"
 
@@ -16,7 +15,7 @@ namespace plynth::app::win {
 namespace {
 
 // Physical pixel size of the resize border for the window's current display scale.
-int borderThickness(const MainWindow& window)
+int borderThickness(const QWidget& window)
 {
     return qRound(Theme::instance().resizeBorder() * window.devicePixelRatioF());
 }
@@ -30,7 +29,7 @@ bool isMaximizedNow(HWND hwnd)
 }
 
 // Works out what is under the mouse and returns the matching Windows hit test code.
-LRESULT hitTest(MainWindow& window, TitleBar& titleBar, HWND hwnd, LPARAM lParam)
+LRESULT hitTest(QWidget& window, TitleBar& titleBar, HWND hwnd, LPARAM lParam)
 {
     RECT rect{};
     GetWindowRect(hwnd, &rect);
@@ -105,7 +104,7 @@ void enableNativeFrame(QWidget& window)
 }
 
 // Handles the window messages that make the custom title bar behave like a system one.
-bool handleNativeEvent(MainWindow& window, TitleBar& titleBar, void* message, qintptr* result)
+bool handleNativeEvent(QWidget& window, TitleBar& titleBar, void* message, qintptr* result)
 {
     MSG* msg = static_cast<MSG*>(message);
     switch (msg->message) {

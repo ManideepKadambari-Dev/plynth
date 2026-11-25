@@ -13,6 +13,8 @@
 #include <QList>
 #include <QMainWindow>
 #include <QPointer>
+#include <QSize>
+#include <QStringList>
 
 #include <memory>
 #include <optional>
@@ -66,6 +68,7 @@ class Selection;
 class StatusBar;
 class ToolController;
 class ToolStrip;
+class ToolWindow;
 class WallView;
 
 // The main application window with its own title bar. It owns the one document of the app and
@@ -123,7 +126,8 @@ public:
     // For checks only: chooses the side the wall view is seen from.
     void setWallViewSide(plynth::WallSide side);
 
-    // Picture of the window for screenshots: the setup check, when open, is drawn over a dimmed window.
+    // Picture of the window for screenshots: the setup check, when open, is drawn over a dimmed window. With a
+    // picture window set, the picture is of that window alone.
     QImage grabPicture();
     // For checks only: opens the setup check and keeps it open.
     void showSetupCheck(const QString& scrollToTitle = QString());
@@ -138,21 +142,28 @@ public:
     bool importPictureReady() const;
     // Opens the setup check at start when this is the first run, after an update, or a required item blocks.
     void openSetupCheckIfNeeded();
-    // Starts the plan view tour once on the first run (no settings file and the tour not done), after the setup
-    // check closes, and saves that it was shown. pretend applies the rule as if there were no settings file.
-    void runFirstRun(bool pretend);
 
     // For checks only: opens the furniture picker at a place on the plan (metres) and hovers an asset when
     // an id is given. False when there is no scale or no library.
     bool showFurniturePicker(double x, double y, const QString& hoverAsset);
 
-    // The guided tour, What is this? and the Help window.
+    // The Help window.
     GuideHost* guide() const { return guide_; }
-    // Shows a screen by its tour name: home, plan, wall, build, export, assets or materials. Selection and
-    // the project are left as they are. False for an unknown name.
-    bool showScreenByName(const QString& screen);
-    // The tour name of the screen shown now.
-    QString screenName() const;
+
+    // Opens one of the app's own windows by name (assets, materials, sources, material-import, build or export),
+    // or brings it to the front when it is open. False for an unknown name.
+    bool openToolWindow(const QString& name);
+    ToolWindow* toolWindow(const QString& name) const;
+    QStringList toolWindowNames() const;
+    // Opens or closes the side panel with the Properties. With remember, the settings keep the new state.
+    void showSidePanel(bool open, bool remember);
+    bool sidePanelOpen() const;
+    // For checks only: the picture is of the window with this name instead of the main window.
+    void setPictureWindow(const QString& name);
+    // For checks only: the size the app's other windows take when they open, instead of their default size.
+    void setScreenshotSize(const QSize& size);
+    // For checks only: the panel of the Export window.
+    ExportPanel* exportPanel() const { return exportPanel_; }
 
     // Shows the home screen over the work area. A project that is open stays open behind it.
     void showHome();
@@ -161,27 +172,27 @@ public:
     // Closes the project after the save question and shows the home screen.
     void closeProject();
 
-    // For checks only: shows the Integrations tab.
+    // For checks only: shows the Sources window.
     void showIntegrationsTab();
-    // For checks only: fills the BlenderKit address field of the Integrations tab.
+    // For checks only: fills the BlenderKit address field of the Sources window.
     void setBlenderKitAddress(const QString& text);
     // For checks only: opens the Fab import dialog for a zip without waiting for it.
     void showFabImport(const QString& zip);
     // For checks only: does what an integration's import button does once this file is chosen. Assets when
     // the integration imports assets, otherwise materials.
     void importIntegrationFile(const QString& integrationId, const QString& file);
-    // For checks only: true when the Integrations tab was not asked for, or its check has ended.
+    // For checks only: true when the Sources window was not asked for, or its check has ended.
     bool integrationsPictureReady() const;
-    // For checks only: shows the Assets tab.
+    // For checks only: shows the Assets window.
     void showAssetsTab();
-    // For checks only: selects an asset in the Assets tab. False when it is not listed.
+    // For checks only: selects an asset in the Assets window. False when it is not listed.
     bool selectAsset(const QString& id);
     // For checks only: scrolls the asset details to the category list.
     void showAssetCategories();
 
-    // Shows the material import screen over the work area.
+    // Opens the Import materials window.
     void showMaterialImport();
-    // Shows the Integrations tab and puts the focus in the BlenderKit address field.
+    // Shows the Sources window and puts the focus in the BlenderKit address field.
     void importFromBlenderKit();
     // Queues every folder of samples/materials, skipping ids already in the library.
     void addSampleMaterials();
@@ -192,13 +203,13 @@ public:
     bool openSampleProject(const QString& id);
     // For checks only: takes a material of an asset into the materials catalog, as its button does.
     void addAssetMaterialForCheck(const QString& assetId, const QString& materialName) { addMaterialFromAsset(assetId, materialName); }
-    // For checks only: adds a path to the import screen list.
+    // For checks only: adds a path to the list of the Import materials window.
     void addMaterialSource(const QString& path);
     // For checks only: true when no material import was asked for, or the queue and the renders are done.
     bool materialsPictureReady() const;
-    // For checks only: shows the Materials tab.
+    // For checks only: shows the Materials window.
     void showMaterialsTab();
-    // For checks only: selects a material in the Materials tab. False when it is not listed.
+    // For checks only: selects a material in the Materials window. False when it is not listed.
     bool selectMaterial(const QString& id);
     // For checks only: selects the wall or room a material target such as "w3.outside" names (nothing for a
     // default such as "default.floor"), shows Properties and opens its material picker, hovering a material
@@ -216,11 +227,11 @@ public:
     void setActualSize();
     // For checks only: turns the 3D overlay on the plan on or off.
     void setOverlay3d(bool on);
-    // For checks only: shows the Build tab.
+    // For checks only: shows the Build report window.
     void showBuildTab();
     // Starts an export of the last build, or only its quality checks when write is false. Force goes past failed checks.
     void startExport(bool write, bool force);
-    // For checks only: shows the Export tab.
+    // For checks only: shows the Export window.
     void showExportTab();
     // Opens Build > Make variations. For checks it opens without waiting, so a screenshot shows it.
     void showVariationsDialog(bool wait = true);
@@ -250,6 +261,12 @@ protected:
     bool nativeEvent(const QByteArray& eventType, void* message, qintptr* result) override;
 
 private:
+    QWidget* dialogParent() const;
+    void makeToolWindows();
+    void makeSidePanelToggle();
+    void applySidePanelWidth();
+    void saveSidePanel();
+    void saveWindowPlace(const ToolWindow* window);
     void toggleMaximized();
     void recordRecent();
     void openRecent(const QString& folder);
@@ -328,10 +345,8 @@ private:
     void removeAppState();
     void runAutosave();
     QString imageFilter() const;
-    QAction* addMenuAction(QMenu* menu, const QString& text, const QString& tip, const QString& tourId,
-                           const QList<QKeySequence>& keys);
-    QAction* addViewAction(const QString& text, const QString& tip, const QString& tourId,
-                           const QList<QKeySequence>& keys, void (PlanCanvas::*slot)());
+    QAction* addMenuAction(QMenu* menu, const QString& text, const QString& tip, const QList<QKeySequence>& keys);
+    QAction* addViewAction(const QString& text, const QString& tip, const QList<QKeySequence>& keys, void (PlanCanvas::*slot)());
 
     plynth::Document doc_;
     std::unique_ptr<DocumentBridge> bridge_;
@@ -352,6 +367,14 @@ private:
     MaterialImportScreen* materialImport_ = nullptr;
     bool materialImportAsked_ = false;
     RightPanel* right_ = nullptr;
+    QSplitter* sideSplitter_ = nullptr;
+    QAction* panelAction_ = nullptr;
+    QTimer* panelWidthTimer_ = nullptr;
+    bool sidePanelSized_ = false;
+    QList<ToolWindow*> toolWindows_;
+    QString pictureWindow_;
+    QSize screenshotSize_;
+    QAction* exitAction_ = nullptr;
     LibraryHost* host_ = nullptr;
     QStackedWidget* pages_ = nullptr;
     QStackedWidget* centreStack_ = nullptr;

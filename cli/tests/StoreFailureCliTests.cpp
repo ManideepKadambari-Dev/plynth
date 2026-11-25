@@ -22,8 +22,8 @@ using plynth::cli::testing::utf8;
 namespace {
 
 const char* const kAddress = "asset_base_id:0c1d4a2e-1111-2222-3333-444455556666";
-const char* const kIsMaterial = "This BlenderKit item is a material. Import it in the Materials tab or with plynth materials import.";
-const char* const kIsModel = "This BlenderKit item is a model. Import it in the Assets tab or with plynth assets import.";
+const char* const kIsMaterial = "This BlenderKit item is a material. Import it in the Materials window or with plynth materials import.";
+const char* const kIsModel = "This BlenderKit item is a model. Import it in the Assets window or with plynth assets import.";
 
 // Says whether a text holds one of the made-up secrets.
 bool leaks(const std::string& text) {

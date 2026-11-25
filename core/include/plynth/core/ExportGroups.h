@@ -262,7 +262,7 @@ struct ExportOptionsRepair {
 // when the old file still has readable ones. All group edits in it are dropped.
 ExportOptionsRepair repairExportOptions(const std::filesystem::path& projectFolder);
 
-// What the Export tab and "plynth export groups" show before an export.
+// What the Export window and "plynth export groups" show before an export.
 struct ExportGroupReview {
     Status status;           // the read status of the options file, or the exporter's refusal
     std::string exporter;    // the exporter id

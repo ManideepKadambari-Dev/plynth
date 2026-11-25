@@ -1,14 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "urn:plynth:schema:settings:4",
-  "title": "Plynth machine settings, version 4",
-  "description": "Settings that belong to one computer rather than to one project. Saved as %APPDATA%/Plynth/settings.json, or in the folder named by the PLYNTH_CONFIG_DIR environment variable. Paths are absolute, UTF-8, with forward slashes. A missing field takes its default; an unknown field is refused. Older files are upgraded when read: version 1 (settings.v1.schema.json) gets an empty recent_projects list, version 2 (settings.v2.schema.json) loses thumbnail_engine, because thumbnails are rendered with Eevee only, and version 3 (settings.v3.schema.json) gets tour_done true, so an upgrade does not start the first run tour.",
+  "$id": "urn:plynth:schema:settings:5",
+  "title": "Plynth machine settings, version 5",
+  "description": "Settings that belong to one computer rather than to one project. Saved as %APPDATA%/Plynth/settings.json, or in the folder named by the PLYNTH_CONFIG_DIR environment variable. Paths are absolute, UTF-8, with forward slashes. A missing field takes its default; an unknown field is refused. Older files are upgraded when read: version 1 (settings.v1.schema.json) gets an empty recent_projects list, version 2 (settings.v2.schema.json) loses thumbnail_engine, because thumbnails are rendered with Eevee only, version 3 (settings.v3.schema.json) is read as it is, and version 4 (settings.v4.schema.json) loses tour_done, since Plynth has no first run tour any more.",
   "type": "object",
   "required": ["format", "version"],
   "additionalProperties": false,
   "properties": {
     "format": { "const": "plynth-settings" },
-    "version": { "const": 4 },
+    "version": { "const": 5 },
     "library": {
       "description": "The Library folder (assets, materials, generators, shapes). Null until chosen.",
       "type": ["string", "null"],
@@ -39,10 +39,34 @@
       "description": "The Plynth version whose setup check last passed. When it differs from the running version the setup check opens once.",
       "type": ["string", "null"]
     },
-    "tour_done": {
-      "description": "True once the first run tour was shown or skipped. A fresh file has false.",
-      "type": "boolean",
-      "default": false
+    "side_panel": {
+      "description": "The right side panel of the main window, which shows the properties of what is selected.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "open": { "description": "False when the panel was closed.", "type": "boolean", "default": true },
+        "width": { "description": "Its width in pixels. 0 means the width of the theme.", "type": "integer", "minimum": 0, "maximum": 10000, "default": 0 }
+      }
+    },
+    "windows": {
+      "description": "Where each of the app's own windows (Assets, Materials, Sources, Build, Export, Import materials) was last left, by window name.",
+      "type": "object",
+      "maxProperties": 16,
+      "default": {},
+      "propertyNames": { "pattern": "^[a-z0-9-]{1,32}$" },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["x", "y", "width", "height"],
+        "additionalProperties": false,
+        "properties": {
+          "x": { "description": "Left edge in desktop pixels.", "type": "integer", "minimum": -100000, "maximum": 100000 },
+          "y": { "description": "Top edge in desktop pixels.", "type": "integer", "minimum": -100000, "maximum": 100000 },
+          "width": { "type": "integer", "minimum": 1, "maximum": 100000 },
+          "height": { "type": "integer", "minimum": 1, "maximum": 100000 },
+          "screen": { "description": "The name of the screen it was on. Empty when unknown.", "type": "string" },
+          "maximized": { "type": "boolean", "default": false }
+        }
+      }
     },
     "recent_projects": {
       "description": "Projects opened or saved by the app, most recent first, at most 30. Shown on the home screen.",

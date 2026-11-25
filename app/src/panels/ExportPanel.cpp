@@ -138,7 +138,6 @@ public:
         const bool hasFindings = !check.findings.empty();
         header_->setCursor(hasFindings ? Qt::PointingHandCursor : Qt::ArrowCursor);
         header_->setToolTip(hasFindings ? tr("Show or hide what this check found") : plainToolTip(fromCore(check.message)));
-        header_->setProperty("tourId", QStringLiteral("export-check-row"));
         auto* row = new QHBoxLayout(header_);
         row->setContentsMargins(t.unit() * 2 + t.qualityMark() + t.unit() * 2, t.unit(), t.unit() * 2, t.unit());
         row->setSpacing(t.unit() * 2);
@@ -243,7 +242,6 @@ private:
 ExportPanel::ExportPanel(QWidget* parent) : QWidget(parent)
 {
     const Theme& t = Theme::instance();
-    setProperty("tourId", QStringLiteral("export-panel"));
     setToolTip(tr("The export for Unreal: the last export, its files and the quality checks"));
     auto* outer = new QVBoxLayout(this);
     outer->setContentsMargins(0, 0, 0, 0);
@@ -384,7 +382,7 @@ void ExportPanel::addLockLine()
     lockLine_->hide();
 }
 
-// Asks for a fresh review each time the tab is shown.
+// Asks for a fresh review each time the window is shown.
 void ExportPanel::showEvent(QShowEvent* event)
 {
     QWidget::showEvent(event);
@@ -400,7 +398,7 @@ void ExportPanel::setGroupsExpanded(bool expanded)
     fitGroupsTree();
 }
 
-// Gives the groups tree the height of its visible rows, so the tab scrolls instead of the tree.
+// Gives the groups tree the height of its visible rows, so the window scrolls instead of the tree.
 void ExportPanel::fitGroupsTree()
 {
     if (groupsTree_ == nullptr)
@@ -467,7 +465,6 @@ void ExportPanel::addLicensesSwitch(const ExportPanelState& state)
     licensesBox_ = box;
     box->setFont(t.uiFont(t.sizeNormal()));
     box->setChecked(state.licensesEnabled);
-    box->setProperty("tourId", QStringLiteral("export-licenses"));
     box->setToolTip(tr("Also write a list of every asset and material the last build used, with its source, author "
                        "and license. It is not legal advice."));
     connect(box, &QCheckBox::clicked, this, [this](bool on) { setLicensesEnabled(on); });
@@ -478,7 +475,6 @@ void ExportPanel::addLicensesSwitch(const ExportPanelState& state)
         file->setFont(t.monoFont(t.sizeSmall()));
         file->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
         file->setToolTip(tr("The license report the next export writes, beside a plain text copy"));
-        file->setProperty("tourId", QStringLiteral("export-licenses-file"));
         file->setEnabled(state.licensesEnabled);
         column_->addWidget(file);
     }
@@ -513,7 +509,6 @@ void ExportPanel::addLicensesReport(const plynth::ExportReport& report)
         warn->setFont(t.uiFont(t.sizeSmall()));
         warn->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
         warn->setToolTip(tr("Items with an unknown license, a missing author or other notes"));
-        warn->setProperty("tourId", QStringLiteral("export-licenses-warnings"));
         column_->addWidget(warn);
     }
 }
@@ -526,7 +521,6 @@ void ExportPanel::addGameplaySwitch(const ExportPanelState& state)
     gameplayBox_ = box;
     box->setFont(t.uiFont(t.sizeNormal()));
     box->setChecked(state.gameplayEnabled);
-    box->setProperty("tourId", QStringLiteral("export-gameplay"));
     box->setToolTip(tr("Also write a JSON file with the room volumes, door positions and light positions, in metres "
                        "with Z up, for game code to read."));
     connect(box, &QCheckBox::clicked, this, [this](bool on) { setGameplayEnabled(on); });
@@ -537,7 +531,6 @@ void ExportPanel::addGameplaySwitch(const ExportPanelState& state)
         file->setFont(t.monoFont(t.sizeSmall()));
         file->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
         file->setToolTip(tr("The gameplay data file the next export writes"));
-        file->setProperty("tourId", QStringLiteral("export-gameplay-file"));
         file->setEnabled(state.gameplayEnabled);
         column_->addWidget(file);
     }
@@ -572,7 +565,6 @@ void ExportPanel::addKitSwitch(const ExportPanelState& state)
     kitBox_ = box;
     box->setFont(t.uiFont(t.sizeNormal()));
     box->setChecked(state.kitEnabled);
-    box->setProperty("tourId", QStringLiteral("export-kit"));
     box->setToolTip(tr("Also write every unique wall, corner and opening piece once, with collision, and a layout file "
                        "that says where each copy goes. It needs a library."));
     connect(box, &QCheckBox::clicked, this, [this](bool on) { setKitEnabled(on); });
@@ -650,7 +642,7 @@ void ExportPanel::addOptionsProblem(const ExportPanelState& state)
     layout->setContentsMargins(0, 0, 0, 0);
     QPushButton* reset = addButton(row, tr("Reset groups"),
                                    tr("Keep a copy of the unreadable export options file and go back to the automatic groups"),
-                                   QStringLiteral("export-groups-reset"), false);
+                                   false);
     repairButton_ = reset;
     layout->addStretch(1);
     // Queued, because a refresh can delete the button while the question is open.
@@ -676,7 +668,6 @@ void ExportPanel::addGroups(const ExportPanelState& state)
         line->setWordWrap(true);
         line->setFont(t.uiFont(t.sizeNormal()));
         line->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
-        line->setProperty("tourId", QStringLiteral("export-groups-single"));
         line->setToolTip(tr("This project exports one FBX. Choose Grouped FBX under Export mode in Properties > Project"));
         column_->addWidget(line);
         addLockLine();
@@ -731,12 +722,11 @@ void ExportPanel::addRow(QWidget* host, const QString& name, const QString& valu
 }
 
 // Adds a button to a row. The primary one is filled with Signal blue.
-QPushButton* ExportPanel::addButton(QWidget* row, const QString& text, const QString& tip, const QString& tourId, bool primary)
+QPushButton* ExportPanel::addButton(QWidget* row, const QString& text, const QString& tip, bool primary)
 {
     const Theme& t = Theme::instance();
     auto* button = new QPushButton(text, row);
     button->setToolTip(tip);
-    button->setProperty("tourId", tourId);
     if (primary) {
         button->setFont(t.uiFont(t.sizeNormal(), QFont::DemiBold));
         button->setStyleSheet(QStringLiteral("QPushButton { background: %1; color: %2; border: 1px solid %1; "
@@ -832,10 +822,10 @@ void ExportPanel::setReport(const plynth::ExportReport* report, const ExportPane
     buttonRow->setContentsMargins(0, 0, 0, 0);
     buttonRow->setSpacing(t.unit() * 2);
     QPushButton* exportButton = addButton(buttons, tr("Export"), tr("Write the FBX and textures for Unreal (Ctrl+E)"),
-                                          QStringLiteral("export-run"), true);
+                                          true);
     QPushButton* checkButton = addButton(buttons, tr("Check"),
                                          tr("Run the quality checks and write nothing (Ctrl+Shift+E)"),
-                                         QStringLiteral("export-check"), false);
+                                         false);
     buttonRow->addStretch(1);
     exportButton->setEnabled(state.canRun && !state.running);
     checkButton->setEnabled(state.canRun && !state.running);
@@ -859,7 +849,7 @@ void ExportPanel::setReport(const plynth::ExportReport* report, const ExportPane
             auto* layout = new QHBoxLayout(row);
             layout->setContentsMargins(0, 0, 0, 0);
             QPushButton* build = addButton(row, tr("Build"), tr("Build the building first (Ctrl+B)"),
-                                           QStringLiteral("export-build"), false);
+                                           false);
             build->setEnabled(!state.running);
             layout->addStretch(1);
             connect(build, &QPushButton::clicked, this, &ExportPanel::buildRequested);
@@ -893,7 +883,7 @@ void ExportPanel::setReport(const plynth::ExportReport* report, const ExportPane
         layout->setContentsMargins(0, 0, 0, 0);
         QPushButton* anyway = addButton(row, tr("Export anyway..."),
                                         tr("Export with the failed checks left as they are. Asks first"),
-                                        QStringLiteral("export-anyway"), false);
+                                        false);
         anyway->setEnabled(state.canRun && !state.running);
         layout->addStretch(1);
         connect(anyway, &QPushButton::clicked, this, &ExportPanel::exportAnywayRequested);
@@ -901,6 +891,8 @@ void ExportPanel::setReport(const plynth::ExportReport* report, const ExportPane
     } else if (!report->status.ok() && state.error.isEmpty()) {
         note(fromCore(report->status.message), t.signalAmber());
     }
+    if (state.reportOutOfDate)
+        note(tr("This export was made from an older build. Export again to bring the files up to date."), t.signalAmber());
 
     addChecks(*report);
 
@@ -948,7 +940,7 @@ void ExportPanel::setReport(const plynth::ExportReport* report, const ExportPane
         auto* layout = new QHBoxLayout(row);
         layout->setContentsMargins(0, t.unit(), 0, 0);
         QPushButton* folder = addButton(row, tr("Open folder"), tr("Open the export folder in Explorer"),
-                                        QStringLiteral("export-open-folder"), false);
+                                        false);
         folder->setEnabled(state.folderExists);
         layout->addStretch(1);
         connect(folder, &QPushButton::clicked, this, &ExportPanel::openFolderRequested);

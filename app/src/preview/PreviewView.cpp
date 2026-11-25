@@ -78,7 +78,6 @@ QIcon viewIcon(bool top, const QColor& color, int side)
 PreviewView::PreviewView(QWidget* parent) : QWidget(parent)
 {
     const Theme& t = Theme::instance();
-    setProperty("tourId", QStringLiteral("preview-3d"));
     setToolTip(tr("The building in 3D. Drag to orbit, middle or right drag to pan, wheel to zoom"));
     auto* column = new QVBoxLayout(this);
     column->setContentsMargins(0, 0, 0, 0);
@@ -108,7 +107,7 @@ PreviewView::PreviewView(QWidget* parent) : QWidget(parent)
                               .arg(t.raised().name(), t.line().name())
                               .arg(t.radius())
                               .arg(t.muted().name(), t.signalBlue().name());
-    auto makeButton = [&](bool top, const QString& tip, const QString& tourId) {
+    auto makeButton = [&](bool top, const QString& tip) {
         auto* button = new QToolButton(this);
         button->setCheckable(true);
         button->setFocusPolicy(Qt::NoFocus);
@@ -117,13 +116,11 @@ PreviewView::PreviewView(QWidget* parent) : QWidget(parent)
         button->setIconSize(QSize(side - 2, side - 2));
         button->setIcon(viewIcon(top, t.text(), side - 2));
         button->setToolTip(tip);
-        button->setProperty("tourId", tourId);
         button->setStyleSheet(style);
         return button;
     };
-    topButton_ = makeButton(true, tr("Look straight down at the building"), QStringLiteral("preview-top"));
-    angleButton_ = makeButton(false, tr("Look at the building from the front right, as in the thumbnails"),
-                              QStringLiteral("preview-three-quarter"));
+    topButton_ = makeButton(true, tr("Look straight down at the building"));
+    angleButton_ = makeButton(false, tr("Look at the building from the front right, as in the thumbnails"));
     angleButton_->setChecked(true);
     connect(topButton_, &QToolButton::clicked, this, [this]() { setPreset(ModelView::Preset::Top); });
     connect(angleButton_, &QToolButton::clicked, this, [this]() { setPreset(ModelView::Preset::ThreeQuarter); });

@@ -140,7 +140,6 @@ private:
 ExportGroupsList::ExportGroupsList(plynth::ExportEditGuard& guard, QWidget* parent) : QWidget(parent), guard_(guard)
 {
     const Theme& t = Theme::instance();
-    setProperty("tourId", QStringLiteral("export-groups"));
     setToolTip(tr("The files a grouped export writes. Rename a group, merge groups, or move a member to another group."));
 
     auto* column = new QVBoxLayout(this);
@@ -196,10 +195,8 @@ ExportGroupsList::ExportGroupsList(plynth::ExportEditGuard& guard, QWidget* pare
     buttons->setSpacing(t.unit() * 2);
     newButton_ = new QPushButton(tr("New group..."), this);
     newButton_->setToolTip(tr("Add an empty group. Move members into it to make a file"));
-    newButton_->setProperty("tourId", QStringLiteral("export-groups-new"));
     resetButton_ = new QPushButton(tr("Reset groups"), this);
     resetButton_->setToolTip(tr("Throw away every group edit and go back to the automatic groups"));
-    resetButton_->setProperty("tourId", QStringLiteral("export-groups-reset"));
     buttons->addWidget(newButton_);
     buttons->addWidget(resetButton_);
     buttons->addStretch(1);

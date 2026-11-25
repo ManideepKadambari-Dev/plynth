@@ -177,7 +177,6 @@ QLabel* mutedLabel(const QString& text, QWidget* parent)
 AssetsPanel::AssetsPanel(LibraryHost& host, QWidget* parent) : QWidget(parent), host_(host)
 {
     const Theme& t = Theme::instance();
-    setProperty("tourId", QStringLiteral("catalog-assets"));
     setToolTip(tr("The assets catalog: search, pick and edit the models you imported"));
     setAcceptDrops(true);
 
@@ -191,21 +190,24 @@ AssetsPanel::AssetsPanel(LibraryHost& host, QWidget* parent) : QWidget(parent), 
     auto* emptyColumn = new QVBoxLayout(empty);
     emptyColumn->setContentsMargins(0, t.unit() * 6, 0, 0);
     emptyColumn->setSpacing(t.unit() * 3);
+    // The empty state sits in the middle of the window, not in its top left corner.
+    emptyColumn->addStretch(1);
     emptyText_ = new QLabel(empty);
     emptyText_->setTextFormat(Qt::PlainText);
     emptyText_->setWordWrap(true);
+    emptyText_->setAlignment(Qt::AlignHCenter);
     emptyText_->setFont(t.uiFont(t.sizeNormal()));
     emptyText_->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
     emptyColumn->addWidget(emptyText_);
     auto* setup = new QPushButton(tr("Open setup check"), empty);
     setup->setToolTip(tr("Open the setup check to choose or create the library folder"));
-    setup->setProperty("tourId", QStringLiteral("catalog-open-setup"));
     connect(setup, &QPushButton::clicked, this, &AssetsPanel::setupRequested);
-    emptyColumn->addWidget(setup, 0, Qt::AlignLeft);
-    emptyColumn->addStretch(1);
+    emptyColumn->addWidget(setup, 0, Qt::AlignHCenter);
+    emptyColumn->addStretch(2);
     pages_->addWidget(empty);
 
-    splitter_ = new QSplitter(Qt::Vertical, pages_);
+    // The grid takes the width of the window and grows with it; the details of the selected asset sit on its right.
+    splitter_ = new QSplitter(Qt::Horizontal, pages_);
     splitter_->setChildrenCollapsible(false);
     splitter_->setHandleWidth(t.unit());
     splitter_->setStyleSheet(QStringLiteral("QSplitter::handle { background: %1; }").arg(t.line().name()));
@@ -236,15 +238,16 @@ AssetsPanel::AssetsPanel(LibraryHost& host, QWidget* parent) : QWidget(parent), 
     grid_->setStyleSheet(QStringLiteral("QListView { background: transparent; }"));
     grid_->setItemDelegate(new TileDelegate(grid_));
     grid_->setToolTip(tr("The assets in the library. Click one to see and edit its details"));
-    grid_->setProperty("tourId", QStringLiteral("catalog-grid"));
     grid_->setMinimumHeight(t.thumbnailTile() + t.unit() * 14);
     topLayout_->addWidget(grid_, 1);
     splitter_->addWidget(top_);
 
     buildDetails();
     splitter_->addWidget(detailsScroll_);
-    splitter_->setStretchFactor(0, 3);
-    splitter_->setStretchFactor(1, 2);
+    detailsScroll_->setMinimumWidth(t.detailsMinWidth());
+    detailsScroll_->setMaximumWidth(t.detailsMaxWidth());
+    splitter_->setStretchFactor(0, 1);
+    splitter_->setStretchFactor(1, 0);
     detailsScroll_->hide();
     pages_->addWidget(splitter_);
     column->addWidget(pages_, 1);
@@ -279,7 +282,6 @@ void AssetsPanel::buildControls(QVBoxLayout* column)
     search_->setFont(t.uiFont(t.sizeNormal()));
     search_->setStyle(t.controlStyle());
     search_->setToolTip(tr("Type part of a name, tag or category. The grid filters as you type"));
-    search_->setProperty("tourId", QStringLiteral("catalog-search"));
     box->addWidget(search_);
     searchTimer_ = new QTimer(this);
     searchTimer_->setSingleShot(true);
@@ -293,12 +295,10 @@ void AssetsPanel::buildControls(QVBoxLayout* column)
     room_->setFont(t.uiFont(t.sizeNormal()));
     room_->setStyle(t.controlStyle());
     room_->setToolTip(tr("Show only the assets that belong in this kind of room"));
-    room_->setProperty("tourId", QStringLiteral("catalog-room"));
     category_ = new QComboBox(controls_);
     category_->setFont(t.uiFont(t.sizeNormal()));
     category_->setStyle(t.controlStyle());
     category_->setToolTip(tr("Show only one category, or the assets that have no category yet"));
-    category_->setProperty("tourId", QStringLiteral("catalog-category"));
     room_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
     category_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
     filters->addWidget(room_, 1);
@@ -314,12 +314,10 @@ void AssetsPanel::buildControls(QVBoxLayout* column)
     buttons->setSpacing(t.unit() * 2);
     rescan_ = new QPushButton(tr("Rescan"), controls_);
     rescan_->setToolTip(tr("Read the library folder again and update the index"));
-    rescan_->setProperty("tourId", QStringLiteral("catalog-rescan"));
     connect(rescan_, &QPushButton::clicked, this, &AssetsPanel::rescanRequested);
     import_ = new QPushButton(tr("Import"), controls_);
     import_->setDefault(true);
     import_->setToolTip(tr("Import arrives with the import queue"));
-    import_->setProperty("tourId", QStringLiteral("catalog-import"));
     import_->setEnabled(false);
     connect(import_, &QPushButton::clicked, this, &AssetsPanel::importRequested);
     buttons->addWidget(rescan_);
@@ -338,14 +336,14 @@ void AssetsPanel::buildDetails()
     detailsScroll_->setFrameShape(QFrame::NoFrame);
     detailsScroll_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     detailsScroll_->setStyleSheet(QStringLiteral("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; }"));
+    detailsScroll_->verticalScrollBar()->setStyleSheet(t.scrollBarStyleSheet());
     auto* body = new QWidget();
     auto* box = new QVBoxLayout(body);
-    box->setContentsMargins(0, t.unit() * 2, t.unit() * 4, 0);
+    box->setContentsMargins(t.unit() * 4, t.unit() * 2, t.unit() * 4, 0);
     box->setSpacing(t.unit() * 2);
 
     stage_ = new AssetStage(true, t.thumbnailLarge(), body);
     stage_->setToolTip(tr("The asset in 3D. Drag to orbit, wheel to zoom. Until it is drawn, the thumbnail from Blender shows"));
-    stage_->setProperty("tourId", QStringLiteral("catalog-thumbnail"));
     thumb_ = stage_->thumbnail();
     box->addWidget(stage_, 0, Qt::AlignHCenter);
 
@@ -353,7 +351,6 @@ void AssetsPanel::buildDetails()
     name_->setFont(t.uiFont(t.sizeNormal(), QFont::DemiBold));
     name_->setStyle(t.controlStyle());
     name_->setToolTip(tr("The name of the asset. Press Enter to save a new name"));
-    name_->setProperty("tourId", QStringLiteral("catalog-name"));
     box->addWidget(name_);
     connect(name_, &QLineEdit::editingFinished, this, [this]() {
         if (refreshing_ || !current_ || name_->text().trimmed() == fromCore(current_->name))
@@ -363,29 +360,27 @@ void AssetsPanel::buildDetails()
         applyEdit(edit);
     });
 
-    auto addMono = [&](const QString& tip, const QString& tour) {
+    auto addMono = [&](const QString& tip) {
         auto* label = new QLabel(body);
         label->setTextFormat(Qt::PlainText);
         label->setFont(t.monoFont(t.sizeSmall()));
         label->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
         label->setToolTip(tip);
-        label->setProperty("tourId", tour);
         label->setWordWrap(true);
         label->setTextInteractionFlags(Qt::NoTextInteraction);
         box->addWidget(label);
         return label;
     };
-    idLabel_ = addMono(tr("The id of the asset, used by the command line"), QStringLiteral("catalog-id"));
-    sizeLabel_ = addMono(tr("Width, depth and height in metres"), QStringLiteral("catalog-size"));
-    trianglesLabel_ = addMono(tr("How many triangles the model has"), QStringLiteral("catalog-triangles"));
-    sourceLabel_ = addMono(tr("Where the asset came from"), QStringLiteral("catalog-source"));
+    idLabel_ = addMono(tr("The id of the asset, used by the command line"));
+    sizeLabel_ = addMono(tr("Width, depth and height in metres"));
+    trianglesLabel_ = addMono(tr("How many triangles the model has"));
+    sourceLabel_ = addMono(tr("Where the asset came from"));
 
     box->addWidget(mutedLabel(tr("License"), body));
     license_ = new QComboBox(body);
     license_->setFont(t.uiFont(t.sizeNormal()));
     license_->setStyle(t.controlStyle());
     license_->setToolTip(tr("The license the asset came with"));
-    license_->setProperty("tourId", QStringLiteral("catalog-license"));
     box->addWidget(license_);
     connect(license_, &QComboBox::activated, this, [this](int index) {
         if (refreshing_ || !current_)
@@ -402,7 +397,6 @@ void AssetsPanel::buildDetails()
     author_->setMaxLength(static_cast<int>(plynth::kMaxAuthorLength));
     author_->setPlaceholderText(tr("Unknown"));
     author_->setToolTip(tr("Who made the asset, shown in the license report. Press Enter to save"));
-    author_->setProperty("tourId", QStringLiteral("catalog-author"));
     box->addWidget(author_);
     connect(author_, &QLineEdit::editingFinished, this, [this]() {
         if (refreshing_ || !current_ || author_->text().trimmed() == shownAuthor_)
@@ -419,7 +413,6 @@ void AssetsPanel::buildDetails()
     categories_->setFixedHeight(t.unit() * 40);
     categories_->setStyleSheet(t.scrollBarStyleSheet());
     categories_->setToolTip(tr("Tick every category the asset belongs to"));
-    categories_->setProperty("tourId", QStringLiteral("catalog-categories"));
     box->addWidget(categories_);
     connect(categories_, &QListWidget::itemChanged, this, [this]() {
         if (refreshing_ || !current_)
@@ -438,7 +431,6 @@ void AssetsPanel::buildDetails()
     tags_->setFont(t.uiFont(t.sizeNormal()));
     tags_->setStyle(t.controlStyle());
     tags_->setToolTip(tr("Words that help find the asset. Lower case letters, digits, _ and -. Press Enter to save"));
-    tags_->setProperty("tourId", QStringLiteral("catalog-tags"));
     box->addWidget(tags_);
     connect(tags_, &QLineEdit::editingFinished, this, [this]() {
         if (refreshing_ || !current_)
@@ -464,14 +456,12 @@ void AssetsPanel::buildDetails()
     problems_->setFont(t.uiFont(t.sizeSmall()));
     problems_->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
     problems_->setToolTip(tr("Warnings from the import and the last render"));
-    problems_->setProperty("tourId", QStringLiteral("catalog-warnings"));
     box->addWidget(problems_);
 
     materialsTitle_ = mutedLabel(tr("Materials"), body);
     box->addWidget(materialsTitle_);
     materialsBox_ = new QWidget(body);
     materialsBox_->setToolTip(tr("The materials inside the asset. Each can be added to the materials catalog"));
-    materialsBox_->setProperty("tourId", QStringLiteral("catalog-materials"));
     materialsColumn_ = new QVBoxLayout(materialsBox_);
     materialsColumn_->setContentsMargins(0, 0, 0, 0);
     materialsColumn_->setSpacing(t.unit());
@@ -481,7 +471,6 @@ void AssetsPanel::buildDetails()
     buttons->setSpacing(t.unit() * 2);
     retry_ = new QPushButton(tr("Retry render"), body);
     retry_->setToolTip(tr("Measure the asset again and render a new thumbnail"));
-    retry_->setProperty("tourId", QStringLiteral("catalog-retry"));
     retry_->setEnabled(false);
     connect(retry_, &QPushButton::clicked, this, [this]() {
         if (current_)
@@ -489,14 +478,12 @@ void AssetsPanel::buildDetails()
     });
     openFolder_ = new QPushButton(tr("Open folder"), body);
     openFolder_->setToolTip(tr("Open the folder of the asset in Explorer"));
-    openFolder_->setProperty("tourId", QStringLiteral("catalog-open-folder"));
     connect(openFolder_, &QPushButton::clicked, this, [this]() {
         if (current_)
             QDesktopServices::openUrl(QUrl::fromLocalFile(QString::fromStdWString(current_->folder.wstring())));
     });
     remove_ = new QPushButton(tr("Remove"), body);
     remove_->setToolTip(tr("Delete the asset and its folder from the library. This cannot be undone"));
-    remove_->setProperty("tourId", QStringLiteral("catalog-remove"));
     connect(remove_, &QPushButton::clicked, this, &AssetsPanel::removeSelected);
     buttons->addWidget(retry_);
     buttons->addWidget(openFolder_);
@@ -799,7 +786,6 @@ void AssetsPanel::fillMaterials(const plynth::AssetRecord& record, const std::ve
         add->setEnabled(importMaterialsEnabled_);
         add->setToolTip(importMaterialsEnabled_ ? tr("Copy this material into the materials catalog as its own material. The asset keeps its own")
                                                 : tr("Set a library folder first"));
-        add->setProperty("tourId", QStringLiteral("catalog-add-material"));
         connect(add, &QPushButton::clicked, this, [this, assetId, name]() { emit addMaterialRequested(assetId, name); });
         line->addWidget(add);
         materialsColumn_->addWidget(row);
@@ -884,7 +870,7 @@ void AssetsPanel::removeSelected()
     host_.assetsEdited();
 }
 
-// Accepts files and folders dragged onto the tab.
+// Accepts files and folders dragged onto the window.
 void AssetsPanel::dragEnterEvent(QDragEnterEvent* event)
 {
     if (event->mimeData()->hasUrls() && host_.hasLibrary() && retryEnabled_)

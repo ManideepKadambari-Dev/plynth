@@ -28,7 +28,7 @@ namespace plynth::app {
 
 class LibraryHost;
 
-// The Materials tab: search, a group filter, the thumbnail grid and the details of the selected material. It
+// The Materials window: search, a group filter, the thumbnail grid and the details of the selected material. It
 // reads the catalog through LibraryHost and changes materials only with catalog calls. A new tile size or Retry
 // asks the window to clean the material again.
 class MaterialsPanel : public QWidget {

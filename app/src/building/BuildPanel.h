@@ -10,7 +10,7 @@ class QVBoxLayout;
 
 namespace plynth::app {
 
-// The Build tab: what the last build did, where its files are, how long each step took and its problems.
+// The Build report window: what the last build did, where its files are, how long each step took and its problems.
 class BuildPanel : public QWidget {
     Q_OBJECT
 public:

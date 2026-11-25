@@ -54,7 +54,7 @@ public:
     }
 };
 
-// The BlenderKit entry of the Integrations tab.
+// The BlenderKit entry of the Sources window.
 class BlenderKitIntegration final : public Integration {
 public:
     std::string_view id() const override { return kBlenderKitIntegrationId; }

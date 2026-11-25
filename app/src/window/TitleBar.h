@@ -34,13 +34,14 @@ private:
     bool pressedLook_ = false;
 };
 
-// The window title bar: logo, menus, project name and the window buttons.
+// The window title bar: logo, menus, project name and the window buttons. A bar made without menus, for the
+// app's other windows, shows the window's name in the middle instead.
 class TitleBar : public QWidget {
     Q_OBJECT
 public:
     enum class Hit { Caption, Client, MaximizeButton };
 
-    explicit TitleBar(QWidget* parent = nullptr);
+    explicit TitleBar(QWidget* parent = nullptr, bool withMenus = true);
 
     QMenuBar* menuBar() const { return menuBar_; }
     QMenu* fileMenu() const { return fileMenu_; }

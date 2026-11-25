@@ -109,7 +109,7 @@ Each add-on row says Found or Missing. Some have an **Open page** button that op
 
 When your preferences hold no key, a download reads the saved BlenderKit settings file to see that it is valid before it lets the add-on load it. If that file is damaged, Plynth leaves it as it is and does not repair or delete it. It tells you to sign in again inside Blender (Edit, Preferences, Add-ons, BlenderKit).
 
-Checking add-ons starts Blender once with its factory settings, which takes a few seconds. The setup check, `plynth doctor` and `plynth library integrations` do it, and so does the Integrations tab when you first open it or press Check again. `--no-addons` skips it in both commands. If your preferences file cannot be understood, the add-on rows say Not checked.
+Checking add-ons starts Blender once with its factory settings, which takes a few seconds. The setup check, `plynth doctor` and `plynth library integrations` do it, and so does the Sources window when you first open it or press Check again. `--no-addons` skips it in both commands. If your preferences file cannot be understood, the add-on rows say Not checked.
 
 ## The settings file
 
