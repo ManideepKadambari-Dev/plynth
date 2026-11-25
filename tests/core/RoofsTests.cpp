@@ -362,6 +362,128 @@ TEST_CASE("an upper floor over half leaves the other half as the roof section", 
     CHECK(boxOf(facesOf(top.roofs[0], RoofPart::Covering)).z0 > 6.4 - 0.3 * kTan30 - 1e-6);
 }
 
+namespace {
+
+// The faces whose every point has x at value, or y at value when alongY.
+std::vector<RoofFace> facesOnLine(const std::vector<RoofFace>& faces, double value, bool alongY)
+{
+    std::vector<RoofFace> out;
+    for (const RoofFace& f : faces) {
+        bool on = !f.outline.empty();
+        for (const Vec3& p : f.outline) on = on && std::fabs((alongY ? p.y : p.x) - value) < 1e-6;
+        if (on) out.push_back(f);
+    }
+    return out;
+}
+
+// The area seen from above of the parapet faces that lie at height z.
+double parapetTopArea(const RoofBuild& build, double z)
+{
+    double area = 0.0;
+    for (const RoofFace& f : facesOf(build, RoofPart::Parapet)) {
+        if (boxOf({f}).z0 > z - 1e-9) area += faceArea(f);
+    }
+    return area;
+}
+
+}
+
+TEST_CASE("a single storey flat roof has a parapet and an edge on every side", "[roofs]")
+{
+    const RoofBuild b = floorRoofs(oneFloor(), 0, kOneLevel).roofs[0];
+    const std::vector<RoofFace> edges = facesOf(b, RoofPart::Edge);
+    const std::vector<RoofFace> parapet = facesOf(b, RoofPart::Parapet);
+    CHECK(edges.size() == 4);
+    for (const double x : {0.0, 6.0}) {
+        CHECK(facesOnLine(edges, x, false).size() == 1);
+        CHECK(facesOnLine(parapet, x, false).size() == 1);
+    }
+    for (const double y : {0.0, -4.0}) {
+        CHECK(facesOnLine(edges, y, true).size() == 1);
+        CHECK(facesOnLine(parapet, y, true).size() == 1);
+    }
+}
+
+TEST_CASE("a flat roof meets the wall of the floor above with no parapet and no edge", "[roofs]")
+{
+    const Plan plan = twoFloors();
+    const FloorRoofs low = floorRoofs(plan, 0, kTwoLevels);
+    REQUIRE(low.roofs.size() == 1);
+    const RoofBuild& b = low.roofs[0];
+    checkFaces(b);
+
+    const std::vector<RoofFace> covering = facesOf(b, RoofPart::Covering);
+    REQUIRE(covering.size() == 1);
+    CHECK(faceArea(covering[0]) == Approx(12.0).margin(1e-6));
+
+    // The upper floor's wall stands along x 3, so nothing of the roof's edge or parapet lies there.
+    const std::vector<RoofFace> edges = facesOf(b, RoofPart::Edge);
+    const std::vector<RoofFace> parapet = facesOf(b, RoofPart::Parapet);
+    CHECK(facesOnLine(edges, 3.0, false).empty());
+    CHECK(facesOnLine(parapet, 3.0, false).empty());
+    CHECK(edges.size() == 3);
+
+    // The three free sides keep their parapet, which runs right up to that wall.
+    CHECK(facesOnLine(parapet, 6.0, false).size() == 1);
+    CHECK(facesOnLine(parapet, 0.0, true).size() == 1);
+    CHECK(facesOnLine(parapet, -4.0, true).size() == 1);
+    CHECK(facesOnLine(edges, 6.0, false).size() == 1);
+    CHECK(facesOnLine(edges, 0.0, true).size() == 1);
+    CHECK(facesOnLine(edges, -4.0, true).size() == 1);
+    const Box pb = boxOf(parapet);
+    CHECK(pb.x0 == Approx(3.0).margin(1e-6));
+    CHECK(pb.x1 == Approx(6.0).margin(1e-6));
+    CHECK(pb.z1 == Approx(3.95).margin(1e-9));
+    CHECK(parapetTopArea(b, 3.95) == Approx(12.0 - 2.8 * 3.6).margin(1e-6));
+    for (const RoofFace& f : parapet) {
+        for (const Vec3& p : f.outline) CHECK(p.x >= 3.0 - 1e-6);
+    }
+
+    // The upper floor has nothing above it and keeps its parapet all round.
+    const FloorRoofs upper = floorRoofs(plan, 1, kTwoLevels);
+    REQUIRE(upper.roofs.size() == 1);
+    const RoofBuild& top = upper.roofs[0];
+    CHECK(facesOf(top, RoofPart::Edge).size() == 4);
+    CHECK(facesOnLine(facesOf(top, RoofPart::Parapet), 3.0, false).size() == 1);
+    CHECK(parapetTopArea(top, boxOf(facesOf(top, RoofPart::Parapet)).z1) == Approx(12.0 - 2.6 * 3.6).margin(1e-6));
+}
+
+TEST_CASE("a flat roof with an overhang has no edge along the floor above", "[roofs]")
+{
+    Plan plan = twoFloors();
+    plan.roof.parapet = 0.0;
+    plan.roof.overhang = 0.3;
+    const RoofBuild b = floorRoofs(plan, 0, kTwoLevels).roofs[0];
+    checkFaces(b);
+    CHECK(facesOf(b, RoofPart::Parapet).empty());
+    // The eaves wrap round the upper floor's corners, so of their eight sides three lie along its walls.
+    const std::vector<RoofFace> edges = facesOf(b, RoofPart::Edge);
+    CHECK(edges.size() == 5);
+    CHECK(facesOnLine(edges, 3.0, false).empty());
+    for (const RoofFace& f : edges) {
+        const Box box = boxOf({f});
+        const bool alongTop = std::fabs(box.y0) < 1e-6 && std::fabs(box.y1) < 1e-6;
+        const bool alongBottom = std::fabs(box.y0 + 4.0) < 1e-6 && std::fabs(box.y1 + 4.0) < 1e-6;
+        CHECK_FALSE(alongTop);
+        CHECK_FALSE(alongBottom);
+    }
+}
+
+TEST_CASE("a pitched roof has no edge along the floor above", "[roofs]")
+{
+    for (const char* type : {"gable", "shed", "hip", "sawtooth"}) {
+        Plan plan = twoFloors();
+        plan.roof.type = type;
+        plan.roof.pitch = 30.0;
+        plan.roof.overhang = 0.0;
+        const RoofBuild b = floorRoofs(plan, 0, kTwoLevels).roofs[0];
+        INFO(type);
+        checkFaces(b);
+        CHECK(facesOnLine(facesOf(b, RoofPart::Edge), 3.0, false).empty());
+        CHECK_FALSE(facesOnLine(facesOf(b, RoofPart::Edge), 0.0, true).empty());
+    }
+}
+
 TEST_CASE("an entry governs the section its anchor lies in", "[roofs]")
 {
     Plan plan = twoFloors();

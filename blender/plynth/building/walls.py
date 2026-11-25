@@ -13,6 +13,8 @@ TOP_SIDE = 3
 
 # Raises the walls of every floor: one mesh per floor from all its wall solids. Side faces carry the wall,
 # the room they look into and the side as face attributes, a material through their slot and UVs in metres.
+# The v of a side face is the height above the ground, not above its floor, so brick courses run on from one
+# storey to the next and across the slab edges between them.
 def run(ctx):
     for floor in ctx.params["floors"]:
         if floor["wall_solids"]:
@@ -70,7 +72,7 @@ def make_walls(ctx, floor):
                 along, length = distances[edge_index]
                 for k, loop in enumerate(face.loops):
                     u = along if k in (0, 3) else along + length
-                    loop[uv].uv = (u, loop.vert.co.z - elevation)
+                    loop[uv].uv = (u, loop.vert.co.z)
             else:
                 face[wall_layer] = -1
                 face[room_layer] = -1

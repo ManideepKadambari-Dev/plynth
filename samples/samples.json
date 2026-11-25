@@ -26,5 +26,8 @@
     {"id": "roof_tiles", "folder": "materials/roof_tiles"},
     {"id": "white_paint", "folder": "materials/white_paint"}
   ],
-  "projects": []
+  "projects": [
+    {"id": "apartment", "name": "Apartment", "description": "A furnished one floor apartment with two bedrooms, a bathroom, a kitchen and a living room.", "folder": "projects/apartment", "image": "projects/apartment/plans/apartment-01.png"},
+    {"id": "house", "name": "House", "description": "A two floor house with a stair, a gable roof and a flat roof over the one storey strip.", "folder": "projects/house", "image": "projects/house/plans/house-01-ground.png"}
+  ]
 }
