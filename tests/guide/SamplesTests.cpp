@@ -143,6 +143,31 @@ TEST_CASE("A sample copy holds only the project files", "[samples]")
     CHECK(readFile(copy.projectFolder / "plans" / "floor1.png") == readFile(f.project / "plans" / "floor1.png"));
 }
 
+TEST_CASE("A sample copy gets AGENTS.md from the master file and never loses its own", "[samples]")
+{
+    SampleFolder f;
+    const auto master = f.root.path() / "docs" / "templates" / "project-agents.md";
+    writeFile(master, "rules
+");
+    const auto into = f.root.path() / "projects";
+    const SampleCopy copy = copySampleProject(f.samples, "apartment", into, master);
+    REQUIRE(copy.status.ok());
+    CHECK(readFile(copy.projectFolder / "AGENTS.md") == "rules
+");
+    CHECK(filesBelow(copy.projectFolder).count("AGENTS.md") == 1);
+
+    writeFile(f.project / "AGENTS.md", "from the sample
+");
+    const SampleCopy second = copySampleProject(f.samples, "apartment", into, master);
+    REQUIRE(second.status.ok());
+    CHECK(readFile(second.projectFolder / "AGENTS.md") == "rules
+");
+
+    const SampleCopy none = copySampleProject(f.samples, "apartment", into, f.root.path() / "missing.md");
+    REQUIRE(none.status.ok());
+    CHECK(filesBelow(none.projectFolder).count("AGENTS.md") == 0);
+}
+
 TEST_CASE("A second copy gets a number and the source stays as it was", "[samples]")
 {
     SampleFolder f;
