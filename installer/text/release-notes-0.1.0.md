@@ -16,12 +16,12 @@ This is the first early preview. It is free and open source.
 - Export as one FBX with textures and collision, as groups, or as a modular kit, with a quality check before export.
 - A setup check, `plynth doctor`, and a full command line with JSON answers, a render command and a developer guide.
 - Help pages inside the app, sample projects and a license report.
-- Updates: an installed copy can tell you when a newer signed release exists, and can update itself when you ask. You can switch the check off.
+- Assets, Materials, Sources, Build report and Export each open in their own window, and the properties panel can be closed.
 
 ## Downloads
 
 - `PlynthSetup.exe`: the installer. It installs for your user only, needs no administrator rights, adds a Start menu entry and puts `plynth` on your command line path.
-- `Plynth-0.1.0-windows-x64.zip`: the portable copy. Unpack it anywhere and run `plynth.exe`. It changes no PATH and never checks for updates.
+- `Plynth-0.1.0-windows-x64.zip`: the portable copy. Unpack it anywhere and run `plynth.exe`. It changes no PATH.
 - `Plynth-0.1.0-third-party-sources.zip`: the exact sources of the libraries Plynth uses. It holds no program.
 - `SHA256SUMS.txt`: checksums of the files above. To check one in PowerShell, run `Get-FileHash <file>` and compare the result with the line in this file.
 
@@ -36,7 +36,7 @@ Plynth's own source code is the tag `v0.1.0` of this repository.
 ## Known items
 
 - **The builds are not code signed.** Windows SmartScreen may warn the first time you start the installer or the program. Choose "More info", then "Run anyway". Smart App Control may block it with no such choice. Plynth does not ask you to turn any protection off.
-- **Update signatures are a different thing.** They are made with the owner's own key and checked by Plynth before it runs a downloaded installer. They do not remove the Windows warning above.
+- **No automatic updates yet.** Plynth does not check for new versions. Watch the releases page of this repository, and install a new version over the old one, or replace the portable folder.
 - **This is a preview.** The plan file format may change between releases. Older plans will be migrated when you open them, but keep a copy of projects you care about.
 - **Import into Unreal Engine is untested** for this release. The export follows the Unreal rules for scale, naming, pivots and collision.
 - **BlenderKit and Fab imports need your own account.** You follow each store's terms. Plynth never bundles store assets and never calls private store endpoints.

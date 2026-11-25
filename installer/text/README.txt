@@ -57,6 +57,6 @@ Removing the portable copy
   your library, projects and settings.
 
 Updates
-  Only a copy made by PlynthSetup.exe checks for updates. The portable copy
-  never contacts anyone. To update it, download the new zip and replace the
-  folder.
+  Plynth does not check for updates and never contacts anyone on its own.
+  To update, download the new version from the releases page: run the new
+  installer over the old one, or replace the portable folder.
