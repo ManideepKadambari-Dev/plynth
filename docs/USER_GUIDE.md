@@ -1052,10 +1052,13 @@ The first time you open the tab, and when you press **Check again** on the Blend
 You need your own BlenderKit account and the BlenderKit add-on, installed, enabled and signed in inside Blender. Plynth never installs it, never signs in for you and never shows, logs or copies your key. [Setting up Plynth](SETUP.md) shows how.
 
 1. Copy the item in one of these forms:
-   - its address in the browser, on www.blendkit.com (BlenderKit's site, which used to be www.blenderkit.com). Addresses on either site work, for example `https://www.blendkit.com/get-blendkit/<id>/` or the item's gallery page.
+   - the address of the item's gallery page in the browser, `https://www.blendkit.com/asset-gallery-detail/<id>/`. This is the most reliable form. Addresses on www.blendkit.com (BlenderKit's site) and on its old site www.blenderkit.com both work.
    - the text BlenderKit copies inside Blender when you copy the item's asset ID, such as `asset_base_id:<id> asset_type:model`.
    - the id alone, five groups of 8, 4, 4, 4 and 12 digits and letters a to f, such as `0c1d4a2e-1111-2222-3333-444455556666`.
-2. On the BlenderKit card, paste it into the address box. If the text is none of these, the card says so, and the buttons stay off.
+
+   A Get link, such as `https://www.blendkit.com/get-blendkit/<id>/`, does not work: it holds the id of one version of the item, which Plynth cannot look up. The card says so as soon as you paste it.
+   If BlenderKit finds no item with the id, the import says so. Copy the gallery page address and try again.
+2. On the BlenderKit card, paste it into the address box. If the text is none of these, the card says why, and the buttons stay off.
 3. Press **Import as asset** for a model or **Import as material** for a material.
 
 The import joins the queue under the grid like any other. The row shows the steps: checking the add-on, downloading and copying. A big item can take a few minutes. Plynth waits up to 10 minutes by default. The card's wait option raises that, from 60 to 3600 seconds, as `wait_seconds` does from the command line (see the [command line guide](CLI_GUIDE.md)). The **Texture resolution** option says which size of textures to ask for, 2k by default.
@@ -1371,6 +1374,8 @@ A project you open while a session is active starts read only. The recovery ques
 **Unlock now.** The button on the banner ends the session at once. Plynth asks first: "Unlocking ends the command line session. Its next edit will be refused until it begins a new one." Use it when a script has stalled or you want the project back.
 
 If the app has unsaved changes, a script cannot begin a session. It has to wait until you save or discard.
+
+**Builds and exports from the command line.** When a script runs `plynth build` or `plynth export` on the project you have open, with or without a session, the bar above the plan shows it as it runs: "Building from the command line" or "Exporting from the command line", the step it is on and a progress bar, as for a build of your own. Build and the export buttons are off until it ends, because only one build or export runs at a time. **Cancel** asks it to stop, the same as `plynth build cancel`. When a build ends, the Build report window shows its report, the 3D view loads the new building and opens by itself, and the status bar says "Built from the command line." If it failed, the bar says "The last build failed. See the Build report window." When an export ends, the Export window shows its report and the view stays as it is. A build or export that was cancelled leaves the last one as it was, and the status bar says so.
 
 **Changed outside Plynth.** In the rare case that the files change while you have unsaved edits and no session is active, Plynth asks "The plan was changed outside Plynth. Load the new version? Your unsaved changes will be lost." Choose Load to take the new version, or Keep mine to keep working. Keep mine means your next save overwrites the outside change.
 

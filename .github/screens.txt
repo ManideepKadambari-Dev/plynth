@@ -33,3 +33,6 @@ update-up-to-date: {project} --update-state up-to-date
 update-failed: {project} --update-state failed
 update-long: {project} --update-state long
 update-not-installed: {project} --update-state not-installed
+assets-author-narrow: {project} --select-asset chair --screenshot-window assets --window-size 760x560
+materials-details: {project} --select-material oak_planks --screenshot-window materials
+plan-wall-selected: {project} --select first-wall

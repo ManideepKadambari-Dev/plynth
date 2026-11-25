@@ -12,6 +12,7 @@ class RightPanel : public QWidget {
     Q_OBJECT
 public:
     RightPanel(QWidget* properties, QWidget* parent = nullptr);
+    QSize minimumSizeHint() const override;
 
 signals:
     void closeRequested();

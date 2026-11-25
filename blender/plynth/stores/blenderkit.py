@@ -42,7 +42,10 @@ PUMP_SECONDS = 0.25
 READY_SECONDS = 60.0
 REFUSED_TEXT = "Refused by the fetch"
 REFUSAL_WORDS = ("search_id", "base_id", "kind", "version_id", "helper", "request", "folders", "global_dir",
-                 "behaviour", "unpack", "resolution", "files", "host")
+                 "behaviour", "unpack", "resolution", "files", "host", "search", "not_found", "send", "answer")
+CLIENT_TIMEOUT = (2, 15)
+ERROR_NAME = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)(?::|$)")
+ERROR_ENDINGS = ("Error", "Exception", "Timeout")
 
 PARTS = {
     "client_lib": ("asset_download", "blocking_request", "refresh_token", "oauth2_logout", "is_using_inplace_client",
@@ -85,6 +88,11 @@ BAD_REQUEST = "The %s asked for a download that does not match the item (%s), so
 OTHER_ITEM = "BlenderKit answered with another item than the one asked for. Copy the address from the item's page."
 NOT_STARTED = "The %s did not start the download. Check the item in BlenderKit inside Blender."
 OPERATOR_FAILED = "The %s could not start the download (%s)."
+SEARCH_FAILED = "The search of the %s did not answer (%s)."
+NOT_FOUND = "BlenderKit found no item with this id. Copy the asset ID in BlenderKit inside Blender, or the address " \
+            "of the item's page, and try again."
+SEND_FAILED = "The helper of the %s did not take the download (%s)."
+NO_TASK = "The helper of the %s did not answer the download with a task."
 NO_FILE = "The %s did not deliver the item. Check the item in BlenderKit inside Blender."
 NO_MATERIAL = "The downloaded file holds no material with the item's name."
 TIMED_OUT = "Nothing arrived from BlenderKit after %d seconds (%s). Try again, or check the item in BlenderKit " \
@@ -130,6 +138,17 @@ def kind_sentence(actual):
     if actual in KNOWN_KINDS:
         return "This BlenderKit item is %s. %s" % (KNOWN_KINDS[actual], ONLY_TWO)
     return "This BlenderKit item is not a model or a material. %s" % ONLY_TWO
+
+
+# The name of the error an operator raised inside Blender, read from the last line of its traceback, or the
+# type of the error itself. Only a bare name is kept, never its message, so nothing of the request leaks.
+def error_name(error):
+    if isinstance(error, RuntimeError):
+        for line in reversed(str(error).splitlines()):
+            found = ERROR_NAME.match(line.strip())
+            if found and found.group(1).endswith(ERROR_ENDINGS):
+                return found.group(1).rsplit(".", 1)[-1]
+    return type(error).__name__
 
 
 # Whether a download address is https on one of BlenderKit's hosts or a name under them.
@@ -244,7 +263,8 @@ class Fetch:
 
     # Seals Blender through the guard and puts the fetch's own functions in the add-on: the lookup and the
     # request gate through the seal, the refusals of refresh, logout and token writes, then the search timeout,
-    # the task filter, the append step and the helper start. Raises the guard's error when a step fails.
+    # the task filter, the append step, the helper start and the request timeout. Raises the guard's error when
+    # a step fails.
     def seal(self, guard):
         client_lib, search = self.parts["client_lib"], self.parts["search"]
         replacements = ((search, "get_search_simple", self.lookup(search.get_search_simple)),
@@ -259,6 +279,9 @@ class Fetch:
             setattr(module, name, function)
         if any(getattr(module, name, None) is not function for module, name, function in own):
             raise guard.GuardError("seal_failed")
+        # The add-on gives its helper one second to answer a request, which a first download can miss.
+        if hasattr(client_lib, "TIMEOUT"):
+            client_lib.TIMEOUT = CLIENT_TIMEOUT
 
     # Points the home, app data and XDG folders that child programs get into the fetch folder, and refuses a
     # helper that would run from the add-on's own folder.
@@ -377,9 +400,13 @@ class Fetch:
         def get_search_simple(parameters, *args, **kwargs):
             if field(parameters, "asset_base_id") != self.base_id:
                 self.refuse(WorkerError("download_failed", OTHER_ITEM), "search_id")
-            results = original(parameters, *args, **kwargs)
-            if results:
-                self.check_found(results[0])
+            try:
+                results = original(parameters, *args, **kwargs)
+            except Exception as error:
+                self.refuse(WorkerError("download_failed", SEARCH_FAILED % (self.label, error_name(error))), "search")
+            if not results:
+                self.refuse(WorkerError("download_failed", NOT_FOUND), "not_found")
+            self.check_found(results[0])
             return results
         return get_search_simple
 
@@ -406,11 +433,18 @@ class Fetch:
         self.refuse(WorkerError("download_failed", BAD_REQUEST % (self.label, word)), word)
 
     # The request gate: checks the download request and raises before it leaves when anything is not as asked.
+    # A request the helper does not take, or answers without a task, ends the fetch with the error's name.
     def gate(self, original):
         def asset_download(data, *args, **kwargs):
             self.check_request(data)
-            answer = original(data, *args, **kwargs)
-            self.task_id = field(answer, "task_id")
+            try:
+                answer = original(data, *args, **kwargs)
+            except Exception as error:
+                self.refuse(WorkerError("download_failed", SEND_FAILED % (self.label, error_name(error))), "send")
+            task_id = field(answer, "task_id")
+            if not isinstance(task_id, str) or not task_id:
+                self.refuse(WorkerError("download_failed", NO_TASK % self.label), "answer")
+            self.task_id = task_id
             return answer
         return asset_download
 
@@ -573,7 +607,7 @@ class Fetch:
         except Exception as error:
             if self.refusal is not None:
                 raise self.refusal
-            raise WorkerError("download_failed", OPERATOR_FAILED % (self.label, type(error).__name__))
+            raise WorkerError("download_failed", OPERATOR_FAILED % (self.label, error_name(error)))
         if self.refusal is not None:
             raise self.refusal
         if "FINISHED" not in result or self.task_id is None:

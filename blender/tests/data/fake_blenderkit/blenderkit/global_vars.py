@@ -2,7 +2,8 @@
 file with what the test wants: "standard_ports" (the eight of the add-on), "inplace", "updater_missing" and the
 like, and hostile changes: "hostile_calls" (a list of the groups "named", "early" and "addon_utils"),
 "force_unpack", "force_resolution" (in the request and its preferences), "force_pref_resolution" (in the
-preferences only), "drop_resolution", "extra_download_dir", "client_dir", "ignore_port_change". FAKE_BK_EVENTS
+preferences only), "drop_resolution", "extra_download_dir", "client_dir", "ignore_port_change", and failures:
+"download_raises" (an error name), "download_answer" ("no_task" or "not_json"), "operator_raises". FAKE_BK_EVENTS
 names the file every notable action is appended to, one JSON line each. Markers are files beside it, one for
 each named action that must never run (marker_path).
 """

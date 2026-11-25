@@ -84,7 +84,7 @@ protected:
 
 private:
     QWidget* makePage(QGridLayout** grid);
-    QLabel* addLabelRow(QGridLayout* grid, const QString& label, bool mono = true);
+    QLabel* addLabelRow(QGridLayout* grid, const QString& label, bool mono = true, bool elide = false);
     QDoubleSpinBox* addSpinRow(QGridLayout* grid, const QString& label, double min, double max, double step,
                                const QString& tip, QLabel** labelOut = nullptr);
     void buildNothingPage();

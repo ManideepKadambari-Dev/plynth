@@ -22,4 +22,6 @@ target_compile_definitions(plynth_guide_tests PRIVATE
     PLYNTH_APP_DIR="${PROJECT_SOURCE_DIR}/app"
     PLYNTH_CORE_TEST_DATA_DIR="${PROJECT_SOURCE_DIR}/tests/core/data")
 
-catch_discover_tests(plynth_guide_tests DISCOVERY_MODE PRE_TEST ADD_TAGS_AS_LABELS)
+# Release programs no longer know the source tree, so the tests name the Blender scripts folder themselves.
+catch_discover_tests(plynth_guide_tests DISCOVERY_MODE PRE_TEST ADD_TAGS_AS_LABELS
+    PROPERTIES ENVIRONMENT_MODIFICATION "PLYNTH_BLENDER_SCRIPTS=set:${PROJECT_SOURCE_DIR}/blender")

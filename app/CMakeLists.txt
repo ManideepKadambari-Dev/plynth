@@ -11,6 +11,8 @@ add_executable(plynth WIN32
     src/building/BuildPanel.cpp
     src/building/ExportController.h
     src/building/ExportController.cpp
+    src/building/OutsideJobWatch.h
+    src/building/OutsideJobWatch.cpp
     src/building/ProblemMark.h
     src/catalog/FabImportDialog.h
     src/catalog/FabImportDialog.cpp

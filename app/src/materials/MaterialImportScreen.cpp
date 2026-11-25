@@ -25,7 +25,6 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QScrollArea>
-#include <QScrollBar>
 #include <QUrl>
 #include <QVBoxLayout>
 
@@ -153,7 +152,6 @@ QWidget* MaterialImportScreen::buildSources()
     sources_->setSelectionMode(QAbstractItemView::ExtendedSelection);
     sources_->setTextElideMode(Qt::ElideMiddle);
     sources_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    sources_->setStyleSheet(t.scrollBarStyleSheet());
     sources_->setMinimumHeight(t.unit() * 40);
     sources_->setToolTip(tr("Folders and zip files of textures, single images, or a .blend file. Drop them here or use the buttons"));
     box->addWidget(sources_, 1);
@@ -240,7 +238,6 @@ QWidget* MaterialImportScreen::buildForm()
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    scroll->verticalScrollBar()->setStyleSheet(t.scrollBarStyleSheet());
     scroll->setStyleSheet(QStringLiteral("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; }"));
     auto* body = new QWidget();
     auto* box = new QVBoxLayout(body);
@@ -260,7 +257,6 @@ QWidget* MaterialImportScreen::buildForm()
     groups_->setFont(t.uiFont(t.sizeNormal()));
     groups_->setStyle(t.controlStyle());
     groups_->setFixedHeight(t.unit() * 34);
-    groups_->setStyleSheet(t.scrollBarStyleSheet());
     groups_->setToolTip(tr("Tick the groups the material goes in. With none ticked, the app asks after the import"));
     box->addWidget(groups_);
 

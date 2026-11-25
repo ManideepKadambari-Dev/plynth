@@ -65,6 +65,7 @@ std::vector<CommandSpec> trimCommands();
 std::vector<CommandSpec> variationCommands();
 std::vector<CommandSpec> guideCommands();
 std::vector<CommandSpec> updateCommands();
+std::vector<CommandSpec> agentGuideCommands();
 
 // All commands in the order help lists them.
 const std::vector<CommandSpec>& allCommands();

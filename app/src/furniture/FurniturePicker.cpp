@@ -17,7 +17,6 @@
 #include <QKeyEvent>
 #include <QListWidget>
 #include <QPainter>
-#include <QScrollBar>
 #include <QStyledItemDelegate>
 
 #include <algorithm>
@@ -155,7 +154,6 @@ private:
 // Builds the frame and the preview panel. Nothing shows until openAt.
 FurniturePicker::FurniturePicker(LibraryHost& host, QWidget* parent) : QWidget(parent), host_(host)
 {
-    setToolTip(tr("Pick what to place: room type, then category, then asset, or one of the generators"));
     setFocusPolicy(Qt::NoFocus);
     row_ = new QHBoxLayout(this);
     row_->setContentsMargins(1, 1, 1, 1);
@@ -361,7 +359,6 @@ QListWidget* FurniturePicker::addColumn(Kind kind, const QString& key)
     list->setFrameShape(QFrame::NoFrame);
     list->setFixedWidth(t.pickerColumnWidth());
     list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    list->verticalScrollBar()->setStyleSheet(t.scrollBarStyleSheet());
     list->setStyleSheet(QStringLiteral("QListWidget { background: transparent; border: none; border-right: 1px solid %1; "
                                        "padding: %2px 0px; outline: none; }")
                             .arg(t.line().name())

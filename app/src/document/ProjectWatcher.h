@@ -10,7 +10,8 @@ namespace plynth::app {
 
 // Watches a project folder for changes to session.lock, plan.json and project.json. It combines
 // the folder watch with a 500 ms poll, because atomic renames drop plain file watches and expiry
-// of a session changes no file at all.
+// of a session changes no file at all. The same poll also looks at build/build.lock, so a build or an
+// export started by another program is noticed.
 class ProjectWatcher : public QObject {
     Q_OBJECT
 public:
@@ -30,6 +31,8 @@ public:
 signals:
     // Sent once, 150 ms after the last event.
     void checkRequested();
+    // Sent at the poll that sees build/build.lock appear, go or be written again.
+    void jobLockChanged();
 
 private:
     struct FileSig {
@@ -46,6 +49,7 @@ private:
     };
 
     Sigs readSigs() const;
+    FileSig readJobLock() const;
     void poll();
 
     std::filesystem::path folder_;
@@ -54,6 +58,7 @@ private:
     QTimer debounce_;
     Sigs lastSeen_;
     Sigs own_;
+    FileSig jobLock_;
     bool active_ = true;
     bool alwaysCheck_ = false;
 };

@@ -17,7 +17,6 @@
 #include <QPalette>
 #include <QPushButton>
 #include <QScrollArea>
-#include <QScrollBar>
 #include <QShowEvent>
 #include <QSpinBox>
 #include <QUrl>
@@ -148,7 +147,6 @@ bool isFabIntegration(const plynth::Integration& integration)
 IntegrationsPanel::IntegrationsPanel(LibraryHost& host, QWidget* parent) : QWidget(parent), host_(host)
 {
     const Theme& t = Theme::instance();
-    setToolTip(tr("Where assets and materials come from"));
 
     auto* outer = new QVBoxLayout(this);
     outer->setContentsMargins(0, 0, 0, 0);
@@ -158,7 +156,6 @@ IntegrationsPanel::IntegrationsPanel(LibraryHost& host, QWidget* parent) : QWidg
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     // The cards sit on the window's own Panel background, so a wide window shows one surface, not a darker strip.
     scroll->setStyleSheet(QStringLiteral("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; }"));
-    scroll->verticalScrollBar()->setStyleSheet(t.scrollBarStyleSheet());
     auto* body = new QWidget(scroll);
     cards_ = new QVBoxLayout(body);
     cards_->setContentsMargins(t.unit() * 3, t.unit() * 3, t.unit() * 3, t.unit() * 3);
@@ -270,9 +267,10 @@ void IntegrationsPanel::buildCard(const plynth::Integration& integration)
         card.address->setFont(t.monoFont(t.sizeNormal()));
         card.address->setPlaceholderText(tr("Paste a %1 address").arg(name));
         card.address->setClearButtonEnabled(true);
-        card.address->setToolTip(plainToolTip(tr("One item: its page address from your browser, the asset ID "
-                                                 "text copied inside Blender, such as asset_base_id:<id> "
-                                                 "asset_type:model, or the id alone")));
+        card.address->setToolTip(plainToolTip(tr("One item: its gallery page address from your browser "
+                                                 "(asset-gallery-detail/<id>/), the asset ID text copied inside "
+                                                 "Blender, such as asset_base_id:<id> asset_type:model, or the id "
+                                                 "alone. A Get link does not work.")));
         box->addWidget(card.address);
         card.addressNote = warningLabel(frame);
         card.addressNote->setToolTip(tr("Why this address cannot be used"));

@@ -14,4 +14,18 @@ inline QString plainToolTip(const QString& text)
     return Qt::convertFromPlainText(text, Qt::WhiteSpaceNormal);
 }
 
+// Lets a wrapping label break a long path or id at its separators, so one long word cannot make a pane wider.
+// An invisible zero width space follows each slash, backslash, underscore and hyphen.
+inline QString breakable(const QString& text)
+{
+    QString out;
+    out.reserve(text.size() + text.size() / 8);
+    for (const QChar c : text) {
+        out += c;
+        if (c == QLatin1Char('/') || c == QLatin1Char('\\') || c == QLatin1Char('_') || c == QLatin1Char('-'))
+            out += QChar(0x200B);
+    }
+    return out;
+}
+
 }

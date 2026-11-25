@@ -101,7 +101,6 @@ SetupCheckDialog::SetupCheckDialog(LibraryHost& host, QWidget* parent, UpdateCon
 {
     const Theme& t = Theme::instance();
     setWindowTitle(tr("Setup check"));
-    setToolTip(tr("Checks that Blender, the library and the projects folder are ready"));
     setModal(true);
 
     auto* outer = new QVBoxLayout(this);

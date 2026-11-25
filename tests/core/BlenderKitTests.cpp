@@ -18,11 +18,32 @@ const char* const kNoItem = "The address does not name one BlenderKit item. Copy
 
 }
 
-TEST_CASE("a get-blenderkit address gives the lower case id", "[core][blenderkit]") {
+TEST_CASE("a gallery page address gives the lower case id", "[core][blenderkit]") {
     const BlenderKitAddress a =
-        parseBlenderKitAddress("https://www.blenderkit.com/get-blenderkit/0C1D4A2E-1111-2222-3333-444455556666/");
+        parseBlenderKitAddress("https://www.blenderkit.com/asset-gallery-detail/0C1D4A2E-1111-2222-3333-444455556666/");
     REQUIRE(a.status.ok());
     REQUIRE(a.assetBaseId == kId);
+}
+
+TEST_CASE("a Get link is refused with the sentence that names the forms that work", "[core][blenderkit]") {
+    const std::string sentence = "This is a Get link, which holds a version id Plynth cannot look up. Paste the address "
+                                 "of the item's page (blenderkit.com/asset-gallery-detail/...) or copy the asset ID in "
+                                 "BlenderKit inside Blender.";
+    for (const std::string text : {std::string("https://www.blendkit.com/get-blendkit/") + kId + "/",
+                                   std::string("https://www.blenderkit.com/get-blenderkit/") + kId + "/?from_addon=True",
+                                   std::string("  HTTPS://BLENDKIT.COM/GET-BLENDKIT/") + kId + "  ",
+                                   std::string("http://blenderkit.com/get-blenderkit/") + kId,
+                                   std::string("https://www.blendkit.com/get-blendkit/not-an-id/")}) {
+        INFO(text);
+        const BlenderKitAddress a = parseBlenderKitAddress(text);
+        REQUIRE(a.status.code == ErrorCode::InvalidValue);
+        REQUIRE(a.status.message == sentence);
+        REQUIRE(a.assetBaseId.empty());
+    }
+    // Only the first part of the path makes a Get link.
+    const BlenderKitAddress later = parseBlenderKitAddress(std::string("https://www.blendkit.com/asset-gallery-detail/") + kId +
+                                                           "/get-blendkit/");
+    REQUIRE(later.status.ok());
 }
 
 TEST_CASE("other address forms work", "[core][blenderkit]") {
@@ -62,7 +83,7 @@ TEST_CASE("another site is not a BlenderKit address", "[core][blenderkit]") {
 
 TEST_CASE("a BlenderKit address without one id is refused", "[core][blenderkit]") {
     for (const std::string text : {std::string("https://www.blenderkit.com/"), std::string("https://www.blenderkit.com"),
-                                   std::string("https://www.blenderkit.com/get-blenderkit/not-an-id/"),
+                                   std::string("https://www.blenderkit.com/asset-gallery-detail/not-an-id/"),
                                    std::string("https://www.blenderkit.com/a/") + kId + "/b/" + kOtherId,
                                    std::string("https://www.blenderkit.com/?id=") + kId,
                                    std::string("asset_base_id:nonsense")}) {

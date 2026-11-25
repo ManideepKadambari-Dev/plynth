@@ -3,7 +3,8 @@ import time
 
 import bpy
 
-from .. import BakerEntry, map_entry, read_pixels, to_bytes, write_grey, write_png
+from .. import (BakerEntry, ImageMissing, is_magenta, map_entry, read_pixels, to_bytes, unloadable_images, write_grey,
+                write_png)
 from ... import thumbnail
 from ...jobs import WorkerError
 from ...registry import BAKERS
@@ -107,11 +108,22 @@ def tear_down(objects, world, hidden):
         bpy.data.worlds.remove(world)
 
 
+# Raises ImageMissing when an image the node output reads has no pixels, since Eevee would show it as magenta.
+def check_images(reference, channel):
+    material = bpy.data.materials[reference["material"]]
+    missing = unloadable_images(material.node_tree.nodes[reference["node"]])
+    if missing:
+        raise ImageMissing("The %s of the material %s uses the image %s, which could not be loaded, so its map "
+                           "would be magenta." % (channel.replace("_", " "), material.name, ", ".join(missing)))
+
+
 # Renders the channel's node output onto one tile with Eevee and writes the map. Returns its entry, or None
-# when an opacity map is all opaque.
+# when an opacity map is all opaque. Raises ImageMissing for a missing image and a base color that comes out
+# magenta.
 def bake(ctx, plan, textures):
     size = int(ctx.params.get("bake_size", DEFAULT_SIZE))
     channel = plan.channel
+    check_images(plan.node, channel)
     material = emission_copy(plan.node, channel == "normal")
     target = os.path.join(textures, "_render_%s.png" % channel)
     tile = camera = world = None
@@ -134,6 +146,9 @@ def bake(ctx, plan, textures):
         tear_down((tile, camera), world, hidden)
         bpy.data.materials.remove(material)
     print("Baked %s with Eevee at %d px in %.2f s" % (channel, size, time.monotonic() - started))
+    if channel == "base_color" and is_magenta(pixels):
+        raise ImageMissing("The base color of the material %s came out magenta, the colour Blender shows for an "
+                           "image it cannot load." % plan.node["material"])
     path = os.path.join(textures, channel + ".png")
     if channel in ("base_color", "normal"):
         write_png(path, to_bytes(pixels[:, :, :3]))

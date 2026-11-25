@@ -15,7 +15,7 @@ constexpr std::array<std::string_view, 34> kWords = {"version", "help",    "proj
                                                      "library", "assets",  "doctor",  "place",  "item",     "build",
                                                      "material", "materials", "stair", "roof", "export", "generator",
                                                      "trim",     "light",     "variation", "render", "pack", "unpack",
-                                                     "about",    "docs",      "samples",   "update"};
+                                                     "about",    "docs",      "samples", "agent-guide", "update"};
 
 // Writes text as a JSON string the way the CLI's JSON writer does: quotes and control characters escaped,
 // everything else as it is.

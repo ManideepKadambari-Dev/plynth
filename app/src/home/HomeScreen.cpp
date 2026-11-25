@@ -32,7 +32,6 @@
 #include <QPushButton>
 #include <QTimer>
 #include <QScrollArea>
-#include <QScrollBar>
 #include <QUrl>
 #include <QVBoxLayout>
 
@@ -147,7 +146,6 @@ QLabel* sectionTitle(const QString& text, QWidget* parent)
 // Builds the two columns. Nothing is filled until refresh.
 HomeScreen::HomeScreen(LibraryHost& host, QWidget* parent) : QWidget(parent), host_(host)
 {
-    setToolTip(tr("The home screen: recent projects, new project and help"));
     auto* row = new QHBoxLayout(this);
     row->setContentsMargins(0, 0, 0, 0);
     row->setSpacing(0);
@@ -308,14 +306,12 @@ QWidget* HomeScreen::buildRecent()
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    scroll->verticalScrollBar()->setStyleSheet(t.scrollBarStyleSheet());
     scroll->setStyleSheet(QStringLiteral("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; }"));
     recentBody_ = new QWidget(scroll);
     recentColumn_ = new QVBoxLayout(recentBody_);
     recentColumn_->setContentsMargins(0, 0, t.unit() * 2, 0);
     recentColumn_->setSpacing(t.unit());
     scroll->setWidget(recentBody_);
-    scroll->setToolTip(tr("Projects you opened or saved lately. Click one to open it"));
     column->addWidget(scroll, 1);
     return page;
 }

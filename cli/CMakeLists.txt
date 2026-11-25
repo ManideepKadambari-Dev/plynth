@@ -7,12 +7,14 @@ target_include_directories(plynth_cli_words PUBLIC include)
 target_compile_features(plynth_cli_words PUBLIC cxx_std_20)
 
 add_library(plynth_cli STATIC
+    src/AgentGuide.cpp
     src/Answer.cpp
     src/CatalogCommon.cpp
     src/Cli.cpp
     src/Common.cpp
     src/ErrorList.cpp
     src/Registry.cpp
+    src/commands/AgentGuideCommands.cpp
     src/commands/AssetCommands.cpp
     src/commands/BuildCommands.cpp
     src/commands/FloorCommands.cpp

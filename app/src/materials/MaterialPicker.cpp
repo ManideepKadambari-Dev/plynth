@@ -13,7 +13,6 @@
 #include <QKeyEvent>
 #include <QListWidget>
 #include <QPainter>
-#include <QScrollBar>
 #include <QStyledItemDelegate>
 
 #include <algorithm>
@@ -143,7 +142,6 @@ private:
 // Builds the frame and the preview panel. Nothing shows until openAt.
 MaterialPicker::MaterialPicker(LibraryHost& host, QWidget* parent) : QWidget(parent), host_(host)
 {
-    setToolTip(tr("Pick a material: group, then material"));
     setFocusPolicy(Qt::NoFocus);
     row_ = new QHBoxLayout(this);
     row_->setContentsMargins(1, 1, 1, 1);
@@ -280,7 +278,6 @@ QListWidget* MaterialPicker::addColumn(Kind kind)
     list->setFrameShape(QFrame::NoFrame);
     list->setFixedWidth(t.pickerColumnWidth());
     list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    list->verticalScrollBar()->setStyleSheet(t.scrollBarStyleSheet());
     list->setStyleSheet(QStringLiteral("QListWidget { background: transparent; border: none; border-right: 1px solid %1; "
                                        "padding: %2px 0px; outline: none; }")
                             .arg(t.line().name())

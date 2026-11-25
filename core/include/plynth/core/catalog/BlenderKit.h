@@ -117,19 +117,25 @@ bool isBlenderKitResolution(std::string_view resolution);
 struct BlenderKitAddress {
     Status status;           // InvalidValue with a plain sentence when the text is not a BlenderKit address
     std::string assetBaseId; // lower case, 8-4-4-4-12 hex digits
+    bool getLink = false;    // a Get link on a BlenderKit host: refused, but the BlenderKit importers take it so
+                             // the user reads why
 };
 
 // Reads the item id from what the user pasted, after trimming spaces:
 // - an https or http address on blendkit.com, www.blendkit.com, blenderkit.com or www.blenderkit.com whose
-//   path holds one id (8-4-4-4-12 hex digits), for example https://www.blendkit.com/get-blendkit/<id>/ or
-//   .../asset-gallery-detail/<id>/. Whether it is a base id cannot be seen here, the fetch compares it.
+//   path holds one id (8-4-4-4-12 hex digits), for example https://www.blendkit.com/asset-gallery-detail/<id>/.
+//   Whether it is a base id cannot be seen here: the fetch searches by base id and says plainly when nothing
+//   is found. A Get link, whose path starts with get-blendkit or get-blenderkit, holds the id of one version,
+//   which the add-on's search cannot look up, so it is refused (see below).
 // - the text "asset_base_id:<id>" as the add-on's own search box takes it, also as the add-on copies it,
 //   "asset_base_id:<id> asset_type:<type>" with other text allowed between the two. The two words may be in
 //   any letter case. The type model or material is only a hint, the fetch checks the kind itself.
 // - a bare id
 // Refusals: another site "This is not a BlenderKit address."; no id or two different ids "The address does not
 // name one BlenderKit item. Copy it from the item's page."; a copied type other than model or material "Only
-// models and materials can be imported from BlenderKit." (so no Blender starts for an add-on item).
+// models and materials can be imported from BlenderKit." (so no Blender starts for an add-on item); a Get link
+// "This is a Get link, which holds a version id Plynth cannot look up. Paste the address of the item's page
+// (blenderkit.com/asset-gallery-detail/...) or copy the asset ID in BlenderKit inside Blender."
 BlenderKitAddress parseBlenderKitAddress(std::string_view text);
 
 // The options of the BlenderKit integration, saved in integrations.json (Integrations.h):

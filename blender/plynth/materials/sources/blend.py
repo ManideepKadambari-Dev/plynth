@@ -10,6 +10,18 @@ SOCKETS = {"base_color": "Base Color", "roughness": "Roughness", "metallic": "Me
            "normal": "Normal"}
 COLOR_SPACE = {"base_color": "sRGB", "roughness": "Non-Color", "metallic": "Non-Color", "opacity": "Non-Color"}
 SHADER_MIXERS = ("ShaderNodeMixShader", "ShaderNodeAddShader")
+# Other shaders read as a Principled BSDF: the shader input behind each Principled input, and fixed values.
+OTHER_SHADERS = {
+    "ShaderNodeBsdfDiffuse": ({"Base Color": "Color", "Normal": "Normal"}, {"Roughness": 1.0, "Metallic": 0.0}),
+    "ShaderNodeBsdfGlossy": ({"Base Color": "Color", "Roughness": "Roughness", "Normal": "Normal"}, {"Metallic": 1.0}),
+    "ShaderNodeBsdfAnisotropic": ({"Base Color": "Color", "Roughness": "Roughness", "Normal": "Normal"},
+                                  {"Metallic": 1.0}),
+    "ShaderNodeEmission": ({"Base Color": "Color"}, {"Roughness": 1.0, "Metallic": 0.0}),
+}
+GROUP_SOCKET_TYPES = {"Base Color": "NodeSocketColor", "Normal": "NodeSocketVector"}
+READ_NODE = "Plynth read shader"
+MADE_LABEL = "plynth_made"
+MAX_DEPTH = 8
 
 
 # Returns the sRGB value of a linear value from 0 to 1.
@@ -59,6 +71,148 @@ def find_principled(tree):
         if node.bl_idname in SHADER_MIXERS:
             pending.extend(s for s in node.inputs if s.type == "SHADER")
     return None
+
+
+# Returns a Principled BSDF of the tree to read the channels from, or None. It is the one that feeds the output's
+# surface through mix and add shaders, or one made for reading from what feeds it: a node group with a Principled
+# BSDF inside, a mix of two shaders that can be read, or a diffuse, glossy or emission shader. A made one is
+# added to the tree and found again on the next call.
+def readable_principled(tree):
+    if tree is None:
+        return None
+    made = tree.nodes.get(READ_NODE)
+    if made is not None:
+        return made
+    output = output_node(tree)
+    if output is None:
+        return None
+    found = shader_principled(tree, output.inputs["Surface"], 0)
+    if found is not None and found.label == MADE_LABEL:
+        found.name = READ_NODE
+    return found
+
+
+# Returns a Principled BSDF that stands for the shader linked to a socket of the tree, or None.
+def shader_principled(tree, socket, depth):
+    found = resolve_link(socket) if depth <= MAX_DEPTH else None
+    if found is None:
+        return None
+    node, out = found
+    kind = node.bl_idname
+    if kind == "ShaderNodeBsdfPrincipled":
+        return node
+    if kind == "ShaderNodeMixShader":
+        first = shader_principled(tree, node.inputs[1], depth + 1)
+        second = shader_principled(tree, node.inputs[2], depth + 1)
+        if first is not None and second is not None and first != second:
+            return mixed_principled(tree, node.inputs[0], first, second)
+        return first or second
+    if kind == "ShaderNodeAddShader":
+        return shader_principled(tree, node.inputs[0], depth + 1) or shader_principled(tree, node.inputs[1], depth + 1)
+    if kind == "ShaderNodeGroup" and node.node_tree is not None:
+        return group_principled(tree, node, out, depth)
+    if kind in OTHER_SHADERS:
+        return converted_principled(tree, node)
+    return None
+
+
+# Adds a Principled BSDF that is only read, never rendered.
+def new_principled(tree):
+    node = tree.nodes.new("ShaderNodeBsdfPrincipled")
+    node.label = MADE_LABEL
+    return node
+
+
+# Returns the value of an input as a list of numbers.
+def as_list(socket):
+    value = socket.default_value
+    return list(value) if hasattr(value, "__len__") else [value]
+
+
+# Makes the target input take what the source input has: the same link, or the same value.
+def copy_input(tree, source, target):
+    found = resolve_link(source)
+    if found is not None:
+        tree.links.new(found[1], target)
+        return
+    values = as_list(source)
+    size = len(as_list(target))
+    if size == 1:
+        target.default_value = sum(values[:3]) / len(values[:3])
+    elif len(values) == 1:
+        target.default_value = values * size
+    else:
+        target.default_value = (values + [1.0] * size)[:size]
+
+
+# Returns the socket of a node with this identifier.
+def by_identifier(sockets, identifier):
+    return next(s for s in sockets if s.identifier == identifier)
+
+
+# Makes a Principled BSDF whose inputs mix those of two Principled BSDFs by the mix shader's factor. Inputs
+# that are equal values are copied, and the normal is not mixed: the first linked one is used.
+def mixed_principled(tree, factor, first, second):
+    made = new_principled(tree)
+    for name in SOCKETS.values():
+        a, b, target = first.inputs[name], second.inputs[name], made.inputs[name]
+        same = not a.is_linked and not b.is_linked and as_list(a) == as_list(b)
+        if name == "Normal" or same:
+            copy_input(tree, a if a.is_linked or not b.is_linked else b, target)
+            continue
+        mix = tree.nodes.new("ShaderNodeMix")
+        mix.data_type = "RGBA" if name == "Base Color" else "FLOAT"
+        kind = "Color" if name == "Base Color" else "Float"
+        copy_input(tree, factor, by_identifier(mix.inputs, "Factor_Float"))
+        copy_input(tree, a, by_identifier(mix.inputs, "A_" + kind))
+        copy_input(tree, b, by_identifier(mix.inputs, "B_" + kind))
+        tree.links.new(by_identifier(mix.outputs, "Result_" + kind), target)
+    return made
+
+
+# Makes a Principled BSDF from a diffuse, glossy or emission shader.
+def converted_principled(tree, node):
+    links, values = OTHER_SHADERS[node.bl_idname]
+    made = new_principled(tree)
+    for name, source in links.items():
+        if source in node.inputs:
+            copy_input(tree, node.inputs[source], made.inputs[name])
+    for name, value in values.items():
+        made.inputs[name].default_value = value
+    return made
+
+
+# Returns the group output node that counts: the active one, else any.
+def group_output(tree):
+    outputs = [n for n in tree.nodes if n.bl_idname == "NodeGroupOutput"]
+    return next((n for n in outputs if n.is_active_output), outputs[0] if outputs else None)
+
+
+# Makes a Principled BSDF for a node group that holds one. The group gets a copy of its tree, so other
+# materials keep theirs, with an extra output for each linked input of the inner Principled BSDF; the made
+# Principled BSDF reads those outputs and the inner one's values.
+def group_principled(tree, node, out, depth):
+    inner_tree = node.node_tree.copy()
+    node.node_tree = inner_tree
+    exit_node = group_output(inner_tree)
+    if exit_node is None:
+        return None
+    entry = next((s for s in exit_node.inputs if s.identifier == out.identifier), None)
+    inner = shader_principled(inner_tree, entry, depth + 1) if entry is not None else None
+    if inner is None:
+        return None
+    made = new_principled(tree)
+    for name in SOCKETS.values():
+        source = inner.inputs[name]
+        found = resolve_link(source)
+        if found is None:
+            copy_input(tree, source, made.inputs[name])
+            continue
+        item = inner_tree.interface.new_socket(name="Plynth " + name, in_out="OUTPUT",
+                                               socket_type=GROUP_SOCKET_TYPES.get(name, "NodeSocketFloat"))
+        inner_tree.links.new(found[1], by_identifier(exit_node.inputs, item.identifier))
+        tree.links.new(by_identifier(node.outputs, item.identifier), made.inputs[name])
+    return made
 
 
 # Returns the absolute path of an image held on disk, or None. A packed image is written to a folder of the
@@ -187,9 +341,10 @@ def load(ctx, source):
     material = append_material(path, wanted)
     images = [i for i in bpy.data.images if i not in before]
     ctx.state.setdefault("cleanups", []).append(lambda: forget(material, images))
-    principled = find_principled(material.node_tree) if material.node_tree else None
+    principled = readable_principled(material.node_tree)
     if principled is None:
-        raise WorkerError("no_base_color", "The material %s has no Principled BSDF to read." % wanted)
+        raise WorkerError("no_base_color", "The material %s has no Principled BSDF or other shader Plynth can read, "
+                                           "in its nodes or its node groups." % wanted)
     blend_folder = os.path.dirname(os.path.abspath(path))
     plans = {channel: plan_for(ctx, channel, principled.inputs[name], material.name, blend_folder)
              for channel, name in SOCKETS.items()}

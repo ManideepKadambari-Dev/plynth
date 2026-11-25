@@ -115,7 +115,7 @@ struct AssetFixture {
         return file;
     }
 
-    ImportRequest address(const std::string& text = std::string("https://www.blenderkit.com/get-blenderkit/") + kId + "/") const
+    ImportRequest address(const std::string& text = std::string("https://www.blenderkit.com/asset-gallery-detail/") + kId + "/") const
     {
         ImportRequest request;
         request.source.url = text;
@@ -227,7 +227,7 @@ void registerOddImporter()
 TEST_CASE("an address import fetches, then cleans the fetched blend", "[store_import]") {
     KitMode mode("");
     AssetFixture f("si-address");
-    const std::string address = std::string("https://www.blenderkit.com/get-blenderkit/") + kId + "/";
+    const std::string address = std::string("https://www.blenderkit.com/asset-gallery-detail/") + kId + "/";
     std::vector<ImportStage> stages;
     const ImportOutcome outcome = importAsset(*f.lib.catalog, f.context, f.address(address), [&](const ImportProgress& p) {
         if (stages.empty() || stages.back() != p.stage) stages.push_back(p.stage);

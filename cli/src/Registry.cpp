@@ -11,7 +11,7 @@ const std::vector<CommandSpec>& allCommands() {
                              &wallCommands, &openingCommands, &floorCommands, &stairCommands, &roofCommands,
                              &roomCommands, &lightCommands, &trimCommands, &variationCommands, &detectCommands, &sessionCommands, &settingsCommands,
                              &libraryCommands, &assetCommands, &doctorCommands, &importCommands, &itemCommands, &buildCommands, &exportCommands, &materialCommands,
-                             &materialCatalogCommands, &materialImportCommands, &generatorCommands, &renderCommands, &packCommands, &guideCommands, &updateCommands}) {
+                             &materialCatalogCommands, &materialImportCommands, &generatorCommands, &renderCommands, &packCommands, &guideCommands, &agentGuideCommands, &updateCommands}) {
             for (auto& spec : group()) {
                 all.push_back(std::move(spec));
             }

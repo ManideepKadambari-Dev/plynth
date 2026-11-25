@@ -67,9 +67,14 @@ struct SampleCopy {
 };
 
 // Copies one sample project into a new folder below into, named after the sample: "Apartment", then
-// "Apartment (2)". Only project.json, plan.json, export-options.json and plans/ are copied. Never overwrites
-// and leaves nothing behind after a failure.
+// "Apartment (2)". Only project.json, plan.json, export-options.json and plans/ are copied, and AGENTS.md when
+// agentGuide names the master file of the instructions. Never overwrites and leaves nothing behind after a
+// failure.
 SampleCopy copySampleProject(const std::filesystem::path& samplesFolder, std::string_view id,
-                             const std::filesystem::path& into);
+                             const std::filesystem::path& into, const std::filesystem::path& agentGuide = {});
+
+// The master instructions file for projects, docs/templates/project-agents.md in the docs folder found next to
+// the program. Empty when it is not there.
+std::filesystem::path agentGuideMaster();
 
 }

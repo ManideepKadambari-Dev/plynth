@@ -1,3 +1,4 @@
+#include "../AgentGuide.h"
 #include "../CatalogCommon.h"
 #include "../Common.h"
 
@@ -21,6 +22,7 @@ struct NewOptions {
     std::string exportMode = "single";
     double grid = kDefaultGridSize;
     std::string name;
+    bool noAgentGuide = false;
 };
 
 // Makes a new project folder, with the plan image copied in when one is given.
@@ -65,7 +67,22 @@ Answer projectNew(const RunContext& context, const NewOptions& options) {
     if (!saved.ok()) {
         return failure(command, saved);
     }
-    return success(command, projectInfoJson(folder, toSave));
+    Json result = projectInfoJson(folder, toSave);
+    std::optional<AnswerWarning> warning;
+    result["agent_guide"] = "skipped";
+    if (!options.noAgentGuide) {
+        const AgentGuideWrite guide = writeAgentGuide(folder, false);
+        if (!guide.status.ok()) {
+            warning = AnswerWarning{std::string(errorCodeName(guide.status.code)), guide.status.message};
+        } else {
+            result["agent_guide"] = guide.result == AgentGuideResult::Written ? "written" : "kept";
+        }
+    }
+    Answer answer = success(command, std::move(result));
+    if (warning) {
+        answer.warnings.push_back(*warning);
+    }
+    return answer;
 }
 
 // Reports what a project folder holds.
@@ -230,6 +247,7 @@ std::vector<CommandSpec> projectCommands() {
             ->check(CLI::IsMember({"single", "grouped"}));
         sub.add_option("--grid", options->grid, "Grid size in metres. Default: 0.5.")->type_name("metres");
         sub.add_option("--name", options->name, "Project name. Default: the folder name.")->type_name("text");
+        sub.add_flag("--no-agent-guide", options->noAgentGuide, "Do not write the instructions file AGENTS.md into the project.");
         return [options](const RunContext& context) { return projectNew(context, *options); };
     };
 

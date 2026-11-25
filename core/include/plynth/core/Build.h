@@ -37,6 +37,7 @@ using Json = nlohmann::ordered_json;
 //   build/job.json, build/result.json, build/blender.log   the last job, its result and Blender's output
 //   build/build.lock       while a build or an export runs (an export reads building.blend, so the two never
 //                          run at the same time)
+//   build/progress.json    while a build or an export runs, how far it has come (JobProgress.h)
 //   build/export_work/     the job, result and Blender log of the last export (Export.h)
 // Nothing in the project's plan or settings is changed.
 //

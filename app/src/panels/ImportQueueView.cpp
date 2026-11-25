@@ -55,7 +55,6 @@ ImportQueueView::ImportQueueView(MaterialImportQueue& queue, QWidget* parent) : 
 // Builds an empty list that shows itself when the queue has items.
 void ImportQueueView::start()
 {
-    setToolTip(tr("The imports that are running or waiting"));
     rows_ = new QVBoxLayout(this);
     rows_->setContentsMargins(0, 0, 0, 0);
     rows_->setSpacing(Theme::instance().unit() * 2);

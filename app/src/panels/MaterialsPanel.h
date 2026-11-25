@@ -70,6 +70,7 @@ private:
     void fillGroupFilter();
     void fillGrid();
     void showDetails();
+    void fitDetails();
     void applyEdit(const plynth::MaterialEdit& edit);
     void removeSelected();
     void addGroup();

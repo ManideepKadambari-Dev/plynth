@@ -4,6 +4,7 @@
 #include "StatusBar.h"
 #include "building/BuildController.h"
 #include "building/ExportController.h"
+#include "building/OutsideJobWatch.h"
 #include "catalog/LibraryHost.h"
 #include "panels/ExportPanel.h"
 
@@ -61,7 +62,7 @@ QString MainWindow::exportNotice(bool* offerBuild) const
 // Starts an export of the last build, or only its checks when write is false.
 void MainWindow::startExport(bool write, bool force)
 {
-    if (builder_->running() || exporter_->running())
+    if (workRunning())
         return;
     const QString notice = exportNotice(nullptr);
     if (!notice.isEmpty()) {
@@ -84,7 +85,7 @@ void MainWindow::startExport(bool write, bool force)
 // Asks first, then exports with the failed checks of the last export left as they are.
 void MainWindow::exportAnyway()
 {
-    if (!exportReport_ || exporter_->running() || builder_->running())
+    if (!exportReport_ || workRunning())
         return;
     QStringList failed;
     for (const plynth::QualityCheckResult& check : exportReport_->checks)
@@ -122,6 +123,8 @@ void MainWindow::exportFinished(const plynth::ExportReport& report)
     updateBuildUi();
     if (report.status.code != plynth::ErrorCode::Cancelled)
         openToolWindow(QStringLiteral("export"));
+    // An export refused because another program holds the lock leaves that job to be followed.
+    outsideJob_->recheck();
 }
 
 // Reads export/export_report.json of the open project, if there is one.
@@ -142,7 +145,7 @@ void MainWindow::updateExportUi()
 {
     if (exportPanel_ == nullptr || exportAction_ == nullptr)
         return;
-    const bool running = (builder_ != nullptr && builder_->running()) || (exporter_ != nullptr && exporter_->running());
+    const bool running = workRunning();
     ExportPanelState state;
     state.running = running;
     state.notice = exportNotice(&state.offerBuild);
@@ -197,11 +200,13 @@ void MainWindow::openExportFolder()
     QDesktopServices::openUrl(QUrl::fromLocalFile(QString::fromStdWString(plynth::exportFolder(doc_.folder()).wstring())));
 }
 
-// Stops the running build or export.
+// Stops the running build or export, the app's own or one started by another program on this project.
 void MainWindow::cancelWork()
 {
     builder_->cancel();
     exporter_->cancel();
+    if (outsideJob_->active() && !outsideJob_->cancel())
+        statusBar_->showMessage(tr("The work from the command line could not be asked to stop."));
 }
 
 // For checks only: shows the Export window.

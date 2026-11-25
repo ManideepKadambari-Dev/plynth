@@ -4,7 +4,7 @@ import re
 import bpy
 
 from . import Step, count, report
-from .. import shading
+from .. import meshes, shading
 from ..registry import BUILD_STEPS
 
 ORDER = 60
@@ -66,8 +66,9 @@ def prepare_materials(ctx, asset, collection):
     return entries
 
 
-# Appends the collection of one asset from its blend file. Returns the collection and an empty reason, or None
-# and the reason.
+# Appends the collection of one asset from its blend file and makes its meshes safe for the 3D view, which an
+# asset imported before that cleanup may still need. Returns the collection and an empty reason, or None and
+# the reason.
 def load_asset(asset):
     path = asset["blend_file"]
     if not os.path.isfile(path):
@@ -82,6 +83,11 @@ def load_asset(asset):
     collection = target.collections[0]
     if collection is None:
         return None, "the collection could not be appended."
+    done = set()
+    for obj in collection.all_objects:
+        if obj.type == "MESH" and obj.data.name not in done:
+            done.add(obj.data.name)
+            meshes.make_viewer_safe(obj.data)
     return collection, ""
 
 

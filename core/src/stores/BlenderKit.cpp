@@ -13,6 +13,9 @@ namespace {
 const char* const kNotAnAddress = "This is not a BlenderKit address.";
 const char* const kNoOneItem = "The address does not name one BlenderKit item. Copy it from the item's page.";
 const char* const kOnlyKinds = "Only models and materials can be imported from BlenderKit.";
+const char* const kGetLink = "This is a Get link, which holds a version id Plynth cannot look up. Paste the address of the "
+                             "item's page (blenderkit.com/asset-gallery-detail/...) or copy the asset ID in BlenderKit "
+                             "inside Blender.";
 
 // Lower case copy of ASCII text.
 std::string lower(std::string_view text)
@@ -118,7 +121,14 @@ BlenderKitAddress parseBlenderKitAddress(std::string_view pasted)
     }
     if (hostEnd == std::string::npos) return {fail(ErrorCode::InvalidValue, kNoOneItem), {}};
     const std::size_t pathEnd = low.find_first_of("?#", hostEnd);
-    return oneId(text.substr(hostEnd, pathEnd == std::string::npos ? std::string::npos : pathEnd - hostEnd));
+    const std::size_t pathLength = pathEnd == std::string::npos ? std::string::npos : pathEnd - hostEnd;
+    // A Get link holds the id of one version, which the add-on's search cannot find, so it is refused here.
+    const std::string path = low.substr(hostEnd, pathLength);
+    const std::size_t segmentEnd = path.find('/', 1);
+    const std::string first = path.size() > 1 ? path.substr(1, segmentEnd == std::string::npos ? std::string::npos : segmentEnd - 1)
+                                              : std::string();
+    if (first == "get-blendkit" || first == "get-blenderkit") return {fail(ErrorCode::InvalidValue, kGetLink), {}, true};
+    return oneId(text.substr(hostEnd, pathLength));
 }
 
 // Reads the BlenderKit options.

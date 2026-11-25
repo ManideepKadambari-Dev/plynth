@@ -173,6 +173,7 @@ class BlenderkitDownloadOperator(bpy.types.Operator):
 
     # Finds the item through the search module, leaves edit modes, and starts its download with the arguments
     # and the server's name of the resolution the real one passes, or hands an add-on item to its installer.
+    # As the real one it takes the first result without a check, so an empty search raises.
     def execute(self, context):
         if getattr(self, "resolution", None) is not None:
             global_vars.note("operator_resolution", value=self.resolution)
@@ -183,10 +184,9 @@ class BlenderkitDownloadOperator(bpy.types.Operator):
             bpy.ops.object.mode_set(mode="OBJECT")
         results = search.get_search_simple({"asset_base_id": self.asset_base_id}, page_size=1, max_results=1,
                                            api_key=global_vars.PREFS.get("api_key", ""))
-        asset_data = results[0] if results else None
-        if asset_data is None:
-            reports.add_report("Asset not found")
-            return {"CANCELLED"}
+        if global_vars.scenario().get("operator_raises"):
+            raise KeyError(client_lib.SECRET_TEXT)
+        asset_data = results[0]
         if asset_data.get("assetType") == "addon":
             bpy.ops.scene.blenderkit_addon_choice(asset_base_id=asset_data.get("assetBaseId", ""))
             return {"FINISHED"}

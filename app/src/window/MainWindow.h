@@ -56,6 +56,7 @@ class LibraryWatcher;
 class SetupCheckDialog;
 class VariationsDialog;
 class ProjectWatcher;
+class OutsideJobWatch;
 class TerminalDock;
 class ReadOnlyBanner;
 class TitleBar;
@@ -337,6 +338,8 @@ private:
     void updateExportUi();
     void openExportFolder();
     void cancelWork();
+    bool workRunning() const;
+    void outsideJobEnded(const QString& kind, const QString& jobId);
     void showCentreView(bool scene3d);
     void refreshSelection();
     void deleteSelection();
@@ -481,6 +484,7 @@ private:
     QAction* updateAtStartAction_ = nullptr;
     bool closingForInstaller_ = false;
     ProjectWatcher* watcher_ = nullptr;
+    OutsideJobWatch* outsideJob_ = nullptr;
     TerminalDock* terminal_ = nullptr;
     QList<QAction*> viewActions_;
     QAction* newAction_ = nullptr;

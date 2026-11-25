@@ -3,6 +3,8 @@
 #include "catalog/LibraryHost.h"
 #include "furniture/AssetPreview.h"
 #include "preview/AssetStage.h"
+#include "theme/ElideLabel.h"
+#include "theme/PaneFit.h"
 #include "theme/PlainText.h"
 #include "theme/Theme.h"
 
@@ -28,7 +30,6 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QScrollArea>
-#include <QScrollBar>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QStandardItemModel>
@@ -177,7 +178,6 @@ QLabel* mutedLabel(const QString& text, QWidget* parent)
 AssetsPanel::AssetsPanel(LibraryHost& host, QWidget* parent) : QWidget(parent), host_(host)
 {
     const Theme& t = Theme::instance();
-    setToolTip(tr("The assets catalog: search, pick and edit the models you imported"));
     setAcceptDrops(true);
 
     auto* column = new QVBoxLayout(this);
@@ -210,7 +210,6 @@ AssetsPanel::AssetsPanel(LibraryHost& host, QWidget* parent) : QWidget(parent), 
     splitter_ = new QSplitter(Qt::Horizontal, pages_);
     splitter_->setChildrenCollapsible(false);
     splitter_->setHandleWidth(t.unit());
-    splitter_->setStyleSheet(QStringLiteral("QSplitter::handle { background: %1; }").arg(t.line().name()));
     top_ = new QWidget(splitter_);
     topLayout_ = new QVBoxLayout(top_);
     topLayout_->setContentsMargins(0, 0, 0, 0);
@@ -244,8 +243,7 @@ AssetsPanel::AssetsPanel(LibraryHost& host, QWidget* parent) : QWidget(parent), 
 
     buildDetails();
     splitter_->addWidget(detailsScroll_);
-    detailsScroll_->setMinimumWidth(t.detailsMinWidth());
-    detailsScroll_->setMaximumWidth(t.detailsMaxWidth());
+    fitPaneWidth(detailsScroll_, t.detailsMinWidth(), t.detailsMaxWidth());
     splitter_->setStretchFactor(0, 1);
     splitter_->setStretchFactor(1, 0);
     detailsScroll_->hide();
@@ -336,7 +334,6 @@ void AssetsPanel::buildDetails()
     detailsScroll_->setFrameShape(QFrame::NoFrame);
     detailsScroll_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     detailsScroll_->setStyleSheet(QStringLiteral("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; }"));
-    detailsScroll_->verticalScrollBar()->setStyleSheet(t.scrollBarStyleSheet());
     auto* body = new QWidget();
     auto* box = new QVBoxLayout(body);
     box->setContentsMargins(t.unit() * 4, t.unit() * 2, t.unit() * 4, 0);
@@ -360,26 +357,28 @@ void AssetsPanel::buildDetails()
         applyEdit(edit);
     });
 
-    auto addMono = [&](const QString& tip) {
-        auto* label = new QLabel(body);
+    // Ids and file names have no spaces to wrap at, so they are cut in the middle and shown whole in the tooltip.
+    auto addMono = [&](const QString& tip, bool elide) {
+        QLabel* label = elide ? new ElideLabel(body) : new QLabel(body);
         label->setTextFormat(Qt::PlainText);
         label->setFont(t.monoFont(t.sizeSmall()));
         label->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
         label->setToolTip(tip);
-        label->setWordWrap(true);
+        label->setWordWrap(!elide);
         label->setTextInteractionFlags(Qt::NoTextInteraction);
         box->addWidget(label);
         return label;
     };
-    idLabel_ = addMono(tr("The id of the asset, used by the command line"));
-    sizeLabel_ = addMono(tr("Width, depth and height in metres"));
-    trianglesLabel_ = addMono(tr("How many triangles the model has"));
-    sourceLabel_ = addMono(tr("Where the asset came from"));
+    idLabel_ = addMono(tr("The id of the asset, used by the command line"), true);
+    sizeLabel_ = addMono(tr("Width, depth and height in metres"), false);
+    trianglesLabel_ = addMono(tr("How many triangles the model has"), false);
+    sourceLabel_ = addMono(tr("Where the asset came from"), true);
 
     box->addWidget(mutedLabel(tr("License"), body));
     license_ = new QComboBox(body);
     license_->setFont(t.uiFont(t.sizeNormal()));
     license_->setStyle(t.controlStyle());
+    license_->setSizeAdjustPolicy(QComboBox::AdjustToContents);
     license_->setToolTip(tr("The license the asset came with"));
     box->addWidget(license_);
     connect(license_, &QComboBox::activated, this, [this](int index) {
@@ -411,7 +410,6 @@ void AssetsPanel::buildDetails()
     categories_->setFont(t.uiFont(t.sizeNormal()));
     categories_->setStyle(t.controlStyle());
     categories_->setFixedHeight(t.unit() * 40);
-    categories_->setStyleSheet(t.scrollBarStyleSheet());
     categories_->setToolTip(tr("Tick every category the asset belongs to"));
     box->addWidget(categories_);
     connect(categories_, &QListWidget::itemChanged, this, [this]() {
@@ -459,9 +457,9 @@ void AssetsPanel::buildDetails()
     box->addWidget(problems_);
 
     materialsTitle_ = mutedLabel(tr("Materials"), body);
+    materialsTitle_->setToolTip(tr("The materials inside the asset. Each can be added to the materials catalog"));
     box->addWidget(materialsTitle_);
     materialsBox_ = new QWidget(body);
-    materialsBox_->setToolTip(tr("The materials inside the asset. Each can be added to the materials catalog"));
     materialsColumn_ = new QVBoxLayout(materialsBox_);
     materialsColumn_->setContentsMargins(0, 0, 0, 0);
     materialsColumn_->setSpacing(t.unit());
@@ -707,10 +705,12 @@ void AssetsPanel::showDetails()
     stage_->showModel(record);
     name_->setText(fromCore(record.name));
     idLabel_->setText(fromCore(record.id));
+    idLabel_->setToolTip(plainToolTip(tr("The id of the asset, used by the command line: %1").arg(fromCore(record.id))));
     sizeLabel_->setText(AssetPreview::sizeText(record.size));
     trianglesLabel_->setText(tr("%1 triangles").arg(record.triangles));
     sourceLabel_->setText(fromCore(record.sourceKind) +
                           (record.sourceReference.empty() ? QString() : QStringLiteral(": ") + fromCore(record.sourceReference)));
+    sourceLabel_->setToolTip(plainToolTip(tr("Where the asset came from: %1").arg(sourceLabel_->text())));
 
     license_->clear();
     for (const plynth::LicenseEntry& entry : host_.catalog()->licenses())
@@ -744,7 +744,7 @@ void AssetsPanel::showDetails()
     if (info.status.ok())
         for (const plynth::BlenderWarning& warning : info.info.warnings)
             problems << fromCore(warning.message);
-    problems_->setText(problems.join(QLatin1Char('\n')));
+    problems_->setText(breakable(problems.join(QLatin1Char('\n'))));
     problems_->setVisible(!problems.isEmpty());
     fillMaterials(record, info.status.ok() ? info.info.materials : std::vector<std::string>());
 
@@ -754,6 +754,18 @@ void AssetsPanel::showDetails()
                        : busy         ? tr("A render of this asset is already running")
                                       : tr("Measure the asset again and render a new thumbnail"));
     refreshing_ = was;
+    fitDetails();
+}
+
+// Widens the details to fit what they show now, at once and again once the new rows are laid out.
+void AssetsPanel::fitDetails()
+{
+    const Theme& t = Theme::instance();
+    fitPaneWidth(detailsScroll_, t.detailsMinWidth(), t.detailsMaxWidth());
+    QTimer::singleShot(0, this, [this]() {
+        const Theme& theme = Theme::instance();
+        fitPaneWidth(detailsScroll_, theme.detailsMinWidth(), theme.detailsMaxWidth());
+    });
 }
 
 // Lists the materials inside the asset, each with a button that adds it to the materials catalog.
