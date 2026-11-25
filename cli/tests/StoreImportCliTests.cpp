@@ -68,7 +68,7 @@ int itemCount(const std::filesystem::path& library) {
     return count;
 }
 
-std::string blenderKitUrl() { return std::string("https://www.blenderkit.com/get-blenderkit/") + kId + "/"; }
+std::string blenderKitUrl() { return std::string("https://www.blenderkit.com/asset-gallery-detail/") + kId + "/"; }
 
 }
 
@@ -140,7 +140,8 @@ TEST_CASE("assets import takes a BlenderKit address", "[cli][store_import]") {
     TempFolder temp("store-address");
     setUp(temp);
 
-    for (const std::string& text : {blenderKitUrl(), std::string("asset_base_id:") + kId, std::string(kId)}) {
+    for (const std::string& text : {blenderKitUrl(), std::string("asset_base_id:") + kId,
+                                    std::string("asset_base_id:") + kId + " asset_type:model", std::string(kId)}) {
         const auto outcome = runChecked({"assets", "import", text, "--dry-run"});
         REQUIRE(outcome.exitCode == kExitOk);
         const auto& result = outcome.answer.at("result");
@@ -157,6 +158,25 @@ TEST_CASE("assets import takes a BlenderKit address", "[cli][store_import]") {
 
     const auto perImport = runChecked({"assets", "import", blenderKitUrl(), "--dry-run", "--option", "resolution=4k"});
     CHECK(errorCode(perImport) == "invalid_value");
+}
+
+TEST_CASE("a BlenderKit Get link is refused with the sentence that names the forms that work", "[cli][store_import]") {
+    MaterialSettingsReset reset;
+    TempFolder temp("store-get-link");
+    setUp(temp);
+    const std::string sentence = "This is a Get link, which holds a version id Plynth cannot look up. Paste the address "
+                                 "of the item's page (blenderkit.com/asset-gallery-detail/...) or copy the asset ID in "
+                                 "BlenderKit inside Blender.";
+    for (const std::string& link : {std::string("https://www.blendkit.com/get-blendkit/") + kId + "/",
+                                    std::string("https://www.blenderkit.com/get-blenderkit/") + kId + "/"}) {
+        INFO(link);
+        const auto asset = runChecked({"assets", "import", link, "--dry-run"});
+        CHECK(errorCode(asset) == "invalid_value");
+        CHECK(asset.answer.at("error").at("message") == sentence);
+        const auto material = runChecked({"materials", "import", link, "--dry-run"});
+        CHECK(errorCode(material) == "invalid_value");
+        CHECK(material.answer.at("error").at("message") == sentence);
+    }
 }
 
 TEST_CASE("a bare id that names a file is a file", "[cli][store_import]") {

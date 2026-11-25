@@ -73,7 +73,7 @@ ImportRequest addressRequest(const std::string& text)
 TEST_CASE("an address is taken by the blenderkit importer", "[preview]")
 {
     ImportSource address;
-    address.url = std::string("https://www.blenderkit.com/get-blenderkit/") + kId + "/";
+    address.url = std::string("https://www.blenderkit.com/asset-gallery-detail/") + kId + "/";
     REQUIRE(pickImporter(address));
     CHECK(pickImporter(address)->id() == kBlenderKitImporterId);
     REQUIRE(pickMaterialImporter(address));
@@ -107,7 +107,7 @@ TEST_CASE("the blenderkit plan has a fetch and no file", "[preview]")
     CHECK(f.stagingEmpty());
 
     MaterialImportRequest material;
-    material.source.url = std::string("https://www.blenderkit.com/get-blenderkit/") + kId + "/";
+    material.source.url = std::string("https://www.blenderkit.com/asset-gallery-detail/") + kId + "/";
     const ImportPreview m = previewMaterialImport(f.library, material);
     test::requireOk(m.status);
     CHECK(m.importer == "blenderkit");

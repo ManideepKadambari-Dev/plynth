@@ -18,11 +18,12 @@ public:
     }
     std::vector<std::string> fileSuffixes() const override { return {}; }
 
-    // Takes only an address it can read, never a file.
+    // Takes only an address it can read, never a file. A Get link is taken too, so its plan says why it is refused.
     int score(const ImportSource& source) const override
     {
         if (!source.file.empty() || source.url.empty()) return 0;
-        return parseBlenderKitAddress(source.url).status.ok() ? 30 : 0;
+        const BlenderKitAddress address = parseBlenderKitAddress(source.url);
+        return address.status.ok() || address.getLink ? 30 : 0;
     }
 
     // Plans a download of the material the address names, to be cleaned up like any file afterwards.
