@@ -100,7 +100,6 @@ FabImportDialog::FabImportDialog(const plynth::LibraryPaths& library, const QStr
     else
         setWindowTitle(tr("Pick the model"));
     setModal(true);
-    setToolTip(tr("Check what Plynth takes from each file before it imports them"));
     resize(t.unit() * 140, t.unit() * 100);
     setMinimumSize(t.unit() * 80, t.unit() * 60);
 

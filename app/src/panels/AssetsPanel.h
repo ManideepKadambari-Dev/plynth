@@ -73,6 +73,7 @@ private:
     void fillCategoryFilter();
     void fillGrid();
     void showDetails();
+    void fitDetails();
     void fillMaterials(const plynth::AssetRecord& record, const std::vector<std::string>& names);
     void applyEdit(const plynth::AssetEdit& edit);
     void removeSelected();

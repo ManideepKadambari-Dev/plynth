@@ -19,7 +19,6 @@ FloorTabs::FloorTabs(FloorFocus& focus, QWidget* parent) : QWidget(parent), focu
 {
     const Theme& t = Theme::instance();
     setFixedHeight(t.buildBarHeight());
-    setToolTip(tr("The floors of the building, lowest first. Click one to work on it"));
 
     row_ = new QHBoxLayout(this);
     row_->setContentsMargins(t.unit() * 3, t.unit() * 2, t.unit() * 3, 0);

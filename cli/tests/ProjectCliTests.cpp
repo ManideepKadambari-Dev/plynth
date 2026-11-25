@@ -213,7 +213,7 @@ TEST_CASE("help lists the project and edit commands with their options", "[cli][
     for (const auto& command : outcome.answer.at("result").at("commands")) {
         names.push_back(command.at("command").get<std::string>());
         if (names.back() == "project new") {
-            CHECK(command.at("options").size() == 5);
+            CHECK(command.at("options").size() == 6);
         }
     }
     for (const char* wanted : {"project new", "project info", "scale set", "point add", "wall add"}) {

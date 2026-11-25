@@ -18,7 +18,6 @@ BuildBar::BuildBar(QWidget* parent) : QWidget(parent)
 {
     const Theme& t = Theme::instance();
     setFixedHeight(t.buildBarHeight());
-    setToolTip(tr("The build bar: choose Plan or 3D, and build the building"));
 
     auto* row = new QHBoxLayout(this);
     row->setContentsMargins(t.unit() * 3, 0, t.unit() * 3, 0);
@@ -152,6 +151,12 @@ void BuildBar::setProgress(const QString& message, int percent)
     progress_->setValue(percent < 0 ? 0 : percent);
     progress_->show();
     cancel_->show();
+}
+
+// Changes the Cancel button's tooltip.
+void BuildBar::setCancelTip(const QString& tip)
+{
+    cancel_->setToolTip(plainToolTip(tip));
 }
 
 // Shows the problem count, or hides the button.

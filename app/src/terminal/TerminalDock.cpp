@@ -157,7 +157,6 @@ void TerminalDock::ensureCreated()
         return;
     const Theme& t = Theme::instance();
     panel_ = new TerminalPanel(host_);
-    panel_->setToolTip(tr("Terminal"));
     panel_->hide();
 
     session_ = new plynth::terminal::TerminalSession(24, 80, this);

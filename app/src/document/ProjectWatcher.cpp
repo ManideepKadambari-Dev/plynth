@@ -2,6 +2,7 @@
 
 #include <QFileInfo>
 
+#include <plynth/core/Build.h>
 #include <plynth/core/EditSession.h>
 #include <plynth/core/Project.h>
 
@@ -16,6 +17,19 @@ constexpr int kDebounceMs = 150;
 QFileInfo infoOf(const std::filesystem::path& folder, std::string_view name)
 {
     return QFileInfo(QString::fromStdWString((folder / std::filesystem::path(std::string(name))).wstring()));
+}
+
+// Whether a file exists, and its size and write time when it does.
+template <typename Sig>
+Sig sigOf(const QFileInfo& info)
+{
+    Sig sig;
+    sig.exists = info.exists();
+    if (sig.exists) {
+        sig.size = info.size();
+        sig.modified = info.lastModified().toMSecsSinceEpoch();
+    }
+    return sig;
 }
 
 }
@@ -43,6 +57,7 @@ void ProjectWatcher::setFolder(const std::filesystem::path& folder)
         return;
     watcher_.addPath(QString::fromStdWString(folder_.wstring()));
     lastSeen_ = readSigs();
+    jobLock_ = readJobLock();
 }
 
 // Starts or stops the poll and the folder events.
@@ -82,20 +97,19 @@ ProjectWatcher::Sigs ProjectWatcher::readSigs() const
     Sigs sigs;
     if (folder_.empty())
         return sigs;
-    auto read = [this](std::string_view name) {
-        const QFileInfo info = infoOf(folder_, name);
-        FileSig sig;
-        sig.exists = info.exists();
-        if (sig.exists) {
-            sig.size = info.size();
-            sig.modified = info.lastModified().toMSecsSinceEpoch();
-        }
-        return sig;
-    };
+    auto read = [this](std::string_view name) { return sigOf<FileSig>(infoOf(folder_, name)); };
     sigs.lock = read(plynth::kSessionFileName);
     sigs.plan = read(plynth::kPlanFileName);
     sigs.project = read(plynth::kProjectFileName);
     return sigs;
+}
+
+// Reads the state of build/build.lock.
+ProjectWatcher::FileSig ProjectWatcher::readJobLock() const
+{
+    if (folder_.empty())
+        return {};
+    return sigOf<FileSig>(infoOf(plynth::buildFolder(folder_), plynth::kBuildLockFileName));
 }
 
 // Asks for a check when a watched file changed, or always while a session may expire.
@@ -103,6 +117,10 @@ void ProjectWatcher::poll()
 {
     if (!active_ || folder_.empty())
         return;
+    if (const FileSig job = readJobLock(); !(job == jobLock_)) {
+        jobLock_ = job;
+        emit jobLockChanged();
+    }
     const Sigs now = readSigs();
     if (!(now == lastSeen_)) {
         lastSeen_ = now;

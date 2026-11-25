@@ -24,3 +24,6 @@ assets-author: {project} --select-asset chair --screenshot-window assets
 assets-window-wide: {project} --screenshot-window assets --window-size 1700x1000
 export-window-wide: {built} --screenshot-window export --window-size 1700x1000
 sources-window-wide: {project} --screenshot-window sources --window-size 1700x1000
+assets-author-narrow: {project} --select-asset chair --screenshot-window assets --window-size 760x560
+materials-details: {project} --select-material oak_planks --screenshot-window materials
+plan-wall-selected: {project} --select first-wall

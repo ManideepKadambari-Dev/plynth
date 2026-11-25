@@ -123,6 +123,7 @@ bool Theme::load(const QString& resourcePath)
     markStroke_ = spacing["markStroke"].toDouble(markStroke_);
     previewButton_ = spacing["previewButton"].toInt(previewButton_);
     helpListWidth_ = spacing["helpListWidth"].toInt(helpListWidth_);
+    scrollBarWidth_ = spacing["scrollBarWidth"].toInt(scrollBarWidth_);
 
     const QJsonObject opacity = root["opacity"].toObject();
     overlay3dOpacity_ = opacity["overlay3d"].toDouble(overlay3dOpacity_);
@@ -153,6 +154,7 @@ bool Theme::load(const QString& resourcePath)
     proposalFillAlpha_ = effects["proposalFillAlpha"].toInt(proposalFillAlpha_);
     proposalLineAlpha_ = effects["proposalLineAlpha"].toInt(proposalLineAlpha_);
     itemFillAlpha_ = effects["itemFillAlpha"].toInt(itemFillAlpha_);
+    scrollHandleAlpha_ = effects["scrollHandleAlpha"].toInt(scrollHandleAlpha_);
 
     const QJsonArray ansi = root["terminal"].toObject()["ansi"].toArray();
     for (int i = 0; i < 16 && i < ansi.size(); ++i) {
@@ -226,28 +228,45 @@ QString Theme::styleSheet() const
         QCheckBox { spacing: %9px; }
     )");
     return sheet
-        .arg(text_.name(), ground_.name(), panel_.name(), raised_.name(), line_.name(),
-             muted_.name(), signalBlue_.name(), onBlue_.name())
-        .arg(unit_)
-        .arg(unit_ * 3)
-        .arg(radius_)
-        .arg(unit_ * 4)
-        .arg(unit_ * 3)
-        .arg(std::max(1, radius_ / 2));
+               .arg(text_.name(), ground_.name(), panel_.name(), raised_.name(), line_.name(),
+                    muted_.name(), signalBlue_.name(), onBlue_.name())
+               .arg(unit_)
+               .arg(unit_ * 3)
+               .arg(radius_)
+               .arg(unit_ * 4)
+               .arg(unit_ * 3)
+               .arg(std::max(1, radius_ / 2)) +
+           scrollStyleSheet();
 }
 
-// Style sheet for a vertical or horizontal scroll bar: a thin track with a Line colored handle.
-QString Theme::scrollBarStyleSheet() const
+// The thin scroll bars and quiet splitter handles of every window: no arrows and no track, a rounded Muted
+// handle that brightens under the mouse. Qt hides a scroll bar when there is nothing to scroll.
+QString Theme::scrollStyleSheet() const
 {
     const QString sheet = QStringLiteral(R"(
-        QScrollBar:vertical { background: %1; width: %4px; margin: 0px; border: none; }
-        QScrollBar:horizontal { background: %1; height: %4px; margin: 0px; border: none; }
-        QScrollBar::handle { background: %2; border-radius: %5px; min-height: %6px; min-width: %6px; }
-        QScrollBar::handle:hover { background: %3; }
+        QScrollBar:vertical { background: transparent; width: %1px; margin: 0px; border: none; }
+        QScrollBar:horizontal { background: transparent; height: %1px; margin: 0px; border: none; }
+        QScrollBar::handle { background: %3; border: none; border-radius: %2px; }
+        QScrollBar::handle:vertical { min-height: %5px; }
+        QScrollBar::handle:horizontal { min-width: %5px; }
+        QScrollBar::handle:hover, QScrollBar::handle:pressed { background: %4; }
         QScrollBar::add-line, QScrollBar::sub-line { width: 0px; height: 0px; background: none; border: none; }
+        QScrollBar::up-arrow, QScrollBar::down-arrow, QScrollBar::left-arrow, QScrollBar::right-arrow { background: none; border: none; }
         QScrollBar::add-page, QScrollBar::sub-page { background: none; }
+        QAbstractScrollArea::corner { background: transparent; border: none; }
+        QSplitter::handle { background: transparent; }
+        QSplitter::handle:hover, QSplitter::handle:pressed { background: %6; }
     )");
-    return sheet.arg(ground_.name(), line_.name(), muted_.name()).arg(unit_ * 2).arg(unit_).arg(unit_ * 6);
+    const QString handle = QStringLiteral("rgba(%1, %2, %3, %4)")
+                               .arg(muted_.red())
+                               .arg(muted_.green())
+                               .arg(muted_.blue())
+                               .arg(std::clamp(scrollHandleAlpha_, 0, 255));
+    return sheet.arg(scrollBarWidth_)
+        .arg(std::max(1, scrollBarWidth_ / 2))
+        .arg(handle, muted_.name())
+        .arg(unit_ * 6)
+        .arg(line_.name());
 }
 
 // Escapes the sentence and wraps every path or file name in a span that uses the mono font.

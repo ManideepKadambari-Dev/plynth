@@ -27,6 +27,8 @@ public:
     void setStatus(const QString& text);
     // Shows the progress bar with its message and the Cancel button. A percent below 0 means unknown.
     void setProgress(const QString& message, int percent);
+    // Sets what the Cancel button's tooltip says it stops.
+    void setCancelTip(const QString& tip);
     // Shows "N problems" in amber, or hides the button when there are none.
     void setProblems(int errors, int warnings);
     // Enables or disables the Build button and sets its tooltip.

@@ -22,13 +22,15 @@ Plynth never sends anything to the assistant or to anyone else. What the assista
 2. Open a terminal in your project folder. You can use your own terminal, or the one built into Plynth: the round button in the bottom right corner of the window opens it already in the project folder.
 3. Start your assistant in that terminal.
 4. Check that it can run Plynth: ask it to run `plynth version`. The answer starts with `{"ok":true`.
-5. Give it the rules below, either by pasting them in or by putting them in the instructions file your assistant reads at the start, if it has one.
+5. Point it at the file `AGENTS.md` in the project folder. It holds the rules below and the check loop. Many assistants read a file of this name by themselves when they start in the folder; for one that does not, tell it to read the file first.
 
 The full list of commands, options, answers and error codes, with worked examples for a flat, a house with two floors and a street of variations, is in the command line guide (`docs/CLI_GUIDE.md`, also in the app under Help). The assistant can also run `plynth help` at any time: it lists every command with its options, every error code and every exit code, always matching the installed version.
 
 ## Rules to give the assistant
 
-Copy this block into your assistant's instructions and change it to suit you.
+`plynth project new` writes these rules, with the command order and the check loop, into the project as `AGENTS.md`. Give `--no-agent-guide` to leave it out. For a project made without it, or after you update Plynth, `plynth agent-guide` writes the file or, with `--force`, replaces it. An `AGENTS.md` you changed is never overwritten without `--force`. You can edit the file to suit you.
+
+The block below is a short reference of the same rules. You do not need to paste it anywhere when your assistant reads `AGENTS.md`.
 
 ```
 You are working on a Plynth project. Plynth is driven only through the plynth command.
@@ -58,6 +60,7 @@ A plan is built in this order, because each step needs the one before it. The co
 1. `plynth session begin --tool assistant`
 2. The project and the scale: `plynth project new --image plan.png`, then `plynth scale set` or `plynth scale from-points`.
 3. Walls: `plynth detect --apply` to find them in the plan image, then `plynth wall list` and the `wall`, `point` and `opening` commands to fix what detection missed.
+   After detect, compare `plynth render --plan` with the plan image (see below), and do so again after each round of fixes.
 4. Rooms and their types: `plynth room find`, `plynth room add`, `plynth room set r3 --type bedroom`.
 5. Openings: `plynth opening add`, then `plynth opening list` and read `problems`.
 6. Furniture: `plynth assets search --room bedroom`, then `plynth place <asset> --room r3 --strict`.
@@ -70,7 +73,24 @@ A plan is built in this order, because each step needs the one before it. The co
 
 ## The render and check loop
 
-The assistant cannot see the app, so it checks its work with pictures. `plynth render` draws the last build with Plynth's own real-time 3D view, the same view as the app's 3D page, and saves it as a PNG. It starts no Blender and takes a few seconds.
+The assistant cannot see the app, so it checks its work with pictures.
+
+### Checking the marks against the drawing
+
+Before anything is built, `plynth render --plan` saves a picture of one floor: the plan image, dimmed, with the walls as blue bands, the points as dots, the doors with their swing, the windows, the rooms filled light with their type and area, the furniture footprints and the stairs on top. Every mark carries the id the other commands take, such as `w3`, `o5`, `r2` or `i4`, so the assistant can name what it sees. It needs no build and no graphics driver.
+
+```
+plynth detect --apply
+plynth render --plan --out renders/plan-check.png
+```
+
+The assistant opens the picture and compares each blue band with the dark wall line under it. A band beside its line, a wall drawn on the image but with no band, a band where the image has none, a door swinging the wrong way, or a room with the wrong area all show here. It fixes them with the `wall`, `point`, `opening` and `room` commands and renders the plan again. `--grid` adds a 1 m grid and a scale bar for checking sizes, `--no-labels` gives a clean view of the bands, and `--floor f2` draws another floor. The answer's `scale` and `origin` turn a plan position into a pixel of the picture, and `labels` gives the box of every label.
+
+If the answer has the warning `no_scale`, the plan image is left out because the scale is not set yet. Set it first.
+
+### Checking the build
+
+`plynth render` without `--plan` draws the last build with Plynth's own real-time 3D view, the same view as the app's 3D page, and saves it as a PNG. It starts no Blender and takes a few seconds.
 
 A good loop after every build:
 
@@ -93,7 +113,7 @@ Rendering needs a working graphics driver. If `render` answers `graphics_unavail
 
 ## Working together with the app
 
-You can keep the app open while the assistant works. After `plynth session begin` the app turns read only, shows a banner with the assistant's name, and redraws within about a second after each change, so you can watch.
+You can keep the app open while the assistant works. After `plynth session begin` the app turns read only, shows a banner with the assistant's name, and redraws within about a second after each change, so you can watch. Builds show live too: when the assistant runs `plynth build`, the app's bar shows the build's progress as for one of your own, and when it ends the app loads the new building and switches to the 3D view. An export from the command line shows its progress the same way, without changing the view.
 
 When you want to change something yourself, ask the assistant to run `plynth session end`, make your change in the app and save, then let it start a new session. A session with no command for a few minutes expires by itself, and the app's banner has an "Unlock now" button for one that was never ended. Use it only when the assistant has stopped.
 

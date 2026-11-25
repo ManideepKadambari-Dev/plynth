@@ -92,15 +92,13 @@ private:
 BuildPanel::BuildPanel(QWidget* parent) : QWidget(parent)
 {
     const Theme& t = Theme::instance();
-    setToolTip(tr("The last build: summary, files, steps and problems"));
     auto* outer = new QVBoxLayout(this);
     outer->setContentsMargins(0, 0, 0, 0);
     auto* scroll = new QScrollArea(this);
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    scroll->setStyleSheet(QStringLiteral("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; }") +
-                          t.scrollBarStyleSheet());
+    scroll->setStyleSheet(QStringLiteral("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; }"));
     body_ = new QWidget();
     column_ = new QVBoxLayout(body_);
     column_->setContentsMargins(t.unit() * 4, t.unit() * 3, t.unit() * 4, t.unit() * 4);

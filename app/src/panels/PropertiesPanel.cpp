@@ -10,6 +10,9 @@
 #include "panels/FinishGroups.h"
 #include "panels/OpeningAssetPicker.h"
 #include "document/Selection.h"
+#include "theme/ElideLabel.h"
+#include "theme/PaneFit.h"
+#include "theme/PlainText.h"
 #include "theme/Theme.h"
 #include "tools/ToolController.h"
 
@@ -59,6 +62,7 @@
 #include <QSlider>
 #include <QSpinBox>
 #include <QStackedWidget>
+#include <QTimer>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -122,8 +126,6 @@ PropertiesPanel::PropertiesPanel(plynth::Document& document, Selection& selectio
     : QWidget(parent), document_(document), selection_(selection), controller_(controller)
 {
     const Theme& t = Theme::instance();
-    setToolTip(tr("Properties of the selected item, or of the plan when nothing is selected"));
-
     auto* column = new QVBoxLayout(this);
     column->setContentsMargins(t.unit() * 4, t.unit() * 3, t.unit() * 4 + kBorderWidth, t.unit() * 3);
     column->setSpacing(t.unit() * 3);
@@ -145,8 +147,7 @@ PropertiesPanel::PropertiesPanel(plynth::Document& document, Selection& selectio
     scroll_->setWidgetResizable(true);
     scroll_->setFrameShape(QFrame::NoFrame);
     scroll_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    scroll_->setStyleSheet(QStringLiteral("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; }") +
-                           t.scrollBarStyleSheet());
+    scroll_->setStyleSheet(QStringLiteral("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; }"));
     scroll_->setWidget(pages_);
     column->addWidget(scroll_, 1);
 
@@ -194,18 +195,19 @@ QWidget* PropertiesPanel::makePage(QGridLayout** grid)
     return page;
 }
 
-// Adds a row with a text value, in JetBrains Mono unless mono is false.
-QLabel* PropertiesPanel::addLabelRow(QGridLayout* grid, const QString& label, bool mono)
+// Adds a row with a text value, in JetBrains Mono unless mono is false. With elide, a long value such as a file
+// name is cut in the middle instead of wrapped.
+QLabel* PropertiesPanel::addLabelRow(QGridLayout* grid, const QString& label, bool mono, bool elide)
 {
     const Theme& t = Theme::instance();
     auto* name = new QLabel(label, grid->parentWidget());
     name->setFont(t.uiFont(t.sizeSmall()));
     name->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
-    auto* value = new QLabel(grid->parentWidget());
+    QLabel* value = elide ? new ElideLabel(grid->parentWidget()) : new QLabel(grid->parentWidget());
     value->setTextFormat(Qt::PlainText);
     value->setFont(mono ? t.monoFont(t.sizeNormal()) : t.uiFont(t.sizeNormal()));
     value->setTextInteractionFlags(Qt::NoTextInteraction);
-    value->setWordWrap(true);
+    value->setWordWrap(!elide);
     const int row = grid->rowCount();
     grid->addWidget(name, row, 0, Qt::AlignTop);
     grid->addWidget(value, row, 1, Qt::AlignTop);
@@ -414,7 +416,7 @@ void PropertiesPanel::buildFloorSection(QGridLayout* grid)
             refresh();
     });
 
-    floorImage_ = addLabelRow(grid, tr("Plan image"));
+    floorImage_ = addLabelRow(grid, tr("Plan image"), true, true);
     floorImage_->setToolTip(tr("The plan image of this floor"));
     auto* choose = new QPushButton(tr("Choose image..."), grid->parentWidget());
     choose->setToolTip(tr("Pick another plan image for this floor (Ctrl+Shift+O)"));
@@ -1008,7 +1010,6 @@ void PropertiesPanel::buildDetectPage()
     const Theme& t = Theme::instance();
     QGridLayout* grid = nullptr;
     QWidget* page = makePage(&grid);
-    page->setToolTip(tr("Settings for finding walls in the plan image"));
 
     thinSlider_ = addSliderRow(grid, tr("Thinnest wall"), 2, 40,
                                tr("Dark lines thinner than this are not walls. Raise it to drop thin inner walls."),
@@ -1537,6 +1538,9 @@ void PropertiesPanel::refresh()
     }
     pages_->setCurrentIndex(page);
     pages_->updateGeometry();
+    // The side panel opens wide enough for the shown page, so nothing in it is cut off.
+    scroll_->setMinimumWidth(paneNeededWidth(scroll_));
+    QTimer::singleShot(0, scroll_, [this]() { scroll_->setMinimumWidth(paneNeededWidth(scroll_)); });
     deleteButton_->setVisible(!selection_.isEmpty() && selection_.kind() != SelectionKind::RoofSection && !detecting && !placing);
     for (QWidget* editor : editors_)
         editor->setEnabled(!readOnly);
@@ -1636,6 +1640,7 @@ void PropertiesPanel::refreshNothing()
     if (floor != nullptr && !floorName_->hasFocus())
         floorName_->setText(fromCore(floor->name));
     floorImage_->setText(floor != nullptr && floor->image.has_value() ? fromCore(*floor->image) : tr("None"));
+    floorImage_->setToolTip(plainToolTip(tr("The plan image of this floor: %1").arg(floorImage_->text())));
     pointCount_->setText(QString::number(floor ? floor->points.size() : 0));
     wallCount_->setText(QString::number(floor ? floor->walls.size() : 0));
     roomCount_->setText(QString::number(floor ? floor->rooms.size() : 0));
@@ -1897,7 +1902,6 @@ void PropertiesPanel::buildOpeningToolPage()
     const Theme& t = Theme::instance();
     QGridLayout* grid = nullptr;
     QWidget* page = makePage(&grid);
-    page->setToolTip(tr("What the Opening tool places"));
     toolType_ = addComboRow(grid, tr("Type"), tr("Door, window or plain opening"));
     fillTypeCombo(toolType_);
     toolShape_ = addComboRow(grid, tr("Shape"), tr("The shape of the cutout in the wall"));
@@ -2152,7 +2156,6 @@ void PropertiesPanel::buildItemPage()
     const Theme& t = Theme::instance();
     QGridLayout* grid = nullptr;
     QWidget* page = makePage(&grid);
-    page->setToolTip(tr("The selected piece of furniture"));
 
     itemThumb_ = new QLabel(page);
     itemThumb_->setFixedSize(128, 128);

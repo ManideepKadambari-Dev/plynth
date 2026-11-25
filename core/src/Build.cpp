@@ -10,6 +10,7 @@
 #include "plynth/core/BlenderJob.h"
 #include "plynth/core/GeneratorBuild.h"
 #include "plynth/core/Generators.h"
+#include "plynth/core/JobProgress.h"
 #include "plynth/core/Openings.h"
 #include "plynth/core/ProjectFiles.h"
 #include "plynth/core/ProjectJson.h"
@@ -120,6 +121,18 @@ Status writeReport(const fs::path& folder, const BuildReport& report)
 {
     const std::string text = buildReportToJson(report).dump(2, ' ', false, Json::error_handler_t::replace) + "\n";
     return fileio::writeAtomic(folder / pathFromUtf8(kBuildReportFileName), text);
+}
+
+// The sentence the progress file shows for a stage that has no worker step of its own.
+std::string_view buildStageMessage(BuildStage stage)
+{
+    switch (stage) {
+    case BuildStage::Preparing: return "Checking the plan";
+    case BuildStage::Blender: return "Starting Blender";
+    case BuildStage::Finishing: return "Writing the report";
+    case BuildStage::Done: return "Done";
+    }
+    return "Checking the plan";
 }
 
 // Milliseconds since a start.
@@ -439,7 +452,9 @@ BuildReport runBuild(const BuildRequest& request, const std::function<void(const
 {
     const auto started = std::chrono::steady_clock::now();
     BuildReport report;
+    JobProgressFile* progressFile = nullptr;
     const auto progress = [&](BuildStage stage, const BlenderProgress& blender = {}) {
+        if (progressFile) progressFile->update(buildStageName(stage), blender, buildStageMessage(stage));
         if (!onProgress) return;
         BuildProgress p;
         p.stage = stage;
@@ -476,6 +491,10 @@ BuildReport runBuild(const BuildRequest& request, const std::function<void(const
 
     report.jobId = newJobId("build");
     report.startedAt = sessionNow();
+    // Made after the lock, so the file is removed before the lock and a reader never sees it without one.
+    JobProgressFile shownProgress(folder, "build", report.jobId, report.startedAt);
+    shownProgress.update(buildStageName(BuildStage::Preparing), {}, buildStageMessage(BuildStage::Preparing));
+    progressFile = &shownProgress;
     report.planFingerprint = planFingerprint(request.project);
     report.blenderVersion = request.blender.version ? formatBlenderVersion(*request.blender.version) : std::string();
 

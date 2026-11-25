@@ -38,12 +38,14 @@ add_executable(plynth_cli_tests
     ErrorListTests.cpp
     RenderCliTests.cpp
     RenderProcessTests.cpp
+    PlanRenderCliTests.cpp
     GapCliTests.cpp
     PackCliTests.cpp
     SessionKeeperTests.cpp
     WholeCliTests.cpp
     GuideTests.cpp
     GuideCliTests.cpp
+    AgentGuideCliTests.cpp
     IdCliTests.cpp
     FormatCliTests.cpp
     LightCliTests.cpp
@@ -69,4 +71,6 @@ target_compile_definitions(plynth_cli_tests PRIVATE
     PLYNTH_LEAKY_BLENDER="$<TARGET_FILE:plynth_leaky_blender>")
 add_dependencies(plynth_cli_tests plynth_fake_blender plynth_leaky_blender)
 
-catch_discover_tests(plynth_cli_tests DISCOVERY_MODE PRE_TEST)
+# Release programs no longer know the source tree, so the tests name the Blender scripts folder themselves.
+catch_discover_tests(plynth_cli_tests DISCOVERY_MODE PRE_TEST
+    PROPERTIES ENVIRONMENT_MODIFICATION "PLYNTH_BLENDER_SCRIPTS=set:${PROJECT_SOURCE_DIR}/blender")

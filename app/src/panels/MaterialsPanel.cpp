@@ -2,6 +2,8 @@
 
 #include "catalog/LibraryHost.h"
 #include "materials/MaterialPreview.h"
+#include "theme/ElideLabel.h"
+#include "theme/PaneFit.h"
 #include "theme/PlainText.h"
 #include "theme/Theme.h"
 
@@ -26,7 +28,6 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QScrollArea>
-#include <QScrollBar>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QStandardItemModel>
@@ -180,7 +181,6 @@ QDoubleSpinBox* makeTileSpin(const QString& tip, QWidget* parent)
 MaterialsPanel::MaterialsPanel(LibraryHost& host, QWidget* parent) : QWidget(parent), host_(host)
 {
     const Theme& t = Theme::instance();
-    setToolTip(tr("The materials catalog: search, pick and edit the surface materials in the library"));
 
     auto* column = new QVBoxLayout(this);
     column_ = column;
@@ -222,7 +222,6 @@ MaterialsPanel::MaterialsPanel(LibraryHost& host, QWidget* parent) : QWidget(par
     splitter_ = new QSplitter(Qt::Horizontal, pages_);
     splitter_->setChildrenCollapsible(false);
     splitter_->setHandleWidth(t.unit());
-    splitter_->setStyleSheet(QStringLiteral("QSplitter::handle { background: %1; }").arg(t.line().name()));
     auto* top = new QWidget(splitter_);
     auto* topLayout = new QVBoxLayout(top);
     topLayout->setContentsMargins(0, 0, 0, 0);
@@ -253,8 +252,7 @@ MaterialsPanel::MaterialsPanel(LibraryHost& host, QWidget* parent) : QWidget(par
 
     buildDetails();
     splitter_->addWidget(detailsScroll_);
-    detailsScroll_->setMinimumWidth(t.detailsMinWidth());
-    detailsScroll_->setMaximumWidth(t.detailsMaxWidth());
+    fitPaneWidth(detailsScroll_, t.detailsMinWidth(), t.detailsMaxWidth());
     splitter_->setStretchFactor(0, 1);
     splitter_->setStretchFactor(1, 0);
     detailsScroll_->hide();
@@ -351,7 +349,6 @@ void MaterialsPanel::buildDetails()
     detailsScroll_->setFrameShape(QFrame::NoFrame);
     detailsScroll_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     detailsScroll_->setStyleSheet(QStringLiteral("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; }"));
-    detailsScroll_->verticalScrollBar()->setStyleSheet(t.scrollBarStyleSheet());
     auto* body = new QWidget();
     auto* box = new QVBoxLayout(body);
     box->setContentsMargins(t.unit() * 4, t.unit() * 2, t.unit() * 4, 0);
@@ -377,7 +374,7 @@ void MaterialsPanel::buildDetails()
         applyEdit(edit);
     });
 
-    idLabel_ = new QLabel(body);
+    idLabel_ = new ElideLabel(body);
     idLabel_->setTextFormat(Qt::PlainText);
     idLabel_->setFont(t.monoFont(t.sizeSmall()));
     idLabel_->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
@@ -418,9 +415,10 @@ void MaterialsPanel::buildDetails()
     textureLabel_->setToolTip(tr("Size in pixels of the base color image"));
     box->addWidget(textureLabel_);
 
-    box->addWidget(mutedLabel(tr("Maps"), body));
+    auto* mapsTitle = mutedLabel(tr("Maps"), body);
+    mapsTitle->setToolTip(tr("The images the material is made of and how each was made: from a file, a single value, baked from Blender nodes, or none"));
+    box->addWidget(mapsTitle);
     mapsBox_ = new QWidget(body);
-    mapsBox_->setToolTip(tr("The images the material is made of and how each was made: from a file, a single value, baked from Blender nodes, or none"));
     mapsGrid_ = new QGridLayout(mapsBox_);
     mapsGrid_->setContentsMargins(0, 0, 0, 0);
     mapsGrid_->setHorizontalSpacing(t.unit() * 3);
@@ -428,11 +426,9 @@ void MaterialsPanel::buildDetails()
     mapsGrid_->setColumnStretch(1, 1);
     box->addWidget(mapsBox_);
 
-    sourceLabel_ = new QLabel(body);
-    sourceLabel_->setTextFormat(Qt::PlainText);
+    sourceLabel_ = new ElideLabel(body);
     sourceLabel_->setFont(t.monoFont(t.sizeSmall()));
     sourceLabel_->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
-    sourceLabel_->setWordWrap(true);
     sourceLabel_->setToolTip(tr("Where the material came from"));
     box->addWidget(sourceLabel_);
 
@@ -440,6 +436,7 @@ void MaterialsPanel::buildDetails()
     license_ = new QComboBox(body);
     license_->setFont(t.uiFont(t.sizeNormal()));
     license_->setStyle(t.controlStyle());
+    license_->setSizeAdjustPolicy(QComboBox::AdjustToContents);
     license_->setToolTip(tr("The license the material came with"));
     box->addWidget(license_);
     connect(license_, &QComboBox::activated, this, [this](int index) {
@@ -471,7 +468,6 @@ void MaterialsPanel::buildDetails()
     groups_->setFont(t.uiFont(t.sizeNormal()));
     groups_->setStyle(t.controlStyle());
     groups_->setFixedHeight(t.unit() * 40);
-    groups_->setStyleSheet(t.scrollBarStyleSheet());
     groups_->setToolTip(tr("Tick every group the material belongs to"));
     box->addWidget(groups_);
     connect(groups_, &QListWidget::itemChanged, this, [this]() {
@@ -892,6 +888,7 @@ void MaterialsPanel::showDetails()
     MaterialPreview::showThumbnail(thumb_, record, t.thumbnailLarge(), devicePixelRatioF());
     name_->setText(fromCore(record.name));
     idLabel_->setText(fromCore(record.id));
+    idLabel_->setToolTip(plainToolTip(tr("The id of the material, used by the command line and the plan: %1").arg(fromCore(record.id))));
     tileWidth_->setValue(record.tileSize.width);
     tileHeight_->setValue(record.tileSize.height);
 
@@ -911,12 +908,10 @@ void MaterialsPanel::showDetails()
         int row = 0;
         for (const plynth::MapChannel channel : plynth::allMapChannels()) {
             auto* name = mutedLabel(channelText(channel), mapsBox_);
-            auto* how = new QLabel(mapsBox_);
-            how->setTextFormat(Qt::PlainText);
+            auto* how = new ElideLabel(mapsBox_);
             how->setText(originText(plynth::materialMap(info.info.maps, channel)));
+            how->setToolTip(plainToolTip(how->text()));
             how->setFont(t.monoFont(t.sizeSmall()));
-            how->setTextInteractionFlags(Qt::NoTextInteraction);
-            how->setWordWrap(true);
             mapsGrid_->addWidget(name, row, 0, Qt::AlignTop);
             mapsGrid_->addWidget(how, row, 1, Qt::AlignTop);
             ++row;
@@ -926,6 +921,7 @@ void MaterialsPanel::showDetails()
 
     sourceLabel_->setText(fromCore(record.sourceKind) +
                           (record.sourceReference.empty() ? QString() : QStringLiteral(": ") + fromCore(record.sourceReference)));
+    sourceLabel_->setToolTip(plainToolTip(tr("Where the material came from: %1").arg(sourceLabel_->text())));
 
     license_->clear();
     for (const plynth::LicenseEntry& entry : host_.materialCatalog()->licenses())
@@ -959,7 +955,7 @@ void MaterialsPanel::showDetails()
     if (info.status.ok())
         for (const plynth::BlenderWarning& warning : info.info.warnings)
             problems << fromCore(warning.message);
-    problems_->setText(problems.join(QLatin1Char('\n')));
+    problems_->setText(breakable(problems.join(QLatin1Char('\n'))));
     problems_->setVisible(!problems.isEmpty());
 
     const bool busy = busy_.contains(fromCore(record.id));
@@ -968,6 +964,18 @@ void MaterialsPanel::showDetails()
                        : busy          ? tr("This material is already being cleaned and rendered")
                                        : tr("Clean the maps again and render a new thumbnail"));
     refreshing_ = was;
+    fitDetails();
+}
+
+// Widens the details to fit what they show now, at once and again once the new rows are laid out.
+void MaterialsPanel::fitDetails()
+{
+    const Theme& t = Theme::instance();
+    fitPaneWidth(detailsScroll_, t.detailsMinWidth(), t.detailsMaxWidth());
+    QTimer::singleShot(0, this, [this]() {
+        const Theme& theme = Theme::instance();
+        fitPaneWidth(detailsScroll_, theme.detailsMinWidth(), theme.detailsMaxWidth());
+    });
 }
 
 // Remembers which materials are being rendered, so Retry waits for them.

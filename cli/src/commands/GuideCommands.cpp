@@ -183,7 +183,7 @@ Answer samplesOpen(const RunContext& context, const SamplesOpenOptions& options)
         }
         into = *loaded.settings.projects;
     }
-    const SampleCopy copy = copySampleProject(samples, options.id, into.lexically_normal());
+    const SampleCopy copy = copySampleProject(samples, options.id, into.lexically_normal(), agentGuideMaster());
     if (!copy.status.ok()) return failure(command, copy.status);
     Json result = Json::object();
     result["id"] = options.id;

@@ -4,6 +4,7 @@
 #include "building/BuildController.h"
 #include "building/BuildPanel.h"
 #include "building/ExportController.h"
+#include "building/OutsideJobWatch.h"
 #include "TitleBar.h"
 #include "StatusBar.h"
 #include "canvas/OverlayBuilder.h"
@@ -181,8 +182,6 @@ MainWindow::MainWindow(QWidget* parent)
     splitter_ = new QSplitter(Qt::Vertical, work);
     splitter_->setChildrenCollapsible(false);
     splitter_->setHandleWidth(Theme::instance().unit());
-    splitter_->setStyleSheet(QStringLiteral("QSplitter::handle { background: %1; }")
-                                 .arg(Theme::instance().line().name()));
     canvas_->setParent(splitter_);
     splitter_->addWidget(canvas_);
     wallView_ = new WallView(doc_, *selection_, *tools_, splitter_);
@@ -447,6 +446,11 @@ MainWindow::MainWindow(QWidget* parent)
 
     watcher_ = new ProjectWatcher(this);
     connect(watcher_, &ProjectWatcher::checkRequested, this, &MainWindow::handleCheck);
+    outsideJob_ = new OutsideJobWatch(this);
+    outsideJob_->setOwnJobCheck([this]() { return builder_->running() || exporter_->running(); });
+    connect(watcher_, &ProjectWatcher::jobLockChanged, outsideJob_, &OutsideJobWatch::recheck);
+    connect(outsideJob_, &OutsideJobWatch::changed, this, &MainWindow::updateBuildUi);
+    connect(outsideJob_, &OutsideJobWatch::ended, this, &MainWindow::outsideJobEnded);
     connect(banner_, &ReadOnlyBanner::unlockRequested, this, &MainWindow::unlockNow);
 
     autosaveTimer_ = new QTimer(this);
@@ -2112,7 +2116,7 @@ bool MainWindow::openSampleProject(const QString& id)
         showError(tr("Open sample project"), tr("The samples or the projects folder were not found. Run the setup check."));
         return false;
     }
-    const plynth::SampleCopy copy = plynth::copySampleProject(samples, id.toStdString(), std::filesystem::path(projects.toStdWString()));
+    const plynth::SampleCopy copy = plynth::copySampleProject(samples, id.toStdString(), std::filesystem::path(projects.toStdWString()), plynth::agentGuideMaster());
     if (!copy.status.ok()) {
         showError(tr("Open sample project"), fromCore(copy.status.message));
         return false;
@@ -2229,6 +2233,7 @@ void MainWindow::syncWatcher()
 {
     watcher_->setFolder(doc_.hasFolder() ? doc_.folder() : std::filesystem::path());
     watcher_->acknowledge();
+    outsideJob_->setFolder(doc_.hasFolder() ? doc_.folder() : std::filesystem::path());
     reloadPending_ = false;
     handleCheck();
 }

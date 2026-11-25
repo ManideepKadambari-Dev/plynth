@@ -242,15 +242,13 @@ private:
 ExportPanel::ExportPanel(QWidget* parent) : QWidget(parent)
 {
     const Theme& t = Theme::instance();
-    setToolTip(tr("The export for Unreal: the last export, its files and the quality checks"));
     auto* outer = new QVBoxLayout(this);
     outer->setContentsMargins(0, 0, 0, 0);
     auto* scroll = new QScrollArea(this);
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    scroll->setStyleSheet(QStringLiteral("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; }") +
-                          t.scrollBarStyleSheet());
+    scroll->setStyleSheet(QStringLiteral("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; }"));
     body_ = new QWidget();
     column_ = new QVBoxLayout(body_);
     column_->setContentsMargins(t.unit() * 4, t.unit() * 3, t.unit() * 4, t.unit() * 4);

@@ -1350,6 +1350,8 @@ A project you open while a session is active starts read only. The recovery ques
 
 If the app has unsaved changes, a script cannot begin a session. It has to wait until you save or discard.
 
+**Builds and exports from the command line.** When a script runs `plynth build` or `plynth export` on the project you have open, with or without a session, the bar above the plan shows it as it runs: "Building from the command line" or "Exporting from the command line", the step it is on and a progress bar, as for a build of your own. Build and the export buttons are off until it ends, because only one build or export runs at a time. **Cancel** asks it to stop, the same as `plynth build cancel`. When a build ends, the Build report window shows its report, the 3D view loads the new building and opens by itself, and the status bar says "Built from the command line." If it failed, the bar says "The last build failed. See the Build report window." When an export ends, the Export window shows its report and the view stays as it is. A build or export that was cancelled leaves the last one as it was, and the status bar says so.
+
 **Changed outside Plynth.** In the rare case that the files change while you have unsaved edits and no session is active, Plynth asks "The plan was changed outside Plynth. Load the new version? Your unsaved changes will be lost." Choose Load to take the new version, or Keep mine to keep working. Keep mine means your next save overwrites the outside change.
 
 The commands and the exact rules are in the [Command line guide](CLI_GUIDE.md).

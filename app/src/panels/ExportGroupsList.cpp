@@ -140,7 +140,6 @@ private:
 ExportGroupsList::ExportGroupsList(plynth::ExportEditGuard& guard, QWidget* parent) : QWidget(parent), guard_(guard)
 {
     const Theme& t = Theme::instance();
-    setToolTip(tr("The files a grouped export writes. Rename a group, merge groups, or move a member to another group."));
 
     auto* column = new QVBoxLayout(this);
     column->setContentsMargins(0, 0, 0, 0);
