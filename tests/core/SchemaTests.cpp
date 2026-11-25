@@ -42,7 +42,7 @@ TEST_CASE("the schema files are valid schemas", "[core][schema]") {
     for (const char* file : {"plan.schema.json", "project.schema.json", "plan.v1.schema.json", "project.v1.schema.json", "plan.v2.schema.json",
                              "project.v2.schema.json", "plan.v3.schema.json", "project.v3.schema.json", "plan.v4.schema.json", "project.v4.schema.json",
                              "plan.v5.schema.json", "plan.v6.schema.json", "project.v5.schema.json", "settings.schema.json", "settings.v1.schema.json",
-                             "settings.v2.schema.json", "settings.v3.schema.json", "settings.v4.schema.json", "export-report.schema.json", "export-options.schema.json", "export-options.v1.schema.json", "export-options.v2.schema.json",
+                             "settings.v2.schema.json", "settings.v3.schema.json", "settings.v4.schema.json", "settings.v5.schema.json", "update-state.schema.json", "export-report.schema.json", "export-options.schema.json", "export-options.v1.schema.json", "export-options.v2.schema.json",
                              "gameplay.schema.json", "trim-profile.schema.json", "asset-supports.schema.json",
                              "kit-layout.schema.json", "fab-source.schema.json", "integrations.schema.json"}) {
         INFO(file);

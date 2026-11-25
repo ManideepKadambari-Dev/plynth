@@ -4,18 +4,35 @@
 #include "window/MainWindow.h"
 #include "guide/GuideHost.h"
 #include "preview/RenderHost.h"
+#include "update/UpdateController.h"
 
 #include <plynth/cli/Cli.h>
+#include <plynth/core/Settings.h>
+#include <plynth/core/Update.h>
 #include <plynth/core/Version.h>
 
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QElapsedTimer>
 #include <QImage>
+#include <QMessageBox>
+#include <QPushButton>
 #include <QRegularExpression>
 #include <QTimer>
 
+#include <cstdio>
+#include <string>
 #include <string_view>
+
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
 
 namespace {
 
@@ -24,6 +41,7 @@ constexpr int kExitSaveFailed = 1;
 constexpr int kExitBadArguments = 2;
 constexpr int kExitImageFailed = 3;
 constexpr int kExitTerminalFailed = 4;
+constexpr int kExitUpdateInProgress = 5;
 constexpr qint64 kDetectionWaitMs = 15000;
 constexpr qint64 kSetupWaitMs = 60000;
 constexpr qint64 kPreviewWaitMs = 30000;
@@ -54,12 +72,72 @@ bool saveScreenshot(plynth::app::MainWindow& window, const QString& file, const 
     return image.save(file, "PNG");
 }
 
+// Writes the one JSON answer of a command that cannot run while setup runs, in the form the command line uses,
+// to the redirected output or the console that started it.
+void answerRefusedCommand(const char* command, const plynth::Status& status)
+{
+    plynth::Json error = plynth::Json::object();
+    error["code"] = std::string(plynth::errorCodeName(status.code));
+    error["message"] = status.message;
+    plynth::Json answer = plynth::Json::object();
+    answer["ok"] = false;
+    answer["command"] = std::string(command);
+    answer["error"] = std::move(error);
+    const std::string text = answer.dump(-1, ' ', false, plynth::Json::error_handler_t::replace) + "\n";
+#ifdef _WIN32
+    HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
+    bool owns = false;
+    if (out == nullptr || out == INVALID_HANDLE_VALUE || GetFileType(out) == FILE_TYPE_UNKNOWN) {
+        if (!AttachConsole(ATTACH_PARENT_PROCESS))
+            return;
+        out = CreateFileW(L"CONOUT$", GENERIC_WRITE, FILE_SHARE_WRITE | FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0,
+                          nullptr);
+        if (out == INVALID_HANDLE_VALUE)
+            return;
+        SetConsoleOutputCP(CP_UTF8);
+        owns = true;
+    }
+    std::size_t done = 0;
+    while (done < text.size()) {
+        DWORD written = 0;
+        if (!WriteFile(out, text.data() + done, static_cast<DWORD>(text.size() - done), &written, nullptr) ||
+            written == 0)
+            break;
+        done += written;
+    }
+    if (owns)
+        CloseHandle(out);
+#else
+    std::fputs(text.c_str(), stdout);
+#endif
+}
+
+// Tells the user who started the window that Plynth is being installed, and offers nothing else.
+void showUpdateInProgress(const plynth::Status& status)
+{
+    QMessageBox box;
+    box.setIcon(QMessageBox::NoIcon);
+    box.setTextFormat(Qt::PlainText);
+    box.setWindowTitle(QObject::tr("Plynth is being updated"));
+    box.setText(QString::fromUtf8(status.message.data(), static_cast<qsizetype>(status.message.size())) +
+                QStringLiteral("\n\n") + QObject::tr("Start Plynth again when the installer has finished."));
+    box.setStandardButtons(QMessageBox::Ok);
+    box.button(QMessageBox::Ok)->setToolTip(QObject::tr("Close this message"));
+    box.exec();
+}
+
 }
 
 // Parses the options, opens the window and optionally saves a screenshot.
 int main(int argc, char* argv[])
 {
     if (argc > 1 && plynth::cli::isCommandWord(argv[1])) {
+        // A packaged program marks itself running, and refuses to run while its installer replaces it.
+        const plynth::Status packaged = plynth::beginPackagedRun();
+        if (!packaged.ok()) {
+            answerRefusedCommand(argv[1], packaged);
+            return plynth::cli::kExitFailed;
+        }
         // Only render gets the 3D view, so no other command starts Qt.
         plynth::cli::CliHost host;
         if (std::string_view(argv[1]) == "render")
@@ -288,6 +366,12 @@ int main(int argc, char* argv[])
     QCommandLineOption panelOption(QStringLiteral("panel"),
                                    QStringLiteral("Open or close the side panel, without saving it: open or closed. For checks only."),
                                    QStringLiteral("state"));
+    QCommandLineOption updateStateOption(QStringLiteral("update-state"),
+                                         QStringLiteral("With --screenshot, show a made up update state: ") +
+                                             plynth::app::UpdateController::cannedNames().join(QStringLiteral(", ")) +
+                                             QStringLiteral(". Nothing is sent, downloaded or installed. For checks only."),
+                                         QStringLiteral("name"));
+    parser.addOption(updateStateOption);
     QCommandLineOption windowSizeOption(QStringLiteral("window-size"),
                                         QStringLiteral("With --screenshot-window, the size of that window in pixels instead of its "
                                                        "default size, for example 1600x900."),
@@ -370,11 +454,25 @@ int main(int argc, char* argv[])
     const bool quiet = wantsScreenshot;
     if (wantsScreenshot && parser.value(screenshotOption).isEmpty())
         return kExitBadArguments;
+    const QString updateState = parser.value(updateStateOption).toLower();
+    if (parser.isSet(updateStateOption) &&
+        (!wantsScreenshot || !plynth::app::UpdateController::cannedNames().contains(updateState)))
+        return kExitBadArguments;
+    // Any option at all is a check or a screenshot. Only a plain start, with at most a project, checks for updates.
+    const bool checkMode = !parser.optionNames().isEmpty();
 
     plynth::app::Theme& theme = plynth::app::Theme::instance();
     theme.load(QStringLiteral(":/themes/drafting-dark.json"));
     theme.loadBundledFonts();
     theme.apply();
+
+    // A packaged program marks itself running, and refuses to start while its installer replaces it.
+    const plynth::Status packaged = plynth::beginPackagedRun();
+    if (!packaged.ok()) {
+        if (!checkMode)
+            showUpdateInProgress(packaged);
+        return kExitUpdateInProgress;
+    }
 
     QStringList positional = parser.positionalArguments();
 
@@ -597,6 +695,11 @@ int main(int argc, char* argv[])
     }
     else if (!quiet)
         QTimer::singleShot(0, &window, [&window]() { window.openSetupCheckIfNeeded(); });
+    // After the setup check had its turn, so a setup check that opened is waited for.
+    if (!quiet && !checkMode)
+        QTimer::singleShot(0, &window, [&window]() { window.startUpdateCheck(); });
+    if (!updateState.isEmpty())
+        QTimer::singleShot(0, &window, [&window, updateState]() { window.showUpdateStateForCheck(updateState); });
     if (loadFailed && !quiet)
         QTimer::singleShot(0, &window, [&window, loadTitle, loadError]() { window.showError(loadTitle, loadError); });
     else if (hasProject && !loadFailed && !quiet)

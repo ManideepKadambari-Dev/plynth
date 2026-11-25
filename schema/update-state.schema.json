@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:update-state:1",
+  "title": "Plynth update state, version 1",
+  "description": "What an installed Plynth remembers about updates, in update-state.json in the settings folder. Only Plynth writes it. A missing file means no signed release was seen and no update was started. An unknown field is refused.",
+  "type": "object",
+  "required": ["format", "version"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "plynth-update-state" },
+    "version": { "const": 1 },
+    "highest_signed": {
+      "description": "The highest version whose signature verified, as major.minor.patch. No release below it is offered. Null when none was seen.",
+      "type": ["string", "null"],
+      "pattern": "^(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})$"
+    },
+    "last": {
+      "description": "The last update that was started. Null when none was.",
+      "type": ["object", "null"],
+      "required": ["from", "to", "started", "log"],
+      "additionalProperties": false,
+      "properties": {
+        "from": { "description": "The version that started the update.", "type": "string", "minLength": 1 },
+        "to": { "description": "The signed version of the installer that was started.", "type": "string", "minLength": 1 },
+        "started": { "description": "UTC time as YYYY-MM-DDTHH:MM:SSZ.", "type": "string", "minLength": 1 },
+        "log": { "description": "The installer's log file, absolute, with forward slashes.", "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

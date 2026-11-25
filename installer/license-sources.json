@@ -4,6 +4,11 @@
       "name": "CC0-1.0.txt",
       "component": "Creative Commons CC0 1.0 Universal, for the sample art and projects",
       "url": "https://creativecommons.org/publicdomain/zero/1.0/legalcode.txt"
+    },
+    {
+      "name": "vcpkg/libsodium.txt",
+      "component": "libsodium 1.0.22",
+      "url": "https://raw.githubusercontent.com/jedisct1/libsodium/1.0.22-RELEASE/LICENSE"
     }
   ],
   "qt": {

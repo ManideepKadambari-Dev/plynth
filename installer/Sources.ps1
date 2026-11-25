@@ -60,6 +60,9 @@ foreach ($port in $ports) {
     Copy-Item -Recurse $recipe $target
     Get-ChildItem -Recurse -File $target | ForEach-Object { Add-Row $_.FullName "port recipe of $port" }
 }
+foreach ($port in $list.vcpkg.shipped_ports) {
+    if ($ports -notcontains $port) { throw "the shipped library $port was not installed by vcpkg, so its sources are missing" }
+}
 
 @("Third party sources of Plynth $Version", 'SHA-256, path in this zip, origin', '') + $rows |
     Out-File -FilePath (Join-Path $bundle 'SOURCES.txt') -Encoding utf8NoBOM

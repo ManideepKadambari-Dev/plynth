@@ -10,6 +10,11 @@
     "json-schema-validator",
     "libvterm",
     "clipper2",
+    "libsodium",
+    {
+      "name": "cpp-httplib",
+      "default-features": false
+    },
     {
       "name": "sqlite3",
       "features": [

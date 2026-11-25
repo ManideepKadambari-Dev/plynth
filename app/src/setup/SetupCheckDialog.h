@@ -18,6 +18,7 @@ class QWidget;
 namespace plynth::app {
 
 class LibraryHost;
+class UpdateController;
 
 // The setup check screen (DESIGN.md section 7.19b). It shows what core's setup check found, one row per
 // item, and lets the user fix each one: pick a Blender, choose or create the folders. Every change is saved
@@ -25,7 +26,7 @@ class LibraryHost;
 class SetupCheckDialog : public QDialog {
     Q_OBJECT
 public:
-    explicit SetupCheckDialog(LibraryHost& host, QWidget* parent = nullptr);
+    explicit SetupCheckDialog(LibraryHost& host, QWidget* parent = nullptr, UpdateController* updates = nullptr);
     ~SetupCheckDialog() override;
 
     // Runs the check again on the worker thread.
@@ -40,6 +41,7 @@ public:
 private:
     void showReport(const plynth::SetupReport& report);
     void addRow(const plynth::SetupItem& item);
+    void addUpdateRow();
     void updateSummary();
     void applySettings(const std::function<void(plynth::MachineSettings&)>& change);
     void chooseFolder(bool library);
@@ -49,6 +51,7 @@ private:
     void openLink(const QString& link);
 
     LibraryHost& host_;
+    UpdateController* updates_ = nullptr;
     std::optional<plynth::SetupReport> report_;
     bool checking_ = false;
     int generation_ = 0;

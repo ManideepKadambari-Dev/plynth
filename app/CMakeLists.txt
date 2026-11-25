@@ -138,6 +138,12 @@ add_executable(plynth WIN32
     src/tools/WallTool.cpp
     src/setup/SetupCheckDialog.h
     src/setup/SetupCheckDialog.cpp
+    src/update/UpdateBar.h
+    src/update/UpdateBar.cpp
+    src/update/UpdateController.h
+    src/update/UpdateController.cpp
+    src/update/UpdateDialog.h
+    src/update/UpdateDialog.cpp
     src/terminal/TerminalDock.h
     src/terminal/TerminalDock.cpp
     src/terminal/TerminalWidgets.h
@@ -159,6 +165,7 @@ add_executable(plynth WIN32
     src/window/MainWindowBuild.cpp
     src/window/MainWindowExport.cpp
     src/window/MainWindowPack.cpp
+    src/window/MainWindowUpdate.cpp
     src/window/ReadOnlyBanner.h
     src/window/ReadOnlyBanner.cpp
     src/window/StatusBar.h

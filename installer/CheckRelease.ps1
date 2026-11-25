@@ -4,7 +4,7 @@ param(
     [Parameter(Mandatory)][string]$Stage
 )
 
-# Checks a tag and its release files before a draft release is made. Every problem prints one line.
+# Checks a tag and its release files before the draft release is made. Every problem prints one line.
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 . (Join-Path $PSScriptRoot 'PackageRules.ps1')
@@ -35,6 +35,28 @@ if ($package.commit -ne $commit) { Add-Problem 'the stage was made from another 
 
 $notes = Join-Path $root "installer/text/release-notes-$version.md"
 if (-not (Test-Path $notes)) { Add-Problem "the release notes installer/text/release-notes-$version.md are missing" }
+
+# A release trusts the main and the spare key, and a third only while keys are changed.
+$keys = @(Get-TrustedKeys $root)
+$testKeys = @(Get-TestKeys $root)
+if ($keys.Count -lt 2 -or $keys.Count -gt 3) { Add-Problem "core/src/update/trusted-keys.txt holds $($keys.Count) keys, a release needs two or three" }
+$ids = @()
+foreach ($key in $keys) {
+    if (-not (Test-PublicKeyLine $key)) { Add-Problem "a line of trusted-keys.txt is not a minisign public key: $key"; continue }
+    if ($testKeys -contains $key) { Add-Problem "trusted-keys.txt holds a test key: $key" }
+    $ids += [Convert]::ToHexString([Convert]::FromBase64String($key), 2, 8)
+}
+if (@($keys | Sort-Object -Unique).Count -ne $keys.Count -or @($ids | Sort-Object -Unique).Count -ne $ids.Count) {
+    Add-Problem 'trusted-keys.txt holds the same key or key id twice'
+}
+
+$setup = Join-Path $Files 'PlynthSetup.exe'
+if (Test-Path $setup) {
+    $info = (Get-Item $setup).VersionInfo
+    if ($info.ProductVersion -ne $version -or $info.ProductName -ne 'Plynth') {
+        Add-Problem "PlynthSetup.exe says $($info.ProductName) $($info.ProductVersion), the release is Plynth $version"
+    }
+}
 
 $expected = @('PlynthSetup.exe', "Plynth-$version-windows-x64.zip", "Plynth-$version-third-party-sources.zip", 'SHA256SUMS.txt')
 $present = @(Get-ChildItem -File $Files | ForEach-Object Name)

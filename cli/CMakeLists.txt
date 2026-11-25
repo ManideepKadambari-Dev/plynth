@@ -40,6 +40,7 @@ add_library(plynth_cli STATIC
     src/commands/SessionCommands.cpp
     src/commands/SettingsCommands.cpp
     src/commands/StairCommands.cpp
+    src/commands/UpdateCommands.cpp
     src/commands/VersionCommand.cpp
     src/commands/WallCommands.cpp
     src/commands/LightCommands.cpp

@@ -17,6 +17,11 @@ $env:QML_DISABLE_DISK_CACHE = '1'
 $version = (Get-Content -Raw (Join-Path $Package 'package.json') | ConvertFrom-Json).app_version
 $failed = 0
 
+# The update check is switched off before anything else starts, so no check can ever reach GitHub.
+& (Join-Path $copy 'plynth.com') settings set --update-check false | Out-Null
+if ($LASTEXITCODE -ne 0) { Write-Host '::warning::The smoke copy could not switch the update check off. It is not installed, so it makes no request anyway.' }
+$global:LASTEXITCODE = 0
+
 foreach ($launcher in (Join-Path $copy 'plynth.com'), (Join-Path $copy 'cli\plynth.com')) {
     $text = & $launcher version 2>&1 | Out-String
     $answer = try { $text | ConvertFrom-Json } catch { $null }

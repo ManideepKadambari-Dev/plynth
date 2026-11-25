@@ -31,6 +31,7 @@ The shipped files column names the files in the program folder that come from ea
 | libvterm | 0.3.3 | MIT | `vterm*.dll`, or built into `plynth.exe` | Paul Evans | [libvterm.txt](texts/vcpkg/libvterm.txt) | https://www.leonerd.org.uk/code/libvterm/ |
 | JSON for Modern C++ (nlohmann/json) | 3.12.0 | MIT | built into `plynth.exe` | Niels Lohmann | [nlohmann-json.txt](texts/vcpkg/nlohmann-json.txt) | https://github.com/nlohmann/json |
 | CLI11 | 2.6.2 | BSD-3-Clause | built into `plynth.exe` | University of Cincinnati | [cli11.txt](texts/vcpkg/cli11.txt) | https://github.com/CLIUtils/CLI11 |
+| libsodium | 1.0.22 | ISC | `libsodium*.dll`, or built into `plynth.exe` | Frank Denis | [libsodium.txt](texts/vcpkg/libsodium.txt) | https://github.com/jedisct1/libsodium |
 | Inter font | 4.001 | OFL-1.1 | built into `plynth.exe` | Copyright (c) 2016 The Inter Project Authors | [Inter-OFL.txt](texts/fonts/Inter-OFL.txt) | https://github.com/rsms/inter |
 | JetBrains Mono font | 2.305 | OFL-1.1 | built into `plynth.exe` | Copyright 2020 The JetBrains Mono Project Authors | [JetBrainsMono-OFL.txt](texts/fonts/JetBrainsMono-OFL.txt) | https://github.com/JetBrains/JetBrainsMono |
 | Microsoft Visual C++ runtime | from Visual Studio | Microsoft Software License Terms, redistributable files | `msvcp140*.dll`, `vcruntime140*.dll`, `concrt140*.dll`, `vccorlib140*.dll` | Microsoft Corporation | [Redistributable files list](https://learn.microsoft.com/cpp/windows/redistributing-visual-cpp-files) | https://visualstudio.microsoft.com/ |
@@ -43,6 +44,8 @@ These are used to build or test Plynth, or run beside it, and are not part of th
 |---|---|---|
 | Catch2 | BSL-1.0 | Test programs only |
 | JSON Schema validator for JSON for Modern C++ | MIT | Test programs only |
+| cpp-httplib | MIT | Test programs only, as the local release server of the update tests |
+| minisign | ISC | The tool the update signatures are made with. It runs on the signing PC only |
 | Blender and its add-ons | GPL-2.0-or-later and others | Installed separately by the user. Plynth starts it and never ships it |
 
 ## Parts of Qt

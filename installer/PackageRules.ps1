@@ -23,7 +23,8 @@ $script:RuntimeNames = @('msvcp140*.dll', 'vcruntime140*.dll', 'concrt140*.dll',
 # in the package check, not by name.
 function Test-Never([string]$name) {
     $never = $script:RuntimeNames + @('dxil.dll', 'dxcompiler.dll', 'd3dcompiler_47.dll', 'opengl32sw.dll',
-        '*.pdb', '*.lib', '*.exp', '*.ilk', '*.qmlc', '*.pyc', '*_tests.exe', 'fake_*.exe')
+        '*.pdb', '*.lib', '*.exp', '*.ilk', '*.qmlc', '*.pyc', '*_tests.exe', 'fake_*.exe',
+        '*update_driver*', '*httplib*', '*.key', '*.pub', '*.minisig')
     foreach ($pattern in $never) {
         if ($name -like $pattern) { return $true }
     }
@@ -54,4 +55,36 @@ function Get-ProjectVersion([string]$root) {
     $text = Get-Content -Raw (Join-Path $root 'CMakeLists.txt')
     if ($text -notmatch 'project\(\s*Plynth\s+VERSION\s+(\d+\.\d+\.\d+)') { throw 'no project version in CMakeLists.txt' }
     return $Matches[1]
+}
+
+# Says whether a line is a minisign public key: "Ed", an 8 byte key id and a 32 byte key, in base64.
+function Test-PublicKeyLine([string]$line) {
+    if ($line -notmatch '^RW[A-Za-z0-9+/]{54}$') { return $false }
+    try { $bytes = [Convert]::FromBase64String($line) } catch { return $false }
+    return $bytes.Length -eq 42 -and $bytes[0] -eq 0x45 -and $bytes[1] -eq 0x64
+}
+
+# Reads the public keys the programs trust. Blank lines and lines that start with "#" or "untrusted comment:"
+# are skipped, as the programs skip them. Any other line must be a key.
+function Get-TrustedKeys([string]$root) {
+    $file = Join-Path $root 'core/src/update/trusted-keys.txt'
+    if (-not (Test-Path -LiteralPath $file)) { return @() }
+    return @(Get-Content -LiteralPath $file | ForEach-Object { $_.Trim() } |
+        Where-Object { $_ -and -not $_.StartsWith('#') -and -not $_.StartsWith('untrusted comment:') })
+}
+
+# Finds every public key line in the committed test files, so no test key can reach a release.
+function Get-TestKeys([string]$root) {
+    $files = @(git -C $root ls-files -- tests cli/tests app/tests)
+    $global:LASTEXITCODE = 0
+    $keys = @{}
+    foreach ($file in $files) {
+        $path = Join-Path $root $file
+        if ((Get-Item -LiteralPath $path).Length -gt 4MB) { continue }
+        $text = [System.IO.File]::ReadAllText($path)
+        foreach ($m in [regex]::Matches($text, 'RW[A-Za-z0-9+/]{54}')) {
+            if (Test-PublicKeyLine $m.Value) { $keys[$m.Value] = $true }
+        }
+    }
+    return @($keys.Keys)
 }

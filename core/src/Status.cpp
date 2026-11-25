@@ -13,6 +13,8 @@ constexpr std::array kAllCodes = {
     ErrorCode::UnsupportedVersion, ErrorCode::ImageError,  ErrorCode::Locked,             ErrorCode::UnsavedChanges,
     ErrorCode::NoLibrary,     ErrorCode::BlenderNotFound,  ErrorCode::BlenderFailed,      ErrorCode::Cancelled,
     ErrorCode::DatabaseError, ErrorCode::QualityFailed,    ErrorCode::GraphicsUnavailable, ErrorCode::RenderFailed,
+    ErrorCode::UpdateNotAvailable, ErrorCode::UpdateNotInstalled, ErrorCode::UpdateBlocked, ErrorCode::UpdateInProgress,
+    ErrorCode::SignatureInvalid, ErrorCode::NetworkFailed,
 };
 
 }
@@ -52,6 +54,12 @@ std::string_view errorCodeName(ErrorCode code)
     case ErrorCode::QualityFailed: return "quality_failed";
     case ErrorCode::GraphicsUnavailable: return "graphics_unavailable";
     case ErrorCode::RenderFailed: return "render_failed";
+    case ErrorCode::UpdateNotAvailable: return "update_not_available";
+    case ErrorCode::UpdateNotInstalled: return "update_not_installed";
+    case ErrorCode::UpdateBlocked: return "update_blocked";
+    case ErrorCode::UpdateInProgress: return "update_in_progress";
+    case ErrorCode::SignatureInvalid: return "signature_invalid";
+    case ErrorCode::NetworkFailed: return "network_failed";
     }
     return "invalid_value";
 }
@@ -81,6 +89,12 @@ std::string_view errorCodeDescription(ErrorCode code)
     case ErrorCode::QualityFailed: return "A quality check failed, so the export was not written.";
     case ErrorCode::GraphicsUnavailable: return "There is no graphics device, or the 3D view cannot start.";
     case ErrorCode::RenderFailed: return "The 3D view started but gave no usable picture.";
+    case ErrorCode::UpdateNotAvailable: return "This installed copy has no public key built in, so it cannot update.";
+    case ErrorCode::UpdateNotInstalled: return "This copy of Plynth was not installed, so it cannot check for or install updates.";
+    case ErrorCode::UpdateBlocked: return "Something running now stops the update, such as another Plynth window or an edit session.";
+    case ErrorCode::UpdateInProgress: return "Plynth is being installed or updated right now.";
+    case ErrorCode::SignatureInvalid: return "A download failed the signature check, so it was not used.";
+    case ErrorCode::NetworkFailed: return "The release server could not be reached or gave a bad answer.";
     }
     return "";
 }

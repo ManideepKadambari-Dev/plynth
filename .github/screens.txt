@@ -24,6 +24,15 @@ assets-author: {project} --select-asset chair --screenshot-window assets
 assets-window-wide: {project} --screenshot-window assets --window-size 1700x1000
 export-window-wide: {built} --screenshot-window export --window-size 1700x1000
 sources-window-wide: {project} --screenshot-window sources --window-size 1700x1000
+update-notice: {project} --update-state notice
+update-offer: {project} --update-state offer
+update-downloading: {project} --update-state downloading
+update-ready: {project} --update-state ready
+update-busy: {project} --update-state busy
+update-up-to-date: {project} --update-state up-to-date
+update-failed: {project} --update-state failed
+update-long: {project} --update-state long
+update-not-installed: {project} --update-state not-installed
 assets-author-narrow: {project} --select-asset chair --screenshot-window assets --window-size 760x560
 materials-details: {project} --select-material oak_planks --screenshot-window materials
 plan-wall-selected: {project} --select first-wall

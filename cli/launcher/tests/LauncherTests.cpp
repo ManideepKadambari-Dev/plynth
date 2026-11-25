@@ -233,3 +233,76 @@ TEST_CASE("Ctrl+Break in the terminal reaches plynth.exe as a stop request and t
     CHECK(output.find("cancelled\n") != std::string::npos);
     CHECK(output.find("not cancelled") == std::string::npos);
 }
+
+namespace {
+
+// Holds a named mutex for the length of a test, as the installer does while it runs.
+class HeldMutex {
+public:
+    explicit HeldMutex(const wchar_t* name) : handle_(CreateMutexW(nullptr, FALSE, name)) { REQUIRE(handle_ != nullptr); }
+    ~HeldMutex() { CloseHandle(handle_); }
+    HeldMutex(const HeldMutex&) = delete;
+    HeldMutex& operator=(const HeldMutex&) = delete;
+
+private:
+    HANDLE handle_;
+};
+
+// Writes a minimal package.json.
+void writePackageFile(const fs::path& folder) {
+    std::ofstream(folder / "package.json") << "{}";
+}
+
+}
+
+TEST_CASE("a packaged launcher answers update_in_progress while setup runs", "[launcher][update]") {
+    TempFolder temp;
+    fs::copy_file(PLYNTH_LAUNCHER_FILE, temp.path() / "plynth.com");
+    fs::copy_file(PLYNTH_FAKE_CHILD, temp.path() / "plynth.exe");
+    writePackageFile(temp.path());
+
+    HeldMutex setup(L"PlynthSetup");
+    for (const std::wstring arguments : {std::wstring(L"version"), std::wstring(L"update")}) {
+        const auto outcome = runLauncher(temp.path() / "plynth.com", arguments, temp.path());
+        CHECK(outcome.exitCode == 1);
+        const auto answer = nlohmann::json::parse(outcome.output);
+        CHECK(answer.at("ok") == false);
+        CHECK(answer.at("error").at("code") == "update_in_progress");
+    }
+}
+
+TEST_CASE("the launcher in a cli folder is refused when package.json is in the parent", "[launcher][update]") {
+    TempFolder temp;
+    const fs::path cli = temp.path() / "app" / "cli";
+    fs::create_directories(cli);
+    fs::copy_file(PLYNTH_LAUNCHER_FILE, cli / "plynth.com");
+    fs::copy_file(PLYNTH_FAKE_CHILD, temp.path() / "app" / "plynth.exe");
+    writePackageFile(temp.path() / "app");
+
+    HeldMutex setup(L"PlynthSetup");
+    const auto outcome = runLauncher(cli / "plynth.com", L"version", temp.path());
+    CHECK(outcome.exitCode == 1);
+    CHECK(nlohmann::json::parse(outcome.output).at("error").at("code") == "update_in_progress");
+}
+
+TEST_CASE("a launcher with no package.json ignores the setup mutex", "[launcher][update]") {
+    TempFolder temp;
+    fs::copy_file(PLYNTH_LAUNCHER_FILE, temp.path() / "plynth.com");
+    fs::copy_file(PLYNTH_FAKE_CHILD, temp.path() / "plynth.exe");
+
+    HeldMutex setup(L"PlynthSetup");
+    const auto outcome = runLauncher(temp.path() / "plynth.com", L"version", temp.path());
+    CHECK(outcome.exitCode == 0);
+    CHECK(outcome.output == "version\n");
+}
+
+TEST_CASE("a packaged launcher runs normally when setup is not running", "[launcher][update]") {
+    TempFolder temp;
+    fs::copy_file(PLYNTH_LAUNCHER_FILE, temp.path() / "plynth.com");
+    fs::copy_file(PLYNTH_FAKE_CHILD, temp.path() / "plynth.exe");
+    writePackageFile(temp.path());
+
+    const auto outcome = runLauncher(temp.path() / "plynth.com", L"update --status", temp.path());
+    CHECK(outcome.exitCode == 0);
+    CHECK(outcome.output == "update\n--status\n");
+}

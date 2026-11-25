@@ -180,6 +180,29 @@ if(PLYNTH_DETECTOR_SOURCES)
     target_sources(plynth_core INTERFACE $<TARGET_OBJECTS:plynth_detectors>)
 endif()
 
+# Update check, signature check and installer start. Signatures are checked with libsodium and HTTPS goes
+# through Windows' own WinHTTP, so core gets no Qt and no TLS library.
+file(GLOB PLYNTH_UPDATE_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/update/*.cpp)
+target_sources(plynth_core PRIVATE ${PLYNTH_UPDATE_SOURCES})
+find_package(unofficial-sodium CONFIG REQUIRED)
+target_link_libraries(plynth_core PRIVATE unofficial-sodium::sodium)
+if(WIN32)
+    target_link_libraries(plynth_core PRIVATE winhttp version)
+endif()
+
+# The trusted public keys are compiled in from one text file. An empty file leaves updating switched off.
+set(PLYNTH_TRUSTED_KEYS_FILE ${CMAKE_CURRENT_SOURCE_DIR}/src/update/trusted-keys.txt)
+if(EXISTS ${PLYNTH_TRUSTED_KEYS_FILE})
+    file(READ ${PLYNTH_TRUSTED_KEYS_FILE} PLYNTH_TRUSTED_KEYS_TEXT)
+else()
+    set(PLYNTH_TRUSTED_KEYS_TEXT "")
+endif()
+file(CONFIGURE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/PlynthTrustedKeys.h @ONLY CONTENT
+"#pragma once
+inline constexpr const char* kTrustedKeysText = R\"PLYNTHKEYS(@PLYNTH_TRUSTED_KEYS_TEXT@)PLYNTHKEYS\";
+")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${PLYNTH_TRUSTED_KEYS_FILE})
+
 # Store, zip and integration code.
 file(GLOB PLYNTH_STORE_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/stores/*.cpp)
 target_sources(plynth_core PRIVATE ${PLYNTH_STORE_SOURCES})

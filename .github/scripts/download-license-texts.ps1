@@ -17,6 +17,7 @@ function Get-Sha([string]$file) { return (Get-FileHash -Algorithm SHA256 -Litera
 
 foreach ($f in $sources.files) {
     $target = Join-Path $texts $f.name
+    New-Item -ItemType Directory -Force (Split-Path $target) | Out-Null
     Invoke-WebRequest -Uri $f.url -OutFile $target
     $records.Add([ordered]@{ file = "licenses/texts/$($f.name)"; component = $f.component; url = $f.url; sha256 = Get-Sha $target })
 }

@@ -1,0 +1,1 @@
+# Trusted minisign public keys, one base64 key line each, at most three. None yet, so updating is off.

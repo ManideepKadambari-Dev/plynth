@@ -1,14 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "urn:plynth:schema:settings:5",
-  "title": "Plynth machine settings, version 5",
-  "description": "Settings that belong to one computer rather than to one project. Saved as %APPDATA%/Plynth/settings.json, or in the folder named by the PLYNTH_CONFIG_DIR environment variable. Paths are absolute, UTF-8, with forward slashes. A missing field takes its default; an unknown field is refused. Older files are upgraded when read: version 1 (settings.v1.schema.json) gets an empty recent_projects list, version 2 (settings.v2.schema.json) loses thumbnail_engine, because thumbnails are rendered with Eevee only, version 3 (settings.v3.schema.json) is read as it is, and version 4 (settings.v4.schema.json) loses tour_done, since Plynth has no first run tour any more.",
+  "$id": "urn:plynth:schema:settings:6",
+  "title": "Plynth machine settings, version 6",
+  "description": "Settings that belong to one computer rather than to one project. Saved as %APPDATA%/Plynth/settings.json, or in the folder named by the PLYNTH_CONFIG_DIR environment variable. Paths are absolute, UTF-8, with forward slashes. A missing field takes its default; an unknown field is refused. Older files are upgraded when read: version 1 (settings.v1.schema.json) gets an empty recent_projects list, version 2 (settings.v2.schema.json) loses thumbnail_engine, because thumbnails are rendered with Eevee only, version 3 (settings.v3.schema.json) is read as it is, version 4 (settings.v4.schema.json) loses tour_done, since Plynth has no first run tour any more, and version 5 (settings.v5.schema.json) gets update_check true.",
   "type": "object",
   "required": ["format", "version"],
   "additionalProperties": false,
   "properties": {
     "format": { "const": "plynth-settings" },
-    "version": { "const": 5 },
+    "version": { "const": 6 },
     "library": {
       "description": "The Library folder (assets, materials, generators, shapes). Null until chosen.",
       "type": ["string", "null"],
@@ -38,6 +38,11 @@
     "setup_checked_version": {
       "description": "The Plynth version whose setup check last passed. When it differs from the running version the setup check opens once.",
       "type": ["string", "null"]
+    },
+    "update_check": {
+      "description": "Check GitHub Releases for a newer Plynth once at each start of an installed copy. A check by hand works either way.",
+      "type": "boolean",
+      "default": true
     },
     "side_panel": {
       "description": "The right side panel of the main window, which shows the properties of what is selected.",

@@ -60,6 +60,9 @@ class OutsideJobWatch;
 class TerminalDock;
 class ReadOnlyBanner;
 class TitleBar;
+class UpdateBar;
+class UpdateController;
+class UpdateDialog;
 class PlanCanvas;
 class OverlayRenderer;
 class PreviewView;
@@ -143,6 +146,11 @@ public:
     bool importPictureReady() const;
     // Opens the setup check at start when this is the first run, after an update, or a required item blocks.
     void openSetupCheckIfNeeded();
+    // Starts the update check of this start once the setup check, when it is open, has closed.
+    void startUpdateCheck();
+    // For checks only: shows a canned update state (see UpdateController::cannedNames). False for an unknown name.
+    bool showUpdateStateForCheck(const QString& name);
+    UpdateController* updates() const { return updates_; }
 
     // For checks only: opens the furniture picker at a place on the plan (metres) and hovers an asset when
     // an id is given. False when there is no scale or no library.
@@ -273,6 +281,11 @@ private:
     void openRecent(const QString& folder);
     void buildCatalogMenu();
     void openSetupCheck();
+    void buildUpdateActions(QMenu* help);
+    void openUpdateDialog();
+    void updateUpdateActions();
+    QString updateBusyReason() const;
+    void closeForInstaller();
     void importDialog();
     void importPaths(const QStringList& paths);
     void materialImportFinished(bool ok, const QString& materialId, const QString& message, bool skipped, bool thumbnailFailed);
@@ -463,6 +476,13 @@ private:
     StatusBar* statusBar_ = nullptr;
     QTimer* autosaveTimer_ = nullptr;
     ReadOnlyBanner* banner_ = nullptr;
+    UpdateController* updates_ = nullptr;
+    UpdateBar* updateBar_ = nullptr;
+    QPointer<UpdateDialog> updateDialog_;
+    QAction* checkUpdatesAction_ = nullptr;
+    QAction* updateAction_ = nullptr;
+    QAction* updateAtStartAction_ = nullptr;
+    bool closingForInstaller_ = false;
     ProjectWatcher* watcher_ = nullptr;
     OutsideJobWatch* outsideJob_ = nullptr;
     TerminalDock* terminal_ = nullptr;
