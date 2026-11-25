@@ -118,6 +118,29 @@ def project_face(face, layer):
             loop[layer].uv = (co.x, co.z)
 
 
+# Gives every face whose UVs cover far less than the face itself new UVs in metres on the world plane its normal
+# is closest to, and returns how many were changed. The UVs must still be in metres. A bevel makes such faces:
+# the small corner pieces where rounded edges meet take their UVs from a side face, so all their points land on
+# one line and a texture or baked map gets no room on them.
+def reproject_flat_uvs(obj, ratio=0.1):
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    layer = bm.loops.layers.uv.get(UV_NAME)
+    changed = 0
+    if layer is not None:
+        for face in bm.faces:
+            area = face.calc_area()
+            if area <= 1e-12:
+                continue
+            if abs(polygon_area([tuple(loop[layer].uv) for loop in face.loops])) < area * ratio:
+                project_face(face, layer)
+                changed += 1
+        if changed:
+            bm.to_mesh(obj.data)
+    bm.free()
+    return changed
+
+
 # Gives the faces UVs equal to the world X and Y, or X and minus Y when flip_y is true (ceilings).
 def world_uvs(bm, faces, flip_y=False):
     layer = uv_layer(bm)

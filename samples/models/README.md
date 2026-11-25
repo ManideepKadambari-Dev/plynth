@@ -2,9 +2,11 @@
 
 `chair/`, `sofa/`, `bed/`, `table/`, `tv/`, `door/`, `window/`, `shelf/`, `books/`, `vase/` and `picture/` hold small models drawn for this project. They are made by `make_sample_models.py`, so they belong to the project and is not a downloaded model. To regenerate them, run `python samples/models/make_sample_models.py` from the repository root. It needs only the Python standard library, and the output is the same bytes every run.
 
+Every face of a model has its own place on the UV square, with a small gap round it and the same scale in metres for the whole model, so no two faces share UV space. A baked map or a lightmap then has room for each face, and the export's UV check finds no overlap.
+
 ## chair
 
-Six boxes (`Back`, `Leg_BL`, `Leg_BR`, `Leg_FL`, `Leg_FR`, `Seat`) as `chair.obj` with `chair.mtl` and a 64 by 64 wood picture `chair_wood.png`. The legs and the back use the material `Wood` with the picture, the seat uses `Fabric` with a plain color.
+Six boxes (`Back`, `Leg_BL`, `Leg_BR`, `Leg_FL`, `Leg_FR`, `Seat`) as `chair.obj` with `chair.mtl` and a 1024 by 1024 wood picture `chair_wood.png`, which the UV layout spreads over about 1.6 metres. The legs and the back use the material `Wood` with the picture, the seat uses `Fabric` with a plain color.
 
 - Size is 0.45 wide, 0.50 deep and 0.90 high, in metres, with 72 triangles once every face is split in two.
 - The model is placed away from the origin on purpose. After Blender's default OBJ import its lowest corner is at (1.0, 2.0, 0.5), so the asset cleanup has to move it to the floor at the origin.

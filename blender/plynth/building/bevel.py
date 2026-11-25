@@ -73,6 +73,7 @@ def bevel(ctx, floor_id, walls, width, segments, weighted=False):
                floor_id)
         return
     bpy.data.meshes.remove(backup)
+    meshes.reproject_flat_uvs(walls)
 
 
 BUILD_STEPS.register("bevel", Step(ORDER, "Rounding edges", run))

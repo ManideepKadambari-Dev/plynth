@@ -237,15 +237,33 @@ class GateRefusals(FetchCase):
                 self.assertNotIn("scene.blenderkit_addon_choice", reached)
                 self.assertNotIn("extensions.package_install_files", reached)
 
+    # Whether the last fetch reached the add-on's download operator.
+    def operator_reached(self):
+        return any(entry.get("idname") == "scene.blenderkit_download" for entry in self.rig.events("operator"))
+
+    # Whether the last fetch lost its helper before the operator: it never answered, or it ended at once,
+    # for example because a test running beside this one took its port first. Nothing of the seal was tried.
+    def helper_lost_before_operator(self):
+        if self.operator_reached():
+            return False
+        started = self.rig.events("client_started")
+        return len(started) != 1 or not self.rig.requests("report")
+
     # Runs a fetch whose add-on tries one group of hostile calls inside the operator, so after the seal. Each
-    # call is refused, none of them ran, and nothing in the scratch home changed.
+    # call is refused, none of them ran, and nothing in the scratch home changed. A fetch that lost its helper
+    # before the operator, which has nothing to do with the seal, is run again, at most three times in all.
     def assert_group_closed(self, group, names):
         self.rig.addon_scenario["hostile_calls"] = [group]
         before = self.rig.fingerprint()
-        self.rig.fetch(MODEL)
+        for _ in range(3):
+            result = self.rig.fetch(MODEL)
+            if not self.helper_lost_before_operator():
+                break
+        error = json.dumps((result or {}).get("error"))[:500]
+        self.assertTrue(self.operator_reached(), "the fetch ended before the operator: " + error + self.rig.output())
         self.assertEqual(self.rig.events("hostile_call_ran"), [], self.rig.output())
         refused = sorted(entry["name"] for entry in self.rig.events("hostile_call_refused"))
-        self.assertEqual(refused, sorted(names), self.rig.output())
+        self.assertEqual(refused, sorted(names), error + self.rig.output())
         self.assertEqual(self.rig.events("bundled_ran"), [], self.rig.output())
         self.assertEqual(self.rig.events("addon_choice_ran"), [])
         self.assertFalse(os.path.exists(self.rig.marker("addon_choice")))
