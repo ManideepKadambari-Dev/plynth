@@ -29,7 +29,10 @@ FACES = [
     (1, 3, 7, 5),  # right, +X
 ]
 
-UVS = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+# Space in UV units between the faces and round the edge of the UV square: 4 pixels of a 256 pixel bake, so no
+# two faces share a pixel of a baked map or a lightmap.
+UV_PADDING = 4.0 / 256.0
+UV_STEPS = 40
 
 
 # Returns the eight corners of a box in Blender axes, with the offset added.
@@ -43,21 +46,86 @@ def box_corners(x, y, z):
     return corners
 
 
-# Builds the text of an OBJ file for a list of boxes.
+# Returns the distance between two points.
+def distance(a, b):
+    return sum((p - q) ** 2 for p, q in zip(a, b)) ** 0.5
+
+
+# Returns the six faces of a box as (corner indices, width, height in metres). A side face is turned so its
+# second edge runs upwards, so a texture on it stands upright.
+def box_faces(corners):
+    faces = []
+    for face in FACES:
+        chosen = face
+        for turn in range(4):
+            turned = face[turn:] + face[:turn]
+            if corners[turned[3]][2] - corners[turned[0]][2] > 1e-9:
+                chosen = turned
+                break
+        first, second, last = corners[chosen[0]], corners[chosen[1]], corners[chosen[3]]
+        faces.append((chosen, distance(first, second), distance(first, last)))
+    return faces
+
+
+# Places rectangles of (width, height) in metres in rows on the UV square at a scale in UV units per metre.
+# Returns the lower left corner of each, or None when they do not fit.
+def shelf_pack(sizes, scale):
+    order = sorted(range(len(sizes)), key=lambda i: (-sizes[i][1], -sizes[i][0], i))
+    places = [None] * len(sizes)
+    x = y = UV_PADDING
+    row = 0.0
+    for index in order:
+        width, height = sizes[index][0] * scale, sizes[index][1] * scale
+        if x + width + UV_PADDING > 1.0 and x > UV_PADDING:
+            x = UV_PADDING
+            y += row + UV_PADDING
+            row = 0.0
+        if x + width + UV_PADDING > 1.0 or y + height + UV_PADDING > 1.0:
+            return None
+        places[index] = (x, y)
+        x += width + UV_PADDING
+        row = max(row, height)
+    return places
+
+
+# Returns the largest scale at which all rectangles fit on the UV square, so every face of a model has the same
+# texture sharpness, with the places at that scale.
+def uv_layout(sizes):
+    low, high = 0.0, 1.0 / max(max(size) for size in sizes)
+    for _ in range(UV_STEPS):
+        middle = (low + high) / 2.0
+        if shelf_pack(sizes, middle) is None:
+            high = middle
+        else:
+            low = middle
+    return low, shelf_pack(sizes, low)
+
+
+# Builds the text of an OBJ file for a list of boxes. Every face has its own place on the UV square, at the
+# same scale for the whole model, so the faces never share UV space.
 def boxes_obj(label, mtl_name, boxes):
     lines = ["# Sample %s for Plynth, made by make_sample_models.py" % label, "mtllib " + mtl_name]
-    for u, v in UVS:
-        lines.append("vt %.4f %.4f" % (u, v))
+    boxes = [(name, box_corners(x, y, z), material) for name, x, y, z, material in boxes]
+    faces = [box_faces(corners) for _, corners, _ in boxes]
+    scale, places = uv_layout([(width, height) for box in faces for _, width, height in box])
     base = 0
-    for name, x, y, z, material in boxes:
+    uv_base = 0
+    for (name, corners, material), box in zip(boxes, faces):
         lines.append("o " + name)
-        for px, py, pz in box_corners(x, y, z):
+        for px, py, pz in corners:
             lines.append("v %.6f %.6f %.6f" % (px, pz, -py))
+        for _, width, height in box:
+            u, v = places[uv_base // 4]
+            for du, dv in ((0, 0), (1, 0), (1, 1), (0, 1)):
+                lines.append("vt %.6f %.6f" % (u + du * width * scale, v + dv * height * scale))
+            uv_base += 4
         lines.append("usemtl " + material)
         lines.append("s off")
-        for face in FACES:
-            corners = " ".join("%d/%d" % (base + corner + 1, slot + 1) for slot, corner in enumerate(face))
-            lines.append("f " + corners)
+        for face_index, (corner_order, _, _) in enumerate(box):
+            first = uv_base - 24 + face_index * 4
+            corners_text = " ".join("%d/%d" % (base + corner + 1, first + slot + 1)
+                                    for slot, corner in enumerate(corner_order))
+            lines.append("f " + corners_text)
         base += 8
     return "\n".join(lines) + "\n"
 
@@ -195,19 +263,26 @@ def png_chunk(kind, data):
     return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body) & 0xFFFFFFFF)
 
 
-# Builds a 64 by 64 wood stripe picture with fixed values.
+# Builds a 1024 by 1024 wood grain picture with fixed values: upright grain lines of about 1.5 cm with their own
+# shade each, and wider bands. The chair's UV layout spreads it over about 1.6 metres, which is as sharp as the
+# sample wall and floor textures, so the export's texture sharpness check passes.
 def wood_png():
-    size = 64
+    size = 1024
+    grain = 10
     seed = 12345
+    shades = []
+    for _ in range(size // grain + 64):
+        seed = (seed * 1103515245 + 12345) & 0x7FFFFFFF
+        shades.append((seed >> 16) % 13 - 6)
     rows = bytearray()
     for y in range(size):
         rows.append(0)
+        shift = ((y // 96) * 7) % 23
         for x in range(size):
-            seed = (seed * 1103515245 + 12345) & 0x7FFFFFFF
-            noise = (seed >> 16) % 9 - 4
-            stripe = 18 if (x // 6) % 3 == 0 else 0
-            wobble = 6 if ((x + y // 5) // 11) % 2 == 0 else 0
-            base = 150 - stripe + wobble + noise
+            line = (x + shift) // grain
+            stripe = 18 if line % 3 == 0 else 0
+            band = 6 if ((x + shift // 2) // 176) % 2 == 0 else 0
+            base = 150 - stripe + band + shades[line]
             rows += bytes([max(0, min(255, base + 40)), max(0, min(255, base)), max(0, min(255, base - 60))])
     header = struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0)
     return (b"\x89PNG\r\n\x1a\n" + png_chunk(b"IHDR", header)
