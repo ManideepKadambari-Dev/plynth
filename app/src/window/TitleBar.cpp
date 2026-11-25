@@ -118,7 +118,7 @@ void TitleButton::leaveEvent(QEvent* event)
 }
 
 // Builds the logo, menus and window buttons.
-TitleBar::TitleBar(QWidget* parent)
+TitleBar::TitleBar(QWidget* parent, bool withMenus)
     : QWidget(parent)
 {
     const Theme& t = Theme::instance();
@@ -135,18 +135,19 @@ TitleBar::TitleBar(QWidget* parent)
     layout->addWidget(logo_);
     layout->addSpacing(t.unit() * 2);
 
-    menuBar_ = new QMenuBar(this);
-    menuBar_->setNativeMenuBar(false);
-    menuBar_->setFont(t.uiFont(t.sizeNormal()));
-    fileMenu_ = menuBar_->addMenu(tr("&File"));
-    editMenu_ = menuBar_->addMenu(tr("&Edit"));
-    viewMenu_ = menuBar_->addMenu(tr("&View"));
-    buildMenu_ = menuBar_->addMenu(tr("&Build"));
-    catalogMenu_ = menuBar_->addMenu(tr("&Catalog"));
-    helpMenu_ = menuBar_->addMenu(tr("&Help"));
-    menuBar_->setToolTip(tr("Menu"));
-    menuBar_->setProperty("tourId", QStringLiteral("menu"));
-    layout->addWidget(menuBar_, 0, Qt::AlignVCenter);
+    if (withMenus) {
+        menuBar_ = new QMenuBar(this);
+        menuBar_->setNativeMenuBar(false);
+        menuBar_->setFont(t.uiFont(t.sizeNormal()));
+        fileMenu_ = menuBar_->addMenu(tr("&File"));
+        editMenu_ = menuBar_->addMenu(tr("&Edit"));
+        viewMenu_ = menuBar_->addMenu(tr("&View"));
+        buildMenu_ = menuBar_->addMenu(tr("&Build"));
+        catalogMenu_ = menuBar_->addMenu(tr("&Catalog"));
+        helpMenu_ = menuBar_->addMenu(tr("&Help"));
+        menuBar_->setToolTip(tr("Menu"));
+        layout->addWidget(menuBar_, 0, Qt::AlignVCenter);
+    }
     layout->addStretch(1);
 
     minimizeButton_ = new TitleButton(TitleButton::Kind::Minimize, this);
@@ -154,10 +155,7 @@ TitleBar::TitleBar(QWidget* parent)
     closeButton_ = new TitleButton(TitleButton::Kind::Close, this);
     minimizeButton_->setToolTip(tr("Minimize"));
     maximizeButton_->setToolTip(tr("Maximize"));
-    closeButton_->setToolTip(tr("Close (Alt+F4)"));
-    minimizeButton_->setProperty("tourId", QStringLiteral("title-minimize"));
-    maximizeButton_->setProperty("tourId", QStringLiteral("title-maximize"));
-    closeButton_->setProperty("tourId", QStringLiteral("title-close"));
+    closeButton_->setToolTip(withMenus ? tr("Close (Alt+F4)") : tr("Close this window (Alt+F4)"));
     for (TitleButton* b : {minimizeButton_, maximizeButton_, closeButton_}) {
         b->setFixedSize(b->sizeHint());
         layout->addWidget(b);
@@ -223,7 +221,7 @@ void TitleBar::paintEvent(QPaintEvent*)
     p.setPen(t.line());
     p.drawLine(0, height() - 1, width(), height() - 1);
 
-    const int left = menuBar_->geometry().right() + t.unit() * 4;
+    const int left = (menuBar_ ? menuBar_->geometry().right() : logo_->geometry().right()) + t.unit() * 4;
     const int right = minimizeButton_->geometry().left() - t.unit() * 4;
     const int half = qMin(width() / 2 - left, right - width() / 2);
     if (half <= 0)

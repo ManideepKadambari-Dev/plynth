@@ -1,0 +1,752 @@
+{
+  "format": "plynth-plan",
+  "version": 7,
+  "scale": {
+    "pixels_per_metre": 100.0
+  },
+  "floors": [
+    {
+      "id": "f1",
+      "name": "Floor 1",
+      "image": "plans/apartment-01.png",
+      "ceiling_height": 3.0,
+      "points": [
+        {
+          "id": "p0xzrtsea",
+          "x": 5.15,
+          "y": 3.15,
+          "corner_radius": 0.0
+        },
+        {
+          "id": "p47hyxq1a",
+          "x": 10.06,
+          "y": 3.15,
+          "corner_radius": 0.0
+        },
+        {
+          "id": "p56fcb0fg",
+          "x": 14.0,
+          "y": 3.15,
+          "corner_radius": 0.0
+        },
+        {
+          "id": "p3sgee8sb",
+          "x": 18.85,
+          "y": 3.15,
+          "corner_radius": 0.0
+        },
+        {
+          "id": "p6abrm5e8",
+          "x": 5.15,
+          "y": 8.000234375,
+          "corner_radius": 0.0
+        },
+        {
+          "id": "p5706vf24",
+          "x": 10.06,
+          "y": 8.000234375,
+          "corner_radius": 0.0
+        },
+        {
+          "id": "p1krx10z1",
+          "x": 5.15,
+          "y": 12.85,
+          "corner_radius": 0.0
+        },
+        {
+          "id": "p54cg7m1y",
+          "x": 10.06,
+          "y": 12.85,
+          "corner_radius": 0.0
+        },
+        {
+          "id": "p6svpchgk",
+          "x": 18.85,
+          "y": 12.85,
+          "corner_radius": 0.0
+        },
+        {
+          "id": "p5cpp63mh",
+          "x": 10.06,
+          "y": 7.0,
+          "corner_radius": 0.0
+        },
+        {
+          "id": "p75wk8db7",
+          "x": 14.0,
+          "y": 7.0,
+          "corner_radius": 0.0
+        },
+        {
+          "id": "p3tfkz3z8",
+          "x": 18.85,
+          "y": 7.0,
+          "corner_radius": 0.0
+        }
+      ],
+      "walls": [
+        {
+          "id": "w08wzm9be",
+          "from": "p0xzrtsea",
+          "to": "p47hyxq1a",
+          "thickness": 0.3,
+          "height": null,
+          "bulge": 0.0,
+          "material_inside": null,
+          "material_outside": null
+        },
+        {
+          "id": "w5fg3n67h",
+          "from": "p47hyxq1a",
+          "to": "p56fcb0fg",
+          "thickness": 0.3,
+          "height": null,
+          "bulge": 0.0,
+          "material_inside": null,
+          "material_outside": null
+        },
+        {
+          "id": "w103pxyzk",
+          "from": "p56fcb0fg",
+          "to": "p3sgee8sb",
+          "thickness": 0.3,
+          "height": null,
+          "bulge": 0.0,
+          "material_inside": null,
+          "material_outside": null
+        },
+        {
+          "id": "w2yhtan02",
+          "from": "p6abrm5e8",
+          "to": "p5706vf24",
+          "thickness": 0.12,
+          "height": null,
+          "bulge": 0.0,
+          "material_inside": null,
+          "material_outside": null
+        },
+        {
+          "id": "w5938r880",
+          "from": "p1krx10z1",
+          "to": "p54cg7m1y",
+          "thickness": 0.3,
+          "height": null,
+          "bulge": 0.0,
+          "material_inside": null,
+          "material_outside": null
+        },
+        {
+          "id": "w6j5hnsea",
+          "from": "p54cg7m1y",
+          "to": "p6svpchgk",
+          "thickness": 0.3,
+          "height": null,
+          "bulge": 0.0,
+          "material_inside": null,
+          "material_outside": null
+        },
+        {
+          "id": "w6awbbq0r",
+          "from": "p5cpp63mh",
+          "to": "p75wk8db7",
+          "thickness": 0.12,
+          "height": null,
+          "bulge": 0.0,
+          "material_inside": null,
+          "material_outside": null
+        },
+        {
+          "id": "w13wghb5r",
+          "from": "p75wk8db7",
+          "to": "p3tfkz3z8",
+          "thickness": 0.12,
+          "height": null,
+          "bulge": 0.0,
+          "material_inside": null,
+          "material_outside": null
+        },
+        {
+          "id": "w40z5mx6n",
+          "from": "p0xzrtsea",
+          "to": "p6abrm5e8",
+          "thickness": 0.3,
+          "height": null,
+          "bulge": 0.0,
+          "material_inside": null,
+          "material_outside": null
+        },
+        {
+          "id": "w9r7tfqex",
+          "from": "p6abrm5e8",
+          "to": "p1krx10z1",
+          "thickness": 0.3,
+          "height": null,
+          "bulge": 0.0,
+          "material_inside": null,
+          "material_outside": null
+        },
+        {
+          "id": "w6n9f25vx",
+          "from": "p47hyxq1a",
+          "to": "p5cpp63mh",
+          "thickness": 0.12,
+          "height": null,
+          "bulge": 0.0,
+          "material_inside": null,
+          "material_outside": null
+        },
+        {
+          "id": "w1d66pgjk",
+          "from": "p5cpp63mh",
+          "to": "p5706vf24",
+          "thickness": 0.12,
+          "height": null,
+          "bulge": 0.0,
+          "material_inside": null,
+          "material_outside": null
+        },
+        {
+          "id": "w289ykdt4",
+          "from": "p5706vf24",
+          "to": "p54cg7m1y",
+          "thickness": 0.12,
+          "height": null,
+          "bulge": 0.0,
+          "material_inside": null,
+          "material_outside": null
+        },
+        {
+          "id": "w2xqtqr50",
+          "from": "p56fcb0fg",
+          "to": "p75wk8db7",
+          "thickness": 0.12,
+          "height": null,
+          "bulge": 0.0,
+          "material_inside": null,
+          "material_outside": null
+        },
+        {
+          "id": "w1n92ckw5",
+          "from": "p3sgee8sb",
+          "to": "p3tfkz3z8",
+          "thickness": 0.3,
+          "height": null,
+          "bulge": 0.0,
+          "material_inside": null,
+          "material_outside": null
+        },
+        {
+          "id": "w2wjvw0ax",
+          "from": "p3tfkz3z8",
+          "to": "p6svpchgk",
+          "thickness": 0.3,
+          "height": null,
+          "bulge": 0.0,
+          "material_inside": null,
+          "material_outside": null
+        }
+      ],
+      "rooms": [
+        {
+          "id": "r3033m1d7",
+          "type": "bedroom",
+          "walls": [
+            "w08wzm9be",
+            "w6n9f25vx",
+            "w1d66pgjk",
+            "w2yhtan02",
+            "w40z5mx6n"
+          ],
+          "floor_material": null,
+          "wall_material": null,
+          "ceiling_material": null,
+          "dressing": true
+        },
+        {
+          "id": "r2ndam0zr",
+          "type": "bathroom",
+          "walls": [
+            "w2xqtqr50",
+            "w6awbbq0r",
+            "w6n9f25vx",
+            "w5fg3n67h"
+          ],
+          "floor_material": "grey_tile",
+          "wall_material": null,
+          "ceiling_material": null,
+          "dressing": true
+        },
+        {
+          "id": "r84me87y4",
+          "type": "kitchen",
+          "walls": [
+            "w103pxyzk",
+            "w1n92ckw5",
+            "w13wghb5r",
+            "w2xqtqr50"
+          ],
+          "floor_material": "grey_tile",
+          "wall_material": null,
+          "ceiling_material": null,
+          "dressing": true
+        },
+        {
+          "id": "r54zwefmm",
+          "type": "bedroom",
+          "walls": [
+            "w289ykdt4",
+            "w5938r880",
+            "w9r7tfqex",
+            "w2yhtan02"
+          ],
+          "floor_material": null,
+          "wall_material": null,
+          "ceiling_material": null,
+          "dressing": true
+        },
+        {
+          "id": "r22tr7tah",
+          "type": "living",
+          "walls": [
+            "w13wghb5r",
+            "w2wjvw0ax",
+            "w6j5hnsea",
+            "w289ykdt4",
+            "w1d66pgjk",
+            "w6awbbq0r"
+          ],
+          "floor_material": null,
+          "wall_material": null,
+          "ceiling_material": null,
+          "dressing": true
+        }
+      ],
+      "openings": [
+        {
+          "id": "o7w26e2c5",
+          "wall": "w08wzm9be",
+          "offset": 2.3499999999999996,
+          "type": "window",
+          "shape": "rectangle",
+          "width": 2.0,
+          "height": 1.2,
+          "sill": 0.9,
+          "hinge": "start",
+          "swing": "right",
+          "frame": null,
+          "auto_frame": true
+        },
+        {
+          "id": "o1463geb1",
+          "wall": "w103pxyzk",
+          "offset": 2.0,
+          "type": "window",
+          "shape": "rectangle",
+          "width": 2.0,
+          "height": 1.2,
+          "sill": 0.9,
+          "hinge": "start",
+          "swing": "right",
+          "frame": null,
+          "auto_frame": true
+        },
+        {
+          "id": "o1ezmftpd",
+          "wall": "w6j5hnsea",
+          "offset": 1.3900000000000006,
+          "type": "door",
+          "shape": "rectangle",
+          "width": 0.9,
+          "height": 2.1,
+          "sill": 0.0,
+          "hinge": "start",
+          "swing": "left",
+          "frame": "door",
+          "auto_frame": false
+        },
+        {
+          "id": "o98cfrzjw",
+          "wall": "w6awbbq0r",
+          "offset": 1.3900000000000006,
+          "type": "door",
+          "shape": "rectangle",
+          "width": 0.9,
+          "height": 2.1,
+          "sill": 0.0,
+          "hinge": "start",
+          "swing": "left",
+          "frame": null,
+          "auto_frame": true
+        },
+        {
+          "id": "o0g4txypz",
+          "wall": "w13wghb5r",
+          "offset": 2.8000000000000007,
+          "type": "plain",
+          "shape": "rectangle",
+          "width": 2.4,
+          "height": 2.1,
+          "sill": 0.0,
+          "hinge": "start",
+          "swing": "right",
+          "frame": null,
+          "auto_frame": true
+        },
+        {
+          "id": "o6d3yqz7b",
+          "wall": "w9r7tfqex",
+          "offset": 2.499765625,
+          "type": "window",
+          "shape": "rectangle",
+          "width": 2.0,
+          "height": 1.2,
+          "sill": 0.9,
+          "hinge": "start",
+          "swing": "right",
+          "frame": null,
+          "auto_frame": true
+        },
+        {
+          "id": "o87eb38qy",
+          "wall": "w1d66pgjk",
+          "offset": 0.5001171874999999,
+          "type": "door",
+          "shape": "rectangle",
+          "width": 0.8802343749999997,
+          "height": 2.1,
+          "sill": 0.0,
+          "hinge": "end",
+          "swing": "left",
+          "frame": null,
+          "auto_frame": true
+        },
+        {
+          "id": "o2yt16afn",
+          "wall": "w289ykdt4",
+          "offset": 2.4497656249999995,
+          "type": "door",
+          "shape": "rectangle",
+          "width": 0.9,
+          "height": 2.1,
+          "sill": 0.0,
+          "hinge": "end",
+          "swing": "right",
+          "frame": null,
+          "auto_frame": true
+        },
+        {
+          "id": "o447eb93y",
+          "wall": "w1n92ckw5",
+          "offset": 1.85,
+          "type": "window",
+          "shape": "rectangle",
+          "width": 1.6,
+          "height": 1.2,
+          "sill": 0.9,
+          "hinge": "start",
+          "swing": "right",
+          "frame": null,
+          "auto_frame": true
+        }
+      ],
+      "items": [
+        {
+          "id": "i1mjv10qt",
+          "asset": "bed",
+          "room": "r3033m1d7",
+          "x": 6.38,
+          "y": 5.62,
+          "z": 0.0,
+          "rotation": 270.0,
+          "wall": null,
+          "size": {
+            "width": 1.6,
+            "depth": 2.1,
+            "height": 1.0
+          },
+          "generator": null
+        },
+        {
+          "id": "i7vysn2nr",
+          "asset": "shelf",
+          "room": "r3033m1d7",
+          "x": 9.82,
+          "y": 5.62,
+          "z": 0.0,
+          "rotation": 90.0,
+          "wall": null,
+          "size": {
+            "width": 0.8,
+            "depth": 0.3,
+            "height": 1.8
+          },
+          "generator": null
+        },
+        {
+          "id": "i8zcgec97",
+          "asset": "picture",
+          "room": "r3033m1d7",
+          "x": 6.132000000000001,
+          "y": 3.315,
+          "z": 0.975,
+          "rotation": 0.0,
+          "wall": "w08wzm9be",
+          "size": {
+            "width": 0.6,
+            "depth": 0.03,
+            "height": 0.45
+          },
+          "generator": null
+        },
+        {
+          "id": "i76jen9dr",
+          "asset": "bed",
+          "room": "r54zwefmm",
+          "x": 7.65,
+          "y": 9.14,
+          "z": 0.0,
+          "rotation": 0.0,
+          "wall": null,
+          "size": {
+            "width": 1.6,
+            "depth": 2.1,
+            "height": 1.0
+          },
+          "generator": null
+        },
+        {
+          "id": "i6f4bs1n1",
+          "asset": "shelf",
+          "room": "r54zwefmm",
+          "x": 9.82,
+          "y": 12.004,
+          "z": 0.0,
+          "rotation": 90.0,
+          "wall": null,
+          "size": {
+            "width": 0.8,
+            "depth": 0.3,
+            "height": 1.8
+          },
+          "generator": null
+        },
+        {
+          "id": "i5e7cqw7h",
+          "asset": "picture",
+          "room": "r54zwefmm",
+          "x": 6.623,
+          "y": 8.075234374999999,
+          "z": 0.975,
+          "rotation": 0.0,
+          "wall": "w2yhtan02",
+          "size": {
+            "width": 0.6,
+            "depth": 0.03,
+            "height": 0.45
+          },
+          "generator": null
+        },
+        {
+          "id": "i1hc22f0c",
+          "asset": "picture",
+          "room": "r2ndam0zr",
+          "x": 13.925,
+          "y": 5.075,
+          "z": 0.975,
+          "rotation": 90.0,
+          "wall": "w2xqtqr50",
+          "size": {
+            "width": 0.6,
+            "depth": 0.03,
+            "height": 0.45
+          },
+          "generator": null
+        },
+        {
+          "id": "i71qmvwta",
+          "asset": "table",
+          "room": "r84me87y4",
+          "x": 16.38,
+          "y": 4.72,
+          "z": 0.0,
+          "rotation": 90.0,
+          "wall": null,
+          "size": {
+            "width": 1.2,
+            "depth": 0.8,
+            "height": 0.75
+          },
+          "generator": null
+        },
+        {
+          "id": "i3wr8n3ze",
+          "asset": "chair",
+          "room": "r84me87y4",
+          "x": 15.68,
+          "y": 4.42,
+          "z": 0.0,
+          "rotation": 270.0,
+          "wall": null,
+          "size": {
+            "width": 0.45,
+            "depth": 0.5,
+            "height": 0.9
+          },
+          "generator": null
+        },
+        {
+          "id": "i8kk9y470",
+          "asset": "chair",
+          "room": "r84me87y4",
+          "x": 17.08,
+          "y": 5.02,
+          "z": 0.0,
+          "rotation": 90.0,
+          "wall": null,
+          "size": {
+            "width": 0.45,
+            "depth": 0.5,
+            "height": 0.9
+          },
+          "generator": null
+        },
+        {
+          "id": "i4hjf8qga",
+          "asset": "vase",
+          "room": "r84me87y4",
+          "x": 16.38,
+          "y": 4.72,
+          "z": 0.75,
+          "rotation": 0.0,
+          "wall": null,
+          "size": {
+            "width": 0.15,
+            "depth": 0.15,
+            "height": 0.3
+          },
+          "generator": null
+        },
+        {
+          "id": "i846zzzkm",
+          "asset": "tv",
+          "room": "r22tr7tah",
+          "x": 18.67,
+          "y": 9.925,
+          "z": 0.845,
+          "rotation": 90.0,
+          "wall": "w2wjvw0ax",
+          "size": {
+            "width": 1.23,
+            "depth": 0.06,
+            "height": 0.71
+          },
+          "generator": null
+        },
+        {
+          "id": "i9dz86cf3",
+          "asset": "sofa",
+          "room": "r22tr7tah",
+          "x": 16.07,
+          "y": 9.925,
+          "z": 0.0,
+          "rotation": 270.0,
+          "wall": null,
+          "size": {
+            "width": 2.0,
+            "depth": 0.9,
+            "height": 0.85
+          },
+          "generator": null
+        },
+        {
+          "id": "i2zt0cj4j",
+          "asset": "shelf",
+          "room": "r22tr7tah",
+          "x": 10.3,
+          "y": 11.854,
+          "z": 0.0,
+          "rotation": 270.0,
+          "wall": null,
+          "size": {
+            "width": 0.8,
+            "depth": 0.3,
+            "height": 1.8
+          },
+          "generator": null
+        },
+        {
+          "id": "i492pt6mc",
+          "asset": "picture",
+          "room": "r22tr7tah",
+          "x": 14.455,
+          "y": 12.685,
+          "z": 0.975,
+          "rotation": 180.0,
+          "wall": "w6j5hnsea",
+          "size": {
+            "width": 0.6,
+            "depth": 0.03,
+            "height": 0.45
+          },
+          "generator": null
+        }
+      ],
+      "slab_thickness": 0.2,
+      "image_offset": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "stairs": [],
+      "lights": [
+        {
+          "id": "l8m8ej2ga",
+          "kind": "ceiling",
+          "room": "r3033m1d7",
+          "x": 7.65,
+          "y": 5.62,
+          "z": 2.9
+        },
+        {
+          "id": "l5xthedee",
+          "kind": "ceiling",
+          "room": "r54zwefmm",
+          "x": 7.65,
+          "y": 10.38,
+          "z": 2.9
+        },
+        {
+          "id": "l44xy4fg0",
+          "kind": "ceiling",
+          "room": "r2ndam0zr",
+          "x": 12.03,
+          "y": 5.12,
+          "z": 2.9
+        },
+        {
+          "id": "l1tdmtsbh",
+          "kind": "ceiling",
+          "room": "r84me87y4",
+          "x": 16.38,
+          "y": 5.12,
+          "z": 2.9
+        },
+        {
+          "id": "l4w0kpwz2",
+          "kind": "ceiling",
+          "room": "r22tr7tah",
+          "x": 14.41,
+          "y": 9.88,
+          "z": 2.9
+        }
+      ]
+    }
+  ],
+  "roof": {
+    "type": "flat",
+    "pitch": 30.0,
+    "overhang": 0.3,
+    "parapet": 0.6,
+    "direction": null
+  },
+  "roof_sections": []
+}

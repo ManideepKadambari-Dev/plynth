@@ -103,13 +103,13 @@ FetchRun runImportFetch(const ImportFetch& fetch, const std::filesystem::path& b
 
 // Puts what a fetch brought into an asset plan: file, format, and defaultName, license and reference where
 // the plan has none. InvalidValue when the fetched kind is not the plan's expected kind, for example "This
-// BlenderKit item is a material. Import it in the Materials tab or with plynth materials import."
+// BlenderKit item is a material. Import it in the Materials window or with plynth materials import."
 // The BlenderKit task itself already fails such an item with wrong_asset_kind and the same sentence
 // (BlenderFailed); this check is for a task that reports the other kind as a success.
 Status applyFetch(const FetchRun& run, const ImportFetch& fetch, ImportPlan& plan);
 
 // The same for a material plan: path, workerSource from format, blendMaterial from material, and the
-// defaults. The asset sentence is "This BlenderKit item is a model. Import it in the Assets tab or with
+// defaults. The asset sentence is "This BlenderKit item is a model. Import it in the Assets window or with
 // plynth assets import."
 Status applyFetch(const FetchRun& run, const ImportFetch& fetch, MaterialImportPlan& plan);
 

@@ -78,6 +78,105 @@ std::string folderKey(const fs::path& folder)
     return text;
 }
 
+// Reads a whole number field of an object that must lie in a range. False and a status when it does not.
+bool readInt(const Json& object, const char* key, int low, int high, const std::string& at, int& out, Status& status)
+{
+    const auto it = object.find(key);
+    if (it == object.end() || !it->is_number_integer() || it->get<long long>() < low || it->get<long long>() > high) {
+        status = fail(ErrorCode::BadFile,
+                      std::string("\"") + key + "\" must be a whole number from " + std::to_string(low) + " to " +
+                          std::to_string(high) + ".",
+                      at + "/" + key);
+        return false;
+    }
+    out = static_cast<int>(it->get<long long>());
+    return true;
+}
+
+// Reads "side_panel": whether the right side panel is open and its width. Missing means open at the theme width.
+bool readSidePanel(const Json& json, MachineSettings& out, Status& status)
+{
+    const auto it = json.find("side_panel");
+    if (it == json.end()) return true;
+    if (!it->is_object()) {
+        status = fail(ErrorCode::BadFile, "\"side_panel\" must be an object.", "/side_panel");
+        return false;
+    }
+    for (const auto& [key, value] : it->items()) {
+        if (key != "open" && key != "width") {
+            status = fail(ErrorCode::BadFile, "Unknown field \"" + key + "\".", "/side_panel/" + key);
+            return false;
+        }
+    }
+    if (const auto open = it->find("open"); open != it->end()) {
+        if (!open->is_boolean()) {
+            status = fail(ErrorCode::BadFile, "\"open\" must be true or false.", "/side_panel/open");
+            return false;
+        }
+        out.sidePanelOpen = open->get<bool>();
+    }
+    if (it->contains("width") && !readInt(*it, "width", 0, 10000, "/side_panel", out.sidePanelWidth, status)) return false;
+    return true;
+}
+
+// Says whether a window name is 1 to 32 lower case letters, digits and dashes.
+bool validWindowName(const std::string& name)
+{
+    if (name.empty() || name.size() > kMaxWindowNameLength) return false;
+    return std::all_of(name.begin(), name.end(),
+                       [](char c) { return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-'; });
+}
+
+// Reads "windows": the last place of each of the app's own windows.
+bool readWindowPlaces(const Json& json, MachineSettings& out, Status& status)
+{
+    const auto it = json.find("windows");
+    if (it == json.end()) return true;
+    if (!it->is_object() || it->size() > kMaxWindowPlaces) {
+        status = fail(ErrorCode::BadFile, "\"windows\" must be an object with at most 16 windows.", "/windows");
+        return false;
+    }
+    static const std::set<std::string> fields{"x", "y", "width", "height", "screen", "maximized"};
+    for (const auto& [name, entry] : it->items()) {
+        const std::string at = "/windows/" + name;
+        if (!validWindowName(name)) {
+            status = fail(ErrorCode::BadFile, "A window name must be lower case letters, digits and dashes.", at);
+            return false;
+        }
+        if (!entry.is_object()) {
+            status = fail(ErrorCode::BadFile, "A window place must be an object.", at);
+            return false;
+        }
+        for (const auto& [key, value] : entry.items()) {
+            if (!fields.count(key)) {
+                status = fail(ErrorCode::BadFile, "Unknown field \"" + key + "\".", at + "/" + key);
+                return false;
+            }
+        }
+        WindowPlace place;
+        if (!readInt(entry, "x", -100000, 100000, at, place.x, status)) return false;
+        if (!readInt(entry, "y", -100000, 100000, at, place.y, status)) return false;
+        if (!readInt(entry, "width", 1, 100000, at, place.width, status)) return false;
+        if (!readInt(entry, "height", 1, 100000, at, place.height, status)) return false;
+        if (const auto screen = entry.find("screen"); screen != entry.end()) {
+            if (!screen->is_string()) {
+                status = fail(ErrorCode::BadFile, "\"screen\" must be text.", at + "/screen");
+                return false;
+            }
+            place.screen = screen->get<std::string>();
+        }
+        if (const auto maximized = entry.find("maximized"); maximized != entry.end()) {
+            if (!maximized->is_boolean()) {
+                status = fail(ErrorCode::BadFile, "\"maximized\" must be true or false.", at + "/maximized");
+                return false;
+            }
+            place.maximized = maximized->get<bool>();
+        }
+        out.windows[name] = place;
+    }
+    return true;
+}
+
 // Reads the whole text of a file. False when it cannot be opened.
 bool readText(const fs::path& file, std::string& out)
 {
@@ -180,7 +279,22 @@ Json settingsToJson(const MachineSettings& settings)
         recent.push_back(std::move(entry));
     }
     json["recent_projects"] = std::move(recent);
-    json["tour_done"] = settings.tourDone;
+    Json panel = Json::object();
+    panel["open"] = settings.sidePanelOpen;
+    panel["width"] = settings.sidePanelWidth;
+    json["side_panel"] = std::move(panel);
+    Json windows = Json::object();
+    for (const auto& [name, place] : settings.windows) {
+        Json entry = Json::object();
+        entry["x"] = place.x;
+        entry["y"] = place.y;
+        entry["width"] = place.width;
+        entry["height"] = place.height;
+        entry["screen"] = place.screen;
+        entry["maximized"] = place.maximized;
+        windows[name] = std::move(entry);
+    }
+    json["windows"] = std::move(windows);
     return json;
 }
 
@@ -209,12 +323,17 @@ Status settingsFromJson(const Json& json, MachineSettings& out)
 
     static const std::set<std::string> known{"format", "version", "library", "projects", "blender",
                                              "keep_imported_zips", "triangle_warning",
-                                             "setup_checked_version", "recent_projects", "tour_done"};
+                                             "setup_checked_version", "recent_projects", "side_panel", "windows"};
     for (const auto& [key, value] : json.items()) {
-        if ((!known.count(key) && !(key == "thumbnail_engine" && fileVersion < 3)) ||
-            (key == "tour_done" && fileVersion < 4)) {
+        const bool dropped = (key == "thumbnail_engine" && fileVersion < 3) || (key == "tour_done" && fileVersion == 4);
+        const bool added = (key == "side_panel" || key == "windows") && fileVersion < 5;
+        if ((!known.count(key) && !dropped) || added) {
             return fail(ErrorCode::BadFile, "Unknown field \"" + key + "\".", "/" + key);
         }
+    }
+    // A version 4 file may carry the first run tour flag of older versions. It is checked and then dropped.
+    if (const auto it = json.find("tour_done"); it != json.end() && !it->is_boolean()) {
+        return fail(ErrorCode::BadFile, "\"tour_done\" must be true or false.", "/tour_done");
     }
     // Older files may carry the engine; it is checked and then dropped.
     if (const auto it = json.find("thumbnail_engine"); it != json.end()) {
@@ -249,12 +368,8 @@ Status settingsFromJson(const Json& json, MachineSettings& out)
         }
         result.setupCheckedVersion = it->get<std::string>();
     }
-    // An older file belongs to someone who used Plynth before, so the first run tour is not started for them.
-    result.tourDone = fileVersion < 4;
-    if (const auto it = json.find("tour_done"); it != json.end()) {
-        if (!it->is_boolean()) return fail(ErrorCode::BadFile, "\"tour_done\" must be true or false.", "/tour_done");
-        result.tourDone = it->get<bool>();
-    }
+    if (!readSidePanel(json, result, status)) return status;
+    if (!readWindowPlaces(json, result, status)) return status;
     if (const auto it = json.find("recent_projects"); it != json.end()) {
         if (fileVersion < 2) return fail(ErrorCode::BadFile, "Unknown field \"recent_projects\".", "/recent_projects");
         if (!it->is_array() || it->size() > kMaxRecentProjects) {

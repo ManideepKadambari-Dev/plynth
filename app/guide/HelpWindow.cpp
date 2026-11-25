@@ -6,6 +6,7 @@
 
 #include <QDesktopServices>
 #include <QFile>
+#include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -13,14 +14,16 @@
 #include <QPushButton>
 #include <QScrollBar>
 #include <QStackedWidget>
+#include <QMetaObject>
 #include <QTextBlock>
 #include <QTextBrowser>
 #include <QTextCursor>
 #include <QTextDocument>
-#include <QTextFormat>
-#include <QTextFragment>
 #include <QTimer>
 #include <QVBoxLayout>
+
+#include <memory>
+#include <utility>
 
 namespace plynth::guide {
 
@@ -43,29 +46,11 @@ std::string toCore(const QString& text)
     return std::string(bytes.constData(), static_cast<std::size_t>(bytes.size()));
 }
 
-// Sets every code span and code block of a document in the mono font.
-void monoForCode(QTextDocument* document, const QFont& mono)
-{
-    QTextCursor cursor(document);
-    for (QTextBlock block = document->begin(); block.isValid(); block = block.next()) {
-        for (auto it = block.begin(); !it.atEnd(); ++it) {
-            const QTextFragment fragment = it.fragment();
-            if (!fragment.isValid() || !fragment.charFormat().fontFixedPitch()) continue;
-            cursor.setPosition(fragment.position());
-            cursor.setPosition(fragment.position() + fragment.length(), QTextCursor::KeepAnchor);
-            QTextCharFormat format;
-            format.setFontFamilies({mono.family()});
-            cursor.mergeCharFormat(format);
-        }
-    }
-}
-
-// A button with its tooltip and tour id.
-QPushButton* navButton(const QString& text, const QString& tip, const QString& tourId, QWidget* parent)
+// A button with its tooltip.
+QPushButton* navButton(const QString& text, const QString& tip, QWidget* parent)
 {
     auto* button = new QPushButton(text, parent);
     button->setToolTip(tip);
-    button->setProperty("tourId", tourId);
     return button;
 }
 
@@ -77,7 +62,6 @@ HelpWindow::HelpWindow(const GuideStyle& style, const std::filesystem::path& doc
     : QWidget(parent, Qt::Window), style_(style), docs_(docs), licenses_(licenses)
 {
     setObjectName(QStringLiteral("guideRoot"));
-    setProperty("tourId", QStringLiteral("help-window"));
     setWindowTitle(tr("Plynth help"));
     setStyleSheet(guideStyleSheet(style));
     setFont(style.uiFont);
@@ -91,12 +75,15 @@ HelpWindow::HelpWindow(const GuideStyle& style, const std::filesystem::path& doc
     search_ = new QLineEdit(this);
     search_->setPlaceholderText(tr("Search help"));
     search_->setToolTip(tr("Type words to find them in every help page"));
-    search_->setProperty("tourId", QStringLiteral("help-search"));
     search_->setClearButtonEnabled(true);
     left->addWidget(search_);
     pages_ = new QListWidget(this);
     pages_->setToolTip(tr("The help pages. Click one to read it"));
-    pages_->setProperty("tourId", QStringLiteral("help-pages"));
+    pages_->setFont(style.uiFont);
+    pages_->setTextElideMode(Qt::ElideRight);
+    // Every row gets the height of a line of the list font plus the theme's padding above and below, so the rows
+    // never run into each other whatever size the style gives them.
+    const QSize rowSize(0, QFontMetrics(style.uiFont).height() + style.unit * 4);
     for (const plynth::HelpPageEntry& entry : plynth::helpPages()) {
         if (!entry.listed) continue;
         if (entry.kind == plynth::HelpPageKind::File) {
@@ -105,6 +92,7 @@ HelpWindow::HelpWindow(const GuideStyle& style, const std::filesystem::path& doc
         }
         auto* item = new QListWidgetItem(fromCore(entry.title), pages_);
         item->setData(Qt::UserRole, fromCore(entry.id));
+        item->setSizeHint(rowSize);
     }
     left->addWidget(pages_, 1);
     auto* leftBox = new QWidget(this);
@@ -116,8 +104,8 @@ HelpWindow::HelpWindow(const GuideStyle& style, const std::filesystem::path& doc
     auto* right = new QVBoxLayout;
     right->setSpacing(style.unit * 2);
     auto* bar = new QHBoxLayout;
-    back_ = navButton(tr("Back"), tr("Go back to the page you saw before (Alt+Left)"), QStringLiteral("help-back"), this);
-    forward_ = navButton(tr("Forward"), tr("Go forward again (Alt+Right)"), QStringLiteral("help-forward"), this);
+    back_ = navButton(tr("Back"), tr("Go back to the page you saw before (Alt+Left)"), this);
+    forward_ = navButton(tr("Forward"), tr("Go forward again (Alt+Right)"), this);
     back_->setShortcut(QKeySequence(Qt::ALT | Qt::Key_Left));
     forward_->setShortcut(QKeySequence(Qt::ALT | Qt::Key_Right));
     title_ = new QLabel(this);
@@ -130,14 +118,18 @@ HelpWindow::HelpWindow(const GuideStyle& style, const std::filesystem::path& doc
 
     stack_ = new QStackedWidget(this);
     page_ = new QTextBrowser(stack_);
-    page_->setProperty("tourId", QStringLiteral("help-page"));
+    page_->setObjectName(QStringLiteral("helpPage"));
     page_->setToolTip(tr("The help page. Links to other pages open here, web links in your browser"));
     page_->setOpenLinks(false);
     page_->setOpenExternalLinks(false);
     page_->document()->setDefaultFont(style.uiFont);
     page_->document()->setDocumentMargin(style.unit * 4);
+    waiting_ = new QTextDocument(this);
+    waiting_->setDefaultFont(style.uiFont);
+    waiting_->setDocumentMargin(style.unit * 4);
+    waiting_->setPlainText(tr("Opening the page."));
+    renderPool_.setMaxThreadCount(2);
     results_ = new QListWidget(stack_);
-    results_->setProperty("tourId", QStringLiteral("help-results"));
     results_->setToolTip(tr("Every place the words appear, headings first. Click one to open the page there"));
     results_->setWordWrap(true);
     about_ = new AboutPage(style, logo, licenses_, stack_);
@@ -171,6 +163,13 @@ HelpWindow::HelpWindow(const GuideStyle& style, const std::filesystem::path& doc
         if (historyIndex_ + 1 < static_cast<int>(history_.size())) go(history_[static_cast<std::size_t>(++historyIndex_)], false);
     });
     updateButtons();
+}
+
+// Lets a page that is still being built finish before the window goes.
+HelpWindow::~HelpWindow()
+{
+    renderPool_.clear();
+    renderPool_.waitForDone();
 }
 
 // Shows a page, or asks for the setup check when that row is picked.
@@ -209,22 +208,8 @@ void HelpWindow::go(const Place& place, bool remember)
             stack_->setCurrentIndex(kAboutIndex);
             headings_.clear();
         } else {
-            if (place.page != current_.page || !current_.licenseFile.empty() || stack_->currentIndex() != kPageIndex) {
-                const plynth::HelpPageRead read = plynth::readHelpPage(docs_, toCore(place.page));
-                headings_ = read.headings;
-                page_->setFont(style_.uiFont);
-                page_->document()->setDefaultFont(style_.uiFont);
-                if (read.status.ok()) {
-                    page_->document()->setMarkdown(fromCore(read.markdown),
-                                       QTextDocument::MarkdownFeatures(QTextDocument::MarkdownDialectGitHub | QTextDocument::MarkdownNoHTML));
-                    monoForCode(page_->document(), style_.monoFont);
-                } else {
-                    page_->setPlainText(fromCore(read.status.message));
-                }
-            }
             stack_->setCurrentIndex(kPageIndex);
-            if (place.anchor.isEmpty()) page_->verticalScrollBar()->setValue(0);
-            else scrollToAnchor(place.anchor);
+            showFilePage(place);
         }
     }
     current_ = place;
@@ -236,15 +221,80 @@ void HelpWindow::go(const Place& place, bool remember)
     updateButtons();
 }
 
+// Shows a page from its kept document, or starts building it and shows a short note until it is ready.
+void HelpWindow::showFilePage(const Place& place)
+{
+    auto found = cache_.find(place.page);
+    if (found == cache_.end()) {
+        renderPage(place.page);
+        found = cache_.find(place.page);
+    }
+    if (found == cache_.end()) {
+        headings_.clear();
+        showDocument(waiting_);
+        return;
+    }
+    headings_ = found->second.headings;
+    showDocument(found->second.document);
+    if (place.anchor.isEmpty()) page_->verticalScrollBar()->setValue(0);
+    else scrollToAnchor(place.anchor);
+}
+
+// Builds a page once. In the background the finished page comes back on the main thread, and is shown when
+// it is still the page asked for.
+void HelpWindow::renderPage(const QString& id)
+{
+    if (cache_.count(id) || rendering_.count(id)) return;
+    if (!background_) {
+        keepPage(id, renderHelpPage(docs_, toCore(id), look()));
+        return;
+    }
+    rendering_.insert(id);
+    renderPool_.start([this, docs = docs_, id, pageLook = look(), home = thread()] {
+        auto page = std::make_shared<RenderedHelpPage>(renderHelpPage(docs, toCore(id), pageLook));
+        page->document->moveToThread(home);
+        QMetaObject::invokeMethod(this, [this, id, page] {
+            rendering_.erase(id);
+            keepPage(id, std::move(*page));
+            if (current_.page == id && current_.licenseFile.empty() && stack_->currentIndex() == kPageIndex &&
+                page_->document() == waiting_) {
+                showFilePage(current_);
+            }
+        }, Qt::QueuedConnection);
+    });
+}
+
+// Keeps a built page for the life of the window.
+void HelpWindow::keepPage(const QString& id, RenderedHelpPage page)
+{
+    QTextDocument* document = page.document.release();
+    document->setParent(this);
+    cache_[id] = CachedPage{document, std::move(page.headings)};
+}
+
+// Puts a document in the page view, unless it is there already.
+void HelpWindow::showDocument(QTextDocument* document)
+{
+    if (page_->document() != document) page_->setDocument(document);
+}
+
+// The fonts and margin of the pages, from the style.
+HelpPageLook HelpWindow::look() const
+{
+    return HelpPageLook{style_.uiFont, style_.monoFont, static_cast<qreal>(style_.unit * 4)};
+}
+
 // Shows a license text as it is, in the mono font.
 void HelpWindow::showLicenseFile(const std::filesystem::path& file)
 {
     QFile in(QString::fromStdWString(file.wstring()));
     const QString text = in.open(QIODevice::ReadOnly) ? QString::fromUtf8(in.readAll()) : tr("The license text could not be read.");
     title_->setText(QString::fromStdWString(file.filename().wstring()));
-    page_->setPlainText(text);
-    page_->document()->setDefaultFont(style_.monoFont);
-    page_->setFont(style_.monoFont);
+    QTextDocument* previous = licenseDocument_;
+    licenseDocument_ = renderHelpPlainText(text, look()).release();
+    licenseDocument_->setParent(this);
+    showDocument(licenseDocument_);
+    if (previous) previous->deleteLater();
     stack_->setCurrentIndex(kPageIndex);
     page_->verticalScrollBar()->setValue(0);
     headings_.clear();

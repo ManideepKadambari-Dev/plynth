@@ -77,16 +77,18 @@ class FinishFromCoreTests(BuildTest):
         for got, want in zip(obj.location, opening["asset"]["location"]):
             self.assertAlmostEqual(got, want, places=5)
         self.assertAlmostEqual(obj.rotation_euler.z, opening["asset"]["rotation_z"], places=5)
+        # Meshes parented to the asset empty are its own parts, made real for the FBX; a built fill has no parent.
         fills = [o for o in bpy.data.objects if o.get("plynth_kind") == "door" and o.type == "MESH"
-                 and o.get("plynth_id") == opening["id"]]
+                 and o.get("plynth_id") == opening["id"] and o.parent is None]
         self.assertEqual(fills, [])
 
     def test_books_and_light_are_placed(self):
         floor = self.params["floors"][0]
-        props = [o for o in bpy.data.objects if o.get("plynth_kind") == "dressing"]
+        props = [o for o in bpy.data.objects if o.get("plynth_kind") == "dressing" and o.type == "EMPTY"]
         self.assertEqual(len(props), len(floor["dressing"]))
-        collections = {o.instance_collection.name for o in props}
-        self.assertEqual(collections, {"books"})
+        self.assertEqual({o["plynth_asset"] for o in props}, {"books"})
+        parts = [o for o in bpy.data.objects if o.get("plynth_kind") == "dressing" and o.type == "MESH"]
+        self.assertTrue(parts and all(o.parent in props for o in parts))
         light = bpy.data.objects["Light_f1_l1"]
         self.assertEqual(light.type, "LIGHT")
         self.assertAlmostEqual(light.location.z, 2.9, places=5)

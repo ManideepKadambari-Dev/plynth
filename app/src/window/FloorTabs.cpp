@@ -19,13 +19,12 @@ FloorTabs::FloorTabs(FloorFocus& focus, QWidget* parent) : QWidget(parent), focu
 {
     const Theme& t = Theme::instance();
     setFixedHeight(t.buildBarHeight());
-    setProperty("tourId", QStringLiteral("floor-tabs"));
     setToolTip(tr("The floors of the building, lowest first. Click one to work on it"));
 
     row_ = new QHBoxLayout(this);
     row_->setContentsMargins(t.unit() * 3, t.unit() * 2, t.unit() * 3, 0);
     row_->setSpacing(0);
-    add_ = makeTabButton(QStringLiteral("+"), tr("Add a floor above the top floor"), QStringLiteral("floor-add"), this,
+    add_ = makeTabButton(QStringLiteral("+"), tr("Add a floor above the top floor"), this,
                          t.unit() * 2, t.unit() * 3);
     add_->setCheckable(false);
     connect(add_, &QPushButton::clicked, this, &FloorTabs::addAboveRequested);
@@ -45,7 +44,7 @@ void FloorTabs::setFloors(const QList<QPair<QString, QString>>& floors)
     int at = 0;
     for (const auto& [id, name] : floors) {
         QPushButton* tab = makeTabButton(name, tr("Show floor %1 (%2)").arg(name, id),
-                                         QStringLiteral("floor-tab"), this, t.unit() * 2, t.unit() * 4);
+                                         this, t.unit() * 2, t.unit() * 4);
         tab->setProperty("floorId", id);
         tab->setChecked(id == shown_);
         tab->setToolTip(tr("Show floor %1 (%2). Double click to rename it, right click for more").arg(name, id));

@@ -29,7 +29,7 @@ public:
     bool keepsLibrary() const { return conflicts_ > 0; }
 
 private:
-    void build(const QString& title, const QString& tourId);
+    void build(const QString& title);
     void addRow(const plynth::PackEntry& entry, const QString& what, const QString& detail, bool warn);
 
     QLabel* summary_ = nullptr;

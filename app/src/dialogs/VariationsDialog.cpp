@@ -50,7 +50,6 @@ VariationsDialog::VariationsDialog(const plynth::Project& project, const std::fi
     const Theme& t = Theme::instance();
     setWindowTitle(tr("Make variations"));
     setModal(true);
-    setProperty("tourId", QStringLiteral("dialog-variations"));
     setMinimumWidth(t.unit() * 130);
 
     auto* layout = new QVBoxLayout(this);
@@ -74,7 +73,6 @@ VariationsDialog::VariationsDialog(const plynth::Project& project, const std::fi
     seeds_ = new QLineEdit(QStringLiteral("1-4"), this);
     seeds_->setFont(t.monoFont(t.sizeNormal()));
     seeds_->setToolTip(seedsTip);
-    seeds_->setProperty("tourId", QStringLiteral("variations-seeds"));
     QLabel* seedsName = makeName(tr("Seeds"), this);
     seedsName->setToolTip(seedsTip);
     grid->addWidget(seedsName, 0, 0);
@@ -84,10 +82,8 @@ VariationsDialog::VariationsDialog(const plynth::Project& project, const std::fi
     folder_ = new QLineEdit(nativePath(projectFolder.parent_path()), this);
     folder_->setFont(t.monoFont(t.sizeNormal()));
     folder_->setToolTip(folderTip);
-    folder_->setProperty("tourId", QStringLiteral("variations-folder"));
     auto* browse = new QPushButton(tr("Browse..."), this);
     browse->setToolTip(tr("Choose the folder for the copies"));
-    browse->setProperty("tourId", QStringLiteral("variations-browse"));
     QLabel* folderName = makeName(tr("Folder"), this);
     folderName->setToolTip(folderTip);
     grid->addWidget(folderName, 1, 0);
@@ -104,7 +100,6 @@ VariationsDialog::VariationsDialog(const plynth::Project& project, const std::fi
     made_ = new QListWidget(this);
     made_->setFont(t.monoFont(t.sizeSmall()));
     made_->setToolTip(tr("The project folders made. Open one from the home screen to build it."));
-    made_->setProperty("tourId", QStringLiteral("variations-results"));
     made_->setMinimumHeight(t.unit() * 30);
     layout->addWidget(made_, 1);
 
@@ -112,10 +107,8 @@ VariationsDialog::VariationsDialog(const plynth::Project& project, const std::fi
     make_ = buttons->addButton(tr("Make copies"), QDialogButtonBox::ActionRole);
     make_->setDefault(true);
     make_->setToolTip(tr("Save one project folder for each seed. Nothing is overwritten."));
-    make_->setProperty("tourId", QStringLiteral("variations-make"));
     open_ = buttons->addButton(tr("Open folder"), QDialogButtonBox::ActionRole);
     open_->setToolTip(tr("Open the folder of the copies in Explorer"));
-    open_->setProperty("tourId", QStringLiteral("variations-open-folder"));
     QPushButton* close = buttons->addButton(tr("Close"), QDialogButtonBox::RejectRole);
     close->setToolTip(tr("Close this window"));
     layout->addWidget(buttons);

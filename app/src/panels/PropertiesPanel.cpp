@@ -122,7 +122,6 @@ PropertiesPanel::PropertiesPanel(plynth::Document& document, Selection& selectio
     : QWidget(parent), document_(document), selection_(selection), controller_(controller)
 {
     const Theme& t = Theme::instance();
-    setProperty("tourId", QStringLiteral("panel-properties"));
     setToolTip(tr("Properties of the selected item, or of the plan when nothing is selected"));
 
     auto* column = new QVBoxLayout(this);
@@ -153,7 +152,6 @@ PropertiesPanel::PropertiesPanel(plynth::Document& document, Selection& selectio
 
     deleteButton_ = new QPushButton(tr("Delete"), this);
     deleteButton_->setToolTip(tr("Delete the selected item and what depends on it (Delete)"));
-    deleteButton_->setProperty("tourId", QStringLiteral("panel-delete"));
     connect(deleteButton_, &QPushButton::clicked, this, &PropertiesPanel::deleteRequested);
     column->addWidget(deleteButton_);
     editors_.push_back(deleteButton_);
@@ -216,8 +214,7 @@ QLabel* PropertiesPanel::addLabelRow(QGridLayout* grid, const QString& label, bo
 
 // Adds a row with a metre spin box in JetBrains Mono.
 QDoubleSpinBox* PropertiesPanel::addSpinRow(QGridLayout* grid, const QString& label, double min, double max,
-                                            double step, const QString& tip, const QString& tourId,
-                                            QLabel** labelOut)
+                                            double step, const QString& tip, QLabel** labelOut)
 {
     const Theme& t = Theme::instance();
     auto* name = new QLabel(label, grid->parentWidget());
@@ -232,7 +229,6 @@ QDoubleSpinBox* PropertiesPanel::addSpinRow(QGridLayout* grid, const QString& la
     spin->setKeyboardTracking(false);
     spin->setStyle(Theme::instance().controlStyle());
     spin->setToolTip(tip);
-    spin->setProperty("tourId", tourId);
     name->setToolTip(tip);
     const int row = grid->rowCount();
     grid->addWidget(name, row, 0, Qt::AlignVCenter);
@@ -245,9 +241,9 @@ QDoubleSpinBox* PropertiesPanel::addSpinRow(QGridLayout* grid, const QString& la
 
 // Adds a spin row whose edits merge into one undo step for each visit to the box.
 QDoubleSpinBox* PropertiesPanel::addKeyedSpinRow(QGridLayout* grid, const QString& label, double min, double max,
-                                                 double step, const QString& tip, const QString& tourId)
+                                                 double step, const QString& tip)
 {
-    QDoubleSpinBox* spin = addSpinRow(grid, label, min, max, step, tip, tourId);
+    QDoubleSpinBox* spin = addSpinRow(grid, label, min, max, step, tip);
     spin->installEventFilter(this);
     if (auto* edit = spin->findChild<QLineEdit*>())
         edit->installEventFilter(this);
@@ -282,7 +278,7 @@ void PropertiesPanel::buildNothingPage()
     scaleHint_->setFont(Theme::instance().uiFont(Theme::instance().sizeSmall()));
 
     gridSpin_ = addSpinRow(grid, tr("Grid size"), 0.01, 100.0, 0.05,
-                           tr("Distance between grid lines. Walls snap to the grid."), QStringLiteral("panel-grid-size"));
+                           tr("Distance between grid lines. Walls snap to the grid."));
     connect(gridSpin_, &QDoubleSpinBox::valueChanged, this, [this]() { gridEdited_ = !refreshing_ || gridEdited_; });
     connect(gridSpin_, &QDoubleSpinBox::editingFinished, this, [this]() {
         if (refreshing_ || !gridEdited_)
@@ -293,8 +289,7 @@ void PropertiesPanel::buildNothingPage()
 
     exportModeCombo_ = addComboRow(grid, tr("Export mode"),
                                    tr("Single FBX writes one file. Grouped FBX writes one file for each group, which you "
-                                      "review in the Export tab. Changing it does not make the build out of date."),
-                                   QStringLiteral("panel-export-mode"));
+                                      "review in the Export window. Changing it does not make the build out of date."));
     exportModeCombo_->addItem(tr("Single FBX"), static_cast<int>(plynth::ExportMode::Single));
     exportModeCombo_->addItem(tr("Grouped FBX"), static_cast<int>(plynth::ExportMode::Grouped));
     connect(exportModeCombo_, &QComboBox::activated, this, [this](int index) {
@@ -304,8 +299,7 @@ void PropertiesPanel::buildNothingPage()
     });
 
     wallCentreSpin_ = addKeyedSpinRow(grid, tr("Wall item centre"), 0.05, 100.0, 0.05,
-                                      tr("Height of the middle of a newly mounted wall item, such as a TV. It is saved with the project."),
-                                      QStringLiteral("panel-wall-item-centre"));
+                                      tr("Height of the middle of a newly mounted wall item, such as a TV. It is saved with the project."));
     connect(wallCentreSpin_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
         if (refreshing_)
             return;
@@ -316,8 +310,7 @@ void PropertiesPanel::buildNothingPage()
     });
 
     newWallSpin_ = addSpinRow(grid, tr("New walls"), 0.01, 10.0, 0.01,
-                              tr("Thickness of the walls the Wall tool draws"), QStringLiteral("panel-new-wall-thickness"),
-                              &newWallLabel_);
+                              tr("Thickness of the walls the Wall tool draws"), &newWallLabel_);
     newWallSpin_->setValue(controller_.newWallThickness());
     connect(newWallSpin_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
         if (!refreshing_)
@@ -367,7 +360,6 @@ void PropertiesPanel::buildNothingPage()
         target.surface = row.surface;
         const std::string_view surface = plynth::surfaceName(row.surface);
         addMaterialRow(grid, tr(row.label), tr(row.tip),
-                       QStringLiteral("material-picker-default-%1").arg(QString::fromUtf8(surface.data(), static_cast<qsizetype>(surface.size()))),
                        target);
     }
 }
@@ -386,7 +378,6 @@ void PropertiesPanel::buildFloorSection(QGridLayout* grid)
     floorName_->setFont(t.uiFont(t.sizeNormal()));
     floorName_->setStyle(t.controlStyle());
     floorName_->setToolTip(tr("The name of this floor, shown on its tab"));
-    floorName_->setProperty("tourId", QStringLiteral("panel-floor-name"));
     nameLabel->setToolTip(floorName_->toolTip());
     const int nameRow = grid->rowCount();
     grid->addWidget(nameLabel, nameRow, 0, Qt::AlignVCenter);
@@ -404,8 +395,7 @@ void PropertiesPanel::buildFloorSection(QGridLayout* grid)
     });
 
     ceilingSpin_ = addKeyedSpinRow(grid, tr("Ceiling height"), 0.5, 100.0, 0.05,
-                                   tr("Height of the ceiling of this floor. Walls without their own height use it."),
-                                   QStringLiteral("panel-ceiling-height"));
+                                   tr("Height of the ceiling of this floor. Walls without their own height use it."));
     connect(ceilingSpin_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
         const plynth::Floor* floor = controller_.floor();
         if (refreshing_ || floor == nullptr)
@@ -415,8 +405,7 @@ void PropertiesPanel::buildFloorSection(QGridLayout* grid)
     });
 
     slabSpin_ = addKeyedSpinRow(grid, tr("Slab thickness"), plynth::kMinSlabThickness, plynth::kMaxSlabThickness, 0.01,
-                                tr("Thickness of the slab between this floor and the next one up, or under the roof. It adds to the height between the two floor levels."),
-                                QStringLiteral("panel-slab-thickness"));
+                                tr("Thickness of the slab between this floor and the next one up, or under the roof. It adds to the height between the two floor levels."));
     connect(slabSpin_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
         const plynth::Floor* floor = controller_.floor();
         if (refreshing_ || floor == nullptr)
@@ -429,22 +418,18 @@ void PropertiesPanel::buildFloorSection(QGridLayout* grid)
     floorImage_->setToolTip(tr("The plan image of this floor"));
     auto* choose = new QPushButton(tr("Choose image..."), grid->parentWidget());
     choose->setToolTip(tr("Pick another plan image for this floor (Ctrl+Shift+O)"));
-    choose->setProperty("tourId", QStringLiteral("panel-floor-image"));
     grid->addWidget(choose, grid->rowCount(), 1);
     editors_.push_back(choose);
     connect(choose, &QPushButton::clicked, this, &PropertiesPanel::planImageRequested);
 
     const QString offsetTip = tr("Where the plan image of this floor sits on the plan. Line it up with the floor below, by hand here or with View > Align plan image");
-    offsetX_ = addKeyedSpinRow(grid, tr("Image offset X"), -100000.0, 100000.0, 0.01, offsetTip,
-                               QStringLiteral("panel-image-offset-x"));
-    offsetY_ = addKeyedSpinRow(grid, tr("Image offset Y"), -100000.0, 100000.0, 0.01, offsetTip,
-                               QStringLiteral("panel-image-offset-y"));
+    offsetX_ = addKeyedSpinRow(grid, tr("Image offset X"), -100000.0, 100000.0, 0.01, offsetTip);
+    offsetY_ = addKeyedSpinRow(grid, tr("Image offset Y"), -100000.0, 100000.0, 0.01, offsetTip);
     moveMarks_ = new QCheckBox(tr("Move marks with the image"), grid->parentWidget());
     moveMarks_->setFont(t.uiFont(t.sizeNormal()));
     moveMarks_->setStyle(t.controlStyle());
     moveMarks_->setChecked(true);
     moveMarks_->setToolTip(tr("When on, the walls, rooms, openings, items and stairs of this floor move with the image. When off, only the image moves."));
-    moveMarks_->setProperty("tourId", QStringLiteral("panel-move-marks"));
     grid->addWidget(moveMarks_, grid->rowCount(), 0, 1, 2);
     editors_.push_back(moveMarks_);
     connect(offsetX_, &QDoubleSpinBox::valueChanged, this, [this]() { editImageOffset(true); });
@@ -477,14 +462,13 @@ void PropertiesPanel::buildStairPage()
     stairId_ = addLabelRow(grid, tr("Stair"));
     stairFloors_ = addLabelRow(grid, tr("Goes"));
     stairFloors_->setToolTip(tr("The floor the stair starts on and the floor it reaches"));
-    stairType_ = addComboRow(grid, tr("Type"), tr("The shape of the stair: straight, L, U or spiral"),
-                             QStringLiteral("panel-stair-type"));
+    stairType_ = addComboRow(grid, tr("Type"), tr("The shape of the stair: straight, L, U or spiral"));
     for (const plynth::StairType* type : plynth::allStairTypes())
         stairType_->addItem(fromCore(std::string(type->name())), fromCore(std::string(type->id())));
     stairWidth_ = addSpinRow(grid, tr("Width"), plynth::kMinStairWidth, plynth::kMaxStairWidth, 0.05,
-                             tr("Width of the stair across the steps"), QStringLiteral("panel-stair-width"));
+                             tr("Width of the stair across the steps"));
     stairTurn_ = addComboRow(grid, tr("Turn"), tr("Which way an L or U stair turns, or a spiral winds, seen while climbing"),
-                             QStringLiteral("panel-stair-turn"), &stairTurnLabel_);
+                             &stairTurnLabel_);
     stairTurn_->addItem(tr("Left"), QStringLiteral("left"));
     stairTurn_->addItem(tr("Right"), QStringLiteral("right"));
 
@@ -510,7 +494,7 @@ void PropertiesPanel::buildStairPage()
     plynth::MaterialTarget steps;
     steps.kind = plynth::MaterialTarget::Kind::Stair;
     addMaterialRow(grid, tr("Steps"), tr("The material of the steps and landings of this stair. Without one, the project default for stairs shows"),
-                   QStringLiteral("material-picker-stair"), steps);
+                   steps);
 
     connect(stairType_, &QComboBox::activated, this, [this](int index) {
         const std::string type = stairType_->itemData(index).toString().toStdString();
@@ -608,33 +592,30 @@ void PropertiesPanel::buildRoofEditor(QGridLayout* grid, RoofEditor& editor, boo
 {
     const Theme& t = Theme::instance();
     const QString who = section ? tr("this roof section") : tr("every roof section that has no settings of its own");
-    const QString prefix = section ? QStringLiteral("panel-roof-") : QStringLiteral("panel-roof-default-");
-    editor.type = addComboRow(grid, tr("Type"), tr("The shape of the roof of %1").arg(who), prefix + QStringLiteral("type"));
+    editor.type = addComboRow(grid, tr("Type"), tr("The shape of the roof of %1").arg(who));
     for (const plynth::RoofType* type : plynth::allRoofTypes())
         editor.type->addItem(fromCore(std::string(type->name())), fromCore(std::string(type->id())));
     editor.pitch = addSpinRow(grid, tr("Pitch"), plynth::kMinPitchedRoofPitch, plynth::kMaxRoofPitch, 1.0,
-                              tr("How steep the roof slopes, in degrees from level"), prefix + QStringLiteral("pitch"),
-                              &editor.pitchLabel);
+                              tr("How steep the roof slopes, in degrees from level"), &editor.pitchLabel);
     editor.pitch->setDecimals(1);
     editor.pitch->setSuffix(QStringLiteral("°"));
     editor.autoDirection = new QCheckBox(tr("Automatic direction"), grid->parentWidget());
     editor.autoDirection->setFont(t.uiFont(t.sizeNormal()));
     editor.autoDirection->setStyle(t.controlStyle());
     editor.autoDirection->setToolTip(tr("When on, the ridge runs along the longer side of the section. Turn it off to set the direction."));
-    editor.autoDirection->setProperty("tourId", prefix + QStringLiteral("auto-direction"));
     grid->addWidget(editor.autoDirection, grid->rowCount(), 0, 1, 2);
     editors_.push_back(editor.autoDirection);
     editor.direction = addSpinRow(grid, tr("Direction"), 0.0, 359.9, 5.0,
                                   tr("The way the ridge runs, or the way a shed roof falls, in degrees clockwise on the plan from the right"),
-                                  prefix + QStringLiteral("direction"), &editor.directionLabel);
+                                  &editor.directionLabel);
     editor.direction->setDecimals(1);
     editor.direction->setSuffix(QStringLiteral("°"));
     editor.overhang = addSpinRow(grid, tr("Overhang"), 0.0, plynth::kMaxRoofOverhang, 0.05,
                                  tr("How far the roof reaches past the outer walls. A flat roof with a parapet has none."),
-                                 prefix + QStringLiteral("overhang"), &editor.overhangLabel);
+                                 &editor.overhangLabel);
     editor.parapet = addSpinRow(grid, tr("Parapet"), 0.0, plynth::kMaxParapet, 0.05,
                                 tr("Height of the low wall around a flat roof. Zero for none."),
-                                prefix + QStringLiteral("parapet"), &editor.parapetLabel);
+                                &editor.parapetLabel);
 
     RoofEditor* self = &editor;
     const auto edited = [this, self, section]() {
@@ -773,11 +754,10 @@ void PropertiesPanel::buildRoofPage()
     covering.kind = plynth::MaterialTarget::Kind::Roof;
     addMaterialRow(grid, tr("Covering"),
                    tr("The material of the covering of this roof section. Without one, the project default for this kind of roof shows"),
-                   QStringLiteral("material-picker-roof"), covering);
+                   covering);
 
     roofUseDefault_ = new QPushButton(tr("Use the default"), grid->parentWidget());
     roofUseDefault_->setToolTip(tr("Remove the settings of this section so it follows the roof default again"));
-    roofUseDefault_->setProperty("tourId", QStringLiteral("panel-roof-use-default"));
     grid->addWidget(roofUseDefault_, grid->rowCount(), 0, 1, 2);
     editors_.push_back(roofUseDefault_);
     connect(roofUseDefault_, &QPushButton::clicked, this, [this]() {
@@ -821,14 +801,11 @@ void PropertiesPanel::buildPointPage()
     QGridLayout* grid = nullptr;
     makePage(&grid);
     pointId_ = addLabelRow(grid, tr("Point"));
-    pointX_ = addSpinRow(grid, tr("X"), -100000.0, 100000.0, 0.05, tr("Position of the point, from the left edge of the image"),
-                         QStringLiteral("panel-point-x"));
-    pointY_ = addSpinRow(grid, tr("Y"), -100000.0, 100000.0, 0.05, tr("Position of the point, from the top edge of the image"),
-                         QStringLiteral("panel-point-y"));
+    pointX_ = addSpinRow(grid, tr("X"), -100000.0, 100000.0, 0.05, tr("Position of the point, from the left edge of the image"));
+    pointY_ = addSpinRow(grid, tr("Y"), -100000.0, 100000.0, 0.05, tr("Position of the point, from the top edge of the image"));
     pointWalls_ = addLabelRow(grid, tr("Walls"));
     cornerRadius_ = addKeyedSpinRow(grid, tr("Corner radius"), 0.0, 100.0, 0.05,
-                                    tr("Rounds the corner with an arc of this radius. It applies where exactly two straight walls meet."),
-                                    QStringLiteral("panel-corner-radius"));
+                                    tr("Rounds the corner with an arc of this radius. It applies where exactly two straight walls meet."));
     cornerNote_ = addNote(grid);
     connect(cornerRadius_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
         if (refreshing_ || selection_.kind() != SelectionKind::Point)
@@ -868,8 +845,7 @@ void PropertiesPanel::buildWallPage()
     wallTo_ = addLabelRow(grid, tr("To"));
     wallLength_ = addLabelRow(grid, tr("Length"));
     wallLength_->setToolTip(tr("Length of the wall along its centre line, along the arc when the wall is bent"));
-    wallThickness_ = addKeyedSpinRow(grid, tr("Thickness"), 0.01, 10.0, 0.01, tr("Thickness of the wall"),
-                                     QStringLiteral("panel-wall-thickness"));
+    wallThickness_ = addKeyedSpinRow(grid, tr("Thickness"), 0.01, 10.0, 0.01, tr("Thickness of the wall"));
     connect(wallThickness_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
         if (refreshing_ || selection_.kind() != SelectionKind::Wall)
             return;
@@ -878,8 +854,7 @@ void PropertiesPanel::buildWallPage()
     });
 
     wallBend_ = addKeyedSpinRow(grid, tr("Bend"), -1000.0, 1000.0, 0.05,
-                                tr("How far the middle of the wall is from the straight line between its points. Positive bends to the right of the wall's direction. 0 is straight. The most is half the straight length."),
-                                QStringLiteral("panel-wall-bend"));
+                                tr("How far the middle of the wall is from the straight line between its points. Positive bends to the right of the wall's direction. 0 is straight. The most is half the straight length."));
     connect(wallBend_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
         if (refreshing_ || selection_.kind() != SelectionKind::Wall)
             return;
@@ -889,7 +864,6 @@ void PropertiesPanel::buildWallPage()
     });
     straightenButton_ = new QPushButton(tr("Straighten"), grid->parentWidget());
     straightenButton_->setToolTip(tr("Make the wall straight again"));
-    straightenButton_->setProperty("tourId", QStringLiteral("panel-wall-straighten"));
     grid->addWidget(straightenButton_, grid->rowCount(), 1);
     connect(straightenButton_, &QPushButton::clicked, this, [this]() {
         if (selection_.kind() == SelectionKind::Wall)
@@ -899,11 +873,9 @@ void PropertiesPanel::buildWallPage()
     wallOwnHeight_->setFont(Theme::instance().uiFont(Theme::instance().sizeNormal()));
     wallOwnHeight_->setStyle(Theme::instance().controlStyle());
     wallOwnHeight_->setToolTip(tr("Give this wall its own height instead of the ceiling height of the floor"));
-    wallOwnHeight_->setProperty("tourId", QStringLiteral("panel-wall-own-height"));
     grid->addWidget(wallOwnHeight_, grid->rowCount(), 0, 1, 2);
     editors_.push_back(wallOwnHeight_);
-    wallHeight_ = addKeyedSpinRow(grid, tr("Height"), 0.1, 100.0, 0.05, tr("Height of this wall"),
-                                  QStringLiteral("panel-wall-height"));
+    wallHeight_ = addKeyedSpinRow(grid, tr("Height"), 0.1, 100.0, 0.05, tr("Height of this wall"));
     connect(wallOwnHeight_, &QCheckBox::toggled, this, [this](bool on) {
         if (refreshing_ || selection_.kind() != SelectionKind::Wall)
             return;
@@ -928,11 +900,11 @@ void PropertiesPanel::buildWallPage()
     inside.kind = plynth::MaterialTarget::Kind::Wall;
     inside.wallFace = plynth::WallFace::Inside;
     addMaterialRow(grid, tr("Inside"), tr("The material of the face of this wall that looks into a room. Without one, the room wall material or the project default shows"),
-                   QStringLiteral("material-picker-wall-inside"), inside);
+                   inside);
     plynth::MaterialTarget outside = inside;
     outside.wallFace = plynth::WallFace::Outside;
     addMaterialRow(grid, tr("Outside"), tr("The material of the face of this wall that looks outdoors. Without one, the project default shows"),
-                   QStringLiteral("material-picker-wall-outside"), outside);
+                   outside);
 }
 
 // The page for a selected room: id, type, floor area and number of walls.
@@ -950,7 +922,6 @@ void PropertiesPanel::buildRoomPage()
     roomType_->setFont(t.uiFont(t.sizeNormal()));
     roomType_->setStyle(t.controlStyle());
     roomType_->setToolTip(tr("What kind of room this is"));
-    roomType_->setProperty("tourId", QStringLiteral("panel-room-type"));
     name->setToolTip(roomType_->toolTip());
     const int row = grid->rowCount();
     grid->addWidget(name, row, 0, Qt::AlignVCenter);
@@ -980,7 +951,6 @@ void PropertiesPanel::buildRoomPage()
     roomDressing_->setFont(t.uiFont(t.sizeNormal()));
     roomDressing_->setToolTip(tr("Let the build add small props to this room: books on shelves, things on tables and "
                                  "pictures on the walls, from assets tagged for it"));
-    roomDressing_->setProperty("tourId", QStringLiteral("panel-room-dressing"));
     grid->addWidget(roomDressing_, grid->rowCount(), 1);
     editors_.push_back(roomDressing_);
     connect(roomDressing_, &QCheckBox::clicked, this, [this](bool on) {
@@ -995,20 +965,20 @@ void PropertiesPanel::buildRoomPage()
     floor.kind = plynth::MaterialTarget::Kind::Room;
     floor.roomSurface = plynth::RoomSurface::Floor;
     addMaterialRow(grid, tr("Floor"), tr("The material of the floor of this room. Without one, the project default shows"),
-                   QStringLiteral("material-picker-room-floor"), floor);
+                   floor);
     plynth::MaterialTarget walls = floor;
     walls.roomSurface = plynth::RoomSurface::Walls;
     addMaterialRow(grid, tr("Wall faces"), tr("The material of the wall faces that look into this room, unless a wall names its own inside material"),
-                   QStringLiteral("material-picker-room-wall"), walls);
+                   walls);
     plynth::MaterialTarget ceiling = floor;
     ceiling.roomSurface = plynth::RoomSurface::Ceiling;
     addMaterialRow(grid, tr("Ceiling"), tr("The material of the ceiling of this room. Without one, the project default shows"),
-                   QStringLiteral("material-picker-room-ceiling"), ceiling);
+                   ceiling);
 }
 
 // Adds a row with a slider: its name and value on one line, the slider under them.
 QSlider* PropertiesPanel::addSliderRow(QGridLayout* grid, const QString& label, int min, int max, const QString& tip,
-                                       const QString& tourId, QLabel** valueOut)
+                                       QLabel** valueOut)
 {
     const Theme& t = Theme::instance();
     auto* name = new QLabel(label, grid->parentWidget());
@@ -1023,7 +993,6 @@ QSlider* PropertiesPanel::addSliderRow(QGridLayout* grid, const QString& label, 
     slider->setRange(min, max);
     slider->setStyle(t.controlStyle());
     slider->setToolTip(tip);
-    slider->setProperty("tourId", tourId);
     const int row = grid->rowCount();
     grid->addWidget(name, row, 0, Qt::AlignVCenter);
     grid->addWidget(value, row, 1);
@@ -1039,40 +1008,35 @@ void PropertiesPanel::buildDetectPage()
     const Theme& t = Theme::instance();
     QGridLayout* grid = nullptr;
     QWidget* page = makePage(&grid);
-    page->setProperty("tourId", QStringLiteral("panel-detect"));
     page->setToolTip(tr("Settings for finding walls in the plan image"));
 
     thinSlider_ = addSliderRow(grid, tr("Thinnest wall"), 2, 40,
                                tr("Dark lines thinner than this are not walls. Raise it to drop thin inner walls."),
-                               QStringLiteral("panel-detect-thinnest"), &thinValue_);
+                               &thinValue_);
     thickSlider_ = addSliderRow(grid, tr("Thickest wall"), 10, 100,
                                 tr("Dark areas thicker than this are not walls, for example filled blocks."),
-                                QStringLiteral("panel-detect-thickest"), &thickValue_);
+                                &thickValue_);
     sensitivitySlider_ = addSliderRow(grid, tr("Sensitivity"), 0, 100,
                                       tr("Higher counts lighter grey as ink. Lower it for a plan with grey paper."),
-                                      QStringLiteral("panel-detect-sensitivity"), &sensitivityValue_);
+                                      &sensitivityValue_);
     lengthSpin_ = addSpinRow(grid, tr("Shortest wall"), 0.05, 5.0, 0.05,
-                             tr("Wall pieces shorter than this are dropped."), QStringLiteral("panel-detect-length"));
+                             tr("Wall pieces shorter than this are dropped."));
     lengthSpin_->setDecimals(2);
     openingSpin_ = addSpinRow(grid, tr("Widest opening"), 0.0, 5.0, 0.05,
-                              tr("A gap up to this wide is closed with wall and shown as an opening. 0 closes none."),
-                              QStringLiteral("panel-detect-opening"));
+                              tr("A gap up to this wide is closed with wall and shown as an opening. 0 closes none."));
     openingSpin_->setDecimals(2);
 
-    const auto addCheck = [&](const QString& text, const QString& tip, const QString& tourId) {
+    const auto addCheck = [&](const QString& text, const QString& tip) {
         auto* box = new QCheckBox(text, page);
         box->setFont(t.uiFont(t.sizeNormal()));
         box->setStyle(t.controlStyle());
         box->setToolTip(tip);
-        box->setProperty("tourId", tourId);
         grid->addWidget(box, grid->rowCount(), 0, 1, 2);
         editors_.push_back(box);
         return box;
     };
-    roomsCheck_ = addCheck(tr("Propose rooms"), tr("Also propose a room for every closed area"),
-                           QStringLiteral("panel-detect-rooms"));
-    openingsCheck_ = addCheck(tr("Find openings"), tr("Find doors, windows and gaps in the walls and add them on Accept"),
-                              QStringLiteral("panel-detect-openings"));
+    roomsCheck_ = addCheck(tr("Propose rooms"), tr("Also propose a room for every closed area"));
+    openingsCheck_ = addCheck(tr("Find openings"), tr("Find doors, windows and gaps in the walls and add them on Accept"));
 
     detectorLabel_ = new QLabel(tr("Detector"), page);
     detectorLabel_->setFont(t.uiFont(t.sizeSmall()));
@@ -1081,7 +1045,6 @@ void PropertiesPanel::buildDetectPage()
     detectorCombo_->setFont(t.uiFont(t.sizeNormal()));
     detectorCombo_->setStyle(t.controlStyle());
     detectorCombo_->setToolTip(tr("The way walls are found"));
-    detectorCombo_->setProperty("tourId", QStringLiteral("panel-detect-detector"));
     for (const plynth::Detector* detector : plynth::allDetectors()) {
         const QString id = QString::fromUtf8(detector->id().data(), static_cast<qsizetype>(detector->id().size()));
         const QString text = QString::fromUtf8(detector->name().data(), static_cast<qsizetype>(detector->name().size()));
@@ -1103,16 +1066,13 @@ void PropertiesPanel::buildDetectPage()
     detectStatus_->setFont(t.uiFont(t.sizeSmall()));
     detectStatus_->setWordWrap(true);
     detectStatus_->setToolTip(tr("What detection found, or why it could not run"));
-    detectStatus_->setProperty("tourId", QStringLiteral("panel-detect-status"));
     grid->addWidget(detectStatus_, grid->rowCount(), 0, 1, 2);
 
     acceptButton_ = new QPushButton(tr("Accept"), page);
     acceptButton_->setDefault(true);
     acceptButton_->setToolTip(tr("Add the new walls, openings and rooms to the plan (Enter)"));
-    acceptButton_->setProperty("tourId", QStringLiteral("detect-accept"));
     resetButton_ = new QPushButton(tr("Reset settings"), page);
     resetButton_->setToolTip(tr("Put every detection setting back to its default"));
-    resetButton_->setProperty("tourId", QStringLiteral("panel-detect-reset"));
     editors_.push_back(resetButton_);
     auto* buttons = new QHBoxLayout();
     buttons->setSpacing(t.unit() * 2);
@@ -1252,7 +1212,7 @@ void PropertiesPanel::addMaterialSection(QGridLayout* grid, const QString& title
 
 // Adds a row with a label and a material row that opens the picker for the target.
 MaterialRow* PropertiesPanel::addMaterialRow(QGridLayout* grid, const QString& label, const QString& tip,
-                                             const QString& tourId, const plynth::MaterialTarget& target)
+                                             const plynth::MaterialTarget& target)
 {
     const Theme& t = Theme::instance();
     auto* name = new QLabel(label, grid->parentWidget());
@@ -1261,7 +1221,6 @@ MaterialRow* PropertiesPanel::addMaterialRow(QGridLayout* grid, const QString& l
     name->setToolTip(tip);
     auto* row = new MaterialRow(grid->parentWidget());
     row->setToolTip(tip);
-    row->setProperty("tourId", tourId);
     const int index = grid->rowCount();
     grid->addWidget(name, index, 0, Qt::AlignVCenter);
     grid->addWidget(row, index, 1);
@@ -1626,7 +1585,6 @@ void PropertiesPanel::refreshUnusedRoofEntries()
         rowLayout->addWidget(text, 1);
         auto* remove = new QPushButton(tr("Remove"), row);
         remove->setToolTip(tr("Remove this unused roof entry. Undo brings it back."));
-        remove->setProperty("tourId", QStringLiteral("panel-roof-unused-remove"));
         remove->setEnabled(!document_.isReadOnly());
         rowLayout->addWidget(remove);
         connect(remove, &QPushButton::clicked, this, [this, id]() {
@@ -1753,7 +1711,7 @@ void PropertiesPanel::refreshWall()
 
 // Adds a row with a combo box and a muted label.
 QComboBox* PropertiesPanel::addComboRow(QGridLayout* grid, const QString& label, const QString& tip,
-                                        const QString& tourId, QLabel** labelOut)
+                                        QLabel** labelOut)
 {
     const Theme& t = Theme::instance();
     auto* name = new QLabel(label, grid->parentWidget());
@@ -1764,7 +1722,6 @@ QComboBox* PropertiesPanel::addComboRow(QGridLayout* grid, const QString& label,
     combo->setFont(t.uiFont(t.sizeNormal()));
     combo->setStyle(t.controlStyle());
     combo->setToolTip(tip);
-    combo->setProperty("tourId", tourId);
     const int row = grid->rowCount();
     grid->addWidget(name, row, 0, Qt::AlignVCenter);
     grid->addWidget(combo, row, 1);
@@ -1834,23 +1791,18 @@ void PropertiesPanel::buildOpeningPage()
     makePage(&grid);
     openingId_ = addLabelRow(grid, tr("Opening"));
     openingWall_ = addLabelRow(grid, tr("Wall"));
-    openingType_ = addComboRow(grid, tr("Type"), tr("Door, window or plain opening"), QStringLiteral("panel-opening-type"));
+    openingType_ = addComboRow(grid, tr("Type"), tr("Door, window or plain opening"));
     fillTypeCombo(openingType_);
-    openingShape_ = addComboRow(grid, tr("Shape"), tr("The shape of the cutout in the wall"),
-                                QStringLiteral("panel-opening-shape"));
-    openingHinge_ = addComboRow(grid, tr("Hinge"), hingeTip(), QStringLiteral("panel-opening-hinge"), &openingHingeLabel_);
+    openingShape_ = addComboRow(grid, tr("Shape"), tr("The shape of the cutout in the wall"));
+    openingHinge_ = addComboRow(grid, tr("Hinge"), hingeTip(), &openingHingeLabel_);
     fillHingeCombo(openingHinge_);
-    openingSwing_ = addComboRow(grid, tr("Swing"), swingTip(), QStringLiteral("panel-opening-swing"), &openingSwingLabel_);
+    openingSwing_ = addComboRow(grid, tr("Swing"), swingTip(), &openingSwingLabel_);
     fillSwingCombo(openingSwing_);
     openingOffset_ = addKeyedSpinRow(grid, tr("Offset"), 0.0, 1000.0, 0.05,
-                                     tr("Distance along the wall from its first point to the middle of the opening"),
-                                     QStringLiteral("panel-opening-offset"));
-    openingSill_ = addKeyedSpinRow(grid, tr("Sill"), 0.0, 100.0, 0.05, tr("Height of the bottom of the opening above the floor"),
-                                   QStringLiteral("panel-opening-sill"));
-    openingWidth_ = addKeyedSpinRow(grid, tr("Width"), 0.01, 100.0, 0.05, tr("Width of the opening along the wall"),
-                                    QStringLiteral("panel-opening-width"));
-    openingHeight_ = addKeyedSpinRow(grid, tr("Height"), 0.01, 100.0, 0.05, tr("Height of the opening"),
-                                     QStringLiteral("panel-opening-height"));
+                                     tr("Distance along the wall from its first point to the middle of the opening"));
+    openingSill_ = addKeyedSpinRow(grid, tr("Sill"), 0.0, 100.0, 0.05, tr("Height of the bottom of the opening above the floor"));
+    openingWidth_ = addKeyedSpinRow(grid, tr("Width"), 0.01, 100.0, 0.05, tr("Width of the opening along the wall"));
+    openingHeight_ = addKeyedSpinRow(grid, tr("Height"), 0.01, 100.0, 0.05, tr("Height of the opening"));
     {
         const QString tip = tr("The door or window built into this opening: Automatic picks a fitting catalog asset, "
                                "Built by Plynth makes its own, or choose an asset of the door or window category");
@@ -1861,7 +1813,6 @@ void PropertiesPanel::buildOpeningPage()
         openingAsset_ = new QPushButton(grid->parentWidget());
         openingAsset_->setFont(t.uiFont(t.sizeNormal()));
         openingAsset_->setToolTip(tip);
-        openingAsset_->setProperty("tourId", QStringLiteral("panel-opening-asset"));
         const int row = grid->rowCount();
         grid->addWidget(openingAssetLabel_, row, 0, Qt::AlignVCenter);
         grid->addWidget(openingAsset_, row, 1);
@@ -1946,24 +1897,20 @@ void PropertiesPanel::buildOpeningToolPage()
     const Theme& t = Theme::instance();
     QGridLayout* grid = nullptr;
     QWidget* page = makePage(&grid);
-    page->setProperty("tourId", QStringLiteral("panel-opening-tool"));
     page->setToolTip(tr("What the Opening tool places"));
-    toolType_ = addComboRow(grid, tr("Type"), tr("Door, window or plain opening"), QStringLiteral("panel-tool-opening-type"));
+    toolType_ = addComboRow(grid, tr("Type"), tr("Door, window or plain opening"));
     fillTypeCombo(toolType_);
-    toolShape_ = addComboRow(grid, tr("Shape"), tr("The shape of the cutout in the wall"),
-                             QStringLiteral("panel-tool-opening-shape"));
+    toolShape_ = addComboRow(grid, tr("Shape"), tr("The shape of the cutout in the wall"));
     toolWidth_ = addSpinRow(grid, tr("Width"), 0.1, 100.0, 0.05,
-                            tr("Width of new openings of this type. It is saved with the project."),
-                            QStringLiteral("panel-tool-opening-width"));
+                            tr("Width of new openings of this type. It is saved with the project."));
     toolHeight_ = addSpinRow(grid, tr("Height"), 0.1, 100.0, 0.05,
-                             tr("Height of new openings of this type. It is saved with the project."),
-                             QStringLiteral("panel-tool-opening-height"));
+                             tr("Height of new openings of this type. It is saved with the project."));
     toolSill_ = addSpinRow(grid, tr("Sill"), 0.0, 100.0, 0.05,
                            tr("Height of the bottom of new windows above the floor. It is saved with the project."),
-                           QStringLiteral("panel-tool-opening-sill"), &toolSillLabel_);
-    toolHinge_ = addComboRow(grid, tr("Hinge"), hingeTip(), QStringLiteral("panel-tool-opening-hinge"), &toolHingeLabel_);
+                           &toolSillLabel_);
+    toolHinge_ = addComboRow(grid, tr("Hinge"), hingeTip(), &toolHingeLabel_);
     fillHingeCombo(toolHinge_);
-    toolSwing_ = addComboRow(grid, tr("Swing"), swingTip(), QStringLiteral("panel-tool-opening-swing"), &toolSwingLabel_);
+    toolSwing_ = addComboRow(grid, tr("Swing"), swingTip(), &toolSwingLabel_);
     fillSwingCombo(toolSwing_);
     auto* note = new QLabel(tr("Click a wall to add an opening. Ctrl places freely. The wall view sets the height."), page);
     note->setFont(t.uiFont(t.sizeSmall()));
@@ -2130,17 +2077,13 @@ void PropertiesPanel::buildLightPage()
     lightId_ = addLabelRow(grid, tr("Light"));
     lightKind_ = addComboRow(grid, tr("Kind"),
                              tr("A ceiling light hangs below the ceiling, a wall light sits on a wall and a standing "
-                                "lamp stands on the floor. The build makes a warm white point light, with no fitting."),
-                             QStringLiteral("panel-light-kind"));
+                                "lamp stands on the floor. The build makes a warm white point light, with no fitting."));
     lightKind_->addItem(tr("Ceiling light"), static_cast<int>(plynth::LightKind::Ceiling));
     lightKind_->addItem(tr("Wall light"), static_cast<int>(plynth::LightKind::Wall));
     lightKind_->addItem(tr("Standing lamp"), static_cast<int>(plynth::LightKind::Standing));
-    lightHeight_ = addSpinRow(grid, tr("Height"), 0.0, 100.0, 0.05, tr("Height of the light above the floor"),
-                              QStringLiteral("panel-light-height"));
-    lightX_ = addKeyedSpinRow(grid, tr("X"), -10000.0, 10000.0, 0.05, tr("Place of the light across the plan"),
-                              QStringLiteral("panel-light-x"));
-    lightY_ = addKeyedSpinRow(grid, tr("Y"), -10000.0, 10000.0, 0.05, tr("Place of the light down the plan"),
-                              QStringLiteral("panel-light-y"));
+    lightHeight_ = addSpinRow(grid, tr("Height"), 0.0, 100.0, 0.05, tr("Height of the light above the floor"));
+    lightX_ = addKeyedSpinRow(grid, tr("X"), -10000.0, 10000.0, 0.05, tr("Place of the light across the plan"));
+    lightY_ = addKeyedSpinRow(grid, tr("Y"), -10000.0, 10000.0, 0.05, tr("Place of the light down the plan"));
     lightRoom_ = addLabelRow(grid, tr("Room"));
     lightRoom_->setToolTip(tr("The room the light is in. A light outside every room still builds."));
 
@@ -2209,7 +2152,6 @@ void PropertiesPanel::buildItemPage()
     const Theme& t = Theme::instance();
     QGridLayout* grid = nullptr;
     QWidget* page = makePage(&grid);
-    page->setProperty("tourId", QStringLiteral("item-properties"));
     page->setToolTip(tr("The selected piece of furniture"));
 
     itemThumb_ = new QLabel(page);
@@ -2217,7 +2159,6 @@ void PropertiesPanel::buildItemPage()
     itemThumb_->setAlignment(Qt::AlignCenter);
     itemThumb_->setFont(t.uiFont(t.sizeSmall()));
     itemThumb_->setToolTip(tr("The thumbnail of the asset"));
-    itemThumb_->setProperty("tourId", QStringLiteral("item-thumbnail"));
     grid->addWidget(itemThumb_, grid->rowCount(), 0, 1, 2, Qt::AlignLeft);
 
     itemName_ = new QLabel(page);
@@ -2241,17 +2182,13 @@ void PropertiesPanel::buildItemPage()
     grid->addWidget(itemState_, grid->rowCount(), 0, 1, 2);
     itemUpdate_ = new QPushButton(tr("Update size"), page);
     itemUpdate_->setToolTip(tr("Use the size the library has now for this asset"));
-    itemUpdate_->setProperty("tourId", QStringLiteral("item-update-size"));
     grid->addWidget(itemUpdate_, grid->rowCount(), 0, 1, 2);
     editors_.push_back(itemUpdate_);
 
-    itemX_ = addKeyedSpinRow(grid, tr("X"), -100000.0, 100000.0, 0.05, tr("Position of the centre of the item on the plan"),
-                             QStringLiteral("item-x"));
-    itemY_ = addKeyedSpinRow(grid, tr("Y"), -100000.0, 100000.0, 0.05, tr("Position of the centre of the item on the plan"),
-                             QStringLiteral("item-y"));
+    itemX_ = addKeyedSpinRow(grid, tr("X"), -100000.0, 100000.0, 0.05, tr("Position of the centre of the item on the plan"));
+    itemY_ = addKeyedSpinRow(grid, tr("Y"), -100000.0, 100000.0, 0.05, tr("Position of the centre of the item on the plan"));
     itemRotation_ = addKeyedSpinRow(grid, tr("Rotation"), 0.0, 359.99, 15.0,
-                                    tr("Turn of the item on the plan in degrees, clockwise. 0 faces down the plan."),
-                                    QStringLiteral("item-rotation"));
+                                    tr("Turn of the item on the plan in degrees, clockwise. 0 faces down the plan."));
     itemRotation_->setSuffix(tr(" deg"));
     itemRotation_->setWrapping(true);
     itemRotation_->setDecimals(1);
@@ -2263,10 +2200,8 @@ void PropertiesPanel::buildItemPage()
         box->setSpacing(t.unit() * 2);
         itemTurnLeft_ = new QPushButton(tr("Turn left"), turns);
         itemTurnLeft_->setToolTip(tr("Turn the item 90 degrees counterclockwise ([)"));
-        itemTurnLeft_->setProperty("tourId", QStringLiteral("item-turn-left"));
         itemTurnRight_ = new QPushButton(tr("Turn right"), turns);
         itemTurnRight_->setToolTip(tr("Turn the item 90 degrees clockwise (])"));
-        itemTurnRight_->setProperty("tourId", QStringLiteral("item-turn-right"));
         box->addWidget(itemTurnLeft_);
         box->addWidget(itemTurnRight_);
         grid->addWidget(turns, row, 0, 1, 2);
@@ -2274,10 +2209,9 @@ void PropertiesPanel::buildItemPage()
         editors_.push_back(itemTurnRight_);
         floorOnly_.push_back(turns);
     }
-    itemZ_ = addKeyedSpinRow(grid, tr("Bottom height"), 0.0, 100.0, 0.05, tr("Height of the bottom of the item above the floor"),
-                             QStringLiteral("item-bottom-height"));
+    itemZ_ = addKeyedSpinRow(grid, tr("Bottom height"), 0.0, 100.0, 0.05, tr("Height of the bottom of the item above the floor"));
     itemCentre_ = addKeyedSpinRow(grid, tr("Centre height"), 0.0, 100.0, 0.05,
-                                  tr("Height of the middle of the item above the floor"), QStringLiteral("item-centre-height"));
+                                  tr("Height of the middle of the item above the floor"));
     itemRoom_ = addLabelRow(grid, tr("Room"), false);
     itemRoom_->setToolTip(tr("The room the item stands in"));
     itemWall_ = addLabelRow(grid, tr("Wall"));
@@ -2289,10 +2223,8 @@ void PropertiesPanel::buildItemPage()
     wallBox->setSpacing(t.unit() * 2);
     itemMount_ = new QPushButton(tr("Mount on wall"), wallButtons);
     itemMount_->setToolTip(tr("Hang the item flat on the nearest wall"));
-    itemMount_->setProperty("tourId", QStringLiteral("item-mount"));
     itemTakeOff_ = new QPushButton(tr("Take off wall"), wallButtons);
     itemTakeOff_->setToolTip(tr("Take the item off its wall. It stays where it is"));
-    itemTakeOff_->setProperty("tourId", QStringLiteral("item-take-off"));
     wallBox->addWidget(itemMount_);
     wallBox->addWidget(itemTakeOff_);
     grid->addWidget(wallButtons, grid->rowCount(), 0, 1, 2);
@@ -2300,7 +2232,6 @@ void PropertiesPanel::buildItemPage()
     editors_.push_back(itemTakeOff_);
 
     genGroup_ = new QWidget(page);
-    genGroup_->setProperty("tourId", QStringLiteral("generator-group"));
     genGroup_->setToolTip(tr("The parameters of the generator this item runs"));
     auto* genColumn = new QVBoxLayout(genGroup_);
     genColumn->setContentsMargins(0, 0, 0, 0);
@@ -2314,7 +2245,6 @@ void PropertiesPanel::buildItemPage()
 
     itemSwap_ = new QPushButton(tr("Swap asset..."), page);
     itemSwap_->setToolTip(tr("Pick another asset for this item. It keeps its place"));
-    itemSwap_->setProperty("tourId", QStringLiteral("item-swap"));
     grid->addWidget(itemSwap_, grid->rowCount(), 0, 1, 2);
     editors_.push_back(itemSwap_);
 
@@ -2740,7 +2670,6 @@ void PropertiesPanel::buildGeneratorBody(const plynth::Item& item, const plynth:
             }
             }
             editor->setToolTip(tip);
-            editor->setProperty("tourId", QStringLiteral("generator-param-") + fromCore(param.id));
             // As for the fixed boxes of the panel: the wheel scrolls the page unless the box has focus.
             if (qobject_cast<QAbstractSpinBox*>(editor) != nullptr || qobject_cast<QComboBox*>(editor) != nullptr)
                 editor->setFocusPolicy(Qt::StrongFocus);
@@ -2787,10 +2716,8 @@ void PropertiesPanel::buildGeneratorBody(const plynth::Item& item, const plynth:
     box->setSpacing(t.unit() * 2);
     genReset_ = new QPushButton(tr("Reset to defaults"), buttons);
     genReset_->setToolTip(tr("Give every parameter of this item its default value"));
-    genReset_->setProperty("tourId", QStringLiteral("generator-reset"));
     genUpdate_ = new QPushButton(tr("Update"), buttons);
     genUpdate_->setToolTip(tr("Fit the stored values to the generator as it is now"));
-    genUpdate_->setProperty("tourId", QStringLiteral("generator-update"));
     box->addWidget(genReset_);
     box->addWidget(genUpdate_);
     box->addStretch(1);

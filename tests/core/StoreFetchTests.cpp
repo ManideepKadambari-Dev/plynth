@@ -177,7 +177,7 @@ TEST_CASE("applyFetch refuses the other kind with a sentence", "[core][fetch]") 
     ImportPlan asset;
     const Status refused = applyFetch(material, fetchOf(), asset);
     REQUIRE(refused.code == ErrorCode::InvalidValue);
-    REQUIRE(refused.message == "This BlenderKit item is a material. Import it in the Materials tab or with plynth materials import.");
+    REQUIRE(refused.message == "This BlenderKit item is a material. Import it in the Materials window or with plynth materials import.");
     REQUIRE(asset.file.empty());
 
     MaterialImportPlan plan;
@@ -195,7 +195,7 @@ TEST_CASE("applyFetch refuses the other kind with a sentence", "[core][fetch]") 
     MaterialImportPlan other;
     const Status wrong = applyFetch(model, fetchOf(kFetchKindMaterial), other);
     REQUIRE(wrong.code == ErrorCode::InvalidValue);
-    REQUIRE(wrong.message == "This BlenderKit item is a model. Import it in the Assets tab or with plynth assets import.");
+    REQUIRE(wrong.message == "This BlenderKit item is a model. Import it in the Assets window or with plynth assets import.");
     REQUIRE(other.path.empty());
 }
 

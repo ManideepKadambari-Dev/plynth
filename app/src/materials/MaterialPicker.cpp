@@ -144,7 +144,6 @@ private:
 MaterialPicker::MaterialPicker(LibraryHost& host, QWidget* parent) : QWidget(parent), host_(host)
 {
     setToolTip(tr("Pick a material: group, then material"));
-    setProperty("tourId", QStringLiteral("material-picker"));
     setFocusPolicy(Qt::NoFocus);
     row_ = new QHBoxLayout(this);
     row_->setContentsMargins(1, 1, 1, 1);
@@ -294,10 +293,8 @@ QListWidget* MaterialPicker::addColumn(Kind kind)
     list->viewport()->installEventFilter(this);
     if (kind == Kind::Groups) {
         list->setToolTip(tr("Material groups. Pick one to see its materials"));
-        list->setProperty("tourId", QStringLiteral("material-picker-groups"));
     } else {
         list->setToolTip(tr("Materials. Click one to use it, hover one to see it"));
-        list->setProperty("tourId", QStringLiteral("material-picker-materials"));
     }
     row_->insertWidget(static_cast<int>(columns_.size()), list);
     columns_.push_back({kind, list});

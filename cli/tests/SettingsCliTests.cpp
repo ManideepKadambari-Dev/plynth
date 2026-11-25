@@ -58,7 +58,7 @@ TEST_CASE("settings set saves and settings show reads it back", "[cli][settings]
     CHECK_FALSE(settings.contains("thumbnail_engine"));
     CHECK(settings.at("triangle_warning") == 1000);
     const auto saved = nlohmann::json::parse(readFile(plynth::settingsFile()));
-    CHECK(saved.at("version") == 4);
+    CHECK(saved.at("version") == 5);
     CHECK_FALSE(saved.contains("thumbnail_engine"));
 
     const auto cleared = runChecked({"settings", "set", "--projects", "none"});

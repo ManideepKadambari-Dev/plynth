@@ -104,6 +104,42 @@ foreach ($s in $steps) {
     if ($r.Code -ne 0) { throw "plynth $($s[0]) $($s[1]) ended with $($r.Code): $($r.Output)" }
 }
 
+# A library in the scratch folder, so the catalog windows show a catalog. The samples are imported through the
+# fake Blender; an item it cannot import is only a warning, since the pictures still show the windows.
+$library = Join-Path $scratch 'library'
+$r = Invoke-Plynth $cli @('library', 'init', $library, '--use')
+if ($r.Code -ne 0) { throw "plynth library init ended with $($r.Code): $($r.Output)" }
+# The projects folder too, as a user who ran the setup check has it, so Home does not ask to fix it.
+$r = Invoke-Plynth $cli @('settings', 'set', '--projects', $folders['projects'])
+if ($r.Code -ne 0) { Write-Host "::warning::plynth settings set --projects ended with $($r.Code): $($r.Output)" }
+$r = Invoke-Plynth $cli @('samples', 'add', '--library', $library) @{} 600
+if ($r.Code -ne 0) { Write-Host "::warning::plynth samples add ended with $($r.Code): $($r.Output)" }
+
+# A second copy of the project, built and exported with the fake Blender, for the Build report and Export
+# pictures. {built} in screens.txt names it. The first project stays unbuilt, so the other pictures do not
+# change. When the fake build or export fails, {built} falls back to the unbuilt project.
+$built = Join-Path $scratch 'projects/apartment-01-built'
+$builtSteps = @(
+    @('project', 'new', '--project', $built, '--image', $plan),
+    @('scale', 'set', '--project', $built, '--pixels-per-metre', '100'),
+    @('detect', '--project', $built, '--apply'),
+    @('build', '--project', $built, '--quiet'),
+    @('export', '--project', $built, '--quiet')
+)
+foreach ($s in $builtSteps) {
+    $r = Invoke-Plynth $cli $s @{} 600
+    if ($r.Code -ne 0) {
+        # A build with problems or an export with failed checks still leaves a report worth showing, so only a
+        # step before the build stops the copy.
+        Write-Host "::warning::plynth $($s[0]) $($s[1]) for the built copy ended with $($r.Code): $($r.Output)"
+        if ($s[0] -ne 'build' -and $s[0] -ne 'export') { break }
+    }
+}
+if (-not (Test-Path (Join-Path $built 'build/building.blend'))) {
+    Write-Host '::warning::The built copy has no build/building.blend, so the Build and Export pictures show the unbuilt project'
+    $built = $project
+}
+
 $screens = @()
 foreach ($line in Get-Content (Join-Path $root '.github/screens.txt')) {
     if (-not $line.Trim()) { continue }
@@ -118,7 +154,8 @@ $software = @{ QT_QPA_PLATFORM = 'windows'; QSG_RHI_BACKEND = 'd3d11'; QSG_RHI_P
 $rows = @()
 $failed = 0
 foreach ($screen in $screens) {
-    $words = @(Split-Options $screen.Options | ForEach-Object { if ($_ -eq '{project}') { $project } else { $_ } })
+    $words = @(Split-Options $screen.Options | ForEach-Object {
+        if ($_ -eq '{project}') { $project } elseif ($_ -eq '{built}') { $built } else { $_ } })
     $threeD = $screen.Options -match '--view\s+3d'
     foreach ($size in $sizes) {
         $file = Join-Path $OutFolder "$($screen.Name)-$size.png"

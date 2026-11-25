@@ -62,8 +62,9 @@ def side_names(slab):
     return [(entry["outline"], entry["holes"]) for entry in sides]
 
 
-# Adds the side faces of one ring from z0 to z1 facing away from the slab, with u along the ring and v up.
-# slots holds the slot of each edge.
+# Adds the side faces of one ring from z0 to z1 facing away from the slab, with u along the ring and v the
+# height above the ground, so brick courses run on from the walls below and above. slots holds the slot of each
+# edge.
 def add_sides(bm, ring, z0, z1, slots):
     uv = meshes.uv_layer(bm)
     bottom = [bm.verts.new((x, y, z0)) for x, y in ring]
@@ -76,7 +77,7 @@ def add_sides(bm, ring, z0, z1, slots):
         face = bm.faces.new([bottom[i], bottom[j], top[j], top[i]])
         face.material_index = slots[i]
         for k, loop in enumerate(face.loops):
-            loop[uv].uv = (along if k in (0, 3) else along + length, 0.0 if k < 2 else z1 - z0)
+            loop[uv].uv = (along if k in (0, 3) else along + length, z0 if k < 2 else z1)
         along += length
 
 

@@ -47,7 +47,6 @@ StatusBar::StatusBar(QWidget* parent)
     hintLabel_->setFont(t.uiFont(t.sizeSmall()));
     hintLabel_->setStyleSheet(mutedStyle);
     hintLabel_->setToolTip(tr("What the active tool does with a click"));
-    hintLabel_->setProperty("tourId", QStringLiteral("status-hint"));
     layout->addSpacing(t.unit() * 4);
     layout->addWidget(hintLabel_);
 
@@ -64,7 +63,6 @@ StatusBar::StatusBar(QWidget* parent)
     cursorLabel_->setFont(t.monoFont(t.sizeSmall()));
     cursorLabel_->setStyleSheet(mutedStyle);
     cursorLabel_->setToolTip(tr("Position of the cursor on the plan in metres"));
-    cursorLabel_->setProperty("tourId", QStringLiteral("status-cursor"));
     layout->addWidget(cursorLabel_);
 
     messageTimer_ = new QTimer(this);
@@ -81,7 +79,6 @@ StatusBar::StatusBar(QWidget* parent)
     zoomLabel_->setToolTip(tr("Zoom level of the plan sheet"));
     layout->addWidget(zoomLabel_);
 
-    setProperty("tourId", QStringLiteral("status-bar"));
     setToolTip(tr("Status bar: image name, image size and zoom"));
 }
 

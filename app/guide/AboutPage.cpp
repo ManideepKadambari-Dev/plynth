@@ -38,7 +38,6 @@ AboutPage::AboutPage(const GuideStyle& style, const QPixmap& logo, const std::fi
     : QWidget(parent)
 {
     setObjectName(QStringLiteral("guideRoot"));
-    setProperty("tourId", QStringLiteral("about-page"));
     setStyleSheet(guideStyleSheet(style));
     const plynth::AboutInfo info = plynth::aboutInfo(licensesFolder);
 
@@ -58,7 +57,6 @@ AboutPage::AboutPage(const GuideStyle& style, const QPixmap& logo, const std::fi
     titles->addWidget(name);
     auto* version = new QLabel(tr("Version %1").arg(fromCore(info.version)), this);
     version->setFont(style.monoFont);
-    version->setProperty("tourId", QStringLiteral("about-version"));
     version->setToolTip(tr("The version of this copy of Plynth"));
     version->setTextInteractionFlags(Qt::TextSelectableByMouse);
     titles->addWidget(version);
@@ -83,7 +81,6 @@ AboutPage::AboutPage(const GuideStyle& style, const QPixmap& logo, const std::fi
     auto* lists = new QHBoxLayout;
     lists->setSpacing(style.unit * 3);
     notices_ = new QTextBrowser(this);
-    notices_->setProperty("tourId", QStringLiteral("about-notices"));
     notices_->setToolTip(tr("Every library, font and data file Plynth ships, with its license"));
     notices_->setOpenLinks(false);
     notices_->setFont(style.uiFont);
@@ -94,7 +91,6 @@ AboutPage::AboutPage(const GuideStyle& style, const QPixmap& logo, const std::fi
     lists->addWidget(notices_, 3);
 
     texts_ = new QListWidget(this);
-    texts_->setProperty("tourId", QStringLiteral("about-licenses"));
     texts_->setToolTip(tr("The full license texts. Click one to read it"));
     texts_->setFont(style.monoFont);
     const std::filesystem::path textsFolder = licensesFolder / std::filesystem::path(u8"texts");

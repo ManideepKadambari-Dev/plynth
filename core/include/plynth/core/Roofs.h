@@ -44,7 +44,10 @@ namespace plynth {
 //   flat     (10)  pitch no, direction no, overhang only without a parapet, parapet yes. A layer kRoofThickness
 //                  thick over the eaves outline (the section itself when there is a parapet), and when parapet is
 //                  above 0 a wall kParapetThickness thick along the inside of the section's outline, parapet high
-//                  above the layer
+//                  above the layer. The parapet runs only along the free parts of the outline, never along the
+//                  floor above
+// Where a roof's outline lies along the footprint of the floor above, that storey's wall rises there, so the roof
+// meets it with no edge (fascia) face and no parapet.
 //   gable    (20)  pitch, direction (the ridge), overhang. Two planes falling away from a ridge line along the
 //                  direction through the middle of the section's extent across it; vertical gable fills between
 //                  base and the roof's underside along the section's outline
@@ -106,6 +109,7 @@ struct RoofInput {
     double base = 0.0;                // world Z the roof sits on
     RoofSettings settings;
     Vec2 direction;                   // unit world direction resolved from settings.direction, never empty
+    std::vector<WorldPolygon> above;  // the footprint of the floor above; empty on the top floor
 };
 
 class RoofType {

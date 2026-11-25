@@ -118,7 +118,6 @@ PlanCanvas::PlanCanvas(QWidget* parent)
     setMouseTracking(true);
     viewport()->setMouseTracking(true);
     setToolTip(tr("Plan sheet. Wheel zooms at the cursor. Middle drag or Space and drag pans."));
-    setProperty("tourId", QStringLiteral("canvas-plan"));
     emptyText_ = defaultEmptyText();
     updateCursor();
 }
@@ -1268,7 +1267,7 @@ static bool hasImageFile(const QMimeData& mime)
     return false;
 }
 
-// Accepts an asset tile dragged from the Assets tab. Plan image files go on to the window, which sets them.
+// Accepts an asset tile dragged from the Assets window. Plan image files go on to the window, which sets them.
 void PlanCanvas::dragEnterEvent(QDragEnterEvent* event)
 {
     if (event->mimeData()->hasFormat(QStringLiteral("application/x-plynth-asset"))) {

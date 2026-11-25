@@ -17,7 +17,7 @@ namespace plynth {
 
 using Json = nlohmann::ordered_json;
 
-// The Integrations tab: one entry per source assets and materials come from.
+// The Sources window: one entry per source assets and materials come from.
 // Integrations are registry entries like importers: each lives in the importer file of its source with
 // an IntegrationRegistrar at namespace scope, so a new source is new files only. Built in now:
 //   "local"       Own files: asset importer local_file, material importers texture_set and blend_material

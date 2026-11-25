@@ -18,6 +18,9 @@ constexpr double kMiterLimit = 5.0;
 constexpr double kSliver = 1e-6;  // pieces smaller than this many square metres are rounding noise
 constexpr double kClose = 1e-6;   // points nearer than this are one point
 constexpr double kFar = 1e9;
+// An edge this near the floor above lies along its outline. Well over the rounding between a section and the
+// floor above (kSlabSideTolerance), and short of a real gap of 1e-4 m.
+constexpr double kAbutTolerance = 7e-5;
 
 // The registry of roof types, built on first use so registering from namespace scope works in any start up order.
 struct Registry {
@@ -301,6 +304,7 @@ RoofInput makeInput(const RoofArea& area, const RoofType& type, double base, con
     input.settings = area.settings;
     input.base = base;
     input.direction = resolveDirection(area.settings, input.section);
+    input.above = above;
     std::vector<WorldPolygon> eaves{input.section};
     bool moved = false;
     if (type.usesOverhang() && area.settings.overhang > 1e-9) {
@@ -466,7 +470,8 @@ std::vector<RoofFace> flatFaces(const std::vector<WorldPolygon>& polygons, doubl
     return faces;
 }
 
-std::vector<RoofFace> ringWalls(const std::vector<WorldPolygon>& polygons, double bottom, double top, RoofPart part)
+std::vector<RoofFace> ringWalls(const std::vector<WorldPolygon>& polygons, double bottom, double top, RoofPart part,
+                                const std::vector<WorldPolygon>& above)
 {
     std::vector<RoofFace> faces;
     for (const WorldPolygon& poly : polygons) {
@@ -475,11 +480,86 @@ std::vector<RoofFace> ringWalls(const std::vector<WorldPolygon>& polygons, doubl
                 const Vec2 p = (*ring)[i];
                 const Vec2 q = (*ring)[(i + 1) % ring->size()];
                 if (std::hypot(q.x - p.x, q.y - p.y) < kClose) continue;
-                faces.push_back(wallQuad(p, q, bottom, bottom, top, top, part));
+                for (const auto& [a, b] : freeParts(p, q, above)) {
+                    if (std::hypot(b.x - a.x, b.y - a.y) < kClose) continue;
+                    faces.push_back(wallQuad(a, b, bottom, bottom, top, top, part));
+                }
             }
         }
     }
     return faces;
+}
+
+std::vector<std::pair<Vec2, Vec2>> freeParts(Vec2 p, Vec2 q, const std::vector<WorldPolygon>& above)
+{
+    const double dx = q.x - p.x;
+    const double dy = q.y - p.y;
+    const double len2 = dx * dx + dy * dy;
+    if (above.empty() || len2 <= 0.0) return {{p, q}};
+
+    std::vector<double> ts{0.0, 1.0};
+    for (const WorldPolygon& poly : above) {
+        for (const std::vector<Vec2>* ring : ringsOf(poly)) {
+            for (const Vec2& v : *ring) {
+                const double t = ((v.x - p.x) * dx + (v.y - p.y) * dy) / len2;
+                if (t > 0.0 && t < 1.0 && distanceToSegment(v, p, q) <= kAbutTolerance) ts.push_back(t);
+            }
+        }
+    }
+    std::sort(ts.begin(), ts.end());
+
+    auto nearAbove = [&above](Vec2 m) {
+        for (const WorldPolygon& poly : above) {
+            for (const std::vector<Vec2>* ring : ringsOf(poly)) {
+                for (std::size_t i = 0; i < ring->size(); ++i) {
+                    if (distanceToSegment(m, (*ring)[i], (*ring)[(i + 1) % ring->size()]) <= kAbutTolerance) return true;
+                }
+            }
+        }
+        return false;
+    };
+    // The ends are kept exactly, so an edge with nothing against it comes back unchanged.
+    auto point = [&](double t) { return t <= 0.0 ? p : t >= 1.0 ? q : along(p, q, t); };
+
+    std::vector<std::pair<Vec2, Vec2>> out;
+    for (std::size_t k = 0; k + 1 < ts.size(); ++k) {
+        if (ts[k + 1] - ts[k] <= 0.0) continue;
+        const double span = ts[k + 1] - ts[k];
+        bool against = true;
+        for (const double f : {0.25, 0.5, 0.75}) against = against && nearAbove(along(p, q, ts[k] + span * f));
+        if (against) continue;
+        const Vec2 a = point(ts[k]);
+        const Vec2 b = point(ts[k + 1]);
+        if (!out.empty() && out.back().second.x == a.x && out.back().second.y == a.y) out.back().second = b;
+        else out.emplace_back(a, b);
+    }
+    return out;
+}
+
+bool meetsAbove(const std::vector<WorldPolygon>& polygons, const std::vector<WorldPolygon>& above)
+{
+    if (above.empty()) return false;
+    for (const WorldPolygon& poly : polygons) {
+        for (const std::vector<Vec2>* ring : ringsOf(poly)) {
+            for (std::size_t i = 0; i < ring->size(); ++i) {
+                const Vec2 p = (*ring)[i];
+                const Vec2 q = (*ring)[(i + 1) % ring->size()];
+                const auto parts = freeParts(p, q, above);
+                if (parts.size() != 1 || parts[0].first.x != p.x || parts[0].first.y != p.y || parts[0].second.x != q.x ||
+                    parts[0].second.y != q.y) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+std::vector<WorldPolygon> joined(const std::vector<WorldPolygon>& polygons, const std::vector<WorldPolygon>& more)
+{
+    const std::vector<WorldPolygon> both = run(Clipper2Lib::ClipType::Union, toPaths(polygons), toPaths(more));
+    // Closes only gaps an edge would count as lying along, so the parapet and the edge faces agree.
+    return offsetBy(offsetBy(both, kAbutTolerance / 2.0), -kAbutTolerance / 2.0);
 }
 
 std::vector<RoofFace> pitchedFaces(const RoofInput& input, const std::vector<Piece>& pieces,
@@ -505,9 +585,12 @@ std::vector<RoofFace> pitchedFaces(const RoofInput& input, const std::vector<Pie
                     const Vec2 a = along(p, q, ts[k]);
                     const Vec2 b = along(p, q, ts[k + 1]);
                     if (std::hypot(b.x - a.x, b.y - a.y) < kClose) continue;
-                    const double ta = height(a);
-                    const double tb = height(b);
-                    faces.push_back(wallQuad(a, b, ta - kRoofThickness, tb - kRoofThickness, ta, tb, RoofPart::Edge));
+                    for (const auto& [u, v] : freeParts(a, b, input.above)) {
+                        if (std::hypot(v.x - u.x, v.y - u.y) < kClose) continue;
+                        const double tu = height(u);
+                        const double tv = height(v);
+                        faces.push_back(wallQuad(u, v, tu - kRoofThickness, tv - kRoofThickness, tu, tv, RoofPart::Edge));
+                    }
                 }
             }
         }
