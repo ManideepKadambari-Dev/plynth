@@ -31,9 +31,16 @@ function Add-Failure([string]$text) {
     Write-Host "::error::$text"
 }
 
-# Runs one installer or uninstaller silently and waits for every process it starts.
+# Runs one installer or uninstaller silently and waits for it and its setup helpers, not for a Plynth it starts.
 function Invoke-Setup([string]$file, [string[]]$arguments) {
-    $p = Start-Process -FilePath $file -ArgumentList $arguments -PassThru -Wait
+    # Not -Wait: in PowerShell 7 that also waits for every program the setup starts, such as a reopened Plynth.
+    $p = Start-Process -FilePath $file -ArgumentList $arguments -PassThru
+    $null = $p.Handle
+    if (-not $p.WaitForExit(600000)) {
+        $p.Kill($true)
+        Add-Failure "$([System.IO.Path]::GetFileName($file)) did not end within ten minutes"
+        return -1
+    }
     $deadline = (Get-Date).AddMinutes(5)
     while ((Get-Process | Where-Object { $_.ProcessName -like 'unins*' -or $_.ProcessName -like '_iu*' -or $_.ProcessName -eq 'PlynthSetup' -or $_.ProcessName -like 'is-*' }) -and (Get-Date) -lt $deadline) {
         Start-Sleep -Milliseconds 500

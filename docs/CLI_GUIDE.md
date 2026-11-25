@@ -2622,7 +2622,7 @@ Only a release whose installer signature verifies with the keys built into the p
 `update --check` gives these two. `state` is `available` or `up_to_date`. `latest` equals `current` when nothing newer was found. `early_preview` is true for a release below 1.0. A release whose signature was bad is skipped and named in the top level `warnings`.
 
 ```json
-{"ok":true,"command":"update","result":{"state":"started","from":"0.1.0","to":"0.2.0","log":"C:/Users/you/AppData/Local/Plynth/updates/update.log"}}
+{"ok":true,"command":"update","result":{"state":"started","from":"0.1.0","to":"0.2.0","log":"<LocalAppData>/Plynth/updates/update.log"}}
 ```
 
 `update` gives this once the verified installer runs, or the `up_to_date` answer when there is nothing newer. `log` is the installer's log file.
