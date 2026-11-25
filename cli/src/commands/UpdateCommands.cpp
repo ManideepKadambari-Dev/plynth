@@ -1,5 +1,6 @@
 #include "../Registry.h"
 
+#include <plynth/core/ProjectFiles.h>
 #include <plynth/core/Settings.h>
 #include <plynth/core/Update.h>
 #include <plynth/core/Version.h>
