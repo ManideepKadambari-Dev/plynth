@@ -11,8 +11,9 @@ if (-not (Test-Path (Join-Path $built 'plynth.exe'))) { throw "plynth.exe was no
 if (Test-Path $Destination) { Remove-Item -Recurse -Force $Destination }
 New-Item -ItemType Directory -Force $Destination | Out-Null
 
-# The program, its console launcher and the Qt and library files the build placed beside them.
-robocopy $built $Destination /E /XF *.pdb *.ilk *.exp *.lib *_tests.exe /NFL /NDL /NJH /NJS /NP
+# The program, its console launcher and the Qt and library files the build placed beside them. The DirectX
+# shader compiler is left out as in the installer: the app draws with Direct3D 11, which does not use it.
+robocopy $built $Destination /E /XF *.pdb *.ilk *.exp *.lib *_tests.exe dxil.dll dxcompiler.dll /NFL /NDL /NJH /NJS /NP
 if ($LASTEXITCODE -ge 8) { throw "copying the program failed with code $LASTEXITCODE" }
 $global:LASTEXITCODE = 0
 

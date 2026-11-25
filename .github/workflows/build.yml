@@ -33,6 +33,10 @@ on:
         description: Extra app options for one more screenshot, such as --view 3d --camera top.
         type: string
         default: ''
+      license_texts:
+        description: Only download the license texts listed in installer/license-sources.json and upload them as license-texts. Builds nothing.
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -41,7 +45,7 @@ permissions:
 # so it never cancels another run and is never cancelled by one.
 concurrency:
   group: build-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && format('dispatch-{0}', github.run_id) || ((github.ref == 'refs/heads/main' || github.ref_type == 'tag') && 'gate' || 'debug') }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref_type != 'tag' }}
 
 env:
   VCPKG_ROOT: C:\vcpkg
@@ -58,9 +62,13 @@ jobs:
       ${{ (github.ref == 'refs/heads/main' || github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && inputs.config != 'debug'))
       && (format('{0}{1}{2}', inputs.tests, inputs.labels, inputs.write_fixture) != '' && 'Debug and Release, filtered, not a gate' || 'Release gate')
       || (format('{0}{1}{2}', inputs.tests, inputs.labels, inputs.write_fixture) != '' && 'Debug only, filtered' || 'Debug only') }}
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.license_texts) }}
     runs-on: windows-latest
-    timeout-minutes: 150
+    timeout-minutes: 180
     env:
+      # A tag build restores and saves no cache, so nothing from another branch reaches a release.
+      CACHES: ${{ github.ref_type != 'tag' && 'true' || 'false' }}
+      PLYNTH_PATH_ENTRY: '1'
       PLYNTH_GATE: ${{ (github.ref == 'refs/heads/main' || github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && inputs.config != 'debug')) && 'true' || 'false' }}
       PACKAGE_CONFIG: ${{ (github.ref == 'refs/heads/main' || github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && inputs.config != 'debug')) && 'Release' || 'Debug' }}
       TEST_FILTER: ${{ inputs.tests }}
@@ -71,7 +79,10 @@ jobs:
       APP_OPTIONS: ${{ inputs.app_options }}
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: ${{ github.ref_type == 'tag' && 0 || 1 }}
 
       - name: Refuse scratch work on main, milestone branches and tags
         shell: pwsh
@@ -85,14 +96,14 @@ jobs:
           }
 
       - name: Install Qt
-        uses: jurplel/install-qt-action@v4
+        uses: jurplel/install-qt-action@b344308e4483fc892e0d27b3cd1b173ebdd95f06 # v4.5.0
         with:
           version: 6.8.3
           host: windows
           target: desktop
           arch: win64_msvc2022_64
           modules: qtquick3d qtshadertools qtquicktimeline qtimageformats
-          cache: true
+          cache: ${{ github.ref_type != 'tag' }}
 
       - name: Point the presets at Qt
         shell: pwsh
@@ -100,7 +111,7 @@ jobs:
           "QTDIR=$env:QT_ROOT_DIR" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Load the MSVC environment
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
         with:
           arch: x64
 
@@ -121,7 +132,8 @@ jobs:
 
       - name: Restore the vcpkg binary cache
         id: vcpkg-cache
-        uses: actions/cache/restore@v4
+        if: env.CACHES == 'true'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: vcpkg-binary-cache
           key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'ports/**') }}-${{ github.run_id }}
@@ -137,12 +149,13 @@ jobs:
           "count=$n" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Install the compiler cache
-        uses: mozilla-actions/sccache-action@v0.0.9
-
+        if: env.CACHES == 'true'
+        uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
       # One cache a day for each branch. A branch can also read main's. sccache only reuses an object whose
       # preprocessed source, compiler and options are the same, and never stores a failed compile.
       - name: Pick the compiler cache key
         id: sccache-key
+        if: env.CACHES == 'true'
         shell: pwsh
         run: |
           $day = (Get-Date).ToUniversalTime().ToString('yyyyMMdd')
@@ -151,7 +164,8 @@ jobs:
 
       - name: Restore the compiler cache
         id: sccache-cache
-        uses: actions/cache/restore@v4
+        if: env.CACHES == 'true'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: sccache
           key: ${{ steps.sccache-key.outputs.key }}
@@ -161,6 +175,7 @@ jobs:
 
       - name: Start the compiler cache
         id: sccache-start
+        if: env.CACHES == 'true'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force $env:SCCACHE_DIR | Out-Null
@@ -174,7 +189,11 @@ jobs:
       - name: Configure
         shell: pwsh
         run: |
-          cmake --preset msvc -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache '-DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>'
+          if ($env:CACHES -eq 'true') {
+            cmake --preset msvc -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache '-DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>'
+          } else {
+            cmake --preset msvc
+          }
 
       - name: Check for new packages
         if: always()
@@ -186,8 +205,8 @@ jobs:
           "changed=$changed" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Save the vcpkg binary cache
-        if: always() && steps.after.outputs.changed == 'true'
-        uses: actions/cache/save@v4
+        if: always() && steps.after.outputs.changed == 'true' && env.CACHES == 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: vcpkg-binary-cache
           key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'ports/**') }}-${{ github.run_id }}
@@ -218,7 +237,7 @@ jobs:
 
       - name: Upload the test programs
         if: ${{ !cancelled() && steps.test-programs.outcome == 'success' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: test-programs
           path: out/test-programs/
@@ -233,7 +252,7 @@ jobs:
 
       - name: Upload written fixtures
         if: ${{ !cancelled() && steps.write-fixture.outcome != 'skipped' && github.event_name == 'workflow_dispatch' && env.WRITE_FIXTURE != '' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: written-fixtures
           path: out/written-fixtures/
@@ -267,7 +286,7 @@ jobs:
 
       - name: Upload the ready to run copy
         if: ${{ !cancelled() && steps.package.outcome == 'success' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ env.PACKAGE_CONFIG == 'Release' && 'plynth-windows-release' || 'plynth-windows-debug' }}
           path: out/package/plynth/
@@ -294,7 +313,7 @@ jobs:
 
       - name: Upload the notice inputs
         if: ${{ !cancelled() && steps.notice-inputs.outcome == 'success' && steps.notice-inputs.outputs.ran == 'true' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: notice-inputs
           path: out/notice-inputs/
@@ -334,6 +353,163 @@ jobs:
           "Graphics tests: $env:GRAPHICS_OUTCOME. They do not fail the run yet." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           if ($env:GRAPHICS_OUTCOME -ne 'success') { Write-Host "::warning::The graphics tests ended with $env:GRAPHICS_OUTCOME" }
 
+      # From here the Release build becomes the installer. Every gate run does this, so a fault shows before a tag.
+      - name: Find or install Inno Setup
+        id: inno
+        if: ${{ !cancelled() && env.PLYNTH_GATE == 'true' && steps.build-release.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          # Finds ISCC.exe in the usual folders or on PATH.
+          function Find-Iscc {
+            $places = @((Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'), (Join-Path $env:ProgramFiles 'Inno Setup 6\ISCC.exe'),
+                        (Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 6\ISCC.exe'))
+            $command = Get-Command ISCC.exe -ErrorAction SilentlyContinue
+            if ($command) { $places += $command.Source }
+            return $places | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+          }
+          # Reads the version from the compiler's banner, then from the version resources of its files.
+          # Returns null when none of them names it.
+          function Get-IsccVersion([string]$iscc) {
+            $banner = (& $iscc '/?' 2>&1 | Out-String)
+            $global:LASTEXITCODE = 0
+            if ($banner -match 'Inno Setup[^\r\n]*?(\d+\.\d+\.\d+)') { return [version]$Matches[1] }
+            foreach ($file in @($iscc, (Join-Path (Split-Path $iscc) 'ISCmplr.dll'), (Join-Path (Split-Path $iscc) 'Compil32.exe'))) {
+              if (-not (Test-Path $file)) { continue }
+              $info = (Get-Item $file).VersionInfo
+              foreach ($text in @($info.ProductVersion, $info.FileVersion)) {
+                if ($text -match '^(\d+)\.(\d+)\.(\d+)' -and $Matches[1] -ne '0') { return [version]"$($Matches[1]).$($Matches[2]).$($Matches[3])" }
+              }
+            }
+            return $null
+          }
+          $iscc = Find-Iscc
+          $version = if ($iscc) { Get-IsccVersion $iscc } else { $null }
+          if (-not $iscc -or ($version -and $version -lt [version]'6.3')) {
+            choco install innosetup -y --no-progress
+            if ($LASTEXITCODE -ne 0) { throw "installing Inno Setup failed with code $LASTEXITCODE" }
+            $iscc = Find-Iscc
+            if (-not $iscc) { throw 'ISCC.exe was not found after installing Inno Setup' }
+            $version = Get-IsccVersion $iscc
+          }
+          if ($version -and $version -lt [version]'6.3') { throw "Inno Setup $version at $iscc is older than 6.3" }
+          # The script needs 6.3 or newer. An unreadable version is only a warning: an older compiler fails on the script anyway.
+          if (-not $version) { Write-Host "::warning::The version of $iscc could not be read"; $version = 'of unknown version' }
+          "ISCC=$iscc" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "Inno Setup $version at $iscc, SHA-256 of ISCC.exe $((Get-FileHash -Algorithm SHA256 $iscc).Hash)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - name: Stage the package
+        id: stage
+        if: ${{ !cancelled() && steps.inno.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          $trial = $env:GITHUB_REF_TYPE -ne 'tag'
+          & "$env:GITHUB_WORKSPACE/installer/Stage.ps1" -Programs "$env:GITHUB_WORKSPACE/out/build/msvc/app/Release" -Qt $env:QT_ROOT_DIR -Out "$env:RUNNER_TEMP/plynth-stage" -Trial:$trial
+
+      - name: Check the package
+        if: ${{ !cancelled() && steps.stage.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          & "$env:GITHUB_WORKSPACE/installer/CheckPackage.ps1" -Stage "$env:RUNNER_TEMP/plynth-stage" -Release:($env:GITHUB_REF_TYPE -eq 'tag')
+
+      - name: Check the notices
+        if: ${{ !cancelled() && steps.stage.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          $check = "$env:GITHUB_WORKSPACE/.github/scripts/check-notices.ps1"
+          if (Test-Path $check) {
+            & $check -Stage "$env:RUNNER_TEMP/plynth-stage"
+          } elseif ($env:GITHUB_REF_TYPE -eq 'tag') {
+            Write-Host '::error::.github/scripts/check-notices.ps1 is missing, and a release needs the notices check'
+            exit 1
+          } else {
+            Write-Host '::warning::.github/scripts/check-notices.ps1 is not in this branch yet, so the notices were not checked'
+          }
+
+      - name: Smoke test the stage
+        if: ${{ !cancelled() && steps.stage.outcome == 'success' }}
+        shell: pwsh
+        run: '& "$env:GITHUB_WORKSPACE/installer/SmokeTest.ps1" -Package "$env:RUNNER_TEMP/plynth-stage"'
+
+      - name: Build the installer
+        id: installer
+        if: ${{ !cancelled() && steps.stage.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          $package = Get-Content -Raw "$env:RUNNER_TEMP/plynth-stage/package.json" | ConvertFrom-Json
+          $major, $minor = $package.runtime_minimum -split '\.'
+          $common = @("/DAppVersion=$($package.app_version)", "/DStage=$env:RUNNER_TEMP\plynth-stage", "/DRuntimeMajor=$major",
+                      "/DRuntimeMinor=$minor", "/DPathEntry=$env:PLYNTH_PATH_ENTRY")
+          & $env:ISCC /Q @common "/DOutDir=$env:RUNNER_TEMP\plynth-setup" "$env:GITHUB_WORKSPACE\installer\plynth.iss"
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with code $LASTEXITCODE" }
+          # A second build points the runtime check at a key that does not exist, for the install test only.
+          & $env:ISCC /Q @common "/DOutDir=$env:RUNNER_TEMP\plynth-setup-no-runtime" '/DRuntimeKey=SOFTWARE\Plynth\NoRuntimeForTest' "$env:GITHUB_WORKSPACE\installer\plynth.iss"
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with code $LASTEXITCODE" }
+
+      - name: Test the installer
+        id: install-test
+        if: ${{ !cancelled() && steps.installer.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          & "$env:GITHUB_WORKSPACE/installer/TestInstall.ps1" -Setup "$env:RUNNER_TEMP\plynth-setup\PlynthSetup.exe" -Stage "$env:RUNNER_TEMP\plynth-stage" -NoRuntimeSetup "$env:RUNNER_TEMP\plynth-setup-no-runtime\PlynthSetup.exe"
+
+      # A branch or main run keeps only hashes and the file list, never a program.
+      - name: Write the dry run
+        if: ${{ !cancelled() && steps.installer.outcome == 'success' && github.ref_type != 'tag' }}
+        shell: pwsh
+        run: |
+          $dry = "$env:RUNNER_TEMP/plynth-dry-run"
+          New-Item -ItemType Directory -Force $dry | Out-Null
+          Copy-Item "$env:RUNNER_TEMP/plynth-stage/package.json" $dry
+          $hash = (Get-FileHash -Algorithm SHA256 "$env:RUNNER_TEMP/plynth-setup/PlynthSetup.exe").Hash.ToLowerInvariant()
+          "$hash  PlynthSetup.exe" | Out-File -FilePath "$dry/SHA256SUMS.txt" -Encoding utf8NoBOM
+
+      - name: Keep the dry run
+        if: ${{ !cancelled() && steps.installer.outcome == 'success' && github.ref_type != 'tag' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-dry-run
+          path: ${{ runner.temp }}/plynth-dry-run/
+          retention-days: 14
+
+      - name: Gather the release files
+        id: release-files
+        if: ${{ github.ref_type == 'tag' && steps.install-test.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          $version = (Get-Content -Raw "$env:RUNNER_TEMP/plynth-stage/package.json" | ConvertFrom-Json).app_version
+          $files = "$env:GITHUB_WORKSPACE/out/release/files"
+          New-Item -ItemType Directory -Force $files | Out-Null
+          Copy-Item "$env:RUNNER_TEMP/plynth-setup/PlynthSetup.exe" $files
+          # The portable zip holds the same checked stage under one Plynth folder. It changes no PATH.
+          $portable = "$env:RUNNER_TEMP/plynth-portable"
+          New-Item -ItemType Directory -Force "$portable/Plynth" | Out-Null
+          Copy-Item -Recurse "$env:RUNNER_TEMP/plynth-stage/*" "$portable/Plynth"
+          $zip = "$files/Plynth-$version-windows-x64.zip"
+          tar -a -c -f $zip -C $portable Plynth
+          if ($LASTEXITCODE -ne 0) { throw "making the portable zip failed with code $LASTEXITCODE" }
+          $unpacked = "$env:RUNNER_TEMP/plynth-portable-check"
+          New-Item -ItemType Directory -Force $unpacked | Out-Null
+          tar -x -f $zip -C $unpacked
+          if ($LASTEXITCODE -ne 0) { throw "unpacking the portable zip failed with code $LASTEXITCODE" }
+          & "$env:GITHUB_WORKSPACE/installer/CheckPackage.ps1" -Stage "$unpacked/Plynth" -Release
+          if ($LASTEXITCODE -ne 0) { throw 'the unpacked portable zip failed its check' }
+          & "$env:GITHUB_WORKSPACE/installer/SmokeTest.ps1" -Package "$unpacked/Plynth"
+          if ($LASTEXITCODE -ne 0) { throw 'the unpacked portable zip failed its check' }
+          & "$env:GITHUB_WORKSPACE/installer/Sources.ps1" -Out $files -Version $version
+          $sums = Get-ChildItem -File $files | Sort-Object Name | ForEach-Object { "$((Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLowerInvariant())  $($_.Name)" }
+          $sums | Out-File -FilePath "$files/SHA256SUMS.txt" -Encoding utf8NoBOM
+          Copy-Item "$env:GITHUB_WORKSPACE/installer/text/release-notes-$version.md" "$env:GITHUB_WORKSPACE/out/release/notes.md" -ErrorAction SilentlyContinue
+          & "$env:GITHUB_WORKSPACE/installer/CheckRelease.ps1" -Tag $env:GITHUB_REF_NAME -Files $files -Stage "$env:RUNNER_TEMP/plynth-stage"
+
+      - name: Keep the release files
+        if: ${{ steps.release-files.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-files
+          path: out/release/
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Take screenshots
         id: screens
         if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && env.SCREENS == 'true' && steps.package.outcome == 'success' }}
@@ -342,7 +518,7 @@ jobs:
 
       - name: Upload screenshots
         if: ${{ !cancelled() && steps.screens.outcome != 'skipped' && github.event_name == 'workflow_dispatch' && env.SCREENS == 'true' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: screenshots
           path: out/screenshots/
@@ -351,7 +527,7 @@ jobs:
 
       - name: Report the compiler cache
         id: sccache-stats
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.CACHES == 'true' }}
         shell: pwsh
         env:
           CACHE_FILES_BEFORE: ${{ steps.sccache-start.outputs.files }}
@@ -371,15 +547,15 @@ jobs:
           "added=$added" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Save the compiler cache
-        if: ${{ !cancelled() && steps.sccache-cache.outputs.cache-hit != 'true' && steps.sccache-stats.outputs.added != '0' && steps.sccache-stats.outputs.added != '' }}
-        uses: actions/cache/save@v4
+        if: ${{ !cancelled() && env.CACHES == 'true' && steps.sccache-cache.outputs.cache-hit != 'true' && steps.sccache-stats.outputs.added != '0' && steps.sccache-stats.outputs.added != '' }}
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: sccache
           key: ${{ steps.sccache-key.outputs.key }}
 
       - name: Upload test logs
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: test-logs
           path: |
@@ -388,3 +564,62 @@ jobs:
             out/build/msvc/CMakeFiles/CMakeConfigureLog.yaml
           if-no-files-found: ignore
           retention-days: 14
+
+  # Makes a draft release from the files of a tag run. It checks out nothing and runs none of the repo's
+  # programs. The draft is published by hand after a last look.
+  draft-release:
+    needs: windows
+    if: ${{ github.ref_type == 'tag' && needs.windows.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - name: Fetch the release files
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-files
+          path: release
+
+      - name: Make the draft release
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::error::A release for $TAG already exists. A release is never replaced."
+            exit 1
+          fi
+          version="${TAG#v}"
+          version="${version%%-*}"
+          prerelease=()
+          if [[ "$version" == 0.* || "$TAG" == *-* ]]; then prerelease=(--prerelease); fi
+          gh release create "$TAG" release/files/* --draft "${prerelease[@]}" --verify-tag \
+            --title "Plynth $version early preview" --notes-file release/notes.md
+          echo "Draft release for $TAG made. Publish it by hand after a last look." >> "$GITHUB_STEP_SUMMARY"
+
+  # Downloads license texts from their official sources and uploads them for a commit by hand.
+  license-texts:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.license_texts }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Download the license texts
+        shell: pwsh
+        run: '& "$env:GITHUB_WORKSPACE/.github/scripts/download-license-texts.ps1" -List "$env:GITHUB_WORKSPACE/installer/license-sources.json" -Out "$env:GITHUB_WORKSPACE/out/license-texts"'
+
+      - name: Keep the license texts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: license-texts
+          path: out/license-texts/
+          if-no-files-found: error
+          retention-days: 30

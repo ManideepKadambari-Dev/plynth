@@ -1,0 +1,14 @@
+{
+  "files": [
+    {
+      "name": "CC0-1.0.txt",
+      "component": "Creative Commons CC0 1.0 Universal, for the sample art and projects",
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/legalcode.txt"
+    }
+  ],
+  "qt": {
+    "version": "6.8.3",
+    "archive": "https://download.qt.io/archive/qt/6.8/6.8.3/submodules",
+    "modules": ["qtbase", "qtdeclarative", "qtquick3d", "qtquicktimeline", "qtshadertools", "qtimageformats", "qtsvg"]
+  }
+}
