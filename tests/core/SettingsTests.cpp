@@ -98,6 +98,7 @@ TEST_CASE("settings data files", "[core][settings]") {
         REQUIRE(l.settings.sidePanelWidth == 340);
         REQUIRE(l.settings.windows.size() == 1);
         REQUIRE(l.settings.windows.at("assets") == WindowPlace{1940, 80, 900, 700, "DISPLAY2", false});
+        REQUIRE_FALSE(l.settings.updateCheck);
     }
     SECTION("only the required fields takes the defaults") {
         const SettingsLoad l = loadSettings(dataFile("settings-minimal.json"));
@@ -110,8 +111,8 @@ TEST_CASE("settings data files", "[core][settings]") {
         REQUIRE(l.status.where == "/colour");
         REQUIRE(l.exists);
     }
-    SECTION("version 6 is unsupported_version") {
-        const SettingsLoad l = loadSettings(dataFile("settings-version-6.json"));
+    SECTION("version 7 is unsupported_version") {
+        const SettingsLoad l = loadSettings(dataFile("settings-version-7.json"));
         REQUIRE(l.status.code == ErrorCode::UnsupportedVersion);
     }
     SECTION("a version 3 file may not carry the engine") {
@@ -163,7 +164,7 @@ TEST_CASE("settingsToJson validates against the schema", "[core][settings][schem
         const auto json = nlohmann::json::parse(plynth::test::readTextFile(dataFile(name)));
         REQUIRE(plynth::test::schemaProblem("settings.schema.json", json).empty());
     }
-    for (const char* name : {"settings-unknown-field.json", "settings-version-6.json", "settings-bad-engine.json",
+    for (const char* name : {"settings-unknown-field.json", "settings-version-7.json", "settings-bad-engine.json",
                                   "settings-v3-with-engine.json", "settings-v2.json"}) {
         INFO(name);
         const auto json = nlohmann::json::parse(plynth::test::readTextFile(dataFile(name)));
@@ -344,7 +345,7 @@ TEST_CASE("a version 4 file with tour_done is read and the flag is dropped", "[c
     CHECK_FALSE(plynth::test::schemaProblem("settings.schema.json", old).empty());
     const Json written = settingsToJson(v4);
     CHECK_FALSE(written.contains("tour_done"));
-    CHECK(written.at("version") == 5);
+    CHECK(written.at("version") == kSettingsFormatVersion);
 }
 
 TEST_CASE("tour_done is refused outside version 4 and must be true or false there", "[core][settings]") {

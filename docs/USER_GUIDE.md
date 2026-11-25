@@ -753,6 +753,28 @@ Before you import models, Plynth needs Blender, a library folder and a projects 
 
 The **library** is one folder on your computer that holds your assets catalog. It is shared by all projects. Choose or create it in the setup check. **Catalog > Open library folder** opens it in Explorer.
 
+## Updates
+
+Plynth installed with `PlynthSetup.exe` can update itself from the Releases page on GitHub. Nothing updates without you asking.
+
+**The check at start.** Once each time Plynth starts, after the window shows, it asks GitHub whether a newer release exists. On the first run, and after an update, it waits until you close the setup check, so you can switch the check off there first. When a newer release is found, a notice appears under the title bar with the new version. **Update** starts the update, **Later** hides the notice until the next start. A check at start that fails says nothing.
+
+**Switching it off.** Use **Help > Check for updates at start**, the Updates row of the setup check, or `plynth settings set --update-check false`. When it is off, Plynth sends nothing at start. You can still check by hand.
+
+**Checking by hand.** **Help > Check for updates** says whether a newer release exists, or why the check failed. A release whose signature does not match is skipped, and the check names it.
+
+**Updating.** **Help > Update Plynth**, or Update in the notice, opens a window with this version, the new version and, once known, the size of the download. You can keep working while it downloads. Cancel stops it and nothing is installed. When the installer is downloaded and its signature verified, press **Install now**. Plynth asks about unsaved changes as it does when you close it, and Cancel there means nothing is installed. Then the installer starts, Plynth closes, and the installer shows its progress and opens Plynth again at Home. Your settings, libraries and projects are kept.
+
+The update waits, and says why, while a build, export, import, material refresh or wall detection runs in the window, while a command line edit session is open on one of your projects, or while another Plynth window or command runs. Nothing is stopped for it. Finish or close what it names, then try again.
+
+**What is checked.** Only a release signed with the key built into Plynth is offered, only a version higher than yours, and never a version lower than the highest one Plynth has seen before. A download that fails the signature check is never run. Versions below 1.0 are marked as an early preview.
+
+**What is sent.** The check asks GitHub for the list of releases, then for the signature files of the versions newer than yours. Plynth sends no version, user, computer, install or project id, no path and no cookie or login. GitHub still sees your IP address, the time, and which signature files were asked for, which hints at how old your copy is. Your own proxy settings are used.
+
+**A copy that was not installed.** A Plynth you built yourself, or one unpacked from the portable zip, never checks and never updates. **Help > Check for updates** and **Help > Update Plynth** say so, with a button that opens the Releases page only when you press it. To update it, build it again from the source or install Plynth with `PlynthSetup.exe`. `plynth update` answers `update_not_installed` in the same case.
+
+`plynth update`, `plynth update --check` and `plynth update --status` do the same from the command line. See the [Command line guide](CLI_GUIDE.md).
+
 ## The assets catalog
 
 The catalog is the list of 3D models you can use in your plans, such as chairs, tables and lamps. You bring your own model files. Plynth cleans each one up so they all behave the same way, draws a thumbnail, and keeps them in the library.

@@ -19,7 +19,7 @@ Typing `plynth` in a terminal finds `plynth.com` first. The terminal inside Plyn
 
 The first word decides what happens:
 
-- A command word (`version`, `help`, `project`, `scale`, `point`, `wall`, `opening`, `floor`, `room`, `place`, `item`, `detect`, `build`, `session`, `doctor`, `settings`, `library`, `assets`, `light`, `trim`, `variation`) runs the command and prints the answer. No window opens.
+- A command word (`version`, `help`, `project`, `scale`, `point`, `wall`, `opening`, `floor`, `room`, `place`, `item`, `detect`, `build`, `session`, `doctor`, `settings`, `library`, `assets`, `light`, `trim`, `variation`, `update`) runs the command and prints the answer. No window opens.
 - A project folder or an app option (`--image`, `--screenshot`, `--size`, `--terminal`), or no argument at all, opens the window. `plynth.com` starts the window and returns at once.
 - Anything else prints an `unknown_command` answer and exits with code 2. For example `plynth bogus`.
 
@@ -27,7 +27,7 @@ To open a folder that is literally named after a command word, such as `project`
 
 ### Which project a command works on
 
-Like git, a command works on the project in the current folder. Add `--project <folder>` to use another one. It works on every command except `version`, `help`, `doctor`, `settings`, `library`, `assets`, `project recent` and `trim profiles`, which are about the machine and never open a project.
+Like git, a command works on the project in the current folder. Add `--project <folder>` to use another one. It works on every command except `version`, `help`, `doctor`, `settings`, `update`, `library`, `assets`, `project recent` and `trim profiles`, which are about the machine and never open a project.
 
 ```
 cd D:\Plans\MyApartment
@@ -102,6 +102,12 @@ The app itself, when you give it `--screenshot`, uses its own codes. 0 means the
 | `database_error` | The catalog database could not be opened or written. `assets rescan` rebuilds it from the folders. |
 | `graphics_unavailable` | `render` could not start the 3D view: there is no graphics device, the driver cannot run it, or the program was started without the app's 3D view. |
 | `render_failed` | `render` started the 3D view but got no usable picture, for example only the background, the wrong size, or no picture within the time limit. The old picture is kept. |
+| `update_not_installed` | `update` was asked in a copy that is not an installed release. Nothing is sent. |
+| `update_not_available` | This installed copy has no public key built in, so it cannot check a signature. |
+| `update_blocked` | `update` cannot install now. The message says what to close or finish. |
+| `update_in_progress` | An update is being installed, so no command can run until it ends. |
+| `signature_invalid` | A downloaded installer or its signature did not verify. Nothing was started. |
+| `network_failed` | `update` could not reach GitHub, or the download failed. |
 | `internal_error` | Something unexpected went wrong inside Plynth. Exit 1. The message says what. |
 
 `plynth help` lists the same codes under `error_codes`, each with `code`, `description` and `from` (`core` for codes the shared engine gives, `cli` for the three only the command line gives), and the exit codes under `exit_codes`. A script can read both lists instead of copying this table.
@@ -2475,7 +2481,7 @@ plynth settings show
 ```
 
 ```json
-{"ok":true,"command":"settings show","result":{"file":"D:/Demo/config/settings.json","exists":true,"settings":{"library":"D:/Demo/Library","projects":"D:/Demo/Projects","blender":null,"keep_imported_zips":false,"triangle_warning":500000,"setup_checked_version":null,"recent_projects":[],"side_panel":{"open":true,"width":0},"windows":{}}}}
+{"ok":true,"command":"settings show","result":{"file":"D:/Demo/config/settings.json","exists":true,"settings":{"library":"D:/Demo/Library","projects":"D:/Demo/Projects","blender":null,"keep_imported_zips":false,"triangle_warning":500000,"update_check":true,"setup_checked_version":null,"recent_projects":[],"side_panel":{"open":true,"width":0},"windows":{}}}}
 ```
 
 `recent_projects` is the list `project recent` prints, with its own `path`, `name` and `last_opened`. `side_panel` and `windows` are where the app left its Properties panel and its own windows; only the app changes them. `exists` is false until something has been saved, and the settings then show their defaults. `library`, `projects` and `blender` are `null` when not set. `blender` null means Plynth uses the newest supported Blender it finds.
@@ -2496,6 +2502,7 @@ Options (give at least one):
 - `--projects <folder|none>`: where new projects go and where the built-in terminal starts. The folder must exist.
 - `--blender <file|none>`: the `blender.exe` to use. It must run and be version 4.2 or newer. `none` goes back to the newest one found.
 - `--keep-zips <true|false>`: keep a zip after its asset was imported instead of moving it to the Recycle Bin.
+- `--update-check <true|false>`: whether the app looks for a newer Plynth when it starts. The default is true. Asking by hand with `update --check` works either way.
 - `--triangle-warning <n>`: imports with more triangles than this get the `high_polycount` warning.
 
 The answer is the same as `settings show`. A library folder that is not a library gives `no_library`. A projects folder that does not exist gives `not_found`. A Blender that is missing or too old gives `blender_not_found`.
@@ -2504,6 +2511,66 @@ There is no thumbnail engine setting any more. Thumbnails are always drawn with 
 
 ```json
 {"ok":false,"command":"settings set","error":{"code":"blender_not_found","message":"There is no program at C:/nope/blender.exe."}}
+```
+
+### update
+
+Updates Plynth to the newest signed release, or only looks for one. It works only in a copy that was installed with `PlynthSetup.exe`.
+
+```
+plynth update
+plynth update --check
+plynth update --status
+```
+
+Options (`--check` and `--status` cannot be used together):
+
+- `--check`: ask GitHub for the newest release and say what it found. Nothing is downloaded.
+- `--status`: show what is known on this machine. It sends nothing.
+
+Without an option the command checks, downloads the installer, verifies it and starts it. It then ends, because the installer must replace the program files and cannot do that while the command runs. The command itself is the consent, so it asks nothing. Progress lines go to standard error as `{"progress":{"stage","done","total","message"}}` with the stages `check`, `download` and `start`. The installer shows its own progress window. The answer is printed before the installer starts.
+
+A new terminal is needed afterwards to see the new version. The command does not open the app.
+
+A check sends one request for the release list and then, for versions newer than this one, one for each signature file, newest first, until one verifies. It sends no version, user, machine or project information. The setting `update_check` (see `settings set`) only controls the check the app makes by itself at start. A check or update asked for by hand always works.
+
+Only a release whose installer signature verifies with the keys built into the program is offered. A release is never offered when it is older than the highest signed one this machine has seen.
+
+```json
+{"ok":true,"command":"update","result":{"state":"available","current":"0.1.0","latest":"0.2.0","early_preview":true,"release_url":"https://github.com/ManideepKadambari-Dev/plynth/releases/tag/v0.2.0"}}
+```
+
+```json
+{"ok":true,"command":"update","result":{"state":"up_to_date","current":"0.1.0","latest":"0.1.0","early_preview":false,"release_url":null}}
+```
+
+`update --check` gives these two. `state` is `available` or `up_to_date`. `latest` equals `current` when nothing newer was found. `early_preview` is true for a release below 1.0. A release whose signature was bad is skipped and named in the top level `warnings`.
+
+```json
+{"ok":true,"command":"update","result":{"state":"started","from":"0.1.0","to":"0.2.0","log":"C:/Users/you/AppData/Local/Plynth/updates/update.log"}}
+```
+
+`update` gives this once the verified installer runs, or the `up_to_date` answer when there is nothing newer. `log` is the installer's log file.
+
+```json
+{"ok":true,"command":"update","result":{"install":"installed","version":"0.1.0","check_at_start":true,"last":null,"key_ids":["A1B2C3D4E5F60718"]}}
+```
+
+`update --status` gives this. `install` is `installed` or `not_installed`. `check_at_start` is true only for an installed copy with the setting on. `last` is `null`, or `{"result","from","to","log"}` where `result` is `succeeded` or `not_finished`. `not_finished` means an installer started and did not report success, so run the installer again. `key_ids` are the ids of the public keys built into the program.
+
+Refusals:
+
+| Code | When |
+|---|---|
+| `update_not_installed` | This copy was not installed: a build folder, a developer build, a stage or a copy of an installed folder. Nothing is sent, downloaded or started. `update --status` still answers. |
+| `update_not_available` | This installed copy has no public key built in, so it cannot check a signature. |
+| `update_blocked` | Something prevents the install, such as an active edit session, another Plynth window or command running from the install folder, or an installer that cannot leave the job it was started in. The message says what to close. Nothing is closed for you. |
+| `update_in_progress` | An update is being installed. Any command answers this until it ends. |
+| `signature_invalid` | The installer or its signature did not verify. Nothing was started. |
+| `network_failed` | GitHub could not be reached, or the download stopped, was too large or ran out of space. Nothing was started. |
+
+```json
+{"ok":false,"command":"update","error":{"code":"update_not_installed","message":"This copy of Plynth was not installed, so it cannot update itself. Build it again from the source, or install Plynth with PlynthSetup.exe from the Releases page. https://github.com/ManideepKadambari-Dev/plynth/releases"}}
 ```
 
 ### library init
@@ -3580,6 +3647,7 @@ Every action of the app that changes or checks a project or the library has a co
 | Integrations | `library integrations`, `library integration ...` |
 | Setup check | `doctor` |
 | Settings | `settings show`, `settings set` |
+| Help, Check for updates, Update | `update --check`, `update` |
 | Home screen recent projects | `project recent` |
 | Command line editing banner | `session begin`, `session end`, `session status` |
 | About | `version` |

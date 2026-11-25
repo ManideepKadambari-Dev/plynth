@@ -1,6 +1,6 @@
 {
   "format": "plynth-settings",
-  "version": 5,
+  "version": 6,
   "library": "D:/Lib",
   "projects": null,
   "blender": "C:/Blender/blender.exe",
@@ -10,6 +10,7 @@
   "recent_projects": [
     { "path": "D:/Projects/Flat", "name": "Flat", "last_opened": "2026-11-20T09:30:00Z" }
   ],
+  "update_check": false,
   "side_panel": { "open": false, "width": 340 },
   "windows": {
     "assets": { "x": 1940, "y": 80, "width": 900, "height": 700, "screen": "DISPLAY2", "maximized": false }
