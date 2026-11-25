@@ -151,8 +151,8 @@ class FromCoreExportTests(helpers.TempFolderTest):
         self.assertEqual(job["params"]["groups"][0]["file"], "m9.fbx")
         self.assertEqual(raw["params"]["expected_bounds"], {"min": [5.0, -13.0, 0.0], "max": [19.0, -3.0, 3.0]})
 
-    # Nothing fails, so the files are written. The UV check warns about the sample furniture and the end faces
-    # of the walls, which is expected.
+    # Nothing fails or warns, so the files are written. The sample furniture and the rounded wall corners have
+    # usable UVs, so the UV check passes too.
     def test_checks_pass(self):
         result = self.export(self.job())
         self.assertTrue(result["ok"], result["error"])
@@ -161,7 +161,7 @@ class FromCoreExportTests(helpers.TempFolderTest):
         statuses = {c["id"]: c["status"] for c in output["checks"]}
         self.assertEqual(len(output["checks"]), 13)
         self.assertEqual([i for i, s in statuses.items() if s == "fail"], [])
-        self.assertEqual([i for i, s in statuses.items() if s == "warning"], ["uvs"])
+        self.assertEqual([i for i, s in statuses.items() if s == "warning"], [])
         self.assertEqual(statuses["fbx_scale"], "pass")
         self.assertEqual(statuses["materials"], "pass")
         self.assertTrue(output["written"])
@@ -258,8 +258,7 @@ class HouseExportTests(helpers.TempFolderTest):
         return job
 
     # Every quality check passes on the whole house, with the slab, stair and roofs included: the collision check
-    # finds their UCX_ meshes and the materials check finds a slot for every face. The UV check may warn about the
-    # end faces of the walls.
+    # finds their UCX_ meshes and the materials check finds a slot for every face. Nothing warns either.
     def test_checks_pass(self):
         job = self.job()
         self.assertEqual(validate(job, load_schema("blender-job")), [])
@@ -270,14 +269,9 @@ class HouseExportTests(helpers.TempFolderTest):
         statuses = {c["id"]: c["status"] for c in output["checks"]}
         self.assertEqual(len(output["checks"]), 13)
         self.assertEqual([i for i, s in statuses.items() if s == "fail"], [])
-        self.assertEqual([i for i, s in statuses.items() if s == "warning"], ["uvs"])
-        for check in ("collision", "materials", "naming", "scale", "transforms"):
+        self.assertEqual([i for i, s in statuses.items() if s == "warning"], [])
+        for check in ("collision", "materials", "naming", "scale", "transforms", "uvs"):
             self.assertEqual(statuses[check], "pass", check)
-        uvs = next(c for c in output["checks"] if c["id"] == "uvs")
-        about = sorted({f["object"] for f in uvs["findings"]})
-        print("uvs findings about", about)
-        for name in about:
-            self.assertFalse(name.endswith(("_Slab", "_Stair")) or "_Roof_" in name, name)
         self.assertTrue(output["written"])
 
     # In a grouped export with a kit, every object of the house is in one file: the slabs, the stair and the roofs
