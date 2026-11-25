@@ -115,6 +115,7 @@ def convert_to_meshes(objects):
             continue
         replacement = bpy.data.objects.new(obj.name, mesh)
         replacement.matrix_world = obj.matrix_world.copy()
+        replacement.hide_render = obj.hide_render
         for collection in obj.users_collection:
             collection.objects.link(replacement)
         bpy.data.objects.remove(obj, do_unlink=True)

@@ -98,6 +98,10 @@ if(PLYNTH_BUILD_TESTS)
             COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tests/plain/test_support_finder.py"
             WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tests/plain")
         set_tests_properties(python_plain_supports PROPERTIES TIMEOUT 120)
+        add_test(NAME python_plain_supports_speed
+            COMMAND "${Python3_EXECUTABLE}" -I "${CMAKE_CURRENT_SOURCE_DIR}/tests/plain/test_support_finder_speed.py"
+            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tests/plain")
+        set_tests_properties(python_plain_supports_speed PROPERTIES TIMEOUT 120)
     else()
         message(STATUS "Python 3.10 or newer not found, the plain Python tests are not added")
     endif()

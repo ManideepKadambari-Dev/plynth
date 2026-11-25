@@ -43,8 +43,9 @@ def free_name(name, used):
     return candidate
 
 
-# Copies every image the model uses into textures/ beside asset.blend and links it by a relative path.
-# Packed images are written there too. Images whose file cannot be found are listed as missing.
+# Copies every image the model uses into textures/ beside asset.blend and links it by its full path, so it
+# still loads while the scene is unsaved; saving asset.blend makes the paths relative. Packed images are written
+# there too. Images whose file cannot be found are listed as missing.
 def run(ctx):
     output = ctx.params["output_folder"]
     textures = os.path.join(output, "textures")
@@ -65,7 +66,6 @@ def run(ctx):
             image.unpack(method="REMOVE")
             image.filepath = os.path.join(textures, name)
             image.reload()
-            image.filepath = "//textures/" + name
         else:
             original = bpy.path.abspath(image.filepath) if image.filepath else ""
             loadable = os.path.isfile(original) and image.size[0] > 0
@@ -83,16 +83,14 @@ def run(ctx):
                 os.makedirs(textures, exist_ok=True)
                 shutil.copyfile(original, os.path.join(textures, name))
                 copied[key] = name
-            image.filepath = "//textures/" + name
+            image.filepath = os.path.join(textures, name)
             if not loadable:
-                image.filepath = os.path.join(textures, name)
                 image.reload()
                 if image.size[0] == 0:
                     os.remove(os.path.join(textures, name))
                     copied.pop(key, None)
                     missing.append(os.path.basename(original))
                     continue
-                image.filepath = "//textures/" + name
         used.add(name.lower())
         if "textures/" + name not in names:
             names.append("textures/" + name)

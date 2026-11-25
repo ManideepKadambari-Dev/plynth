@@ -7,11 +7,15 @@ from collections import namedtuple
 import bpy
 import numpy as np
 
+from ..jobs import WorkerError
+
 CHANNELS = ("base_color", "normal", "roughness", "metallic", "opacity", "occlusion")
 REQUIRED_CHANNELS = ("base_color", "normal", "roughness", "metallic")
 IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".tga", ".tif", ".tiff", ".bmp", ".exr")
 KEEP_SUFFIXES = (".png", ".jpg", ".jpeg")
 DEFAULT_TILE = 1.0
+# A map counts as magenta when this share of its pixels is the pure magenta of a missing image.
+MAGENTA_SHARE = 0.9
 
 # What a source says about one channel. kind is file, directx, gloss, packed, alpha, value, color or node;
 # file is an image path, value a number or an sRGB triple, node something only the source understands.
@@ -116,3 +120,52 @@ def copy_file(source, target):
     if os.path.exists(target) and os.path.samefile(source, target):
         return
     shutil.copyfile(source, target)
+
+
+
+class ImageMissing(WorkerError):
+    # Says which image a map needs and could not load. It stops the import instead of baking a magenta map.
+    def __init__(self, message):
+        super().__init__("import_failed", message)
+
+
+# Says whether most pixels are the pure magenta Blender shows for an image it cannot load. pixels are floats
+# from 0 to 1 with three or four channels.
+def is_magenta(pixels):
+    rgb = np.asarray(pixels, dtype=np.float32)[..., :3]
+    if rgb.size == 0:
+        return False
+    close = (rgb[..., 0] > 0.99) & (rgb[..., 1] < 0.01) & (rgb[..., 2] > 0.99)
+    return float(close.mean()) >= MAGENTA_SHARE
+
+
+# Says whether an image file is mostly pure magenta. A file that cannot be read is not.
+def file_is_magenta(path):
+    try:
+        return is_magenta(read_pixels(path))
+    except ValueError:
+        return False
+
+
+# Returns the names of the images that feed a node and have no pixels, looking inside node groups. An image
+# node without an image counts too, by its node name.
+def unloadable_images(node):
+    names = set()
+    seen = set()
+    pending = [node]
+    while pending:
+        current = pending.pop()
+        if current.as_pointer() in seen:
+            continue
+        seen.add(current.as_pointer())
+        if current.bl_idname == "ShaderNodeTexImage":
+            image = current.image
+            if image is None:
+                names.add(current.name)
+            elif image.source in ("FILE", "SEQUENCE", "TILED") and (image.size[0] == 0 or not image.has_data):
+                names.add(image.name)
+        if current.bl_idname == "ShaderNodeGroup" and current.node_tree is not None:
+            pending.extend(current.node_tree.nodes)
+        for socket in current.inputs:
+            pending.extend(link.from_node for link in socket.links)
+    return sorted(names)
