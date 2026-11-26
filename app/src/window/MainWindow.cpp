@@ -25,6 +25,7 @@
 #include "update/UpdateBar.h"
 #include "update/UpdateController.h"
 #include "update/UpdateDialog.h"
+#include "dialogs/NewProjectDialog.h"
 #include "dialogs/RoomTypesDialog.h"
 #include "dialogs/VariationsDialog.h"
 #include "home/HomeScreen.h"
@@ -263,6 +264,7 @@ MainWindow::MainWindow(QWidget* parent)
     connect(floorTabs_, &FloorTabs::addBelowRequested, this, [this](const QString& id) { addFloor(false, id); });
     connect(floorTabs_, &FloorTabs::renameRequested, this, &MainWindow::renameFloor);
     connect(floorTabs_, &FloorTabs::removeRequested, this, &MainWindow::removeFloor);
+    connect(floorTabs_, &FloorTabs::planImageRequested, this, &MainWindow::setFloorImageDialog);
     connect(tools_, &ToolController::alignImageChanged, this, [this]() { updateAlignAction(); });
     connect(panel_, &PropertiesPanel::planImageRequested, this, &MainWindow::setImageDialog);
     exporter_ = new ExportController(this);
@@ -287,23 +289,13 @@ MainWindow::MainWindow(QWidget* parent)
     connect(buildBar_, &BuildBar::viewRequested, this,
             [this](BuildBar::View view) { showCentreView(view == BuildBar::View::Scene3d); });
     connect(home_, &HomeScreen::newProjectRequested, this, &MainWindow::newProject);
-    connect(home_, &HomeScreen::newFromImageRequested, this, &MainWindow::newProjectFromImage);
     connect(home_, &HomeScreen::openProjectRequested, this, &MainWindow::openProjectDialog);
     connect(home_, &HomeScreen::openRecentRequested, this, &MainWindow::openRecent);
     connect(home_, &HomeScreen::openSampleProjectRequested, this, [this](const QString& id) {
         if (confirmDiscardChanges())
             openSampleProject(id);
     });
-    connect(home_, &HomeScreen::openSampleRequested, this, [this](const QString& file) {
-        if (!confirmDiscardChanges())
-            return;
-        QString error;
-        if (!newFromImage(file, &error)) {
-            showError(tr("Cannot open image"), error);
-            return;
-        }
-        terminal_->shutdown();
-    });
+    connect(home_, &HomeScreen::openSampleRequested, this, [this](const QString& file) { startNewProject(file); });
     connect(home_, &HomeScreen::setupRequested, this, &MainWindow::openSetupCheck);
     connect(home_, &HomeScreen::helpPageRequested, this, [this](const QString& page) { guide_->openHelp(page); });
     connect(home_, &HomeScreen::backRequested, this, &MainWindow::showWork);
@@ -345,15 +337,15 @@ MainWindow::MainWindow(QWidget* parent)
     libraryWatcher_->setMaterialQueue(materialQueue_);
     materials_->setQueueView(new ImportQueueView(*materialQueue_, materials_));
     storeImports_ = new StoreImports(*host_, *queue_, *materialQueue_, this, this);
-    storeImports_->setOwnFiles([this](bool material) {
+    storeImports_->setOwnFiles([this](bool material, const QString& origin) {
         if (material)
             showMaterialImport();
         else
-            importDialog();
+            importDialogFor(origin);
     });
-    storeImports_->setOwnPaths([this](const QStringList& paths, bool material) {
+    storeImports_->setOwnPaths([this](const QStringList& paths, bool material, const QString& origin) {
         if (!material) {
-            importPaths(paths);
+            importPathsFrom(paths, origin);
             return;
         }
         materialImport_->addSources(paths);
@@ -362,7 +354,17 @@ MainWindow::MainWindow(QWidget* parent)
     integrations_->setActions(storeImports_);
     storeImports_->setDialogParent([this]() { return dialogParent(); });
     connect(queueView_, &ImportQueueView::pickModelRequested, storeImports_, &StoreImports::pickModel);
-    connect(storeImports_, &StoreImports::notice, statusBar_, [this](const QString& text) { statusBar_->showMessage(text); });
+    // Imports started on a card of the Sources window show their progress, failures and results on that card.
+    for (const QString& id : integrations_->importCardIds()) {
+        auto* assetRows = new ImportQueueView(*queue_, integrations_, id);
+        connect(assetRows, &ImportQueueView::pickModelRequested, storeImports_, &StoreImports::pickModel);
+        integrations_->addActivity(id, assetRows);
+        integrations_->addActivity(id, new ImportQueueView(*materialQueue_, integrations_, id));
+    }
+    connect(storeImports_, &StoreImports::notice, statusBar_, [this](const QString& text, const QString& origin) {
+        statusBar_->showMessage(text);
+        integrations_->showNotice(origin, text);
+    });
     connect(host_, &LibraryHost::libraryChanged, integrations_, &IntegrationsPanel::refresh);
     materialImport_ = new MaterialImportScreen(*host_, *materialQueue_);
     connect(host_, &LibraryHost::materialsChanged, materialImport_, &MaterialImportScreen::refreshLists);
@@ -722,13 +724,9 @@ void MainWindow::setScreenshotMode(bool on)
 void MainWindow::buildMenus()
 {
     QMenu* file = titleBar_->fileMenu();
-    newAction_ = addMenuAction(file, tr("&New project"), tr("Start a new empty project (Ctrl+N)"),
+    newAction_ = addMenuAction(file, tr("&New project..."), tr("Name a new project, choose where it goes and create it (Ctrl+N)"),
                                {QKeySequence(Qt::CTRL | Qt::Key_N)});
     connect(newAction_, &QAction::triggered, this, &MainWindow::newProject);
-    newFromImageAction_ = addMenuAction(file, tr("New project from &image..."),
-                                        tr("Start a new project from a plan image (Ctrl+Shift+N)"),
-                                        {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N)});
-    connect(newFromImageAction_, &QAction::triggered, this, &MainWindow::newProjectFromImage);
     homeAction_ = addMenuAction(file, tr("&Home"), tr("Show the home screen with the recent projects"),
                                 {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_H)});
     connect(homeAction_, &QAction::triggered, this, &MainWindow::showHome);
@@ -738,9 +736,11 @@ void MainWindow::buildMenus()
     closeAction_ = addMenuAction(file, tr("&Close project"), tr("Close the project and go to the home screen (Ctrl+W)"),
                                  {QKeySequence(Qt::CTRL | Qt::Key_W)});
     connect(closeAction_, &QAction::triggered, this, &MainWindow::closeProject);
-    setImageAction_ = addMenuAction(file, tr("Set plan &image..."),
-                                    tr("Set the plan image of the floor (Ctrl+Shift+O)"),
-                                    {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_O)});
+    // Not in a menu: the floor tab's menu sets the plan image. The shortcut stays for the shown floor.
+    setImageAction_ = new QAction(tr("Set plan image..."), this);
+    setImageAction_->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_O));
+    setImageAction_->setToolTip(tr("Set the plan image of the shown floor (Ctrl+Shift+O)"));
+    addAction(setImageAction_);
     connect(setImageAction_, &QAction::triggered, this, &MainWindow::setImageDialog);
     file->addSeparator();
     saveAction_ = addMenuAction(file, tr("&Save"), tr("Save the project (Ctrl+S)"),
@@ -1137,7 +1137,11 @@ void MainWindow::setBlenderKitAddress(const QString& text)
 // For checks only: opens the Fab dialog for one model zip.
 void MainWindow::showFabImport(const QString& zip)
 {
-    fabDialog_ = storeImports_->openFabDialog({zip}, false);
+    QString fab;
+    for (const plynth::Integration* integration : plynth::allIntegrations())
+        if (isFabIntegration(*integration))
+            fab = QString::fromUtf8(integration->id().data(), static_cast<qsizetype>(integration->id().size()));
+    fabDialog_ = storeImports_->openFabDialog({zip}, false, fab);
 }
 
 // For checks only: hands one chosen file to an integration as its import button would.
@@ -1183,6 +1187,8 @@ QImage MainWindow::grabPicture()
         shownDialog = variationsDialog_;
     else if (updateDialog_ && updateDialog_->isVisible())
         shownDialog = updateDialog_;
+    else if (checkNewProjectDialog_ && checkNewProjectDialog_->isVisible())
+        shownDialog = checkNewProjectDialog_;
     if (shownDialog != nullptr) {
         const Theme& t = Theme::instance();
         const QImage dialog = shownDialog->grab().toImage();
@@ -1208,6 +1214,11 @@ QImage MainWindow::grabPicture()
         p.drawImage(at, dialog);
         p.setPen(t.line());
         p.drawRect(at.adjusted(0, 0, -1, -1));
+    }
+    if (QMenu* menu = floorTabs_->checkMenu(); menu != nullptr && menu->isVisible()) {
+        const QImage picture = menu->grab().toImage();
+        QPainter p(&image);
+        p.drawImage(QRectF(mapFromGlobal(menu->pos()), QSizeF(picture.size()) / picture.devicePixelRatio()), picture);
     }
     return image;
 }
@@ -1267,6 +1278,12 @@ void MainWindow::showProjectFinish()
 // Asks for model files and queues each one.
 void MainWindow::importDialog()
 {
+    importDialogFor(QString());
+}
+
+// Asks for model files and queues them, with the Sources card that asked as their origin when there is one.
+void MainWindow::importDialogFor(const QString& origin)
+{
     if (!host_->hasLibrary())
         return;
     QStringList patterns;
@@ -1277,17 +1294,25 @@ void MainWindow::importDialog()
     if (files.isEmpty())
         return;
     lastAssetFolder_ = QFileInfo(files.first()).absolutePath();
-    importPaths(files);
+    importPathsFrom(files, origin);
 }
 
 // Queues files and folders for import and shows the Assets window.
 void MainWindow::importPaths(const QStringList& paths)
 {
+    importPathsFrom(paths, QString());
+}
+
+// Queues files and folders for import. Without an origin the Assets window opens to show the progress; with
+// one the Sources card of that id shows it.
+void MainWindow::importPathsFrom(const QStringList& paths, const QString& origin)
+{
     if (!host_->hasLibrary())
         return;
-    openToolWindow(QStringLiteral("assets"));
+    if (origin.isEmpty())
+        openToolWindow(QStringLiteral("assets"));
     for (const QString& path : paths)
-        queue_->enqueueImport(path);
+        queue_->enqueueImport(path, origin);
 }
 
 // For checks only: queues an import of a file or folder.
@@ -1308,8 +1333,10 @@ bool MainWindow::importPictureReady() const
     return false;
 }
 
-// Selects a new asset and offers its categories, or reports why an item failed.
-void MainWindow::queueFinished(int kind, bool ok, const QString& assetId, const QString& message, bool thumbnailFailed)
+// Selects a new asset and offers its categories, or reports why an item failed. An import started in the
+// Sources window says so on its card there, with a button that shows the asset, instead of opening Assets.
+void MainWindow::queueFinished(int kind, bool ok, const QString& assetId, const QString& message, bool thumbnailFailed,
+                               const QString& origin)
 {
     const bool isRefresh = kind == static_cast<int>(QueueItem::Kind::Refresh);
     host_->assetsEdited();
@@ -1321,6 +1348,24 @@ void MainWindow::queueFinished(int kind, bool ok, const QString& assetId, const 
         host_->catalog() ? host_->catalog()->asset(assetId.toStdString()) : std::nullopt;
     if (isRefresh || !record)
         return;
+    if (!origin.isEmpty()) {
+        const QString name = fromCore(record->name);
+        const bool noCategories = record->categories.empty();
+        QString text = tr("Added %1 to Assets.").arg(name);
+        if (noCategories)
+            text += QLatin1Char(' ') + tr("Pick its categories there.");
+        else if (thumbnailFailed)
+            text += QLatin1Char(' ') + tr("The thumbnail render failed.");
+        integrations_->showAdded(origin, text, tr("Show in Assets"), tr("Open the Assets window with this asset selected"),
+                                 [this, assetId, noCategories]() {
+                                     openToolWindow(QStringLiteral("assets"));
+                                     assets_->selectAsset(assetId);
+                                     if (noCategories)
+                                         assets_->showCategories();
+                                 });
+        statusBar_->showMessage(text, false);
+        return;
+    }
     openToolWindow(QStringLiteral("assets"));
     assets_->selectAsset(assetId);
     const QString name = fromCore(record->name);
@@ -1510,9 +1555,18 @@ void MainWindow::updateActions()
     setImageAction_->setEnabled(editable);
 }
 
-// Shows the project name in the title bar, with a star while there are unsaved changes.
+// Shows the project name in the title bar, with a star while there are unsaved changes. With no project open,
+// only "Plynth" shows.
 void MainWindow::updateTitle()
 {
+    bool anyImage = false;
+    for (const plynth::Floor& floor : doc_.plan().floors)
+        anyImage = anyImage || floor.image.has_value();
+    if (!doc_.hasFolder() && !doc_.isModified() && !anyImage) {
+        titleBar_->setProjectName(QStringLiteral("Plynth"));
+        setWindowTitle(QStringLiteral("Plynth"));
+        return;
+    }
     const QString name = projectName();
     const QString shown = doc_.isModified() ? name + QStringLiteral(" *") : name;
     titleBar_->setProjectName(shown);
@@ -1524,6 +1578,8 @@ void MainWindow::onDocumentChanged(unsigned changes)
 {
     if (changes & (plynth::Change::Floors | plynth::Change::Folder)) {
         focus_->revalidate();
+        refreshFloorTabs();
+    } else if (changes & plynth::Change::FloorImage) {
         refreshFloorTabs();
     }
     if (changes & (plynth::Change::FloorImage | plynth::Change::Floors | plynth::Change::Folder))
@@ -1608,7 +1664,7 @@ void MainWindow::refreshImage()
         shownImageKey_.clear();
         imageFailed_ = false;
         canvas_->clearImage();
-        canvas_->setEmptyText(QString());
+        canvas_->setEmptyText(tr("Right-click the floor tab to set a plan image"));
         statusBar_->clearImageInfo();
         updateViewActions();
         return;
@@ -1869,10 +1925,14 @@ void MainWindow::selectById(const QString& id)
 void MainWindow::refreshFloorTabs()
 {
     QList<QPair<QString, QString>> floors;
+    QSet<QString> withImage;
     for (const plynth::Floor& floor : doc_.plan().floors) {
         const QString id = fromCore(floor.id);
         floors.append({id, floor.name.empty() ? id : fromCore(floor.name)});
+        if (floor.image.has_value())
+            withImage.insert(id);
     }
+    floorTabs_->setImageFloors(withImage);
     floorTabs_->setFloors(floors);
     floorTabs_->setShown(focus_->floorId());
 }
@@ -2157,18 +2217,36 @@ bool MainWindow::materialsPictureReady() const
 
 // Selects a new material and asks for its groups, or reports why an import failed.
 void MainWindow::materialImportFinished(bool ok, const QString& materialId, const QString& message, bool skipped,
-                                        bool thumbnailFailed)
+                                        bool thumbnailFailed, const QString& origin)
 {
     host_->materialsEdited();
     if (!ok) {
         statusBar_->showMessage(tr("Material import failed. %1").arg(message));
         return;
     }
-    if (skipped || materialId.isEmpty() || host_->materialCatalog() == nullptr)
+    if (materialId.isEmpty() || host_->materialCatalog() == nullptr || (skipped && origin.isEmpty()))
         return;
     const std::optional<plynth::MaterialRecord> record = host_->materialCatalog()->material(materialId.toStdString());
     if (!record)
         return;
+    if (!origin.isEmpty()) {
+        const QString name = fromCore(record->name);
+        const bool noGroups = record->groups.empty() && !skipped;
+        QString text = skipped ? tr("%1 is already in Materials.").arg(name) : tr("Added %1 to Materials.").arg(name);
+        if (noGroups)
+            text += QLatin1Char(' ') + tr("Pick its groups there.");
+        else if (thumbnailFailed && !skipped)
+            text += QLatin1Char(' ') + tr("The thumbnail render failed.");
+        integrations_->showAdded(origin, text, tr("Show in Materials"), tr("Open the Materials window with this material selected"),
+                                 [this, materialId, noGroups]() {
+                                     openToolWindow(QStringLiteral("materials"));
+                                     materials_->selectMaterial(materialId);
+                                     if (noGroups)
+                                         materials_->showGroups();
+                                 });
+        statusBar_->showMessage(text, false);
+        return;
+    }
     openToolWindow(QStringLiteral("materials"));
     materials_->selectMaterial(materialId);
     const QString name = fromCore(record->name);
@@ -2418,7 +2496,7 @@ void MainWindow::recordRecent()
     home_->refresh();
 }
 
-// Starts an untitled project whose first floor already has the image.
+// For checks only: starts an untitled project whose first floor already has the image.
 bool MainWindow::newFromImage(const QString& path, QString* error)
 {
     QImage image;
@@ -2525,31 +2603,118 @@ bool MainWindow::terminalFailed() const
     return terminal_->startFailed();
 }
 
-// Starts an empty untitled project after the save question.
+// Asks for the name and the location of a new empty project, then creates and opens it.
 void MainWindow::newProject()
 {
-    if (!confirmDiscardChanges())
-        return;
-    terminal_->shutdown();
-    doc_.replace(plynth::makeNewProject(), {}, false);
-    showWork();
+    startNewProject(QString());
 }
 
-// Asks for an image and starts an untitled project from it.
-void MainWindow::newProjectFromImage()
+// Asks for the name and the location of a new project, asks about unsaved changes, then makes the project folder,
+// saves the new project in it and opens it. With an image, floor 1 starts with it as its plan image. Cancel or a
+// failure leaves the open project as it was.
+bool MainWindow::startNewProject(const QString& image)
 {
-    const QString file = QFileDialog::getOpenFileName(dialogParent(), tr("New project from image"), lastFolder_, imageFilter());
-    if (file.isEmpty())
-        return;
-    lastFolder_ = QFileInfo(file).absolutePath();
-    if (!confirmDiscardChanges())
-        return;
-    QString error;
-    if (!newFromImage(file, &error)) {
-        showError(tr("Cannot open image"), error);
-        return;
+    if (!image.isEmpty()) {
+        QImage decoded;
+        QString error;
+        if (!decodeImage(image, &decoded, &error)) {
+            showError(tr("Cannot open image"), error);
+            return false;
+        }
+    }
+    const QString base = image.isEmpty() ? tr("New project") : QFileInfo(image).completeBaseName();
+    QString name;
+    QString folder;
+    if (!askNewProject(base, &name, &folder) || !confirmDiscardChanges())
+        return false;
+    return createAndOpen(newProjectContent(name, image), folder);
+}
+
+// An empty project with this name. With an image, floor 1 has it as its plan image.
+plynth::Project MainWindow::newProjectContent(const QString& name, const QString& image) const
+{
+    plynth::Project project = plynth::makeNewProject();
+    project.settings.name = name.toStdString();
+    if (!image.isEmpty())
+        project.plan.floors.front().image = plynth::pathToUtf8(std::filesystem::absolute(toPath(image)));
+    return project;
+}
+
+// For checks only: does what Create in the New project dialog does for this folder, named after it.
+bool MainWindow::createProjectForCheck(const QString& folder, const QString& image)
+{
+    const QString why = NewProjectDialog::problem(QFileInfo(folder).absolutePath(), QFileInfo(folder).fileName());
+    if (!why.isEmpty()) {
+        statusBar_->showMessage(why);
+        return false;
+    }
+    return createAndOpen(newProjectContent(QFileInfo(folder).fileName(), image), QFileInfo(folder).absoluteFilePath());
+}
+
+// Shows the New project dialog with the projects folder as the location. False when it was cancelled.
+bool MainWindow::askNewProject(const QString& baseName, QString* name, QString* folder)
+{
+    const QString location = host_->projectsFolder();
+    NewProjectDialog dialog(location, NewProjectDialog::freeName(location, baseName), dialogParent());
+    if (dialog.exec() != QDialog::Accepted)
+        return false;
+    *name = dialog.name().trimmed();
+    *folder = dialog.folder();
+    return true;
+}
+
+// Makes the folder, saves the project in it as a new project and opens it. Shows why when it cannot, and then
+// removes the folder again when it made it and it is still empty.
+bool MainWindow::createAndOpen(plynth::Project project, const QString& folder)
+{
+    const bool existed = QFileInfo(folder).isDir();
+    const plynth::Status status = plynth::createProject(project, toPath(folder), {});
+    if (!status.ok()) {
+        if (!existed)
+            QDir().rmdir(folder);
+        showError(tr("Cannot create project"), fromCore(status.message));
+        return false;
     }
     terminal_->shutdown();
+    QString error;
+    if (!openProject(folder, &error)) {
+        showError(tr("Cannot open project"), error);
+        return false;
+    }
+    lastFolder_ = QFileInfo(folder).absolutePath();
+    return true;
+}
+
+// Gives a project that has never been saved a name and a folder with the New project dialog, saves it there
+// and opens the saved copy, so the title shows its name.
+bool MainWindow::saveUntitled()
+{
+    const QString current = projectName();
+    QString name;
+    QString folder;
+    if (!askNewProject(current == QStringLiteral("Untitled") ? tr("New project") : current, &name, &folder))
+        return false;
+    plynth::Project project = doc_.project();
+    project.settings.name = name.toStdString();
+    return createAndOpen(std::move(project), folder);
+}
+
+// For checks only: shows the New project dialog without waiting, with the fields filled when given.
+void MainWindow::showNewProjectDialogForCheck(const QString& name, const QString& location)
+{
+    const QString place = host_->projectsFolder();
+    auto* dialog = new NewProjectDialog(place, NewProjectDialog::freeName(place, tr("New project")), dialogParent());
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    if (!name.isEmpty() || !location.isEmpty())
+        dialog->setFields(name.isEmpty() ? dialog->name() : name, location);
+    checkNewProjectDialog_ = dialog;
+    dialog->open();
+}
+
+// For checks only: opens the menu of a floor's tab without waiting. False for an unknown floor.
+bool MainWindow::showFloorMenuForCheck(const QString& floorId)
+{
+    return floorTabs_->popupMenuForCheck(floorId) != nullptr;
 }
 
 // Asks for a project folder and opens it after the save question.
@@ -2570,6 +2735,14 @@ void MainWindow::openProjectDialog()
     offerRecovery();
 }
 
+// Shows the floor of the tab that was right-clicked and asks for its plan image.
+void MainWindow::setFloorImageDialog(const QString& floorId)
+{
+    focus_->setFloorId(floorId);
+    floorTabs_->setShown(focus_->floorId());
+    setImageDialog();
+}
+
 // Asks for an image file and sets it on the floor.
 void MainWindow::setImageDialog()
 {
@@ -2582,11 +2755,11 @@ void MainWindow::setImageDialog()
         showError(tr("Cannot open image"), error);
 }
 
-// Saves to the project folder, or asks for one when the project has none yet.
+// Saves to the project folder. A project that has none yet gets a name and a folder first.
 bool MainWindow::saveDocument()
 {
     if (!doc_.hasFolder())
-        return saveDocumentAs();
+        return saveUntitled();
     plynth::SaveReport report;
     const plynth::Status status = doc_.save(&report);
     if (!status.ok()) {
@@ -2599,9 +2772,11 @@ bool MainWindow::saveDocument()
     return true;
 }
 
-// Asks for a folder and saves the project there.
+// Asks for a folder and saves the project there. A project that was never saved gets a name and a folder.
 bool MainWindow::saveDocumentAs()
 {
+    if (!doc_.hasFolder())
+        return saveUntitled();
     const QString folder = QFileDialog::getExistingDirectory(dialogParent(), tr("Save project as"), lastFolder_);
     if (folder.isEmpty())
         return false;

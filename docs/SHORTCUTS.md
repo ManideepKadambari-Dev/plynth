@@ -6,8 +6,7 @@ Every action with a shortcut is also in the menu, where the shortcut is shown ne
 
 | Shortcut | Action |
 |---|---|
-| Ctrl+N | New project |
-| Ctrl+Shift+N | New project from an image |
+| Ctrl+N | New project (asks for its name and location) |
 | Ctrl+Shift+H | Home: show the home screen. The open project stays open behind it |
 | Ctrl+O | Open a project folder |
 | Ctrl+W | Close the project and go to the home screen |
@@ -16,9 +15,9 @@ Every action with a shortcut is also in the menu, where the shortcut is shown ne
 | Ctrl+Shift+S | Save as, into another folder |
 | Alt+F4 | Exit Plynth |
 
-Ctrl+O used to open a plan image. It now opens a project. Use Ctrl+Shift+O, or drop an image on the window, to set the plan image.
+Ctrl+O used to open a plan image. It now opens a project. Right-click a floor tab and choose Set plan image, press Ctrl+Shift+O, or drop an image on the window, to set the plan image.
 
-Ctrl+W asks "Save changes to <name>?" when there are unsaved changes. The home screen lists your recent projects, and Ctrl+N, Ctrl+Shift+N and Ctrl+O work there too.
+Ctrl+W asks "Save changes to <name>?" when there are unsaved changes. The home screen lists your recent projects, and Ctrl+N and Ctrl+O work there too.
 
 Setting the plan image can be undone. A new project from an image starts with the image already in place.
 

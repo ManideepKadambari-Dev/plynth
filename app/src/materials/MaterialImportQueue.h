@@ -28,6 +28,7 @@ struct MaterialQueueItem {
     int percent = 0;
     QString message;
     QString workFolder;
+    QString origin; // the id of the source card in the Sources window that started it, empty otherwise
     plynth::MaterialImportRequest request;
     std::filesystem::path entry;
     std::stop_source stop;
@@ -41,8 +42,9 @@ public:
     explicit MaterialImportQueue(LibraryHost& host, QObject* parent = nullptr);
     ~MaterialImportQueue() override;
 
-    // Adds an import with the fields the request holds. Returns the item id.
-    int enqueueImport(const plynth::MaterialImportRequest& request);
+    // Adds an import with the fields the request holds. Returns the item id. origin names the source card in
+    // the Sources window that started it, so its progress shows there.
+    int enqueueImport(const plynth::MaterialImportRequest& request, const QString& origin = QString());
     // Adds an entry of the materials inbox.
     int enqueueInbox(const QString& path);
 
@@ -57,7 +59,9 @@ public:
 signals:
     void itemsChanged();
     // An item ended. Cancelled items are removed without this. skipped means the id was already there.
-    void finished(bool ok, const QString& materialId, const QString& message, bool skipped, bool thumbnailFailed);
+    // origin is the source card that started it, empty for any other item.
+    void finished(bool ok, const QString& materialId, const QString& message, bool skipped, bool thumbnailFailed,
+                  const QString& origin);
 
 private:
     int add(MaterialQueueItem item);

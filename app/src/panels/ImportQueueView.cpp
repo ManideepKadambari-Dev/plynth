@@ -20,14 +20,15 @@
 
 namespace plynth::app {
 
-// Shows the asset import queue.
-ImportQueueView::ImportQueueView(ImportQueue& queue, QWidget* parent) : QWidget(parent)
+// Shows the items of the asset import queue that have this origin.
+ImportQueueView::ImportQueueView(ImportQueue& queue, QWidget* parent, const QString& origin) : QWidget(parent)
 {
-    rows_fn_ = [&queue]() {
+    rows_fn_ = [&queue, origin]() {
         std::vector<Row> rows;
         for (const QueueItem& item : queue.items())
-            rows.push_back({item.id, item.title, item.stage, item.percent, item.state == QueueItem::State::Failed,
-                            item.kind == QueueItem::Kind::Refresh, item.message, item.workFolder, item.pickable});
+            if (item.origin == origin)
+                rows.push_back({item.id, item.title, item.stage, item.percent, item.state == QueueItem::State::Failed,
+                                item.kind == QueueItem::Kind::Refresh, item.message, item.workFolder, item.pickable});
         return rows;
     };
     cancel_ = [&queue](int id) { queue.cancel(id); };
@@ -35,16 +36,17 @@ ImportQueueView::ImportQueueView(ImportQueue& queue, QWidget* parent) : QWidget(
     start();
 }
 
-// Shows the material import queue.
-ImportQueueView::ImportQueueView(MaterialImportQueue& queue, QWidget* parent) : QWidget(parent)
+// Shows the items of the material import queue that have this origin.
+ImportQueueView::ImportQueueView(MaterialImportQueue& queue, QWidget* parent, const QString& origin) : QWidget(parent)
 {
-    rows_fn_ = [&queue]() {
+    rows_fn_ = [&queue, origin]() {
         std::vector<Row> rows;
         for (const MaterialQueueItem& item : queue.items())
-            rows.push_back({item.id,
-                            item.title.isEmpty() ? QString::fromStdString(item.request.source.url) : item.title,
-                            item.stage, item.percent, item.state == MaterialQueueItem::State::Failed, false,
-                            item.message, item.workFolder, false});
+            if (item.origin == origin)
+                rows.push_back({item.id,
+                                item.title.isEmpty() ? QString::fromStdString(item.request.source.url) : item.title,
+                                item.stage, item.percent, item.state == MaterialQueueItem::State::Failed, false,
+                                item.message, item.workFolder, false});
         return rows;
     };
     cancel_ = [&queue](int id) { queue.cancel(id); };

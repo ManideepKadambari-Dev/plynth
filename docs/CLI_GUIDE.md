@@ -3697,7 +3697,7 @@ Every action of the app that changes or checks a project or the library has a co
 
 | App | Command |
 |---|---|
-| File > New project, New project from image | `project new`, `project new --image` |
+| File > New project, a sample plan on the home screen | `project new`, `project new --image` |
 | Instructions file for tools that work on a project | `agent-guide` |
 | File > Save as | `project save-as <folder>` |
 | Open dialog: Load or Keep mine | `project recover`, `project recover --discard` |
@@ -3734,7 +3734,7 @@ Zoom, pan, the tools themselves, the help pages, the terminal and opening folder
 
 Plynth's app and the command line can both work on the same project folder. To keep one from overwriting the other, the command line uses an edit session. The steps for a script or other program:
 
-1. **Begin.** Run `plynth session begin --tool <name>`. If the app has the project open, it turns read only: a banner appears saying "Being edited from the command line by <name>", the canvas is dimmed, and Undo, Redo, Save, Save as and Set plan image are disabled.
+1. **Begin.** Run `plynth session begin --tool <name>`. If the app has the project open, it turns read only: a banner appears saying "Being edited from the command line by <name>", the canvas is dimmed, and Undo, Redo, Save, Save as and the floor tab's Set plan image are disabled.
 2. **Edit.** Run commands such as `point add`, `wall draw` and `room add`. Each one saves to the project folder. The app notices the change within a second and shows it live. Zoom and pan stay where they were.
 3. **End.** Run `plynth session end`. The app reloads once and becomes editable again.
 

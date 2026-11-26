@@ -296,10 +296,24 @@ void IntegrationsPanel::buildCard(const plynth::Integration& integration)
     }
     buttons->addStretch(1);
     box->addLayout(buttons);
+    if (card.importAsset != nullptr || card.importMaterial != nullptr) {
+        card.notice = warningLabel(frame);
+        card.notice->setToolTip(tr("Why the last import from this source did not start"));
+        box->addWidget(card.notice);
+        card.activity = new QVBoxLayout();
+        card.activity->setContentsMargins(0, 0, 0, 0);
+        card.activity->setSpacing(t.unit() * 2);
+        card.added = new QVBoxLayout();
+        card.added->setContentsMargins(0, 0, 0, 0);
+        card.added->setSpacing(t.unit() * 2);
+        card.activity->addLayout(card.added);
+        box->addLayout(card.activity);
+    }
     const auto send = [this, id](bool material) {
         Card* c = cardFor(id);
         if (actions_ == nullptr || c == nullptr)
             return;
+        showNotice(id, QString());
         if (c->address != nullptr)
             actions_->importAddress(id, c->address->text().trimmed(), material);
         else
@@ -335,6 +349,79 @@ void IntegrationsPanel::buildCard(const plynth::Integration& integration)
     }
 
     cards_->addWidget(frame);
+}
+
+// The ids of the cards with import buttons, in the order they are shown.
+QStringList IntegrationsPanel::importCardIds() const
+{
+    QStringList ids;
+    for (const Card& card : list_)
+        if (card.activity != nullptr)
+            ids << fromView(card.integration->id());
+    return ids;
+}
+
+// Puts the widget under the import buttons of the card, above the lines of finished imports.
+void IntegrationsPanel::addActivity(const QString& integrationId, QWidget* widget)
+{
+    Card* card = cardFor(integrationId);
+    if (card == nullptr || card->activity == nullptr)
+        return;
+    card->activity->insertWidget(card->activity->count() - 1, widget);
+}
+
+// Shows or hides the sentence under the import buttons of the card.
+void IntegrationsPanel::showNotice(const QString& integrationId, const QString& text)
+{
+    Card* card = cardFor(integrationId);
+    if (card == nullptr || card->notice == nullptr)
+        return;
+    card->notice->setText(text);
+    card->notice->setVisible(!text.isEmpty());
+}
+
+// Adds a line for a finished import at the top of the card's list, keeping the last few.
+void IntegrationsPanel::showAdded(const QString& integrationId, const QString& text, const QString& showText,
+                                  const QString& showTip, std::function<void()> show)
+{
+    constexpr int kKeptLines = 5;
+    Card* card = cardFor(integrationId);
+    if (card == nullptr || card->added == nullptr)
+        return;
+    const Theme& t = Theme::instance();
+    QWidget* parent = card->notice->parentWidget();
+    auto* row = new QFrame(parent);
+    row->setObjectName(QStringLiteral("addedRow"));
+    row->setStyleSheet(QStringLiteral("QFrame#addedRow { background: %1; border: 1px solid %2; border-radius: %3px; }")
+                           .arg(t.panel().name(), t.line().name())
+                           .arg(t.radius()));
+    auto* line = new QHBoxLayout(row);
+    line->setContentsMargins(t.unit() * 2, t.unit() * 2, t.unit() * 2, t.unit() * 2);
+    line->setSpacing(t.unit() * 2);
+    auto* label = new QLabel(row);
+    label->setTextFormat(Qt::PlainText);
+    label->setText(text);
+    label->setWordWrap(true);
+    label->setFont(t.uiFont(t.sizeNormal()));
+    label->setToolTip(tr("What the import added"));
+    line->addWidget(label, 1);
+    if (show) {
+        auto* open = new QPushButton(showText, row);
+        open->setToolTip(showTip);
+        connect(open, &QPushButton::clicked, this, [show]() { show(); });
+        line->addWidget(open);
+    }
+    auto* dismiss = new QPushButton(tr("Dismiss"), row);
+    dismiss->setToolTip(tr("Remove this line"));
+    connect(dismiss, &QPushButton::clicked, row, &QObject::deleteLater);
+    line->addWidget(dismiss);
+    card->added->insertWidget(0, row);
+    while (card->added->count() > kKeptLines) {
+        QLayoutItem* item = card->added->takeAt(card->added->count() - 1);
+        if (QWidget* w = item->widget())
+            w->deleteLater();
+        delete item;
+    }
 }
 
 // Adds a captioned control for one saved option, drawn from what core says the option allows.

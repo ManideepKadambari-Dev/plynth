@@ -68,6 +68,7 @@ public:
     int thumbnailLarge() const { return thumbnailLarge_; }
     int setupRowGap() const { return setupRowGap_; }
     int dialogMargin() const { return dialogMargin_; }
+    int sectionGap() const { return sectionGap_; }
     int snapRadius() const { return snapRadius_; }
     int wallViewMinHeight() const { return wallViewMinHeight_; }
     int wallViewMargin() const { return wallViewMargin_; }
@@ -148,6 +149,7 @@ private:
     int thumbnailLarge_ = 256;
     int setupRowGap_ = 12;
     int dialogMargin_ = 20;
+    int sectionGap_ = 24;
     int snapRadius_ = 10;
     int wallViewMinHeight_ = 160;
     int wallViewMargin_ = 24;

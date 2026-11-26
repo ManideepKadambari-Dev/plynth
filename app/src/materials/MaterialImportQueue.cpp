@@ -37,9 +37,10 @@ MaterialImportQueue::~MaterialImportQueue()
 }
 
 // Adds an import with the fields the request holds.
-int MaterialImportQueue::enqueueImport(const plynth::MaterialImportRequest& request)
+int MaterialImportQueue::enqueueImport(const plynth::MaterialImportRequest& request, const QString& origin)
 {
     MaterialQueueItem item;
+    item.origin = origin;
     item.kind = MaterialQueueItem::Kind::Import;
     item.title = request.source.file.empty() ? QString::fromUtf8(request.source.url.data(), static_cast<qsizetype>(request.source.url.size()))
                                              : QString::fromStdWString(request.source.file.filename().wstring());
@@ -211,11 +212,12 @@ void MaterialImportQueue::onDone(int id, const plynth::MaterialImportOutcome& ou
         return;
     }
     const bool cancelled = outcome.status.code == plynth::ErrorCode::Cancelled && found->stop.stop_requested();
+    const QString origin = found->origin;
     if (outcome.status.ok() || cancelled) {
         items_.erase(found);
         emit itemsChanged();
         if (!cancelled)
-            emit finished(true, fromCore(outcome.materialId), QString(), outcome.skipped, outcome.thumbnailFailed);
+            emit finished(true, fromCore(outcome.materialId), QString(), outcome.skipped, outcome.thumbnailFailed, origin);
         startNext();
         return;
     }
@@ -225,7 +227,7 @@ void MaterialImportQueue::onDone(int id, const plynth::MaterialImportOutcome& ou
     found->workFolder = QString::fromStdWString(outcome.keptWorkFolder.wstring());
     const QString message = found->message;
     emit itemsChanged();
-    emit finished(false, QString(), message, false, true);
+    emit finished(false, QString(), message, false, true, origin);
     startNext();
 }
 
