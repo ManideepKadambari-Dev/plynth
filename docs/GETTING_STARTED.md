@@ -31,7 +31,7 @@ The plan shows the walls, five rooms, nine doors and windows, and the furniture 
 
 - Zoom with the mouse wheel. Pan with the middle button, or hold Space and drag.
 - Click a wall, a room or a piece of furniture. The Properties panel shows its details.
-- Press **3**, or click **3D**, to see the model. Drag with the left button to turn it, drag with the middle or right button to pan, and use the wheel to zoom. Press Ctrl+0 to fit it in the window. The **Top** and **Three quarter** buttons jump to two good views.
+- Press **3**, or click **3D**, to see the model. Drag with the left button to turn it, drag with the middle button to pan, and use the wheel to zoom. Hold the right button to fly through it with W, A, S and D. Press Ctrl+0 to fit it in the window. The **Top** and **Three quarter** buttons jump to two good views.
 - Press **3** again, or click **Plan**, to go back.
 
 The 3D view is empty until the first build, so do the next step to fill it.

@@ -233,6 +233,16 @@ int main(int argc, char* argv[])
                                      QStringLiteral("Show the 3D overlay on the plan. For checks only."));
     QCommandLineOption buildOption(QStringLiteral("build"),
                                    QStringLiteral("Build the project after opening it and wait for the end. For checks only."));
+    QCommandLineOption swapBuildOption(QStringLiteral("swap-build"),
+                                       QStringLiteral("After the 3D page has drawn the building, copy this build folder over "
+                                                      "the project's build and load it as after a build. For checks only."),
+                                       QStringLiteral("folder"));
+    parser.addOption(swapBuildOption);
+    QCommandLineOption flyCheckOption(QStringLiteral("fly-check"),
+                                      QStringLiteral("After the 3D page has drawn the building, fly with the right button: "
+                                                     "look, move or frame. For checks only."),
+                                      QStringLiteral("mode"));
+    parser.addOption(flyCheckOption);
     QCommandLineOption buildTabOption(QStringLiteral("build-tab"), QStringLiteral("Open the Build report window. For checks only."));
     QCommandLineOption alignImageOption(QStringLiteral("align-image"),
                                         QStringLiteral("Turn on image alignment of the shown floor. For checks only."));
@@ -650,6 +660,10 @@ int main(int argc, char* argv[])
         QTimer::singleShot(100, &window, [&window]() { window.setActualSize(); });
     if (parser.isSet(buildOption))
         QTimer::singleShot(0, &window, [&window]() { window.startBuild(); });
+    if (parser.isSet(swapBuildOption))
+        window.swapBuildForCheck(parser.value(swapBuildOption));
+    if (parser.isSet(flyCheckOption))
+        window.flyForCheck(parser.value(flyCheckOption));
     if (parser.isSet(exportOption))
         QTimer::singleShot(0, &window, [&window]() { window.startExport(true, false); });
     else if (parser.isSet(exportCheckOption))

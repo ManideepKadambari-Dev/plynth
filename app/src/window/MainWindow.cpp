@@ -1479,7 +1479,7 @@ void MainWindow::setPreviewCamera(const QString& name)
 // For checks only: true when the 3D page and the asset previews have drawn their models, or have none.
 bool MainWindow::previewPictureReady() const
 {
-    return !builder_->running() && !exporter_->running() && !overlayRenderer_->busy() && (centreStack_->currentWidget() != preview_ || preview_->pictureReady()) &&
+    return !swapPending_ && !flyPending_ && !builder_->running() && !exporter_->running() && !overlayRenderer_->busy() && (centreStack_->currentWidget() != preview_ || preview_->pictureReady()) &&
            assets_->pictureReady() &&
            tools_->pickerPreviewReady();
 }

@@ -10,6 +10,18 @@ QColor ThemeQml::ground() const { return Theme::instance().ground(); }
 // The Muted color, for the empty state text.
 QColor ThemeQml::muted() const { return Theme::instance().muted(); }
 
+// The Text color, for hints over the scene.
+QColor ThemeQml::text() const { return Theme::instance().text(); }
+
+// The Raised color, the background of a hint over the scene.
+QColor ThemeQml::raised() const { return Theme::instance().raised(); }
+
+// The Line color, the border of a hint over the scene.
+QColor ThemeQml::line() const { return Theme::instance().line(); }
+
+// The corner radius in pixels.
+int ThemeQml::radius() const { return Theme::instance().radius(); }
+
 // The Signal amber color, for load failures.
 QColor ThemeQml::signalAmber() const { return Theme::instance().signalAmber(); }
 

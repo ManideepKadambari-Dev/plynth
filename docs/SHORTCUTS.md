@@ -230,8 +230,16 @@ Space needs the canvas to have keyboard focus. Moving the mouse over the canvas 
 | Action | What it does |
 |---|---|
 | Left button and drag | Orbit around the middle of the building |
-| Middle or right button and drag | Pan |
+| Middle button and drag | Pan |
 | Mouse wheel | Zoom toward the point the view turns around |
+| Hold the right button and move the mouse | Fly: look around from where the camera stands |
+| Right button held, W, A, S, D | Fly forward, left, back and right along the view |
+| Right button held, Q or E | Fly down or up |
+| Right button held, Shift | Fly faster |
+| Right button held, mouse wheel | Change the fly speed |
+| F | Frame the whole building again |
+
+The keys only fly while the right button is held and the 3D view has the keyboard. Click the 3D view first if the keys go to the plan tools. When you let go, the camera stays where it is, and orbiting turns around a point in front of it.
 
 The 3D view only shows the building. Nothing you do in it changes the plan.
 

@@ -128,11 +128,16 @@ signals:
     void partsChanged();
     void partVisibleChanged();
     void fitRequested();
-    void reloadRequested();
     void materialsChanged();
 
 private:
     void startFrameCount();
+    void startLoad();
+    void continueHold();
+
+    // The renderer keeps a mesh or texture by its file path until a frame is drawn without it, so a file loaded
+    // again at the same path waits for a few frames without any model, or the old building shows again.
+    static constexpr int kEmptyFramesBeforeLoad = 3;
     void readMaterials();
     void updateVisibility();
 
@@ -154,6 +159,10 @@ private:
     QString error_;
     State state_ = State::Empty;
     int framesSinceLoad_ = 0;
+    // Frames drawn in a row with no model in the scene, counted up to the number a new load waits for.
+    int emptyFrames_ = kEmptyFramesBeforeLoad;
+    // True while the scene is kept empty so the renderer forgets the last files before they load again.
+    bool holding_ = false;
     bool useMaterials_ = false;
     bool assetMaterials_ = false;
     QVariantList materials_;
