@@ -103,6 +103,7 @@ bool Theme::load(const QString& resourcePath)
     thumbnailLarge_ = spacing["thumbnailLarge"].toInt(thumbnailLarge_);
     setupRowGap_ = spacing["setupRowGap"].toInt(setupRowGap_);
     dialogMargin_ = spacing["dialogMargin"].toInt(dialogMargin_);
+    sectionGap_ = spacing["sectionGap"].toInt(sectionGap_);
     snapRadius_ = spacing["snapRadius"].toInt(snapRadius_);
     wallViewMinHeight_ = spacing["wallViewMinHeight"].toInt(wallViewMinHeight_);
     wallViewMargin_ = spacing["wallViewMargin"].toInt(wallViewMargin_);

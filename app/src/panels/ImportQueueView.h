@@ -14,7 +14,8 @@ class ImportQueue;
 class MaterialImportQueue;
 
 // The progress list under the asset grid: one row per queued import with its stage, a bar and Cancel,
-// and failed rows with the reason, Show log and Dismiss. Hidden while the queue is empty.
+// and failed rows with the reason, Show log and Dismiss. Hidden while the queue is empty. Each view lists only
+// the items of one origin: a source card in the Sources window, or the other windows when the origin is empty.
 class ImportQueueView : public QWidget {
     Q_OBJECT
 public:
@@ -31,8 +32,8 @@ public:
         bool canPick = false; // a Fab zip with several models failed: offer Pick the model
     };
 
-    explicit ImportQueueView(ImportQueue& queue, QWidget* parent = nullptr);
-    explicit ImportQueueView(MaterialImportQueue& queue, QWidget* parent = nullptr);
+    explicit ImportQueueView(ImportQueue& queue, QWidget* parent = nullptr, const QString& origin = QString());
+    explicit ImportQueueView(MaterialImportQueue& queue, QWidget* parent = nullptr, const QString& origin = QString());
 
 signals:
     // The user pressed Pick the model on a failed row of the asset queue.

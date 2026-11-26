@@ -49,6 +49,7 @@
     "thumbnailLarge": 256,
     "setupRowGap": 12,
     "dialogMargin": 20,
+    "sectionGap": 24,
     "snapRadius": 10,
     "wallViewMinHeight": 160,
     "wallViewMargin": 24,

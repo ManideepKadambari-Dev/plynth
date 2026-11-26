@@ -65,6 +65,12 @@ void FloorTabs::setShown(const QString& floorId)
         tab->setChecked(tab->property("floorId").toString() == floorId);
 }
 
+// Remembers which floors have a plan image.
+void FloorTabs::setImageFloors(const QSet<QString>& floorIds)
+{
+    imageFloors_ = floorIds;
+}
+
 // Turns the controls that change the plan on or off.
 void FloorTabs::setEditable(bool editable)
 {
@@ -72,30 +78,56 @@ void FloorTabs::setEditable(bool editable)
     add_->setEnabled(editable);
 }
 
-// Opens the menu of a tab, and sends what the user picks.
-void FloorTabs::showMenu(const QString& floorId, const QPoint& global)
+// Makes the menu of a tab. Each entry sends its request when it is picked.
+QMenu* FloorTabs::makeMenu(const QString& floorId)
 {
-    QMenu menu(this);
-    menu.setToolTipsVisible(true);
-    QAction* rename = menu.addAction(tr("Rename..."));
+    auto* menu = new QMenu(this);
+    menu->setToolTipsVisible(true);
+    const bool hasImage = imageFloors_.contains(floorId);
+    QAction* image = menu->addAction(hasImage ? tr("Replace plan image...") : tr("Set plan image..."));
+    image->setToolTip(hasImage ? tr("Pick another plan image for this floor") : tr("Pick the plan image of this floor"));
+    menu->addSeparator();
+    QAction* rename = menu->addAction(tr("Rename..."));
     rename->setToolTip(tr("Give this floor another name"));
-    QAction* below = menu.addAction(tr("Add floor below"));
+    QAction* below = menu->addAction(tr("Add floor below"));
     below->setToolTip(tr("Add an empty floor under this one"));
-    menu.addSeparator();
-    QAction* remove = menu.addAction(tr("Remove floor..."));
+    menu->addSeparator();
+    QAction* remove = menu->addAction(tr("Remove floor..."));
     remove->setToolTip(tr("Remove this floor with everything on it"));
-    for (QAction* action : {rename, below, remove})
+    for (QAction* action : {image, rename, below, remove})
         action->setEnabled(editable_);
     remove->setEnabled(editable_ && tabs_.size() > 1);
     if (tabs_.size() <= 1)
         remove->setToolTip(tr("The only floor cannot be removed"));
-    QAction* picked = menu.exec(global);
-    if (picked == rename)
-        emit renameRequested(floorId);
-    else if (picked == below)
-        emit addBelowRequested(floorId);
-    else if (picked == remove)
-        emit removeRequested(floorId);
+    // Queued, so the menu has closed before a file dialog or a question opens.
+    connect(image, &QAction::triggered, this, [this, floorId]() { emit planImageRequested(floorId); }, Qt::QueuedConnection);
+    connect(rename, &QAction::triggered, this, [this, floorId]() { emit renameRequested(floorId); }, Qt::QueuedConnection);
+    connect(below, &QAction::triggered, this, [this, floorId]() { emit addBelowRequested(floorId); }, Qt::QueuedConnection);
+    connect(remove, &QAction::triggered, this, [this, floorId]() { emit removeRequested(floorId); }, Qt::QueuedConnection);
+    return menu;
+}
+
+// Opens the menu of a tab and waits until it closes.
+void FloorTabs::showMenu(const QString& floorId, const QPoint& global)
+{
+    QMenu* menu = makeMenu(floorId);
+    menu->exec(global);
+    menu->deleteLater();
+}
+
+// Opens the menu above the tab of the floor and returns at once.
+QMenu* FloorTabs::popupMenuForCheck(const QString& floorId)
+{
+    for (QPushButton* tab : std::as_const(tabs_)) {
+        if (tab->property("floorId").toString() != floorId)
+            continue;
+        QMenu* menu = makeMenu(floorId);
+        menu->setAttribute(Qt::WA_DeleteOnClose);
+        menu->popup(tab->mapToGlobal(QPoint(tab->width() / 2, -menu->sizeHint().height())));
+        checkMenu_ = menu;
+        return menu;
+    }
+    return nullptr;
 }
 
 // Handles the right click and the double click on a tab.

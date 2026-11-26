@@ -63,6 +63,8 @@ add_executable(plynth WIN32
     src/furniture/GeneratorPreview.cpp
     src/furniture/FurniturePicker.h
     src/furniture/FurniturePicker.cpp
+    src/dialogs/NewProjectDialog.h
+    src/dialogs/NewProjectDialog.cpp
     src/dialogs/PackDialog.h
     src/dialogs/PackDialog.cpp
     src/dialogs/RoomTypesDialog.h

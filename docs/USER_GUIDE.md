@@ -20,9 +20,10 @@ Projects join the list when you open or save them in the app. The list keeps the
 
 **The left side** has:
 
-- **New project**, **New project from plan image** and **Open project**, the same as the File menu.
+- **New project** and **Open project**, the same as the File menu.
 - **Help**: the help pages, such as Getting started, User guide, Keyboard shortcuts and the CLI developer guide. Each opens in the Help window. See "Help".
-- **Sample plans**: the sample plan images that come with Plynth. Click one to start a new project from it, a quick way to try the tools.
+- **Sample plans**: the sample plan images that come with Plynth. Click one to start a new project with it as the plan image of floor 1, a quick way to try the tools. The New project window opens first, as for **New project**.
+- **Sample projects**: whole projects to open and look around in. See "Samples".
 - **Setup status**: "Setup is ready.", or in amber what needs attention, with a **Fix** button that opens the setup check. See [Setting up Plynth](SETUP.md).
 - **Projects folder**: the folder where new projects go. Click it to open it.
 
@@ -50,19 +51,18 @@ Two small files, `session.lock` and `app-state.json`, may also appear. They are 
 
 ### Create and open
 
-- **File > New project** (Ctrl+N) starts an empty, untitled project.
-- **File > New project from image** (Ctrl+Shift+N) starts an untitled project with a plan image already in place.
+- **File > New project...** (Ctrl+N), or **New project** on the home screen, opens the New project window. Type a **Name** and choose the **Location**, the folder the project folder goes in. It starts at your projects folder, and **Browse...** picks another. The window shows the folder it will make. **Create** makes that folder, saves the new project in it and opens it, so **Save** never asks for a folder later. **Cancel** leaves the open project as it was. Create stays off, with a sentence that says why, while the name cannot be a folder name (it is empty, holds one of `\ / : * ? " < > |`, ends with a dot, or is a name Windows keeps, such as CON) or while the location already has a folder of that name with files in it.
 - **File > Open project** (Ctrl+O) asks for a project folder. You can also pick one from the recent list on the home screen.
 - **File > Close project** (Ctrl+W) closes the project and goes to the home screen. If there are unsaved changes it asks "Save changes to <name>?" first, with Save, Don't save and Cancel.
 - **File > Home** (Ctrl+Shift+H) goes to the home screen and keeps the project open behind it.
 
 You can also open a folder from a terminal: `plynth MyApartment`.
 
-An untitled project has no folder yet. Save it to give it one.
+A new project always has its folder. Starting a new project with unsaved changes asks "Save changes to <name>?" first, after you press Create.
 
 ## The plan image
 
-**File > Set plan image** (Ctrl+Shift+O), or drop a PNG, JPEG or BMP file on the window. The image is set on the current floor. You can undo it.
+Right-click a floor tab under the plan, such as **Floor 1**, and choose **Set plan image...**, or **Replace plan image...** when the floor has one. Then pick a PNG, JPEG or BMP. The image is set on that floor, and that floor is shown. You can undo it. Ctrl+Shift+O and dropping an image file on the window set the image of the floor that is shown. A floor with no image says "Right-click the floor tab to set a plan image" in the middle of the plan.
 
 Plynth fits the image to the window. Zoom with the mouse wheel, pan with the middle button or with Space and the left button. Ctrl+0 fits again and Ctrl+1 shows 100 percent. The full list is in the shortcuts page.
 
@@ -597,7 +597,8 @@ Every change to the plan can be undone. Use **Edit > Undo** (Ctrl+Z) and **Edit 
 The title bar shows the project name, with `*` after it when there are unsaved changes.
 
 - **Save** (Ctrl+S) writes `project.json` and `plan.json`. Images from outside the project are copied into `plans/`.
-- **Save as** (Ctrl+Shift+S) writes to another folder, copying the images. The old folder is not changed. Plynth refuses a folder that already holds a different project.
+- **Save as** (Ctrl+Shift+S) writes to another folder, copying the images. The old folder is not changed. Plynth refuses a folder that already holds a different project. The project keeps its name.
+- The title bar shows the name of the project after every save, save as, open and create.
 - Closing, opening or starting a new project with unsaved changes asks "Save changes to <name>?" with Save, Don't save and Cancel.
 
 A save writes each file to a temporary name first and then renames it, so a crash during a save does not leave a half written file.
@@ -608,7 +609,7 @@ Projects made with earlier versions of Plynth open as they are and upgrade by th
 
 ### Autosave and recovery
 
-Every 30 seconds, if there are unsaved changes, Plynth writes a copy into the project's `autosave/` folder. Saving or choosing Don't save removes it. Untitled projects have no folder, so they are not autosaved.
+Every 30 seconds, if there are unsaved changes, Plynth writes a copy into the project's `autosave/` folder. Saving or choosing Don't save removes it.
 
 If Plynth was closed unexpectedly, the next time you open that project it asks: "This project has unsaved changes from <date and time>. Recover them?" If the saved plan is newer than the copy, the question tells you. Recover loads the copy as unsaved changes, so you still decide whether to save. Discard removes it.
 
@@ -1045,6 +1046,8 @@ Open it with **Catalog > Sources and integrations** (Ctrl+Shift+I) or **Sources*
 - buttons to import, and the options you can change, saved with the library;
 - a link to the official website.
 
+**Where imports from the Sources window show.** An import you start on a card shows on that card, under its import buttons: a row with the name, what Blender is doing, a progress bar and **Cancel**. If it fails, the row stays with the reason, **Show log** and **Dismiss**, and a Fab pack row offers **Pick the model...**. A sentence in amber under the buttons says why an import did not start, for example "Paste an address first.". When an import ends, the card says "Added Chair to Assets." (or "Added Oak planks to Materials.") with **Show in Assets** (or **Show in Materials**), which opens that window with the new item selected. When the item has no category or group yet, the line asks you to pick one there. The Assets and Materials windows do not open by themselves and do not list these imports; the new item simply appears in them. **Own files** works the same way for models. **Import material...** on the Own files card opens the Import materials window, where that import shows.
+
 The first time you open the tab, and when you press **Check again** on the BlenderKit card, Plynth runs the setup check. It starts Blender once with a clean start, runs none of your add-ons and reads your saved Blender preferences only as data (see [Setting up Plynth](SETUP.md)). A card with no add-on to check is always Ready. Options are saved as soon as you change them, in the library, and apply to every later import from that card. They need an open library. Every option the command line has is on the card, and the same options are saved by `plynth library integration set` (see the [command line guide](CLI_GUIDE.md)). An option saved with a value the card does not list is shown as it is, and it stays until you pick another.
 
 ### Importing from BlenderKit
@@ -1061,7 +1064,7 @@ You need your own BlenderKit account and the BlenderKit add-on, installed, enabl
 2. On the BlenderKit card, paste it into the address box. If the text is none of these, the card says why, and the buttons stay off.
 3. Press **Import as asset** for a model or **Import as material** for a material.
 
-The import joins the queue under the grid like any other. The row shows the steps: checking the add-on, downloading and copying. A big item can take a few minutes. Plynth waits up to 10 minutes by default. The card's wait option raises that, from 60 to 3600 seconds, as `wait_seconds` does from the command line (see the [command line guide](CLI_GUIDE.md)). The **Texture resolution** option says which size of textures to ask for, 2k by default.
+The import shows on the BlenderKit card, under the import buttons, as described in "Where imports from the Sources window show". The row shows the steps: checking the add-on, downloading and copying. A big item can take a few minutes. Plynth waits up to 10 minutes by default. The card's wait option raises that, from 60 to 3600 seconds, as `wait_seconds` does from the command line (see the [command line guide](CLI_GUIDE.md)). The **Texture resolution** option says which size of textures to ask for, 2k by default.
 
 **What runs.** Plynth starts Blender in the background, with no window, and the BlenderKit add-on downloads the item. There is no option to show a Blender window. This download runs Blender with **your own settings and the add-ons you have enabled**, because BlenderKit needs your add-on and your sign in. Other Blender jobs in Plynth use a clean start, but this one cannot. After the download, Blender cleans the model the same way as for your own files, with a clean start.
 
@@ -1083,7 +1086,7 @@ Fab items download as a zip from fab.com in your browser. Plynth never goes to F
 1. Download the zip from Fab.
 2. On the Fab card, press **Import model zips...** or **Import material zips...**, and pick one or more zips. (A Fab zip dropped in the library's inbox is picked up too, but its license is Unknown. See "Which license is saved" below.)
 3. A window opens that shows, for each zip, what Plynth would take. Use **Previous** and **Next** with several zips. Tick **Leave this zip out** to skip one.
-4. Press **Import**. The zips join the queue.
+4. Press **Import**. The zips are imported one after another, and each shows on the Fab card (see "Where imports from the Sources window show").
 
 **How a version is picked.** Plynth reads the model format first: FBX, then glTF, then OBJ, then Blend, as set in the card's **Preferred format**. Among the models of that format it takes the **Quality** you set (Medium by default), or the nearest one if there is none. It takes the lowest level of detail (LOD). Textures come from the folder next to the model. When they come in several sizes, it takes the largest up to **Largest texture** (4096 px by default), or the smallest if all are larger. Pictures that only show a preview are never used as textures.
 
@@ -1364,7 +1367,7 @@ If the file of a plan image has been moved or deleted, Plynth still opens the pr
 A script or another program can edit the project while Plynth has it open. To keep your work and its work apart, it first begins an edit session. While one is active:
 
 - A banner under the title bar says "Being edited from the command line by <name>. Changes appear here as they are saved."
-- The plan is dimmed. Undo, Redo, Save, Save as and Set plan image are disabled. New project and Open project still work.
+- The plan is dimmed. Undo, Redo, Save, Save as and the floor tab's Set plan image are disabled. New project and Open project still work.
 - The Scale, Wall, Opening, Room and Furniture tools, Delete, dragging in the plan and the wall view, and every box in the properties panel are disabled. You can still click to select and look.
 - Changes appear on screen within a second, with the zoom and position unchanged.
 - When the session ends, or after 5 minutes without a command, the plan reloads once and becomes editable again.
@@ -1440,7 +1443,7 @@ Plynth comes with samples drawn for it: plan images, furniture models, materials
 
 - **Sample projects** on the home screen open a copy of the sample in your projects folder, named after it: "Apartment", then "Apartment (2)". The sample itself never changes. If the project uses items your library does not have yet, add the sample items and build.
 - **Catalog > Add the sample items** imports every sample model and material with the license CC0 and copies the sample shapes and generators into your library. An item the library has already is skipped and keeps its own license.
-- **Sample plans** on the home screen start a new project from a sample plan image.
+- **Sample plans** on the home screen open the New project window and start the new project with that sample as the plan image of floor 1.
 
 ## Author and the license report
 

@@ -91,8 +91,18 @@ public:
 
     // Open a project folder, replacing the document. No questions asked. On failure the document is unchanged.
     bool openProject(const QString& folder, QString* error);
-    // Starts an untitled project whose floor has this image. No undo step.
+    // For checks only: starts an untitled project whose floor has this image. No undo step.
     bool newFromImage(const QString& path, QString* error);
+    // Asks for the name and the location of a new project, creates its folder, saves it there and opens it.
+    // With an image, floor 1 starts with it. False when it was cancelled or failed; the open project stays.
+    bool startNewProject(const QString& image);
+    // For checks only: makes and opens a new project in this folder, named after it, as Create in the New
+    // project dialog does. With an image, floor 1 starts with it. False when it cannot.
+    bool createProjectForCheck(const QString& folder, const QString& image);
+    // For checks only: shows the New project dialog without waiting, with the fields filled when given.
+    void showNewProjectDialogForCheck(const QString& name, const QString& location);
+    // For checks only: opens the menu of a floor's tab without waiting. False for an unknown floor.
+    bool showFloorMenuForCheck(const QString& floorId);
     // Sets the image of the shown floor with an undoable command.
     bool setPlanImage(const QString& path, QString* error);
     // True when the shown floor has an image that could not be opened.
@@ -287,10 +297,14 @@ private:
     QString updateBusyReason() const;
     void closeForInstaller();
     void importDialog();
+    void importDialogFor(const QString& origin);
     void importPaths(const QStringList& paths);
-    void materialImportFinished(bool ok, const QString& materialId, const QString& message, bool skipped, bool thumbnailFailed);
+    void importPathsFrom(const QStringList& paths, const QString& origin);
+    void materialImportFinished(bool ok, const QString& materialId, const QString& message, bool skipped, bool thumbnailFailed,
+                                const QString& origin);
     void addMaterialFromAsset(const QString& assetId, const QString& materialName);
-    void queueFinished(int kind, bool ok, const QString& assetId, const QString& message, bool thumbnailFailed);
+    void queueFinished(int kind, bool ok, const QString& assetId, const QString& message, bool thumbnailFailed,
+                       const QString& origin);
     void editRoomTypes();
     void openLibraryFolder();
     void openGeneratorsFolder();
@@ -298,9 +312,13 @@ private:
     void reportMissingImages(const plynth::SaveReport& report);
     void buildMenus();
     void newProject();
-    void newProjectFromImage();
+    bool askNewProject(const QString& baseName, QString* name, QString* folder);
+    plynth::Project newProjectContent(const QString& name, const QString& image) const;
+    bool createAndOpen(plynth::Project project, const QString& folder);
+    bool saveUntitled();
     void openProjectDialog();
     void setImageDialog();
+    void setFloorImageDialog(const QString& floorId);
     bool saveDocument();
     bool saveDocumentAs();
     bool confirmDiscardChanges();
@@ -420,6 +438,7 @@ private:
     QAction* openBlenderAction_ = nullptr;
     QAction* save3dPictureAction_ = nullptr;
     QPointer<QDialog> checkPackDialog_;
+    QPointer<QDialog> checkNewProjectDialog_;
     std::optional<plynth::BuildReport> report_;
     QTimer* buildUiTimer_ = nullptr;
     QString buildProgressText_;
@@ -488,7 +507,6 @@ private:
     TerminalDock* terminal_ = nullptr;
     QList<QAction*> viewActions_;
     QAction* newAction_ = nullptr;
-    QAction* newFromImageAction_ = nullptr;
     QAction* openAction_ = nullptr;
     QAction* setImageAction_ = nullptr;
     QAction* saveAction_ = nullptr;

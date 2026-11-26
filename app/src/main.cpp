@@ -293,6 +293,26 @@ int main(int argc, char* argv[])
     parser.addOption(variationsDialogOption);
     parser.addOption(openingAssetPickerOption);
     QCommandLineOption homeOption(QStringLiteral("home"), QStringLiteral("Show the home screen. For checks only."));
+    QCommandLineOption newProjectDialogOption(QStringLiteral("new-project-dialog"),
+                                              QStringLiteral("Show the New project dialog. For checks only."));
+    QCommandLineOption newProjectNameOption(QStringLiteral("new-project-name"),
+                                            QStringLiteral("Type this name in the New project dialog. For checks only."),
+                                            QStringLiteral("text"));
+    QCommandLineOption newProjectLocationOption(QStringLiteral("new-project-location"),
+                                                QStringLiteral("Type this location in the New project dialog. For checks only."),
+                                                QStringLiteral("folder"));
+    QCommandLineOption floorMenuOption(QStringLiteral("floor-menu"),
+                                       QStringLiteral("Open the menu of this floor's tab. For checks only."),
+                                       QStringLiteral("floor id"));
+    QCommandLineOption createProjectOption(QStringLiteral("create-project"),
+                                           QStringLiteral("Make and open a new project in this folder as the New project dialog does, "
+                                                          "with --image as the plan image of floor 1. For checks only."),
+                                           QStringLiteral("folder"));
+    parser.addOption(createProjectOption);
+    parser.addOption(newProjectDialogOption);
+    parser.addOption(newProjectNameOption);
+    parser.addOption(newProjectLocationOption);
+    parser.addOption(floorMenuOption);
     parser.addOption(zoomOption);
     parser.addOption(overlayOption);
     parser.addOption(buildOption);
@@ -545,7 +565,11 @@ int main(int argc, char* argv[])
         loadFailed = !window.openProject(positional.first(), &loadError);
         loadTitle = QObject::tr("Cannot open project");
     }
-    if (parser.isSet(imageOption) && !(hasProject && loadFailed)) {
+    if (parser.isSet(createProjectOption) && !hasProject) {
+        loadFailed = !window.createProjectForCheck(parser.value(createProjectOption), parser.value(imageOption));
+        loadTitle = QObject::tr("Cannot create project");
+        loadError = QObject::tr("The project could not be made in %1.").arg(parser.value(createProjectOption));
+    } else if (parser.isSet(imageOption) && !(hasProject && loadFailed)) {
         QString imageError;
         const QString image = parser.value(imageOption);
         const bool ok = hasProject ? window.setPlanImage(image, &imageError)
@@ -598,7 +622,7 @@ int main(int argc, char* argv[])
         window.showMaterialsTab();
     if (parser.isSet(selectMaterialOption))
         window.selectMaterial(parser.value(selectMaterialOption));
-    if (parser.isSet(homeOption) || (!quiet && !hasProject && !parser.isSet(imageOption)))
+    if (parser.isSet(homeOption) || (!quiet && !hasProject && !parser.isSet(imageOption) && !parser.isSet(createProjectOption)))
         window.showHome();
     window.show();
     if (parser.isSet(helpPageOption)) {
@@ -626,6 +650,15 @@ int main(int argc, char* argv[])
         QTimer::singleShot(100, &window, [&window]() { window.showProjectFinish(); });
     if (parser.isSet(variationsDialogOption))
         QTimer::singleShot(0, &window, [&window]() { window.showVariationsDialog(false); });
+    if (parser.isSet(newProjectDialogOption)) {
+        const QString name = parser.value(newProjectNameOption);
+        const QString location = parser.value(newProjectLocationOption);
+        QTimer::singleShot(0, &window, [&window, name, location]() { window.showNewProjectDialogForCheck(name, location); });
+    }
+    if (parser.isSet(floorMenuOption)) {
+        const QString floor = parser.value(floorMenuOption);
+        QTimer::singleShot(250, &window, [&window, floor]() { window.showFloorMenuForCheck(floor); });
+    }
     if (parser.isSet(openingAssetPickerOption))
         QTimer::singleShot(250, &window, [&window]() { window.showOpeningAssetPicker(QString()); });
     if (parser.isSet(blenderKitAddressOption))

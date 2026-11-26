@@ -39,9 +39,10 @@ ImportQueue::~ImportQueue()
 }
 
 // Adds a file or folder to import with default fields.
-int ImportQueue::enqueueImport(const QString& path)
+int ImportQueue::enqueueImport(const QString& path, const QString& origin)
 {
     QueueItem item;
+    item.origin = origin;
     item.kind = QueueItem::Kind::Import;
     item.title = QFileInfo(path).fileName();
     item.request.source.file = toPath(path);
@@ -49,9 +50,10 @@ int ImportQueue::enqueueImport(const QString& path)
 }
 
 // Adds an import with every field of the request.
-int ImportQueue::enqueueRequest(const plynth::ImportRequest& request)
+int ImportQueue::enqueueRequest(const plynth::ImportRequest& request, const QString& origin)
 {
     QueueItem item;
+    item.origin = origin;
     item.kind = QueueItem::Kind::Import;
     item.title = request.source.file.empty() ? fromCore(request.source.url)
                                              : QString::fromStdWString(request.source.file.filename().wstring());
@@ -281,11 +283,12 @@ void ImportQueue::onDone(int id, const plynth::ImportOutcome& outcome)
     QString assetId = fromCore(outcome.assetId);
     if (assetId.isEmpty())
         assetId = found->assetId;
+    const QString origin = found->origin;
     if (outcome.status.ok() || cancelled) {
         items_.erase(found);
         emit itemsChanged();
         if (!cancelled)
-            emit finished(kind, true, assetId, QString(), outcome.thumbnailFailed);
+            emit finished(kind, true, assetId, QString(), outcome.thumbnailFailed, origin);
         startNext();
         return;
     }
@@ -305,7 +308,7 @@ void ImportQueue::onDone(int id, const plynth::ImportOutcome& outcome)
     found->pickable = hasFile && nonePicked && models != outcome.details.end() && models->is_array() && models->size() > 1;
     const QString message = found->message;
     emit itemsChanged();
-    emit finished(kind, false, assetId, message, true);
+    emit finished(kind, false, assetId, message, true, origin);
     startNext();
 }
 
