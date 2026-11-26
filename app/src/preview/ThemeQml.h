@@ -11,6 +11,10 @@ class ThemeQml : public QObject {
     Q_OBJECT
     Q_PROPERTY(QColor ground READ ground CONSTANT)
     Q_PROPERTY(QColor muted READ muted CONSTANT)
+    Q_PROPERTY(QColor text READ text CONSTANT)
+    Q_PROPERTY(QColor raised READ raised CONSTANT)
+    Q_PROPERTY(QColor line READ line CONSTANT)
+    Q_PROPERTY(int radius READ radius CONSTANT)
     Q_PROPERTY(QColor signalAmber READ signalAmber CONSTANT)
     Q_PROPERTY(QColor lightColor READ lightColor CONSTANT)
     Q_PROPERTY(QColor skyTopColor READ skyTopColor CONSTANT)
@@ -28,6 +32,10 @@ public:
 
     QColor ground() const;
     QColor muted() const;
+    QColor text() const;
+    QColor raised() const;
+    QColor line() const;
+    int radius() const;
     QColor signalAmber() const;
     QColor lightColor() const;
     QColor skyTopColor() const;

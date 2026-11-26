@@ -138,6 +138,13 @@ public:
     // For checks only: shows the pack dialog ("pack", from a check that writes nothing) or the unpack dialog
     // ("unpack") without waiting, so a screenshot includes it.
     void showPackDialogForCheck(const QString& kind);
+    // For checks only: once the 3D page has drawn the building, copies the build folder given over the project's
+    // build folder and loads it as a finished build does, so a picture shows whether the new building appears.
+    void swapBuildForCheck(const QString& buildFolder);
+    // For checks only: once the 3D page has drawn the building, flies with the right button held: "look" turns
+    // the camera, "move" also holds W and turns the wheel, "frame" then presses F. The status bar says which
+    // keys the 3D view took.
+    void flyForCheck(const QString& mode);
     // For checks only: true when no setup check is open, or its check has finished.
     bool setupPictureReady();
     // For checks only: queues an import of a file or folder.
@@ -504,6 +511,8 @@ private:
     bool imageFailed_ = false;
     bool screenshotMode_ = false;
     bool recoveryPending_ = false;
+    bool swapPending_ = false;
+    bool flyPending_ = false;
     bool reloadPending_ = false;
     bool asking_ = false;
     bool nativeFrameReady_ = false;

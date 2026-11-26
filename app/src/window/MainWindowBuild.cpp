@@ -17,11 +17,15 @@
 #include "preview/RenderHost.h"
 
 #include <plynth/core/Blender.h>
+#include <plynth/core/BuildJob.h>
 #include <plynth/core/Render.h>
 #include <plynth/core/Roofs.h>
 #include <plynth/core/SetupCheck.h>
 
 #include <QAction>
+#include <QKeyEvent>
+#include <QMouseEvent>
+#include <QWheelEvent>
 #include <QApplication>
 #include <QDateTime>
 #include <QDesktopServices>
@@ -31,6 +35,8 @@
 #include <QProcess>
 #include <QTimer>
 #include <QUrl>
+
+#include <memory>
 
 namespace plynth::app {
 
@@ -150,6 +156,91 @@ void MainWindow::outsideJobEnded(const QString& kind, const QString& jobId)
             statusBar_->showMessage(tr("The export from the command line stopped before it finished. The last export stays as it was."), false);
     }
     updateBuildUi();
+}
+
+// Waits until the 3D page has drawn the building, then copies the other build in and loads it like a build.
+void MainWindow::swapBuildForCheck(const QString& buildFolder)
+{
+    if (!doc_.hasFolder())
+        return;
+    swapPending_ = true;
+    auto* timer = new QTimer(this);
+    timer->setInterval(200);
+    connect(timer, &QTimer::timeout, this, [this, timer, buildFolder]() {
+        if (!preview_->hasModel() || !preview_->pictureReady())
+            return;
+        timer->stop();
+        timer->deleteLater();
+        std::error_code ignored;
+        std::filesystem::copy(buildFolder.toStdWString(), doc_.folder() / std::string(plynth::kBuildFolderName),
+                              std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing,
+                              ignored);
+        swapPending_ = false;
+        refreshPreview();
+    });
+    timer->start();
+}
+
+// Sends the 3D view the mouse and keys of a short flight, one step at a time, as a person would.
+void MainWindow::flyForCheck(const QString& mode)
+{
+    flyPending_ = true;
+    auto* timer = new QTimer(this);
+    timer->setInterval(40);
+    auto step = std::make_shared<int>(0);
+    auto taken = std::make_shared<QStringList>();
+    connect(timer, &QTimer::timeout, this, [this, timer, mode, step, taken]() {
+        ModelView* view = preview_->scene();
+        if (*step == 0 && (view == nullptr || !preview_->hasModel() || !preview_->pictureReady()))
+            return;
+        const QPointF centre(view->width() / 2.0, view->height() / 2.0);
+        const auto mouse = [view](QEvent::Type type, const QPointF& at, Qt::MouseButton button, Qt::MouseButtons held) {
+            QMouseEvent event(type, at, view->mapToGlobal(at), button, held, Qt::NoModifier);
+            QCoreApplication::sendEvent(view, &event);
+        };
+        // A key goes first through the shortcut check, as QApplication does, and only reaches the view when it is taken.
+        const auto key = [view, taken](QEvent::Type type, Qt::Key code, const QString& text) {
+            if (type == QEvent::KeyPress) {
+                QKeyEvent check(QEvent::ShortcutOverride, code, Qt::NoModifier, text);
+                QCoreApplication::sendEvent(view, &check);
+                if (!check.isAccepted())
+                    return;
+                taken->append(text.toUpper());
+            }
+            QKeyEvent event(type, code, Qt::NoModifier, text);
+            QCoreApplication::sendEvent(view, &event);
+        };
+        const int now = (*step)++;
+        const int lookEnd = 8;
+        const int moveEnd = mode == QStringLiteral("look") ? lookEnd : lookEnd + 20;
+        const double turn = mode == QStringLiteral("look") ? 20.0 : 3.0;
+        if (now == 0) {
+            view->setFocus();
+            mouse(QEvent::MouseButtonPress, centre, Qt::RightButton, Qt::RightButton);
+        } else if (now <= lookEnd) {
+            mouse(QEvent::MouseMove, centre + QPointF(-turn * now, -turn * now / 4), Qt::NoButton, Qt::RightButton);
+        } else if (now == lookEnd + 1 && moveEnd > lookEnd) {
+            key(QEvent::KeyPress, Qt::Key_W, QStringLiteral("w"));
+        } else if (now == moveEnd - 2) {
+            QWheelEvent wheel(centre, view->mapToGlobal(centre), QPoint(), QPoint(0, 240), Qt::RightButton, Qt::NoModifier,
+                              Qt::NoScrollPhase, false);
+            QCoreApplication::sendEvent(view, &wheel);
+        } else if (now == moveEnd) {
+            if (moveEnd > lookEnd)
+                key(QEvent::KeyRelease, Qt::Key_W, QStringLiteral("w"));
+            mouse(QEvent::MouseButtonRelease, centre + QPointF(-turn * lookEnd, -turn * lookEnd / 4), Qt::RightButton, Qt::NoButton);
+            if (mode == QStringLiteral("frame")) {
+                key(QEvent::KeyPress, Qt::Key_F, QStringLiteral("f"));
+                key(QEvent::KeyRelease, Qt::Key_F, QStringLiteral("f"));
+            }
+        } else if (now > moveEnd + 4) {
+            timer->stop();
+            timer->deleteLater();
+            statusBar_->showMessage(QStringLiteral("Keys the 3D view took: %1").arg(taken->join(QStringLiteral(", "))), false);
+            flyPending_ = false;
+        }
+    });
+    timer->start();
 }
 
 // Reads build/build.json of the open project, if there is one.

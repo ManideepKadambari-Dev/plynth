@@ -668,8 +668,10 @@ You can also build from a terminal with `plynth build`. See the [Command line gu
 Press **3**, click **3D** in the bar above the plan, or use **View > 3D view** to look at the built building. Press 3 again, or click **Plan**, to go back. The 3D view only shows. Nothing you do in it changes the plan.
 
 - **Orbit:** drag with the left button. The view turns around a point in the building.
-- **Pan:** drag with the middle or right button.
+- **Pan:** drag with the middle button.
 - **Zoom:** the mouse wheel. It zooms toward the point the view turns around.
+- **Fly:** hold the right button and move the mouse to look around from where the camera stands. While the button is held, W, A, S and D move forward, left, back and right along the view, Q and E move down and up, and Shift moves faster. The mouse wheel changes the fly speed instead of zooming, and the speed shows for a moment in the bottom left corner. The speed suits the size of the building. When you let go, the camera stays where it is, and a left drag then orbits around a point in front of it.
+- **Frame:** press F while the 3D view has the keyboard to frame the whole building again.
 - **Fit:** press Ctrl+0, or use View > Fit to window, to frame the whole building again, furniture included.
 - **Top** and **Three quarter:** two small buttons in the top right corner. Top looks straight down. Three quarter looks from the front right and a little above, the same angle as the thumbnails.
 
