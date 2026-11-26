@@ -13,8 +13,8 @@
     {
       "file": "licenses/texts/vcpkg/libsodium.txt",
       "component": "libsodium 1.0.22",
-      "url": "https://raw.githubusercontent.com/jedisct1/libsodium/1.0.22-RELEASE/LICENSE",
-      "sha256": "00c9eac74e84bd7440d6830b23a6d6ac7713545482aff32260f55d367a8bae53"
+      "url": "vcpkg port libsodium 1.0.22, share/libsodium/copyright",
+      "sha256": "508a76d186356c0dd807a670ef510964f8724557024796a2c426c6c0e19ab683"
     },
     {
       "file": null,
