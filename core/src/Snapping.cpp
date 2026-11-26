@@ -67,10 +67,72 @@ bool crossingNear(const WallCurve& curve, bool keepsY, double line, Vec2 positio
     return any;
 }
 
+// Collects the places a position can line up with: the extra places and every point that is not ignored.
+std::vector<Vec2> alignmentPlaces(const Floor& floor, const SnapOptions& options)
+{
+    std::vector<Vec2> places = options.alignTo;
+    for (const Point& p : floor.points) {
+        if (!listed(options.ignorePoints, p.id)) places.push_back(positionOf(p));
+    }
+    return places;
+}
+
+// Moves a wall snap along its wall to where the vertical line through a place's x, or the horizontal line through
+// its y, crosses the wall, when that place's x or y is within radius of the position and the crossing is too. Of
+// several, the crossing closest to the position wins. So a wall that ends on another wall comes out straight
+// despite a cursor a pixel off.
+void lineUpOnWall(const Floor& floor, const Wall& wall, Vec2 position, double radius, const SnapOptions& options,
+                  SnapResult& result)
+{
+    const WallCurve curve = wallCurve(floor, wall);
+    if (!curve.valid) return;
+    bool any = false;
+    double bestDistance = radius;
+    for (const Vec2& place : alignmentPlaces(floor, options)) {
+        for (const bool keepsY : {false, true}) {
+            const double line = keepsY ? place.y : place.x;
+            if (std::abs(line - (keepsY ? position.y : position.x)) > radius) continue;
+            Vec2 crossing;
+            double offset = 0.0;
+            if (!crossingNear(curve, keepsY, line, position, crossing, offset)) continue;
+            const double d = distance(position, crossing);
+            if (d > bestDistance || (any && d >= bestDistance)) continue;
+            any = true;
+            bestDistance = d;
+            result.position = crossing;
+            result.wallOffset = offset;
+            result.alignedX.reset();
+            result.alignedY.reset();
+            (keepsY ? result.alignedY : result.alignedX) = place;
+        }
+    }
+}
+
 // Rounds a value to the nearest multiple of step, without a negative zero.
 double roundToGrid(double value, double step)
 {
     return std::round(value / step) * step + 0.0;
+}
+
+// Finds the place whose x (byX) or y lies nearest to the position's, within radius. Among equally near ones the
+// place closest to the position wins. Returns false when none is within radius.
+bool alignmentNear(const std::vector<Vec2>& places, Vec2 position, double radius, bool byX, Vec2& found)
+{
+    bool any = false;
+    double bestGap = 0.0;
+    double bestDistance = 0.0;
+    for (const Vec2& place : places) {
+        const double gap = std::abs(byX ? place.x - position.x : place.y - position.y);
+        if (gap > radius) continue;
+        const double d = distance(place, position);
+        if (!any || gap < bestGap - 1e-12 || (std::abs(gap - bestGap) <= 1e-12 && d < bestDistance)) {
+            any = true;
+            bestGap = gap;
+            bestDistance = d;
+            found = place;
+        }
+    }
+    return any;
 }
 
 }
@@ -147,11 +209,37 @@ SnapResult snapPosition(const Floor& floor, Vec2 position, const SnapOptions& op
             result.kind = SnapKind::Wall;
             result.wallId = best->id;
             result.wallOffset = bestOffset;
+            if (!options.orthogonalFrom && options.toAlignment) lineUpOnWall(floor, *best, position, radius, options, result);
             return result;
         }
     }
 
-    if (options.gridSize > 0.0 && std::isfinite(options.gridSize)) {
+    const bool grid = options.gridSize > 0.0 && std::isfinite(options.gridSize);
+    if (radius > 0.0 && options.toAlignment) {
+        const std::vector<Vec2> places = alignmentPlaces(floor, options);
+        const bool freeX = !options.orthogonalFrom || keepsY;
+        const bool freeY = !options.orthogonalFrom || !keepsY;
+        Vec2 found;
+        if (freeX && alignmentNear(places, adjusted, radius, true, found)) result.alignedX = found;
+        if (freeY && alignmentNear(places, adjusted, radius, false, found)) result.alignedY = found;
+        if (result.alignedX || result.alignedY) {
+            result.position = adjusted;
+            if (result.alignedX) {
+                result.position.x = result.alignedX->x;
+            } else if (grid && freeX) {
+                result.position.x = roundToGrid(adjusted.x, options.gridSize);
+            }
+            if (result.alignedY) {
+                result.position.y = result.alignedY->y;
+            } else if (grid && freeY) {
+                result.position.y = roundToGrid(adjusted.y, options.gridSize);
+            }
+            result.kind = SnapKind::Align;
+            return result;
+        }
+    }
+
+    if (grid) {
         if (!options.orthogonalFrom) {
             result.position = {roundToGrid(adjusted.x, options.gridSize), roundToGrid(adjusted.y, options.gridSize)};
         } else if (keepsY) {

@@ -324,3 +324,106 @@ TEST_CASE("edits are refused with locked while the app has the project open and 
     CHECK(sample.run({"point", "list"}).exitCode == kExitOk);
     CHECK(sample.run({"wall", "list"}).exitCode == kExitOk);
 }
+
+TEST_CASE("wall draw across a room splits it and the larger part keeps the id", "[cli][wall][room]") {
+    Sample sample("draw-room-split");
+    sample.drawRoomSquare();
+    const auto before = sample.run({"room", "list"}).answer.at("result").at("rooms");
+    REQUIRE(before.size() == 1);
+    const std::string roomId = before.at(0).at("id");
+
+    const auto outcome = sample.draw({"--from-x", "2", "--from-y", "3.02", "--to-x", "2", "--to-y", "6.97", "--snap",
+                                      "0.1"});
+    REQUIRE(outcome.exitCode == kExitOk);
+    const auto& made = outcome.answer.at("result").at("new_rooms");
+    REQUIRE(made.size() == 1);
+    CHECK(outcome.answer.at("result").at("rooms").size() == 2);
+
+    const auto rooms = sample.run({"room", "list"}).answer.at("result").at("rooms");
+    REQUIRE(rooms.size() == 2);
+    CHECK(rooms.at(0).at("id") == roomId);
+    CHECK(rooms.at(1).at("id") == made.at(0));
+    CHECK(rooms.at(1).at("type") == "living");
+    CHECK(rooms.at(0).at("area").get<double>() > rooms.at(1).at("area").get<double>());
+}
+
+TEST_CASE("wall draw takes the thickness of the wall it joins unless --thickness is given", "[cli][wall]") {
+    Sample sample("draw-thickness");
+    REQUIRE(sample.draw({"--from-x", "1", "--from-y", "1", "--to-x", "5", "--to-y", "1", "--thickness", "0.35"})
+                .exitCode == kExitOk);
+    const auto joined = sample.draw({"--from", "p2", "--to-x", "5", "--to-y", "4"});
+    REQUIRE(joined.exitCode == kExitOk);
+    CHECK(joined.answer.at("result").at("thickness") == 0.35);
+
+    const auto ending = sample.draw({"--from-x", "8", "--from-y", "4", "--to", "p3"});
+    REQUIRE(ending.exitCode == kExitOk);
+    CHECK(ending.answer.at("result").at("thickness") == 0.35);
+
+    const auto given = sample.draw({"--from", "p1", "--to-x", "1", "--to-y", "4", "--thickness", "0.1"});
+    REQUIRE(given.exitCode == kExitOk);
+    CHECK(given.answer.at("result").at("thickness") == 0.1);
+
+    const auto loose = sample.draw({"--from-x", "10", "--from-y", "1", "--to-x", "12", "--to-y", "1"});
+    REQUIRE(loose.exitCode == kExitOk);
+    CHECK(loose.answer.at("result").at("thickness") == 0.2);
+}
+
+TEST_CASE("wall draw with --snap lines the end up with the start", "[cli][wall]") {
+    Sample sample("draw-align");
+    const auto outcome = sample.draw({"--from-x", "1", "--from-y", "1", "--to-x", "5", "--to-y", "1.06", "--snap",
+                                      "0.1"});
+    REQUIRE(outcome.exitCode == kExitOk);
+    const auto points = sample.run({"point", "list"}).answer.at("result").at("points");
+    CHECK(points.at(1).at("x") == 5.0);
+    CHECK(points.at(1).at("y") == 1.0);
+
+    const auto exact = sample.draw({"--from-x", "1", "--from-y", "3", "--to-x", "5", "--to-y", "3.06"});
+    REQUIRE(exact.exitCode == kExitOk);
+    CHECK(sample.run({"point", "list"}).answer.at("result").at("points").at(3).at("y") == 3.06);
+}
+
+TEST_CASE("point join moves the walls onto the other point and matches the thickness", "[cli][point]") {
+    Sample sample("join");
+    sample.drawSquare();
+    REQUIRE(sample.draw({"--from-x", "7", "--from-y", "7", "--to-x", "5.1", "--to-y", "5.1", "--thickness", "0.1"})
+                .exitCode == kExitOk);
+    const auto outcome = sample.run({"point", "join", "p6", "--to", "p3"});
+    REQUIRE(outcome.exitCode == kExitOk);
+    const auto& result = outcome.answer.at("result");
+    CHECK(result.at("id") == "p3");
+    CHECK(result.at("removed_point") == "p6");
+    CHECK(result.at("new_rooms").empty());
+    CHECK(result.at("walls").size() == 3);
+    const auto walls = sample.run({"wall", "list"}).answer.at("result").at("walls");
+    CHECK(walls.at(4).at("to") == "p3");
+    CHECK(walls.at(4).at("thickness") == 0.2);
+    CHECK(sample.run({"point", "list"}).answer.at("result").at("points").size() == 5);
+}
+
+TEST_CASE("point join onto a wall splits it there", "[cli][point]") {
+    Sample sample("join-wall");
+    sample.drawSquare();
+    REQUIRE(sample.draw({"--from-x", "3", "--from-y", "-2", "--to-x", "3", "--to-y", "0.9"}).exitCode == kExitOk);
+    const auto outcome = sample.run({"point", "join", "p6", "--wall", "w1", "--offset", "2"});
+    REQUIRE(outcome.exitCode == kExitOk);
+    CHECK(outcome.answer.at("result").at("x") == 3.0);
+    CHECK(outcome.answer.at("result").at("y") == 1.0);
+    CHECK(outcome.answer.at("result").at("walls").size() == 3);
+    CHECK(sample.run({"wall", "list"}).answer.at("result").at("walls").size() == 6);
+}
+
+TEST_CASE("point join refuses bad targets and leaves plan.json unchanged", "[cli][point]") {
+    Sample sample("join-bad");
+    sample.drawSquare();
+    const auto before = readFile(sample.folder / "plan.json");
+    CHECK(sample.run({"point", "join", "p1"}).exitCode == kExitBadArguments);
+    CHECK(sample.run({"point", "join", "p1", "--to", "p3", "--wall", "w2", "--offset", "1"}).exitCode ==
+          kExitBadArguments);
+    CHECK(sample.run({"point", "join", "p1", "--wall", "w2"}).exitCode == kExitBadArguments);
+    CHECK(errorCode(sample.run({"point", "join", "p1", "--to", "p2"})) == "invalid_value");
+    CHECK(errorCode(sample.run({"point", "join", "p1", "--to", "p1"})) == "invalid_value");
+    CHECK(errorCode(sample.run({"point", "join", "p1", "--to", "p3"})) == "already_exists");
+    CHECK(errorCode(sample.run({"point", "join", "p9", "--to", "p3"})) == "not_found");
+    CHECK(errorCode(sample.run({"point", "join", "p1", "--wall", "w1", "--offset", "1"})) == "invalid_value");
+    CHECK(readFile(sample.folder / "plan.json") == before);
+}

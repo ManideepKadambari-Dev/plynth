@@ -9,7 +9,7 @@
 namespace plynth {
 
 // What a snapped position landed on.
-enum class SnapKind { None, Grid, Point, Wall };
+enum class SnapKind { None, Grid, Point, Wall, Align };
 
 // How to snap a position while drawing or dragging. All lengths in metres.
 struct SnapOptions {
@@ -19,6 +19,8 @@ struct SnapOptions {
     bool toWalls = true;
     std::optional<Vec2> orthogonalFrom; // when set, keeps the result on the horizontal or vertical line through it
     std::vector<Id> ignorePoints;       // never snapped to, nor the walls that touch them (the point being dragged)
+    bool toAlignment = true;            // line up with the x or y of a point within radius
+    std::vector<Vec2> alignTo;          // more places to line up with, such as the start of a wall not made yet
 };
 
 // A snapped position and what it snapped to.
@@ -28,6 +30,8 @@ struct SnapResult {
     Id pointId;              // for Point
     Id wallId;               // for Wall
     double wallOffset = 0.0; // for Wall: distance along the wall from its from point
+    std::optional<Vec2> alignedX; // for Align and Wall: the point or place whose x the position took, for a guide line
+    std::optional<Vec2> alignedY; // for Align and Wall: the point or place whose y the position took
 };
 
 // Snaps a position on a floor. In order:
@@ -36,10 +40,17 @@ struct SnapResult {
 // 2. The nearest point within radius wins, even over the orthogonal line, so a loop can always be closed.
 // 3. Otherwise the nearest wall within radius of its true centre line (the arc for a curved wall, see
 //    projectOntoCurve), at the closest place strictly between its two points. wallOffset is measured along
-//    that line.
-// 4. Otherwise the grid: each coordinate rounded to a multiple of gridSize, the grid starting at the image
+//    that line. Without orthogonalFrom and with toAlignment, when the x or y of a point (or alignTo place) is
+//    within radius of the position and the vertical or horizontal line through it crosses the wall within radius
+//    of the position, the place moves to that crossing instead, the one closest to the position, with alignedX or
+//    alignedY set. So a wall ending on another wall comes out straight.
+// 4. Otherwise, with toAlignment, the x of the position becomes the x of the point (not ignored) or alignTo place
+//    whose x is nearest within radius, and the same for y, so walls come out straight and corners square. With
+//    orthogonalFrom only the free coordinate lines up. A coordinate that lines up with nothing is rounded to the
+//    grid when that is on. Kind Align, with alignedX and alignedY saying what each coordinate lined up with.
+// 5. Otherwise the grid: each coordinate rounded to a multiple of gridSize, the grid starting at the image
 //    corner (0, 0). With orthogonalFrom only the free coordinate is rounded.
-// 5. Otherwise the position from step 1 with kind None.
+// 6. Otherwise the position from step 1 with kind None.
 SnapResult snapPosition(const Floor& floor, Vec2 position, const SnapOptions& options);
 
 // What is under a position.

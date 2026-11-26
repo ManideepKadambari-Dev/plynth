@@ -78,7 +78,9 @@ QIcon viewIcon(bool top, const QColor& color, int side)
 PreviewView::PreviewView(QWidget* parent) : QWidget(parent)
 {
     const Theme& t = Theme::instance();
-    setToolTip(tr("The building in 3D. Drag to orbit, middle or right drag to pan, wheel to zoom"));
+    setToolTip(tr("The building in 3D. Drag to orbit, middle drag to pan, wheel to zoom. Hold the right button to fly: "
+                  "move the mouse to look, W A S D to move, Q and E to go down and up, Shift for speed, wheel for fly "
+                  "speed. F frames the building"));
     auto* column = new QVBoxLayout(this);
     column->setContentsMargins(0, 0, 0, 0);
 

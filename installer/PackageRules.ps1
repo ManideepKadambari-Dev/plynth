@@ -7,6 +7,7 @@ $script:RenamedFiles = @{ 'installer/text/README.txt' = 'README.txt' }
 # The three marker files are how the app finds its docs, samples and licenses beside the program.
 $script:RequiredFiles = @(
     'plynth.exe', 'plynth.com', 'cli/plynth.com', 'platforms/qwindows.dll', 'blender/plynth_worker.py',
+    'blender/guard/startup/plynth_fetch_guard.py', 'blender/guard/tested_versions.json',
     'schema/plan.schema.json', 'samples/shapes/keyhole.shape.json', 'docs/GETTING_STARTED.md', 'LICENSE',
     'AUTHORS', 'README.txt', 'licenses/THIRD_PARTY_NOTICES.md', 'licenses/texts/CC0-1.0.txt', 'samples/LICENSE',
     'samples/samples.json'
@@ -38,7 +39,9 @@ $script:DebugRuntimeNames = @('msvcp140d.dll', 'vcruntime140d.dll', 'vcruntime14
 function Test-DataFile([string]$file) {
     if ($file -eq 'LICENSE' -or $file -eq 'AUTHORS') { return $true }
     if ($file -like 'blender/*') {
-        return ($file -eq 'blender/plynth_worker.py' -or $file -like 'blender/plynth/*') -and $file -notlike '*/__pycache__/*'
+        # The guard folder is loaded by Blender before any add-on when a store fetch runs.
+        $shipped = $file -eq 'blender/plynth_worker.py' -or $file -like 'blender/plynth/*' -or $file -like 'blender/guard/*'
+        return $shipped -and $file -notlike '*/__pycache__/*'
     }
     if ($file -like 'schema/*') { return $true }
     if ($file -like 'docs/*') { return $file -notlike 'docs/architecture/*' }

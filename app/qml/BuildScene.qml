@@ -3,16 +3,21 @@ import QtQuick3D
 import QtQuick3D.AssetUtils
 import QtQuick3D.Helpers
 
-// The 3D scene of the app: one model from an FBX file, lit, with a camera that orbits a target.
+// The 3D scene of the app: one model from an FBX file, lit, with a camera that orbits a target or flies.
 // "scene" is the C++ ModelView that hosts it, "Theme" holds every color and number.
 Item {
     id: root
+    focus: true
 
     property real yaw: 45
     property real pitch: 25
     property real distance: 10
     property vector3d target: Qt.vector3d(0, 0, 0)
     property bool userMoved: false
+    property bool flying: false
+    property bool flown: false
+    property real flyScale: 1
+    property var heldKeys: ({})
 
     readonly property real fieldOfView: 40
     readonly property real fitMargin: 1.06
@@ -22,6 +27,25 @@ Item {
     readonly property real zoomStep: 0.88
     readonly property real fbxUnit: 0.01
     readonly property real shadowBias: 5
+    readonly property real lookSpeed: 0.25
+    readonly property real flyPitchLimit: 89.9
+    readonly property real flySpeedPerSize: 0.4
+    readonly property real flyFastFactor: 3
+    readonly property real flyWheelStep: 1.25
+    readonly property real minFlyScale: 0.05
+    readonly property real maxFlyScale: 20
+    readonly property real maxFrameTime: 0.1
+    readonly property real flyNear: 0.05
+
+    // The length of the diagonal of the building's box, which sets the fly speed.
+    readonly property real buildingSize: {
+        var lo = scene.boundsMin
+        var hi = scene.boundsMax
+        var dx = hi.x - lo.x, dy = hi.y - lo.y, dz = hi.z - lo.z
+        return Math.max(1, Math.sqrt(dx * dx + dy * dy + dz * dz))
+    }
+    // How far the camera is from the far side of the building, so the far clip plane never cuts it.
+    property real farReach: 0
 
     readonly property bool topOrtho: scene.orthoScale > 0
 
@@ -40,6 +64,76 @@ Item {
                                       root.target.y + root.distance * Math.sin(p),
                                       root.target.z + root.distance * cp * Math.cos(y))
         camera.lookAt(root.target)
+        var lo = scene.boundsMin
+        var hi = scene.boundsMax
+        var c = camera.position
+        var fx = Math.max(Math.abs(c.x - lo.x), Math.abs(c.x - hi.x))
+        var fy = Math.max(Math.abs(c.y - lo.y), Math.abs(c.y - hi.y))
+        var fz = Math.max(Math.abs(c.z - lo.z), Math.abs(c.z - hi.z))
+        root.farReach = Math.sqrt(fx * fx + fy * fy + fz * fz)
+    }
+
+    // The direction the camera looks in, from the yaw and pitch.
+    function forward() {
+        var p = root.pitch * Math.PI / 180
+        var y = root.yaw * Math.PI / 180
+        var cp = Math.cos(p)
+        return Qt.vector3d(-cp * Math.sin(y), -Math.sin(p), -cp * Math.cos(y))
+    }
+
+    // Turns the camera where it stands: the orbit target becomes the point the same distance in front of it.
+    function look(dx, dy) {
+        var eye = camera.position
+        root.yaw -= dx * root.lookSpeed
+        root.pitch = Math.max(-root.flyPitchLimit, Math.min(root.flyPitchLimit, root.pitch + dy * root.lookSpeed))
+        var f = forward()
+        root.target = Qt.vector3d(eye.x + f.x * root.distance, eye.y + f.y * root.distance, eye.z + f.z * root.distance)
+        root.flown = true
+        updateCamera()
+    }
+
+    // True while this key is held down.
+    function held(key) {
+        return root.heldKeys[key] === true
+    }
+
+    // Moves the camera for one frame by the held keys: along the view, to the side, and straight up or down.
+    function flyStep(seconds) {
+        var ahead = (held(Qt.Key_W) ? 1 : 0) - (held(Qt.Key_S) ? 1 : 0)
+        var side = (held(Qt.Key_D) ? 1 : 0) - (held(Qt.Key_A) ? 1 : 0)
+        var rise = (held(Qt.Key_E) ? 1 : 0) - (held(Qt.Key_Q) ? 1 : 0)
+        if (ahead === 0 && side === 0 && rise === 0)
+            return
+        var step = root.buildingSize * root.flySpeedPerSize * root.flyScale * Math.min(seconds, root.maxFrameTime)
+        if (held(Qt.Key_Shift))
+            step *= root.flyFastFactor
+        var f = forward()
+        var y = root.yaw * Math.PI / 180
+        var r = Qt.vector3d(Math.cos(y), 0, -Math.sin(y))
+        root.target = Qt.vector3d(root.target.x + (f.x * ahead + r.x * side) * step,
+                                  root.target.y + (f.y * ahead + rise) * step,
+                                  root.target.z + (f.z * ahead + r.z * side) * step)
+        root.userMoved = true
+        root.flown = true
+        updateCamera()
+    }
+
+    // Ends a flight: the camera stays where it is and the held keys are forgotten.
+    function stopFlying() {
+        root.flying = false
+        root.heldKeys = ({})
+    }
+
+    // The keys a flight uses.
+    function isFlyKey(key) {
+        return key === Qt.Key_W || key === Qt.Key_A || key === Qt.Key_S || key === Qt.Key_D ||
+               key === Qt.Key_Q || key === Qt.Key_E || key === Qt.Key_Shift
+    }
+
+    // Frames the whole building again from the present side, back on an orbit above it.
+    function frameAll() {
+        root.pitch = Math.max(root.minPitch, Math.min(root.maxPitch, root.pitch))
+        fit()
     }
 
     // Frames the whole bounding box for the current angle, as tightly as the window allows.
@@ -74,6 +168,7 @@ Item {
         root.target = centre
         root.distance = need * root.fitMargin
         root.userMoved = false
+        root.flown = false
         updateCamera()
     }
 
@@ -173,6 +268,21 @@ Item {
         }
     }
 
+    // Empties every loader, which also frees the mesh data it registered, and makes fresh loaders for the parts
+    // the host gives now, so a file written again at the same path is read again.
+    function takeParts() {
+        root.applied = false
+        destroyMade()
+        for (var i = 0; i < partLoaders.count; i++) {
+            var item = partLoaders.objectAt(i)
+            if (item)
+                item.source = ""
+        }
+        root.partList = []
+        root.partList = scene.parts
+    }
+
+    // Removes the textures and materials made for the last load.
     function destroyMade() {
         for (var i = 0; i < root.madeObjects.length; i++)
             root.madeObjects[i].destroy()
@@ -212,15 +322,7 @@ Item {
         function onPresetChanged() { root.applyPreset() }
         function onFitRequested() { root.fit() }
         function onBoundsChanged() { root.fit() }
-        function onPartsChanged() {
-            root.applied = false
-            root.partList = scene.parts
-        }
-        function onReloadRequested() {
-            root.applied = false
-            root.partList = []
-            Qt.callLater(function() { root.partList = scene.parts })
-        }
+        function onPartsChanged() { root.takeParts() }
     }
 
     // The 3D view is transparent so the Ground colour shows exactly, without the renderer's colour curve.
@@ -262,8 +364,8 @@ Item {
         PerspectiveCamera {
             id: camera
             fieldOfView: root.fieldOfView
-            clipNear: Math.max(0.05, root.distance * 0.02)
-            clipFar: root.distance * 4 + 10
+            clipNear: root.flown ? root.flyNear : Math.max(root.flyNear, root.distance * 0.02)
+            clipFar: Math.max(root.distance * 4, root.farReach * 1.2) + 10
         }
 
         OrthographicCamera {
@@ -283,7 +385,7 @@ Item {
             shadowFactor: 55
             shadowMapQuality: Light.ShadowMapQualityHigh
             softShadowQuality: Light.PCF8
-            shadowMapFar: root.distance * 4 + 10
+            shadowMapFar: Math.max(root.distance * 4, root.farReach * 1.2) + 10
             shadowBias: root.shadowBias
         }
 
@@ -301,6 +403,37 @@ Item {
         }
     }
 
+    FrameAnimation {
+        running: root.flying
+        onTriggered: root.flyStep(frameTime)
+    }
+
+    Keys.onShortcutOverride: function(event) {
+        if ((root.flying && root.isFlyKey(event.key)) || (event.key === Qt.Key_F && event.modifiers === Qt.NoModifier))
+            event.accepted = true
+    }
+    Keys.onPressed: function(event) {
+        if (root.flying && root.isFlyKey(event.key)) {
+            var keys = root.heldKeys
+            keys[event.key] = true
+            root.heldKeys = keys
+            event.accepted = true
+        } else if (event.key === Qt.Key_F && event.modifiers === Qt.NoModifier && !event.isAutoRepeat
+                   && scene.interactive && !root.topOrtho) {
+            root.frameAll()
+            event.accepted = true
+        }
+    }
+    Keys.onReleased: function(event) {
+        if (event.isAutoRepeat || !root.isFlyKey(event.key))
+            return
+        var keys = root.heldKeys
+        delete keys[event.key]
+        root.heldKeys = keys
+        event.accepted = root.flying
+    }
+    onActiveFocusChanged: if (!activeFocus) root.stopFlying()
+
     MouseArea {
         anchors.fill: parent
         enabled: scene.interactive
@@ -311,17 +444,30 @@ Item {
         onPressed: function(mouse) {
             lastX = mouse.x
             lastY = mouse.y
+            root.forceActiveFocus()
+            if (mouse.button === Qt.RightButton && !root.topOrtho)
+                root.flying = true
         }
+        onReleased: function(mouse) {
+            if (mouse.button === Qt.RightButton)
+                root.stopFlying()
+        }
+        onCanceled: root.stopFlying()
         onPositionChanged: function(mouse) {
             var dx = mouse.x - lastX
             var dy = mouse.y - lastY
             lastX = mouse.x
             lastY = mouse.y
             root.userMoved = true
+            if (root.flying) {
+                root.look(dx, dy)
+                return
+            }
             if (mouse.buttons & Qt.LeftButton) {
                 root.yaw -= dx * root.orbitSpeed
-                root.pitch = Math.max(root.minPitch, Math.min(root.maxPitch, root.pitch + dy * root.orbitSpeed))
-            } else if (mouse.buttons & (Qt.MiddleButton | Qt.RightButton)) {
+                root.pitch = Math.max(Math.min(root.minPitch, root.pitch),
+                                      Math.min(root.maxPitch, root.pitch + dy * root.orbitSpeed))
+            } else if (mouse.buttons & Qt.MiddleButton) {
                 var y = root.yaw * Math.PI / 180
                 var p = root.pitch * Math.PI / 180
                 var perPixel = 2 * root.distance * Math.tan(root.fieldOfView * Math.PI / 360) / root.height
@@ -336,8 +482,48 @@ Item {
         }
         onWheel: function(wheel) {
             root.userMoved = true
+            if (root.flying) {
+                root.flyScale = Math.max(root.minFlyScale, Math.min(root.maxFlyScale,
+                                         root.flyScale * Math.pow(root.flyWheelStep, wheel.angleDelta.y / 120)))
+                speedHint.show()
+                return
+            }
             root.distance = Math.max(0.2, Math.min(300, root.distance * Math.pow(root.zoomStep, wheel.angleDelta.y / 120)))
             root.updateCamera()
+        }
+    }
+
+    Rectangle {
+        id: speedHint
+        anchors.left: parent.left
+        anchors.bottom: parent.bottom
+        anchors.margins: 2 * Theme.unit
+        width: speedText.implicitWidth + 4 * Theme.unit
+        height: speedText.implicitHeight + 2 * Theme.unit
+        radius: Theme.radius
+        color: Theme.raised
+        border.color: Theme.line
+        visible: false
+
+        // Shows the fly speed for a moment.
+        function show() {
+            visible = true
+            hideTimer.restart()
+        }
+
+        Text {
+            id: speedText
+            anchors.centerIn: parent
+            text: qsTr("Fly speed %1x").arg(root.flyScale.toFixed(2))
+            color: Theme.text
+            font.family: Theme.uiFamily
+            font.pixelSize: Theme.sizeNormal
+        }
+
+        Timer {
+            id: hideTimer
+            interval: 1200
+            onTriggered: speedHint.visible = false
         }
     }
 

@@ -15,6 +15,8 @@
 #include <QTimer>
 #include <QVariantMap>
 
+#include <algorithm>
+
 namespace plynth::app {
 
 namespace {
@@ -61,6 +63,8 @@ ModelView::ModelView(bool interactive, bool shadows, QWidget* parent, double ort
     : QQuickWidget(parent), interactive_(interactive), orthoScale_(orthoScale), shadows_(shadows)
 {
     setResizeMode(QQuickWidget::SizeRootObjectToView);
+    if (interactive)
+        setFocusPolicy(Qt::StrongFocus);
     if (orthoScale > 0) {
         setAttribute(Qt::WA_TranslucentBackground);
         setClearColor(Qt::transparent);
@@ -70,6 +74,14 @@ ModelView::ModelView(bool interactive, bool shadows, QWidget* parent, double ort
     rootContext()->setContextProperty(QStringLiteral("Theme"), sharedTheme());
     rootContext()->setContextProperty(QStringLiteral("scene"), this);
     connect(quickWindow(), &QQuickWindow::afterRendering, this, [this]() {
+        if (holding_ || parts_.isEmpty())
+            emptyFrames_ = std::min(emptyFrames_ + 1, kEmptyFramesBeforeLoad);
+        else
+            emptyFrames_ = 0;
+        if (holding_) {
+            QTimer::singleShot(0, this, &ModelView::continueHold);
+            return;
+        }
         if (state_ == State::Ready && framesSinceLoad_ < kFramesAfterLoad && ++framesSinceLoad_ == kFramesAfterLoad)
             emit pictureDrawn();
     });
@@ -171,11 +183,36 @@ void ModelView::setParts(const QList<Part>& parts, const QVector3D& boundsMin, c
     framesSinceLoad_ = 0;
     emit stateChanged();
     emit boundsChanged();
-    if (same)
-        emit reloadRequested();
-    else {
+    if (!same)
         emit modelFileChanged();
+    startLoad();
+}
+
+// Gives the parts to the scene, after the frames without a model the renderer needs to forget the last ones.
+void ModelView::startLoad()
+{
+    if (emptyFrames_ >= kEmptyFramesBeforeLoad) {
+        holding_ = false;
         emit partsChanged();
+        return;
+    }
+    const bool wasHolding = holding_;
+    holding_ = true;
+    if (!wasHolding)
+        emit partsChanged();
+    quickWindow()->update();
+}
+
+// Asks for another frame while the scene waits empty, and loads the parts once enough have been drawn.
+void ModelView::continueHold()
+{
+    if (!holding_)
+        return;
+    if (emptyFrames_ >= kEmptyFramesBeforeLoad) {
+        holding_ = false;
+        emit partsChanged();
+    } else {
+        quickWindow()->update();
     }
 }
 
@@ -220,6 +257,8 @@ void ModelView::updateVisibility()
 QVariantList ModelView::partUrls() const
 {
     QVariantList list;
+    if (holding_)
+        return list;
     for (const Part& part : parts_)
         list.append(part.file);
     return list;
@@ -234,7 +273,7 @@ void ModelView::reloadModel()
     state_ = State::Loading;
     framesSinceLoad_ = 0;
     emit stateChanged();
-    emit reloadRequested();
+    startLoad();
 }
 
 // Drops the model and shows the text.
@@ -245,6 +284,7 @@ void ModelView::clearModel(const QString& emptyText)
     file_.clear();
     parts_.clear();
     partVisible_.clear();
+    holding_ = false;
     state_ = State::Empty;
     error_.clear();
     emptyText_ = emptyText;

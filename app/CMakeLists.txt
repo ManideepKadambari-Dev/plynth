@@ -63,6 +63,8 @@ add_executable(plynth WIN32
     src/furniture/GeneratorPreview.cpp
     src/furniture/FurniturePicker.h
     src/furniture/FurniturePicker.cpp
+    src/dialogs/NewProjectDialog.h
+    src/dialogs/NewProjectDialog.cpp
     src/dialogs/PackDialog.h
     src/dialogs/PackDialog.cpp
     src/dialogs/RoomTypesDialog.h
@@ -125,6 +127,8 @@ add_executable(plynth WIN32
     src/tools/OpeningTool.cpp
     src/tools/RoomTool.h
     src/tools/RoomTool.cpp
+    src/tools/SnapGuides.h
+    src/tools/SnapGuides.cpp
     src/tools/ScaleTool.h
     src/tools/ScaleTool.cpp
     src/tools/StairTool.h
@@ -166,6 +170,7 @@ add_executable(plynth WIN32
     src/window/MainWindowExport.cpp
     src/window/MainWindowPack.cpp
     src/window/MainWindowUpdate.cpp
+    src/window/MainWindowWallCheck.cpp
     src/window/ReadOnlyBanner.h
     src/window/ReadOnlyBanner.cpp
     src/window/StatusBar.h

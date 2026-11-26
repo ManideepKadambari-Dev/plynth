@@ -99,6 +99,7 @@ add_executable(plynth_core_tests
     core/SnappingTests.cpp
     core/RoomTypesTests.cpp
     core/WallCommandTests.cpp
+    core/WallJoinTests.cpp
     core/RoomsTests.cpp
     core/RoomCommandTests.cpp
     core/DeleteCommandTests.cpp

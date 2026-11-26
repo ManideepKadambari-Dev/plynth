@@ -14,8 +14,8 @@ namespace plynth::app {
 class LibraryHost;
 
 // The page shown when no project is open (DESIGN.md section 7.19e): recent projects with thumbnails on the
-// right, and on the left the buttons to start or open a project, the help pages, the sample plans, the setup
-// status and the projects folder. It asks the window to do things through signals and reads the recent list
+// right, and on the left the buttons to start or open a project, the help pages, the sample plans and projects,
+// the setup status and the projects folder. It asks the window to do things through signals and reads the recent list
 // from the library host.
 class HomeScreen : public QWidget {
     Q_OBJECT
@@ -29,7 +29,6 @@ public:
 
 signals:
     void newProjectRequested();
-    void newFromImageRequested();
     void openProjectRequested();
     void openRecentRequested(const QString& folder);
     void openSampleRequested(const QString& imageFile);

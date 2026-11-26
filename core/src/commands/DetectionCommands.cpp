@@ -164,6 +164,7 @@ Status ApplyDetectionCommand::apply(Project& project)
         if (planPoint[index]) return WallEnd::atPoint(*planPoint[index]);
         SnapOptions options;
         options.radius = std::max(thickness / 2.0, kMinSnapRadius);
+        options.toAlignment = false; // accepted walls keep the places detection measured
         return wallEndFromSnap(snapPosition(*floor, marked.points[index], options));
     };
 

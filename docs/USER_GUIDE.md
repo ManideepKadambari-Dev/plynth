@@ -20,9 +20,10 @@ Projects join the list when you open or save them in the app. The list keeps the
 
 **The left side** has:
 
-- **New project**, **New project from plan image** and **Open project**, the same as the File menu.
+- **New project** and **Open project**, the same as the File menu.
 - **Help**: the help pages, such as Getting started, User guide, Keyboard shortcuts and the CLI developer guide. Each opens in the Help window. See "Help".
-- **Sample plans**: the sample plan images that come with Plynth. Click one to start a new project from it, a quick way to try the tools.
+- **Sample plans**: the sample plan images that come with Plynth. Click one to start a new project with it as the plan image of floor 1, a quick way to try the tools. The New project window opens first, as for **New project**.
+- **Sample projects**: whole projects to open and look around in. See "Samples".
 - **Setup status**: "Setup is ready.", or in amber what needs attention, with a **Fix** button that opens the setup check. See [Setting up Plynth](SETUP.md).
 - **Projects folder**: the folder where new projects go. Click it to open it.
 
@@ -50,19 +51,18 @@ Two small files, `session.lock` and `app-state.json`, may also appear. They are 
 
 ### Create and open
 
-- **File > New project** (Ctrl+N) starts an empty, untitled project.
-- **File > New project from image** (Ctrl+Shift+N) starts an untitled project with a plan image already in place.
+- **File > New project...** (Ctrl+N), or **New project** on the home screen, opens the New project window. Type a **Name** and choose the **Location**, the folder the project folder goes in. It starts at your projects folder, and **Browse...** picks another. The window shows the folder it will make. **Create** makes that folder, saves the new project in it and opens it, so **Save** never asks for a folder later. **Cancel** leaves the open project as it was. Create stays off, with a sentence that says why, while the name cannot be a folder name (it is empty, holds one of `\ / : * ? " < > |`, ends with a dot, or is a name Windows keeps, such as CON) or while the location already has a folder of that name with files in it.
 - **File > Open project** (Ctrl+O) asks for a project folder. You can also pick one from the recent list on the home screen.
 - **File > Close project** (Ctrl+W) closes the project and goes to the home screen. If there are unsaved changes it asks "Save changes to <name>?" first, with Save, Don't save and Cancel.
 - **File > Home** (Ctrl+Shift+H) goes to the home screen and keeps the project open behind it.
 
 You can also open a folder from a terminal: `plynth MyApartment`.
 
-An untitled project has no folder yet. Save it to give it one.
+A new project always has its folder. Starting a new project with unsaved changes asks "Save changes to <name>?" first, after you press Create.
 
 ## The plan image
 
-**File > Set plan image** (Ctrl+Shift+O), or drop a PNG, JPEG or BMP file on the window. The image is set on the current floor. You can undo it.
+Right-click a floor tab under the plan, such as **Floor 1**, and choose **Set plan image...**, or **Replace plan image...** when the floor has one. Then pick a PNG, JPEG or BMP. The image is set on that floor, and that floor is shown. You can undo it. Ctrl+Shift+O and dropping an image file on the window set the image of the floor that is shown. A floor with no image says "Right-click the floor tab to set a plan image" in the middle of the plan.
 
 Plynth fits the image to the window. Zoom with the mouse wheel, pan with the middle button or with Space and the left button. Ctrl+0 fits again and Ctrl+1 shows 100 percent. The full list is in the shortcuts page.
 
@@ -140,18 +140,21 @@ Press W, or click the Wall tool. While it is active, the grid shows as thin line
 4. To close a room, click the first point of the chain again. The wall is drawn and the chain ends by itself.
 5. To stop without closing, press Esc or click the right mouse button. The next click starts a new chain.
 
-An amber band follows the mouse, with the thickness of the wall that would be drawn. The amber mark at its end shows what the click would snap to.
+An amber band follows the mouse, with the thickness of the wall that would be drawn. The amber mark at its end shows what the click would snap to, and thin dashed amber lines show which points it lines up with.
 
 **Snapping.** A click does not land exactly where the mouse is. Plynth looks, in this order:
 
 1. An existing point within about 10 screen pixels. The wall then uses that point. A ring marks it.
 2. The body of an existing wall within the same distance. The wall you draw ends on it, and the old wall is cut in two there, so they meet at a shared point. This is a T junction. A small cross marks it.
-3. The grid, if "Snap to grid" is on. A small plus marks the grid point.
-4. Nothing: the exact spot you clicked.
+3. Lining up. When the x or the y of the spot is within the same distance of the x or y of another point (or of the start of the wall being drawn), it takes exactly that x or y. A thin dashed line runs from that point to the spot. So a wall from one point to a spot a little higher or lower comes out exactly straight, and corners come out square.
+4. The grid, if "Snap to grid" is on. A small plus marks the grid point. When only one of x and y lines up, the other one goes to the grid.
+5. Nothing: the exact spot you clicked.
 
-**Keys while drawing.** Hold Shift while you click to keep the new wall exactly horizontal or vertical from the last point. A point close by still wins over Shift, so you can always close a loop. Hold Ctrl while you click to place the point freely, with no snapping at all. Press G, or use View > Snap to grid, to turn grid snapping on or off. Snapping to points and walls stays on.
+**Keys while drawing.** Hold Shift while you click to keep the new wall exactly horizontal or vertical from the last point. A point close by still wins over Shift, so you can always close a loop. Hold Ctrl while you click to place the point freely, with no snapping and no lining up at all. Press G, or use View > Snap to grid, to turn grid snapping on or off. Snapping to points and walls, and lining up, stay on.
 
-**Thickness.** While the Wall tool is active, the properties panel has a "New walls" box. It sets the thickness for the walls you draw next. It starts at 0.2 m and is kept until you close Plynth.
+**Thickness.** A wall drawn from or to an existing point or wall takes the thickness of the wall it joins, so walls that meet match. When both ends join walls of different thickness, the start wins. A wall that joins nothing gets the thickness in the "New walls" box, which the properties panel shows while the Wall tool is active. It starts at 0.2 m and is kept until you close Plynth. The amber band shows the thickness the wall will get. Changing a wall's thickness later in the properties panel changes only that wall.
+
+**Splitting rooms.** A wall drawn across a room, from one point of its outline to another through its inside, splits the room in two in the same step. The part with the larger area keeps the room. The other part becomes a new room with the same type, materials and dressing setting, and furniture and lights standing in it move to it. A wall that only touches a room at one point, or runs outside it, leaves the room as it is. Ctrl+Z makes it one room again.
 
 Every wall is one undo step, even when it also made new points or cut another wall. Ctrl+Z removes the wall and puts the cut wall back together. If you undo, redo or reload while a chain is open, the chain ends.
 
@@ -160,7 +163,9 @@ Every wall is one undo step, even when it also made new points or cut another wa
 Press V for the Select tool. It is the tool you start with.
 
 - Click a point, a wall, an opening, a piece of furniture or a room to select it. It turns amber, and the properties panel on the right shows it. Click on nothing, or press Esc, to clear the selection.
-- Drag a point to move it. The walls at the point follow. The point snaps to the grid, and Shift keeps its move straight. It never snaps onto other points or walls. A whole drag is one undo step.
+- Drag a point to move it. The walls at the point follow. It snaps like a click of the Wall tool: onto other points and walls, lined up with nearby points (a dashed line shows it), and to the grid. Shift keeps its move straight, and Ctrl moves it freely. A whole drag is one undo step.
+- Drop a dragged point on another point or on a wall to join it there. Its walls then run to that point, or to a new point that cuts the wall in two, and take the thickness of the wall they join. If that makes a wall cut a room in two, the room is split as when drawing. The drag and the join are one undo step. A dragged point does not snap where it cannot be joined, such as the other end of its own wall, or a place where two walls would then join the same two points.
+- Right click a wall and choose **Split here** to cut it in two at that place. A new point appears there, which you can drag or draw from. Openings and rooms stay with the right piece. A place covered by an opening cannot be split, and the status bar says so.
 - Drag an opening along its wall to move it. See "Openings".
 - Drag a piece of furniture to move it, or the round handle beyond its front edge to turn it. See "Editing furniture".
 - Drag the blue ring in the middle of a selected wall to bend it. See "Curved walls".
@@ -192,7 +197,7 @@ If you click where no closed area exists, the status bar says "No closed area he
 
 **The area.** The number shown is the floor inside the walls, in square metres. It is not the area between the wall centre lines. The thickness of every wall is taken off. A 4 m by 4 m square of 0.2 m walls shows 14.44 m². A wall that sticks into a room from one side, without closing off anything, is not counted as part of the room. A room inside another room, such as a box inside a hall, is cut out of the hall's area.
 
-**Rooms keep their walls.** A room remembers the walls of the area it was made from. If you draw a new wall across a room, the room stays as it was. Delete the room and add the two new ones. Cutting one of its walls with a T junction is fine, because the room takes the new part too.
+**Rooms keep their walls.** A room remembers the walls of the area it was made from. Cutting one of its walls with a T junction is fine, because the room takes the new part too. A new wall drawn across a room splits it in two (see "Splitting rooms" under drawing walls).
 
 The same room finding is available to scripts with `room find` and `room add`. See the [Command line guide](CLI_GUIDE.md).
 
@@ -597,7 +602,8 @@ Every change to the plan can be undone. Use **Edit > Undo** (Ctrl+Z) and **Edit 
 The title bar shows the project name, with `*` after it when there are unsaved changes.
 
 - **Save** (Ctrl+S) writes `project.json` and `plan.json`. Images from outside the project are copied into `plans/`.
-- **Save as** (Ctrl+Shift+S) writes to another folder, copying the images. The old folder is not changed. Plynth refuses a folder that already holds a different project.
+- **Save as** (Ctrl+Shift+S) writes to another folder, copying the images. The old folder is not changed. Plynth refuses a folder that already holds a different project. The project keeps its name.
+- The title bar shows the name of the project after every save, save as, open and create.
 - Closing, opening or starting a new project with unsaved changes asks "Save changes to <name>?" with Save, Don't save and Cancel.
 
 A save writes each file to a temporary name first and then renames it, so a crash during a save does not leave a half written file.
@@ -608,7 +614,7 @@ Projects made with earlier versions of Plynth open as they are and upgrade by th
 
 ### Autosave and recovery
 
-Every 30 seconds, if there are unsaved changes, Plynth writes a copy into the project's `autosave/` folder. Saving or choosing Don't save removes it. Untitled projects have no folder, so they are not autosaved.
+Every 30 seconds, if there are unsaved changes, Plynth writes a copy into the project's `autosave/` folder. Saving or choosing Don't save removes it.
 
 If Plynth was closed unexpectedly, the next time you open that project it asks: "This project has unsaved changes from <date and time>. Recover them?" If the saved plan is newer than the copy, the question tells you. Recover loads the copy as unsaved changes, so you still decide whether to save. Discard removes it.
 
@@ -668,8 +674,10 @@ You can also build from a terminal with `plynth build`. See the [Command line gu
 Press **3**, click **3D** in the bar above the plan, or use **View > 3D view** to look at the built building. Press 3 again, or click **Plan**, to go back. The 3D view only shows. Nothing you do in it changes the plan.
 
 - **Orbit:** drag with the left button. The view turns around a point in the building.
-- **Pan:** drag with the middle or right button.
+- **Pan:** drag with the middle button.
 - **Zoom:** the mouse wheel. It zooms toward the point the view turns around.
+- **Fly:** hold the right button and move the mouse to look around from where the camera stands. While the button is held, W, A, S and D move forward, left, back and right along the view, Q and E move down and up, and Shift moves faster. The mouse wheel changes the fly speed instead of zooming, and the speed shows for a moment in the bottom left corner. The speed suits the size of the building. When you let go, the camera stays where it is, and a left drag then orbits around a point in front of it.
+- **Frame:** press F while the 3D view has the keyboard to frame the whole building again.
 - **Fit:** press Ctrl+0, or use View > Fit to window, to frame the whole building again, furniture included.
 - **Top** and **Three quarter:** two small buttons in the top right corner. Top looks straight down. Three quarter looks from the front right and a little above, the same angle as the thumbnails.
 
@@ -1045,6 +1053,8 @@ Open it with **Catalog > Sources and integrations** (Ctrl+Shift+I) or **Sources*
 - buttons to import, and the options you can change, saved with the library;
 - a link to the official website.
 
+**Where imports from the Sources window show.** An import you start on a card shows on that card, under its import buttons: a row with the name, what Blender is doing, a progress bar and **Cancel**. If it fails, the row stays with the reason, **Show log** and **Dismiss**, and a Fab pack row offers **Pick the model...**. A sentence in amber under the buttons says why an import did not start, for example "Paste an address first.". When an import ends, the card says "Added Chair to Assets." (or "Added Oak planks to Materials.") with **Show in Assets** (or **Show in Materials**), which opens that window with the new item selected. When the item has no category or group yet, the line asks you to pick one there. The Assets and Materials windows do not open by themselves and do not list these imports; the new item simply appears in them. **Own files** works the same way for models. **Import material...** on the Own files card opens the Import materials window, where that import shows.
+
 The first time you open the tab, and when you press **Check again** on the BlenderKit card, Plynth runs the setup check. It starts Blender once with a clean start, runs none of your add-ons and reads your saved Blender preferences only as data (see [Setting up Plynth](SETUP.md)). A card with no add-on to check is always Ready. Options are saved as soon as you change them, in the library, and apply to every later import from that card. They need an open library. Every option the command line has is on the card, and the same options are saved by `plynth library integration set` (see the [command line guide](CLI_GUIDE.md)). An option saved with a value the card does not list is shown as it is, and it stays until you pick another.
 
 ### Importing from BlenderKit
@@ -1061,7 +1071,7 @@ You need your own BlenderKit account and the BlenderKit add-on, installed, enabl
 2. On the BlenderKit card, paste it into the address box. If the text is none of these, the card says why, and the buttons stay off.
 3. Press **Import as asset** for a model or **Import as material** for a material.
 
-The import joins the queue under the grid like any other. The row shows the steps: checking the add-on, downloading and copying. A big item can take a few minutes. Plynth waits up to 10 minutes by default. The card's wait option raises that, from 60 to 3600 seconds, as `wait_seconds` does from the command line (see the [command line guide](CLI_GUIDE.md)). The **Texture resolution** option says which size of textures to ask for, 2k by default.
+The import shows on the BlenderKit card, under the import buttons, as described in "Where imports from the Sources window show". The row shows the steps: checking the add-on, downloading and copying. A big item can take a few minutes. Plynth waits up to 10 minutes by default. The card's wait option raises that, from 60 to 3600 seconds, as `wait_seconds` does from the command line (see the [command line guide](CLI_GUIDE.md)). The **Texture resolution** option says which size of textures to ask for, 2k by default.
 
 **What runs.** Plynth starts Blender in the background, with no window, and the BlenderKit add-on downloads the item. There is no option to show a Blender window. This download runs Blender with **your own settings and the add-ons you have enabled**, because BlenderKit needs your add-on and your sign in. Other Blender jobs in Plynth use a clean start, but this one cannot. After the download, Blender cleans the model the same way as for your own files, with a clean start.
 
@@ -1083,7 +1093,7 @@ Fab items download as a zip from fab.com in your browser. Plynth never goes to F
 1. Download the zip from Fab.
 2. On the Fab card, press **Import model zips...** or **Import material zips...**, and pick one or more zips. (A Fab zip dropped in the library's inbox is picked up too, but its license is Unknown. See "Which license is saved" below.)
 3. A window opens that shows, for each zip, what Plynth would take. Use **Previous** and **Next** with several zips. Tick **Leave this zip out** to skip one.
-4. Press **Import**. The zips join the queue.
+4. Press **Import**. The zips are imported one after another, and each shows on the Fab card (see "Where imports from the Sources window show").
 
 **How a version is picked.** Plynth reads the model format first: FBX, then glTF, then OBJ, then Blend, as set in the card's **Preferred format**. Among the models of that format it takes the **Quality** you set (Medium by default), or the nearest one if there is none. It takes the lowest level of detail (LOD). Textures come from the folder next to the model. When they come in several sizes, it takes the largest up to **Largest texture** (4096 px by default), or the smallest if all are larger. Pictures that only show a preview are never used as textures.
 
@@ -1364,7 +1374,7 @@ If the file of a plan image has been moved or deleted, Plynth still opens the pr
 A script or another program can edit the project while Plynth has it open. To keep your work and its work apart, it first begins an edit session. While one is active:
 
 - A banner under the title bar says "Being edited from the command line by <name>. Changes appear here as they are saved."
-- The plan is dimmed. Undo, Redo, Save, Save as and Set plan image are disabled. New project and Open project still work.
+- The plan is dimmed. Undo, Redo, Save, Save as and the floor tab's Set plan image are disabled. New project and Open project still work.
 - The Scale, Wall, Opening, Room and Furniture tools, Delete, dragging in the plan and the wall view, and every box in the properties panel are disabled. You can still click to select and look.
 - Changes appear on screen within a second, with the zoom and position unchanged.
 - When the session ends, or after 5 minutes without a command, the plan reloads once and becomes editable again.
@@ -1440,7 +1450,7 @@ Plynth comes with samples drawn for it: plan images, furniture models, materials
 
 - **Sample projects** on the home screen open a copy of the sample in your projects folder, named after it: "Apartment", then "Apartment (2)". The sample itself never changes. If the project uses items your library does not have yet, add the sample items and build.
 - **Catalog > Add the sample items** imports every sample model and material with the license CC0 and copies the sample shapes and generators into your library. An item the library has already is skipped and keeps its own license.
-- **Sample plans** on the home screen start a new project from a sample plan image.
+- **Sample plans** on the home screen open the New project window and start the new project with that sample as the plan image of floor 1.
 
 ## Author and the license report
 

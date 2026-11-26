@@ -3,8 +3,10 @@
 #include <plynth/core/SetupCheck.h>
 
 #include <QString>
+#include <QStringList>
 #include <QWidget>
 
+#include <functional>
 #include <optional>
 #include <stop_token>
 #include <thread>
@@ -62,6 +64,17 @@ public:
     // True once a setup check was started and has ended. For checks only.
     bool checkSettled() const { return checkedOnce_ && !checking_; }
 
+    // The ids of the cards that have import buttons.
+    QStringList importCardIds() const;
+    // Puts a widget, such as the progress list of the card's imports, under the import buttons of a card.
+    void addActivity(const QString& integrationId, QWidget* widget);
+    // Shows a sentence under the import buttons of a card, such as why nothing was imported. Empty hides it.
+    void showNotice(const QString& integrationId, const QString& text);
+    // Adds a line under the import buttons of a card that says what an import added, with a button that shows
+    // the new item and one that removes the line.
+    void showAdded(const QString& integrationId, const QString& text, const QString& showText, const QString& showTip,
+                   std::function<void()> show);
+
 protected:
     void showEvent(QShowEvent* event) override;
 
@@ -87,6 +100,9 @@ private:
         QLabel* optionNote = nullptr;
         QPushButton* importAsset = nullptr;
         QPushButton* importMaterial = nullptr;
+        QLabel* notice = nullptr;
+        QVBoxLayout* activity = nullptr; // progress lists and the lines of finished imports
+        QVBoxLayout* added = nullptr;    // the lines of finished imports, newest first
         std::vector<Field> fields; // in the order of optionFields
     };
 

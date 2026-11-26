@@ -75,11 +75,11 @@ void StoreImports::importAddress(const QString& integrationId, const QString& ad
 {
     const QString trimmed = address.trimmed();
     if (trimmed.isEmpty()) {
-        emit notice(tr("Paste an address first."));
+        emit notice(tr("Paste an address first."), integrationId);
         return;
     }
     if (!host_.hasLibrary()) {
-        emit notice(tr("Open a library before importing."));
+        emit notice(tr("Open a library before importing."), integrationId);
         return;
     }
     const plynth::Integration* integration = plynth::findIntegration(toCore(integrationId));
@@ -89,19 +89,19 @@ void StoreImports::importAddress(const QString& integrationId, const QString& ad
     source.url = toCore(trimmed);
     const std::string importer = plynth::integrationImporter(*integration, source, material);
     if (importer.empty()) {
-        emit notice(tr("%1 cannot read this address.").arg(fromCore(integration->name())));
+        emit notice(tr("%1 cannot read this address.").arg(fromCore(integration->name())), integrationId);
         return;
     }
     if (material) {
         plynth::MaterialImportRequest request;
         request.source = source;
         request.importer = importer;
-        materials_.enqueueImport(request);
+        materials_.enqueueImport(request, integrationId);
     } else {
         plynth::ImportRequest request;
         request.source = source;
         request.importer = importer;
-        assets_.enqueueRequest(request);
+        assets_.enqueueRequest(request, integrationId);
     }
 }
 
@@ -113,7 +113,7 @@ void StoreImports::importFiles(const QString& integrationId, bool material)
         return;
     if (isOwnFilesIntegration(*integration)) {
         if (ownFiles_)
-            ownFiles_(material);
+            ownFiles_(material, integrationId);
         return;
     }
     QString title;
@@ -140,19 +140,19 @@ void StoreImports::importChosenFiles(const QString& integrationId, const QString
     if (integration == nullptr || files.isEmpty())
         return;
     if (!host_.hasLibrary()) {
-        emit notice(tr("Open a library before importing."));
+        emit notice(tr("Open a library before importing."), integrationId);
         return;
     }
     if (isOwnFilesIntegration(*integration)) {
         if (ownPaths_)
-            ownPaths_(files, material);
+            ownPaths_(files, material, integrationId);
         return;
     }
     if (isFabIntegration(*integration)) {
         if (waitForDialog)
-            importFabZips(files, material);
+            importFabZips(files, material, integrationId);
         else
-            openFabDialog(files, material);
+            openFabDialog(files, material, integrationId);
         return;
     }
     for (const QString& file : files) {
@@ -160,53 +160,53 @@ void StoreImports::importChosenFiles(const QString& integrationId, const QString
         source.file = toPath(file);
         const std::string importer = plynth::integrationImporter(*integration, source, material);
         if (importer.empty()) {
-            emit notice(tr("%1 cannot read %2.").arg(fromCore(integration->name()), QFileInfo(file).fileName()));
+            emit notice(tr("%1 cannot read %2.").arg(fromCore(integration->name()), QFileInfo(file).fileName()), integrationId);
             continue;
         }
         if (material) {
             plynth::MaterialImportRequest request;
             request.source = source;
             request.importer = importer;
-            materials_.enqueueImport(request);
+            materials_.enqueueImport(request, integrationId);
         } else {
             plynth::ImportRequest request;
             request.source = source;
             request.importer = importer;
-            assets_.enqueueRequest(request);
+            assets_.enqueueRequest(request, integrationId);
         }
     }
 }
 
 // Opens the dialog for the zips and queues the pages the user kept.
-void StoreImports::importFabZips(const QStringList& zips, bool material)
+void StoreImports::importFabZips(const QStringList& zips, bool material, const QString& origin)
 {
     if (zips.isEmpty())
         return;
     if (!host_.hasLibrary()) {
-        emit notice(tr("Open a library before importing."));
+        emit notice(tr("Open a library before importing."), origin);
         return;
     }
     FabImportDialog dialog(host_.paths(), zips, material, host_.settings().keepImportedZips,
                            std::string(plynth::kFabImporterId), dialogWindow());
     if (dialog.exec() == QDialog::Accepted)
-        queuePicks(dialog);
+        queuePicks(dialog, origin);
 }
 
 // Opens the dialog and returns at once. Closing it with Import queues the picks.
-FabImportDialog* StoreImports::openFabDialog(const QStringList& zips, bool material)
+FabImportDialog* StoreImports::openFabDialog(const QStringList& zips, bool material, const QString& origin)
 {
     if (zips.isEmpty() || !host_.hasLibrary())
         return nullptr;
     auto* dialog = new FabImportDialog(host_.paths(), zips, material, host_.settings().keepImportedZips,
                                        std::string(plynth::kFabImporterId), dialogWindow());
     dialog->setAttribute(Qt::WA_DeleteOnClose);
-    connect(dialog, &QDialog::accepted, this, [this, dialog]() { queuePicks(*dialog); });
+    connect(dialog, &QDialog::accepted, this, [this, dialog, origin]() { queuePicks(*dialog, origin); });
     dialog->open();
     return dialog;
 }
 
 // Queues the pages the user kept in an accepted dialog, with the dialog's importer.
-void StoreImports::queuePicks(const FabImportDialog& dialog)
+void StoreImports::queuePicks(const FabImportDialog& dialog, const QString& origin)
 {
     const bool material = dialog.material();
     const bool keep = dialog.keepZips();
@@ -217,14 +217,14 @@ void StoreImports::queuePicks(const FabImportDialog& dialog)
             request.importer = dialog.importer();
             request.importerOptions = pick.options;
             request.keepOriginal = keep;
-            materials_.enqueueImport(request);
+            materials_.enqueueImport(request, origin);
         } else {
             plynth::ImportRequest request;
             request.source.file = toPath(pick.zip);
             request.importer = dialog.importer();
             request.importerOptions = pick.options;
             request.keepOriginal = keep;
-            assets_.enqueueRequest(request);
+            assets_.enqueueRequest(request, origin);
         }
     }
 }
@@ -240,10 +240,11 @@ void StoreImports::pickModel(int queueItemId)
     // Copied now: the queue's list can change while the dialog is open.
     const bool inbox = item->kind == QueueItem::Kind::Inbox;
     const plynth::ImportRequest rowRequest = item->request;
+    const QString origin = item->origin;
     const std::filesystem::path file = inbox ? item->movedTo : item->request.source.file;
     const QString path = QString::fromStdWString(file.wstring());
     if (file.empty() || !QFileInfo::exists(path)) {
-        emit notice(tr("The file is no longer there."));
+        emit notice(tr("The file is no longer there."), origin);
         return;
     }
     const std::string importer = rowRequest.importer;
@@ -259,7 +260,7 @@ void StoreImports::pickModel(int queueItemId)
     request.importerOptions = picks.front().options;
     request.keepOriginal = dialog.keepZips();
     assets_.dismiss(queueItemId);
-    assets_.enqueueRequest(request);
+    assets_.enqueueRequest(request, origin);
 }
 
 }

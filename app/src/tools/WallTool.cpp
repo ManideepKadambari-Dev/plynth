@@ -2,6 +2,7 @@
 
 #include "canvas/PlanCanvas.h"
 #include "theme/Theme.h"
+#include "tools/SnapGuides.h"
 #include "tools/ToolController.h"
 
 #include <QGuiApplication>
@@ -17,7 +18,7 @@ namespace plynth::app {
 // The status bar hint for this tool.
 QString WallTool::hint() const
 {
-    return QObject::tr("Click to place points. Shift keeps it straight. Ctrl places freely. Esc stops.");
+    return QObject::tr("Click to place points. Points line up with nearby points. Shift keeps it straight. Ctrl places freely. Esc stops.");
 }
 
 // Starts with no chain.
@@ -41,7 +42,8 @@ void WallTool::floorChanged()
     endChain();
 }
 
-// Turns a cursor position into a snapped position, following the snap rules in core.
+// Turns a cursor position into a snapped position, following the snap rules in core. While a chain runs, the
+// position also lines up with its start.
 plynth::SnapResult WallTool::snapFor(QPointF scene, Qt::KeyboardModifiers modifiers) const
 {
     const std::optional<double> ppm = host_.pixelsPerMetre();
@@ -55,6 +57,8 @@ plynth::SnapResult WallTool::snapFor(QPointF scene, Qt::KeyboardModifiers modifi
     options.radius = host_.snapRadiusMetres();
     if (host_.snapToGrid())
         options.gridSize = host_.document().project().settings.gridSize;
+    if (chaining_)
+        options.alignTo.push_back(startAt_);
     if (chaining_ && (modifiers & Qt::ShiftModifier))
         options.orthogonalFrom = startAt_;
     return plynth::snapPosition(*floor, at, options);
@@ -83,7 +87,8 @@ void WallTool::mousePressed(const ToolMouse& mouse)
         refreshPreview();
         return;
     }
-    auto command = std::make_unique<plynth::DrawWallCommand>(chainFloor_, start_, end, host_.newWallThickness());
+    auto command = std::make_unique<plynth::DrawWallCommand>(chainFloor_, start_, end, std::nullopt, std::nullopt,
+                                                             host_.newWallThickness());
     plynth::DrawWallCommand* raw = command.get();
     running_ = true;
     const plynth::Status status = host_.run(std::move(command));
@@ -166,7 +171,21 @@ void WallTool::refreshPreview()
     host_.canvas().viewport()->update();
 }
 
-// Draws the rubber band and the snap marker in amber.
+// The thickness the wall being drawn will get: that of the wall it joins at its start, else at its end, else the
+// thickness set for new walls, as DrawWallCommand picks it.
+double WallTool::previewThickness() const
+{
+    const plynth::Floor* floor = host_.floor();
+    if (floor != nullptr && preview_.has_value()) {
+        if (const std::optional<double> joined = plynth::joinedThickness(*floor, start_))
+            return *joined;
+        if (const std::optional<double> joined = plynth::joinedThickness(*floor, plynth::wallEndFromSnap(*preview_)))
+            return *joined;
+    }
+    return host_.newWallThickness();
+}
+
+// Draws the rubber band, the guide lines and the snap marker in amber.
 void WallTool::paint(QPainter& painter)
 {
     if (!preview_.has_value())
@@ -188,7 +207,7 @@ void WallTool::paint(QPainter& painter)
             band.setAlpha(t.overlayAlpha());
             const QPointF dir = delta / length;
             const QPointF normal(-dir.y(), dir.x());
-            const double half = std::max(1.0, host_.newWallThickness() * *ppm * canvas.zoom() / 2.0);
+            const double half = std::max(1.0, previewThickness() * *ppm * canvas.zoom() / 2.0);
             const QPointF a = from - dir * half;
             const QPointF b = at + dir * half;
             painter.setPen(Qt::NoPen);
@@ -199,24 +218,7 @@ void WallTool::paint(QPainter& painter)
         }
     }
 
-    painter.setPen(QPen(t.signalAmber(), 2));
-    painter.setBrush(Qt::NoBrush);
-    const double r = t.pointDot() / 2.0;
-    switch (preview_->kind) {
-    case plynth::SnapKind::Point:
-        painter.drawEllipse(at, r + 4, r + 4);
-        break;
-    case plynth::SnapKind::Wall:
-        painter.drawLine(at + QPointF(-r - 2, -r - 2), at + QPointF(r + 2, r + 2));
-        painter.drawLine(at + QPointF(-r - 2, r + 2), at + QPointF(r + 2, -r - 2));
-        painter.drawEllipse(at, 2, 2);
-        break;
-    case plynth::SnapKind::Grid:
-    case plynth::SnapKind::None:
-        painter.drawLine(at + QPointF(-r, 0), at + QPointF(r, 0));
-        painter.drawLine(at + QPointF(0, -r), at + QPointF(0, r));
-        break;
-    }
+    paintSnap(painter, canvas, *ppm, *preview_);
 }
 
 }

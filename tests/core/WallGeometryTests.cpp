@@ -690,6 +690,7 @@ TEST_CASE("snapPosition onto a curved wall", "[core][wallgeometry][snap]") {
 
     // The straight chord is no longer a wall there.
     options.radius = 0.1;
+    options.toAlignment = false;
     REQUIRE(snapPosition(f, {2.0, 0.05}, options).kind == SnapKind::None);
 
     // With a direction lock the place is where the vertical line meets the arc.

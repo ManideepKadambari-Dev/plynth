@@ -180,7 +180,7 @@ QPushButton* HomeScreen::addLink(QVBoxLayout* column, const QString& text, const
     return button;
 }
 
-// The left column: name, the three buttons, help, samples, setup status and the projects folder.
+// The left column: name, the two buttons, help, samples, setup status and the projects folder.
 QWidget* HomeScreen::buildSide()
 {
     const Theme& t = Theme::instance();
@@ -213,18 +213,14 @@ QWidget* HomeScreen::buildSide()
 
     auto* create = new QPushButton(tr("New project"), side);
     create->setDefault(true);
-    create->setToolTip(tr("Start a new empty project (Ctrl+N)"));
+    create->setToolTip(tr("Name a new project, choose where it goes and create it (Ctrl+N)"));
     connect(create, &QPushButton::clicked, this, &HomeScreen::newProjectRequested);
     column->addWidget(create);
-    auto* fromImage = new QPushButton(tr("New project from plan image"), side);
-    fromImage->setToolTip(tr("Start a new project from a plan image (Ctrl+Shift+N)"));
-    connect(fromImage, &QPushButton::clicked, this, &HomeScreen::newFromImageRequested);
-    column->addWidget(fromImage);
     auto* open = new QPushButton(tr("Open project"), side);
     open->setToolTip(tr("Open a project folder (Ctrl+O)"));
     connect(open, &QPushButton::clicked, this, &HomeScreen::openProjectRequested);
     column->addWidget(open);
-    column->addSpacing(t.unit() * 3);
+    column->addSpacing(t.sectionGap());
 
     helpBox_ = new QWidget(side);
     helpColumn_ = new QVBoxLayout(helpBox_);
@@ -364,14 +360,20 @@ void HomeScreen::fillSide()
     }
     helpBox_->setVisible(helpColumn_->count() > 0);
 
+    // A clear gap above each section title, so Help, Sample plans and Sample projects read as separate groups.
+    const auto startSection = [this, &t](const QString& title) {
+        if (samplesColumn_->count() > 0 || helpBox_->isVisibleTo(this))
+            samplesColumn_->addSpacing(t.sectionGap());
+        samplesColumn_->addWidget(sectionTitle(title, samplesBox_));
+    };
     const QString samples = samplePlansFolder();
     if (!samples.isEmpty()) {
         const QFileInfoList images = QDir(samples).entryInfoList({QStringLiteral("*.png")}, QDir::Files, QDir::Name);
         if (!images.isEmpty())
-            samplesColumn_->addWidget(sectionTitle(tr("Sample plans"), samplesBox_));
+            startSection(tr("Sample plans"));
         for (const QFileInfo& image : images) {
             QPushButton* link = addLink(samplesColumn_, image.completeBaseName(),
-                                        tr("Start a new project from this sample plan image"));
+                                        tr("Start a new project with this sample as the plan image of floor 1"));
             const QString file = image.absoluteFilePath();
             connect(link, &QPushButton::clicked, this, [this, file]() { emit openSampleRequested(file); });
         }
@@ -379,7 +381,7 @@ void HomeScreen::fillSide()
     const std::filesystem::path sampleRoot = plynth::resourceFolder(plynth::ResourceKind::Samples);
     const plynth::SamplesRead index = sampleRoot.empty() ? plynth::SamplesRead{} : plynth::readSamples(sampleRoot);
     if (index.status.ok() && !index.index.projects.empty()) {
-        samplesColumn_->addWidget(sectionTitle(tr("Sample projects"), samplesBox_));
+        startSection(tr("Sample projects"));
         for (const plynth::SampleProject& project : index.index.projects) {
             QPushButton* link = addLink(samplesColumn_, fromCore(project.name),
                                         tr("Open a copy of this sample project that you can change. %1").arg(fromCore(project.description)));

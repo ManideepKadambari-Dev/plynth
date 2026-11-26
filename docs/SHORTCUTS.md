@@ -6,8 +6,7 @@ Every action with a shortcut is also in the menu, where the shortcut is shown ne
 
 | Shortcut | Action |
 |---|---|
-| Ctrl+N | New project |
-| Ctrl+Shift+N | New project from an image |
+| Ctrl+N | New project (asks for its name and location) |
 | Ctrl+Shift+H | Home: show the home screen. The open project stays open behind it |
 | Ctrl+O | Open a project folder |
 | Ctrl+W | Close the project and go to the home screen |
@@ -16,9 +15,9 @@ Every action with a shortcut is also in the menu, where the shortcut is shown ne
 | Ctrl+Shift+S | Save as, into another folder |
 | Alt+F4 | Exit Plynth |
 
-Ctrl+O used to open a plan image. It now opens a project. Use Ctrl+Shift+O, or drop an image on the window, to set the plan image.
+Ctrl+O used to open a plan image. It now opens a project. Right-click a floor tab and choose Set plan image, press Ctrl+Shift+O, or drop an image on the window, to set the plan image.
 
-Ctrl+W asks "Save changes to <name>?" when there are unsaved changes. The home screen lists your recent projects, and Ctrl+N, Ctrl+Shift+N and Ctrl+O work there too.
+Ctrl+W asks "Save changes to <name>?" when there are unsaved changes. The home screen lists your recent projects, and Ctrl+N and Ctrl+O work there too.
 
 Setting the plan image can be undone. A new project from an image starts with the image already in place.
 
@@ -139,7 +138,9 @@ These keys and clicks work with the tools. The Select tool is the default.
 | Key or click | Tool | What it does |
 |---|---|---|
 | Left click | Select | Select the point, opening, item, wall or room under the cursor. Click on nothing to clear the selection. |
-| Left button and drag on a point | Select | Move the point. The whole drag is one undo step. |
+| Left button and drag on a point | Select | Move the point. Drop it on another point or a wall to join it there. The whole drag is one undo step. |
+| Ctrl | Select | While dragging a point: move it freely, with no snapping and no lining up. |
+| Right click on a wall | Select | Open a menu with **Split here**, which cuts the wall in two at that place and adds a point. |
 | Left button and drag on an opening | Select | Move the opening along its wall. It snaps to 5 cm. Ctrl moves it freely. |
 | Left button and drag on an item | Select | Move the item. It snaps to the grid and flush against wall faces. Ctrl moves it freely. On a wall item it slides along its wall. The whole drag is one undo step. |
 | Left button and drag on the round handle of a selected item | Select | Turn the item in steps of 15 degrees. Shift turns it freely. |
@@ -147,7 +148,7 @@ These keys and clicks work with the tools. The Select tool is the default.
 | Esc | Select | Clear the selection |
 | Left click | Wall | Place a point and, after the first one, draw a wall to it. The next wall starts where the last one ended. |
 | Shift | Wall | Keep the wall exactly horizontal or vertical. Hold it while you click. |
-| Ctrl | Wall | Place freely, with no snapping at all. Hold it while you click. |
+| Ctrl | Wall | Place freely, with no snapping and no lining up with other points. Hold it while you click. |
 | Esc or right click | Wall | End the chain. The next click starts a new one. |
 | Left click | Scale | Mark the first point, then the second one. |
 | Shift | Scale | Keep the two points exactly horizontal or vertical |
@@ -169,7 +170,7 @@ These keys and clicks work with the tools. The Select tool is the default.
 
 Shift has no effect on a wall that starts a chain, because there is no earlier point to keep straight from. Snapping to existing points always wins, so you can still close a loop while Shift is held. Ctrl needs to be held when you click, and Alt is not used because Windows gives it to the menu bar.
 
-Dragging a point snaps it to the grid, and to Shift for straight moves. It never snaps onto another point or wall, so two points do not end up on top of each other by accident.
+Dragging a point snaps it like a click of the Wall tool: onto other points and walls, lined up with the x or y of nearby points (a thin dashed line shows it), to the grid, and to Shift for straight moves. Dropping it on another point or a wall joins it there, and its walls take the thickness of the wall they join. Hold Ctrl to move it freely.
 
 ## The wall view
 
@@ -230,8 +231,16 @@ Space needs the canvas to have keyboard focus. Moving the mouse over the canvas 
 | Action | What it does |
 |---|---|
 | Left button and drag | Orbit around the middle of the building |
-| Middle or right button and drag | Pan |
+| Middle button and drag | Pan |
 | Mouse wheel | Zoom toward the point the view turns around |
+| Hold the right button and move the mouse | Fly: look around from where the camera stands |
+| Right button held, W, A, S, D | Fly forward, left, back and right along the view |
+| Right button held, Q or E | Fly down or up |
+| Right button held, Shift | Fly faster |
+| Right button held, mouse wheel | Change the fly speed |
+| F | Frame the whole building again |
+
+The keys only fly while the right button is held and the 3D view has the keyboard. Click the 3D view first if the keys go to the plan tools. When you let go, the camera stays where it is, and orbiting turns around a point in front of it.
 
 The 3D view only shows the building. Nothing you do in it changes the plan.
 

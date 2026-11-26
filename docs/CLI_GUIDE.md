@@ -381,6 +381,34 @@ The walls that end at the point follow it. An unknown id gives `not_found` and c
 
 Moving a point can leave an opening hanging past the end of a shortened wall. The move is still allowed. `opening list` then reports the opening with `"fits":false`, and its `problems` count goes up. See "When an opening stops fitting".
 
+`point move` only moves. To join a point onto another point or a wall, use `point join`.
+
+### point join
+
+Joins a point onto another point, or onto a place on a wall, the way dropping a dragged point there does in the app. The walls of the point then run to the other point, and the point itself is removed. On a wall, the wall is split at that place first. Everything is one change that can be undone as one step.
+
+| Option | Meaning |
+|---|---|
+| `<id>` | Required. The point to join. It is removed. |
+| `--to <id>` | The point to join it to. |
+| `--wall <id>` `--offset <metres>` | Or a place on a wall: the wall and the distance from its `from` point. |
+
+Give exactly one of `--to` and `--wall` with `--offset`, otherwise it is `bad_arguments`.
+
+```
+plynth point join p9 --to p3
+```
+
+```json
+{"ok":true,"command":"point join","result":{"id":"p3","floor":"f1","x":5.0,"y":7.0,"corner_radius":0.0,"corner_radius_used":0.0,"walls":["w2","w3","w9"],"removed_point":"p9","new_rooms":[]}}
+```
+
+The answer is the point entry of the point the walls now run to, plus `removed_point` and `new_rooms`.
+
+- The joined walls take the thickness of the wall they join: the wall that was split, or the first wall of the other point. A curved wall that would then be bent too tightly for its thickness keeps its own.
+- A joined wall that now cuts a room in two splits the room, as `wall draw` does. `new_rooms` lists the rooms made.
+- A point joined to itself, to a point one of its walls already runs to, or to a wall that ends at it is `invalid_value`. When a wall of the point would then join the same two points as another wall, it is `already_exists`. A place covered by an opening is `in_use`. Nothing changes in each case.
+
 ### point set
 
 Changes a point. Today that is its corner radius.
@@ -491,9 +519,9 @@ Give each end in one of two forms. Giving both forms, or neither, is `bad_argume
 |---|---|
 | `--from <id>` or `--from-x <m>` `--from-y <m>` | The start: a point, or a position. |
 | `--to <id>` or `--to-x <m>` `--to-y <m>` | The end: a point, or a position. |
-| `--snap <metres>` | Snap radius. A position within this distance of a point snaps to the point, and one within it of a wall snaps onto the wall. Default: 0, which means the positions are used exactly. |
-| `--grid` | Snap new positions to the project grid. Points and walls within the snap radius still win. |
-| `--thickness <metres>` | Default: 0.2. |
+| `--snap <metres>` | Snap radius. A position within this distance of a point snaps to the point, and one within it of a wall snaps onto the wall. Otherwise its x or y lines up with the x or y of a point within this distance (for the end, also of the start), so the wall comes out straight. Default: 0, which means the positions are used exactly. |
+| `--grid` | Snap new positions to the project grid. Points, walls and lining up within the snap radius still win. A coordinate that lines up keeps that value; the other one goes to the grid. |
+| `--thickness <metres>` | Default: the thickness of the wall the start joins (the wall it lands on, or the first wall of that point), else of the wall the end joins, else 0.2. Given, it is used as it is. |
 | `--height <metres>` | Default: the floor's ceiling height. |
 | `--floor <id>` | Default: the first floor. |
 
@@ -502,10 +530,12 @@ plynth wall draw --from-x 4 --from-y 1 --to-x 4 --to-y 5 --snap 0.1 --thickness 
 ```
 
 ```json
-{"ok":true,"command":"wall draw","result":{"id":"w7","floor":"f1","from":"p5","to":"p6","thickness":0.3,"height":null,"bulge":0.0,"length":4.0,"radius":null,"height_used":3.0,"rooms":[],"openings":[],"new_points":["p5","p6"],"split_walls":["w1","w3"]}}
+{"ok":true,"command":"wall draw","result":{"id":"w7","floor":"f1","from":"p5","to":"p6","thickness":0.3,"height":null,"bulge":0.0,"length":4.0,"radius":null,"height_used":3.0,"rooms":[],"openings":[],"new_points":["p5","p6"],"split_walls":["w1","w3"],"new_rooms":[]}}
 ```
 
-The answer is a wall entry plus `new_points` (points that were created) and `split_walls` (walls that were cut). In the example the new wall runs across a rectangle, so the top and bottom walls were split and the new wall joins them.
+The answer is a wall entry plus `new_points` (points that were created), `split_walls` (walls that were cut) and `new_rooms` (rooms made by splitting a room). In the example the new wall runs across a rectangle, so the top and bottom walls were split and the new wall joins them.
+
+When the new wall runs through the inside of a room from one point of its outline to another, the room is split in two in the same step. The part with the larger area keeps the room's id. The other part is a new room with the same type, materials and dressing setting, and items and light markers standing in it move to it. A wall that touches a room at one point only, or runs outside it, does not split it. Undo makes it one room again.
 
 To draw a closed loop, start each wall at the `to` point of the last one with `--from <id>`, and end the last wall on the first point with `--to <id>`.
 
@@ -3697,7 +3727,7 @@ Every action of the app that changes or checks a project or the library has a co
 
 | App | Command |
 |---|---|
-| File > New project, New project from image | `project new`, `project new --image` |
+| File > New project, a sample plan on the home screen | `project new`, `project new --image` |
 | Instructions file for tools that work on a project | `agent-guide` |
 | File > Save as | `project save-as <folder>` |
 | Open dialog: Load or Keep mine | `project recover`, `project recover --discard` |
@@ -3734,7 +3764,7 @@ Zoom, pan, the tools themselves, the help pages, the terminal and opening folder
 
 Plynth's app and the command line can both work on the same project folder. To keep one from overwriting the other, the command line uses an edit session. The steps for a script or other program:
 
-1. **Begin.** Run `plynth session begin --tool <name>`. If the app has the project open, it turns read only: a banner appears saying "Being edited from the command line by <name>", the canvas is dimmed, and Undo, Redo, Save, Save as and Set plan image are disabled.
+1. **Begin.** Run `plynth session begin --tool <name>`. If the app has the project open, it turns read only: a banner appears saying "Being edited from the command line by <name>", the canvas is dimmed, and Undo, Redo, Save, Save as and the floor tab's Set plan image are disabled.
 2. **Edit.** Run commands such as `point add`, `wall draw` and `room add`. Each one saves to the project folder. The app notices the change within a second and shows it live. Zoom and pan stay where they were.
 3. **End.** Run `plynth session end`. The app reloads once and becomes editable again.
 

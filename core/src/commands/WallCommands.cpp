@@ -350,8 +350,10 @@ WallEnd wallEndFromSnap(const SnapResult& snap)
     }
 }
 
-DrawWallCommand::DrawWallCommand(Id floorId, WallEnd from, WallEnd to, double thickness, std::optional<double> height)
-    : floorId_(std::move(floorId)), from_(std::move(from)), to_(std::move(to)), thickness_(thickness), height_(height)
+DrawWallCommand::DrawWallCommand(Id floorId, WallEnd from, WallEnd to, std::optional<double> thickness,
+                                 std::optional<double> height, double unjoinedThickness)
+    : floorId_(std::move(floorId)), from_(std::move(from)), to_(std::move(to)), thickness_(thickness), height_(height),
+      unjoinedThickness_(unjoinedThickness)
 {
 }
 
@@ -379,6 +381,11 @@ const std::vector<Id>& DrawWallCommand::newPointIds() const
 const std::vector<Id>& DrawWallCommand::splitWallIds() const
 {
     return splitWallIds_;
+}
+
+const std::vector<Id>& DrawWallCommand::newRoomIds() const
+{
+    return newRoomIds_;
 }
 
 std::string DrawWallCommand::name() const
@@ -462,7 +469,15 @@ Status DrawWallCommand::apply(Project& project)
     if (distance(fromAt, toAt) < kMinSplitDistance) {
         return fail(ErrorCode::InvalidValue, "The wall would have no length.");
     }
-    if (!detail::isPositive(thickness_)) {
+    double thickness = unjoinedThickness_;
+    if (thickness_) {
+        thickness = *thickness_;
+    } else if (const std::optional<double> joined = joinedThickness(*floor, from_)) {
+        thickness = *joined;
+    } else if (const std::optional<double> joinedEnd = joinedThickness(*floor, to_)) {
+        thickness = *joinedEnd;
+    }
+    if (!detail::isPositive(thickness)) {
         return fail(ErrorCode::InvalidValue, "The wall thickness must be a number above zero.");
     }
     if (height_ && !detail::isPositive(*height_)) {
@@ -509,10 +524,17 @@ Status DrawWallCommand::apply(Project& project)
     Status s = makeEnd(from_, fromId);
     if (s.ok()) s = makeEnd(to_, toId);
     if (s.ok()) {
-        auto wallStep = std::make_unique<AddWallCommand>(fromId, toId, thickness_, height_);
+        auto wallStep = std::make_unique<AddWallCommand>(fromId, toId, thickness, height_);
         const AddWallCommand* ref = wallStep.get();
         s = run(std::move(wallStep));
         if (s.ok()) newWall = ref->wallId();
+    }
+    std::vector<Id> newRooms;
+    if (s.ok()) {
+        auto roomStep = std::make_unique<SplitRoomsByWallCommand>(newWall);
+        const SplitRoomsByWallCommand* ref = roomStep.get();
+        s = run(std::move(roomStep));
+        if (s.ok()) newRooms = ref->newRoomIds();
     }
     if (!s.ok()) {
         for (std::size_t j = steps.size(); j-- > 0;) steps[j]->undo(project);
@@ -523,6 +545,7 @@ Status DrawWallCommand::apply(Project& project)
     toPointId_ = toId;
     newPointIds_ = std::move(newPoints);
     splitWallIds_ = std::move(splitWalls);
+    newRoomIds_ = std::move(newRooms);
     steps_ = std::move(steps);
     return {};
 }
@@ -535,10 +558,169 @@ void DrawWallCommand::undo(Project& project)
 
 unsigned DrawWallCommand::changes() const
 {
-    return Change::Points | Change::Walls | Change::Rooms | Change::Openings | Change::Items;
+    return Change::Points | Change::Walls | Change::Rooms | Change::Openings | Change::Items | Change::Lights;
 }
 
 Id DrawWallCommand::floorId() const
+{
+    return floorId_;
+}
+
+// Reads the thickness of the wall an end is on, or of the first wall that uses its point.
+std::optional<double> joinedThickness(const Floor& floor, const WallEnd& end)
+{
+    switch (end.kind) {
+    case WallEnd::Kind::OnWall:
+        if (const Wall* w = findWall(floor, end.id)) return w->thickness;
+        return std::nullopt;
+    case WallEnd::Kind::Point:
+        for (const Wall& w : floor.walls) {
+            if (w.from == end.id || w.to == end.id) return w.thickness;
+        }
+        return std::nullopt;
+    case WallEnd::Kind::NewPoint:
+        return std::nullopt;
+    }
+    return std::nullopt;
+}
+
+JoinPointCommand::JoinPointCommand(Id pointId, WallEnd target, int mergeKey)
+    : pointId_(std::move(pointId)), target_(std::move(target)), mergeKey_(mergeKey)
+{
+}
+
+const Id& JoinPointCommand::pointId() const
+{
+    return pointId_;
+}
+
+// The point the walls now run to, empty until the first apply.
+const Id& JoinPointCommand::targetPointId() const
+{
+    return targetPointId_;
+}
+
+int JoinPointCommand::mergeKey() const
+{
+    return mergeKey_;
+}
+
+// The rooms made by the room splits of the last apply.
+std::vector<Id> JoinPointCommand::newRoomIds() const
+{
+    std::vector<Id> ids;
+    for (const SplitRoomsByWallCommand& split : roomSplits_) {
+        ids.insert(ids.end(), split.newRoomIds().begin(), split.newRoomIds().end());
+    }
+    return ids;
+}
+
+std::string JoinPointCommand::name() const
+{
+    return "Join point";
+}
+
+// Checks the target, splits a wall when the target is a place on one, moves the point's walls over with the
+// joined thickness, removes the point and splits the rooms the moved walls cut. Any refusal puts the floor back.
+Status JoinPointCommand::apply(Project& project)
+{
+    Floor* floor = detail::floorOfPoint(project.plan, pointId_);
+    if (!floor) return fail(ErrorCode::NotFound, "There is no point " + pointId_ + ".");
+    const auto elsewhere = [&](const Id& id) {
+        const Floor* other = findFloorContaining(project.plan, id);
+        return other && other != floor;
+    };
+    switch (target_.kind) {
+    case WallEnd::Kind::NewPoint:
+        return fail(ErrorCode::InvalidValue, "A point can only be joined to a point or a wall.");
+    case WallEnd::Kind::Point:
+        if (target_.id == pointId_) return fail(ErrorCode::InvalidValue, "A point cannot be joined to itself.");
+        if (!findPoint(*floor, target_.id)) {
+            if (elsewhere(target_.id)) return fail(ErrorCode::InvalidValue, "The point " + target_.id + " is on another floor.");
+            return fail(ErrorCode::NotFound, "There is no point " + target_.id + ".");
+        }
+        break;
+    case WallEnd::Kind::OnWall: {
+        const Wall* w = findWall(*floor, target_.id);
+        if (!w) {
+            if (elsewhere(target_.id)) return fail(ErrorCode::InvalidValue, "The wall " + target_.id + " is on another floor.");
+            return fail(ErrorCode::NotFound, "There is no wall " + target_.id + ".");
+        }
+        if (w->from == pointId_ || w->to == pointId_) {
+            return fail(ErrorCode::InvalidValue, "A point cannot be joined to a wall that ends at it.");
+        }
+        break;
+    }
+    }
+
+    previous_ = *floor;
+    floorId_ = floor->id;
+    const auto refuse = [&](Status status) {
+        *floor = previous_;
+        return status;
+    };
+
+    Id target = target_.id;
+    if (target_.kind == WallEnd::Kind::OnWall) {
+        if (!split_) split_.emplace(target_.id, target_.offset);
+        if (const Status s = split_->apply(project); !s.ok()) return refuse(s);
+        target = split_->newPointId();
+    }
+    const std::optional<double> thickness =
+        joinedThickness(*floor, target_.kind == WallEnd::Kind::OnWall ? target_ : WallEnd::atPoint(target));
+    const Vec2 targetAt = positionOf(*findPoint(*floor, target));
+
+    std::vector<Id> moved;
+    for (const Wall& w : floor->walls) {
+        if (w.from != pointId_ && w.to != pointId_) continue;
+        const Id& other = w.from == pointId_ ? w.to : w.from;
+        if (other == target) {
+            return refuse(fail(ErrorCode::InvalidValue, "The wall " + w.id + " already joins the two points."));
+        }
+        for (const Wall& v : floor->walls) {
+            const bool same = (v.from == target && v.to == other) || (v.to == target && v.from == other);
+            if (same) {
+                return refuse(fail(ErrorCode::AlreadyExists,
+                                   "The walls " + w.id + " and " + v.id + " would then join the same two points."));
+            }
+        }
+        moved.push_back(w.id);
+    }
+    for (Wall& w : floor->walls) {
+        if (w.from != pointId_ && w.to != pointId_) continue;
+        const Point* other = findPoint(*floor, w.from == pointId_ ? w.to : w.from);
+        if (!other) continue;
+        const Vec2 from = w.from == pointId_ ? targetAt : positionOf(*other);
+        const Vec2 to = w.to == pointId_ ? targetAt : positionOf(*other);
+        if (thickness && detail::checkCurveLimits(from, to, w.bulge, *thickness, w.id).ok()) w.thickness = *thickness;
+        if (const Status s = detail::checkCurveLimits(from, to, w.bulge, w.thickness, w.id); !s.ok()) return refuse(s);
+        if (w.from == pointId_) w.from = target;
+        if (w.to == pointId_) w.to = target;
+    }
+    std::erase_if(floor->points, [&](const Point& p) { return p.id == pointId_; });
+
+    if (roomSplits_.empty()) {
+        for (const Id& id : moved) roomSplits_.emplace_back(id);
+    }
+    for (SplitRoomsByWallCommand& split : roomSplits_) {
+        if (const Status s = split.apply(project); !s.ok()) return refuse(s);
+    }
+    targetPointId_ = target;
+    return {};
+}
+
+// Puts the whole floor back as it was.
+void JoinPointCommand::undo(Project& project)
+{
+    if (Floor* floor = findFloor(project.plan, floorId_)) *floor = previous_;
+}
+
+unsigned JoinPointCommand::changes() const
+{
+    return Change::Points | Change::Walls | Change::Rooms | Change::Openings | Change::Items | Change::Lights;
+}
+
+Id JoinPointCommand::floorId() const
 {
     return floorId_;
 }

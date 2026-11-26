@@ -20,6 +20,8 @@
 #include <QRegularExpression>
 #include <QTimer>
 
+#include <memory>
+
 #include <cstdio>
 #include <string>
 #include <string_view>
@@ -168,6 +170,10 @@ int main(int argc, char* argv[])
     QCommandLineOption toolOption(QStringLiteral("tool"),
                                   QStringLiteral("Activate a tool: select, scale, wall, opening, room, stair, light, furniture or detect. For checks only."),
                                   QStringLiteral("name"));
+    QCommandLineOption wallCheckOption(QStringLiteral("wall-check"),
+                                       QStringLiteral("With --screenshot, drive the plan with the mouse: guides:x1,y1,x2,y2, join:point,x,y "
+                                                      "or split:x,y, in metres. Writes <file>.txt and <file>-middle.png. For checks only."),
+                                       QStringLiteral("spec"));
     QCommandLineOption selectOption(QStringLiteral("select"),
                                     QStringLiteral("Select the point, wall, opening, room, item, stair or light with this id, or first-wall. For checks only."),
                                     QStringLiteral("id"));
@@ -233,6 +239,16 @@ int main(int argc, char* argv[])
                                      QStringLiteral("Show the 3D overlay on the plan. For checks only."));
     QCommandLineOption buildOption(QStringLiteral("build"),
                                    QStringLiteral("Build the project after opening it and wait for the end. For checks only."));
+    QCommandLineOption swapBuildOption(QStringLiteral("swap-build"),
+                                       QStringLiteral("After the 3D page has drawn the building, copy this build folder over "
+                                                      "the project's build and load it as after a build. For checks only."),
+                                       QStringLiteral("folder"));
+    parser.addOption(swapBuildOption);
+    QCommandLineOption flyCheckOption(QStringLiteral("fly-check"),
+                                      QStringLiteral("After the 3D page has drawn the building, fly with the right button: "
+                                                     "look, move or frame. For checks only."),
+                                      QStringLiteral("mode"));
+    parser.addOption(flyCheckOption);
     QCommandLineOption buildTabOption(QStringLiteral("build-tab"), QStringLiteral("Open the Build report window. For checks only."));
     QCommandLineOption alignImageOption(QStringLiteral("align-image"),
                                         QStringLiteral("Turn on image alignment of the shown floor. For checks only."));
@@ -293,6 +309,26 @@ int main(int argc, char* argv[])
     parser.addOption(variationsDialogOption);
     parser.addOption(openingAssetPickerOption);
     QCommandLineOption homeOption(QStringLiteral("home"), QStringLiteral("Show the home screen. For checks only."));
+    QCommandLineOption newProjectDialogOption(QStringLiteral("new-project-dialog"),
+                                              QStringLiteral("Show the New project dialog. For checks only."));
+    QCommandLineOption newProjectNameOption(QStringLiteral("new-project-name"),
+                                            QStringLiteral("Type this name in the New project dialog. For checks only."),
+                                            QStringLiteral("text"));
+    QCommandLineOption newProjectLocationOption(QStringLiteral("new-project-location"),
+                                                QStringLiteral("Type this location in the New project dialog. For checks only."),
+                                                QStringLiteral("folder"));
+    QCommandLineOption floorMenuOption(QStringLiteral("floor-menu"),
+                                       QStringLiteral("Open the menu of this floor's tab. For checks only."),
+                                       QStringLiteral("floor id"));
+    QCommandLineOption createProjectOption(QStringLiteral("create-project"),
+                                           QStringLiteral("Make and open a new project in this folder as the New project dialog does, "
+                                                          "with --image as the plan image of floor 1. For checks only."),
+                                           QStringLiteral("folder"));
+    parser.addOption(createProjectOption);
+    parser.addOption(newProjectDialogOption);
+    parser.addOption(newProjectNameOption);
+    parser.addOption(newProjectLocationOption);
+    parser.addOption(floorMenuOption);
     parser.addOption(zoomOption);
     parser.addOption(overlayOption);
     parser.addOption(buildOption);
@@ -348,6 +384,7 @@ int main(int argc, char* argv[])
     parser.addOption(selectAssetOption);
     parser.addOption(toolOption);
     parser.addOption(selectOption);
+    parser.addOption(wallCheckOption);
     parser.addOption(floorOption);
     QCommandLineOption generatorParamOption(QStringLiteral("generator-param"),
                                             QStringLiteral("Set a parameter of the selected generator item, for example diameter=0.5. "
@@ -454,6 +491,8 @@ int main(int argc, char* argv[])
     const bool quiet = wantsScreenshot;
     if (wantsScreenshot && parser.value(screenshotOption).isEmpty())
         return kExitBadArguments;
+    if (parser.isSet(wallCheckOption) && !wantsScreenshot)
+        return kExitBadArguments;
     const QString updateState = parser.value(updateStateOption).toLower();
     if (parser.isSet(updateStateOption) &&
         (!wantsScreenshot || !plynth::app::UpdateController::cannedNames().contains(updateState)))
@@ -545,7 +584,11 @@ int main(int argc, char* argv[])
         loadFailed = !window.openProject(positional.first(), &loadError);
         loadTitle = QObject::tr("Cannot open project");
     }
-    if (parser.isSet(imageOption) && !(hasProject && loadFailed)) {
+    if (parser.isSet(createProjectOption) && !hasProject) {
+        loadFailed = !window.createProjectForCheck(parser.value(createProjectOption), parser.value(imageOption));
+        loadTitle = QObject::tr("Cannot create project");
+        loadError = QObject::tr("The project could not be made in %1.").arg(parser.value(createProjectOption));
+    } else if (parser.isSet(imageOption) && !(hasProject && loadFailed)) {
         QString imageError;
         const QString image = parser.value(imageOption);
         const bool ok = hasProject ? window.setPlanImage(image, &imageError)
@@ -598,7 +641,7 @@ int main(int argc, char* argv[])
         window.showMaterialsTab();
     if (parser.isSet(selectMaterialOption))
         window.selectMaterial(parser.value(selectMaterialOption));
-    if (parser.isSet(homeOption) || (!quiet && !hasProject && !parser.isSet(imageOption)))
+    if (parser.isSet(homeOption) || (!quiet && !hasProject && !parser.isSet(imageOption) && !parser.isSet(createProjectOption)))
         window.showHome();
     window.show();
     if (parser.isSet(helpPageOption)) {
@@ -626,6 +669,15 @@ int main(int argc, char* argv[])
         QTimer::singleShot(100, &window, [&window]() { window.showProjectFinish(); });
     if (parser.isSet(variationsDialogOption))
         QTimer::singleShot(0, &window, [&window]() { window.showVariationsDialog(false); });
+    if (parser.isSet(newProjectDialogOption)) {
+        const QString name = parser.value(newProjectNameOption);
+        const QString location = parser.value(newProjectLocationOption);
+        QTimer::singleShot(0, &window, [&window, name, location]() { window.showNewProjectDialogForCheck(name, location); });
+    }
+    if (parser.isSet(floorMenuOption)) {
+        const QString floor = parser.value(floorMenuOption);
+        QTimer::singleShot(250, &window, [&window, floor]() { window.showFloorMenuForCheck(floor); });
+    }
     if (parser.isSet(openingAssetPickerOption))
         QTimer::singleShot(250, &window, [&window]() { window.showOpeningAssetPicker(QString()); });
     if (parser.isSet(blenderKitAddressOption))
@@ -650,6 +702,10 @@ int main(int argc, char* argv[])
         QTimer::singleShot(100, &window, [&window]() { window.setActualSize(); });
     if (parser.isSet(buildOption))
         QTimer::singleShot(0, &window, [&window]() { window.startBuild(); });
+    if (parser.isSet(swapBuildOption))
+        window.swapBuildForCheck(parser.value(swapBuildOption));
+    if (parser.isSet(flyCheckOption))
+        window.flyForCheck(parser.value(flyCheckOption));
     if (parser.isSet(exportOption))
         QTimer::singleShot(0, &window, [&window]() { window.startExport(true, false); });
     else if (parser.isSet(exportCheckOption))
@@ -716,6 +772,16 @@ int main(int argc, char* argv[])
     }
 
     const bool wantsBuild = parser.isSet(buildOption) || parser.isSet(exportOption) || parser.isSet(exportCheckOption);
+    auto wallCheckDone = std::make_shared<bool>(!parser.isSet(wallCheckOption));
+    if (parser.isSet(wallCheckOption)) {
+        const QString spec = parser.value(wallCheckOption);
+        const QString file = parser.value(screenshotOption);
+        const QString stem = file.endsWith(QStringLiteral(".png"), Qt::CaseInsensitive) ? file.chopped(4) : file;
+        QTimer::singleShot(500, &window, [&window, spec, file, stem, wallCheckDone]() {
+            window.runWallCheck(spec, file + QStringLiteral(".txt"), stem + QStringLiteral("-middle.png"));
+            *wallCheckDone = true;
+        });
+    }
     if (wantsScreenshot) {
         const QString file = parser.value(screenshotOption);
         // The main window is saved at --size. One of the app's own windows is saved at its own size, so the
@@ -725,8 +791,10 @@ int main(int argc, char* argv[])
         waited.start();
         auto* poll = new QTimer(&app);
         poll->setInterval(wantsTerminal ? 100 : 400);
-        QObject::connect(poll, &QTimer::timeout, &app, [&window, file, target, loadFailed, wantsTerminal, wantsBuild, poll, waited]() {
+        QObject::connect(poll, &QTimer::timeout, &app, [&window, file, target, loadFailed, wantsTerminal, wantsBuild, poll, waited, wallCheckDone]() {
             if (wantsTerminal && !window.terminalPictureReady())
+                return;
+            if (!*wallCheckDone)
                 return;
             if (!window.detectionPictureReady() && !waited.hasExpired(kDetectionWaitMs))
                 return;

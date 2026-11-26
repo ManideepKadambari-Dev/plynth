@@ -31,6 +31,7 @@ struct QueueItem {
     QString message;     // the failure, in plain words
     QString workFolder;  // set when a Blender failure kept its work folder for the log
     bool pickable = false; // the importer listed several models, so the user can pick one and try again
+    QString origin;      // the id of the source card in the Sources window that started it, empty otherwise
     plynth::ImportRequest request;
     std::filesystem::path entry;
     std::filesystem::path movedTo; // where the inbox put the entry after a failure, as core reported it
@@ -46,9 +47,10 @@ public:
     ~ImportQueue() override;
 
     // Adds a file or folder to import with default fields. Returns the item id.
-    int enqueueImport(const QString& path);
+    // origin names the source card in the Sources window that started it, so its progress shows there.
+    int enqueueImport(const QString& path, const QString& origin = QString());
     // Adds an import with every field of the request: an address, a chosen importer, options.
-    int enqueueRequest(const plynth::ImportRequest& request);
+    int enqueueRequest(const plynth::ImportRequest& request, const QString& origin = QString());
     // Adds an entry of the library inbox.
     int enqueueInbox(const QString& path);
     // Adds a measure and thumbnail render of an asset. Does nothing when one is already waiting.
@@ -71,7 +73,9 @@ public:
 signals:
     void itemsChanged();
     // An item ended. ok false with a message for a failure; cancelled items are removed without this.
-    void finished(int kind, bool ok, const QString& assetId, const QString& message, bool thumbnailFailed);
+    // origin is the source card that started it, empty for any other item.
+    void finished(int kind, bool ok, const QString& assetId, const QString& message, bool thumbnailFailed,
+                  const QString& origin);
 
 private:
     int add(QueueItem item);

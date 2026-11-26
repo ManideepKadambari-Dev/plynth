@@ -8,6 +8,7 @@
 #include <plynth/core/Export.h>
 #include <plynth/core/ProjectFiles.h>
 
+#include <QEvent>
 #include <QImage>
 #include <QKeySequence>
 #include <QList>
@@ -91,8 +92,18 @@ public:
 
     // Open a project folder, replacing the document. No questions asked. On failure the document is unchanged.
     bool openProject(const QString& folder, QString* error);
-    // Starts an untitled project whose floor has this image. No undo step.
+    // For checks only: starts an untitled project whose floor has this image. No undo step.
     bool newFromImage(const QString& path, QString* error);
+    // Asks for the name and the location of a new project, creates its folder, saves it there and opens it.
+    // With an image, floor 1 starts with it. False when it was cancelled or failed; the open project stays.
+    bool startNewProject(const QString& image);
+    // For checks only: makes and opens a new project in this folder, named after it, as Create in the New
+    // project dialog does. With an image, floor 1 starts with it. False when it cannot.
+    bool createProjectForCheck(const QString& folder, const QString& image);
+    // For checks only: shows the New project dialog without waiting, with the fields filled when given.
+    void showNewProjectDialogForCheck(const QString& name, const QString& location);
+    // For checks only: opens the menu of a floor's tab without waiting. False for an unknown floor.
+    bool showFloorMenuForCheck(const QString& floorId);
     // Sets the image of the shown floor with an undoable command.
     bool setPlanImage(const QString& path, QString* error);
     // True when the shown floor has an image that could not be opened.
@@ -104,6 +115,8 @@ public:
 
     // For checks only: activates a tool by name (select, scale, wall, room, detect). False for an unknown name.
     bool activateToolByName(const QString& name);
+    // For checks only: drives the plan with mouse events (see MainWindowWallCheck.cpp) and writes a report.
+    bool runWallCheck(const QString& spec, const QString& report, const QString& middlePicture);
     // For checks only: shows the floor with this id. False for an unknown id.
     bool showFloor(const QString& id);
     // For checks only: selects the point, wall or room with this id, switching to its floor first. An unknown id selects nothing.
@@ -138,6 +151,13 @@ public:
     // For checks only: shows the pack dialog ("pack", from a check that writes nothing) or the unpack dialog
     // ("unpack") without waiting, so a screenshot includes it.
     void showPackDialogForCheck(const QString& kind);
+    // For checks only: once the 3D page has drawn the building, copies the build folder given over the project's
+    // build folder and loads it as a finished build does, so a picture shows whether the new building appears.
+    void swapBuildForCheck(const QString& buildFolder);
+    // For checks only: once the 3D page has drawn the building, flies with the right button held: "look" turns
+    // the camera, "move" also holds W and turns the wheel, "frame" then presses F. The status bar says which
+    // keys the 3D view took.
+    void flyForCheck(const QString& mode);
     // For checks only: true when no setup check is open, or its check has finished.
     bool setupPictureReady();
     // For checks only: queues an import of a file or folder.
@@ -270,6 +290,7 @@ protected:
     bool nativeEvent(const QByteArray& eventType, void* message, qintptr* result) override;
 
 private:
+    void sendPlanMouse(QEvent::Type type, double x, double y, Qt::MouseButton button, Qt::MouseButtons buttons);
     QWidget* dialogParent() const;
     void makeToolWindows();
     void makeSidePanelToggle();
@@ -287,10 +308,14 @@ private:
     QString updateBusyReason() const;
     void closeForInstaller();
     void importDialog();
+    void importDialogFor(const QString& origin);
     void importPaths(const QStringList& paths);
-    void materialImportFinished(bool ok, const QString& materialId, const QString& message, bool skipped, bool thumbnailFailed);
+    void importPathsFrom(const QStringList& paths, const QString& origin);
+    void materialImportFinished(bool ok, const QString& materialId, const QString& message, bool skipped, bool thumbnailFailed,
+                                const QString& origin);
     void addMaterialFromAsset(const QString& assetId, const QString& materialName);
-    void queueFinished(int kind, bool ok, const QString& assetId, const QString& message, bool thumbnailFailed);
+    void queueFinished(int kind, bool ok, const QString& assetId, const QString& message, bool thumbnailFailed,
+                       const QString& origin);
     void editRoomTypes();
     void openLibraryFolder();
     void openGeneratorsFolder();
@@ -298,9 +323,13 @@ private:
     void reportMissingImages(const plynth::SaveReport& report);
     void buildMenus();
     void newProject();
-    void newProjectFromImage();
+    bool askNewProject(const QString& baseName, QString* name, QString* folder);
+    plynth::Project newProjectContent(const QString& name, const QString& image) const;
+    bool createAndOpen(plynth::Project project, const QString& folder);
+    bool saveUntitled();
     void openProjectDialog();
     void setImageDialog();
+    void setFloorImageDialog(const QString& floorId);
     bool saveDocument();
     bool saveDocumentAs();
     bool confirmDiscardChanges();
@@ -420,6 +449,7 @@ private:
     QAction* openBlenderAction_ = nullptr;
     QAction* save3dPictureAction_ = nullptr;
     QPointer<QDialog> checkPackDialog_;
+    QPointer<QDialog> checkNewProjectDialog_;
     std::optional<plynth::BuildReport> report_;
     QTimer* buildUiTimer_ = nullptr;
     QString buildProgressText_;
@@ -488,7 +518,6 @@ private:
     TerminalDock* terminal_ = nullptr;
     QList<QAction*> viewActions_;
     QAction* newAction_ = nullptr;
-    QAction* newFromImageAction_ = nullptr;
     QAction* openAction_ = nullptr;
     QAction* setImageAction_ = nullptr;
     QAction* saveAction_ = nullptr;
@@ -504,6 +533,8 @@ private:
     bool imageFailed_ = false;
     bool screenshotMode_ = false;
     bool recoveryPending_ = false;
+    bool swapPending_ = false;
+    bool flyPending_ = false;
     bool reloadPending_ = false;
     bool asking_ = false;
     bool nativeFrameReady_ = false;
