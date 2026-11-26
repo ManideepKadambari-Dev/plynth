@@ -20,6 +20,8 @@
 #include <QRegularExpression>
 #include <QTimer>
 
+#include <memory>
+
 #include <cstdio>
 #include <string>
 #include <string_view>
@@ -168,6 +170,10 @@ int main(int argc, char* argv[])
     QCommandLineOption toolOption(QStringLiteral("tool"),
                                   QStringLiteral("Activate a tool: select, scale, wall, opening, room, stair, light, furniture or detect. For checks only."),
                                   QStringLiteral("name"));
+    QCommandLineOption wallCheckOption(QStringLiteral("wall-check"),
+                                       QStringLiteral("With --screenshot, drive the plan with the mouse: guides:x1,y1,x2,y2, join:point,x,y "
+                                                      "or split:x,y, in metres. Writes <file>.txt and <file>-middle.png. For checks only."),
+                                       QStringLiteral("spec"));
     QCommandLineOption selectOption(QStringLiteral("select"),
                                     QStringLiteral("Select the point, wall, opening, room, item, stair or light with this id, or first-wall. For checks only."),
                                     QStringLiteral("id"));
@@ -348,6 +354,7 @@ int main(int argc, char* argv[])
     parser.addOption(selectAssetOption);
     parser.addOption(toolOption);
     parser.addOption(selectOption);
+    parser.addOption(wallCheckOption);
     parser.addOption(floorOption);
     QCommandLineOption generatorParamOption(QStringLiteral("generator-param"),
                                             QStringLiteral("Set a parameter of the selected generator item, for example diameter=0.5. "
@@ -453,6 +460,8 @@ int main(int argc, char* argv[])
     // A screenshot runs with no dialogs, no probe and nothing written.
     const bool quiet = wantsScreenshot;
     if (wantsScreenshot && parser.value(screenshotOption).isEmpty())
+        return kExitBadArguments;
+    if (parser.isSet(wallCheckOption) && !wantsScreenshot)
         return kExitBadArguments;
     const QString updateState = parser.value(updateStateOption).toLower();
     if (parser.isSet(updateStateOption) &&
@@ -716,6 +725,16 @@ int main(int argc, char* argv[])
     }
 
     const bool wantsBuild = parser.isSet(buildOption) || parser.isSet(exportOption) || parser.isSet(exportCheckOption);
+    auto wallCheckDone = std::make_shared<bool>(!parser.isSet(wallCheckOption));
+    if (parser.isSet(wallCheckOption)) {
+        const QString spec = parser.value(wallCheckOption);
+        const QString file = parser.value(screenshotOption);
+        const QString stem = file.endsWith(QStringLiteral(".png"), Qt::CaseInsensitive) ? file.chopped(4) : file;
+        QTimer::singleShot(500, &window, [&window, spec, file, stem, wallCheckDone]() {
+            window.runWallCheck(spec, file + QStringLiteral(".txt"), stem + QStringLiteral("-middle.png"));
+            *wallCheckDone = true;
+        });
+    }
     if (wantsScreenshot) {
         const QString file = parser.value(screenshotOption);
         // The main window is saved at --size. One of the app's own windows is saved at its own size, so the
@@ -725,8 +744,10 @@ int main(int argc, char* argv[])
         waited.start();
         auto* poll = new QTimer(&app);
         poll->setInterval(wantsTerminal ? 100 : 400);
-        QObject::connect(poll, &QTimer::timeout, &app, [&window, file, target, loadFailed, wantsTerminal, wantsBuild, poll, waited]() {
+        QObject::connect(poll, &QTimer::timeout, &app, [&window, file, target, loadFailed, wantsTerminal, wantsBuild, poll, waited, wallCheckDone]() {
             if (wantsTerminal && !window.terminalPictureReady())
+                return;
+            if (!*wallCheckDone)
                 return;
             if (!window.detectionPictureReady() && !waited.hasExpired(kDetectionWaitMs))
                 return;

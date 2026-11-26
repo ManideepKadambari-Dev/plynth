@@ -4,6 +4,7 @@
 #include <plynth/core/CommandStack.h>
 #include <plynth/core/Rooms.h>
 #include <plynth/core/Snapping.h>
+#include <plynth/core/WallGeometry.h>
 #include <plynth/core/commands/PointCommands.h>
 #include <plynth/core/commands/RoomCommands.h>
 #include <plynth/core/commands/WallCommands.h>
@@ -630,4 +631,90 @@ TEST_CASE("snapping lines positions up with nearby points", "[core][snap]") {
         REQUIRE(e.kind == WallEnd::Kind::NewPoint);
         REQUIRE(e.position == Vec2{7.0, 1.0});
     }
+}
+
+TEST_CASE("a wall snap lines up with nearby points along the wall", "[core][snap]") {
+    Project p = makeNewProject();
+    Floor& f = p.plan.floors[0];
+    f.points = {{"p1", 10.0, 12.85, 0.0}, {"p2", 18.85, 12.85, 0.0}, {"p3", 15.0, 7.0, 0.0}};
+    addWall(p, "w1", "p1", "p2");
+    SnapOptions o;
+    o.radius = 0.24;
+
+    SECTION("a cursor a pixel off x 15 lands at exactly 15") {
+        const SnapResult r = snapPosition(f, {15.0056, 12.84}, o);
+        REQUIRE(r.kind == SnapKind::Wall);
+        REQUIRE(r.wallId == "w1");
+        REQUIRE(r.position == Vec2{15.0, 12.85});
+        REQUIRE(r.wallOffset == Approx(5.0));
+        REQUIRE(r.alignedX == std::optional<Vec2>(Vec2{15.0, 7.0}));
+        REQUIRE_FALSE(r.alignedY.has_value());
+        const WallEnd e = wallEndFromSnap(r);
+        REQUIRE(e.kind == WallEnd::Kind::OnWall);
+        REQUIRE(e.offset == Approx(5.0));
+    }
+    SECTION("an x farther than the radius leaves the plain place") {
+        const SnapResult r = snapPosition(f, {15.3, 12.84}, o);
+        REQUIRE(r.kind == SnapKind::Wall);
+        REQUIRE(r.position.x == Approx(15.3));
+        REQUIRE_FALSE(r.alignedX.has_value());
+    }
+    SECTION("the start of a wall being drawn counts") {
+        f.points.pop_back();
+        SnapOptions start = o;
+        start.alignTo = {{12.0, 3.0}};
+        const SnapResult r = snapPosition(f, {12.1, 12.9}, start);
+        REQUIRE(r.position == Vec2{12.0, 12.85});
+        REQUIRE(r.alignedX == std::optional<Vec2>(Vec2{12.0, 3.0}));
+    }
+    SECTION("the closest crossing wins") {
+        f.points.push_back({"p4", 15.1, 2.0, 0.0});
+        REQUIRE(snapPosition(f, {15.08, 12.84}, o).position == Vec2{15.1, 12.85});
+        REQUIRE(snapPosition(f, {15.03, 12.84}, o).position == Vec2{15.0, 12.85});
+    }
+    SECTION("Shift, toAlignment false and ignored points keep the plain place") {
+        SnapOptions off = o;
+        off.toAlignment = false;
+        REQUIRE(snapPosition(f, {15.0056, 12.84}, off).position.x == Approx(15.0056));
+        SnapOptions ignored = o;
+        ignored.ignorePoints = {"p3"};
+        REQUIRE(snapPosition(f, {15.0056, 12.84}, ignored).position.x == Approx(15.0056));
+        SnapOptions shift = o;
+        shift.orthogonalFrom = Vec2{15.0056, 9.0};
+        const SnapResult r = snapPosition(f, {15.0056, 12.84}, shift);
+        REQUIRE(r.kind == SnapKind::Wall);
+        REQUIRE(r.position.x == Approx(15.0056));
+        REQUIRE_FALSE(r.alignedX.has_value());
+    }
+}
+
+TEST_CASE("a wall snap does not line up when the crossing is out of reach", "[core][snap]") {
+    Project p = makeNewProject();
+    Floor& f = p.plan.floors[0];
+    f.points = {{"p1", 0.0, 0.0, 0.0}, {"p2", 10.0, 0.2, 0.0}, {"p3", 20.0, 0.15, 0.0}};
+    addWall(p, "w1", "p1", "p2");
+    SnapOptions o;
+    o.radius = 0.24;
+    // y 0.15 is within reach of the cursor's y, but that line meets the nearly level wall 5.5 m away.
+    const SnapResult r = snapPosition(f, {2.0, 0.05}, o);
+    REQUIRE(r.kind == SnapKind::Wall);
+    REQUIRE(r.position.x == Approx(2.0).margin(0.01));
+    REQUIRE_FALSE(r.alignedY.has_value());
+}
+
+TEST_CASE("a snap onto a curved wall lines up on the arc", "[core][snap]") {
+    Project p = makeNewProject();
+    Floor& f = p.plan.floors[0];
+    f.points = {{"p1", 0.0, 0.0, 0.0}, {"p2", 4.0, 0.0, 0.0}, {"p3", 2.0, 5.0, 0.0}};
+    addWall(p, "w1", "p1", "p2");
+    f.walls[0].bulge = 1.0;
+    SnapOptions o;
+    o.radius = 0.1;
+    const SnapResult r = snapPosition(f, {2.02, 1.03}, o);
+    REQUIRE(r.kind == SnapKind::Wall);
+    REQUIRE(r.position.x == Approx(2.0).margin(1e-9));
+    REQUIRE(r.position.y == Approx(1.0).margin(1e-9));
+    REQUIRE(r.alignedX == std::optional<Vec2>(Vec2{2.0, 5.0}));
+    const WallCurve curve = wallCurve(f, f.walls[0]);
+    REQUIRE(r.wallOffset == Approx(curve.length / 2.0).epsilon(1e-9));
 }
