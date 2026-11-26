@@ -1,1 +1,4 @@
-# Trusted minisign public keys, one base64 key line each, at most three. None yet, so updating is off.
+# main key, id 6D2C2CC1DCD4B43A
+RWQ6tNTcwSwsba3lai+SzdI0KzYMjRZ50HZnZsqUYX5vmgEwE47Nk/gn
+# spare key, id D0CD03B329FC7C78
+RWR4fPwpswPN0KSBiudInwtmBPzDV03JaTLa0mDNZ0T0WKfSi1QReBcu
