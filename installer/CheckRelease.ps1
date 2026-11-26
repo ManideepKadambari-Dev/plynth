@@ -52,9 +52,12 @@ if (@($keys | Sort-Object -Unique).Count -ne $keys.Count -or @($ids | Sort-Objec
 
 $setup = Join-Path $Files 'PlynthSetup.exe'
 if (Test-Path $setup) {
+    # Inno Setup pads these fields with spaces or nulls, so they are compared trimmed.
     $info = (Get-Item $setup).VersionInfo
-    if ($info.ProductVersion -ne $version -or $info.ProductName -ne 'Plynth') {
-        Add-Problem "PlynthSetup.exe says $($info.ProductName) $($info.ProductVersion), the release is Plynth $version"
+    $name = "$($info.ProductName)" -replace '^[\s\x00]+|[\s\x00]+$', ''
+    $shown = "$($info.ProductVersion)" -replace '^[\s\x00]+|[\s\x00]+$', ''
+    if ($shown -ne $version -or $name -ne 'Plynth') {
+        Add-Problem "PlynthSetup.exe says $name $shown, the release is Plynth $version"
     }
 }
 
