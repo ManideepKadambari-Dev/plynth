@@ -140,18 +140,21 @@ Press W, or click the Wall tool. While it is active, the grid shows as thin line
 4. To close a room, click the first point of the chain again. The wall is drawn and the chain ends by itself.
 5. To stop without closing, press Esc or click the right mouse button. The next click starts a new chain.
 
-An amber band follows the mouse, with the thickness of the wall that would be drawn. The amber mark at its end shows what the click would snap to.
+An amber band follows the mouse, with the thickness of the wall that would be drawn. The amber mark at its end shows what the click would snap to, and thin dashed amber lines show which points it lines up with.
 
 **Snapping.** A click does not land exactly where the mouse is. Plynth looks, in this order:
 
 1. An existing point within about 10 screen pixels. The wall then uses that point. A ring marks it.
 2. The body of an existing wall within the same distance. The wall you draw ends on it, and the old wall is cut in two there, so they meet at a shared point. This is a T junction. A small cross marks it.
-3. The grid, if "Snap to grid" is on. A small plus marks the grid point.
-4. Nothing: the exact spot you clicked.
+3. Lining up. When the x or the y of the spot is within the same distance of the x or y of another point (or of the start of the wall being drawn), it takes exactly that x or y. A thin dashed line runs from that point to the spot. So a wall from one point to a spot a little higher or lower comes out exactly straight, and corners come out square.
+4. The grid, if "Snap to grid" is on. A small plus marks the grid point. When only one of x and y lines up, the other one goes to the grid.
+5. Nothing: the exact spot you clicked.
 
-**Keys while drawing.** Hold Shift while you click to keep the new wall exactly horizontal or vertical from the last point. A point close by still wins over Shift, so you can always close a loop. Hold Ctrl while you click to place the point freely, with no snapping at all. Press G, or use View > Snap to grid, to turn grid snapping on or off. Snapping to points and walls stays on.
+**Keys while drawing.** Hold Shift while you click to keep the new wall exactly horizontal or vertical from the last point. A point close by still wins over Shift, so you can always close a loop. Hold Ctrl while you click to place the point freely, with no snapping and no lining up at all. Press G, or use View > Snap to grid, to turn grid snapping on or off. Snapping to points and walls, and lining up, stay on.
 
-**Thickness.** While the Wall tool is active, the properties panel has a "New walls" box. It sets the thickness for the walls you draw next. It starts at 0.2 m and is kept until you close Plynth.
+**Thickness.** A wall drawn from or to an existing point or wall takes the thickness of the wall it joins, so walls that meet match. When both ends join walls of different thickness, the start wins. A wall that joins nothing gets the thickness in the "New walls" box, which the properties panel shows while the Wall tool is active. It starts at 0.2 m and is kept until you close Plynth. The amber band shows the thickness the wall will get. Changing a wall's thickness later in the properties panel changes only that wall.
+
+**Splitting rooms.** A wall drawn across a room, from one point of its outline to another through its inside, splits the room in two in the same step. The part with the larger area keeps the room. The other part becomes a new room with the same type, materials and dressing setting, and furniture and lights standing in it move to it. A wall that only touches a room at one point, or runs outside it, leaves the room as it is. Ctrl+Z makes it one room again.
 
 Every wall is one undo step, even when it also made new points or cut another wall. Ctrl+Z removes the wall and puts the cut wall back together. If you undo, redo or reload while a chain is open, the chain ends.
 
@@ -160,7 +163,9 @@ Every wall is one undo step, even when it also made new points or cut another wa
 Press V for the Select tool. It is the tool you start with.
 
 - Click a point, a wall, an opening, a piece of furniture or a room to select it. It turns amber, and the properties panel on the right shows it. Click on nothing, or press Esc, to clear the selection.
-- Drag a point to move it. The walls at the point follow. The point snaps to the grid, and Shift keeps its move straight. It never snaps onto other points or walls. A whole drag is one undo step.
+- Drag a point to move it. The walls at the point follow. It snaps like a click of the Wall tool: onto other points and walls, lined up with nearby points (a dashed line shows it), and to the grid. Shift keeps its move straight, and Ctrl moves it freely. A whole drag is one undo step.
+- Drop a dragged point on another point or on a wall to join it there. Its walls then run to that point, or to a new point that cuts the wall in two, and take the thickness of the wall they join. If that makes a wall cut a room in two, the room is split as when drawing. The drag and the join are one undo step. A dragged point does not snap where it cannot be joined, such as the other end of its own wall, or a place where two walls would then join the same two points.
+- Right click a wall and choose **Split here** to cut it in two at that place. A new point appears there, which you can drag or draw from. Openings and rooms stay with the right piece. A place covered by an opening cannot be split, and the status bar says so.
 - Drag an opening along its wall to move it. See "Openings".
 - Drag a piece of furniture to move it, or the round handle beyond its front edge to turn it. See "Editing furniture".
 - Drag the blue ring in the middle of a selected wall to bend it. See "Curved walls".
@@ -192,7 +197,7 @@ If you click where no closed area exists, the status bar says "No closed area he
 
 **The area.** The number shown is the floor inside the walls, in square metres. It is not the area between the wall centre lines. The thickness of every wall is taken off. A 4 m by 4 m square of 0.2 m walls shows 14.44 m². A wall that sticks into a room from one side, without closing off anything, is not counted as part of the room. A room inside another room, such as a box inside a hall, is cut out of the hall's area.
 
-**Rooms keep their walls.** A room remembers the walls of the area it was made from. If you draw a new wall across a room, the room stays as it was. Delete the room and add the two new ones. Cutting one of its walls with a T junction is fine, because the room takes the new part too.
+**Rooms keep their walls.** A room remembers the walls of the area it was made from. Cutting one of its walls with a T junction is fine, because the room takes the new part too. A new wall drawn across a room splits it in two (see "Splitting rooms" under drawing walls).
 
 The same room finding is available to scripts with `room find` and `room add`. See the [Command line guide](CLI_GUIDE.md).
 

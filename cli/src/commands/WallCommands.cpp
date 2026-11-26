@@ -32,7 +32,7 @@ struct DrawOptions {
     EndOptions to;
     double snap = 0.0;
     bool grid = false;
-    double thickness = kDefaultWallThickness;
+    std::optional<double> thickness;
     std::optional<double> height;
 };
 
@@ -88,12 +88,17 @@ bool endIsWellFormed(const EndOptions& end) {
 }
 
 // Turns an end into a wall end the way the app does: a point id is used as it is, a position is snapped
-// first and then read with wallEndFromSnap.
-WallEnd makeEnd(const Floor& floor, const EndOptions& end, const SnapOptions& snapOptions) {
+// first and then read with wallEndFromSnap. at is set to where the end lands, when known.
+WallEnd makeEnd(const Floor& floor, const EndOptions& end, const SnapOptions& snapOptions, std::optional<Vec2>& at) {
     if (!end.id.empty()) {
+        if (const Point* point = findPoint(floor, end.id)) {
+            at = positionOf(*point);
+        }
         return WallEnd::atPoint(end.id);
     }
-    return wallEndFromSnap(snapPosition(floor, {*end.x, *end.y}, snapOptions));
+    const SnapResult snap = snapPosition(floor, {*end.x, *end.y}, snapOptions);
+    at = snap.position;
+    return wallEndFromSnap(snap);
 }
 
 // Draws one wall, snapping its ends, in a single step.
@@ -114,8 +119,13 @@ Answer wallDraw(const RunContext& context, const DrawOptions& options) {
         SnapOptions snapOptions;
         snapOptions.radius = options.snap;
         snapOptions.gridSize = options.grid ? document.project().settings.gridSize : 0.0;
-        const WallEnd from = makeEnd(*floor, options.from, snapOptions);
-        const WallEnd to = makeEnd(*floor, options.to, snapOptions);
+        std::optional<Vec2> fromAt;
+        std::optional<Vec2> toAt;
+        const WallEnd from = makeEnd(*floor, options.from, snapOptions, fromAt);
+        if (fromAt) {
+            snapOptions.alignTo.push_back(*fromAt);
+        }
+        const WallEnd to = makeEnd(*floor, options.to, snapOptions, toAt);
 
         auto command = std::make_unique<DrawWallCommand>(floor->id, from, to, options.thickness, options.height);
         const DrawWallCommand* raw = command.get();
@@ -125,6 +135,7 @@ Answer wallDraw(const RunContext& context, const DrawOptions& options) {
         Json result = entryFor(document.plan(), raw->wallId());
         result["new_points"] = raw->newPointIds();
         result["split_walls"] = raw->splitWallIds();
+        result["new_rooms"] = raw->newRoomIds();
         return success(name, std::move(result));
     });
 }
@@ -267,10 +278,13 @@ std::vector<CommandSpec> wallCommands() {
         addEndOptions(sub, options->from, "from", "start");
         addEndOptions(sub, options->to, "to", "end");
         sub.add_option("--snap", options->snap,
-                       "A position this close to a point or a wall snaps to it, in metres. Default: 0 (exact).")
+                       "A position this close to a point or a wall snaps to it, and one this close to the x or y of a "
+                       "point (or of the start) lines up with it, in metres. Default: 0 (exact).")
             ->type_name("metres");
         sub.add_flag("--grid", options->grid, "Snap new positions to the project grid.");
-        sub.add_option("--thickness", options->thickness, "Wall thickness in metres. Default: 0.2.")
+        sub.add_option("--thickness", options->thickness,
+                       "Wall thickness in metres. Default: the thickness of the wall it starts from, else the one "
+                       "it ends on, else 0.2.")
             ->type_name("metres");
         sub.add_option("--height", options->height, "Wall height in metres. Default: the floor's ceiling height.")
             ->type_name("metres");

@@ -31,6 +31,7 @@ public:
 
 private:
     plynth::SnapResult snapFor(QPointF scene, Qt::KeyboardModifiers modifiers) const;
+    double previewThickness() const;
     void endChain();
     void refreshPreview();
 

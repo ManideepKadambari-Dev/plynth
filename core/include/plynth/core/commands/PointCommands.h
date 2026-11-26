@@ -3,6 +3,7 @@
 #include "../Command.h"
 
 #include <cstddef>
+#include <memory>
 #include <string>
 
 namespace plynth {
@@ -30,7 +31,8 @@ private:
 
 // Moves a point. NotFound for an unknown point, InvalidValue for a coordinate that is not finite.
 // Moves with the same non zero mergeKey and point merge into one undo step, so the app gives each drag
-// its own key. 0 never merges.
+// its own key. 0 never merges. A JoinPointCommand (WallCommands.h) of the same point and key merges in too, so a
+// drag that ends by joining the point to another point or a wall is one undo step; no move merges after it.
 class MovePointCommand : public Command {
 public:
     MovePointCommand(Id pointId, double x, double y, int mergeKey = 0);
@@ -50,6 +52,7 @@ private:
     double oldX_ = 0.0;
     double oldY_ = 0.0;
     int mergeKey_;
+    std::shared_ptr<Command> join_; // the join that ended the drag, applied after the move
 };
 
 // Sets the corner radius of a point (DESIGN.md section 7.2). The radius is stored as given; cornerRounding

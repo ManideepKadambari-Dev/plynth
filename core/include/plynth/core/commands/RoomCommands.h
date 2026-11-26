@@ -78,4 +78,33 @@ private:
     std::optional<std::string> previous_;
 };
 
+// Splits every room of the wall's floor that the wall cuts in two (roomSplitBy in Rooms.h), as one step. Each
+// such room keeps its id for the part with the larger centre line area (the first in findClosedAreas order when
+// both are equal), so the bigger part stays the room the user knows; the other part becomes a new room with the same type, materials and dressing setting, listed right after
+// it. Items and light markers of the room that stand in the new part get the new room. A wall that cuts no room
+// changes nothing. New ids come from newId on the first apply and are kept for redo. NotFound for an unknown wall.
+// Undo puts the rooms, items and light markers back. Changes Rooms, Items and Lights.
+class SplitRoomsByWallCommand : public Command {
+public:
+    explicit SplitRoomsByWallCommand(Id wallId);
+
+    // The rooms the last apply made, in the order it made them.
+    const std::vector<Id>& newRoomIds() const;
+
+    std::string name() const override;
+    Status apply(Project& project) override;
+    void undo(Project& project) override;
+    unsigned changes() const override;
+    Id floorId() const override;
+
+private:
+    Id wallId_;
+    Id floorId_;
+    std::vector<Id> newRoomIds_;
+    std::vector<Id> idsForRedo_;
+    std::vector<Room> previousRooms_;
+    std::vector<Item> previousItems_;
+    std::vector<LightMarker> previousLights_;
+};
+
 }

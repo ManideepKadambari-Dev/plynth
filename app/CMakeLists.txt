@@ -125,6 +125,8 @@ add_executable(plynth WIN32
     src/tools/OpeningTool.cpp
     src/tools/RoomTool.h
     src/tools/RoomTool.cpp
+    src/tools/SnapGuides.h
+    src/tools/SnapGuides.cpp
     src/tools/ScaleTool.h
     src/tools/ScaleTool.cpp
     src/tools/StairTool.h

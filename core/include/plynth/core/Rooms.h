@@ -4,6 +4,7 @@
 #include "Plan.h"
 
 #include <optional>
+#include <utility>
 #include <vector>
 
 namespace plynth {
@@ -55,5 +56,14 @@ RoomShape roomShape(const Floor& floor, const Room& room);
 
 // The room whose centre line rings hold a position, islands excluded. Empty when there is none.
 Id roomAt(const Floor& floor, Vec2 position);
+
+// Says whether a position is inside an area: inside its outer ring and outside every island ring.
+bool insideArea(const ClosedArea& area, Vec2 position);
+
+// The two closed areas a room becomes when a wall not in it cuts through its inside and meets its ring at both
+// ends, on its own or together with loose walls already inside the room. Each area holds at least one wall of
+// the room. Empty when the wall does not cut the room in two: it touches the room at one point only, runs
+// outside it or along a hole, or the room's walls do not close.
+std::optional<std::pair<ClosedArea, ClosedArea>> roomSplitBy(const Floor& floor, const Room& room, const Id& wallId);
 
 }

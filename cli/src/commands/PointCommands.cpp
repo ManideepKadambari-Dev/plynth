@@ -1,8 +1,10 @@
 #include "../Common.h"
 
 #include <plynth/core/commands/PointCommands.h>
+#include <plynth/core/commands/WallCommands.h>
 
 #include <memory>
+#include <optional>
 
 namespace plynth::cli {
 
@@ -21,6 +23,14 @@ struct MoveOptions {
     std::string id;
     double x = 0.0;
     double y = 0.0;
+};
+
+struct JoinOptions {
+    std::string project;
+    std::string id;
+    std::string to;
+    std::string wall;
+    std::optional<double> offset;
 };
 
 struct RemoveOptions {
@@ -63,6 +73,28 @@ Answer pointMove(const RunContext& context, const MoveOptions& options) {
         "point move", context, options.project,
         [&](const Plan&) { return std::make_unique<MovePointCommand>(options.id, options.x, options.y); },
         [&](const Plan& plan, const MovePointCommand&) { return entryFor(plan, options.id); });
+}
+
+// Joins a point onto another point or a place on a wall, the way dropping a dragged point there does in the app.
+Answer pointJoin(const RunContext& context, const JoinOptions& options) {
+    const std::string name = "point join";
+    const bool toPoint = !options.to.empty();
+    const bool toWall = !options.wall.empty();
+    if (toPoint == toWall) {
+        return badArguments(name, "bad_arguments", "Give the target as --to <point id> or as --wall <wall id> with --offset.");
+    }
+    if (toWall != options.offset.has_value()) {
+        return badArguments(name, "bad_arguments", "--wall and --offset go together.");
+    }
+    const WallEnd target = toPoint ? WallEnd::atPoint(options.to) : WallEnd::onWall(options.wall, *options.offset);
+    return edit(
+        name, context, options.project, [&](const Plan&) { return std::make_unique<JoinPointCommand>(options.id, target); },
+        [&](const Plan& plan, const JoinPointCommand& join) {
+            Json result = entryFor(plan, join.targetPointId());
+            result["removed_point"] = options.id;
+            result["new_rooms"] = join.newRoomIds();
+            return result;
+        });
 }
 
 // Rounds the corner at a point.
@@ -138,6 +170,20 @@ std::vector<CommandSpec> pointCommands() {
         return [options](const RunContext& context) { return pointMove(context, *options); };
     };
 
+    CommandSpec join;
+    join.words = {"point", "join"};
+    join.description = "Join a point onto another point or a place on a wall; its walls then run there.";
+    join.setup = [](CLI::App& sub) -> Handler {
+        auto options = std::make_shared<JoinOptions>();
+        addProjectOption(sub, options->project);
+        sub.add_option("id", options->id, "Id of the point to join and remove.")->type_name("id")->required();
+        sub.add_option("--to", options->to, "Id of the point to join it to.")->type_name("id");
+        sub.add_option("--wall", options->wall, "Id of the wall to join it to. The wall is split there.")->type_name("id");
+        sub.add_option("--offset", options->offset, "With --wall: distance from the wall's first point, in metres.")
+            ->type_name("metres");
+        return [options](const RunContext& context) { return pointJoin(context, *options); };
+    };
+
     CommandSpec set;
     set.words = {"point", "set"};
     set.description = "Change a point.";
@@ -173,7 +219,7 @@ std::vector<CommandSpec> pointCommands() {
         return [options](const RunContext& context) { return pointList(context, *options); };
     };
 
-    return {add, move, set, remove, list};
+    return {add, move, join, set, remove, list};
 }
 
 }

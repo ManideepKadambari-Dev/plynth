@@ -3,6 +3,7 @@
 #include "canvas/PlanCanvas.h"
 #include "document/Selection.h"
 #include "theme/Theme.h"
+#include "tools/SnapGuides.h"
 #include "tools/ToolController.h"
 
 #include <plynth/core/Items.h>
@@ -15,6 +16,7 @@
 #include <plynth/core/commands/WallCommands.h>
 
 #include <QKeyEvent>
+#include <QMenu>
 #include <QPainter>
 
 #include <cmath>
@@ -32,13 +34,14 @@ constexpr double kBendRound = 0.01;
 // The status bar hint for this tool.
 QString SelectTool::hint() const
 {
-    return QObject::tr("Click to select. Drag a point, opening or item to move it, the round handle of an item to turn it, or the middle handle of a wall to bend it. Esc clears.");
+    return QObject::tr("Click to select. Drag a point, opening or item to move it; drop a point on a point or wall to join it. Drag the round handle of an item to turn it, or the middle handle of a wall to bend it. Right click a wall to split it. Esc clears.");
 }
 
 // Forgets a drag that was in progress.
 void SelectTool::deactivate()
 {
     dragPoint_.clear();
+    dragSnap_.reset();
     dragOpening_.clear();
     dragItem_.clear();
     rotateItem_.clear();
@@ -52,9 +55,14 @@ void SelectTool::deactivate()
 // Selects what is under the click, or clears the selection. A point may start a drag, and so may the bend handle.
 void SelectTool::mousePressed(const ToolMouse& mouse)
 {
+    if (mouse.button == Qt::RightButton) {
+        showWallMenu(mouse);
+        return;
+    }
     if (mouse.button != Qt::LeftButton)
         return;
     dragPoint_.clear();
+    dragSnap_.reset();
     dragOpening_.clear();
     dragItem_.clear();
     rotateItem_.clear();
@@ -178,11 +186,20 @@ void SelectTool::mouseMoved(const ToolMouse& mouse)
         dragTo(mouse);
 }
 
-// Ends the drag. The merge key already made it one undo step.
+// Ends the drag. A point dropped on another point or on a wall is joined to it. The merge key makes the drag and
+// the join one undo step.
 void SelectTool::mouseReleased(const ToolMouse& mouse)
 {
     if (mouse.button != Qt::LeftButton)
         return;
+    if (dragging_ && !dragPoint_.empty() && dragSnap_.has_value() &&
+        (dragSnap_->kind == plynth::SnapKind::Point || dragSnap_->kind == plynth::SnapKind::Wall)) {
+        const plynth::WallEnd target = plynth::wallEndFromSnap(*dragSnap_);
+        const plynth::Id joined = dragPoint_;
+        dragSnap_.reset();
+        host_.run(std::make_unique<plynth::JoinPointCommand>(joined, target, dragKey_));
+    }
+    dragSnap_.reset();
     dragPoint_.clear();
     dragOpening_.clear();
     dragItem_.clear();
@@ -210,7 +227,8 @@ bool SelectTool::keyPressed(QKeyEvent* event)
     return false;
 }
 
-// Runs MovePointCommand for the cursor position, snapped to the grid and to Shift only.
+// Runs MovePointCommand for the cursor position, snapped like a wall end: to other points and walls (to be joined
+// on release), lined up with nearby points, to the grid and to Shift. Ctrl moves it freely.
 void SelectTool::dragTo(const ToolMouse& mouse)
 {
     const plynth::Floor* floor = host_.floor();
@@ -221,17 +239,28 @@ void SelectTool::dragTo(const ToolMouse& mouse)
     if (point == nullptr)
         return;
     plynth::SnapOptions options;
-    options.toPoints = false;
-    options.toWalls = false;
-    options.radius = 0.0;
     options.ignorePoints = {dragPoint_};
     const bool free = mouse.modifiers & Qt::ControlModifier;
+    options.radius = free ? 0.0 : host_.snapRadiusMetres();
     if (!free && host_.snapToGrid())
         options.gridSize = host_.document().project().settings.gridSize;
     if (!free && (mouse.modifiers & Qt::ShiftModifier))
         options.orthogonalFrom = plynth::Vec2{startMetres_.x(), startMetres_.y()};
     const plynth::Vec2 at{mouse.scene.x() / *ppm, mouse.scene.y() / *ppm};
-    const plynth::SnapResult snap = plynth::snapPosition(*floor, at, options);
+    plynth::SnapResult snap = plynth::snapPosition(*floor, at, options);
+    if (snap.kind == plynth::SnapKind::Point || snap.kind == plynth::SnapKind::Wall) {
+        // Only offer a join that would work, so a point never lands on top of one it cannot join, such as the
+        // other end of its own wall.
+        plynth::Project trial = host_.document().project();
+        plynth::JoinPointCommand join(dragPoint_, plynth::wallEndFromSnap(snap));
+        if (!join.apply(trial).ok()) {
+            options.toPoints = false;
+            options.toWalls = false;
+            snap = plynth::snapPosition(*floor, at, options);
+        }
+    }
+    dragSnap_ = snap;
+    host_.canvas().viewport()->update();
     if (snap.position.x == point->x && snap.position.y == point->y)
         return;
     host_.run(std::make_unique<plynth::MovePointCommand>(dragPoint_, snap.position.x, snap.position.y, dragKey_));
@@ -400,11 +429,47 @@ void SelectTool::setHandleHover(bool hover)
     host_.canvas().viewport()->update();
 }
 
-// Draws the bend handle of the selected wall: a blue ring, amber while hovered or dragged.
+// Shows a small menu for the wall under a right click. "Split here" cuts the wall at that place with
+// SplitWallCommand and selects the new point; a refusal, such as an opening over the place, shows in the status bar.
+void SelectTool::showWallMenu(const ToolMouse& mouse)
+{
+    const plynth::Floor* floor = host_.floor();
+    const std::optional<double> ppm = host_.pixelsPerMetre();
+    if (floor == nullptr || !ppm.has_value() || host_.document().isReadOnly())
+        return;
+    const plynth::Vec2 at{mouse.scene.x() / *ppm, mouse.scene.y() / *ppm};
+    const plynth::Pick pick = plynth::pickAt(*floor, at, host_.snapRadiusMetres());
+    if (pick.kind != plynth::PickKind::Wall)
+        return;
+    const plynth::Wall* wall = plynth::findWall(*floor, pick.id);
+    const plynth::WallCurve curve = wall ? plynth::wallCurve(*floor, *wall) : plynth::WallCurve{};
+    if (!curve.valid)
+        return;
+    const plynth::Id wallId = pick.id;
+    const double offset = plynth::projectOntoCurve(at, curve).offset;
+    host_.selection().set(SelectionKind::Wall, QString::fromStdString(wallId));
+
+    QMenu menu(host_.dialogParent());
+    QAction* split = menu.addAction(QObject::tr("Split here"));
+    split->setToolTip(QObject::tr("Cut the wall in two at this place and add a point there"));
+    QObject::connect(split, &QAction::triggered, &menu, [this, wallId, offset]() {
+        auto command = std::make_unique<plynth::SplitWallCommand>(wallId, offset);
+        const plynth::SplitWallCommand* raw = command.get();
+        if (host_.run(std::move(command)).ok())
+            host_.selection().set(SelectionKind::Point, QString::fromStdString(raw->newPointId()));
+    });
+    menu.exec(mouse.global);
+}
+
+// Draws the bend handle of the selected wall: a blue ring, amber while hovered or dragged. While a point is
+// dragged, it also draws the snap guides.
 void SelectTool::paint(QPainter& painter)
 {
     if (host_.document().isReadOnly())
         return;
+    if (dragging_ && !dragPoint_.empty() && dragSnap_.has_value())
+        if (const std::optional<double> ppm = host_.pixelsPerMetre())
+            paintSnap(painter, host_.canvas(), *ppm, *dragSnap_);
     stairs_.paintHandles(painter, handleHover_);
     if (const std::optional<QPointF> turn = rotateHandleView()) {
         const Theme& t = Theme::instance();
