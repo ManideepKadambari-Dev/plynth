@@ -405,6 +405,12 @@ std::vector<ClosedArea> closedAreasOf(const Floor& floor, const Floor& geometryF
 
 }
 
+// Says whether a position is inside the area's outer ring and outside its islands.
+bool insideArea(const ClosedArea& area, Vec2 position)
+{
+    return insideRings(position, area.rings);
+}
+
 // Finds the closed areas of a floor.
 std::vector<ClosedArea> findClosedAreas(const Floor& floor)
 {
@@ -490,6 +496,45 @@ Id roomAt(const Floor& floor, Vec2 position)
         if (shape.closed && insideRings(position, shape.rings)) return room.id;
     }
     return {};
+}
+
+// Finds the areas of the room's walls plus the walls inside it, and keeps the two that the wall borders inside the room.
+std::optional<std::pair<ClosedArea, ClosedArea>> roomSplitBy(const Floor& floor, const Room& room, const Id& wallId)
+{
+    if (std::find(room.walls.begin(), room.walls.end(), wallId) != room.walls.end()) return std::nullopt;
+    const Wall* cut = findWall(floor, wallId);
+    if (!cut) return std::nullopt;
+    const RoomShape shape = roomShape(floor, room);
+    if (!shape.closed) return std::nullopt;
+
+    const auto middleInside = [&](const Wall& w) {
+        const WallCurve curve = wallCurve(floor, w);
+        return curve.valid && curve.length > kTinyLength && insideRings(pointAlong(curve, curve.length / 2.0), shape.rings);
+    };
+    if (!middleInside(*cut)) return std::nullopt;
+
+    const std::set<Id> roomWalls(room.walls.begin(), room.walls.end());
+    Floor sub;
+    std::set<Id> pointIds;
+    for (const Wall& w : floor.walls) {
+        if (!roomWalls.count(w.id) && !middleInside(w)) continue;
+        sub.walls.push_back(w);
+        pointIds.insert(w.from);
+        pointIds.insert(w.to);
+    }
+    for (const Point& p : floor.points) {
+        if (pointIds.count(p.id)) sub.points.push_back(p);
+    }
+
+    std::vector<ClosedArea> parts;
+    for (ClosedArea& a : closedAreasOf(sub, floor)) {
+        if (std::find(a.walls.begin(), a.walls.end(), wallId) == a.walls.end()) continue;
+        if (!insideRings(a.inside, shape.rings)) continue;
+        const bool holdsRoomWall = std::any_of(a.walls.begin(), a.walls.end(), [&](const Id& id) { return roomWalls.count(id) > 0; });
+        if (holdsRoomWall) parts.push_back(std::move(a));
+    }
+    if (parts.size() != 2) return std::nullopt;
+    return std::make_pair(std::move(parts[0]), std::move(parts[1]));
 }
 
 }

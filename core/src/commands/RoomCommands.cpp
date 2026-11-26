@@ -203,3 +203,81 @@ Id SetRoomTypeCommand::floorId() const
 }
 
 }
+
+namespace plynth {
+
+SplitRoomsByWallCommand::SplitRoomsByWallCommand(Id wallId) : wallId_(std::move(wallId)) {}
+
+// The rooms the last apply made.
+const std::vector<Id>& SplitRoomsByWallCommand::newRoomIds() const
+{
+    return newRoomIds_;
+}
+
+std::string SplitRoomsByWallCommand::name() const
+{
+    return "Split room";
+}
+
+// Goes through the rooms in order and splits each one the wall cuts in two.
+Status SplitRoomsByWallCommand::apply(Project& project)
+{
+    Floor* floor = detail::floorOfWall(project.plan, wallId_);
+    if (!floor) return fail(ErrorCode::NotFound, "There is no wall " + wallId_ + ".");
+    floorId_ = floor->id;
+    previousRooms_ = floor->rooms;
+    previousItems_ = floor->items;
+    previousLights_ = floor->lights;
+    newRoomIds_.clear();
+
+    for (std::size_t i = 0; i < floor->rooms.size(); ++i) {
+        const auto parts = roomSplitBy(*floor, floor->rooms[i], wallId_);
+        if (!parts) continue;
+        const bool firstKeeps = parts->first.centreLineArea >= parts->second.centreLineArea;
+        const ClosedArea& kept = firstKeeps ? parts->first : parts->second;
+        const ClosedArea& given = firstKeeps ? parts->second : parts->first;
+
+        const std::size_t made = newRoomIds_.size();
+        Id id = made < idsForRedo_.size() ? idsForRedo_[made] : newId(project.plan, kRoomIdPrefix);
+        if (idInUse(project.plan, id)) id = newId(project.plan, kRoomIdPrefix);
+
+        Room& room = floor->rooms[i];
+        Room part = room;
+        part.id = id;
+        part.walls = given.walls;
+        room.walls = kept.walls;
+        for (Item& item : floor->items) {
+            if (item.room == room.id && insideArea(given, {item.x, item.y})) item.room = id;
+        }
+        for (LightMarker& light : floor->lights) {
+            if (light.room == room.id && insideArea(given, {light.x, light.y})) light.room = id;
+        }
+        floor->rooms.insert(floor->rooms.begin() + static_cast<std::ptrdiff_t>(i + 1), std::move(part));
+        newRoomIds_.push_back(id);
+        ++i;
+    }
+    if (idsForRedo_.size() < newRoomIds_.size()) idsForRedo_ = newRoomIds_;
+    return {};
+}
+
+// Puts the rooms, items and light markers back as they were.
+void SplitRoomsByWallCommand::undo(Project& project)
+{
+    Floor* floor = findFloor(project.plan, floorId_);
+    if (!floor) return;
+    floor->rooms = previousRooms_;
+    floor->items = previousItems_;
+    floor->lights = previousLights_;
+}
+
+unsigned SplitRoomsByWallCommand::changes() const
+{
+    return Change::Rooms | Change::Items | Change::Lights;
+}
+
+Id SplitRoomsByWallCommand::floorId() const
+{
+    return floorId_;
+}
+
+}

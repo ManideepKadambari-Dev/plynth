@@ -74,12 +74,14 @@ TEST_CASE("snapPosition: point beats wall beats grid", "[core][snap]") {
         REQUIRE(r.kind == SnapKind::Grid);
     }
     SECTION("switches for points and walls") {
+        o.toAlignment = false;
         o.toPoints = false;
         REQUIRE(snapPosition(f, {2.1, 2.9}, o).kind == SnapKind::Grid);
         o.toWalls = false;
         REQUIRE(snapPosition(f, {1.3, 0.2}, o).kind == SnapKind::Grid);
     }
     SECTION("a curved wall is snapped to along its arc") {
+        o.toAlignment = false;
         f.walls[0].bulge = 0.5;
         const SnapResult r = snapPosition(f, {2.0, 0.55}, o);
         REQUIRE(r.kind == SnapKind::Wall);
@@ -192,6 +194,7 @@ TEST_CASE("snapPosition ignorePoints", "[core][snap]") {
         REQUIRE(r.kind != SnapKind::Point);
     }
     SECTION("skips the walls that touch the point") {
+        o.toAlignment = false;
         const SnapResult r = snapPosition(f, {1.3, 0.2}, o);
         REQUIRE(r.kind == SnapKind::None);
     }
@@ -205,6 +208,7 @@ TEST_CASE("snapPosition leaves the very end of a wall to the point rule", "[core
     SnapOptions o;
     o.radius = 0.3;
     o.toPoints = false;
+    o.toAlignment = false;
     REQUIRE(snapPosition(f, {-0.1, 0.1}, o).kind == SnapKind::None);
 }
 

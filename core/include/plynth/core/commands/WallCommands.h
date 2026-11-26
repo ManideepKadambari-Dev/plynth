@@ -3,6 +3,7 @@
 #include "../Command.h"
 #include "../Geometry.h"
 #include "../Snapping.h"
+#include "RoomCommands.h"
 
 #include <cstddef>
 #include <memory>
@@ -184,14 +185,18 @@ struct WallEnd {
 WallEnd wallEndFromSnap(const SnapResult& snap);
 
 // Draws one wall in a single undo step: makes each end (adding a point or splitting a wall as needed),
-// then adds the wall between them, as AddWallCommand does. The ids picked on the first apply are kept for redo.
+// then adds the wall between them, as AddWallCommand does, then splits the rooms the new wall cuts in two
+// (SplitRoomsByWallCommand). The ids picked on the first apply are kept for redo.
+// thickness, when given, is used as it is. When empty the new wall takes the thickness of the wall it joins at its
+// start (the wall it ends on, or the first wall of that point in plan order), else at its end, else
+// unjoinedThickness, so a wall drawn on from an existing one matches it.
 // NotFound for an unknown floor, point or wall. InvalidValue when an end is on another floor, a position is not
 // finite, both ends come to the same point, both ends are on the same wall (a wall cannot run along another
 // one), or as for SplitWallCommand and AddWallCommand. AlreadyExists when a wall already joins the two ends.
 class DrawWallCommand : public Command {
 public:
-    DrawWallCommand(Id floorId, WallEnd from, WallEnd to, double thickness = kDefaultWallThickness,
-                    std::optional<double> height = {});
+    DrawWallCommand(Id floorId, WallEnd from, WallEnd to, std::optional<double> thickness = {},
+                    std::optional<double> height = {}, double unjoinedThickness = kDefaultWallThickness);
 
     // Ids after apply has succeeded once. Empty before.
     const Id& wallId() const;
@@ -200,11 +205,13 @@ public:
     // The points this command added and the walls it split, in the order it made them.
     const std::vector<Id>& newPointIds() const;
     const std::vector<Id>& splitWallIds() const;
+    // The rooms made by splitting a room the new wall cuts in two.
+    const std::vector<Id>& newRoomIds() const;
 
     std::string name() const override;
     Status apply(Project& project) override;
     void undo(Project& project) override;
-    // Points, Walls, Rooms, Openings and Items.
+    // Points, Walls, Rooms, Openings, Items and Lights.
     unsigned changes() const override;
     Id floorId() const override;
 
@@ -212,14 +219,59 @@ private:
     Id floorId_;
     WallEnd from_;
     WallEnd to_;
-    double thickness_;
+    std::optional<double> thickness_;
     std::optional<double> height_;
+    double unjoinedThickness_;
     Id wallId_;
     Id fromPointId_;
     Id toPointId_;
     std::vector<Id> newPointIds_;
     std::vector<Id> splitWallIds_;
+    std::vector<Id> newRoomIds_;
     std::vector<std::unique_ptr<Command>> steps_; // made on the first apply, applied again for redo
+};
+
+// The thickness of the wall a wall end joins: the wall it is on, or the first wall of its point in plan order.
+// Empty for a new point, a point no wall uses, or an unknown id.
+std::optional<double> joinedThickness(const Floor& floor, const WallEnd& end);
+
+// Joins a point onto another point or onto a place on a wall, for a dragged point dropped there. A place on a wall
+// is split first, as SplitWallCommand does. The walls of the point then run to the other point instead and the
+// point is removed. Those walls take the thickness of the wall they join (joinedThickness of the target), except
+// a curved one that the new thickness would bend too tightly, which keeps its own. Rooms that a moved wall now cuts
+// in two are split (SplitRoomsByWallCommand). Undo puts the floor back exactly as it was.
+// NotFound for an unknown point or wall. InvalidValue when the target is a new point, on another floor, the point
+// itself, a wall that ends at the point, or a point a wall of the point already runs to, or when a curved wall
+// would no longer be a real arc. AlreadyExists when a wall of the point would then join the same two points as
+// another wall. A MovePointCommand of the same point and the same non zero mergeKey takes this command in, so a
+// drag that ends in a join is one undo step.
+class JoinPointCommand : public Command {
+public:
+    JoinPointCommand(Id pointId, WallEnd target, int mergeKey = 0);
+
+    const Id& pointId() const;
+    // The point the walls now run to. Empty until apply has succeeded once.
+    const Id& targetPointId() const;
+    int mergeKey() const;
+    // The rooms made by splitting rooms that a moved wall cuts in two.
+    std::vector<Id> newRoomIds() const;
+
+    std::string name() const override;
+    Status apply(Project& project) override;
+    void undo(Project& project) override;
+    // Points, Walls, Rooms, Openings, Items and Lights.
+    unsigned changes() const override;
+    Id floorId() const override;
+
+private:
+    Id pointId_;
+    WallEnd target_;
+    int mergeKey_;
+    Id floorId_;
+    Id targetPointId_;
+    std::optional<SplitWallCommand> split_;
+    std::vector<SplitRoomsByWallCommand> roomSplits_;
+    Floor previous_; // the floor before the join, for an exact undo
 };
 
 }

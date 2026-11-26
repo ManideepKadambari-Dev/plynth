@@ -5,6 +5,7 @@
 #include "tools/Tool.h"
 
 #include <plynth/core/Plan.h>
+#include <plynth/core/Snapping.h>
 
 #include <QPointF>
 
@@ -32,6 +33,7 @@ public:
 
 private:
     void dragTo(const ToolMouse& mouse);
+    void showWallMenu(const ToolMouse& mouse);
     void bendTo(const ToolMouse& mouse);
     void moveOpeningTo(const ToolMouse& mouse);
     void moveItemTo(const ToolMouse& mouse);
@@ -43,6 +45,7 @@ private:
     void setHandleHover(bool hover);
 
     plynth::Id dragPoint_;
+    std::optional<plynth::SnapResult> dragSnap_;
     QPoint pressView_;
     QPointF startMetres_;
     int dragKey_ = 0;

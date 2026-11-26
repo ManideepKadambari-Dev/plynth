@@ -11,6 +11,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <limits>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -353,7 +354,10 @@ TEST_CASE("DrawWallCommand with each pair of ends", "[core][command][wall]") {
         REQUIRE(w->height == 2.4);
         REQUIRE(c.name() == "Draw wall");
         REQUIRE(c.floorId() == "f1");
-        REQUIRE(c.changes() == (Change::Points | Change::Walls | Change::Rooms | Change::Openings | Change::Items));
+        REQUIRE(c.changes() ==
+                (Change::Points | Change::Walls | Change::Rooms | Change::Openings | Change::Items | Change::Lights));
+        REQUIRE(c.newRoomIds().size() == 1);
+        REQUIRE(p.plan.floors[0].rooms.size() == 2);
     }
     SECTION("point to new point") {
         DrawWallCommand c("f1", WallEnd::atPoint("p1"), WallEnd::newPoint({-2.0, 0.0}));
@@ -399,8 +403,12 @@ TEST_CASE("DrawWallCommand with each pair of ends", "[core][command][wall]") {
         REQUIRE(c.newPointIds().size() == 2);
         REQUIRE(p.plan.floors[0].points.size() == points + 2);
         REQUIRE(p.plan.floors[0].walls.size() == walls + 3);
-        const std::vector<Id> expected{"w1", "w5", "w2", "w3", "w6", "w4"};
-        REQUIRE(p.plan.floors[0].rooms[0].walls == expected);
+        REQUIRE(p.plan.floors[0].rooms.size() == 2);
+        REQUIRE(c.newRoomIds().size() == 1);
+        const std::vector<Id> left = p.plan.floors[0].rooms[0].walls;
+        const std::vector<Id> right = p.plan.floors[0].rooms[1].walls;
+        REQUIRE(std::set<Id>(left.begin(), left.end()) == std::set<Id>{"w1", "w7", "w6", "w4"});
+        REQUIRE(std::set<Id>(right.begin(), right.end()) == std::set<Id>{"w5", "w2", "w3", "w7"});
     }
     SECTION("closing a loop onto an existing point") {
         DrawWallCommand first("f1", WallEnd::atPoint("p2"), WallEnd::newPoint({6.0, 0.0}));

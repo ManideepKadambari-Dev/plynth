@@ -1,5 +1,7 @@
 #include "plynth/core/commands/PointCommands.h"
 
+#include "plynth/core/commands/WallCommands.h"
+
 #include "CommandSupport.h"
 
 #include <algorithm>
@@ -73,7 +75,7 @@ MovePointCommand::MovePointCommand(Id pointId, double x, double y, int mergeKey)
 
 std::string MovePointCommand::name() const
 {
-    return "Move point";
+    return join_ ? "Join point" : "Move point";
 }
 
 // Moves the point, remembering where it was.
@@ -99,12 +101,22 @@ Status MovePointCommand::apply(Project& project)
     oldY_ = p->y;
     p->x = x_;
     p->y = y_;
+    if (join_) {
+        if (const Status s = join_->apply(project); !s.ok()) {
+            if (Point* back = findPoint(*floor, pointId_)) {
+                back->x = oldX_;
+                back->y = oldY_;
+            }
+            return s;
+        }
+    }
     return {};
 }
 
-// Puts the point back where it was.
+// Takes back the join, if any, then puts the point back where it was.
 void MovePointCommand::undo(Project& project)
 {
+    if (join_) join_->undo(project);
     Floor* floor = findFloor(project.plan, floorId_);
     if (!floor) return;
     if (Point* p = findPoint(*floor, pointId_)) {
@@ -115,7 +127,7 @@ void MovePointCommand::undo(Project& project)
 
 unsigned MovePointCommand::changes() const
 {
-    return Change::Points;
+    return join_ ? Change::Points | join_->changes() : Change::Points;
 }
 
 Id MovePointCommand::floorId() const
@@ -126,6 +138,12 @@ Id MovePointCommand::floorId() const
 // Takes over the later target of a move of the same point in the same drag.
 bool MovePointCommand::mergeWith(const Command& next)
 {
+    if (join_ || mergeKey_ == 0) return false;
+    if (const auto* join = dynamic_cast<const JoinPointCommand*>(&next)) {
+        if (join->mergeKey() != mergeKey_ || join->pointId() != pointId_) return false;
+        join_ = std::make_shared<JoinPointCommand>(*join);
+        return true;
+    }
     const auto* other = dynamic_cast<const MovePointCommand*>(&next);
     if (!other || mergeKey_ == 0 || other->mergeKey_ != mergeKey_ || other->pointId_ != pointId_) return false;
     x_ = other->x_;
