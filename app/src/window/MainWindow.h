@@ -8,6 +8,7 @@
 #include <plynth/core/Export.h>
 #include <plynth/core/ProjectFiles.h>
 
+#include <QEvent>
 #include <QImage>
 #include <QKeySequence>
 #include <QList>
@@ -114,6 +115,8 @@ public:
 
     // For checks only: activates a tool by name (select, scale, wall, room, detect). False for an unknown name.
     bool activateToolByName(const QString& name);
+    // For checks only: drives the plan with mouse events (see MainWindowWallCheck.cpp) and writes a report.
+    bool runWallCheck(const QString& spec, const QString& report, const QString& middlePicture);
     // For checks only: shows the floor with this id. False for an unknown id.
     bool showFloor(const QString& id);
     // For checks only: selects the point, wall or room with this id, switching to its floor first. An unknown id selects nothing.
@@ -287,6 +290,7 @@ protected:
     bool nativeEvent(const QByteArray& eventType, void* message, qintptr* result) override;
 
 private:
+    void sendPlanMouse(QEvent::Type type, double x, double y, Qt::MouseButton button, Qt::MouseButtons buttons);
     QWidget* dialogParent() const;
     void makeToolWindows();
     void makeSidePanelToggle();

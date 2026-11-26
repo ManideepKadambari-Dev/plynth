@@ -170,6 +170,7 @@ add_executable(plynth WIN32
     src/window/MainWindowExport.cpp
     src/window/MainWindowPack.cpp
     src/window/MainWindowUpdate.cpp
+    src/window/MainWindowWallCheck.cpp
     src/window/ReadOnlyBanner.h
     src/window/ReadOnlyBanner.cpp
     src/window/StatusBar.h
