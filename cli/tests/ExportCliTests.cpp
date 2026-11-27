@@ -280,6 +280,49 @@ TEST_CASE("export report gives the last report and not_found before any", "[cli]
     CHECK(errorCode(bad) == "bad_file");
 }
 
+TEST_CASE("export report warns when the report comes from an older build", "[cli][export]") {
+    ExportSample flat("export-report-age");
+    REQUIRE(flat.exportWith().exitCode == kExitOk);
+    const auto fresh = flat.sample.run({"export", "report"});
+    REQUIRE(fresh.exitCode == kExitOk);
+    CHECK_FALSE(fresh.answer.contains("warnings"));
+
+    REQUIRE(flat.sample.draw({"--from-x", "1", "--from-y", "1", "--to-x", "2", "--to-y", "2"}).exitCode == kExitOk);
+    REQUIRE(flat.sample.run({"build", "--blender", utf8(flat.fake)}).exitCode == kExitOk);
+    const auto old = flat.sample.run({"export", "report"});
+    REQUIRE(old.exitCode == kExitOk);
+    requireReport(old.answer.at("result"));
+    REQUIRE(old.answer.contains("warnings"));
+    REQUIRE(old.answer.at("warnings").size() == 1);
+    CHECK(old.answer.at("warnings").at(0).at("code") == "out_of_date");
+
+    REQUIRE(flat.exportWith().exitCode == kExitOk);
+    CHECK_FALSE(flat.sample.run({"export", "report"}).answer.contains("warnings"));
+}
+
+TEST_CASE("export asks for a build before it looks for Blender", "[cli][export]") {
+    SettingsReset reset;
+    const Sample sample("export-blocked-first");
+    sample.drawRoomSquare();
+    const auto outcome =
+        sample.run({"export", "--check", "--blender", utf8(sample.temp.path() / "none" / "blender.exe")});
+    CHECK(outcome.exitCode == kExitFailed);
+    CHECK(errorCode(outcome) == "not_found");
+    CHECK(outcome.answer.at("error").at("message") == "Build the project first.");
+    CHECK_FALSE(fs::exists(sample.folder / "export"));
+}
+
+TEST_CASE("export --check is in_use while a fresh lock is held", "[cli][export]") {
+    ExportSample flat("export-check-locked");
+    const fs::path lock = flat.sample.folder / "build" / "build.lock";
+    writeFreshLock(lock);
+    const auto outcome = flat.exportWith({"--check"});
+    CHECK(outcome.exitCode == kExitFailed);
+    CHECK(errorCode(outcome) == "in_use");
+    CHECK(outcome.answer.at("error").at("message") == "A build or an export of this project is running.");
+    CHECK(fs::exists(lock));
+}
+
 TEST_CASE("export runs while the app has the project open", "[cli][export]") {
     ExportSample flat("export-app-open");
     plynth::AppState state;

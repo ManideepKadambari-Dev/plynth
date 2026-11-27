@@ -75,6 +75,30 @@ nlohmann::json wallOf(const Sample& sample, const std::string& id) {
 
 }
 
+// Says whether a build check lists a problem with this code whose message names the text.
+static bool hasProblem(const nlohmann::json& result, const std::string& code, const std::string& text) {
+    return std::ranges::any_of(result.at("problems"), [&](const nlohmann::json& problem) {
+        return problem.at("code") == code && problem.at("message").get<std::string>().find(text) != std::string::npos;
+    });
+}
+
+TEST_CASE("build --check looks the plan's materials up in the library as the build does", "[cli][material][build]") {
+    MaterialLibrary library("material-check-lib");
+    Sample sample("material-check");
+    buildTwoRooms(sample, "living", "hall");
+    REQUIRE(sample.run({"material", "set", "r1.floor", "oak_planks"}).exitCode == kExitOk);
+
+    const auto found = sample.run({"build", "--check"});
+    REQUIRE(found.exitCode == kExitOk);
+    CHECK_FALSE(hasProblem(found.answer.at("result"), "missing_material", "oak_planks"));
+    CHECK_FALSE(hasProblem(found.answer.at("result"), "no_library", ""));
+
+    REQUIRE(runChecked({"materials", "remove", "oak_planks", "--yes"}).exitCode == kExitOk);
+    const auto missing = sample.run({"build", "--check"});
+    REQUIRE(missing.exitCode == kExitOk);
+    CHECK(hasProblem(missing.answer.at("result"), "missing_material", "oak_planks"));
+}
+
 TEST_CASE("material set changes a room, a wall face and a default", "[cli][material]") {
     MaterialLibrary library("material-set-lib");
     Sample sample("material-set");

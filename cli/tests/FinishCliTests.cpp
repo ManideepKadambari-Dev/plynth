@@ -146,6 +146,24 @@ TEST_CASE("opening set --frame refuses unknown assets, other categories and plai
     CHECK(readFile(finish.sample.folder / "plan.json") == before);
 }
 
+TEST_CASE("opening set --frame refuses a broken or unmeasured asset as the app's frame picker does", "[cli][finish]") {
+    const FinishSample finish("opening-frame-state");
+    plynth::cli::testing::makeFinishAsset(finish.library, "bare_door", {"door"}, {}, {0.0, 0.0, 0.0});
+    plynth::cli::testing::makeFinishAsset(finish.library, "cracked_door", {"door"}, {}, {0.9, 0.05, 2.1});
+    std::filesystem::remove(plynth::libraryPaths(finish.library).assetItems / "cracked_door" / "asset.blend");
+    REQUIRE(plynth::cli::testing::runChecked({"assets", "rescan", "--no-blender"}).exitCode == kExitOk);
+    const std::string before = readFile(finish.sample.folder / "plan.json");
+
+    const auto bare = finish.run({"opening", "set", "o1", "--frame", "bare_door"});
+    CHECK(errorCode(bare) == "invalid_value");
+    CHECK(bare.answer.at("error").at("message") ==
+          "bare_door is not measured yet, so it cannot be fitted. Retry its render first.");
+    const auto cracked = finish.run({"opening", "set", "o1", "--frame", "cracked_door"});
+    CHECK(errorCode(cracked) == "invalid_value");
+    CHECK(cracked.answer.at("error").at("message").get<std::string>().starts_with("cracked_door cannot be fitted: "));
+    CHECK(readFile(finish.sample.folder / "plan.json") == before);
+}
+
 TEST_CASE("room set and opening set --frame follow the lock rules", "[cli][finish]") {
     Sample sample("finish-lock");
     sample.drawRoomSquare();

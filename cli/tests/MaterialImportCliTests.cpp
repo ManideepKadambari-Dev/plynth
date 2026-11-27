@@ -18,6 +18,7 @@ using plynth::cli::testing::installFakeBlender;
 using plynth::cli::testing::MaterialSettingsReset;
 using plynth::cli::testing::readFile;
 using plynth::cli::testing::runChecked;
+using plynth::cli::testing::ScopedEnvironment;
 using plynth::cli::testing::TempFolder;
 using plynth::cli::testing::utf8;
 
@@ -272,6 +273,86 @@ TEST_CASE("materials thumbnail cleans a material again and answers with its reco
 
     CHECK(errorCode(runChecked({"materials", "thumbnail", "ghost", "--blender", utf8(fake)})) == "not_found");
     CHECK(errorCode(runChecked({"materials", "thumbnail", "../x", "--blender", utf8(fake)})) == "invalid_value");
+}
+
+TEST_CASE("materials rescan renders changed materials again unless --no-refresh", "[cli][materials][import]") {
+    MaterialSettingsReset reset;
+    TempFolder temp("mimport-rescan");
+    const auto fake = setUp(temp);
+    makeSet(temp.path() / "Library" / "materials" / "items", "fresh", "");
+
+    const auto listed = runChecked({"materials", "rescan", "--no-refresh", "--blender", utf8(fake)});
+    REQUIRE(listed.exitCode == kExitOk);
+    CHECK(listed.answer.at("result").at("needs_refresh") == nlohmann::json::array({"fresh"}));
+    CHECK(listed.answer.at("result").at("refreshed").empty());
+    CHECK(jobsLogged(temp).empty());
+
+    const auto refreshed = runChecked({"materials", "rescan", "--blender", utf8(fake)});
+    REQUIRE(refreshed.exitCode == kExitOk);
+    const auto& result = refreshed.answer.at("result");
+    CHECK(result.at("refreshed") == nlohmann::json::array({"fresh"}));
+    CHECK(result.at("needs_refresh").empty());
+    CHECK(result.at("refresh_failed").empty());
+    CHECK(jobsLogged(temp).size() == 1);
+
+    const auto quiet = runChecked({"materials", "rescan", "--blender", utf8(fake)});
+    REQUIRE(quiet.exitCode == kExitOk);
+    CHECK(quiet.answer.at("result").at("refreshed").empty());
+    CHECK(jobsLogged(temp).size() == 1);
+}
+
+TEST_CASE("materials rescan lists what it could not render when Blender is missing", "[cli][materials][import]") {
+    MaterialSettingsReset reset;
+    TempFolder temp("mimport-rescan-noblender");
+    setUp(temp);
+    makeSet(temp.path() / "Library" / "materials" / "items", "fresh", "");
+    REQUIRE(runChecked({"materials", "rescan", "--no-refresh"}).exitCode == kExitOk);
+
+    const auto outcome = runChecked({"materials", "rescan", "--blender", utf8(temp.path() / "none" / "blender.exe")});
+    REQUIRE(outcome.exitCode == kExitOk);
+    const auto& failed = outcome.answer.at("result").at("refresh_failed");
+    REQUIRE(failed.size() == 1);
+    CHECK(failed.at(0).at("id") == "fresh");
+    CHECK(failed.at(0).at("code") == "blender_not_found");
+    CHECK(outcome.answer.at("result").at("refreshed").empty());
+}
+
+TEST_CASE("library add-sample-materials gives the samples license and keeps the sample files", "[cli][materials][import]") {
+    MaterialSettingsReset reset;
+    TempFolder temp("mimport-samples");
+    const auto fake = setUp(temp);
+    const auto samples = temp.path() / "samples";
+    std::filesystem::create_directories(samples);
+    std::ofstream(samples / "samples.json", std::ios::binary)
+        << R"({"format": "plynth-samples", "version": 1, "license": "cc0", "assets": [], "materials": [], "projects": []})";
+    const auto set = makeSet(samples / "materials", "slate", "slate");
+    const ScopedEnvironment variable("PLYNTH_SAMPLES", utf8(samples));
+
+    const auto added = runChecked({"library", "add-sample-materials", "--blender", utf8(fake), "--quiet"});
+    REQUIRE(added.exitCode == kExitOk);
+    CHECK(added.answer.at("result").at("added") == nlohmann::json::array({"slate"}));
+    CHECK(added.answer.at("result").at("skipped").empty());
+    CHECK(std::filesystem::is_regular_file(set / "slate_color.png"));
+    const auto info = runChecked({"materials", "info", "slate"});
+    REQUIRE(info.exitCode == kExitOk);
+    CHECK(info.answer.at("result").at("license") == "cc0");
+
+    const auto again = runChecked({"library", "add-sample-materials", "--blender", utf8(fake), "--quiet"});
+    REQUIRE(again.exitCode == kExitOk);
+    CHECK(again.answer.at("result").at("added").empty());
+    CHECK(again.answer.at("result").at("skipped") == nlohmann::json::array({"slate"}));
+}
+
+TEST_CASE("materials list shows a library filled by hand", "[cli][materials][import]") {
+    MaterialSettingsReset reset;
+    TempFolder temp("mimport-handfilled");
+    REQUIRE(runChecked({"library", "init", utf8(temp.path() / "Library"), "--use"}).exitCode == kExitOk);
+    makeSet(temp.path() / "Library" / "materials" / "items", "handmade", "");
+
+    const auto listed = runChecked({"materials", "list"});
+    REQUIRE(listed.exitCode == kExitOk);
+    REQUIRE(listed.answer.at("result").at("count") == 1);
+    CHECK(listed.answer.at("result").at("materials").at(0).at("id") == "handmade");
 }
 
 TEST_CASE("materials importers lists the texture set and blend importers", "[cli][materials][import]") {

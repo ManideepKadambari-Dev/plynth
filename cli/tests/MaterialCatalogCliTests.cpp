@@ -205,10 +205,12 @@ TEST_CASE("materials rescan reports changed and broken materials", "[cli][materi
     std::filesystem::create_directories(library.root / "materials" / "items" / "fresh");
     std::ofstream(library.root / "materials" / "items" / "fresh" / "a.png", std::ios::binary) << "x";
 
-    const auto rescan = runChecked({"materials", "rescan"});
+    const auto rescan = runChecked({"materials", "rescan", "--no-refresh"});
     REQUIRE(rescan.exitCode == kExitOk);
     const auto& result = rescan.answer.at("result");
     CHECK(ids(result.at("needs_refresh")) == std::vector<std::string>{"fresh", "red_brick"});
+    CHECK(result.at("refreshed").empty());
+    CHECK(result.at("refresh_failed").empty());
     CHECK(result.at("broken").size() == 1);
     CHECK(result.at("broken").at(0).at("folder") == "oak_planks");
     CHECK(result.at("added") == 1);

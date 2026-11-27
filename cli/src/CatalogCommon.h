@@ -42,8 +42,9 @@ void addLibraryOption(CLI::App& sub, std::string& value);
 bool openCatalog(const std::string& command, const RunContext& context, const std::string& libraryOption,
                  OpenedCatalog& opened, Answer& failed);
 
-// Opens the materials catalog of the library (the --library value, or the settings). On error the answer
-// for command is returned in failed (no_library and the refusals of MaterialCatalog::open).
+// Opens the materials catalog of the library (the --library value, or the settings) the way the app does: an
+// empty index of a library filled by hand is rebuilt first. On error the answer for command is returned in failed
+// (no_library and the refusals of MaterialCatalog::open).
 bool openMaterialCatalog(const std::string& command, const RunContext& context, const std::string& libraryOption,
                          OpenedMaterialCatalog& opened, Answer& failed);
 
@@ -116,6 +117,12 @@ bool refuseEmptyBlender(const std::string& command, const BlenderOption& option,
 // returned in failed (blender_not_found).
 bool makeImportContext(const std::string& command, const RunContext& context, const OpenedCatalog& opened,
                        const BlenderOption& blenderOption, ImportContext& importContext, Answer& failed);
+
+// Picks the Blender and fills what the material imports and refreshes need. On error the answer for command
+// is returned in failed (blender_not_found).
+bool makeMaterialImportContext(const std::string& command, const RunContext& context,
+                               const OpenedMaterialCatalog& opened, const BlenderOption& blenderOption,
+                               ImportContext& importContext, Answer& failed);
 
 // Rebuilds the index from disk. Unless noBlender, each changed asset is then measured again and given a new
 // thumbnail. Returns the rescan entry, with the refresh outcome in it.

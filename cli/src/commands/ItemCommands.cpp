@@ -6,10 +6,13 @@
 #include <plynth/core/Geometry.h>
 #include <plynth/core/Items.h>
 #include <plynth/core/Rooms.h>
+#include <plynth/core/catalog/CatalogChecks.h>
 #include <plynth/core/catalog/ItemAssets.h>
+#include <plynth/core/catalog/MaterialRescan.h>
 #include <plynth/core/commands/GeneratorCommands.h>
 #include <plynth/core/commands/ItemCommands.h>
 
+#include <algorithm>
 #include <cmath>
 #include <format>
 #include <memory>
@@ -380,9 +383,27 @@ bool splitParam(const std::string& text, std::string& id, std::string& value) {
     return true;
 }
 
-// Sets each "id=value" text in a full set of values. InvalidValue naming the parameter when one does not fit.
+// Checks the material values the user gave against the library's materials catalog, as the app's material picker
+// does. The catalog is opened only when a material value was given.
+Status checkGivenMaterials(const GeneratorInfo& info, const std::vector<GeneratorParamValue>& given,
+                           const LibraryPaths& library) {
+    const bool anyMaterial = std::ranges::any_of(given, [&](const GeneratorParamValue& entry) {
+        const GeneratorParam* param = info.findParam(entry.id);
+        return param != nullptr && param->type == GeneratorParamType::Material;
+    });
+    if (!anyMaterial) {
+        return {};
+    }
+    Status opened;
+    const std::unique_ptr<MaterialCatalog> materials = plynth::openMaterialCatalog(library, opened);
+    return checkGeneratorMaterials(info, given, materials.get());
+}
+
+// Sets each "id=value" text in a full set of values, then checks the material values given. InvalidValue naming
+// the parameter when one does not fit.
 Status applyParamTexts(const GeneratorInfo& info, std::vector<GeneratorParamValue>& values,
-                       const std::vector<std::string>& texts) {
+                       const std::vector<std::string>& texts, const LibraryPaths& library) {
+    std::vector<GeneratorParamValue> given;
     for (const std::string& text : texts) {
         std::string id;
         std::string value;
@@ -401,14 +422,15 @@ Status applyParamTexts(const GeneratorInfo& info, std::vector<GeneratorParamValu
         if (!set.ok()) {
             return set;
         }
+        given.push_back({id, read.value});
     }
-    return {};
+    return checkGivenMaterials(info, given, library);
 }
 
 // Gives a new item the generator named by --generator with the defaults and the --param values. NotFound for
 // an unknown generator, InvalidValue for one that needs an add-on that is off or a value that does not fit.
-Status chooseGenerator(const GeneratorEnv& env, const std::string& id, const std::vector<std::string>& texts,
-                       double ceilingHeight, Item& item) {
+Status chooseGenerator(const GeneratorEnv& env, const LibraryPaths& library, const std::string& id,
+                       const std::vector<std::string>& texts, double ceilingHeight, Item& item) {
     const GeneratorInfo* info = env.library.find(id);
     if (info == nullptr) {
         return fail(ErrorCode::NotFound, "There is no generator " + id + " in the library.");
@@ -418,7 +440,7 @@ Status chooseGenerator(const GeneratorEnv& env, const std::string& id, const std
         return fail(ErrorCode::InvalidValue, state.message);
     }
     std::vector<GeneratorParamValue> values = defaultGeneratorParams(*info, ceilingHeight);
-    const Status applied = applyParamTexts(*info, values, texts);
+    const Status applied = applyParamTexts(*info, values, texts, library);
     if (!applied.ok()) {
         return applied;
     }
@@ -488,7 +510,7 @@ Answer itemPlace(const RunContext& context, const PlaceOptions& options) {
             item.asset = options.asset;
             item.size = asset.size;
         } else {
-            const Status chosen = chooseGenerator(lib.generators, options.generator, options.params,
+            const Status chosen = chooseGenerator(lib.generators, lib.opened.paths, options.generator, options.params,
                                                   floor->ceilingHeight, item);
             if (!chosen.ok()) {
                 return failure(command, chosen);
@@ -822,7 +844,7 @@ Answer itemParams(const RunContext& context, const ParamsOptions& options) {
                                          "The values of " + options.id + " no longer fit generator " + info->id +
                                              ". Use --fit to update them or --reset for the defaults."));
         }
-        const Status applied = applyParamTexts(*info, values, options.params);
+        const Status applied = applyParamTexts(*info, values, options.params, lib.opened.paths);
         if (!applied.ok()) {
             return failure(command, applied);
         }

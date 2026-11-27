@@ -276,6 +276,32 @@ TEST_CASE("variation copies saves one project per seed and refuses what the rule
     CHECK(count == 3);
 }
 
+TEST_CASE("variation copies takes ranges of seeds as the app's Variations dialog does", "[cli][variation]") {
+    plynth::cli::testing::GuardedSettingsReset reset;
+    Sample sample("variation-ranges");
+    sample.drawRoomSquare();
+    const fs::path out = sample.temp.path() / "street";
+
+    const auto made = sample.run({"variation", "copies", "--seeds", "1-3, 9", "--out", utf8(out)});
+    REQUIRE(made.exitCode == kExitOk);
+    std::vector<int> seeds;
+    for (const auto& entry : made.answer.at("result").at("folders")) {
+        seeds.push_back(entry.at("seed").get<int>());
+    }
+    CHECK(seeds == std::vector<int>{1, 2, 3, 9});
+
+    const fs::path other = sample.temp.path() / "other";
+    const auto backwards = sample.run({"variation", "copies", "--seeds", "5-2", "--out", utf8(other)});
+    CHECK(errorCode(backwards) == "invalid_value");
+    CHECK(backwards.answer.at("error").at("message").get<std::string>().find("5-2") != std::string::npos);
+    const auto twice = sample.run({"variation", "copies", "--seeds", "1-3,2", "--out", utf8(other)});
+    CHECK(errorCode(twice) == "invalid_value");
+    CHECK(twice.answer.at("error").at("message") == "The seed 2 is given twice.");
+    CHECK(errorCode(sample.run({"variation", "copies", "--seeds", "0-4294967295", "--out", utf8(other)})) ==
+          "invalid_value");
+    CHECK_FALSE(fs::exists(other));
+}
+
 TEST_CASE("help lists the variation commands", "[cli][variation]") {
     const auto outcome = runChecked({"help"});
     std::vector<std::string> names;

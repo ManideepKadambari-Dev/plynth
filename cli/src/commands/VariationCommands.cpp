@@ -1,10 +1,9 @@
 #include "../CatalogCommon.h"
 #include "../Common.h"
 
-#include <plynth/core/BuildResolve.h>
+#include <plynth/core/BuildCheck.h>
 #include <plynth/core/FinishSettings.h>
 #include <plynth/core/VariationCopies.h>
-#include <plynth/core/catalog/BuildChoices.h>
 #include <plynth/core/commands/FinishCommands.h>
 
 #include <charconv>
@@ -110,74 +109,6 @@ Answer variationSet(const RunContext& context, const SetOptions& options) {
     });
 }
 
-// One prop of the preview: what it is, the rule that placed it, what it stands or hangs on and where.
-Json propJson(const DressingPlacement& prop) {
-    Json entry = Json::object();
-    entry["asset"] = prop.asset;
-    entry["rule"] = prop.rule;
-    entry["host"] = prop.host;
-    entry["x"] = prop.position.x;
-    entry["y"] = prop.position.y;
-    entry["z"] = prop.z;
-    entry["rotation"] = prop.rotation;
-    return entry;
-}
-
-// The preview answer: the settings used, what the seed changed, the doors and windows picked and the props of
-// every room.
-Json previewJson(const ResolvedBuild& resolved, const std::optional<LibraryPaths>& library) {
-    Json result = variationJson(resolved.project.settings.variation);
-    result["library"] = library ? Json(pathToUtf8(library->root)) : Json(nullptr);
-    Json changes = Json::array();
-    for (const VariationChange& change : resolved.changes) {
-        Json entry = Json::object();
-        entry["target"] = std::string(variationTargetName(change.target));
-        entry["object"] = change.object.empty() ? Json(nullptr) : Json(change.object);
-        entry["from"] = change.from;
-        entry["to"] = change.to;
-        changes.push_back(std::move(entry));
-    }
-    Json frames = Json::array();
-    for (const PickedFrame& frame : resolved.frames) {
-        Json entry = Json::object();
-        entry["opening"] = frame.opening;
-        entry["asset"] = frame.asset;
-        frames.push_back(std::move(entry));
-    }
-    Json rooms = Json::array();
-    int count = 0;
-    for (const Floor& floor : resolved.project.plan.floors) {
-        const FloorDressing* dressing = nullptr;
-        for (const FloorDressing& entry : resolved.dressing) {
-            if (entry.floor == floor.id) {
-                dressing = &entry;
-            }
-        }
-        for (const Room& room : floor.rooms) {
-            Json props = Json::array();
-            if (dressing != nullptr) {
-                for (const DressingPlacement& prop : dressing->props) {
-                    if (prop.room == room.id) {
-                        props.push_back(propJson(prop));
-                    }
-                }
-            }
-            count += static_cast<int>(props.size());
-            Json entry = Json::object();
-            entry["floor"] = floor.id;
-            entry["room"] = room.id;
-            entry["dressing"] = room.dressing;
-            entry["props"] = std::move(props);
-            rooms.push_back(std::move(entry));
-        }
-    }
-    result["changes"] = std::move(changes);
-    result["frames"] = std::move(frames);
-    result["rooms"] = std::move(rooms);
-    result["prop_count"] = count;
-    return result;
-}
-
 // Shows what a build would make of the plan with a seed, from the library's choices, as the build resolves it.
 // Writes nothing.
 Answer variationPreview(const RunContext& context, const PreviewOptions& options) {
@@ -201,32 +132,19 @@ Answer variationPreview(const RunContext& context, const PreviewOptions& options
     if (!haveLibrary && !options.library.empty()) {
         return failed;
     }
-    std::unique_ptr<MaterialCatalog> materials;
-    std::optional<LibraryPaths> library;
-    if (haveLibrary) {
-        Status ignored;
-        materials = MaterialCatalog::open(opened.paths, ignored);
-        library = opened.paths;
-    }
-    Project project = document.project();
-    if (seed) {
-        project.settings.variation.seed = *seed;
-    }
-    const BuildChoices choices = buildChoicesFrom(haveLibrary ? opened.catalog.get() : nullptr, materials.get());
-    return success(command, previewJson(resolveBuild(project, choices), library));
+    const std::optional<LibraryPaths> library =
+        haveLibrary ? std::optional<LibraryPaths>(opened.paths) : std::nullopt;
+    return success(command, variationPreviewToJson(previewVariation(document.project(), seed, library)));
 }
 
 // Saves a copy of the project for each seed, in its own folder under --out.
 Answer variationCopies(const RunContext& context, const CopiesOptions& options) {
     const std::string command = "variation copies";
-    std::vector<std::uint32_t> seeds;
-    for (const std::string& text : splitList(options.seeds)) {
-        const std::optional<std::uint32_t> seed = parseSeed(text);
-        if (!seed) {
-            return badSeed(command, text);
-        }
-        seeds.push_back(*seed);
+    const SeedListRead read = parseSeedList(options.seeds);
+    if (!read.status.ok()) {
+        return failure(command, read.status);
     }
+    const std::vector<std::uint32_t>& seeds = read.seeds;
     const std::filesystem::path folder = resolveProjectFolder(context, options.project);
     Document document;
     Answer failed;
@@ -296,7 +214,7 @@ std::vector<CommandSpec> variationCommands() {
     copies.setup = [](CLI::App& sub) -> Handler {
         auto options = std::make_shared<CopiesOptions>();
         addProjectOption(sub, options->project);
-        sub.add_option("--seeds", options->seeds, "The seeds, separated by commas, for example 1,2,3.")
+        sub.add_option("--seeds", options->seeds, "The seeds, separated by commas, with ranges such as 1-5, for example 1-5,9.")
             ->type_name("list")
             ->required();
         sub.add_option("--out", options->out, "The folder the copies go in.")->type_name("folder")->required();

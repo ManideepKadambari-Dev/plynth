@@ -43,6 +43,7 @@ std::vector<Command> commands() {
             {{"assets", "rescan"}},
             {{"assets", "thumbnail", "stale"}},
             {{"library", "rescan"}},
+            {{"materials", "rescan"}},
             {{"build"}, false, true},
             {{"export"}, false, true},
             {{"doctor"}, true},

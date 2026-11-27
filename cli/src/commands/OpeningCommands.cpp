@@ -7,6 +7,7 @@
 #include <plynth/core/commands/DeleteCommands.h>
 #include <plynth/core/commands/FinishCommands.h>
 #include <plynth/core/commands/OpeningCommands.h>
+#include <plynth/core/catalog/CatalogChecks.h>
 
 #include <algorithm>
 #include <memory>
@@ -188,29 +189,17 @@ Answer openingResize(const RunContext& context, const ResizeOptions& options) {
     });
 }
 
-// Checks that an asset named by --frame is in the library and in the category the opening type takes. Fills
-// failed when it is not.
-bool checkFrameAsset(const std::string& command, const RunContext& context, const SetOptions& options,
-                     OpeningType type, Answer& failed) {
-    if (type == OpeningType::Plain) {
-        failed = failure(command, fail(ErrorCode::InvalidValue,
-                                       "A plain opening takes no door or window asset. Use --frame auto or generated."));
-        return false;
-    }
+// Checks the asset named by --frame the way the app's frame picker does: in the library, in the category the
+// opening type takes, not broken and measured. Fills failed when it is not.
+bool checkFrameOption(const std::string& command, const RunContext& context, const SetOptions& options,
+                      OpeningType type, Answer& failed) {
     OpenedCatalog opened;
     if (!openCatalog(command, context, options.library, opened, failed)) {
         return false;
     }
-    const std::optional<AssetRecord> record = opened.catalog->asset(options.frame);
-    if (!record) {
-        failed = failure(command, fail(ErrorCode::NotFound, "There is no asset " + options.frame + " in the library."));
-        return false;
-    }
-    const std::string category(type == OpeningType::Door ? kDoorCategory : kWindowCategory);
-    if (std::ranges::find(record->categories, category) == record->categories.end()) {
-        failed = failure(command, fail(ErrorCode::InvalidValue, "The asset " + options.frame + " is not in the " +
-                                                                    category + " category, so it cannot fill a " +
-                                                                    category + "."));
+    const Status checked = plynth::checkFrameAsset(*opened.catalog, options.frame, type);
+    if (!checked.ok()) {
+        failed = failure(command, checked);
         return false;
     }
     return true;
@@ -255,7 +244,7 @@ Answer openingSet(const RunContext& context, const SetOptions& options) {
             group->add(std::make_unique<SetOpeningStyleCommand>(options.id, style));
         }
         if (namedAsset) {
-            if (!checkFrameAsset(command, context, options, style.type, failed)) {
+            if (!checkFrameOption(command, context, options, style.type, failed)) {
                 return failed;
             }
             group->add(std::make_unique<SetOpeningFrameCommand>(options.id, options.frame, false));

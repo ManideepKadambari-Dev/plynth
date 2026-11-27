@@ -662,7 +662,7 @@ Adds an empty floor. By default it goes on top of the others. It gets the next f
 
 | Option | Meaning |
 |---|---|
-| `--name <text>` | Default: "Floor N", N being the number of floors after adding. |
+| `--name <text>` | Default: "Floor N", N being the number of floors after adding, or the next number above it that no floor has as its name. After `floor remove` a new floor never repeats a name. The app's Add floor picks the same name. |
 | `--ceiling-height <metres>` | Default: the project's new floor height. |
 | `--slab-thickness <metres>` | From 0.05 to 1. Default 0.2. |
 | `--image <file>` | A plan image for the floor (PNG, JPEG or BMP). A file from outside the project is copied into `plans/` when the project is saved. |
@@ -1067,7 +1067,7 @@ Changes the type, shape, hinge, swing or door or window asset of an opening. Wha
 | `--shape <id>` | The new shape. It has to take the opening's size. |
 | `--hinge start\|end` | The jamb a door hangs on. |
 | `--swing left\|right` | The side a door opens toward. |
-| `--frame <asset\|auto\|generated>` | What fills the opening. An asset id from the library sets that door or window. `auto` lets the build pick a catalog door or window that fits (the default for every opening). `generated` keeps the door or window Plynth builds itself. |
+| `--frame <asset\|auto\|generated>` | What fills the opening. An asset id from the library sets that door or window. `auto` lets the build pick a catalog door or window that fits (the default for every opening). `generated` keeps the door or window Plynth builds itself. An asset is checked as the app's frame picker checks it: `not_found` when the library does not have it, and `invalid_value` for a plain opening, an asset outside the `door` category for a door or the `window` category for a window, a broken asset ("<name> cannot be fitted: <problem>") and one that is not measured yet ("<name> is not measured yet, so it cannot be fitted. Retry its render first."). |
 | `--library <folder>` | The library a `--frame` asset is checked in. Default: the one in the settings. |
 
 ```
@@ -1564,7 +1564,7 @@ plynth item params i4 --fit
 | Option | Meaning |
 |---|---|
 | `<id>` | Required. The item. |
-| `--param <id>=<value>` | One value. Repeat for more. `generator info` lists the ids, kinds and ranges. |
+| `--param <id>=<value>` | One value. Repeat for more. `generator info` lists the ids, kinds and ranges. A material value must be a material of the library that is not broken, as in the app's material picker, or empty for the neutral look. |
 | `--reset` | Put every value back to the generator's default ("Reset to defaults" in the app). |
 | `--fit` | Keep the values that still fit the generator, for example after the generator file changed, and default the rest. |
 | `--strict` | Refuse when the item would have any problem. |
@@ -1805,7 +1805,7 @@ The answer has the shape of `variation show`. A seed that is not a whole number 
 
 ### variation preview
 
-Shows what a build would make of the plan. It writes nothing and is never refused by the lock.
+Shows what a build would make of the plan. It writes nothing and is never refused by the lock. The Variation group of the app's Properties panel shows the same preview.
 
 | Option | Meaning |
 |---|---|
@@ -1832,7 +1832,10 @@ Saves a copy of the project for each seed, to fill a street quickly. Each copy i
 
 ```
 plynth variation copies --seeds 1,2,3 --out D:\Plans\Street
+plynth variation copies --seeds 1-5,9 --out D:\Plans\Street
 ```
+
+`--seeds` is a list of whole numbers and ranges such as `1-5`, separated by commas, as the app's Variations dialog takes it. Spaces around each part are allowed, so `"1-5, 9"` works too. Each seed may appear once, in the order given.
 
 ```json
 {"ok":true,"command":"variation copies","result":{"folders":[{"seed":1,"folder":"D:/Plans/Street/MyApartment_v1"},{"seed":2,"folder":"D:/Plans/Street/MyApartment_v2"},{"seed":3,"folder":"D:/Plans/Street/MyApartment_v3"}]}}
@@ -1841,7 +1844,7 @@ plynth variation copies --seeds 1,2,3 --out D:\Plans\Street
 | Code | When |
 |---|---|
 | `already_exists` | One of the folders is already there. Nothing is written. |
-| `invalid_value` | A seed is not a whole number, a seed is given twice, or there are more than 100 seeds. |
+| `invalid_value` | A seed is not a whole number from 0 to 4294967295, a range has its first number above the second ("The range '5-2' must be two whole numbers ..."), a seed is given twice ("The seed 2 is given twice."), or there are more than 100 seeds. Nothing is written. |
 | `bad_arguments` | `--seeds` or `--out` is missing. |
 | `cannot_write` | A copy could not be saved. |
 
@@ -1921,7 +1924,7 @@ The stages are `preparing`, `blender` (one line per step, `index` counting from 
 
 If an asset's folder was removed or renamed by hand, the code depends on what the catalog says. While the catalog still lists the asset, it is `asset_broken`. When the catalog does not know the asset at all, it is `missing_asset`.
 
-**`--check`.** Works out the same problems without starting Blender and without touching `build`. It is fast, so a script can run it before a build.
+**`--check`.** Works out the same problems without starting Blender and without touching `build`. It is fast, so a script can run it before a build. It is the same check as Check build in the app's Build menu: the library's assets, materials and generators are looked up, so a material that is missing or broken gives `missing_material` or `material_broken` here as in the build.
 
 ```
 plynth build --check
@@ -2008,9 +2011,9 @@ plynth export report
 | Code | When |
 |---|---|
 | `not_a_project` | The folder has no `project.json`. |
-| `not_found` | There is no `build\building.blend`. The message is "Build the project first." |
+| `not_found` | There is no `build\building.blend`. The message is "Build the project first." This is checked before Blender is looked for, as in the app's Export window. |
 | `bad_file` | `export-options.json` is there but cannot be read, or holds a group name that is not allowed (for example one edited by hand). Nothing runs. `plynth export groups reset` repairs it. |
-| `in_use` | A build or another export of the project is running. |
+| `in_use` | A build or another export of the project is running: "A build or an export of this project is running." Checked before Blender is looked for. |
 | `blender_not_found` | No usable Blender. |
 | `blender_failed` | The worker failed. The message names the log file. |
 | `quality_failed` | A check failed and `--force` was not given. Exit 1. The message names the failed checks, for example "The quality gate failed: naming, collision. See D:/Plans/MyApartment/export/export_report.json, or export with --force." The report is written. |
@@ -2019,6 +2022,12 @@ plynth export report
 #### export report
 
 Answers with the last report of the project, read from `export\export_report.json`, in the same shape. It is `not_found` when the project has never been exported or checked. It takes only `--project`.
+
+When the report comes from an older build than the last good one, the answer has an `out_of_date` warning, as the app's Export window marks it: "This export was made from an older build. Export again to bring the files up to date." The report is out of date when its `build_fingerprint` differs from the last successful build, or when it is older than `build\building.blend`. A failed build leaves the old `building.blend`, so it never makes a report out of date. An example, shortened:
+
+```json
+{"ok":true,"command":"export","result":{"format":"plynth-export-report","version":1,"ok":true,"exported":true},"warnings":[{"code":"out_of_date","message":"This export was made from an older build. Export again to bring the files up to date."}]}
+```
 
 ### export groups
 
@@ -2617,12 +2626,19 @@ Options (give at least one):
 - `--update-check <true|false>`: whether the app looks for a newer Plynth when it starts. The default is true. Asking by hand with `update --check` works either way.
 - `--triangle-warning <n>`: imports with more triangles than this get the `high_polycount` warning.
 
-The answer is the same as `settings show`. A library folder that is not a library gives `no_library`. A projects folder that does not exist gives `not_found`. A Blender that is missing or too old gives `blender_not_found`.
+The answer is the same as `settings show`. The checks and their sentences are the ones the app's setup check and Settings use, so both refuse the same values:
+
+| Code | When |
+|---|---|
+| `no_library` | "<folder> is not a Plynth library. Run plynth library init there, or pick another folder." |
+| `not_found` | "The projects folder <folder> does not exist." |
+| `blender_not_found` | "<file> is not a file.", or "<file> cannot be used: <why>" for a Blender that does not start, whose version cannot be read, or that is older than 4.2. |
+| `invalid_value` | "The triangle warning must be at least 1." |
 
 There is no thumbnail engine setting any more. Thumbnails are always drawn with Eevee, and `--thumbnail-engine` is refused as an unknown option (`bad_arguments`). A settings file from an older Plynth that still has `thumbnail_engine` is read, and saved again as version 3 without it.
 
 ```json
-{"ok":false,"command":"settings set","error":{"code":"blender_not_found","message":"There is no program at C:/nope/blender.exe."}}
+{"ok":false,"command":"settings set","error":{"code":"blender_not_found","message":"C:/nope/blender.exe is not a file."}}
 ```
 
 ### update
@@ -2718,7 +2734,7 @@ Options: `--library <folder>`, and `--from <folder>` for another folder of `.sha
 
 ### library add-sample-materials
 
-Imports the sample materials that ship with Plynth (`samples\materials`), as the Materials panel's "Add the sample materials" does. Materials the library already has keep their ids and are skipped. It runs Blender in the background.
+Imports the sample materials that ship with Plynth (`samples\materials`), with the same requests as the app's "Add the sample items": each material gets the license of the samples (`cc0`), and the sample files are kept. Materials the library already has keep their ids and license and are skipped. It runs Blender in the background.
 
 ```
 plynth library add-sample-materials
@@ -2728,7 +2744,7 @@ plynth library add-sample-materials
 {"ok":true,"command":"library add-sample-materials","result":{"folder":"C:/Program Files/Plynth/samples/materials","added":["oak_planks","red_brick"],"skipped":["concrete"]}}
 ```
 
-It takes `--library`, `--blender` and `--quiet`. `not_found` when the samples are not next to the program.
+It takes `--library`, `--blender` and `--quiet`. `not_found` when the samples, or their `samples.json`, are not next to the program.
 
 ### library add-sample-generators
 
@@ -3295,6 +3311,8 @@ Options: `<text>`, `--group <id>`, `--tag <tag>` (repeat to require several), `-
 
 The same as `materials search` without the words. It takes the same filters.
 
+Like the app, every materials command first indexes a library that was filled by hand: when the index is empty and `materials\items\` holds folders, it is rebuilt from them (as `materials rescan --no-refresh` does), so `materials list` shows them.
+
 ### materials info
 
 Shows one material in full: the entry plus the maps, the texture size and the warnings of the last cleaning.
@@ -3370,10 +3388,17 @@ Lists the licenses a material can have, as `assets licenses` does.
 
 ### materials rescan
 
-Rebuilds the materials index from the folders in `Library\materials\items\`. It runs no Blender. Materials that need a new render are listed in `needs_refresh`: a folder with images and no `info.json`, a changed map, or a new tile size. Use `materials thumbnail <id>` on each. A deleted map makes the material Broken, and a removed folder removes its row. The answer has the same fields as `assets rescan`.
+Rebuilds the materials index from the folders in `Library\materials\items\`, then cleans again and renders a new thumbnail for each material that changed, as the Rescan button in the app does. A material changed when its folder has images and no `info.json`, a map changed, or the tile size is new. A deleted map makes the material Broken, and a removed folder removes its row. Blender is only looked for when a material changed.
 
 ```
 plynth materials rescan
+plynth materials rescan --no-refresh
+```
+
+With `--no-refresh` no Blender runs: the changed materials are only listed in `needs_refresh`, and `materials thumbnail <id>` renders each one later. It also takes `--library` and `--blender`. The answer has the same fields as `assets rescan`: `refreshed` lists the materials rendered again, and `refresh_failed` the ones that could not be, each with `id`, `code` and `message` (`blender_not_found` for each when there is no usable Blender; the command still answers ok).
+
+```json
+{"ok":true,"command":"materials rescan","result":{"added":1,"updated":0,"removed":0,"unchanged":8,"needs_refresh":[],"refreshed":["fresh"],"refresh_failed":[],"broken":[],"inbox_waiting":0}}
 ```
 
 ### materials thumbnail
@@ -3415,7 +3440,7 @@ plynth materials importers
 
 ## Generators
 
-Generators are Python files in the library's `generators` folder that make furniture or parts of a building in Blender, such as a spiral stair or a fence. [Writing generators](GENERATORS.md) explains how to write one. Place one with `place --generator <id>` instead of an asset id, and change its values with `item params`.
+Generators are Python files in the library's `generators` folder that make furniture or parts of a building in Blender, such as a spiral stair or a fence. [Writing generators](GENERATORS.md) explains how to write one. Place one with `place --generator <id>` instead of an asset id, and change its values with `item params`. Give values with `--param <id>=<value>`, repeated, for both. A material value you give is looked up in the materials catalog, as the app's material picker does: `not_found` "The material of finish: There is no material green_marble in the library." for one the library does not have, and `invalid_value` for a broken one. Only the values you give are checked, so a default the library lacks still only gives the build's `missing_material` warning.
 
 ### generator list
 
@@ -3510,6 +3535,7 @@ Codes in use:
 - The material import codes listed under `materials import`: `ambiguous_map`, `unused_image`, `map_size_mismatch`, `visible_seams`, `low_resolution`, `picked_material`.
 - The build codes listed under `build`, including `missing_material`, `material_broken`, `material_failed`, the stair and roof codes. `build` puts one warning in the list for every problem it found, whether its severity is `error` or `warning`.
 - The furniture codes listed under "Furniture items": `no_room`, `outside_room`, `overlaps_item`, `overlaps_wall`, `overlaps_opening`, `off_wall`, `too_tall`, `missing_asset`, `size_changed`. `place` and the `item` commands that change an item give the problems of that item. With `--strict` they are refused instead.
+- `out_of_date`: `export report` shows a report that comes from an older build than the last one. Export again.
 
 A project whose plan image was deleted, after `scale set`:
 
@@ -3766,13 +3792,14 @@ Every action of the app that changes or checks a project or the library has a co
 | Properties: materials | `material set` |
 | Room set dressing | `room set --dressing` |
 | Trim | `trim set`, `trim show`, `trim profiles` |
-| Variation, Make variations | `variation set`, `variation preview`, `variation copies` |
-| Build, Cancel build, Show build report | `build`, `build cancel`, `build report` |
+| Properties: Variation group and its preview, Make variations | `variation set`, `variation preview`, `variation copies` |
+| Build, Check build, Cancel build, Show build report | `build`, `build --check`, `build cancel`, `build report` |
 | Save 3D picture | `render` |
 | Export, Check export, Export anyway, Cancel | `export`, `export --check`, `export --force`, `export cancel` |
 | Export window: groups, modular kit, gameplay data | `export groups ...`, `export kit on\|off`, `export gameplay on\|off` |
 | Assets and materials catalogs, imports, inboxes, rescans, thumbnails | `assets ...`, `materials ...` |
 | Add to materials catalog | `materials from-asset` |
+| Add the sample items | `samples add` |
 | Add the sample materials, shapes and generators | `library add-sample-materials`, `library add-sample-shapes`, `library add-sample-generators` |
 | Integrations | `library integrations`, `library integration ...` |
 | Setup check | `doctor` |

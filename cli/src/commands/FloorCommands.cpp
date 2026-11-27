@@ -117,7 +117,7 @@ Answer floorAdd(const RunContext& context, const AddOptions& options) {
                 return failure(command, fail(ErrorCode::NotFound, "There is no floor " + options.below + "."));
             }
         }
-        const std::string name = options.name.empty() ? "Floor " + std::to_string(plan.floors.size() + 1) : options.name;
+        const std::string name = options.name.empty() ? nextFloorName(plan) : options.name;
         auto add = std::make_unique<AddFloorCommand>(name, position);
         const AddFloorCommand* raw = add.get();
         Answer failed;
@@ -257,7 +257,7 @@ std::vector<CommandSpec> floorCommands() {
     add.setup = [](CLI::App& sub) -> Handler {
         auto options = std::make_shared<AddOptions>();
         addProjectOption(sub, options->project);
-        sub.add_option("--name", options->name, "Floor name. Default: Floor N.");
+        sub.add_option("--name", options->name, "Floor name. Default: the next free Floor N.");
         sub.add_option("--ceiling-height", options->ceilingHeight, "Ceiling height in metres. Default: the project's.")
             ->type_name("metres");
         sub.add_option("--slab-thickness", options->slabThickness, "Slab thickness above the floor in metres.")

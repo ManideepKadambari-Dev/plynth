@@ -3,11 +3,9 @@
 #include "../SessionKeeper.h"
 
 #include <plynth/core/Build.h>
+#include <plynth/core/BuildCheck.h>
 #include <plynth/core/BuildJob.h>
-#include <plynth/core/BuildResolve.h>
 #include <plynth/core/Blender.h>
-#include <plynth/core/catalog/BuildChoices.h>
-#include <plynth/core/Generators.h>
 
 #include <memory>
 #include <optional>
@@ -56,15 +54,6 @@ std::string stageMessage(BuildStage stage) {
     return "Done";
 }
 
-// The problems of a build plan as a JSON list.
-Json problemsJson(const std::vector<BuildProblem>& problems) {
-    Json list = Json::array();
-    for (const BuildProblem& problem : problems) {
-        list.push_back(buildProblemToJson(problem));
-    }
-    return list;
-}
-
 // Opens the library when it can be opened. Any failure means no library: the items are then reported
 // as no_library instead of the command being refused.
 bool tryOpenCatalog(const std::string& command, const RunContext& context, const std::string& libraryOption,
@@ -73,34 +62,16 @@ bool tryOpenCatalog(const std::string& command, const RunContext& context, const
     return openCatalog(command, context, libraryOption, opened, ignored);
 }
 
-// Reports the problems of a build without running Blender or writing anything. The library's generators are
-// checked, but no add-on cache is read, so the check says nothing about which add-ons are on. Like the build, it
-// checks the resolved plan: the seed's furniture and materials and the doors and windows picked for it.
+// Reports the problems of a build without running Blender or writing anything, through the same check as the
+// app's Check build.
 Answer buildCheck(const std::string& command, const Project& project, const OpenedCatalog* opened) {
-    BuildAssetSource source;
-    GeneratorLibrary generators;
-    std::unique_ptr<MaterialCatalog> materials;
-    if (opened != nullptr) {
-        source = buildAssetSourceFor(*opened->catalog);
-        generators = loadGeneratorFolder(opened->paths.generators);
-        Status ignored;
-        materials = MaterialCatalog::open(opened->paths, ignored);
+    const std::optional<LibraryPaths> library =
+        opened != nullptr ? std::optional<LibraryPaths>(opened->paths) : std::nullopt;
+    const BuildCheck check = checkBuild(project, library);
+    if (!check.status.ok()) {
+        return failure(command, check.status);
     }
-    const BuildChoices choices = buildChoicesFrom(opened != nullptr ? opened->catalog.get() : nullptr, materials.get());
-    const ResolvedBuild resolved = resolveBuild(project, choices);
-    const BuildPlan plan = makeBuildPlan(resolved.project, source, {}, opened != nullptr ? &generators : nullptr,
-                                         std::nullopt, &choices);
-    int errors = 0;
-    int warnings = 0;
-    for (const BuildProblem& problem : plan.problems) {
-        (problem.severity == BuildSeverity::Error ? errors : warnings) += 1;
-    }
-    Json result = Json::object();
-    result["problems"] = problemsJson(plan.problems);
-    result["error_count"] = errors;
-    result["warning_count"] = warnings;
-    result["plan_fingerprint"] = planFingerprint(project);
-    return success(command, std::move(result));
+    return success(command, buildCheckToJson(check));
 }
 
 // Answers with the last build report, read from build/build.json.

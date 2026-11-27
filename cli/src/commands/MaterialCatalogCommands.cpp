@@ -2,6 +2,7 @@
 #include "../Common.h"
 
 #include <plynth/core/catalog/MaterialInfo.h>
+#include <plynth/core/catalog/MaterialRescan.h>
 
 #include <algorithm>
 #include <memory>
@@ -42,6 +43,12 @@ struct SetOptions {
     std::optional<std::string> license;
     std::optional<std::string> author;
     std::optional<std::string> tile;
+};
+
+struct RescanOptions {
+    std::string library;
+    BlenderOption blender;
+    bool noRefresh = false;
 };
 
 struct GroupAddOptions {
@@ -352,15 +359,45 @@ Answer materialsLicenses(const RunContext& context, const std::string& library) 
     return success(command, std::move(result));
 }
 
-// Rebuilds the index from the folders. Blender is not run: changed materials are listed in needs_refresh.
-Answer materialsRescan(const RunContext& context, const std::string& library) {
+// Rebuilds the index from the folders and, unless --no-refresh, renders every changed material again, as the
+// app's Rescan button does. Blender is only picked when a material needs it.
+Answer materialsRescan(const RunContext& context, const RescanOptions& options) {
     const std::string command = "materials rescan";
-    OpenedMaterialCatalog opened;
     Answer failed;
-    if (!openMaterialCatalog(command, context, library, opened, failed)) {
+    if (refuseEmptyBlender(command, options.blender, failed)) {
         return failed;
     }
-    return success(command, rescanEntry(opened.catalog->rescan(), {}, Json::array()));
+    OpenedMaterialCatalog opened;
+    if (!openMaterialCatalog(command, context, options.library, opened, failed)) {
+        return failed;
+    }
+    const MaterialRescanResult listed = rescanMaterials(*opened.catalog, ImportContext{}, false);
+    std::vector<std::string> refreshed;
+    Json refreshFailed = Json::array();
+    if (!options.noRefresh && !listed.report.needsRefresh.empty()) {
+        std::vector<MaterialRefreshResult> results;
+        ImportContext importContext;
+        if (makeMaterialImportContext(command, context, opened, options.blender, importContext, failed)) {
+            // A changed material stays changed until it is rendered again, so this rescan finds the same ones.
+            results = rescanMaterials(*opened.catalog, importContext, true, {}, stopToken(context)).refreshed;
+        } else {
+            for (const std::string& id : listed.report.needsRefresh) {
+                results.push_back({id, fail(ErrorCode::BlenderNotFound, failed.message)});
+            }
+        }
+        for (const MaterialRefreshResult& entry : results) {
+            if (entry.status.ok()) {
+                refreshed.push_back(entry.id);
+                continue;
+            }
+            Json item = Json::object();
+            item["id"] = entry.id;
+            item["code"] = std::string(errorCodeName(entry.status.code));
+            item["message"] = entry.status.message;
+            refreshFailed.push_back(std::move(item));
+        }
+    }
+    return success(command, rescanEntry(listed.report, refreshed, refreshFailed));
 }
 
 // Adds the filter options shared by materials search and materials list.
@@ -494,11 +531,13 @@ std::vector<CommandSpec> materialCatalogCommands() {
 
     CommandSpec rescan;
     rescan.words = {"materials", "rescan"};
-    rescan.description = "Rebuild the materials index from the folders. Lists the materials that need a new render.";
+    rescan.description = "Rebuild the materials index from the folders and render the changed materials again.";
     rescan.setup = [](CLI::App& sub) -> Handler {
-        auto library = std::make_shared<std::string>();
-        addLibraryOption(sub, *library);
-        return [library](const RunContext& context) { return materialsRescan(context, *library); };
+        auto options = std::make_shared<RescanOptions>();
+        addLibraryOption(sub, options->library);
+        addBlenderOption(sub, options->blender);
+        sub.add_flag("--no-refresh", options->noRefresh, "List changed materials without rendering them again.");
+        return [options](const RunContext& context) { return materialsRescan(context, *options); };
     };
 
     return {search, list, info, set, remove, groups, groupAddSpec, groupSetSpec, groupRemoveSpec, licenses, rescan};

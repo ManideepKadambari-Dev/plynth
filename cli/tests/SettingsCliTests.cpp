@@ -95,6 +95,27 @@ TEST_CASE("settings set refuses bad values", "[cli][settings]") {
     CHECK_FALSE(std::filesystem::exists(plynth::settingsFile()));
 }
 
+TEST_CASE("settings set refuses with the sentences of the app's setup check", "[cli][settings]") {
+    clearSettings();
+    TempFolder temp("settings-sentences");
+    const auto folder = temp.path() / "plain";
+    std::filesystem::create_directories(folder);
+
+    const auto library = runChecked({"settings", "set", "--library", utf8(folder)});
+    CHECK(errorCode(library) == "no_library");
+    CHECK(library.answer.at("error").at("message") ==
+          utf8(folder) + " is not a Plynth library. Run plynth library init there, or pick another folder.");
+    const auto projects = runChecked({"settings", "set", "--projects", utf8(temp.path() / "nope")});
+    CHECK(projects.answer.at("error").at("message") ==
+          "The projects folder " + utf8(temp.path() / "nope") + " does not exist.");
+    const auto blender = runChecked({"settings", "set", "--blender", utf8(folder / "blender.exe")});
+    CHECK(errorCode(blender) == "blender_not_found");
+    CHECK(blender.answer.at("error").at("message") == utf8(folder / "blender.exe") + " is not a file.");
+    CHECK(runChecked({"settings", "set", "--triangle-warning", "0"}).answer.at("error").at("message") ==
+          "The triangle warning must be at least 1.");
+    CHECK_FALSE(std::filesystem::exists(plynth::settingsFile()));
+}
+
 TEST_CASE("an edit on a project whose plan image is gone succeeds with a warning", "[cli][settings]") {
     Sample sample("image-missing");
     REQUIRE(sample.run({"scale", "set", "--pixels-per-metre", "100"}).exitCode == kExitOk);

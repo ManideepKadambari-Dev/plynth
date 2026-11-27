@@ -5,6 +5,7 @@
 #include <plynth/core/Blender.h>
 #include <plynth/core/Export.h>
 #include <plynth/core/ExportGroups.h>
+#include <plynth/core/ExportReady.h>
 #include <plynth/core/ProjectJson.h>
 #include <plynth/core/Settings.h>
 #include <plynth/core/catalog/LicensedItems.h>
@@ -62,7 +63,8 @@ std::string stageMessage(ExportStage stage) {
     return "Done";
 }
 
-// Answers with the last export report of the project.
+// Answers with the last export report of the project, with an out_of_date warning when it comes from an older
+// build than the last one, as the app's Export window marks it.
 Answer exportReport(const std::string& command, const ExportArgs& options, const RunContext& context) {
     if (options.check || options.force) {
         return failure(command, fail(ErrorCode::InvalidValue, "export report takes no --check or --force."));
@@ -77,7 +79,30 @@ Answer exportReport(const std::string& command, const ExportArgs& options, const
     if (!read.status.ok()) {
         return failure(command, read.status);
     }
-    return success(command, exportReportToJson(read.report));
+    Answer answer = success(command, exportReportToJson(read.report));
+    if (exportReportOutOfDate(read.report, folder)) {
+        answer.warnings.push_back({"out_of_date", "This export was made from an older build. Export again to bring the "
+                                                  "files up to date."});
+    }
+    return answer;
+}
+
+// Refuses an export the app's Export window would not start: no build yet, or a build or export running. The
+// setup items of the blocker list are left out, because the command picks its own Blender (the --blender
+// option, PLYNTH_BLENDER, the settings, then the search) and an export needs no library or projects folder.
+bool refuseBlockedExport(const std::string& command, const std::filesystem::path& folder,
+                         const MachineSettings& settings, Answer& failed) {
+    for (const ExportBlocker& blocker : exportBlockers(folder, settings)) {
+        if (blocker.code == "no_build") {
+            failed = failure(command, fail(ErrorCode::NotFound, blocker.message));
+            return true;
+        }
+        if (blocker.code == "in_use") {
+            failed = failure(command, fail(ErrorCode::InUse, blocker.message));
+            return true;
+        }
+    }
+    return false;
 }
 
 // Finds the library the export looks materials and licenses up in. An explicit --library must open its materials
@@ -125,6 +150,9 @@ Answer exportProject(const RunContext& context, const ExportArgs& options) {
     const SettingsLoad loaded = loadSettings();
     if (!loaded.status.ok()) {
         return failure(command, loaded.status);
+    }
+    if (refuseBlockedExport(command, folder, loaded.settings, failed)) {
+        return failed;
     }
     const BlenderChoice choice = chooseBlender(blenderOptionPath(context, options.blender), loaded.settings);
     if (!choice.status.ok()) {

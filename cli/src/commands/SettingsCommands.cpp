@@ -1,8 +1,7 @@
 #include "../Common.h"
 
-#include <plynth/core/Blender.h>
-#include <plynth/core/Library.h>
 #include <plynth/core/Settings.h>
+#include <plynth/core/SettingsChecks.h>
 
 #include <memory>
 #include <optional>
@@ -71,10 +70,8 @@ Answer settingsSet(const RunContext& context, const SetOptions& options) {
             settings.library.reset();
         } else {
             const std::filesystem::path folder = absolutePath(context, options.library);
-            if (!isLibraryFolder(folder)) {
-                return failure(command, fail(ErrorCode::NoLibrary,
-                                             pathToUtf8(folder) + " is not a library folder. Make one with "
-                                             "'plynth library init <folder>'."));
+            if (const Status checked = checkLibraryChoice(folder); !checked.ok()) {
+                return failure(command, checked);
             }
             settings.library = folder;
         }
@@ -84,10 +81,8 @@ Answer settingsSet(const RunContext& context, const SetOptions& options) {
             settings.projects.reset();
         } else {
             const std::filesystem::path folder = absolutePath(context, options.projects);
-            std::error_code ignored;
-            if (!std::filesystem::is_directory(folder, ignored)) {
-                return failure(command, fail(ErrorCode::NotFound, "The projects folder " + pathToUtf8(folder) +
-                                                                      " does not exist."));
+            if (const Status checked = checkProjectsChoice(folder); !checked.ok()) {
+                return failure(command, checked);
             }
             settings.projects = folder;
         }
@@ -97,17 +92,9 @@ Answer settingsSet(const RunContext& context, const SetOptions& options) {
             settings.blender.reset();
         } else {
             const std::filesystem::path file = absolutePath(context, options.blender);
-            std::error_code ignored;
-            if (!std::filesystem::is_regular_file(file, ignored)) {
-                return failure(command, fail(ErrorCode::BlenderNotFound,
-                                             "There is no program at " + pathToUtf8(file) + "."));
-            }
-            const BlenderInstall install = inspectBlender(file);
-            if (!install.usable()) {
-                std::string why = install.status.ok() ? "it is older than Blender " +
-                                                            formatBlenderVersion(kMinBlenderVersion)
-                                                      : install.status.message;
-                return failure(command, fail(ErrorCode::BlenderNotFound, pathToUtf8(file) + " cannot be used: " + why));
+            const BlenderPickCheck checked = checkBlenderChoice(file, stopToken(context));
+            if (!checked.status.ok()) {
+                return failure(command, checked.status);
             }
             settings.blender = file;
         }
@@ -119,8 +106,8 @@ Answer settingsSet(const RunContext& context, const SetOptions& options) {
         settings.updateCheck = options.updateCheck == "true";
     }
     if (options.hasTriangleWarning) {
-        if (options.triangleWarning < 1) {
-            return failure(command, fail(ErrorCode::InvalidValue, "The triangle warning must be at least 1."));
+        if (const Status checked = checkTriangleWarning(options.triangleWarning); !checked.ok()) {
+            return failure(command, checked);
         }
         settings.triangleWarning = options.triangleWarning;
     }

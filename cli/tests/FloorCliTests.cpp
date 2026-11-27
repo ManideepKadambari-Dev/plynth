@@ -69,6 +69,16 @@ TEST_CASE("floor add takes heights, a default name and --below", "[cli][floor]")
     CHECK_THAT(list.at(1).at("elevation").get<double>(), WithinAbs(2.8, 1e-9));
 }
 
+TEST_CASE("floor add never repeats a default name after a floor was removed", "[cli][floor]") {
+    Sample sample("floor-next-name");
+    REQUIRE(sample.run({"floor", "add"}).answer.at("result").at("name") == "Floor 2");
+    REQUIRE(sample.run({"floor", "add"}).answer.at("result").at("name") == "Floor 3");
+    REQUIRE(sample.run({"floor", "remove", "f2", "--yes"}).exitCode == kExitOk);
+    const auto added = sample.run({"floor", "add"});
+    REQUIRE(added.exitCode == kExitOk);
+    CHECK(added.answer.at("result").at("name") == "Floor 4");
+}
+
 TEST_CASE("floor add refuses bad values and leaves the plan alone", "[cli][floor]") {
     Sample sample("floor-add-bad");
     const auto before = readFile(sample.folder / "plan.json");

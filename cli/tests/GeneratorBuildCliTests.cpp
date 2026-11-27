@@ -432,8 +432,12 @@ TEST_CASE("material list counts the materials of generators as used", "[cli][mat
                    R"( {"id": "grain", "label": "Grain", "type": "choice", "default": "gold_leaf",)"
                    R"( "choices": [{"id": "gold_leaf", "label": "Gold"}]})");
     plynth::cli::testing::makeMaterial(f.library, "silver_leaf", "Silver leaf", {"metal"}, {"leaf"});
+    plynth::cli::testing::makeMaterial(f.library, "green_marble", "Green marble", {"stone"}, {});
     f.place("finished_part", {"--param", "finish=silver_leaf"});
     f.place("finished_part", {"--param", "finish=green_marble"});
+    // place refuses a material the library lacks, so green_marble goes missing after it was placed.
+    REQUIRE(runChecked({"materials", "remove", "green_marble", "--yes", "--library", utf8(f.library)}).exitCode ==
+            kExitOk);
 
     const Outcome listed = f.sample.run({"material", "list"});
     REQUIRE(listed.exitCode == kExitOk);
@@ -450,6 +454,35 @@ TEST_CASE("material list counts the materials of generators as used", "[cli][mat
     const Outcome alone = f.sample.run({"material", "list"});
     REQUIRE(alone.exitCode == kExitOk);
     CHECK(std::ranges::count(alone.answer.at("result").at("used").get<Words>(), std::string("silver_leaf")) == 0);
+}
+
+TEST_CASE("place and item params refuse a material value the library lacks, changing nothing",
+          "[cli][material][generator]") {
+    const CliBuild f("genbuild-material-check");
+    writeGenerator(f.library / "generators", "finished_part", "[]",
+                   R"({"id": "finish", "label": "Finish", "type": "material", "default": null},)"
+                   R"( {"id": "amount", "label": "Amount", "type": "number", "default": 1.0})");
+    plynth::cli::testing::makeMaterial(f.library, "silver_leaf", "Silver leaf", {"metal"}, {"leaf"});
+    const std::string before = readFile(f.sample.folder / "plan.json");
+
+    const Outcome missing = f.sample.run(
+        {"place", "--generator", "finished_part", "--x", "3", "--y", "5", "--param", "finish=green_marble"});
+    CHECK(missing.exitCode == kExitFailed);
+    CHECK(errorCode(missing) == "not_found");
+    CHECK(missing.answer.at("error").at("message") ==
+          "The material of finish: There is no material green_marble in the library.");
+    CHECK(readFile(f.sample.folder / "plan.json") == before);
+
+    const std::string item = f.place("finished_part", {"--param", "finish=silver_leaf"});
+    const std::string placed = readFile(f.sample.folder / "plan.json");
+    const Outcome changed = f.sample.run({"item", "params", item, "--param", "finish=green_marble"});
+    CHECK(errorCode(changed) == "not_found");
+    CHECK(readFile(f.sample.folder / "plan.json") == placed);
+
+    // Only the values given are checked: another value changes even when the stored material has gone.
+    REQUIRE(runChecked({"materials", "remove", "silver_leaf", "--yes", "--library", utf8(f.library)}).exitCode == kExitOk);
+    const Outcome other = f.sample.run({"item", "params", item, "--param", "amount=2"});
+    CHECK(other.exitCode == kExitOk);
 }
 
 TEST_CASE("build --check finds a missing generator and starts nothing", "[cli][build][generator]") {

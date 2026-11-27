@@ -7,6 +7,7 @@
 #include <plynth/core/catalog/ImportPreview.h>
 #include <plynth/core/catalog/MaterialImport.h>
 #include <plynth/core/catalog/MaterialInfo.h>
+#include <plynth/core/catalog/SampleItems.h>
 
 #include <algorithm>
 #include <cctype>
@@ -86,22 +87,6 @@ Json warningsJson(const std::vector<BlenderWarning>& warnings) {
         list.push_back(std::move(item));
     }
     return list;
-}
-
-// Picks the Blender and fills what the material imports and refreshes need. On error the answer for command
-// is returned in failed (blender_not_found).
-bool makeMaterialImportContext(const std::string& command, const RunContext& context,
-                               const OpenedMaterialCatalog& opened, const BlenderOption& blenderOption,
-                               ImportContext& importContext, Answer& failed) {
-    const BlenderChoice choice = chooseBlender(blenderOptionPath(context, blenderOption), opened.settings);
-    if (!choice.status.ok()) {
-        failed = failure(command, choice.status);
-        return false;
-    }
-    importContext.library = opened.paths;
-    importContext.blender = choice.install;
-    importContext.settings = opened.settings;
-    return true;
 }
 
 // Writes one progress line: {"progress": {"stage", "step", "index", "count", "message", "source"}}.
@@ -518,7 +503,8 @@ Answer materialsFromAsset(const RunContext& context, const FromAssetOptions& opt
     return answer;
 }
 
-// Imports the sample materials that the library does not have yet.
+// Imports the sample materials that the library does not have yet, with the samples license and the sample files
+// kept, through the same requests as the app's Add the sample items.
 Answer addSampleMaterials(const RunContext& context, const SamplesOptions& options) {
     const std::string command = "library add-sample-materials";
     OpenedMaterialCatalog opened;
@@ -534,6 +520,16 @@ Answer addSampleMaterials(const RunContext& context, const SamplesOptions& optio
     if (requests.empty()) {
         return failure(command, fail(ErrorCode::NotFound, "The sample materials were not found next to the program."));
     }
+    Status assetsOpened;
+    const std::unique_ptr<AssetCatalog> assets = AssetCatalog::open(opened.paths, assetsOpened);
+    if (!assets) {
+        return failure(command, assetsOpened);
+    }
+    const std::filesystem::path samples = from.has_filename() ? from.parent_path() : from.parent_path().parent_path();
+    const SampleItemRequests wanted = sampleItemRequests(*assets, *opened.catalog, samples);
+    if (!wanted.status.ok()) {
+        return failure(command, wanted.status);
+    }
     ImportContext importContext;
     if (!makeMaterialImportContext(command, context, opened, options.blender, importContext, failed)) {
         return failed;
@@ -541,10 +537,18 @@ Answer addSampleMaterials(const RunContext& context, const SamplesOptions& optio
     Json added = Json::array();
     Json skipped = Json::array();
     std::vector<AnswerWarning> warnings;
-    for (const MaterialImportRequest& request : requests) {
-        const std::string name = pathToUtf8(request.source.file.filename());
+    for (const MaterialImportRequest& sample : requests) {
+        const std::string name = pathToUtf8(sample.source.file.filename());
+        const auto request = std::ranges::find_if(wanted.materials, [&](const MaterialImportRequest& entry) {
+            return entry.source.file.filename() == sample.source.file.filename();
+        });
+        // A sample whose id the library has is left out of the requests and counts as skipped.
+        if (request == wanted.materials.end()) {
+            skipped.push_back(name);
+            continue;
+        }
         const MaterialImportOutcome outcome =
-            importMaterial(*opened.catalog, importContext, request, progressWriter(context, options.quiet, name), stopToken(context));
+            importMaterial(*opened.catalog, importContext, *request, progressWriter(context, options.quiet, name), stopToken(context));
         if (!outcome.status.ok()) {
             Status status = outcome.status;
             status.message = name + ": " + status.message + " " + std::to_string(added.size()) +

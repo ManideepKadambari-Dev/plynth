@@ -11,6 +11,7 @@
 #include <plynth/core/catalog/Importer.h>
 #include <plynth/core/catalog/MaterialImporter.h>
 #include <plynth/core/catalog/MaterialInfo.h>
+#include <plynth/core/catalog/MaterialRescan.h>
 
 #include <algorithm>
 #include <cctype>
@@ -160,8 +161,8 @@ bool openMaterialCatalog(const std::string& command, const RunContext& context, 
     }
     opened.paths = choice.paths;
     Status status;
-    opened.catalog = MaterialCatalog::open(opened.paths, status);
-    if (!status.ok()) {
+    opened.catalog = plynth::openMaterialCatalog(opened.paths, status);
+    if (!status.ok() || !opened.catalog) {
         failed = failure(command, status);
         return false;
     }
@@ -265,6 +266,20 @@ bool parseOptionPairs(const std::string& command, const std::vector<std::string>
 
 bool makeImportContext(const std::string& command, const RunContext& context, const OpenedCatalog& opened,
                        const BlenderOption& blenderOption, ImportContext& importContext, Answer& failed) {
+    const BlenderChoice choice = chooseBlender(blenderOptionPath(context, blenderOption), opened.settings);
+    if (!choice.status.ok()) {
+        failed = failure(command, choice.status);
+        return false;
+    }
+    importContext.library = opened.paths;
+    importContext.blender = choice.install;
+    importContext.settings = opened.settings;
+    return true;
+}
+
+bool makeMaterialImportContext(const std::string& command, const RunContext& context,
+                               const OpenedMaterialCatalog& opened, const BlenderOption& blenderOption,
+                               ImportContext& importContext, Answer& failed) {
     const BlenderChoice choice = chooseBlender(blenderOptionPath(context, blenderOption), opened.settings);
     if (!choice.status.ok()) {
         failed = failure(command, choice.status);
