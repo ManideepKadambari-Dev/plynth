@@ -270,6 +270,7 @@ SlabBuild slabBuild(const Plan& plan, std::size_t floorIndex, const std::vector<
 
     Clipper2Lib::PathsD holes;
     for (const Stair& stair : floor.stairs) {
+        if (stair.rise) continue;
         const StairLayout layout = stairLayout(plan, floor, stair);
         if (layout.status.ok() && layout.footprint.size() >= 3) holes.push_back(toPath(layout.footprint));
     }

@@ -1,5 +1,6 @@
 #include "plynth/core/Stairs.h"
 
+#include "plynth/core/Openings.h"
 #include "plynth/core/Rooms.h"
 #include "plynth/core/Storeys.h"
 #include "plynth/core/WallGeometry.h"
@@ -8,6 +9,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
+#include <limits>
 #include <mutex>
 #include <numbers>
 
@@ -18,6 +21,8 @@ namespace {
 constexpr int kClipperPrecision = 8;
 constexpr double kCollinearTolerance = 1e-9;
 constexpr double kOverlapTolerance = 1e-4; // square metres
+constexpr double kStepTargetReach = 0.3;    // metres from the arrival point to a deck or door it leads to
+constexpr double kStepRiseTolerance = 0.02; // metres the top of outside steps may miss its deck or door sill
 
 // The registry: every stair type ever registered. Built as a function local static so that registering from
 // namespace scope objects works in any start up order.
@@ -206,6 +211,9 @@ Status checkStair(const Stair& stair)
     if (stair.material && !wellFormedName(*stair.material)) {
         return fail(ErrorCode::InvalidValue, "The stair material \"" + *stair.material + "\" is not a valid name.");
     }
+    if (stair.rise && !(std::isfinite(*stair.rise) && *stair.rise >= 0.1 - 1e-9 && *stair.rise <= 6.0 + 1e-9)) {
+        return fail(ErrorCode::InvalidValue, "The stair rise must be from 0.1 to 6 metres.");
+    }
     return {};
 }
 
@@ -216,12 +224,18 @@ StairLayout previewStairLayout(const Plan& plan, const Floor& floor, const Stair
     layout.stair = stair.id;
     layout.fromFloor = floor.id;
 
-    const Floor* above = floorAbove(plan, floor.id);
-    if (!above) {
-        layout.status = fail(ErrorCode::InvalidValue, stairLabel(stair) + " has no floor above it.");
+    // Outside steps climb their own rise and arrive on no floor.
+    if (!stair.rise) {
+        const Floor* above = floorAbove(plan, floor.id);
+        if (!above) {
+            layout.status = fail(ErrorCode::InvalidValue, stairLabel(stair) + " has no floor above it.");
+            return layout;
+        }
+        layout.toFloor = above->id;
+    } else if (!(std::isfinite(*stair.rise) && *stair.rise > 0.0)) {
+        layout.status = fail(ErrorCode::InvalidValue, "The stair rise must be from 0.1 to 6 metres.");
         return layout;
     }
-    layout.toFloor = above->id;
 
     const StairType* type = findStairType(stair.type);
     if (!type) {
@@ -235,7 +249,7 @@ StairLayout previewStairLayout(const Plan& plan, const Floor& floor, const Stair
     }
 
     StairInput input;
-    input.rise = floorRise(floor);
+    input.rise = stair.rise ? *stair.rise : floorRise(floor);
     input.width = stair.width;
     input.turn = stair.turn;
     input.riserCount = std::max(2, static_cast<int>(std::ceil(input.rise / kMaxRiser - 1e-9)));
@@ -283,6 +297,7 @@ std::vector<StairLayout> stairsArrivingAt(const Plan& plan, std::string_view flo
     const Floor* below = floorBelow(plan, floorId);
     if (!below) return out;
     for (const Stair& stair : below->stairs) {
+        if (stair.rise) continue;
         StairLayout layout = stairLayout(plan, *below, stair);
         if (layout.status.ok()) out.push_back(std::move(layout));
     }
@@ -356,6 +371,79 @@ void addWallOverlaps(const Stair& stair, const std::vector<Vec2>& footprint, con
     }
 }
 
+// The distance from a point to a polygon's area: 0 inside it.
+double distanceToArea(Vec2 point, const std::vector<Vec2>& polygon)
+{
+    if (polygon.size() < 3) return std::numeric_limits<double>::infinity();
+    if (insidePolygon(point, polygon)) return 0.0;
+    double best = std::numeric_limits<double>::infinity();
+    for (std::size_t i = 0; i < polygon.size(); ++i) {
+        best = std::min(best, projectOntoSegment(point, polygon[i], polygon[(i + 1) % polygon.size()]).distance);
+    }
+    return best;
+}
+
+// A height in metres with two decimals, for messages.
+std::string heightText(double metres)
+{
+    char text[32];
+    std::snprintf(text, sizeof text, "%.2f m", metres);
+    return text;
+}
+
+// Something outside steps may climb to: a deck top or a door sill near their arrival point.
+struct StepTarget {
+    std::string what; // for the message, for example "the top of deck dk1"
+    double height = 0.0;
+    double distance = 0.0;
+};
+
+// The decks and doors of the floor whose area the arrival point lies in or within kStepTargetReach of.
+std::vector<StepTarget> stepTargets(const Floor& floor, Vec2 arrival)
+{
+    std::vector<StepTarget> out;
+    for (const Deck& deck : floor.decks) {
+        std::vector<Vec2> outline;
+        for (const PlanXY& p : deck.outline) outline.push_back({p.x, p.y});
+        const double d = distanceToArea(arrival, outline);
+        if (d <= kStepTargetReach) out.push_back({"the top of deck " + deck.id, deck.top, d});
+    }
+    for (const Opening& opening : floor.openings) {
+        if (opening.type != OpeningType::Door) continue;
+        const OpeningPlacement placement = openingPlacement(floor, opening);
+        if (!placement.valid) continue;
+        const double d = distanceToArea(arrival, placement.footprint);
+        if (d <= kStepTargetReach) out.push_back({"the sill of door " + opening.id, opening.sill, d});
+    }
+    return out;
+}
+
+// The problems of outside steps: walls in the way, steps that stand off the ground, and a top that misses what
+// the steps lead to.
+void addOutsideStepProblems(const Plan& plan, const Floor& floor, const Stair& stair, const StairLayout& layout,
+                            std::vector<StairProblem>& out)
+{
+    addWallOverlaps(stair, layout.footprint, floor, out);
+    if (groundLevelFloor(plan).id != floor.id &&
+        outsideSize(layout.footprint, areaPaths(floorFootprint(floor))) > kOverlapTolerance) {
+        out.push_back({stair.id, "stair_off_ground", false,
+                       stairLabel(stair) + " stands outside the walls of " + floor.name +
+                           ", which is not at ground level, so it does not reach the ground.",
+                       {}});
+    }
+    std::vector<StepTarget> targets = stepTargets(floor, layout.arrival);
+    if (targets.empty()) return;
+    for (const StepTarget& target : targets) {
+        if (std::fabs(target.height - layout.rise) <= kStepRiseTolerance) return;
+    }
+    const auto nearest = std::min_element(targets.begin(), targets.end(),
+                                          [](const StepTarget& a, const StepTarget& b) { return a.distance < b.distance; });
+    out.push_back({stair.id, "stair_rise_mismatch", false,
+                   stairLabel(stair) + " climbs to " + heightText(layout.rise) + ", but " + nearest->what + " is at " +
+                       heightText(nearest->height) + ".",
+                   {}});
+}
+
 }
 
 // The problems of the stairs on a floor, in stair order.
@@ -364,7 +452,7 @@ std::vector<StairProblem> stairProblems(const Plan& plan, const Floor& floor)
     std::vector<StairProblem> out;
     const Floor* above = floorAbove(plan, floor.id);
     for (const Stair& stair : floor.stairs) {
-        if (!above) {
+        if (!above && !stair.rise) {
             out.push_back({stair.id, "stair_no_floor_above", true, stairLabel(stair) + " has no floor above it.", {}});
             continue;
         }
@@ -375,6 +463,10 @@ std::vector<StairProblem> stairProblems(const Plan& plan, const Floor& floor)
         }
         const StairLayout layout = stairLayout(plan, floor, stair);
         if (!layout.status.ok() || layout.footprint.empty()) continue;
+        if (stair.rise) {
+            addOutsideStepProblems(plan, floor, stair, layout, out);
+            continue;
+        }
 
         if (outsideSize(layout.footprint, areaPaths(floorFootprint(floor))) > kOverlapTolerance) {
             out.push_back({stair.id, "stair_outside_floor", false,

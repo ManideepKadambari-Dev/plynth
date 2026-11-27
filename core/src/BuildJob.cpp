@@ -285,7 +285,7 @@ Json stairJson(const StairBuild& s, const StairMaterialId* material)
     Json json = Json::object();
     json["id"] = s.id;
     json["type"] = s.type;
-    json["to_floor"] = s.toFloor;
+    json["to_floor"] = s.toFloor.empty() ? Json(nullptr) : Json(s.toFloor);
     json["rise"] = s.rise;
     json["riser_count"] = s.riserCount;
     json["riser"] = s.riser;
@@ -1327,7 +1327,10 @@ BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, 
             }
         }
         std::vector<WorldPolygon> ceilingHoles;
-        for (const StairBuild& own : build.stairs) ceilingHoles.push_back(own.hole);
+        // Outside steps arrive on no floor, so they cut nothing.
+        for (const StairBuild& own : build.stairs) {
+            if (!own.toFloor.empty()) ceilingHoles.push_back(own.hole);
+        }
 
         for (const Opening& opening : floor.openings) {
             OpeningBuildResult made = openingBuild(floor, opening, level);

@@ -1169,7 +1169,7 @@
             "properties": {
               "id": { "$ref": "#/definitions/planId" },
               "type": { "type": "string", "minLength": 1 },
-              "to_floor": { "$ref": "#/definitions/planId" },
+              "to_floor": { "description": "The floor it climbs to; null for outside steps, which climb their own rise.", "oneOf": [{ "$ref": "#/definitions/planId" }, { "type": "null" }] },
               "rise": { "type": "number", "exclusiveMinimum": 0 },
               "riser_count": { "type": "integer", "minimum": 2 },
               "riser": { "type": "number", "exclusiveMinimum": 0 },

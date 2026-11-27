@@ -239,6 +239,7 @@ std::vector<StairRailing> stairRailings(const Plan& plan, const TrimSettings& se
     for (std::size_t i = 0; i < plan.floors.size() && i < elevations.size(); ++i) {
         const Floor& floor = plan.floors[i];
         for (const Stair& stair : floor.stairs) {
+            if (!stair.railing) continue;
             const StairLayout layout = stairLayout(plan, floor, stair);
             if (!layout.status.ok()) continue;
             StairRailing sides = stairSides(floor, stair, layout, elevations[i], settings, profile);

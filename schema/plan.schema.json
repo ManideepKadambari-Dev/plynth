@@ -312,7 +312,7 @@
       }
     },
     "stair": {
-      "description": "A stair. The step count and footprint are worked out from the floor heights: the rise is ceiling_height plus slab_thickness of its floor, cut into equal risers of at most 0.19 m, with treads 0.27 m deep. A floor that is the top one cannot hold a working stair; Plynth reports it.",
+      "description": "A stair. The step count and footprint are worked out from the floor heights: the rise is ceiling_height plus slab_thickness of its floor, cut into equal risers of at most 0.19 m, with treads 0.27 m deep. A floor that is the top one cannot hold a working stair; Plynth reports it. Outside steps (rise set) climb their own rise instead and need no floor above.",
       "type": "object",
       "required": ["id", "x", "y"],
       "additionalProperties": false,

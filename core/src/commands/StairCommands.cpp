@@ -66,7 +66,7 @@ Status AddStairCommand::apply(Project& project)
 {
     Floor* floor = findFloor(project.plan, floorId_);
     if (!floor) return fail(ErrorCode::NotFound, "There is no floor " + floorId_ + ".");
-    if (!floorAbove(project.plan, floorId_)) {
+    if (!stair_.rise && !floorAbove(project.plan, floorId_)) {
         return fail(ErrorCode::InvalidValue, "Add a floor above before placing a stair.");
     }
     Stair stair = stair_;

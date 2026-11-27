@@ -9,7 +9,8 @@ namespace plynth {
 
 // Adds a stair to a floor with the values of stair (its id is ignored; the new one is newId with
 // kStairIdPrefix, the same on redo). NotFound for an unknown floor. InvalidValue "Add a floor above before
-// placing a stair." when the floor is the top one, and whatever checkStair (Stairs.h) refuses.
+// placing a stair." when the floor is the top one and the stair has no rise (outside steps, Decks.h, need none),
+// and whatever checkStair (Stairs.h) refuses.
 class AddStairCommand : public Command {
 public:
     AddStairCommand(Id floorId, Stair stair);

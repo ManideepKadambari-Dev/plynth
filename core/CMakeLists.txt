@@ -52,6 +52,7 @@ add_library(plynth_core STATIC
     src/MaterialDefaults.cpp
     src/Materials.cpp
     src/Stairs.cpp
+    src/Decks.cpp
     src/Storeys.cpp
     src/Roofs.cpp
     src/BuildPreview.cpp
@@ -85,6 +86,7 @@ add_library(plynth_core STATIC
     src/commands/GeneratorCommands.cpp
     src/commands/MaterialCommands.cpp
     src/commands/StairCommands.cpp
+    src/commands/DeckCommands.cpp
     src/commands/RoofCommands.cpp
     src/commands/DetectionCommands.cpp
     src/detection/Detection.cpp

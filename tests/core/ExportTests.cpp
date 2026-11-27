@@ -17,6 +17,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -656,7 +657,8 @@ TEST_CASE("a grouped project exports one file per group", "[core][export][run]")
     REQUIRE(groups[0]["rest"] == true);
     REQUIRE(groups[0]["members"].size() == 3);
     REQUIRE(groups[0]["members"][0] == Json{{"kind", "walls"}, {"id", "f1"}});
-    REQUIRE(groups[1]["members"].back() == Json{{"kind", "guard"}, {"id", nullptr}});
+    REQUIRE(std::find(groups[1]["members"].begin(), groups[1]["members"].end(), Json{{"kind", "guard"}, {"id", nullptr}}) !=
+            groups[1]["members"].end());
     REQUIRE(groups[2]["rest"] == false);
     REQUIRE(job["params"]["kit"].is_null());
 
