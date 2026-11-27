@@ -12,6 +12,8 @@ if(MSVC)
 endif()
 
 option(PLYNTH_BUILD_TESTS "Build the unit tests" ON)
+# The headless Unreal test starts a real Unreal Editor, so it is only added on a PC that asks for it.
+option(PLYNTH_UNREAL_TESTS "Add the headless Unreal Engine link test" OFF)
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/core/CMakeLists.txt")
     add_subdirectory(core)
@@ -41,5 +43,8 @@ if(PLYNTH_BUILD_TESTS)
     enable_testing()
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/CMakeLists.txt")
         add_subdirectory(tests)
+    endif()
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/unreal/CMakeLists.txt")
+        add_subdirectory(tests/unreal)
     endif()
 endif()

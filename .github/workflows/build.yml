@@ -185,14 +185,15 @@ jobs:
           sccache --zero-stats
 
       # The launcher and embedded debug information are set here only, so local builds stay as they are.
-      # Embedded debug information changes where the debug data is kept, not the code.
+      # Embedded debug information changes where the debug data is kept, not the code. The headless Unreal
+      # test needs a real Unreal Editor, so it is turned off here as well as by default.
       - name: Configure
         shell: pwsh
         run: |
           if ($env:CACHES -eq 'true') {
-            cmake --preset msvc -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache '-DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>'
+            cmake --preset msvc -DPLYNTH_UNREAL_TESTS=OFF -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache '-DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>'
           } else {
-            cmake --preset msvc
+            cmake --preset msvc -DPLYNTH_UNREAL_TESTS=OFF
           }
 
       - name: Check for new packages

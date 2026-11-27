@@ -154,10 +154,13 @@ try {
 
     $stale = Join-Path $app 'blender\stale_script.py'
     'stale' | Out-File $stale
+    $staleUnreal = Join-Path $app 'unreal\stale_script.py'
+    'stale' | Out-File $staleUnreal
     $log = Join-Path $scratch 'install-2.log'
     $code = Invoke-Setup $Setup @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=$log")
     if ($code -ne 0) { Add-Failure "the second install ended with code $code" }
     if (Test-Path $stale) { Add-Failure 'a stale script in blender survived the second install' }
+    if (Test-Path $staleUnreal) { Add-Failure 'a stale script in unreal survived the second install' }
     $count = Get-CliCount
     if ($count -ne 1) { Add-Failure "the cli folder is on the path $count times after the second install" }
     if ((Get-Content -Raw (Join-Path $scratch 'install-2.log')) -match 'runtime is missing') {

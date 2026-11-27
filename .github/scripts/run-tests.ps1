@@ -52,9 +52,9 @@ function Get-Problems {
     return $found
 }
 
-# Every test blender/CMakeLists.txt registers is named blender_ and no other test is. The label cannot be used:
-# with tags as labels, the core tests tagged [blender] carry it too.
-$arguments = @('--preset', $Preset, '-E', '^blender_', '-LE', '^gpu$', '--timeout', '600', '--no-tests=error',
+# Every test blender/CMakeLists.txt registers is named blender_, and the real Unreal test unreal_. The labels cannot
+# be used: with tags as labels, the core tests tagged [blender] or [unreal] carry them too.
+$arguments = @('--preset', $Preset, '-E', '^(blender|unreal)_', '-LE', '^gpu$', '--timeout', '600', '--no-tests=error',
                '-j', [string][Environment]::ProcessorCount,
                '--output-log', $log, '--output-junit', $junit)
 # The filter comes from the environment so its text is never part of a script line.

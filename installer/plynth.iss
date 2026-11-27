@@ -95,6 +95,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 ; The program's own script and QML folders are replaced whole, so a file removed in a new version goes.
 ; The folder is fixed and checked for links before this runs.
 Type: filesandordirs; Name: "{app}\blender"
+Type: filesandordirs; Name: "{app}\unreal"
 Type: filesandordirs; Name: "{app}\qml"
 
 [Files]
@@ -104,8 +105,9 @@ Source: "{#Stage}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs crea
 Name: "{autoprograms}\Plynth"; Filename: "{app}\plynth.exe"
 
 [UninstallDelete]
-; Blender may leave compiled Python files in the scripts folder.
+; Blender and Unreal may leave compiled Python files in the script folders.
 Type: filesandordirs; Name: "{app}\blender"
+Type: filesandordirs; Name: "{app}\unreal"
 
 [Run]
 Filename: "{app}\plynth.exe"; Description: "Start Plynth"; Flags: nowait postinstall skipifsilent
@@ -471,7 +473,8 @@ begin
   Result := '';
   if IsUpdateMode then
     Result := UpdateRefusal;
-  if (Result = '') and (IsReparsePoint(App) or IsReparsePoint(App + '\blender') or IsReparsePoint(App + '\qml')) then
+  if (Result = '') and (IsReparsePoint(App) or IsReparsePoint(App + '\blender') or IsReparsePoint(App + '\unreal') or
+    IsReparsePoint(App + '\qml')) then
     Result := 'The Plynth folder ' + App + ' or a folder in it is a link to another place, so nothing was changed.';
   if (Result = '') and not WaitForPlynthToClose({#WaitSeconds}) then
     Result := 'Plynth is still running. Close every Plynth window and command, then try again.';

@@ -59,7 +59,7 @@ if (-not $Trial) {
     if ($dirty) { throw "data files differ from the commit: $($dirty -join ', ')" }
 }
 foreach ($file in $tracked) {
-    if (Test-DataFile $file) { Copy-Tracked $file }
+    if (Test-DataFile $file) { Copy-Tracked $file (Get-PackagePath $file) }
 }
 foreach ($pair in $script:RenamedFiles.GetEnumerator()) {
     if ($tracked -contains $pair.Key) { Copy-Tracked $pair.Key $pair.Value }

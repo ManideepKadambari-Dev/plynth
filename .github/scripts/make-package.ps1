@@ -27,6 +27,15 @@ foreach ($file in $tracked) {
     Copy-Item (Join-Path $root $file) $target
 }
 
+# The Unreal editor script ships as unreal/ next to the program, without its test project.
+$unrealFiles = git -C $root ls-files -- engines/unreal
+foreach ($file in $unrealFiles) {
+    if ($file -like 'engines/unreal/tests/*') { continue }
+    $target = Join-Path $Destination ('unreal/' + $file.Substring('engines/unreal/'.Length))
+    New-Item -ItemType Directory -Force (Split-Path $target) | Out-Null
+    Copy-Item (Join-Path $root $file) $target
+}
+
 # A Release copy carries the redistributable C++ runtime so it runs without Visual Studio.
 if ($Config -eq 'Release' -and $env:VCToolsRedistDir) {
     $crt = Get-ChildItem (Join-Path $env:VCToolsRedistDir 'x64') -Directory -Filter 'Microsoft.VC*.CRT' | Select-Object -First 1

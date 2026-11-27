@@ -1,13 +1,16 @@
 # What goes into the package and what never does, shared by the stage and the package check.
 
-$script:DataRoots = @('blender', 'schema', 'samples', 'docs', 'licenses', 'LICENSE', 'AUTHORS', 'installer/text')
+$script:DataRoots = @('blender', 'engines/unreal', 'schema', 'samples', 'docs', 'licenses', 'LICENSE', 'AUTHORS', 'installer/text')
 
 $script:RenamedFiles = @{ 'installer/text/README.txt' = 'README.txt' }
+
+# Folders that are shipped under another name. The programs look for the Unreal scripts in unreal/ beside them.
+$script:MovedFolders = @{ 'engines/unreal/' = 'unreal/' }
 
 # The three marker files are how the app finds its docs, samples and licenses beside the program.
 $script:RequiredFiles = @(
     'plynth.exe', 'plynth.com', 'cli/plynth.com', 'platforms/qwindows.dll', 'blender/plynth_worker.py',
-    'blender/guard/startup/plynth_fetch_guard.py', 'blender/guard/tested_versions.json',
+    'blender/guard/startup/plynth_fetch_guard.py', 'blender/guard/tested_versions.json', 'unreal/plynth_link.py',
     'schema/plan.schema.json', 'samples/shapes/keyhole.shape.json', 'docs/GETTING_STARTED.md', 'LICENSE',
     'AUTHORS', 'README.txt', 'licenses/THIRD_PARTY_NOTICES.md', 'licenses/texts/CC0-1.0.txt', 'samples/LICENSE',
     'samples/samples.json'
@@ -43,6 +46,11 @@ function Test-DataFile([string]$file) {
         $shipped = $file -eq 'blender/plynth_worker.py' -or $file -like 'blender/plynth/*' -or $file -like 'blender/guard/*'
         return $shipped -and $file -notlike '*/__pycache__/*'
     }
+    if ($file -like 'engines/unreal/*') {
+        # The test project is for the headless Unreal test only.
+        $shipped = $file -eq 'engines/unreal/plynth_link.py' -or $file -like 'engines/unreal/plynth_unreal/*'
+        return $shipped -and $file -notlike '*/__pycache__/*'
+    }
     if ($file -like 'schema/*') { return $true }
     if ($file -like 'docs/*') { return $file -notlike 'docs/architecture/*' }
     if ($file -like 'licenses/*') { return $true }
@@ -51,6 +59,14 @@ function Test-DataFile([string]$file) {
         return (Split-Path $file -Leaf) -notlike 'make_*.py'
     }
     return $false
+}
+
+# Gives the path a committed data file has in the package.
+function Get-PackagePath([string]$file) {
+    foreach ($pair in $script:MovedFolders.GetEnumerator()) {
+        if ($file.StartsWith($pair.Key, [System.StringComparison]::Ordinal)) { return $pair.Value + $file.Substring($pair.Key.Length) }
+    }
+    return $file
 }
 
 # Reads the project version from the root CMakeLists.txt.
