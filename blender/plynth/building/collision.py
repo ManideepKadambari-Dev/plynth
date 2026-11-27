@@ -25,7 +25,8 @@ HULL_EPSILON = 1e-7
 # a point set, for roofs), named <object name>_Collision_<NN> with NN counted over the pieces and then the hulls,
 # and one convex hull per furniture item and per built generator item. They go into a Collision collection and
 # carry the kind "collision" and the name of the object they belong to. A piece or hull that cannot be made is
-# reported and left out. A generator item that was not built has no hull and no warning.
+# reported and left out. A generator item that was not built has no hull and no warning. Then the build parts get
+# theirs the same way, from the pieces and hulls each part lists; a part that was not built has none.
 def run(ctx):
     bpy.context.view_layer.update()
     collection = None
@@ -48,6 +49,21 @@ def run(ctx):
                 continue
             collection = collection or collision_collection()
             make_generator_hull(ctx, floor, item, target, collection)
+    built = ctx.state.get("part_objects", {})
+    for floor_id, part in job_parts(ctx.params):
+        target = built.get(part["object"])
+        if target is None or not (part.get("collision") or part.get("hulls")):
+            continue
+        collection = collection or collision_collection()
+        make_pieces(ctx, floor_id, target, part["plynth_id"], part.get("collision", []), part.get("hulls", []),
+                    collection)
+
+
+# Returns every build part of the job with the id of its floor: the floors' parts, then the site parts with no
+# floor.
+def job_parts(params):
+    found = [(floor["id"], part) for floor in params["floors"] for part in floor.get("parts", [])]
+    return found + [(None, part) for part in params.get("site_parts", [])]
 
 
 # Returns the Collision collection, made and linked to the scene on first use.
@@ -89,14 +105,20 @@ def make_shape(ctx, floor, shape, collection):
         report(ctx, "collision_failed", "warning", "The %s of %s was not built, so it has no collision." % (
             shape["target"]["kind"], plan_id), floor["id"], plan_id)
         return
-    sources = [(piece_mesh, piece) for piece in shape["pieces"]]
-    sources += [(hull_points_mesh, hull) for hull in shape["hulls"]]
+    make_pieces(ctx, floor["id"], target, plan_id, shape["pieces"], shape["hulls"], collection)
+
+
+# Makes the collision of one built object: a closed prism per piece, then a convex mesh per hull, numbered in
+# that order. One that cannot be made is reported and left out.
+def make_pieces(ctx, floor_id, target, plan_id, pieces, hulls, collection):
+    sources = [(piece_mesh, piece) for piece in pieces]
+    sources += [(hull_points_mesh, hull) for hull in hulls]
     for number, (make, source) in enumerate(sources):
         name = collision_name(target.name, number)
         mesh = make(name, source)
         if mesh is None:
             report(ctx, "collision_failed", "warning", "A collision piece of %s could not be made." % plan_id,
-                   floor["id"], plan_id)
+                   floor_id, plan_id)
             continue
         add_object(name, mesh, collection, target.name, target.get("plynth_id", plan_id))
         count(ctx, "collision")

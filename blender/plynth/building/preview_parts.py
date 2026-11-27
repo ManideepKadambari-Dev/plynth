@@ -8,12 +8,13 @@ from ..registry import BUILD_STEPS
 
 ORDER = 135
 HIDDEN_KINDS = ("roof", "collision", "light")
+SITE_FILE = "site.fbx"
 
 
 # Writes the preview parts: for every floor one FBX with everything of the floor but its slab and roofs, one with
-# its slab and one with its roofs when it has any, then parts.json that lists them. Skipped when the job has no
-# preview folder. When anything fails the folder keeps no parts.json, preview_failed is reported and the build
-# carries on.
+# its slab and one with its roofs when it has any, one for the site when the build has site parts, then
+# parts.json that lists them. Skipped when the job has no preview folder. When anything fails the folder keeps
+# no parts.json, preview_failed is reported and the build carries on.
 def run(ctx):
     name = ctx.params.get("preview_folder")
     if not name:
@@ -49,7 +50,16 @@ def split_objects(collection):
     return storey, slabs, roofs
 
 
-# Writes every part file and parts.json into the folder.
+# Returns the objects of the Site collection the preview shows, in name order, or none when there is no site.
+def site_objects(ctx):
+    collection = ctx.state.get("site_collection")
+    if collection is None:
+        return []
+    objects = sorted(collection.objects, key=lambda o: o.name)
+    return [o for o in objects if o.get("plynth_kind") not in HIDDEN_KINDS]
+
+
+# Writes every part file and parts.json into the folder. The site part is listed under the ground floor.
 def write_parts(ctx, folder):
     os.makedirs(folder, exist_ok=True)
     for old in os.listdir(folder):
@@ -65,6 +75,10 @@ def write_parts(ctx, folder):
                 continue
             exporters.write_file("fbx", objects, os.path.join(folder, file), "ABSOLUTE")
             parts.append({"floor": floor["id"], "kind": kind, "file": file})
+    site = site_objects(ctx)
+    if site and ctx.params["floors"]:
+        exporters.write_file("fbx", site, os.path.join(folder, SITE_FILE), "ABSOLUTE")
+        parts.append({"floor": ctx.params["floors"][0]["id"], "kind": "site", "file": SITE_FILE})
     listing = os.path.join(folder, "parts.json")
     temporary = os.path.join(folder, "parts.part.json")
     with open(temporary, "w", encoding="utf-8") as handle:

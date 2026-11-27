@@ -44,8 +44,9 @@ def mark_edges(walls):
 
 
 # Bevels one walls object and keeps the result only when it is still closed and the volume is about the same.
-# With weighted true only the edges that carry a bevel weight are rounded (the kit pieces mark theirs).
-def bevel(ctx, floor_id, walls, width, segments, weighted=False):
+# With weighted true only the edges that carry a bevel weight are rounded (the kit pieces mark theirs). Other
+# objects, such as build parts, pass their own sentence and plan id for the problem.
+def bevel(ctx, floor_id, walls, width, segments, weighted=False, message=None, plan_id=None):
     backup = walls.data.copy()
     before = meshes.volume(walls)
     was_closed = meshes.is_manifold(walls)
@@ -69,8 +70,8 @@ def bevel(ctx, floor_id, walls, width, segments, weighted=False):
         walls.data = backup
         bpy.data.meshes.remove(stale)
         backup.name = name
-        report(ctx, "bevel_failed", "warning", "The wall edges could not be rounded, so they stay sharp.", floor_id,
-               floor_id)
+        report(ctx, "bevel_failed", "warning", message or "The wall edges could not be rounded, so they stay sharp.",
+               floor_id, plan_id or floor_id)
         return
     bpy.data.meshes.remove(backup)
     meshes.reproject_flat_uvs(walls)
