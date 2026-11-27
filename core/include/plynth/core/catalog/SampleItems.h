@@ -3,7 +3,9 @@
 #include "../Status.h"
 #include "AssetCatalog.h"
 #include "AssetImport.h"
+#include "Importer.h"
 #include "MaterialCatalog.h"
+#include "MaterialImport.h"
 
 #include <filesystem>
 #include <functional>
@@ -35,5 +37,21 @@ SampleItemsResult addSampleItems(AssetCatalog& assets, MaterialCatalog& material
                                  const std::filesystem::path& samplesFolder,
                                  const std::function<void(int index, int count)>& progress = {},
                                  std::stop_token stop = {});
+
+// The imports addSampleItems runs, for a front end that runs them one by one in its own job list (the app's
+// "Add the sample items", issue 47): every sample model the library lacks, with its categories, tags and the
+// index's license, and every sample material (sampleMaterialRequests) with the index's license and keepOriginal
+// set, so a front end that runs these gets exactly what addSampleItems gives. Models whose id the library has are
+// left out, and so are materials whose material.json names an id the library has; every other material request
+// keeps skipExisting, so a taken id is still skipped by the import. The shapes and generators are copied by
+// addSampleShapes and addSampleGenerators. NotFound without a samples index.
+struct SampleItemRequests {
+    Status status;
+    std::vector<ImportRequest> assets;
+    std::vector<MaterialImportRequest> materials;
+};
+
+SampleItemRequests sampleItemRequests(const AssetCatalog& assets, const MaterialCatalog& materials,
+                                      const std::filesystem::path& samplesFolder);
 
 }

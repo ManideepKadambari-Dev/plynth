@@ -305,3 +305,62 @@ TEST_CASE("delete removes named stairs first and undo brings them back", "[core]
     const std::vector<Id> mixed = {"s1", "p1"};
     REQUIRE(makeDeleteCommand(p.plan, mixed).status.code == ErrorCode::InvalidValue);
 }
+
+TEST_CASE("nextFloorName counts on from the floors and skips names in use", "[core][floor]")
+{
+    Plan plan = makeEmptyPlan();
+    REQUIRE(plan.floors.size() == 1);
+    REQUIRE(plan.floors[0].name == "Floor 1");
+    REQUIRE(nextFloorName(plan) == "Floor 2");
+
+    SECTION("a plan without floors starts at Floor 1") {
+        plan.floors.clear();
+        REQUIRE(nextFloorName(plan) == "Floor 1");
+    }
+    SECTION("floors named otherwise keep the count") {
+        plan.floors[0].name = "Ground";
+        Floor upper = plan.floors[0];
+        upper.id = "f2";
+        upper.name = "Attic";
+        plan.floors.push_back(upper);
+        REQUIRE(nextFloorName(plan) == "Floor 3");
+    }
+    SECTION("after a deleted floor the next number that is free is taken") {
+        Floor second = plan.floors[0];
+        second.id = "f2";
+        second.name = "Floor 2";
+        Floor third = plan.floors[0];
+        third.id = "f3";
+        third.name = "Floor 3";
+        plan.floors.push_back(second);
+        plan.floors.push_back(third);
+        plan.floors.erase(plan.floors.begin() + 1);
+        // Two floors, but "Floor 3" is taken, so the count plus one would repeat a name.
+        REQUIRE(nextFloorName(plan) == "Floor 4");
+    }
+    SECTION("several taken names in a row are all skipped") {
+        plan.floors[0].name = "Floor 2";
+        Floor other = plan.floors[0];
+        other.id = "f2";
+        other.name = "Floor 3";
+        plan.floors.push_back(other);
+        Floor last = plan.floors[0];
+        last.id = "f3";
+        last.name = "Floor 4";
+        plan.floors.push_back(last);
+        REQUIRE(nextFloorName(plan) == "Floor 5");
+    }
+    SECTION("names are compared exactly") {
+        plan.floors[0].name = "floor 2";
+        REQUIRE(nextFloorName(plan) == "Floor 2");
+        plan.floors[0].name = "Floor 2 ";
+        REQUIRE(nextFloorName(plan) == "Floor 2");
+    }
+    SECTION("the name is accepted by AddFloorCommand") {
+        Project project = makeNewProject();
+        AddFloorCommand add(nextFloorName(project.plan));
+        requireOk(add.apply(project));
+        REQUIRE(project.plan.floors.back().name == "Floor 2");
+        REQUIRE(nextFloorName(project.plan) == "Floor 3");
+    }
+}

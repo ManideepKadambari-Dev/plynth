@@ -112,6 +112,11 @@ add_library(plynth_core STATIC
     src/BuildResolve.cpp
     src/catalog/BuildChoices.cpp
     src/VariationCopies.cpp
+    src/BuildCheck.cpp
+    src/SettingsChecks.cpp
+    src/ExportReady.cpp
+    src/catalog/CatalogChecks.cpp
+    src/catalog/MaterialRescan.cpp
 )
 if(WIN32)
     target_sources(plynth_core PRIVATE src/Process_win.cpp)

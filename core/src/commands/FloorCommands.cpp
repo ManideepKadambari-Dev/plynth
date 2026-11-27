@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstdio>
 
+#include <string>
 #include <utility>
 
 namespace plynth {
@@ -208,6 +209,17 @@ std::string trimmed(const std::string& text)
     return text.substr(first, last - first + 1);
 }
 
+}
+
+// Picks the next free "Floor N" name, counting on from the number of floors.
+std::string nextFloorName(const Plan& plan)
+{
+    std::size_t number = plan.floors.size() + 1;
+    const auto taken = [&](const std::string& name) {
+        return std::any_of(plan.floors.begin(), plan.floors.end(), [&](const Floor& floor) { return floor.name == name; });
+    };
+    while (taken("Floor " + std::to_string(number))) ++number;
+    return "Floor " + std::to_string(number);
 }
 
 AddFloorCommand::AddFloorCommand(std::string name, std::optional<std::size_t> position)

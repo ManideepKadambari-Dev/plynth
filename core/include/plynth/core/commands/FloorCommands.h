@@ -52,6 +52,11 @@ private:
     double previous_ = 0.0;
 };
 
+// The name a new floor gets when the user gives none (issue 48): "Floor N" with N the floor count plus one, or
+// the next number above it that no floor of the plan has as its name, so a deleted floor never makes two floors
+// share a name. The app and "plynth floor add" both use it.
+std::string nextFloorName(const Plan& plan);
+
 // Adds an empty floor named name (InvalidValue when empty after trimming spaces) with the project's default
 // ceiling height, kDefaultSlabThickness and no image, at position in plan order (0 is below every floor; empty
 // or the floor count puts it on top). InvalidValue for a position past the end. The id is newId with

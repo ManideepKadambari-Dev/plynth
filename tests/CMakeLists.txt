@@ -155,6 +155,12 @@ add_executable(plynth_core_tests
     core/IdTests.cpp
     core/IdGroupTests.cpp
     core/IdTestListener.cpp
+    core/BuildCheckTests.cpp
+    core/SettingsChecksTests.cpp
+    core/CatalogChecksTests.cpp
+    core/MaterialRescanTests.cpp
+    core/SampleItemRequestsTests.cpp
+    core/ExportReadyTests.cpp
 )
 target_link_libraries(plynth_core_tests PRIVATE
     plynth::core

@@ -106,3 +106,80 @@ TEST_CASE("variation copies refuse before writing anything", "[variation][copies
     CHECK_FALSE(fs::exists(s.out / "Flat_v4"));
     CHECK_FALSE(fs::exists(s.out / "Flat_v5"));
 }
+
+TEST_CASE("parseSeedList reads seeds, ranges and commas", "[core][variation]")
+{
+    const auto seeds = [](std::string_view text) {
+        const SeedListRead read = parseSeedList(text);
+        requireOk(read.status);
+        return read.seeds;
+    };
+    REQUIRE(seeds("7") == std::vector<std::uint32_t>{7});
+    REQUIRE(seeds("1,2,3") == std::vector<std::uint32_t>{1, 2, 3});
+    REQUIRE(seeds("1-5") == std::vector<std::uint32_t>{1, 2, 3, 4, 5});
+    REQUIRE(seeds("1-5,9") == std::vector<std::uint32_t>{1, 2, 3, 4, 5, 9});
+    REQUIRE(seeds(" 1-3 , 9 ,12 - 14 ") == std::vector<std::uint32_t>{1, 2, 3, 9, 12, 13, 14});
+    REQUIRE(seeds("\t4\t,5") == std::vector<std::uint32_t>{4, 5});
+    REQUIRE(seeds("9,1,5") == std::vector<std::uint32_t>{9, 1, 5});
+    REQUIRE(seeds("5-5") == std::vector<std::uint32_t>{5});
+    REQUIRE(seeds("0") == std::vector<std::uint32_t>{0});
+    REQUIRE(seeds("4294967295") == std::vector<std::uint32_t>{4294967295u});
+    REQUIRE(seeds("4294967294-4294967295") == std::vector<std::uint32_t>{4294967294u, 4294967295u});
+    REQUIRE(seeds("007") == std::vector<std::uint32_t>{7});
+}
+
+TEST_CASE("parseSeedList refuses wrong parts with the part named", "[core][variation]")
+{
+    const auto refused = [](std::string_view text) {
+        const SeedListRead read = parseSeedList(text);
+        REQUIRE(read.status.code == ErrorCode::InvalidValue);
+        REQUIRE(read.seeds.empty());
+        return read.status.message;
+    };
+    REQUIRE(refused("") == "Give at least one seed.");
+    REQUIRE(refused("   ") == "Give at least one seed.");
+    REQUIRE(refused("abc") == "The seed 'abc' is not a whole number from 0 to 4294967295.");
+    REQUIRE(refused("1,,2") == "The seed '' is not a whole number from 0 to 4294967295.");
+    REQUIRE(refused("1,") == "The seed '' is not a whole number from 0 to 4294967295.");
+    REQUIRE(refused(",1") == "The seed '' is not a whole number from 0 to 4294967295.");
+    REQUIRE(refused("-5") == "The seed '-5' is not a whole number from 0 to 4294967295.");
+    REQUIRE(refused("+5") == "The seed '+5' is not a whole number from 0 to 4294967295.");
+    REQUIRE(refused("1.5") == "The seed '1.5' is not a whole number from 0 to 4294967295.");
+    REQUIRE(refused("1 2") == "The seed '1 2' is not a whole number from 0 to 4294967295.");
+    REQUIRE(refused("4294967296") == "The seed '4294967296' is not a whole number from 0 to 4294967295.");
+    REQUIRE(refused("99999999999999999999999") ==
+            "The seed '99999999999999999999999' is not a whole number from 0 to 4294967295.");
+    const std::string range = "' must be two whole numbers from 0 to 4294967295, the first not above the second.";
+    REQUIRE(refused("5-3") == "The range '5-3" + range);
+    REQUIRE(refused("5-") == "The range '5-" + range);
+    REQUIRE(refused("1-2-3") == "The range '1-2-3" + range);
+    REQUIRE(refused("a-3") == "The range 'a-3" + range);
+    REQUIRE(refused("1-4294967296") == "The range '1-4294967296" + range);
+    REQUIRE(refused("2, 5 - x") == "The range '5 - x" + range);
+}
+
+TEST_CASE("parseSeedList refuses repeats and more seeds than one run makes", "[core][variation]")
+{
+    REQUIRE(parseSeedList("1,1").status.message == "The seed 1 is given twice.");
+    REQUIRE(parseSeedList("1-3,2").status.message == "The seed 2 is given twice.");
+    REQUIRE(parseSeedList("5,3-6").status.message == "The seed 5 is given twice.");
+
+    const std::string tooMany = "At most " + std::to_string(kMaxVariationCopies) + " copies can be made at once.";
+    const SeedListRead full = parseSeedList("1-" + std::to_string(kMaxVariationCopies));
+    requireOk(full.status);
+    REQUIRE(full.seeds.size() == kMaxVariationCopies);
+    REQUIRE(parseSeedList("1-" + std::to_string(kMaxVariationCopies + 1)).status.message == tooMany);
+    REQUIRE(parseSeedList("1-" + std::to_string(kMaxVariationCopies) + ",500").status.message == tooMany);
+    // A huge range is refused at once, without counting it out.
+    const SeedListRead huge = parseSeedList("0-4294967295");
+    REQUIRE(huge.status.message == tooMany);
+    REQUIRE(huge.seeds.empty());
+
+    // What it accepts, makeVariationCopies accepts as well.
+    std::string many;
+    for (std::size_t i = 0; i < kMaxVariationCopies; ++i) many += (i == 0 ? "" : ",") + std::to_string(i * 3);
+    const SeedListRead list = parseSeedList(many);
+    requireOk(list.status);
+    REQUIRE(list.seeds.size() == kMaxVariationCopies);
+    REQUIRE(list.seeds.back() == (kMaxVariationCopies - 1) * 3);
+}
