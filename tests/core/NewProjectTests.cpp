@@ -237,7 +237,7 @@ TEST_CASE("checkNewProjectFolder of a whole path splits it into location and nam
 
     requireRefused(checkNewProjectFolder(fs::path{}), ErrorCode::InvalidValue, "Choose a folder for the project.");
     plynth::test::requireOk(checkNewProjectFolder(target));
-    plynth::test::requireOk(checkNewProjectFolder(fs::path(pathToUtf8(target) + "\\")));
+    plynth::test::requireOk(checkNewProjectFolder(pathFromUtf8(pathToUtf8(target) + "\\")));
     plynth::test::requireOk(checkNewProjectFolder(f.houses / "x" / ".." / "Cottage"));
     requireRefused(checkNewProjectFolder(f.houses / "com3"), ErrorCode::InvalidValue,
                    "Windows keeps the name com3 for itself. Choose another name.");
@@ -250,7 +250,7 @@ TEST_CASE("checkNewProjectFolder of a whole path splits it into location and nam
     writeFile(target / "project.json", "{}");
     requireRefused(checkNewProjectFolder(target), ErrorCode::AlreadyExists,
                    "The folder " + pathToUtf8(target) + " already holds a project.");
-    requireRefused(checkNewProjectFolder(fs::path(pathToUtf8(target) + "\\")), ErrorCode::AlreadyExists,
+    requireRefused(checkNewProjectFolder(pathFromUtf8(pathToUtf8(target) + "\\")), ErrorCode::AlreadyExists,
                    "The folder " + pathToUtf8(target) + " already holds a project.");
 }
 

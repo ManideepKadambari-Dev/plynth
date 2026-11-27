@@ -1,6 +1,9 @@
 #include "FakeBlender.h"
 #include "SampleProject.h"
 
+#include <plynth/core/ProjectFiles.h>
+#include <plynth/core/Resources.h>
+
 #include <catch2/catch_test_macros.hpp>
 
 #include <filesystem>
@@ -28,6 +31,20 @@ fs::path skillFile(const fs::path& skills) {
 // The skill template in the docs folder.
 std::string skillTemplate() {
     return readFile(fs::path(PLYNTH_DOCS_DIR) / "templates" / "SKILL.md");
+}
+
+// A docs folder with its marker file but no templates. Core takes it, so it does not fall back to the source tree.
+fs::path docsWithoutTemplates(const TempFolder& temp) {
+    const fs::path docs = temp.path() / "no-docs";
+    fs::create_directories(docs);
+    std::ofstream(docs / plynth::pathFromUtf8(plynth::resourceMarker(plynth::ResourceKind::Docs)), std::ios::binary)
+        << "start\n";
+    return docs;
+}
+
+// The path of the file an answer names, read as UTF-8.
+fs::path answerFile(const plynth::cli::testing::Outcome& outcome) {
+    return plynth::pathFromUtf8(outcome.answer.at("result").at("file").get<std::string>());
 }
 
 }
@@ -68,8 +85,7 @@ TEST_CASE("project new refuses a folder that already has an AGENTS.md", "[cli][p
 
 TEST_CASE("project new still works when the master copy is missing", "[cli][project][agent]") {
     TempFolder temp("agent-missing");
-    const fs::path empty = temp.path() / "no-docs";
-    fs::create_directories(empty);
+    const fs::path empty = docsWithoutTemplates(temp);
     const ScopedEnvironment docs("PLYNTH_DOCS", utf8(empty));
     const fs::path folder = temp.path() / "flat";
     const auto outcome = runChecked({"project", "new", "--project", utf8(folder)});
@@ -91,7 +107,7 @@ TEST_CASE("agent-guide writes, keeps an AGENTS.md that is there and replaces it 
     REQUIRE(first.exitCode == kExitOk);
     CHECK(first.answer.at("result").at("agent_guide") == "written");
     CHECK(fs::is_regular_file(folder / "AGENTS.md"));
-    CHECK(fs::equivalent(fs::path(first.answer.at("result").at("file").get<std::string>()), folder / "AGENTS.md"));
+    CHECK(fs::equivalent(answerFile(first), folder / "AGENTS.md"));
 
     CHECK_FALSE(first.answer.contains("warnings"));
 
@@ -124,8 +140,7 @@ TEST_CASE("agent-guide refuses when the master copy is missing", "[cli][project]
     const ScopedEnvironment real("PLYNTH_DOCS", PLYNTH_DOCS_DIR);
     const fs::path folder = temp.path() / "flat";
     REQUIRE(runChecked({"project", "new", "--project", utf8(folder), "--no-agent-guide"}).exitCode == kExitOk);
-    const fs::path empty = temp.path() / "no-docs";
-    fs::create_directories(empty);
+    const fs::path empty = docsWithoutTemplates(temp);
     const ScopedEnvironment docs("PLYNTH_DOCS", utf8(empty));
     const auto outcome = runChecked({"agent-guide", "--project", utf8(folder)});
     CHECK(outcome.exitCode == kExitFailed);
@@ -144,7 +159,7 @@ TEST_CASE("skill install writes plynth/SKILL.md into the skills folder", "[cli][
     CHECK(outcome.answer.at("result").at("skill") == "written");
     CHECK_FALSE(outcome.answer.contains("warnings"));
     REQUIRE(fs::is_regular_file(skillFile(skills)));
-    CHECK(fs::equivalent(fs::path(outcome.answer.at("result").at("file").get<std::string>()), skillFile(skills)));
+    CHECK(fs::equivalent(answerFile(outcome), skillFile(skills)));
     CHECK(readFile(skillFile(skills)) == skillTemplate());
 }
 
@@ -198,8 +213,7 @@ TEST_CASE("skill install refuses a file given as the skills folder", "[cli][agen
 
 TEST_CASE("skill install refuses when the skill template is missing", "[cli][agent][skill]") {
     TempFolder temp("skill-template");
-    const fs::path empty = temp.path() / "no-docs";
-    fs::create_directories(empty);
+    const fs::path empty = docsWithoutTemplates(temp);
     const ScopedEnvironment docs("PLYNTH_DOCS", utf8(empty));
     const fs::path skills = temp.path() / "skills";
     fs::create_directories(skills);
