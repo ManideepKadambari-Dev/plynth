@@ -28,6 +28,7 @@
 #include <plynth/core/OpeningShapes.h>
 #include <plynth/core/Openings.h>
 #include <plynth/core/catalog/ItemAssets.h>
+#include <plynth/core/catalog/CatalogChecks.h>
 #include <plynth/core/catalog/MaterialCatalog.h>
 #include <plynth/core/commands/FloorCommands.h>
 #include <plynth/core/commands/FinishCommands.h>
@@ -2023,7 +2024,8 @@ void PropertiesPanel::refreshOpening()
     openingProblem_->setVisible(!fit.ok());
 }
 
-// Opens the door and window picker beside the panel for the selected opening. A choice runs SetOpeningFrameCommand.
+// Opens the door and window picker beside the panel for the selected opening. A chosen asset passes core's frame
+// check first, then the choice runs SetOpeningFrameCommand.
 void PropertiesPanel::openAssetPicker()
 {
     const plynth::Floor* floor = controller_.floor();
@@ -2037,8 +2039,19 @@ void PropertiesPanel::openAssetPicker()
             if (selection_.kind() != SelectionKind::Opening)
                 return;
             std::optional<std::string> frame;
-            if (kind == OpeningFrameKind::Asset)
+            if (kind == OpeningFrameKind::Asset) {
+                const plynth::Floor* shown = controller_.floor();
+                const plynth::Opening* chosenFor = shown ? plynth::findOpening(*shown, selection_.id().toStdString()) : nullptr;
+                LibraryHost* library = controller_.library();
+                if (chosenFor == nullptr || library == nullptr || library->catalog() == nullptr)
+                    return;
+                const plynth::Status check = plynth::checkFrameAsset(*library->catalog(), asset.toStdString(), chosenFor->type);
+                if (!check.ok()) {
+                    controller_.showMessage(fromCore(check.message));
+                    return;
+                }
                 frame = asset.toStdString();
+            }
             runOpeningCommand(std::make_unique<plynth::SetOpeningFrameCommand>(selection_.id().toStdString(), frame,
                                                                                kind == OpeningFrameKind::Automatic));
         });
@@ -2070,6 +2083,16 @@ void PropertiesPanel::scrollToFinish()
     pages_->adjustSize();
     QWidget* anchor = trimGroup_->title();
     const int top = anchor->mapTo(pages_, QPoint(0, 0)).y();
+    scroll_->verticalScrollBar()->setValue(top);
+}
+
+// For checks only: lists what the seed picks and brings the Variation group to the top of the page.
+void PropertiesPanel::showVariationPreview()
+{
+    refresh();
+    variationGroup_->preview();
+    pages_->adjustSize();
+    const int top = variationGroup_->title()->mapTo(pages_, QPoint(0, 0)).y();
     scroll_->verticalScrollBar()->setValue(top);
 }
 
@@ -2866,7 +2889,8 @@ const plynth::Item* PropertiesPanel::selectedGeneratorItem() const
     return item != nullptr && item->generator ? item : nullptr;
 }
 
-// Changes one parameter of the selected generator item. One visit to a box is one undo step.
+// Changes one parameter of the selected generator item. One visit to a box is one undo step. Only the value
+// changed here is checked against the materials catalog, as "plynth item params" checks the values it is given.
 void PropertiesPanel::editGeneratorParam(const std::string& paramId, const plynth::GeneratorValue& value)
 {
     LibraryHost* host = controller_.library();
@@ -2876,19 +2900,11 @@ void PropertiesPanel::editGeneratorParam(const std::string& paramId, const plynt
     const plynth::GeneratorInfo* info = host->generators().find(item->generator->name);
     if (info == nullptr)
         return;
-    const plynth::GeneratorParam* param = info->findParam(paramId);
-    const std::string* material = std::get_if<std::string>(&value);
-    if (param != nullptr && param->type == plynth::GeneratorParamType::Material && material != nullptr &&
-        !material->empty()) {
-        if (host->materialCatalog() == nullptr) {
-            controller_.showMessage(tr("There is no library with materials."));
-            return;
-        }
-        const plynth::MaterialForUse use = plynth::materialForUse(*host->materialCatalog(), *material);
-        if (!use.status.ok()) {
-            controller_.showMessage(fromCore(use.status.message));
-            return;
-        }
+    const plynth::Status materials =
+        plynth::checkGeneratorMaterials(*info, {plynth::GeneratorParamValue{paramId, value}}, host->materialCatalog());
+    if (!materials.ok()) {
+        controller_.showMessage(fromCore(materials.message));
+        return;
     }
     std::vector<plynth::GeneratorParamValue> params = item->generator->params;
     plynth::Status status = plynth::setGeneratorParam(*info, params, paramId, value);

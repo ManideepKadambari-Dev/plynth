@@ -7,6 +7,7 @@
 
 #include <plynth/core/catalog/AssetImport.h>
 #include <plynth/core/catalog/MaterialImport.h>
+#include <plynth/core/catalog/MaterialRescan.h>
 
 #include <QDir>
 #include <QDirIterator>
@@ -191,12 +192,18 @@ void LibraryWatcher::rescan(bool announce)
                      .arg(report.needsRefresh.size()));
 }
 
-// Rebuilds the materials index from items/ and queues a refresh for each material that needs one.
+// Rebuilds the materials index from items/ as "plynth materials rescan" does, and queues a refresh for each
+// material that needs one. The renders run in the refresher, one by one on its worker thread, so the window
+// does not wait for Blender.
 void LibraryWatcher::rescanMaterials(bool announce)
 {
     if (!host_.hasLibrary() || host_.materialCatalog() == nullptr)
         return;
-    const plynth::RescanReport report = host_.materialCatalog()->rescan();
+    plynth::ImportContext context;
+    context.library = host_.paths();
+    context.settings = host_.settings();
+    const plynth::MaterialRescanResult rescanned = plynth::rescanMaterials(*host_.materialCatalog(), context, false);
+    const plynth::RescanReport& report = rescanned.report;
     bool changed = report.added + report.updated + report.removed > 0;
     for (const std::string& id : report.needsRefresh) {
         if (materialRefresher_ != nullptr)

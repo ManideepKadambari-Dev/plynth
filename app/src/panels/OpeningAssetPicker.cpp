@@ -6,6 +6,7 @@
 
 #include <plynth/core/OpeningAssets.h>
 #include <plynth/core/catalog/AssetCatalog.h>
+#include <plynth/core/catalog/CatalogChecks.h>
 
 #include <QApplication>
 #include <QEvent>
@@ -132,8 +133,8 @@ void OpeningAssetPicker::openAt(const QPoint& anchor, plynth::OpeningType type, 
     qApp->installEventFilter(this);
 }
 
-// Lists the two fixed choices, then the assets of the category with their sizes. Broken or unmeasured assets are
-// listed but cannot be chosen.
+// Lists the two fixed choices, then the assets of the category with their sizes. An asset that core's frame check
+// refuses, as "plynth opening set --frame" would, is listed but cannot be chosen, with the reason as its tip.
 void OpeningAssetPicker::fill(plynth::OpeningType type, OpeningFrameKind current, const QString& currentAsset)
 {
     list_->clear();
@@ -164,12 +165,13 @@ void OpeningAssetPicker::fill(plynth::OpeningType type, OpeningFrameKind current
         assets = catalog->search(query);
     }
     for (const plynth::AssetRecord& record : assets) {
-        const bool usable = record.state != plynth::AssetState::Broken && plynth::isMeasured(record.size);
+        const plynth::Status check = plynth::checkFrameAsset(*catalog, record.id, type);
+        const bool usable = check.ok();
         const QString sub = usable ? QStringLiteral("%1 x %2").arg(record.size.width, 0, 'f', 2).arg(record.size.height, 0, 'f', 2)
                                    : record.state == plynth::AssetState::Broken ? tr("broken")
                                                                                  : tr("not measured");
         QListWidgetItem* item = add(fromCore(record.name), OpeningFrameKind::Asset, fromCore(record.id), sub, !usable);
-        item->setToolTip(fromCore(record.id));
+        item->setToolTip(usable ? fromCore(record.id) : fromCore(check.message));
         if (current == OpeningFrameKind::Asset && fromCore(record.id) == currentAsset)
             marked = item;
     }

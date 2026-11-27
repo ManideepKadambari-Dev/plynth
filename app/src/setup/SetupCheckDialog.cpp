@@ -7,9 +7,11 @@
 #include "update/UpdateController.h"
 
 #include <plynth/core/Library.h>
+#include <plynth/core/SettingsChecks.h>
 #include <plynth/core/Version.h>
 
 #include <QCheckBox>
+#include <QApplication>
 #include <QComboBox>
 #include <QDesktopServices>
 #include <QDir>
@@ -19,6 +21,7 @@
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QMessageBox>
 #include <QMetaObject>
 #include <QPushButton>
 #include <QScrollArea>
@@ -313,8 +316,7 @@ void SetupCheckDialog::addRow(const plynth::SetupItem& item)
             if (report_->selectedBlender)
                 combo->setCurrentIndex(static_cast<int>(*report_->selectedBlender));
             connect(combo, &QComboBox::activated, this, [this, combo](int index) {
-                const std::filesystem::path chosen(combo->itemData(index).toString().toStdWString());
-                applySettings([chosen](plynth::MachineSettings& s) { s.blender = chosen; });
+                pickBlender(std::filesystem::path(combo->itemData(index).toString().toStdWString()));
             });
             buttons->addWidget(combo, 1);
             any = true;
@@ -412,6 +414,49 @@ void SetupCheckDialog::applySettings(const std::function<void(plynth::MachineSet
     recheck();
 }
 
+// Shows why a picked value was refused. True when it passed.
+bool SetupCheckDialog::acceptChoice(const plynth::Status& status)
+{
+    problem_->setText(status.ok() ? QString() : fromCore(status.message));
+    problem_->setVisible(!status.ok());
+    return status.ok();
+}
+
+// Checks a library folder as "plynth settings set library" does. A folder that is not a library can be made
+// into one after asking, and is then checked again.
+bool SetupCheckDialog::checkLibraryFolder(const std::filesystem::path& folder)
+{
+    plynth::Status status = plynth::checkLibraryChoice(folder);
+    if (status.code == plynth::ErrorCode::NoLibrary) {
+        const QMessageBox::StandardButton answer =
+            QMessageBox::question(this, tr("Choose the library folder"),
+                                  tr("%1\n\nMake a new library in this folder?").arg(fromCore(status.message)),
+                                  QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Yes);
+        if (answer != QMessageBox::Yes) {
+            acceptChoice(status);
+            return false;
+        }
+        status = plynth::initLibrary(folder);
+        if (status.ok())
+            status = plynth::checkLibraryChoice(folder);
+    }
+    return acceptChoice(status);
+}
+
+// Checks a picked blender.exe as "plynth settings set blender" does, and saves it when it can be used.
+void SetupCheckDialog::pickBlender(const std::filesystem::path& file)
+{
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    const plynth::BlenderPickCheck check = plynth::checkBlenderChoice(file);
+    QApplication::restoreOverrideCursor();
+    if (!acceptChoice(check.status)) {
+        // Shows the Blender in use again in the list.
+        recheck();
+        return;
+    }
+    applySettings([file](plynth::MachineSettings& s) { s.blender = file; });
+}
+
 // Asks for a folder and makes it the library or the projects folder.
 void SetupCheckDialog::chooseFolder(bool library)
 {
@@ -425,7 +470,9 @@ void SetupCheckDialog::chooseFolder(bool library)
         this, library ? tr("Choose the library folder") : tr("Choose the projects folder"), start);
     if (folder.isEmpty())
         return;
-    const std::filesystem::path chosen(folder.toStdWString());
+    const std::filesystem::path chosen = std::filesystem::absolute(std::filesystem::path(folder.toStdWString()));
+    if (library ? !checkLibraryFolder(chosen) : !acceptChoice(plynth::checkProjectsChoice(chosen)))
+        return;
     applySettings([library, chosen](plynth::MachineSettings& settings) {
         (library ? settings.library : settings.projects) = chosen;
     });
@@ -447,11 +494,10 @@ void SetupCheckDialog::createFolder(bool library)
         if (error)
             status = plynth::fail(plynth::ErrorCode::CannotWrite, "The folder could not be created: " + error.message());
     }
-    if (!status.ok()) {
-        problem_->setText(fromCore(status.message));
-        problem_->show();
+    if (status.ok())
+        status = library ? plynth::checkLibraryChoice(*target) : plynth::checkProjectsChoice(*target);
+    if (!acceptChoice(status))
         return;
-    }
     applySettings([library, folder = *target](plynth::MachineSettings& settings) {
         (library ? settings.library : settings.projects) = folder;
     });
@@ -464,8 +510,7 @@ void SetupCheckDialog::browseBlender()
                                                       tr("Blender (blender.exe);;Programs (*.exe)"));
     if (file.isEmpty())
         return;
-    const std::filesystem::path chosen(file.toStdWString());
-    applySettings([chosen](plynth::MachineSettings& s) { s.blender = chosen; });
+    pickBlender(std::filesystem::absolute(std::filesystem::path(file.toStdWString())));
 }
 
 // Saves the version that passed when everything required is found, then closes.

@@ -4,6 +4,7 @@
 
 #include <QDialog>
 
+#include <filesystem>
 #include <functional>
 #include <optional>
 #include <stop_token>
@@ -44,6 +45,9 @@ private:
     void addUpdateRow();
     void updateSummary();
     void applySettings(const std::function<void(plynth::MachineSettings&)>& change);
+    bool acceptChoice(const plynth::Status& status);
+    bool checkLibraryFolder(const std::filesystem::path& folder);
+    void pickBlender(const std::filesystem::path& file);
     void chooseFolder(bool library);
     void createFolder(bool library);
     void browseBlender();

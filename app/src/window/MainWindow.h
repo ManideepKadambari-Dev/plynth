@@ -3,6 +3,7 @@
 #include "tools/Tool.h"
 
 #include <plynth/core/Build.h>
+#include <plynth/core/BuildCheck.h>
 #include <plynth/core/Document.h>
 #include <plynth/core/EditSession.h>
 #include <plynth/core/Export.h>
@@ -252,6 +253,14 @@ public:
     bool terminalFailed() const;
     // Starts a build of the project in memory. Asks to save a project that was never saved.
     void startBuild();
+    // Lists the problems a build of the project in memory would have, as "plynth build --check" does, in the
+    // Build report window. Runs no Blender and writes nothing.
+    void checkBuild();
+    // For checks only: marks build/building.blend as written now, as a new build does, so the last export dates
+    // from an older build. Only the file time changes.
+    void touchBuildForCheck();
+    // For checks only: previews the project's seed in the Variation group of Properties.
+    void showVariationPreview();
     // For checks only: shows the plan at 100 percent.
     void setActualSize();
     // For checks only: turns the 3D overlay on the plan on or off.
@@ -443,6 +452,8 @@ private:
     std::optional<plynth::ExportReport> exportReport_;
     QString exportError_;
     QAction* buildAction_ = nullptr;
+    QAction* checkBuildAction_ = nullptr;
+    std::optional<plynth::BuildCheck> buildCheck_;
     QAction* cancelBuildAction_ = nullptr;
     QAction* reportAction_ = nullptr;
     QAction* buildFolderAction_ = nullptr;

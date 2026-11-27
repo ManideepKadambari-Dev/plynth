@@ -66,6 +66,7 @@
 #include <plynth/core/catalog/AssetMaterials.h>
 #include <plynth/core/catalog/FabZip.h>
 #include <plynth/core/catalog/Integrations.h>
+#include <plynth/core/catalog/SampleItems.h>
 #include <plynth/core/commands/FloorCommands.h>
 
 #include <QEventLoop>
@@ -115,7 +116,6 @@
 #include <array>
 #include <chrono>
 #include <functional>
-#include <set>
 #include <utility>
 
 #ifdef Q_OS_WIN
@@ -280,6 +280,7 @@ MainWindow::MainWindow(QWidget* parent)
     connect(buildPanel_, &BuildPanel::problemActivated, this, &MainWindow::showProblem);
     connect(buildPanel_, &BuildPanel::openFolderRequested, this, &MainWindow::openBuildFolder);
     connect(buildPanel_, &BuildPanel::openBlenderRequested, this, &MainWindow::openInBlender);
+    connect(buildPanel_, &BuildPanel::checkRequested, this, &MainWindow::checkBuild);
     connect(exportPanel_, &ExportPanel::exportRequested, this, [this]() { startExport(true, false); });
     connect(exportPanel_, &ExportPanel::checkRequested, this, [this]() { startExport(false, false); });
     connect(exportPanel_, &ExportPanel::exportAnywayRequested, this, &MainWindow::exportAnyway);
@@ -510,7 +511,7 @@ void MainWindow::makeToolWindows()
          tr("Open the Sources window: import from BlenderKit, Fab and your own files (Ctrl+Shift+I)"), false},
         {"material-import", tr("Import materials"), materialImport_, QString(), QString(), true},
         {"build", tr("Build report"), buildPanel_, tr("Report"),
-         tr("Open the Build report window: summary, files, steps and problems of the last build (Ctrl+Shift+B)"), false},
+         tr("Open the Build report window: Check build and the summary, files, steps and problems of the last build (Ctrl+Shift+B)"), false},
         {"export", tr("Export"), exportPanel_, tr("Export"),
          tr("Open the Export window: the plain FBX export and its quality checks (Ctrl+Shift+X)"), false},
     };
@@ -926,12 +927,17 @@ void MainWindow::buildMenus()
     buildAction_ = addMenuAction(build, tr("&Build"), tr("Build the building in Blender (Ctrl+B)"),
                                  {QKeySequence(Qt::CTRL | Qt::Key_B)});
     connect(buildAction_, &QAction::triggered, this, &MainWindow::startBuild);
+    checkBuildAction_ = addMenuAction(build, tr("Chec&k build"),
+                                      tr("List the problems a build would have without running Blender, the same list as "
+                                         "plynth build --check gives (Ctrl+Alt+B)"),
+                                      {QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_B)});
+    connect(checkBuildAction_, &QAction::triggered, this, &MainWindow::checkBuild);
     cancelBuildAction_ = addMenuAction(build, tr("&Cancel build"), tr("Stop the running build"),
                                        {});
     connect(cancelBuildAction_, &QAction::triggered, this, &MainWindow::cancelWork);
     build->addSeparator();
     reportAction_ = addMenuAction(build, tr("Build &report window"),
-                                  tr("Open the Build report window: summary, files, steps and problems of the last build (Ctrl+Shift+B)"),
+                                  tr("Open the Build report window: Check build and the summary, files, steps and problems of the last build (Ctrl+Shift+B)"),
                                   {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_B)});
     connect(reportAction_, &QAction::triggered, this, [this]() { openToolWindow(QStringLiteral("build")); });
     buildFolderAction_ = addMenuAction(build, tr("&Open build folder"), tr("Open the build folder of the project in Explorer"),
@@ -1275,6 +1281,14 @@ void MainWindow::showProjectFinish()
     panel_->scrollToFinish();
 }
 
+// For checks only: shows the project page of Properties with the preview of the project's seed.
+void MainWindow::showVariationPreview()
+{
+    selection_->clear();
+    tools_->setActive(ToolId::Select);
+    panel_->showVariationPreview();
+}
+
 // Asks for model files and queues each one.
 void MainWindow::importDialog()
 {
@@ -1604,6 +1618,7 @@ void MainWindow::onDocumentChanged(unsigned changes)
     tools_->refreshAvailability();
     panel_->refresh();
     if (changes & plynth::Change::Folder) {
+        buildCheck_.reset();
         refreshPreview();
         loadExportReport();
         recoveryPending_ = false;
@@ -1938,18 +1953,12 @@ void MainWindow::refreshFloorTabs()
 }
 
 // Adds an empty floor above the top one, or below the floor named, and shows it. The name is the next free
-// "Floor N".
+// "Floor N", as "plynth floor add" picks it.
 void MainWindow::addFloor(bool above, const QString& besideFloor)
 {
     if (doc_.isReadOnly())
         return;
     const plynth::Plan& plan = doc_.plan();
-    std::set<std::string> names;
-    for (const plynth::Floor& floor : plan.floors)
-        names.insert(floor.name);
-    int number = static_cast<int>(plan.floors.size()) + 1;
-    while (names.count(tr("Floor %1").arg(number).toStdString()) != 0)
-        ++number;
     std::optional<std::size_t> position;
     if (!above) {
         for (std::size_t i = 0; i < plan.floors.size(); ++i)
@@ -1958,7 +1967,7 @@ void MainWindow::addFloor(bool above, const QString& besideFloor)
         if (!position.has_value())
             return;
     }
-    auto command = std::make_unique<plynth::AddFloorCommand>(tr("Floor %1").arg(number).toStdString(), position);
+    auto command = std::make_unique<plynth::AddFloorCommand>(plynth::nextFloorName(plan), position);
     plynth::AddFloorCommand* raw = command.get();
     const plynth::Status status = doc_.execute(std::move(command));
     if (!status.ok()) {
@@ -2125,58 +2134,62 @@ void MainWindow::showMaterialImport()
     openToolWindow(QStringLiteral("material-import"));
 }
 
-// Queues the sample materials, the same requests "plynth library add-sample-materials" runs.
+// Queues the sample materials the library does not have, with the samples license, as "Add the sample items"
+// queues them.
 void MainWindow::addSampleMaterials()
 {
-    if (!host_->hasLibrary())
+    if (!host_->hasLibrary() || host_->catalog() == nullptr || host_->materialCatalog() == nullptr)
         return;
-    const std::vector<plynth::MaterialImportRequest> requests = plynth::sampleMaterialRequests(plynth::sampleMaterialsFolder());
-    if (requests.empty()) {
-        statusBar_->showMessage(tr("The sample materials folder was not found next to the program."));
+    const std::filesystem::path samples = plynth::resourceFolder(plynth::ResourceKind::Samples);
+    if (samples.empty()) {
+        statusBar_->showMessage(tr("The samples were not found next to the program."));
+        return;
+    }
+    const plynth::SampleItemRequests requests = plynth::sampleItemRequests(*host_->catalog(), *host_->materialCatalog(), samples);
+    if (!requests.status.ok()) {
+        statusBar_->showMessage(fromCore(requests.status.message));
+        return;
+    }
+    if (requests.materials.empty()) {
+        statusBar_->showMessage(tr("The library has every sample material already."), false);
         return;
     }
     materialImportAsked_ = true;
     openToolWindow(QStringLiteral("materials"));
-    for (const plynth::MaterialImportRequest& request : requests)
+    for (const plynth::MaterialImportRequest& request : requests.materials)
         materialQueue_->enqueueImport(request);
-    statusBar_->showMessage(tr("Adding %1 sample materials.").arg(requests.size()), false);
+    statusBar_->showMessage(tr("Adding %1 sample materials.").arg(requests.materials.size()), false);
 }
 
-// Queues the sample models the library does not have, the sample materials, and copies the shapes and generators.
+// Queues the imports core lists for the sample items, the same ones "plynth samples add" runs, and copies the
+// sample shapes and generators. Items the library has already are left out.
 void MainWindow::addSampleItems()
 {
-    if (!host_->hasLibrary() || host_->catalog() == nullptr)
+    if (!host_->hasLibrary() || host_->catalog() == nullptr || host_->materialCatalog() == nullptr)
         return;
     const std::filesystem::path samples = plynth::resourceFolder(plynth::ResourceKind::Samples);
-    const plynth::SamplesRead read = samples.empty() ? plynth::SamplesRead{} : plynth::readSamples(samples);
-    if (samples.empty() || !read.status.ok()) {
+    if (samples.empty()) {
         statusBar_->showMessage(tr("The samples were not found next to the program."));
         return;
     }
-    int queued = 0;
-    int skipped = 0;
-    for (const plynth::SampleAsset& asset : read.index.assets) {
-        if (host_->catalog()->idTaken(asset.id)) {
-            ++skipped;
-            continue;
-        }
-        plynth::ImportRequest request;
-        request.source.file = samples / plynth::pathFromUtf8(asset.file);
-        request.id = asset.id;
-        request.name = asset.name;
-        request.categories = asset.categories;
-        request.tags = asset.tags;
-        request.license = read.index.license;
-        request.keepOriginal = true;
-        queue_->enqueueRequest(request);
-        ++queued;
+    const plynth::SampleItemRequests requests = plynth::sampleItemRequests(*host_->catalog(), *host_->materialCatalog(), samples);
+    if (!requests.status.ok()) {
+        statusBar_->showMessage(fromCore(requests.status.message));
+        return;
     }
+    for (const plynth::ImportRequest& request : requests.assets)
+        queue_->enqueueRequest(request);
     host_->addSampleShapes();
     host_->addSampleGenerators();
-    addSampleMaterials();
-    statusBar_->showMessage(tr("Adding %1 sample models and the sample materials. %2 models were in the library already.")
-                                .arg(queued)
-                                .arg(skipped),
+    if (!requests.materials.empty()) {
+        materialImportAsked_ = true;
+        openToolWindow(QStringLiteral("materials"));
+        for (const plynth::MaterialImportRequest& request : requests.materials)
+            materialQueue_->enqueueImport(request);
+    }
+    statusBar_->showMessage(tr("Adding %1 sample models and %2 sample materials. Items the library has already are left as they are.")
+                                .arg(requests.assets.size())
+                                .arg(requests.materials.size()),
                             false);
 }
 

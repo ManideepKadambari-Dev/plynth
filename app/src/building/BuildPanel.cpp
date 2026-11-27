@@ -105,7 +105,7 @@ BuildPanel::BuildPanel(QWidget* parent) : QWidget(parent)
     column_->setSpacing(t.unit() * 2);
     scroll->setWidget(body_);
     outer->addWidget(scroll, 1);
-    setReport(nullptr, false);
+    rebuild();
 }
 
 // Starts a section with a title line and returns the widget to fill.
@@ -142,8 +142,46 @@ void BuildPanel::addRow(QWidget* host, const QString& name, const QString& value
     grid->addWidget(shown, row, 1);
 }
 
-// Rebuilds the body from a report.
-void BuildPanel::setReport(const plynth::BuildReport* report, bool stale)
+// Keeps the report and the check and draws the body again.
+void BuildPanel::setResults(const plynth::BuildReport* report, bool stale, const plynth::BuildCheck* check, bool checkStale)
+{
+    report_.reset();
+    if (report != nullptr)
+        report_ = *report;
+    stale_ = stale;
+    check_.reset();
+    if (check != nullptr)
+        check_ = *check;
+    checkStale_ = checkStale;
+    rebuild();
+}
+
+// Adds a line of plain text in a theme color.
+QLabel* BuildPanel::addNote(const QString& text, const QColor& color)
+{
+    const Theme& t = Theme::instance();
+    auto* note = new QLabel(body_);
+    note->setTextFormat(Qt::PlainText);
+    note->setText(text);
+    note->setWordWrap(true);
+    note->setFont(t.uiFont(t.sizeNormal()));
+    note->setStyleSheet(QStringLiteral("color: %1;").arg(color.name()));
+    column_->addWidget(note);
+    return note;
+}
+
+// Adds one clickable row for each problem.
+void BuildPanel::addProblems(const std::vector<plynth::BuildProblem>& problems)
+{
+    for (const plynth::BuildProblem& problem : problems) {
+        auto* row = new ProblemRow(problem, body_);
+        row->onClick = [this](const QString& object) { emit problemActivated(object); };
+        column_->addWidget(row);
+    }
+}
+
+// Draws the Check build button, the last check, then the last build or the empty text.
+void BuildPanel::rebuild()
 {
     const Theme& t = Theme::instance();
     while (QLayoutItem* item = column_->takeAt(0)) {
@@ -151,34 +189,81 @@ void BuildPanel::setReport(const plynth::BuildReport* report, bool stale)
         delete item;
     }
     empty_ = nullptr;
-    if (report == nullptr) {
-        empty_ = new QLabel(tr("No build yet. Press Build (Ctrl+B)."), body_);
-        empty_->setWordWrap(true);
-        empty_->setFont(t.uiFont(t.sizeNormal()));
-        empty_->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
-        empty_->setAlignment(Qt::AlignHCenter);
-        // Before the first build the message sits in the middle of the window.
-        column_->addStretch(1);
-        column_->addWidget(empty_);
-        column_->addStretch(2);
+
+    auto* bar = new QWidget(body_);
+    auto* barRow = new QHBoxLayout(bar);
+    barRow->setContentsMargins(0, 0, 0, 0);
+    auto* checkButton = new QPushButton(tr("Check build"), bar);
+    checkButton->setToolTip(tr("List the problems a build would have without running Blender, the same list as "
+                               "plynth build --check gives"));
+    barRow->addWidget(checkButton);
+    barRow->addStretch(1);
+    column_->addWidget(bar);
+    // Queued, because the check draws the body again and so deletes this button.
+    connect(checkButton, &QPushButton::clicked, this, &BuildPanel::checkRequested, Qt::QueuedConnection);
+
+    if (check_)
+        addCheck(*check_);
+    if (report_) {
+        addReport(*report_);
         return;
     }
+    empty_ = new QLabel(tr("No build yet. Press Build (Ctrl+B)."), body_);
+    empty_->setWordWrap(true);
+    empty_->setFont(t.uiFont(t.sizeNormal()));
+    empty_->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
+    if (check_) {
+        empty_->setStyleSheet(QStringLiteral("color: %1; padding-top: %2px;").arg(t.muted().name()).arg(t.unit() * 2));
+        column_->addWidget(empty_);
+        column_->addStretch(1);
+        return;
+    }
+    empty_->setAlignment(Qt::AlignHCenter);
+    // Before the first build or check the message sits in the middle of the window.
+    column_->addStretch(1);
+    column_->addWidget(empty_);
+    column_->addStretch(2);
+}
 
-    if (!report->status.ok()) {
-        auto* failed = new QLabel(body_);
-        failed->setTextFormat(Qt::PlainText);
-        failed->setText(fromCore(report->status.message));
-        failed->setWordWrap(true);
-        failed->setFont(t.uiFont(t.sizeNormal()));
-        failed->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
-        column_->addWidget(failed);
+// Adds what Check build found: its counts, its notes and one row per problem.
+void BuildPanel::addCheck(const plynth::BuildCheck& check)
+{
+    const Theme& t = Theme::instance();
+    auto* heading = new QLabel(tr("Check build"), body_);
+    heading->setFont(t.uiFont(t.sizeSmall(), QFont::DemiBold));
+    heading->setStyleSheet(QStringLiteral("color: %1; padding-top: %2px;").arg(t.muted().name()).arg(t.unit() * 2));
+    column_->addWidget(heading);
+    if (!check.status.ok()) {
+        addNote(fromCore(check.status.message), t.signalAmber());
+        return;
     }
-    if (stale) {
-        auto* note = new QLabel(tr("The plan changed since this build."), body_);
-        note->setFont(t.uiFont(t.sizeNormal()));
-        note->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
-        column_->addWidget(note);
+    if (check.problems.empty())
+        addNote(tr("No problems found."), t.text());
+    else
+        addNote(tr("Errors: %1. Warnings: %2.").arg(check.errors).arg(check.warnings),
+                check.errors > 0 ? t.signalAmber() : t.text());
+    if (!check.libraryOpened)
+        addNote(tr("No library is open, so every item is listed as having no library."), t.muted());
+    if (checkStale_)
+        addNote(tr("The plan changed since this check. Press Check build again."), t.muted());
+    addProblems(check.problems);
+}
+
+// Adds the last build: its failure, the summary, the problems, the files and the steps.
+void BuildPanel::addReport(const plynth::BuildReport& build)
+{
+    const Theme& t = Theme::instance();
+    const plynth::BuildReport* report = &build;
+    if (check_) {
+        auto* heading = new QLabel(tr("Last build"), body_);
+        heading->setFont(t.uiFont(t.sizeSmall(), QFont::DemiBold));
+        heading->setStyleSheet(QStringLiteral("color: %1; padding-top: %2px;").arg(t.muted().name()).arg(t.unit() * 4));
+        column_->addWidget(heading);
     }
+    if (!report->status.ok())
+        addNote(fromCore(report->status.message), t.signalAmber());
+    if (stale_)
+        addNote(tr("The plan changed since this build."), t.muted());
 
     const QLocale locale;
     QWidget* summary = addSection(tr("Summary"));
@@ -202,11 +287,7 @@ void BuildPanel::setReport(const plynth::BuildReport* report, bool stale)
     problemsHeading->setFont(t.uiFont(t.sizeSmall(), QFont::DemiBold));
     problemsHeading->setStyleSheet(QStringLiteral("color: %1; padding-top: %2px;").arg(t.muted().name()).arg(t.unit() * 2));
     column_->addWidget(problemsHeading);
-    for (const plynth::BuildProblem& problem : report->problems) {
-        auto* row = new ProblemRow(problem, body_);
-        row->onClick = [this](const QString& object) { emit problemActivated(object); };
-        column_->addWidget(row);
-    }
+    addProblems(report->problems);
 
     if (!report->blendFile.empty() || !report->fbxFile.empty()) {
         QWidget* files = addSection(tr("Files"));

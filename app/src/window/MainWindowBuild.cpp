@@ -17,6 +17,7 @@
 #include "preview/RenderHost.h"
 
 #include <plynth/core/Blender.h>
+#include <plynth/core/BuildCheck.h>
 #include <plynth/core/BuildJob.h>
 #include <plynth/core/Render.h>
 #include <plynth/core/Roofs.h>
@@ -96,6 +97,42 @@ void MainWindow::startBuild()
     buildProgressPercent_ = 0;
     builder_->start(std::move(request), host_->settings());
     updateBuildUi();
+}
+
+// Runs core's build check on the project in memory with the open library, keeps what it found and shows it in the
+// Build report window. A project never saved can be checked too.
+void MainWindow::checkBuild()
+{
+    std::optional<plynth::LibraryPaths> library;
+    if (host_->hasLibrary())
+        library = host_->paths();
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    buildCheck_ = plynth::checkBuild(doc_.project(), library);
+    QApplication::restoreOverrideCursor();
+    if (!buildCheck_->status.ok())
+        statusBar_->showMessage(fromCore(buildCheck_->status.message));
+    else if (buildCheck_->problems.empty())
+        statusBar_->showMessage(tr("Check build found no problems."), false);
+    else
+        statusBar_->showMessage(tr("Check build found problems. Errors: %1. Warnings: %2. See the Build report window.")
+                                    .arg(buildCheck_->errors)
+                                    .arg(buildCheck_->warnings),
+                                buildCheck_->errors > 0);
+    updateBuildUi();
+    openToolWindow(QStringLiteral("build"));
+}
+
+// For checks only: gives building.blend the time of now and reads the reports again.
+void MainWindow::touchBuildForCheck()
+{
+    if (!doc_.hasFolder())
+        return;
+    std::error_code ignored;
+    const std::filesystem::path blend = plynth::buildFolder(doc_.folder()) / "building.blend";
+    if (std::filesystem::exists(blend, ignored))
+        std::filesystem::last_write_time(blend, std::filesystem::file_time_type::clock::now(), ignored);
+    loadBuildReport();
+    loadExportReport();
 }
 
 // Takes the finished build: keeps its report, opens the 3D page on a good build and loads the new FBX.
@@ -297,13 +334,14 @@ void MainWindow::updateBuildUi()
     buildAction_->setEnabled(!running);
     cancelBuildAction_->setEnabled(running);
     const bool files = report_ && !report_->blendFile.empty();
-    reportAction_->setEnabled(report_.has_value());
+    reportAction_->setEnabled(report_.has_value() || buildCheck_.has_value());
     buildFolderAction_->setEnabled(doc_.hasFolder());
     if (variationsAction_ != nullptr)
         variationsAction_->setEnabled(doc_.hasFolder() && !running);
     openBlenderAction_->setEnabled(files);
     save3dPictureAction_->setEnabled(files && !running);
-    buildPanel_->setReport(report_ ? &*report_ : nullptr, stale);
+    const bool checkStale = buildCheck_ && plynth::planFingerprint(doc_.project()) != buildCheck_->planFingerprint;
+    buildPanel_->setResults(report_ ? &*report_ : nullptr, stale, buildCheck_ ? &*buildCheck_ : nullptr, checkStale);
     updateExportUi();
     refreshProblemMarkers();
 }

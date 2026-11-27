@@ -1,12 +1,15 @@
 #include "FinishGroups.h"
 
+#include "catalog/LibraryHost.h"
 #include "theme/Theme.h"
 #include "tools/ToolController.h"
 
+#include <plynth/core/BuildCheck.h>
 #include <plynth/core/Document.h>
 #include <plynth/core/TrimProfiles.h>
 #include <plynth/core/commands/FinishCommands.h>
 
+#include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDoubleSpinBox>
@@ -17,6 +20,7 @@
 #include <QRandomGenerator>
 #include <QSignalBlocker>
 #include <QSpinBox>
+#include <QStringList>
 
 #include <algorithm>
 #include <climits>
@@ -32,6 +36,26 @@ namespace {
 QString fromCore(std::string_view text)
 {
     return QString::fromUtf8(text.data(), static_cast<qsizetype>(text.size()));
+}
+
+constexpr int kPreviewLines = 12;
+
+// The word a preview line uses for what a seed changed.
+QString targetWord(plynth::VariationTarget target)
+{
+    switch (target) {
+    case plynth::VariationTarget::Item:
+        return QObject::tr("furniture");
+    case plynth::VariationTarget::RoomFloor:
+        return QObject::tr("floor");
+    case plynth::VariationTarget::RoomWall:
+        return QObject::tr("room walls");
+    case plynth::VariationTarget::WallInside:
+        return QObject::tr("inside wall");
+    case plynth::VariationTarget::Outside:
+        return QObject::tr("outside");
+    }
+    return QString();
 }
 
 // Adds a muted title that spans the page, above a group of rows.
@@ -222,7 +246,7 @@ VariationGroup::VariationGroup(plynth::Document& document, ToolController& contr
     : QObject(parent), document_(document), controller_(controller)
 {
     const Theme& t = Theme::instance();
-    addTitle(grid, tr("Variation"));
+    title_ = addTitle(grid, tr("Variation"));
 
     const QString seedTip = tr("The seed of this build's variation. The same seed always gives the same building. "
                                "0 builds the plan exactly as marked.");
@@ -258,6 +282,22 @@ VariationGroup::VariationGroup(plynth::Document& document, ToolController& contr
     note_->setWordWrap(true);
     note_->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
     grid->addWidget(note_, grid->rowCount(), 0, 1, 2);
+
+    const QString previewTip = tr("List what this seed picks without building: the furniture and materials it swaps, "
+                                  "the catalog doors and windows and the props of each room");
+    previewButton_ = new QPushButton(tr("Preview"), grid->parentWidget());
+    previewButton_->setToolTip(previewTip);
+    const int previewRow = grid->rowCount();
+    grid->addWidget(makeName(grid, tr("This seed"), previewTip), previewRow, 0, Qt::AlignVCenter);
+    grid->addWidget(previewButton_, previewRow, 1, Qt::AlignLeft);
+    previewText_ = new QLabel(grid->parentWidget());
+    previewText_->setTextFormat(Qt::PlainText);
+    previewText_->setFont(t.monoFont(t.sizeSmall()));
+    previewText_->setWordWrap(true);
+    previewText_->setToolTip(tr("What the seed picks, as \"plynth variation preview\" lists it. Nothing is built."));
+    previewText_->hide();
+    grid->addWidget(previewText_, grid->rowCount(), 0, 1, 2);
+    connect(previewButton_, &QPushButton::clicked, this, &VariationGroup::preview);
 
     editors_ = {seed_, randomize_, furniture_, materials_};
     connect(seed_, &QSpinBox::valueChanged, this, [this](int value) {
@@ -311,7 +351,77 @@ void VariationGroup::refresh()
     }
     note_->setText(variation.seed == 0 ? tr("Seed 0 builds the plan exactly as marked. Set dressing still adds props.")
                                        : tr("The build varies the plan with this seed. Set it to 0 for the plan as marked."));
+    if (previewed_ && *previewed_ != document_.project()) {
+        const Theme& t = Theme::instance();
+        previewed_.reset();
+        previewText_->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
+        previewText_->setText(tr("The project changed since this preview. Press Preview again."));
+    }
     refreshing_ = false;
+}
+
+// Runs core's previewVariation for the project's seed with the open library and lists what it picks, a few
+// lines of each kind at most.
+void VariationGroup::preview()
+{
+    const Theme& t = Theme::instance();
+    LibraryHost* host = controller_.library();
+    std::optional<plynth::LibraryPaths> library;
+    if (host != nullptr && host->hasLibrary())
+        library = host->paths();
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    const plynth::VariationPreview result = plynth::previewVariation(document_.project(), std::nullopt, library);
+    QApplication::restoreOverrideCursor();
+    const plynth::ResolvedBuild& resolved = result.resolved;
+
+    QStringList lines;
+    for (const plynth::VariationChange& change : resolved.changes) {
+        if (change.target == plynth::VariationTarget::Outside)
+            lines << tr("Outside: %1 to %2").arg(fromCore(change.from), fromCore(change.to));
+        else
+            lines << tr("%1 %2: %3 to %4").arg(fromCore(change.object), targetWord(change.target), fromCore(change.from),
+                                               fromCore(change.to));
+    }
+    for (const plynth::PickedFrame& frame : resolved.frames)
+        lines << tr("%1 frame: %2").arg(fromCore(frame.opening), fromCore(frame.asset));
+    int props = 0;
+    for (const plynth::Floor& floor : resolved.project.plan.floors) {
+        const plynth::FloorDressing* dressing = nullptr;
+        for (const plynth::FloorDressing& entry : resolved.dressing)
+            if (entry.floor == floor.id)
+                dressing = &entry;
+        if (dressing == nullptr)
+            continue;
+        for (const plynth::Room& room : floor.rooms) {
+            int count = 0;
+            for (const plynth::DressingPlacement& prop : dressing->props)
+                count += prop.room == room.id ? 1 : 0;
+            props += count;
+            if (count > 0)
+                lines << tr("%1: %n props", nullptr, count).arg(fromCore(room.id));
+        }
+    }
+
+    QStringList shown;
+    const std::uint32_t seed = resolved.project.settings.variation.seed;
+    if (lines.isEmpty())
+        shown << tr("Seed %1 changes nothing and adds no props.").arg(seed);
+    else
+        shown << tr("Seed %1: %2 changes, %3 catalog doors and windows, %4 props.")
+                     .arg(seed)
+                     .arg(resolved.changes.size())
+                     .arg(resolved.frames.size())
+                     .arg(props);
+    for (qsizetype i = 0; i < lines.size() && i < kPreviewLines; ++i)
+        shown << lines[i];
+    if (lines.size() > kPreviewLines)
+        shown << tr("and %1 more").arg(lines.size() - kPreviewLines);
+    if (!result.library)
+        shown << tr("No library is open, so nothing is picked from the catalog.");
+    previewText_->setStyleSheet(QStringLiteral("color: %1;").arg(t.text().name()));
+    previewText_->setText(shown.join(QLatin1Char('\n')));
+    previewText_->show();
+    previewed_ = document_.project();
 }
 
 }

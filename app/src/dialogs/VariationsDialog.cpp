@@ -14,11 +14,8 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPushButton>
-#include <QRegularExpression>
 #include <QUrl>
 #include <QVBoxLayout>
-
-#include <limits>
 
 namespace plynth::app {
 
@@ -124,30 +121,6 @@ VariationsDialog::VariationsDialog(const plynth::Project& project, const std::fi
     updateButtons();
 }
 
-// Reads a list of seeds and ranges. Every seed is a whole number from 0 to the largest 32 bit number.
-std::optional<std::vector<std::uint32_t>> VariationsDialog::parseSeeds(const QString& text)
-{
-    static const QRegularExpression range(QStringLiteral("^\\s*(\\d+)\\s*(?:-\\s*(\\d+)\\s*)?$"));
-    std::vector<std::uint32_t> seeds;
-    for (const QString& part : text.split(QLatin1Char(','), Qt::SkipEmptyParts)) {
-        const QRegularExpressionMatch m = range.match(part);
-        if (!m.hasMatch())
-            return std::nullopt;
-        bool okFrom = false;
-        bool okTo = true;
-        const qulonglong from = m.captured(1).toULongLong(&okFrom);
-        const qulonglong to = m.captured(2).isEmpty() ? from : m.captured(2).toULongLong(&okTo);
-        if (!okFrom || !okTo || to < from || to > std::numeric_limits<std::uint32_t>::max())
-            return std::nullopt;
-        // A long range stops early; core refuses more than its limit anyway.
-        for (qulonglong seed = from; seed <= to && seeds.size() <= plynth::kMaxVariationCopies; ++seed)
-            seeds.push_back(static_cast<std::uint32_t>(seed));
-    }
-    if (seeds.empty())
-        return std::nullopt;
-    return seeds;
-}
-
 // Fills the seeds box.
 void VariationsDialog::setSeedsText(const QString& text)
 {
@@ -166,12 +139,13 @@ void VariationsDialog::chooseFolder()
 void VariationsDialog::make()
 {
     const Theme& t = Theme::instance();
-    const std::optional<std::vector<std::uint32_t>> seeds = parseSeeds(seeds_->text());
-    if (!seeds)
+    const plynth::SeedListRead seeds = plynth::parseSeedList(seeds_->text().toStdString());
+    if (!seeds.status.ok())
         return;
     const std::filesystem::path out(folder_->text().toStdWString());
-    const plynth::VariationCopies copies = plynth::makeVariationCopies(project_, projectFolder_, *seeds, out);
+    const plynth::VariationCopies copies = plynth::makeVariationCopies(project_, projectFolder_, seeds.seeds, out);
     made_->clear();
+    seedsProblemShown_ = false;
     if (!copies.status.ok()) {
         result_->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
         result_->setText(QString::fromStdString(copies.status.message));
@@ -184,12 +158,22 @@ void VariationsDialog::make()
     updateButtons();
 }
 
-// Make needs readable seeds and a folder. Open folder needs the folder to be there.
+// Make needs readable seeds and a folder. Open folder needs the folder to be there. Seeds that cannot be read
+// show the sentence "plynth variation copies --seeds" gives for them.
 void VariationsDialog::updateButtons()
 {
-    const bool seedsOk = parseSeeds(seeds_->text()).has_value();
-    seeds_->setStyleSheet(seedsOk ? QString()
-                                  : QStringLiteral("color: %1;").arg(Theme::instance().signalAmber().name()));
+    const Theme& t = Theme::instance();
+    const plynth::SeedListRead seeds = plynth::parseSeedList(seeds_->text().toStdString());
+    const bool seedsOk = seeds.status.ok();
+    seeds_->setStyleSheet(seedsOk ? QString() : QStringLiteral("color: %1;").arg(t.signalAmber().name()));
+    if (!seedsOk) {
+        result_->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
+        result_->setText(QString::fromStdString(seeds.status.message));
+        seedsProblemShown_ = true;
+    } else if (seedsProblemShown_) {
+        result_->clear();
+        seedsProblemShown_ = false;
+    }
     make_->setEnabled(seedsOk && !folder_->text().trimmed().isEmpty() && !projectFolder_.empty());
     open_->setEnabled(QDir(folder_->text()).exists());
 }

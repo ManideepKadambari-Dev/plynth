@@ -250,6 +250,17 @@ int main(int argc, char* argv[])
                                       QStringLiteral("mode"));
     parser.addOption(flyCheckOption);
     QCommandLineOption buildTabOption(QStringLiteral("build-tab"), QStringLiteral("Open the Build report window. For checks only."));
+    QCommandLineOption checkBuildOption(QStringLiteral("check-build"),
+                                        QStringLiteral("Run Build > Check build after opening the project and show what it found "
+                                                       "in the Build report window. For checks only."));
+    QCommandLineOption touchBuildOption(QStringLiteral("touch-build"),
+                                        QStringLiteral("Give build/building.blend the time of now, as a new build would, so the last "
+                                                       "export dates from an older build. Only the file time changes. For checks only."));
+    QCommandLineOption variationPreviewOption(QStringLiteral("variation-preview"),
+                                              QStringLiteral("Preview the project's seed in the Variation group of Properties. For checks only."));
+    parser.addOption(checkBuildOption);
+    parser.addOption(touchBuildOption);
+    parser.addOption(variationPreviewOption);
     QCommandLineOption alignImageOption(QStringLiteral("align-image"),
                                         QStringLiteral("Turn on image alignment of the shown floor. For checks only."));
     QCommandLineOption roofSectionsOption(QStringLiteral("roof-sections"),
@@ -647,8 +658,12 @@ int main(int argc, char* argv[])
     } else if (parser.isSet(aboutOption)) {
         QTimer::singleShot(0, &window, [&window]() { window.guide()->openAbout(); });
     }
+    if (parser.isSet(touchBuildOption))
+        window.touchBuildForCheck();
     if (parser.isSet(buildTabOption))
         window.showBuildTab();
+    if (parser.isSet(checkBuildOption))
+        QTimer::singleShot(0, &window, [&window]() { window.checkBuild(); });
     if (parser.isSet(exportGroupsExpandedOption))
         window.exportPanel()->setGroupsExpanded(true);
     if (parser.isSet(exportLicensesOnOption))
@@ -657,6 +672,8 @@ int main(int argc, char* argv[])
         window.showExportTab();
     if (parser.isSet(projectFinishOption))
         QTimer::singleShot(100, &window, [&window]() { window.showProjectFinish(); });
+    if (parser.isSet(variationPreviewOption))
+        QTimer::singleShot(150, &window, [&window]() { window.showVariationPreview(); });
     if (parser.isSet(variationsDialogOption))
         QTimer::singleShot(0, &window, [&window]() { window.showVariationsDialog(false); });
     if (parser.isSet(newProjectDialogOption)) {

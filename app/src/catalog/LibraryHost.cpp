@@ -4,6 +4,7 @@
 #include <plynth/core/OpeningShapes.h>
 #include <plynth/core/RoomTypes.h>
 #include <plynth/core/TrimProfiles.h>
+#include <plynth/core/catalog/MaterialRescan.h>
 
 #include <QDir>
 #include <QFileSystemWatcher>
@@ -291,23 +292,12 @@ QString LibraryHost::addSampleShapes()
         .arg(copy.skipped.size());
 }
 
-// Opens materials.db. An empty index next to folders in materials/items is rebuilt once, so a library filled
-// by hand or by an older run shows its materials.
+// Opens materials.db as "plynth materials list" does: an empty index next to folders in materials/items is
+// rebuilt once, so a library filled by hand or by an older run shows its materials.
 void LibraryHost::openMaterials()
 {
     plynth::Status status;
-    materials_ = plynth::MaterialCatalog::open(paths_, status);
-    if (!materials_)
-        return;
-    if (materials_->materialCount() == 0) {
-        std::error_code ignored;
-        for (const auto& entry : std::filesystem::directory_iterator(paths_.materialItems, ignored)) {
-            if (entry.is_directory(ignored) && !entry.path().filename().string().starts_with('.')) {
-                materials_->rescan();
-                break;
-            }
-        }
-    }
+    materials_ = plynth::openMaterialCatalog(paths_, status);
 }
 
 // Reads the settings file again, changes only the recent list with the given function, saves, and copies the

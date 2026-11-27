@@ -1,9 +1,11 @@
 #pragma once
 
 #include <plynth/core/FinishSettings.h>
+#include <plynth/core/Project.h>
 
 #include <QObject>
 
+#include <optional>
 #include <vector>
 
 class QCheckBox;
@@ -58,7 +60,8 @@ private:
 };
 
 // The Variation group of the project page: the seed, the furniture and material switches and Randomize. Every
-// edit runs SetVariationCommand.
+// edit runs SetVariationCommand. Preview lists what the seed picks without building, from core's
+// previewVariation, the same list "plynth variation preview" gives.
 class VariationGroup : public QObject {
     Q_OBJECT
 public:
@@ -67,7 +70,11 @@ public:
 
     // Shows the project's variation settings.
     void refresh();
+    // Lists what the project's seed picks now.
+    void preview();
     const std::vector<QWidget*>& editors() const { return editors_; }
+    // The title of the group, to scroll to.
+    QWidget* title() const { return title_; }
 
 private:
     void edit(plynth::VariationSettings settings);
@@ -79,6 +86,10 @@ private:
     QCheckBox* materials_ = nullptr;
     QPushButton* randomize_ = nullptr;
     QLabel* note_ = nullptr;
+    QPushButton* previewButton_ = nullptr;
+    QLabel* previewText_ = nullptr;
+    QWidget* title_ = nullptr;
+    std::optional<plynth::Project> previewed_;
     std::vector<QWidget*> editors_;
     bool refreshing_ = false;
 };

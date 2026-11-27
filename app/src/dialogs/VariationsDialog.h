@@ -4,10 +4,7 @@
 
 #include <QDialog>
 
-#include <cstdint>
 #include <filesystem>
-#include <optional>
-#include <vector>
 
 class QLabel;
 class QLineEdit;
@@ -23,8 +20,6 @@ class VariationsDialog : public QDialog {
 public:
     VariationsDialog(const plynth::Project& project, const std::filesystem::path& projectFolder, QWidget* parent = nullptr);
 
-    // Reads seeds such as "1, 2, 5-8". Empty when the text holds anything else or a range runs backwards.
-    static std::optional<std::vector<std::uint32_t>> parseSeeds(const QString& text);
     // For checks only: fills the seeds box.
     void setSeedsText(const QString& text);
 
@@ -41,6 +36,7 @@ private:
     QLabel* result_ = nullptr;
     QListWidget* made_ = nullptr;
     QPushButton* open_ = nullptr;
+    bool seedsProblemShown_ = false;
 };
 
 }

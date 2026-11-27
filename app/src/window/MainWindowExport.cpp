@@ -11,6 +11,7 @@
 #include <plynth/core/Build.h>
 #include <plynth/core/Export.h>
 #include <plynth/core/ExportGroups.h>
+#include <plynth/core/ExportReady.h>
 #include <plynth/core/Exporter.h>
 
 #include <QAction>
@@ -21,6 +22,7 @@
 #include <QUrl>
 
 #include <filesystem>
+#include <vector>
 
 namespace plynth::app {
 
@@ -34,29 +36,28 @@ QString fromCore(const std::string& text)
 
 }
 
-// The sentence that says why an export cannot start, or an empty text when it can. offerBuild says a Build button
-// helps.
+// The sentence that says why an export cannot start, or an empty text when it can: the first of core's export
+// blockers, the same ones "plynth export" checks. offerBuild says a Build button helps.
 QString MainWindow::exportNotice(bool* offerBuild) const
 {
     if (offerBuild != nullptr)
         *offerBuild = false;
-    if (doc_.project().settings.exportMode == plynth::ExportMode::Grouped && doc_.hasFolder()) {
-        const plynth::ExportOptionsRead options = plynth::readExportOptions(doc_.folder());
-        if (!options.status.ok())
-            return fromCore(options.status.message);
-    }
-    std::error_code ignored;
-    const bool built = doc_.hasFolder() &&
-                       std::filesystem::exists(plynth::buildFolder(doc_.folder()) / "building.blend", ignored);
-    if (!built) {
+    if (!doc_.hasFolder()) {
         if (offerBuild != nullptr)
             *offerBuild = true;
         return tr("Build the project first.");
     }
-    QString reason;
-    if (buildBlocked(&reason))
-        return reason;
-    return QString();
+    if (doc_.project().settings.exportMode == plynth::ExportMode::Grouped) {
+        const plynth::ExportOptionsRead options = plynth::readExportOptions(doc_.folder());
+        if (!options.status.ok())
+            return fromCore(options.status.message);
+    }
+    const std::vector<plynth::ExportBlocker> blockers = plynth::exportBlockers(doc_.folder(), host_->settings());
+    if (blockers.empty())
+        return QString();
+    if (offerBuild != nullptr)
+        *offerBuild = blockers.front().code == "no_build";
+    return fromCore(blockers.front().message);
 }
 
 // Starts an export of the last build, or only its checks when write is false.
@@ -161,10 +162,8 @@ void MainWindow::updateExportUi()
     state.grouped = doc_.project().settings.exportMode == plynth::ExportMode::Grouped;
     state.built = doc_.hasFolder() &&
                   std::filesystem::exists(plynth::buildFolder(doc_.folder()) / "building.blend", ignored);
-    // The export records the build it came from. A later build has another plan fingerprint.
-    state.reportOutOfDate = exportReport_ && exportReport_->status.ok() && report_ && report_->status.ok() &&
-                            !exportReport_->buildFingerprint.empty() &&
-                            exportReport_->buildFingerprint != report_->planFingerprint;
+    state.reportOutOfDate = exportReport_ && exportReport_->status.ok() && doc_.hasFolder() &&
+                            plynth::exportReportOutOfDate(*exportReport_, doc_.folder());
     state.project = &doc_.project();
     if (doc_.hasFolder()) {
         const plynth::ExportOptionsRead options = plynth::readExportOptions(doc_.folder());

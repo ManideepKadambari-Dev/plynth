@@ -71,6 +71,8 @@ public:
     bool showOpeningAssetPicker(const QString& hoverAsset);
     // For checks only: scrolls the project page so the Trim group is at the top.
     void scrollToFinish();
+    // For checks only: previews the project's seed in the Variation group and scrolls the page to it.
+    void showVariationPreview();
     // For checks only: true when the picker is closed or its preview has its picture.
     bool pickerOpen() const;
 
