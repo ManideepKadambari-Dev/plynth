@@ -127,6 +127,8 @@ public:
     void setRoofSectionsShown(bool on);
     // For checks only: shows the floor of a roof section ("<floor id>:<index>"), turns roof sections on and selects it.
     void selectRoof(const QString& id);
+    // For checks only: picks a roof type by id, such as saltbox, for the selected roof section. False when refused.
+    bool setRoofType(const QString& typeId);
     // For checks only: View > Show roofs in 3D and View > Cut 3D at the shown floor.
     void setShowRoofs3d(bool on);
     void setCutAtFloor(bool on);

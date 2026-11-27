@@ -781,13 +781,13 @@ Status checkRoofSettings(const RoofSettings& settings)
     if (!(std::isfinite(settings.secondPitch) && settings.secondPitch >= 0.0 && settings.secondPitch <= kMaxRoofPitch)) {
         return fail(ErrorCode::InvalidValue, "The second roof pitch must be from 0 to 75 degrees.");
     }
-    if (!(std::isfinite(settings.breakRatio) && settings.breakRatio >= 0.1 - 1e-9 && settings.breakRatio <= 0.9 + 1e-9)) {
+    if (!(std::isfinite(settings.breakRatio) && settings.breakRatio >= kMinRoofBreakRatio - 1e-9 && settings.breakRatio <= kMaxRoofBreakRatio + 1e-9)) {
         return fail(ErrorCode::InvalidValue, "The break ratio must be from 0.1 to 0.9.");
     }
-    if (!(std::isfinite(settings.ridgeOffset) && settings.ridgeOffset >= -0.45 - 1e-9 && settings.ridgeOffset <= 0.45 + 1e-9)) {
+    if (!(std::isfinite(settings.ridgeOffset) && settings.ridgeOffset >= -kMaxRoofRidgeOffset - 1e-9 && settings.ridgeOffset <= kMaxRoofRidgeOffset + 1e-9)) {
         return fail(ErrorCode::InvalidValue, "The ridge offset must be from -0.45 to 0.45.");
     }
-    if (!(std::isfinite(settings.rise) && settings.rise >= 0.1 - 1e-9 && settings.rise <= 10.0 + 1e-9)) {
+    if (!(std::isfinite(settings.rise) && settings.rise >= kMinRoofRise - 1e-9 && settings.rise <= kMaxRoofRise + 1e-9)) {
         return fail(ErrorCode::InvalidValue, "The roof rise must be from 0.1 to 10 metres.");
     }
     return {};

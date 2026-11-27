@@ -1484,6 +1484,16 @@ void MainWindow::selectRoof(const QString& id)
     selection_->set(SelectionKind::RoofSection, id);
 }
 
+// For checks only: picks a roof type for the selected roof section as the Type box would.
+bool MainWindow::setRoofType(const QString& typeId)
+{
+    QString message;
+    const bool ok = panel_->setRoofTypeText(typeId, &message);
+    if (!ok)
+        statusBar_->showMessage(message);
+    return ok;
+}
+
 // For checks only: View > Show roofs in 3D.
 void MainWindow::setShowRoofs3d(bool on)
 {

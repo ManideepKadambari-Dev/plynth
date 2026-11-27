@@ -257,6 +257,10 @@ int main(int argc, char* argv[])
     QCommandLineOption selectRoofOption(QStringLiteral("select-roof"),
                                         QStringLiteral("Select the roof section <floor>:<index>, such as f2:0, on its floor. For checks only."),
                                         QStringLiteral("id"));
+    QCommandLineOption roofTypeOption(QStringLiteral("roof-type"),
+                                      QStringLiteral("Pick this roof type, such as saltbox, for the roof section that --select-roof selects, "
+                                                     "as the Type box would. For checks only."),
+                                      QStringLiteral("id"));
     QCommandLineOption noRoofsOption(QStringLiteral("no-roofs"),
                                      QStringLiteral("Hide the roofs in the 3D view. For checks only."));
     QCommandLineOption cutAtFloorOption(QStringLiteral("cut-at-floor"),
@@ -357,6 +361,7 @@ int main(int argc, char* argv[])
     parser.addOption(alignImageOption);
     parser.addOption(roofSectionsOption);
     parser.addOption(selectRoofOption);
+    parser.addOption(roofTypeOption);
     parser.addOption(noRoofsOption);
     parser.addOption(cutAtFloorOption);
     parser.addOption(furnitureAtOption);
@@ -615,6 +620,8 @@ int main(int argc, char* argv[])
         window.selectById(parser.value(selectOption));
     if (parser.isSet(selectRoofOption))
         window.selectRoof(parser.value(selectRoofOption));
+    if (parser.isSet(roofTypeOption))
+        window.setRoofType(parser.value(roofTypeOption));
     if (parser.isSet(noRoofsOption))
         window.setShowRoofs3d(false);
     if (parser.isSet(cutAtFloorOption))

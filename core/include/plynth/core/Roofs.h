@@ -75,6 +75,11 @@ inline constexpr std::string_view kShedRoofId = "shed";
 inline constexpr std::string_view kSawtoothRoofId = "sawtooth";
 
 inline constexpr double kMaxRoofPitch = 75.0;      // degrees
+inline constexpr double kMinRoofBreakRatio = 0.1;  // share of the run under the lower pitch
+inline constexpr double kMaxRoofBreakRatio = 0.9;
+inline constexpr double kMaxRoofRidgeOffset = 0.45; // share of the width, either way
+inline constexpr double kMinRoofRise = 0.1;        // metres
+inline constexpr double kMaxRoofRise = 10.0;       // metres
 inline constexpr double kMinPitchedRoofPitch = 5.0; // degrees; a pitched type with less is refused by commands
 inline constexpr double kMaxRoofOverhang = 2.0;    // metres
 inline constexpr double kMaxParapet = 3.0;         // metres

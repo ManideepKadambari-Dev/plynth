@@ -66,6 +66,9 @@ public:
     // as "diameter=0.5". All calls before the next focus change share one undo step. False with the reason in
     // message when it is refused.
     bool setGeneratorParamText(const QString& assignment, QString* message);
+    // For checks only: picks a roof type by id in the Type box of the selected roof section, as a click would.
+    // False with the reason in message when no section is selected or the type is not registered.
+    bool setRoofTypeText(const QString& typeId, QString* message);
     // For checks only: opens the door and window picker of the selected opening and hovers an asset when one is
     // given. False when no door or window is selected.
     bool showOpeningAssetPicker(const QString& hoverAsset);
@@ -116,8 +119,20 @@ private:
         QDoubleSpinBox* overhang = nullptr;
         QLabel* parapetLabel = nullptr;
         QDoubleSpinBox* parapet = nullptr;
+        QLabel* secondPitchLabel = nullptr;
+        QDoubleSpinBox* secondPitch = nullptr;
+        QLabel* breakRatioLabel = nullptr;
+        QDoubleSpinBox* breakRatio = nullptr;
+        QLabel* ridgeOffsetLabel = nullptr;
+        QDoubleSpinBox* ridgeOffset = nullptr;
+        QLabel* riseLabel = nullptr;
+        QDoubleSpinBox* rise = nullptr;
+        bool section = false;
     };
     void buildRoofEditor(QGridLayout* grid, RoofEditor& editor, bool section);
+    void editRoofEditor(const RoofEditor& editor);
+    void chooseRoofType(RoofEditor& editor);
+    QString roofFallbackMessage(const plynth::RoofArea& area) const;
     void fillRoofEditor(const RoofEditor& editor, const plynth::RoofSettings& settings);
     plynth::RoofSettings readRoofEditor(const RoofEditor& editor) const;
     void buildRoofPage();
@@ -312,6 +327,7 @@ private:
     QLabel* roofArea_ = nullptr;
     QLabel* roofEntry_ = nullptr;
     QPushButton* roofUseDefault_ = nullptr;
+    QLabel* roofFallback_ = nullptr;
 
     QLabel* roomId_ = nullptr;
     QComboBox* roomType_ = nullptr;

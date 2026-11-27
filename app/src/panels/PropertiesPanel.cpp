@@ -618,24 +618,59 @@ void PropertiesPanel::buildRoofEditor(QGridLayout* grid, RoofEditor& editor, boo
     editor.parapet = addSpinRow(grid, tr("Parapet"), 0.0, plynth::kMaxParapet, 0.05,
                                 tr("Height of the low wall around a flat roof. Zero for none."),
                                 &editor.parapetLabel);
+    editor.secondPitch = addSpinRow(grid, tr("Second pitch"), 0.0, plynth::kMaxRoofPitch, 1.0,
+                                    tr("How steep the roof's other slope is, in degrees from level. Which slope that is depends on the type."),
+                                    &editor.secondPitchLabel);
+    editor.secondPitch->setDecimals(1);
+    editor.secondPitch->setSuffix(QStringLiteral("°"));
+    editor.breakRatio = addSpinRow(grid, tr("Break"), plynth::kMinRoofBreakRatio, plynth::kMaxRoofBreakRatio, 0.05,
+                                   tr("Where the roof changes slope, as a share of the way from the eaves to the top"),
+                                   &editor.breakRatioLabel);
+    editor.breakRatio->setDecimals(2);
+    editor.breakRatio->setSuffix(QString());
+    editor.ridgeOffset = addSpinRow(grid, tr("Ridge offset"), -plynth::kMaxRoofRidgeOffset, plynth::kMaxRoofRidgeOffset, 0.05,
+                                    tr("How far the ridge or valley moves across the section, as a share of its width. Above zero moves it to the left of the direction."),
+                                    &editor.ridgeOffsetLabel);
+    editor.ridgeOffset->setDecimals(2);
+    editor.ridgeOffset->setSuffix(QString());
+    editor.rise = addSpinRow(grid, tr("Rise"), plynth::kMinRoofRise, plynth::kMaxRoofRise, 0.1,
+                             tr("How high the curve or the raised part of the roof stands, in metres"),
+                             &editor.riseLabel);
+    editor.rise->setDecimals(2);
+    editor.section = section;
 
     RoofEditor* self = &editor;
-    const auto edited = [this, self, section]() {
-        if (refreshing_)
-            return;
-        if (!section) {
-            editRoofDefault();
-            return;
-        }
-        const plynth::RoofSettings values = readRoofEditor(*self);
-        editRoofSection([values](plynth::RoofSettings& settings, std::optional<std::string>&) { settings = values; });
-    };
-    connect(editor.type, &QComboBox::activated, this, [edited](int) { edited(); });
-    connect(editor.pitch, &QDoubleSpinBox::valueChanged, this, [edited](double) { edited(); });
-    connect(editor.direction, &QDoubleSpinBox::valueChanged, this, [edited](double) { edited(); });
-    connect(editor.overhang, &QDoubleSpinBox::valueChanged, this, [edited](double) { edited(); });
-    connect(editor.parapet, &QDoubleSpinBox::valueChanged, this, [edited](double) { edited(); });
+    const auto edited = [this, self]() { editRoofEditor(*self); };
+    connect(editor.type, &QComboBox::activated, this, [this, self](int) { chooseRoofType(*self); });
+    for (QDoubleSpinBox* spin : {editor.pitch, editor.direction, editor.overhang, editor.parapet, editor.secondPitch,
+                                 editor.breakRatio, editor.ridgeOffset, editor.rise})
+        connect(spin, &QDoubleSpinBox::valueChanged, this, [edited](double) { edited(); });
     connect(editor.autoDirection, &QCheckBox::clicked, this, [edited](bool) { edited(); });
+}
+
+// Runs the roof command for what a group shows: the default, or the selected section.
+void PropertiesPanel::editRoofEditor(const RoofEditor& editor)
+{
+    if (refreshing_)
+        return;
+    if (!editor.section) {
+        editRoofDefault();
+        return;
+    }
+    const plynth::RoofSettings values = readRoofEditor(editor);
+    editRoofSection([values](plynth::RoofSettings& settings, std::optional<std::string>&) { settings = values; });
+}
+
+// Applies the type picked in a group. A saltbox or butterfly roof with no ridge offset would be a plain gable
+// or a flat valley in the middle, so a new one starts with the ridge moved a quarter of the width.
+void PropertiesPanel::chooseRoofType(RoofEditor& editor)
+{
+    constexpr double kStartRidgeOffset = 0.25;
+    const QString id = editor.type->currentData().toString();
+    const bool offsetType = id == QLatin1String("saltbox") || id == QLatin1String("butterfly");
+    if (offsetType && std::abs(editor.ridgeOffset->value()) < 1e-9)
+        setSpin(editor.ridgeOffset, kStartRidgeOffset);
+    editRoofEditor(editor);
 }
 
 // The settings the boxes of a group show. A direction is empty while Auto is on.
@@ -648,6 +683,10 @@ plynth::RoofSettings PropertiesPanel::readRoofEditor(const RoofEditor& editor) c
     settings.parapet = editor.parapet->value();
     if (!editor.autoDirection->isChecked())
         settings.direction = editor.direction->value();
+    settings.secondPitch = editor.secondPitch->value();
+    settings.breakRatio = editor.breakRatio->value();
+    settings.ridgeOffset = editor.ridgeOffset->value();
+    settings.rise = editor.rise->value();
     return settings;
 }
 
@@ -664,6 +703,10 @@ void PropertiesPanel::fillRoofEditor(const RoofEditor& editor, const plynth::Roo
     setSpin(editor.overhang, settings.overhang);
     setSpin(editor.parapet, settings.parapet);
     setSpin(editor.direction, settings.direction.value_or(editor.direction->value()));
+    setSpin(editor.secondPitch, settings.secondPitch);
+    setSpin(editor.breakRatio, settings.breakRatio);
+    setSpin(editor.ridgeOffset, settings.ridgeOffset);
+    setSpin(editor.rise, settings.rise);
     const bool before = editor.autoDirection->blockSignals(true);
     editor.autoDirection->setChecked(!settings.direction.has_value());
     editor.autoDirection->blockSignals(before);
@@ -681,6 +724,18 @@ void PropertiesPanel::fillRoofEditor(const RoofEditor& editor, const plynth::Roo
     editor.overhangLabel->setVisible(overhang);
     editor.parapet->setVisible(parapet);
     editor.parapetLabel->setVisible(parapet);
+    const bool secondPitch = type != nullptr && type->usesSecondPitch();
+    const bool breakRatio = type != nullptr && type->usesBreakRatio();
+    const bool ridgeOffset = type != nullptr && type->usesRidgeOffset();
+    const bool rise = type != nullptr && type->usesRise();
+    editor.secondPitch->setVisible(secondPitch);
+    editor.secondPitchLabel->setVisible(secondPitch);
+    editor.breakRatio->setVisible(breakRatio);
+    editor.breakRatioLabel->setVisible(breakRatio);
+    editor.ridgeOffset->setVisible(ridgeOffset);
+    editor.ridgeOffsetLabel->setVisible(ridgeOffset);
+    editor.rise->setVisible(rise);
+    editor.riseLabel->setVisible(rise);
 }
 
 // Runs SetRoofDefaultCommand with what the Roof default group shows. The boxes go back on a refusal.
@@ -750,6 +805,14 @@ void PropertiesPanel::buildRoofPage()
     roofEntry_ = addLabelRow(grid, tr("Settings"));
     roofEntry_->setToolTip(tr("Whether this section has settings of its own or follows the roof default"));
     buildRoofEditor(grid, roofSection_, true);
+    const Theme& t = Theme::instance();
+    roofFallback_ = new QLabel(grid->parentWidget());
+    roofFallback_->setTextFormat(Qt::PlainText);
+    roofFallback_->setFont(t.uiFont(t.sizeSmall()));
+    roofFallback_->setWordWrap(true);
+    roofFallback_->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
+    roofFallback_->setToolTip(tr("Why the build cannot use the chosen type on this section, and the type it builds instead"));
+    grid->addWidget(roofFallback_, grid->rowCount(), 0, 1, 2);
 
     addMaterialSection(grid, tr("Materials"));
     plynth::MaterialTarget covering;
@@ -782,8 +845,64 @@ void PropertiesPanel::refreshRoof()
     roofArea_->setText(QStringLiteral("%1 m²").arg(plynth::planAreaSize(area->area), 0, 'f', 2));
     roofEntry_->setText(area->section.empty() ? tr("Roof default") : fromCore(area->section));
     fillRoofEditor(roofSection_, area->settings);
+    const QString fallback = roofFallbackMessage(*area);
+    roofFallback_->setText(fallback);
+    roofFallback_->setVisible(!fallback.isEmpty());
     roofUseDefault_->setEnabled(!area->section.empty() && !document_.isReadOnly());
     refreshMaterialRows(kRoofPage);
+}
+
+// What the build says when the section's type cannot roof it, with the type it builds instead. Empty when the
+// chosen type is used. The build lists these problems in section order without the index, so the nth section
+// whose built type differs from its chosen one has the nth such problem.
+QString PropertiesPanel::roofFallbackMessage(const plynth::RoofArea& area) const
+{
+    const plynth::Plan& plan = document_.plan();
+    std::size_t floorIndex = 0;
+    while (floorIndex < plan.floors.size() && plan.floors[floorIndex].id != area.floor)
+        ++floorIndex;
+    if (floorIndex == plan.floors.size())
+        return {};
+    const plynth::FloorRoofs roofs = plynth::floorRoofs(plan, floorIndex, plynth::floorElevations(plan));
+    const std::vector<plynth::RoofArea> areas = plynth::roofAreasOf(plan, area.floor);
+    std::vector<const plynth::RoofProblem*> typeProblems;
+    for (const plynth::RoofProblem& problem : roofs.problems)
+        if (problem.code == "roof_type_fallback" || problem.code == "roof_type_unknown")
+            typeProblems.push_back(&problem);
+    std::size_t next = 0;
+    for (const plynth::RoofBuild& roof : roofs.roofs) {
+        const auto index = static_cast<std::size_t>(roof.index);
+        if (index >= areas.size() || roof.type == areas[index].settings.type)
+            continue;
+        if (next >= typeProblems.size())
+            return {};
+        if (roof.index == area.index) {
+            const plynth::RoofType* built = plynth::findRoofType(roof.type);
+            const QString message = fromCore(typeProblems[next]->message);
+            return built == nullptr ? message
+                                    : tr("%1 It is built as %2 instead.").arg(message, fromCore(std::string(built->name())));
+        }
+        ++next;
+    }
+    return {};
+}
+
+// For checks only: picks a type in the Type box of the selected roof section and runs it as a click would.
+bool PropertiesPanel::setRoofTypeText(const QString& typeId, QString* message)
+{
+    if (!selectedRoof()) {
+        *message = tr("Select a roof section first.");
+        return false;
+    }
+    const int index = plynth::findRoofType(typeId.toStdString()) != nullptr ? roofSection_.type->findData(typeId) : -1;
+    if (index < 0) {
+        *message = tr("There is no roof type %1.").arg(typeId);
+        return false;
+    }
+    refresh();
+    roofSection_.type->setCurrentIndex(index);
+    chooseRoofType(roofSection_);
+    return true;
 }
 
 // The material a target shows now. A roof target means the selected roof section, which may follow the default.
