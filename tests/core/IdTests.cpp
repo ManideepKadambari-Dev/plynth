@@ -855,7 +855,7 @@ TEST_CASE("a plan with new ids saves, loads and keeps its fingerprint", "[core][
     requireOk(doc.save());
     const Json written = planToJson(doc.plan());
     CHECK(written.at("version") == kPlanFormatVersion);
-    CHECK((kPlanFormatVersion >= 5 && kPlanFormatVersion <= 7));
+    CHECK((kPlanFormatVersion >= 5 && kPlanFormatVersion <= 8));
     const PlanRead read = planFromJson(written);
     requireOk(read.status);
     CHECK_FALSE(read.migrated);

@@ -36,6 +36,9 @@ enum class ErrorCode {
     UpdateInProgress,   // "update_in_progress": Plynth is being installed or updated right now
     SignatureInvalid,   // "signature_invalid": a download failed the signature check and was not used
     NetworkFailed,      // "network_failed": the release server could not be reached or gave a bad answer
+    EngineNotFound,     // "engine_not_found": no running game engine editor answered, or not the one asked for
+    EngineFailed,       // "engine_failed": the editor ran the link's import and it failed; the message is its reason
+    ChecksumFailed,     // "checksum_failed": a download did not match its published checksum and was deleted
 };
 
 // The outcome of an operation: ok, or an error code with one plain sentence saying why.

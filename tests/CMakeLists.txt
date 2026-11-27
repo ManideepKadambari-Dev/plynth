@@ -119,6 +119,7 @@ add_executable(plynth_core_tests
     core/TrimTests.cpp
     core/VariationTests.cpp
     core/FinishFormatTests.cpp
+    core/PlanFormat8Tests.cpp
     core/BuildFinishTests.cpp
     core/LightCommandTests.cpp
     core/GameplayExportTests.cpp

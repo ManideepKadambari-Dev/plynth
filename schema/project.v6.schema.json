@@ -1,0 +1,111 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:project:6",
+  "title": "Plynth project settings, version 6",
+  "description": "The project.json file in a project folder. Lengths are in metres. Older files are upgraded when read: version 1 (project.v1.schema.json) gets defaults with the built-in sizes, version 2 (project.v2.schema.json) gets wall_item_centre 1.2, version 3 (project.v3.schema.json) gets materials with the built-in defaults, version 4 (project.v4.schema.json) gets the roof, flat_roof and stair materials, version 5 (project.v5.schema.json) gets the trim and railing materials and trim and variation with their defaults.",
+  "type": "object",
+  "required": ["format", "version", "name"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "plynth-project" },
+    "version": { "const": 6 },
+    "name": { "type": "string", "minLength": 1 },
+    "export_mode": {
+      "description": "single gives one FBX for the whole building, grouped gives one FBX per group.",
+      "enum": ["single", "grouped"],
+      "default": "single"
+    },
+    "grid_size": {
+      "description": "Wall snap grid in metres.",
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "default": 0.5
+    },
+    "defaults": {
+      "description": "Sizes new marks get. Marks already placed keep their own sizes. A door or a window (sill plus height) is never taller than ceiling_height, and wall_item_centre is below it.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ceiling_height": {
+          "description": "Ceiling height for floors made later. Each floor keeps its own ceiling_height in plan.json.",
+          "type": "number", "exclusiveMinimum": 0, "default": 3.0
+        },
+        "door_width": {
+          "description": "Width of new doors and plain openings.",
+          "type": "number", "exclusiveMinimum": 0, "default": 0.9
+        },
+        "door_height": {
+          "description": "Height of new doors and plain openings, from the floor.",
+          "type": "number", "exclusiveMinimum": 0, "default": 2.1
+        },
+        "window_width": { "type": "number", "exclusiveMinimum": 0, "default": 1.2 },
+        "window_height": { "type": "number", "exclusiveMinimum": 0, "default": 1.2 },
+        "window_sill": {
+          "description": "Height of the bottom of new windows above the floor.",
+          "type": "number", "minimum": 0, "default": 0.9
+        },
+        "wall_item_centre": {
+          "description": "Height above the floor of the centre of an item when it is first mounted on a wall, for example a TV.",
+          "type": "number", "exclusiveMinimum": 0, "default": 1.2
+        }
+      },
+      "default": {}
+    },
+    "materials": {
+      "description": "The material each kind of surface gets where plan.json names none: ids in the materials catalog, or null for the neutral look. The built-in defaults are the sample materials in samples/materials/. A missing field takes its default.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "wall_inside": { "description": "Wall faces that look into a room.", "$ref": "#/definitions/optionalName", "default": "white_paint" },
+        "wall_outside": { "description": "Wall faces that look into no room.", "$ref": "#/definitions/optionalName", "default": "red_brick" },
+        "wall_top": { "description": "Tops and bottoms of walls.", "$ref": "#/definitions/optionalName", "default": "white_paint" },
+        "floor": { "$ref": "#/definitions/optionalName", "default": "oak_planks" },
+        "ceiling": { "$ref": "#/definitions/optionalName", "default": "white_paint" },
+        "door": { "description": "Door leaves.", "$ref": "#/definitions/optionalName", "default": "painted_wood" },
+        "frame": { "description": "Door and window frames.", "$ref": "#/definitions/optionalName", "default": "white_paint" },
+        "glass": { "description": "Window panes.", "$ref": "#/definitions/optionalName", "default": "clear_glass" },
+        "handle": { "description": "Door handles.", "$ref": "#/definitions/optionalName", "default": "brushed_steel" },
+        "roof": { "description": "The covering of pitched roofs: gable, hip, shed and sawtooth.", "$ref": "#/definitions/optionalName", "default": "roof_tiles" },
+        "flat_roof": { "description": "The covering of flat roofs.", "$ref": "#/definitions/optionalName", "default": "concrete" },
+        "stair": { "description": "Steps, landings and the column of a spiral stair.", "$ref": "#/definitions/optionalName", "default": "oak_planks" },
+        "trim": { "description": "Skirting boards, cornices, casings and sills.", "$ref": "#/definitions/optionalName", "default": "painted_wood" },
+        "railing": { "description": "Stair railings and guards.", "$ref": "#/definitions/optionalName", "default": "brushed_steel" }
+      },
+      "default": {}
+    },
+    "trim": {
+      "description": "How each kind of trim is made. A missing field takes its default: skirting classic 0.10 by 0.015, cornice cove 0.08 by 0.08, casing bevel 0.07 by 0.018, sill rounded 0.03 by 0.04, railing round 0.05 by 0.05, railing_height 0.9.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "skirting": { "$ref": "#/definitions/trimStyle" },
+        "cornice": { "$ref": "#/definitions/trimStyle" },
+        "casing": { "$ref": "#/definitions/trimStyle" },
+        "sill": { "$ref": "#/definitions/trimStyle" },
+        "railing": { "$ref": "#/definitions/trimStyle" },
+        "railing_height": { "type": "number", "minimum": 0.5, "maximum": 1.5, "default": 0.9 }
+      },
+      "default": {}
+    },
+    "variation": {
+      "description": "The seed of the build's variation. Seed 0 builds the plan as marked.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "seed": { "type": "integer", "minimum": 0, "maximum": 4294967295, "default": 0 },
+        "furniture": { "type": "boolean", "default": true },
+        "materials": { "type": "boolean", "default": true }
+      },
+      "default": {}
+    }
+  },
+  "definitions": {
+    "trimStyle": { "type": "object", "additionalProperties": false, "properties": { "enabled": { "type": "boolean", "default": true }, "profile": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 64 }, "height": { "type": "number", "minimum": 0.005, "maximum": 0.5 }, "depth": { "type": "number", "minimum": 0.005, "maximum": 0.5 } } },
+    "optionalName": {
+      "oneOf": [
+        { "type": "string", "pattern": "^[A-Za-z0-9_-]+$", "maxLength": 128 },
+        { "type": "null" }
+      ]
+    }
+  }
+}

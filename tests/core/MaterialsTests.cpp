@@ -30,7 +30,7 @@ Wall& wall(Project& p, const std::string& id)
 }
 
 TEST_CASE("the surfaces have names that read back", "[core][materials]") {
-    REQUIRE(allSurfaces().size() == 14);
+    REQUIRE(allSurfaces().size() == 20);
     for (const Surface s : allSurfaces()) {
         REQUIRE(surfaceFromName(surfaceName(s)) == s);
     }

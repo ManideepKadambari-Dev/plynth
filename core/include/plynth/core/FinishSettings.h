@@ -18,6 +18,11 @@ enum class TrimKind { Skirting, Cornice, Casing, Sill, Railing };
 // The kinds of light marker. Names in files: "ceiling", "wall", "standing".
 enum class LightKind { Ceiling, Wall, Standing };
 
+// The kinds of light strip (plan format 8, LightStrips.h). Names in files: "cove", "soffit", "edge", "step".
+// cove: a ceiling cove, the strip faces up; soffit: under an overhang or canopy, it faces down; edge: along a slab
+// or deck edge, it faces outward; step: under the nose of every step of a stair.
+enum class LightStripKind { Cove, Soffit, Edge, Step };
+
 // How one kind of trim is made. profile names an entry of the trim profile registry (TrimProfiles.h). height is
 // the size of the profile up the wall (across the wall face for a casing), depth how far it stands out from it.
 struct TrimStyle {
@@ -73,6 +78,10 @@ std::optional<TrimKind> trimKindFromName(std::string_view name);
 // The name used in files for a light kind, and the kind for a name. Empty for an unknown name.
 std::string_view lightKindName(LightKind kind);
 std::optional<LightKind> lightKindFromName(std::string_view name);
+
+// The name used in files for a light strip kind, and the kind for a name. Empty for an unknown name.
+std::string_view lightStripKindName(LightStripKind kind);
+std::optional<LightStripKind> lightStripKindFromName(std::string_view name);
 
 // The height above the floor a new light marker of a kind starts at: the ceiling height minus 0.1 for a
 // ceiling light, 1.8 for a wall light and 1.4 for a standing lamp, never above the ceiling height minus 0.1 and

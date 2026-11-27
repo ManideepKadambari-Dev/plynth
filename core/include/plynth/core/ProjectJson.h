@@ -18,16 +18,22 @@ using Json = nlohmann::ordered_json;
 // Version 2 of plan.json adds "hinge" and "swing" to openings, version 3 adds "items" to floors, version 4
 // adds "wall_material" to rooms, version 5 adds "slab_thickness", "image_offset" and "stairs" to floors and
 // "roof" and "roof_sections" to the plan, version 6 adds "generator" to items (and lets "asset" be null for a
-// generator item), version 7 adds "lights" to floors, "dressing" to rooms and "auto_frame" to openings.
+// generator item), version 7 adds "lights" to floors, "dressing" to rooms and "auto_frame" to openings,
+// version 8 adds "cladding" to walls, "fill" to openings, "on" to items, "rise", "cheeks" and "railing" to
+// stairs, "second_pitch", "break_ratio", "ridge_offset" and "rise" to roof settings, "decks", "railings",
+// "canopies", "dormers" and "light_strips" to floors, and "ground_floor", "site" and "foundation" to the plan.
 // Version 2 of project.json adds "defaults", version 3 adds "wall_item_centre" to them, version 4 adds
 // "materials" (MaterialDefaults.h), version 5 adds "roof", "flat_roof" and "stair" to "materials", version 6
-// adds "trim" and "variation" (FinishSettings.h) and "trim" and "railing" to "materials".
+// adds "trim" and "variation" (FinishSettings.h) and "trim" and "railing" to "materials", version 7 adds "deck",
+// "foundation", "ground", "paving", "fence" and "boundary_wall" to "materials".
+// The plan is written as version 8 and the project as version 7 once the steps below are in; every older version
+// stays readable for ever (docs/COMPATIBILITY.md), with a saved file of each kept under tests/data/formats/.
 // The schema for the current version is schema/plan.schema.json and schema/project.schema.json; older
 // versions stay as schema/plan.vN.schema.json and schema/project.vN.schema.json.
 inline constexpr std::string_view kPlanFormatName = "plynth-plan";
-inline constexpr int kPlanFormatVersion = 7;
+inline constexpr int kPlanFormatVersion = 8;
 inline constexpr std::string_view kProjectFormatName = "plynth-project";
-inline constexpr int kProjectFormatVersion = 6;
+inline constexpr int kProjectFormatVersion = 7;
 
 // Turns a plan into its plan.json form. Every field is written, absent values as null.
 Json planToJson(const Plan& plan);
@@ -43,7 +49,12 @@ struct PlanRead {
 // Reads a plan from its plan.json form. Checks "format", upgrades older versions with
 // planMigrations(), refuses newer versions, reads every field (missing optional fields get
 // their defaults, unknown fields are refused) and finally runs checkPlan.
+// A newer version is UnsupportedVersion with kNewerFileMessage, naming the file's version.
 PlanRead planFromJson(const Json& json);
+
+// The sentence for a project file written by a newer Plynth. %1 is the file name and %2 its version.
+inline constexpr std::string_view kNewerFileMessage =
+    "%1 was saved by a newer Plynth (format version %2). Update Plynth to open this project.";
 
 // Turns project settings into their project.json form.
 Json settingsToJson(const ProjectSettings& settings);
@@ -83,6 +94,11 @@ Status migrateJson(Json& json, int currentVersion, std::span<const Migration> st
 // 5 to 6: every item gets "generator": null unless it already has one.
 // 6 to 7: every floor gets "lights": [], every room "dressing": true and every opening "auto_frame": true, each
 // unless already there.
+// 7 to 8: every wall gets "cladding": [], every opening "fill": null, every item "on": null, every stair
+// "rise": null, "cheeks": false and "railing": true, the roof default and every roof section's settings
+// "second_pitch": 15, "break_ratio": 0.5, "ridge_offset": 0 and "rise": 1, every floor "decks", "railings",
+// "canopies", "dormers" and "light_strips" as [], and the plan "ground_floor": null, "site" with the ground off
+// and no boundaries or surfaces, and "foundation" off with its defaults, each unless already there.
 // When the format changes: raise kPlanFormatVersion, add a step here, keep the old schema as
 // plan.vN.schema.json and update plan.schema.json.
 std::span<const Migration> planMigrations();
@@ -95,6 +111,8 @@ std::span<const Migration> planMigrations();
 // unless already there.
 // 5 to 6: adds "trim": "painted_wood" and "railing": "brushed_steel" to "materials", and "trim" and "variation"
 // with their defaults, each unless already there.
+// 6 to 7: adds "deck": "oak_planks", "foundation": "concrete", "ground": "grass", "paving": "concrete",
+// "fence": "painted_wood" and "boundary_wall": "red_brick" to "materials", each unless already there.
 std::span<const Migration> projectMigrations();
 
 }

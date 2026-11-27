@@ -268,6 +268,11 @@ std::vector<std::string> materialsUsed(const Project& project)
     for (const Surface surface : allSurfaces()) {
         if (surface == Surface::Roof || surface == Surface::FlatRoof || surface == Surface::Stair) continue;
         if (surface == Surface::Trim || surface == Surface::Railing) continue;
+        // Nothing is built from the site and deck surfaces yet (plan format 8 fields the build still ignores).
+        if (surface == Surface::Deck || surface == Surface::Foundation || surface == Surface::Ground || surface == Surface::Paving
+            || surface == Surface::Fence || surface == Surface::BoundaryWall) {
+            continue;
+        }
         add(surfaceDefaultMaterial(project, surface));
     }
     const TrimSettings& trim = project.settings.trim;

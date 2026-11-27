@@ -59,6 +59,12 @@ namespace plynth {
 //   shed     (40)  pitch, direction (the way it falls), overhang. One plane; gable fills as for gable
 //   sawtooth (50)  pitch, direction (the ridges), overhang. Bays kSawtoothBaySpan wide across the direction, each
 //                  a plane rising across its bay, with a vertical glazed face at the high side of each bay
+// More types, each one file in core/src/roofs/types/ (sort key in brackets): pyramid (32), dutch_gable (34),
+// jerkinhead (36), gambrel (60), mansard (62), saltbox (64), butterfly (66), bonnet (68), clerestory (70),
+// a_frame (72), m_shaped (74), barrel (80), dome (82), bow (84), green (12). hip then works for any outline
+// through a straight skeleton (no fallback to gable), and sections of one floor whose pitched roofs touch meet
+// in valleys instead of gable fills against each other. Curved types cut their curve with arcSegmentCount.
+// A dormer (Dormers.h) cuts a hole into the covering face it stands on.
 // Automatic direction: along the longer side of the section's bounding box on the plan (+x when it is square);
 // a shed falls toward +y on the plan when the ridge would run along x, toward +x otherwise.
 
@@ -127,6 +133,11 @@ public:
     virtual bool usesDirection() const = 0;
     virtual bool usesOverhang() const = 0;
     virtual bool usesParapet() const = 0;
+    // The fields of plan format 8 (Plan.h RoofSettings). False unless a type says otherwise.
+    virtual bool usesSecondPitch() const { return false; }
+    virtual bool usesBreakRatio() const { return false; }
+    virtual bool usesRidgeOffset() const { return false; }
+    virtual bool usesRise() const { return false; }
     // Says whether the type can roof this section. When it cannot, the build uses fallback() and reports
     // roof_type_fallback with this status's message.
     virtual Status fits(const RoofInput& input) const = 0;

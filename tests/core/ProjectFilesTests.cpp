@@ -114,9 +114,9 @@ TEST_CASE("written files follow the format and validate against the schemas", "[
     REQUIRE(plynth::test::schemaProblemForText("plan.schema.json", planText).empty());
     REQUIRE(plynth::test::schemaProblemForText("project.schema.json", projectText).empty());
 
-    REQUIRE(planText.rfind("{\n  \"format\": \"plynth-plan\",\n  \"version\": 7,\n  \"scale\": {", 0) == 0);
+    REQUIRE(planText.rfind("{\n  \"format\": \"plynth-plan\",\n  \"version\": 8,\n  \"scale\": {", 0) == 0);
     REQUIRE(planText.back() == '\n');
-    REQUIRE(projectText.rfind("{\n  \"format\": \"plynth-project\",\n  \"version\": 6,\n  \"name\": \"Untitled\"", 0) == 0);
+    REQUIRE(projectText.rfind("{\n  \"format\": \"plynth-project\",\n  \"version\": 7,\n  \"name\": \"Untitled\"", 0) == 0);
     REQUIRE(projectText.back() == '\n');
 }
 
@@ -356,10 +356,10 @@ TEST_CASE("a version 1 project is written back as the current version", "[core][
     plynth::test::requireOk(saveProject(r.project, tmp.path(), tmp.path()));
     const std::string planText = plynth::test::readTextFile(tmp.path() / "plan.json");
     const std::string projectText = plynth::test::readTextFile(tmp.path() / "project.json");
-    REQUIRE(planText.find("\"version\": 7") != std::string::npos);
+    REQUIRE(planText.find("\"version\": 8") != std::string::npos);
     REQUIRE(planText.find("\"hinge\": \"start\"") != std::string::npos);
     REQUIRE(planText.find("\"swing\": \"right\"") != std::string::npos);
-    REQUIRE(projectText.find("\"version\": 6") != std::string::npos);
+    REQUIRE(projectText.find("\"version\": 7") != std::string::npos);
     REQUIRE(projectText.find("\"defaults\"") != std::string::npos);
     REQUIRE(plynth::test::schemaProblemForText("plan.schema.json", planText).empty());
     REQUIRE(plynth::test::schemaProblemForText("project.schema.json", projectText).empty());

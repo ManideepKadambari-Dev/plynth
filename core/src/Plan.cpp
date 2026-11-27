@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <initializer_list>
 #include <set>
 #include <type_traits>
 #include <utility>
@@ -87,6 +88,65 @@ Status checkOptionalName(const std::optional<std::string>& value, const std::str
     return {};
 }
 
+// Says whether a number is finite and from low to high, allowing for rounding.
+bool inRange(double v, double low, double high)
+{
+    return std::isfinite(v) && v >= low - 1e-9 && v <= high + 1e-9;
+}
+
+// The area a closed outline encloses, in square metres.
+double outlineArea(const std::vector<PlanXY>& outline)
+{
+    double twice = 0.0;
+    for (std::size_t i = 0; i < outline.size(); ++i) {
+        const PlanXY& a = outline[i];
+        const PlanXY& b = outline[(i + 1) % outline.size()];
+        twice += a.x * b.y - b.x * a.y;
+    }
+    return std::abs(twice) / 2.0;
+}
+
+// The length of a line through its points, back to the first one when it is closed.
+double lineLength(const std::vector<PlanXY>& points, bool closed)
+{
+    double length = 0.0;
+    for (std::size_t i = 1; i < points.size(); ++i) {
+        length += std::hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+    }
+    if (closed && points.size() > 2) length += std::hypot(points.front().x - points.back().x, points.front().y - points.back().y);
+    return length;
+}
+
+// Checks that every position of a list is finite.
+Status checkPositions(const std::vector<PlanXY>& points, const std::string& where)
+{
+    for (std::size_t i = 0; i < points.size(); ++i) {
+        const std::string at = where + "/" + std::to_string(i);
+        if (!std::isfinite(points[i].x)) return fail(ErrorCode::InvalidValue, "The x coordinate must be a finite number.", at + "/x");
+        if (!std::isfinite(points[i].y)) return fail(ErrorCode::InvalidValue, "The y coordinate must be a finite number.", at + "/y");
+    }
+    return {};
+}
+
+// Checks an outline: finite points, at least three of them, around more than 0.01 square metres.
+Status checkOutline(const std::vector<PlanXY>& outline, const std::string& where)
+{
+    if (auto s = checkPositions(outline, where); !s.ok()) return s;
+    if (outline.size() < 3) return fail(ErrorCode::InvalidValue, "An outline needs at least three points.", where);
+    if (!(outlineArea(outline) > 0.01)) {
+        return fail(ErrorCode::InvalidValue, "The outline must enclose more than 0.01 square metres.", where);
+    }
+    return {};
+}
+
+// Checks a line drawn on the plan: finite points, at least two of them.
+Status checkLine(const std::vector<PlanXY>& points, const std::string& where)
+{
+    if (auto s = checkPositions(points, where); !s.ok()) return s;
+    if (points.size() < 2) return fail(ErrorCode::InvalidValue, "A line needs at least two points.", where);
+    return {};
+}
+
 // Checks the points of one floor.
 Status checkPoints(const Floor& floor, const std::string& floorPath, IdSet& seen)
 {
@@ -99,6 +159,27 @@ Status checkPoints(const Floor& floor, const std::string& floorPath, IdSet& seen
         if (!nonNegative(p.cornerRadius)) {
             return fail(ErrorCode::InvalidValue, "The corner radius must be zero or more.", base + "/corner_radius");
         }
+    }
+    return {};
+}
+
+// Checks one cladding zone of a wall.
+Status checkCladding(const CladdingZone& c, const std::string& base, IdSet& seen)
+{
+    if (auto s = checkId(c.id, seen, base + "/id"); !s.ok()) return s;
+    if (!nonNegative(c.start)) return fail(ErrorCode::InvalidValue, "The cladding start must be zero or more.", base + "/start");
+    if (!std::isfinite(c.end) || !(c.end > c.start)) {
+        return fail(ErrorCode::InvalidValue, "The cladding must end after it starts.", base + "/end");
+    }
+    if (!nonNegative(c.bottom)) return fail(ErrorCode::InvalidValue, "The cladding bottom must be zero or more.", base + "/bottom");
+    if (!std::isfinite(c.top) || !(c.top > c.bottom)) {
+        return fail(ErrorCode::InvalidValue, "The cladding top must be above its bottom.", base + "/top");
+    }
+    if (!inRange(c.depth, 0.005, 0.2)) {
+        return fail(ErrorCode::InvalidValue, "The cladding depth must be from 0.005 to 0.2 metres.", base + "/depth");
+    }
+    if (!isValidName(c.material)) {
+        return fail(ErrorCode::InvalidValue, "The cladding material \"" + c.material + "\" is not a valid name.", base + "/material");
     }
     return {};
 }
@@ -132,6 +213,9 @@ Status checkWalls(const Floor& floor, const std::string& floorPath, IdSet& seen)
         }
         if (auto s = checkOptionalName(w.materialInside, "material", base + "/material_inside"); !s.ok()) return s;
         if (auto s = checkOptionalName(w.materialOutside, "material", base + "/material_outside"); !s.ok()) return s;
+        for (std::size_t k = 0; k < w.cladding.size(); ++k) {
+            if (auto s = checkCladding(w.cladding[k], base + "/cladding/" + std::to_string(k), seen); !s.ok()) return s;
+        }
     }
     return {};
 }
@@ -174,6 +258,7 @@ Status checkOpenings(const Floor& floor, const std::string& floorPath, IdSet& se
         if (!positive(o.height)) return fail(ErrorCode::InvalidValue, "The opening height must be a number above zero.", base + "/height");
         if (!nonNegative(o.sill)) return fail(ErrorCode::InvalidValue, "The opening sill must be zero or more.", base + "/sill");
         if (auto s = checkOptionalName(o.frame, "frame", base + "/frame"); !s.ok()) return s;
+        if (auto s = checkOptionalName(o.fill, "fill", base + "/fill"); !s.ok()) return s;
     }
     return {};
 }
@@ -208,6 +293,24 @@ Status checkGeneratorUse(const GeneratorUse& g, const std::string& base)
         }
         if (const double* d = std::get_if<double>(&p.value); d && !std::isfinite(*d)) {
             return fail(ErrorCode::InvalidValue, "The parameter value must be a finite number.", at);
+        }
+    }
+    return {};
+}
+
+// Refuses items that stand on each other in a loop. Every item named by on is known to be on the floor.
+Status checkStacking(const Floor& floor, const std::string& floorPath)
+{
+    for (std::size_t i = 0; i < floor.items.size(); ++i) {
+        const Item& start = floor.items[i];
+        const Item* current = &start;
+        for (std::size_t step = 0; step < floor.items.size() && current->on; ++step) {
+            current = findItem(floor, *current->on);
+            if (!current) break;
+            if (current == &start) {
+                return fail(ErrorCode::InvalidValue, "The item " + start.id + " stands on items that stand on it again.",
+                            floorPath + "/items/" + std::to_string(i) + "/on");
+            }
         }
     }
     return {};
@@ -253,8 +356,21 @@ Status checkItems(const Floor& floor, const std::string& floorPath, IdSet& seen)
         if (!positive(it.size.height)) {
             return fail(ErrorCode::InvalidValue, "The item height must be a number above zero.", base + "/size/height");
         }
+        if (it.on) {
+            if (*it.on == it.id) {
+                return fail(ErrorCode::InvalidValue, "The item " + it.id + " cannot stand on itself.", base + "/on");
+            }
+            if (!findItem(floor, *it.on)) {
+                return fail(ErrorCode::NotFound,
+                            "The item " + it.id + " stands on " + *it.on + ", which is not an item of this floor.", base + "/on");
+            }
+            if (it.wall) {
+                return fail(ErrorCode::InvalidValue, "The item " + it.id + " hangs on a wall, so it cannot stand on another item.",
+                            base + "/on");
+            }
+        }
     }
-    return {};
+    return checkStacking(floor, floorPath);
 }
 
 // Checks the stairs of one floor.
@@ -271,9 +387,12 @@ Status checkStairs(const Floor& floor, const std::string& floorPath, IdSet& seen
             return fail(ErrorCode::InvalidValue, "The stair rotation must be from 0 up to 360 degrees.", base + "/rotation");
         }
         if (!std::isfinite(st.width) || st.width < kMinStairWidth || st.width > kMaxStairWidth) {
-            return fail(ErrorCode::InvalidValue, "The stair width must be from 0.6 to 3 metres.", base + "/width");
+            return fail(ErrorCode::InvalidValue, "The stair width must be from 0.6 to 6 metres.", base + "/width");
         }
         if (auto s = checkOptionalName(st.material, "material", base + "/material"); !s.ok()) return s;
+        if (st.rise && !inRange(*st.rise, 0.1, 6.0)) {
+            return fail(ErrorCode::InvalidValue, "The stair rise must be from 0.1 to 6 metres.", base + "/rise");
+        }
     }
     return {};
 }
@@ -314,7 +433,199 @@ Status checkRoofSettingsFields(const RoofSettings& r, const std::string& where)
     if (r.direction && (!std::isfinite(*r.direction) || *r.direction < 0.0 || *r.direction >= 360.0)) {
         return fail(ErrorCode::InvalidValue, "The roof direction must be from 0 up to 360 degrees.", where + "/direction");
     }
+    if (!inRange(r.secondPitch, 0.0, kMaxRoofPitch)) {
+        return fail(ErrorCode::InvalidValue, "The second roof pitch must be from 0 to 75 degrees.", where + "/second_pitch");
+    }
+    if (!inRange(r.breakRatio, 0.1, 0.9)) {
+        return fail(ErrorCode::InvalidValue, "The break ratio must be from 0.1 to 0.9.", where + "/break_ratio");
+    }
+    if (!inRange(r.ridgeOffset, -0.45, 0.45)) {
+        return fail(ErrorCode::InvalidValue, "The ridge offset must be from -0.45 to 0.45.", where + "/ridge_offset");
+    }
+    if (!inRange(r.rise, 0.1, 10.0)) {
+        return fail(ErrorCode::InvalidValue, "The roof rise must be from 0.1 to 10 metres.", where + "/rise");
+    }
     return {};
+}
+
+// Checks the decks of one floor.
+Status checkDecks(const Floor& floor, const std::string& floorPath, IdSet& seen)
+{
+    for (std::size_t i = 0; i < floor.decks.size(); ++i) {
+        const Deck& d = floor.decks[i];
+        const std::string base = floorPath + "/decks/" + std::to_string(i);
+        if (auto s = checkId(d.id, seen, base + "/id"); !s.ok()) return s;
+        if (auto s = checkOutline(d.outline, base + "/outline"); !s.ok()) return s;
+        if (!inRange(d.top, 0.0, 10.0)) return fail(ErrorCode::InvalidValue, "The deck top must be from 0 to 10 metres.", base + "/top");
+        if (!inRange(d.thickness, 0.05, 1.0)) {
+            return fail(ErrorCode::InvalidValue, "The deck thickness must be from 0.05 to 1 metre.", base + "/thickness");
+        }
+        if (auto s = checkOptionalName(d.material, "material", base + "/material"); !s.ok()) return s;
+        if (auto s = checkOptionalName(d.skirtMaterial, "material", base + "/skirt_material"); !s.ok()) return s;
+    }
+    return {};
+}
+
+// Checks the railings of one floor.
+Status checkRailings(const Floor& floor, const std::string& floorPath, IdSet& seen)
+{
+    for (std::size_t i = 0; i < floor.railings.size(); ++i) {
+        const Railing& r = floor.railings[i];
+        const std::string base = floorPath + "/railings/" + std::to_string(i);
+        if (auto s = checkId(r.id, seen, base + "/id"); !s.ok()) return s;
+        if (auto s = checkLine(r.points, base + "/points"); !s.ok()) return s;
+        if (r.host && !findDeck(floor, *r.host)) {
+            return fail(ErrorCode::NotFound, "The railing " + r.id + " stands on " + *r.host + ", which is not a deck of this floor.",
+                        base + "/host");
+        }
+        if (!inRange(r.base, 0.0, 20.0)) return fail(ErrorCode::InvalidValue, "The railing base must be from 0 to 20 metres.", base + "/base");
+        if (!inRange(r.height, 0.3, 3.0)) {
+            return fail(ErrorCode::InvalidValue, "The railing height must be from 0.3 to 3 metres.", base + "/height");
+        }
+        if (!isValidName(r.style)) return fail(ErrorCode::InvalidValue, "The railing style is not a valid name.", base + "/style");
+        if (auto s = checkOptionalName(r.material, "material", base + "/material"); !s.ok()) return s;
+        if (auto s = checkOptionalName(r.glassMaterial, "material", base + "/glass_material"); !s.ok()) return s;
+    }
+    return {};
+}
+
+// Checks the canopies of one floor.
+Status checkCanopies(const Floor& floor, const std::string& floorPath, IdSet& seen)
+{
+    for (std::size_t i = 0; i < floor.canopies.size(); ++i) {
+        const Canopy& c = floor.canopies[i];
+        const std::string base = floorPath + "/canopies/" + std::to_string(i);
+        if (auto s = checkId(c.id, seen, base + "/id"); !s.ok()) return s;
+        if (auto s = checkOutline(c.outline, base + "/outline"); !s.ok()) return s;
+        if (!inRange(c.height, 1.0, 20.0)) {
+            return fail(ErrorCode::InvalidValue, "The canopy height must be from 1 to 20 metres.", base + "/height");
+        }
+        if (!inRange(c.thickness, 0.05, 1.0)) {
+            return fail(ErrorCode::InvalidValue, "The canopy thickness must be from 0.05 to 1 metre.", base + "/thickness");
+        }
+        if (auto s = checkRoofSettingsFields(c.roof, base + "/roof"); !s.ok()) return s;
+        if (auto s = checkOptionalName(c.material, "material", base + "/material"); !s.ok()) return s;
+        if (auto s = checkOptionalName(c.undersideMaterial, "material", base + "/underside_material"); !s.ok()) return s;
+        if (auto s = checkOptionalName(c.fasciaMaterial, "material", base + "/fascia_material"); !s.ok()) return s;
+    }
+    return {};
+}
+
+// Checks the dormers of one floor.
+Status checkDormers(const Floor& floor, const std::string& floorPath, IdSet& seen)
+{
+    for (std::size_t i = 0; i < floor.dormers.size(); ++i) {
+        const Dormer& d = floor.dormers[i];
+        const std::string base = floorPath + "/dormers/" + std::to_string(i);
+        if (auto s = checkId(d.id, seen, base + "/id"); !s.ok()) return s;
+        if (!std::isfinite(d.x)) return fail(ErrorCode::InvalidValue, "The dormer x coordinate must be a finite number.", base + "/x");
+        if (!std::isfinite(d.y)) return fail(ErrorCode::InvalidValue, "The dormer y coordinate must be a finite number.", base + "/y");
+        if (!isValidName(d.type)) return fail(ErrorCode::InvalidValue, "The dormer type is not a valid name.", base + "/type");
+        if (!inRange(d.width, 0.5, 6.0)) return fail(ErrorCode::InvalidValue, "The dormer width must be from 0.5 to 6 metres.", base + "/width");
+        if (!inRange(d.depth, 0.5, 6.0)) return fail(ErrorCode::InvalidValue, "The dormer depth must be from 0.5 to 6 metres.", base + "/depth");
+        if (!inRange(d.pitch, kMinPitchedRoofPitch, kMaxRoofPitch)) {
+            return fail(ErrorCode::InvalidValue, "The dormer pitch must be from 5 to 75 degrees.", base + "/pitch");
+        }
+        if (!inRange(d.windowWidth, 0.2, d.width)) {
+            return fail(ErrorCode::InvalidValue, "The dormer window must be from 0.2 metres wide up to the dormer's width.",
+                        base + "/window_width");
+        }
+        if (!std::isfinite(d.windowHeight) || d.windowHeight < 0.2 - 1e-9) {
+            return fail(ErrorCode::InvalidValue, "The dormer window must be at least 0.2 metres high.", base + "/window_height");
+        }
+        if (!nonNegative(d.windowSill)) {
+            return fail(ErrorCode::InvalidValue, "The dormer window sill must be zero or more.", base + "/window_sill");
+        }
+        if (auto s = checkOptionalName(d.material, "material", base + "/material"); !s.ok()) return s;
+        if (auto s = checkOptionalName(d.roofMaterial, "material", base + "/roof_material"); !s.ok()) return s;
+    }
+    return {};
+}
+
+// Checks the light strips of one floor.
+Status checkLightStrips(const Floor& floor, const std::string& floorPath, IdSet& seen)
+{
+    for (std::size_t i = 0; i < floor.lightStrips.size(); ++i) {
+        const LightStrip& l = floor.lightStrips[i];
+        const std::string base = floorPath + "/light_strips/" + std::to_string(i);
+        if (auto s = checkId(l.id, seen, base + "/id"); !s.ok()) return s;
+        if (l.kind == LightStripKind::Step) {
+            if (auto s = checkPositions(l.points, base + "/points"); !s.ok()) return s;
+            if (!l.stair) {
+                return fail(ErrorCode::InvalidValue, "A step light strip names the stair it lights.", base + "/stair");
+            }
+        } else if (auto s = checkLine(l.points, base + "/points"); !s.ok()) {
+            return s;
+        }
+        if (l.stair && !findStair(floor, *l.stair)) {
+            return fail(ErrorCode::NotFound, "The light strip " + l.id + " names " + *l.stair + ", which is not a stair of this floor.",
+                        base + "/stair");
+        }
+        if (!inRange(l.z, 0.0, floor.ceilingHeight)) {
+            return fail(ErrorCode::InvalidValue, "The light strip height must be from 0 to the ceiling height.", base + "/z");
+        }
+        if (!inRange(l.power, 0.0, 200.0)) {
+            return fail(ErrorCode::InvalidValue, "The light strip power must be from 0 to 200 watts per metre.", base + "/power");
+        }
+    }
+    return {};
+}
+
+// Checks the ground, the boundaries with their gates and the surfaces round the building.
+Status checkSite(const Site& site, IdSet& seen)
+{
+    if (!inRange(site.ground.margin, 0.0, 500.0)) {
+        return fail(ErrorCode::InvalidValue, "The ground margin must be from 0 to 500 metres.", "/site/ground/margin");
+    }
+    if (auto s = checkOptionalName(site.ground.material, "material", "/site/ground/material"); !s.ok()) return s;
+    for (std::size_t i = 0; i < site.boundaries.size(); ++i) {
+        const SiteBoundary& b = site.boundaries[i];
+        const std::string base = "/site/boundaries/" + std::to_string(i);
+        if (auto s = checkId(b.id, seen, base + "/id"); !s.ok()) return s;
+        if (auto s = checkLine(b.points, base + "/points"); !s.ok()) return s;
+        if (!inRange(b.height, 0.3, 4.0)) {
+            return fail(ErrorCode::InvalidValue, "The boundary height must be from 0.3 to 4 metres.", base + "/height");
+        }
+        if (!inRange(b.thickness, 0.02, 1.0)) {
+            return fail(ErrorCode::InvalidValue, "The boundary thickness must be from 0.02 to 1 metre.", base + "/thickness");
+        }
+        if (!isValidName(b.style)) return fail(ErrorCode::InvalidValue, "The fence style is not a valid name.", base + "/style");
+        if (auto s = checkOptionalName(b.material, "material", base + "/material"); !s.ok()) return s;
+        const double length = lineLength(b.points, b.closed);
+        for (std::size_t k = 0; k < b.gates.size(); ++k) {
+            const Gate& g = b.gates[k];
+            const std::string at = base + "/gates/" + std::to_string(k);
+            if (auto s = checkId(g.id, seen, at + "/id"); !s.ok()) return s;
+            if (!inRange(g.offset, 0.0, length)) {
+                return fail(ErrorCode::InvalidValue, "The gate " + g.id + " must lie on its boundary's line.", at + "/offset");
+            }
+            if (!inRange(g.width, 0.5, 6.0)) return fail(ErrorCode::InvalidValue, "The gate width must be from 0.5 to 6 metres.", at + "/width");
+            if (auto s = checkOptionalName(g.material, "material", at + "/material"); !s.ok()) return s;
+        }
+    }
+    for (std::size_t i = 0; i < site.surfaces.size(); ++i) {
+        const SiteSurface& surface = site.surfaces[i];
+        const std::string base = "/site/surfaces/" + std::to_string(i);
+        if (auto s = checkId(surface.id, seen, base + "/id"); !s.ok()) return s;
+        if (auto s = checkOutline(surface.outline, base + "/outline"); !s.ok()) return s;
+        if (!inRange(surface.thickness, 0.0, 0.5)) {
+            return fail(ErrorCode::InvalidValue, "The surface thickness must be from 0 to 0.5 metres.", base + "/thickness");
+        }
+        if (auto s = checkOptionalName(surface.material, "material", base + "/material"); !s.ok()) return s;
+    }
+    return {};
+}
+
+// Checks the foundation band.
+Status checkFoundationFields(const Foundation& f)
+{
+    if (!inRange(f.height, 0.05, 2.0)) {
+        return fail(ErrorCode::InvalidValue, "The foundation height must be from 0.05 to 2 metres.", "/foundation/height");
+    }
+    if (!inRange(f.stepOut, 0.0, 0.3)) {
+        return fail(ErrorCode::InvalidValue, "The foundation step out must be from 0 to 0.3 metres.", "/foundation/step_out");
+    }
+    return checkOptionalName(f.material, "material", "/foundation/material");
 }
 
 // Checks the roof default and the roof section entries.
@@ -363,7 +674,12 @@ Status checkFloor(const Floor& floor, std::size_t index, IdSet& seen)
     if (auto s = checkOpenings(floor, base, seen); !s.ok()) return s;
     if (auto s = checkItems(floor, base, seen); !s.ok()) return s;
     if (auto s = checkStairs(floor, base, seen); !s.ok()) return s;
-    return checkLights(floor, base, seen);
+    if (auto s = checkLights(floor, base, seen); !s.ok()) return s;
+    if (auto s = checkDecks(floor, base, seen); !s.ok()) return s;
+    if (auto s = checkRailings(floor, base, seen); !s.ok()) return s;
+    if (auto s = checkCanopies(floor, base, seen); !s.ok()) return s;
+    if (auto s = checkDormers(floor, base, seen); !s.ok()) return s;
+    return checkLightStrips(floor, base, seen);
 }
 
 }
@@ -388,6 +704,10 @@ Floor* findFloorContaining(Plan& plan, std::string_view objectId)
 {
     for (auto& f : plan.floors) {
         if (findPoint(f, objectId) || findWall(f, objectId) || findRoom(f, objectId) || findOpening(f, objectId) || findItem(f, objectId) || findStair(f, objectId) || findLight(f, objectId)) return &f;
+        if (findCladding(f, objectId) || findDeck(f, objectId) || findRailing(f, objectId) || findCanopy(f, objectId)
+            || findDormer(f, objectId) || findLightStrip(f, objectId)) {
+            return &f;
+        }
     }
     return nullptr;
 }
@@ -451,11 +771,79 @@ const Floor* floorBelow(const Plan& plan, std::string_view floorId)
 
 Item* findItem(Floor& floor, std::string_view id) { return findById(floor.items, id); }
 const Item* findItem(const Floor& floor, std::string_view id) { return findById(floor.items, id); }
+Deck* findDeck(Floor& floor, std::string_view id) { return findById(floor.decks, id); }
+const Deck* findDeck(const Floor& floor, std::string_view id) { return findById(floor.decks, id); }
+Railing* findRailing(Floor& floor, std::string_view id) { return findById(floor.railings, id); }
+const Railing* findRailing(const Floor& floor, std::string_view id) { return findById(floor.railings, id); }
+Canopy* findCanopy(Floor& floor, std::string_view id) { return findById(floor.canopies, id); }
+const Canopy* findCanopy(const Floor& floor, std::string_view id) { return findById(floor.canopies, id); }
+Dormer* findDormer(Floor& floor, std::string_view id) { return findById(floor.dormers, id); }
+const Dormer* findDormer(const Floor& floor, std::string_view id) { return findById(floor.dormers, id); }
+LightStrip* findLightStrip(Floor& floor, std::string_view id) { return findById(floor.lightStrips, id); }
+const LightStrip* findLightStrip(const Floor& floor, std::string_view id) { return findById(floor.lightStrips, id); }
+
+// Looks through the walls of a floor for a cladding zone.
+CladdingZone* findCladding(Floor& floor, std::string_view id, Wall** wall)
+{
+    if (wall) *wall = nullptr;
+    for (Wall& w : floor.walls) {
+        if (CladdingZone* zone = findById(w.cladding, id)) {
+            if (wall) *wall = &w;
+            return zone;
+        }
+    }
+    return nullptr;
+}
+
+const CladdingZone* findCladding(const Floor& floor, std::string_view id, const Wall** wall)
+{
+    Wall* found = nullptr;
+    const CladdingZone* zone = findCladding(const_cast<Floor&>(floor), id, &found);
+    if (wall) *wall = found;
+    return zone;
+}
+
+SiteBoundary* findBoundary(Plan& plan, std::string_view id) { return findById(plan.site.boundaries, id); }
+const SiteBoundary* findBoundary(const Plan& plan, std::string_view id) { return findById(plan.site.boundaries, id); }
+
+// Looks through the site boundaries for a gate.
+Gate* findGate(Plan& plan, std::string_view id, SiteBoundary** boundary)
+{
+    if (boundary) *boundary = nullptr;
+    for (SiteBoundary& b : plan.site.boundaries) {
+        if (Gate* gate = findById(b.gates, id)) {
+            if (boundary) *boundary = &b;
+            return gate;
+        }
+    }
+    return nullptr;
+}
+
+const Gate* findGate(const Plan& plan, std::string_view id, const SiteBoundary** boundary)
+{
+    SiteBoundary* found = nullptr;
+    const Gate* gate = findGate(const_cast<Plan&>(plan), id, &found);
+    if (boundary) *boundary = found;
+    return gate;
+}
+
+SiteSurface* findSiteSurface(Plan& plan, std::string_view id) { return findById(plan.site.surfaces, id); }
+const SiteSurface* findSiteSurface(const Plan& plan, std::string_view id) { return findById(plan.site.surfaces, id); }
+
+// The floor at ground level.
+const Floor& groundLevelFloor(const Plan& plan)
+{
+    if (plan.groundFloor) {
+        if (const Floor* floor = findFloor(plan, *plan.groundFloor)) return *floor;
+    }
+    return plan.floors.front();
+}
 
 // Says whether any floor or object already uses this id.
 bool idInUse(const Plan& plan, std::string_view id)
 {
-    return findFloor(plan, id) != nullptr || findFloorContaining(plan, id) != nullptr || findRoofSection(plan, id) != nullptr;
+    return findFloor(plan, id) != nullptr || findFloorContaining(plan, id) != nullptr || findRoofSection(plan, id) != nullptr
+           || findBoundary(plan, id) != nullptr || findGate(plan, id) != nullptr || findSiteSurface(plan, id) != nullptr;
 }
 
 // Makes an id the old way: the prefix and one more than the highest number used with it, counting on while that
@@ -473,8 +861,21 @@ static Id countedId(const Plan& plan, std::string_view prefix)
         for (const auto& it : f.items) consider(it.id);
         for (const auto& st : f.stairs) consider(st.id);
         for (const auto& l : f.lights) consider(l.id);
+        for (const auto& w : f.walls) {
+            for (const auto& c : w.cladding) consider(c.id);
+        }
+        for (const auto& d : f.decks) consider(d.id);
+        for (const auto& r : f.railings) consider(r.id);
+        for (const auto& c : f.canopies) consider(c.id);
+        for (const auto& d : f.dormers) consider(d.id);
+        for (const auto& l : f.lightStrips) consider(l.id);
     }
     for (const auto& r : plan.roofSections) consider(r.id);
+    for (const auto& b : plan.site.boundaries) {
+        consider(b.id);
+        for (const auto& g : b.gates) consider(g.id);
+    }
+    for (const auto& s : plan.site.surfaces) consider(s.id);
     Id id = std::string(prefix) + std::to_string(highest + 1);
     for (long long next = highest + 2; idInUse(plan, id); ++next) id = std::string(prefix) + std::to_string(next);
     return id;
@@ -513,7 +914,12 @@ Status checkPlan(const Plan& plan)
     for (std::size_t i = 0; i < plan.floors.size(); ++i) {
         if (auto s = checkFloor(plan.floors[i], i, seen); !s.ok()) return s;
     }
-    return checkRoofs(plan, seen);
+    if (auto s = checkRoofs(plan, seen); !s.ok()) return s;
+    if (plan.groundFloor && !findFloor(plan, *plan.groundFloor)) {
+        return fail(ErrorCode::NotFound, "The ground floor " + *plan.groundFloor + " is not a floor of the plan.", "/ground_floor");
+    }
+    if (auto s = checkSite(plan.site, seen); !s.ok()) return s;
+    return checkFoundationFields(plan.foundation);
 }
 
 // The name used in files for an opening type.
@@ -587,6 +993,41 @@ std::optional<StairTurn> stairTurnFromName(std::string_view name)
 {
     if (name == "left") return StairTurn::Left;
     if (name == "right") return StairTurn::Right;
+    return std::nullopt;
+}
+
+// The name used in files for a site boundary kind.
+std::string_view boundaryKindName(BoundaryKind kind)
+{
+    return kind == BoundaryKind::Wall ? "wall" : "fence";
+}
+
+// The site boundary kind for a name used in files.
+std::optional<BoundaryKind> boundaryKindFromName(std::string_view name)
+{
+    if (name == "fence") return BoundaryKind::Fence;
+    if (name == "wall") return BoundaryKind::Wall;
+    return std::nullopt;
+}
+
+// The name used in files for a site surface kind.
+std::string_view siteSurfaceKindName(SiteSurfaceKind kind)
+{
+    switch (kind) {
+    case SiteSurfaceKind::Path: return "path";
+    case SiteSurfaceKind::Driveway: return "driveway";
+    case SiteSurfaceKind::Paving: return "paving";
+    case SiteSurfaceKind::Lawn: return "lawn";
+    }
+    return "path";
+}
+
+// The site surface kind for a name used in files.
+std::optional<SiteSurfaceKind> siteSurfaceKindFromName(std::string_view name)
+{
+    for (SiteSurfaceKind kind : {SiteSurfaceKind::Path, SiteSurfaceKind::Driveway, SiteSurfaceKind::Paving, SiteSurfaceKind::Lawn}) {
+        if (siteSurfaceKindName(kind) == name) return kind;
+    }
     return std::nullopt;
 }
 
