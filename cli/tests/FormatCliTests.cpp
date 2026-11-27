@@ -4,17 +4,23 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <initializer_list>
 #include <string>
+#include <system_error>
 #include <vector>
 
 using plynth::cli::kExitFailed;
 using plynth::cli::kExitOk;
 using plynth::cli::testing::errorCode;
+using plynth::cli::testing::ids;
 using plynth::cli::testing::readFile;
+using plynth::cli::testing::runChecked;
 using plynth::cli::testing::Sample;
+using plynth::cli::testing::TempFolder;
+using plynth::cli::testing::utf8;
 
 namespace {
 
@@ -97,6 +103,34 @@ void makeOlder(const Sample& sample) {
     writeJson(sample.folder / "project.json", project);
 }
 
+// The folder that keeps a saved file of every format version and the samples as 0.1.0 and 0.1.1 shipped them.
+std::filesystem::path formatsDir() {
+    return std::filesystem::path(PLYNTH_FORMATS_DIR);
+}
+
+// Copies one saved file of the formats folder to a file, creating its folder.
+void copyFormatFile(const std::string& name, const std::filesystem::path& target) {
+    std::filesystem::create_directories(target.parent_path());
+    std::filesystem::copy_file(formatsDir() / name, target, std::filesystem::copy_options::overwrite_existing);
+}
+
+// A project folder with the version 7 plan and the version 6 project file.
+std::filesystem::path makeVersionSevenProject(const TempFolder& temp, const std::string& name) {
+    const std::filesystem::path folder = temp.path() / name;
+    copyFormatFile("plan.v7.json", folder / "plan.json");
+    copyFormatFile("project.v6.json", folder / "project.json");
+    return folder;
+}
+
+// The names of the files in a project's backup folder, sorted.
+std::vector<std::string> backupNames(const std::filesystem::path& folder) {
+    std::vector<std::string> names;
+    std::error_code ignored;
+    for (const auto& entry : std::filesystem::directory_iterator(folder / "backup", ignored)) {
+        names.push_back(utf8(entry.path().filename()));
+    }
+    std::sort(names.begin(), names.end());
+    return names;
 }
 
 }
@@ -221,4 +255,73 @@ TEST_CASE("a project file of version 8 is refused with unsupported_version", "[c
     CHECK(errorCode(outcome) == "unsupported_version");
     CHECK_FALSE(outcome.answer.at("error").at("message").get<std::string>().empty());
     CHECK(readFile(sample.folder / "project.json") == before);
+}
+
+TEST_CASE("the first save of a version 7 plan lists the kept files once", "[cli][format][backup]") {
+    const TempFolder temp("format-backup");
+    const std::filesystem::path folder = makeVersionSevenProject(temp, "old7");
+    const std::string project = utf8(folder);
+
+    const auto first = runChecked({"point", "add", "--x", "40", "--y", "40", "--project", project});
+    REQUIRE(first.exitCode == kExitOk);
+    const std::vector<std::string> expected = {utf8(folder / "backup" / "plan.v7.json"),
+                                               utf8(folder / "backup" / "project.v6.json")};
+    REQUIRE(first.answer.at("result").contains("backup"));
+    CHECK(ids(first.answer.at("result").at("backup")) == expected);
+    CHECK(readFile(folder / "backup" / "plan.v7.json") == readFile(formatsDir() / "plan.v7.json"));
+    CHECK(readFile(folder / "backup" / "project.v6.json") == readFile(formatsDir() / "project.v6.json"));
+    CHECK(readJson(folder / "plan.json").at("version") == 8);
+
+    const auto second = runChecked({"point", "add", "--x", "41", "--y", "41", "--project", project});
+    REQUIRE(second.exitCode == kExitOk);
+    CHECK_FALSE(second.answer.at("result").contains("backup"));
+    CHECK(backupNames(folder) == std::vector<std::string>{"plan.v7.json", "project.v6.json"});
+}
+
+TEST_CASE("a current project saves with no backup list and no backup folder", "[cli][format][backup]") {
+    const Sample sample("format-backup-none");
+    const auto added = sample.run({"point", "add", "--x", "2", "--y", "2"});
+    REQUIRE(added.exitCode == kExitOk);
+    CHECK_FALSE(added.answer.at("result").contains("backup"));
+    CHECK_FALSE(std::filesystem::exists(sample.folder / "backup"));
+}
+
+TEST_CASE("a copy of a sample saved by 0.1.1 keeps its older files on an export options write", "[cli][format][backup]") {
+    const TempFolder temp("format-backup-sample");
+    const std::filesystem::path source = formatsDir() / "saved-0.1.1" / "house";
+    const std::filesystem::path folder = temp.path() / "house";
+    std::filesystem::copy(source, folder, std::filesystem::copy_options::recursive);
+    const std::string project = utf8(folder);
+
+    const auto off = runChecked({"export", "licenses", "off", "--project", project});
+    REQUIRE(off.exitCode == kExitOk);
+    CHECK(off.answer.at("result").at("enabled") == false);
+    const std::vector<std::string> expected = {utf8(folder / "backup" / "plan.v7.json"),
+                                               utf8(folder / "backup" / "project.v6.json")};
+    REQUIRE(off.answer.at("result").contains("backup"));
+    CHECK(ids(off.answer.at("result").at("backup")) == expected);
+    CHECK(readFile(folder / "backup" / "plan.v7.json") == readFile(source / "plan.json"));
+    CHECK(readFile(folder / "backup" / "project.v6.json") == readFile(source / "project.json"));
+
+    const auto edit = runChecked({"project", "set", "--grid", "0.25", "--project", project});
+    REQUIRE(edit.exitCode == kExitOk);
+    CHECK_FALSE(edit.answer.at("result").contains("backup"));
+    CHECK(readJson(folder / "plan.json").at("version") == 8);
+    CHECK(readJson(folder / "project.json").at("version") == 7);
+    CHECK(backupNames(folder) == std::vector<std::string>{"plan.v7.json", "project.v6.json"});
+}
+
+TEST_CASE("project recover lists the older files it kept", "[cli][format][backup]") {
+    const TempFolder temp("format-backup-recover");
+    const std::filesystem::path folder = makeVersionSevenProject(temp, "old7");
+    copyFormatFile("plan.v7.json", folder / "autosave" / "plan.json");
+    copyFormatFile("project.v6.json", folder / "autosave" / "project.json");
+
+    const auto recovered = runChecked({"project", "recover", "--project", utf8(folder)});
+    REQUIRE(recovered.exitCode == kExitOk);
+    CHECK(recovered.answer.at("result").at("recovered") == true);
+    REQUIRE(recovered.answer.at("result").contains("backup"));
+    CHECK(ids(recovered.answer.at("result").at("backup")) ==
+          std::vector<std::string>{utf8(folder / "backup" / "plan.v7.json"), utf8(folder / "backup" / "project.v6.json")});
+    CHECK_FALSE(std::filesystem::exists(folder / "autosave"));
 }

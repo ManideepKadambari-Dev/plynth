@@ -127,6 +127,7 @@ Answer projectRecover(const RunContext& context, const std::string& projectOptio
     if (!checkLock(command, folder, false, refused)) {
         return refused;
     }
+    const std::vector<std::filesystem::path> kept = backupFiles(folder);
     if (const Status done = recoverAutosave(folder, discard); !done.ok()) {
         return failure(command, done);
     }
@@ -137,7 +138,9 @@ Answer projectRecover(const RunContext& context, const std::string& projectOptio
     Json result = projectInfoJson(folder, loaded.project);
     result["recovered"] = !discard;
     result["discarded"] = discard;
-    return success(command, std::move(result));
+    Answer answer = success(command, std::move(result));
+    addNewBackups(answer, folder, kept);
+    return answer;
 }
 
 // One recent project as project recent prints it.

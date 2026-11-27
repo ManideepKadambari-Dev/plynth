@@ -67,6 +67,7 @@ target_compile_definitions(plynth_cli_tests PRIVATE
     PLYNTH_SAMPLE_PLAN="${PROJECT_SOURCE_DIR}/samples/plans/apartment-01.png"
     PLYNTH_SAMPLE_CHAIR_FOLDER="${PROJECT_SOURCE_DIR}/samples/models/chair"
     PLYNTH_RENDER_FIXTURES="${PROJECT_SOURCE_DIR}/tests/data/render"
+    PLYNTH_FORMATS_DIR="${PROJECT_SOURCE_DIR}/tests/data/formats"
     PLYNTH_DOCS_DIR="${PROJECT_SOURCE_DIR}/docs"
     PLYNTH_FAKE_BLENDER="$<TARGET_FILE:plynth_fake_blender>"
     PLYNTH_LEAKY_BLENDER="$<TARGET_FILE:plynth_leaky_blender>")

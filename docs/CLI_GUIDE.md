@@ -3539,6 +3539,8 @@ For a script on a new machine:
 
 **Older files upgrade by themselves.** A version 7 plan gets empty lists, `fill`, `on`, `rise` and `ground_floor` as `null`, `cheeks` false, `railing` true, `second_pitch` 15, `break_ratio` 0.5, `ridge_offset` 0 and `rise` 1 in its roof settings, and a site and a foundation that are both off. A version 6 project gets `oak_planks`, `concrete`, `grass`, `concrete`, `painted_wood` and `red_brick` as the six new defaults. Nothing is written when you only read. The next command that edits and saves writes the new versions, as the app does.
 
+**The older files are kept.** That first save, or the first change to an export switch or group, copies them once into `backup/` as `plan.v7.json`, `project.v6.json` and so on, and its answer lists them in `result.backup`, for example `"backup": ["D:/Plans/MyApartment/backup/plan.v7.json", "D:/Plans/MyApartment/backup/project.v6.json"]`. Later saves leave `backup` out.
+
 **Older programs refuse the new files** with `unsupported_version`, and this one refuses a plan newer than 8 or a project newer than 7 the same way. The shapes are in `schema/plan.schema.json` and `schema/project.schema.json`, and `schema/plan.v7.schema.json` and `schema/project.v6.schema.json` keep the old ones.
 
 ## File format version 7
