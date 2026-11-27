@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace plynth {
 
@@ -17,13 +18,18 @@ namespace plynth {
 // always put flush on its wall again with wallItemPose, on the side its position is on, at the place along the
 // wall nearest its position. Moves with the same non zero mergeKey and item merge into one undo step; the app
 // takes every key from ToolController::nextMergeKey. Every command here changes Items only.
+// Stacks (Stacking.h): what stands on an item comes along in the same undo step. Moving or turning an item moves
+// or turns the items on it with it, a change of its height, size or asset lifts them to its new top, and
+// removing it or hanging it on a wall lets them down to where it stood.
 
 // Adds an item at the end of the floor's item list, an asset item or a generator item (the caller makes the
 // generator's values and size with makeGeneratorUse in Generators.h first). item.id is ignored: the new id comes from newId with
 // kItemIdPrefix on the first apply and is kept for redo. rotation is normalized. When item.room is set it must
 // be a room of the floor and is kept; otherwise it is roomAt the position. A wall item is put flush as above,
 // with z as given and kept fully on the wall (slid inward from an end when it fits; wider than the wall is refused
-// by checkItemPlacement). NotFound for an unknown floor, otherwise as checkItemPlacement.
+// by checkItemPlacement). When item.on is set the item stands on that item of the floor, with z its top
+// (NotFound for an unknown item, InvalidValue when either hangs on a wall). NotFound for an unknown floor,
+// otherwise as checkItemPlacement.
 class PlaceItemCommand : public Command {
 public:
     PlaceItemCommand(Id floorId, Item item);
@@ -44,7 +50,9 @@ private:
 
 // Moves an item on the plan. A floor item goes to the position as given (the caller snaps it first with
 // snapItemPosition). A wall item slides along its wall to the place nearest the position and stays flush.
-// z and rotation stay. NotFound for an unknown item, InvalidValue for a position that is not finite.
+// z and rotation stay. An item standing on another one stays on it while its centre is over that item's
+// footprint; otherwise it goes back on the floor (z 0). NotFound for an unknown item, InvalidValue for a
+// position that is not finite.
 class MoveItemCommand : public Command {
 public:
     MoveItemCommand(Id itemId, Vec2 position, int mergeKey = 0);
@@ -62,6 +70,8 @@ private:
     int mergeKey_;
     Id floorId_;
     Item previous_;
+    std::vector<Item> stacked_; // the items on it the command changed, as they were
+    bool released_ = false;     // it left the item it stood on, in this move or one folded into it
 };
 
 // Moves a wall item on its wall face, for the wall view: offset along the wall's true centre line to its
@@ -89,7 +99,8 @@ private:
     Item previous_;
 };
 
-// Sets the height of an item's bottom above the floor, for floor and wall items. NotFound for an unknown item,
+// Sets the height of an item's bottom above the floor, for floor and wall items. An item standing on another
+// one that is set to any height but that item's top no longer stands on it. NotFound for an unknown item,
 // otherwise as checkItemPlacement.
 class SetItemHeightCommand : public Command {
 public:
@@ -107,7 +118,9 @@ private:
     double z_;
     int mergeKey_;
     Id floorId_;
-    double previous_ = 0.0;
+    Item previous_;
+    std::vector<Item> stacked_; // the items on it the command changed, as they were
+    bool released_ = false;     // it left the item it stood on, in this change or one folded into it
 };
 
 // Turns a floor item about its centre to a rotation in degrees (normalized). The position stays. NotFound for
@@ -130,6 +143,7 @@ private:
     int mergeKey_;
     Id floorId_;
     Item previous_;
+    std::vector<Item> stacked_; // the items on it the command changed, as they were
 };
 
 // Puts another asset in an item's place, or the same asset with its new size from the library. Position and
@@ -152,12 +166,13 @@ private:
     ItemSize size_;
     Id floorId_;
     Item previous_;
+    std::vector<Item> stacked_; // the items on it the command changed, as they were
 };
 
 // Mounts an item on a wall of its floor, or takes it off. Mounting puts it flush on the side of the wall its
-// position is on, at the nearest place along it , slid inward from an end so it stays fully on the wall when it fits
+// position is on, at the nearest place along it, slid inward from an end so it stays fully on the wall when it fits
 // (an item wider than the wall is refused by checkItemPlacement); z stays when above 0, otherwise it is defaultWallItemZ from
-// the project's default sizes. Taking it off clears wall and keeps position, rotation and z. NotFound for an
+// the project's default sizes. A mounted item no longer stands on anything. Taking it off clears wall and keeps position, rotation and z. NotFound for an
 // unknown item or wall, InvalidValue for a wall on another floor, otherwise as checkItemPlacement.
 class SetItemWallCommand : public Command {
 public:
@@ -174,9 +189,11 @@ private:
     std::optional<Id> wallId_;
     Id floorId_;
     Item previous_;
+    std::vector<Item> stacked_; // the items that stood on it, as they were
 };
 
-// Removes an item. NotFound for an unknown item. Undo puts it back at the same place in the list.
+// Removes an item. The items on it go down to where it stood. NotFound for an unknown item. Undo puts it back
+// at the same place in the list.
 class RemoveItemCommand : public Command {
 public:
     explicit RemoveItemCommand(Id itemId);
@@ -192,6 +209,7 @@ private:
     Id floorId_;
     Item removed_;
     std::size_t index_ = 0;
+    std::vector<Item> released_; // the items that stood on it, as they were
 };
 
 }

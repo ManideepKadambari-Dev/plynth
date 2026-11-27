@@ -2,7 +2,10 @@
 
 #include "plynth/core/Items.h"
 #include "plynth/core/Rooms.h"
+#include "plynth/core/Stacking.h"
 #include "plynth/core/WallGeometry.h"
+
+#include "StackSupport.h"
 
 #include <algorithm>
 #include <cmath>
@@ -78,12 +81,22 @@ void setRoomFromPosition(const Floor& floor, Item& item)
     }
 }
 
-// Finds the item in a floor by id and puts a copy of its old state back.
-void restore(Project& project, const Id& floorId, const Item& previous)
+// Finds the item in a floor by id and puts a copy of its old state back, and the items on it that changed.
+void restore(Project& project, const Id& floorId, const Item& previous, const std::vector<Item>& stacked = {})
 {
     Floor* floor = findFloor(project.plan, floorId);
     if (!floor) return;
     if (Item* item = findItem(*floor, previous.id)) *item = previous;
+    detail::restoreItems(*floor, stacked);
+}
+
+// Puts a changed item in place of the old one and brings the items on it along.
+void replaceKeepingStack(Floor& floor, Item& item, Item changed, std::vector<Item>& stacked)
+{
+    const Item before = item;
+    item = std::move(changed);
+    stacked.clear();
+    detail::carryStack(floor, before, stacked);
 }
 
 }
@@ -111,6 +124,15 @@ Status PlaceItemCommand::apply(Project& project)
     if (!floor) return fail(ErrorCode::NotFound, "There is no floor " + floorId_ + ".");
     Item item = item_;
     item.rotation = normalizeRotation(item.rotation);
+    if (item.on) {
+        const Item* below = findItem(*floor, *item.on);
+        if (!below) return fail(ErrorCode::NotFound, "There is no item " + *item.on + " on this floor.");
+        if (item.wall) return fail(ErrorCode::InvalidValue, "An item that hangs on a wall cannot stand on another item.");
+        if (below->wall) {
+            return fail(ErrorCode::InvalidValue, "The item " + below->id + " hangs on a wall, so nothing can stand on it.");
+        }
+        item.z = itemTop(*below);
+    }
     if (const Status s = checkItemPlacement(*floor, item); !s.ok()) return s;
     if (item.wall) {
         if (const Status s = poseOnWall(*floor, item); !s.ok()) return s;
@@ -169,16 +191,24 @@ Status MoveItemCommand::apply(Project& project)
         if (const Status s = poseOnWall(*found.floor, moved); !s.ok()) return s;
     }
     setRoomFromPosition(*found.floor, moved);
+    if (moved.on) {
+        const Item* below = findItem(*found.floor, *moved.on);
+        if (released_ || !below || !detail::footprintHolds(*below, moved.x, moved.y)) {
+            moved.on.reset();
+            moved.z = 0.0;
+            released_ = true;
+        }
+    }
     if (const Status s = checkItemPlacement(*found.floor, moved); !s.ok()) return s;
     floorId_ = found.floor->id;
     previous_ = *found.item;
-    *found.item = std::move(moved);
+    replaceKeepingStack(*found.floor, *found.item, std::move(moved), stacked_);
     return {};
 }
 
 void MoveItemCommand::undo(Project& project)
 {
-    restore(project, floorId_, previous_);
+    restore(project, floorId_, previous_, stacked_);
 }
 
 unsigned MoveItemCommand::changes() const
@@ -197,6 +227,8 @@ bool MoveItemCommand::mergeWith(const Command& next)
     const auto* other = dynamic_cast<const MoveItemCommand*>(&next);
     if (!other || mergeKey_ == 0 || other->mergeKey_ != mergeKey_ || other->itemId_ != itemId_) return false;
     position_ = other->position_;
+    released_ = released_ || other->released_;
+    detail::mergeSaved(stacked_, other->stacked_);
     return true;
 }
 
@@ -273,18 +305,23 @@ Status SetItemHeightCommand::apply(Project& project)
     if (!found.item) return noItem(itemId_);
     Item changed = *found.item;
     changed.z = z_;
+    if (changed.on) {
+        const Item* below = findItem(*found.floor, *changed.on);
+        if (released_ || !below || !(std::fabs(z_ - itemTop(*below)) <= kItemTouchTolerance)) {
+            changed.on.reset();
+            released_ = true;
+        }
+    }
     if (const Status s = checkItemPlacement(*found.floor, changed); !s.ok()) return s;
     floorId_ = found.floor->id;
-    previous_ = found.item->z;
-    found.item->z = z_;
+    previous_ = *found.item;
+    replaceKeepingStack(*found.floor, *found.item, std::move(changed), stacked_);
     return {};
 }
 
 void SetItemHeightCommand::undo(Project& project)
 {
-    Floor* floor = findFloor(project.plan, floorId_);
-    if (!floor) return;
-    if (Item* item = findItem(*floor, itemId_)) item->z = previous_;
+    restore(project, floorId_, previous_, stacked_);
 }
 
 unsigned SetItemHeightCommand::changes() const
@@ -303,6 +340,8 @@ bool SetItemHeightCommand::mergeWith(const Command& next)
     const auto* other = dynamic_cast<const SetItemHeightCommand*>(&next);
     if (!other || mergeKey_ == 0 || other->mergeKey_ != mergeKey_ || other->itemId_ != itemId_) return false;
     z_ = other->z_;
+    released_ = released_ || other->released_;
+    detail::mergeSaved(stacked_, other->stacked_);
     return true;
 }
 
@@ -327,13 +366,15 @@ Status RotateItemCommand::apply(Project& project)
     }
     floorId_ = found.floor->id;
     previous_ = *found.item;
-    found.item->rotation = normalizeRotation(rotation_);
+    Item turned = *found.item;
+    turned.rotation = normalizeRotation(rotation_);
+    replaceKeepingStack(*found.floor, *found.item, std::move(turned), stacked_);
     return {};
 }
 
 void RotateItemCommand::undo(Project& project)
 {
-    restore(project, floorId_, previous_);
+    restore(project, floorId_, previous_, stacked_);
 }
 
 unsigned RotateItemCommand::changes() const
@@ -352,6 +393,7 @@ bool RotateItemCommand::mergeWith(const Command& next)
     const auto* other = dynamic_cast<const RotateItemCommand*>(&next);
     if (!other || mergeKey_ == 0 || other->mergeKey_ != mergeKey_ || other->itemId_ != itemId_) return false;
     rotation_ = other->rotation_;
+    detail::mergeSaved(stacked_, other->stacked_);
     return true;
 }
 
@@ -386,13 +428,13 @@ Status SwapItemAssetCommand::apply(Project& project)
     }
     floorId_ = found.floor->id;
     previous_ = *found.item;
-    *found.item = std::move(swapped);
+    replaceKeepingStack(*found.floor, *found.item, std::move(swapped), stacked_);
     return {};
 }
 
 void SwapItemAssetCommand::undo(Project& project)
 {
-    restore(project, floorId_, previous_);
+    restore(project, floorId_, previous_, stacked_);
 }
 
 unsigned SwapItemAssetCommand::changes() const
@@ -426,6 +468,7 @@ Status SetItemWallCommand::apply(Project& project)
             return fail(ErrorCode::NotFound, "There is no wall " + *wallId_ + ".");
         }
         changed.wall = wallId_;
+        changed.on.reset();
         if (!(changed.z > 0.0)) changed.z = defaultWallItemZ(project.settings.defaults, changed.size.height);
         if (const Status s = checkItemPlacement(*found.floor, changed); !s.ok()) return s;
         if (const Status s = poseOnWall(*found.floor, changed); !s.ok()) return s;
@@ -436,12 +479,14 @@ Status SetItemWallCommand::apply(Project& project)
     floorId_ = found.floor->id;
     previous_ = *found.item;
     *found.item = std::move(changed);
+    stacked_.clear();
+    if (wallId_) detail::releaseStack(*found.floor, previous_, stacked_);
     return {};
 }
 
 void SetItemWallCommand::undo(Project& project)
 {
-    restore(project, floorId_, previous_);
+    restore(project, floorId_, previous_, stacked_);
 }
 
 unsigned SetItemWallCommand::changes() const
@@ -469,6 +514,8 @@ Status RemoveItemCommand::apply(Project& project)
     floorId_ = found.floor->id;
     index_ = static_cast<std::size_t>(found.item - found.floor->items.data());
     removed_ = *found.item;
+    released_.clear();
+    detail::releaseStack(*found.floor, removed_, released_);
     found.floor->items.erase(found.floor->items.begin() + static_cast<std::ptrdiff_t>(index_));
     return {};
 }
@@ -480,6 +527,7 @@ void RemoveItemCommand::undo(Project& project)
     if (!floor) return;
     const std::size_t at = std::min(index_, floor->items.size());
     floor->items.insert(floor->items.begin() + static_cast<std::ptrdiff_t>(at), removed_);
+    detail::restoreItems(*floor, released_);
 }
 
 unsigned RemoveItemCommand::changes() const

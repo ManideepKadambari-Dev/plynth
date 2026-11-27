@@ -4,6 +4,7 @@
 
 #include "plynth/core/Openings.h"
 #include "plynth/core/Rooms.h"
+#include "plynth/core/Stacking.h"
 #include "plynth/core/WallGeometry.h"
 #include "plynth/core/catalog/AssetInfo.h"
 
@@ -506,6 +507,15 @@ std::string_view itemProblemName(ItemProblemKind kind)
 
 namespace {
 
+// Says whether two items are meant to share space: one stands on the other, or one is an underlay such as a rug
+// and the other a floor item over it. Two underlays still overlap.
+bool sharesStack(const Item& a, const Item& b)
+{
+    if ((a.on && *a.on == b.id) || (b.on && *b.on == a.id)) return true;
+    if (a.wall || b.wall) return false;
+    return isUnderlay(a) != isUnderlay(b);
+}
+
 // The problems of one item, using the context of its floor.
 std::vector<ItemProblem> problemsFor(const Floor& floor, const FloorContext& context, const Item& item, const AssetLookup& lookup,
                                      const GeneratorItemLookup& generators)
@@ -534,7 +544,7 @@ std::vector<ItemProblem> problemsFor(const Floor& floor, const FloorContext& con
 
     const std::size_t first = found.size();
     for (const Item& other : floor.items) {
-        if (other.id == item.id) continue;
+        if (other.id == item.id || sharesStack(item, other)) continue;
         const double bottom = std::max(item.z, other.z);
         const double top = std::min(item.z + item.size.height, other.z + other.size.height);
         if (top - bottom <= kItemTouchTolerance) continue;

@@ -47,6 +47,7 @@ add_executable(plynth_core_tests
     core/GeneratorCommandsTests.cpp
     core/SampleGeneratorsTests.cpp
     core/ItemCommandTests.cpp
+    core/StackingTests.cpp
     core/SearchTests.cpp
     core/RescanTests.cpp
     core/PlanImageTests.cpp

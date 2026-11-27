@@ -131,7 +131,8 @@ ItemSnap snapItemPosition(const Floor& floor, const Item& item, Vec2 wanted, con
 enum class ItemProblemKind {
     NoRoom,          // "no_room": its centre is in no room
     OutsideRoom,     // "outside_room": part of its footprint is outside its room's floor area
-    OverlapsItem,    // "overlaps_item": its box overlaps another item's box (footprints and heights)
+    OverlapsItem,    // "overlaps_item": its box overlaps another item's box (footprints and heights), leaving
+                     // out the item it stands on and an underlay under a floor item (Stacking.h)
     OverlapsWall,    // "overlaps_wall": its footprint overlaps a wall band (a wall item's own wall is skipped)
     OverlapsOpening, // "overlaps_opening": a wall item's box on the wall face overlaps an opening on that wall
     OffWall,         // "off_wall": a wall item is further than kItemOffWallTolerance from its wall face

@@ -3,6 +3,8 @@
 #include "plynth/core/Items.h"
 #include "plynth/core/Rooms.h"
 
+#include "StackSupport.h"
+
 #include <algorithm>
 #include <utility>
 
@@ -48,6 +50,8 @@ Status SetItemGeneratorCommand::apply(Project& project)
     floorId_ = floor->id;
     previous_ = *item;
     *item = std::move(changed);
+    stacked_.clear();
+    detail::carryStack(*floor, previous_, stacked_);
     return {};
 }
 
@@ -56,6 +60,7 @@ void SetItemGeneratorCommand::undo(Project& project)
     Floor* floor = findFloor(project.plan, floorId_);
     Item* item = floor ? findItem(*floor, previous_.id) : nullptr;
     if (item) *item = previous_;
+    if (floor) detail::restoreItems(*floor, stacked_);
 }
 
 unsigned SetItemGeneratorCommand::changes() const
@@ -75,6 +80,7 @@ bool SetItemGeneratorCommand::mergeWith(const Command& next)
     if (!other || mergeKey_ == 0 || other->mergeKey_ != mergeKey_ || other->itemId_ != itemId_) return false;
     use_ = other->use_;
     size_ = other->size_;
+    detail::mergeSaved(stacked_, other->stacked_);
     return true;
 }
 

@@ -3,6 +3,7 @@
 #include "../Command.h"
 
 #include <string>
+#include <vector>
 
 namespace plynth {
 
@@ -10,8 +11,9 @@ namespace plynth {
 // the Properties panel and "plynth item params". The caller makes use and size with makeGeneratorUse
 // (Generators.h) first, so the command never opens the library. Works on any item: an asset item becomes a
 // generator item (its asset is cleared). Position, rotation, room and z stay; a wall item is put flush again for
-// the new depth. Changes with the same non zero mergeKey and item merge into one undo step. Changes Items only.
-// NotFound for an unknown item, otherwise as checkItemPlacement (Items.h).
+// the new depth. The items standing on it are lifted to its new top (Stacking.h). Changes with the same non
+// zero mergeKey and item merge into one undo step. Changes Items only. NotFound for an unknown item, otherwise
+// as checkItemPlacement (Items.h).
 class SetItemGeneratorCommand : public Command {
 public:
     SetItemGeneratorCommand(Id itemId, GeneratorUse use, ItemSize size, int mergeKey = 0);
@@ -30,6 +32,7 @@ private:
     int mergeKey_;
     Id floorId_;
     Item previous_;
+    std::vector<Item> stacked_; // the items on it the command changed, as they were
 };
 
 }

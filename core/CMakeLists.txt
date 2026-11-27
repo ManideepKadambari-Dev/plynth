@@ -38,6 +38,7 @@ add_library(plynth_core STATIC
     src/Geometry.cpp
     src/Snapping.cpp
     src/Items.cpp
+    src/Stacking.cpp
     src/Generators.cpp
     src/Addons.cpp
     src/GeneratorBuild.cpp
@@ -81,6 +82,7 @@ add_library(plynth_core STATIC
     src/commands/OpeningCommands.cpp
     src/commands/ItemCommands.cpp
     src/commands/GeneratorCommands.cpp
+    src/commands/StackCommands.cpp
     src/commands/MaterialCommands.cpp
     src/commands/StairCommands.cpp
     src/commands/RoofCommands.cpp
