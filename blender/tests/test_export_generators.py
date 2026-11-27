@@ -157,7 +157,11 @@ class GeneratorExportTests(GeneratorTest):
             self.assert_bounds(bpy.data.objects[name])
         self.assertEqual([o.name for o in bpy.data.objects if o.name.startswith(("UCX_", "SM_"))], [])
         checks = self.export_room(profile="unreal", write=False)
-        self.assertEqual(self.not_passed(checks), [], checks)
+        # A check only run writes nothing, so the file checks must say skipped and every scene check must pass.
+        self.assertEqual([i for i, c in checks.items() if c["phase"] == "file" and c["status"] != "skipped"], [])
+        self.assertEqual([i for i, c in checks.items() if c["phase"] == "scene" and c["status"] != "pass"], [],
+                         checks)
+        self.assertFalse(self.output["written"])
         bpy.context.view_layer.update()
         for name in (COLUMN, RAILING):
             self.assert_identity([bpy.data.objects["SM_" + name], bpy.data.objects["UCX_SM_%s_00" % name]])
