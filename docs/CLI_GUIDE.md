@@ -912,7 +912,7 @@ plynth roof types
 {"ok":true,"command":"roof types","result":{"types":[{"id":"flat","name":"Flat","uses":["overhang","parapet"]},{"id":"gable","name":"Gable","uses":["pitch","direction","overhang"]},{"id":"hip","name":"Hip","uses":["pitch","overhang"]},{"id":"shed","name":"Shed","uses":["pitch","direction","overhang"]},{"id":"sawtooth","name":"Sawtooth","uses":["pitch","direction","overhang"]}]}}
 ```
 
-A setting a type does not use is kept but has no effect on it. A flat roof with a parapet above 0 has no overhang. A hip roof needs a convex section. On any other section the build makes a gable roof and reports `roof_type_fallback`.
+A type that uses the settings of the two pitch and curved types also lists `second_pitch`, `break_ratio`, `ridge_offset` or `rise`. A setting a type does not use is kept but has no effect on it. A flat roof with a parapet above 0 has no overhang. A hip roof needs a convex section. On any other section the build makes a gable roof and reports `roof_type_fallback`.
 
 **Roof problem codes.**
 
@@ -921,6 +921,131 @@ A setting a type does not use is kept but has no effect on it. A flat roof with 
 | `roof_type_fallback` | warning | The type does not fit the section (a hip roof on a section with an inward corner), so the build used the fallback type. The message says why. |
 | `roof_type_unknown` | warning | The type is not registered, so the section is built flat. |
 | `roof_section_unused` | warning | The entry's point lies in no section of its floor, or in a section another entry already governs. It has no effect. The `object` is the entry. |
+
+### Canopies
+
+A canopy is a roof over an open area with no walls under it: a porch roof, a veranda, a carport or a deep slab over a terrace. You draw its outline on the plan. The build makes a slab from its height up, with a soffit underneath and a fascia round its edges, and puts its roof type on top, the way a roof section is built. Where the outline meets the building it stops at the outer wall face, and where it meets the main roof it is cut back to the roof's eaves, so the two join without a gap. Posts are generator items placed under it with `place`.
+
+A canopy entry looks like this:
+
+```json
+{"id":"cn1","floor":"f1","outline":[[5.0,3.0],[8.0,3.0],[8.0,7.0],[5.0,7.0]],"area":12.0,"height":2.7,"thickness":0.25,"roof":{"type":"flat","pitch":30.0,"overhang":0.0,"parapet":0.0,"direction":null,"second_pitch":15.0,"break_ratio":0.5,"ridge_offset":0.0,"rise":1.0},"material":null,"underside_material":null,"fascia_material":null,"problems":[]}
+```
+
+| Field | Meaning |
+|---|---|
+| `outline` | The outline on the plan as `[x, y]` pairs in metres, the first point not repeated. |
+| `area` | Square metres inside the outline. |
+| `height` | The underside above the floor's level, in metres. |
+| `thickness` | How deep the slab is. A flat type with parapet 0 is a plain slab this deep with a fascia band all round. |
+| `roof` | The roof on top, with the settings of `roof set`. `direction` is `null` for automatic. `second_pitch`, `break_ratio`, `ridge_offset` and `rise` only matter for types that list them in `roof types`. |
+| `material`, `underside_material`, `fascia_material` | The covering, the soffit and the edges. `null` uses the project's roof or flat roof default for the covering and the neutral soffit and fascia looks for the rest. |
+| `problems` | The build problems about this canopy, each with `code`, `severity` and `message`. See below. |
+
+The canopy commands follow the edit rules of every command that changes the plan: they take an edit session and are `locked` while the app has the project open without one. `canopy list` only reads.
+
+### canopy add
+
+Adds a canopy to a floor.
+
+| Option | Meaning |
+|---|---|
+| `--points <x,y> ...` | Required. Three or more points in metres, separated by spaces. One quoted value with spaces or semicolons works too. For a negative first coordinate write `--points="-2,1 0,1 0,4 -2,4"`. |
+| `--floor <id>` | Default: the first floor. |
+| `--height <metres>` | The underside above the floor's level, 1 to 20. Default 2.7. |
+| `--thickness <metres>` | The slab, 0.05 to 1. Default 0.25. |
+| `--type <id>` | A roof type. See `roof types`. Default: `flat`. |
+| `--pitch <degrees>` | The slope, as in `roof set`. A pitched type needs 5 to 75. Default 30. |
+| `--overhang <metres>` | How far the roof reaches past the outline, 0 to 2. Default 0. |
+| `--parapet <metres>` | The low wall round a flat top, 0 to 3. Default 0. |
+| `--direction <degrees or auto>` | The ridge direction or the way a shed roof falls, as in `roof set`. Default: `auto`. |
+| `--second-pitch <degrees>`, `--break-ratio <ratio>`, `--ridge-offset <share>`, `--rise <metres>` | The settings of the two pitch and curved types: 0 to 75, 0.1 to 0.9, -0.45 to 0.45 and 0.1 to 10. |
+| `--material <id or none>`, `--underside-material <id or none>`, `--fascia-material <id or none>` | Materials from the library. |
+| `--library <folder>` | The library the materials are checked in. Default: the one in the settings. |
+
+```
+plynth canopy add --points 5,3 8,3 8,7 5,7
+plynth canopy add --points 5,3 8,3 8,7 5,7 --type shed --pitch 15 --direction 0 --height 2.4
+plynth canopy add --points="-2,1 0,1 0,4 -2,4" --type gable --pitch 30 --overhang 0.2
+```
+
+```json
+{"ok":true,"command":"canopy add","result":{"id":"cn1","floor":"f1","outline":[[5.0,3.0],[8.0,3.0],[8.0,7.0],[5.0,7.0]],"area":12.0,"height":2.7,"thickness":0.25,"roof":{"type":"flat","pitch":30.0,"overhang":0.0,"parapet":0.0,"direction":null,"second_pitch":15.0,"break_ratio":0.5,"ridge_offset":0.0,"rise":1.0},"material":null,"underside_material":null,"fascia_material":null,"problems":[]}}
+```
+
+The answer is the canopy entry. Refusals, with nothing changed:
+
+| Code | When |
+|---|---|
+| `invalid_value` | Fewer than three points, an outline that crosses itself or encloses 0.01 square metres or less, an unknown roof type, a pitched type with a pitch below 5, or a number out of range. |
+| `not_found` | An unknown floor or material. |
+| `bad_arguments` | No `--points`, a point that is not `x,y`, or a `--direction` that is not a number or `auto`. Exit code 2. |
+
+### canopy set
+
+Changes a canopy. Give its id and at least one of the options of `canopy add` except `--floor`. What you leave out stays. `--points` replaces the whole outline. `none` clears a material. All changes are one step.
+
+```
+plynth canopy set cn1 --type gable --pitch 25 --direction 90
+plynth canopy set cn1 --height 2.5 --fascia-material none
+```
+
+The answer is the canopy entry. An unknown canopy is `not_found`, a bad value `invalid_value`, no option or a point that is not `x,y` `bad_arguments`.
+
+### canopy remove
+
+```
+plynth canopy remove cn1
+```
+
+```json
+{"ok":true,"command":"canopy remove","result":{"removed":"cn1"}}
+```
+
+An unknown canopy is `not_found`. `item remove` and `opening remove` refuse a canopy id with `invalid_value` and point to `canopy remove`.
+
+### canopy list
+
+Lists the canopies of every floor, or of one floor with `--floor <id>`.
+
+```
+plynth canopy list --floor f1
+```
+
+```json
+{"ok":true,"command":"canopy list","result":{"canopies":[{"id":"cn1","floor":"f1","outline":[[10.0,10.0],[12.0,10.0],[12.0,12.0],[10.0,12.0]],"area":4.0,"height":2.7,"thickness":0.25,"roof":{"type":"flat","pitch":30.0,"overhang":0.0,"parapet":0.0,"direction":null,"second_pitch":15.0,"break_ratio":0.5,"ridge_offset":0.0,"rise":1.0},"material":null,"underside_material":null,"fascia_material":null,"problems":[{"code":"canopy_unsupported","severity":"warning","message":"Canopy cn1 has no post, wall or deck under it, so it is built as a cantilever."}]}]}}
+```
+
+An unknown floor is `not_found`.
+
+**Canopy problem codes.** The entry lists them, and `build --check` and the build report list them with the canopy as the `object`.
+
+| Code | Severity | Meaning |
+|---|---|---|
+| `canopy_outline_invalid` | error | The outline crosses itself, or nothing of it is left outside the building and under the roof. The canopy is left out. |
+| `canopy_type_fallback` | warning | The roof type is unknown or does not fit the outline, so the build used a fallback type, as for `roof_type_fallback`. The message says which and why. |
+| `canopy_unsupported` | warning | No post (a generator item), wall or deck lies under the canopy within 0.3 m of its outline. It is built anyway, as a cantilever. |
+
+### Overhanging upper floors
+
+An upper floor overhangs where its walls reach past the walls of the floor below, for example a jettied storey or a first floor over a carport. There is no setting and no command for it: draw the outer walls of the upper floor where they belong, with `wall draw --floor`, and close a room in them as usual. A canopy is not needed.
+
+```
+plynth floor add
+plynth wall draw --floor f2 --from-x 1 --from-y 3 --to-x 9 --to-y 3
+```
+
+The build then does this for the part of the upper floor that is not above the floor below:
+
+- The slab gets an underside there in the soffit look, not the ceiling of the room below.
+- A fascia board 0.02 m deep runs along the free edges of the overhang, from the underside of the slab to its top. It is the object `<floor>_Overhang` of the floor below, in the fascia look with the roof edge material.
+- The roof of the floor below stops at the walls above it, and the roof of any lower floor that would rise into the overhang is cut back under it.
+
+An overhang that reaches more than 3 m past the walls of the floor below is still built, and the build reports `floor_overhang`:
+
+| Code | Severity | Meaning |
+|---|---|---|
+| `floor_overhang` | warning | The upper floor reaches further past the walls of the floor below than stands without posts or brackets. The `floor` and `object` are the upper floor. The message says how far. |
 
 ### Left and right
 
@@ -1894,7 +2019,7 @@ The stages are `preparing`, `blender` (one line per step, `index` counting from 
 `openings_cut` and `fills` count what was built, so an opening that did not fit is not in them. `objects` and `triangles` are what went into the FBX.
 - `steps` lists the time of each step in milliseconds. `check` is the work core does before Blender starts.
 - `plan_fingerprint` changes when the plan or the project settings change. The app uses it to say "The plan changed since this build".
-- `problems` lists core's problems first, then the ones Blender found, each in its own order. The top level `warnings` list has one entry (`code` and `message`) for every problem, whatever its severity. The `object` of a problem is a plan id: a point, wall, opening, room or item. It is `null` when the problem is not about one object.
+- `problems` lists core's problems first, then the ones Blender found, each in its own order. The top level `warnings` list has one entry (`code` and `message`) for every problem, whatever its severity. The `object` of a problem is a plan id: a point, wall, opening, room, item, canopy or floor. It is `null` when the problem is not about one object.
 
 **Problem codes.** A problem of severity `error` means the object was left out or is incomplete. A problem of severity `warning` means it was built and should be checked.
 
@@ -1915,6 +2040,8 @@ The stages are `preparing`, `blender` (one line per step, `index` counting from 
 | `bevel_failed` | warning | The wall edges could not be rounded, so they stay sharp. |
 | `stair_overlaps_wall`, `stair_outside_floor`, `stair_arrival_outside_room`, `stair_no_floor_above`, `stair_type_unknown` | warning, error for the last two | The stair problems listed under `stair add`. The `object` is the stair. |
 | `roof_type_fallback`, `roof_type_unknown`, `roof_section_unused` | warning | The roof problems listed under `roof types`. The `object` is the roof entry, when there is one. |
+| `canopy_outline_invalid`, `canopy_type_fallback`, `canopy_unsupported` | error for the first, warning for the others | The canopy problems listed under `canopy list`. The `object` is the canopy. |
+| `floor_overhang` | warning | An upper floor reaches more than 3 m past the walls of the floor below. See "Overhanging upper floors". The `floor` and `object` are the upper floor. |
 | `slab_failed`, `stair_failed`, `roof_failed` | error | Blender could not make that slab, stair or roof from its outline, so it is left out. The `object` is the floor, stair or roof entry. The rest of the building is built, but `build_complete` fails and the export is blocked. |
 | `preview_failed` | warning | The preview parts could not be written, so `build\preview\parts.json` is removed and the 3D view loads `building.fbx`. |
 | `no_room`, `outside_room`, `overlaps_item`, `overlaps_wall`, `overlaps_opening`, `off_wall`, `too_tall`, `size_changed` | warning | The furniture warnings of the item (see "Furniture items"). They are shown again here because the build marks them on the plan. |

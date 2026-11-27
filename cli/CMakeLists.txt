@@ -17,6 +17,7 @@ add_library(plynth_cli STATIC
     src/commands/AgentGuideCommands.cpp
     src/commands/AssetCommands.cpp
     src/commands/BuildCommands.cpp
+    src/commands/CanopyCommands.cpp
     src/commands/FloorCommands.cpp
     src/commands/GeneratorCommands.cpp
     src/commands/LibraryCommands.cpp

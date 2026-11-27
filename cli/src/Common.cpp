@@ -348,6 +348,8 @@ Answer removeCascade(const std::string& command, const std::string& kind, const 
                 actual = "opening";
             } else if (findLight(*floor, id) != nullptr) {
                 actual = "light";
+            } else if (findCanopy(*floor, id) != nullptr) {
+                actual = "canopy";
             }
             if (actual != kind) {
                 const auto article = [](const std::string& word) { return word == "item" || word == "opening" ? "an " : "a "; };

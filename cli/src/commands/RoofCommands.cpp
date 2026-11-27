@@ -348,6 +348,18 @@ Answer roofTypes() {
         if (type->usesParapet()) {
             uses.push_back("parapet");
         }
+        if (type->usesSecondPitch()) {
+            uses.push_back("second_pitch");
+        }
+        if (type->usesBreakRatio()) {
+            uses.push_back("break_ratio");
+        }
+        if (type->usesRidgeOffset()) {
+            uses.push_back("ridge_offset");
+        }
+        if (type->usesRise()) {
+            uses.push_back("rise");
+        }
         Json item = Json::object();
         item["id"] = std::string(type->id());
         item["name"] = std::string(type->name());
