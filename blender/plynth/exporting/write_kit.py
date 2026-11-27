@@ -9,13 +9,14 @@ from ..registry import EXPORT_STEPS
 ORDER = 65
 
 
-# Writes every kit piece and its UCX_ meshes into the kit file of the output folder, when the job has a kit and
-# the group files were written. Fills ctx.state["kit_output"] and ["kit_path"]; both stay empty otherwise.
+# Writes every kit piece and its UCX_ meshes into the kit file of the output folder, when the job has a kit, its
+# profile makes one and the group files were written. Fills ctx.state["kit_output"] and ["kit_path"]; both stay
+# empty otherwise.
 def run(ctx):
     kit = ctx.params.get("kit")
     ctx.state["kit_output"] = None
     ctx.state["kit_path"] = None
-    if not kit or not ctx.state.get("written"):
+    if not kit or not ctx.state["profile"].kit or not ctx.state.get("written"):
         return
     objects = ctx.state["kit_objects"]
     target = os.path.join(ctx.params["output_folder"], kit["file"])

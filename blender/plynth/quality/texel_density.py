@@ -1,7 +1,7 @@
 import math
 import statistics
 
-from . import QualityCheck, finding, result
+from . import PLAIN, UNREAL, QualityCheck, finding, result
 from ._common import CONSTANT_SIZE, base_color_source, polygon_areas, polygon_materials
 from ..registry import QUALITY_CHECKS
 
@@ -62,4 +62,4 @@ def run(ctx):
     return result("pass", "The textures are about equally sharp (median %.0f pixels per metre)." % median)
 
 
-QUALITY_CHECKS.register("texel_density", QualityCheck(ORDER, "scene", "Texture sharpness", run))
+QUALITY_CHECKS.register("texel_density", QualityCheck(ORDER, "scene", "Texture sharpness", run, (PLAIN, UNREAL)))

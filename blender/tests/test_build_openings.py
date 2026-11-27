@@ -38,7 +38,7 @@ class OpeningTests(BuildTest):
     # Opens the built file and returns the walls object.
     def open_walls(self):
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
-        return bpy.data.objects["SM_f1_Walls"]
+        return bpy.data.objects["f1_Walls"]
 
     # The fixtures are valid jobs.
     def test_fixtures_valid(self):
@@ -154,7 +154,7 @@ class OpeningTests(BuildTest):
         result = self.build_plain("door")
         self.assertEqual(result["output"]["counts"]["fills"], 1)
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
-        door = bpy.data.objects["SM_f1_o1_Door"]
+        door = bpy.data.objects["f1_o1_Door"]
         self.assertEqual(door["plynth_kind"], "door")
         names = [m.name for m in door.data.materials]
         self.assertEqual(names, ["Frame", "Door", "Handle"])
@@ -175,7 +175,7 @@ class OpeningTests(BuildTest):
         result = self.build_plain("round_arch_window")
         self.assertEqual(result["output"]["counts"]["fills"], 1)
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
-        window = bpy.data.objects["SM_f1_o1_Window"]
+        window = bpy.data.objects["f1_o1_Window"]
         self.assertIn("Glass", [m.name for m in window.data.materials])
         result = self.build_plain("pointed_arch_plain")
         self.assertEqual(result["output"]["counts"]["fills"], 0)
@@ -199,12 +199,12 @@ class OpeningTests(BuildTest):
     def test_thresholds(self):
         self.build_plain("door")
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
-        threshold = bpy.data.objects["SM_f1_Thresholds"]
+        threshold = bpy.data.objects["f1_Thresholds"]
         self.assertEqual(threshold["plynth_kind"], "thresholds")
         self.assertAlmostEqual(meshes.area(threshold), 0.9 * THICKNESS, delta=1e-5)
         self.build_plain("round_arch_window")
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
-        self.assertIsNone(bpy.data.objects.get("SM_f1_Thresholds"))
+        self.assertIsNone(bpy.data.objects.get("f1_Thresholds"))
 
     # The file of fixtures holds the same jobs as the helper makes.
     def test_fixture_files_match_helper(self):
@@ -236,7 +236,7 @@ class DetectedApartmentTests(BuildTest):
         floor = params["floors"][0]
         self.assertEqual(output["counts"]["openings_cut"], len(floor["openings"]))
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
-        walls = bpy.data.objects["SM_%s_Walls" % floor["id"]]
+        walls = bpy.data.objects["%s_Walls" % floor["id"]]
         self.assertTrue(meshes.is_manifold(walls))
 
 
@@ -278,7 +278,7 @@ class WallNormalTests(BuildTest):
         result = self.build(params)
         self.assertTrue(result["ok"], result["error"])
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
-        return bpy.data.objects["SM_%s_Walls" % params["floors"][0]["id"]]
+        return bpy.data.objects["%s_Walls" % params["floors"][0]["id"]]
 
     # Checks that every solid has a positive volume, no face is flipped and no face has more than four corners.
     def assert_outward(self, walls, name):

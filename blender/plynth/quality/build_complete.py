@@ -1,4 +1,4 @@
-from . import QualityCheck, finding, result
+from . import PLAIN, UNREAL, QualityCheck, finding, result
 from ..registry import QUALITY_CHECKS
 
 ORDER = 20
@@ -15,4 +15,4 @@ def run(ctx):
                   findings)
 
 
-QUALITY_CHECKS.register("build_complete", QualityCheck(ORDER, "scene", "Build is complete", run))
+QUALITY_CHECKS.register("build_complete", QualityCheck(ORDER, "scene", "Build is complete", run, (PLAIN, UNREAL)))

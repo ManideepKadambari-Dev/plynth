@@ -91,7 +91,7 @@ def finish(ctx, gen, objects, item, floor_collection, tolerance):
         bm.free()
         return None, ""
     overshoot = size_overshoot(bm, gen.size, tolerance)
-    name = "SM_%s_%s" % (gen.generator, item["id"])
+    name = "%s_%s" % (gen.generator, item["id"])
     obj = meshes.make_object(name, bm, floor_collection, item["id"], "generator")
     for mat in kept:
         obj.data.materials.append(mat)

@@ -2,12 +2,16 @@ import time
 
 from .. import exporting as exporting_package
 from .. import registry
+from ..exporting import profiles as profiles_package
 from ..jobs import WorkerError, progress
-from ..registry import TASKS
+from ..registry import EXPORT_PROFILES, TASKS
 
 
-# Checks the params of the job. A missing or wrong field is a bad_job.
+# Checks the params of the job. A missing or wrong field, or a profile no module registered, is a bad_job.
 def check_params(params):
+    profile_id = params.get("profile")
+    if not isinstance(profile_id, str) or EXPORT_PROFILES.get(profile_id) is None:
+        raise WorkerError("bad_job", "The job has no known export profile (%s)." % profile_id)
     for key in ("blend_file", "output_folder", "textures_folder"):
         if not isinstance(params.get(key), str) or not params[key]:
             raise WorkerError("bad_job", "The job has no %s." % key)
@@ -38,9 +42,13 @@ def check_params(params):
             raise WorkerError("bad_job", "The job has no %s switch." % key)
 
 
-# Exports the last build: runs every registered export step in order and reports what was written.
+# Exports the last build with the job's profile: runs every registered export step in order and reports what
+# was written.
 def run(ctx):
+    registry.discover(profiles_package)
     check_params(ctx.params)
+    ctx.state["profile_id"] = ctx.params["profile"]
+    ctx.state["profile"] = EXPORT_PROFILES.get(ctx.params["profile"])
     registry.discover(exporting_package)
     steps = sorted(registry.EXPORT_STEPS.all(), key=lambda pair: pair[1].order)
     ctx.state["written"] = False

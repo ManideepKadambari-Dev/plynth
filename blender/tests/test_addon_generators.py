@@ -55,7 +55,7 @@ class AddonGeneratorTests(GeneratorTest):
         result = self.build_open(self.case_params([name]))
         self.assertEqual(result["output"]["problems"], [])
         self.assertEqual(result["output"]["counts"]["generators"], 1)
-        obj = bpy.data.objects["SM_%s_i_%s" % (name, name)]
+        obj = bpy.data.objects["%s_i_%s" % (name, name)]
         self.assertEqual(obj.type, "MESH")
         self.assertEqual(len(obj.modifiers), 0)
         size = CASES[name][4]
@@ -104,7 +104,7 @@ class AddonGeneratorTests(GeneratorTest):
             self.assertEqual(len(self.problems(result, "generator_unavailable")), 1, name)
             self.assertEqual(self.problems(result, "generator_failed"), [], name)
             self.assertEqual(result["output"]["counts"]["generators"], 0)
-            self.assertIsNone(bpy.data.objects.get("SM_%s_i1" % name))
+            self.assertIsNone(bpy.data.objects.get("%s_i1" % name))
 
     # The four add-on generators and the two plain ones together: builds, and renders a picture when
     # PLYNTH_RENDER_OUT names a file.

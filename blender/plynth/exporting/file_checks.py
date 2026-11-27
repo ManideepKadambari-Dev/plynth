@@ -4,11 +4,11 @@ from ..registry import EXPORT_STEPS
 ORDER = 70
 
 
-# Runs every registered check of phase "file" on the written files. When nothing was written each one is
-# reported as skipped.
+# Runs every registered check of phase "file" that the job's profile uses on the written files. When nothing
+# was written each one is reported as skipped.
 def run(ctx):
     results = []
-    for check_id, check in checks_of("file"):
+    for check_id, check in checks_of("file", ctx.state["profile_id"]):
         if ctx.state.get("written"):
             results.append(run_check(ctx, check_id, check))
         else:

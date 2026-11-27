@@ -1,6 +1,6 @@
 import bpy
 
-from . import QualityCheck, finding, result
+from . import UNREAL, QualityCheck, finding, result
 from .fbx_scale import base_name, restore, snapshot
 from .transforms import is_identity
 from .. import scene
@@ -69,4 +69,4 @@ def run(ctx):
     return result("pass", "The kit file holds every piece once, at its own origin, with collision.")
 
 
-QUALITY_CHECKS.register("kit_file", QualityCheck(ORDER, "file", "Modular kit", run))
+QUALITY_CHECKS.register("kit_file", QualityCheck(ORDER, "file", "Modular kit", run, (UNREAL,)))

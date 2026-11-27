@@ -10,6 +10,7 @@ from ..registry import BUILD_STEPS
 
 ORDER = 110
 COLLECTION = "Collision"
+COLLISION_WORD = "Collision"
 MINIMUM_VOLUME = 1e-9
 MINIMUM_THICKNESS = 1e-4
 MAX_HULL_POINTS = 64
@@ -21,8 +22,8 @@ HULL_EPSILON = 1e-7
 
 
 # Makes the collision meshes: one closed convex mesh per piece the job lists, then one per hull (the convex hull of
-# a point set, for roofs), named UCX_<object name>_<NN> with NN counted over the pieces and then the hulls, and
-# one convex hull per furniture item and per built generator item. They go into a Collision collection and
+# a point set, for roofs), named <object name>_Collision_<NN> with NN counted over the pieces and then the hulls,
+# and one convex hull per furniture item and per built generator item. They go into a Collision collection and
 # carry the kind "collision" and the name of the object they belong to. A piece or hull that cannot be made is
 # reported and left out. A generator item that was not built has no hull and no warning.
 def run(ctx):
@@ -35,15 +36,15 @@ def run(ctx):
     items = [(floor, item) for floor in ctx.params["floors"] for item in floor["items"]]
     hulls = {}
     for floor, item in items:
-        empty = bpy.data.objects.get("SM_%s_%s" % (item["asset"], item["id"]))
+        empty = find_object("item", item["id"])
         if empty is None:
             continue
         collection = collection or collision_collection()
         make_item_hull(ctx, floor, item, empty, collection, hulls)
     for floor in ctx.params["floors"]:
         for item in floor.get("generator_items", []):
-            target = bpy.data.objects.get("SM_%s_%s" % (item["generator"], item["id"]))
-            if target is None or target.get("plynth_kind") != "generator":
+            target = find_object("generator", item["id"])
+            if target is None:
                 continue
             collection = collection or collision_collection()
             make_generator_hull(ctx, floor, item, target, collection)
@@ -56,6 +57,19 @@ def collision_collection():
         found = bpy.data.collections.new(COLLECTION)
         bpy.context.scene.collection.children.link(found)
     return found
+
+
+# Returns the collision name of the piece with this number of an object: <object>_Collision_<NN>.
+def collision_name(target_name, number):
+    return "%s_%s_%02d" % (target_name, COLLISION_WORD, number)
+
+
+# Returns the object of a kind made for one plan id, or None.
+def find_object(kind, plan_id):
+    for obj in bpy.data.objects:
+        if obj.get("plynth_kind") == kind and obj.get("plynth_id") == plan_id:
+            return obj
+    return None
 
 
 # Returns the built object of a collision target (its plynth kind and id, and for a roof its index), or None.
@@ -78,7 +92,7 @@ def make_shape(ctx, floor, shape, collection):
     sources = [(piece_mesh, piece) for piece in shape["pieces"]]
     sources += [(hull_points_mesh, hull) for hull in shape["hulls"]]
     for number, (make, source) in enumerate(sources):
-        name = "UCX_%s_%02d" % (target.name, number)
+        name = collision_name(target.name, number)
         mesh = make(name, source)
         if mesh is None:
             report(ctx, "collision_failed", "warning", "A collision piece of %s could not be made." % plan_id,
@@ -370,13 +384,13 @@ def make_item_hull(ctx, floor, item, empty, collection, hulls):
     asset = item["asset"]
     if asset not in hulls:
         source = ctx.state.get("asset_collections", {}).get(asset)
-        hulls[asset] = hull_mesh("UCX_%s" % asset, source) if source is not None else None
+        hulls[asset] = hull_mesh("%s_%s" % (asset, COLLISION_WORD), source) if source is not None else None
     mesh = hulls[asset]
     if mesh is None:
         report(ctx, "collision_failed", "warning", "The furniture %s has no collision hull." % item["id"],
                floor["id"], item["id"])
         return
-    obj = add_object("UCX_%s_00" % empty.name, mesh, collection, empty.name, item["id"])
+    obj = add_object(collision_name(empty.name, 0), mesh, collection, empty.name, item["id"])
     obj.matrix_world = empty.matrix_world.copy()
     count(ctx, "collision")
 
@@ -384,7 +398,7 @@ def make_item_hull(ctx, floor, item, empty, collection, hulls):
 # Makes the hull object of one generator item from the convex hull of its own mesh, placed where the item is.
 # A result that is flat or has no volume gets a warning and no hull.
 def make_generator_hull(ctx, floor, item, target, collection):
-    name = "UCX_%s_00" % target.name
+    name = collision_name(target.name, 0)
     mesh = None
     if len(target.data.vertices) >= 4:
         mesh = hull_points_mesh(name, [tuple(v.co) for v in target.data.vertices])

@@ -1,6 +1,6 @@
 import bpy
 
-from . import QualityCheck, finding, result
+from . import PLAIN, UNREAL, QualityCheck, finding, result
 from ._common import exported_objects, plan_id
 from ..registry import QUALITY_CHECKS
 
@@ -28,4 +28,5 @@ def run(ctx):
     return result("pass", "Every object has an identity transform and no parent.")
 
 
-QUALITY_CHECKS.register("transforms", QualityCheck(ORDER, "scene", "Pivots and applied transforms", run))
+QUALITY_CHECKS.register("transforms", QualityCheck(ORDER, "scene", "Pivots and applied transforms", run,
+                                                  (PLAIN, UNREAL)))

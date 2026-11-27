@@ -1,4 +1,4 @@
-from . import QualityCheck, finding, result
+from . import PLAIN, UNREAL, QualityCheck, finding, result
 from ._common import plan_id
 from ..exporting.groups import assign
 from ..registry import QUALITY_CHECKS
@@ -22,4 +22,4 @@ def run(ctx):
     return result("pass", "Every object is in a group and every group has objects.")
 
 
-QUALITY_CHECKS.register("groups", QualityCheck(ORDER, "scene", "Groups", run))
+QUALITY_CHECKS.register("groups", QualityCheck(ORDER, "scene", "Groups", run, (PLAIN, UNREAL)))

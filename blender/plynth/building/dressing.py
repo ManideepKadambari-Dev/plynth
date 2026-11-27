@@ -7,7 +7,7 @@ ORDER = 100
 
 
 # Places the set dressing props of every floor as instances of their asset collections, named
-# SM_<asset>_<room>_D<NN> with NN counting the props of each room from 01. A prop whose asset did not load gives
+# <asset>_<room>_D<NN> with NN counting the props of each room from 01. A prop whose asset did not load gives
 # dressing_failed and is left out.
 def run(ctx):
     loaded = ctx.state.get("asset_collections", {})
@@ -21,7 +21,7 @@ def run(ctx):
                 continue
             number = numbers.get(prop["room"], 0) + 1
             numbers[prop["room"]] = number
-            empty = bpy.data.objects.new("SM_%s_%s_D%02d" % (prop["asset"], prop["room"], number), None)
+            empty = bpy.data.objects.new("%s_%s_D%02d" % (prop["asset"], prop["room"], number), None)
             empty.empty_display_type = "PLAIN_AXES"
             empty.empty_display_size = 0.05
             empty.instance_type = "COLLECTION"

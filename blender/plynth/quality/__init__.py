@@ -4,8 +4,12 @@ MAX_FINDINGS = 50
 STATUSES = ("pass", "warning", "fail", "skipped")
 
 # What each quality check module registers: where it runs in the order, the phase ("scene" or "file"), the
-# name shown to the user and a function run(ctx) that returns the dictionary made by result().
-QualityCheck = namedtuple("QualityCheck", "order phase name run")
+# name shown to the user, a function run(ctx) that returns the dictionary made by result(), and the ids of the
+# export profiles it runs for (exporting/profiles/). A check runs only for the profiles it names.
+QualityCheck = namedtuple("QualityCheck", "order phase name run profiles")
+
+PLAIN = "plain"
+UNREAL = "unreal"
 
 
 # Makes one finding. The object is the exported object or slot it is about, the plan id is what the app can

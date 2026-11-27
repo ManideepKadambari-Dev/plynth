@@ -65,19 +65,19 @@ class FinishBuildTests(BuildTest):
     def test_trim_meshes_are_closed_named_and_unwrapped_in_metres(self):
         params = copy.deepcopy(load_params("square_room"))
         params["floors"][0]["trim"] = [
-            trim_entry("skirting", "SM_f1_Skirting", [square_ring(0.1, 3.9, 0.0)]),
-            trim_entry("railing", "SM_f1_s1_Railing", [straight(0.5, 2.5, -1.0, 0.9)], "railing", "s1"),
+            trim_entry("skirting", "f1_Skirting", [square_ring(0.1, 3.9, 0.0)]),
+            trim_entry("railing", "f1_s1_Railing", [straight(0.5, 2.5, -1.0, 0.9)], "railing", "s1"),
         ]
         result = self.build(params)
         self.assertTrue(result["ok"], result.get("error"))
         self.assertEqual(result["output"]["counts"].get("trim"), 2)
-        skirting = bpy.data.objects["SM_f1_Skirting"]
+        skirting = bpy.data.objects["f1_Skirting"]
         self.assertEqual(skirting["plynth_kind"], "trim")
         self.assertEqual(skirting["plynth_id"], "f1")
         self.assertEqual(skirting["plynth_trim"], "skirting")
         self.assertTrue(meshes.is_manifold(skirting))
         self.assertGreater(meshes.volume(skirting), 0.0)
-        railing = bpy.data.objects["SM_f1_s1_Railing"]
+        railing = bpy.data.objects["f1_s1_Railing"]
         self.assertEqual(railing["plynth_kind"], "railing")
         self.assertEqual(railing["plynth_id"], "s1")
         self.assertTrue(meshes.is_manifold(railing))
@@ -88,14 +88,14 @@ class FinishBuildTests(BuildTest):
     def test_a_bad_sweep_is_a_warning_and_the_build_goes_on(self):
         params = copy.deepcopy(load_params("square_room"))
         bad = {"closed": False, "sections": [[(0, 0, 0), (1, 0, 0), (0, 1, 0)], [(0, 0, 1), (1, 0, 1)]]}
-        params["floors"][0]["trim"] = [trim_entry("sill", "SM_f1_Sill", [bad]),
-                                       trim_entry("casing", "SM_f1_Casing", [straight(0.0, 1.0, 0.0, 0.0)])]
+        params["floors"][0]["trim"] = [trim_entry("sill", "f1_Sill", [bad]),
+                                       trim_entry("casing", "f1_Casing", [straight(0.0, 1.0, 0.0, 0.0)])]
         result = self.build(params)
         self.assertTrue(result["ok"], result.get("error"))
         codes = [p["code"] for p in result["output"]["problems"]]
         self.assertIn("trim_failed", codes)
-        self.assertNotIn("SM_f1_Sill", bpy.data.objects)
-        self.assertIn("SM_f1_Casing", bpy.data.objects)
+        self.assertNotIn("f1_Sill", bpy.data.objects)
+        self.assertIn("f1_Casing", bpy.data.objects)
 
     def test_lights_stand_at_their_markers(self):
         params = copy.deepcopy(load_params("square_room"))
@@ -122,7 +122,7 @@ class FinishBuildTests(BuildTest):
                                             {"id": "o3", "type": "door"}]}]
         ctx = FakeContext(floors, {"door_01": door})
         opening_assets.run(ctx)
-        obj = bpy.data.objects["SM_door_01_o1"]
+        obj = bpy.data.objects["door_01_o1"]
         self.assertEqual(obj["plynth_kind"], "door")
         self.assertEqual(obj["plynth_id"], "o1")
         self.assertEqual(obj["plynth_asset"], "door_01")
@@ -143,8 +143,8 @@ class FinishBuildTests(BuildTest):
                                             dict(prop, id="r1_d03", asset="vase", location=[2.0, -1.0, 0.8])]}]
         ctx = FakeContext(floors, {"books": books})
         dressing.run(ctx)
-        first = bpy.data.objects["SM_books_r1_D01"]
-        second = bpy.data.objects["SM_books_r1_D02"]
+        first = bpy.data.objects["books_r1_D01"]
+        second = bpy.data.objects["books_r1_D02"]
         self.assertIs(first.instance_collection, second.instance_collection)
         self.assertEqual(first["plynth_kind"], "dressing")
         self.assertEqual(first["plynth_id"], "r1")
@@ -153,14 +153,14 @@ class FinishBuildTests(BuildTest):
 
     def test_trim_gets_its_material_after_the_materials_step(self):
         params = copy.deepcopy(load_params("square_room"))
-        entry = trim_entry("skirting", "SM_f1_Skirting", [square_ring(0.1, 3.9, 0.0)])
+        entry = trim_entry("skirting", "f1_Skirting", [square_ring(0.1, 3.9, 0.0)])
         entry["slot"] = "Trim"
         params["floors"][0]["trim"] = [entry]
         params["floors"][0]["lights"] = [{"id": "l1", "kind": "wall", "location": [1.0, -1.0, 1.8], "power": 30,
                                           "color": [1.0, 0.9, 0.8]}]
         result = self.build(params)
         self.assertTrue(result["ok"], result.get("error"))
-        skirting = bpy.data.objects["SM_f1_Skirting"]
+        skirting = bpy.data.objects["f1_Skirting"]
         self.assertEqual(skirting.data.materials[0].name, "Trim")
         self.assertTrue(skirting.data.materials[0].use_nodes)
         with open(os.path.join(self.path("build"), result["output"]["materials_file"]), encoding="utf-8") as handle:
@@ -168,7 +168,7 @@ class FinishBuildTests(BuildTest):
         names = [m["name"] for m in written["materials"]]
         self.assertIn("Trim", names)
         objects = [o["name"] for o in written["objects"]]
-        self.assertIn("SM_f1_Skirting", objects)
+        self.assertIn("f1_Skirting", objects)
         self.assertNotIn("Light_f1_l1", objects)
 
     def test_steps_skip_floors_without_their_fields(self):

@@ -10,6 +10,7 @@ from plynth import quality, registry
 
 CHECK_IDS = ["build_current", "build_complete", "scale", "transforms", "naming", "uvs", "texel_density",
              "triangles", "materials", "collision", "groups", "fbx_scale", "kit_file"]
+PLAIN_CHECK_IDS = [c for c in CHECK_IDS if c not in ("collision", "kit_file")]
 
 
 # Returns the L shaped prism used as a concave collision mesh.
@@ -36,6 +37,8 @@ def base_color_node(material):
 
 
 class QualityTests(ExportTest):
+    profile = "unreal"
+
     # Registers a scene check that runs before every other check and changes the scene.
     def inject(self, fault):
         registry.discover(quality)
@@ -45,7 +48,8 @@ class QualityTests(ExportTest):
             return quality.result("pass", "Fault made.")
 
         registry.QUALITY_CHECKS._entries.pop("fault", None)
-        registry.QUALITY_CHECKS.register("fault", quality.QualityCheck(0, "scene", "Fault", run))
+        registry.QUALITY_CHECKS.register("fault", quality.QualityCheck(0, "scene", "Fault", run,
+                                                                        (quality.PLAIN, quality.UNREAL)))
         self.addCleanup(registry.QUALITY_CHECKS._entries.pop, "fault", None)
 
     # Exports with an optional fault and returns the checks by id, after checking the result against the schema.
@@ -70,7 +74,7 @@ class QualityTests(ExportTest):
         for other in CHECK_IDS:
             if other != check_id and other in checks and other not in ("fbx_scale", "kit_file"):
                 self.assertEqual(checks[other]["status"], "pass", checks[other])
-        if check_id != "kit_file":
+        if check_id != "kit_file" and "kit_file" in checks:
             self.assertEqual(checks["kit_file"]["status"], "skipped", checks["kit_file"])
 
     # Returns the exported object with the name.
@@ -95,6 +99,37 @@ class QualityTests(ExportTest):
         self.assertTrue(self.output["written"])
         steps = {s["step"]: s["ms"] for s in self.output["steps"]}
         print("export of the fixture: %.2f s in all, steps %s" % (elapsed, steps))
+
+    # The plain profile runs every check but collision and kit_file, and a clean export passes them all.
+    def test_clean_plain(self):
+        checks = self.checks(profile="plain")
+        self.assertEqual([c["id"] for c in self.output["checks"]], PLAIN_CHECK_IDS)
+        for check_id in PLAIN_CHECK_IDS:
+            self.assertEqual(checks[check_id]["status"], "pass", checks[check_id])
+            self.assertEqual(checks[check_id]["findings"], [])
+        self.assertTrue(self.output["written"])
+        self.assertEqual(self.output["collision_objects"], 0)
+
+    # The plain naming check needs no prefix but refuses SM_ and UCX_, which engines read as their own naming.
+    def test_naming_plain(self):
+        def engine_name(ctx):
+            self.obj(ctx, "sofa_i1").name = "UCX_sofa"
+
+        checks = self.checks(engine_name, profile="plain")
+        self.assertEqual(checks["naming"]["status"], "fail")
+        self.assertEqual([f["object"] for f in checks["naming"]["findings"]], ["UCX_sofa"])
+        self.assertIn("starts with UCX_", checks["naming"]["findings"][0]["message"])
+        self.assertIn("plain FBX", checks["naming"]["message"])
+
+    # Every check names the profiles it runs for, and only collision and kit_file are left out of plain.
+    def test_profiles_declared(self):
+        registry.discover(quality)
+        for check_id, entry in registry.QUALITY_CHECKS.all():
+            if check_id == "fault":
+                continue
+            self.assertTrue(entry.profiles, check_id)
+            self.assertIn("unreal", entry.profiles, check_id)
+            self.assertEqual("plain" in entry.profiles, check_id in PLAIN_CHECK_IDS, check_id)
 
     # The default fixture has slots without a material, so the materials check names them and nothing is written.
     def test_neutral_slots(self):

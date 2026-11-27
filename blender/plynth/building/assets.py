@@ -93,7 +93,7 @@ def load_asset(asset):
 
 # Makes the instance empty of one item in the floor collection at the placement from the job.
 def place(ctx, floor, item, collection):
-    empty = bpy.data.objects.new("SM_%s_%s" % (item["asset"], item["id"]), None)
+    empty = bpy.data.objects.new("%s_%s" % (item["asset"], item["id"]), None)
     empty.empty_display_type = "PLAIN_AXES"
     empty.empty_display_size = 0.1
     empty.instance_type = "COLLECTION"

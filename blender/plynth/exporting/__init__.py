@@ -58,8 +58,16 @@ def run_check(ctx, check_id, check):
             "message": answer["message"], "findings": answer["findings"]}
 
 
-# Returns the registered checks of one phase as (id, check) pairs, in order.
-def checks_of(phase):
+# Returns the registered checks of one phase that run for the profile, as (id, check) pairs, in order.
+def checks_of(phase, profile_id):
     from ..registry import QUALITY_CHECKS
-    found = [(check_id, check) for check_id, check in QUALITY_CHECKS.all() if check.phase == phase]
+    found = [(check_id, check) for check_id, check in QUALITY_CHECKS.all()
+             if check.phase == phase and profile_id in check.profiles]
     return sorted(found, key=lambda pair: pair[1].order)
+
+
+# Says whether the files will be written: the job writes, and no scene check failed or the job is forced.
+def will_write(ctx):
+    params = ctx.params
+    failed = [c for c in ctx.state.get("check_results", []) if c["status"] == "fail"]
+    return bool(params["write"]) and (not failed or bool(params["force"]))

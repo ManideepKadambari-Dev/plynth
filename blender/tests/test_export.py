@@ -13,8 +13,9 @@ from export_helpers import ExportTest, fixture_project
 from plynth import quality, registry, scene
 from schema_check import load_schema, validate
 
-STEPS = ["open_blend", "prepare", "name_objects", "kit_pieces", "textures", "checks", "write_fbx", "write_kit",
-         "file_checks"]
+STEPS = ["open_blend", "prepare", "name_objects", "kit_pieces", "textures", "checks", "finish_objects", "write_fbx",
+         "write_kit", "file_checks"]
+PROFILES = ("plain", "unreal")
 
 
 # Returns the SHA 256 of a file.
@@ -31,11 +32,11 @@ class FakeCheck:
 
     # Returns the check entry to register.
     def entry(self, order=1):
-        return quality.QualityCheck(order, self.phase, "Fake check", self.run)
+        return quality.QualityCheck(order, self.phase, "Fake check", self.run, PROFILES)
 
     # Returns the fixed answer.
     def run(self, ctx):
-        return quality.result(self.status, "Fixed answer.", [quality.finding("About the walls.", "SM_f1_Walls", "w1")])
+        return quality.result(self.status, "Fixed answer.", [quality.finding("About the walls.", "f1_Walls", "w1")])
 
 
 # Returns the id and status of the fake checks in an export output.
@@ -63,7 +64,8 @@ class ExportTests(ExportTest):
         fixture_project()
         self.assertEqual(export_helpers._fixture["problems"], [])
 
-    # The square room export writes the FBX and Textures, with the names the plan asks for.
+    # The plain export writes the FBX and Textures with the build's plain names, no collision and no engine
+    # prefix, and passes its checks.
     def test_export(self):
         result = self.export(clean=True)
         self.assertTrue(result["ok"], result["error"])
@@ -76,54 +78,86 @@ class ExportTests(ExportTest):
         self.assertEqual(output["files"][0]["group"], "building")
         self.assertEqual(output["files"][0]["file"], "Square.fbx")
         self.assertEqual([c["id"] for c in output["checks"] if c["status"] == "fail"], [])
+        self.assertNotIn("collision", [c["id"] for c in output["checks"]])
+        self.assertNotIn("kit_file", [c["id"] for c in output["checks"]])
         objects = scene.scene_objects()
         names = sorted(o.name for o in objects if o.type == "MESH")
-        for wanted in ("SM_f1_Walls", "SM_f1_r1_Floor", "SM_sofa_i1", "SM_sofa_i2", "UCX_SM_f1_Walls_00",
-                       "UCX_SM_f1_Walls_03", "UCX_SM_f1_r1_Floor_00", "UCX_SM_sofa_i1_00", "UCX_SM_sofa_i2_00"):
+        for wanted in ("f1_Walls", "f1_r1_Floor", "sofa_i1", "sofa_i2"):
             self.assertIn(wanted, names)
         for name in names:
-            self.assertTrue(name.startswith("SM_") or name.startswith("UCX_"), name)
-        self.assertEqual(output["collision_objects"], len([n for n in names if n.startswith("UCX_")]))
+            self.assertFalse(name.startswith(("SM_", "UCX_")), name)
+            self.assertNotIn("_Collision_", name)
+        self.assertEqual([o for o in objects if o.get("plynth_kind") == "collision"], [])
+        self.assertEqual(output["collision_objects"], 0)
         self.assertEqual(output["objects"], len(names))
+        self.assertEqual(output["files"][0]["objects"], len(names))
         self.assertEqual(len(objects), len(names))
         for obj in objects:
             self.assertIsNone(obj.parent)
             for row in range(4):
                 for column in range(4):
                     self.assertAlmostEqual(obj.matrix_world[row][column], Matrix.Identity(4)[row][column], delta=1e-6)
-        self.assertEqual(len([o for o in names if o.startswith("SM_sofa_")]), 2)
-        self.assertIsNot(bpy.data.objects["SM_sofa_i1"].data, bpy.data.objects["SM_sofa_i2"].data)
-        self.assertEqual(bpy.data.objects["UCX_SM_sofa_i1_00"]["plynth_collision_for"], "SM_sofa_i1")
+        self.assertEqual(len([o for o in names if o.startswith("sofa_")]), 2)
+        self.assertIsNot(bpy.data.objects["sofa_i1"].data, bpy.data.objects["sofa_i2"].data)
+        written = export_helpers.read_names(self.path("export", ".staging", "Square.fbx"))
+        self.assertEqual(sorted(written), names)
 
+    # The unreal export joins the one group into the mesh SM_Square with every collision piece of its objects as
+    # UCX_SM_Square_NN, and passes every check.
+    def test_export_unreal(self):
+        result = self.export(clean=True, profile="unreal")
+        self.assertTrue(result["ok"], result["error"])
+        self.assert_result_valid(result)
+        output = result["output"]
+        self.assertTrue(output["written"])
+        self.assertEqual([s["step"] for s in output["steps"]], STEPS)
+        self.assertEqual([c["id"] for c in output["checks"] if c["status"] == "fail"], [])
+        self.assertIn("collision", [c["id"] for c in output["checks"]])
+        objects = scene.scene_objects()
+        names = sorted(o.name for o in objects if o.type == "MESH")
+        hulls = [n for n in names if n.startswith("UCX_")]
+        self.assertEqual([n for n in names if not n.startswith("UCX_")], ["SM_Square"])
+        self.assertEqual(hulls, ["UCX_SM_Square_%02d" % n for n in range(len(hulls))])
+        self.assertGreaterEqual(len(hulls), 7)
+        for name in hulls:
+            self.assertEqual(bpy.data.objects[name]["plynth_collision_for"], "SM_Square")
+        self.assertEqual(output["collision_objects"], len(hulls))
+        self.assertEqual(output["objects"], 1 + len(hulls))
+        self.assertEqual(output["files"][0]["objects"], 1 + len(hulls))
+        written = export_helpers.read_names(self.path("export", ".staging", "Square.fbx"))
+        self.assertEqual(sorted(written), names)
+        plain = self.export(clean=True)["output"]
+        self.assertEqual(output["triangles"], plain["triangles"])
     # Slot names are kept and furniture materials are named after their asset.
     def test_material_names(self):
         self.export(clean=True)
         used = {m.name for o in bpy.data.objects if o.type == "MESH" for m in o.data.materials if m}
         for slot in ("Living_Wall", "Living_Ceiling", "Living_Floor", "Exterior_Wall", "Wall_Top"):
             self.assertIn(slot, used)
-        furniture = {m.name for m in bpy.data.objects["SM_sofa_i1"].data.materials if m}
+        furniture = {m.name for m in bpy.data.objects["sofa_i1"].data.materials if m}
         self.assertTrue(furniture)
         for name in furniture:
             self.assertTrue(name.startswith("Sofa_"), name)
-        self.assertEqual(sorted(furniture), sorted(m.name for m in bpy.data.objects["SM_sofa_i2"].data.materials if m))
+        self.assertEqual(sorted(furniture), sorted(m.name for m in bpy.data.objects["sofa_i2"].data.materials if m))
 
-    # Textures are named after their material, copied byte for byte and once for each source file.
+    # Textures are named after their material with no prefix, copied byte for byte and once for each source file.
     def test_textures(self):
         result = self.export(clean=True)
         output = result["output"]
         folder = self.path("export", ".staging", "Textures")
         self.assertEqual(sorted(os.listdir(folder)), output["textures"])
-        self.assertIn("T_PaintA_BaseColor.png", output["textures"])
-        self.assertIn("T_PaintA_Normal.png", output["textures"])
-        self.assertEqual([t for t in output["textures"] if t.startswith("T_PaintA_")].count("T_PaintA_BaseColor.png"), 1)
+        self.assertIn("PaintA_BaseColor.png", output["textures"])
+        self.assertIn("PaintA_Normal.png", output["textures"])
+        self.assertEqual(output["textures"].count("PaintA_BaseColor.png"), 1)
+        self.assertFalse([t for t in output["textures"] if t.startswith("T_")])
         project = fixture_project(clean=True)
         source = os.path.join(project, "..", "library", "paint_a", "base_color.png")
-        self.assertEqual(digest(os.path.join(folder, "T_PaintA_BaseColor.png")), digest(source))
-        self.assertTrue(any(t.startswith("T_Sofa_") for t in output["textures"]))
+        self.assertEqual(digest(os.path.join(folder, "PaintA_BaseColor.png")), digest(source))
+        self.assertTrue(any(t.startswith("Sofa_") for t in output["textures"]))
         floor = bpy.data.materials["Living_Floor"]
         floor_files = {os.path.basename(n.image.filepath) for n in floor.node_tree.nodes
                        if n.type == "TEX_IMAGE" and n.image}
-        self.assertIn("T_PaintA_BaseColor.png", floor_files)
+        self.assertIn("PaintA_BaseColor.png", floor_files)
         sources = {}
         for image in bpy.data.images:
             path = os.path.normcase(os.path.abspath(bpy.path.abspath(image.filepath)))
@@ -131,6 +165,15 @@ class ExportTests(ExportTest):
                 sources.setdefault(path, 0)
         self.assertEqual(len(sources), len(output["textures"]))
         self.assertEqual(len(set(t.lower() for t in output["textures"])), len(output["textures"]))
+
+    # The unreal profile names the same textures with T_ in front.
+    def test_textures_unreal(self):
+        plain = self.export(clean=True)["output"]["textures"]
+        output = self.export(clean=True, profile="unreal")["output"]
+        self.assertEqual(output["textures"], sorted("T_" + name for name in plain))
+        self.assertIn("T_PaintA_BaseColor.png", output["textures"])
+        folder = self.path("export", ".staging", "Textures")
+        self.assertEqual(sorted(os.listdir(folder)), output["textures"])
 
     # The FBX moved with its Textures folder still finds every texture, and the walls have the bounds of the build.
     def test_reimport_elsewhere(self):
@@ -146,11 +189,12 @@ class ExportTests(ExportTest):
             path = os.path.abspath(bpy.path.abspath(image.filepath))
             self.assertTrue(os.path.isfile(path), path)
             self.assertTrue(os.path.normcase(path).startswith(os.path.normcase(os.path.abspath(moved))), path)
-        walls = bpy.data.objects["SM_f1_Walls"]
+        walls = bpy.data.objects["f1_Walls"]
         low, high = scene.world_bounds([walls])
         for got, want in zip(list(low) + list(high), export_helpers.BOUNDS["min"] + export_helpers.BOUNDS["max"]):
             self.assertAlmostEqual(got, want, delta=1e-3)
-        self.assertIn("UCX_SM_sofa_i1_00", [o.name for o in bpy.data.objects])
+        self.assertIn("sofa_i1", [o.name for o in bpy.data.objects])
+        self.assertFalse([o.name for o in bpy.data.objects if o.name.startswith(("UCX_", "SM_"))])
 
     # Returns every texture path string written in an FBX file, absolute and relative ones alike.
     def fbx_texture_paths(self, path):
@@ -237,7 +281,7 @@ class ExportTests(ExportTest):
         self.assertGreater(output["objects"], 0)
         self.assertFalse(os.path.exists(self.path("export")))
 
-    # A cube the user added by hand comes out named SM_Cube.
+    # A cube the user added by hand keeps its name in the plain export and is SM_Cube to the unreal checks.
     def test_hand_added_cube(self):
         project = fixture_project()
         bpy.ops.wm.open_mainfile(filepath=project + "/build/building.blend")
@@ -247,6 +291,10 @@ class ExportTests(ExportTest):
         os.makedirs(os.path.dirname(copy))
         bpy.ops.wm.save_as_mainfile(filepath=copy, copy=True, relative_remap=False)
         result = self.export(blend_file=copy)
+        self.assertTrue(result["ok"], result["error"])
+        self.assertIn("Cube", [o.name for o in bpy.data.objects])
+        self.assertIn("f1_Walls", [o.name for o in bpy.data.objects])
+        result = self.export(blend_file=copy, profile="unreal", write=False)
         self.assertTrue(result["ok"], result["error"])
         self.assertIn("SM_Cube", [o.name for o in bpy.data.objects])
         self.assertNotIn("Cube", [o.name for o in bpy.data.objects])
@@ -273,6 +321,11 @@ class ExportTests(ExportTest):
         del params["groups"]
         result = self.export(params=params)
         self.assertEqual(result["error"]["code"], "bad_job")
+        for profile in (None, "unity"):
+            params = self.params()
+            params["profile"] = profile
+            result = self.export(params=params)
+            self.assertEqual(result["error"]["code"], "bad_job", profile)
 
     # A failing scene check blocks the files, with the check reported and the file check skipped. A forced job
     # writes anyway and the check still says fail.
@@ -303,7 +356,7 @@ class ExportTests(ExportTest):
         def broken(ctx):
             raise RuntimeError("boom")
 
-        self.register_check("fake_crash", quality.QualityCheck(2, "scene", "Crash", broken))
+        self.register_check("fake_crash", quality.QualityCheck(2, "scene", "Crash", broken, PROFILES))
         output = self.export(force=False)["output"]
         fake = [c for c in output["checks"] if c["id"].startswith("fake_")]
         self.assertEqual([c["status"] for c in fake], ["warning", "fail"])
@@ -324,7 +377,8 @@ class ExportTests(ExportTest):
         self.assertEqual([p["step"] for p in lines], STEPS)
         self.assertEqual([p["index"] for p in lines], list(range(1, len(STEPS) + 1)))
 
-    # Groups that take only some kinds split the objects, and a collision mesh follows its object.
+    # Groups that take only some kinds split the objects. In the plain export each object is its own mesh; in the
+    # unreal one each group is one mesh with the collision of its objects.
     def test_groups(self):
         params = self.params(clean=True)
         params["groups"] = [{"id": "furniture", "file": "Furniture.fbx", "kinds": ["item"], "ids": []},
@@ -333,8 +387,18 @@ class ExportTests(ExportTest):
         result = self.export(params=params)
         self.assertTrue(result["ok"], result["error"])
         files = {f["group"]: f for f in result["output"]["files"]}
-        self.assertEqual(files["furniture"]["objects"], 4)
-        self.assertGreater(files["shell"]["objects"], 5)
+        self.assertEqual(files["furniture"]["objects"], 2)
+        self.assertGreater(files["shell"]["objects"], 3)
+        params["profile"] = "unreal"
+        result = self.export(params=params)
+        self.assertTrue(result["ok"], result["error"])
+        files = {f["group"]: f for f in result["output"]["files"]}
+        self.assertEqual(files["furniture"]["objects"], 3)
+        self.assertEqual(sorted(export_helpers.read_names(self.path("export", ".staging", "Furniture.fbx"))),
+                         ["SM_Furniture", "UCX_SM_Furniture_00", "UCX_SM_Furniture_01"])
+        shell = export_helpers.read_names(self.path("export", ".staging", "Shell.fbx"))
+        self.assertEqual([n for n in shell if not n.startswith("UCX_")], ["SM_Shell"])
+        self.assertEqual(len(shell), files["shell"]["objects"])
 
 
 if __name__ == "__main__":

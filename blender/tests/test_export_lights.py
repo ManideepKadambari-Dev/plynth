@@ -23,13 +23,16 @@ class ExportLightTests(ExportTest):
         bpy.ops.wm.save_as_mainfile(filepath=copy, copy=True, relative_remap=False)
         return copy
 
-    # A build with a light exports, and the written file reads back with the light counted, so the file check
-    # passes.
+    # A build with a light exports with either profile, and the written file reads back with the light counted,
+    # so the file check passes. The unreal profile keeps the light apart from the joined mesh.
     def test_light_reads_back(self):
-        result = self.export(blend_file=self.blend_with_light(), clean=True)
-        self.assertTrue(result["ok"], result["error"])
-        checks = {c["id"]: c for c in result["output"]["checks"]}
-        self.assertEqual(checks["fbx_scale"]["status"], "pass", checks["fbx_scale"]["findings"])
+        blend = self.blend_with_light()
+        for profile in ("plain", "unreal"):
+            result = self.export(blend_file=blend, clean=True, profile=profile)
+            self.assertTrue(result["ok"], result["error"])
+            checks = {c["id"]: c for c in result["output"]["checks"]}
+            self.assertEqual(checks["fbx_scale"]["status"], "pass", (profile, checks["fbx_scale"]["findings"]))
+            self.assertIn("Light_f1_l1", [o.name for o in bpy.data.objects if o.type == "LIGHT"], profile)
         for group in fbx_scale.light_setting_groups():
             self.assertNotIn("cast_shadow", group.bl_rna.properties, group.__name__)
 

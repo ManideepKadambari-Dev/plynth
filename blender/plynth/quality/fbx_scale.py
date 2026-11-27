@@ -2,7 +2,7 @@ import re
 
 import bpy
 
-from . import QualityCheck, finding, result
+from . import PLAIN, UNREAL, QualityCheck, finding, result
 from .scale import bound_differences
 from .. import scene
 from ..registry import QUALITY_CHECKS
@@ -44,8 +44,8 @@ def add_light_stand_ins():
     return added
 
 
-# Reads one written file back, next to the scene, and returns (mesh and light objects, walls bounds or None).
-# The objects are the ones the import added.
+# Reads one written file back, next to the scene, and returns (mesh and light objects, walls bounds or None,
+# bounds of every mesh by its name). The objects are the ones the import added.
 def read_back(entry, walls):
     before = snapshot()
     known = set(before["objects"])
@@ -59,14 +59,42 @@ def read_back(entry, walls):
     added = [o for o in bpy.data.objects if o.name not in known and o.type in ("MESH", "LIGHT")]
     found = [o for o in added if o.type == "MESH" and base_name(o.name) in walls]
     bounds = scene.world_bounds(found) if found else None
+    each = {base_name(o.name): scene.world_bounds([o]) for o in added if o.type == "MESH" and len(o.data.vertices)}
     count = len(added)
     restore(before)
-    return count, bounds
+    return count, bounds, each
+
+
+# Returns a sentence for each mesh of a file whose bounds read back differ from its bounds in the scene by more
+# than the tolerance. A mesh the import named differently is passed over; the object count catches a lost one.
+def mesh_differences(entry, each, tolerance):
+    problems = []
+    for name in entry["objects"]:
+        obj = bpy.data.objects.get(name)
+        if obj is None or obj.type != "MESH" or name not in each or not len(obj.data.vertices):
+            continue
+        want = scene.world_bounds([obj])
+        got = each[name]
+        if any(abs(g - w) > tolerance for side in (0, 1) for g, w in zip(got[side], want[side])):
+            problems.append("%s reads back at another size or place than it has in the scene." % name)
+    return problems
+
+
+# Returns the bounds the walls had in the scene before a profile joined them into the meshes of a file, as
+# (low, high), or None when no mesh of the file holds walls.
+def joined_wall_bounds(ctx, entry):
+    known = ctx.state.get("joined_wall_bounds", {})
+    found = [known[name] for name in entry["objects"] if name in known]
+    if not found:
+        return None
+    return ([min(b[0][axis] for b in found) for axis in range(3)],
+            [max(b[1][axis] for b in found) for axis in range(3)])
 
 
 # Reads every written FBX back into the scene and fails unless the walls, taken together over all files, have
-# the bounds the plan gives and the number of objects in each file matches what was written. What the import
-# added is removed again.
+# the bounds the plan gives, every mesh reads back where it is in the scene, and the number of objects in each
+# file matches what was written. Where a profile joined the walls with other meshes, a file that reads back
+# like the scene counts with the bounds its walls had before joining. What the import added is removed again.
 def run(ctx):
     findings = []
     expected = ctx.params.get("expected_bounds")
@@ -77,13 +105,17 @@ def run(ctx):
     with_walls = []
     for entry in ctx.state["written_files"]:
         try:
-            count, bounds = read_back(entry, walls & set(entry["objects"]))
+            count, bounds, each = read_back(entry, walls & set(entry["objects"]))
         except Exception as error:
             findings.append(finding("%s could not be read back: %s" % (entry["file"], error), entry["file"]))
             continue
         if count != len(entry["objects"]):
             findings.append(finding("%s holds %d objects, %d were written." % (entry["file"], count,
                                                                               len(entry["objects"])), entry["file"]))
+        differences = mesh_differences(entry, each, tolerance)
+        findings += [finding("%s: %s" % (entry["file"], text), entry["file"]) for text in differences]
+        if bounds is None and not differences:
+            bounds = joined_wall_bounds(ctx, entry)
         if bounds is not None:
             with_walls.append(entry["file"])
             low = [min(a, b) for a, b in zip(low, bounds[0])]
@@ -97,4 +129,4 @@ def run(ctx):
     return result("pass", "The written files read back with the right size and object count.")
 
 
-QUALITY_CHECKS.register("fbx_scale", QualityCheck(ORDER, "file", "Written files match", run))
+QUALITY_CHECKS.register("fbx_scale", QualityCheck(ORDER, "file", "Written files match", run, (PLAIN, UNREAL)))

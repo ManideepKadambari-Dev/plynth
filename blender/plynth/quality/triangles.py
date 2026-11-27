@@ -1,4 +1,4 @@
-from . import QualityCheck, finding, result
+from . import PLAIN, UNREAL, QualityCheck, finding, result
 from ._common import exported_objects, plan_id
 from ..registry import QUALITY_CHECKS
 
@@ -38,4 +38,4 @@ def run(ctx):
     return result("pass", "The building has %d triangles and no mesh is empty." % total)
 
 
-QUALITY_CHECKS.register("triangles", QualityCheck(ORDER, "scene", "Triangle counts", run))
+QUALITY_CHECKS.register("triangles", QualityCheck(ORDER, "scene", "Triangle counts", run, (PLAIN, UNREAL)))
