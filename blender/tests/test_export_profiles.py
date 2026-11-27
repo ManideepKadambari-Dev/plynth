@@ -85,7 +85,9 @@ class SampleProfileTests(helpers.TempFolderTest):
                     mesh = "SM_" + os.path.splitext(entry["file"])[0]
                     self.assertEqual([n for n in names if not n.startswith("UCX_")], [mesh], entry["file"])
                     pieces = [n for n in names if n.startswith("UCX_")]
-                    self.assertEqual(pieces, ["UCX_%s_%02d" % (mesh, n) for n in range(len(pieces))], entry["file"])
+                    # read_names sorts as text, so from 100 pieces on UCX_..._100 comes before UCX_..._11.
+                    self.assertEqual(pieces, sorted("UCX_%s_%02d" % (mesh, n) for n in range(len(pieces))),
+                                     entry["file"])
                     self.assertEqual(len(names), entry["objects"], entry["file"])
                     hulls += len(pieces)
                 self.assertEqual(hulls, output["collision_objects"])

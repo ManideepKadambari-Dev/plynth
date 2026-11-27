@@ -169,6 +169,8 @@ class ExportTests(ExportTest):
     # The unreal profile names the same textures with T_ in front.
     def test_textures_unreal(self):
         plain = self.export(clean=True)["output"]["textures"]
+        # Core hands every export an empty staging folder, so the plain files must not stay for the second run.
+        shutil.rmtree(self.path("export", ".staging"))
         output = self.export(clean=True, profile="unreal")["output"]
         self.assertEqual(output["textures"], sorted("T_" + name for name in plain))
         self.assertIn("T_PaintA_BaseColor.png", output["textures"])
