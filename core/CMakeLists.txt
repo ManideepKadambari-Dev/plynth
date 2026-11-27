@@ -54,6 +54,8 @@ add_library(plynth_core STATIC
     src/Stairs.cpp
     src/Storeys.cpp
     src/Roofs.cpp
+    src/roofs/Valleys.cpp
+    src/roofs/Skeleton.cpp
     src/BuildPreview.cpp
     src/Collision.cpp
     src/MaterialSlots.cpp

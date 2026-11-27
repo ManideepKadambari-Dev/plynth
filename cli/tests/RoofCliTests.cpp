@@ -1,6 +1,7 @@
 #include "MaterialLibrary.h"
 #include "SampleProject.h"
 
+#include <algorithm>
 #include <plynth/cli/Cli.h>
 
 #include <catch2/catch_test_macros.hpp>
@@ -26,7 +27,8 @@ TEST_CASE("roof types lists the five types and what each uses", "[cli][roof]") {
         CHECK(type.at("name").is_string());
         CHECK(type.at("uses").is_array());
     }
-    CHECK(names == std::vector<std::string>{"flat", "gable", "hip", "shed", "sawtooth"});
+    std::sort(names.begin(), names.end());
+    CHECK(names == std::vector<std::string>{"dutch_gable", "flat", "gable", "hip", "jerkinhead", "pyramid", "sawtooth", "shed"});
 }
 
 TEST_CASE("roof list shows the default and the section over the walls", "[cli][roof]") {

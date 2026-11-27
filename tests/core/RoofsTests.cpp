@@ -704,7 +704,7 @@ TEST_CASE("a hip roof with an overhang still rises to the same ridge", "[roofs]"
     CHECK(boxOf(covering).z0 == Approx(3.2 - 0.3 * kTan30).margin(1e-6));
 }
 
-TEST_CASE("a hip roof on an L shaped section falls back to a gable", "[roofs]")
+TEST_CASE("a hip roof on an L shaped section is built as a hip", "[roofs]")
 {
     Plan plan = makeNewProject().plan;
     Floor& f = plan.floors[0];
@@ -726,11 +726,14 @@ TEST_CASE("a hip roof on an L shaped section falls back to a gable", "[roofs]")
     plan.roof.type = "hip";
     const FloorRoofs r = floorRoofs(plan, 0, kOneLevel);
     REQUIRE(r.roofs.size() == 1);
-    CHECK(r.roofs[0].type == "gable");
-    REQUIRE(r.problems.size() == 1);
-    CHECK(r.problems[0].code == "roof_type_fallback");
-    CHECK_FALSE(r.problems[0].message.empty());
+    CHECK(r.roofs[0].type == "hip");
+    CHECK(r.problems.empty());
     checkFaces(r.roofs[0]);
+    const std::vector<RoofFace> covering = facesOf(r.roofs[0], RoofPart::Covering);
+    CHECK(covering.size() >= 6);
+    CHECK(boxOf(covering).z1 == Approx(3.2 + 1.5 * kTan30).margin(1e-6));
+    CHECK(boxOf(covering).z0 == Approx(3.2 - 0.3 * kTan30).margin(1e-6));
+    CHECK(facesOf(r.roofs[0], RoofPart::Gable).empty());
 }
 
 TEST_CASE("a sawtooth roof has a bay of 3 m and a bay of 1 m with glazing each", "[roofs]")
