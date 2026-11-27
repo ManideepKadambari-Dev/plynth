@@ -64,6 +64,7 @@ Everything the app does is also a command that answers in one line of JSON, so a
 - Modular kit: each unique wall, corner and opening piece written once, with a layout file that says where every copy goes.
 - Quality checks run before anything is written: scale, transforms, naming, UVs, texture sharpness, triangles, materials, collision and more.
 - Optional gameplay data: room volumes, door positions and light positions as JSON.
+- Unreal Engine link: send the building into the Unreal project you have open, under `Content/Plynth/`, and have it updated after every build. Your moves of furniture and groups in Unreal are kept.
 
 **Command line and automation**
 - `plynth` does everything the app does, from a terminal or a script. Every command prints one line of JSON.

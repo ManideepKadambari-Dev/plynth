@@ -1245,7 +1245,7 @@ A refused edit shows its reason in amber under the list. Group edits are export 
 
 ### Modular kit
 
-The modular kit is not part of the plain export. It belongs to the Unreal Engine link, which is coming. The link will send the kit with the building when you switch it on. From the command line the switch is `plynth export kit on`, and it is saved under `links.unreal` in `export-options.json`. Plain export never writes the kit files. The rest of this section describes what the kit is.
+The modular kit is not part of the plain export. It belongs to the Unreal Engine link (see "Unreal Engine link"), which sends the kit with the building when you switch it on. From the command line the switch is `plynth export kit on`, and it is saved under `links.unreal` in `export-options.json`. Plain export never writes the kit files. The rest of this section describes what the kit is.
 
 Instead of one large mesh of walls, the kit gives you the few unique wall pieces the building is made of, each once, and a layout file that says where each copy goes. The kit needs the library, because its pieces use the same material slot names as the building. A plan with no walls gives no kit.
 
@@ -1277,9 +1277,59 @@ Floors, ceilings, thresholds, slabs, stairs, roofs and furniture are not in the 
 
 To check the signs, import the walls file (or the single file) and the kit file with the same import settings, place one corner piece and one wall piece from the layout, and see whether they sit on the walls. If they are mirrored or turned, change the signs once. The same signs then hold for every placement, because every file shares one origin.
 
+## Unreal Engine link
+
+The Unreal Engine link puts your building into the Unreal project you have open, and updates it after every build. It is in the Export window, in the **Unreal Engine** section. It works with Unreal Engine 5.x on Windows.
+
+The plain export does not change. The link is a separate step that sends the building straight into Unreal, so you do not import an FBX by hand.
+
+### One-time setup in Unreal
+
+Do this once for each Unreal project:
+
+1. Open the project in Unreal. In **Edit > Plugins**, turn on **Python Editor Script Plugin**. Restart Unreal when it asks.
+2. Open **Edit > Project Settings**, go to **Plugins > Python**, and turn on **Enable Remote Execution**.
+
+Leave the settings at their defaults. Plynth finds the open editor on your own PC.
+
+### Sending the building
+
+Open the Export window and find the **Unreal Engine** section. It shows the status: which Unreal project Plynth found, or that none is open. Open your Unreal project first, then press **Send to Unreal**. If more than one editor is open, the first send asks which one.
+
+Build first. The link sends the last build, like Export does. Plynth runs the quality checks for the building (the same ones as a plain export), and nothing is sent if one fails.
+
+The building lands in your Unreal project under `Content/Plynth/<building name>/`. Plynth makes the `Plynth` folder when it is not there. A project called "My Flat" gives `Content/Plynth/My_Flat/`. Inside are folders for the meshes, textures, materials and data files. Everything of the building stays in its own folder, so you can find it and delete it as one.
+
+The meshes are named `SM_<building name>`, with collision shapes Unreal reads. The building is also placed in the open level, at the origin. Plynth does not save your level. Unreal marks it as changed, so save it when you are happy.
+
+### The two choices
+
+- **Pack with materials.** On by default. The materials and textures go to Unreal as ready material assets, already set on the meshes. Off: only the meshes go, with their named material slots and Unreal's default material, so you can assign your own. Switching it off removes the texture and material assets of an earlier send.
+- **Grouped.** Off: one building asset. On: the furniture, walls and floors arrive as separate assets, each placed in the level, so you can move them in Unreal. It starts from the project's export mode (see "Export mode") and you can change it here without changing the project. See "Grouped export" for how the groups are made.
+
+Two more switches are in the section, for the **Modular kit** (see "Modular kit") and the **Gameplay data** files. They are off until you turn them on. The kit pieces go to `Kit/`. The gameplay data files are copied into `Data/` as files, next to the assets.
+
+### Updates after a build
+
+After the first send, Plynth remembers which Unreal project you sent to. After every good build it sends the building again by itself, and the assets are updated in place. Anything in your level that uses them keeps working. A mesh or material the building no longer has is removed from its folder.
+
+**Your moves are kept.** When a send finds a mesh already in the level, it leaves it where you put it. Move a sofa or a whole group in Unreal, build again in Plynth, and it stays where you moved it. A mesh that is no longer in the building is removed from the level. Only things of this building are touched. Your own assets and actors in Unreal are never changed or deleted.
+
+**When Unreal is closed.** The update is skipped, with the line "Unreal Engine is not open, so the building was not updated." The same happens when another Unreal project is open. Nothing is wrong. Open the project and press **Send to Unreal**, or build again.
+
+**One building folder, one project.** A building folder in Unreal belongs to the Plynth project that made it. If a different Plynth project would write into it, for example two projects with the same name, the send stops and tells you to rename the project. Nothing in that folder is changed.
+
+### Unlink
+
+**Unlink** makes Plynth forget the Unreal project. Later builds no longer update it, and the Export window goes back to asking which editor to use. Everything already in Unreal stays as it is. Press **Send to Unreal** to link again.
+
+### The last report
+
+The section shows the report of the last send: when it ran, how long it took, the Unreal project and version, the assets it made, updated or removed, and the actors in the level. It is also saved in the project as `build\links\unreal\link_report.json`, with the editor's own messages in `editor.log` beside it. Look there when a send fails. A skipped update does not replace the last report.
+
 ## The quality gate
 
-The checks look at the real objects that go into the FBX. A plain export runs the eleven checks below. The checks for collision and the modular kit belong to the Unreal Engine link, which is coming. The Export window lists them in a column. Each row has the check's name, a sentence and a mark: blue for pass, an amber outline for a warning, filled amber for a fail, grey for skipped. Click a row to see what it found. Click a finding that names something on the plan, and Plynth switches to the plan and selects it.
+The checks look at the real objects that go into the FBX. A plain export runs the eleven checks below. The checks for collision and the modular kit belong to the Unreal Engine link. The Export window lists them in a column. Each row has the check's name, a sentence and a mark: blue for pass, an amber outline for a warning, filled amber for a fail, grey for skipped. Click a row to see what it found. Click a finding that names something on the plan, and Plynth switches to the plan and selects it.
 
 "Build is up to date" is judged against the plan of the last successful build, saved in `build\built-plan.json`. A build that failed does not change what counts as built.
 
@@ -1301,7 +1351,7 @@ A ceiling set to "No material" fails the Materials check. Choose a material for 
 
 ## Collision
 
-The build makes simple shapes that stop the player walking through things. Each is a closed convex mesh named `<object name>_Collision_<NN>`, for example `f1_Walls_Collision_00`. They are in `building.blend`. The plain export leaves them out, because most tools have no use for them. The Unreal Engine link, which is coming, will send them with the `UCX_` names Unreal reads.
+The build makes simple shapes that stop the player walking through things. Each is a closed convex mesh named `<object name>_Collision_<NN>`, for example `f1_Walls_Collision_00`. They are in `building.blend`. The plain export leaves them out, because most tools have no use for them. The Unreal Engine link sends them with the `UCX_` names Unreal reads.
 
 - **Walls** are cut into pieces. A piece is convex, so a wall with a doorway becomes a piece left of the door, a piece right of it and a piece over it. You can walk through the doorway. A plain opening gets a piece under it. A **window** does not cut the wall: the glass area stays blocked.
 - **Floors and ceilings** get a collision slab 10 cm thick, under the floor and above the ceiling, or as thin as the slab between the floors when that is thinner, so nothing pokes into the next floor. Rooms that are not rectangles are split into several slabs. Columns and holes stay open.
@@ -1352,7 +1402,7 @@ This is advice, since Plynth does not run your tool. Import `<Name>.fbx`, or eve
 - Each object stays its own mesh, named as in the file, for example `f1_Walls` or `sofa_i1`. Keep them separate if your tool offers a combine option.
 - The group files all share the building's origin, so import them at the same location and they line up.
 
-Repeated furniture becomes separate meshes in the FBX. Ten identical chairs are ten meshes. The Unreal Engine link, which is coming, will do the Unreal import for you and use the Unreal naming rules (`SM_` meshes, `UCX_` collision, `T_` textures).
+Repeated furniture becomes separate meshes in the FBX. Ten identical chairs are ten meshes. The Unreal Engine link (see "Unreal Engine link") does the Unreal import for you and uses the Unreal naming rules (`SM_` meshes, `UCX_` collision, `T_` textures).
 
 ## Furniture materials
 
