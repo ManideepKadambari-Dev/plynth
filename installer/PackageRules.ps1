@@ -25,7 +25,7 @@ $script:RuntimeNames = @('msvcp140*.dll', 'vcruntime140*.dll', 'concrt140*.dll',
 function Test-Never([string]$name) {
     $never = $script:RuntimeNames + @('dxil.dll', 'dxcompiler.dll', 'd3dcompiler_47.dll', 'opengl32sw.dll',
         '*.pdb', '*.lib', '*.exp', '*.ilk', '*.qmlc', '*.pyc', '*_tests.exe', 'fake_*.exe',
-        '*update_driver*', '*httplib*', '*.key', '*.pub', '*.minisig')
+        '*update_driver*', '*httplib*', '*.key', '*.pub', '*.minisig', 'blender.exe', 'blender-*-windows-x64.zip')
     foreach ($pattern in $never) {
         if ($name -like $pattern) { return $true }
     }

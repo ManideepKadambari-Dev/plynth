@@ -20,7 +20,7 @@ namespace plynth {
 // the Plynth installer, and an installed Blender is still used when one is found (preferredBlender ranks a
 // downloaded copy like any other).
 //
-// Where it goes: downloadedBlenderRoot(), which is <install folder>/Blender for an installed copy
+// Where it goes: downloadedBlenderRoot(), which is <install folder>/portable-blender for an installed copy (not "Blender": Windows names are not case sensitive and the scripts folder is "blender")
 // (Update.h currentInstallation) and %LOCALAPPDATA%/Plynth/Blender otherwise. Each version in its own folder,
 // <root>/blender-5.2.3-windows-x64/blender.exe, with a file .plynth-download beside it naming the zip and its
 // checksum. findBlenderCandidates lists those with BlenderSource::Downloaded. The uninstaller removes the folder

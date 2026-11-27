@@ -46,6 +46,8 @@ function Invoke-Setup([string]$file, [string[]]$arguments) {
     # Not -Wait: in PowerShell 7 that also waits for every program the setup starts, such as a reopened Plynth.
     # The uninstaller hands its work to a copy of itself and ends at once, so the helpers it starts are
     # followed by parent id until all of them have ended.
+    # A test install never downloads Blender. An update leaves the tick box as it is, because it must skip it.
+    if ($arguments -notcontains '/PLYNTHUPDATE=1') { $arguments += '/MERGETASKS=!getblender' }
     $started = (Get-Date).AddSeconds(-2)
     $p = Start-Process -FilePath $file -ArgumentList $arguments -PassThru
     $null = $p.Handle

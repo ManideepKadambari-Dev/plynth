@@ -419,12 +419,12 @@ BlenderDownload installBlenderZip(const fs::path& root, const fs::path& staging,
 fs::path downloadedBlenderRoot()
 {
     const Installation here = currentInstallation();
-    if (here.kind == InstallKind::Installed && !here.folder.empty()) return here.folder / L"Blender";
+    if (here.kind == InstallKind::Installed && !here.folder.empty()) return here.folder / L"portable-blender";
     if (const std::wstring local = blenderpaths::environmentText(L"LOCALAPPDATA"); !local.empty()) {
-        return fs::path(local) / L"Plynth" / L"Blender";
+        return fs::path(local) / L"Plynth" / L"portable-blender";
     }
     std::error_code ec;
-    return fs::temp_directory_path(ec) / L"Plynth" / L"Blender";
+    return fs::temp_directory_path(ec) / L"Plynth" / L"portable-blender";
 }
 
 // Picks the highest Windows zip of the series linked in a release folder page.

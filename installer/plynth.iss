@@ -8,6 +8,7 @@
 ; Plynth starts its own update like this, and shipped copies depend on these switches:
 ;   PlynthSetup.exe /SILENT /SUPPRESSMSGBOXES /NORESTART /CURRENTUSER /NOCLOSEAPPLICATIONS
 ;                   /NORESTARTAPPLICATIONS /PLYNTHUPDATE=1 [/PLYNTHREOPEN=1] /LOG=<file>
+; An update never gets Blender. /MERGETASKS=!getblender turns the Blender tick box off for any other install.
 
 #ifndef AppVersion
   #error AppVersion is not set
@@ -42,6 +43,9 @@
 #ifndef SetupMutex
   #define SetupMutex "PlynthSetup"
 #endif
+; The folder "Get Blender for me" downloads into, the same name as downloadedBlenderRoot in
+; core/src/blender/BlenderDownload.cpp.
+#define DownloadedBlender "portable-blender"
 
 [Setup]
 ; The AppId never changes, or Windows sees a second program.
@@ -91,6 +95,10 @@ VersionInfoDescription=Plynth setup
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
+[Tasks]
+; Ticked by default (owner, issue 37). plynth.com downloads nothing when a usable Blender is already found.
+Name: "getblender"; Description: "Get Blender for me (about 400 MB from blender.org)"; GroupDescription: "Blender (skipped when a usable Blender is already on this PC):"
+
 [InstallDelete]
 ; The program's own script and QML folders are replaced whole, so a file removed in a new version goes.
 ; The folder is fixed and checked for links before this runs.
@@ -106,6 +114,7 @@ Name: "{autoprograms}\Plynth"; Filename: "{app}\plynth.exe"
 [UninstallDelete]
 ; Blender may leave compiled Python files in the scripts folder.
 Type: filesandordirs; Name: "{app}\blender"
+Type: filesandordirs; Name: "{app}\{#DownloadedBlender}"
 
 [Run]
 Filename: "{app}\plynth.exe"; Description: "Start Plynth"; Flags: nowait postinstall skipifsilent
@@ -126,6 +135,7 @@ const
 var
   SetupMutexHandle: Cardinal;
   RuntimeRefused: Boolean;
+  BlenderNotFetched: Boolean;
 
 function CreateMutexW(Attributes: Cardinal; InitialOwner: Cardinal; Name: String): Cardinal;
   external 'CreateMutexW@kernel32.dll stdcall';
@@ -354,8 +364,14 @@ begin
   end;
 end;
 
-// Returns the first file below a folder that is in use, or an empty text when all are free. Links are not
-// followed.
+// The folder downloaded copies of Blender go into. Setup never replaces them, so it does not wait for them.
+function DownloadedBlenderFolder: String;
+begin
+  Result := ExpandConstant('{app}\{#DownloadedBlender}');
+end;
+
+// Returns the first file below a folder that is in use, or an empty text when all are free. Links and the
+// downloaded Blender are not followed.
 function FirstFileInUse(Folder: String): String;
 var
   Rec: TFindRec;
@@ -369,7 +385,7 @@ begin
       if (Rec.Name <> '.') and (Rec.Name <> '..') then begin
         Path := Folder + '\' + Rec.Name;
         if (Rec.Attributes and AttrDirectory) <> 0 then begin
-          if (Rec.Attributes and AttrReparsePoint) = 0 then
+          if ((Rec.Attributes and AttrReparsePoint) = 0) and (CompareText(Path, DownloadedBlenderFolder) <> 0) then
             Result := FirstFileInUse(Path);
         end else if FileIsInUse(Path) then
           Result := Path;
@@ -486,6 +502,128 @@ begin
   end;
 end;
 
+// Reads the value of one key from a line of JSON as text: a string without its quotes, or a whole number.
+// Empty when the key is not there.
+function JsonValue(Line, Key: String): String;
+var
+  P, I: Integer;
+begin
+  Result := '';
+  P := Pos('"' + Key + '":', Line);
+  if P = 0 then
+    exit;
+  I := P + Length(Key) + 3;
+  while (I <= Length(Line)) and (Line[I] = ' ') do
+    I := I + 1;
+  if (I <= Length(Line)) and (Line[I] = '"') then begin
+    I := I + 1;
+    while (I <= Length(Line)) and (Line[I] <> '"') do begin
+      if (Line[I] = '\') and (I < Length(Line)) then
+        I := I + 1;
+      Result := Result + Line[I];
+      I := I + 1;
+    end;
+  end else
+    while (I <= Length(Line)) and (Pos(Line[I], '-0123456789') > 0) do begin
+      Result := Result + Line[I];
+      I := I + 1;
+    end;
+end;
+
+// Shows one progress line of "plynth blender get" on the installing page.
+procedure ShowBlenderProgress(Line: String);
+var
+  Done, Total: Int64;
+  Permille: Integer;
+begin
+  if JsonValue(Line, 'message') <> '' then
+    WizardForm.StatusLabel.Caption := JsonValue(Line, 'message');
+  Done := StrToInt64Def(JsonValue(Line, 'done'), 0);
+  Total := StrToInt64Def(JsonValue(Line, 'total'), 0);
+  if (Total <= 0) or (Done < 0) then begin
+    WizardForm.ProgressGauge.Style := npbstMarquee;
+    WizardForm.FilenameLabel.Caption := '';
+    exit;
+  end;
+  if Done > Total then
+    Done := Total;
+  Permille := Done * 1000 div Total;
+  WizardForm.ProgressGauge.Style := npbstNormal;
+  WizardForm.ProgressGauge.Max := 1000;
+  WizardForm.ProgressGauge.Position := Permille;
+  if JsonValue(Line, 'stage') = 'downloading' then
+    WizardForm.FilenameLabel.Caption := IntToStr(Done div 1048576) + ' of ' + IntToStr(Total div 1048576) + ' MB'
+  else
+    WizardForm.FilenameLabel.Caption := '';
+end;
+
+// Takes each line "plynth blender get" writes: progress lines go on the page, everything else in the log.
+procedure OnBlenderOutput(const S: String; const Error, FirstLine: Boolean);
+begin
+  if Error and (Pos('"progress"', S) > 0) then
+    ShowBlenderProgress(S)
+  else if Trim(S) <> '' then
+    Log('plynth blender get: ' + S);
+end;
+
+// Runs "plynth blender get --yes --if-missing" and says whether it ended well. Exit code 0 means Blender was
+// downloaded or a usable one was already there.
+function RunBlenderGet: Boolean;
+var
+  Code: Integer;
+begin
+  Result := False;
+  WizardForm.StatusLabel.Caption := 'Getting Blender from blender.org (about 400 MB). This can take several minutes.';
+  WizardForm.FilenameLabel.Caption := '';
+  WizardForm.ProgressGauge.Style := npbstMarquee;
+  // plynth.com refuses to start while the setup mutex exists. Every file is in place by now.
+  ReleaseSetupMutex;
+  try
+    if not ExecAndLogOutput(ExpandConstant('{app}\plynth.com'), 'blender get --yes --if-missing',
+                            ExpandConstant('{app}'), SW_HIDE, ewWaitUntilTerminated, Code, @OnBlenderOutput) then
+      Log('plynth.com could not be started to get Blender: ' + SysErrorMessage(Code))
+    else if Code <> 0 then
+      Log('Getting Blender ended with exit code ' + IntToStr(Code))
+    else
+      Result := True;
+  except
+    Log('Getting Blender stopped: ' + GetExceptionMessage);
+  end;
+  if not TakeSetupMutex then
+    Log('The setup mutex could not be taken again after getting Blender.');
+  WizardForm.ProgressGauge.Style := npbstNormal;
+  WizardForm.ProgressGauge.Position := WizardForm.ProgressGauge.Max;
+  WizardForm.FilenameLabel.Caption := '';
+end;
+
+// Gets Blender when the tick box asks for it. Never during an update, and it never stops the install: when it
+// does not work, the last page says so in one sentence.
+procedure GetBlenderIfAsked;
+begin
+  if IsUpdateMode then begin
+    Log('An update does not get Blender.');
+    exit;
+  end;
+  if not WizardIsTaskSelected('getblender') then
+    exit;
+  if not RuntimeIsReady then begin
+    Log('Blender was not downloaded, because Plynth cannot run without the Microsoft Visual C++ runtime.');
+    BlenderNotFetched := True;
+    exit;
+  end;
+  BlenderNotFetched := not RunBlenderGet;
+end;
+
+// Adds the note about Blender to the last page when getting it did not work.
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  if (CurPageID <> wpFinished) or not BlenderNotFetched then
+    exit;
+  WizardForm.FinishedLabel.Caption := WizardForm.FinishedLabel.Caption + #13#10#13#10 +
+    'Blender could not be downloaded now, but you can get it later from the setup check in Plynth.';
+  WizardForm.RunList.Top := WizardForm.RunList.Top + WizardForm.AdjustLabelHeight(WizardForm.FinishedLabel);
+end;
+
 // After the files are in place: the path entry, then the runtime check, which never stops a normal install.
 // At the very end Plynth is started again when it asked for that.
 procedure CurStepChanged(CurStep: TSetupStep);
@@ -506,6 +644,7 @@ begin
 #if PathEntry == "1"
   AddToPath;
 #endif
+  GetBlenderIfAsked;
   if RuntimeIsReady then
     exit;
   Log('The Microsoft Visual C++ runtime is missing or older than {#RuntimeMajor}.{#RuntimeMinor}. Page: ' + RuntimePage);
