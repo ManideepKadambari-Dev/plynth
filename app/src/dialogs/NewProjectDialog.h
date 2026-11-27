@@ -10,8 +10,8 @@ class QPushButton;
 namespace plynth::app {
 
 // Asks for the name and the location of a new project. The project folder is the location plus the name.
-// Create stays off, with a sentence that says why, while the name is not a valid folder name or the folder
-// exists and is not empty.
+// Create stays off, with core's sentence that says why, while the name is not a valid folder name or the folder
+// exists and is not empty (checkNewProjectFolder in NewProject.h).
 class NewProjectDialog : public QDialog {
     Q_OBJECT
 public:
@@ -27,8 +27,6 @@ public:
 
     // The first of "base", "base 2", "base 3" and so on that is not yet a folder in location.
     static QString freeName(const QString& location, const QString& base);
-    // Why a project cannot be made with this name in this location, or empty when it can.
-    static QString problem(const QString& location, const QString& name);
 
 protected:
     void paintEvent(QPaintEvent* event) override;

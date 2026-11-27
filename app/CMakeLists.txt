@@ -71,6 +71,8 @@ add_executable(plynth WIN32
     src/dialogs/RoomTypesDialog.cpp
     src/dialogs/ScaleDialog.h
     src/dialogs/ScaleDialog.cpp
+    src/dialogs/SettingsDialog.h
+    src/dialogs/SettingsDialog.cpp
     src/dialogs/VariationsDialog.h
     src/dialogs/VariationsDialog.cpp
     src/document/FloorFocus.h

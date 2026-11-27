@@ -27,6 +27,7 @@
 #include "update/UpdateDialog.h"
 #include "dialogs/NewProjectDialog.h"
 #include "dialogs/RoomTypesDialog.h"
+#include "dialogs/SettingsDialog.h"
 #include "dialogs/VariationsDialog.h"
 #include "home/HomeScreen.h"
 #include "home/ProjectThumbnail.h"
@@ -52,6 +53,7 @@
 #include "guide/GuideHost.h"
 
 #include <plynth/core/Items.h>
+#include <plynth/core/NewProject.h>
 #include <plynth/core/PlanImage.h>
 #include <plynth/core/ProjectFiles.h>
 #include <plynth/core/Resources.h>
@@ -759,6 +761,10 @@ void MainWindow::buildMenus()
                                           {});
     connect(unpackAction, &QAction::triggered, this, &MainWindow::unpackProjectDialog);
     file->addSeparator();
+    QAction* settingsAction = addMenuAction(file, tr("Se&ttings..."),
+                                            tr("Open the settings, such as setting up your coding assistant"), {});
+    connect(settingsAction, &QAction::triggered, this, [this]() { showSettingsDialog(true); });
+    file->addSeparator();
     exitAction_ = addMenuAction(file, tr("E&xit"), tr("Exit Plynth (Alt+F4)"),
                                         {QKeySequence(Qt::ALT | Qt::Key_F4)});
     connect(exitAction_, &QAction::triggered, this, &QWidget::close);
@@ -1189,6 +1195,8 @@ QImage MainWindow::grabPicture()
         shownDialog = updateDialog_;
     else if (checkNewProjectDialog_ && checkNewProjectDialog_->isVisible())
         shownDialog = checkNewProjectDialog_;
+    else if (settingsDialog_ && settingsDialog_->isVisible())
+        shownDialog = settingsDialog_;
     if (shownDialog != nullptr) {
         const Theme& t = Theme::instance();
         const QImage dialog = shownDialog->grab().toImage();
@@ -1242,6 +1250,23 @@ void MainWindow::showVariationsDialog(bool wait)
     variationsDialog_->setModal(false);
     variationsDialog_->show();
     variationsDialog_->adjustSize();
+}
+
+// Opens the Settings window and waits until it is closed. For checks it stays open without waiting, after
+// writing the skill file into the given folder.
+void MainWindow::showSettingsDialog(bool wait, const QString& skillsFolder)
+{
+    if (settingsDialog_ == nullptr) {
+        settingsDialog_ = new SettingsDialog(dialogParent());
+        settingsDialog_->setAttribute(Qt::WA_DeleteOnClose);
+    }
+    if (!skillsFolder.isEmpty())
+        settingsDialog_->installInto(skillsFolder, false);
+    if (wait) {
+        settingsDialog_->exec();
+        return;
+    }
+    settingsDialog_->open();
 }
 
 // For checks only: places a light as the Light tool does.
@@ -2643,9 +2668,9 @@ plynth::Project MainWindow::newProjectContent(const QString& name, const QString
 // For checks only: does what Create in the New project dialog does for this folder, named after it.
 bool MainWindow::createProjectForCheck(const QString& folder, const QString& image)
 {
-    const QString why = NewProjectDialog::problem(QFileInfo(folder).absolutePath(), QFileInfo(folder).fileName());
-    if (!why.isEmpty()) {
-        statusBar_->showMessage(why);
+    const plynth::Status check = plynth::checkNewProjectFolder(toPath(QFileInfo(folder).absoluteFilePath()));
+    if (!check.ok()) {
+        statusBar_->showMessage(fromCore(check.message));
         return false;
     }
     return createAndOpen(newProjectContent(QFileInfo(folder).fileName(), image), QFileInfo(folder).absoluteFilePath());
@@ -2663,16 +2688,13 @@ bool MainWindow::askNewProject(const QString& baseName, QString* name, QString* 
     return true;
 }
 
-// Makes the folder, saves the project in it as a new project and opens it. Shows why when it cannot, and then
-// removes the folder again when it made it and it is still empty.
+// Makes the project through core, as "plynth project new" does: core checks the folder, saves the project in it,
+// adds AGENTS.md and removes a folder it made when saving fails. Then opens it, or shows why it cannot.
 bool MainWindow::createAndOpen(plynth::Project project, const QString& folder)
 {
-    const bool existed = QFileInfo(folder).isDir();
-    const plynth::Status status = plynth::createProject(project, toPath(folder), {});
-    if (!status.ok()) {
-        if (!existed)
-            QDir().rmdir(folder);
-        showError(tr("Cannot create project"), fromCore(status.message));
+    const plynth::NewProjectResult made = plynth::createNewProject(project, toPath(folder), {});
+    if (!made.status.ok()) {
+        showError(tr("Cannot create project"), fromCore(made.status.message));
         return false;
     }
     terminal_->shutdown();
@@ -2682,6 +2704,10 @@ bool MainWindow::createAndOpen(plynth::Project project, const QString& folder)
         return false;
     }
     lastFolder_ = QFileInfo(folder).absolutePath();
+    // A missing AGENTS.md does not stop the project, so it is only said in the status bar.
+    if (!made.agentGuide.status.ok())
+        statusBar_->showMessage(
+            tr("The project was made without AGENTS.md. %1").arg(fromCore(made.agentGuide.status.message)));
     return true;
 }
 

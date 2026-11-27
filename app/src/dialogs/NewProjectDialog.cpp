@@ -3,6 +3,9 @@
 #include "theme/ElideLabel.h"
 #include "theme/Theme.h"
 
+#include <plynth/core/NewProject.h>
+
+#include <QByteArray>
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QFileDialog>
@@ -13,20 +16,21 @@
 #include <QLineEdit>
 #include <QPainter>
 #include <QPushButton>
-#include <QRegularExpression>
 #include <QSizePolicy>
 #include <QVBoxLayout>
+
+#include <cstddef>
+#include <filesystem>
+#include <string_view>
 
 namespace plynth::app {
 
 namespace {
 
-// True for a name Windows keeps for a device, such as CON or COM1, with or without an ending.
-bool isDeviceName(const QString& name)
+// Turns a Qt path into a standard path without losing non English letters.
+std::filesystem::path toPath(const QString& text)
 {
-    static const QRegularExpression device(QStringLiteral("^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\\..*)?$"),
-                                           QRegularExpression::CaseInsensitiveOption);
-    return device.match(name).hasMatch();
+    return std::filesystem::path(text.toStdWString());
 }
 
 }
@@ -159,10 +163,15 @@ void NewProjectDialog::browse()
         location_->setText(QDir::toNativeSeparators(folder));
 }
 
-// Shows the folder Create would make, or the sentence that says why it cannot, and turns Create on or off.
+// Asks core whether the folder can hold a new project, shows the folder Create would make or core's sentence that
+// says why it cannot, and turns Create on or off.
 void NewProjectDialog::validate()
 {
-    const QString why = problem(location_->text().trimmed(), name());
+    const QByteArray typed = name().toUtf8();
+    const std::string_view typedName(typed.constData(), static_cast<std::size_t>(typed.size()));
+    const plynth::Status status = plynth::checkNewProjectFolder(toPath(location_->text().trimmed()), typedName);
+    const QString why =
+        status.ok() ? QString() : QString::fromUtf8(status.message.data(), static_cast<qsizetype>(status.message.size()));
     problem_->setText(why);
     problem_->setVisible(!why.isEmpty());
     const bool ready = why.isEmpty();
@@ -186,34 +195,6 @@ QString NewProjectDialog::freeName(const QString& location, const QString& base)
             return name;
     }
     return base;
-}
-
-// Checks the name as a Windows folder name, then the location, then the folder they make together.
-QString NewProjectDialog::problem(const QString& location, const QString& name)
-{
-    if (name.isEmpty())
-        return tr("Type a name for the project.");
-    static const QRegularExpression forbidden(QStringLiteral("[<>:\"/\\\\|?*\\x00-\\x1F]"));
-    if (name.contains(forbidden))
-        return tr("A folder name cannot contain any of these characters: \\ / : * ? \" < > |");
-    if (name.endsWith(QLatin1Char('.')) || name == QStringLiteral(".") || name == QStringLiteral(".."))
-        return tr("A folder name cannot end with a dot.");
-    if (isDeviceName(name))
-        return tr("Windows keeps the name %1 for itself. Choose another name.").arg(name);
-    if (location.isEmpty())
-        return tr("Choose a location for the project.");
-    const QFileInfo place(location);
-    if (place.exists() && !place.isDir())
-        return tr("The location %1 is a file, not a folder.").arg(QDir::toNativeSeparators(location));
-    if (place.isRelative())
-        return tr("Choose a full location, such as one picked with Browse.");
-    const QString target = QDir(location).filePath(name);
-    const QFileInfo folder(target);
-    if (folder.exists() && !folder.isDir())
-        return tr("The location already has a file named %1. Choose another name.").arg(name);
-    if (folder.isDir() && !QDir(target).isEmpty(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System))
-        return tr("The location already has a folder named %1 with files in it. Choose another name or location.").arg(name);
-    return QString();
 }
 
 }

@@ -307,6 +307,15 @@ int main(int argc, char* argv[])
                                               QStringLiteral("Tick the license report box of the Export window and open the window. For checks only."));
     parser.addOption(exportLicensesOnOption);
     parser.addOption(variationsDialogOption);
+    QCommandLineOption settingsDialogOption(QStringLiteral("settings-dialog"),
+                                            QStringLiteral("Open File > Settings. For checks only."));
+    QCommandLineOption settingsSkillFolderOption(QStringLiteral("settings-skill-folder"),
+                                                 QStringLiteral("Open File > Settings and set up the coding assistant "
+                                                                "with this skills folder, keeping a skill file that is "
+                                                                "there. For checks only."),
+                                                 QStringLiteral("folder"));
+    parser.addOption(settingsDialogOption);
+    parser.addOption(settingsSkillFolderOption);
     parser.addOption(openingAssetPickerOption);
     QCommandLineOption homeOption(QStringLiteral("home"), QStringLiteral("Show the home screen. For checks only."));
     QCommandLineOption newProjectDialogOption(QStringLiteral("new-project-dialog"),
@@ -669,6 +678,10 @@ int main(int argc, char* argv[])
         QTimer::singleShot(100, &window, [&window]() { window.showProjectFinish(); });
     if (parser.isSet(variationsDialogOption))
         QTimer::singleShot(0, &window, [&window]() { window.showVariationsDialog(false); });
+    if (parser.isSet(settingsDialogOption) || parser.isSet(settingsSkillFolderOption)) {
+        const QString skills = parser.value(settingsSkillFolderOption);
+        QTimer::singleShot(0, &window, [&window, skills]() { window.showSettingsDialog(false, skills); });
+    }
     if (parser.isSet(newProjectDialogOption)) {
         const QString name = parser.value(newProjectNameOption);
         const QString location = parser.value(newProjectLocationOption);

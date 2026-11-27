@@ -55,6 +55,7 @@ class StoreImports;
 class LibraryHost;
 class LibraryWatcher;
 class SetupCheckDialog;
+class SettingsDialog;
 class VariationsDialog;
 class ProjectWatcher;
 class OutsideJobWatch;
@@ -264,6 +265,9 @@ public:
     void showExportTab();
     // Opens Build > Make variations. For checks it opens without waiting, so a screenshot shows it.
     void showVariationsDialog(bool wait = true);
+    // Opens File > Settings. For checks it opens without waiting, so a screenshot shows it, and first writes the
+    // skill file into skillsFolder when one is given, without asking about a file that is there.
+    void showSettingsDialog(bool wait = true, const QString& skillsFolder = QString());
     // For checks only: places a light marker of a kind ("ceiling", "wall" or "standing") on the shown floor at a
     // place in metres, as the Light tool does, and selects it. False when it was refused.
     bool addLightForCheck(double x, double y, const QString& kind);
@@ -478,6 +482,7 @@ private:
     LibraryWatcher* libraryWatcher_ = nullptr;
     QPointer<SetupCheckDialog> setupDialog_;
     QPointer<VariationsDialog> variationsDialog_;
+    QPointer<SettingsDialog> settingsDialog_;
     QAction* variationsAction_ = nullptr;
     IntegrationsPanel* integrations_ = nullptr;
     StoreImports* storeImports_ = nullptr;
