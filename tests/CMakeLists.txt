@@ -83,6 +83,8 @@ add_executable(plynth_core_tests
     core/RoofSkeletonTests.cpp
     core/RoofValleyTests.cpp
     core/RoofClipTests.cpp
+    core/DormerTests.cpp
+    core/DormerCommandTests.cpp
     core/CollisionTests.cpp
     core/MaterialSlotsTests.cpp
     core/ExportTests.cpp

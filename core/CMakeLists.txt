@@ -59,6 +59,8 @@ add_library(plynth_core STATIC
     src/BuildPreview.cpp
     src/parts/PartMakers.cpp
     src/parts/RoofCuts.cpp
+    src/parts/DormerShape.cpp
+    src/Dormers.cpp
     src/Collision.cpp
     src/MaterialSlots.cpp
     src/Exporter.cpp
@@ -88,6 +90,7 @@ add_library(plynth_core STATIC
     src/commands/MaterialCommands.cpp
     src/commands/StairCommands.cpp
     src/commands/RoofCommands.cpp
+    src/commands/DormerCommands.cpp
     src/commands/DetectionCommands.cpp
     src/detection/Detection.cpp
     src/detection/Detector.cpp
