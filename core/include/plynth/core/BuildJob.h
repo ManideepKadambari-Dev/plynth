@@ -95,8 +95,10 @@ using Json = nlohmann::ordered_json;
 //                     "hulls": [[[x, y, z], ...], ...]}
 //         index is the roof's, 0 for other kinds; hulls are point sets, [] for all but roofs.
 //   polygon: {"outline": [[x, y], ...], "holes": [[[x, y], ...], ...]}
-// Object names are plain, with no engine prefix (ExportJob.h, Name rules): <floor>_Walls, <asset>_<item>,
-// <generator>_<item>, <floor>_Skirting and the other trim, <floor>_<stair>_Railing and _Guard.
+// Object names are plain, with no engine prefix (ExportJob.h, Name rules), for example f1_Walls,
+// f1_Thresholds, f1_r1_Floor and f1_r1_Ceiling, f1_o3_<part> for a door or window fill, sofa_i1 (<asset>_<item>),
+// <generator>_<item>, f1_Skirting and the other trim, f1_s1_Railing and f1_s1_Guard; collision meshes are
+// <object>_Collision_<NN>.
 // Slab, stair and roof objects: <floor>_Slab (plynth_kind "slab", plynth_id the floor),
 // <floor>_<stair>_Stair ("stair", the stair id), <floor>_Roof_<NN> ("roof", the floor id, NN the index
 // from 00, custom properties plynth_roof_index and plynth_roof_section, the entry id or ""), each in its floor's

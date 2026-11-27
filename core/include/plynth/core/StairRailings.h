@@ -36,7 +36,7 @@ struct StairRailing {
     bool operator==(const StairRailing&) const = default;
 };
 
-// The object name of a railing: SM_<floor>_<stair>_Railing or SM_<floor>_<stair>_Guard.
+// The object name of a railing: <floor>_<stair>_Railing or <floor>_<stair>_Guard.
 std::string railingObjectName(const StairRailing& railing);
 
 // The railings and guards of every stair of a plan that can be built, in floor and stair order, each stair's

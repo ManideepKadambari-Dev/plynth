@@ -185,7 +185,7 @@ TEST_CASE("runExport through the fake Blender exports and writes the report", "[
     });
     plynth::test::requireOk(report.status);
     REQUIRE(stages == std::vector<ExportStage>{ExportStage::Preparing, ExportStage::Blender, ExportStage::Finishing, ExportStage::Done});
-    REQUIRE(workerSteps == 7);
+    REQUIRE(workerSteps == 8);
 
     REQUIRE(report.exported);
     REQUIRE_FALSE(report.checkedOnly);
@@ -210,10 +210,11 @@ TEST_CASE("runExport through the fake Blender exports and writes the report", "[
     REQUIRE(report.passed());
     REQUIRE(report.failCount() == 0);
     REQUIRE(report.warningCount() == 0);
-    REQUIRE(report.steps.size() == 8);
+    REQUIRE(report.steps.size() == 9);
     REQUIRE(report.steps[0].step == "prepare");
     REQUIRE(report.steps[1].step == "open_blend");
-    REQUIRE(report.steps[7].step == "file_checks");
+    REQUIRE(report.steps[6].step == "finish_objects");
+    REQUIRE(report.steps[8].step == "file_checks");
 
     REQUIRE(fs::is_regular_file(f.exportDir() / "Square.fbx"));
     REQUIRE(fs::is_regular_file(f.exportDir() / "Textures" / "T_Fake_BaseColor.png"));
