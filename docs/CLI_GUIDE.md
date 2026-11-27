@@ -822,6 +822,121 @@ plynth stair types
 
 A type that is added to Plynth later shows up here with no other change. See "Adding a stair type" in [Writing generators](GENERATORS.md).
 
+### Railings
+
+A railing runs along a line drawn on the plan: a balcony, terrace, porch or deck edge. Its style says what it is made of, such as posts and rails, spindles or glass panels. Posts go at every corner, at the ends and at most 1.5 m apart, and corners are mitred. A railing either stands on a deck (its host), on the deck's top, or `base` metres above its floor's level. The build makes it in Blender with plain mesh code and gives it collision.
+
+A railing entry looks like this:
+
+```json
+{"id":"rl1","floor":"f1","points":[[1.0,1.0],[5.0,1.0],[5.0,4.0]],"closed":false,"host":null,"base":0.0,"height":1.0,"style":"spindles","material":null,"glass_material":null,"length":7.0,"runs":2,"problems":[]}
+```
+
+| Field | Meaning |
+|---|---|
+| `points` | The line, as `[x, y]` pairs in plan metres. |
+| `closed` | Whether the line also runs from its last point back to its first. A line whose last point is its first counts as closed too. |
+| `host` | The deck the railing stands on, or `null`. |
+| `base` | The height of its foot above the floor's level when it has no host, from 0 to 20. |
+| `height` | From the foot to the top, from 0.3 to 3, and within the style's own range (see `railing styles`). |
+| `material`, `glass_material` | The posts, rails and infill, and the glass panels. `null` uses the project's railing and glass defaults. |
+| `length`, `runs` | The length along the line and the number of straight pieces it is built from. |
+| `problems` | What the build would report. `railing_style_unknown` (warning): the style is not installed here, so it is built with posts and rails. `railing_host_missing` (warning): the host deck is gone, so it stands on `base`. |
+
+The railing commands follow the edit rules of every command that changes the plan: they take an edit session and are `locked` while the app has the project open without one. `railing list` and `railing styles` only read.
+
+Columns are not railings. They are generators placed like furniture with `place --generator`: `column_round`, `column_square` and `column_tapered` are among the samples (`samples add`). Change their height and size with `item params`.
+
+```
+plynth place --generator column_round --x 8 --y 3 --param height=2.6
+```
+
+### railing add
+
+Adds a railing along a line, or one railing along each open stretch of a deck's edge.
+
+| Option | Meaning |
+|---|---|
+| `--points <x,y,...>` | The line as x,y pairs in metres, at least two points. Commas, semicolons or spaces separate the numbers, so `1,1,5,1` and `"1,1 5,1"` are the same. A line that starts with a negative number is written `--points=-1,1,5,1`. |
+| `--around <deck id>` | Instead of `--points`: follows the deck's outline and leaves out the edges along a wall. Each open stretch becomes one railing standing on the deck. A deck open all round gives one railing all the way round. |
+| `--style <id>` | Required. See `railing styles`. |
+| `--height <metres>` | Default 1. |
+| `--base <metres>` | Default 0. |
+| `--host <deck id>` | With `--points`: the deck the railing stands on. |
+| `--closed true\|false` | With `--points`: join the last point back to the first. A closed line needs three points. Default `false`. |
+| `--material <id>`, `--glass-material <id>` | Materials from the library. Default: none, so the project defaults apply. |
+| `--floor <id>` | Default: the first floor, or the deck's floor with `--around`. |
+
+```
+plynth railing add --points 1,1,5,1,5,4 --style spindles
+plynth railing add --around dk1 --style glass --height 1.1
+```
+
+The answer lists the railings added, each as the railing entry:
+
+```json
+{"ok":true,"command":"railing add","result":{"railings":[{"id":"rl1","floor":"f1","points":[[1.0,1.0],[5.0,1.0],[5.0,4.0]],"closed":false,"host":null,"base":0.0,"height":1.0,"style":"spindles","material":null,"glass_material":null,"length":7.0,"runs":2,"problems":[]}]}}
+```
+
+Several railings from `--around` are added as one step. Refusals, with nothing changed: `bad_arguments` for neither or both of `--points` and `--around`, for `--points` that are not pairs of numbers, for `--host` or `--closed` with `--around`, for `--host none` and for a missing `--style`. `invalid_value` for an unknown style, a piece of the line shorter than 0.1 m, a line longer than 1000 m, a height outside 0.3 to 3 or outside the style's range, a base outside 0 to 20, and for a deck with no open edge. `not_found` for an unknown floor, deck or material.
+
+### railing set
+
+Changes a railing. Give the id and at least one option. Everything not given stays as it is.
+
+| Option | Meaning |
+|---|---|
+| `<id>` | The railing. |
+| `--points`, `--closed`, `--style`, `--height`, `--base` | As for `railing add`. `--points` replaces the whole line. |
+| `--host <deck id or none>` | Stand it on a deck of its floor, or clear the host with `none`. |
+| `--material <id or none>`, `--glass-material <id or none>` | Set a material, or clear it with `none`. |
+
+```
+plynth railing set rl1 --style flat_bars --height 1.2
+```
+
+The answer is the railing entry. A railing is not moved between floors: remove it and add it again. Refusals: `not_found` for an unknown railing, deck or material, `invalid_value` for a bad value, `bad_arguments` when no option is given.
+
+### railing remove
+
+```
+plynth railing remove rl1
+```
+
+```json
+{"ok":true,"command":"railing remove","result":{"removed":"rl1"}}
+```
+
+An unknown railing is `not_found`. When a deck is removed, its railings stay, lose their host and stand on `base`.
+
+### railing list
+
+Lists the railings of one floor (`--floor <id>`) or of every floor, each as the railing entry, with its problems.
+
+```
+plynth railing list --floor f1
+```
+
+```json
+{"ok":true,"command":"railing list","result":{"railings":[{"id":"rl1","floor":"f1","points":[[1.0,1.0],[5.0,1.0],[5.0,4.0]],"closed":false,"host":null,"base":0.0,"height":1.0,"style":"spindles","material":null,"glass_material":null,"length":7.0,"runs":2,"problems":[]}]}}
+```
+
+An unknown `--floor` is `not_found`.
+
+### railing styles
+
+Lists the railing styles with their names and the heights each can be built at. It needs no project.
+
+```
+plynth railing styles
+```
+
+```json
+{"ok":true,"command":"railing styles","result":{"styles":[{"id":"posts_rails","name":"Posts and rails","min_height":0.3,"max_height":3.0},{"id":"spindles","name":"Wooden spindles","min_height":0.3,"max_height":3.0},{"id":"flat_bars","name":"Metal bars","min_height":0.3,"max_height":3.0},{"id":"glass","name":"Glass panels","min_height":0.3,"max_height":1.5},{"id":"cables","name":"Horizontal cables","min_height":0.3,"max_height":3.0},{"id":"half_wall","name":"Solid half wall","min_height":0.3,"max_height":1.5}]}}
+```
+
+A style that is added to Plynth later shows up here with no other change.
+
 ### roof list
 
 Lists the roof default and every roof section. Roof sections are not drawn. They are worked out from the floors: each part of a floor with no floor above it is a section. A part narrower than 0.2 m has no roof. The build gives it a plain flat top in the outside wall material instead. `--floor <id>` lists one floor only.

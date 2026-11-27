@@ -42,6 +42,7 @@ std::vector<CommandSpec> wallCommands();
 std::vector<CommandSpec> openingCommands();
 std::vector<CommandSpec> floorCommands();
 std::vector<CommandSpec> stairCommands();
+std::vector<CommandSpec> railingCommands();
 std::vector<CommandSpec> roofCommands();
 std::vector<CommandSpec> roomCommands();
 std::vector<CommandSpec> detectCommands();
