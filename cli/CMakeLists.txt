@@ -44,6 +44,7 @@ add_library(plynth_cli STATIC
     src/commands/VersionCommand.cpp
     src/commands/WallCommands.cpp
     src/commands/LightCommands.cpp
+    src/commands/LightStripCommands.cpp
     src/commands/TrimCommands.cpp
     src/commands/VariationCommands.cpp
     src/commands/GuideCommands.cpp

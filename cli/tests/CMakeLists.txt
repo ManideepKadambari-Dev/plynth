@@ -50,6 +50,7 @@ add_executable(plynth_cli_tests
     IdCliTests.cpp
     FormatCliTests.cpp
     LightCliTests.cpp
+    LightStripCliTests.cpp
     TrimCliTests.cpp
     FinishCliTests.cpp
     VariationCliTests.cpp

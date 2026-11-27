@@ -2,7 +2,7 @@
 
 Plynth can be driven from a terminal, a script or another program. Every command prints one JSON answer, so a program can read the result without parsing text meant for people.
 
-This page covers every command: version and help; creating, reading, saving elsewhere and recovering a project; the scale, grid and default sizes; floors, stairs, roofs, points, walls (straight and curved), rounded corners, doors, windows and other openings, rooms and light markers; placing furniture with `place` and `item`; finding walls and openings in the plan image with `detect`; trim, set dressing and variations; building the project in Blender with `build`; saving pictures of the build with `render`; exporting with `export`, its groups, the modular kit and gameplay data; moving a project to another machine with `pack` and `unpack`; the edit session that keeps the app and the command line from overwriting each other; and the machine commands: `doctor`, `settings`, `library`, `assets`, `materials` and the integrations. The worked examples near the end show the right order for whole buildings.
+This page covers every command: version and help; creating, reading, saving elsewhere and recovering a project; the scale, grid and default sizes; floors, stairs, roofs, points, walls (straight and curved), rounded corners, doors, windows and other openings, rooms, light markers and light strips; placing furniture with `place` and `item`; finding walls and openings in the plan image with `detect`; trim, set dressing and variations; building the project in Blender with `build`; saving pictures of the build with `render`; exporting with `export`, its groups, the modular kit and gameplay data; moving a project to another machine with `pack` and `unpack`; the edit session that keeps the app and the command line from overwriting each other; and the machine commands: `doctor`, `settings`, `library`, `assets`, `materials` and the integrations. The worked examples near the end show the right order for whole buildings.
 
 The plan file is now at format version 8 and the project file at version 7. Older projects open and upgrade by themselves. See "File format version 8" and the sections after it below.
 
@@ -19,7 +19,7 @@ Typing `plynth` in a terminal finds `plynth.com` first. The terminal inside Plyn
 
 The first word decides what happens:
 
-- A command word (`version`, `help`, `project`, `scale`, `point`, `wall`, `opening`, `floor`, `room`, `place`, `item`, `detect`, `build`, `session`, `doctor`, `settings`, `library`, `assets`, `light`, `trim`, `variation`, `update`) runs the command and prints the answer. No window opens.
+- A command word (`version`, `help`, `project`, `scale`, `point`, `wall`, `opening`, `floor`, `room`, `place`, `item`, `detect`, `build`, `session`, `doctor`, `settings`, `library`, `assets`, `light`, `light-strip`, `trim`, `variation`, `update`) runs the command and prints the answer. No window opens.
 - A project folder or an app option (`--image`, `--screenshot`, `--size`, `--terminal`), or no argument at all, opens the window. `plynth.com` starts the window and returns at once.
 - Anything else prints an `unknown_command` answer and exits with code 2. For example `plynth bogus`.
 
@@ -1314,6 +1314,80 @@ Lists the lights of a floor, with `--floor <id>` (default: the first floor).
 
 ```json
 {"ok":true,"command":"light list","result":{"floor":"f1","lights":[{"id":"l1","floor":"f1","kind":"ceiling","room":"r1","x":3.0,"y":5.0,"z":2.9}]}}
+```
+
+### Light strips
+
+A light strip is a line of light: an LED strip in a ceiling cove, under a cabinet or a shelf, along a wall or a slab edge, or under the nose of every step of a stair. The build makes a slim housing along the line and area lights in it, with the power spread along its length. Like light markers, strips go into the exported FBX, and the Unreal Engine link lists every straight piece of them in the gameplay data.
+
+A light strip entry looks like this:
+
+```json
+{"id":"ls1","floor":"f1","kind":"cove","points":[{"x":1.2,"y":3.2},{"x":4.8,"y":3.2}],"z":2.95,"stair":null,"power":10.0}
+```
+
+- `kind` is `cove` (along a ceiling edge, shining up), `soffit` (under a cabinet, shelf or overhang, shining down), `edge` (along a wall or slab edge, shining outward to the right of the line on the plan) or `step` (the steps of a stair).
+- `points` is the line in plan metres, at least two points, no two in a row closer than 0.01 m, and at least 0.1 m long in all. A `step` strip has no points: it follows its stair.
+- `z` is the height above the floor, from 0 to the floor's ceiling height.
+- `stair` is the stair a `step` strip lights, and `null` for every other kind.
+- `power` is in watts per metre, from 0 to 200.
+
+The light strip commands follow the edit rules of every command that changes the plan: they take an edit session and are `locked` while the app has the project open without one. `light-strip list` only reads.
+
+### light-strip add
+
+Adds a light strip.
+
+| Option | Meaning |
+|---|---|
+| `--kind cove\|soffit\|edge\|step` | Required. |
+| `--points <x1,y1,x2,y2,...>` | The line, as numbers separated by commas. Needed for every kind but `step`. When the first number is negative, write it with `=`, such as `--points=-1,3,4,3`. |
+| `--z <metres>` | The height. Default: 0.05 below the ceiling for `cove`, the ceiling for `soffit`, 0 for `edge` and `step`. |
+| `--stair <id>` | The stair a `step` strip lights. Only for `step`. |
+| `--power <watts>` | Watts per metre. Default: 10. |
+| `--floor <id>` | Default: the first floor. |
+
+```
+plynth light-strip add --kind cove --points 1.2,3.2,4.8,3.2
+plynth light-strip add --kind edge --points 1,7,5,7 --z 1 --power 20
+plynth light-strip add --kind step --stair s1
+```
+
+```json
+{"ok":true,"command":"light-strip add","result":{"id":"ls1","floor":"f1","kind":"cove","points":[{"x":1.2,"y":3.2},{"x":4.8,"y":3.2}],"z":2.95,"stair":null,"power":10.0}}
+```
+
+A missing `--kind`, a `--points` value that is not a number and an odd count of numbers are `bad_arguments`. An unknown kind, too few points, a line too short, points too close, a height or power out of range, a stair on a strip that is not `step` and a `step` strip without a stair or with points are `invalid_value`. An unknown floor or stair is `not_found`. Nothing changes when a strip is refused.
+
+### light-strip set
+
+Changes a strip's kind, line, height, stair or power. What you leave out stays. Give at least one of `--kind`, `--points`, `--z`, `--stair` and `--power`. Changing the kind keeps the height. Changing to `step` drops the points, and changing from `step` to another kind drops the stair, so give `--stair` or `--points` with it. `--stair none` clears the stair. All changes are one step.
+
+```
+plynth light-strip set ls1 --points 1.2,6.8,4.8,6.8 --power 15
+plynth light-strip set ls2 --kind step --stair s1
+```
+
+The answer is the light strip entry. An unknown strip is `not_found`, a value the strip cannot take `invalid_value`, no option `bad_arguments`.
+
+### light-strip remove
+
+```
+plynth light-strip remove ls1
+```
+
+```json
+{"ok":true,"command":"light-strip remove","result":{"removed":"ls1"}}
+```
+
+An unknown strip is `not_found`. `item remove`, `opening remove` and the `--cascade` removes refuse a strip id with `invalid_value` and point to `light-strip remove`. `stair remove` also removes the `step` strips of that stair, in the same step.
+
+### light-strip list
+
+Lists the light strips of a floor, with `--floor <id>` (default: the first floor).
+
+```json
+{"ok":true,"command":"light-strip list","result":{"floor":"f1","light_strips":[{"id":"ls1","floor":"f1","kind":"cove","points":[{"x":1.2,"y":3.2},{"x":4.8,"y":3.2}],"z":2.95,"stair":null,"power":10.0}]}}
 ```
 
 ### Furniture items
@@ -3757,7 +3831,7 @@ Every action of the app that changes or checks a project or the library has a co
 | Open dialog: Load or Keep mine | `project recover`, `project recover --discard` |
 | File > Pack project, Unpack into library | `pack`, `unpack` |
 | Scale tool | `scale set`, `scale from-points` |
-| Wall, point, room, opening, stair and light tools | `wall`, `point`, `room`, `opening`, `stair`, `light` |
+| Wall, point, room, opening, stair, light and light strip tools | `wall`, `point`, `room`, `opening`, `stair`, `light`, `light-strip` |
 | Detect | `detect`, `detect --apply` |
 | Floor tabs | `floor add`, `floor set`, `floor remove` |
 | Roof sections | `roof set`, `roof clear`, `roof list` |

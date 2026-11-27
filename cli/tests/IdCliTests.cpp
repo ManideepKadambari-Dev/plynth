@@ -40,7 +40,7 @@ std::set<std::string> idsOf(const nlohmann::json& plan) {
     std::set<std::string> out;
     for (const auto& floor : plan.at("floors")) {
         out.insert(floor.at("id").get<std::string>());
-        for (const char* list : {"points", "walls", "rooms", "openings", "items", "stairs", "lights"}) {
+        for (const char* list : {"points", "walls", "rooms", "openings", "items", "stairs", "lights", "light_strips"}) {
             for (const auto& one : floor.at(list)) {
                 out.insert(one.at("id").get<std::string>());
             }
@@ -93,6 +93,7 @@ std::vector<AddRemove> kinds() {
         {"s", {"stair", "add", "--floor", "f1", "--x", "2", "--y", "4"}, {"stair", "remove"}, {}},
         {"rf", {"roof", "set", "--floor", "f1", "--at", "3,5", "--type", "hip"}, {"roof", "clear"}, {}},
         {"l", {"light", "add", "--x", "3", "--y", "5"}, {"light", "remove"}, {}},
+        {"ls", {"light-strip", "add", "--kind", "cove", "--points", "1.2,3.2,4.8,3.2"}, {"light-strip", "remove"}, {}},
     };
 }
 
@@ -116,7 +117,7 @@ std::string placeThroughCore(const Sample& sample) {
 }
 
 TEST_CASE("each add in its own run after removing the newest gets a new id of the shape", "[cli][ids]") {
-    const std::size_t k = GENERATE(0u, 1u, 2u, 3u, 4u, 5u, 6u, 7u);
+    const std::size_t k = GENERATE(0u, 1u, 2u, 3u, 4u, 5u, 6u, 7u, 8u);
     const AddRemove kind = kinds().at(k);
     INFO(kind.prefix);
     const Sample sample("ids-random-" + kind.prefix);

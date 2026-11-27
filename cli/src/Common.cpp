@@ -348,11 +348,14 @@ Answer removeCascade(const std::string& command, const std::string& kind, const 
                 actual = "opening";
             } else if (findLight(*floor, id) != nullptr) {
                 actual = "light";
+            } else if (findLightStrip(*floor, id) != nullptr) {
+                actual = "light strip";
             }
             if (actual != kind) {
                 const auto article = [](const std::string& word) { return word == "item" || word == "opening" ? "an " : "a "; };
+                const std::string word = actual == "light strip" ? "light-strip" : actual;
                 return failure(command, fail(ErrorCode::InvalidValue, id + " is " + article(actual) + actual + ", not " +
-                                                                          article(kind) + kind + ". Use " + actual +
+                                                                          article(kind) + kind + ". Use " + word +
                                                                           " remove."));
             }
         }

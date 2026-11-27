@@ -61,6 +61,7 @@ std::vector<CommandSpec> generatorCommands();
 std::vector<CommandSpec> renderCommands();
 std::vector<CommandSpec> packCommands();
 std::vector<CommandSpec> lightCommands();
+std::vector<CommandSpec> lightStripCommands();
 std::vector<CommandSpec> trimCommands();
 std::vector<CommandSpec> variationCommands();
 std::vector<CommandSpec> guideCommands();
