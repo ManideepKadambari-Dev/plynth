@@ -118,6 +118,15 @@ void ToolButton::paintEvent(QPaintEvent*)
         p.drawLine(bulb + QPointF(0, -9) * u, bulb + QPointF(0, -7) * u);
         break;
     }
+    case ToolId::Canopy: {
+        QPolygonF roof;
+        roof << c + QPointF(-11, -2) * u << c + QPointF(0, -9) * u << c + QPointF(11, -2) * u;
+        p.drawPolygon(roof);
+        p.drawLine(c + QPointF(-8, -2) * u, c + QPointF(-8, 9) * u);
+        p.drawLine(c + QPointF(8, -2) * u, c + QPointF(8, 9) * u);
+        p.drawLine(c + QPointF(-11, 9) * u, c + QPointF(11, 9) * u);
+        break;
+    }
     case ToolId::Furniture: {
         p.drawRoundedRect(QRectF(c + QPointF(-9, -7) * u, QSizeF(18, 9) * u), 2 * u, 2 * u);
         p.drawRoundedRect(QRectF(c + QPointF(-11, -1) * u, QSizeF(22, 8) * u), 2 * u, 2 * u);
@@ -193,6 +202,7 @@ QString ToolStrip::toolName(ToolId id)
     case ToolId::Room: return tr("Room");
     case ToolId::Stair: return tr("Stair");
     case ToolId::Light: return tr("Light");
+    case ToolId::Canopy: return tr("Canopy");
     case ToolId::Furniture: return tr("Furniture");
     case ToolId::Detect: return tr("Detect");
     }
@@ -210,6 +220,7 @@ QString ToolStrip::toolKey(ToolId id)
     case ToolId::Room: return QStringLiteral("R");
     case ToolId::Stair: return QStringLiteral("T");
     case ToolId::Light: return QStringLiteral("L");
+    case ToolId::Canopy: return QStringLiteral("C");
     case ToolId::Furniture: return QStringLiteral("P");
     case ToolId::Detect: return QStringLiteral("D");
     }

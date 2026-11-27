@@ -456,6 +456,7 @@ void PlanCanvas::paintOverlay(QPainter* painter)
     }
 
     paintRoofHatch(painter);
+    paintCanopies(painter);
 
     QColor roomBlue = t.signalBlue();
     roomBlue.setAlpha(t.roomFillAlpha());
@@ -497,6 +498,7 @@ void PlanCanvas::paintOverlay(QPainter* painter)
             if (wall.id == selectionId_)
                 painter->drawPath(wall.outline);
     }
+    paintOverhang(painter);
 
     painter->resetTransform();
     {
@@ -532,6 +534,7 @@ void PlanCanvas::paintOverlay(QPainter* painter)
     paintLights(painter);
     paintLabels(painter);
     paintRoofLabels(painter);
+    paintCanopyMarks(painter);
 
     if (selectionKind_ == SelectionKind::Point) {
         for (const OverlayPoint& point : overlay_.points) {
@@ -603,7 +606,7 @@ bool PlanCanvas::overRoofCover(const QPointF& scene) const
     for (const OverlayItem& item : overlay_.items)
         if (item.footprint.containsPoint(scene, Qt::OddEvenFill))
             return true;
-    if (!stairAt(scene).isEmpty() || !lightAt(scene).isEmpty())
+    if (!stairAt(scene).isEmpty() || !lightAt(scene).isEmpty() || !canopyAt(scene).isEmpty())
         return true;
     const double radius = Theme::instance().pointDot() / zoom_;
     for (const OverlayPoint& point : overlay_.points)
@@ -743,6 +746,113 @@ QString PlanCanvas::stairAt(const QPointF& scene) const
     return QString();
 }
 
+// The id of the canopy whose outline holds a scene point. The one drawn last wins.
+QString PlanCanvas::canopyAt(const QPointF& scene) const
+{
+    for (int i = static_cast<int>(overlay_.canopies.size()) - 1; i >= 0; --i)
+        if (overlay_.canopies[i].area.contains(scene))
+            return overlay_.canopies[i].id;
+    return QString();
+}
+
+// Paints the outline of the upper floor where it reaches past the shown floor, as a dashed Muted line.
+void PlanCanvas::paintOverhang(QPainter* painter)
+{
+    if (overlay_.overhang.isEmpty())
+        return;
+    const Theme& t = Theme::instance();
+    painter->save();
+    const QPainterPath path = viewportTransform().map(overlay_.overhang);
+    painter->resetTransform();
+    QPen dashed(t.muted(), t.markStroke(), Qt::CustomDashLine);
+    dashed.setDashPattern({static_cast<qreal>(t.proposalDash()), static_cast<qreal>(t.proposalDash())});
+    painter->setPen(dashed);
+    painter->setBrush(Qt::NoBrush);
+    painter->drawPath(path);
+    painter->restore();
+}
+
+// Paints every canopy as a light fill with a sparse hatch and a thin outline, amber for the selected one. Drawn
+// under the rooms and walls, like the roof sections.
+void PlanCanvas::paintCanopies(QPainter* painter)
+{
+    if (overlay_.canopies.isEmpty())
+        return;
+    const Theme& t = Theme::instance();
+    const QTransform view = viewportTransform();
+    const double step = t.unit() * 3.0;
+    painter->save();
+    painter->resetTransform();
+    for (const OverlayCanopy& canopy : overlay_.canopies) {
+        const bool selected = selectionKind_ == SelectionKind::Canopy && canopy.id == selectionId_;
+        const QColor accent = selected ? t.signalAmber() : t.signalBlue();
+        const QPainterPath area = view.map(canopy.area);
+        QColor fill = accent;
+        fill.setAlpha(static_cast<int>(std::lround(t.roofAreaOpacity() * 255.0 * (selected ? 1.5 : 0.75))));
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(fill);
+        painter->drawPath(area);
+        const QRectF box = area.boundingRect();
+        QColor line = accent;
+        line.setAlpha(selected ? t.overlayAlpha() : t.overlayAlpha() / 2);
+        painter->save();
+        painter->setClipPath(area);
+        painter->setPen(QPen(line, 1.0));
+        for (double x = box.left() - box.height(); x < box.right(); x += step)
+            painter->drawLine(QPointF(x, box.top()), QPointF(x + box.height(), box.bottom()));
+        painter->restore();
+        painter->setPen(QPen(accent, selected ? 2.0 : 1.0));
+        painter->setBrush(Qt::NoBrush);
+        painter->drawPath(area);
+    }
+    painter->restore();
+}
+
+// Paints the posts of every canopy as a ring with a cross over the item, then the canopy's id in a chip. The
+// painter works in canvas pixels here.
+void PlanCanvas::paintCanopyMarks(QPainter* painter)
+{
+    if (overlay_.canopies.isEmpty())
+        return;
+    const Theme& t = Theme::instance();
+    const QFont font = t.monoFont(t.sizeSmall());
+    const QFontMetrics metrics(font);
+    for (const OverlayCanopy& canopy : overlay_.canopies) {
+        const bool selected = selectionKind_ == SelectionKind::Canopy && canopy.id == selectionId_;
+        const QColor accent = selected ? t.signalAmber() : t.signalBlue();
+        for (const QPolygonF& post : canopy.posts) {
+            const QPolygonF shown = mapFromScene(post);
+            const QRectF box = shown.boundingRect();
+            const double r = std::max(t.handleSize() / 2.0, std::min(box.width(), box.height()) / 2.0);
+            const QPointF centre = box.center();
+            painter->setPen(QPen(accent, 1.5));
+            painter->setBrush(Qt::NoBrush);
+            painter->drawEllipse(centre, r, r);
+            const double d = r / std::sqrt(2.0);
+            painter->drawLine(centre + QPointF(-d, -d), centre + QPointF(d, d));
+            painter->drawLine(centre + QPointF(-d, d), centre + QPointF(d, -d));
+        }
+        if (canopy.label.isEmpty())
+            continue;
+        const int pad = t.unit();
+        QRectF pill(0, 0, metrics.horizontalAdvance(canopy.label) + pad * 2.0, metrics.height() + pad);
+        pill.moveCenter(mapFromScene(canopy.labelPoint));
+        if (!QRectF(viewport()->rect().adjusted(-200, -200, 200, 200)).intersects(pill))
+            continue;
+        QRectF clear;
+        if (findFreeSpot(pill, mapFromScene(canopy.area), {}, &clear))
+            pill = clear;
+        QColor backing = t.panel();
+        backing.setAlpha(230);
+        painter->setPen(QPen(accent, 1.0));
+        painter->setBrush(backing);
+        painter->drawRoundedRect(pill, t.radius(), t.radius());
+        painter->setFont(font);
+        painter->setPen(selected ? t.signalAmber() : t.text());
+        painter->drawText(pill, Qt::AlignCenter, canopy.label);
+    }
+}
+
 // Shows the sentence of the problem marker, or of the stair, under the cursor as a tooltip.
 bool PlanCanvas::event(QEvent* event)
 {
@@ -754,6 +864,12 @@ bool PlanCanvas::event(QEvent* event)
             for (const OverlayRoof& roof : overlay_.roofs)
                 if (roof.area.contains(scene))
                     text = roof.tip;
+        if (!overlay_.overhang.isEmpty() && overlay_.overhang.contains(scene))
+            text = overlay_.overhangTip;
+        const QString canopy = canopyAt(scene);
+        for (const OverlayCanopy& entry : overlay_.canopies)
+            if (!canopy.isEmpty() && entry.id == canopy)
+                text = entry.tip;
         for (const OverlayStair& stair : overlay_.arriving)
             if (stair.footprint.containsPoint(scene, Qt::OddEvenFill))
                 text = tr("Stair %1 from %2. Edit it on %2.").arg(stair.id, stair.from);

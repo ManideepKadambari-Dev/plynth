@@ -34,7 +34,7 @@ constexpr double kBendRound = 0.01;
 // The status bar hint for this tool.
 QString SelectTool::hint() const
 {
-    return QObject::tr("Click to select. Drag a point, opening or item to move it; drop a point on a point or wall to join it. Drag the round handle of an item to turn it, or the middle handle of a wall to bend it. Right click a wall to split it. Esc clears.");
+    return QObject::tr("Click to select. Drag a point, opening, item or canopy corner to move it; drop a point on a point or wall to join it. Drag the round handle of an item to turn it, or the middle handle of a wall to bend it. Right click a wall to split it. Esc clears.");
 }
 
 // Forgets a drag that was in progress.
@@ -50,6 +50,7 @@ void SelectTool::deactivate()
     dragging_ = false;
     stairs_.reset();
     lights_.reset();
+    canopies_.reset();
 }
 
 // Selects what is under the click, or clears the selection. A point may start a drag, and so may the bend handle.
@@ -87,7 +88,7 @@ void SelectTool::mousePressed(const ToolMouse& mouse)
         host_.canvas().viewport()->update();
         return;
     }
-    if (stairs_.pressHandle(mouse)) {
+    if (stairs_.pressHandle(mouse) || canopies_.pressHandle(mouse)) {
         host_.canvas().viewport()->update();
         return;
     }
@@ -97,6 +98,8 @@ void SelectTool::mousePressed(const ToolMouse& mouse)
     host_.selection().setClickAt(at.x, at.y);
     const plynth::Pick pick = plynth::pickAt(*floor, at, host_.snapRadiusMetres());
     if ((pick.kind == plynth::PickKind::None || pick.kind == plynth::PickKind::Room) && stairs_.pressBody(mouse))
+        return;
+    if (pick.kind == plynth::PickKind::None && canopies_.pressBody(mouse))
         return;
     switch (pick.kind) {
     case plynth::PickKind::Point:
@@ -155,6 +158,10 @@ void SelectTool::mouseMoved(const ToolMouse& mouse)
         lights_.moved(mouse);
         return;
     }
+    if (canopies_.busy()) {
+        canopies_.moved(mouse);
+        return;
+    }
     if (!bendWall_.empty() && (mouse.buttons & Qt::LeftButton)) {
         bendTo(mouse);
         return;
@@ -166,7 +173,8 @@ void SelectTool::mouseMoved(const ToolMouse& mouse)
     if ((dragPoint_.empty() && dragOpening_.empty() && dragItem_.empty()) || !(mouse.buttons & Qt::LeftButton)) {
         setHandleHover(!host_.document().isReadOnly() &&
                        ((host_.selection().kind() == SelectionKind::Wall && overBendHandle(mouse.view)) ||
-                        overRotateHandle(mouse.view) || stairs_.overHandle(mouse.view)));
+                        overRotateHandle(mouse.view) || stairs_.overHandle(mouse.view) ||
+                        canopies_.overHandle(mouse.view)));
         return;
     }
     if (!dragging_) {
@@ -208,6 +216,7 @@ void SelectTool::mouseReleased(const ToolMouse& mouse)
     dragging_ = false;
     stairs_.released();
     lights_.released();
+    canopies_.released();
     host_.canvas().viewport()->update();
 }
 
@@ -471,6 +480,7 @@ void SelectTool::paint(QPainter& painter)
         if (const std::optional<double> ppm = host_.pixelsPerMetre())
             paintSnap(painter, host_.canvas(), *ppm, *dragSnap_);
     stairs_.paintHandles(painter, handleHover_);
+    canopies_.paintHandles(painter, handleHover_);
     if (const std::optional<QPointF> turn = rotateHandleView()) {
         const Theme& t = Theme::instance();
         const bool active = handleHover_ || !rotateItem_.empty();

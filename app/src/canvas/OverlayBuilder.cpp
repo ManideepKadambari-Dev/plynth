@@ -1,7 +1,9 @@
 #include "OverlayBuilder.h"
 
+#include <plynth/core/Geometry.h>
 #include <plynth/core/Items.h>
 #include <plynth/core/Roofs.h>
+#include <plynth/core/Storeys.h>
 #include <plynth/core/RoomTypes.h>
 #include <plynth/core/Rooms.h>
 #include <plynth/core/WallGeometry.h>
@@ -117,6 +119,44 @@ OverlayRoof makeOverlayRoof(const plynth::RoofArea& roof, double ppm)
     return out;
 }
 
+// Turns every canopy of the floor into its outline, label and tip in image pixels. Generator items whose centre
+// lies inside a canopy are shown as its posts.
+void addOverlayCanopies(OverlayData& overlay, const plynth::Floor& floor, double ppm)
+{
+    for (const plynth::Canopy& canopy : floor.canopies) {
+        if (canopy.outline.size() < 3)
+            continue;
+        OverlayCanopy entry;
+        entry.id = fromCore(canopy.id);
+        std::vector<plynth::Vec2> ring;
+        ring.reserve(canopy.outline.size());
+        for (const plynth::PlanXY& corner : canopy.outline)
+            ring.push_back(plynth::Vec2{corner.x, corner.y});
+        const QPolygonF polygon = toPolygon(ring, ppm);
+        entry.area.setFillRule(Qt::OddEvenFill);
+        entry.area.addPolygon(polygon);
+        entry.area.closeSubpath();
+        entry.labelPoint = polygon.boundingRect().center();
+        entry.label = entry.id;
+        const plynth::RoofType* type = plynth::findRoofType(canopy.roof.type);
+        const QString roof = type != nullptr ? fromCore(std::string(type->name()))
+                                             : QObject::tr("%1 (unknown type)").arg(fromCore(canopy.roof.type));
+        entry.tip = QObject::tr("Canopy %1: %2 roof, underside %3 m above the floor. Click it to select it.")
+                        .arg(entry.id, roof)
+                        .arg(canopy.height, 0, 'f', 2);
+        for (const plynth::Item& item : floor.items) {
+            if (!item.generator.has_value() || item.wall.has_value() ||
+                !plynth::insidePolygon(plynth::Vec2{item.x, item.y}, ring))
+                continue;
+            QPolygonF post;
+            for (const plynth::Vec2& corner : plynth::itemFootprint(item).corners)
+                post << QPointF(corner.x * ppm, corner.y * ppm);
+            entry.posts.append(post);
+        }
+        overlay.canopies.append(entry);
+    }
+}
+
 // Gives the canvas the points, walls and rooms of the first floor.
 OverlayData buildOverlay(const plynth::Plan& plan, const plynth::AssetCatalog* catalog,
                          const plynth::GeneratorLibrary* generators, const std::optional<plynth::AddonCache>* addons)
@@ -171,6 +211,23 @@ OverlayData buildOverlay(const plynth::Plan& plan, const std::string& floorId, c
 
     for (const plynth::RoofArea& roof : plynth::roofAreasOf(plan, floorId))
         overlay.roofs.append(makeOverlayRoof(roof, ppm));
+
+    addOverlayCanopies(overlay, floor, ppm);
+
+    if (const std::optional<std::size_t> index = plynth::floorIndex(plan, floorId)) {
+        overlay.overhang.setFillRule(Qt::OddEvenFill);
+        for (const plynth::PlanArea& area : plynth::overhangArea(plan, *index)) {
+            overlay.overhang.addPolygon(toPolygon(area.outline, ppm));
+            overlay.overhang.closeSubpath();
+            for (const std::vector<plynth::Vec2>& hole : area.holes) {
+                overlay.overhang.addPolygon(toPolygon(hole, ppm));
+                overlay.overhang.closeSubpath();
+            }
+        }
+        if (const plynth::Floor* above = plynth::floorAbove(plan, floorId))
+            overlay.overhangTip = QObject::tr("%1 reaches past this floor here. The build closes its underside with a soffit.")
+                                      .arg(fromCore(above->name.empty() ? above->id : above->name));
+    }
 
     for (const plynth::LightMarker& light : floor.lights) {
         OverlayLight entry;

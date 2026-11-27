@@ -107,6 +107,8 @@ add_executable(plynth WIN32
     src/panels/ImportQueueView.cpp
     src/panels/FinishGroups.h
     src/panels/FinishGroups.cpp
+    src/panels/CanopyGroup.h
+    src/panels/CanopyGroup.cpp
     src/panels/OpeningAssetPicker.h
     src/panels/OpeningAssetPicker.cpp
     src/panels/IntegrationsPanel.h
@@ -119,6 +121,8 @@ add_executable(plynth WIN32
     src/panels/ToolStrip.cpp
     src/tools/FurnitureTool.h
     src/tools/FurnitureTool.cpp
+    src/tools/CanopyTool.h
+    src/tools/CanopyTool.cpp
     src/tools/DetectTool.h
     src/tools/DetectTool.cpp
     src/tools/LightTool.h

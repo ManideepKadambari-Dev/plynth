@@ -43,4 +43,8 @@ OverlayOpening makeOverlayOpening(const plynth::Floor& floor, const plynth::Open
 // Adds every opening of the floor to the overlay, marking the ones that no longer fit their wall.
 void addOverlayOpenings(OverlayData& overlay, const plynth::Floor& floor, double ppm);
 
+// Adds every canopy of the floor to the overlay: its outline as drawn, its id and the generator items standing
+// inside it as its posts.
+void addOverlayCanopies(OverlayData& overlay, const plynth::Floor& floor, double ppm);
+
 }

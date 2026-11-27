@@ -16,15 +16,15 @@ namespace plynth::app {
 
 class ToolController;
 
-enum class ToolId { Select, Scale, Wall, Opening, Room, Furniture, Detect, Stair, Light };
+enum class ToolId { Select, Scale, Wall, Opening, Room, Furniture, Detect, Stair, Light, Canopy };
 
 // How many tools exist.
-inline constexpr std::size_t kToolCount = 9;
+inline constexpr std::size_t kToolCount = 10;
 
 // Every tool. The tool strip and the Edit menu use their own order (kStripTools in ToolStrip.h).
 inline constexpr std::array<ToolId, kToolCount> kAllTools{ToolId::Select,    ToolId::Scale,  ToolId::Wall, ToolId::Opening,
                                                           ToolId::Room,      ToolId::Furniture, ToolId::Detect,
-                                                          ToolId::Stair,     ToolId::Light};
+                                                          ToolId::Stair,     ToolId::Light,     ToolId::Canopy};
 
 // A mouse event handed to a tool. scene is in image pixels, view in canvas pixels.
 struct ToolMouse {

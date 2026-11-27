@@ -11,10 +11,11 @@ namespace plynth::app {
 
 class ToolController;
 
-// Every tool in the order of the tool strip and the Edit menu, the Stair and Light tools after Room.
-inline constexpr std::array<ToolId, kToolCount> kStripTools{ToolId::Select,  ToolId::Scale, ToolId::Wall,
-                                                            ToolId::Opening, ToolId::Room,  ToolId::Stair,
-                                                            ToolId::Light,   ToolId::Furniture, ToolId::Detect};
+// Every tool in the order of the tool strip and the Edit menu, the Stair, Light and Canopy tools after Room.
+inline constexpr std::array<ToolId, kToolCount> kStripTools{ToolId::Select,  ToolId::Scale,  ToolId::Wall,
+                                                            ToolId::Opening, ToolId::Room,   ToolId::Stair,
+                                                            ToolId::Light,   ToolId::Canopy, ToolId::Furniture,
+                                                            ToolId::Detect};
 
 // One square tool button with an icon drawn in code.
 class ToolButton : public QAbstractButton {

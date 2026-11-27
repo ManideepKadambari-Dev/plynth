@@ -7,6 +7,7 @@
 #include "furniture/FurniturePicker.h"
 #include "materials/MaterialPicker.h"
 #include "materials/MaterialRow.h"
+#include "panels/CanopyGroup.h"
 #include "panels/FinishGroups.h"
 #include "panels/OpeningAssetPicker.h"
 #include "document/Selection.h"
@@ -111,6 +112,7 @@ constexpr int kItemPage = 7;
 constexpr int kStairPage = 8;
 constexpr int kRoofPage = 9;
 constexpr int kLightPage = 10;
+constexpr int kCanopyPage = 11;
 
 // Turns a core text into Qt text.
 QString fromCore(const std::string& text)
@@ -142,6 +144,7 @@ PropertiesPanel::PropertiesPanel(plynth::Document& document, Selection& selectio
     buildStairPage();
     buildRoofPage();
     buildLightPage();
+    buildCanopyPage();
     // Only the shown page scrolls. The Delete button stays below it, always in view.
     scroll_ = new QScrollArea(this);
     scroll_->setWidgetResizable(true);
@@ -1523,6 +1526,10 @@ void PropertiesPanel::refresh()
         page = kLightPage;
         refreshLight();
         break;
+    case SelectionKind::Canopy:
+        page = kCanopyPage;
+        canopyGroup_->refresh();
+        break;
     case SelectionKind::RoofSection:
         if (selectedRoof()) {
             page = kRoofPage;
@@ -2095,6 +2102,16 @@ void PropertiesPanel::buildLightPage()
     connect(lightHeight_, &QDoubleSpinBox::valueChanged, this, [this]() { editLight(false); });
     connect(lightX_, &QDoubleSpinBox::valueChanged, this, [this]() { editLight(true); });
     connect(lightY_, &QDoubleSpinBox::valueChanged, this, [this]() { editLight(true); });
+}
+
+// The page for a selected canopy: the Canopy group with its roof, materials and problems.
+void PropertiesPanel::buildCanopyPage()
+{
+    QGridLayout* grid = nullptr;
+    makePage(&grid);
+    canopyGroup_ = new CanopyGroup(document_, controller_, selection_, grid, this);
+    for (QWidget* editor : canopyGroup_->editors())
+        editors_.push_back(editor);
 }
 
 // Runs MoveLightCommand for a new place, or SetLightCommand for a new kind or height. A new kind takes the start

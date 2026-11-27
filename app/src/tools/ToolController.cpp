@@ -8,6 +8,7 @@
 #include "detection/DetectionSession.h"
 #include "theme/Theme.h"
 #include "furniture/FurniturePicker.h"
+#include "tools/CanopyTool.h"
 #include "tools/DetectTool.h"
 #include "tools/FurnitureTool.h"
 #include "tools/LightTool.h"
@@ -55,6 +56,7 @@ ToolController::ToolController(plynth::Document& document, PlanCanvas* canvas, S
     tools_[static_cast<size_t>(ToolId::Furniture)] = std::make_unique<FurnitureTool>(*this);
     tools_[static_cast<size_t>(ToolId::Stair)] = std::make_unique<StairTool>(*this);
     tools_[static_cast<size_t>(ToolId::Light)] = std::make_unique<LightTool>(*this);
+    tools_[static_cast<size_t>(ToolId::Canopy)] = std::make_unique<CanopyTool>(*this);
     detection_ = new DetectionSession(*this, this);
     tools_[static_cast<size_t>(ToolId::Detect)] = std::make_unique<DetectTool>(*this);
     connect(detection_, &DetectionSession::changed, this, [this]() {
@@ -186,6 +188,23 @@ bool ToolController::showStairPreview(double fromX, double fromY, double toX, do
         return false;
     static_cast<StairTool*>(tool(ToolId::Stair))->previewDrag(plynth::Vec2{fromX, fromY}, plynth::Vec2{toX, toY});
     return true;
+}
+
+// Switches to the Canopy tool and shows an outline being drawn, for checks.
+bool ToolController::showCanopyDraft(const std::vector<plynth::Vec2>& corners)
+{
+    if (!setActive(ToolId::Canopy))
+        return false;
+    static_cast<CanopyTool*>(tool(ToolId::Canopy))->previewOutline(corners);
+    return true;
+}
+
+// Adds a canopy as the Canopy tool does when its roof type is picked, for checks.
+bool ToolController::placeCanopy(const std::vector<plynth::Vec2>& outline, const std::string& roofType)
+{
+    if (!isAvailable(ToolId::Canopy))
+        return false;
+    return static_cast<CanopyTool*>(tool(ToolId::Canopy))->placeOutline(outline, roofType);
 }
 
 // Rounds a light position to the grid step of the project.

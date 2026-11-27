@@ -60,6 +60,7 @@
 #include <plynth/core/RoomTypes.h>
 #include <plynth/core/Rooms.h>
 #include <plynth/core/Stairs.h>
+#include <plynth/core/commands/CanopyCommands.h>
 #include <plynth/core/commands/DeleteCommands.h>
 #include <plynth/core/SetupCheck.h>
 #include <plynth/core/catalog/AssetImport.h>
@@ -778,7 +779,7 @@ void MainWindow::buildMenus()
     edit->addSeparator();
     const std::array<ToolId, kToolCount>& toolIds = kStripTools;
     const std::array<Qt::Key, kToolCount> toolKeys{Qt::Key_V, Qt::Key_S, Qt::Key_W, Qt::Key_O,
-                                                   Qt::Key_R, Qt::Key_T, Qt::Key_L, Qt::Key_P, Qt::Key_D};
+                                                   Qt::Key_R, Qt::Key_T, Qt::Key_L, Qt::Key_C, Qt::Key_P, Qt::Key_D};
     for (size_t i = 0; i < toolIds.size(); ++i) {
         const ToolId id = toolIds[i];
         QAction* action = addMenuAction(edit, tr("%1 tool").arg(ToolStrip::toolName(id)),
@@ -1251,6 +1252,18 @@ bool MainWindow::addLightForCheck(double x, double y, const QString& kind)
     if (!parsed.has_value())
         return false;
     return tools_->placeLight(plynth::Vec2{x, y}, *parsed, true);
+}
+
+// For checks only: adds a canopy over an outline on the shown floor, as the Canopy tool does, and selects it.
+bool MainWindow::addCanopyForCheck(const std::vector<plynth::Vec2>& outline, const QString& roofType)
+{
+    return tools_->placeCanopy(outline, roofType.toLower().toStdString());
+}
+
+// For checks only: shows the Canopy tool with an outline being drawn.
+bool MainWindow::showCanopyDraftForCheck(const std::vector<plynth::Vec2>& corners)
+{
+    return tools_->showCanopyDraft(corners);
 }
 
 // For checks only: opens the door and window picker of the selected opening. With no opening selected, the first
@@ -1743,6 +1756,13 @@ void MainWindow::deleteSelection()
     if (selection_->isEmpty() || selection_->kind() == SelectionKind::RoofSection || doc_.isReadOnly())
         return;
     const std::string id = selection_->id().toStdString();
+    // makeDeleteCommand does not take canopies, and nothing depends on one, so it is removed on its own.
+    if (selection_->kind() == SelectionKind::Canopy) {
+        const plynth::Status status = doc_.execute(std::make_unique<plynth::RemoveCanopyCommand>(id));
+        if (!status.ok())
+            statusBar_->showMessage(fromCore(status.message));
+        return;
+    }
     plynth::DeleteBuild build = plynth::makeDeleteCommand(doc_.plan(), std::span<const plynth::Id>(&id, 1));
     if (!build.status.ok()) {
         statusBar_->showMessage(fromCore(build.status.message));
@@ -1796,6 +1816,9 @@ void MainWindow::validateSelection()
             break;
         case SelectionKind::Light:
             found = plynth::findLight(*floor, id) != nullptr;
+            break;
+        case SelectionKind::Canopy:
+            found = plynth::findCanopy(*floor, id) != nullptr;
             break;
         case SelectionKind::None:
             break;
@@ -1876,6 +1899,8 @@ bool MainWindow::activateToolByName(const QString& name)
         id = ToolId::Stair;
     else if (key == QStringLiteral("light"))
         id = ToolId::Light;
+    else if (key == QStringLiteral("canopy"))
+        id = ToolId::Canopy;
     else
         return false;
     tools_->setActive(id);
@@ -1913,6 +1938,8 @@ void MainWindow::selectById(const QString& id)
                 kind = SelectionKind::Stair;
         if (plynth::findLight(floor, key) != nullptr)
             kind = SelectionKind::Light;
+        if (plynth::findCanopy(floor, key) != nullptr)
+            kind = SelectionKind::Canopy;
         if (!kind.has_value())
             continue;
         focus_->setFloorId(QString::fromStdString(floor.id));

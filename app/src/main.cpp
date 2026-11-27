@@ -25,6 +25,7 @@
 #include <cstdio>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #ifdef _WIN32
 #ifndef NOMINMAX
@@ -168,14 +169,14 @@ int main(int argc, char* argv[])
                                       QStringLiteral("Open the terminal and type this text. For checks only."),
                                       QStringLiteral("text"));
     QCommandLineOption toolOption(QStringLiteral("tool"),
-                                  QStringLiteral("Activate a tool: select, scale, wall, opening, room, stair, light, furniture or detect. For checks only."),
+                                  QStringLiteral("Activate a tool: select, scale, wall, opening, room, stair, light, canopy, furniture or detect. For checks only."),
                                   QStringLiteral("name"));
     QCommandLineOption wallCheckOption(QStringLiteral("wall-check"),
                                        QStringLiteral("With --screenshot, drive the plan with the mouse: guides:x1,y1,x2,y2, join:point,x,y "
                                                       "or split:x,y, in metres. Writes <file>.txt and <file>-middle.png. For checks only."),
                                        QStringLiteral("spec"));
     QCommandLineOption selectOption(QStringLiteral("select"),
-                                    QStringLiteral("Select the point, wall, opening, room, item, stair or light with this id, or first-wall. For checks only."),
+                                    QStringLiteral("Select the point, wall, opening, room, item, stair, light or canopy with this id, or first-wall. For checks only."),
                                     QStringLiteral("id"));
     QCommandLineOption floorOption(QStringLiteral("floor"),
                                    QStringLiteral("Show the floor with this id, such as f2. For checks only."), QStringLiteral("id"));
@@ -295,8 +296,19 @@ int main(int argc, char* argv[])
     QCommandLineOption openingAssetPickerOption(QStringLiteral("opening-asset-picker"),
                                                 QStringLiteral("Open the door and window picker of the selected opening, or of the "
                                                                "first door. For checks only."));
+    QCommandLineOption addCanopyOption(QStringLiteral("add-canopy"),
+                                       QStringLiteral("Add a canopy on the shown floor over the outline x,y;x,y;x,y in metres, with an optional "
+                                                      "roof type id last (flat when left out), as the Canopy tool does, and select it. "
+                                                      "Repeat for several. For checks only."),
+                                       QStringLiteral("x,y;x,y;x,y[;type]"));
+    QCommandLineOption canopyDraftOption(QStringLiteral("canopy-draft"),
+                                         QStringLiteral("Activate the Canopy tool and show an outline being drawn through x,y;x,y;... in metres, "
+                                                        "the last place standing for the cursor. For checks only."),
+                                         QStringLiteral("x,y;x,y;..."));
     parser.addOption(lightToolOption);
     parser.addOption(addLightOption);
+    parser.addOption(addCanopyOption);
+    parser.addOption(canopyDraftOption);
     parser.addOption(projectFinishOption);
     QCommandLineOption exportLicensesOnOption(QStringLiteral("export-licenses-on"),
                                               QStringLiteral("Tick the license report box of the Export window and open the window. For checks only."));
@@ -422,7 +434,8 @@ int main(int argc, char* argv[])
     if (parser.isSet(toolOption)) {
         const QStringList names{QStringLiteral("select"), QStringLiteral("scale"), QStringLiteral("wall"),
                                 QStringLiteral("opening"), QStringLiteral("room"), QStringLiteral("stair"),
-                                QStringLiteral("furniture"), QStringLiteral("detect"), QStringLiteral("light")};
+                                QStringLiteral("furniture"), QStringLiteral("detect"), QStringLiteral("light"),
+                                QStringLiteral("canopy")};
         if (!names.contains(parser.value(toolOption).toLower()))
             return kExitBadArguments;
     }
@@ -469,6 +482,43 @@ int main(int argc, char* argv[])
             return kExitBadArguments;
         lightPlaces.append(place);
     }
+    // Reads places in metres written as x,y;x,y. A last part without a comma is the roof type when allowed.
+    const auto readPlaces = [](const QString& value, bool allowType, std::vector<plynth::Vec2>* places,
+                               QString* type) {
+        const QStringList parts = value.split(QLatin1Char(';'), Qt::SkipEmptyParts);
+        for (qsizetype i = 0; i < parts.size(); ++i) {
+            const QStringList xy = parts[i].split(QLatin1Char(','));
+            if (xy.size() == 1 && allowType && type != nullptr && i == parts.size() - 1) {
+                *type = parts[i].trimmed();
+                continue;
+            }
+            bool okX = false;
+            bool okY = false;
+            const double x = xy.size() == 2 ? xy[0].toDouble(&okX) : 0.0;
+            const double y = xy.size() == 2 ? xy[1].toDouble(&okY) : 0.0;
+            if (!okX || !okY)
+                return false;
+            places->push_back(plynth::Vec2{x, y});
+        }
+        return true;
+    };
+    struct CanopyPlace {
+        std::vector<plynth::Vec2> outline;
+        QString type;
+    };
+    QList<CanopyPlace> canopyPlaces;
+    for (const QString& value : parser.values(addCanopyOption)) {
+        CanopyPlace place;
+        if (!readPlaces(value, true, &place.outline, &place.type) || place.outline.size() < 3)
+            return kExitBadArguments;
+        if (place.type.isEmpty())
+            place.type = QStringLiteral("flat");
+        canopyPlaces.append(place);
+    }
+    std::vector<plynth::Vec2> canopyDraft;
+    if (parser.isSet(canopyDraftOption) &&
+        (!readPlaces(parser.value(canopyDraftOption), false, &canopyDraft, nullptr) || canopyDraft.empty()))
+        return kExitBadArguments;
     if (parser.isSet(furnitureAtOption)) {
         const QStringList parts = parser.value(furnitureAtOption).split(QLatin1Char(','));
         bool okX = false;
@@ -601,6 +651,10 @@ int main(int argc, char* argv[])
         window.activateToolByName(QStringLiteral("light"));
     for (const LightPlace& place : lightPlaces)
         window.addLightForCheck(place.x, place.y, place.kind);
+    for (const CanopyPlace& place : canopyPlaces)
+        window.addCanopyForCheck(place.outline, place.type);
+    if (!canopyDraft.empty())
+        window.showCanopyDraftForCheck(canopyDraft);
     if (parser.isSet(alignImageOption))
         window.setAlignImage(true);
     if (parser.isSet(roofSectionsOption))

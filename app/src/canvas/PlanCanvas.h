@@ -128,6 +128,17 @@ struct OverlayLight {
     QString tip;
 };
 
+// One canopy of the shown floor, in scene units: its outline as drawn, where its id goes, and the generator items
+// standing inside it, which hold it up as posts. tip names it, its roof type and its height.
+struct OverlayCanopy {
+    QString id;
+    QPainterPath area;
+    QPointF labelPoint;
+    QString label;
+    QString tip;
+    QVector<QPolygonF> posts;
+};
+
 // Everything the canvas draws over the plan image.
 struct OverlayData {
     QVector<OverlayItem> items;
@@ -146,6 +157,11 @@ struct OverlayData {
     QVector<OverlayRoof> roofs;
     // The light markers of the shown floor only. Other floors' lights are never drawn.
     QVector<OverlayLight> lights;
+    // The canopies of the shown floor.
+    QVector<OverlayCanopy> canopies;
+    // Where the floor above reaches past the shown floor, drawn as a dashed outline. Not selectable.
+    QPainterPath overhang;
+    QString overhangTip;
 };
 
 // One proposed wall, in scene units.
@@ -199,6 +215,8 @@ public:
     // The id of the light marker of the shown floor under a scene point, within the marker's drawn size, or an
     // empty string.
     QString lightAt(const QPointF& scene) const;
+    // The id of the canopy of the shown floor whose outline holds a scene point, or an empty string.
+    QString canopyAt(const QPointF& scene) const;
     // Shows or hides the roof sections of the shown floor (hatch, label and direction arrow).
     void setRoofSectionsShown(bool shown);
     bool roofSectionsShown() const { return roofsShown_; }
@@ -285,6 +303,9 @@ private:
     void paintProposals(QPainter* painter);
     void paintProblems(QPainter* painter);
     void paintLights(QPainter* painter);
+    void paintOverhang(QPainter* painter);
+    void paintCanopies(QPainter* painter);
+    void paintCanopyMarks(QPainter* painter);
     void applyFit();
     QRectF imageRect() const;
 

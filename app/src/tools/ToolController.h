@@ -21,6 +21,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 class QWidget;
 
@@ -62,6 +63,12 @@ public:
     // For checks: switches to the Stair tool and shows the live preview of a drag from one place to another,
     // in metres. False when the tool is not available (no scale, or the shown floor is the top one).
     bool showStairPreview(double fromX, double fromY, double toX, double toY);
+    // For checks: switches to the Canopy tool and shows an outline being drawn through places in metres, the last
+    // one standing for the cursor. False when the tool is not available.
+    bool showCanopyDraft(const std::vector<plynth::Vec2>& corners);
+    // For checks: adds a canopy over an outline in metres with a roof type, as the Canopy tool does, and selects
+    // it. False when it was refused.
+    bool placeCanopy(const std::vector<plynth::Vec2>& outline, const std::string& roofType);
 
     plynth::Document& document() { return document_; }
     const plynth::Document& document() const { return document_; }

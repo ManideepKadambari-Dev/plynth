@@ -6,6 +6,7 @@
 #include <plynth/core/Document.h>
 #include <plynth/core/EditSession.h>
 #include <plynth/core/Export.h>
+#include <plynth/core/Geometry.h>
 #include <plynth/core/ProjectFiles.h>
 
 #include <QEvent>
@@ -19,6 +20,7 @@
 
 #include <memory>
 #include <optional>
+#include <vector>
 
 class QAction;
 class QDialog;
@@ -267,6 +269,11 @@ public:
     // For checks only: places a light marker of a kind ("ceiling", "wall" or "standing") on the shown floor at a
     // place in metres, as the Light tool does, and selects it. False when it was refused.
     bool addLightForCheck(double x, double y, const QString& kind);
+    // For checks only: adds a canopy over an outline in metres with a roof type id on the shown floor, as the
+    // Canopy tool does, and selects it. False when it was refused.
+    bool addCanopyForCheck(const std::vector<plynth::Vec2>& outline, const QString& roofType);
+    // For checks only: switches to the Canopy tool and shows an outline being drawn through places in metres.
+    bool showCanopyDraftForCheck(const std::vector<plynth::Vec2>& corners);
     // For checks only: opens the door and window picker of the selected opening, hovering an asset when given.
     bool showOpeningAssetPicker(const QString& hoverAsset);
     // For checks only: shows the project page of Properties scrolled to the Trim and Variation groups.

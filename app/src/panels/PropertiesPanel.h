@@ -35,6 +35,7 @@ struct Stair;
 
 namespace plynth::app {
 
+class CanopyGroup;
 class MaterialPicker;
 class MaterialRow;
 class OpeningAssetPicker;
@@ -97,6 +98,7 @@ private:
     void buildItemPage();
     void buildStairPage();
     void buildLightPage();
+    void buildCanopyPage();
     void refreshLight();
     void editLight(bool place);
     void openAssetPicker();
@@ -328,6 +330,8 @@ private:
     QDoubleSpinBox* lightHeight_ = nullptr;
     QDoubleSpinBox* lightX_ = nullptr;
     QDoubleSpinBox* lightY_ = nullptr;
+
+    CanopyGroup* canopyGroup_ = nullptr;
 
     QSlider* thinSlider_ = nullptr;
     QLabel* thinValue_ = nullptr;
