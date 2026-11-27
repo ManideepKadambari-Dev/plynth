@@ -168,12 +168,8 @@ void MainWindow::updateExportUi()
     state.project = &doc_.project();
     if (doc_.hasFolder()) {
         const plynth::ExportOptionsRead options = plynth::readExportOptions(doc_.folder());
-        state.kitEnabled = options.status.ok() && options.options.kit.enabled;
-        state.gameplayEnabled = options.status.ok() && options.options.gameplay.enabled;
         state.licensesEnabled = options.status.ok() && options.options.licenses.enabled;
         const std::string stem = plynth::exportFileStem(doc_.project().settings.name);
-        state.gameplayFile = QString::fromStdWString(
-            (plynth::exportFolder(doc_.folder()) / (stem + std::string(plynth::kGameplayFileSuffix))).make_preferred().wstring());
         state.licensesFile = QString::fromStdWString(
             (plynth::exportFolder(doc_.folder()) / (stem + std::string(plynth::kLicensesJsonSuffix))).make_preferred().wstring());
         if (!options.status.ok()) {
@@ -183,7 +179,7 @@ void MainWindow::updateExportUi()
     }
     plynth::ExportGroupReview review;
     if (doc_.hasFolder()) {
-        // Every mode needs the review, because the guard checks the kit switch and the repair with it too.
+        // Every mode needs the review, because the guard checks the license switch and the repair with it too.
         state.projectFolder = doc_.folder();
         review = plynth::reviewExportGroups(doc_.folder(), doc_.project());
         state.review = &review;

@@ -32,13 +32,13 @@ NEUTRAL_LOOKS = (("Exterior", "Wall_Outside"), ("Top", "Wall_Top"), ("Reveal", "
 # Makes the unique pieces of the modular kit from the job's kit and keeps them in ctx.state for the later steps:
 # kit_objects (piece meshes and their UCX_ meshes) and kit_pieces (the job's pieces by mesh name). The piece
 # meshes and collision are also added to the lists the quality checks read, so they are checked like the rest of
-# the building. Does nothing when the job has no kit.
+# the building. Does nothing when the job has no kit or its profile makes none.
 def run(ctx):
     kit = ctx.params.get("kit")
     ctx.state["kit_objects"] = []
     ctx.state["kit_pieces"] = {}
     ctx.state["kit_output"] = None
-    if not kit:
+    if not kit or not ctx.state["profile"].kit:
         return
     collection = kit_collection()
     shim = SimpleNamespace(

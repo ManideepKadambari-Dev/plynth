@@ -119,8 +119,8 @@ TEST_CASE("every stair type gets railings, posts and a guard", "[railings]")
             REQUIRE(guards.size() == 1);
             CHECK(railings[0].floor == "f1");
             CHECK(railings[0].stair == "s1");
-            CHECK(railingObjectName(railings[0]) == "SM_f1_s1_Railing");
-            CHECK(railingObjectName(guards[0]) == "SM_f2_s1_Guard");
+            CHECK(railingObjectName(railings[0]) == "f1_s1_Railing");
+            CHECK(railingObjectName(guards[0]) == "f2_s1_Guard");
             CHECK(railCount(railings[0]) == (std::string(type) == "spiral" ? 1 : 2));
             checkPosts(railings[0]);
 

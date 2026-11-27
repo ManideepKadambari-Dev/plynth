@@ -26,7 +26,7 @@ def make_surface(ctx, room, floor, collection, kind, z, up):
     for polygon in polygons:
         faces = meshes.add_flat(bm, polygon["outline"], polygon["holes"], z, up)
         meshes.world_uvs(bm, faces, flip_y=not up)
-    obj = meshes.make_object("SM_%s_%s_%s" % (floor["id"], room["id"], kind), bm, collection, room["id"],
+    obj = meshes.make_object("%s_%s_%s" % (floor["id"], room["id"], kind), bm, collection, room["id"],
                              kind.lower())
     meshes.add_slots(obj, [name])
     return obj

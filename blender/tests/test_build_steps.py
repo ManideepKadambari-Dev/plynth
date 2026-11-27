@@ -85,7 +85,7 @@ class CutFallbackTests(BuildTest):
     # Opens the built file and returns the walls object.
     def open_walls(self):
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
-        return bpy.data.objects["SM_f1_Walls"]
+        return bpy.data.objects["f1_Walls"]
 
     # Throws away half of the faces, as a solver that returned a broken result would.
     @staticmethod

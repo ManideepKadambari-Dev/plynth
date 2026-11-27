@@ -18,8 +18,9 @@ namespace plynth {
 // in its own file in core/src/exporters/ with an ExporterRegistrar at namespace scope, built into an OBJECT
 // library like the importers, so adding one never means editing existing code.
 //
-// The Blender side writes every group with its one FBX profile (blender/plynth/exporters/fbx.py). A UCX_
-// collision mesh always goes into the file of the object it belongs to. Every group shares the building
+// The Blender side writes every group with its one FBX profile (blender/plynth/exporters/fbx.py). Collision
+// goes only into an unreal profile export (ExportJob.h), and a collision mesh always goes into the file of the
+// object it belongs to. Every group shares the building
 // origin, because the export applies every transform (ExportJob.h, step prepare).
 //
 // Which group a built object goes to (the worker's write_fbx step, in this order):
@@ -29,7 +30,7 @@ namespace plynth {
 //      export has rest, a group with no members, no kinds and no ids is passed over here, so an empty group
 //      takes nothing. When none has rest, such a group takes every object, as the single exporter's one does
 //   4. the group with rest set (objects nobody else takes: hand added ones, kinds no rule knows)
-// A UCX_ mesh whose object is not there is placed like an object with no kind and no id. An object none of
+// A collision mesh whose object is not there is placed like an object with no kind and no id. An object none of
 // these takes is left out and named in a finding of the "groups" check. Objects of kind "kit" (Kit.h) never
 // go into a group. A group that gets no object is not written (ExportWorkerOutput).
 // Core never lists one (kind, id) pair in two groups.

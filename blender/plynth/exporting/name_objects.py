@@ -2,17 +2,26 @@ from . import Step, pascal, sanitize, strip_suffix, unique_name
 from ..registry import EXPORT_STEPS
 
 ORDER = 30
+ENGINE_MESH_PREFIX = "SM_"
+ENGINE_COLLISION_PREFIX = "UCX_"
 
 
-# Works out the new name of every mesh: SM_<name> for a building mesh, UCX_<its object>_<NN> for a collision
-# mesh. Returns a list of (object, new name).
+# Works out a plain name for every building mesh: its own name with odd characters replaced, made unique.
+# Returns a list of (object, new name).
+def plan_plain_names(meshes):
+    taken = set()
+    return [(obj, unique_name(sanitize(obj.name), taken)) for obj in sorted(meshes, key=lambda o: o.name)]
+
+
+# Works out the engine name of every mesh: SM_<name> for a building mesh, UCX_<its object>_<NN> for a collision
+# mesh. Returns a list of (object, new name) and the new names by old name.
 def plan_mesh_names(meshes, collision):
     taken = set()
     wanted = []
     for obj in sorted(meshes, key=lambda o: o.name):
         name = sanitize(obj.name)
-        if not name.startswith("SM_"):
-            name = "SM_" + name
+        if not name.startswith(ENGINE_MESH_PREFIX):
+            name = ENGINE_MESH_PREFIX + name
         wanted.append((obj, unique_name(name, taken)))
     new_of = {obj.name: new for obj, new in wanted}
     groups = {}
@@ -23,21 +32,23 @@ def plan_mesh_names(meshes, collision):
         for number, obj in enumerate(members):
             if base is None:
                 name = sanitize(obj.name)
-                wanted.append((obj, unique_name(name if name.startswith("UCX_") else "UCX_" + name, taken)))
+                if not name.startswith(ENGINE_COLLISION_PREFIX):
+                    name = ENGINE_COLLISION_PREFIX + name
+                wanted.append((obj, unique_name(name, taken)))
             else:
-                wanted.append((obj, unique_name("UCX_%s_%02d" % (base, number), taken)))
+                wanted.append((obj, unique_name("%s%s_%02d" % (ENGINE_COLLISION_PREFIX, base, number), taken)))
     return wanted, new_of
 
 
-# Renames the meshes in two passes, so a new name never meets an old one still in use.
+# Renames the objects and their meshes in two passes, so a new name never meets an old one still in use, and
+# points every collision mesh at its object's new name.
 def rename_meshes(wanted, new_of):
-    old_names = {}
     for number, (obj, _) in enumerate(wanted):
-        old_names[obj] = obj.name
         obj.name = "__plynth_tmp_%d" % number
     for obj, new in wanted:
         obj.name = new
-        obj.data.name = new
+        if obj.data is not None:
+            obj.data.name = new
         target = obj.get("plynth_collision_for")
         if target is not None and target in new_of:
             obj["plynth_collision_for"] = new_of[target]
@@ -71,11 +82,9 @@ def name_materials(ctx, meshes):
     return info
 
 
-# Gives every exported object and material its Unreal name.
+# Gives every exported object and material the name the job's profile asks for.
 def run(ctx):
-    wanted, new_of = plan_mesh_names(ctx.state["meshes"], ctx.state["collision"])
-    rename_meshes(wanted, new_of)
-    ctx.state["materials"] = name_materials(ctx, ctx.state["meshes"])
+    ctx.state["profile"].name_objects(ctx)
 
 
 EXPORT_STEPS.register("name_objects", Step(ORDER, "Naming objects and materials", run))

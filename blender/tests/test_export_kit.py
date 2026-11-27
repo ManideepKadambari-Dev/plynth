@@ -98,7 +98,7 @@ def write_kit_fixtures(folder):
     kits = {"kit_three": make_kit([wall_piece(), corner_piece(), opening_piece(OPENING, ["o1"])]),
             "kit_bare_opening": make_kit([opening_piece(BARE, [])])}
     for name, kit in kits.items():
-        params = export_helpers.job_params()
+        params = export_helpers.job_params(profile="unreal")
         params["kit"] = kit
         data = {"format": "plynth-blender-job", "version": 1, "task": "export", "job_id": "export-1",
                 "result_file": "result.json", "params": params}
@@ -119,6 +119,8 @@ def statuses(output):
 
 
 class ExportKitTests(ExportTest):
+    profile = "unreal"
+
     # Returns the params of the clean shared project with a kit.
     def with_kit(self, pieces=None, groups=None, **kit_options):
         params = self.params(clean=True)
@@ -314,6 +316,19 @@ class ExportKitTests(ExportTest):
             self.assertEqual(with_kit[key], plain[key], key)
         self.assertEqual(statuses(with_kit)["triangles"]["message"], statuses(plain)["triangles"]["message"])
         self.assertIn("SM_Kit_" + WALL, seen, "the kit pieces are still checked")
+
+    # The plain profile makes no kit even when the job has one: no kit output, no kit objects, no kit file.
+    def test_plain_makes_no_kit(self):
+        params = self.with_kit()
+        params["profile"] = "plain"
+        result = self.export(params=params)
+        self.assertTrue(result["ok"], result["error"])
+        self.assert_result_valid(result)
+        output = result["output"]
+        self.assertIsNone(output["kit"])
+        self.assertIsNone(bpy.data.collections.get("Kit"))
+        self.assertNotIn("kit_file", statuses(output))
+        self.assertFalse(os.path.exists(self.path("export", ".staging", FILE)))
 
     # A check only run builds and checks the pieces but writes no kit file.
     def test_check_only(self):

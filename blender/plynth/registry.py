@@ -40,6 +40,7 @@ BAKERS = Registry("baker")
 MATERIAL_CHECKS = Registry("material check")
 EXPORT_STEPS = Registry("export step")
 QUALITY_CHECKS = Registry("quality check")
+EXPORT_PROFILES = Registry("export profile")
 ADDON_BRIDGES = Registry("add-on bridge")
 
 

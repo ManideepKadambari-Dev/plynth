@@ -46,7 +46,7 @@ def make_stair(ctx, floor, stair):
         for face in made:
             meshes.project_face(face, uv)
         collection = ctx.state["collections"][floor["id"]]
-        obj = meshes.make_object("SM_%s_%s_Stair" % (floor["id"], stair["id"]), bm, collection, stair["id"], "stair")
+        obj = meshes.make_object("%s_%s_Stair" % (floor["id"], stair["id"]), bm, collection, stair["id"], "stair")
     except Exception:
         bm.free()
         raise

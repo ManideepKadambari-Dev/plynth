@@ -65,7 +65,7 @@ struct FloorFinish {
     bool operator==(const FloorFinish&) const = default;
 };
 
-// The object name of a floor's trim of a kind: SM_<floor>_Skirting, _Cornice, _Casing or _Sill.
+// The object name of a floor's trim of a kind: <floor>_Skirting, _Cornice, _Casing or _Sill.
 std::string trimObjectName(const Id& floor, TrimKind kind);
 
 }

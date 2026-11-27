@@ -113,12 +113,13 @@ class FromCoreGroupedTests(helpers.TempFolderTest):
         self.assertEqual(len(seen), len(set(seen)))
         project, _ = shared_project()
         bpy.ops.wm.open_mainfile(filepath=project + "/build/building.blend")
-        built = {o.name for o in scene.scene_objects() if o.type == "MESH"}
-        items = {"SM_%s_%s" % (o.get("plynth_asset"), o.get("plynth_id")) for o in bpy.data.objects
+        built = {o.name for o in scene.scene_objects() if o.type == "MESH" and o.get("plynth_kind") != "collision"}
+        items = {"%s_%s" % (o.get("plynth_asset"), o.get("plynth_id")) for o in bpy.data.objects
                  if o.get("plynth_kind") == "item"}
         bpy.ops.wm.read_factory_settings(use_empty=True)
         self.assertEqual(set(seen), built | items)
         self.assertEqual(len(items), 3)
+        self.assertEqual([n for n in seen if n.startswith(("SM_", "UCX_")) or "_Collision_" in n], [])
         self.assertEqual(len(seen), output["objects"])
 
     # With write false the checks run and nothing is written, as the core made check only export does.

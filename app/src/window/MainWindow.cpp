@@ -512,7 +512,7 @@ void MainWindow::makeToolWindows()
         {"build", tr("Build report"), buildPanel_, tr("Report"),
          tr("Open the Build report window: summary, files, steps and problems of the last build (Ctrl+Shift+B)"), false},
         {"export", tr("Export"), exportPanel_, tr("Export"),
-         tr("Open the Export window: export for Unreal and its quality checks (Ctrl+Shift+X)"), false},
+         tr("Open the Export window: the plain FBX export and its quality checks (Ctrl+Shift+X)"), false},
     };
     const Theme& t = Theme::instance();
     const plynth::MachineSettings& settings = host_->settings();
@@ -946,7 +946,7 @@ void MainWindow::buildMenus()
                                          {});
     connect(save3dPictureAction_, &QAction::triggered, this, &MainWindow::save3dPicture);
     build->addSeparator();
-    exportAction_ = addMenuAction(build, tr("&Export"), tr("Write the FBX and textures for Unreal (Ctrl+E)"),
+    exportAction_ = addMenuAction(build, tr("&Export"), tr("Write the plain FBX and its textures into the export folder (Ctrl+E)"),
                                   {QKeySequence(Qt::CTRL | Qt::Key_E)});
     connect(exportAction_, &QAction::triggered, this, [this]() { startExport(true, false); });
     checkExportAction_ = addMenuAction(build, tr("C&heck export"), tr("Run the quality checks and write nothing (Ctrl+Shift+E)"),
@@ -960,7 +960,7 @@ void MainWindow::buildMenus()
                                         {});
     connect(exportFolderAction_, &QAction::triggered, this, &MainWindow::openExportFolder);
     QAction* exportWindow = addMenuAction(build, tr("Export &window"),
-                                          tr("Open the Export window: export for Unreal and its quality checks (Ctrl+Shift+X)"),
+                                          tr("Open the Export window: the plain FBX export and its quality checks (Ctrl+Shift+X)"),
                                           {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_X)});
     connect(exportWindow, &QAction::triggered, this, [this]() { openToolWindow(QStringLiteral("export")); });
     build->addSeparator();

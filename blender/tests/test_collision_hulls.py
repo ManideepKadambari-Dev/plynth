@@ -56,13 +56,13 @@ class CollisionHullTests(helpers.TempFolderTest):
     # Builds the hull of the points and checks it the way the export does: closed, convex, small enough for a
     # game engine, and the collision check passes, also once the hull is moved and turned like an item.
     def assert_good_hull(self, points, label):
-        mesh = collision.hull_points_mesh("UCX_" + label, points)
+        mesh = collision.hull_points_mesh(label + "_Collision", points)
         self.assertIsNotNone(mesh, label)
         self.assertLessEqual(len(mesh.vertices), collision.MAX_HULL_POINTS, label)
         self.assertTrue(all(len(p.vertices) == 3 for p in mesh.polygons), label)
         self.assertTrue(quality_collision.is_closed(mesh), label)
         self.assertTrue(quality_collision.is_convex(mesh), label)
-        obj = bpy.data.objects.new("UCX_SM_%s_i1_00" % label, mesh.copy())
+        obj = bpy.data.objects.new("%s_i1_Collision_00" % label, mesh.copy())
         bpy.context.scene.collection.objects.link(obj)
         obj.matrix_world = Matrix.Translation((14.0, -9.0, 3.2)) @ Matrix.Rotation(math.radians(37.0), 4, "Z")
         scene.apply_object_transforms([obj])
@@ -107,7 +107,7 @@ class CollisionHullTests(helpers.TempFolderTest):
     # A flat point set still has no hull.
     def test_flat_points_have_no_hull(self):
         flat = [(x * 0.1, y * 0.1, 0.0) for x in range(20) for y in range(20)]
-        self.assertIsNone(collision.hull_points_mesh("UCX_flat", flat))
+        self.assertIsNone(collision.hull_points_mesh("flat_Collision", flat))
 
 
 if __name__ == "__main__":

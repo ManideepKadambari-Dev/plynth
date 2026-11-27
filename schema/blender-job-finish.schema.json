@@ -51,7 +51,7 @@
       "properties": {
         "kind": { "enum": ["skirting", "cornice", "casing", "sill", "railing", "guard"] },
         "plan_id": { "$ref": "#/definitions/planId" },
-        "object": { "type": "string", "pattern": "^SM_[A-Za-z0-9_-]+$" },
+        "object": { "description": "A plain object name with no engine prefix, for example f1_Skirting.", "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$" },
         "plynth_kind": { "enum": ["trim", "railing", "guard"] },
         "slot": { "type": "string", "minLength": 1 },
         "material": { "oneOf": [{ "$ref": "#/definitions/catalogId" }, { "type": "null" }] },

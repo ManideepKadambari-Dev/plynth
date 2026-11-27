@@ -83,9 +83,9 @@ class AssetBuildTests(BuildTest):
             self.assertEqual(empty.instance_type, "COLLECTION")
         self.assertEqual(len([o for o in bpy.data.objects if o.type == "MESH" and o.get("plynth_kind") == "item"]), 0)
         hulls = {o.name: o for o in bpy.data.objects if o.get("plynth_kind") == "collision"}
-        self.assertEqual(sorted(hulls), ["UCX_SM_sofa_i1_00", "UCX_SM_sofa_i2_00", "UCX_SM_tv_i3_00"])
-        self.assertIs(hulls["UCX_SM_sofa_i1_00"].data, hulls["UCX_SM_sofa_i2_00"].data)
-        self.assertIsNot(hulls["UCX_SM_sofa_i1_00"].data, hulls["UCX_SM_tv_i3_00"].data)
+        self.assertEqual(sorted(hulls), ["sofa_i1_Collision_00", "sofa_i2_Collision_00", "tv_i3_Collision_00"])
+        self.assertIs(hulls["sofa_i1_Collision_00"].data, hulls["sofa_i2_Collision_00"].data)
+        self.assertIsNot(hulls["sofa_i1_Collision_00"].data, hulls["tv_i3_Collision_00"].data)
         self.assertEqual(result["output"]["counts"]["collision"], 3)
 
     # Each instance matrix equals Translation(location) @ RotationZ(rotation_z).
@@ -95,7 +95,7 @@ class AssetBuildTests(BuildTest):
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
         bpy.context.view_layer.update()
         for item in params["floors"][0]["items"]:
-            empty = bpy.data.objects["SM_%s_%s" % (item["asset"], item["id"])]
+            empty = bpy.data.objects["%s_%s" % (item["asset"], item["id"])]
             wanted = Matrix.Translation(Vector(item["location"])) @ Matrix.Rotation(item["rotation_z"], 4, "Z")
             for row in range(4):
                 for column in range(4):
@@ -109,7 +109,7 @@ class AssetBuildTests(BuildTest):
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
         bpy.context.view_layer.update()
         for item in params["plan"]["floors"][0]["items"]:
-            empty = bpy.data.objects["SM_%s_%s" % (item["asset"], item["id"])]
+            empty = bpy.data.objects["%s_%s" % (item["asset"], item["id"])]
             r = math.radians(item["rotation"])
             plan_front = (-math.sin(r), math.cos(r))
             front = empty.matrix_world.to_3x3() @ Vector((0.0, -1.0, 0.0))
@@ -145,7 +145,7 @@ class AssetBuildTests(BuildTest):
         sofas = {}
         for item_id in ("i1", "i2"):
             parts = [o for o in bpy.data.objects if o.type == "MESH" and o.parent is not None
-                     and o.parent.name.startswith("SM_sofa_%s" % item_id)]
+                     and o.parent.name.startswith("sofa_%s" % item_id)]
             self.assertGreater(len(parts), 0, item_id)
             sofas[item_id] = parts
         first = sorted(sofas["i1"], key=lambda o: o.name)

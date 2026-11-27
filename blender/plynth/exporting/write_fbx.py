@@ -1,7 +1,7 @@
 import os
 import shutil
 
-from . import Step
+from . import Step, will_write
 from .. import exporters, scene
 from ..exporters import fbx  # noqa: F401
 from ..jobs import WorkerError
@@ -12,20 +12,25 @@ ORDER = 60
 
 
 # Writes every group that has objects into its file in the output folder when the job writes and no scene
-# check failed (or the job is forced). A group with no object is listed in empty_groups. Otherwise writes nothing and takes back the textures it copied.
+# check failed (or the job is forced). A group with no object is listed in empty_groups. Otherwise writes
+# nothing and takes back the textures it copied. The objects of each group are the ones the profile's finish
+# step gathered, when it did, else the ones the group rules give.
 def run(ctx):
     params = ctx.params
-    failed = [c for c in ctx.state.get("check_results", []) if c["status"] == "fail"]
     ctx.state["written"] = False
     ctx.state["written_files"] = []
     ctx.state["empty_groups"] = []
-    if not params["write"] or (failed and not params["force"]):
+    if not will_write(ctx):
         folder = os.path.join(params["output_folder"], params["textures_folder"])
         if params["write"] and os.path.isdir(folder):
             shutil.rmtree(folder, ignore_errors=True)
         ctx.state["textures"] = []
         return
-    found, _ = assign(params["groups"], ctx.state["meshes"] + ctx.state.get("lights", []), ctx.state["collision"])
+    if "group_objects" in ctx.state:
+        found = ctx.state["group_objects"]
+    else:
+        found, _ = assign(params["groups"], ctx.state["meshes"] + ctx.state.get("lights", []),
+                          ctx.state["collision"])
     for group in params["groups"]:
         objects = found[group["id"]]
         if not objects:

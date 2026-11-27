@@ -95,7 +95,7 @@ class OuterFaceTests(BuildTest):
     # A gable roof's edges stand clear of the walls on the overhang, so they keep the fascia.
     def test_eave_edges_keep_the_fascia(self):
         self.build_open("roof_gable")
-        names = {m.name for m in bpy.data.objects["SM_f1_Roof_00"].data.materials}
+        names = {m.name for m in bpy.data.objects["f1_Roof_00"].data.materials}
         self.assertIn("Fascia", names)
 
 
@@ -109,7 +109,7 @@ class BevelEdgeTests(BuildTest):
         self.assertTrue(result["ok"], result["error"])
         self.assertEqual(result["output"]["problems"], [])
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
-        walls = bpy.data.objects["SM_f1_Walls"]
+        walls = bpy.data.objects["f1_Walls"]
         heights = sorted({round(v.co.z, 4) for v in walls.data.vertices})
         self.assertEqual(heights, [0.0, 3.0])
         self.assertGreater(len(walls.data.vertices), 16)

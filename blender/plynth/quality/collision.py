@@ -1,7 +1,7 @@
 import bmesh
 import numpy as np
 
-from . import QualityCheck, finding, result
+from . import UNREAL, QualityCheck, finding, result
 from ._common import plan_id
 from ..registry import QUALITY_CHECKS
 
@@ -55,4 +55,4 @@ def run(ctx):
                           "has closed, convex collision.")
 
 
-QUALITY_CHECKS.register("collision", QualityCheck(ORDER, "scene", "Collision", run))
+QUALITY_CHECKS.register("collision", QualityCheck(ORDER, "scene", "Collision", run, (UNREAL,)))

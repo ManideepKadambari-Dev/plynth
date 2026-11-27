@@ -185,7 +185,7 @@ TEST_CASE("runExport through the fake Blender exports and writes the report", "[
     });
     plynth::test::requireOk(report.status);
     REQUIRE(stages == std::vector<ExportStage>{ExportStage::Preparing, ExportStage::Blender, ExportStage::Finishing, ExportStage::Done});
-    REQUIRE(workerSteps == 7);
+    REQUIRE(workerSteps == 8);
 
     REQUIRE(report.exported);
     REQUIRE_FALSE(report.checkedOnly);
@@ -210,10 +210,11 @@ TEST_CASE("runExport through the fake Blender exports and writes the report", "[
     REQUIRE(report.passed());
     REQUIRE(report.failCount() == 0);
     REQUIRE(report.warningCount() == 0);
-    REQUIRE(report.steps.size() == 8);
+    REQUIRE(report.steps.size() == 9);
     REQUIRE(report.steps[0].step == "prepare");
     REQUIRE(report.steps[1].step == "open_blend");
-    REQUIRE(report.steps[7].step == "file_checks");
+    REQUIRE(report.steps[6].step == "finish_objects");
+    REQUIRE(report.steps[8].step == "file_checks");
 
     REQUIRE(fs::is_regular_file(f.exportDir() / "Square.fbx"));
     REQUIRE(fs::is_regular_file(f.exportDir() / "Textures" / "T_Fake_BaseColor.png"));
@@ -235,6 +236,10 @@ TEST_CASE("runExport through the fake Blender exports and writes the report", "[
     REQUIRE(written["outputs"]["texture_count"] == 1);
     REQUIRE(written["build_fingerprint"].is_null());
     REQUIRE(written["quality"]["passed"] == true);
+    REQUIRE(written["profile"] == "plain");
+    REQUIRE(report.profile == ExportProfile::Plain);
+    REQUIRE(f.lastJobParams()["profile"] == "plain");
+    REQUIRE(f.lastJobParams()["kit"].is_null());
 
     // The project folder's plan and settings are never written.
     REQUIRE_FALSE(fs::exists(f.projectFolder / "plan.json"));
@@ -742,6 +747,7 @@ TEST_CASE("a milestone 10 report still reads", "[core][export][run]") {
     nlohmann::json written = nlohmann::json::parse(plynth::test::readTextFile(f.reportFile()));
     written.erase("groups");
     written.erase("kit");
+    written.erase("profile");
     written["outputs"]["files"][0].erase("name");
     std::ofstream(f.reportFile(), std::ios::binary | std::ios::trunc) << written.dump(2);
     REQUIRE(reportProblem(f.reportFile()).empty());
@@ -751,16 +757,23 @@ TEST_CASE("a milestone 10 report still reads", "[core][export][run]") {
     REQUIRE(read.report.fileOutputs[0].name.empty());
     REQUIRE(read.report.emptyGroups.empty());
     REQUIRE_FALSE(read.report.kit.asked);
+    // Every export before profiles was made for Unreal.
+    REQUIRE(read.report.profile == ExportProfile::Unreal);
+
+    written["profile"] = "other";
+    std::ofstream(f.reportFile(), std::ios::binary | std::ios::trunc) << written.dump(2);
+    const ExportReportRead bad = readExportReport(f.projectFolder);
+    REQUIRE(bad.status.code == ErrorCode::BadFile);
+    REQUIRE(bad.status.where == "/profile");
 }
 
 namespace {
 
-// Switches the kit on in the project's export options.
-void switchKit(const fs::path& projectFolder, bool on)
+// Makes the request an Unreal export that asks for the kit or not, as the Unreal link does.
+void askKit(ExportFixture& f, bool on)
 {
-    ExportOptions options;
-    options.kit.enabled = on;
-    plynth::test::requireOk(writeExportOptions(projectFolder, options));
+    f.request.settings.profile = ExportProfile::Unreal;
+    f.request.kit = on;
 }
 
 }
@@ -769,7 +782,7 @@ TEST_CASE("the kit is written with its layout when the options switch it on", "[
     TestLibrary lib("export-kit");
     ExportFixture f("run-kit");
     f.request.library = lib.paths;
-    switchKit(f.projectFolder, true);
+    askKit(f, true);
 
     const ExportReport report = runExport(f.request);
     plynth::test::requireOk(report.status);
@@ -778,6 +791,8 @@ TEST_CASE("the kit is written with its layout when the options switch it on", "[
     const Json job = lastJob(f);
     INFO(jobSchemaProblem(job));
     REQUIRE(jobSchemaProblem(job).empty());
+    REQUIRE(job["params"]["profile"] == "unreal");
+    REQUIRE(report.profile == ExportProfile::Unreal);
     const Json& kitJob = job["params"]["kit"];
     REQUIRE(kitJob.is_object());
     REQUIRE(kitJob["file"] == "Square_Kit.fbx");
@@ -807,7 +822,7 @@ TEST_CASE("the kit is written with its layout when the options switch it on", "[
 
 TEST_CASE("without a library the export goes on and says why the kit was left out", "[core][export][run][kit]") {
     ExportFixture f("run-kit-nolib");
-    switchKit(f.projectFolder, true);
+    askKit(f, true);
     const ExportReport report = runExport(f.request);
     plynth::test::requireOk(report.status);
     REQUIRE(report.exported);
@@ -823,11 +838,11 @@ TEST_CASE("switching the kit off removes the old kit files at the next export", 
     TestLibrary lib("export-kit-off");
     ExportFixture f("run-kit-off");
     f.request.library = lib.paths;
-    switchKit(f.projectFolder, true);
+    askKit(f, true);
     plynth::test::requireOk(runExport(f.request).status);
     REQUIRE(fs::exists(f.exportDir() / "Square_Kit.fbx"));
 
-    switchKit(f.projectFolder, false);
+    askKit(f, false);
     const ExportReport report = runExport(f.request);
     plynth::test::requireOk(report.status);
     REQUIRE_FALSE(report.kit.asked);
@@ -839,7 +854,7 @@ TEST_CASE("a blocked export leaves the old kit files", "[core][export][run][kit]
     TestLibrary lib("export-kit-blocked");
     ExportFixture f("run-kit-blocked");
     f.request.library = lib.paths;
-    switchKit(f.projectFolder, true);
+    askKit(f, true);
     plynth::test::requireOk(runExport(f.request).status);
 
     f.setMode("quality_fail");
@@ -851,7 +866,7 @@ TEST_CASE("a blocked export leaves the old kit files", "[core][export][run][kit]
     REQUIRE(blocked.kit.file == f.exportDir() / "Square_Kit.fbx");
 
     f.setMode("");
-    switchKit(f.projectFolder, false);
+    askKit(f, false);
     plynth::test::requireOk(runExport(f.request).status);
     REQUIRE_FALSE(fs::exists(f.exportDir() / "Square_Kit.fbx"));
     REQUIRE_FALSE(fs::exists(f.exportDir() / "Square_Kit_layout.json"));
@@ -862,7 +877,7 @@ TEST_CASE("a grouped project gets the kit too", "[core][export][run][kit]") {
     ExportFixture f("run-kit-grouped");
     makeGrouped(f);
     f.request.library = lib.paths;
-    switchKit(f.projectFolder, true);
+    askKit(f, true);
     const ExportReport report = runExport(f.request);
     plynth::test::requireOk(report.status);
     REQUIRE(report.kit.written);
@@ -876,7 +891,7 @@ TEST_CASE("a check only run makes no kit", "[core][export][run][kit]") {
     ExportFixture f("run-kit-check");
     f.request.library = lib.paths;
     f.request.settings.write = false;
-    switchKit(f.projectFolder, true);
+    askKit(f, true);
     plynth::test::requireOk(runExport(f.request).status);
     REQUIRE(lastJob(f)["params"]["kit"].is_null());
     REQUIRE_FALSE(fs::exists(f.exportDir() / "Square_Kit.fbx"));
@@ -910,7 +925,7 @@ TEST_CASE("kit cut faces have no wall in the job", "[core][export][run][kit]") {
     TestLibrary lib("export-kit-null-wall");
     ExportFixture f("run-kit-null-wall");
     f.request.library = lib.paths;
-    switchKit(f.projectFolder, true);
+    askKit(f, true);
     plynth::test::requireOk(runExport(f.request).status);
     const Json job = lastJob(f);
     REQUIRE(jobSchemaProblem(job).empty());
@@ -934,8 +949,8 @@ TEST_CASE("a group named Kit does not take the kit file name", "[core][export][r
     makeGrouped(f);
     f.request.library = lib.paths;
     f.request.settings.force = true;
+    askKit(f, true);
     ExportOptions options;
-    options.kit.enabled = true;
     options.groups.renames = {{"furniture_r1", "Kit"}};
     plynth::test::requireOk(writeExportOptions(f.projectFolder, options));
     plynth::test::requireOk(runExport(f.request).status);
@@ -988,7 +1003,7 @@ TEST_CASE("an opening the plan cannot build leaves the kit out with a reason", "
     window.sill = 0.9;
     window.shape = "shape_that_nobody_registered";
     f.request.project.plan.floors[0].openings.push_back(window);
-    switchKit(f.projectFolder, true);
+    askKit(f, true);
 
     const ExportReport report = runExport(f.request);
     plynth::test::requireOk(report.status);
@@ -1001,4 +1016,93 @@ TEST_CASE("an opening the plan cannot build leaves the kit out with a reason", "
     REQUIRE(f.exportEntries().count("Square_Kit.fbx") == 0);
     REQUIRE(f.exportEntries().count("Square_Kit_layout.json") == 0);
     REQUIRE(reportProblem(f.reportFile()).empty());
+}
+
+TEST_CASE("a plain export never makes the kit or the gameplay data, even when asked", "[core][export][run][kit][profile]") {
+    TestLibrary lib("export-plain-kit");
+    ExportFixture f("run-plain-kit");
+    f.request.library = lib.paths;
+    f.request.kit = true;
+    f.request.gameplay = true;
+    ExportOptions options;
+    options.links[std::string(kUnrealLinkId)].kit = true;
+    options.links[std::string(kUnrealLinkId)].gameplay = true;
+    plynth::test::requireOk(writeExportOptions(f.projectFolder, options));
+
+    const ExportReport report = runExport(f.request);
+    plynth::test::requireOk(report.status);
+    REQUIRE(report.profile == ExportProfile::Plain);
+    REQUIRE_FALSE(report.kit.asked);
+    REQUIRE_FALSE(report.kit.written);
+    REQUIRE_FALSE(report.gameplay.enabled);
+    const Json job = lastJob(f);
+    INFO(jobSchemaProblem(job));
+    REQUIRE(jobSchemaProblem(job).empty());
+    REQUIRE(job["params"]["profile"] == "plain");
+    REQUIRE(job["params"]["kit"].is_null());
+    REQUIRE(f.exportEntries() == std::set<std::string>{"Square.fbx", "Textures", "export_report.json"});
+    REQUIRE(reportProblem(f.reportFile()).empty());
+    const ExportReportRead read = readExportReport(f.projectFolder);
+    plynth::test::requireOk(read.status);
+    REQUIRE(read.report.profile == ExportProfile::Plain);
+    REQUIRE(exportReportToJson(read.report) == exportReportToJson(report));
+}
+
+TEST_CASE("an Unreal export writes the kit and gameplay data it is asked for", "[core][export][run][kit][profile]") {
+    TestLibrary lib("export-unreal-asked");
+    ExportFixture f("run-unreal-asked");
+    f.request.library = lib.paths;
+    f.request.settings.profile = ExportProfile::Unreal;
+    f.request.kit = true;
+    f.request.gameplay = true;
+    const ExportReport report = runExport(f.request);
+    plynth::test::requireOk(report.status);
+    REQUIRE(report.kit.written);
+    REQUIRE(report.gameplay.enabled);
+    REQUIRE(lastJob(f)["params"]["kit"].is_object());
+    REQUIRE(f.exportEntries() == std::set<std::string>{"Square.fbx", "Square_Kit.fbx", "Square_Kit_layout.json", "Square_gameplay.json",
+                                                       "Textures", "export_report.json"});
+    const nlohmann::json written = nlohmann::json::parse(plynth::test::readTextFile(f.reportFile()));
+    REQUIRE(written["profile"] == "unreal");
+    REQUIRE(reportProblem(f.reportFile()).empty());
+
+    // The same request with the plain profile removes them again.
+    f.request.settings.profile = ExportProfile::Plain;
+    plynth::test::requireOk(runExport(f.request).status);
+    REQUIRE(f.exportEntries() == std::set<std::string>{"Square.fbx", "Textures", "export_report.json"});
+}
+
+TEST_CASE("an export into its own output folder leaves export/ alone", "[core][export][run][profile]") {
+    ExportFixture f("run-output-folder");
+    const fs::path out = f.projectFolder / "build" / "links" / "unreal" / "out";
+    f.request.outputFolder = out;
+    f.request.settings.profile = ExportProfile::Unreal;
+    const ExportReport report = runExport(f.request);
+    plynth::test::requireOk(report.status);
+    REQUIRE(report.files == std::vector<fs::path>{out / "Square.fbx"});
+    REQUIRE(report.reportFile == out / "export_report.json");
+    REQUIRE(report.texturesFolder == out / "Textures");
+    REQUIRE(fs::is_regular_file(out / "Square.fbx"));
+    REQUIRE(fs::is_regular_file(out / "Textures" / "T_Fake_BaseColor.png"));
+    REQUIRE(fs::is_regular_file(out / "export_report.json"));
+    REQUIRE_FALSE(fs::exists(out / ".staging"));
+    REQUIRE_FALSE(fs::exists(f.exportDir()));
+    REQUIRE(f.lastJobParams()["output_folder"] == pathToUtf8(out / ".staging"));
+    REQUIRE(readExportReport(f.projectFolder).status.code == ErrorCode::NotFound);
+    REQUIRE(reportProblem(out / "export_report.json").empty());
+
+    // The next export there removes the files the report in that folder lists.
+    f.request.project.settings.name = "Other";
+    plynth::test::requireOk(runExport(f.request).status);
+    REQUIRE(fs::is_regular_file(out / "Other.fbx"));
+    REQUIRE_FALSE(fs::exists(out / "Square.fbx"));
+    REQUIRE_FALSE(fs::exists(f.exportDir()));
+
+    // A blocked export there keeps the file list of the last good one.
+    f.setMode("quality_fail");
+    REQUIRE(runExport(f.request).status.code == ErrorCode::QualityFailed);
+    REQUIRE(fs::is_regular_file(out / "Other.fbx"));
+    const nlohmann::json written = nlohmann::json::parse(plynth::test::readTextFile(out / "export_report.json"));
+    REQUIRE(written["outputs"]["files"][0]["file"] == "Other.fbx");
+    REQUIRE_FALSE(fs::exists(f.exportDir()));
 }

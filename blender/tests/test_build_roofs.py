@@ -74,27 +74,27 @@ class RoofFixtureTests(RoofBuildTest):
     # The roof object has the names and properties the contract gives, in the collection of its floor.
     def test_object(self):
         self.build_open("roof_two_parts")
-        obj = bpy.data.objects["SM_f2_Roof_00"]
+        obj = bpy.data.objects["f2_Roof_00"]
         self.assertEqual(obj["plynth_kind"], "roof")
         self.assertEqual(obj["plynth_id"], "f2")
         self.assertEqual(obj["plynth_roof_index"], 0)
         self.assertEqual(obj["plynth_roof_section"], "")
         self.assertEqual([c.name for c in obj.users_collection], ["f2"])
-        self.assertNotIn("SM_f1_Roof_00", bpy.data.objects)
+        self.assertNotIn("f1_Roof_00", bpy.data.objects)
 
     # A roof section that is anchored to an entry keeps its id.
     def test_section_id(self):
         self.build_open("roof_gable")
-        self.assertEqual(bpy.data.objects["SM_f1_Roof_00"]["plynth_roof_section"], "rf1")
+        self.assertEqual(bpy.data.objects["f1_Roof_00"]["plynth_roof_section"], "rf1")
 
     # Material slots use the neutral surfaces of each part. The flat roof's edge lies flush on the outside wall
     # face, so it takes the outside wall slot instead of the fascia.
     def test_neutral_slots(self):
         self.build_open("roof_gable")
-        names = sorted(m.name for m in bpy.data.objects["SM_f1_Roof_00"].data.materials)
+        names = sorted(m.name for m in bpy.data.objects["f1_Roof_00"].data.materials)
         self.assertEqual(names, ["Exterior_Wall", "Fascia", "Roof", "Soffit"])
         self.build_open("roof_flat")
-        names = sorted(m.name for m in bpy.data.objects["SM_f1_Roof_00"].data.materials)
+        names = sorted(m.name for m in bpy.data.objects["f1_Roof_00"].data.materials)
         self.assertEqual(names, ["Exterior_Wall", "Flat_Roof", "Soffit"])
 
     # The mesh area equals the area of the job faces.
@@ -104,14 +104,14 @@ class RoofFixtureTests(RoofBuildTest):
                 self.setUp()
                 self.build_open(name)
                 wanted = sum(roofs.face_area(f) for f in load_params(name)["floors"][0]["roofs"][0]["faces"])
-                self.assertAlmostEqual(meshes.area(bpy.data.objects["SM_f1_Roof_00"]), wanted, delta=1e-4)
+                self.assertAlmostEqual(meshes.area(bpy.data.objects["f1_Roof_00"]), wanted, delta=1e-4)
 
 
 class FlatRoofTests(RoofBuildTest):
     # The parapet stands 0.6 above the layer, and the layer is 0.15 above the slab.
     def test_parapet_height(self):
         self.build_open("roof_flat")
-        obj = bpy.data.objects["SM_f1_Roof_00"]
+        obj = bpy.data.objects["f1_Roof_00"]
         covering = polygons_of(obj, "Flat_Roof")
         self.assertGreater(len(covering), 0)
         layer = covering[0].center.z
@@ -126,7 +126,7 @@ class FlatRoofTests(RoofBuildTest):
     # The parapet top is a face with a hole, tessellated: its area is the ring and no triangle covers the hole.
     def test_parapet_ring(self):
         self.build_open("roof_flat")
-        obj = bpy.data.objects["SM_f1_Roof_00"]
+        obj = bpy.data.objects["f1_Roof_00"]
         top = max(v.co.z for v in obj.data.vertices)
         ring = [p for p in obj.data.polygons if abs(p.center.z - top) < 1e-6]
         self.assertTrue(all(len(p.vertices) == 3 for p in ring))
@@ -138,7 +138,7 @@ class FlatRoofTests(RoofBuildTest):
     # The covering spans the whole section, so edges that do not join two faces are only at the covering's level (points in line leave triangles with no area).
     def test_closed(self):
         self.build_open("roof_flat")
-        obj = bpy.data.objects["SM_f1_Roof_00"]
+        obj = bpy.data.objects["f1_Roof_00"]
         mesh = obj.data
         counts = {}
         for polygon in mesh.polygons:
@@ -155,7 +155,7 @@ class FlatRoofTests(RoofBuildTest):
     # The covering faces up and the underside faces down.
     def test_normals(self):
         self.build_open("roof_flat")
-        obj = bpy.data.objects["SM_f1_Roof_00"]
+        obj = bpy.data.objects["f1_Roof_00"]
         for polygon in polygons_of(obj, "Flat_Roof"):
             if polygon.area > 1e-9:
                 self.assertGreater(polygon.normal.z, 0.999)
@@ -168,7 +168,7 @@ class GableRoofTests(RoofBuildTest):
     # The covering is two planes of 30 degrees that meet at the ridge.
     def test_slopes(self):
         self.build_open("roof_gable")
-        obj = bpy.data.objects["SM_f1_Roof_00"]
+        obj = bpy.data.objects["f1_Roof_00"]
         covering = polygons_of(obj, "Roof")
         self.assertEqual(len(covering), 4)
         for polygon in covering:
@@ -180,7 +180,7 @@ class GableRoofTests(RoofBuildTest):
     # On the covering the UV v runs up the slope in metres and the UVs keep real distances.
     def test_covering_uvs(self):
         self.build_open("roof_gable")
-        obj = bpy.data.objects["SM_f1_Roof_00"]
+        obj = bpy.data.objects["f1_Roof_00"]
         vertices = obj.data.vertices
         for polygon in polygons_of(obj, "Roof"):
             corners = [vertices[i].co for i in polygon.vertices]
@@ -196,7 +196,7 @@ class GableRoofTests(RoofBuildTest):
     # The underside faces down and the gable fills stand vertical between the slab and the underside.
     def test_underside_and_gables(self):
         self.build_open("roof_gable")
-        obj = bpy.data.objects["SM_f1_Roof_00"]
+        obj = bpy.data.objects["f1_Roof_00"]
         for polygon in polygons_of(obj, "Soffit"):
             self.assertLess(polygon.normal.z, 0.0)
         fills = [p for p in polygons_of(obj, "Exterior_Wall")]
@@ -210,7 +210,7 @@ class GableRoofTests(RoofBuildTest):
     # The roof reaches past the section by the overhang on every side.
     def test_extent(self):
         self.build_open("roof_gable")
-        obj = bpy.data.objects["SM_f1_Roof_00"]
+        obj = bpy.data.objects["f1_Roof_00"]
         xs = [v.co.x for v in obj.data.vertices]
         ys = [v.co.y for v in obj.data.vertices]
         self.assertAlmostEqual(min(xs), -0.3, delta=1e-5)
@@ -237,7 +237,7 @@ class GableRoofTests(RoofBuildTest):
         upgrade(params)
         self.assertEqual(next(s["material"] for s in params["slots"] if s["name"] == "Roof"), "roof_tiles")
         self.build_open("roof_gable", params)
-        obj = bpy.data.objects["SM_f1_Roof_00"]
+        obj = bpy.data.objects["f1_Roof_00"]
         covering = polygons_of(obj, "Roof")
         self.assertEqual(len(covering), 4)
         vertices = obj.data.vertices
@@ -281,8 +281,8 @@ class RoofFailureTests(RoofBuildTest):
         self.assertEqual(problems[0]["step"], "roofs")
         self.assertEqual(result["output"]["counts"]["roofs"], 1)
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
-        self.assertIn("SM_f1_Roof_00", bpy.data.objects)
-        self.assertNotIn("SM_f1_Roof_01", bpy.data.objects)
+        self.assertIn("f1_Roof_00", bpy.data.objects)
+        self.assertNotIn("f1_Roof_01", bpy.data.objects)
 
     # A job without roofs builds as before and counts none.
     def test_no_roofs(self):

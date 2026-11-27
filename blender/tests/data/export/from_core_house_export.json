@@ -9,6 +9,7 @@
    "name": "m12c",
    "folder": "@PROJECT@"
   },
+  "profile": "unreal",
   "blend_file": "@PROJECT@/build/building.blend",
   "output_folder": "@PROJECT@/export/.staging",
   "textures_folder": "Textures",
