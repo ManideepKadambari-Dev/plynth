@@ -5,7 +5,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -36,18 +35,6 @@ Vec2 times(Vec2 a, double k)
     return {a.x * k, a.y * k};
 }
 
-// How much two directions point the same way.
-double dot(Vec2 a, Vec2 b)
-{
-    return a.x * b.x + a.y * b.y;
-}
-
-// How much the second direction turns left from the first.
-double cross(Vec2 a, Vec2 b)
-{
-    return a.x * b.y - a.y * b.x;
-}
-
 // A point in the world at a height.
 Vec3 at(Vec2 p, double z)
 {
@@ -59,62 +46,6 @@ std::vector<Vec2> anticlockwise(std::vector<Vec2> ring)
 {
     if (signedArea(ring) < 0.0) std::reverse(ring.begin(), ring.end());
     return ring;
-}
-
-// The nose of a step on the plan: the edge the climb steps over onto it, and the way out of the step across it.
-struct Nose {
-    Vec2 from;
-    Vec2 to;
-    Vec2 out;
-};
-
-// Finds the nose of a step: the first edge of its outline the walk line crosses on its way in.
-std::optional<Nose> noseOf(const std::vector<Vec2>& outline, const std::vector<Vec2>& walk)
-{
-    const std::size_t n = outline.size();
-    if (n < 3) return std::nullopt;
-    Vec2 centre;
-    for (const Vec2& p : outline) centre = plus(centre, p);
-    centre = times(centre, 1.0 / static_cast<double>(n));
-    const auto outward = [&](std::size_t i) {
-        const Vec2 a = outline[i];
-        const Vec2 b = outline[(i + 1) % n];
-        const Vec2 d = minus(b, a);
-        const double length = std::hypot(d.x, d.y);
-        Vec2 normal{-d.y / length, d.x / length};
-        if (dot(minus(times(plus(a, b), 0.5), centre), normal) < 0.0) normal = times(normal, -1.0);
-        return normal;
-    };
-
-    double bestAt = std::numeric_limits<double>::infinity();
-    std::size_t best = n;
-    double travelled = 0.0;
-    for (std::size_t k = 1; k < walk.size(); ++k) {
-        const Vec2 s = walk[k - 1];
-        const Vec2 sd = minus(walk[k], s);
-        const double walkLength = std::hypot(sd.x, sd.y);
-        if (walkLength < 1e-12) continue;
-        for (std::size_t i = 0; i < n; ++i) {
-            const Vec2 a = outline[i];
-            const Vec2 ed = minus(outline[(i + 1) % n], a);
-            if (std::hypot(ed.x, ed.y) < kSamePoint) continue;
-            const double denom = cross(sd, ed);
-            if (std::fabs(denom) < 1e-12) continue;
-            const Vec2 as = minus(a, s);
-            const double t = cross(as, ed) / denom;
-            const double u = cross(as, sd) / denom;
-            if (t < -1e-9 || t > 1.0 + 1e-9 || u < -1e-9 || u > 1.0 + 1e-9) continue;
-            if (dot(sd, outward(i)) >= 0.0) continue;
-            const double reached = travelled + t * walkLength;
-            if (reached < bestAt - 1e-12) {
-                bestAt = reached;
-                best = i;
-            }
-        }
-        travelled += walkLength;
-    }
-    if (best == n) return std::nullopt;
-    return Nose{outline[best], outline[(best + 1) % n], outward(best)};
 }
 
 // Adds the lights and housing of a cove, soffit or edge strip, one piece for each pair of points in a row.
@@ -200,7 +131,7 @@ void addStepPieces(const PartInput& input, const LightStrip& strip, double level
     const double half = kStripWidth / 2.0;
     for (const StairStep& step : layout.steps) {
         if (step.part != StairPart::Step) continue;
-        const std::optional<Nose> nose = noseOf(step.outline, layout.walkLine);
+        const std::optional<StepNose> nose = stepNose(step.outline, layout.walkLine);
         if (!nose) continue;
         const double length = distance(nose->from, nose->to);
         const double lit = length - 2.0 * kStepStripInset;

@@ -569,3 +569,37 @@ TEST_CASE("a gameplay file with strip lights matches its schema", "[lightstrips]
     markerWithEnds["lights"][0]["start"] = Json::array({0.0, 0.0, 0.0});
     CHECK(test::schemaProblem("gameplay.schema.json", nlohmann::json::parse(markerWithEnds.dump())) != "");
 }
+
+TEST_CASE("stepNose finds the edge the walk line enters a step by", "[lightstrips][stairs]")
+{
+    const std::vector<Vec2> square{{0.0, 0.0}, {1.0, 0.0}, {1.0, 1.0}, {0.0, 1.0}};
+    // Climbing toward +y from the front edge: the nose is the edge at y = 0, facing out toward -y.
+    const std::optional<StepNose> front = stepNose(square, {{0.5, 0.0}, {0.5, 3.0}});
+    REQUIRE(front.has_value());
+    CHECK(front->from.y == 0.0);
+    CHECK(front->to.y == 0.0);
+    CHECK_THAT(front->out.x, WithinAbs(0.0, 1e-12));
+    CHECK_THAT(front->out.y, WithinAbs(-1.0, 1e-12));
+
+    // Coming in from the side after a turn: the nose is the side edge at x = 0.
+    const std::optional<StepNose> side = stepNose(square, {{-2.0, -1.0}, {-2.0, 0.5}, {3.0, 0.5}});
+    REQUIRE(side.has_value());
+    CHECK(side->from.x == 0.0);
+    CHECK(side->to.x == 0.0);
+    CHECK_THAT(side->out.x, WithinAbs(-1.0, 1e-12));
+
+    CHECK_FALSE(stepNose(square, {{2.0, 0.0}, {2.0, 3.0}}).has_value());
+    CHECK_FALSE(stepNose({{0.0, 0.0}, {1.0, 0.0}}, {{0.5, -1.0}, {0.5, 1.0}}).has_value());
+
+    // Every step of a straight stair has its front edge as its nose.
+    const Project p = stairProject();
+    const StairLayout layout = stairLayout(p.plan, p.plan.floors[0], p.plan.floors[0].stairs[0]);
+    REQUIRE(layout.status.ok());
+    for (std::size_t i = 0; i < layout.steps.size(); ++i) {
+        const std::optional<StepNose> nose = stepNose(layout.steps[i].outline, layout.walkLine);
+        REQUIRE(nose.has_value());
+        CHECK_THAT(nose->from.y, WithinAbs(1.0 + static_cast<double>(i) * kStairGoing, 1e-9));
+        CHECK_THAT(nose->to.y, WithinAbs(nose->from.y, 1e-9));
+        CHECK_THAT(nose->out.y, WithinAbs(-1.0, 1e-12));
+    }
+}

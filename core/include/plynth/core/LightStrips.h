@@ -1,9 +1,11 @@
 #pragma once
 
 #include "BuildParts.h"
+#include "Geometry.h"
 #include "Plan.h"
 #include "Status.h"
 
+#include <optional>
 #include <vector>
 
 namespace plynth {
@@ -42,6 +44,21 @@ inline constexpr double kMinStripPiece = 0.01;  // between two points in a row
 // least kMinStripLength long; a step strip has no points and names a stair of the floor (NotFound otherwise).
 // InvalidValue with a plain sentence.
 Status checkLightStrip(const LightStrip& strip, const Floor& floor);
+
+// The nose of a step on the plan: the edge from from to to that the climb steps over onto the step, and out, the
+// unit direction out of the step across that edge (toward the step below).
+struct StepNose {
+    Vec2 from;
+    Vec2 to;
+    Vec2 out;
+
+    bool operator==(const StepNose&) const = default;
+};
+
+// Finds the nose of a step from its outline and its stair's walk line (StairLayout, plan coordinates): the first
+// edge of the outline the walk line crosses on its way in. The build and the plan view both light this edge.
+// Empty when the walk line never enters the step or the outline has fewer than three points.
+std::optional<StepNose> stepNose(const std::vector<Vec2>& outline, const std::vector<Vec2>& walkLine);
 
 // The height a new strip of a kind starts at: the ceiling height minus 0.05 for cove, the floor's ceiling height
 // for soffit, 0 for edge and step.
