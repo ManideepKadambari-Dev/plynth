@@ -694,6 +694,23 @@ The overlay on the plan draws only the shown floor.
 
 Before the first build the 3D view says "Build the plan to see it in 3D. (Ctrl+B)". That is not an error. When a project is opened again, the 3D view shows the last build, with the files in `preview` when they are there and `building.fbx` when they are not.
 
+## Check build
+
+**Build > Check build** (Ctrl+Alt+B) lists the problems a build would have, without running Blender. It is quick, so use it while you work. It gives the same list as `plynth build --check`. The result shows in the Build report window, and the status bar says "Check build found no problems." or how many errors and warnings it found.
+
+The Build report window has a **Check build** button at the top too. Under the heading **Check build**, it lists:
+
+- the counts, "Errors: 2. Warnings: 1.", or "No problems found."
+- one row for each problem, such as a missing asset, a material that is not in the library, or a roof that cannot be built as chosen. Click a row that names something on the plan to select it.
+- a note when no library is open: every item is then listed as having no library.
+- a note when you changed the plan after the check: "The plan changed since this check. Press Check build again."
+
+Under **Last build** the window still shows the report of the last real build. A check changes nothing in the project and writes no files.
+
+### Previewing a variation
+
+With nothing selected, the **Variation** group in the Properties panel has a **This seed** row with a **Preview** button. It lists what the project's seed would pick, without building: the furniture and materials it swaps, the catalog doors and windows, and the props it adds. A line such as "Seed 7: 3 changes, 2 catalog doors and windows, 5 props." comes first, then one line for each change. With no library open it says so, since nothing can be picked then. If you change the project afterwards, the list says "The project changed since this preview. Press Preview again." This is the same list as `plynth variation preview`.
+
 ## Build problems
 
 A build always finishes with a list of problems, even when it worked. Each problem points at something in the plan.
@@ -762,6 +779,8 @@ While the Graphics driver row says Missing, the Build button opens the setup che
 Before you import models, Plynth needs Blender, a library folder and a projects folder. **Help > Setup check** shows what is ready and what is not, and it opens by itself on the first run. Plynth never installs anything: if Blender is missing, you install it from blender.org yourself. Every item is explained in [Setting up Plynth](SETUP.md). The Graphics driver item is checked by the app when it starts, and it decides whether Build is allowed.
 
 The **library** is one folder on your computer that holds your assets catalog. It is shared by all projects. Choose or create it in the setup check. **Catalog > Open library folder** opens it in Explorer.
+
+When you pick a folder that is not a library yet, the setup check says why and asks "Make a new library in this folder?". **Yes** sets the folder up as a new library. **Cancel** leaves things as they were, so a wrong pick does no harm.
 
 ## Updates
 
@@ -948,7 +967,7 @@ One image covers one tile. The tile size says how big that tile is in the real w
 
 ### Rescan
 
-**Catalog > Rescan materials**, or the **Rescan** button, reads the library's `materials` folder again and updates the index. Use it after you add, remove or change material folders by hand. It runs no Blender. A folder that has images and no `info.json` is listed as needing a refresh ("Not cleaned yet."), and so is one whose image changed. A material whose map file was deleted is Broken. Use **Retry render** on a material that needs a refresh. Plynth also watches the library while it runs and rescans by itself a couple of seconds after the folders change.
+**Catalog > Rescan materials**, or the **Rescan** button, reads the library's `materials` folder again and updates the index. Use it after you add, remove or change material folders by hand. It runs no Blender. Rescan also draws the thumbnails again for the materials that need it, so a folder you filled by hand shows its pictures when the rescan ends. A folder that has images and no `info.json` is listed as needing a refresh ("Not cleaned yet."), and so is one whose image changed. A material whose map file was deleted is Broken. Use **Retry render** on a material that needs a refresh. Plynth also watches the library while it runs and rescans by itself a couple of seconds after the folders change.
 
 ## Importing materials
 
@@ -1183,7 +1202,7 @@ The FBX holds only relative texture paths. You can copy or move the whole `expor
 
 **Open folder** in the Export window, or **Build > Open export folder**, shows the folder in Explorer. The folder can be deleted at any time. A new export replaces the old files. An export that is blocked by a failed check leaves the old files exactly as they were, so check the time in the tab to know which export is on disk.
 
-The Export window shows the last export: when it ran, how long it took, the result, the number of objects and triangles, and the file paths. A grouped export lists each file with its group's name. If the plan changed after the last build, the "Build is up to date" check fails. Build again, then export. The window shows the last export again when you open the project later. If you built again since that export, an amber line says the export was made from an older build; export again to bring the files up to date.
+The Export window shows the last export: when it ran, how long it took, the result, the number of objects and triangles, and the file paths. A grouped export lists each file with its group's name. If the plan changed after the last build, the "Build is up to date" check fails. Build again, then export. The window shows the last export again when you open the project later. If you built again since that export, an amber line says the export was made from an older build; export again to bring the files up to date. The window decides this the same way `plynth export` does, so the line also shows when the last build is newer than the export report.
 
 ### Export anyway
 

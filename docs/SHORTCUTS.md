@@ -90,6 +90,7 @@ E and F work when the canvas or the wall view has focus. F does something only w
 | Shortcut | Action |
 |---|---|
 | Ctrl+B | Build the building in Blender |
+| Ctrl+Alt+B | Check build: list the problems a build would have, without running Blender (Build > Check build) |
 | Ctrl+E | Export the last build as a plain FBX: the FBX, the textures and the report (Build > Export) |
 | Ctrl+Shift+E | Check the export: run the quality checks and write no FBX (Build > Check export) |
 | 3 | Switch between the plan and the 3D view (View > 3D view) |
