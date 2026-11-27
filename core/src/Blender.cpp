@@ -4,6 +4,7 @@
 #include "BlenderPaths.h"
 #include "FileIo.h"
 
+#include "plynth/core/BlenderDownload.h"
 #include "plynth/core/BlenderJob.h"
 #include "plynth/core/Process.h"
 #include "plynth/core/ProjectFiles.h"
@@ -355,6 +356,13 @@ private:
     std::map<std::wstring, std::size_t> index_;
 };
 
+// Says whether Plynth's own download is the only place an install was found.
+bool onlyDownloaded(const BlenderInstall& install)
+{
+    return !install.sources.empty() && std::all_of(install.sources.begin(), install.sources.end(),
+                                                   [](BlenderSource s) { return s == BlenderSource::Downloaded; });
+}
+
 // How long reading a version may take. PLYNTH_BLENDER_VERSION_TIMEOUT_MS shortens it for tests.
 std::chrono::milliseconds versionTimeout()
 {
@@ -483,6 +491,7 @@ std::string_view blenderSourceName(BlenderSource source)
     case BlenderSource::Steam: return "steam";
     case BlenderSource::SystemPath: return "path";
     case BlenderSource::Extra: return "extra";
+    case BlenderSource::Downloaded: return "downloaded";
     }
     return "extra";
 }
@@ -529,6 +538,9 @@ std::vector<BlenderCandidate> findBlenderCandidates(const BlenderSearch& search)
             if (!folder.empty()) found.add(fs::path(folder) / L"blender.exe", BlenderSource::SystemPath);
             start = end + 1;
         }
+    }
+    if (search.downloaded) {
+        for (const fs::path& p : discovery::downloadedBlenders(downloadedBlenderRoot())) found.add(p, BlenderSource::Downloaded);
     }
     for (const fs::path& folder : search.extraFolders) found.addFolder(folder, BlenderSource::Extra);
     return found.take();
@@ -577,7 +589,8 @@ BlenderInstall inspectBlender(const fs::path& executable, std::stop_token stop)
     return install;
 }
 
-// Finds the candidates, inspects each and sorts them newest first.
+// Finds the candidates, inspects each and sorts them newest first. Of two with the same version, the one that
+// was installed comes before the one Plynth downloaded, so an installed Blender is used when it is as new.
 std::vector<BlenderInstall> findBlenderInstalls(const BlenderSearch& search, std::stop_token stop)
 {
     std::vector<BlenderInstall> installs;
@@ -590,6 +603,7 @@ std::vector<BlenderInstall> findBlenderInstalls(const BlenderSearch& search, std
     std::stable_sort(installs.begin(), installs.end(), [](const BlenderInstall& a, const BlenderInstall& b) {
         if (a.version.has_value() != b.version.has_value()) return a.version.has_value();
         if (a.version && b.version && *a.version != *b.version) return *a.version > *b.version;
+        if (onlyDownloaded(a) != onlyDownloaded(b)) return onlyDownloaded(b);
         return a.executable < b.executable;
     });
     return installs;

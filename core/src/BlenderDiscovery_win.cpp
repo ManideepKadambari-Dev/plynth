@@ -1,5 +1,6 @@
 #include "BlenderDiscovery.h"
 
+#include "plynth/core/BlenderDownload.h"
 #include "plynth/core/ProjectFiles.h"
 
 #define WIN32_LEAN_AND_MEAN
@@ -192,6 +193,26 @@ std::vector<fs::path> storeBlenders()
             }
         }
     }
+    return out;
+}
+
+// The finished downloads in the download folder. A folder without the marker is not one of them, and a link is
+// never followed, so only what Plynth unpacked there is listed.
+std::vector<fs::path> downloadedBlenders(const fs::path& root)
+{
+    std::vector<fs::path> out;
+    std::error_code ec;
+    if (root.empty() || !fs::is_directory(root, ec)) return out;
+    for (const auto& entry : fs::directory_iterator(root, ec)) {
+        std::error_code entryEc;
+        if (entry.is_symlink(entryEc) || !entry.is_directory(entryEc)) continue;
+        const DWORD attributes = GetFileAttributesW(entry.path().c_str());
+        if (attributes == INVALID_FILE_ATTRIBUTES || (attributes & FILE_ATTRIBUTE_REPARSE_POINT)) continue;
+        if (entry.path().filename().wstring().rfind(L".", 0) == 0) continue;
+        if (!fs::is_regular_file(entry.path() / pathFromUtf8(kDownloadedBlenderMarker), entryEc)) continue;
+        out.push_back(entry.path() / L"blender.exe");
+    }
+    std::sort(out.begin(), out.end());
     return out;
 }
 

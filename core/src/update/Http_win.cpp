@@ -56,7 +56,7 @@ struct Target {
 
 // Takes an address apart and checks it against the rules: https (plain http only in a test environment), no
 // user name or password, a host on the allow list. Empty with a reason when it breaks one.
-std::optional<Target> checkAddress(const std::string& url, std::string& why)
+std::optional<Target> checkAddress(const std::string& url, const std::vector<std::string>& allowedHosts, std::string& why)
 {
     const std::wstring wide = widen(url);
     URL_COMPONENTS parts{};
@@ -86,7 +86,7 @@ std::optional<Target> checkAddress(const std::string& url, std::string& why)
         if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
     }
     bool allowed = false;
-    for (const std::string& name : env.allowedHosts) allowed = allowed || name == host;
+    for (const std::string& name : allowedHosts) allowed = allowed || name == host;
     if (!allowed) {
         why = "The address " + url + " is not on a host Plynth updates from.";
         return std::nullopt;
@@ -256,9 +256,10 @@ HttpResult httpGet(const HttpRequest& request, const HttpSink& sink, const std::
     Canceller canceller;
     std::stop_callback onStop(stop, [&canceller] { canceller.stop(); });
 
+    const std::vector<std::string>& hosts = request.allowedHosts.empty() ? env.allowedHosts : request.allowedHosts;
     std::string url = request.url;
     std::string why;
-    auto target = checkAddress(url, why);
+    auto target = checkAddress(url, hosts, why);
     if (!target) {
         result.status = fail(ErrorCode::NetworkFailed, why);
         return result;
@@ -331,7 +332,7 @@ HttpResult httpGet(const HttpRequest& request, const HttpSink& sink, const std::
                 return result;
             }
             url = resolveLocation(location, *target);
-            target = checkAddress(url, why);
+            target = checkAddress(url, hosts, why);
             if (!target) {
                 result.status = fail(ErrorCode::NetworkFailed, why);
                 return result;

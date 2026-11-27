@@ -357,7 +357,8 @@ SetupReport runSetupCheck(const MachineSettings& settings, const SetupCheckOptio
     }
     fs::path boundMissing;
     std::error_code boundEc;
-    if (bound.empty() && !noPathGiven) {
+    const bool searched = bound.empty() && !noPathGiven;
+    if (searched) {
         report.blenderInstalls = findBlenderInstalls(search, stop);
         report.selectedBlender = preferredBlender(report.blenderInstalls, settings.blender);
     } else if (!bound.empty() && fs::is_regular_file(bound, boundEc)) {
@@ -425,6 +426,8 @@ SetupReport runSetupCheck(const MachineSettings& settings, const SetupCheckOptio
         blenderVersion.state = CheckState::NotChecked;
         blenderVersion.detail = "Blender is needed to read its version.";
     }
+    // A Blender named by the option or the variable is binding, so a download would not be used.
+    blender.offerDownload = searched && !report.selectedBlender;
     report.items.push_back(std::move(blender));
     report.items.push_back(std::move(blenderVersion));
     report.items.push_back(libraryItem(settings, options.minLibraryFree));
@@ -496,6 +499,7 @@ SetupReport quickSetupCheck(const MachineSettings& settings, bool settingsExist,
         } else {
             blender.state = CheckState::Missing;
             blender.link = std::string(kBlenderDownloadUrl);
+            blender.offerDownload = true;
             blender.detail = settings.blender ? "The Blender " + pathToUtf8(*settings.blender) + " does not exist."
                                               : "No Blender was found on this computer.";
             blender.action = "Install Blender " + formatBlenderVersion(kMinBlenderVersion) +
@@ -543,6 +547,7 @@ Json setupReportToJson(const SetupReport& report)
         j["action"] = i.action;
         j["link"] = i.link;
         j["affects"] = i.affects;
+        if (i.offerDownload) j["offer_download"] = true;
         items.push_back(std::move(j));
     }
     json["items"] = std::move(items);

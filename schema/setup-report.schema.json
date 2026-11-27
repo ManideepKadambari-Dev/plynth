@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "urn:plynth:schema:setup-report:1",
   "title": "Plynth setup check report",
-  "description": "The result of plynth doctor, the same checks the app's setup check screen shows. ready is false while any required item is missing or too old. Plynth never installs anything: each item says what to do and may link an official page.",
+  "description": "The result of plynth doctor, the same checks the app's setup check screen shows. ready is false while any required item is missing or too old. Plynth never installs anything by itself: each item says what to do and may link an official page, and the Blender item may offer the portable Blender download, which runs only when the user asks (plynth blender get).",
   "type": "object",
   "required": ["ready", "first_run", "updated", "probed", "items", "blender_installs"],
   "additionalProperties": false,
@@ -27,7 +27,8 @@
           "detail": { "type": "string" },
           "action": { "description": "What to do. Empty when nothing is needed.", "type": "string" },
           "link": { "description": "An official page. Empty when there is none.", "type": "string" },
-          "affects": { "description": "What stays switched off without it.", "type": "array", "items": { "type": "string" } }
+          "affects": { "description": "What stays switched off without it.", "type": "array", "items": { "type": "string" } },
+          "offer_download": { "description": "The Blender item only: no usable Blender was found, so the portable Blender from blender.org can be downloaded on request. Missing means false.", "type": "boolean" }
         }
       }
     },
@@ -45,7 +46,7 @@
           "support": { "enum": ["supported", "too_old", "untested"] },
           "sources": {
             "type": "array",
-            "items": { "enum": ["settings", "environment", "program_folder", "registry", "store", "steam", "path", "extra"] }
+            "items": { "enum": ["settings", "environment", "program_folder", "registry", "store", "steam", "path", "extra", "downloaded"] }
           },
           "selected": { "type": "boolean" },
           "problem": { "description": "Why the version could not be read, or null.", "type": ["string", "null"] }

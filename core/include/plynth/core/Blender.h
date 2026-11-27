@@ -21,7 +21,8 @@ namespace plynth {
 using Json = nlohmann::ordered_json;
 
 // Finding Blender on this machine, reading its version, and running a Plynth job in it in the background.
-// Plynth never links against Blender and never installs it.
+// Plynth never links against Blender and never installs it; it only downloads the portable copy when the user
+// asks for it (BlenderDownload.h).
 
 struct BlenderVersion {
     int major = 0;
@@ -63,9 +64,10 @@ enum class BlenderSource {
     Steam,         // steamapps/common/Blender in every Steam library
     SystemPath,    // blender.exe on PATH
     Extra,         // a folder given in BlenderSearch::extraFolders (tests)
+    Downloaded,    // a portable copy Plynth downloaded for the user (BlenderDownload.h)
 };
 
-// "settings", "environment", "program_folder", "registry", "store", "steam", "path" or "extra".
+// "settings", "environment", "program_folder", "registry", "store", "steam", "path", "extra" or "downloaded".
 std::string_view blenderSourceName(BlenderSource source);
 
 inline constexpr std::string_view kBlenderVariable = "PLYNTH_BLENDER";
@@ -79,6 +81,7 @@ struct BlenderSearch {
     bool store = true;
     bool steam = true;
     bool systemPath = true;
+    bool downloaded = true; // the copies in downloadedBlenderRoot() (BlenderDownload.h)
     // Each folder is searched like a program folder: folder/blender.exe and folder/*/blender.exe.
     std::vector<std::filesystem::path> extraFolders;
 };

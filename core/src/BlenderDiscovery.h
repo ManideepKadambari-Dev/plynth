@@ -15,4 +15,8 @@ std::vector<std::filesystem::path> storeBlenders();
 // steamapps/common/Blender/blender.exe in every Steam library.
 std::vector<std::filesystem::path> steamBlenders();
 
+// The copies Plynth downloaded: root/*/blender.exe in each folder that holds the download marker and is not a
+// link. Sorted by path.
+std::vector<std::filesystem::path> downloadedBlenders(const std::filesystem::path& root);
+
 }

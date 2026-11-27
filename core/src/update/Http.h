@@ -16,6 +16,8 @@ struct HttpRequest {
     std::string url;
     std::string accept;
     long long maxBytes = 0;
+    // The hosts this request and its redirects may reach. Empty: the environment's list, the updater's hosts.
+    std::vector<std::string> allowedHosts;
 };
 
 // The answer of a request. httpStatus is the last status the server gave, 0 when none came.
@@ -32,9 +34,10 @@ inline constexpr int kMaxRedirects = 5;
 using HttpSink = std::function<Status(std::string_view piece)>;
 
 // Sends a GET and passes the body to sink. onLength, when given, gets the length the server announced before
-// the first piece. Refuses an address that is not https, has a user name, or names a host off the allow list,
-// for the first request and every redirect. NetworkFailed for every failure of the network or the server, a
-// stall, a body that is short or too big, or a status other than 200. Cancelled when stopped.
+// the first piece. Refuses an address that is not https, has a user name, or names a host off the allow list
+// (request.allowedHosts, else the environment's), for the first request and every redirect. NetworkFailed for
+// every failure of the network or the server, a stall, a body that is short or too big, or a status other than
+// 200. Cancelled when stopped.
 HttpResult httpGet(const HttpRequest& request, const HttpSink& sink,
                    const std::function<void(long long length)>& onLength = {}, std::stop_token stop = {});
 

@@ -25,6 +25,7 @@ BlenderSearch onlyFolders(std::vector<fs::path> folders)
     search.store = false;
     search.steam = false;
     search.systemPath = false;
+    search.downloaded = false;
     search.extraFolders = std::move(folders);
     return search;
 }

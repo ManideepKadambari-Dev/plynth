@@ -77,6 +77,9 @@ struct SetupItem {
     std::string action;         // one plain sentence on what to do; empty when nothing is needed
     std::string link;           // an official page to open; empty when there is none
     std::vector<std::string> affects; // what stays switched off without it, for optional items
+    // The Blender item when no usable Blender was found: the front end offers "Get Blender for me"
+    // (BlenderDownload.h) beside the official download page. "offer_download" in the doctor answer.
+    bool offerDownload = false;
 
     // Missing or TooOld on a required item. NeedsAttention and NotChecked never block.
     bool blocks() const;

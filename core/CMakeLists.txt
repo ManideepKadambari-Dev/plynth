@@ -116,7 +116,9 @@ add_library(plynth_core STATIC
 if(WIN32)
     target_sources(plynth_core PRIVATE src/Process_win.cpp)
     target_sources(plynth_core PRIVATE src/BlenderDiscovery_win.cpp)
+    target_sources(plynth_core PRIVATE src/blender/BlenderDownload.cpp)
     target_link_libraries(plynth_core PUBLIC shell32 ole32 advapi32)
+    target_link_libraries(plynth_core PRIVATE bcrypt)
 endif()
 add_library(plynth::core ALIAS plynth_core)
 

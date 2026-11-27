@@ -57,6 +57,7 @@ SetupCheckOptions optionsFor(const fs::path& folder, bool probe = false)
     options.search.store = false;
     options.search.steam = false;
     options.search.systemPath = false;
+    options.search.downloaded = false;
     if (!folder.empty()) options.search.extraFolders = {folder};
     options.probeAddons = probe;
     return options;
@@ -99,6 +100,42 @@ TEST_CASE("no Blender gives blender missing and not ready", "[core][setup]") {
     REQUIRE(report.find(kCheckBlenderVersion)->state == CheckState::NotChecked);
     REQUIRE(report.blenderInstalls.empty());
     requireValidReport(report);
+}
+
+TEST_CASE("the download is offered only when no usable Blender was found", "[core][setup][download]") {
+    plynth::test::TempDir tmp("setup-offer");
+    const MachineSettings settings = goodFolders(tmp.path());
+    plynth::test::ScopedEnv noEnv("PLYNTH_BLENDER", "");
+
+    const SetupReport none = runSetupCheck(settings, optionsFor({}));
+    REQUIRE(none.find(kCheckBlender)->offerDownload);
+    REQUIRE(setupReportToJson(none)["items"][0]["offer_download"] == true);
+    requireValidReport(none);
+
+    plynth::test::makeFakeBlender(tmp.path() / "old" / "Blender 4.1", "4.1.0");
+    const SetupReport old = runSetupCheck(settings, optionsFor(tmp.path() / "old"));
+    REQUIRE(old.find(kCheckBlender)->state == CheckState::Found);
+    REQUIRE(old.find(kCheckBlender)->offerDownload);
+    requireValidReport(old);
+
+    plynth::test::makeFakeBlender(tmp.path() / "good" / "Blender 5.2", "5.2.0");
+    const SetupReport good = runSetupCheck(settings, optionsFor(tmp.path() / "good"));
+    REQUIRE_FALSE(good.find(kCheckBlender)->offerDownload);
+    REQUIRE_FALSE(setupReportToJson(good)["items"][0].contains("offer_download"));
+    requireValidReport(good);
+
+    // A Blender named on purpose is binding, so a download would not be used and is not offered.
+    SetupCheckOptions named = optionsFor({});
+    named.blender = tmp.path() / "missing" / "blender.exe";
+    REQUIRE_FALSE(runSetupCheck(settings, named).find(kCheckBlender)->offerDownload);
+    named.blender = fs::path();
+    REQUIRE_FALSE(runSetupCheck(settings, named).find(kCheckBlender)->offerDownload);
+    {
+        plynth::test::ScopedEnv env("PLYNTH_BLENDER", pathToUtf8(tmp.path() / "old" / "Blender 4.1" / "blender.exe"));
+        SetupCheckOptions variable = optionsFor({});
+        variable.search.environment = true;
+        REQUIRE_FALSE(runSetupCheck(settings, variable).find(kCheckBlender)->offerDownload);
+    }
 }
 
 TEST_CASE("only an old Blender gives too_old", "[core][setup]") {

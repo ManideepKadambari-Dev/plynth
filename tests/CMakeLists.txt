@@ -26,6 +26,7 @@ add_executable(plynth_core_tests
     core/SettingsTests.cpp
     core/ProcessTests.cpp
     core/BlenderTests.cpp
+    core/BlenderDownloadTests.cpp
     core/BlenderJobTests.cpp
     core/SetupCheckTests.cpp
     core/ImporterTests.cpp
