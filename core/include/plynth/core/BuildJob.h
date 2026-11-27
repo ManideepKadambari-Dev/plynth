@@ -215,6 +215,7 @@ struct BuildSettings {
 // preview_failed (warning: a preview part could not be written; the 3D view then loads building.fbx).
 // Build parts (BuildParts.h): found by core part_invalid (error, see makeBuildPlan); found by the worker
 // part_failed (error: the part's mesh could not be made and is left out; object the part's plynth_id).
+// Light strips (LightStrips.h): light_strip_stair_missing (error, object the strip).
 // Generator items (GeneratorBuild.h): found by core missing_generator, generator_broken (errors),
 // generator_unavailable, generator_changed (warnings); found by the worker generator_failed (error),
 // generator_unavailable, generator_size (warnings). object is the item. generator_unavailable from runBuild,

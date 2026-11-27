@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <string>
+#include <vector>
 
 namespace plynth {
 
@@ -73,7 +74,8 @@ private:
     Stair previous_;
 };
 
-// Removes a stair. NotFound for an unknown stair.
+// Removes a stair, in the same undo step the step light strips that name it (LightStrips.h), and clears the
+// stair of any other strip that names it. NotFound for an unknown stair.
 class RemoveStairCommand : public Command {
 public:
     explicit RemoveStairCommand(Id stairId);
@@ -81,7 +83,7 @@ public:
     std::string name() const override;
     Status apply(Project& project) override;
     void undo(Project& project) override;
-    // Stairs.
+    // Stairs, and Lights when step strips went with it.
     unsigned changes() const override;
     Id floorId() const override;
 
@@ -90,6 +92,8 @@ private:
     Id floorId_;
     Stair removed_;
     std::size_t index_ = 0;
+    bool stripsChanged_ = false;
+    std::vector<LightStrip> previousStrips_; // the floor's light strips before, when stripsChanged_
 };
 
 }

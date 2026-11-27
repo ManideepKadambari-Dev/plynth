@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BuildGeometry.h"
+#include "BuildParts.h"
 #include "FinishSettings.h"
 #include "Geometry.h"
 #include "Plan.h"
@@ -26,12 +27,27 @@ inline constexpr int kGameplayVersion = 1;
 // How far a spawn point keeps from furniture and walls.
 inline constexpr double kSpawnClearance = 0.35;
 
+// A straight piece of a light strip (LightStrips.h): from start to end, shining the unit direction facing,
+// width across, power the watts of this piece.
+struct GameplayStrip {
+    Vec3 start;
+    Vec3 end;
+    Vec3 facing;
+    double width = 0.0;
+    double power = 0.0;
+
+    bool operator==(const GameplayStrip&) const = default;
+};
+
+// A light marker, or with strip set a piece of a light strip: kind "strip" in the file, position the middle of
+// the piece, and kind is then not used.
 struct GameplayLight {
     Id id;
     Id floor;
     std::optional<Id> room;
     LightKind kind = LightKind::Ceiling;
     Vec3 position;
+    std::optional<GameplayStrip> strip;
 
     bool operator==(const GameplayLight&) const = default;
 };
@@ -110,6 +126,10 @@ GameplayData gameplayData(std::string_view projectName, const Plan& plan, const 
 
 // The light markers of a plan as gameplay lights, in world coordinates at their floor's level.
 std::vector<GameplayLight> planLights(const Plan& plan);
+
+// The strip lights the build made (BuildPlan::stripLights, one list per floor in plan order) as gameplay lights,
+// one per piece, with the room that holds the middle of the piece on the plan, or none.
+std::vector<GameplayLight> planStripLights(const Plan& plan, const std::vector<std::vector<StripLight>>& lights);
 
 // The data as the gameplay file's JSON.
 Json gameplayToJson(const GameplayData& data);

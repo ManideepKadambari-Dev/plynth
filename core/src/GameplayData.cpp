@@ -201,6 +201,25 @@ std::vector<GameplayLight> planLights(const Plan& plan)
     return out;
 }
 
+// The strip lights of the build as gameplay lights, one per piece.
+std::vector<GameplayLight> planStripLights(const Plan& plan, const std::vector<std::vector<StripLight>>& lights)
+{
+    std::vector<GameplayLight> out;
+    for (std::size_t i = 0; i < plan.floors.size() && i < lights.size(); ++i) {
+        const Floor& floor = plan.floors[i];
+        for (const StripLight& l : lights[i]) {
+            GameplayLight light;
+            light.id = l.id;
+            light.floor = floor.id;
+            light.position = {(l.start.x + l.end.x) / 2.0, (l.start.y + l.end.y) / 2.0, (l.start.z + l.end.z) / 2.0};
+            light.room = roomAtWorld(floor, {light.position.x, light.position.y});
+            light.strip = GameplayStrip{l.start, l.end, l.facing, l.width, l.power};
+            out.push_back(std::move(light));
+        }
+    }
+    return out;
+}
+
 // Writes the gameplay file's JSON.
 Json gameplayToJson(const GameplayData& data)
 {
@@ -262,8 +281,15 @@ Json gameplayToJson(const GameplayData& data)
         light["id"] = l.id;
         light["floor"] = l.floor;
         light["room"] = optionalText(l.room);
-        light["kind"] = std::string(lightKindName(l.kind));
+        light["kind"] = l.strip ? std::string("strip") : std::string(lightKindName(l.kind));
         light["position"] = pointJson(l.position);
+        if (l.strip) {
+            light["start"] = pointJson(l.strip->start);
+            light["end"] = pointJson(l.strip->end);
+            light["facing"] = pointJson(l.strip->facing);
+            light["width"] = l.strip->width;
+            light["power"] = l.strip->power;
+        }
         lights.push_back(std::move(light));
     }
     out["lights"] = std::move(lights);

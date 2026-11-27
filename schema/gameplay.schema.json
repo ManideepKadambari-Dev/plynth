@@ -110,8 +110,23 @@
           "id": { "$ref": "#/definitions/id" },
           "floor": { "$ref": "#/definitions/id" },
           "room": { "oneOf": [{ "$ref": "#/definitions/id" }, { "type": "null" }] },
-          "kind": { "enum": ["ceiling", "wall", "standing"] },
-          "position": { "$ref": "#/definitions/vec3" }
+          "kind": { "enum": ["ceiling", "wall", "standing", "strip"] },
+          "position": { "$ref": "#/definitions/vec3" },
+          "start": { "$ref": "#/definitions/vec3" },
+          "end": { "$ref": "#/definitions/vec3" },
+          "facing": { "$ref": "#/definitions/vec3" },
+          "width": { "type": "number", "exclusiveMinimum": 0 },
+          "power": { "type": "number", "minimum": 0 }
+        },
+        "if": { "properties": { "kind": { "const": "strip" } } },
+        "then": { "required": ["start", "end", "facing", "width", "power"] },
+        "else": {
+          "not": {
+            "anyOf": [
+              { "required": ["start"] }, { "required": ["end"] }, { "required": ["facing"] },
+              { "required": ["width"] }, { "required": ["power"] }
+            ]
+          }
         }
       }
     }

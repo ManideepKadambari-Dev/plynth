@@ -5,7 +5,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 #include <utility>
+#include <vector>
 
 namespace plynth {
 
@@ -202,7 +204,7 @@ std::string RemoveStairCommand::name() const
     return "Remove stair";
 }
 
-// Takes the stair out of its floor, remembering where it was in the list.
+// Takes the stair out of its floor with the step light strips that name it, remembering where it was.
 Status RemoveStairCommand::apply(Project& project)
 {
     const Located found = locate(project, stairId_);
@@ -211,21 +213,33 @@ Status RemoveStairCommand::apply(Project& project)
     removed_ = *found.stair;
     index_ = static_cast<std::size_t>(found.stair - found.floor->stairs.data());
     found.floor->stairs.erase(found.floor->stairs.begin() + static_cast<std::ptrdiff_t>(index_));
+    std::vector<LightStrip>& strips = found.floor->lightStrips;
+    const std::optional<Id> named(stairId_);
+    stripsChanged_ = std::any_of(strips.begin(), strips.end(), [&](const LightStrip& l) { return l.stair == named; });
+    previousStrips_.clear();
+    if (stripsChanged_) {
+        previousStrips_ = strips;
+        std::erase_if(strips, [&](const LightStrip& l) { return l.kind == LightStripKind::Step && l.stair == named; });
+        for (LightStrip& l : strips) {
+            if (l.stair == named) l.stair.reset();
+        }
+    }
     return {};
 }
 
-// Puts the stair back in its old place in the list.
+// Puts the stair back in its old place in the list, and the light strips as they were.
 void RemoveStairCommand::undo(Project& project)
 {
     Floor* floor = findFloor(project.plan, floorId_);
     if (!floor) return;
     const std::size_t at = std::min(index_, floor->stairs.size());
     floor->stairs.insert(floor->stairs.begin() + static_cast<std::ptrdiff_t>(at), removed_);
+    if (stripsChanged_) floor->lightStrips = previousStrips_;
 }
 
 unsigned RemoveStairCommand::changes() const
 {
-    return Change::Stairs;
+    return stripsChanged_ ? (Change::Stairs | Change::Lights) : Change::Stairs;
 }
 
 Id RemoveStairCommand::floorId() const

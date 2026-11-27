@@ -5,6 +5,7 @@
 #include "plynth/core/commands/PointCommands.h"
 #include "plynth/core/commands/RoomCommands.h"
 #include "plynth/core/commands/LightCommands.h"
+#include "plynth/core/commands/LightStripCommands.h"
 #include "plynth/core/commands/StairCommands.h"
 #include "plynth/core/commands/WallCommands.h"
 
@@ -40,9 +41,10 @@ DeleteBuild makeDeleteCommand(const Plan& plan, std::span<const Id> ids)
     std::set<Id> rooms;
     std::set<Id> stairs;
     std::set<Id> lights;
+    std::set<Id> strips;
     for (const Id& id : ids) {
         const Floor* found = findFloorContaining(plan, id);
-        if (!found) return refuse(ErrorCode::NotFound, "There is no point, wall, room, opening, item, stair or light " + id + ".");
+        if (!found) return refuse(ErrorCode::NotFound, "There is no point, wall, room, opening, item, stair, light or light strip " + id + ".");
         if (floor && floor != found) return refuse(ErrorCode::InvalidValue, "The items are on different floors.");
         floor = found;
         if (findPoint(*found, id)) {
@@ -59,8 +61,10 @@ DeleteBuild makeDeleteCommand(const Plan& plan, std::span<const Id> ids)
             stairs.insert(id);
         } else if (findLight(*found, id)) {
             lights.insert(id);
+        } else if (findLightStrip(*found, id)) {
+            strips.insert(id);
         } else {
-            return refuse(ErrorCode::NotFound, "The id " + id + " is not a point, wall, room, opening, item, stair or light.");
+            return refuse(ErrorCode::NotFound, "The id " + id + " is not a point, wall, room, opening, item, stair, light or light strip.");
         }
     }
 
@@ -90,6 +94,11 @@ DeleteBuild makeDeleteCommand(const Plan& plan, std::span<const Id> ids)
 
     DeleteBuild build;
     auto group = std::make_unique<CommandGroup>("Delete");
+    for (const LightStrip& l : floor->lightStrips) {
+        if (!strips.count(l.id)) continue;
+        build.removes.lightStrips.push_back(l.id);
+        group->add(std::make_unique<RemoveLightStripCommand>(l.id));
+    }
     for (const Stair& s : floor->stairs) {
         if (!stairs.count(s.id)) continue;
         build.removes.stairs.push_back(s.id);

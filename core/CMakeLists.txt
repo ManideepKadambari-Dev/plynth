@@ -109,6 +109,8 @@ add_library(plynth_core STATIC
     src/Variation.cpp
     src/BuildFinish.cpp
     src/commands/LightCommands.cpp
+    src/commands/LightStripCommands.cpp
+    src/LightStrips.cpp
     src/commands/FinishCommands.cpp
     src/trim/StairRailings.cpp
     src/BuildResolve.cpp

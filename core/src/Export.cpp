@@ -514,7 +514,9 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
         Project built = request.project;
         built.plan = review.plan;
         const BuildPlan geometry = makeBuildPlan(built, {});
-        const GameplayData data = gameplayData(request.project.settings.name, built.plan, geometry.floors, planLights(built.plan));
+        std::vector<GameplayLight> lights = planLights(built.plan);
+        for (GameplayLight& strip : planStripLights(built.plan, geometry.stripLights)) lights.push_back(std::move(strip));
+        const GameplayData data = gameplayData(request.project.settings.name, built.plan, geometry.floors, lights);
         const std::string text = gameplayToJson(data).dump(2, ' ', false, Json::error_handler_t::replace) + "\n";
         if (const Status written = fileio::writeAtomic(gameplayFile, text); !written.ok()) {
             report.status = written;

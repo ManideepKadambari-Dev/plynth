@@ -80,7 +80,8 @@ Status SetScaleCommand::apply(Project& project)
     if (keep_ == ScaleKeep::ImagePositions && previous_ && pixelsPerMetre_ && *previous_ != *pixelsPerMetre_) {
         bool hasMarks = !project.plan.roofSections.empty();
         for (const Floor& f : project.plan.floors) {
-            if (!f.points.empty() || !f.openings.empty() || !f.items.empty() || !f.stairs.empty() || !f.lights.empty()) {
+            if (!f.points.empty() || !f.openings.empty() || !f.items.empty() || !f.stairs.empty() || !f.lights.empty() ||
+                !f.lightStrips.empty()) {
                 hasMarks = true;
             }
         }
@@ -98,6 +99,9 @@ Status SetScaleCommand::apply(Project& project)
                 for (Item& i : f.items) about(i.x, i.y);
                 for (Stair& s : f.stairs) about(s.x, s.y);
                 for (LightMarker& l : f.lights) about(l.x, l.y);
+                for (LightStrip& l : f.lightStrips) {
+                    for (PlanXY& p : l.points) about(p.x, p.y);
+                }
                 for (Wall& w : f.walls) w.bulge *= factor;
                 for (Opening& op : f.openings) op.offset *= factor;
             }
@@ -145,7 +149,8 @@ std::string SetCeilingHeightCommand::name() const
     return "Set ceiling height";
 }
 
-// Sets the ceiling height unless an opening on a wall that follows it would end up above the wall.
+// Sets the ceiling height unless an opening on a wall that follows it would end up above the wall, or a light
+// strip above the ceiling.
 Status SetCeilingHeightCommand::apply(Project& project)
 {
     Floor* floor = findFloor(project.plan, floorId_);
@@ -161,6 +166,11 @@ Status SetCeilingHeightCommand::apply(Project& project)
             std::snprintf(text, sizeof text, "%.2f m", height_);
             return fail(ErrorCode::InvalidValue,
                         "The opening " + o.id + " would reach above the wall " + wall->id + ", which would be " + text + " high.");
+        }
+    }
+    for (const LightStrip& l : floor->lightStrips) {
+        if (l.z > height_ + 1e-9) {
+            return fail(ErrorCode::InvalidValue, "The light strip " + l.id + " would be above the ceiling. Lower it first.");
         }
     }
     previous_ = floor->ceilingHeight;
@@ -439,6 +449,12 @@ Status SetFloorImageOffsetCommand::apply(Project& project)
         for (LightMarker& l : floor->lights) {
             l.x += dx;
             l.y += dy;
+        }
+        for (LightStrip& l : floor->lightStrips) {
+            for (PlanXY& p : l.points) {
+                p.x += dx;
+                p.y += dy;
+            }
         }
         for (RoofSection& r : project.plan.roofSections) {
             if (r.floor != floorId_) continue;

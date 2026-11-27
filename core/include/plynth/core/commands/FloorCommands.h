@@ -30,8 +30,9 @@ private:
 };
 
 // Sets the ceiling height of a floor, which is also the height of every wall without its own height.
-// NotFound for an unknown floor. InvalidValue when the height is not finite and above zero, or when an opening
-// on a wall without its own height would then reach above it (the message names it). Changes with the same
+// NotFound for an unknown floor. InvalidValue when the height is not finite and above zero, when an opening
+// on a wall without its own height would then reach above it, or when a light strip would be above the ceiling
+// (the message names it). Changes with the same
 // non zero mergeKey and floor merge into one undo step.
 class SetCeilingHeightCommand : public Command {
 public:
