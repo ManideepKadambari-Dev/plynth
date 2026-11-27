@@ -1,4 +1,4 @@
-#include <plynth/core/catalog/StoreFetch.h>
+#include "StoreFetchFolder.h"
 
 #include <plynth/core/Process.h>
 #include <plynth/core/ProjectFiles.h>
@@ -7,6 +7,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#include <aclapi.h>
 
 #include <algorithm>
 #include <cwctype>
@@ -51,27 +52,6 @@ std::string wrongKindSentence(const ImportFetch& fetch, std::string_view fetched
 }
 
 const char* const kFolderNotSetUp = "Plynth's fetch folder is not set up as expected. Delete it and try again.";
-
-// The value of an environment variable, or empty when it is not set.
-std::wstring variableText(const wchar_t* name)
-{
-    const DWORD size = GetEnvironmentVariableW(name, nullptr, 0);
-    if (size == 0) return {};
-    std::wstring value(size, L'\0');
-    const DWORD got = GetEnvironmentVariableW(name, value.data(), size);
-    value.resize(got < size ? got : 0);
-    return value;
-}
-
-// Where fetches run: the folder kFetchFolderVariable names, else %LOCALAPPDATA%/Plynth/fetch. Empty when
-// neither is set.
-fs::path fetchFolderPath()
-{
-    const std::wstring name(kFetchFolderVariable.begin(), kFetchFolderVariable.end());
-    if (const std::wstring given = variableText(name.c_str()); !given.empty()) return fs::path(given);
-    if (const std::wstring local = variableText(L"LOCALAPPDATA"); !local.empty()) return fs::path(local) / L"Plynth" / L"fetch";
-    return {};
-}
 
 // The same path in the form Windows reads without the old length limit, because a store's download can
 // nest deeper than that.
@@ -246,6 +226,100 @@ private:
     bool held_ = false;
 };
 
+// Says whether a path is a real folder and not a link.
+bool plainFolder(const fs::path& path)
+{
+    const DWORD attributes = GetFileAttributesW(path.c_str());
+    return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY) &&
+           !(attributes & FILE_ATTRIBUTE_REPARSE_POINT);
+}
+
+// The owner of a file or folder itself, never of where a link points. Empty when it cannot be read.
+std::vector<unsigned char> ownerOf(const fs::path& path)
+{
+    const HANDLE handle = CreateFileW(path.c_str(), READ_CONTROL, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+                                      OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+    if (handle == INVALID_HANDLE_VALUE) return {};
+    PSID owner = nullptr;
+    PSECURITY_DESCRIPTOR descriptor = nullptr;
+    std::vector<unsigned char> out;
+    if (GetSecurityInfo(handle, SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION, &owner, nullptr, nullptr, nullptr, &descriptor) ==
+            ERROR_SUCCESS &&
+        owner && IsValidSid(owner)) {
+        const auto* bytes = static_cast<const unsigned char*>(owner);
+        out.assign(bytes, bytes + GetLengthSid(owner));
+    }
+    if (descriptor) LocalFree(descriptor);
+    CloseHandle(handle);
+    return out;
+}
+
+// Says whether two SIDs are the same.
+bool sameSid(std::vector<unsigned char> a, std::vector<unsigned char> b)
+{
+    return !a.empty() && !b.empty() && EqualSid(a.data(), b.data());
+}
+
+// Says whether PlynthFetch is owned by this user, the administrators or the system, so no other user can
+// take away the folder made in it.
+bool trustedOwner(const fs::path& folder, const std::vector<unsigned char>& user)
+{
+    std::vector<unsigned char> owner = ownerOf(folder);
+    if (owner.empty()) return false;
+    return sameSid(owner, user) || IsWellKnownSid(owner.data(), WinBuiltinAdministratorsSid) ||
+           IsWellKnownSid(owner.data(), WinLocalSystemSid);
+}
+
+}
+
+namespace detail {
+
+// Makes the last resort fetch folder fresh, for this user only and labelled low integrity.
+Status makeShortFetchFolder(const fs::path& folder)
+{
+    const Status refuse = fail(ErrorCode::CannotWrite, noShortFetchFolderSentence());
+    std::vector<unsigned char> user = currentUserSid();
+    const fs::path parent = folder.parent_path();
+    if (user.empty() || folder.empty() || parent == folder) return refuse;
+    if (!CreateDirectoryW(parent.c_str(), nullptr) && GetLastError() != ERROR_ALREADY_EXISTS) return refuse;
+    if (!plainFolder(parent) || !trustedOwner(parent, user)) return refuse;
+
+    // A folder left by an earlier fetch that ended badly is removed. Anything else in its place is not touched.
+    if (GetFileAttributesW(folder.c_str()) != INVALID_FILE_ATTRIBUTES) {
+        if (!plainFolder(folder) || !sameSid(ownerOf(folder), user) || !removeEntry(longPath(folder))) return refuse;
+    }
+
+    const PSID sid = user.data();
+    std::vector<DWORD> aclBuffer((sizeof(ACL) + sizeof(ACCESS_ALLOWED_ACE) + GetLengthSid(sid)) / sizeof(DWORD) + 1);
+    auto* acl = reinterpret_cast<PACL>(aclBuffer.data());
+    SECURITY_DESCRIPTOR descriptor{};
+    const bool built = InitializeAcl(acl, static_cast<DWORD>(aclBuffer.size() * sizeof(DWORD)), ACL_REVISION) &&
+                       AddAccessAllowedAceEx(acl, ACL_REVISION, OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE, FILE_ALL_ACCESS, sid) &&
+                       InitializeSecurityDescriptor(&descriptor, SECURITY_DESCRIPTOR_REVISION) &&
+                       SetSecurityDescriptorOwner(&descriptor, sid, FALSE) &&
+                       SetSecurityDescriptorDacl(&descriptor, TRUE, acl, FALSE) &&
+                       SetSecurityDescriptorControl(&descriptor, SE_DACL_PROTECTED, SE_DACL_PROTECTED);
+    if (!built) return refuse;
+    // Made in one step with only this user's access, so it never exists open to others. It fails when a
+    // folder appeared there after the check above.
+    SECURITY_ATTRIBUTES attributes{sizeof(SECURITY_ATTRIBUTES), &descriptor, FALSE};
+    if (!CreateDirectoryW(folder.c_str(), &attributes)) return refuse;
+    if (!makeLowIntegrityFolder(folder).ok()) {
+        RemoveDirectoryW(folder.c_str());
+        return refuse;
+    }
+    return {};
+}
+
+// Removes the last resort fetch folder, and PlynthFetch when nothing else is in it.
+bool removeShortFetchFolder(const fs::path& folder)
+{
+    const bool gone = removeEntry(longPath(folder));
+    // Only an empty folder is removed, so other users' folders in it stay.
+    RemoveDirectoryW(longPath(folder.parent_path()).c_str());
+    return gone;
+}
+
 }
 
 // Reads and checks a fetch result.
@@ -275,28 +349,33 @@ FetchOutput readFetchResult(const Json& result, std::string_view task, std::stri
     return out;
 }
 
-// Runs a fetch job in the fetch folder, one at a time, and moves what it brought into the work folder.
+// Runs a fetch job in the folder chooseFetchFolder picks, one at a time, and moves what it brought into the
+// work folder.
 FetchRun runImportFetch(const ImportFetch& fetch, const fs::path& blender, const BlenderRunOptions& base,
                         const fs::path& workFolder, const std::function<void(const BlenderProgress&)>& onProgress,
                         std::stop_token stop)
 {
+    return detail::runImportFetchIn(chooseFetchFolder(), fetch, blender, base, workFolder, onProgress, stop);
+}
+
+// Runs a fetch job in a fetch folder that was already chosen.
+FetchRun detail::runImportFetchIn(const FetchFolderChoice& choice, const ImportFetch& fetch, const fs::path& blender,
+                                  const BlenderRunOptions& base, const fs::path& workFolder,
+                                  const std::function<void(const BlenderProgress&)>& onProgress, std::stop_token stop)
+{
     FetchRun run;
     std::error_code ec;
-    fs::path folder = fetchFolderPath();
-    if (folder.empty()) {
-        run.status = fail(ErrorCode::CannotWrite, "No folder for store fetches was found. Set " + std::string(kFetchFolderVariable) +
-                                                      " to a short folder.");
+    if (!choice.status.ok()) {
+        run.status = choice.status;
         return run;
     }
-    folder = fs::absolute(folder, ec).lexically_normal();
-    folder.make_preferred();
-    if (!folder.has_filename()) folder = folder.parent_path();
+    const fs::path folder = choice.folder;
     // The store's helper fails on long paths, so a long folder stops here, before anything starts.
-    if (pathToUtf8(folder).size() > kMaxFetchFolderBytes) {
-        run.status = fail(ErrorCode::CannotWrite, "Plynth's fetch folder must be at most " + std::to_string(kMaxFetchFolderBytes) +
-                                                      " bytes long. Set " + std::string(kFetchFolderVariable) + " to a shorter folder.");
+    if (folder.empty() || pathToUtf8(folder).size() > kMaxFetchFolderBytes) {
+        run.status = fail(ErrorCode::CannotWrite, noShortFetchFolderSentence());
         return run;
     }
+    const bool lastResort = choice.used == 4;
     fs::path work = fs::absolute(workFolder, ec).lexically_normal();
     work.make_preferred();
     fs::create_directories(work, ec);
@@ -310,14 +389,19 @@ FetchRun runImportFetch(const ImportFetch& fetch, const fs::path& blender, const
         run.status = s;
         return run;
     }
-    if (Status s = prepareFetchFolder(folder); !s.ok()) {
+    if (Status s = lastResort ? makeShortFetchFolder(folder) : prepareFetchFolder(folder); !s.ok()) {
         run.status = s;
         return run;
     }
     const fs::path inside = longPath(folder);
+    // The last resort folder sits outside the user's own folders, so it is removed after every fetch.
+    const auto release = [&] {
+        if (lastResort) removeShortFetchFolder(folder);
+        else emptyFetchFolder(inside);
+    };
     const fs::path output = folder / pathFromUtf8(kFetchOutputFolder);
     if (!CreateDirectoryW(longPath(output).c_str(), nullptr) && GetLastError() != ERROR_ALREADY_EXISTS) {
-        emptyFetchFolder(inside);
+        release();
         run.status = fail(ErrorCode::CannotWrite, "Plynth's fetch folder could not be written.");
         return run;
     }
@@ -341,7 +425,7 @@ FetchRun runImportFetch(const ImportFetch& fetch, const fs::path& blender, const
     }
 
     const auto finish = [&](Status status) {
-        emptyFetchFolder(inside);
+        release();
         run.status = withoutFolder(std::move(status), folder);
         return run;
     };

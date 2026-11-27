@@ -42,10 +42,10 @@ namespace plynth {
 // The user's files are kept safe by code, for every store:
 // - One fetch at a time for the signed in Windows user, across the app, the CLI and every library (a named
 //   mutex). A second fetch waits. Waiting does not count toward the timeout and a stop ends it as Cancelled.
-// - The fetch folder: %LOCALAPPDATA%/Plynth/fetch, or the folder named by kFetchFolderVariable (tests). It
-//   is Plynth's own, labelled low integrity (makeLowIntegrityFolder) and kept between fetches, so a store's
-//   helper keeps one program path and one machine id. At most kMaxFetchFolderBytes in UTF-8, because the
-//   helper fails on long paths; longer is CannotWrite with a sentence that names the variable. With the
+// - The fetch folder: the one chooseFetchFolder picks. It is Plynth's own, labelled low integrity
+//   (makeLowIntegrityFolder) and kept between fetches, so a store's helper keeps one program path and one
+//   machine id; only the last resort folder of rule 4 is removed after every fetch. At most
+//   kMaxFetchFolderBytes in UTF-8, because the helper fails on long paths. With the
 //   mutex held, each fetch first empties it except kFetchKeptFolder, and in that folder removes the logs;
 //   it does the same after the job, once every process of the job has ended. Nothing in it is followed
 //   through a link and it is never named in a message.
@@ -64,6 +64,26 @@ namespace plynth {
 inline constexpr std::string_view kFetchFolderVariable = "PLYNTH_FETCH_FOLDER";
 inline constexpr std::string_view kFetchKeptFolder = "client";
 inline constexpr std::size_t kMaxFetchFolderBytes = 95;
+
+// The fetch folder Plynth picks by itself (issue 29), the first of these that is at most kMaxFetchFolderBytes:
+//   1. kFetchFolderVariable when set (a longer one is CannotWrite, naming the variable; nothing else is tried)
+//   2. %LOCALAPPDATA%/Plynth/fetch
+//   3. the same folder by its short 8.3 path, when Windows has one for it
+//   4. %SystemDrive%/PlynthFetch/<the first 8 hex digits of the FNV hash of the user's SID>, made with access
+//      for this user only
+// When none fits: CannotWrite "The folder for store downloads would need a path of at most 95 characters. Set
+// PLYNTH_FETCH_FOLDER to a short folder, for example C:/PlynthFetch." chooseFetchFolder only picks and makes
+// nothing. runImportFetch makes and labels the folder as the rules above say, gives the same sentence when the
+// folder of rule 4 cannot be made, and removes that folder with everything in it after every fetch, and
+// PlynthFetch too when it is then empty. used tells the front end which rule gave it, for the setup check's
+// detail line.
+struct FetchFolderChoice {
+    Status status;
+    std::filesystem::path folder;
+    int used = 0; // 1 to 4 as above; 0 on failure
+};
+
+FetchFolderChoice chooseFetchFolder();
 
 struct FetchOutput {
     BlenderResultHeader header;

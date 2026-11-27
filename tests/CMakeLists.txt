@@ -148,6 +148,7 @@ add_executable(plynth_core_tests
     core/FabPackTests.cpp
     core/StoreSourceTests.cpp
     core/StoreFetchFolderTests.cpp
+    core/StoreFetchChoiceTests.cpp
     core/LowIntegrityProcessTests.cpp
     core/BlenderKitAddressTests.cpp
     core/IdTests.cpp
