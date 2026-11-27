@@ -1,0 +1,7 @@
+{
+  "format": "plynth-project",
+  "version": 1,
+  "name": "Cottage",
+  "export_mode": "grouped",
+  "grid_size": 0.25
+}

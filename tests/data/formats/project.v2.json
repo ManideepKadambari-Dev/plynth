@@ -1,0 +1,15 @@
+{
+  "format": "plynth-project",
+  "version": 2,
+  "name": "Cottage",
+  "export_mode": "grouped",
+  "grid_size": 0.25,
+  "defaults": {
+    "ceiling_height": 2.8,
+    "door_width": 0.85,
+    "door_height": 2.05,
+    "window_width": 1.0,
+    "window_height": 1.3,
+    "window_sill": 0.8
+  }
+}

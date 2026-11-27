@@ -1,5 +1,7 @@
 #include "plynth/core/ProjectJson.h"
 
+#include "NewerFile.h"
+
 #include "plynth/core/MaterialDefaults.h"
 
 #include <nlohmann/json.hpp>
@@ -799,7 +801,13 @@ void prepare(Json& json, std::string_view format, int currentVersion, std::span<
     auto vit = json.find("version");
     if (vit != json.end() && vit->is_number_integer()) found = vit->get<int>();
 
-    if (auto s = migrateJson(json, currentVersion, steps); !s.ok()) throw ReadError{s};
+    if (auto s = migrateJson(json, currentVersion, steps); !s.ok()) {
+        if (s.code == ErrorCode::UnsupportedVersion) {
+            const std::string_view file = format == kPlanFormatName ? kPlanFileName : kProjectFileName;
+            s.message = newerFileMessage(file, json.at("version").get<long long>());
+        }
+        throw ReadError{s};
+    }
     migrated = found != currentVersion;
 }
 
