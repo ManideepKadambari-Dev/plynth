@@ -84,7 +84,7 @@ The app itself, when you give it `--screenshot`, uses its own codes. 0 means the
 | `unknown_command` | The command word is not one of the commands. Exit 2. |
 | `invalid_value` | A number or name is out of range, for example a scale of 0. Also used when an opening does not fit its wall, a wall is bent too far, or a height would leave an opening sticking out. The message says what is wrong. |
 | `not_found` | A floor, point, wall, room, opening or file does not exist, or there is no closed area at the position given to `room add`, or there is no wall at the position given to `opening add`. |
-| `already_exists` | The thing to create is already there, for example `project new` in a folder that holds a project, a wall between two points that already have one, or a room where one already is. |
+| `already_exists` | The thing to create is already there, for example `project new` in a folder that is not empty, a wall between two points that already have one, or a room where one already is. |
 | `in_use` | Removing something would leave another item pointing at nothing, for example a wall that a room uses. Add `--cascade` to remove what depends on it as well (see `point remove`). Also used by `build` when another build of the same project is already running, and by `export` when a build or an export is running. |
 | `not_a_project` | The folder has no `project.json`. |
 | `cannot_read` | A file or folder could not be opened. |
@@ -137,7 +137,7 @@ plynth help
 ```
 
 ```json
-{"ok":true,"command":"help","result":{"commands":[{"command":"project new","description":"Create a project folder, optionally with a plan image.","options":[{"name":"--image","value":"file","positional":false,"required":false,"description":"Plan image to use for the first floor (PNG, JPEG or BMP)."}]}],"error_codes":[{"code":"invalid_value","description":"A number or name is out of range or malformed.","from":"core"},{"code":"unknown_command","description":"The first words name no command. Run plynth help to list them.","from":"cli"}],"exit_codes":[{"code":0,"description":"The command worked. The answer has ok true."},{"code":1,"description":"The command ran and refused. The answer has the error code and the reason."},{"code":2,"description":"Unknown command or bad options. The answer has unknown_command or bad_arguments."}]}}
+{"ok":true,"command":"help","result":{"commands":[{"command":"project new","description":"Create a project in a new or empty folder, optionally with a plan image.","options":[{"name":"--image","value":"file","positional":false,"required":false,"description":"Plan image to use for the first floor (PNG, JPEG or BMP)."}]}],"error_codes":[{"code":"invalid_value","description":"A number or name is out of range or malformed.","from":"core"},{"code":"unknown_command","description":"The first words name no command. Run plynth help to list them.","from":"cli"}],"exit_codes":[{"code":0,"description":"The command worked. The answer has ok true."},{"code":1,"description":"The command ran and refused. The answer has the error code and the reason."},{"code":2,"description":"Unknown command or bad options. The answer has unknown_command or bad_arguments."}]}}
 ```
 
 The example is shortened. The real answer lists every command and every error code.
@@ -146,11 +146,11 @@ Each option has `name`, `value` (what to type, such as `metres` or `id`), `posit
 
 ### project new
 
-Creates a project folder. The folder is made when it does not exist. If the folder already holds a project, nothing is changed and the answer is `already_exists`.
+Creates a project in a new or empty folder, the same as the New project dialog of the app. The folder is made when it does not exist. A folder with anything in it, even one hidden file or an empty folder, is refused with `already_exists`: a folder that already holds a project, a folder with other files in it, or a file of that name. Nothing is changed then, so keep the plan image outside the new folder. The last part of the folder path must be a name Windows allows: no `\ / : * ? " < > |`, no dot or space at the end, and none of the names Windows keeps for itself (`CON`, `PRN`, `AUX`, `NUL`, `COM1` to `COM9`, `LPT1` to `LPT9`, also with an ending such as `nul.txt`). Such a name is `invalid_value`.
 
 | Option | Meaning |
 |---|---|
-| `--project <folder>` | Where to create it. Default: the current folder. |
+| `--project <folder>` | Where to create it: a new folder or an empty one. Default: the current folder. |
 | `--image <file>` | Plan image for the first floor (PNG, JPEG or BMP). It is copied into the project's `plans` folder. |
 | `--export single\|grouped` | Export mode. Default: `single`. |
 | `--grid <metres>` | Grid size. Default: 0.5. |
@@ -167,7 +167,7 @@ plynth project new --project D:\Plans\MyApartment --image plan.png
 
 Without `--image` the floor has no image and `image` is `null`. `defaults` holds the default sizes, see `project set`.
 
-`project new` also writes `AGENTS.md` into the project: the rules and the check loop for a tool that works on the project, see `agent-guide`. `agent_guide` says `written`, `kept` (a file of that name was already there and is left as it was) or `skipped` (`--no-agent-guide`, or the master copy was not found, which adds a `not_found` warning). The project is made in every case.
+`project new` also writes `AGENTS.md` into the project: the rules and the check loop for a tool that works on the project, see `agent-guide`. `agent_guide` says `written` or `skipped` (`--no-agent-guide`, or the master copy was not found, which adds a `not_found` warning). The project is made in every case.
 
 ### project info
 
@@ -2499,7 +2499,7 @@ Writes `AGENTS.md` into a project. The file holds the rules and the check loop f
 | Option | Meaning |
 |---|---|
 | `--project <folder>` | The project. Default: the current folder. |
-| `--force` | Replace an `AGENTS.md` that is already there. Without it the command is refused and the file is not touched. |
+| `--force` | Replace an `AGENTS.md` that is already there. Without it the file is kept as it was. |
 
 ```
 plynth agent-guide
@@ -2510,7 +2510,27 @@ plynth agent-guide --project D:\Plans\MyApartment --force
 {"ok":true,"command":"agent-guide","result":{"file":"D:/Plans/MyApartment/AGENTS.md","agent_guide":"written"}}
 ```
 
-A folder with no project is `not_a_project`. An existing `AGENTS.md` without `--force` is `already_exists`. A missing master copy is `not_found`. The command changes nothing but `AGENTS.md`, so it needs no edit session.
+`agent_guide` says `written`, or `kept` when an `AGENTS.md` was already there and `--force` was not given. A kept file is left as it was and the answer has an `already_exists` warning. A folder with no project is `not_a_project`. A missing master copy is `not_found`. The command changes nothing but `AGENTS.md`, so it needs no edit session.
+
+### skill install
+
+Writes the Plynth skill file into a skills folder, as `<folder>/plynth/SKILL.md`. The file is in the open Agent Skills format: a tool that reads skills from that folder learns how to start a Plynth project from a plan image in an empty folder, the command order, the safety rules and the render check loop. Once a project exists, its `AGENTS.md` takes over, see `agent-guide`. The app's Settings has a button that does the same. The master copy is the file `docs/templates/SKILL.md` beside the program; the installer also leaves a copy in the Plynth folder.
+
+| Option | Meaning |
+|---|---|
+| `--out <folder>` | The skills folder. It must exist. The `plynth` folder inside it is made when needed. Required. |
+| `--force` | Replace a `SKILL.md` that is already there, for example after an update of Plynth. |
+
+```
+plynth skill install --out D:\Tools\skills
+plynth skill install --out D:\Tools\skills --force
+```
+
+```json
+{"ok":true,"command":"skill install","result":{"file":"D:/Tools/skills/plynth/SKILL.md","skill":"written"}}
+```
+
+`skill` says `written`, or `kept` when a `SKILL.md` was already there and `--force` was not given. A kept file is left as it was and the answer has an `already_exists` warning. A skills folder that does not exist, or a file given as `--out`, is `not_found`. A missing master copy is `not_found`. A file that cannot be written is `cannot_write`. The command touches no project, so it needs no edit session.
 
 ### samples add
 
@@ -3510,7 +3530,7 @@ A project whose plan image was deleted, after `scale set`:
 {"ok":true,"command":"scale set","result":{"pixels_per_metre":100.0,"moved_marks":false},"warnings":[{"code":"image_missing","message":"The plan image plans/apartment-01.png is missing. Its path was kept."}]}
 ```
 
-`project new` with an image that is missing is still refused with `not_found`, because there is nothing yet to keep.
+`project new` with an image that is missing is still refused with `image_error`, because there is nothing yet to keep.
 
 ## The setup order
 
@@ -3654,12 +3674,13 @@ Read `problems` in `stair list` before building: a stair that crosses a wall or 
 
 ## Worked examples
 
-Each example runs from an empty folder with a library set up (`plynth library init` and `plynth library add-sample-materials` once). Every command takes `--project`, left out here: run them in the project folder. The ids in the answers are the ones to use next; they are shown here as `w1`, `r1` and so on, and a real run may print other ids, so read them from each answer.
+Each example starts in a working folder that holds the plan images in `plans`, with a library set up (`plynth library init` and `plynth library add-sample-materials` once). `project new` makes the project in a new folder beside them, because a project is made only in a new or empty folder. Then change to the project folder: every command takes `--project`, left out here, and runs in the current folder. The ids in the answers are the ones to use next; they are shown here as `w1`, `r1` and so on, and a real run may print other ids, so read them from each answer.
 
 ### A flat
 
 ```
-plynth project new --image plans\flat.png --name Flat
+plynth project new --project Flat --image plans\flat.png --name Flat
+cd Flat
 plynth scale from-points --x1 120 --y1 840 --x2 940 --y2 840 --distance 8.2
 plynth detect --apply
 plynth wall list
@@ -3684,11 +3705,12 @@ Read `problems` in `wall list`, `opening list` and `item list` after each step, 
 ### A house with two floors
 
 ```
-plynth project new --image plans\house-ground.png --name House
+plynth project new --project House --image plans\house-ground.png --name House
+cd House
 plynth scale set --pixels-per-metre 100
 plynth detect --apply
 plynth room find
-plynth floor add --name "Upper floor" --image plans\house-upper.png
+plynth floor add --name "Upper floor" --image ..\plans\house-upper.png
 plynth detect --floor f2 --apply
 plynth floor set --floor f2 --image-offset 0.05,0
 plynth room find --floor f2
@@ -3729,6 +3751,7 @@ Every action of the app that changes or checks a project or the library has a co
 |---|---|
 | File > New project, a sample plan on the home screen | `project new`, `project new --image` |
 | Instructions file for tools that work on a project | `agent-guide` |
+| Settings: the button that installs the skill file | `skill install --out <folder>` |
 | File > Save as | `project save-as <folder>` |
 | Open dialog: Load or Keep mine | `project recover`, `project recover --discard` |
 | File > Pack project, Unpack into library | `pack`, `unpack` |

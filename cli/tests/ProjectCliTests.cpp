@@ -83,6 +83,81 @@ TEST_CASE("project new twice in one folder gives already_exists", "[cli][project
     CHECK(readFile(folder / "plan.json") == before);
 }
 
+TEST_CASE("project new accepts an empty folder that is already there", "[cli][project]") {
+    TempFolder temp("empty");
+    const auto folder = temp.path() / "flat";
+    std::filesystem::create_directories(folder);
+    const auto outcome = runChecked({"project", "new", "--project", utf8(folder)});
+    CHECK(outcome.exitCode == kExitOk);
+    CHECK(std::filesystem::exists(folder / "project.json"));
+}
+
+TEST_CASE("project new refuses a folder with a file in it and leaves the file alone", "[cli][project]") {
+    TempFolder temp("full");
+    const auto folder = temp.path() / "flat";
+    std::filesystem::create_directories(folder);
+    std::ofstream(folder / "notes.txt", std::ios::binary) << "mine\n";
+    const auto outcome = runChecked({"project", "new", "--project", utf8(folder)});
+    CHECK(outcome.exitCode == kExitFailed);
+    CHECK(errorCode(outcome) == "already_exists");
+    CHECK(readFile(folder / "notes.txt") == "mine\n");
+    CHECK_FALSE(std::filesystem::exists(folder / "project.json"));
+    CHECK_FALSE(std::filesystem::exists(folder / "AGENTS.md"));
+}
+
+TEST_CASE("project new refuses a folder with only an empty folder in it", "[cli][project]") {
+    TempFolder temp("subfolder");
+    const auto folder = temp.path() / "flat";
+    std::filesystem::create_directories(folder / "old");
+    const auto outcome = runChecked({"project", "new", "--project", utf8(folder)});
+    CHECK(outcome.exitCode == kExitFailed);
+    CHECK(errorCode(outcome) == "already_exists");
+    CHECK_FALSE(std::filesystem::exists(folder / "project.json"));
+}
+
+TEST_CASE("project new refuses a path that is a file", "[cli][project]") {
+    TempFolder temp("file");
+    const auto file = temp.path() / "flat";
+    std::ofstream(file, std::ios::binary) << "mine\n";
+    const auto outcome = runChecked({"project", "new", "--project", utf8(file)});
+    CHECK(outcome.exitCode == kExitFailed);
+    CHECK(errorCode(outcome) == "already_exists");
+    CHECK(readFile(file) == "mine\n");
+}
+
+TEST_CASE("project new refuses a name Windows keeps for itself", "[cli][project]") {
+    TempFolder temp("reserved");
+    for (const std::string name : {"CON", "nul", "com1", "LPT9", "aux.txt"}) {
+        INFO(name);
+        const auto outcome = runChecked({"project", "new", "--project", utf8(temp.path()) + "/" + name});
+        CHECK(outcome.exitCode == kExitFailed);
+        CHECK(errorCode(outcome) == "invalid_value");
+    }
+    CHECK(std::filesystem::is_empty(temp.path()));
+}
+
+TEST_CASE("project new refuses a name with a character Windows does not allow", "[cli][project]") {
+    TempFolder temp("badchar");
+    for (const std::string name : {"fl|at", "fl*at", "fl?at", "fl<at", "fl\"at"}) {
+        INFO(name);
+        const auto outcome = runChecked({"project", "new", "--project", utf8(temp.path()) + "/" + name});
+        CHECK(outcome.exitCode == kExitFailed);
+        CHECK(errorCode(outcome) == "invalid_value");
+    }
+    CHECK(std::filesystem::is_empty(temp.path()));
+}
+
+TEST_CASE("project new refuses a name that ends with a dot or a space", "[cli][project]") {
+    TempFolder temp("ending");
+    for (const std::string name : {"flat.", "flat "}) {
+        INFO(name);
+        const auto outcome = runChecked({"project", "new", "--project", utf8(temp.path()) + "/" + name});
+        CHECK(outcome.exitCode == kExitFailed);
+        CHECK(errorCode(outcome) == "invalid_value");
+    }
+    CHECK(std::filesystem::is_empty(temp.path()));
+}
+
 TEST_CASE("project new with a missing image gives image_error and writes nothing", "[cli][project]") {
     TempFolder temp("noimg");
     const auto folder = temp.path() / "flat";

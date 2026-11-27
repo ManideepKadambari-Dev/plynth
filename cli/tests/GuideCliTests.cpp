@@ -171,7 +171,7 @@ TEST_CASE("help lists the new words", "[cli][guide]") {
     const auto help = runChecked({"help"});
     std::vector<std::string> names;
     for (const auto& command : help.answer.at("result").at("commands")) names.push_back(command.at("command").get<std::string>());
-    for (const char* wanted : {"about", "docs list", "docs show", "docs search", "samples list", "samples open", "samples add"}) {
+    for (const char* wanted : {"about", "docs list", "docs show", "docs search", "samples list", "samples open", "samples add", "agent-guide", "skill install"}) {
         INFO(wanted);
         CHECK(std::find(names.begin(), names.end(), std::string(wanted)) != names.end());
     }

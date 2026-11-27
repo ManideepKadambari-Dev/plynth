@@ -1,7 +1,7 @@
-#include "../AgentGuide.h"
 #include "../CatalogCommon.h"
 #include "../Common.h"
 
+#include <plynth/core/NewProject.h>
 #include <plynth/core/PlanImage.h>
 #include <plynth/core/ProjectFiles.h>
 #include <plynth/core/Settings.h>
@@ -25,14 +25,13 @@ struct NewOptions {
     bool noAgentGuide = false;
 };
 
-// Makes a new project folder, with the plan image copied in when one is given.
+// Makes a new project in a new or empty folder, with the plan image copied in when one is given.
 Answer projectNew(const RunContext& context, const NewOptions& options) {
     const std::string command = "project new";
     const std::filesystem::path folder = resolveProjectFolder(context, options.project);
 
-    if (isProjectFolder(folder)) {
-        return failure(command, fail(ErrorCode::AlreadyExists,
-                                     "The folder " + pathToUtf8(folder) + " already holds a project."));
+    if (const Status checked = checkNewProjectFolder(folder); !checked.ok()) {
+        return failure(command, checked);
     }
     if (!std::isfinite(options.grid) || options.grid <= 0.0) {
         return failure(command, fail(ErrorCode::InvalidValue, "The grid size must be above zero."));
@@ -63,19 +62,21 @@ Answer projectNew(const RunContext& context, const NewOptions& options) {
     }
 
     Project toSave = document.project();
-    const Status saved = createProject(toSave, folder, {});
-    if (!saved.ok()) {
-        return failure(command, saved);
+    NewProjectOptions newOptions;
+    newOptions.agentGuide = !options.noAgentGuide;
+    const NewProjectResult made = createNewProject(toSave, folder, {}, newOptions);
+    if (!made.status.ok()) {
+        return failure(command, made.status);
     }
     Json result = projectInfoJson(folder, toSave);
     std::optional<AnswerWarning> warning;
     result["agent_guide"] = "skipped";
-    if (!options.noAgentGuide) {
-        const AgentGuideWrite guide = writeAgentGuide(folder, false);
+    if (newOptions.agentGuide) {
+        const AgentFileWrite& guide = made.agentGuide;
         if (!guide.status.ok()) {
             warning = AnswerWarning{std::string(errorCodeName(guide.status.code)), guide.status.message};
         } else {
-            result["agent_guide"] = guide.result == AgentGuideResult::Written ? "written" : "kept";
+            result["agent_guide"] = guide.result == AgentFileResult::Written ? "written" : "kept";
         }
     }
     Answer answer = success(command, std::move(result));
@@ -236,7 +237,7 @@ Answer projectSet(const RunContext& context, const SetOptions& options) {
 std::vector<CommandSpec> projectCommands() {
     CommandSpec create;
     create.words = {"project", "new"};
-    create.description = "Create a project folder, optionally with a plan image.";
+    create.description = "Create a project in a new or empty folder, optionally with a plan image.";
     create.setup = [](CLI::App& sub) -> Handler {
         auto options = std::make_shared<NewOptions>();
         addProjectOption(sub, options->project);
