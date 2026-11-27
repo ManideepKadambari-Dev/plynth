@@ -10,7 +10,7 @@ namespace plynth::app {
 
 // A stair is held by its id. A roof section is held as "<floor id>:<index>", the index being its place in
 // roofAreasOf for that floor.
-enum class SelectionKind { None, Point, Wall, Room, Opening, Item, Stair, RoofSection, Light };
+enum class SelectionKind { None, Point, Wall, Room, Opening, Item, Stair, RoofSection, Light, LightStrip };
 
 // The one item the user has selected on the plan. It is app state, not plan data, and holds an id only.
 class Selection : public QObject {

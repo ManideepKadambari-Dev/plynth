@@ -66,6 +66,8 @@
     "buildBarHeight": 40,
     "problemMarker": 12,
     "lightMarker": 14,
+    "stripLine": 2,
+    "stripGlow": 8,
     "qualityMark": 14,
     "markStroke": 1.4,
     "previewButton": 28,
@@ -75,7 +77,8 @@
   "opacity": {
     "overlay3d": 0.85,
     "floorBelow": 0.35,
-    "roofArea": 0.15
+    "roofArea": 0.15,
+    "stripGlow": 0.35
   },
   "preview": {
     "lightColor": "#FFFFFF",

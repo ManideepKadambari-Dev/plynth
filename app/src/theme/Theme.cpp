@@ -120,6 +120,8 @@ bool Theme::load(const QString& resourcePath)
     buildBarHeight_ = spacing["buildBarHeight"].toInt(buildBarHeight_);
     problemMarker_ = spacing["problemMarker"].toInt(problemMarker_);
     lightMarker_ = spacing["lightMarker"].toInt(lightMarker_);
+    stripLine_ = spacing["stripLine"].toInt(stripLine_);
+    stripGlow_ = spacing["stripGlow"].toInt(stripGlow_);
     qualityMark_ = spacing["qualityMark"].toInt(qualityMark_);
     markStroke_ = spacing["markStroke"].toDouble(markStroke_);
     previewButton_ = spacing["previewButton"].toInt(previewButton_);
@@ -130,6 +132,7 @@ bool Theme::load(const QString& resourcePath)
     overlay3dOpacity_ = opacity["overlay3d"].toDouble(overlay3dOpacity_);
     floorBelowOpacity_ = opacity["floorBelow"].toDouble(floorBelowOpacity_);
     roofAreaOpacity_ = opacity["roofArea"].toDouble(roofAreaOpacity_);
+    stripGlowOpacity_ = opacity["stripGlow"].toDouble(stripGlowOpacity_);
     const QJsonObject preview = root["preview"].toObject();
     const QColor light(preview["lightColor"].toString());
     if (light.isValid())

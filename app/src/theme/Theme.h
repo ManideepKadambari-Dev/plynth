@@ -88,6 +88,9 @@ public:
     int buildBarHeight() const { return buildBarHeight_; }
     int problemMarker() const { return problemMarker_; }
     int lightMarker() const { return lightMarker_; }
+    // A light strip on the plan: the width of its bright line and of the glow round it, in canvas pixels.
+    int stripLine() const { return stripLine_; }
+    int stripGlow() const { return stripGlow_; }
     int qualityMark() const { return qualityMark_; }
     double markStroke() const { return markStroke_; }
     int previewButton() const { return previewButton_; }
@@ -96,6 +99,7 @@ public:
     double overlay3dOpacity() const { return overlay3dOpacity_; }
     double floorBelowOpacity() const { return floorBelowOpacity_; }
     double roofAreaOpacity() const { return roofAreaOpacity_; }
+    double stripGlowOpacity() const { return stripGlowOpacity_; }
     double keyLightBrightness() const { return keyLightBrightness_; }
     double probeExposure() const { return probeExposure_; }
     int aoStrength() const { return aoStrength_; }
@@ -169,6 +173,8 @@ private:
     int buildBarHeight_ = 40;
     int problemMarker_ = 12;
     int lightMarker_ = 14;
+    int stripLine_ = 2;
+    int stripGlow_ = 8;
     int qualityMark_ = 14;
     int previewButton_ = 28;
     int helpListWidth_ = 240;
@@ -177,6 +183,7 @@ private:
     double overlay3dOpacity_ = 0.85;
     double floorBelowOpacity_ = 0.35;
     double roofAreaOpacity_ = 0.15;
+    double stripGlowOpacity_ = 0.35;
     double markStroke_ = 1.4;
     double keyLightBrightness_ = 1.0;
     double probeExposure_ = 1.0;

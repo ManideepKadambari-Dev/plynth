@@ -168,14 +168,14 @@ int main(int argc, char* argv[])
                                       QStringLiteral("Open the terminal and type this text. For checks only."),
                                       QStringLiteral("text"));
     QCommandLineOption toolOption(QStringLiteral("tool"),
-                                  QStringLiteral("Activate a tool: select, scale, wall, opening, room, stair, light, furniture or detect. For checks only."),
+                                  QStringLiteral("Activate a tool: select, scale, wall, opening, room, stair, light, light-strip, furniture or detect. For checks only."),
                                   QStringLiteral("name"));
     QCommandLineOption wallCheckOption(QStringLiteral("wall-check"),
                                        QStringLiteral("With --screenshot, drive the plan with the mouse: guides:x1,y1,x2,y2, join:point,x,y "
                                                       "or split:x,y, in metres. Writes <file>.txt and <file>-middle.png. For checks only."),
                                        QStringLiteral("spec"));
     QCommandLineOption selectOption(QStringLiteral("select"),
-                                    QStringLiteral("Select the point, wall, opening, room, item, stair or light with this id, or first-wall. For checks only."),
+                                    QStringLiteral("Select the point, wall, opening, room, item, stair, light or light strip with this id, or first-wall. For checks only."),
                                     QStringLiteral("id"));
     QCommandLineOption floorOption(QStringLiteral("floor"),
                                    QStringLiteral("Show the floor with this id, such as f2. For checks only."), QStringLiteral("id"));
@@ -288,6 +288,17 @@ int main(int argc, char* argv[])
                                       QStringLiteral("Place a light at x,y in metres on the shown floor, with an optional kind "
                                                      "(ceiling, wall or standing), and select it. Repeat for several. For checks only."),
                                       QStringLiteral("x,y[,kind]"));
+    QCommandLineOption lightStripToolOption(QStringLiteral("light-strip-tool"),
+                                            QStringLiteral("Activate the Light strip tool. For checks only."));
+    QCommandLineOption addLightStripOption(QStringLiteral("add-light-strip"),
+                                           QStringLiteral("Add a light strip on the shown floor and select it: cove, soffit or edge "
+                                                          "followed by x,y pairs in metres, or step followed by a stair id. Repeat "
+                                                          "for several. For checks only."),
+                                           QStringLiteral("kind,x1,y1,x2,y2[,...] or step,stair"));
+    QCommandLineOption lightStripDraftOption(QStringLiteral("light-strip-draft"),
+                                             QStringLiteral("Show the Light strip tool drawing a line through x,y pairs in metres. "
+                                                            "For checks only."),
+                                             QStringLiteral("x1,y1,x2,y2[,...]"));
     QCommandLineOption projectFinishOption(QStringLiteral("project-finish"),
                                            QStringLiteral("Show the Trim and Variation groups of the project. For checks only."));
     QCommandLineOption variationsDialogOption(QStringLiteral("variations-dialog"),
@@ -297,6 +308,9 @@ int main(int argc, char* argv[])
                                                                "first door. For checks only."));
     parser.addOption(lightToolOption);
     parser.addOption(addLightOption);
+    parser.addOption(lightStripToolOption);
+    parser.addOption(addLightStripOption);
+    parser.addOption(lightStripDraftOption);
     parser.addOption(projectFinishOption);
     QCommandLineOption exportLicensesOnOption(QStringLiteral("export-licenses-on"),
                                               QStringLiteral("Tick the license report box of the Export window and open the window. For checks only."));
@@ -422,7 +436,8 @@ int main(int argc, char* argv[])
     if (parser.isSet(toolOption)) {
         const QStringList names{QStringLiteral("select"), QStringLiteral("scale"), QStringLiteral("wall"),
                                 QStringLiteral("opening"), QStringLiteral("room"), QStringLiteral("stair"),
-                                QStringLiteral("furniture"), QStringLiteral("detect"), QStringLiteral("light")};
+                                QStringLiteral("furniture"), QStringLiteral("detect"), QStringLiteral("light"),
+                                QStringLiteral("light-strip")};
         if (!names.contains(parser.value(toolOption).toLower()))
             return kExitBadArguments;
     }
@@ -469,6 +484,46 @@ int main(int argc, char* argv[])
             return kExitBadArguments;
         lightPlaces.append(place);
     }
+    const auto parsePairs = [](const QStringList& parts, qsizetype from, std::vector<plynth::Vec2>& points) {
+        if ((parts.size() - from) < 2 || (parts.size() - from) % 2 != 0)
+            return false;
+        for (qsizetype i = from; i + 1 < parts.size(); i += 2) {
+            bool okX = false;
+            bool okY = false;
+            const double x = parts[i].toDouble(&okX);
+            const double y = parts[i + 1].toDouble(&okY);
+            if (!okX || !okY)
+                return false;
+            points.push_back(plynth::Vec2{x, y});
+        }
+        return true;
+    };
+    struct StripPlace {
+        QString kind;
+        std::vector<plynth::Vec2> points;
+        QString stair;
+    };
+    QList<StripPlace> stripPlaces;
+    for (const QString& value : parser.values(addLightStripOption)) {
+        const QStringList parts = value.split(QLatin1Char(','));
+        StripPlace place;
+        place.kind = parts.value(0).trimmed().toLower();
+        if (place.kind == QStringLiteral("step")) {
+            if (parts.size() != 2 || parts[1].trimmed().isEmpty())
+                return kExitBadArguments;
+            place.stair = parts[1].trimmed();
+        } else if (place.kind != QStringLiteral("cove") && place.kind != QStringLiteral("soffit") &&
+                   place.kind != QStringLiteral("edge")) {
+            return kExitBadArguments;
+        } else if (!parsePairs(parts, 1, place.points) || place.points.size() < 2) {
+            return kExitBadArguments;
+        }
+        stripPlaces.append(place);
+    }
+    std::vector<plynth::Vec2> stripDraft;
+    if (parser.isSet(lightStripDraftOption) &&
+        !parsePairs(parser.value(lightStripDraftOption).split(QLatin1Char(',')), 0, stripDraft))
+        return kExitBadArguments;
     if (parser.isSet(furnitureAtOption)) {
         const QStringList parts = parser.value(furnitureAtOption).split(QLatin1Char(','));
         bool okX = false;
@@ -601,6 +656,12 @@ int main(int argc, char* argv[])
         window.activateToolByName(QStringLiteral("light"));
     for (const LightPlace& place : lightPlaces)
         window.addLightForCheck(place.x, place.y, place.kind);
+    if (parser.isSet(lightStripToolOption))
+        window.activateToolByName(QStringLiteral("light-strip"));
+    for (const StripPlace& place : stripPlaces)
+        window.addLightStripForCheck(place.kind, place.points, place.stair);
+    if (!stripDraft.empty())
+        window.showLightStripDraft(stripDraft);
     if (parser.isSet(alignImageOption))
         window.setAlignImage(true);
     if (parser.isSet(roofSectionsOption))

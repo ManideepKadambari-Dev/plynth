@@ -30,6 +30,7 @@ class QStackedWidget;
 namespace plynth {
 class Command;
 class Document;
+struct LightStrip;
 struct Stair;
 }
 
@@ -99,6 +100,9 @@ private:
     void buildLightPage();
     void refreshLight();
     void editLight(bool place);
+    void buildLightStripPage();
+    void refreshLightStrip();
+    void editLightStrip(const std::function<void(plynth::LightStrip&)>& change, bool merge);
     void openAssetPicker();
     void refreshStair();
     void editStair(const std::function<void(plynth::Stair&)>& change);
@@ -328,6 +332,19 @@ private:
     QDoubleSpinBox* lightHeight_ = nullptr;
     QDoubleSpinBox* lightX_ = nullptr;
     QDoubleSpinBox* lightY_ = nullptr;
+
+    QLabel* stripId_ = nullptr;
+    QComboBox* stripKind_ = nullptr;
+    QLabel* stripHeightLabel_ = nullptr;
+    QDoubleSpinBox* stripHeight_ = nullptr;
+    QDoubleSpinBox* stripPower_ = nullptr;
+    QLabel* stripTotalLabel_ = nullptr;
+    QLabel* stripTotal_ = nullptr;
+    QLabel* stripLineLabel_ = nullptr;
+    QLabel* stripLine_ = nullptr;
+    QLabel* stripStairLabel_ = nullptr;
+    QLabel* stripStair_ = nullptr;
+    QLabel* stripProblems_ = nullptr;
 
     QSlider* thinSlider_ = nullptr;
     QLabel* thinValue_ = nullptr;

@@ -778,7 +778,7 @@ void MainWindow::buildMenus()
     edit->addSeparator();
     const std::array<ToolId, kToolCount>& toolIds = kStripTools;
     const std::array<Qt::Key, kToolCount> toolKeys{Qt::Key_V, Qt::Key_S, Qt::Key_W, Qt::Key_O,
-                                                   Qt::Key_R, Qt::Key_T, Qt::Key_L, Qt::Key_P, Qt::Key_D};
+                                                   Qt::Key_R, Qt::Key_T, Qt::Key_L, Qt::Key_K, Qt::Key_P, Qt::Key_D};
     for (size_t i = 0; i < toolIds.size(); ++i) {
         const ToolId id = toolIds[i];
         QAction* action = addMenuAction(edit, tr("%1 tool").arg(ToolStrip::toolName(id)),
@@ -1251,6 +1251,24 @@ bool MainWindow::addLightForCheck(double x, double y, const QString& kind)
     if (!parsed.has_value())
         return false;
     return tools_->placeLight(plynth::Vec2{x, y}, *parsed, true);
+}
+
+// For checks only: adds a light strip as the Light strip tool does. kind "step" takes a stair id, the others a
+// line of at least two points in metres.
+bool MainWindow::addLightStripForCheck(const QString& kind, const std::vector<plynth::Vec2>& points, const QString& stair)
+{
+    const std::optional<plynth::LightStripKind> parsed = plynth::lightStripKindFromName(kind.toLower().toStdString());
+    if (!parsed.has_value())
+        return false;
+    if (*parsed == plynth::LightStripKind::Step)
+        return tools_->placeStepStrip(stair.toStdString());
+    return tools_->placeLightStrip(*parsed, points);
+}
+
+// For checks only: shows the Light strip tool drawing a line through these points.
+bool MainWindow::showLightStripDraft(const std::vector<plynth::Vec2>& points)
+{
+    return tools_->showLightStripDraft(points);
 }
 
 // For checks only: opens the door and window picker of the selected opening. With no opening selected, the first
@@ -1797,6 +1815,9 @@ void MainWindow::validateSelection()
         case SelectionKind::Light:
             found = plynth::findLight(*floor, id) != nullptr;
             break;
+        case SelectionKind::LightStrip:
+            found = plynth::findLightStrip(*floor, id) != nullptr;
+            break;
         case SelectionKind::None:
             break;
         }
@@ -1876,6 +1897,8 @@ bool MainWindow::activateToolByName(const QString& name)
         id = ToolId::Stair;
     else if (key == QStringLiteral("light"))
         id = ToolId::Light;
+    else if (key == QStringLiteral("light-strip"))
+        id = ToolId::LightStrip;
     else
         return false;
     tools_->setActive(id);
@@ -1888,7 +1911,7 @@ bool MainWindow::showFloor(const QString& id)
     return focus_->setFloorId(id);
 }
 
-// For checks only: selects a point, wall, room, opening, item, stair or light by its id, switching to its floor first.
+// For checks only: selects a point, wall, room, opening, item, stair, light or light strip by its id, switching to its floor first.
 void MainWindow::selectById(const QString& id)
 {
     selection_->clear();
@@ -1913,6 +1936,8 @@ void MainWindow::selectById(const QString& id)
                 kind = SelectionKind::Stair;
         if (plynth::findLight(floor, key) != nullptr)
             kind = SelectionKind::Light;
+        if (plynth::findLightStrip(floor, key) != nullptr)
+            kind = SelectionKind::LightStrip;
         if (!kind.has_value())
             continue;
         focus_->setFloorId(QString::fromStdString(floor.id));

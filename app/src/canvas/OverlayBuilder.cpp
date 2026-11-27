@@ -1,6 +1,9 @@
 #include "OverlayBuilder.h"
 
+#include "tools/LightStripTool.h"
+
 #include <plynth/core/Items.h>
+#include <plynth/core/LightStrips.h>
 #include <plynth/core/Roofs.h>
 #include <plynth/core/RoomTypes.h>
 #include <plynth/core/Rooms.h>
@@ -13,7 +16,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <numbers>
+#include <optional>
 
 namespace plynth::app {
 
@@ -35,6 +40,59 @@ QPolygonF toPolygon(const std::vector<plynth::Vec2>& ring, double ppm)
     return polygon;
 }
 
+// Turns a light strip into the lines the canvas draws, with its tooltip and whether it has a problem.
+OverlayLightStrip makeOverlayLightStrip(const plynth::Plan& plan, const plynth::Floor& floor,
+                                        const plynth::LightStrip& strip, double ppm)
+{
+    OverlayLightStrip entry;
+    entry.id = fromCore(strip.id);
+    entry.step = strip.kind == plynth::LightStripKind::Step;
+    const QString problem = lightStripProblem(plan, floor, strip);
+    if (entry.step) {
+        const plynth::Stair* stair = strip.stair ? plynth::findStair(floor, *strip.stair) : nullptr;
+        if (stair != nullptr) {
+            const plynth::StairLayout layout = plynth::stairLayout(plan, floor, *stair);
+            for (const plynth::StairStep& step : layout.steps)
+                if (step.part == plynth::StairPart::Step)
+                    if (const std::optional<plynth::StepNose> nose = plynth::stepNose(step.outline, layout.walkLine))
+                        entry.pieces.append(QPolygonF({QPointF(nose->from.x * ppm, nose->from.y * ppm),
+                                                       QPointF(nose->to.x * ppm, nose->to.y * ppm)}));
+        }
+        entry.tip = QObject::tr("%1 %2 on stair %3, %4 W per metre")
+                        .arg(lightStripKindText(strip.kind), entry.id,
+                             strip.stair ? fromCore(*strip.stair) : QObject::tr("none"))
+                        .arg(strip.power, 0, 'f', 1);
+    } else {
+        QPolygonF line;
+        for (const plynth::PlanXY& point : strip.points)
+            line << QPointF(point.x * ppm, point.y * ppm);
+        entry.points = line;
+        if (line.size() >= 2)
+            entry.pieces.append(line);
+        entry.tip = QObject::tr("%1 %2, %3 m above the floor, %4 W per metre")
+                        .arg(lightStripKindText(strip.kind), entry.id)
+                        .arg(strip.z, 0, 'f', 2)
+                        .arg(strip.power, 0, 'f', 1);
+    }
+    entry.problem = !problem.isEmpty();
+    if (entry.problem)
+        entry.tip += QLatin1Char('\n') + problem;
+    return entry;
+}
+
+}
+
+// The problem of a light strip in one sentence, or an empty text.
+QString lightStripProblem(const plynth::Plan& plan, const plynth::Floor& floor, const plynth::LightStrip& strip)
+{
+    const plynth::Status status = plynth::checkLightStrip(strip, floor);
+    if (!status.ok())
+        return fromCore(status.message);
+    if (strip.kind == plynth::LightStripKind::Step && strip.stair)
+        if (const plynth::Stair* stair = plynth::findStair(floor, *strip.stair))
+            if (!plynth::stairLayout(plan, floor, *stair).status.ok())
+                return QObject::tr("The stair cannot be built, so these step lights give no light.");
+    return QString();
 }
 
 // Turns a stair layout into polygons in image pixels.
@@ -182,6 +240,11 @@ OverlayData buildOverlay(const plynth::Plan& plan, const std::string& floorId, c
                                                : QObject::tr("Ceiling light");
         entry.tip = QObject::tr("%1 %2, %3 m above the floor").arg(kind, entry.id).arg(light.z, 0, 'f', 2);
         overlay.lights.append(entry);
+    }
+    for (const plynth::LightStrip& strip : floor.lightStrips) {
+        OverlayLightStrip entry = makeOverlayLightStrip(plan, floor, strip, ppm);
+        if (!entry.pieces.isEmpty() || entry.problem)
+            overlay.lightStrips.append(entry);
     }
 
     for (const plynth::Point& point : floor.points)

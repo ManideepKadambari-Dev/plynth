@@ -123,6 +123,8 @@ add_executable(plynth WIN32
     src/tools/DetectTool.cpp
     src/tools/LightTool.h
     src/tools/LightTool.cpp
+    src/tools/LightStripTool.h
+    src/tools/LightStripTool.cpp
     src/tools/OpeningTool.h
     src/tools/OpeningTool.cpp
     src/tools/RoomTool.h

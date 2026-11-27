@@ -128,6 +128,18 @@ struct OverlayLight {
     QString tip;
 };
 
+// One light strip of the shown floor, in scene units. pieces are the lines it is drawn as: its own line, or for
+// step lights the nose of every step of its stair. points are the points that can be dragged, empty for step
+// lights. tip is its kind, height and power for the tooltip, then its problem when it has one.
+struct OverlayLightStrip {
+    QString id;
+    QVector<QPolygonF> pieces;
+    QPolygonF points;
+    bool step = false;
+    bool problem = false;
+    QString tip;
+};
+
 // Everything the canvas draws over the plan image.
 struct OverlayData {
     QVector<OverlayItem> items;
@@ -146,6 +158,8 @@ struct OverlayData {
     QVector<OverlayRoof> roofs;
     // The light markers of the shown floor only. Other floors' lights are never drawn.
     QVector<OverlayLight> lights;
+    // The light strips of the shown floor only.
+    QVector<OverlayLightStrip> lightStrips;
 };
 
 // One proposed wall, in scene units.
@@ -199,6 +213,10 @@ public:
     // The id of the light marker of the shown floor under a scene point, within the marker's drawn size, or an
     // empty string.
     QString lightAt(const QPointF& scene) const;
+    // The id of the light strip of the shown floor whose drawn line passes under a scene point, or an empty string.
+    QString lightStripAt(const QPointF& scene) const;
+    // The index of the point of a light strip under a scene point, within its handle, or -1.
+    int lightStripPointAt(const QString& id, const QPointF& scene) const;
     // Shows or hides the roof sections of the shown floor (hatch, label and direction arrow).
     void setRoofSectionsShown(bool shown);
     bool roofSectionsShown() const { return roofsShown_; }
@@ -285,6 +303,7 @@ private:
     void paintProposals(QPainter* painter);
     void paintProblems(QPainter* painter);
     void paintLights(QPainter* painter);
+    void paintLightStrips(QPainter* painter);
     void applyFit();
     QRectF imageRect() const;
 

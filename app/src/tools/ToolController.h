@@ -21,6 +21,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 class QWidget;
 
@@ -104,6 +105,14 @@ public:
     // Adds a light marker of a kind on the shown floor at a place, snapped unless free, at the kind's start
     // height, and selects it. Refusals show as messages. Returns true when placed.
     bool placeLight(plynth::Vec2 wanted, plynth::LightKind kind, bool free);
+    // Adds a light strip of a kind along a line on the shown floor, at the kind's start height, and selects it.
+    // The points are already snapped. Refusals show as messages. Returns true when added.
+    bool placeLightStrip(plynth::LightStripKind kind, const std::vector<plynth::Vec2>& points);
+    // Adds step lights to a stair of the shown floor and selects them. Refusals show as messages.
+    bool placeStepStrip(const plynth::Id& stairId);
+    // For checks: switches to the Light strip tool and shows a line being drawn through these points, in metres.
+    // False when the tool is not available.
+    bool showLightStripDraft(const std::vector<plynth::Vec2>& points);
     // Turns the selected floor item by degrees (positive is clockwise). Refusals show as messages.
     bool turnSelectedItem(double degrees);
     // For checks: switches to the Furniture tool and opens its picker at a place in metres, then hovers an

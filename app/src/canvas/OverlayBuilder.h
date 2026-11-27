@@ -29,6 +29,10 @@ OverlayData buildOverlay(const plynth::Plan& plan, const std::string& floorId, c
                          const plynth::GeneratorLibrary* generators = nullptr,
                          const std::optional<plynth::AddonCache>* addons = nullptr);
 
+// What is wrong with a light strip now, in one sentence: what checkLightStrip refuses, or a stair that cannot be
+// built under step lights. Empty when nothing is wrong.
+QString lightStripProblem(const plynth::Plan& plan, const plynth::Floor& floor, const plynth::LightStrip& strip);
+
 // A stair layout from core as what the canvas draws, in image pixels. Problems are the stair's problem
 // sentences, one per line.
 OverlayStair makeOverlayStair(const plynth::StairLayout& layout, double ppm);

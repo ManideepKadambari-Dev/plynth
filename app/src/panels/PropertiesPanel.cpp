@@ -9,6 +9,8 @@
 #include "materials/MaterialRow.h"
 #include "panels/FinishGroups.h"
 #include "panels/OpeningAssetPicker.h"
+#include "canvas/OverlayBuilder.h"
+#include "tools/LightStripTool.h"
 #include "document/Selection.h"
 #include "theme/ElideLabel.h"
 #include "theme/PaneFit.h"
@@ -34,6 +36,7 @@
 #include <plynth/core/commands/GeneratorCommands.h>
 #include <plynth/core/commands/ItemCommands.h>
 #include <plynth/core/commands/LightCommands.h>
+#include <plynth/core/commands/LightStripCommands.h>
 #include <plynth/core/commands/MaterialCommands.h>
 #include <plynth/core/commands/OpeningCommands.h>
 #include <plynth/core/commands/PointCommands.h>
@@ -62,6 +65,7 @@
 #include <QSlider>
 #include <QSpinBox>
 #include <QStackedWidget>
+#include <QStandardItemModel>
 #include <QTimer>
 #include <QVBoxLayout>
 
@@ -111,6 +115,7 @@ constexpr int kItemPage = 7;
 constexpr int kStairPage = 8;
 constexpr int kRoofPage = 9;
 constexpr int kLightPage = 10;
+constexpr int kLightStripPage = 11;
 
 // Turns a core text into Qt text.
 QString fromCore(const std::string& text)
@@ -142,6 +147,7 @@ PropertiesPanel::PropertiesPanel(plynth::Document& document, Selection& selectio
     buildStairPage();
     buildRoofPage();
     buildLightPage();
+    buildLightStripPage();
     // Only the shown page scrolls. The Delete button stays below it, always in view.
     scroll_ = new QScrollArea(this);
     scroll_->setWidgetResizable(true);
@@ -1523,6 +1529,10 @@ void PropertiesPanel::refresh()
         page = kLightPage;
         refreshLight();
         break;
+    case SelectionKind::LightStrip:
+        page = kLightStripPage;
+        refreshLightStrip();
+        break;
     case SelectionKind::RoofSection:
         if (selectedRoof()) {
             page = kRoofPage;
@@ -2148,6 +2158,138 @@ void PropertiesPanel::refreshLight()
                     room += QStringLiteral(" (%1)").arg(QString::fromUtf8(type->name.data(), static_cast<qsizetype>(type->name.size())));
     }
     lightRoom_->setText(room);
+}
+
+// The Light strip group: id, kind, height, power, the total it draws, its color, its line or stair, and its problem.
+void PropertiesPanel::buildLightStripPage()
+{
+    const Theme& t = Theme::instance();
+    QGridLayout* grid = nullptr;
+    makePage(&grid);
+    const auto rowLabel = [grid]() {
+        return static_cast<QLabel*>(grid->itemAtPosition(grid->rowCount() - 1, 0)->widget());
+    };
+    stripId_ = addLabelRow(grid, tr("Light strip"));
+    stripId_->setToolTip(tr("The id of the light strip. The build and the gameplay data use it."));
+    stripKind_ = addComboRow(grid, tr("Kind"),
+                             tr("Where the strip goes and which way it shines. Step lights follow a stair and cannot "
+                                "become a line, and a line cannot become step lights."));
+    for (const plynth::LightStripKind kind : {plynth::LightStripKind::Cove, plynth::LightStripKind::Soffit,
+                                              plynth::LightStripKind::Edge, plynth::LightStripKind::Step}) {
+        stripKind_->addItem(lightStripKindText(kind), static_cast<int>(kind));
+        stripKind_->setItemData(stripKind_->count() - 1, lightStripKindTip(kind), Qt::ToolTipRole);
+    }
+    stripHeight_ = addKeyedSpinRow(grid, tr("Height"), 0.0, 100.0, 0.05,
+                                   tr("Height of the line above the floor. A cove hangs just below it, a soffit sits "
+                                      "just above it and an edge strip is centred on it."));
+    stripHeightLabel_ = rowLabel();
+    stripPower_ = addKeyedSpinRow(grid, tr("Power"), 0.0, 200.0, 1.0, tr("Watts for each metre of strip, from 0 to 200"));
+    stripPower_->setDecimals(1);
+    stripPower_->setSuffix(tr(" W/m"));
+    stripTotal_ = addLabelRow(grid, tr("Total"));
+    stripTotalLabel_ = rowLabel();
+    stripTotal_->setToolTip(tr("The power of the whole strip: watts per metre times its length"));
+    stripLine_ = addLabelRow(grid, tr("Line"));
+    stripLineLabel_ = rowLabel();
+    stripLine_->setToolTip(tr("How many points the line has and how long it is. Drag a point on the plan to move it."));
+    stripStair_ = addLabelRow(grid, tr("Stair"));
+    stripStairLabel_ = rowLabel();
+    stripStair_->setToolTip(tr("The stair whose steps these lights sit under. Removing the stair removes them."));
+    stripProblems_ = new QLabel(grid->parentWidget());
+    stripProblems_->setTextFormat(Qt::PlainText);
+    stripProblems_->setFont(t.uiFont(t.sizeSmall()));
+    stripProblems_->setWordWrap(true);
+    stripProblems_->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
+    stripProblems_->setToolTip(tr("What is wrong with this light strip now. It is left out of the build until fixed."));
+    grid->addWidget(stripProblems_, grid->rowCount(), 0, 1, 2);
+
+    connect(stripKind_, &QComboBox::activated, this, [this](int index) {
+        const auto kind = static_cast<plynth::LightStripKind>(stripKind_->itemData(index).toInt());
+        const plynth::Floor* floor = controller_.floor();
+        if (floor == nullptr)
+            return;
+        const double ceiling = floor->ceilingHeight;
+        editLightStrip(
+            [kind, ceiling](plynth::LightStrip& strip) {
+                if (strip.kind == kind)
+                    return;
+                strip.kind = kind;
+                strip.z = plynth::defaultStripHeight(kind, ceiling);
+            },
+            false);
+    });
+    connect(stripHeight_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
+        editLightStrip([value](plynth::LightStrip& strip) { strip.z = value; }, true);
+    });
+    connect(stripPower_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
+        editLightStrip([value](plynth::LightStrip& strip) { strip.power = value; }, true);
+    });
+}
+
+// Runs SetLightStripCommand with the selected strip after a change. Edits from one visit to a box merge into one
+// undo step. The boxes go back to the real values on a refusal.
+void PropertiesPanel::editLightStrip(const std::function<void(plynth::LightStrip&)>& change, bool merge)
+{
+    if (refreshing_ || selection_.kind() != SelectionKind::LightStrip)
+        return;
+    const plynth::Floor* floor = controller_.floor();
+    const plynth::LightStrip* strip = floor ? plynth::findLightStrip(*floor, selection_.id().toStdString()) : nullptr;
+    if (strip == nullptr)
+        return;
+    plynth::LightStrip values = *strip;
+    change(values);
+    if (values == *strip)
+        return;
+    const plynth::Id id = strip->id;
+    if (!controller_.run(std::make_unique<plynth::SetLightStripCommand>(id, values, merge ? focusKey_ : 0)).ok())
+        refresh();
+}
+
+// Fills the Light strip group from the selected strip. Rows that do not apply to its kind are hidden.
+void PropertiesPanel::refreshLightStrip()
+{
+    const plynth::Floor* floor = controller_.floor();
+    const plynth::LightStrip* strip = floor ? plynth::findLightStrip(*floor, selection_.id().toStdString()) : nullptr;
+    if (strip == nullptr)
+        return;
+    const bool step = strip->kind == plynth::LightStripKind::Step;
+    stripId_->setText(fromCore(strip->id));
+    if (auto* model = qobject_cast<QStandardItemModel*>(stripKind_->model()))
+        for (int row = 0; row < model->rowCount(); ++row) {
+            const bool stepRow = static_cast<plynth::LightStripKind>(stripKind_->itemData(row).toInt()) ==
+                                 plynth::LightStripKind::Step;
+            if (QStandardItem* item = model->item(row))
+                item->setEnabled(stepRow == step);
+        }
+    stripKind_->setCurrentIndex(std::max(0, stripKind_->findData(static_cast<int>(strip->kind))));
+    {
+        const QSignalBlocker blocker(stripHeight_);
+        stripHeight_->setMaximum(floor->ceilingHeight);
+    }
+    setSpin(stripHeight_, strip->z);
+    setSpin(stripPower_, strip->power);
+    stripHeight_->setVisible(!step);
+    stripHeightLabel_->setVisible(!step);
+
+    double length = 0.0;
+    for (std::size_t i = 1; i < strip->points.size(); ++i)
+        length += std::hypot(strip->points[i].x - strip->points[i - 1].x, strip->points[i].y - strip->points[i - 1].y);
+    stripLine_->setText(tr("%1 points, %2 m").arg(strip->points.size()).arg(length, 0, 'f', 2));
+    stripTotal_->setText(tr("%1 W").arg(strip->power * length, 0, 'f', 1));
+    for (QWidget* row : {static_cast<QWidget*>(stripLine_), static_cast<QWidget*>(stripLineLabel_),
+                         static_cast<QWidget*>(stripTotal_), static_cast<QWidget*>(stripTotalLabel_)})
+        row->setVisible(!step);
+
+    QString stair = strip->stair ? fromCore(*strip->stair) : tr("None");
+    if (strip->stair && plynth::findStair(*floor, *strip->stair) == nullptr)
+        stair = tr("%1, not on this floor").arg(stair);
+    stripStair_->setText(stair);
+    stripStair_->setVisible(step);
+    stripStairLabel_->setVisible(step);
+
+    const QString problem = lightStripProblem(document_.plan(), *floor, *strip);
+    stripProblems_->setText(problem);
+    stripProblems_->setVisible(!problem.isEmpty());
 }
 
 // The page for a selected item: picture, name, state, size, place, rotation, heights, room and wall.

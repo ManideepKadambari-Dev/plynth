@@ -10,6 +10,7 @@
 #include "furniture/FurniturePicker.h"
 #include "tools/DetectTool.h"
 #include "tools/FurnitureTool.h"
+#include "tools/LightStripTool.h"
 #include "tools/LightTool.h"
 #include "tools/OpeningTool.h"
 #include "tools/RoomTool.h"
@@ -26,7 +27,9 @@
 #include <plynth/core/catalog/ItemAssets.h>
 #include <plynth/core/commands/FloorCommands.h>
 #include <plynth/core/commands/ItemCommands.h>
+#include <plynth/core/LightStrips.h>
 #include <plynth/core/commands/LightCommands.h>
+#include <plynth/core/commands/LightStripCommands.h>
 
 #include <cmath>
 
@@ -55,6 +58,7 @@ ToolController::ToolController(plynth::Document& document, PlanCanvas* canvas, S
     tools_[static_cast<size_t>(ToolId::Furniture)] = std::make_unique<FurnitureTool>(*this);
     tools_[static_cast<size_t>(ToolId::Stair)] = std::make_unique<StairTool>(*this);
     tools_[static_cast<size_t>(ToolId::Light)] = std::make_unique<LightTool>(*this);
+    tools_[static_cast<size_t>(ToolId::LightStrip)] = std::make_unique<LightStripTool>(*this);
     detection_ = new DetectionSession(*this, this);
     tools_[static_cast<size_t>(ToolId::Detect)] = std::make_unique<DetectTool>(*this);
     connect(detection_, &DetectionSession::changed, this, [this]() {
@@ -214,6 +218,52 @@ bool ToolController::placeLight(plynth::Vec2 wanted, plynth::LightKind kind, boo
     if (!run(std::move(command)).ok())
         return false;
     selection_->set(SelectionKind::Light, QString::fromStdString(raw->newLightId()));
+    return true;
+}
+
+// Runs AddLightStripCommand with a line on the shown floor and selects the new strip.
+bool ToolController::placeLightStrip(plynth::LightStripKind kind, const std::vector<plynth::Vec2>& points)
+{
+    const plynth::Floor* current = floor();
+    if (current == nullptr || document_.isReadOnly())
+        return false;
+    plynth::LightStrip strip;
+    strip.kind = kind;
+    for (const plynth::Vec2& point : points)
+        strip.points.push_back(plynth::PlanXY{point.x, point.y});
+    strip.z = plynth::defaultStripHeight(kind, current->ceilingHeight);
+    auto command = std::make_unique<plynth::AddLightStripCommand>(current->id, strip);
+    plynth::AddLightStripCommand* raw = command.get();
+    if (!run(std::move(command)).ok())
+        return false;
+    selection_->set(SelectionKind::LightStrip, QString::fromStdString(raw->newStripId()));
+    return true;
+}
+
+// Runs AddLightStripCommand with step lights for a stair of the shown floor and selects them.
+bool ToolController::placeStepStrip(const plynth::Id& stairId)
+{
+    const plynth::Floor* current = floor();
+    if (current == nullptr || document_.isReadOnly())
+        return false;
+    plynth::LightStrip strip;
+    strip.kind = plynth::LightStripKind::Step;
+    strip.stair = stairId;
+    strip.z = plynth::defaultStripHeight(strip.kind, current->ceilingHeight);
+    auto command = std::make_unique<plynth::AddLightStripCommand>(current->id, strip);
+    plynth::AddLightStripCommand* raw = command.get();
+    if (!run(std::move(command)).ok())
+        return false;
+    selection_->set(SelectionKind::LightStrip, QString::fromStdString(raw->newStripId()));
+    return true;
+}
+
+// For checks: switches to the Light strip tool and shows a line being drawn.
+bool ToolController::showLightStripDraft(const std::vector<plynth::Vec2>& points)
+{
+    if (!setActive(ToolId::LightStrip))
+        return false;
+    static_cast<LightStripTool*>(tool(ToolId::LightStrip))->showDraft(points);
     return true;
 }
 

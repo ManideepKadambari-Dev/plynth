@@ -38,6 +38,18 @@ namespace plynth::app {
 
 namespace {
 
+// The distance from a point to the segment between two others.
+double distanceToSegment(const QPointF& p, const QPointF& a, const QPointF& b)
+{
+    const QPointF ab = b - a;
+    const double lengthSquared = ab.x() * ab.x() + ab.y() * ab.y();
+    double t = 0.0;
+    if (lengthSquared > 1e-12)
+        t = std::clamp(((p.x() - a.x()) * ab.x() + (p.y() - a.y()) * ab.y()) / lengthSquared, 0.0, 1.0);
+    const QPointF d = p - (a + ab * t);
+    return std::hypot(d.x(), d.y());
+}
+
 // Finds a spot close to a wanted box where it fits inside the region and touches none of the obstacles. The wanted
 // spot is tried first, then rings of growing size. A fine pass covers the near surroundings and a coarse pass,
 // sized from the region, covers the rest, so the work has a fixed upper bound at any zoom.
@@ -529,6 +541,7 @@ void PlanCanvas::paintOverlay(QPainter* painter)
     for (const OverlayPoint& point : overlay_.points)
         painter->drawEllipse(QPointF(mapFromScene(point.position)), radius, radius);
 
+    paintLightStrips(painter);
     paintLights(painter);
     paintLabels(painter);
     paintRoofLabels(painter);
@@ -603,7 +616,7 @@ bool PlanCanvas::overRoofCover(const QPointF& scene) const
     for (const OverlayItem& item : overlay_.items)
         if (item.footprint.containsPoint(scene, Qt::OddEvenFill))
             return true;
-    if (!stairAt(scene).isEmpty() || !lightAt(scene).isEmpty())
+    if (!stairAt(scene).isEmpty() || !lightAt(scene).isEmpty() || !lightStripAt(scene).isEmpty())
         return true;
     const double radius = Theme::instance().pointDot() / zoom_;
     for (const OverlayPoint& point : overlay_.points)
@@ -734,6 +747,60 @@ void PlanCanvas::paintLights(QPainter* painter)
     }
 }
 
+// The id of the light strip whose line passes within its glow of a scene point. The one drawn last wins.
+QString PlanCanvas::lightStripAt(const QPointF& scene) const
+{
+    const QPointF view = mapFromScene(scene);
+    const double reach = Theme::instance().stripGlow() / 2.0 + 3.0;
+    for (int i = static_cast<int>(overlay_.lightStrips.size()) - 1; i >= 0; --i)
+        for (const QPolygonF& piece : overlay_.lightStrips[i].pieces)
+            for (qsizetype k = 1; k < piece.size(); ++k)
+                if (distanceToSegment(view, QPointF(mapFromScene(piece[k - 1])), QPointF(mapFromScene(piece[k]))) <= reach)
+                    return overlay_.lightStrips[i].id;
+    return QString();
+}
+
+// The index of the point of a light strip whose handle holds a scene point.
+int PlanCanvas::lightStripPointAt(const QString& id, const QPointF& scene) const
+{
+    const QPointF view = mapFromScene(scene);
+    const double reach = Theme::instance().handleSize() / 2.0 + 3.0;
+    for (const OverlayLightStrip& strip : overlay_.lightStrips) {
+        if (strip.id != id)
+            continue;
+        for (qsizetype k = strip.points.size() - 1; k >= 0; --k) {
+            const QPointF d = QPointF(mapFromScene(strip.points[k])) - view;
+            if (std::abs(d.x()) <= reach && std::abs(d.y()) <= reach)
+                return static_cast<int>(k);
+        }
+    }
+    return -1;
+}
+
+// Paints every light strip of the shown floor in canvas pixels, the selected one last and amber.
+void PlanCanvas::paintLightStrips(QPainter* painter)
+{
+    const auto paintOne = [this, painter](const OverlayLightStrip& strip, bool selected) {
+        QVector<QPolygonF> pieces;
+        for (const QPolygonF& piece : strip.pieces) {
+            QPolygonF view;
+            for (const QPointF& point : piece)
+                view << QPointF(mapFromScene(point));
+            pieces.append(view);
+        }
+        QPolygonF points;
+        for (const QPointF& point : strip.points)
+            points << QPointF(mapFromScene(point));
+        paintLightStrip(*painter, pieces, points, strip.id, selected, strip.problem);
+    };
+    for (const OverlayLightStrip& strip : overlay_.lightStrips)
+        if (!(selectionKind_ == SelectionKind::LightStrip && strip.id == selectionId_))
+            paintOne(strip, false);
+    for (const OverlayLightStrip& strip : overlay_.lightStrips)
+        if (selectionKind_ == SelectionKind::LightStrip && strip.id == selectionId_)
+            paintOne(strip, true);
+}
+
 // The id of the stair whose footprint holds a scene point. The one drawn last wins.
 QString PlanCanvas::stairAt(const QPointF& scene) const
 {
@@ -761,6 +828,10 @@ bool PlanCanvas::event(QEvent* event)
             for (const OverlayStair& stair : overlay_.stairs)
                 if (stair.footprint.containsPoint(scene, Qt::OddEvenFill))
                     text = stair.tip.isEmpty() ? tr("Stair %1").arg(stair.id) : stair.tip;
+        const QString strip = lightStripAt(scene);
+        for (const OverlayLightStrip& entry : overlay_.lightStrips)
+            if (!strip.isEmpty() && entry.id == strip)
+                text = entry.tip;
         const QString light = lightAt(scene);
         for (const OverlayLight& entry : overlay_.lights)
             if (!light.isEmpty() && entry.id == light)

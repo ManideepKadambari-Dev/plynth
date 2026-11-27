@@ -6,6 +6,7 @@
 #include <plynth/core/Document.h>
 #include <plynth/core/EditSession.h>
 #include <plynth/core/Export.h>
+#include <plynth/core/Geometry.h>
 #include <plynth/core/ProjectFiles.h>
 
 #include <QEvent>
@@ -19,6 +20,7 @@
 
 #include <memory>
 #include <optional>
+#include <vector>
 
 class QAction;
 class QDialog;
@@ -267,6 +269,11 @@ public:
     // For checks only: places a light marker of a kind ("ceiling", "wall" or "standing") on the shown floor at a
     // place in metres, as the Light tool does, and selects it. False when it was refused.
     bool addLightForCheck(double x, double y, const QString& kind);
+    // For checks only: adds a light strip on the shown floor as the Light strip tool does and selects it. kind is
+    // "cove", "soffit", "edge" with a line in metres, or "step" with a stair id. False when it was refused.
+    bool addLightStripForCheck(const QString& kind, const std::vector<plynth::Vec2>& points, const QString& stair);
+    // For checks only: shows the Light strip tool in the middle of drawing a line through these points, in metres.
+    bool showLightStripDraft(const std::vector<plynth::Vec2>& points);
     // For checks only: opens the door and window picker of the selected opening, hovering an asset when given.
     bool showOpeningAssetPicker(const QString& hoverAsset);
     // For checks only: shows the project page of Properties scrolled to the Trim and Variation groups.

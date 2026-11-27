@@ -34,7 +34,7 @@ constexpr double kBendRound = 0.01;
 // The status bar hint for this tool.
 QString SelectTool::hint() const
 {
-    return QObject::tr("Click to select. Drag a point, opening or item to move it; drop a point on a point or wall to join it. Drag the round handle of an item to turn it, or the middle handle of a wall to bend it. Right click a wall to split it. Esc clears.");
+    return QObject::tr("Click to select. Drag a point, opening, item, light or light strip to move it; drop a point on a point or wall to join it. Drag the round handle of an item to turn it, or the middle handle of a wall to bend it. Right click a wall to split it. Esc clears.");
 }
 
 // Forgets a drag that was in progress.
@@ -50,6 +50,7 @@ void SelectTool::deactivate()
     dragging_ = false;
     stairs_.reset();
     lights_.reset();
+    strips_.reset();
 }
 
 // Selects what is under the click, or clears the selection. A point may start a drag, and so may the bend handle.
@@ -92,6 +93,8 @@ void SelectTool::mousePressed(const ToolMouse& mouse)
         return;
     }
     if (lights_.pressBody(mouse))
+        return;
+    if (strips_.pressBody(mouse))
         return;
     const plynth::Vec2 at{mouse.scene.x() / *ppm, mouse.scene.y() / *ppm};
     host_.selection().setClickAt(at.x, at.y);
@@ -155,6 +158,10 @@ void SelectTool::mouseMoved(const ToolMouse& mouse)
         lights_.moved(mouse);
         return;
     }
+    if (strips_.busy()) {
+        strips_.moved(mouse);
+        return;
+    }
     if (!bendWall_.empty() && (mouse.buttons & Qt::LeftButton)) {
         bendTo(mouse);
         return;
@@ -208,6 +215,7 @@ void SelectTool::mouseReleased(const ToolMouse& mouse)
     dragging_ = false;
     stairs_.released();
     lights_.released();
+    strips_.released();
     host_.canvas().viewport()->update();
 }
 
