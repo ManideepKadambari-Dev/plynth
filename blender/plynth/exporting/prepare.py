@@ -1,13 +1,14 @@
 import bpy
 from mathutils import Matrix
 
-from . import COLLISION_KIND, Step
+from . import COLLISION_KIND, Step, unique_name
 from .. import scene
 from ..jobs import WorkerError
 from ..registry import EXPORT_STEPS
 
 ORDER = 20
 KEPT_PROPERTIES = ("plynth_id", "plynth_kind", "plynth_asset")
+OLD_PREFIX = "SM_"
 
 
 # Returns the world matrix of an object worked out from its parents, so objects of a collection that is not in
@@ -72,9 +73,42 @@ def realize_item(empty):
     return joined
 
 
+# Takes the "SM_" off the start of every building mesh name, so a building.blend made before plain names exports
+# like a new one, and points each collision mesh at its object's new name. A name already taken gets _2, _3
+# and so on.
+def drop_old_prefix(meshes, collision):
+    old = [o for o in meshes if o.name.startswith(OLD_PREFIX)]
+    if not old:
+        return
+    taken = {o.name.lower() for o in bpy.data.objects if o not in old}
+    wanted = [(obj, unique_name(obj.name[len(OLD_PREFIX):] or obj.name, taken))
+              for obj in sorted(old, key=lambda o: o.name)]
+    new_of = {obj.name: new for obj, new in wanted}
+    for number, (obj, _) in enumerate(wanted):
+        obj.name = "__plynth_old_%d" % number
+    for obj, new in wanted:
+        obj.name = new
+    for obj in collision:
+        target = obj.get("plynth_collision_for")
+        if target in new_of:
+            obj["plynth_collision_for"] = new_of[target]
+
+
+# Takes the light markers out of the scene and the export when the job's profile leaves them out of its files.
+# The plain FBX has none, because Blender's own FBX importer cannot read a light and would refuse the whole file.
+def drop_lights(ctx):
+    profile = ctx.state.get("profile")
+    if profile is None or profile.lights:
+        return
+    for obj in ctx.state["lights"]:
+        bpy.data.objects.remove(obj, do_unlink=True)
+    ctx.state["lights"] = []
+
+
 # Makes the scene ready: instances become real and one mesh per item, curves become meshes, modifiers are
 # applied, empties and parents go, every mesh has its own data and an identity transform. Everything then sits
-# at the building origin (DESIGN.md section 7.16).
+# at the building origin (DESIGN.md section 7.16). Collision meshes are told apart by their kind, never by name,
+# and the old SM_ start of a name is dropped.
 def run(ctx):
     show_everything()
     bpy.context.view_layer.update()
@@ -92,8 +126,11 @@ def run(ctx):
     bpy.context.view_layer.update()
     ctx.state["meshes"] = [o for o in meshes if o.get("plynth_kind") != COLLISION_KIND]
     ctx.state["collision"] = [o for o in meshes if o.get("plynth_kind") == COLLISION_KIND]
-    # Lights are the one object that is not a mesh: they keep their place and go into the FBX of their group.
+    drop_old_prefix(ctx.state["meshes"], ctx.state["collision"])
+    # Lights are the one object that is not a mesh: they keep their place and go into the FBX of their group
+    # when the profile takes them.
     ctx.state["lights"] = [o for o in scene.scene_objects() if o.type == "LIGHT" and o.get("plynth_kind") == "light"]
+    drop_lights(ctx)
     if not ctx.state["meshes"]:
         raise WorkerError("no_geometry", "Nothing is left to export.")
 

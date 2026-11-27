@@ -29,7 +29,7 @@ std::string trimObjectName(const Id& floor, TrimKind kind)
 {
     std::string name(trimKindName(kind));
     if (!name.empty()) name[0] = static_cast<char>(name[0] - 'a' + 'A');
-    return "SM_" + floor + "_" + name;
+    return floor + "_" + name;
 }
 
 }

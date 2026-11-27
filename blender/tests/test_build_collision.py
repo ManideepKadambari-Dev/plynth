@@ -118,8 +118,8 @@ class CollisionTests(BuildTest):
         self.assertEqual(result["output"]["problems"], [])
         self.assertEqual(result["output"]["counts"]["collision"], 5)
         names = sorted(o.name for o in bpy.data.objects if o.get("plynth_kind") == "collision")
-        self.assertEqual(names, ["UCX_SM_f1_Walls_00", "UCX_SM_f1_Walls_01", "UCX_SM_f1_Walls_02",
-                                 "UCX_SM_f1_Walls_03", "UCX_SM_f1_r1_Floor_00"])
+        self.assertEqual(names, ["f1_Walls_Collision_00", "f1_Walls_Collision_01", "f1_Walls_Collision_02",
+                                 "f1_Walls_Collision_03", "f1_r1_Floor_Collision_00"])
         pieces = params["floors"][0]["collision"][0]["pieces"] + params["floors"][0]["collision"][1]["pieces"]
         collection = bpy.data.collections["Collision"]
         for number, name in enumerate(names):
@@ -142,16 +142,16 @@ class CollisionTests(BuildTest):
             self.assertLessEqual(high.y, max(ys) + 1e-5)
             self.assertGreaterEqual(low.z, piece["bottom"] - 1e-5)
             self.assertLessEqual(high.z, piece["top"] + 1e-5)
-        walls = bpy.data.objects["UCX_SM_f1_Walls_01"]
-        self.assertEqual(walls["plynth_collision_for"], "SM_f1_Walls")
-        self.assertEqual(bpy.data.objects["UCX_SM_f1_r1_Floor_00"]["plynth_collision_for"], "SM_f1_r1_Floor")
+        walls = bpy.data.objects["f1_Walls_Collision_01"]
+        self.assertEqual(walls["plynth_collision_for"], "f1_Walls")
+        self.assertEqual(bpy.data.objects["f1_r1_Floor_Collision_00"]["plynth_collision_for"], "f1_r1_Floor")
 
     # The collision meshes leave the FBX, the materials file and the object counts alone.
     def test_left_out_of_the_fbx(self):
         result = self.build_open(collision_params())
         data = json.load(open(self.path("build", "materials.json"), "r", encoding="utf-8"))
         self.assertEqual(validate(data, load_schema("build-materials")), [])
-        self.assertEqual([o["name"] for o in data["objects"] if o["name"].startswith("UCX_")], [])
+        self.assertEqual([o["name"] for o in data["objects"] if "_Collision_" in o["name"]], [])
         plain = copy.deepcopy(load_params("square_room"))
         plain["settings"]["bevel_width"] = 0.0
         without = self.build(plain, job_id="again")
@@ -159,8 +159,8 @@ class CollisionTests(BuildTest):
         self.assertEqual(result["output"]["triangles"], without["output"]["triangles"])
         scene.clear_scene()
         bpy.ops.import_scene.fbx(filepath=self.path("build", "building.fbx"))
-        self.assertEqual([o.name for o in bpy.data.objects if o.name.startswith("UCX_")], [])
-        self.assertIn("SM_f1_Walls", [o.name for o in bpy.data.objects])
+        self.assertEqual([o.name for o in bpy.data.objects if "_Collision_" in o.name], [])
+        self.assertIn("f1_Walls", [o.name for o in bpy.data.objects])
 
     # A piece with no height is reported and left out, and the others are still made.
     def test_failed_piece(self):
@@ -171,8 +171,8 @@ class CollisionTests(BuildTest):
                           for p in result["output"]["problems"]], [("collision_failed", "warning", "f1", "f1",
                                                                     "collision")])
         self.assertEqual(result["output"]["counts"]["collision"], 4)
-        self.assertIsNone(bpy.data.objects.get("UCX_SM_f1_Walls_01"))
-        self.assertIsNotNone(bpy.data.objects.get("UCX_SM_f1_Walls_02"))
+        self.assertIsNone(bpy.data.objects.get("f1_Walls_Collision_01"))
+        self.assertIsNotNone(bpy.data.objects.get("f1_Walls_Collision_02"))
 
     # A target that was not built is reported once and its pieces are skipped.
     def test_missing_target(self):
@@ -261,11 +261,11 @@ class ItemHullTests(BuildTest):
         self.assertEqual(result["output"]["counts"]["collision"], 2)
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
         bpy.context.view_layer.update()
-        first = bpy.data.objects["UCX_SM_box_i1_00"]
-        second = bpy.data.objects["UCX_SM_box_i2_00"]
+        first = bpy.data.objects["box_i1_Collision_00"]
+        second = bpy.data.objects["box_i2_Collision_00"]
         self.assertIs(first.data, second.data)
         for hull, item in ((first, "i1"), (second, "i2")):
-            empty = bpy.data.objects["SM_box_%s" % item]
+            empty = bpy.data.objects["box_%s" % item]
             self.assertEqual(hull["plynth_kind"], "collision")
             self.assertTrue(hull.hide_render)
             self.assertEqual(hull["plynth_collision_for"], empty.name)
@@ -304,7 +304,7 @@ class ItemHullTests(BuildTest):
         self.assertEqual(result["output"]["counts"]["materials"], len(data["materials"]) - 2)
         self.assertEqual([m for m in data["materials"] if m.get("asset") is None and m["name"].startswith("box")], [])
         self.assertTrue(all(m["material"] is None and m["surface"] is None for m in listed))
-        self.assertEqual([o for o in data["objects"] if o["name"].startswith("SM_box")], [])
+        self.assertEqual([o for o in data["objects"] if o["name"].startswith("box_i")], [])
         by_name = {m["name"]: m for m in listed}
         self.assertEqual(by_name["box_wood"]["maps"]["base_color"],
                          params["assets"][0]["materials"][0]["maps"]["base_color"])

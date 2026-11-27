@@ -26,10 +26,12 @@ _fixture = {}
 _clean_fixture = {}
 
 
-# Returns the export job of the hand written fixture files with the given placeholders left as they are.
-def job_params(write=True, force=False):
+# Returns the export job of the hand written fixture files with the given placeholders left as they are. The
+# profile is plain unless another is asked for.
+def job_params(write=True, force=False, profile="plain"):
     return {
         "project": {"name": "Square", "folder": "project"},
+        "profile": profile,
         "blend_file": "project/build/building.blend",
         "output_folder": "project/export/.staging",
         "textures_folder": "Textures",
@@ -41,6 +43,13 @@ def job_params(write=True, force=False):
         "force": force,
         "write": write,
     }
+
+
+# Reads an FBX file into an empty scene and returns the sorted names of its mesh objects.
+def read_names(path):
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    bpy.ops.import_scene.fbx(filepath=path)
+    return sorted(o.name for o in bpy.data.objects if o.type == "MESH")
 
 
 # Writes the fixture job files of tests/data/export.
@@ -214,10 +223,13 @@ def fixture_project(clean=False):
 
 
 class ExportTest(helpers.TempFolderTest):
-    # Returns the export job params for the shared project, writing into a staging folder of this test.
-    def params(self, write=True, force=False, blend_file=None, clean=False):
+    profile = "plain"
+
+    # Returns the export job params for the shared project, writing into a staging folder of this test, with the
+    # test's default profile unless another is asked for.
+    def params(self, write=True, force=False, blend_file=None, clean=False, profile=None):
         project = fixture_project(clean)
-        params = job_params(write=write, force=force)
+        params = job_params(write=write, force=force, profile=profile or self.profile)
         params["project"]["folder"] = project
         params["blend_file"] = blend_file or project + "/build/building.blend"
         params["output_folder"] = self.path("export", ".staging")

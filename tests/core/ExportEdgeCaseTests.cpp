@@ -535,7 +535,7 @@ ExportOptions shellWithKit()
 {
     ExportOptions options;
     options.groups.renames = {{"structure", "Shell"}};
-    options.kit.enabled = true;
+    options.links[std::string(kUnrealLinkId)].kit = true;
     return options;
 }
 

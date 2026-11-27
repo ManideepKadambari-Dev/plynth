@@ -390,9 +390,9 @@
           }
         },
         "textures": {
-          "description": "File names inside Textures/. Empty when written is false.",
+          "description": "File names inside Textures/. Empty when written is false. Plain exports name them <Material>_<Channel>; the unreal profile starts each name with T_.",
           "type": "array",
-          "items": { "type": "string", "pattern": "^T_[A-Za-z0-9_]+\\.(png|jpg|jpeg|tga|tif|tiff|bmp|exr)$" }
+          "items": { "type": "string", "pattern": "^[A-Za-z0-9_]+\\.(png|jpg|jpeg|tga|tif|tiff|bmp|exr)$" }
         },
         "objects": { "description": "Exported building meshes, collision included; the kit is counted in kit.", "type": "integer", "minimum": 0 },
         "triangles": { "type": "integer", "minimum": 0 },

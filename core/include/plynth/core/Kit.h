@@ -20,8 +20,9 @@ using Json = nlohmann::ordered_json;
 // The modular kit (DESIGN.md sections 7.2 and 7.16): the unique wall, corner and opening pieces of the
 // building's walls as separate reusable meshes, plus a layout file saying where each one goes. Worked out in
 // core from the same wall solids and openings the build makes (BuildGeometry.h), so the Blender side only turns
-// finished outlines into meshes, as for the build. An optional extra output of any export mode, switched on in
-// the project's export options (ExportGroups.h). Written into export/ next to the group files:
+// finished outlines into meshes, as for the build. An optional extra output of the unreal export profile in any
+// export mode (ExportJob.h), switched on in the Unreal link's options (links.unreal.kit, ExportGroups.h); the
+// plain profile never makes it. Written into the output folder next to the group files:
 //   export/<Stem>_Kit.fbx           every unique piece once, each at its own origin, with its UCX_ collision
 //   export/<Stem>_Kit_layout.json   where each piece goes (schema/kit-layout.schema.json), written by core
 // Stem is exportFileStem of the project name. Floors, ceilings, thresholds, slabs, stairs, roofs and furniture are
@@ -85,7 +86,8 @@ using Json = nlohmann::ordered_json;
 //      the size along the stored Y, all in whole centimetres, rounded; hash the first 6 of the 16 hex digits
 //      of the 64 bit FNV-1a hash of the stored frame's text, so a piece keeps its name across exports while it
 //      stays the same. An id another piece already has is hashed again with "#1", "#2" and so on after the
-//      text. The mesh is SM_Kit_<id>, its collision UCX_SM_Kit_<id>_<NN>.
+//      text. The mesh is SM_Kit_<id>, its collision UCX_SM_Kit_<id>_<NN>: the kit goes only to Unreal, so its
+//      names keep Unreal's prefixes.
 //  11. Collision. The rule for walls of Collision.h applied to the piece: convex prisms of its area, cut at doors
 //      and plain openings with pieces above and below them, windows closed. In the piece's frame.
 // UVs (made by the Blender side): side faces u along the face's own direction measured from the piece's

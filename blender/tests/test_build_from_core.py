@@ -30,20 +30,20 @@ def materials_problems(data):
     return validate(data, load_schema("build-materials"))
 
 
-TARGET_NAMES = {"walls": "SM_%(floor)s_Walls", "floor": "SM_%(floor)s_%(id)s_Floor",
-                "ceiling": "SM_%(floor)s_%(id)s_Ceiling", "thresholds": "SM_%(floor)s_Thresholds",
-                "slab": "SM_%(floor)s_Slab", "stair": "SM_%(floor)s_%(id)s_Stair",
-                "roof": "SM_%(floor)s_Roof_%(index)02d", "railing": "SM_%(floor)s_%(id)s_Railing",
-                "guard": "SM_%(floor)s_%(id)s_Guard"}
+TARGET_NAMES = {"walls": "%(floor)s_Walls", "floor": "%(floor)s_%(id)s_Floor",
+                "ceiling": "%(floor)s_%(id)s_Ceiling", "thresholds": "%(floor)s_Thresholds",
+                "slab": "%(floor)s_Slab", "stair": "%(floor)s_%(id)s_Stair",
+                "roof": "%(floor)s_Roof_%(index)02d", "railing": "%(floor)s_%(id)s_Railing",
+                "guard": "%(floor)s_%(id)s_Guard"}
 
 
-# Returns the UCX object names the job's collision lists ask for, in order.
+# Returns the collision object names the job's collision lists ask for, in order.
 def expected_collision_names(floor):
     names = []
     for entry in floor["collision"]:
         target = entry["target"]
         base = TARGET_NAMES[target["kind"]] % {"floor": floor["id"], "id": target["id"], "index": entry["index"]}
-        names += ["UCX_%s_%02d" % (base, n) for n in range(len(entry["pieces"]) + len(entry["hulls"]))]
+        names += ["%s_Collision_%02d" % (base, n) for n in range(len(entry["pieces"]) + len(entry["hulls"]))]
     return names
 
 
@@ -104,14 +104,14 @@ def is_convex(obj):
     return True
 
 
-# Checks that the built file has one closed UCX object for each collision piece the job lists and no others.
+# Checks that the built file has one closed collision object for each collision piece the job lists and no others.
 def check_collision(test, floor, counts):
     wanted = expected_collision_names(floor)
-    found = sorted(o.name for o in bpy.data.objects if o.name.startswith("UCX_"))
+    found = sorted(o.name for o in bpy.data.objects if "_Collision_" in o.name)
     test.assertEqual(found, sorted(wanted))
     test.assertEqual(counts["collision"], len(wanted))
     walls = len(floor["collision"][0]["pieces"])
-    test.assertEqual(len([n for n in wanted if n.startswith("UCX_SM_%s_Walls_" % floor["id"])]), walls)
+    test.assertEqual(len([n for n in wanted if n.startswith("%s_Walls_Collision_" % floor["id"])]), walls)
     for name in wanted:
         test.assertTrue(meshes.is_manifold(bpy.data.objects[name]), name)
         test.assertTrue(is_convex(bpy.data.objects[name]), name)
@@ -148,7 +148,7 @@ class FromCoreTests(BuildTest):
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
         slab = self.params["floors"][0]["slab"]
         wanted = sum(plain_area(t["outline"]) - sum(plain_area(h) for h in t["holes"]) for t in slab["tops"])
-        obj = bpy.data.objects["SM_%s_Slab" % self.params["floors"][0]["id"]]
+        obj = bpy.data.objects["%s_Slab" % self.params["floors"][0]["id"]]
         ups = [p for p in obj.data.polygons if p.normal.z > 0.5]
         self.assertAlmostEqual(sum(p.area for p in ups), wanted, delta=1e-6)
         self.assertTrue(all(abs(obj.data.vertices[i].co.z - slab["top"]) < 1e-5 for p in ups for i in p.vertices))
@@ -160,23 +160,23 @@ class FromCoreTests(BuildTest):
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
         floor = self.params["floors"][0]
         for room in floor["rooms"]:
-            obj = bpy.data.objects["SM_%s_%s_Floor" % (floor["id"], room["id"])]
+            obj = bpy.data.objects["%s_%s_Floor" % (floor["id"], room["id"])]
             self.assertAlmostEqual(meshes.area(obj), room["area"], delta=1e-3)
-            ceiling = bpy.data.objects["SM_%s_%s_Ceiling" % (floor["id"], room["id"])]
+            ceiling = bpy.data.objects["%s_%s_Ceiling" % (floor["id"], room["id"])]
             self.assertAlmostEqual(meshes.area(ceiling), room["area"], delta=1e-3)
         solid = floor["wall_solids"][0]
         full = (ring_area(solid["outline"]) + sum(ring_area(h) for h in solid["holes"])) * solid["height"]
         lost_expected = sum(abs(meshes.polygon_area([tuple(p) for p in o["outline"]])) * o["thickness"]
                             for o in floor["openings"])
-        walls = bpy.data.objects["SM_%s_Walls" % floor["id"]]
+        walls = bpy.data.objects["%s_Walls" % floor["id"]]
         self.assertTrue(meshes.is_manifold(walls))
         lost = full - meshes.volume(walls)
         self.assertAlmostEqual(lost / lost_expected, 1.0, delta=0.03)
         for opening in floor["openings"]:
             if opening["threshold"]:
-                self.assertIn("SM_%s_Thresholds" % floor["id"], bpy.data.objects)
+                self.assertIn("%s_Thresholds" % floor["id"], bpy.data.objects)
             kind = {"door": "Door", "window": "Window"}.get(opening["type"])
-            name = "SM_%s_%s_%s" % (floor["id"], opening["id"], kind)
+            name = "%s_%s_%s" % (floor["id"], opening["id"], kind)
             self.assertEqual(name in bpy.data.objects, kind is not None, name)
 
     # The slot names are the ones MaterialSlots.h gives, and the door on w7 takes its reveal from the right side room.
@@ -187,7 +187,7 @@ class FromCoreTests(BuildTest):
         self.assertEqual(o7["slots"]["reveal"], "Living_Wall")
         self.assertEqual(o7["slots"]["threshold"], "Living_Floor")
 
-    # One UCX object for each wall piece, room slab, slab piece and roof hull, and nothing else.
+    # One collision object for each wall piece, room slab, slab piece and roof hull, and nothing else.
     def test_collision(self):
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
         self.assertEqual(len(self.params["floors"][0]["collision"]), 8)
@@ -200,7 +200,7 @@ class FromCoreTests(BuildTest):
         self.assertTrue(result["ok"], result["error"])
         self.assertEqual(result["output"]["problems"], [])
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
-        self.assertTrue(meshes.is_manifold(bpy.data.objects["SM_f1_Walls"]))
+        self.assertTrue(meshes.is_manifold(bpy.data.objects["f1_Walls"]))
 
 
 class LibraryBuildTest(material_helpers.MaterialTest, BuildTest):
@@ -260,14 +260,14 @@ class FromCoreMaterialsTests(LibraryBuildTest):
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
         floor = self.params["floors"][0]
         for room in floor["rooms"]:
-            obj = bpy.data.objects["SM_%s_%s_Floor" % (floor["id"], room["id"])]
+            obj = bpy.data.objects["%s_%s_Floor" % (floor["id"], room["id"])]
             self.assertAlmostEqual(meshes.area(obj), room["area"], delta=1e-3)
             self.assertEqual([m.name for m in obj.data.materials], ["%s_Floor" % ("Living" if room["id"] == "r1" else "Bedroom")])
 
     # Every inside wall face uses its room's wall slot and every outside face Exterior_Wall (wall ends, tops and reveals are left out).
     def test_wall_faces(self):
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
-        walls = bpy.data.objects["SM_f1_Walls"]
+        walls = bpy.data.objects["f1_Walls"]
         names = [m.name for m in walls.data.materials]
         sides = [item.value for item in walls.data.attributes["plynth_side"].data]
         rooms = [item.value for item in walls.data.attributes["plynth_room"].data]
@@ -285,7 +285,7 @@ class FromCoreMaterialsTests(LibraryBuildTest):
         self.assertGreater(inside, 0)
         self.assertGreater(outside, 0)
 
-    # Same slot names, door slots and UCX objects as the plain job.
+    # Same slot names, door slots and collision objects as the plain job.
     def test_slots_and_collision(self):
         floor = self.params["floors"][0]
         check_slots(self, floor, self.params["slots"])
@@ -338,7 +338,7 @@ class FromCoreHouseTests(LibraryBuildTest):
         for floor in self.floors:
             for room in floor["rooms"]:
                 for kind, key in (("Floor", "polygons"), ("Ceiling", "ceiling_polygons")):
-                    obj = bpy.data.objects["SM_%s_%s_%s" % (floor["id"], room["id"], kind)]
+                    obj = bpy.data.objects["%s_%s_%s" % (floor["id"], room["id"], kind)]
                     polygons = room[key]
                     holes = sum(plain_area(h) for polygon in polygons for h in polygon["holes"])
                     outlines = sum(plain_area(polygon["outline"]) for polygon in polygons)
@@ -355,9 +355,9 @@ class FromCoreHouseTests(LibraryBuildTest):
     def test_slabs(self):
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
         slabs = [o for o in bpy.data.objects if o.get("plynth_kind") == "slab"]
-        self.assertEqual(sorted(o.name for o in slabs), sorted("SM_%s_Slab" % f["id"] for f in self.floors))
+        self.assertEqual(sorted(o.name for o in slabs), sorted("%s_Slab" % f["id"] for f in self.floors))
         for floor in self.floors:
-            obj = bpy.data.objects["SM_%s_Slab" % floor["id"]]
+            obj = bpy.data.objects["%s_Slab" % floor["id"]]
             top = max(v.co.z for v in obj.data.vertices)
             self.assertAlmostEqual(top, floor["slab"]["top"], delta=1e-4)
             bottom = min(v.co.z for v in obj.data.vertices)
@@ -368,7 +368,7 @@ class FromCoreHouseTests(LibraryBuildTest):
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
         for floor in self.floors:
             for stair in floor["stairs"]:
-                obj = bpy.data.objects["SM_%s_%s_Stair" % (floor["id"], stair["id"])]
+                obj = bpy.data.objects["%s_%s_Stair" % (floor["id"], stair["id"])]
                 top = max(v.co.z for v in obj.data.vertices)
                 self.assertAlmostEqual(top, floor["elevation"] + stair["steps"][-1]["top"], delta=1e-4)
 
@@ -378,13 +378,13 @@ class FromCoreHouseTests(LibraryBuildTest):
         for floor in self.floors:
             check_part_slots(self, floor, surface)
 
-    # Every slab, stair and roof of the house has closed convex UCX objects, numbered pieces first and then hulls, and
+    # Every slab, stair and roof of the house has closed convex collision objects, numbered pieces first and then hulls, and
     # the roof hulls are the ones core listed.
     def test_part_collision(self):
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
         counts = self.result["output"]["counts"]
         wanted = [name for floor in self.floors for name in expected_collision_names(floor)]
-        found = sorted(o.name for o in bpy.data.objects if o.name.startswith("UCX_"))
+        found = sorted(o.name for o in bpy.data.objects if "_Collision_" in o.name)
         self.assertEqual(found, sorted(wanted))
         self.assertEqual(counts["collision"], len(wanted))
         for floor in self.floors:
@@ -408,14 +408,14 @@ class FromCoreHouseTests(LibraryBuildTest):
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
         for floor in self.floors:
             for roof in floor["roofs"]:
-                obj = bpy.data.objects["SM_%s_Roof_%02d" % (floor["id"], roof["index"])]
+                obj = bpy.data.objects["%s_Roof_%02d" % (floor["id"], roof["index"])]
                 self.assertEqual(obj["plynth_roof_index"], roof["index"])
                 self.assertEqual([c.name for c in obj.users_collection], [floor["id"]])
         shown = {s["name"]: s["material"] for s in self.params["slots"]}
         self.assertEqual(shown["Roof"], "roof_tiles")
         self.assertEqual(shown["Flat_Roof"], "concrete")
-        self.assertIn("Roof", [m.name for m in bpy.data.objects["SM_f2_Roof_00"].data.materials])
-        self.assertIn("Flat_Roof", [m.name for m in bpy.data.objects["SM_f1_Roof_00"].data.materials])
+        self.assertIn("Roof", [m.name for m in bpy.data.objects["f2_Roof_00"].data.materials])
+        self.assertIn("Flat_Roof", [m.name for m in bpy.data.objects["f1_Roof_00"].data.materials])
 
     # The preview parts are written, one for each floor and one for each roof.
     def test_preview(self):

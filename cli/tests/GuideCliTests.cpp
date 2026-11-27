@@ -149,8 +149,9 @@ TEST_CASE("export licenses shows and changes the switch and prints the report of
     CHECK(on.answer.at("command") == "export licenses on");
     CHECK(on.answer.at("result").at("enabled") == true);
     const auto options = nlohmann::json::parse(readFile(sample.folder / "export-options.json"));
-    CHECK(options.at("version") == 3);
+    CHECK(options.at("version") == 4);
     CHECK(options.at("licenses").at("enabled") == true);
+    CHECK_FALSE(on.answer.at("result").contains("note"));
 
     REQUIRE(plynth::writeUsedItems(sample.folder / "build" / "used-items.json", {"abc", {"sofa"}, {}}).ok());
     const auto shown = sample.run({"export", "licenses"});

@@ -384,7 +384,7 @@ TEST_CASE("H1f a dialog open across a session that changed nothing is refused", 
 TEST_CASE("H1h a change of only the kit switch locks nothing and is kept", "[core][exportguard]") {
     GuardFixture f("guard-h1h");
     ExportOptions options = addedGroup("Hero");
-    options.kit.enabled = true;
+    options.links[std::string(kUnrealLinkId)].kit = true;
     f.outside(options);
     f.guard.folderChanged(f.now);
     CHECK(f.guard.state() == Decision::Allowed);
@@ -395,7 +395,7 @@ TEST_CASE("H1h a change of only the kit switch locks nothing and is kept", "[cor
 
     requireSaved(f.guard.edit(f.t, f.now, renameChange("structure", "Shell")));
     ExportOptions expected = heroAndShell();
-    expected.kit.enabled = true;
+    expected.links[std::string(kUnrealLinkId)].kit = true;
     CHECK(f.saved() == expected);
 }
 
@@ -883,7 +883,7 @@ TEST_CASE("the kit switch does not end an open edit", "[core][exportguard]") {
     CHECK_FALSE(f.guard.folderChanged(f.now));
     CHECK(f.guard.holds(f.t));
     requireSaved(f.guard.edit(f.t, f.now, renameChange("group_1", "Mine")));
-    CHECK(f.saved().kit.enabled);
+    CHECK(engineLinkOptions(f.saved(), kUnrealLinkId).kit);
 }
 
 TEST_CASE("the kit switch during a change lock keeps the outside groups and the lock", "[core][exportguard]") {
@@ -896,7 +896,7 @@ TEST_CASE("the kit switch during a change lock keeps the outside groups and the 
     }
     requireSaved(f.guard.setKit(f.now, true));
     ExportOptions expected = addedGroup("Props");
-    expected.kit.enabled = true;
+    expected.links[std::string(kUnrealLinkId)].kit = true;
     CHECK(f.saved() == expected);
     CHECK(f.guard.folderChanged(f.now));
     CHECK(f.guard.state() == Decision::ChangedOutside);
@@ -906,13 +906,15 @@ TEST_CASE("the kit switch during a change lock keeps the outside groups and the 
 TEST_CASE("the gameplay switch is written like the kit switch", "[core][exportguard][gameplay]") {
     GuardFixture f("guard-gameplay");
     requireSaved(f.guard.setGameplay(f.now, true));
-    CHECK(f.saved().gameplay.enabled);
-    CHECK_FALSE(f.saved().kit.enabled);
+    CHECK(engineLinkOptions(f.saved(), kUnrealLinkId).gameplay);
+    CHECK_FALSE(engineLinkOptions(f.saved(), kUnrealLinkId).kit);
+    CHECK_FALSE(f.saved().gameplay.enabled);
     CHECK(f.guard.holds(f.t));
     requireSaved(f.guard.edit(f.t, f.now, renameChange("group_1", "Mine")));
-    CHECK(f.saved().gameplay.enabled);
+    CHECK(engineLinkOptions(f.saved(), kUnrealLinkId).gameplay);
     requireSaved(f.guard.setGameplay(f.now, false));
-    CHECK_FALSE(f.saved().gameplay.enabled);
+    CHECK_FALSE(engineLinkOptions(f.saved(), kUnrealLinkId).gameplay);
+    CHECK(f.saved().links.empty());
 
     writeText(optionsFile(f.folder), "{not json");
     const auto before = filesOf(f.folder);
@@ -1012,7 +1014,7 @@ TEST_CASE("a repair works in single mode and keeps a readable kit switch", "[cor
     REQUIRE(f.show());
     const ExportEditTicket asked = f.guard.ticket();
     requireSaved(f.guard.repair(asked, f.now));
-    CHECK(f.saved().kit.enabled);
+    CHECK(engineLinkOptions(f.saved(), kUnrealLinkId).kit);
     CHECK_FALSE(f.guard.holds(asked));
 }
 
@@ -1442,7 +1444,10 @@ struct Sweep {
         if (!running && review.status.ok()) {
             REQUIRE(result.status.ok());
             ExportOptions expected = review.options;
-            expected.kit.enabled = on;
+            EngineLinkOptions link = engineLinkOptions(expected, kUnrealLinkId);
+            link.kit = on;
+            if (link == EngineLinkOptions{}) expected.links.erase(std::string(kUnrealLinkId));
+            else expected.links[std::string(kUnrealLinkId)] = link;
             REQUIRE(readExportOptions(here()).options == expected);
             // A change may be found here or at the next folder event.
             folderEvent(false);
@@ -1464,7 +1469,7 @@ struct Sweep {
         const ExportGroupReview review = current();
         ExportOptions options = review.status.ok() ? review.options : addedGroup("Props");
         const std::size_t how = numbers.pick(5);
-        if (how == 0) options.kit.enabled = !options.kit.enabled;
+        if (how == 0) options.links[std::string(kUnrealLinkId)].kit = !engineLinkOptions(options, kUnrealLinkId).kit;
         if (how == 1) options.groups = {};
         if (how == 2) options.groups = addedGroup("Props").groups;
         if (how >= 3 && !review.groups.empty()) {

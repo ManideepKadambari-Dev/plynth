@@ -58,7 +58,7 @@ class SquareRoomTests(BuildTest):
     # Walls have the volume of the solid, a surface on every face, and inside and outside faces differ.
     def test_walls(self):
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
-        obj = bpy.data.objects["SM_f1_Walls"]
+        obj = bpy.data.objects["f1_Walls"]
         self.assertEqual(obj["plynth_kind"], "walls")
         self.assertAlmostEqual(meshes.volume(obj), SQUARE_VOLUME, delta=1e-4)
         self.assertTrue(meshes.is_manifold(obj))
@@ -82,7 +82,7 @@ class SquareRoomTests(BuildTest):
     # Outer side faces point away from the centre and room side faces point into the room.
     def test_normals(self):
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
-        obj = bpy.data.objects["SM_f1_Walls"]
+        obj = bpy.data.objects["f1_Walls"]
         room_values = face_values(obj, "plynth_room")
         sides = face_values(obj, "plynth_side")
         for polygon in obj.data.polygons:
@@ -101,8 +101,8 @@ class SquareRoomTests(BuildTest):
     # Floor and ceiling area equal the room area, floor faces up and ceiling faces down at ceiling_z.
     def test_floor_and_ceiling(self):
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
-        floor = bpy.data.objects["SM_f1_r1_Floor"]
-        ceiling = bpy.data.objects["SM_f1_r1_Ceiling"]
+        floor = bpy.data.objects["f1_r1_Floor"]
+        ceiling = bpy.data.objects["f1_r1_Ceiling"]
         self.assertAlmostEqual(meshes.area(floor), 14.44, delta=1e-6)
         self.assertAlmostEqual(meshes.area(ceiling), 14.44, delta=1e-6)
         for polygon in floor.data.polygons:
@@ -149,13 +149,13 @@ class FloorsTests(BuildTest):
         self.assertTrue(result["ok"], result["error"])
         self.assert_result_valid(result)
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
-        low, high = scene.world_bounds([bpy.data.objects["SM_f2_Walls"]])
+        low, high = scene.world_bounds([bpy.data.objects["f2_Walls"]])
         self.assertAlmostEqual(low.z, 3.0, delta=1e-9)
         self.assertAlmostEqual(high.z, 6.0, delta=1e-9)
-        low, high = scene.world_bounds([bpy.data.objects["SM_f1_Walls"]])
+        low, high = scene.world_bounds([bpy.data.objects["f1_Walls"]])
         self.assertAlmostEqual(high.z, 3.0, delta=1e-9)
         self.assertEqual([c.name for c in bpy.context.scene.collection.children], ["f1", "f2"])
-        ceiling = bpy.data.objects["SM_f2_r1_Ceiling"]
+        ceiling = bpy.data.objects["f2_r1_Ceiling"]
         self.assertAlmostEqual(ceiling.data.polygons[0].center.z, 6.0, delta=1e-9)
 
     # A half wall is its own lower solid in the same walls object, and every solid is closed.
@@ -164,7 +164,7 @@ class FloorsTests(BuildTest):
         self.assertTrue(result["ok"], result["error"])
         self.assertEqual(result["output"]["counts"]["wall_solids"], 2)
         bpy.ops.wm.open_mainfile(filepath=self.path("build", "building.blend"))
-        obj = bpy.data.objects["SM_f1_Walls"]
+        obj = bpy.data.objects["f1_Walls"]
         self.assertAlmostEqual(meshes.volume(obj), SQUARE_VOLUME + 3.8 * 0.2 * 1.1, delta=1e-4)
         self.assertTrue(meshes.is_manifold(obj))
 

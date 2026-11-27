@@ -8,6 +8,7 @@
 #include <nlohmann/json.hpp>
 
 #include <filesystem>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -210,25 +211,68 @@ struct LicenseOptions {
     bool operator==(const LicenseOptions&) const = default;
 };
 
+// The editor project a link last delivered this building into (EngineLink.h), so a sync after a build never goes
+// into another project that happens to be open.
+struct EngineTarget {
+    std::string projectName;        // for example "MyGame"
+    std::filesystem::path projectRoot; // the folder that holds the .uproject, absolute
+    std::string engineVersion;      // for example "5.8.0"
+
+    bool operator==(const EngineTarget&) const = default;
+};
+
+// One engine link's settings for this project (owner, 2026-11-27: the link stays simple, two choices).
+// packMaterials: the materials and textures go over as ready material assets on the meshes; off, meshes only.
+// grouped: the groups of the grouped export arrive as separate assets placed in the level; off, one building
+// asset. Empty follows the project's export mode. kit and gameplay are the modular kit and the gameplay data
+// file, which belong to the link (DESIGN.md section 7.16). syncAfterBuild: once the building has a target, every
+// successful build updates it when that editor is open. target is set by the first delivery and cleared by
+// "Unlink".
+struct EngineLinkOptions {
+    bool packMaterials = true;
+    std::optional<bool> grouped;
+    bool kit = false;
+    bool gameplay = false;
+    bool syncAfterBuild = true;
+    std::optional<EngineTarget> target;
+
+    bool operator==(const EngineLinkOptions&) const = default;
+};
+
 // The project's export options file: projectFolder/export-options.json, schema/export-options.schema.json.
 // It belongs to the project like project.json (it is not in build/ or export/, which can be deleted).
 inline constexpr std::string_view kExportOptionsFileName = "export-options.json";
 inline constexpr std::string_view kExportOptionsFormat = "plynth-export-options";
 // Version 2 adds "gameplay". A version 1 file reads with gameplay data off and is written as version 2.
 // Version 3 adds "licenses". Older files read with the license report off.
-inline constexpr int kExportOptionsVersion = 3;
+// Version 4 adds "links" and moves the kit and gameplay switches into links.unreal, where they belong now
+// (owner, 2026-11-27). A version 3 file reads with its kit.enabled and gameplay.enabled as links.unreal.kit and
+// links.unreal.gameplay and the other link settings at their defaults. Raised to 4 with that step.
+inline constexpr int kExportOptionsVersion = 4;
+
+// The id of the Unreal Engine link (EngineLink.h), its key in "links".
+inline constexpr std::string_view kUnrealLinkId = "unreal";
 
 struct ExportOptions {
     ExportGroupEdits groups;
-    KitOptions kit;
-    GameplayOptions gameplay;
+    KitOptions kit;           // file version 3 and older only; read into links["unreal"].kit, never written
+    GameplayOptions gameplay; // file version 3 and older only; read into links["unreal"].gameplay, never written
     LicenseOptions licenses;
+    std::map<std::string, EngineLinkOptions> links; // by link id; a link with no entry has the defaults
 
     bool operator==(const ExportOptions&) const = default;
 };
 
-// The file form: {"format", "version", "groups": {"added", "renames", "merges", "moves"}, "kit": {"enabled"},
-// "gameplay": {"enabled"}, "licenses": {"enabled"}}.
+// The options of one link: its entry, or the defaults when there is none.
+EngineLinkOptions engineLinkOptions(const ExportOptions& options, std::string_view linkId);
+
+// Whether a link sends the grouped export: options.grouped when set, else the project's export mode is grouped.
+bool linkGrouped(const EngineLinkOptions& options, const Project& project);
+
+// The file form: {"format", "version", "groups": {"added", "renames", "merges", "moves"},
+// "licenses": {"enabled"}, "links": {"unreal": {"pack_materials", "grouped", "kit", "gameplay",
+// "sync_after_build", "target": {"project_name", "project_root", "engine_version"} or null}}}. grouped is
+// true, false or null (follow the export mode). A link with default options is left out of "links".
 Json exportOptionsToJson(const ExportOptions& options);
 
 struct ExportOptionsRead {

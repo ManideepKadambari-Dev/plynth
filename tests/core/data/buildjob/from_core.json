@@ -9518,7 +9518,7 @@
           {
             "kind": "skirting",
             "plan_id": "f1",
-            "object": "SM_f1_Skirting",
+            "object": "f1_Skirting",
             "plynth_kind": "trim",
             "slot": "Trim",
             "material": null,
@@ -12859,7 +12859,7 @@
           {
             "kind": "cornice",
             "plan_id": "f1",
-            "object": "SM_f1_Cornice",
+            "object": "f1_Cornice",
             "plynth_kind": "trim",
             "slot": "Trim",
             "material": null,
@@ -15039,7 +15039,7 @@
           {
             "kind": "casing",
             "plan_id": "f1",
-            "object": "SM_f1_Casing",
+            "object": "f1_Casing",
             "plynth_kind": "trim",
             "slot": "Trim",
             "material": null,
@@ -15727,7 +15727,7 @@
           {
             "kind": "sill",
             "plan_id": "f1",
-            "object": "SM_f1_Sill",
+            "object": "f1_Sill",
             "plynth_kind": "trim",
             "slot": "Trim",
             "material": null,

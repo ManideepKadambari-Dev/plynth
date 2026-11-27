@@ -84,7 +84,7 @@ def make_walls(ctx, floor):
         count(ctx, "wall_solids")
 
     collection = ctx.state["collections"][floor["id"]]
-    obj = meshes.make_object("SM_%s_Walls" % floor["id"], bm, collection, floor["id"], "walls")
+    obj = meshes.make_object("%s_Walls" % floor["id"], bm, collection, floor["id"], "walls")
     meshes.add_slots(obj, slots)
     obj["plynth_walls"] = walls
     obj["plynth_rooms"] = rooms

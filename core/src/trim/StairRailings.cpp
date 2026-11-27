@@ -225,7 +225,7 @@ StairRailing stairGuard(const Floor& above, const Stair& stair, const StairLayou
 // The object name of a railing.
 std::string railingObjectName(const StairRailing& railing)
 {
-    return "SM_" + railing.floor + "_" + railing.stair + (railing.kind == "guard" ? "_Guard" : "_Railing");
+    return railing.floor + "_" + railing.stair + (railing.kind == "guard" ? "_Guard" : "_Railing");
 }
 
 // The railings and guards of every stair of a plan.

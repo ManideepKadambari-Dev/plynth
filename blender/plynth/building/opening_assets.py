@@ -48,7 +48,7 @@ def fill_after_all(ctx, floor, opening):
 # Makes the instance empty of one opening's asset: location, turn about Z and scale from the job. A negative x
 # scale mirrors a door that hangs on the other jamb.
 def place(ctx, floor, opening, asset, collection):
-    empty = bpy.data.objects.new("SM_%s_%s" % (asset["id"], opening["id"]), None)
+    empty = bpy.data.objects.new("%s_%s" % (asset["id"], opening["id"]), None)
     empty.empty_display_type = "PLAIN_AXES"
     empty.empty_display_size = 0.1
     empty.instance_type = "COLLECTION"

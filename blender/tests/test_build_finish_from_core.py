@@ -72,7 +72,7 @@ class FinishFromCoreTests(BuildTest):
 
     def test_door_asset_replaces_the_built_fill(self):
         opening = next(o for o in self.params["floors"][0]["openings"] if o.get("asset"))
-        obj = bpy.data.objects["SM_door_%s" % opening["id"]]
+        obj = bpy.data.objects["door_%s" % opening["id"]]
         self.assertEqual(obj["plynth_kind"], "door")
         for got, want in zip(obj.location, opening["asset"]["location"]):
             self.assertAlmostEqual(got, want, places=5)

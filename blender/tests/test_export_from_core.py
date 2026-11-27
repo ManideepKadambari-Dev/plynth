@@ -8,7 +8,7 @@ import bpy
 
 import helpers
 from build_helpers import DATA_FOLDER as BUILD_DATA_FOLDER, BuildTest
-from export_helpers import DATA_FOLDER, MODELS
+from export_helpers import DATA_FOLDER, MODELS, read_names
 from plynth import scene, shading
 from schema_check import load_schema, validate
 
@@ -16,6 +16,9 @@ COLORS = {"white_paint": (235, 235, 230), "grey_tile": (120, 125, 130), "oak_pla
           "red_brick": (160, 70, 55), "painted_wood": (190, 190, 180), "brushed_steel": (180, 180, 185),
           "clear_glass": (200, 220, 230), "concrete": (150, 150, 148), "roof_tiles": (170, 80, 60)}
 ASSETS = ("sofa", "table")
+PLAIN_CHECKS = 11
+UNREAL_CHECKS = 13
+SURFACE_KINDS = ("floor", "ceiling", "thresholds", "slab", "stair", "roof")
 _project = {}
 
 
@@ -124,14 +127,16 @@ def shared_project():
 
 
 class FromCoreExportTests(helpers.TempFolderTest):
-    # Returns the export job made by plynth export on the scratch project, with the folders filled in and the
-    # files going into a staging folder of this test.
-    def job(self, write=True, force=False):
+    # Returns the export job made by plynth export on the scratch project, with the folders filled in, the
+    # files going into a staging folder of this test and the profile of the fixture unless another is asked for.
+    def job(self, write=True, force=False, profile=None):
         project, library = shared_project()
         job = fill(load_job("from_core_export"), project, library)
         job["params"]["output_folder"] = self.path("export", ".staging")
         job["params"]["write"] = write
         job["params"]["force"] = force
+        if profile is not None:
+            job["params"]["profile"] = profile
         job["result_file"] = self.path("work", "result.json")
         return job
 
@@ -149,17 +154,19 @@ class FromCoreExportTests(helpers.TempFolderTest):
         self.assertEqual(validate(job, load_schema("blender-job")), [])
         self.assertNotIn("@", json.dumps(job))
         self.assertEqual(job["params"]["groups"][0]["file"], "m9.fbx")
+        self.assertEqual(raw["params"]["profile"], "plain")
         self.assertEqual(raw["params"]["expected_bounds"], {"min": [5.0, -13.0, 0.0], "max": [19.0, -3.0, 3.0]})
 
     # Nothing fails or warns, so the files are written. The sample furniture and the rounded wall corners have
-    # usable UVs, so the UV check passes too.
+    # usable UVs, so the UV check passes too. The plain export has no collision and no engine names.
     def test_checks_pass(self):
         result = self.export(self.job())
         self.assertTrue(result["ok"], result["error"])
         self.assertEqual(validate(result, load_schema("blender-result")), [])
         output = result["output"]
         statuses = {c["id"]: c["status"] for c in output["checks"]}
-        self.assertEqual(len(output["checks"]), 13)
+        self.assertEqual(len(output["checks"]), PLAIN_CHECKS)
+        self.assertEqual(output["collision_objects"], 0)
         self.assertEqual([i for i, s in statuses.items() if s == "fail"], [])
         self.assertEqual([i for i, s in statuses.items() if s == "warning"], [])
         self.assertEqual(statuses["fbx_scale"], "pass")
@@ -168,7 +175,25 @@ class FromCoreExportTests(helpers.TempFolderTest):
         self.assertEqual(output["files"][0]["file"], "m9.fbx")
         self.assertTrue(os.path.isfile(self.path("export", ".staging", "m9.fbx")))
         self.assertGreater(len(output["textures"]), 10)
+        names = read_names(self.path("export", ".staging", "m9.fbx"))
+        self.assertEqual([n for n in names if n.startswith(("SM_", "UCX_")) or "_Collision_" in n], [])
+        self.assertEqual(len(names), output["files"][0]["objects"])
 
+    # The unreal export of the same project is one mesh SM_m9 with its UCX_ pieces, and every check passes.
+    def test_unreal_checks_pass(self):
+        result = self.export(self.job(profile="unreal"))
+        self.assertTrue(result["ok"], result["error"])
+        self.assertEqual(validate(result, load_schema("blender-result")), [])
+        output = result["output"]
+        statuses = {c["id"]: c["status"] for c in output["checks"]}
+        self.assertEqual(len(output["checks"]), UNREAL_CHECKS)
+        self.assertEqual([i for i, s in statuses.items() if s in ("fail", "warning")], [])
+        self.assertTrue(output["written"])
+        names = read_names(self.path("export", ".staging", "m9.fbx"))
+        self.assertEqual([n for n in names if not n.startswith("UCX_")], ["SM_m9"])
+        self.assertEqual(len([n for n in names if n.startswith("UCX_SM_m9_")]), output["collision_objects"])
+        self.assertGreater(output["collision_objects"], 0)
+        self.assertTrue(all(t.startswith("T_") for t in output["textures"]))
     # With write false the checks run and nothing is written.
     def test_check_only(self):
         result = self.export(self.job(write=False))
@@ -185,18 +210,19 @@ class FromCoreExportTests(helpers.TempFolderTest):
         scene.clear_scene()
         bpy.ops.import_scene.fbx(filepath=self.path("export", ".staging", "m9.fbx"))
         wanted = job["params"]["expected_bounds"]
-        low, high = scene.world_bounds([bpy.data.objects["SM_f1_Walls"]])
+        low, high = scene.world_bounds([bpy.data.objects["f1_Walls"]])
         for got, want in zip(list(low) + list(high), wanted["min"] + wanted["max"]):
             self.assertAlmostEqual(got, want, delta=1e-3)
         # A door leaf stands a few millimetres outside the wall faces, so the openings are left out.
-        shown = [o for o in bpy.data.objects if o.type == "MESH" and o.name.startswith("SM_") and "_o" not in o.name]
+        shown = [o for o in bpy.data.objects if o.type == "MESH" and "_o" not in o.name]
         low, high = scene.world_bounds(shown)
         for axis in range(3):
             self.assertGreaterEqual(low[axis], wanted["min"][axis] - 1e-3)
             self.assertLessEqual(high[axis], wanted["max"][axis] + 1e-3)
         names = {o.name for o in bpy.data.objects}
-        for name in ("SM_sofa_i1", "SM_table_i2", "UCX_SM_f1_Walls_00"):
+        for name in ("sofa_i1", "table_i2", "f1_Walls"):
             self.assertIn(name, names)
+        self.assertEqual([n for n in names if n.startswith(("SM_", "UCX_"))], [])
         textured = [i for i in bpy.data.images if i.filepath]
         self.assertTrue(textured)
         folder = os.path.normcase(os.path.abspath(self.path("export", ".staging")))
@@ -247,13 +273,16 @@ def house_broken(kind):
 
 
 class HouseExportTests(helpers.TempFolderTest):
-    # Returns the export job of the house with the files going into a staging folder of this test.
-    def job(self):
+    # Returns the export job of the house with the files going into a staging folder of this test, with the
+    # profile of the fixture (unreal) unless another is asked for.
+    def job(self, profile=None):
         project, library = shared_house()
         job = fill(load_job("from_core_house_export"), project, library)
         job["params"]["output_folder"] = self.path("export", ".staging")
         job["params"]["write"] = True
         job["params"]["force"] = False
+        if profile is not None:
+            job["params"]["profile"] = profile
         job["result_file"] = self.path("work", "result.json")
         return job
 
@@ -267,23 +296,44 @@ class HouseExportTests(helpers.TempFolderTest):
         self.assertEqual(validate(result, load_schema("blender-result")), [])
         output = result["output"]
         statuses = {c["id"]: c["status"] for c in output["checks"]}
-        self.assertEqual(len(output["checks"]), 13)
+        self.assertEqual(len(output["checks"]), UNREAL_CHECKS)
         self.assertEqual([i for i, s in statuses.items() if s == "fail"], [])
         self.assertEqual([i for i, s in statuses.items() if s == "warning"], [])
         for check in ("collision", "materials", "naming", "scale", "transforms", "uvs"):
             self.assertEqual(statuses[check], "pass", check)
         self.assertTrue(output["written"])
 
-    # In a grouped export with a kit, every object of the house is in one file: the slabs, the stair and the roofs
-    # in the Floors file with all their UCX_ meshes. The totals count the building and not the kit.
+    # The plain export of the house passes its checks and holds every slab, stair and roof under its plain name,
+    # with no collision and no engine names.
+    def test_plain_checks_pass(self):
+        job = self.job(profile="plain")
+        result = self.run_task("export", job["params"], job_id=job["job_id"])
+        self.assertTrue(result["ok"], result["error"])
+        self.assertEqual(validate(result, load_schema("blender-result")), [])
+        output = result["output"]
+        statuses = {c["id"]: c["status"] for c in output["checks"]}
+        self.assertEqual(len(output["checks"]), PLAIN_CHECKS)
+        self.assertEqual([i for i, s in statuses.items() if s in ("fail", "warning")], [])
+        names = read_names(self.path("export", ".staging", job["params"]["groups"][0]["file"]))
+        for target in ("f1_Slab", "f2_Slab", "f1_s1_Stair", "f1_Roof_00", "f2_Roof_00"):
+            self.assertIn(target, names)
+        self.assertEqual([n for n in names if n.startswith(("SM_", "UCX_")) or "_Collision_" in n], [])
+        self.assertEqual(output["collision_objects"], 0)
+
+    # In a grouped unreal export with a kit, each group is one mesh named after its file: the Floors mesh with the
+    # UCX_ meshes of every slab, stair and roof and the Walls mesh with the rest. The totals count the building
+    # and not the kit.
     def test_grouped_with_kit(self):
         job = self.job()
         single = self.run_task("export", job["params"], job_id=job["job_id"])
         self.assertTrue(single["ok"], single["error"])
         plain = single["output"]
-        scene.clear_scene()
-        bpy.ops.import_scene.fbx(filepath=self.path("export", ".staging", job["params"]["groups"][0]["file"]))
-        everything = {o.name for o in bpy.data.objects if o.type == "MESH"}
+        build = fill(load_job("from_core_house"), *shared_house())
+        pieces = {"structure": 0, "surfaces": 0}
+        for floor in build["params"]["floors"]:
+            for entry in floor["collision"]:
+                group = "surfaces" if entry["target"]["kind"] in SURFACE_KINDS else "structure"
+                pieces[group] += len(entry["pieces"]) + len(entry["hulls"])
 
         from test_export_kit import make_kit, wall_piece
         piece = wall_piece()
@@ -308,22 +358,18 @@ class HouseExportTests(helpers.TempFolderTest):
         statuses = {c["id"]: c["status"] for c in output["checks"]}
         for check in ("collision", "groups", "fbx_scale", "kit_file"):
             self.assertEqual(statuses[check], "pass", check)
-        for key in ("objects", "triangles", "collision_objects"):
+        for key in ("triangles", "collision_objects"):
             self.assertEqual(output[key], plain[key], key)
+        self.assertEqual(output["objects"], plain["objects"] + 1)
         self.assertEqual(output["kit"]["objects"], 1 + len(piece["collision"]))
 
-        names = {}
         for entry in output["files"]:
-            scene.clear_scene()
-            bpy.ops.import_scene.fbx(filepath=self.path("grouped", ".staging", entry["file"]))
-            names[entry["group"]] = {o.name for o in bpy.data.objects if o.type == "MESH"}
-        self.assertEqual(names["structure"] & names["surfaces"], set())
-        self.assertEqual(names["structure"] | names["surfaces"], everything)
-        for target in ("SM_f1_Slab", "SM_f2_Slab", "SM_f1_s1_Stair", "SM_f1_Roof_00", "SM_f2_Roof_00"):
-            self.assertIn(target, names["surfaces"])
-            hulls = {n for n in everything if n.startswith("UCX_%s_" % target)}
-            self.assertTrue(hulls, target)
-            self.assertLessEqual(hulls, names["surfaces"], target)
+            names = read_names(self.path("grouped", ".staging", entry["file"]))
+            mesh = "SM_" + os.path.splitext(entry["file"])[0]
+            self.assertEqual([n for n in names if not n.startswith("UCX_")], [mesh], entry["file"])
+            hulls = [n for n in names if n.startswith("UCX_")]
+            self.assertEqual(hulls, ["UCX_%s_%02d" % (mesh, n) for n in range(len(hulls))], entry["file"])
+            self.assertEqual(len(hulls), pieces[entry["group"]], entry["file"])
 
     # Takes the collision of every slab, then every stair, then every roof out of the build in turn: the export then
     # fails the collision check and names each of those objects.
@@ -364,12 +410,12 @@ class HouseExportTests(helpers.TempFolderTest):
                 self.assertEqual(check["status"], "fail")
                 self.assertIn(plan_id, {f["plan_id"] for f in check["findings"]})
 
-    # The written FBX holds convex UCX_ meshes for every slab, stair and roof, 16 for the stair's steps.
+    # Before joining, every slab, stair and roof has its own convex UCX_ meshes, 16 for the stair's steps. The
+    # written FBX then holds one mesh with every one of them, all convex.
     def test_fbx_has_part_collision(self):
         job = self.job()
+        job["params"]["write"] = False
         self.assertTrue(self.run_task("export", job["params"], job_id=job["job_id"])["ok"])
-        scene.clear_scene()
-        bpy.ops.import_scene.fbx(filepath=self.path("export", ".staging", job["params"]["groups"][0]["file"]))
         names = {o.name for o in bpy.data.objects}
         for target in ("SM_f1_Slab", "SM_f2_Slab", "SM_f1_s1_Stair", "SM_f1_Roof_00", "SM_f2_Roof_00"):
             self.assertIn(target, names)
@@ -382,6 +428,16 @@ class HouseExportTests(helpers.TempFolderTest):
         build = fill(load_job("from_core_house"), *shared_house())
         wanted = sum(len(c["pieces"]) + len(c["hulls"]) for f in build["params"]["floors"] for c in f["collision"])
         self.assertEqual(len([n for n in names if n.startswith("UCX_")]), wanted)
+        job = self.job()
+        self.assertTrue(self.run_task("export", job["params"], job_id=job["job_id"])["ok"])
+        scene.clear_scene()
+        bpy.ops.import_scene.fbx(filepath=self.path("export", ".staging", job["params"]["groups"][0]["file"]))
+        meshes = [o for o in bpy.data.objects if o.type == "MESH"]
+        hulls = [o for o in meshes if o.name.startswith("UCX_")]
+        self.assertEqual(len(meshes) - len(hulls), 1)
+        self.assertEqual(len(hulls), wanted)
+        for obj in hulls:
+            self.assertTrue(len(obj.data.polygons) >= 4 and convex(obj), obj.name)
 
 
 if __name__ == "__main__":

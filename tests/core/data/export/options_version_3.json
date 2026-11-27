@@ -1,0 +1,13 @@
+{
+  "format": "plynth-export-options",
+  "version": 3,
+  "groups": {
+    "added": [],
+    "renames": [{ "group": "furniture_r1", "name": "Lounge props" }],
+    "merges": [],
+    "moves": []
+  },
+  "kit": { "enabled": true },
+  "gameplay": { "enabled": true },
+  "licenses": { "enabled": true }
+}

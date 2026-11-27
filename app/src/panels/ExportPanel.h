@@ -37,9 +37,6 @@ struct ExportPanelState {
     bool reportOutOfDate = false; // the last export was made from an older build than the one there now
     QString optionsProblem;    // why export-options.json cannot be read; empty when it can
     bool optionsRepairable = false; // the bad file may be replaced; false for one written by a newer Plynth
-    bool kitEnabled = false;   // export-options.json switches the modular kit on
-    bool gameplayEnabled = false; // export-options.json switches the gameplay data file on
-    QString gameplayFile;      // where the gameplay data file goes, export/<Stem>_gameplay.json; empty without a folder
     bool licensesEnabled = false; // export-options.json switches the license report on
     QString licensesFile;      // where the report goes, export/<Stem>_licenses.json; empty without a folder
     std::filesystem::path projectFolder;               // empty when the project is not saved
@@ -47,7 +44,8 @@ struct ExportPanelState {
     const plynth::ExportGroupReview* review = nullptr; // as core gave it, in every mode; null without a project folder
 };
 
-// The Export window: the Export and Check buttons, the last export and the list of quality checks.
+// The Export window. Its first part is the plain FBX export for any tool: the Export and Check buttons, the
+// groups, the last export and the list of quality checks. The engine link sections go below it.
 class ExportPanel : public QWidget {
     Q_OBJECT
 public:
@@ -58,10 +56,6 @@ public:
     void setReport(const plynth::ExportReport* report, const ExportPanelState& state);
     // For checks only: opens every group of the list, now and after each refresh.
     void setGroupsExpanded(bool expanded);
-    // For checks only: switches the modular kit on in the project's export options, as the checkbox does.
-    void setKitEnabled(bool enabled);
-    // For checks only: switches the gameplay data file on in the project's export options, as the checkbox does.
-    void setGameplayEnabled(bool enabled);
     // Switches the license report on or off in the project's export options, as the checkbox does.
     void setLicensesEnabled(bool enabled);
 
@@ -84,10 +78,10 @@ private:
     QWidget* addSection(const QString& title);
     void addRow(QWidget* host, const QString& name, const QString& value, bool mono);
     QPushButton* addButton(QWidget* row, const QString& text, const QString& tip, bool primary);
+    void addIntro();
+    void addPlainExport(const plynth::ExportReport* report, const ExportPanelState& state);
     void addChecks(const plynth::ExportReport& report);
     void addGroups(const ExportPanelState& state);
-    void addKitSwitch(const ExportPanelState& state);
-    void addGameplaySwitch(const ExportPanelState& state);
     void addLicensesSwitch(const ExportPanelState& state);
     void addLicensesReport(const plynth::ExportReport& report);
     void addGameplayReport(const plynth::ExportReport& report);
@@ -111,8 +105,6 @@ private:
     bool stale_ = false;        // the last review was out of date, so the old body is shown greyed
     bool refreshDue_ = false;   // a refresh waits for the name editor to close
     bool refreshAsked_ = false; // a request for a new review is on its way
-    QPointer<QCheckBox> kitBox_;
-    QPointer<QCheckBox> gameplayBox_;
     QPointer<QCheckBox> licensesBox_;
     QPointer<QPushButton> repairButton_;
     QPointer<QLabel> lockLine_; // the guard's message where the list is not shown
@@ -125,9 +117,7 @@ private:
     QTimer* lockTimer_ = nullptr; // looks again while something is locked
     std::filesystem::path watched_;
     std::filesystem::path projectFolder_;
-    QString kitError_; // why the last change of the kit switch was not saved; empty when it was
-    QString gameplayError_; // the same for the gameplay data switch
-    QString licensesError_; // the same for the license report switch
+    QString licensesError_; // why the last change of the license report switch was not saved; empty when it was
 };
 
 }

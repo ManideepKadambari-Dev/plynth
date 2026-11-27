@@ -68,16 +68,16 @@ class PreviewPartsTests(BuildTest):
     def test_storey_part(self):
         objects = import_parts(self.preview("f2.fbx"))
         names = sorted(o.name for o in objects)
-        self.assertEqual(names, ["SM_f2_Walls", "SM_f2_r1_Ceiling", "SM_f2_r1_Floor"])
+        self.assertEqual(names, ["f2_Walls", "f2_r1_Ceiling", "f2_r1_Floor"])
         self.assertFalse([n for n in names if "Roof" in n])
-        self.assertFalse([n for n in names if n.startswith("SM_f1")])
+        self.assertFalse([n for n in names if n.startswith("f1")])
 
     # The first floor's part holds no roof, and the roof part holds only the roof.
     def test_other_parts(self):
         objects = import_parts(self.preview("f1.fbx"))
-        self.assertEqual(sorted(o.name for o in objects), ["SM_f1_Walls", "SM_f1_r1_Ceiling", "SM_f1_r1_Floor"])
+        self.assertEqual(sorted(o.name for o in objects), ["f1_Walls", "f1_r1_Ceiling", "f1_r1_Floor"])
         objects = import_parts(self.preview("f2_roof.fbx"))
-        self.assertEqual([o.name for o in objects], ["SM_f2_Roof_00"])
+        self.assertEqual([o.name for o in objects], ["f2_Roof_00"])
 
     # The images of a part are the ones building.fbx uses.
     def test_images(self):
@@ -106,7 +106,7 @@ class PreviewSlabTests(BuildTest):
         listed = [(p["floor"], p["kind"], p["file"]) for p in data["parts"]]
         self.assertEqual(listed[:2], [("f1", "storey", "f1.fbx"), ("f1", "slab", "f1_slab.fbx")])
         self.assertNotIn("f2_slab.fbx", [p[2] for p in listed])
-        self.assertEqual([o.name for o in import_parts(os.path.join(folder, "f1_slab.fbx"))], ["SM_f1_Slab"])
+        self.assertEqual([o.name for o in import_parts(os.path.join(folder, "f1_slab.fbx"))], ["f1_Slab"])
         names = [o.name for o in import_parts(os.path.join(folder, "f1.fbx"))]
         self.assertTrue(names)
         self.assertFalse([n for n in names if "Slab" in n])
@@ -171,7 +171,7 @@ class PreviewTextureTests(BuildTest):
         for name in listed:
             if name.endswith(".fbx"):
                 names = [o.name for o in import_parts(self.path("build", "preview", name))]
-                self.assertFalse([n for n in names if n.startswith("UCX_")], name)
+                self.assertFalse([n for n in names if "_Collision_" in n], name)
 
 
 class PreviewOffTests(BuildTest):
@@ -226,7 +226,7 @@ class PreviewFailureTests(BuildTest):
         self.assertTrue(result["ok"], result["error"])
         self.assertEqual(result["output"]["counts"]["roofs"], 2)
         objects = import_parts(self.path("build", "preview", "f2_roof.fbx"))
-        self.assertEqual(sorted(o.name for o in objects), ["SM_f2_Roof_00", "SM_f2_Roof_01"])
+        self.assertEqual(sorted(o.name for o in objects), ["f2_Roof_00", "f2_Roof_01"])
 
 
 # Returns the problem codes of a build result.
