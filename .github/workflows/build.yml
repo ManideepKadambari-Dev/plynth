@@ -130,6 +130,11 @@ jobs:
           New-Item -ItemType Directory -Force $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
           "VCPKG_BINARY_SOURCES=clear;files,$env:VCPKG_DEFAULT_BINARY_CACHE,readwrite" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
+      # The same check a contributor runs. The runner may have another Visual Studio version, which is reported, not failed.
+      - name: Check the build tools
+        shell: pwsh
+        run: '& "$env:GITHUB_WORKSPACE\tools\check-setup.cmd" -AllowOtherVisualStudio'
+
       - name: Restore the vcpkg binary cache
         id: vcpkg-cache
         if: env.CACHES == 'true'
