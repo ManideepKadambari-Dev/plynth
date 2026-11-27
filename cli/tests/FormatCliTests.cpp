@@ -296,19 +296,21 @@ TEST_CASE("a copy of a sample saved by 0.1.1 keeps its older files on an export 
     const auto off = runChecked({"export", "licenses", "off", "--project", project});
     REQUIRE(off.exitCode == kExitOk);
     CHECK(off.answer.at("result").at("enabled") == false);
-    const std::vector<std::string> expected = {utf8(folder / "backup" / "plan.v7.json"),
+    const std::vector<std::string> expected = {utf8(folder / "backup" / "export-options.v3.json"),
+                                               utf8(folder / "backup" / "plan.v7.json"),
                                                utf8(folder / "backup" / "project.v6.json")};
     REQUIRE(off.answer.at("result").contains("backup"));
     CHECK(ids(off.answer.at("result").at("backup")) == expected);
     CHECK(readFile(folder / "backup" / "plan.v7.json") == readFile(source / "plan.json"));
     CHECK(readFile(folder / "backup" / "project.v6.json") == readFile(source / "project.json"));
+    CHECK(readFile(folder / "backup" / "export-options.v3.json") == readFile(source / "export-options.json"));
 
     const auto edit = runChecked({"project", "set", "--grid", "0.25", "--project", project});
     REQUIRE(edit.exitCode == kExitOk);
     CHECK_FALSE(edit.answer.at("result").contains("backup"));
     CHECK(readJson(folder / "plan.json").at("version") == 8);
     CHECK(readJson(folder / "project.json").at("version") == 7);
-    CHECK(backupNames(folder) == std::vector<std::string>{"plan.v7.json", "project.v6.json"});
+    CHECK(backupNames(folder) == std::vector<std::string>{"export-options.v3.json", "plan.v7.json", "project.v6.json"});
 }
 
 TEST_CASE("project recover lists the older files it kept", "[cli][format][backup]") {
