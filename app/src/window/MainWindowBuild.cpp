@@ -112,6 +112,9 @@ void MainWindow::buildFinished(const plynth::BuildReport& report)
     if (report.status.ok()) {
         refreshPreview();
         showCentreView(true);
+        // A screenshot writes nothing, so it never updates Unreal.
+        if (!screenshotMode_)
+            exportPanel_->syncLinksAfterBuild();
     }
     // A build refused because another program holds the lock leaves that job to be followed.
     outsideJob_->recheck();

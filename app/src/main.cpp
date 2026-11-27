@@ -5,9 +5,13 @@
 #include "guide/GuideHost.h"
 #include "preview/RenderHost.h"
 #include "update/UpdateController.h"
+#ifdef _WIN32
+#include "links/CheckEditor.h"
+#endif
 
 #include <plynth/cli/Cli.h>
 #include <plynth/core/Settings.h>
+#include <plynth/core/UnrealRemote.h>
 #include <plynth/core/Update.h>
 #include <plynth/core/Version.h>
 
@@ -48,6 +52,11 @@ constexpr qint64 kDetectionWaitMs = 15000;
 constexpr qint64 kSetupWaitMs = 60000;
 constexpr qint64 kPreviewWaitMs = 30000;
 constexpr qint64 kBuildWaitMs = 1800000;
+// The multicast groups of the Unreal Engine check flags: one where the stand in editor answers and one where
+// nothing does. Both stay on this computer and never reach an editor the user has open.
+constexpr const char* kCheckEditorGroup = "239.0.0.78";
+constexpr int kCheckEditorPort = 6867;
+constexpr const char* kNoEditorEndpoint = "239.0.0.79:6868";
 
 // Reads "WxH" into a size. Returns false when the text is not two positive numbers.
 bool parseSize(const QString& text, QSize& out)
@@ -301,6 +310,21 @@ int main(int argc, char* argv[])
     QCommandLineOption exportLicensesOnOption(QStringLiteral("export-licenses-on"),
                                               QStringLiteral("Tick the license report box of the Export window and open the window. For checks only."));
     parser.addOption(exportLicensesOnOption);
+    QCommandLineOption exportKitOnOption(QStringLiteral("export-kit-on"),
+                                         QStringLiteral("Tick the modular kit box of the Unreal Engine section of the Export window. For checks only."));
+    QCommandLineOption exportGameplayOnOption(QStringLiteral("export-gameplay-on"),
+                                              QStringLiteral("Tick the gameplay data box of the Unreal Engine section and open the Export window. For checks only."));
+    QCommandLineOption unrealFakeEditorOption(QStringLiteral("unreal-fake-editor"),
+                                              QStringLiteral("Answer the Unreal Engine link's search as an open editor with this project, on this "
+                                                             "computer only, and open the Export window. For checks only."),
+                                              QStringLiteral("project"));
+    QCommandLineOption unrealNotOpenOption(QStringLiteral("unreal-not-open"),
+                                           QStringLiteral("Make the Unreal Engine link look where no editor answers, so it shows that Unreal "
+                                                          "Engine is not open, and open the Export window. For checks only."));
+    parser.addOption(exportKitOnOption);
+    parser.addOption(exportGameplayOnOption);
+    parser.addOption(unrealFakeEditorOption);
+    parser.addOption(unrealNotOpenOption);
     parser.addOption(variationsDialogOption);
     parser.addOption(openingAssetPickerOption);
     QCommandLineOption homeOption(QStringLiteral("home"), QStringLiteral("Show the home screen. For checks only."));
@@ -491,6 +515,10 @@ int main(int argc, char* argv[])
     if (parser.isSet(updateStateOption) &&
         (!wantsScreenshot || !plynth::app::UpdateController::cannedNames().contains(updateState)))
         return kExitBadArguments;
+    const bool unrealCheck = parser.isSet(unrealFakeEditorOption) || parser.isSet(unrealNotOpenOption);
+    if (parser.isSet(unrealFakeEditorOption) &&
+        (parser.isSet(unrealNotOpenOption) || parser.value(unrealFakeEditorOption).trimmed().isEmpty()))
+        return kExitBadArguments;
     // Any option at all is a check or a screenshot. Only a plain start, with at most a project, checks for updates.
     const bool checkMode = !parser.optionNames().isEmpty();
 
@@ -549,6 +577,23 @@ int main(int argc, char* argv[])
     }
     if (quiet)
         plynth::app::LibraryHost::setAutoProbe(false);
+    // The Unreal Engine check flags point the link at a group of their own before anything looks for an editor.
+    const QByteArray endpointVariable = QByteArray::fromStdString(std::string(plynth::kUnrealEndpointVariable));
+#ifdef _WIN32
+    std::unique_ptr<plynth::app::CheckEditor> checkEditor;
+    if (parser.isSet(unrealFakeEditorOption)) {
+        qputenv(endpointVariable.constData(), QByteArray(kCheckEditorGroup) + ':' + QByteArray::number(kCheckEditorPort));
+        checkEditor = std::make_unique<plynth::app::CheckEditor>(kCheckEditorGroup, kCheckEditorPort,
+                                                                 parser.value(unrealFakeEditorOption).trimmed().toStdString());
+        if (!checkEditor->ready())
+            return kExitBadArguments;
+    }
+#else
+    if (parser.isSet(unrealFakeEditorOption))
+        return kExitBadArguments;
+#endif
+    if (parser.isSet(unrealNotOpenOption))
+        qputenv(endpointVariable.constData(), QByteArray(kNoEditorEndpoint));
     plynth::app::MainWindow window;
     window.setScreenshotMode(quiet);
     if (hasSize)
@@ -653,7 +698,12 @@ int main(int argc, char* argv[])
         window.exportPanel()->setGroupsExpanded(true);
     if (parser.isSet(exportLicensesOnOption))
         window.exportPanel()->setLicensesEnabled(true);
-    if (parser.isSet(exportTabOption) || parser.isSet(exportLicensesOnOption))
+    if (parser.isSet(exportKitOnOption))
+        window.exportPanel()->setKitEnabled(true);
+    if (parser.isSet(exportGameplayOnOption))
+        window.exportPanel()->setGameplayEnabled(true);
+    if (parser.isSet(exportTabOption) || parser.isSet(exportLicensesOnOption) || parser.isSet(exportGameplayOnOption) ||
+        unrealCheck)
         window.showExportTab();
     if (parser.isSet(projectFinishOption))
         QTimer::singleShot(100, &window, [&window]() { window.showProjectFinish(); });
@@ -795,6 +845,8 @@ int main(int argc, char* argv[])
             if (!window.materialsPictureReady() && !waited.hasExpired(kBuildWaitMs))
                 return;
             if (!window.integrationsPictureReady() && !waited.hasExpired(kSetupWaitMs))
+                return;
+            if (window.exportPanel() != nullptr && !window.exportPanel()->linkPictureReady() && !waited.hasExpired(kSetupWaitMs))
                 return;
             poll->stop();
             // Panels rebuilt just before need a few passes to show and lay out their rows.

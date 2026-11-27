@@ -1,6 +1,7 @@
 #include "ExportPanel.h"
 
 #include "building/ProblemMark.h"
+#include "links/UnrealLinkSection.h"
 #include "panels/ExportGroupsList.h"
 #include "theme/ElideLabel.h"
 #include "theme/PlainText.h"
@@ -13,6 +14,7 @@
 #include <QDir>
 #include <QFileSystemWatcher>
 #include <QGridLayout>
+#include <QHideEvent>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLocale>
@@ -30,6 +32,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <utility>
 #include <vector>
 
 namespace plynth::app {
@@ -268,6 +271,10 @@ ExportPanel::ExportPanel(QWidget* parent) : QWidget(parent)
         connect(groupsTree_, &QTreeWidget::itemExpanded, this, [this]() { fitGroupsTree(); });
         connect(groupsTree_, &QTreeWidget::itemCollapsed, this, [this]() { fitGroupsTree(); });
     }
+    unreal_ = new UnrealLinkSection(guard_);
+    unreal_->hide();
+    connect(unreal_, &UnrealLinkSection::changed, this, &ExportPanel::afterWrite);
+    connect(unreal_, &UnrealLinkSection::message, this, &ExportPanel::linkMessage);
     connect(groups_, &ExportGroupsList::editorClosed, this, [this]() {
         if (refreshDue_ && !groups_->editing())
             askForReview();
@@ -304,9 +311,10 @@ void ExportPanel::fitGroupsColumns()
         groupsTree_->header()->resizeSection(1, width * 45 / 100);
 }
 
-// Frees the list, which is not always in the layout.
+// Frees the list and the Unreal Engine section, which are not always in the layout.
 ExportPanel::~ExportPanel()
 {
+    delete unreal_;
     delete groups_;
 }
 
@@ -352,6 +360,7 @@ void ExportPanel::updateLock()
         licensesBox_->setEnabled(usable && lock != plynth::ExportEditDecision::Locked);
     if (repairButton_)
         repairButton_->setEnabled(usable && open);
+    unreal_->setLocked(!usable || lock == plynth::ExportEditDecision::Locked);
     if (lockLine_) {
         const QString reason = fromCore(guard_.message());
         lockLine_->setText(reason);
@@ -376,11 +385,49 @@ void ExportPanel::addLockLine()
     lockLine_->hide();
 }
 
-// Asks for a fresh review each time the window is shown.
+// Asks for a fresh review each time the window is shown, and starts looking for the Unreal editor.
 void ExportPanel::showEvent(QShowEvent* event)
 {
     QWidget::showEvent(event);
+    unreal_->setWatching(true);
     askForReview();
+}
+
+// Stops looking for the Unreal editor while the window is hidden.
+void ExportPanel::hideEvent(QHideEvent* event)
+{
+    QWidget::hideEvent(event);
+    unreal_->setWatching(false);
+}
+
+// Hands the modular kit switch of the Unreal Engine link to the guard.
+void ExportPanel::setKitEnabled(bool enabled)
+{
+    unreal_->setKitEnabled(enabled);
+}
+
+// Hands the gameplay data switch of the Unreal Engine link to the guard.
+void ExportPanel::setGameplayEnabled(bool enabled)
+{
+    unreal_->setGameplayEnabled(enabled);
+}
+
+// Passes the window's project and settings on to the Unreal Engine section.
+void ExportPanel::setLinkContext(LinkContextSource source)
+{
+    unreal_->setContextSource(std::move(source));
+}
+
+// Lets the Unreal Engine section update the linked project after a good build.
+void ExportPanel::syncLinksAfterBuild()
+{
+    unreal_->syncAfterBuild();
+}
+
+// Says whether the Unreal Engine section has its first answer, for screenshots.
+bool ExportPanel::linkPictureReady() const
+{
+    return unreal_->pictureReady();
 }
 
 // For checks only: keeps every group open.
@@ -730,7 +777,7 @@ void ExportPanel::setReport(const plynth::ExportReport* report, const ExportPane
     while (QLayoutItem* item = column_->takeAt(0)) {
         if (item->widget() == groups_)
             groups_->hide();
-        else
+        else if (item->widget() != unreal_)
             delete item->widget();
         delete item;
     }
@@ -740,9 +787,25 @@ void ExportPanel::setReport(const plynth::ExportReport* report, const ExportPane
     projectFolder_ = state.projectFolder;
 
     addPlainExport(report, state);
-    // The engine link sections, the Unreal Engine link first, go here, below the plain export.
+    addUnrealLink(state);
     column_->addStretch(1);
     column_->activate();
+}
+
+// Adds the Unreal Engine section below the plain export, with the project and the state of the window.
+void ExportPanel::addUnrealLink(const ExportPanelState& state)
+{
+    UnrealSectionState link;
+    link.projectFolder = state.projectFolder;
+    if (state.project != nullptr)
+        link.projectName = state.project->settings.name;
+    link.projectGrouped = state.grouped;
+    link.notice = state.notice;
+    link.running = state.running;
+    unreal_->setState(link);
+    column_->addWidget(unreal_);
+    unreal_->show();
+    updateLock();
 }
 
 // Adds the title of the plain export and the line that says what it writes.

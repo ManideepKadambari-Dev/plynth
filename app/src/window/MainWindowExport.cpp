@@ -185,6 +185,19 @@ void MainWindow::updateExportUi()
         state.review = &review;
     }
     connect(exportPanel_, &ExportPanel::refreshRequested, this, &MainWindow::updateExportUi, Qt::UniqueConnection);
+    if (statusBar_ != nullptr)
+        connect(exportPanel_, &ExportPanel::linkMessage, statusBar_, &StatusBar::showMessage, Qt::UniqueConnection);
+    // The Unreal Engine section asks for the project as it is when a send or a sync starts.
+    exportPanel_->setLinkContext([this]() {
+        LinkContext context;
+        if (doc_.hasFolder())
+            context.projectFolder = doc_.folder();
+        context.project = doc_.project();
+        if (host_->hasLibrary())
+            context.library = host_->paths();
+        context.settings = host_->settings();
+        return context;
+    });
     exportPanel_->setReport(exportReport_ ? &*exportReport_ : nullptr, state);
 }
 

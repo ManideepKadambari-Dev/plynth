@@ -183,6 +183,19 @@ add_executable(plynth WIN32
     resources/plynth.rc
 )
 
+# The engine links of the Export window, the Unreal Engine link first.
+target_sources(plynth PRIVATE
+    src/links/LinkRunner.h
+    src/links/LinkRunner.cpp
+    src/links/UnrealLinkSection.h
+    src/links/UnrealLinkSection.cpp)
+if(WIN32)
+    # The stand in Unreal editor of the screenshot check flags.
+    target_sources(plynth PRIVATE
+        src/links/CheckEditor.h
+        src/links/CheckEditor_win.cpp)
+endif()
+
 if(WIN32)
     target_sources(plynth PRIVATE
         src/window/FramelessWindow_win.h

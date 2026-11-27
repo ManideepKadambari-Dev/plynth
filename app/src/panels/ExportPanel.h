@@ -4,6 +4,8 @@
 #include <plynth/core/ExportEditGuard.h>
 #include <plynth/core/ExportGroups.h>
 
+#include "links/UnrealLinkSection.h"
+
 #include <QHash>
 #include <QPointer>
 #include <QString>
@@ -13,6 +15,7 @@
 
 class QCheckBox;
 class QFileSystemWatcher;
+class QHideEvent;
 class QLabel;
 class QPushButton;
 class QShowEvent;
@@ -45,7 +48,7 @@ struct ExportPanelState {
 };
 
 // The Export window. Its first part is the plain FBX export for any tool: the Export and Check buttons, the
-// groups, the last export and the list of quality checks. The engine link sections go below it.
+// groups, the last export and the list of quality checks. The Unreal Engine link section goes below it.
 class ExportPanel : public QWidget {
     Q_OBJECT
 public:
@@ -58,9 +61,19 @@ public:
     void setGroupsExpanded(bool expanded);
     // Switches the license report on or off in the project's export options, as the checkbox does.
     void setLicensesEnabled(bool enabled);
+    // Switches the modular kit or the gameplay data of the Unreal Engine link, as its boxes do.
+    void setKitEnabled(bool enabled);
+    void setGameplayEnabled(bool enabled);
+    // Gives the Unreal Engine section the window's project and settings for a send or the sync after a build.
+    void setLinkContext(LinkContextSource source);
+    // Updates the linked Unreal project after a good build of the app.
+    void syncLinksAfterBuild();
+    // For screenshots: the Unreal Engine section knows whether the editor is open.
+    bool linkPictureReady() const;
 
 protected:
     void showEvent(QShowEvent* event) override;
+    void hideEvent(QHideEvent* event) override;
     bool eventFilter(QObject* watched, QEvent* event) override;
 
 signals:
@@ -73,6 +86,8 @@ signals:
     void findingActivated(const QString& planId);
     // The groups were edited, an options file appeared or changed, or the window was shown: ask for a new review.
     void refreshRequested();
+    // A line from the Unreal Engine link for the status bar. refusal shows it in amber.
+    void linkMessage(const QString& text, bool refusal);
 
 private:
     QWidget* addSection(const QString& title);
@@ -80,6 +95,7 @@ private:
     QPushButton* addButton(QWidget* row, const QString& text, const QString& tip, bool primary);
     void addIntro();
     void addPlainExport(const plynth::ExportReport* report, const ExportPanelState& state);
+    void addUnrealLink(const ExportPanelState& state);
     void addChecks(const plynth::ExportReport& report);
     void addGroups(const ExportPanelState& state);
     void addLicensesSwitch(const ExportPanelState& state);
@@ -102,6 +118,7 @@ private:
     QHash<QString, bool> expanded_;
     plynth::ExportEditGuard guard_; // the one judge of every write to export-options.json
     ExportGroupsList* groups_ = nullptr;
+    UnrealLinkSection* unreal_ = nullptr; // kept across redraws, like the groups list
     bool stale_ = false;        // the last review was out of date, so the old body is shown greyed
     bool refreshDue_ = false;   // a refresh waits for the name editor to close
     bool refreshAsked_ = false; // a request for a new review is on its way
