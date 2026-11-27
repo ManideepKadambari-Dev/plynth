@@ -283,8 +283,6 @@ int main(int argc, char* argv[])
                                              QStringLiteral("id"));
     QCommandLineOption exportGroupsExpandedOption(QStringLiteral("export-groups-expanded"),
                                                   QStringLiteral("Open every group in the Export window. For checks only."));
-    QCommandLineOption exportKitOnOption(QStringLiteral("export-kit-on"),
-                                         QStringLiteral("Tick the modular kit box of the Export window before --export runs. For checks only."));
     QCommandLineOption lightToolOption(QStringLiteral("light-tool"), QStringLiteral("Activate the Light tool. For checks only."));
     QCommandLineOption addLightOption(QStringLiteral("add-light"),
                                       QStringLiteral("Place a light at x,y in metres on the shown floor, with an optional kind "
@@ -292,8 +290,6 @@ int main(int argc, char* argv[])
                                       QStringLiteral("x,y[,kind]"));
     QCommandLineOption projectFinishOption(QStringLiteral("project-finish"),
                                            QStringLiteral("Show the Trim and Variation groups of the project. For checks only."));
-    QCommandLineOption exportGameplayOnOption(QStringLiteral("export-gameplay-on"),
-                                              QStringLiteral("Tick the gameplay data box of the Export window and open the window. For checks only."));
     QCommandLineOption variationsDialogOption(QStringLiteral("variations-dialog"),
                                               QStringLiteral("Open Build > Make variations. For checks only."));
     QCommandLineOption openingAssetPickerOption(QStringLiteral("opening-asset-picker"),
@@ -302,7 +298,6 @@ int main(int argc, char* argv[])
     parser.addOption(lightToolOption);
     parser.addOption(addLightOption);
     parser.addOption(projectFinishOption);
-    parser.addOption(exportGameplayOnOption);
     QCommandLineOption exportLicensesOnOption(QStringLiteral("export-licenses-on"),
                                               QStringLiteral("Tick the license report box of the Export window and open the window. For checks only."));
     parser.addOption(exportLicensesOnOption);
@@ -337,7 +332,6 @@ int main(int argc, char* argv[])
     parser.addOption(exportCheckOption);
     parser.addOption(exportTabOption);
     parser.addOption(exportGroupsExpandedOption);
-    parser.addOption(exportKitOnOption);
     parser.addOption(viewOption);
     parser.addOption(cameraOption);
     parser.addOption(homeOption);
@@ -657,13 +651,9 @@ int main(int argc, char* argv[])
         window.showBuildTab();
     if (parser.isSet(exportGroupsExpandedOption))
         window.exportPanel()->setGroupsExpanded(true);
-    if (parser.isSet(exportKitOnOption))
-        window.exportPanel()->setKitEnabled(true);
-    if (parser.isSet(exportGameplayOnOption))
-        window.exportPanel()->setGameplayEnabled(true);
     if (parser.isSet(exportLicensesOnOption))
         window.exportPanel()->setLicensesEnabled(true);
-    if (parser.isSet(exportTabOption) || parser.isSet(exportGameplayOnOption) || parser.isSet(exportLicensesOnOption))
+    if (parser.isSet(exportTabOption) || parser.isSet(exportLicensesOnOption))
         window.showExportTab();
     if (parser.isSet(projectFinishOption))
         QTimer::singleShot(100, &window, [&window]() { window.showProjectFinish(); });

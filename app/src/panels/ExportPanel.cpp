@@ -348,10 +348,6 @@ void ExportPanel::updateLock()
     const plynth::ExportEditDecision lock = guard_.state();
     const bool open = lock == plynth::ExportEditDecision::Allowed;
     const bool usable = !stale_ && !projectFolder_.empty();
-    if (kitBox_)
-        kitBox_->setEnabled(usable && lock != plynth::ExportEditDecision::Locked);
-    if (gameplayBox_)
-        gameplayBox_->setEnabled(usable && lock != plynth::ExportEditDecision::Locked);
     if (licensesBox_)
         licensesBox_->setEnabled(usable && lock != plynth::ExportEditDecision::Locked);
     if (repairButton_)
@@ -426,32 +422,14 @@ void ExportPanel::watchFolder(const std::filesystem::path& folder)
         watcher_->addPath(nativePath(folder));
 }
 
-// Hands the kit switch to the guard and asks for a new review.
-void ExportPanel::setKitEnabled(bool enabled)
-{
-    const plynth::ExportEditResult result = guard_.setKit(plynth::sessionNow(), enabled);
-    // A refusal is in the guard's message. Only a write that was allowed and failed needs a line of its own.
-    const bool failed = result.decision == plynth::ExportEditDecision::Allowed && !result.status.ok();
-    kitError_ = failed ? fromCore(result.status.message) : QString();
-    // The new review puts the box back to what is saved. It comes after this click, which the box is part of.
-    afterWrite();
-}
-
-// Hands the gameplay data switch to the guard and asks for a new review.
-void ExportPanel::setGameplayEnabled(bool enabled)
-{
-    const plynth::ExportEditResult result = guard_.setGameplay(plynth::sessionNow(), enabled);
-    const bool failed = result.decision == plynth::ExportEditDecision::Allowed && !result.status.ok();
-    gameplayError_ = failed ? fromCore(result.status.message) : QString();
-    afterWrite();
-}
-
 // Hands the license report switch to the guard and asks for a new review.
 void ExportPanel::setLicensesEnabled(bool enabled)
 {
     const plynth::ExportEditResult result = guard_.setLicenses(plynth::sessionNow(), enabled);
+    // A refusal is in the guard's message. Only a write that was allowed and failed needs a line of its own.
     const bool failed = result.decision == plynth::ExportEditDecision::Allowed && !result.status.ok();
     licensesError_ = failed ? fromCore(result.status.message) : QString();
+    // The new review puts the box back to what is saved. It comes after this click, which the box is part of.
     afterWrite();
 }
 
@@ -511,38 +489,8 @@ void ExportPanel::addLicensesReport(const plynth::ExportReport& report)
     }
 }
 
-// Adds the checkbox that switches the gameplay data file on, with the file it writes in mono below it.
-void ExportPanel::addGameplaySwitch(const ExportPanelState& state)
-{
-    const Theme& t = Theme::instance();
-    auto* box = new QCheckBox(tr("Also write gameplay data"), body_);
-    gameplayBox_ = box;
-    box->setFont(t.uiFont(t.sizeNormal()));
-    box->setChecked(state.gameplayEnabled);
-    box->setToolTip(tr("Also write a JSON file with the room volumes, door positions and light positions, in metres "
-                       "with Z up, for game code to read."));
-    connect(box, &QCheckBox::clicked, this, [this](bool on) { setGameplayEnabled(on); });
-    column_->addWidget(box);
-    if (!state.gameplayFile.isEmpty()) {
-        auto* file = new QLabel(state.gameplayFile, body_);
-        file->setWordWrap(true);
-        file->setFont(t.monoFont(t.sizeSmall()));
-        file->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
-        file->setToolTip(tr("The gameplay data file the next export writes"));
-        file->setEnabled(state.gameplayEnabled);
-        column_->addWidget(file);
-    }
-    if (!gameplayError_.isEmpty()) {
-        auto* error = new QLabel(gameplayError_, body_);
-        error->setWordWrap(true);
-        error->setFont(t.uiFont(t.sizeSmall()));
-        error->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
-        error->setToolTip(tr("Why the gameplay data switch was not saved"));
-        column_->addWidget(error);
-    }
-}
-
-// Adds what the last export wrote as gameplay data: the file and the counts.
+// Adds what the last export wrote as gameplay data: the file and the counts. A plain export has none, so this
+// shows only for a report written before the plain export.
 void ExportPanel::addGameplayReport(const plynth::ExportReport& report)
 {
     const plynth::ExportGameplayReport& gameplay = report.gameplay;
@@ -555,29 +503,8 @@ void ExportPanel::addGameplayReport(const plynth::ExportReport& report)
     addRow(section, tr("Lights"), QLocale().toString(gameplay.lights), true);
 }
 
-// Adds the checkbox that switches the modular kit on for the next export.
-void ExportPanel::addKitSwitch(const ExportPanelState& state)
-{
-    const Theme& t = Theme::instance();
-    auto* box = new QCheckBox(tr("Also write the modular kit"), body_);
-    kitBox_ = box;
-    box->setFont(t.uiFont(t.sizeNormal()));
-    box->setChecked(state.kitEnabled);
-    box->setToolTip(tr("Also write every unique wall, corner and opening piece once, with collision, and a layout file "
-                       "that says where each copy goes. It needs a library."));
-    connect(box, &QCheckBox::clicked, this, [this](bool on) { setKitEnabled(on); });
-    column_->addWidget(box);
-    if (!kitError_.isEmpty()) {
-        auto* error = new QLabel(kitError_, body_);
-        error->setWordWrap(true);
-        error->setFont(t.uiFont(t.sizeSmall()));
-        error->setStyleSheet(QStringLiteral("color: %1;").arg(t.signalAmber().name()));
-        error->setToolTip(tr("Why the modular kit switch was not saved"));
-        column_->addWidget(error);
-    }
-}
-
-// Adds what the last export did with the kit: its files and counts, or why it was left out.
+// Adds what the last export did with the kit: its files and counts, or why it was left out. A plain export has no
+// kit, so this shows only for a report written before the plain export.
 void ExportPanel::addKitReport(const plynth::ExportReport& report)
 {
     const Theme& t = Theme::instance();
@@ -600,8 +527,8 @@ void ExportPanel::addKitReport(const plynth::ExportReport& report)
     }
 }
 
-// Repairs the unreadable options file after asking: a copy is kept, the group edits go and the kit switch stays when
-// it can be read. The CLI does the same.
+// Repairs the unreadable options file after asking: a copy is kept, the group edits go and the other switches stay
+// when they can be read. The CLI does the same.
 void ExportPanel::resetOptions()
 {
     const plynth::ExportEditTicket ticket = guard_.ticket();
@@ -612,7 +539,7 @@ void ExportPanel::resetOptions()
     const auto answer = QMessageBox::question(
         this, tr("Reset groups"),
         tr("The export options file cannot be read. Keep a copy of it as export-options.json.bad and go back to the "
-           "automatic groups? The modular kit switch stays as it was if it can be read."),
+           "automatic groups? The other export switches stay as they were if they can be read."),
         QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
     if (answer != QMessageBox::Yes)
         return;
@@ -800,7 +727,6 @@ void ExportPanel::setReport(const plynth::ExportReport* report, const ExportPane
         return;
     }
     refreshDue_ = false;
-    const Theme& t = Theme::instance();
     while (QLayoutItem* item = column_->takeAt(0)) {
         if (item->widget() == groups_)
             groups_->hide();
@@ -809,17 +735,47 @@ void ExportPanel::setReport(const plynth::ExportReport* report, const ExportPane
         delete item;
     }
     watchFolder(state.projectFolder);
-    if (projectFolder_ != state.projectFolder) {
-        kitError_.clear();
-        gameplayError_.clear();
-    }
+    if (projectFolder_ != state.projectFolder)
+        licensesError_.clear();
     projectFolder_ = state.projectFolder;
+
+    addPlainExport(report, state);
+    // The engine link sections, the Unreal Engine link first, go here, below the plain export.
+    column_->addStretch(1);
+    column_->activate();
+}
+
+// Adds the title of the plain export and the line that says what it writes.
+void ExportPanel::addIntro()
+{
+    const Theme& t = Theme::instance();
+    auto* title = new QLabel(tr("Plain FBX for any tool"), body_);
+    title->setFont(t.uiFont(t.sizeNormal(), QFont::DemiBold));
+    title->setStyleSheet(QStringLiteral("color: %1;").arg(t.text().name()));
+    title->setToolTip(tr("Export writes a plain FBX that any 3D tool or game engine can open"));
+    column_->addWidget(title);
+    auto* line = new QLabel(tr("The building as FBX with its materials and a Textures folder. Plain names, no "
+                               "collision meshes and no engine rules."),
+                            body_);
+    line->setWordWrap(true);
+    line->setFont(t.uiFont(t.sizeSmall()));
+    line->setStyleSheet(QStringLiteral("color: %1;").arg(t.muted().name()));
+    line->setToolTip(tr("What Export writes into the project's export folder"));
+    column_->addWidget(line);
+}
+
+// Adds the plain export: its buttons, notices, groups, switches and the last export with its checks and files.
+void ExportPanel::addPlainExport(const plynth::ExportReport* report, const ExportPanelState& state)
+{
+    const Theme& t = Theme::instance();
+    addIntro();
 
     auto* buttons = new QWidget(body_);
     auto* buttonRow = new QHBoxLayout(buttons);
     buttonRow->setContentsMargins(0, 0, 0, 0);
     buttonRow->setSpacing(t.unit() * 2);
-    QPushButton* exportButton = addButton(buttons, tr("Export"), tr("Write the FBX and textures for Unreal (Ctrl+E)"),
+    QPushButton* exportButton = addButton(buttons, tr("Export"),
+                                          tr("Write the plain FBX and its textures into the export folder (Ctrl+E)"),
                                           true);
     QPushButton* checkButton = addButton(buttons, tr("Check"),
                                          tr("Run the quality checks and write nothing (Ctrl+Shift+E)"),
@@ -858,16 +814,12 @@ void ExportPanel::setReport(const plynth::ExportReport* report, const ExportPane
         note(state.error, t.signalAmber());
 
     addGroups(state);
-    addKitSwitch(state);
-    addGameplaySwitch(state);
     addLicensesSwitch(state);
     updateLock();
 
     if (report == nullptr) {
         if (state.notice.isEmpty() && state.error.isEmpty())
             note(tr("No export yet. Press Check to run the quality checks, or Export (Ctrl+E)."), t.muted());
-        column_->addStretch(1);
-        column_->activate();
         return;
     }
 
@@ -915,7 +867,9 @@ void ExportPanel::setReport(const plynth::ExportReport* report, const ExportPane
     if (report->objects > 0) {
         addRow(summary, tr("Objects"), locale.toString(report->objects), true);
         addRow(summary, tr("Triangles"), locale.toString(report->triangles), true);
-        addRow(summary, tr("Collision meshes"), locale.toString(report->collisionObjects), true);
+        // The plain export writes no collision; a report from before it does.
+        if (report->profile != plynth::ExportProfile::Plain)
+            addRow(summary, tr("Collision meshes"), locale.toString(report->collisionObjects), true);
     }
     if (report->exported) {
         addRow(summary, tr("Texture files"), locale.toString(report->textureCount), true);
@@ -944,8 +898,6 @@ void ExportPanel::setReport(const plynth::ExportReport* report, const ExportPane
         connect(folder, &QPushButton::clicked, this, &ExportPanel::openFolderRequested);
         column_->addWidget(row);
     }
-    column_->addStretch(1);
-    column_->activate();
 }
 
 }
