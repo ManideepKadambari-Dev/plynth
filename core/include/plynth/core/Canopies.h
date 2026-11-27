@@ -5,6 +5,8 @@
 #include "Roofs.h"
 #include "Status.h"
 
+#include <vector>
+
 namespace plynth {
 
 // Canopies and overhanging upper floors (issues 16, 20 and 31, plan format 8).
@@ -42,8 +44,17 @@ namespace plynth {
 
 inline constexpr double kMaxOverhangDepth = 3.0; // metres
 
+// How far round a canopy's outline a post still holds it up, inside or outside, in metres.
+inline constexpr double kCanopySupportReach = 0.3;
+
 // Checks the values a canopy command would set, with the rules of checkPlan and checkRoofSettings on its roof,
 // and refuses an outline that crosses itself. InvalidValue with a plain sentence.
 Status checkCanopy(const Canopy& canopy);
+
+// The posts that hold a canopy up: the generator items of its floor (columns, posts, brackets) whose centre lies
+// inside the canopy's outline grown by kCanopySupportReach, in the floor's item order. The build reports
+// canopy_unsupported when there are none and no wall or deck lies under it within the same reach. Empty for an
+// outline with fewer than three points.
+std::vector<Id> canopyPosts(const Floor& floor, const Canopy& canopy);
 
 }

@@ -23,8 +23,6 @@ namespace {
 
 namespace pg = partgeometry;
 
-// How far round a canopy's outline a post, wall or deck still holds it up, in metres.
-constexpr double kSupportReach = 0.3;
 // Heights nearer than this touch without overlapping, in metres.
 constexpr double kLevelSlack = 1e-6;
 // Less than this many square metres left of a canopy is nothing.
@@ -267,22 +265,14 @@ CanopyShape shapeOf(const Canopy& canopy, const RoofType& chosen, const WorldPol
     return shape;
 }
 
-// Says whether something under the canopy, within kSupportReach of its outline, holds it up: a generator item
-// (a post or column), a wall of the floor or a deck.
-bool supported(const Floor& floor, const std::vector<Vec2>& planOutline)
+// Says whether something under the canopy, within kCanopySupportReach of its outline, holds it up: a post
+// (canopyPosts), a wall of the floor or a deck.
+bool supported(const Floor& floor, const Canopy& canopy, const std::vector<Vec2>& planOutline)
 {
+    if (!canopyPosts(floor, canopy).empty()) return true;
     const Clipper2Lib::PathsD reach =
-        offsetByTurning(Clipper2Lib::PathsD{pg::pathOf(pg::anticlockwise(planOutline))}, kSupportReach, 5.0);
+        offsetByTurning(Clipper2Lib::PathsD{pg::pathOf(pg::anticlockwise(planOutline))}, kCanopySupportReach, 5.0);
     if (reach.empty()) return false;
-    for (const Item& item : floor.items) {
-        if (!isGeneratorItem(item)) continue;
-        int winding = 0;
-        for (const Clipper2Lib::PathD& path : reach) {
-            const std::vector<Vec2> ring = ringOfPath(path);
-            if (insidePolygon({item.x, item.y}, ring)) winding += ringAreaOf(ring) > 0.0 ? 1 : -1;
-        }
-        if (winding > 0) return true;
-    }
     Clipper2Lib::PathsD held;
     for (const PlanArea& area : floorFootprint(floor)) {
         held.push_back(pg::pathOf(area.outline));
@@ -406,7 +396,7 @@ public:
                 continue;
             }
             if (!shape.fallback.empty()) problem("canopy_type_fallback", BuildSeverity::Warning, shape.fallback);
-            if (!supported(floor, planOutline)) {
+            if (!supported(floor, canopy, planOutline)) {
                 problem("canopy_unsupported", BuildSeverity::Warning,
                         "Canopy " + canopy.id + " has no post, wall or deck under it, so it is built as a cantilever.");
             }

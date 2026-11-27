@@ -2,11 +2,13 @@
 
 #include <plynth/core/CommandStack.h>
 #include <plynth/core/commands/CanopyCommands.h>
+#include <plynth/core/commands/DeleteCommands.h>
 
 #include <catch2/catch_test_macros.hpp>
 
 #include <memory>
 #include <string>
+#include <vector>
 
 using namespace plynth;
 
@@ -182,4 +184,31 @@ TEST_CASE("removing a canopy puts it back in its place on undo", "[commands][can
 
     RemoveCanopyCommand missing("cn_missing");
     refused(p, missing, ErrorCode::NotFound);
+}
+
+TEST_CASE("the delete command removes a named canopy as one undo step", "[commands][canopies][delete]")
+{
+    Id id;
+    Project p = projectWithCanopy(id);
+    const Project before = p;
+    const std::vector<Id> named{id};
+    DeleteBuild build = makeDeleteCommand(p.plan, named);
+    test::requireOk(build.status);
+    CHECK(build.removes.canopies == named);
+    CHECK(build.removes.walls.empty());
+    REQUIRE(build.command);
+    test::requireOk(build.command->apply(p));
+    CHECK(p.plan.floors[0].canopies.empty());
+    test::requirePlanValid(p.plan);
+    build.command->undo(p);
+    CHECK(p == before);
+
+    // Removing every wall leaves the canopy where it is.
+    std::vector<Id> walls;
+    for (const Wall& w : p.plan.floors[0].walls) walls.push_back(w.id);
+    DeleteBuild wallsOnly = makeDeleteCommand(p.plan, walls);
+    test::requireOk(wallsOnly.status);
+    CHECK(wallsOnly.removes.canopies.empty());
+    test::requireOk(wallsOnly.command->apply(p));
+    CHECK(p.plan.floors[0].canopies.size() == 1);
 }

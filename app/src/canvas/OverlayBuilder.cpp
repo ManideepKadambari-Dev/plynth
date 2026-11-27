@@ -1,5 +1,6 @@
 #include "OverlayBuilder.h"
 
+#include <plynth/core/Canopies.h>
 #include <plynth/core/Geometry.h>
 #include <plynth/core/Items.h>
 #include <plynth/core/Roofs.h>
@@ -119,8 +120,8 @@ OverlayRoof makeOverlayRoof(const plynth::RoofArea& roof, double ppm)
     return out;
 }
 
-// Turns every canopy of the floor into its outline, label and tip in image pixels. Generator items whose centre
-// lies inside a canopy are shown as its posts.
+// Turns every canopy of the floor into its outline, label and tip in image pixels, with the posts that hold it up
+// (canopyPosts) shown as its posts.
 void addOverlayCanopies(OverlayData& overlay, const plynth::Floor& floor, double ppm)
 {
     for (const plynth::Canopy& canopy : floor.canopies) {
@@ -144,10 +145,11 @@ void addOverlayCanopies(OverlayData& overlay, const plynth::Floor& floor, double
         entry.tip = QObject::tr("Canopy %1: %2 roof, underside %3 m above the floor. Click it to select it.")
                         .arg(entry.id, roof)
                         .arg(canopy.height, 0, 'f', 2);
-        for (const plynth::Item& item : floor.items) {
-            if (!item.generator.has_value() || item.wall.has_value() ||
-                !plynth::insidePolygon(plynth::Vec2{item.x, item.y}, ring))
+        for (const plynth::Id& postId : plynth::canopyPosts(floor, canopy)) {
+            const plynth::Item* found = plynth::findItem(floor, postId);
+            if (found == nullptr)
                 continue;
+            const plynth::Item& item = *found;
             QPolygonF post;
             for (const plynth::Vec2& corner : plynth::itemFootprint(item).corners)
                 post << QPointF(corner.x * ppm, corner.y * ppm);

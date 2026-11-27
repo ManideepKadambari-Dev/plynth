@@ -2,6 +2,7 @@
 #include "SchemaSupport.h"
 #include "TestSupport.h"
 
+#include <plynth/core/Build.h>
 #include <plynth/core/BuildJob.h>
 #include <plynth/core/BuildParts.h>
 #include <plynth/core/Canopies.h>
@@ -16,6 +17,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -564,4 +566,71 @@ TEST_CASE("a canopy that reaches an upper floor's slab stops at that floor", "[c
     const BuildPart* part = partNamed(below, 0, "f1_cn1_Canopy");
     REQUIRE(part);
     CHECK(areaInSlot(*part, "Soffit") == Approx(1.0));
+}
+
+TEST_CASE("canopyPosts lists the generator items within reach of the outline", "[core][canopies]") {
+    Floor floor = boxFloor("f1", 0.0, 0.0, 4.0, 4.0);
+    const Canopy canopy = canopyOver("cn1", 6.0, 0.0, 9.0, 2.0);
+    const auto item = [](const std::string& id, double x, double y, bool generator) {
+        Item i;
+        i.id = id;
+        i.x = x;
+        i.y = y;
+        i.size = {0.2, 0.2, 2.7};
+        if (generator) i.generator = GeneratorUse{"column_round", {}};
+        else i.asset = "sofa";
+        return i;
+    };
+    floor.items = {item("i1", 6.2, 0.2, true), item("i2", 9.2, 1.0, true), item("i3", 9.5, 1.0, true),
+                   item("i4", 7.0, 1.0, false), item("i5", 8.8, 1.8, true)};
+    CHECK(canopyPosts(floor, canopy) == std::vector<Id>{"i1", "i2", "i5"});
+
+    Canopy clockwise = canopy;
+    std::reverse(clockwise.outline.begin(), clockwise.outline.end());
+    CHECK(canopyPosts(floor, clockwise) == std::vector<Id>{"i1", "i2", "i5"});
+
+    Canopy broken = canopy;
+    broken.outline.resize(2);
+    CHECK(canopyPosts(floor, broken).empty());
+}
+
+TEST_CASE("problemPosition marks canopies and deep overhangs", "[core][canopies]") {
+    Project project = projectOf({boxFloor("f1", 0.0, 0.0, 4.0, 4.0), boxFloor("f2", 0.0, 0.0, 8.5, 4.0)});
+    Canopy l = canopyOver("cn1", 6.0, 0.0, 9.0, 2.0);
+    project.plan.floors[0].canopies = {l};
+    // An L whose area's middle lies outside it falls back to its first corner.
+    Canopy bent;
+    bent.id = "cn2";
+    bent.outline = {{10.0, 0.0}, {14.0, 0.0}, {14.0, 0.2}, {10.2, 0.2}, {10.2, 4.0}, {10.0, 4.0}};
+    project.plan.floors[0].canopies.push_back(bent);
+
+    BuildProblem problem;
+    problem.code = "canopy_unsupported";
+    problem.object = "cn1";
+    const std::optional<Vec2> at = problemPosition(project.plan, problem);
+    REQUIRE(at);
+    CHECK(at->x == Approx(7.5));
+    CHECK(at->y == Approx(1.0));
+
+    problem.object = "cn2";
+    const std::optional<Vec2> corner = problemPosition(project.plan, problem);
+    REQUIRE(corner);
+    CHECK(corner->x == Approx(10.0));
+    CHECK(corner->y == Approx(0.0));
+
+    // The overhang of f2 over f1 runs from x 4.1 to 8.6 and y -0.1 to 4.1.
+    const BuildPlan plan = makeBuildPlan(project, {});
+    const BuildProblem* deep = nullptr;
+    for (const BuildProblem& p : plan.problems) {
+        if (p.code == "floor_overhang") deep = &p;
+    }
+    REQUIRE(deep);
+    const std::optional<Vec2> over = problemPosition(project.plan, *deep);
+    REQUIRE(over);
+    CHECK(over->x == Approx(6.35));
+    CHECK(over->y == Approx(2.0));
+
+    problem.code = "floor_overhang";
+    problem.object = "f1";
+    CHECK_FALSE(problemPosition(project.plan, problem));
 }

@@ -98,7 +98,9 @@ BuildMaterialSource buildMaterialSourceFor(const MaterialCatalog& catalog);
 
 // Where on the plan a problem's object is, for the marker the app draws: a point's position, the middle of a
 // wall's curve, an opening's centre, a room's label point, an item's centre, a stair's bottom step (x, y), a
-// roof section entry's anchor. Plan coordinates. Empty when the problem has no object or the object is not
+// roof section entry's anchor, a canopy's middle (the middle of its outline's area, or its first corner when
+// that lies outside it), and for floor_overhang (object the upper floor) the middle of the widest piece of the
+// overhang. Plan coordinates. Empty when the problem has no object or the object is not
 // in the plan.
 std::optional<Vec2> problemPosition(const Plan& plan, const BuildProblem& problem);
 

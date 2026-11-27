@@ -1,5 +1,6 @@
 #include "plynth/core/commands/DeleteCommands.h"
 
+#include "plynth/core/commands/CanopyCommands.h"
 #include "plynth/core/commands/ItemCommands.h"
 #include "plynth/core/commands/OpeningCommands.h"
 #include "plynth/core/commands/PointCommands.h"
@@ -40,9 +41,10 @@ DeleteBuild makeDeleteCommand(const Plan& plan, std::span<const Id> ids)
     std::set<Id> rooms;
     std::set<Id> stairs;
     std::set<Id> lights;
+    std::set<Id> canopies;
     for (const Id& id : ids) {
         const Floor* found = findFloorContaining(plan, id);
-        if (!found) return refuse(ErrorCode::NotFound, "There is no point, wall, room, opening, item, stair or light " + id + ".");
+        if (!found) return refuse(ErrorCode::NotFound, "There is no point, wall, room, opening, item, stair, light or canopy " + id + ".");
         if (floor && floor != found) return refuse(ErrorCode::InvalidValue, "The items are on different floors.");
         floor = found;
         if (findPoint(*found, id)) {
@@ -59,8 +61,11 @@ DeleteBuild makeDeleteCommand(const Plan& plan, std::span<const Id> ids)
             stairs.insert(id);
         } else if (findLight(*found, id)) {
             lights.insert(id);
+        } else if (findCanopy(*found, id)) {
+            canopies.insert(id);
         } else {
-            return refuse(ErrorCode::NotFound, "The id " + id + " is not a point, wall, room, opening, item, stair or light.");
+            return refuse(ErrorCode::NotFound,
+                          "The id " + id + " is not a point, wall, room, opening, item, stair, light or canopy.");
         }
     }
 
@@ -99,6 +104,11 @@ DeleteBuild makeDeleteCommand(const Plan& plan, std::span<const Id> ids)
         if (!lights.count(l.id)) continue;
         build.removes.lights.push_back(l.id);
         group->add(std::make_unique<RemoveLightCommand>(l.id));
+    }
+    for (const Canopy& c : floor->canopies) {
+        if (!canopies.count(c.id)) continue;
+        build.removes.canopies.push_back(c.id);
+        group->add(std::make_unique<RemoveCanopyCommand>(c.id));
     }
     for (const Item& i : floor->items) {
         if (!items.count(i.id)) continue;

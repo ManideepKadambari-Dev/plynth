@@ -60,7 +60,6 @@
 #include <plynth/core/RoomTypes.h>
 #include <plynth/core/Rooms.h>
 #include <plynth/core/Stairs.h>
-#include <plynth/core/commands/CanopyCommands.h>
 #include <plynth/core/commands/DeleteCommands.h>
 #include <plynth/core/SetupCheck.h>
 #include <plynth/core/catalog/AssetImport.h>
@@ -1756,13 +1755,6 @@ void MainWindow::deleteSelection()
     if (selection_->isEmpty() || selection_->kind() == SelectionKind::RoofSection || doc_.isReadOnly())
         return;
     const std::string id = selection_->id().toStdString();
-    // makeDeleteCommand does not take canopies, and nothing depends on one, so it is removed on its own.
-    if (selection_->kind() == SelectionKind::Canopy) {
-        const plynth::Status status = doc_.execute(std::make_unique<plynth::RemoveCanopyCommand>(id));
-        if (!status.ok())
-            statusBar_->showMessage(fromCore(status.message));
-        return;
-    }
     plynth::DeleteBuild build = plynth::makeDeleteCommand(doc_.plan(), std::span<const plynth::Id>(&id, 1));
     if (!build.status.ok()) {
         statusBar_->showMessage(fromCore(build.status.message));

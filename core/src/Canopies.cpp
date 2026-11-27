@@ -55,4 +55,24 @@ Status checkCanopy(const Canopy& canopy)
     return checkMaterial(canopy.fasciaMaterial);
 }
 
+// Lists the generator items whose centre lies within reach of the canopy's outline.
+std::vector<Id> canopyPosts(const Floor& floor, const Canopy& canopy)
+{
+    std::vector<Id> out;
+    const std::vector<Vec2> outline = partgeometry::withoutRepeatedPoints(partgeometry::pointsOf(canopy.outline));
+    if (outline.size() < 3) return out;
+    const Clipper2Lib::PathsD reach = offsetByTurning(
+        Clipper2Lib::PathsD{partgeometry::pathOf(partgeometry::anticlockwise(outline))}, kCanopySupportReach, 5.0);
+    for (const Item& item : floor.items) {
+        if (!isGeneratorItem(item)) continue;
+        int winding = 0;
+        for (const Clipper2Lib::PathD& path : reach) {
+            const std::vector<Vec2> ring = ringOfPath(path);
+            if (insidePolygon({item.x, item.y}, ring)) winding += ringAreaOf(ring) > 0.0 ? 1 : -1;
+        }
+        if (winding > 0) out.push_back(item.id);
+    }
+    return out;
+}
+
 }

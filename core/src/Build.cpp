@@ -15,6 +15,7 @@
 #include "plynth/core/ProjectFiles.h"
 #include "plynth/core/ProjectJson.h"
 #include "plynth/core/Rooms.h"
+#include "plynth/core/Storeys.h"
 #include "plynth/core/WallGeometry.h"
 #include "plynth/core/catalog/AssetInfo.h"
 #include "plynth/core/catalog/BuildChoices.h"
@@ -31,6 +32,7 @@
 #include <windows.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <fstream>
@@ -385,13 +387,60 @@ BuildMaterialSource buildMaterialSourceFor(const MaterialCatalog& catalog)
     };
 }
 
+namespace {
+
+// The middle of a ring's area, or its first point when that middle lies outside it. Empty for no points.
+std::optional<Vec2> middleOfRing(const std::vector<Vec2>& ring)
+{
+    if (ring.empty()) return std::nullopt;
+    double twice = 0.0;
+    double cx = 0.0;
+    double cy = 0.0;
+    const Vec2 o = ring.front();
+    for (std::size_t i = 0; i < ring.size(); ++i) {
+        const Vec2 a{ring[i].x - o.x, ring[i].y - o.y};
+        const Vec2 b{ring[(i + 1) % ring.size()].x - o.x, ring[(i + 1) % ring.size()].y - o.y};
+        const double cross = a.x * b.y - b.x * a.y;
+        twice += cross;
+        cx += (a.x + b.x) * cross;
+        cy += (a.y + b.y) * cross;
+    }
+    if (std::fabs(twice) < 1e-12) return o;
+    const Vec2 middle{o.x + cx / (3.0 * twice), o.y + cy / (3.0 * twice)};
+    if (!insidePolygon(middle, ring)) return o;
+    return middle;
+}
+
+// Where an overhang of this upper floor is: the middle of its widest piece. Empty when it has none.
+std::optional<Vec2> overhangPosition(const Plan& plan, std::string_view upperFloorId)
+{
+    const std::optional<std::size_t> index = floorIndex(plan, upperFloorId);
+    if (!index || *index == 0) return std::nullopt;
+    const std::vector<PlanArea> over = overhangArea(plan, *index - 1);
+    const PlanArea* widest = nullptr;
+    for (const PlanArea& area : over) {
+        if (!widest || planAreaSize(area) > planAreaSize(*widest)) widest = &area;
+    }
+    if (!widest) return std::nullopt;
+    return middleOfRing(widest->outline);
+}
+
+}
+
 // Where on the plan a problem's object is.
 std::optional<Vec2> problemPosition(const Plan& plan, const BuildProblem& problem)
 {
     if (problem.object.empty()) return std::nullopt;
     if (const RoofSection* entry = findRoofSection(plan, problem.object)) return Vec2{entry->x, entry->y};
+    if (problem.code == "floor_overhang" && findFloor(plan, problem.object)) return overhangPosition(plan, problem.object);
     const Floor* floor = findFloorContaining(plan, problem.object);
     if (!floor) return std::nullopt;
+
+    if (const Canopy* c = findCanopy(*floor, problem.object)) {
+        std::vector<Vec2> ring;
+        for (const PlanXY& p : c->outline) ring.push_back({p.x, p.y});
+        return middleOfRing(ring);
+    }
 
     if (const Point* p = findPoint(*floor, problem.object)) return positionOf(*p);
     if (const Wall* w = findWall(*floor, problem.object)) return middleOfWall(*floor, *w);
