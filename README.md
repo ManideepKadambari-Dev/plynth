@@ -156,6 +156,8 @@ Plynth is an early preview. It works from plan to export, but the plan file form
 
 ## Building from source
 
+To contribute, read [CONTRIBUTING.md](CONTRIBUTING.md) as well.
+
 ### Prerequisites
 
 - Visual Studio 2026 with the "Desktop development with C++" workload.
