@@ -16,6 +16,10 @@ KEEP_SUFFIXES = (".png", ".jpg", ".jpeg")
 DEFAULT_TILE = 1.0
 # A map counts as magenta when this share of its pixels is the pure magenta of a missing image.
 MAGENTA_SHARE = 0.9
+# The node of an opacity file plan whose image keeps its alpha apart, so only its colour is the opacity.
+IGNORE_ALPHA = "ignore alpha"
+# How much each of red, green and blue counts when Blender turns a colour into one value.
+LUMINANCE = (0.2126, 0.7152, 0.0722)
 
 # What a source says about one channel. kind is file, directx, gloss, packed, alpha, value, color or node;
 # file is an image path, value a number or an sRGB triple, node something only the source understands.

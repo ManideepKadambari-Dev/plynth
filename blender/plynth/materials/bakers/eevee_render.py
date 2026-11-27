@@ -13,6 +13,9 @@ ORDER = 20
 DEFAULT_SIZE = 1024
 TILE_NAME = "plynth_bake_tile"
 CAMERA_NAME = "plynth_bake_camera"
+# Nodes that name the UV map they read, and how many UV maps a mesh can have.
+UV_NODES = ("ShaderNodeUVMap", "ShaderNodeNormalMap", "ShaderNodeTangent")
+MAX_UV_MAPS = 8
 
 
 # Says whether this baker can make the channel: anything that comes from a node of a Blender material.
@@ -20,14 +23,38 @@ def can_bake(ctx, plan):
     return plan.kind == "node"
 
 
+# Returns the UV map names the nodes of a material ask for by name, looking inside node groups.
+def uv_names(material):
+    names = []
+    seen = set()
+    pending = [material.node_tree]
+    while pending:
+        tree = pending.pop()
+        if tree is None or tree.as_pointer() in seen:
+            continue
+        seen.add(tree.as_pointer())
+        for node in tree.nodes:
+            name = getattr(node, "uv_map", "") if node.bl_idname in UV_NODES else ""
+            if name and name not in names:
+                names.append(name)
+            if node.bl_idname == "ShaderNodeGroup":
+                pending.append(node.node_tree)
+    return names
+
+
 # Adds a one metre tile at the origin with UVs from 0 to 1, and an orthographic camera straight above it that
-# sees exactly the tile. Returns both objects.
+# sees exactly the tile. The tile has a UV map of each name the material asks for, all the same, since a name it
+# lacks reads as one corner of each image: a leaf atlas would bake to the black of its empty corner.
+# Returns both objects.
 def build_tile(material):
     mesh = bpy.data.meshes.new(TILE_NAME)
     mesh.from_pydata([(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)], [], [(0, 1, 2, 3)])
-    layer = mesh.uv_layers.new(name="UVMap")
-    for loop, uv in zip(mesh.polygons[0].loop_indices, [(0, 0), (1, 0), (1, 1), (0, 1)]):
-        layer.data[loop].uv = uv
+    for name in (["UVMap"] + [n for n in uv_names(material) if n != "UVMap"])[:MAX_UV_MAPS]:
+        layer = mesh.uv_layers.new(name=name)
+        if layer is None:
+            break
+        for loop, uv in zip(mesh.polygons[0].loop_indices, [(0, 0), (1, 0), (1, 1), (0, 1)]):
+            layer.data[loop].uv = uv
     mesh.materials.append(material)
     tile = bpy.data.objects.new(TILE_NAME, mesh)
     scene = bpy.context.scene

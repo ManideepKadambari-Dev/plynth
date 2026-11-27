@@ -1,8 +1,9 @@
 import os
+from collections import namedtuple
 
 import bpy
 
-from .. import ChannelPlan, Loaded, SourceEntry
+from .. import IGNORE_ALPHA, ChannelPlan, Loaded, SourceEntry
 from ...jobs import WorkerError
 from ...registry import MATERIAL_SOURCES
 
@@ -17,17 +18,48 @@ OTHER_SHADERS = {
     "ShaderNodeBsdfAnisotropic": ({"Base Color": "Color", "Roughness": "Roughness", "Normal": "Normal"},
                                   {"Metallic": 1.0}),
     "ShaderNodeEmission": ({"Base Color": "Color"}, {"Roughness": 1.0, "Metallic": 0.0}),
+    "ShaderNodeBsdfGlass": ({"Base Color": "Color", "Roughness": "Roughness", "Normal": "Normal", "IOR": "IOR"},
+                            {"Metallic": 0.0}),
+    "ShaderNodeBsdfRefraction": ({"Base Color": "Color", "Roughness": "Roughness", "Normal": "Normal", "IOR": "IOR"},
+                                 {"Metallic": 0.0}),
 }
+GLASS_SHADERS = ("ShaderNodeBsdfGlass", "ShaderNodeBsdfRefraction")
+TRANSPARENT_SHADER = "ShaderNodeBsdfTransparent"
+# The name of the Principled transmission input: Blender 4 and later, then older versions.
+TRANSMISSION_NAMES = ("Transmission Weight", "Transmission")
 GROUP_SOCKET_TYPES = {"Base Color": "NodeSocketColor", "Normal": "NodeSocketVector"}
 READ_NODE = "Plynth read shader"
 MADE_LABEL = "plynth_made"
 MAX_DEPTH = 8
+# How much light a material must let through to count as glass, and the IOR used when none is given.
+GLASS_LEVEL = 0.5
+DEFAULT_IOR = 1.45
+
+# How a glass material lets light through: its transmission (None when a texture sets it) and its IOR.
+Glass = namedtuple("Glass", "transmission ior")
 
 
 # Returns the sRGB value of a linear value from 0 to 1.
 def to_srgb(value):
     value = max(0.0, min(1.0, value))
     return value * 12.92 if value <= 0.0031308 else 1.055 * value ** (1.0 / 2.4) - 0.055
+
+
+# Returns the transmission input of a Principled BSDF, or None when this Blender has none.
+def transmission_input(node):
+    return next((node.inputs[name] for name in TRANSMISSION_NAMES if name in node.inputs), None)
+
+
+# Returns the names of the Principled inputs a made Principled BSDF takes over: the channels, the transmission
+# and the IOR.
+def read_names(node):
+    names = list(SOCKETS.values())
+    weight = transmission_input(node)
+    if weight is not None:
+        names.append(weight.name)
+    if "IOR" in node.inputs:
+        names.append("IOR")
+    return names
 
 
 # Returns (node, socket) at the real source of an input, following reroute nodes. None when the input has no
@@ -106,6 +138,10 @@ def shader_principled(tree, socket, depth):
         second = shader_principled(tree, node.inputs[2], depth + 1)
         if first is not None and second is not None and first != second:
             return mixed_principled(tree, node.inputs[0], first, second)
+        if first is None and second is not None and is_transparent(node.inputs[1]):
+            return cut_out_principled(tree, node.inputs[0], second, True)
+        if second is None and first is not None and is_transparent(node.inputs[2]):
+            return cut_out_principled(tree, node.inputs[0], first, False)
         return first or second
     if kind == "ShaderNodeAddShader":
         return shader_principled(tree, node.inputs[0], depth + 1) or shader_principled(tree, node.inputs[1], depth + 1)
@@ -114,6 +150,54 @@ def shader_principled(tree, socket, depth):
     if kind in OTHER_SHADERS:
         return converted_principled(tree, node)
     return None
+
+
+# Returns how a material lets light through as Glass, or None when it is not glass. It is glass when a Glass or
+# Refraction shader feeds its surface, or a Principled BSDF whose transmission is a texture or at least GLASS_LEVEL.
+def glass_of(tree):
+    output = output_node(tree) if tree is not None else None
+    if output is None:
+        return None
+    return glass_behind(output.inputs["Surface"], 0)
+
+
+# Returns the Glass of the first glass shader behind a socket, looking through mix and add shaders and node groups.
+def glass_behind(socket, depth):
+    found = resolve_link(socket) if depth <= MAX_DEPTH else None
+    if found is None:
+        return None
+    node, out = found
+    kind = node.bl_idname
+    if kind in GLASS_SHADERS:
+        return Glass(1.0, ior_of(node))
+    if kind == "ShaderNodeBsdfPrincipled":
+        weight = transmission_input(node)
+        if weight is None:
+            return None
+        if resolve_link(weight) is not None:
+            return Glass(None, ior_of(node))
+        return Glass(float(weight.default_value), ior_of(node)) if weight.default_value >= GLASS_LEVEL else None
+    if kind in SHADER_MIXERS:
+        start = 1 if kind == "ShaderNodeMixShader" else 0
+        for entry in list(node.inputs)[start:]:
+            glass = glass_behind(entry, depth + 1)
+            if glass is not None:
+                return glass
+        return None
+    if kind == "ShaderNodeGroup" and node.node_tree is not None:
+        exit_node = group_output(node.node_tree)
+        entry = None
+        if exit_node is not None:
+            entry = next((s for s in exit_node.inputs if s.identifier == out.identifier), None)
+        return glass_behind(entry, depth + 1) if entry is not None else None
+    return None
+
+
+# Returns the IOR a shader sets, or DEFAULT_IOR when it has none or a texture sets it.
+def ior_of(node):
+    if "IOR" not in node.inputs or node.inputs["IOR"].is_linked:
+        return DEFAULT_IOR
+    return float(node.inputs["IOR"].default_value)
 
 
 # Adds a Principled BSDF that is only read, never rendered.
@@ -154,10 +238,10 @@ def by_identifier(sockets, identifier):
 # that are equal values are copied, and the normal is not mixed: the first linked one is used.
 def mixed_principled(tree, factor, first, second):
     made = new_principled(tree)
-    for name in SOCKETS.values():
+    for name in read_names(made):
         a, b, target = first.inputs[name], second.inputs[name], made.inputs[name]
         same = not a.is_linked and not b.is_linked and as_list(a) == as_list(b)
-        if name == "Normal" or same:
+        if name in ("Normal", "IOR") or same:
             copy_input(tree, a if a.is_linked or not b.is_linked else b, target)
             continue
         mix = tree.nodes.new("ShaderNodeMix")
@@ -179,6 +263,48 @@ def converted_principled(tree, node):
             copy_input(tree, node.inputs[source], made.inputs[name])
     for name, value in values.items():
         made.inputs[name].default_value = value
+    weight = transmission_input(made)
+    if node.bl_idname in GLASS_SHADERS and weight is not None:
+        weight.default_value = 1.0
+    return made
+
+
+# Says whether a socket is fed by a Transparent BSDF.
+def is_transparent(socket):
+    found = resolve_link(socket)
+    return found is not None and found[0].bl_idname == TRANSPARENT_SHADER
+
+
+# Makes a Principled BSDF for a mix of a Transparent BSDF and a readable shader, the usual cut-out of leaves:
+# it has the shader's inputs, and its Alpha is the share of the mix that shows the shader, times the shader's
+# own Alpha. transparent_first says the Transparent BSDF is the mix's first shader, shown where the factor is 0.
+def cut_out_principled(tree, factor, shader, transparent_first):
+    made = new_principled(tree)
+    for name in read_names(made):
+        if name != "Alpha":
+            copy_input(tree, shader.inputs[name], made.inputs[name])
+    alpha = shader.inputs["Alpha"]
+    opaque = not alpha.is_linked and alpha.default_value >= 1.0
+    if transparent_first and opaque:
+        copy_input(tree, factor, made.inputs["Alpha"])
+        return made
+    share = tree.nodes.new("ShaderNodeMath")
+    if transparent_first:
+        share.operation = "ADD"
+        copy_input(tree, factor, share.inputs[0])
+        share.inputs[1].default_value = 0.0
+    else:
+        share.operation = "SUBTRACT"
+        share.inputs[0].default_value = 1.0
+        copy_input(tree, factor, share.inputs[1])
+    if opaque:
+        tree.links.new(share.outputs[0], made.inputs["Alpha"])
+        return made
+    both = tree.nodes.new("ShaderNodeMath")
+    both.operation = "MULTIPLY"
+    tree.links.new(share.outputs[0], both.inputs[0])
+    copy_input(tree, alpha, both.inputs[1])
+    tree.links.new(both.outputs[0], made.inputs["Alpha"])
     return made
 
 
@@ -202,7 +328,9 @@ def group_principled(tree, node, out, depth):
     if inner is None:
         return None
     made = new_principled(tree)
-    for name in SOCKETS.values():
+    for name in read_names(made):
+        if name not in inner.inputs:
+            continue
         source = inner.inputs[name]
         found = resolve_link(source)
         if found is None:
@@ -289,7 +417,8 @@ def plan_for(ctx, channel, socket, material_name, blend_folder):
     elif out.name == "Color":
         path = plain_texture(ctx, node, COLOR_SPACE[channel], blend_folder)
     if path:
-        return ChannelPlan(channel, kind, path, None, None)
+        ignore = channel == "opacity" and kind == "file" and node.image.alpha_mode in ("CHANNEL_PACKED", "NONE")
+        return ChannelPlan(channel, kind, path, None, IGNORE_ALPHA if ignore else None)
     reference = {"material": material_name, "node": node.name, "socket": list(node.outputs).index(out)}
     return ChannelPlan(channel, "node", None, None, reference)
 

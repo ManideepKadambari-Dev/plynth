@@ -8,7 +8,7 @@ import numpy as np
 from . import Step
 from .. import registry, shading
 from ..jobs import WorkerError
-from ..materials import CHANNELS, ImageMissing, read_size, to_bytes, write_png
+from ..materials import CHANNELS, ImageMissing, read_pixels, read_size, to_bytes, write_png
 from ..materials import bakers
 from ..materials.sources import blend
 from ..registry import CLEANUP_STEPS
@@ -19,6 +19,10 @@ MAPS_FOLDER = "textures/maps"
 PREVIEW_FOLDER = "textures/preview"
 MAX_KEY_LENGTH = 64
 NONE_ENTRY = {"file": None, "from": "none", "detail": ""}
+# What share of a glass material stays visible in its opacity map, and the brightest red an opacity map may have
+# and still count as black all over.
+GLASS_OPACITY = 0.25
+BLACK_LEVEL = 2.0 / 255.0
 
 # Nodes whose result depends on the object or the view, so it looks different on the flat UV square.
 OBJECT_BOUND = {
@@ -114,13 +118,73 @@ def plan_channel(ctx, channel, socket, material, folder):
     return plan
 
 
-# Returns the plans of a material, or None when it has no Principled BSDF to read.
-def plans_of(ctx, material, folder):
+# Returns the plans of a material, or None when it has no Principled BSDF to read. Glass is made see-through first.
+def plans_of(ctx, material, folder, glass=None):
     principled = principled_of(material)
     if principled is None:
         return None
+    if glass is not None:
+        see_through(material.node_tree, principled)
     return {channel: plan_channel(ctx, channel, principled.inputs[name], material, folder)
             for channel, name in blend.SOCKETS.items()}
+
+
+# Lowers the Alpha of a glass material's Principled BSDF by the light its transmission lets through, so the opacity
+# map is see-through where the glass is, in the preview and in every export: full transmission leaves
+# GLASS_OPACITY of the material's own alpha.
+def see_through(tree, principled):
+    weight = blend.transmission_input(principled)
+    if weight is None:
+        return
+    alpha = principled.inputs["Alpha"]
+    if blend.resolve_link(weight) is None and blend.resolve_link(alpha) is None:
+        alpha.default_value = alpha.default_value * (1.0 - weight.default_value * (1.0 - GLASS_OPACITY))
+        return
+    through = tree.nodes.new("ShaderNodeMath")
+    through.operation = "MULTIPLY_ADD"
+    blend.copy_input(tree, weight, through.inputs[0])
+    through.inputs[1].default_value = GLASS_OPACITY - 1.0
+    through.inputs[2].default_value = 1.0
+    both = tree.nodes.new("ShaderNodeMath")
+    both.operation = "MULTIPLY"
+    blend.copy_input(tree, alpha, both.inputs[0])
+    tree.links.new(through.outputs[0], both.inputs[1])
+    tree.links.new(both.outputs[0], alpha)
+
+
+# Says whether a map that was written for an entry is black all over.
+def is_black(folder, entry):
+    path = os.path.join(folder, os.path.basename(entry["file"]))
+    return float(read_pixels(path)[:, :, 0].max()) <= BLACK_LEVEL
+
+
+# Replaces an opacity map that came out black all over, which would hide the whole material, by the alpha of the
+# base color image when it has cut-outs, or by no map. Returns the entry and the reason to report.
+def opacity_fallback(ctx, plans, folder, entry):
+    os.remove(os.path.join(folder, os.path.basename(entry["file"])))
+    base = plans.get("base_color")
+    if base is not None and base.kind == "file":
+        found = bake_plan(ctx, blend.ChannelPlan("opacity", "alpha", base.file, None, None), folder)
+        if found and not is_black(folder, found):
+            return found, "its opacity came out fully see-through, so the alpha of its base color is used"
+        if found:
+            os.remove(os.path.join(folder, os.path.basename(found["file"])))
+    return None, "its opacity came out fully see-through and was left out"
+
+
+# Gives a rebuilt glass material its transmission and IOR back, and keeps them as custom properties so a build
+# that rebuilds the material again can do the same. A transmission from a texture stays in the opacity map only.
+def keep_glass(material, glass):
+    material["plynth_glass"] = True
+    material["plynth_ior"] = glass.ior
+    if glass.transmission is None:
+        return
+    material["plynth_transmission"] = glass.transmission
+    shader = next((n for n in material.node_tree.nodes if n.bl_idname == "ShaderNodeBsdfPrincipled"), None)
+    weight = blend.transmission_input(shader) if shader is not None else None
+    if weight is not None:
+        weight.default_value = glass.transmission
+        shader.inputs["IOR"].default_value = glass.ior
 
 
 # Returns constant plans for a material that has no Principled BSDF: its viewport color and metallic value.
@@ -151,16 +215,19 @@ def bake_plan(ctx, plan, folder):
     return baker.bake(ctx, plan, folder)
 
 
-# Makes the maps of one material into textures/maps/<key>/. Returns the entries by channel.
-def make_material_maps(ctx, material, key):
+# Makes the maps of one material into textures/maps/<key>/. Returns the entries by channel. glass is how the
+# material lets light through, or None.
+def make_material_maps(ctx, material, key, glass=None):
     output = ctx.params["output_folder"]
     folder = os.path.join(output, *MAPS_FOLDER.split("/"), key)
     os.makedirs(folder, exist_ok=True)
-    plans = plans_of(ctx, material, output)
+    plans = plans_of(ctx, material, output, glass)
     reasons = []
     if plans is None:
         plans = constant_plans(material)
         reasons.append("it has no Principled BSDF")
+        if glass is not None:
+            plans["opacity"] = blend.ChannelPlan("opacity", "value", None, GLASS_OPACITY, None)
     maps = {}
     for channel in CHANNELS:
         plan = plans.get(channel)
@@ -182,6 +249,9 @@ def make_material_maps(ctx, material, key):
                         channel, material.name, message))
                 reasons.append("its %s could not be rendered" % label)
                 entry = bake_plan(ctx, default_plan(material, channel), folder)
+            if channel == "opacity" and entry and plan.kind != "value" and is_black(folder, entry):
+                entry, reason = opacity_fallback(ctx, plans, folder, entry)
+                reasons.append(reason)
         maps[channel] = dict(entry) if entry else dict(NONE_ENTRY)
         if entry:
             maps[channel]["file"] = "%s/%s/%s" % (MAPS_FOLDER, key, os.path.basename(entry["file"]))
@@ -311,12 +381,15 @@ def run(ctx):
             material = bpy.data.materials.get(name)
             if material is not None:
                 key = unique_key(name, used)
-                made.append((material, key, make_material_maps(ctx, material, key)))
+                glass = blend.glass_of(material.node_tree) if material.use_nodes else None
+                made.append((material, key, make_material_maps(ctx, material, key, glass), glass))
     finally:
         restore()
-    for material, key, maps in made:
+    for material, key, maps, glass in made:
         try:
             rebuild_material(output, material, maps)
+            if glass is not None:
+                keep_glass(material, glass)
             previews = {channel: preview_entry(output, key, channel, entry) for channel, entry in maps.items()}
         except (shading.MapError, ValueError, OSError) as error:
             raise WorkerError("save_failed", "The maps of %s could not be used: %s" % (material.name, error))

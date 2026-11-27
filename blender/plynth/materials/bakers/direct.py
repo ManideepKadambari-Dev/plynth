@@ -2,8 +2,8 @@ import os
 
 import numpy as np
 
-from .. import (KEEP_SUFFIXES, BakerEntry, copy_file, map_entry, read_pixels, read_size, to_bytes, write_grey,
-                write_png)
+from .. import (IGNORE_ALPHA, KEEP_SUFFIXES, LUMINANCE, BakerEntry, copy_file, map_entry, read_pixels, read_size,
+                to_bytes, write_grey, write_png)
 from ... import shading
 from ...registry import BAKERS
 
@@ -16,19 +16,43 @@ def target(textures, channel, suffix):
     return os.path.join(textures, channel + suffix)
 
 
-# Copies a png or jpg as it is after checking it reads, or rewrites any other image as png. An opacity map
-# that is all 1 gives None.
+# Copies a png or jpg as it is after checking it reads, or rewrites any other image as png. Opacity is read
+# by opacity_from_file.
 def from_file(plan, textures):
     suffix = os.path.splitext(plan.file)[1].lower()
     name = os.path.basename(plan.file)
-    if plan.channel == "opacity" and np.all(read_pixels(plan.file)[:, :, 0] >= 0.999):
-        return None
+    if plan.channel == "opacity":
+        return opacity_from_file(plan, textures)
     if suffix in KEEP_SUFFIXES:
         read_size(plan.file)
         copy_file(plan.file, target(textures, plan.channel, suffix))
         return map_entry(plan.channel, "file", name, suffix)
     pixels = read_pixels(plan.file)
     write_png(target(textures, plan.channel, ".png"), to_bytes(pixels[:, :, :3]))
+    return map_entry(plan.channel, "file", name)
+
+
+# Writes the opacity Blender reads from an image's Color output: the grey of its colour, times its alpha unless
+# the image keeps its alpha apart, so a cut-out held in the alpha of a white image is kept. The map is grey, as
+# the preview reads its red channel. A grey png or jpg with no alpha is copied as it is. None when the image is
+# opaque everywhere.
+def opacity_from_file(plan, textures):
+    suffix = os.path.splitext(plan.file)[1].lower()
+    name = os.path.basename(plan.file)
+    pixels = read_pixels(plan.file)
+    rgb = pixels[:, :, :3]
+    plane = rgb @ np.asarray(LUMINANCE, dtype=np.float32)
+    alpha = pixels[:, :, 3]
+    uses_alpha = plan.node != IGNORE_ALPHA and not np.all(alpha >= 0.999)
+    if uses_alpha:
+        plane = plane * alpha
+    if np.all(plane >= 0.999):
+        return None
+    grey = np.all(np.abs(rgb - rgb[:, :, :1]) <= 1.0 / 255.0)
+    if grey and not uses_alpha and suffix in KEEP_SUFFIXES:
+        copy_file(plan.file, target(textures, plan.channel, suffix))
+        return map_entry(plan.channel, "file", name, suffix)
+    write_grey(target(textures, plan.channel, ".png"), np.clip(plane, 0.0, 1.0))
     return map_entry(plan.channel, "file", name)
 
 
