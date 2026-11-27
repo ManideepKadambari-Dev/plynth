@@ -42,7 +42,8 @@ Help
   docs folder, so you can also read them in any text editor. Start with
   docs\GETTING_STARTED.md. docs\CLI_GUIDE.md lists every command.
   docs\AI_INTEGRATION.md explains how to connect your own coding
-  assistant to the command line.
+  assistant to the command line. SKILL.md in this folder is the Plynth
+  skill for such an assistant; that page says where to put it.
 
 License
   See LICENSE. The code is GPL-3.0-or-later. The sample art and sample

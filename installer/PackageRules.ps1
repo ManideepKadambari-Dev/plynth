@@ -2,7 +2,12 @@
 
 $script:DataRoots = @('blender', 'schema', 'samples', 'docs', 'licenses', 'LICENSE', 'AUTHORS', 'installer/text')
 
-$script:RenamedFiles = @{ 'installer/text/README.txt' = 'README.txt' }
+# Committed files that also go to a second place in the package. The skill file stays in docs/templates,
+# where the programs read it, and a copy sits in the Plynth folder for the user to find.
+$script:RenamedFiles = @{
+    'installer/text/README.txt' = 'README.txt'
+    'docs/templates/SKILL.md' = 'SKILL.md'
+}
 
 # The three marker files are how the app finds its docs, samples and licenses beside the program.
 $script:RequiredFiles = @(
@@ -10,7 +15,7 @@ $script:RequiredFiles = @(
     'blender/guard/startup/plynth_fetch_guard.py', 'blender/guard/tested_versions.json',
     'schema/plan.schema.json', 'samples/shapes/keyhole.shape.json', 'docs/GETTING_STARTED.md', 'LICENSE',
     'AUTHORS', 'README.txt', 'licenses/THIRD_PARTY_NOTICES.md', 'licenses/texts/CC0-1.0.txt', 'samples/LICENSE',
-    'samples/samples.json'
+    'samples/samples.json', 'docs/templates/project-agents.md', 'docs/templates/SKILL.md', 'SKILL.md'
 )
 
 # Files that later work adds. A trial stage may lack them, a release stage may not.
