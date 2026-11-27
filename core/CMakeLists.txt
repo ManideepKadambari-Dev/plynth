@@ -32,6 +32,8 @@ add_library(plynth_core STATIC
     src/Command.cpp
     src/CommandStack.cpp
     src/ProjectFiles.cpp
+    src/AgentFiles.cpp
+    src/NewProject.cpp
     src/Document.cpp
     src/EditSession.cpp
     src/FileIo.cpp

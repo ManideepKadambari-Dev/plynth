@@ -61,6 +61,8 @@ add_executable(plynth_core_tests
     core/CommandTests.cpp
     core/CommandStackTests.cpp
     core/ProjectFilesTests.cpp
+    core/AgentFilesTests.cpp
+    core/NewProjectTests.cpp
     core/DocumentTests.cpp
     core/EditSessionTests.cpp
     core/GeometryTests.cpp
