@@ -435,7 +435,7 @@ What a step can use:
 - `ctx.state` is a dictionary the steps share. `walls_objects` maps a floor id to its walls object, and `collections` maps a floor id to the collection its objects go into.
 - `report(ctx, code, severity, message, floor, obj)` records a problem for one object and carries on. `severity` is `"error"` when the object was left out or is incomplete and `"warning"` when it was built and should be checked. `obj` is the plan id the app marks on the plan. The code uses lower case letters and `_`.
 - `count(ctx, name)` adds to one of the numbers in the report: `openings_cut`, `fills`, `rooms`, `items`, `wall_solids`.
-- `meshes.py` has the shared mesh code: polygons with holes to faces, prisms, volume, and a manifold check. `surfaces.py` has the surface names and their neutral looks. Name every object `SM_<floor>_<what>` and give it the custom properties `plynth_id` and `plynth_kind`. `meshes.make_object` does both.
+- `meshes.py` has the shared mesh code: polygons with holes to faces, prisms, volume, and a manifold check. `surfaces.py` has the surface names and their neutral looks. Name every object `<floor>_<what>`, for example `f1_Walls`, and give it the custom properties `plynth_id` and `plynth_kind`. `meshes.make_object` does both.
 
 An exception that escapes `run` fails the whole build with the error `internal`. Catch what you expect and use `report` instead.
 
@@ -458,7 +458,7 @@ The order numbers. The gaps are for new steps, and the reserved ones belong to l
 | 80 | `materials` | The library material of every surface, built from its image maps, with UVs at the material's tile size. A surface without one gets its neutral look |
 | 90 | reserved | Trim |
 | 100 | reserved | Set dressing |
-| 110 | `collision` | A closed convex `UCX_` mesh for each collision shape core worked out, and one convex hull for each furniture item. They go in a `Collision` collection and are left out of `building.fbx` |
+| 110 | `collision` | A closed convex mesh named `<object>_Collision_<NN>` for each collision shape core worked out, and one convex hull for each furniture item. They go in a `Collision` collection and are left out of `building.fbx`. The plain export leaves them out too |
 | 120 | `save_blend` | Saves `building.blend` |
 | 130 | `export_fbx` | Makes the item copies real objects, exports `building.fbx` and writes `materials.json` beside it |
 | 135 | `preview_parts` | Writes the preview folder for the 3D view: for each floor one file for the floor, one for its slab and one for its roofs, and `parts.json` that lists them. Collision is left out |
@@ -646,16 +646,16 @@ What to know when you write one:
 - **An object goes to one group.** The Blender side picks the group by this order: a group with the exact member, then a group with the kind as an empty id member, then the first group with no members whose `kinds` and `ids` filters take it, then the group marked `rest`. When a group is marked `rest`, a group with no members, kinds or ids is skipped in the third step, so an empty group takes nothing. If a rule gives a member that an earlier rule already has, core drops it from the later group. A group that loses all its members to earlier rules is dropped, and only one group keeps `rest`.
 - **List only what the build makes.** Give a member only for objects the plan says exist, such as a door for each door opening. Then the review shows what an export will really write.
 - **Edits come on top.** Whatever your rule makes, the user can rename, merge and move its groups, and the edits are applied to your groups by id. Keep ids stable from one build to the next, so a user's edit keeps finding its group.
-- **Collision follows its object.** A `UCX_` mesh goes into the file of the object it belongs to, so a rule never mentions collision.
+- **Collision follows its object.** Collision meshes (`<object>_Collision_<NN>`) only matter to the Unreal Engine link, which is coming. They go into the file of the object they belong to, so a rule never mentions collision.
 
 `GroupRuleStructure.cpp` and `GroupRuleFurniture.cpp` are the readable examples. The tests are `tests/core/ExportGroupsTests.cpp`. On the Blender side, the one helper that sorts objects into groups is `blender/plynth/exporting/groups.py` (`assign`). The writer and the `groups` check both call it, so they always agree.
 
 ### Adding a quality check
 
-A quality check is one file in `blender/plynth/quality/`. It has an `ORDER`, a phase, a name shown in the Export window, and `run(ctx)`. The export task finds every file, so nothing else is edited.
+A quality check is one file in `blender/plynth/quality/`. It has an `ORDER`, a phase, a name shown in the Export window, `run(ctx)`, and the export profiles it runs for. The plain export uses `PLAIN`. Checks about engine rules, such as collision and the modular kit, name only `UNREAL`, the profile of the coming Unreal Engine link. The export task finds every file, so nothing else is edited.
 
 ```python
-from . import QualityCheck, finding, result
+from . import PLAIN, UNREAL, QualityCheck, finding, result
 from ..registry import QUALITY_CHECKS
 
 ORDER = 95
@@ -672,13 +672,13 @@ def run(ctx):
     return result("pass", "No mesh has too many materials.")
 
 
-QUALITY_CHECKS.register("material_count", QualityCheck(ORDER, "scene", "Material count", run))
+QUALITY_CHECKS.register("material_count", QualityCheck(ORDER, "scene", "Material count", run, (PLAIN, UNREAL)))
 ```
 
 - The phase is `"scene"` for a check that looks at the objects before the FBX is written, or `"file"` for one that reads the written files back.
 - `result(status, message, findings)` gives the answer. The status is `pass`, `warning`, `fail` or `skipped`. Only `fail` blocks an export, and only when it is not forced. At most 50 findings are kept.
 - `finding(message, object, plan_id)` makes one finding. The plan id is what the app selects when you click the finding, so give one when the object comes from the plan.
-- `ctx.state["meshes"]` holds the building and furniture objects, `ctx.state["collision"]` the `UCX_` objects. `ctx.params` is the export job, with the `limits` and the `expected_bounds` that core worked out.
+- `ctx.state["meshes"]` holds the building and furniture objects, `ctx.state["collision"]` the collision objects (empty in a plain export). `ctx.state["profile"]` is the export profile, `plain` or `unreal`. `ctx.params` is the export job, with the `limits` and the `expected_bounds` that core worked out.
 - A check never stops the export. Do not raise an error for a problem you can report.
 
 Look at `naming.py` for a bigger one. Two checks came with grouped export. `groups.py` (105, scene) fails for an object that no group takes and warns about a group with no object. It uses `assign` from `exporting/groups.py`, the same helper the writer uses, so the check and the files cannot disagree. `kit_file.py` (120, file) reads the kit file back and fails when a piece is missing, moved or has no collision. It says "skipped" when the job has no kit, so a check can stay quiet when its part of the export was not asked for. A new check shows up in the Export window and in the report at once. Core only needs a change if the check needs a number it does not pass yet.
