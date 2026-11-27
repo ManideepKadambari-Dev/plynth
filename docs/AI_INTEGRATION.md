@@ -63,7 +63,7 @@ A plan is built in this order, because each step needs the one before it. The co
    After detect, compare `plynth render --plan` with the plan image (see below), and do so again after each round of fixes.
 4. Rooms and their types: `plynth room find`, `plynth room add`, `plynth room set r3 --type bedroom`.
 5. Openings: `plynth opening add`, then `plynth opening list` and read `problems`.
-6. Furniture: `plynth assets search --room bedroom`, then `plynth place <asset> --room r3 --strict`.
+6. Furniture: `plynth assets search --room bedroom`, then `plynth place <asset> --room r3 --strict`. Put an item on another with `--on <id>` on `plynth place` or `plynth item move` (`--on none` keeps it on the floor), and read what it stands on with `plynth item show <id>`.
 7. Materials: `plynth materials search`, then `plynth material set r3.floor <material>`.
 8. More floors, stairs and roofs when the building has them: `plynth floor add`, `plynth stair add`, `plynth roof set`.
 9. Finishing touches: light markers with `plynth light add`, trim with `plynth trim set`, small props with `plynth room set r3 --dressing on`, catalog doors and windows with `plynth opening set --frame`.

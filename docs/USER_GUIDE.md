@@ -333,6 +333,7 @@ Hold **Ctrl** to move freely with no snapping. The snap distance is about 10 scr
 | Centre height | How far the middle is above the floor. It edits the same value as the bottom height. |
 | Room | The room it stands in. Read only. It follows the item when you move it. |
 | Wall | For a wall item, its wall, and **Take off wall**. For a floor item, **Mount on wall**. |
+| Stands on | The item this one stands on, with **Put on floor**. Floor items only. See "Items on other items". |
 | Swap asset... | Pick another asset, see below. |
 | Delete | Remove the item. |
 
@@ -341,6 +342,19 @@ Change a number and press Enter. Each box is one undo step per visit.
 **Swapping.** Press **Swap asset...** (or Edit > Swap item asset...). The picker opens at the item, starting at its room's categories. Pick another asset. The new one takes the item's place, turn, id and room. Its size is the new asset's size. A wall item stays flat on its wall and keeps the height of its centre. Esc cancels. Swapping works for a missing asset too, and is how you fix one.
 
 **Deleting.** Select the item and press Delete or Backspace, or use Edit > Delete or the Delete button. One undo brings it back. Deleting a room does not delete the furniture in it. The items stay and show no room. Adding a room gives it the items that stand inside it and have none, so rooms found by detection pick up their furniture. Deleting a wall does not delete the wall items on it either. They stay where they were, as floor items. See "Deleting".
+
+## Items on other items
+
+An item can stand on another item: a lamp on a table, a sofa on a rug, a cup on a shelf unit. The upper item sits at the top of the lower one, and it moves with it.
+
+- **Dropping onto a rug.** Drag an item, or drop one from the Assets window, so its centre is over a rug. It stands on the rug by itself.
+- **Dropping onto another item.** Plynth asks what you mean, with three choices: **On top**, **Under it** and **Both on the floor**. The choice is one undo step. Under it is for a rug that you put below a table or a bed.
+- **Right click an item** to choose later. The menu has **Put on top of ...**, **Put under ...** and **Keep both on the floor**, named after the item beneath the pointer.
+- **The Properties panel** shows **Stands on** for an item that stands on another. Press **Put on floor** to bring it down to the floor where it is.
+
+When you move or turn the lower item, the items on it go with it. When you remove it, they are let down to the floor where they stood. Each of these is one undo step with the lower item. An item dragged so that its centre leaves the lower item goes back on the floor.
+
+Items that stand on each other are not reported as overlapping. See "Furniture warnings". The command line does the same with `--on`. See the [Command line guide](CLI_GUIDE.md).
 
 ## Wall-mounted items
 

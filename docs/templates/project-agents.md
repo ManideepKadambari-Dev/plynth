@@ -35,7 +35,7 @@ Each step needs the one before it.
 2. Walls: `plynth detect --apply`, then `plynth wall list`, and the `wall`, `point` and `opening` commands to fix what detection missed.
 3. Rooms: `plynth room find`, `plynth room add`, `plynth room set r3 --type bedroom`.
 4. Openings: `plynth opening add`, then `plynth opening list` and read `problems`.
-5. Furniture: `plynth assets search --room bedroom`, then `plynth place <asset> --room r3 --strict`.
+5. Furniture: `plynth assets search --room bedroom`, then `plynth place <asset> --room r3 --strict`. Put an item on another with `--on <id>` on `plynth place` or `plynth item move` (`--on none` keeps it on the floor), and read what it stands on with `plynth item show <id>`.
 6. Materials: `plynth materials search`, then `plynth material set r3.floor <material>`.
 7. More floors, stairs and roofs when the building has them: `plynth floor add`, `plynth stair add`, `plynth roof set`.
 8. Finishing: `plynth light add`, `plynth trim set`, `plynth room set r3 --dressing on`.
