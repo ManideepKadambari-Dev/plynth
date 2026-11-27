@@ -139,8 +139,8 @@ class SlotNameTests(SlotBuildCase):
         self.add_slot("Box_Material", "white_paint")
         result = self.built(self.job([self.item("g1", "box", {"material": "white_paint"}, {"material": "Box_Material"})]))
         self.assertEqual(result["output"]["problems"], [])
-        self.assertEqual(self.material_names("SM_box_g1"), ["Box_Material"])
-        self.assertEqual(self.object_slots["SM_box_g1"], ["Box_Material"])
+        self.assertEqual(self.material_names("box_g1"), ["Box_Material"])
+        self.assertEqual(self.object_slots["box_g1"], ["Box_Material"])
         self.assertEqual(self.entries["Box_Material"]["material"], "white_paint")
         self.assertIsNone(self.entries["Box_Material"]["surface"])
         self.assertNotIn("white_paint", self.entries)
@@ -159,7 +159,7 @@ class SlotNameTests(SlotBuildCase):
         result = self.built(self.job(items))
         self.assertEqual(result["output"]["problems"], [])
         for item_id, material, slot in cases:
-            self.assertEqual(self.material_names("SM_box_%s" % item_id), [slot])
+            self.assertEqual(self.material_names("box_%s" % item_id), [slot])
             self.assertEqual(self.entries[slot]["material"], material)
         self.assertEqual(self.entries["Box_Material_Neutral"]["surface"], "Generated")
         self.assertNotIn("Generated", self.entries)
@@ -175,8 +175,8 @@ class SlotNameTests(SlotBuildCase):
         result = self.built(self.job([self.item("g1", "two", {"body": "white_paint", "trim": "oak_planks"},
                                                 {"body": "Two_Body", "trim": "Two_Trim"})]))
         self.assertEqual(result["output"]["problems"], [])
-        obj = bpy.data.objects["SM_two_g1"]
-        self.assertEqual(sorted(self.material_names("SM_two_g1")), ["Two_Body", "Two_Trim"])
+        obj = bpy.data.objects["two_g1"]
+        self.assertEqual(sorted(self.material_names("two_g1")), ["Two_Body", "Two_Trim"])
         layer = obj.data.uv_layers["UVMap"]
         for face in obj.data.polygons:
             name = obj.data.materials[face.material_index].name
@@ -197,7 +197,7 @@ class SlotNameTests(SlotBuildCase):
         self.add_slot("Two_Trim")
         self.built(self.job([self.item("g1", "two", {"body": None, "trim": None},
                                        {"body": "Two_Body", "trim": "Two_Trim"})]))
-        self.assertEqual(self.material_names("SM_two_g1"), ["Two_Body"])
+        self.assertEqual(self.material_names("two_g1"), ["Two_Body"])
         self.assertNotIn("not_a_slot", bpy.data.materials)
         self.assertNotIn("Two_Trim", self.entries)
         self.assertNotIn("Generated", self.entries)
@@ -208,7 +208,7 @@ class SlotNameTests(SlotBuildCase):
         self.add_slot("Generated")
         result = self.built(self.job([self.item("g1", "plain", {"amount": 1.0}, {})]))
         self.assertEqual(result["output"]["problems"], [])
-        self.assertEqual(self.material_names("SM_plain_g1"), ["Generated"])
+        self.assertEqual(self.material_names("plain_g1"), ["Generated"])
         self.assertEqual(self.entries["Generated"]["surface"], "Generated")
         self.assertIsNone(self.entries["Generated"]["material"])
 
@@ -279,7 +279,7 @@ class FurnitureMaterialTests(SlotBuildCase):
         else:
             self.assertFalse(color.is_linked, "the furniture material was written over")
             self.assertEqual(tuple(round(c, 4) for c in color.default_value)[:3], (1.0, 0.0, 0.0))
-        built = bpy.data.objects["SM_box_g1"].data.materials[0]
+        built = bpy.data.objects["box_g1"].data.materials[0]
         self.assertNotEqual(built, stool)
         self.assertEqual(built.name, slot)
         self.assertEqual(self.entries[slot]["material"], None if plain else "white_paint")
@@ -316,9 +316,9 @@ class GeneratorHullTests(SlotBuildCase):
         self.assertEqual(result["output"]["problems"], [])
         self.assertEqual(result["output"]["counts"]["collision"], 2)
         hulls = self.hulls()
-        self.assertEqual([o.name for o in hulls], ["UCX_SM_box_g1_00", "UCX_SM_box_g2_00"])
+        self.assertEqual([o.name for o in hulls], ["box_g1_Collision_00", "box_g2_Collision_00"])
         for hull, item in zip(hulls, items):
-            target = bpy.data.objects["SM_box_%s" % item["id"]]
+            target = bpy.data.objects["box_%s" % item["id"]]
             self.assertEqual(hull["plynth_id"], item["id"])
             self.assertEqual(hull["plynth_collision_for"], target.name)
             self.assertIn(hull, list(bpy.data.collections["Collision"].objects))
@@ -337,7 +337,7 @@ class GeneratorHullTests(SlotBuildCase):
         self.add_slot("Generated")
         self.built(self.job([self.item("g1", "bend", {"amount": 1.0}, {}, size=(1.0, 1.0, 1.0))]))
         hulls = self.hulls()
-        self.assertEqual([o.name for o in hulls], ["UCX_SM_bend_g1_00"])
+        self.assertEqual([o.name for o in hulls], ["bend_g1_Collision_00"])
         self.assertTrue(is_convex(hulls[0]))
         self.assertAlmostEqual(meshes.volume(hulls[0]), 0.875, places=4)
 
@@ -350,7 +350,7 @@ class GeneratorHullTests(SlotBuildCase):
         result = self.built(self.job([self.item("g1", "broken", {"amount": 1.0}, {}),
                                       self.item("g2", "needs", {"amount": 1.0}, {}),
                                       self.item("g3", "box", {"amount": 1.0}, {})]))
-        self.assertEqual([o.name for o in self.hulls()], ["UCX_SM_box_g3_00"])
+        self.assertEqual([o.name for o in self.hulls()], ["box_g3_Collision_00"])
         self.assertEqual([(p["code"], p["object"]) for p in result["output"]["problems"]],
                          [("generator_failed", "g1"), ("generator_unavailable", "g2")])
         self.assertEqual(result["output"]["counts"]["collision"], 1)
@@ -360,7 +360,7 @@ class GeneratorHullTests(SlotBuildCase):
         self.add_generator("mat", [], shape="flat")
         self.add_slot("Generated")
         result = self.built(self.job([self.item("g1", "mat", {"amount": 1.0}, {})]))
-        self.assertIsNotNone(bpy.data.objects.get("SM_mat_g1"))
+        self.assertIsNotNone(bpy.data.objects.get("mat_g1"))
         self.assertEqual(self.hulls(), [])
         self.assertEqual([(p["code"], p["severity"], p["floor"], p["object"], p["step"])
                           for p in result["output"]["problems"]],
@@ -373,10 +373,10 @@ class GeneratorHullTests(SlotBuildCase):
         self.add_slot("Generated")
         result = self.built(self.job([], [self.item("g9", "box", {"amount": 1.0}, {}, (2.0, -2.0, 3.2))]))
         self.assertEqual(result["output"]["problems"], [])
-        obj = bpy.data.objects["SM_box_g9"]
+        obj = bpy.data.objects["box_g9"]
         self.assertAlmostEqual(min(p.z for p in world_points(obj)), 3.2, places=5)
         hulls = self.hulls()
-        self.assertEqual([o.name for o in hulls], ["UCX_SM_box_g9_00"])
+        self.assertEqual([o.name for o in hulls], ["box_g9_Collision_00"])
         self.assertAlmostEqual(min(p.z for p in world_points(hulls[0])), 3.2, places=5)
 
 
@@ -424,11 +424,11 @@ class FromCoreGeneratorTests(GeneratorTest):
         self.assertEqual(result["output"]["counts"]["generators"], 4)
         names = [o.name for o in bpy.data.objects]
         for floor, item in items:
-            name = "SM_%s_%s" % (item["generator"], item["id"])
+            name = "%s_%s" % (item["generator"], item["id"])
             obj = bpy.data.objects[name]
             self.assertEqual([m.name for m in obj.data.materials], list(item["slots"].values()))
             self.assertAlmostEqual(obj.location.z, item["location"][2], places=5)
-            self.assertIn("UCX_%s_00" % name, names)
+            self.assertIn("%s_Collision_00" % name, names)
 
 
 if __name__ == "__main__":

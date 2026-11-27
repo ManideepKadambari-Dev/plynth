@@ -16,26 +16,27 @@ def normal_path(path):
     return os.path.abspath(bpy.path.abspath(path)).replace("\\", "/").lower()
 
 
-# Returns the file name stem of one image of a material: T_<Material>_<Channel> for a catalog material, the
-# slot name for a neutral look, the furniture material name for furniture, and the image file name for a
-# material the user made by hand.
-def stem_for(final, info, node, source):
+# Returns the file name stem of one image of a material, after the profile's prefix: <Material>_<Channel> for
+# a catalog material, the slot name for a neutral look, the furniture material name for furniture, and the
+# image file name for a material the user made by hand.
+def stem_for(final, info, node, source, prefix=""):
     entry = info["entry"]
     channel = CHANNEL_WORDS.get(node.label)
     file_part = sanitize(os.path.splitext(os.path.basename(source))[0])
     if entry is None:
-        return "T_%s_%s" % (final, file_part)
+        return "%s%s_%s" % (prefix, final, file_part)
     if entry.get("asset") or not entry.get("material"):
         owner = final
     else:
         owner = pascal(entry["material"])
-    return "T_%s_%s" % (owner, channel or file_part)
+    return "%s%s_%s" % (prefix, owner, channel or file_part)
 
 
-# Works out which source file gets which name. Only images wired into the material are planned: the FBX
-# writes those alone, so an occlusion map held in a loose node is not copied. Returns a list of plan entries (source, name, nodes) in a fixed
-# order and a list of missing files as (material name, path).
-def plan_textures(materials):
+# Works out which source file gets which name, each starting with the prefix. Only images wired into the
+# material are planned: the FBX writes those alone, so an occlusion map held in a loose node is not copied.
+# Returns a list of plan entries (source, name, nodes) in a fixed order and a list of missing files as
+# (material name, path).
+def plan_textures(materials, prefix=""):
     taken = set()
     by_source = {}
     plan = []
@@ -58,7 +59,7 @@ def plan_textures(materials):
             if key not in by_source:
                 extension = os.path.splitext(source)[1].lower()
                 keep = extension in EXTENSIONS
-                stem = unique_name(stem_for(final, info, node, source), taken)
+                stem = unique_name(stem_for(final, info, node, source, prefix), taken)
                 entry = {"source": source, "name": stem + (extension if keep else ".png"), "convert": not keep,
                          "images": []}
                 by_source[key] = entry
@@ -79,11 +80,12 @@ def convert_to_png(source, target):
         bpy.data.images.remove(image)
 
 
-# Names every image after its material. When the job writes, copies each source file once, byte for byte, into
-# Textures/ of the output folder and points the image nodes at the copies. When it only checks, nothing is
-# copied and the scene keeps its own images. The plan stays in ctx.state either way.
+# Names every image after its material, with the texture prefix of the job's profile. When the job writes,
+# copies each source file once, byte for byte, into Textures/ of the output folder and points the image nodes
+# at the copies. When it only checks, nothing is copied and the scene keeps its own images. The plan stays in
+# ctx.state either way.
 def run(ctx):
-    plan, missing = plan_textures(ctx.state["materials"])
+    plan, missing = plan_textures(ctx.state["materials"], ctx.state["profile"].texture_prefix)
     ctx.state["texture_plan"] = plan
     ctx.state["texture_missing"] = missing
     ctx.state["textures"] = []

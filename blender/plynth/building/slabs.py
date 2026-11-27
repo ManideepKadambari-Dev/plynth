@@ -173,7 +173,7 @@ def make_slab(ctx, floor, slab):
                 face.material_index = slot(used, names[0])
         bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=WELD)
         collection = ctx.state["collections"][floor["id"]]
-        obj = meshes.make_object("SM_%s_Slab" % floor["id"], bm, collection, floor["id"], "slab")
+        obj = meshes.make_object("%s_Slab" % floor["id"], bm, collection, floor["id"], "slab")
     except Exception:
         bm.free()
         raise

@@ -243,9 +243,9 @@
       "then": {
         "properties": {
           "params": {
-            "description": "Export the last build for Unreal (core/include/plynth/core/ExportJob.h): open blend_file without saving it, make every object ready, run the quality checks, and write the groups and Textures/ into output_folder.",
+            "description": "Export the last build with an export profile (core/include/plynth/core/ExportJob.h): open blend_file without saving it, make every object ready for the profile, run the profile's quality checks, and write the groups and Textures/ into output_folder.",
             "type": "object",
-            "required": ["project", "blend_file", "output_folder", "textures_folder", "groups", "materials", "expected_bounds", "build", "limits", "force", "write"],
+            "required": ["project", "profile", "blend_file", "output_folder", "textures_folder", "groups", "materials", "expected_bounds", "build", "limits", "force", "write"],
             "additionalProperties": false,
             "properties": {
               "project": {
@@ -257,8 +257,9 @@
                   "folder": { "type": "string", "minLength": 1 }
                 }
               },
+              "profile": { "description": "plain: an FBX for any use, plain names, no collision, no kit. unreal: SM_ meshes joined per group, UCX_ collision, the kit when asked, every check.", "enum": ["plain", "unreal"] },
               "blend_file": { "description": "build/building.blend. Opened and never saved.", "type": "string", "minLength": 1 },
-              "output_folder": { "description": "An empty staging folder, export/.staging. The worker writes the group files and textures_folder into it.", "type": "string", "minLength": 1 },
+              "output_folder": { "description": "An empty staging folder: export/.staging, or the staging folder of the request's own output folder. The worker writes the group files and textures_folder into it.", "type": "string", "minLength": 1 },
               "textures_folder": { "const": "Textures" },
               "groups": {
                 "description": "The files to write, from the project's exporter. A UCX_ collision mesh goes into the file of the object it belongs to. An object goes to the group whose members name its kind and id, else the group whose members name its kind with a null id, else the first group without members whose kinds and ids take it, else the group with rest (core/include/plynth/core/Exporter.h). When any group has rest, a group with no members, kinds or ids takes nothing unless it is the rest group; when none has rest, such a group takes every object, as in a single export. A UCX_ mesh without its object is placed like an object with no kind and no id. Objects of kind kit never go into a group. A group that gets no object is not written.",
@@ -502,8 +503,9 @@
           "$ref": "#/definitions/planId"
         },
         "object": {
+          "description": "A plain object name with no engine prefix, for example f1_Skirting (ExportJob.h Name rules).",
           "type": "string",
-          "pattern": "^SM_[A-Za-z0-9_-]+$"
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
         },
         "plynth_kind": {
           "enum": [

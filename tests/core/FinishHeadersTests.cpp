@@ -31,7 +31,7 @@ TEST_CASE("The finishing fields of a build job floor match their schema", "[choi
 {
     const char* text = R"({
       "openings": [{"asset": {"id": "door_01", "location": [0, 0, 0], "rotation_z": 0.0, "scale": [-1.02, 1.0, 0.99]}}],
-      "trim": [{"kind": "skirting", "plan_id": "f1", "object": "SM_f1_Skirting", "plynth_kind": "trim",
+      "trim": [{"kind": "skirting", "plan_id": "f1", "object": "f1_Skirting", "plynth_kind": "trim",
                 "slot": "Trim", "material": "painted_wood",
                 "sweeps": [{"closed": false, "sections": [[[0, 0, 0], [0.01, 0, 0], [0, 0, 0.1]],
                                                           [[1, 0, 0], [1.01, 0, 0], [1, 0, 0.1]]]}]}],

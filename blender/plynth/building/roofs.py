@@ -133,7 +133,7 @@ def make_roof(ctx, floor, roof, collection):
         else:
             meshes.project_face(face, layer)
     bmesh.ops.remove_doubles(bm, verts=list(bm.verts), dist=WELD_DISTANCE)
-    name = "SM_%s_Roof_%02d" % (floor["id"], roof["index"])
+    name = "%s_Roof_%02d" % (floor["id"], roof["index"])
     obj = meshes.make_object(name, bm, collection, floor["id"], "roof")
     obj["plynth_roof_index"] = roof["index"]
     obj["plynth_roof_section"] = roof["section"] or ""

@@ -165,7 +165,7 @@ def make_thresholds(ctx, floor, openings):
         for face in faces:
             face.material_index = names.index(name)
     collection = ctx.state["collections"][floor["id"]]
-    obj = meshes.make_object("SM_%s_Thresholds" % floor["id"], bm, collection, floor["id"], "thresholds")
+    obj = meshes.make_object("%s_Thresholds" % floor["id"], bm, collection, floor["id"], "thresholds")
     meshes.add_slots(obj, names)
 
 

@@ -124,6 +124,9 @@ bool moveInto(const fs::path& from, const fs::path& to)
     return true;
 }
 
+// Reads the export report in a folder.
+ExportReportRead readExportReportFrom(const fs::path& folder);
+
 // Says which checks failed, for the message of a blocked export.
 std::string failedCheckNames(const std::vector<QualityCheckResult>& checks)
 {
@@ -200,6 +203,9 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
     ExportReport report;
     report.forced = request.settings.force;
     report.checkedOnly = !request.settings.write;
+    report.profile = request.settings.profile;
+    // The kit and the gameplay data belong to the Unreal link, so the plain profile never makes them.
+    const bool unreal = request.settings.profile == ExportProfile::Unreal;
     JobProgressFile* progressFile = nullptr;
     const auto progress = [&](ExportStage stage, const BlenderProgress& blender = {}) {
         if (progressFile) progressFile->update(exportStageName(stage), blender, exportStageMessage(stage));
@@ -242,14 +248,14 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
     }
     std::vector<ExportGroup> groups = std::move(review.groups);
     report.groupNotes = review.notes;
-    report.kit.asked = review.options.kit.enabled;
+    report.kit.asked = unreal && request.kit;
     if (groups.empty()) {
         report.status = fail(ErrorCode::InvalidValue, "The exporter has no file to write.");
         return report;
     }
 
     const fs::path build = buildFolder(request.projectFolder);
-    const fs::path exportDir = exportFolder(request.projectFolder);
+    const fs::path exportDir = request.outputFolder.empty() ? exportFolder(request.projectFolder) : request.outputFolder;
     const fs::path staging = exportDir / pathFromUtf8(kExportStagingFolder);
     const fs::path work = build / pathFromUtf8(kExportWorkFolder);
     report.reportFile = exportDir / pathFromUtf8(kExportReportFileName);
@@ -280,7 +286,7 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
         // Nothing was exported, so the report keeps listing the files of the last export. A later export then
         // knows which old files to remove, for example after the project was renamed.
         if (!report.exported) {
-            const ExportReportRead previous = readExportReport(request.projectFolder);
+            const ExportReportRead previous = readExportReportFrom(exportDir);
             if (previous.status.ok()) {
                 report.files = previous.report.files;
                 report.fileOutputs = previous.report.fileOutputs;
@@ -451,7 +457,7 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
 
     // The last good export goes only now: the files its report lists, then the old textures. Only names inside
     // the export folder are touched.
-    const ExportReportRead previous = readExportReport(request.projectFolder);
+    const ExportReportRead previous = readExportReportFrom(exportDir);
     if (previous.status.ok()) {
         for (const fs::path& old : previous.report.files) {
             if (!old.filename().empty()) fs::remove(exportDir / old.filename(), ec);
@@ -502,7 +508,7 @@ ExportReport runExport(const ExportRequest& request, const std::function<void(co
     report.kit.triangles = kitWritten ? out.kit->triangles : 0;
 
     // The gameplay data is written by core from the plan the build used.
-    report.gameplay.enabled = review.options.gameplay.enabled;
+    report.gameplay.enabled = unreal && request.gameplay;
     const fs::path gameplayFile = exportDir / pathFromUtf8(kitStem + std::string(kGameplayFileSuffix));
     if (report.gameplay.enabled) {
         Project built = request.project;
@@ -592,6 +598,7 @@ Json exportReportToJson(const ExportReport& report)
     json["elapsed_ms"] = report.elapsedMs;
     json["blender_version"] = report.blenderVersion;
     json["exporter"] = report.exporter;
+    json["profile"] = std::string(exportProfileName(report.profile));
     json["plan_fingerprint"] = report.planFingerprint;
     json["build_fingerprint"] = report.buildFingerprint.empty() ? Json(nullptr) : Json(report.buildFingerprint);
 
@@ -674,11 +681,19 @@ Json exportReportToJson(const ExportReport& report)
 // Reads export/export_report.json.
 ExportReportRead readExportReport(const fs::path& projectFolder)
 {
+    return readExportReportFrom(exportFolder(projectFolder));
+}
+
+namespace {
+
+// Reads export_report.json in an export folder; the files it lists are in that folder.
+ExportReportRead readExportReportFrom(const fs::path& folder)
+{
     ExportReportRead result;
-    const fs::path file = exportFolder(projectFolder) / pathFromUtf8(kExportReportFileName);
+    const fs::path file = folder / pathFromUtf8(kExportReportFileName);
     std::error_code ec;
     if (!fs::is_regular_file(file, ec)) {
-        result.status = fail(ErrorCode::NotFound, "There is no export report in " + pathToUtf8(exportFolder(projectFolder)) + ".");
+        result.status = fail(ErrorCode::NotFound, "There is no export report in " + pathToUtf8(folder) + ".");
         return result;
     }
     std::ifstream in(file, std::ios::binary);
@@ -751,13 +766,19 @@ ExportReportRead readExportReport(const fs::path& projectFolder)
         report.elapsedMs = whole(json, "elapsed_ms", "");
         report.blenderVersion = text(json, "blender_version", "");
         report.exporter = text(json, "exporter", "");
+        // A report written before profiles came from the Unreal export of that time.
+        report.profile = ExportProfile::Unreal;
+        if (json.contains("profile")) {
+            const auto profile = exportProfileFromName(text(json, "profile", ""));
+            if (!profile) throw std::string("/profile");
+            report.profile = *profile;
+        }
         report.planFingerprint = text(json, "plan_fingerprint", "");
         report.buildFingerprint = optionalText(json, "build_fingerprint", "");
 
         const Json& outputs = member(json, "outputs", "");
         if (!outputs.is_object()) throw std::string("/outputs");
         const Json& files = array(outputs, "files", "/outputs");
-        const fs::path folder = exportFolder(projectFolder);
         for (std::size_t i = 0; i < files.size(); ++i) {
             const std::string where = "/outputs/files/" + std::to_string(i);
             ExportFileOutput f;
@@ -864,6 +885,8 @@ ExportReportRead readExportReport(const fs::path& projectFolder)
         return bad("The field " + where + " is missing or has the wrong type.", where);
     }
     return result;
+}
+
 }
 
 }

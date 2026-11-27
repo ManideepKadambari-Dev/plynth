@@ -74,7 +74,7 @@ def part_slots(ctx, opening, parts):
 # Makes the object of one opening from a bmesh and the names of its slots.
 def finish(ctx, floor, opening, bm, suffix, kind, surface_names):
     collection = ctx.state["collections"][floor["id"]]
-    name = "SM_%s_%s_%s" % (floor["id"], opening["id"], suffix)
+    name = "%s_%s_%s" % (floor["id"], opening["id"], suffix)
     obj = meshes.make_object(name, bm, collection, opening["id"], kind)
     meshes.add_slots(obj, surface_names)
     return obj

@@ -100,13 +100,13 @@ class StairFixtureTests(StoreyTest):
 
     # The slab stands from 3.0 to 3.2 with side faces only: no top and no bottom.
     def test_slab(self):
-        obj = bpy.data.objects["SM_f1_Slab"]
+        obj = bpy.data.objects["f1_Slab"]
         self.assertEqual((obj["plynth_kind"], obj["plynth_id"]), ("slab", "f1"))
-        bm = mesh_of("SM_f1_Slab")
+        bm = mesh_of("f1_Slab")
         self.assertEqual(sorted({round(v.co.z, 5) for v in bm.verts}), [3.0, 3.2])
         self.assertTrue(all(abs(f.normal.z) < 1e-6 for f in bm.faces))
         self.assertEqual(len(bm.faces), 8)
-        self.assertAlmostEqual(area_of("SM_f1_Slab"), (2 * 10.4 + 2 * 5.32) * 0.2, places=4)
+        self.assertAlmostEqual(area_of("f1_Slab"), (2 * 10.4 + 2 * 5.32) * 0.2, places=4)
 
     # The edge slot is on the outer ring and the well slot on the hole, each facing away from the slab.
     def test_slab_materials(self):
@@ -115,9 +115,9 @@ class StairFixtureTests(StoreyTest):
         result = self.build(params)
         self.assertTrue(result["ok"], result["error"])
         self.open_blend()
-        obj = bpy.data.objects["SM_f1_Slab"]
+        obj = bpy.data.objects["f1_Slab"]
         by_slot = {}
-        for face in mesh_of("SM_f1_Slab").faces:
+        for face in mesh_of("f1_Slab").faces:
             by_slot.setdefault(obj.data.materials[face.material_index].name, []).append(face)
         self.assertEqual(sorted(by_slot), ["edge_mat", "well_mat"])
         self.assertEqual(len(by_slot["edge_mat"]), 4)
@@ -134,18 +134,18 @@ class StairFixtureTests(StoreyTest):
 
     # Upper walls start at 3.2 and ground walls at 0.
     def test_walls_start(self):
-        low = [v.co.z for v in bpy.data.objects["SM_f1_Walls"].data.vertices]
-        high = [v.co.z for v in bpy.data.objects["SM_f2_Walls"].data.vertices]
+        low = [v.co.z for v in bpy.data.objects["f1_Walls"].data.vertices]
+        high = [v.co.z for v in bpy.data.objects["f2_Walls"].data.vertices]
         self.assertAlmostEqual(min(low), 0.0, places=5)
         self.assertAlmostEqual(min(high), 3.2, places=5)
         self.assertAlmostEqual(max(high), 6.2, places=5)
 
     # The stair has 16 closed steps, step k topping at k times the riser, with world UVs on the treads.
     def test_stair(self):
-        obj = bpy.data.objects["SM_f1_s1_Stair"]
+        obj = bpy.data.objects["f1_s1_Stair"]
         self.assertEqual((obj["plynth_kind"], obj["plynth_id"]), ("stair", "s1"))
         self.assertEqual(slot_names(obj), ["Stair"])
-        bm = mesh_of("SM_f1_s1_Stair")
+        bm = mesh_of("f1_s1_Stair")
         self.assertTrue(all(len(e.link_faces) == 2 for e in bm.edges))
         self.assertEqual(len(bm.verts), 16 * 8)
         tops = sorted({round(v.co.z, 5) for v in bm.verts if v.co.z > 1e-6})
@@ -164,28 +164,28 @@ class StairFixtureTests(StoreyTest):
     # Every face of the stair and the slab has UVs in metres: sides and risers as much as treads. A stair side
     # with no UV area smears the texture into streaks.
     def test_uv_areas(self):
-        for name in ("SM_f1_s1_Stair", "SM_f1_Slab"):
+        for name in ("f1_s1_Stair", "f1_Slab"):
             self.assertEqual(uv_mismatches(name), [], name)
 
     # The ground ceiling and the upper floor lose the stair footprint, the rest stay whole.
     def test_holes(self):
         room = 5.8 * 3.8
-        self.assertAlmostEqual(area_of("SM_f1_r1_Ceiling"), room - 4.32, places=4)
-        self.assertAlmostEqual(area_of("SM_f2_r1_Floor"), room - 4.32, places=4)
-        self.assertAlmostEqual(area_of("SM_f2_r1_Ceiling"), room, places=4)
-        self.assertAlmostEqual(area_of("SM_f1_r1_Floor"), room, places=4)
+        self.assertAlmostEqual(area_of("f1_r1_Ceiling"), room - 4.32, places=4)
+        self.assertAlmostEqual(area_of("f2_r1_Floor"), room - 4.32, places=4)
+        self.assertAlmostEqual(area_of("f2_r1_Ceiling"), room, places=4)
+        self.assertAlmostEqual(area_of("f1_r1_Floor"), room, places=4)
 
     # Faces with holes are tessellated: no face has more than four corners.
     def test_no_ngons(self):
-        for name in ("SM_f1_Slab", "SM_f1_r1_Ceiling", "SM_f2_r1_Floor"):
+        for name in ("f1_Slab", "f1_r1_Ceiling", "f2_r1_Floor"):
             self.assertTrue(all(len(f.verts) <= 4 for f in mesh_of(name).faces), name)
 
     # The slab and the stair are listed for the preview.
     def test_listed(self):
         with open(self.path("build", "materials.json"), encoding="utf-8") as handle:
             names = [o["name"] for o in json.load(handle)["objects"]]
-        self.assertIn("SM_f1_Slab", names)
-        self.assertIn("SM_f1_s1_Stair", names)
+        self.assertIn("f1_Slab", names)
+        self.assertIn("f1_s1_Stair", names)
 
 
 class SlabFaceTests(StoreyTest):
@@ -206,9 +206,9 @@ class SlabFaceTests(StoreyTest):
 
     # Returns the material name of each face of the slab with the face centre, as (name, centre) pairs.
     def painted(self):
-        obj = bpy.data.objects["SM_f1_Slab"]
+        obj = bpy.data.objects["f1_Slab"]
         return [(obj.data.materials[f.material_index].name, f.calc_center_median(), f.normal.copy())
-                for f in mesh_of("SM_f1_Slab").faces]
+                for f in mesh_of("f1_Slab").faces]
 
     # A courtyard's inner band is the outside material, facing into the courtyard.
     def test_courtyard_inner_band_is_outside(self):
@@ -255,12 +255,12 @@ class SlabFaceTests(StoreyTest):
         ledge = {"outline": [[0.0, 0.0], [10.0, 0.0], [10.0, 1e-7], [0.0, 1e-7]], "holes": []}
         result = self.slab_of([{"outline": square, "holes": []}], [{"outline": ["edge"] * 4, "holes": []}], [ledge])
         self.assertEqual(result["output"]["problems"], [])
-        bm = mesh_of("SM_f1_Slab")
+        bm = mesh_of("f1_Slab")
         ups = [f for f in bm.faces if f.normal.z > 0.5]
         self.assertTrue(ups)
         self.assertAlmostEqual(sum(f.calc_area() for f in ups), 1e-6, delta=1e-8)
         self.assertTrue(all(abs(v.co.z - 3.2) < 1e-6 for f in ups for v in f.verts))
-        obj = bpy.data.objects["SM_f1_Slab"]
+        obj = bpy.data.objects["f1_Slab"]
         self.assertEqual({obj.data.materials[f.material_index].name for f in ups}, {"edge_mat"})
         shared = [e for e in bm.edges if len(e.link_faces) == 2 and
                   any(f.normal.z > 0.5 for f in e.link_faces) and any(abs(f.normal.z) < 1e-6 for f in e.link_faces)]
@@ -281,13 +281,13 @@ class SlabFaceTests(StoreyTest):
         result = self.slab_of([{"outline": outline, "holes": []}], [{"outline": ["edge"] * 7, "holes": []}],
                               undersides=[needle])
         self.assertEqual(result["output"]["problems"], [])
-        bm = mesh_of("SM_f1_Slab")
+        bm = mesh_of("f1_Slab")
         downs = [f for f in bm.faces if f.normal.z < -0.5]
         self.assertTrue(downs)
         area = sum(f.calc_area() for f in downs)
         self.assertTrue(5e-7 < area < 3e-6, area)
         self.assertTrue(all(abs(v.co.z - 3.0) < 1e-6 for f in downs for v in f.verts))
-        obj = bpy.data.objects["SM_f1_Slab"]
+        obj = bpy.data.objects["f1_Slab"]
         self.assertEqual({obj.data.materials[f.material_index].name for f in downs}, {"Soffit"})
         shared = [e for e in bm.edges if len(e.link_faces) == 2 and any(f.normal.z < -0.5 for f in e.link_faces)
                   and any(abs(f.normal.z) < 1e-6 for f in e.link_faces)]
@@ -303,7 +303,7 @@ class SlabFaceTests(StoreyTest):
                               [{"outline": ["edge"] * 4, "holes": []}],
                               undersides=[{"outline": outline, "holes": [hole]}])
         self.assertEqual(result["output"]["problems"], [])
-        bm = mesh_of("SM_f1_Slab")
+        bm = mesh_of("f1_Slab")
         downs = [f for f in bm.faces if f.normal.z < -0.5 and f.calc_center_median().x > 50.0]
         area = sum(f.calc_area() for f in downs)
         self.assertTrue(abs(area - 15.0) <= 1e-3 * 15.0, area)
@@ -313,7 +313,7 @@ class SlabFaceTests(StoreyTest):
         square = [[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]]
         ledge = {"outline": [[1.0, 1.0], [3.0, 1.0], [3.0, 1.5], [1.0, 1.5]], "holes": []}
         self.slab_of([{"outline": square, "holes": []}], [{"outline": ["edge"] * 4, "holes": []}], [ledge])
-        bm = mesh_of("SM_f1_Slab")
+        bm = mesh_of("f1_Slab")
         layer = bm.loops.layers.uv.active
         for face in bm.faces:
             if face.normal.z > 0.5:
@@ -349,7 +349,7 @@ class OverhangTests(StoreyTest):
         self.assertTrue(result["ok"], result["error"])
         self.assert_result_valid(result)
         self.open_blend()
-        bm = mesh_of("SM_f1_Slab")
+        bm = mesh_of("f1_Slab")
         down = [f for f in bm.faces if f.normal.z < -0.99]
         self.assertTrue(down)
         self.assertAlmostEqual(sum(f.calc_area() for f in down), 4.2 * 1.0, places=4)
@@ -357,7 +357,7 @@ class OverhangTests(StoreyTest):
             for vert in face.verts:
                 self.assertAlmostEqual(vert.co.z, 3.0, places=5)
         self.assertFalse([f for f in bm.faces if f.normal.z > 0.99])
-        self.assertEqual(slot_names(bpy.data.objects["SM_f1_Slab"]), ["Exterior_Wall", "Soffit"])
+        self.assertEqual(slot_names(bpy.data.objects["f1_Slab"]), ["Exterior_Wall", "Soffit"])
         self.assertEqual(result["output"]["counts"]["slabs"], 1)
         self.assertEqual(result["output"]["counts"]["stairs"], 0)
 
@@ -406,8 +406,8 @@ class FailureTests(StoreyTest):
         self.assertEqual(problems[0]["severity"], "error")
         self.assertEqual(result["output"]["counts"]["stairs"], 1)
         self.open_blend()
-        self.assertNotIn("SM_f1_s1_Stair", bpy.data.objects)
-        self.assertIn("SM_f1_s2_Stair", bpy.data.objects)
+        self.assertNotIn("f1_s1_Stair", bpy.data.objects)
+        self.assertIn("f1_s2_Stair", bpy.data.objects)
 
     # A step with no height is a stair failure.
     def test_stair_no_height(self):

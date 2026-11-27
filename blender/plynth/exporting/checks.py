@@ -6,10 +6,11 @@ from ..registry import EXPORT_STEPS
 ORDER = 50
 
 
-# Runs every registered quality check of phase "scene". A check never stops the job.
+# Runs every registered quality check of phase "scene" that the job's profile uses. A check never stops the job.
 def run(ctx):
     registry.discover(quality_package)
-    ctx.state["check_results"] = [run_check(ctx, check_id, check) for check_id, check in checks_of("scene")]
+    ctx.state["check_results"] = [run_check(ctx, check_id, check)
+                                  for check_id, check in checks_of("scene", ctx.state["profile_id"])]
 
 
 EXPORT_STEPS.register("checks", Step(ORDER, "Running the quality checks", run))

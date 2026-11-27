@@ -62,12 +62,11 @@ struct GameplayFixture {
         request.run.scriptsFolder = makeFakeScripts(tmp.path() / "scripts");
     }
 
-    // Switches the gameplay data on or off in the project's export options.
-    void gameplay(bool on) const
+    // Makes the request an Unreal export with the gameplay data on or off, as the Unreal link does.
+    void gameplay(bool on)
     {
-        ExportOptions options;
-        options.gameplay.enabled = on;
-        requireOk(writeExportOptions(projectFolder, options));
+        request.settings.profile = ExportProfile::Unreal;
+        request.gameplay = on;
     }
 
     fs::path gameplayFile() const { return projectFolder / "export" / "Square_gameplay.json"; }
@@ -172,4 +171,18 @@ TEST_CASE("trim, railings, guards and set dressing have their export groups", "[
     groups = automaticExportGroups(p);
     CHECK_FALSE(holds(*groupOf(groups, "structure"), "trim", "f1"));
     CHECK_FALSE(holds(*groupOf(groups, "furniture_r1"), "dressing", "r1"));
+}
+
+TEST_CASE("the plain export leaves the gameplay data out and removes an old file", "[core][export][gameplay][profile]")
+{
+    GameplayFixture f("gameplay-plain");
+    f.gameplay(true);
+    requireOk(runExport(f.request).status);
+    REQUIRE(fs::is_regular_file(f.gameplayFile()));
+
+    f.request.settings.profile = ExportProfile::Plain;
+    const ExportReport plain = runExport(f.request);
+    requireOk(plain.status);
+    CHECK_FALSE(plain.gameplay.enabled);
+    CHECK_FALSE(fs::exists(f.gameplayFile()));
 }

@@ -22,13 +22,17 @@ namespace plynth {
 
 using Json = nlohmann::ordered_json;
 
-// Exporting a project for Unreal (DESIGN.md sections 7.16 and 7.17): one call that the app's Export button and
-// "plynth export" both use. It exports the last build (build/building.blend, with any hand edits); it never
-// builds. It writes into the project's export/ folder (DESIGN.md section 5), which can always be deleted:
+// Exporting a project (DESIGN.md sections 7.16 and 7.17): one call that the app's Export button, "plynth export"
+// and the engine links (EngineLink.h) all use. It exports the last build (build/building.blend, with any hand
+// edits); it never builds. settings.profile picks the export profile (ExportJob.h): plain for Export, unreal for
+// the Unreal Engine link. The plain export writes into the project's export/ folder (DESIGN.md section 5), which
+// can always be deleted; a link passes its own outputFolder inside build/. The files, in that folder:
 //   export/<Name>.fbx           one file per group of the project's exporter (Exporter.h) that got objects
 //   export/Textures/            the images of every exported material (ExportJob.h names them)
-//   export/<Stem>_Kit.fbx       the modular kit, when the project's export options switch it on (Kit.h)
+//   export/<Stem>_Kit.fbx       the modular kit: unreal profile only, when the link's options switch it on (Kit.h)
 //   export/<Stem>_Kit_layout.json  where each kit piece goes, written by core into the staging folder
+// The gameplay data file is written for the unreal profile only, when the link's options switch it on. The
+// license report is written for both profiles when the export options switch it on.
 //   export/export_report.json   the report of the last export, written for every export that got past the
 //                               lock, blocked or not (schema/export-report.schema.json)
 // The worker writes into export/.staging/; only when the export is not blocked does core remove the files the
@@ -58,6 +62,13 @@ struct ExportRequest {
     // the materials catalog, and a material gets its tile size from it only when build/materials.json has none.
     // Empty: an export with the kit switched on goes on without it (ExportKitReport).
     std::optional<LibraryPaths> library;
+    // Where the files go. Empty: projectFolder/export. A link passes build/links/<id>/out; its staging folder is
+    // then out/.staging and its report out/export_report.json, and export/ is never touched.
+    std::filesystem::path outputFolder;
+    // The kit and gameplay switches for the unreal profile, from the link's options (ExportGroups.h). Not used
+    // by the plain profile.
+    bool kit = false;
+    bool gameplay = false;
 };
 
 // What happened to the modular kit in one export.
@@ -130,6 +141,7 @@ struct ExportReport {
     long long elapsedMs = 0;
     std::string blenderVersion;
     std::string exporter;       // the exporter id, for example "single"
+    ExportProfile profile = ExportProfile::Plain; // a report written before profiles reads as Unreal
     std::string planFingerprint;  // of the project as exported
     std::string buildFingerprint; // the plan_fingerprint of build/build.json; empty when there is none
     bool exported = false;      // the files are now in export/

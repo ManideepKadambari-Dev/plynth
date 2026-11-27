@@ -13,8 +13,8 @@ from slot_fixtures import upgrade
 from test_build_collision import collision_params
 from test_generators_build import isolate
 
-COLUMN = "SM_column_i5"
-RAILING = "SM_railing_i6"
+COLUMN = "column_i5"
+RAILING = "railing_i6"
 
 
 # Returns the world bounds of the vertices themselves, so a turned object and its baked copy agree.
@@ -96,9 +96,10 @@ class GeneratorExportTests(GeneratorTest):
         return {"id": "stool", "blend_file": path, "collection": "stool",
                 "materials": [{"name": "Column_Material", "maps": maps}]}
 
-    # Runs the export of the built room and returns its checks by id.
-    def export_room(self, groups=None, blend=None):
-        params = job_params()
+    # Runs the export of the built room with a profile, plain unless another is asked for, and returns its checks
+    # by id.
+    def export_room(self, groups=None, blend=None, profile="plain", write=True):
+        params = job_params(write=write, profile=profile)
         params["project"]["folder"] = self.path("project")
         params["blend_file"] = blend or self.blend
         params["output_folder"] = self.path("project", "export", ".staging")
@@ -128,7 +129,16 @@ class GeneratorExportTests(GeneratorTest):
             self.assertAlmostEqual(low[axis], self.bounds[obj.name][0][axis], delta=1e-3)
             self.assertAlmostEqual(high[axis], self.bounds[obj.name][1][axis], delta=1e-3)
 
-    # Column and railing export with identity transforms, their slot names and every check passing.
+    # Fails unless the object and its collision mesh have no parent and an identity transform.
+    def assert_identity(self, objects):
+        for obj in objects:
+            self.assertIsNone(obj.parent)
+            for row in range(4):
+                for column in range(4):
+                    self.assertAlmostEqual(obj.matrix_world[row][column], 1.0 if row == column else 0.0, places=6)
+
+    # Column and railing export with identity transforms, their slot names and every check passing; the plain
+    # file has no collision, and the unreal checks see each generator with its UCX_ mesh.
     def test_export(self):
         self.build_room()
         checks = self.export_room()
@@ -137,24 +147,32 @@ class GeneratorExportTests(GeneratorTest):
         bpy.context.view_layer.update()
         for name, slot in ((COLUMN, "Column_Material"), (RAILING, "Railing_Material")):
             obj = bpy.data.objects[name]
-            for hull in (obj, bpy.data.objects["UCX_%s_00" % name]):
-                self.assertIsNone(hull.parent)
-                for row in range(4):
-                    for column in range(4):
-                        self.assertAlmostEqual(hull.matrix_world[row][column], 1.0 if row == column else 0.0, places=6)
+            self.assert_identity([obj])
             self.assertEqual([m.name for m in obj.data.materials], [slot])
             self.assert_bounds(obj)
         scene.clear_scene()
         bpy.ops.import_scene.fbx(filepath=os.path.join(self.staging, "Square.fbx"))
         bpy.context.view_layer.update()
         for name in (COLUMN, RAILING):
-            self.assertIn("UCX_%s_00" % name, bpy.data.objects)
             self.assert_bounds(bpy.data.objects[name])
+        self.assertEqual([o.name for o in bpy.data.objects if o.name.startswith(("UCX_", "SM_"))], [])
+        checks = self.export_room(profile="unreal", write=False)
+        # A check only run writes nothing, so the file checks must say skipped and every scene check must pass.
+        self.assertEqual([i for i, c in checks.items() if c["phase"] == "file" and c["status"] != "skipped"], [])
+        self.assertEqual([i for i, c in checks.items() if c["phase"] == "scene" and c["status"] != "pass"], [],
+                         checks)
+        self.assertFalse(self.output["written"])
+        bpy.context.view_layer.update()
+        for name in (COLUMN, RAILING):
+            self.assert_identity([bpy.data.objects["SM_" + name], bpy.data.objects["UCX_SM_%s_00" % name]])
+        checks = self.export_room(profile="unreal")
+        self.assertEqual(self.not_passed(checks), [], checks)
+        self.assertTrue(self.output["written"])
 
     # An empty material fails materials and names the slot.
     def test_no_material(self):
         self.build_room(neutral=("Railing_Material",))
-        checks = self.export_room()
+        checks = self.export_room(profile="unreal")
         self.assertEqual(checks["materials"]["status"], "fail")
         self.assertEqual([f["object"] for f in checks["materials"]["findings"]], ["Railing_Material"])
         self.assertIn("Railing_Material", checks["materials"]["findings"][0]["message"])
@@ -164,15 +182,16 @@ class GeneratorExportTests(GeneratorTest):
     # A generator without its hull fails collision with the item.
     def test_no_hull(self):
         self.build_room()
-        bpy.data.objects.remove(bpy.data.objects["UCX_%s_00" % COLUMN], do_unlink=True)
+        bpy.data.objects.remove(bpy.data.objects["%s_Collision_00" % COLUMN], do_unlink=True)
         changed = self.path("project", "build", "changed.blend")
         bpy.ops.wm.save_as_mainfile(filepath=changed)
-        checks = self.export_room(blend=changed)
+        checks = self.export_room(blend=changed, profile="unreal")
         self.assertEqual(checks["collision"]["status"], "fail")
-        self.assertEqual([(f["object"], f["plan_id"]) for f in checks["collision"]["findings"]], [(COLUMN, "i5")])
+        self.assertEqual([(f["object"], f["plan_id"]) for f in checks["collision"]["findings"]],
+                         [("SM_" + COLUMN, "i5")])
         self.assertFalse(self.output["written"])
 
-    # A group of generators takes their hulls with them.
+    # A group of generators holds both of them, and in the unreal export one mesh with both hulls.
     def test_group_of_generators(self):
         self.build_room()
         groups = [{"id": "building", "file": "Square.fbx", "kinds": [], "ids": [], "rest": True},
@@ -181,8 +200,13 @@ class GeneratorExportTests(GeneratorTest):
         self.assertTrue(self.output["written"])
         scene.clear_scene()
         bpy.ops.import_scene.fbx(filepath=os.path.join(self.staging, "Generators.fbx"))
+        self.assertEqual(sorted(o.name for o in bpy.data.objects if o.type == "MESH"), sorted([COLUMN, RAILING]))
+        self.export_room(groups=groups, profile="unreal")
+        self.assertTrue(self.output["written"])
+        scene.clear_scene()
+        bpy.ops.import_scene.fbx(filepath=os.path.join(self.staging, "Generators.fbx"))
         self.assertEqual(sorted(o.name for o in bpy.data.objects if o.type == "MESH"),
-                         sorted([COLUMN, RAILING, "UCX_%s_00" % COLUMN, "UCX_%s_00" % RAILING]))
+                         ["SM_Generators", "UCX_SM_Generators_00", "UCX_SM_Generators_01"])
 
     # The preview shows the generators and not their hulls.
     def test_preview(self):
@@ -192,14 +216,14 @@ class GeneratorExportTests(GeneratorTest):
         names = [o.name for o in bpy.data.objects]
         self.assertIn(COLUMN, names)
         self.assertIn(RAILING, names)
-        self.assertEqual([name for name in names if name.startswith("UCX_")], [])
+        self.assertEqual([name for name in names if "_Collision_" in name or name.startswith("UCX_")], [])
 
     # A furniture material with the name of a slot exports under its asset, and the slot under its own name.
     def test_furniture_export_name(self):
         self.build_room(furniture=True)
         checks = self.export_room()
         self.assertEqual(checks["materials"]["status"], "pass", checks["materials"])
-        self.assertEqual([m.name for m in bpy.data.objects["SM_stool_i7"].data.materials], ["Stool_Column_Material"])
+        self.assertEqual([m.name for m in bpy.data.objects["stool_i7"].data.materials], ["Stool_Column_Material"])
         self.assertEqual([m.name for m in bpy.data.objects[COLUMN].data.materials], ["Column_Material"])
 
 

@@ -545,7 +545,7 @@ TEST_CASE("the review applies the saved edits and reports the skipped ones", "[c
     project.settings.exportMode = ExportMode::Grouped;
     ExportOptions options;
     options.groups.renames = {{"furniture_r1", "Lounge props"}, {"furniture_r7", "Gone"}};
-    options.kit.enabled = true;
+    options.links[std::string(kUnrealLinkId)].kit = true;
     plynth::test::requireOk(writeExportOptions(dir.path(), options));
 
     const ExportGroupReview review = reviewExportGroups(dir.path(), project);

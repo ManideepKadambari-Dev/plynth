@@ -505,7 +505,8 @@ Json buildOutput(const Json& params, const std::string& mode)
 }
 
 // The steps the fake export reports.
-constexpr const char* kExportSteps[] = {"open_blend", "prepare", "name_objects", "textures", "checks", "write_fbx", "file_checks"};
+constexpr const char* kExportSteps[] = {"open_blend", "prepare",   "name_objects", "textures",
+                                        "checks",     "finish_objects", "write_fbx",    "file_checks"};
 
 // One check result of the fake export.
 Json fakeCheck(const char* id, const char* name, const char* phase, const char* status, const char* message, Json findings = Json::array())

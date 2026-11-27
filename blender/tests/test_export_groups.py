@@ -12,9 +12,9 @@ from plynth.exporting import groups as groups_module
 from plynth.quality import collision
 from schema_check import load_schema, validate
 
-SURFACES = {"SM_f1_r1_Floor", "SM_f1_r1_Ceiling", "SM_f1_Thresholds"}
-STEPS = ["open_blend", "prepare", "name_objects", "kit_pieces", "textures", "checks", "write_fbx", "write_kit",
-         "file_checks"]
+SURFACES = {"f1_r1_Floor", "f1_r1_Ceiling", "f1_Thresholds"}
+STEPS = ["open_blend", "prepare", "name_objects", "kit_pieces", "textures", "checks", "finish_objects", "write_fbx",
+         "write_kit", "file_checks"]
 
 
 # Reads an FBX file into an empty scene and returns the sorted names of its mesh objects and the objects.
@@ -73,7 +73,7 @@ class ExportGroupsTests(ExportTest):
             self.assertEqual(job["params"]["groups"], groups)
         self.assert_job_valid(self.grouped())
 
-    # Three groups write three files and each file holds exactly its objects and their collision.
+    # Three groups write three files and each file holds exactly its objects, with no collision.
     def test_three_files(self):
         output = self.run_groups()
         files = self.written(output)
@@ -87,16 +87,37 @@ class ExportGroupsTests(ExportTest):
         self.assertEqual(sorted(f for f in self.files_under(staging) if f.endswith(".fbx")),
                          ["Square_Floors.fbx", "Square_Furniture_Living.fbx", "Square_Walls.fbx"])
         names, _ = self.read("Square_Furniture_Living.fbx")
-        self.assertEqual(sorted(n for n in names if not n.startswith("UCX_")), ["SM_sofa_i1", "SM_sofa_i2"])
-        self.assertEqual(sorted(n for n in names if n.startswith("UCX_")), ["UCX_SM_sofa_i1_00", "UCX_SM_sofa_i2_00"])
-        self.assertEqual(files["furniture_r1"]["objects"], 4)
+        self.assertEqual(names, ["sofa_i1", "sofa_i2"])
+        self.assertEqual(files["furniture_r1"]["objects"], 2)
         names, _ = self.read("Square_Floors.fbx")
-        self.assertEqual({n for n in names if not n.startswith("UCX_")}, SURFACES)
-        self.assertIn("UCX_SM_f1_r1_Floor_00", names)
+        self.assertEqual(set(names), SURFACES)
         names, _ = self.read("Square_Walls.fbx")
-        self.assertIn("SM_f1_Walls", names)
-        self.assertIn("UCX_SM_f1_Walls_00", names)
-        self.assertEqual([n for n in names if n in SURFACES or n.startswith("SM_sofa")], [])
+        self.assertIn("f1_Walls", names)
+        self.assertEqual([n for n in names if n in SURFACES or n.startswith("sofa")], [])
+        self.assertEqual([n for n in names if n.startswith(("SM_", "UCX_"))], [])
+
+    # The unreal profile joins each of the three groups into one mesh named after its file, SM_Square_<Group>,
+    # with the collision of its objects as UCX_ meshes, and every check passes.
+    def test_three_files_unreal(self):
+        output = self.run_groups(profile="unreal")
+        files = self.written(output)
+        self.assertEqual(sorted(files), ["furniture_r1", "structure", "surfaces"])
+        self.assertEqual([c["id"] for c in output["checks"] if c["status"] in ("fail", "warning")], [])
+        self.assertEqual(statuses(output)["fbx_scale"]["status"], "pass")
+        names, _ = self.read("Square_Furniture_Living.fbx")
+        self.assertEqual(names, ["SM_Square_Furniture_Living", "UCX_SM_Square_Furniture_Living_00",
+                                 "UCX_SM_Square_Furniture_Living_01"])
+        total = 0
+        for group, mesh in (("surfaces", "SM_Square_Floors"), ("structure", "SM_Square_Walls")):
+            names, _ = self.read(files[group]["file"])
+            self.assertEqual([n for n in names if not n.startswith("UCX_")], [mesh], group)
+            hulls = [n for n in names if n.startswith("UCX_")]
+            self.assertTrue(hulls, group)
+            self.assertEqual(hulls, ["UCX_%s_%02d" % (mesh, n) for n in range(len(hulls))], group)
+            self.assertEqual(files[group]["objects"], len(names), group)
+            total += len(hulls)
+        self.assertEqual(output["collision_objects"], total + 2)
+        self.assertEqual(output["objects"], 3 + output["collision_objects"])
 
     # Every object of the build is in exactly one written file, and every file keeps identity transforms.
     def test_every_object_once_with_identity(self):
@@ -118,15 +139,15 @@ class ExportGroupsTests(ExportTest):
         single = self.export(params=self.params(clean=True))["output"]
         self.assertTrue(single["written"])
         _, objects = self.read("Square.fbx")
-        wanted = scene.world_bounds([o for o in objects if o.name == "SM_f1_Walls"])
+        wanted = scene.world_bounds([o for o in objects if o.name == "f1_Walls"])
         self.run_groups()
         _, objects = self.read("Square_Walls.fbx")
-        got = scene.world_bounds([o for o in objects if o.name == "SM_f1_Walls"])
+        got = scene.world_bounds([o for o in objects if o.name == "f1_Walls"])
         for side in range(2):
             for axis in range(3):
                 self.assertAlmostEqual(got[side][axis], wanted[side][axis], delta=1e-5)
 
-    # An object added by hand to the blend goes to the group with rest.
+    # An object added by hand to the blend goes to the group with rest, and an SM_ the user gave it is dropped.
     def test_hand_made_cube_goes_to_rest(self):
         plain = self.written(self.run_groups())["structure"]["objects"]
         project = export_helpers.fixture_project(clean=True)
@@ -142,7 +163,8 @@ class ExportGroupsTests(ExportTest):
         entry = self.written(output)["structure"]
         self.assertEqual(entry["objects"], plain + 1)
         names, _ = self.read(entry["file"])
-        self.assertIn("SM_hand_cube", names)
+        self.assertIn("hand_cube", names)
+        self.assertNotIn("SM_hand_cube", names)
 
     # An exact member beats the kind filter of a group without members.
     def test_exact_member_beats_filter(self):
@@ -153,11 +175,11 @@ class ExportGroupsTests(ExportTest):
                      "name": "Furniture_Living"}
         output = self.run_groups(groups)
         files = self.written(output)
-        self.assertEqual(files["furniture_r1"]["objects"], 2)
-        self.assertEqual(files["structure"]["objects"], plain + 2)
+        self.assertEqual(files["furniture_r1"]["objects"], 1)
+        self.assertEqual(files["structure"]["objects"], plain + 1)
         names, _ = self.read("Square_Furniture_Living.fbx")
-        self.assertIn("SM_sofa_i1", names)
-        self.assertNotIn("SM_sofa_i2", names)
+        self.assertIn("sofa_i1", names)
+        self.assertNotIn("sofa_i2", names)
 
     # The assignment order of Exporter.h on stand in objects, with collision following its object.
     def test_assignment_order(self):
@@ -224,7 +246,7 @@ class ExportGroupsTests(ExportTest):
         self.assertEqual(answer["status"], "fail")
         self.assertTrue(answer["findings"])
         for entry in answer["findings"]:
-            self.assertTrue(entry["object"].startswith(("SM_", "UCX_")), entry["object"])
+            self.assertFalse(entry["object"].startswith(("SM_", "UCX_")), entry["object"])
         self.assertFalse(output["written"])
         self.assertEqual(output["files"], [])
         params = self.grouped(groups)
@@ -241,7 +263,10 @@ class ExportGroupsTests(ExportTest):
         groups[1]["members"].append({"kind": "walls", "id": "f1"})
         output = self.run_groups(groups)
         self.assertEqual(statuses(output)["fbx_scale"]["status"], "pass")
-        self.assertIn("SM_f1_Walls", self.read("Square_Floors.fbx")[0])
+        self.assertIn("f1_Walls", self.read("Square_Floors.fbx")[0])
+        output = self.run_groups(groups, profile="unreal")
+        self.assertEqual(statuses(output)["fbx_scale"]["status"], "pass")
+        self.assertIn("SM_Square_Floors", self.read("Square_Floors.fbx")[0])
 
     # The single group gives the same file as before, with no kit and no empty groups.
     def test_single_unchanged(self):

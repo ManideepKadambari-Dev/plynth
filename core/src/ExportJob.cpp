@@ -280,6 +280,20 @@ std::optional<QualityPhase> qualityPhaseFromName(std::string_view name)
     return std::nullopt;
 }
 
+// "plain" or "unreal".
+std::string_view exportProfileName(ExportProfile profile)
+{
+    return profile == ExportProfile::Unreal ? "unreal" : "plain";
+}
+
+// The profile with this name. Empty when unknown.
+std::optional<ExportProfile> exportProfileFromName(std::string_view name)
+{
+    if (name == "plain") return ExportProfile::Plain;
+    if (name == "unreal") return ExportProfile::Unreal;
+    return std::nullopt;
+}
+
 // The world bounds of every wall of the project.
 std::optional<ExportBounds> expectedWallBounds(const Project& project)
 {
@@ -314,6 +328,7 @@ Json makeExportJob(const Project& project, const std::vector<ExportGroup>& group
     info["name"] = project.settings.name;
     info["folder"] = absolutePath(projectFolder);
     params["project"] = std::move(info);
+    params["profile"] = std::string(exportProfileName(settings.profile));
     params["blend_file"] = absolutePath(projectFolder / pathFromUtf8("build") / pathFromUtf8("building.blend"));
     params["output_folder"] = absolutePath(stagingFolder);
     params["textures_folder"] = std::string(kExportTexturesFolder);
@@ -335,7 +350,8 @@ Json makeExportJob(const Project& project, const std::vector<ExportGroup>& group
         groupList.push_back(std::move(group));
     }
     params["groups"] = std::move(groupList);
-    if (kit && !kit->pieces.empty()) {
+    // The kit belongs to the Unreal link, so a plain job never carries one.
+    if (settings.profile == ExportProfile::Unreal && kit && !kit->pieces.empty()) {
         const BuildSettings kitBuild;
         Json pieces = Json::array();
         for (const KitPiece& piece : kit->pieces) pieces.push_back(kitPieceJson(piece));

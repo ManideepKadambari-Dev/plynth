@@ -195,9 +195,10 @@ class FromCoreKitTests(helpers.TempFolderTest):
         self.assertEqual([c["id"] for c in result["output"]["checks"] if c["status"] == "fail"], [])
         self.assertFalse(os.path.exists(self.path("export")))
 
-    # The kit pieces show each material at the size the walls do: the same metres per UV unit for every slot.
+    # The kit pieces show each material at the size the walls do: the same metres per UV unit for every slot. A
+    # check only run keeps the walls apart from the rest of their group, so they can be measured on their own.
     def test_texture_density_matches_walls(self):
-        self.assertTrue(self.export(self.job())["ok"])
+        self.assertTrue(self.export(self.job(write=False))["ok"])
         walls = [o for o in bpy.data.objects if o.name.startswith("SM_f1_") and o.type == "MESH"
                  and o.get("plynth_kind") not in ("slab", "stair", "roof")]
         pieces = [o for o in bpy.data.objects if o.name.startswith("SM_Kit_")]
@@ -213,9 +214,17 @@ class FromCoreKitTests(helpers.TempFolderTest):
         self.assertGreaterEqual(compared, 4)
 
     # Placing the kit by its layout rebuilds the walls: same bounds, same area seen from above, and two pictures.
+    # The unreal walls file is one joined mesh with the doors and trim, so the plain export's walls file, which
+    # keeps every object apart, stands in for it.
     def test_layout_check(self):
         self.assertTrue(self.export(self.job())["ok"])
         folder = self.path("export", ".staging")
+        plain = self.job()
+        plain["params"]["profile"] = "plain"
+        plain["params"]["output_folder"] = self.path("plain", ".staging")
+        self.assertTrue(self.export(plain)["ok"])
+        walls = next(g["file"] for g in plain["params"]["groups"] if g["id"] == "structure")
+        shutil.copyfile(self.path("plain", ".staging", walls), os.path.join(folder, walls))
         shutil.copyfile(os.path.join(DATA_FOLDER, "from_core_kit_layout.json"), os.path.join(folder, LAYOUT_FILE))
         answer = load_layout_check().check(folder, self.path("renders"))
         self.assertTrue(answer["ok"], answer)

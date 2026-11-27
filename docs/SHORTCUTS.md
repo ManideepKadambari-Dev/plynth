@@ -90,7 +90,7 @@ E and F work when the canvas or the wall view has focus. F does something only w
 | Shortcut | Action |
 |---|---|
 | Ctrl+B | Build the building in Blender |
-| Ctrl+E | Export the last build for Unreal: the FBX, the textures and the report (Build > Export) |
+| Ctrl+E | Export the last build as a plain FBX: the FBX, the textures and the report (Build > Export) |
 | Ctrl+Shift+E | Check the export: run the quality checks and write no FBX (Build > Check export) |
 | 3 | Switch between the plan and the 3D view (View > 3D view) |
 | Alt+3 | Show the 3D overlay on the plan, or hide it (View > 3D overlay on plan) |

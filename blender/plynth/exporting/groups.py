@@ -36,7 +36,7 @@ def _group_of(groups, kind, plan_id):
     return None
 
 
-# Sorts building objects into groups. meshes are the building meshes, collision the UCX_ meshes. Returns
+# Sorts building objects into groups. meshes are the building meshes, collision the collision meshes. Returns
 # (objects by group id, objects no group takes). Every group id is a key, an empty list when it got nothing. A
 # collision mesh goes with the object it belongs to; one with no such object goes where the objects of no kind
 # would go. Objects of kind "kit" are left out of both answers.

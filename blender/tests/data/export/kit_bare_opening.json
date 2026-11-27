@@ -9,6 +9,7 @@
    "name": "Square",
    "folder": "project"
   },
+  "profile": "unreal",
   "blend_file": "project/build/building.blend",
   "output_folder": "project/export/.staging",
   "textures_folder": "Textures",

@@ -9,6 +9,7 @@
    "name": "m11",
    "folder": "@PROJECT@"
   },
+  "profile": "plain",
   "blend_file": "@PROJECT@/build/building.blend",
   "output_folder": "@PROJECT@/export/.staging",
   "textures_folder": "Textures",

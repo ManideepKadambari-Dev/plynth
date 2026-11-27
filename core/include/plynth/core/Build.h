@@ -217,7 +217,7 @@ struct BuiltMaterial {
 };
 
 struct BuiltObjectSlots {
-    std::string object;              // the Blender and FBX object name, for example "SM_f1_Walls"
+    std::string object;              // the Blender and FBX object name, for example "f1_Walls"
     std::vector<std::string> slotNames; // BuiltMaterial names in slot order
 
     bool operator==(const BuiltObjectSlots&) const = default;

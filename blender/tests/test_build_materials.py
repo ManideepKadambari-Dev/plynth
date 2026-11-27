@@ -121,7 +121,7 @@ class WallMaterialTests(MaterialBuildTest):
                "result_file": "r.json", "params": params}
         self.assertEqual(validate(job, load_schema("blender-job")), [])
         self.build_open(params)
-        walls = bpy.data.objects["SM_f1_Walls"]
+        walls = bpy.data.objects["f1_Walls"]
         sides = face_values(walls, "plynth_side")
         rooms = face_values(walls, "plynth_room")
         seen = {"inside": 0, "outside": 0, "top": 0}
@@ -155,7 +155,7 @@ class WallMaterialTests(MaterialBuildTest):
         params["floors"][0]["rooms"] = []
         upgrade(params)
         self.build_open(params)
-        walls = bpy.data.objects["SM_f1_Walls"]
+        walls = bpy.data.objects["f1_Walls"]
         sides = face_values(walls, "plynth_side")
         checked = 0
         for polygon, _ in self.named_polygons(walls):
@@ -173,7 +173,7 @@ class WallMaterialTests(MaterialBuildTest):
     def test_u_continues_at_corners(self):
         params = self.with_materials(outside="paint_a", entries=[self.make_material("paint_a", tile=(1.0, 1.0))])
         self.build_open(params)
-        walls = bpy.data.objects["SM_f1_Walls"]
+        walls = bpy.data.objects["f1_Walls"]
         sides = face_values(walls, "plynth_side")
         rooms = face_values(walls, "plynth_room")
         layer = walls.data.uv_layers["UVMap"]
@@ -195,7 +195,7 @@ class WallMaterialTests(MaterialBuildTest):
                                      entries=[self.make_material("paint_a", tile=(2.0, 0.5)),
                                               self.make_material("paint_b", tile=(1.0, 4.0))])
         self.build_open(params)
-        for name, tile, sign in (("SM_f1_r1_Floor", (2.0, 0.5), 1.0), ("SM_f1_r1_Ceiling", (1.0, 4.0), -1.0)):
+        for name, tile, sign in (("f1_r1_Floor", (2.0, 0.5), 1.0), ("f1_r1_Ceiling", (1.0, 4.0), -1.0)):
             obj = bpy.data.objects[name]
             layer = obj.data.uv_layers["UVMap"]
             for polygon in obj.data.polygons:
@@ -217,7 +217,7 @@ class CutTests(MaterialBuildTest):
                 params["floors"][0]["openings"][0]["materials"]["reveal"] = "paint_b"
                 upgrade(params)
                 self.build_open(params)
-                walls = bpy.data.objects["SM_f1_Walls"]
+                walls = bpy.data.objects["f1_Walls"]
                 sides = face_values(walls, "plynth_side")
                 reveal = [(p, n) for p, n in self.named_polygons(walls) if sides[p.index] == 4]
                 self.assertGreater(len(reveal), 0)
@@ -243,10 +243,10 @@ class CutTests(MaterialBuildTest):
         materials.update({"door": "paint_a", "frame": "paint_a", "handle": "paint_b", "threshold": "paint_b"})
         upgrade(params)
         self.build_open(params)
-        door = bpy.data.objects["SM_f1_o1_Door"]
+        door = bpy.data.objects["f1_o1_Door"]
         self.assertEqual([m.name for m in door.data.materials], ["Frame", "Door", "Handle"])
         self.assertEqual({p.material_index for p in door.data.polygons}, {0, 1, 2})
-        thresholds = bpy.data.objects["SM_f1_Thresholds"]
+        thresholds = bpy.data.objects["f1_Thresholds"]
         self.assertEqual([m.name for m in thresholds.data.materials], ["Living_Floor_PaintB"])
         shown = {m["name"]: m["material"] for m in self.read_materials()["materials"]}
         self.assertEqual((shown["Door"], shown["Frame"], shown["Handle"], shown["Living_Floor_PaintB"]),

@@ -9,9 +9,10 @@
 
 namespace plynth {
 
-// Collision shapes for Unreal (DESIGN.md sections 7.13 step 11 and 7.16), worked out in core from the same
-// shapes the build makes, so the Blender side only turns each piece into a closed convex mesh named
-// UCX_<object>_<NN>. Unreal needs every collision mesh to be convex, so each piece is a convex outline in
+// Collision shapes (DESIGN.md sections 7.13 step 11 and 7.16), worked out in core from the same shapes the
+// build makes, so the Blender side only turns each piece into a closed convex mesh named
+// <object>_Collision_<NN>. Only the unreal export profile writes them, as UCX_ meshes (ExportJob.h); the plain
+// profile leaves them out. Unreal needs every collision mesh to be convex, so each piece is a convex outline in
 // world X and Y raised from bottom to top (a vertical prism), and what slopes is a hull: points whose convex
 // hull the Blender side makes. Pieces and hulls may overlap; collision does not mind.
 //
@@ -73,7 +74,7 @@ struct CollisionPiece {
     bool operator==(const CollisionPiece&) const = default;
 };
 
-// The collision of one built object, in the order it is named (UCX_<object>_00, _01, ...): the pieces, then
+// The collision of one built object, in the order it is named (<object>_Collision_00, _01, ...): the pieces, then
 // the hulls, numbered on from the last piece.
 struct CollisionShape {
     CollisionTargetKind kind = CollisionTargetKind::Walls;

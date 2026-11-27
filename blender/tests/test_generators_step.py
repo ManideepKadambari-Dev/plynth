@@ -28,8 +28,8 @@ class SampleBuildTests(GeneratorTest):
         result = self.build_samples()
         self.assertEqual(result["output"]["problems"], [])
         self.assertEqual(result["output"]["counts"]["generators"], 2)
-        column = bpy.data.objects["SM_column_i5"]
-        railing = bpy.data.objects["SM_railing_i6"]
+        column = bpy.data.objects["column_i5"]
+        railing = bpy.data.objects["railing_i6"]
         for obj, location, rotation in ((column, (2.0, -2.0, 0.0), 0.0), (railing, (2.0, -0.2, 0.0), -0.5)):
             self.assertEqual(obj.type, "MESH")
             self.assertEqual(tuple(round(s, 6) for s in obj.scale), (1.0, 1.0, 1.0))
@@ -44,7 +44,7 @@ class SampleBuildTests(GeneratorTest):
     # The bottom sits on the floor and the size is within 1 cm of the job's size.
     def test_size(self):
         self.build_samples()
-        for name, size in (("SM_column_i5", (0.3, 0.3, 3.0)), ("SM_railing_i6", (1.5, 0.05, 0.9))):
+        for name, size in (("column_i5", (0.3, 0.3, 3.0)), ("railing_i6", (1.5, 0.05, 0.9))):
             obj = bpy.data.objects[name]
             xs = [v.co.x for v in obj.data.vertices]
             ys = [v.co.y for v in obj.data.vertices]
@@ -57,7 +57,7 @@ class SampleBuildTests(GeneratorTest):
     # UVs are in metres divided by the tile size of the material; the material is named after the job's slot.
     def test_uvs_and_slots(self):
         self.build_samples(self.sample_params(tile=(2.0, 1.0)))
-        column = bpy.data.objects["SM_column_i5"]
+        column = bpy.data.objects["column_i5"]
         self.assertEqual([m.name for m in column.data.materials], ["Column_Material"])
         layer = column.data.uv_layers["UVMap"]
         checked = 0
@@ -69,7 +69,7 @@ class SampleBuildTests(GeneratorTest):
                     self.assertAlmostEqual(layer.uv[index].vector.y, co.y / 1.0, 5)
                     checked += 1
         self.assertGreater(checked, 0)
-        railing = bpy.data.objects["SM_railing_i6"]
+        railing = bpy.data.objects["railing_i6"]
         self.assertEqual([m.name for m in railing.data.materials], ["Railing_Material"])
 
     # A null material keeps the slot name and gives it the neutral Generated look, with its constant image in
@@ -81,7 +81,7 @@ class SampleBuildTests(GeneratorTest):
         row["material"] = None
         result = self.build_samples(params)
         self.assertEqual(result["output"]["problems"], [])
-        column = bpy.data.objects["SM_column_i5"]
+        column = bpy.data.objects["column_i5"]
         self.assertEqual([m.name for m in column.data.materials], ["Column_Material"])
         with open(self.path("build", "materials.json"), "r", encoding="utf-8") as handle:
             entries = {e["name"]: e for e in json.load(handle)["materials"]}
@@ -96,23 +96,23 @@ class SampleBuildTests(GeneratorTest):
         values = params["floors"][0]["generator_items"][0]["params"]
         values.update({"shape": "square", "plinth": False})
         self.build_samples(params)
-        column = bpy.data.objects["SM_column_i5"]
+        column = bpy.data.objects["column_i5"]
         sides = [p for p in column.data.polygons if abs(p.normal.z) < 0.1]
         self.assertEqual(len(sides), 4)
 
     # The same job twice gives the same vertex positions.
     def test_repeatable(self):
         self.build_samples()
-        first = {n: positions(bpy.data.objects[n]) for n in ("SM_column_i5", "SM_railing_i6")}
+        first = {n: positions(bpy.data.objects[n]) for n in ("column_i5", "railing_i6")}
         self.build_samples()
-        second = {n: positions(bpy.data.objects[n]) for n in ("SM_column_i5", "SM_railing_i6")}
+        second = {n: positions(bpy.data.objects[n]) for n in ("column_i5", "railing_i6")}
         self.assertEqual(first, second)
 
     # The meshes are closed.
     def test_closed(self):
         self.build_samples()
         from plynth import meshes
-        for name in ("SM_column_i5", "SM_railing_i6"):
+        for name in ("column_i5", "railing_i6"):
             self.assertTrue(meshes.is_manifold(bpy.data.objects[name]), name)
 
     # The generator objects are in the FBX and in materials.json.
@@ -126,8 +126,8 @@ class SampleBuildTests(GeneratorTest):
         bpy.ops.wm.read_factory_settings(use_empty=True)
         bpy.ops.import_scene.fbx(filepath=self.path("build", "building.fbx"))
         names = [o.name for o in bpy.data.objects]
-        self.assertTrue([n for n in names if "SM_column_i5" in n], names)
-        self.assertTrue([n for n in names if "SM_railing_i6" in n], names)
+        self.assertTrue([n for n in names if "column_i5" in n], names)
+        self.assertTrue([n for n in names if "railing_i6" in n], names)
 
     # The job fixture matches the job schema.
     def test_job_valid(self):
@@ -146,8 +146,8 @@ class ProblemTests(GeneratorTest):
         self.assertEqual(failed[0]["severity"], "error")
         self.assertEqual(failed[0]["object"], "i1")
         self.assertTrue(failed[0]["message"].endswith("the box fell over"), failed[0]["message"])
-        self.assertIsNone(bpy.data.objects.get("SM_raises_i1"))
-        self.assertIsNotNone(bpy.data.objects.get("SM_seeded_i2"))
+        self.assertIsNone(bpy.data.objects.get("raises_i1"))
+        self.assertIsNotNone(bpy.data.objects.get("seeded_i2"))
         self.assertEqual(result["output"]["counts"]["generators"], 1)
 
     # Items of room_params get the slot of their material parameter and the table gets its row.
@@ -162,7 +162,7 @@ class ProblemTests(GeneratorTest):
         self.assertNotIn("Column_Material", rows)
         result = self.build_open(params)
         self.assertEqual(result["output"]["problems"], [])
-        self.assertEqual([m.name for m in bpy.data.objects["SM_seeded_i1"].data.materials], ["Seeded_Material"])
+        self.assertEqual([m.name for m in bpy.data.objects["seeded_i1"].data.materials], ["Seeded_Material"])
 
     # A generator that returns nothing gives generator_failed.
     def test_nothing(self):
@@ -186,7 +186,7 @@ class ProblemTests(GeneratorTest):
         self.assertEqual(len(found), 1)
         self.assertEqual(found[0]["severity"], "warning")
         self.assertEqual(self.problems(result, "generator_failed"), [])
-        self.assertIsNone(bpy.data.objects.get("SM_needs_i1"))
+        self.assertIsNone(bpy.data.objects.get("needs_i1"))
 
     # Extra objects and unused data a generator leaves are removed.
     def test_clean(self):
@@ -197,7 +197,7 @@ class ProblemTests(GeneratorTest):
             for kind in ("objects", "meshes", "materials", "node_groups", "collections"):
                 self.assertNotIn(name, getattr(bpy.data, kind), "%s in %s" % (name, kind))
         self.assertEqual([m.name for m in bpy.data.meshes if m.users == 0], [])
-        self.assertIsNotNone(bpy.data.objects.get("SM_extra_i1"))
+        self.assertIsNotNone(bpy.data.objects.get("extra_i1"))
 
     # A result 5 cm too wide gives generator_size but is still built.
     def test_size_warning(self):
@@ -206,7 +206,7 @@ class ProblemTests(GeneratorTest):
         found = self.problems(result, "generator_size")
         self.assertEqual(len(found), 1)
         self.assertEqual(found[0]["severity"], "warning")
-        self.assertIsNotNone(bpy.data.objects.get("SM_wide_i1"))
+        self.assertIsNotNone(bpy.data.objects.get("wide_i1"))
 
     # A job without generators builds as before and has no generators count.
     def test_no_generators(self):

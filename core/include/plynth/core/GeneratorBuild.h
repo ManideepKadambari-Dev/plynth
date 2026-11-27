@@ -43,7 +43,7 @@ using Json = nlohmann::ordered_json;
 //
 // What the worker does with each item, so every generator script can stay small: it calls generate(gen) in an
 // empty scene collection, keeps the mesh objects generate returns (curves, text and geometry node results made
-// real first, modifiers applied), joins them into one mesh named SM_<generator>_<item> with its pivot at the
+// real first, modifiers applied), joins them into one mesh named <generator>_<item> with its pivot at the
 // item's location (generators make their result around the origin: bottom centre at (0, 0, 0), front toward -Y,
 // as catalog assets), turns it by rotation_z, gives it plynth_id (the item), plynth_kind "generator" and
 // plynth_generator (the id), and removes every other object and data block the generator made.
