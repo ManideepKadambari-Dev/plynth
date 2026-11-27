@@ -118,7 +118,8 @@ TEST_CASE("Plynth/fetch of exactly 95 bytes is used and one of 96 is not", "[cor
         plynth::test::requireOk(choice.status);
         if (bytes == 95) {
             CHECK(choice.used == 2);
-            CHECK(pathToUtf8(choice.folder) == local + ending);
+            // pathToUtf8 writes forward slashes, so the native text is compared to check the separators too.
+            CHECK(choice.folder.wstring() == pathFromUtf8(local + ending).wstring());
             CHECK(pathToUtf8(choice.folder).size() == 95);
         } else {
             CHECK(choice.used == 4);
