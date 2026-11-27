@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:link-report:1",
+  "title": "Plynth engine link report, version 1",
+  "description": "build/links/<link>/link_report.json and the result of plynth link <link> send (core/include/plynth/core/EngineLink.h). Paths are absolute, UTF-8, forward slashes.",
+  "type": "object",
+  "required": ["format", "version", "link", "job_id", "status", "started_at", "elapsed_ms", "skipped", "skipped_reason", "target", "content_path", "pack_materials", "grouped", "export", "assets", "actors", "report_file", "log_file"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "plynth-link-report" },
+    "version": { "const": 1 },
+    "link": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+    "job_id": { "type": "string" },
+    "status": {
+      "type": "object",
+      "required": ["code", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "description": "ok or an error code name.", "type": "string" },
+        "message": { "type": "string" }
+      }
+    },
+    "started_at": { "type": "string" },
+    "elapsed_ms": { "type": "integer", "minimum": 0 },
+    "skipped": { "type": "boolean" },
+    "skipped_reason": { "type": "string" },
+    "target": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["project_name", "project_root", "engine_version"],
+          "additionalProperties": false,
+          "properties": {
+            "project_name": { "type": "string" },
+            "project_root": { "type": "string" },
+            "engine_version": { "type": "string" }
+          }
+        }
+      ]
+    },
+    "content_path": { "type": "string" },
+    "pack_materials": { "type": "boolean" },
+    "grouped": { "type": "boolean" },
+    "export": { "description": "The prepare step's report, in the form of export-report.schema.json, or null when it did not run.", "oneOf": [ { "type": "object" }, { "type": "null" } ] },
+    "assets": { "type": "array", "items": { "type": "object", "required": ["path", "kind", "action"], "properties": { "path": { "type": "string" }, "kind": { "type": "string" }, "action": { "type": "string" } } } },
+    "actors": { "type": "array", "items": { "type": "object", "required": ["label", "asset", "action"], "properties": { "label": { "type": "string" }, "asset": { "type": "string" }, "action": { "type": "string" } } } },
+    "checks": { "description": "Only after a self check.", "type": "array", "items": { "type": "object", "required": ["id", "status", "message"], "properties": { "id": { "type": "string" }, "status": { "enum": ["pass", "warning", "fail"] }, "message": { "type": "string" } } } },
+    "screenshot": { "oneOf": [ { "type": "string" }, { "type": "null" } ] },
+    "report_file": { "type": "string" },
+    "log_file": { "oneOf": [ { "type": "string" }, { "type": "null" } ] }
+  }
+}

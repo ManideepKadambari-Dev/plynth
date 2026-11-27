@@ -1,0 +1,74 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:unreal-result:1",
+  "title": "Plynth Unreal result, version 1",
+  "description": "The file the Plynth script inside the Unreal Editor writes after a job (core/include/plynth/core/UnrealLink.h).",
+  "type": "object",
+  "required": ["format", "version", "job_id", "ok", "error", "engine_version", "project_name", "content_path", "assets", "actors", "checks", "screenshot", "ms"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "plynth-unreal-result" },
+    "version": { "const": 1 },
+    "job_id": { "type": "string" },
+    "ok": { "type": "boolean" },
+    "error": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["code", "message"],
+          "additionalProperties": false,
+          "properties": {
+            "code": { "enum": ["not_editor", "bad_job", "folder_taken", "import_failed", "material_failed", "level_failed"] },
+            "message": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
+    },
+    "engine_version": { "type": "string" },
+    "project_name": { "type": "string" },
+    "content_path": { "type": "string" },
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "kind", "action"],
+        "additionalProperties": false,
+        "properties": {
+          "path": { "type": "string", "pattern": "^/Game/" },
+          "kind": { "enum": ["static_mesh", "texture", "material", "material_instance", "file"] },
+          "action": { "enum": ["created", "updated", "unchanged", "removed"] }
+        }
+      }
+    },
+    "actors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["label", "asset", "action"],
+        "additionalProperties": false,
+        "properties": {
+          "label": { "type": "string" },
+          "asset": { "type": "string" },
+          "action": { "enum": ["spawned", "kept", "removed"] }
+        }
+      }
+    },
+    "checks": {
+      "description": "Empty unless the job asked for checks.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "status", "message"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "enum": ["scale", "normals", "collision", "textures", "material_slots", "actors"] },
+          "status": { "enum": ["pass", "warning", "fail"] },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "screenshot": { "oneOf": [ { "type": "string", "minLength": 1 }, { "type": "null" } ] },
+    "ms": { "type": "integer", "minimum": 0 }
+  }
+}

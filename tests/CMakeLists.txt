@@ -156,6 +156,8 @@ add_executable(plynth_core_tests
     core/IdGroupTests.cpp
     core/IdTestListener.cpp
     core/UnrealRemoteTests.cpp
+    core/EngineLinkTests.cpp
+    core/UnrealJobTests.cpp
 )
 target_link_libraries(plynth_core_tests PRIVATE
     plynth::core

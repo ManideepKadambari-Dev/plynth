@@ -112,6 +112,8 @@ add_library(plynth_core STATIC
     src/BuildResolve.cpp
     src/catalog/BuildChoices.cpp
     src/VariationCopies.cpp
+    src/links/EngineLink.cpp
+    src/links/unreal/UnrealJob.cpp
 )
 if(WIN32)
     target_sources(plynth_core PRIVATE src/Process_win.cpp)
@@ -144,6 +146,16 @@ else()
 endif()
 set_source_files_properties(src/Blender.cpp PROPERTIES
     COMPILE_DEFINITIONS "${PLYNTH_SOURCE_BLENDER_DEFINE}")
+# The source engines/unreal/ path follows the same switch, so a developer build finds the Unreal scripts.
+if(PLYNTH_DEV_SAMPLES STREQUAL "ON")
+    set(PLYNTH_SOURCE_UNREAL_DEFINE "PLYNTH_SOURCE_UNREAL_DIR=\"${PROJECT_SOURCE_DIR}/engines/unreal\"")
+elseif(PLYNTH_DEV_SAMPLES STREQUAL "OFF")
+    set(PLYNTH_SOURCE_UNREAL_DEFINE "")
+else()
+    set(PLYNTH_SOURCE_UNREAL_DEFINE "$<$<CONFIG:Debug>:PLYNTH_SOURCE_UNREAL_DIR=\"${PROJECT_SOURCE_DIR}/engines/unreal\">")
+endif()
+set_source_files_properties(src/links/unreal/UnrealJob.cpp PROPERTIES
+    COMPILE_DEFINITIONS "${PLYNTH_SOURCE_UNREAL_DEFINE}")
 set_source_files_properties(src/Library.cpp src/guide/Resources.cpp PROPERTIES
     COMPILE_DEFINITIONS PLYNTH_DEV_SAMPLES=${PLYNTH_DEV_SAMPLES_VALUE})
 set_source_files_properties(src/Version.cpp PROPERTIES
@@ -256,6 +268,16 @@ if(PLYNTH_EXPORTER_SOURCES)
     target_compile_features(plynth_exporters PUBLIC cxx_std_20)
     target_link_libraries(plynth_exporters PRIVATE nlohmann_json::nlohmann_json)
     target_sources(plynth_core INTERFACE $<TARGET_OBJECTS:plynth_exporters>)
+endif()
+
+# Engine links register themselves the same way, so they are built as an object library too.
+file(GLOB PLYNTH_ENGINE_LINK_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/links/engines/*.cpp)
+if(PLYNTH_ENGINE_LINK_SOURCES)
+    add_library(plynth_engine_links OBJECT ${PLYNTH_ENGINE_LINK_SOURCES})
+    target_include_directories(plynth_engine_links PRIVATE include src)
+    target_compile_features(plynth_engine_links PUBLIC cxx_std_20)
+    target_link_libraries(plynth_engine_links PRIVATE nlohmann_json::nlohmann_json)
+    target_sources(plynth_core INTERFACE $<TARGET_OBJECTS:plynth_engine_links>)
 endif()
 
 # Trim profiles and set dressing rules register themselves the same way, so each set is an object library too.
