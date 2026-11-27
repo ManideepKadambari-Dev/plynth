@@ -11,20 +11,6 @@
 
 namespace plynth::detail {
 
-// Says whether a plan point lies on an item's footprint, its edges included.
-inline bool footprintHolds(const Item& item, double x, double y)
-{
-    const double r = item.rotation * std::numbers::pi / 180.0;
-    const double c = std::cos(r);
-    const double s = std::sin(r);
-    const double dx = x - item.x;
-    const double dy = y - item.y;
-    const double along = dx * c + dy * s;
-    const double across = -dx * s + dy * c;
-    return std::fabs(along) <= item.size.width / 2.0 + kItemTouchTolerance
-        && std::fabs(across) <= item.size.depth / 2.0 + kItemTouchTolerance;
-}
-
 // Keeps a copy of an item as it was before a command first changed it, once for each item.
 inline void keepOld(std::vector<Item>& saved, const Item& item)
 {

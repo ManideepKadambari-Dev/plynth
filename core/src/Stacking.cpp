@@ -1,9 +1,14 @@
 #include "plynth/core/Stacking.h"
 
+#include "plynth/core/Items.h"
+
 #include "commands/StackSupport.h"
 
 #include <algorithm>
 #include <cstddef>
+#include <cmath>
+#include <cstdio>
+#include <numbers>
 #include <set>
 #include <string>
 
@@ -23,7 +28,7 @@ std::vector<const Item*> targetsAt(const Floor& floor, double x, double y, std::
     std::vector<const Item*> found;
     for (const Item& item : floor.items) {
         if (item.wall || skipped.count(item.id)) continue;
-        if (detail::footprintHolds(item, x, y)) found.push_back(&item);
+        if (footprintHoldsPoint(item, {x, y})) found.push_back(&item);
     }
     return found;
 }
@@ -81,6 +86,48 @@ Status checkStack(const Floor& floor, std::string_view item, std::string_view lo
     if (std::find(above.begin(), above.end(), below->id) != above.end()) {
         return fail(ErrorCode::InvalidValue,
                     "The item " + below->id + " stands on " + upper->id + ", so " + upper->id + " cannot stand on it.");
+    }
+    return {};
+}
+
+// Says whether a plan point is on an item's footprint, turned with the item, edges included.
+bool footprintHoldsPoint(const Item& item, Vec2 point)
+{
+    const double r = item.rotation * std::numbers::pi / 180.0;
+    const double c = std::cos(r);
+    const double s = std::sin(r);
+    const double dx = point.x - item.x;
+    const double dy = point.y - item.y;
+    const double along = dx * c + dy * s;
+    const double across = -dx * s + dy * c;
+    return std::fabs(along) <= item.size.width / 2.0 + kItemTouchTolerance
+        && std::fabs(across) <= item.size.depth / 2.0 + kItemTouchTolerance;
+}
+
+// Checks that an item with its centre at a plan point may stand on another item of the floor.
+Status checkStandOnAt(const Plan& plan, const Floor& floor, std::string_view item, std::string_view lower, Vec2 point)
+{
+    const Id lowerId(lower);
+    const Item* below = findItem(floor, lower);
+    if (!below) {
+        const Floor* other = findFloorContaining(plan, lower);
+        if (other && findItem(*other, lower)) {
+            return fail(ErrorCode::InvalidValue,
+                        "The item " + lowerId + " is on floor " + other->id + ", not on floor " + floor.id + ".");
+        }
+        return fail(ErrorCode::NotFound, "There is no item " + lowerId + ".");
+    }
+    if (item.empty()) {
+        if (below->wall) {
+            return fail(ErrorCode::InvalidValue, "The item " + lowerId + " hangs on a wall, so nothing can stand on it.");
+        }
+    } else if (const Status s = checkStack(floor, item, lower); !s.ok()) {
+        return s;
+    }
+    if (!footprintHoldsPoint(*below, point)) {
+        char text[96];
+        std::snprintf(text, sizeof text, "The centre (%g, %g) is not over the item ", point.x, point.y);
+        return fail(ErrorCode::InvalidValue, text + lowerId + ".");
     }
     return {};
 }

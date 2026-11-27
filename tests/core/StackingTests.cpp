@@ -622,3 +622,41 @@ TEST_CASE("Putting an item that stands on nothing on the floor changes nothing",
     applyOk(shelfDown, p);
     REQUIRE(p == before);
 }
+
+TEST_CASE("footprintHoldsPoint follows the turned footprint, edges included", "[stacking]") {
+    Item table = bare("t", 1.5, 2.0, kTable);
+    REQUIRE(footprintHoldsPoint(table, {1.5, 2.0}));
+    REQUIRE(footprintHoldsPoint(table, {2.1, 2.4}));
+    REQUIRE_FALSE(footprintHoldsPoint(table, {2.11, 2.0}));
+    REQUIRE_FALSE(footprintHoldsPoint(table, {1.5, 2.5}));
+    table.rotation = 90.0;
+    REQUIRE(footprintHoldsPoint(table, {1.5, 2.5}));
+    REQUIRE_FALSE(footprintHoldsPoint(table, {2.0, 2.0}));
+}
+
+TEST_CASE("checkStandOnAt checks the lower item, the stack and the point", "[stacking]") {
+    TableStack s;
+    Project& p = s.p;
+    Item tv = newItem("tv", 1.5, 0.3, kTv);
+    tv.wall = "w1";
+    tv.z = 1.0;
+    const Id tvId = place(p, tv);
+    Floor upstairs;
+    upstairs.id = "f2";
+    upstairs.items.push_back(bare("i90", 1.0, 1.0, kTable));
+    p.plan.floors.push_back(upstairs);
+    const Floor& floor = p.plan.floors[0];
+
+    requireOk(checkStandOnAt(p.plan, floor, "", s.table, {1.5, 2.0}));
+    requireOk(checkStandOnAt(p.plan, floor, s.book, s.table, {1.0, 2.0}));
+    REQUIRE(checkStandOnAt(p.plan, floor, "", "i99", {1.5, 2.0}).code == ErrorCode::NotFound);
+    const Status otherFloor = checkStandOnAt(p.plan, floor, s.lamp, "i90", {1.0, 1.0});
+    REQUIRE(otherFloor.code == ErrorCode::InvalidValue);
+    REQUIRE(otherFloor.message == "The item i90 is on floor f2, not on floor f1.");
+    REQUIRE(checkStandOnAt(p.plan, floor, "", tvId, {1.5, 0.3}).code == ErrorCode::InvalidValue);
+    REQUIRE(checkStandOnAt(p.plan, floor, s.table, s.table, {1.5, 2.0}).code == ErrorCode::InvalidValue);
+    REQUIRE(checkStandOnAt(p.plan, floor, s.table, s.book, {1.8, 2.0}).code == ErrorCode::InvalidValue);
+    const Status away = checkStandOnAt(p.plan, floor, s.book, s.table, {5.0, 2.0});
+    REQUIRE(away.code == ErrorCode::InvalidValue);
+    REQUIRE(away.message.rfind("The centre", 0) == 0);
+}

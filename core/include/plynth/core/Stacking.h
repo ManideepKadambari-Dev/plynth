@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Geometry.h"
 #include "Plan.h"
 #include "Status.h"
 
@@ -45,6 +46,16 @@ std::optional<Id> automaticStackTarget(const Floor& floor, double x, double y, s
 // item at any depth, and neither hangs on a wall. InvalidValue with a plain sentence, NotFound for an unknown
 // id.
 Status checkStack(const Floor& floor, std::string_view item, std::string_view lower);
+
+// Says whether a plan point lies on an item's footprint, turned with the item, its edges included (within
+// kItemTouchTolerance). The item commands use it to decide that a moved item still stands on the one below it.
+bool footprintHoldsPoint(const Item& item, Vec2 point);
+
+// Checks that an item with its centre at a plan point may stand on lower, for --on and the drop question:
+// lower is an item of the floor (InvalidValue naming its floor when it is on another floor of the plan, NotFound
+// when it is nowhere), checkStack passes, and the point is over lower's footprint. item is empty for an item
+// that is not placed yet; then only lower hanging on a wall is refused.
+Status checkStandOnAt(const Plan& plan, const Floor& floor, std::string_view item, std::string_view lower, Vec2 point);
 
 // The items that stand on an item, directly or through others, lowest first.
 std::vector<Id> itemsStackedOn(const Floor& floor, std::string_view item);

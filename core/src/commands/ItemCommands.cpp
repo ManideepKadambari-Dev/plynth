@@ -193,7 +193,7 @@ Status MoveItemCommand::apply(Project& project)
     setRoomFromPosition(*found.floor, moved);
     if (moved.on) {
         const Item* below = findItem(*found.floor, *moved.on);
-        if (released_ || !below || !detail::footprintHolds(*below, moved.x, moved.y)) {
+        if (released_ || !below || !footprintHoldsPoint(*below, {moved.x, moved.y})) {
             moved.on.reset();
             moved.z = 0.0;
             released_ = true;
