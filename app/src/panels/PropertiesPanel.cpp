@@ -22,6 +22,7 @@
 #include <plynth/core/Generators.h>
 #include <plynth/core/Geometry.h>
 #include <plynth/core/Items.h>
+#include <plynth/core/LightStrips.h>
 #include <plynth/core/RoomTypes.h>
 #include <plynth/core/Rooms.h>
 #include <plynth/core/Roofs.h>
