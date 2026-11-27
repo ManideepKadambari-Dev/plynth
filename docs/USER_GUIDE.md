@@ -47,6 +47,8 @@ MyApartment/
 
 Only `plan.json`, `project.json` and `plans/` are the real project. `build/`, `export/`, `renders/` and `autosave/` can be deleted at any time; Plynth recreates them. Today `build/` and `autosave/` are used as well. `build/` is made by the Build button.
 
+Projects saved by older Plynth releases always open. See [Opening old projects](COMPATIBILITY.md).
+
 Two small files, `session.lock` and `app-state.json`, may also appear. They are explained below and are safe to delete while Plynth is closed.
 
 ### Create and open

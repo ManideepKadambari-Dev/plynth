@@ -88,7 +88,7 @@ TEST_CASE("AddStairCommand refuses a missing floor and bad values", "[stairs][co
     bad.type = "ladder";
     CHECK(AddStairCommand("f1", bad).apply(p).code == ErrorCode::InvalidValue);
     bad = stairAt(0, 0);
-    bad.width = 5.0;
+    bad.width = 7.0;
     CHECK(AddStairCommand("f1", bad).apply(p).code == ErrorCode::InvalidValue);
     bad = stairAt(std::numeric_limits<double>::quiet_NaN(), 0);
     CHECK(AddStairCommand("f1", bad).apply(p).code == ErrorCode::InvalidValue);

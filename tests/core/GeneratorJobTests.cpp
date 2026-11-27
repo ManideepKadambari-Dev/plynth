@@ -1,5 +1,6 @@
 #include "BuildFixtures.h"
 #include "FakeBlender.h"
+#include "OlderFormats.h"
 #include "SchemaSupport.h"
 #include "TestSupport.h"
 
@@ -834,6 +835,7 @@ TEST_CASE("a stair without a type reads as straight and fits the plan schemas", 
     CHECK(schemaProblem("plan.schema.json", nlohmann::json::parse(json.dump())) == "");
 
     Json older = json;
+    planBackTo7(older);
     older["version"] = 5;
     // Plan 7 fields are not part of version 5.
     for (Json& floor : older["floors"]) {

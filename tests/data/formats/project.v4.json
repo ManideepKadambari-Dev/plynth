@@ -1,0 +1,27 @@
+{
+  "format": "plynth-project",
+  "version": 4,
+  "name": "Cottage",
+  "export_mode": "grouped",
+  "grid_size": 0.25,
+  "defaults": {
+    "ceiling_height": 2.8,
+    "door_width": 0.85,
+    "door_height": 2.05,
+    "window_width": 1.0,
+    "window_height": 1.3,
+    "window_sill": 0.8,
+    "wall_item_centre": 1.1
+  },
+  "materials": {
+    "wall_inside": "white_paint",
+    "wall_outside": "white_paint",
+    "wall_top": "white_paint",
+    "floor": "oak_planks",
+    "ceiling": "white_paint",
+    "door": "painted_wood",
+    "frame": "white_paint",
+    "glass": "clear_glass",
+    "handle": null
+  }
+}

@@ -14,7 +14,8 @@ constexpr std::array kAllCodes = {
     ErrorCode::NoLibrary,     ErrorCode::BlenderNotFound,  ErrorCode::BlenderFailed,      ErrorCode::Cancelled,
     ErrorCode::DatabaseError, ErrorCode::QualityFailed,    ErrorCode::GraphicsUnavailable, ErrorCode::RenderFailed,
     ErrorCode::UpdateNotAvailable, ErrorCode::UpdateNotInstalled, ErrorCode::UpdateBlocked, ErrorCode::UpdateInProgress,
-    ErrorCode::SignatureInvalid, ErrorCode::NetworkFailed,
+    ErrorCode::SignatureInvalid, ErrorCode::NetworkFailed, ErrorCode::EngineNotFound, ErrorCode::EngineFailed,
+    ErrorCode::ChecksumFailed,
 };
 
 }
@@ -60,6 +61,9 @@ std::string_view errorCodeName(ErrorCode code)
     case ErrorCode::UpdateInProgress: return "update_in_progress";
     case ErrorCode::SignatureInvalid: return "signature_invalid";
     case ErrorCode::NetworkFailed: return "network_failed";
+    case ErrorCode::EngineNotFound: return "engine_not_found";
+    case ErrorCode::EngineFailed: return "engine_failed";
+    case ErrorCode::ChecksumFailed: return "checksum_failed";
     }
     return "invalid_value";
 }
@@ -95,6 +99,9 @@ std::string_view errorCodeDescription(ErrorCode code)
     case ErrorCode::UpdateInProgress: return "Plynth is being installed or updated right now.";
     case ErrorCode::SignatureInvalid: return "A download failed the signature check, so it was not used.";
     case ErrorCode::NetworkFailed: return "The release server could not be reached or gave a bad answer.";
+    case ErrorCode::EngineNotFound: return "No running game engine editor answered, or not the one asked for.";
+    case ErrorCode::EngineFailed: return "The game engine editor ran the import and it failed.";
+    case ErrorCode::ChecksumFailed: return "A download did not match its published checksum, so it was deleted.";
     }
     return "";
 }

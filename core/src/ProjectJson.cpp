@@ -1,5 +1,7 @@
 #include "plynth/core/ProjectJson.h"
 
+#include "NewerFile.h"
+
 #include "plynth/core/MaterialDefaults.h"
 
 #include <nlohmann/json.hpp>
@@ -118,6 +120,51 @@ const Json* getArray(const Json& obj, const char* key, const std::string& where,
     return &*it;
 }
 
+// Reads every item of an optional array with a reader function.
+template <typename Item, typename Reader>
+std::vector<Item> readList(const Json& obj, const char* key, const std::string& where, Reader reader)
+{
+    std::vector<Item> items;
+    const Json* array = getArray(obj, key, where, false);
+    if (!array) return items;
+    for (std::size_t i = 0; i < array->size(); ++i) {
+        items.push_back(reader((*array)[i], child(child(where, key), std::to_string(i))));
+    }
+    return items;
+}
+
+// Reads one position on the plan.
+PlanXY readXY(const Json& j, const std::string& where)
+{
+    expectObject(j, where, {"x", "y"});
+    return PlanXY{getNumber(j, "x", where), getNumber(j, "y", where)};
+}
+
+// Reads a list of positions, which must be present when required.
+std::vector<PlanXY> readXYList(const Json& obj, const char* key, const std::string& where, bool required)
+{
+    if (required) getArray(obj, key, where, true);
+    return readList<PlanXY>(obj, key, where, readXY);
+}
+
+// Reads one cladding zone of a wall.
+CladdingZone readCladding(const Json& j, const std::string& where)
+{
+    expectObject(j, where, {"id", "side", "start", "end", "bottom", "top", "depth", "material"});
+    CladdingZone c;
+    c.id = getString(j, "id", where);
+    const auto side = wallSideFromName(getString(j, "side", where));
+    if (!side) refuse("The side must be \"left\" or \"right\".", child(where, "side"));
+    c.side = *side;
+    c.start = getNumber(j, "start", where);
+    c.end = getNumber(j, "end", where);
+    c.bottom = getNumber(j, "bottom", where);
+    c.top = getNumber(j, "top", where);
+    c.depth = getNumberOr(j, "depth", where, kDefaultCladdingDepth);
+    c.material = getString(j, "material", where);
+    return c;
+}
+
 // Reads one point.
 Point readPoint(const Json& j, const std::string& where)
 {
@@ -133,7 +180,7 @@ Point readPoint(const Json& j, const std::string& where)
 // Reads one wall.
 Wall readWall(const Json& j, const std::string& where)
 {
-    expectObject(j, where, {"id", "from", "to", "thickness", "height", "bulge", "material_inside", "material_outside"});
+    expectObject(j, where, {"id", "from", "to", "thickness", "height", "bulge", "material_inside", "material_outside", "cladding"});
     Wall w;
     w.id = getString(j, "id", where);
     w.from = getString(j, "from", where);
@@ -143,6 +190,7 @@ Wall readWall(const Json& j, const std::string& where)
     w.bulge = getNumberOr(j, "bulge", where, 0.0);
     w.materialInside = getOptionalString(j, "material_inside", where);
     w.materialOutside = getOptionalString(j, "material_outside", where);
+    w.cladding = readList<CladdingZone>(j, "cladding", where, readCladding);
     return w;
 }
 
@@ -170,7 +218,7 @@ Room readRoom(const Json& j, const std::string& where)
 Opening readOpening(const Json& j, const std::string& where)
 {
     expectObject(j, where, {"id", "wall", "offset", "type", "shape", "width", "height", "sill", "hinge", "swing", "frame",
-                            "auto_frame"});
+                            "auto_frame", "fill"});
     Opening o;
     o.id = getString(j, "id", where);
     o.wall = getString(j, "wall", where);
@@ -194,6 +242,7 @@ Opening readOpening(const Json& j, const std::string& where)
     }
     o.frame = getOptionalString(j, "frame", where);
     o.autoFrame = getBoolOr(j, "auto_frame", where, true);
+    o.fill = getOptionalString(j, "fill", where);
     return o;
 }
 
@@ -225,7 +274,7 @@ GeneratorUse readGeneratorUse(const Json& j, const std::string& where)
 // Reads one placed item.
 Item readItem(const Json& j, const std::string& where)
 {
-    expectObject(j, where, {"id", "asset", "room", "x", "y", "z", "rotation", "wall", "size", "generator"});
+    expectObject(j, where, {"id", "asset", "room", "x", "y", "z", "rotation", "wall", "size", "generator", "on"});
     Item it;
     it.id = getString(j, "id", where);
     if (!j.contains("asset")) refuse("The field \"asset\" is missing.", child(where, "asset"));
@@ -246,13 +295,14 @@ Item readItem(const Json& j, const std::string& where)
     it.size.width = getNumber(*sit, "width", at);
     it.size.depth = getNumber(*sit, "depth", at);
     it.size.height = getNumber(*sit, "height", at);
+    it.on = getOptionalString(j, "on", where);
     return it;
 }
 
 // Reads one stair.
 Stair readStair(const Json& j, const std::string& where)
 {
-    expectObject(j, where, {"id", "type", "x", "y", "rotation", "width", "turn", "material"});
+    expectObject(j, where, {"id", "type", "x", "y", "rotation", "width", "turn", "material", "rise", "cheeks", "railing"});
     Stair st;
     st.id = getString(j, "id", where);
     if (j.contains("type")) st.type = getString(j, "type", where);
@@ -266,6 +316,9 @@ Stair readStair(const Json& j, const std::string& where)
         st.turn = *turn;
     }
     st.material = getOptionalString(j, "material", where);
+    st.rise = getOptionalNumber(j, "rise", where);
+    st.cheeks = getBoolOr(j, "cheeks", where, false);
+    st.railing = getBoolOr(j, "railing", where, true);
     return st;
 }
 
@@ -290,13 +343,17 @@ LightMarker readLight(const Json& j, const std::string& where)
 // Reads one set of roof settings.
 RoofSettings readRoofSettings(const Json& j, const std::string& where)
 {
-    expectObject(j, where, {"type", "pitch", "overhang", "parapet", "direction"});
+    expectObject(j, where, {"type", "pitch", "overhang", "parapet", "direction", "second_pitch", "break_ratio", "ridge_offset", "rise"});
     RoofSettings r;
     r.type = getString(j, "type", where);
     r.pitch = getNumberOr(j, "pitch", where, r.pitch);
     r.overhang = getNumberOr(j, "overhang", where, r.overhang);
     r.parapet = getNumberOr(j, "parapet", where, r.parapet);
     r.direction = getOptionalNumber(j, "direction", where);
+    r.secondPitch = getNumberOr(j, "second_pitch", where, r.secondPitch);
+    r.breakRatio = getNumberOr(j, "break_ratio", where, r.breakRatio);
+    r.ridgeOffset = getNumberOr(j, "ridge_offset", where, r.ridgeOffset);
+    r.rise = getNumberOr(j, "rise", where, r.rise);
     return r;
 }
 
@@ -325,27 +382,384 @@ Json roofSettingsToJson(const RoofSettings& r)
     out["overhang"] = r.overhang;
     out["parapet"] = r.parapet;
     out["direction"] = r.direction ? Json(*r.direction) : Json(nullptr);
+    out["second_pitch"] = r.secondPitch;
+    out["break_ratio"] = r.breakRatio;
+    out["ridge_offset"] = r.ridgeOffset;
+    out["rise"] = r.rise;
     return out;
 }
 
-// Reads every item of an optional array with a reader function.
-template <typename Item, typename Reader>
-std::vector<Item> readList(const Json& obj, const char* key, const std::string& where, Reader reader)
+// Reads one deck.
+Deck readDeck(const Json& j, const std::string& where)
 {
-    std::vector<Item> items;
-    const Json* array = getArray(obj, key, where, false);
-    if (!array) return items;
-    for (std::size_t i = 0; i < array->size(); ++i) {
-        items.push_back(reader((*array)[i], child(child(where, key), std::to_string(i))));
+    expectObject(j, where, {"id", "outline", "top", "thickness", "material", "skirt", "skirt_material"});
+    Deck d;
+    d.id = getString(j, "id", where);
+    d.outline = readXYList(j, "outline", where, true);
+    d.top = getNumberOr(j, "top", where, d.top);
+    d.thickness = getNumberOr(j, "thickness", where, d.thickness);
+    d.material = getOptionalString(j, "material", where);
+    d.skirt = getBoolOr(j, "skirt", where, d.skirt);
+    d.skirtMaterial = getOptionalString(j, "skirt_material", where);
+    return d;
+}
+
+// Reads one railing.
+Railing readRailing(const Json& j, const std::string& where)
+{
+    expectObject(j, where, {"id", "points", "closed", "host", "base", "height", "style", "material", "glass_material"});
+    Railing r;
+    r.id = getString(j, "id", where);
+    r.points = readXYList(j, "points", where, true);
+    r.closed = getBoolOr(j, "closed", where, r.closed);
+    r.host = getOptionalString(j, "host", where);
+    r.base = getNumberOr(j, "base", where, r.base);
+    r.height = getNumberOr(j, "height", where, r.height);
+    if (j.contains("style")) r.style = getString(j, "style", where);
+    r.material = getOptionalString(j, "material", where);
+    r.glassMaterial = getOptionalString(j, "glass_material", where);
+    return r;
+}
+
+// Reads one canopy.
+Canopy readCanopy(const Json& j, const std::string& where)
+{
+    expectObject(j, where, {"id", "outline", "height", "thickness", "roof", "material", "underside_material", "fascia_material"});
+    Canopy c;
+    c.id = getString(j, "id", where);
+    c.outline = readXYList(j, "outline", where, true);
+    c.height = getNumberOr(j, "height", where, c.height);
+    c.thickness = getNumberOr(j, "thickness", where, c.thickness);
+    if (auto rit = j.find("roof"); rit != j.end()) c.roof = readRoofSettings(*rit, child(where, "roof"));
+    c.material = getOptionalString(j, "material", where);
+    c.undersideMaterial = getOptionalString(j, "underside_material", where);
+    c.fasciaMaterial = getOptionalString(j, "fascia_material", where);
+    return c;
+}
+
+// Reads one dormer.
+Dormer readDormer(const Json& j, const std::string& where)
+{
+    expectObject(j, where, {"id", "x", "y", "type", "width", "depth", "pitch", "window_width", "window_height", "window_sill",
+                            "material", "roof_material"});
+    Dormer d;
+    d.id = getString(j, "id", where);
+    d.x = getNumber(j, "x", where);
+    d.y = getNumber(j, "y", where);
+    if (j.contains("type")) d.type = getString(j, "type", where);
+    d.width = getNumberOr(j, "width", where, d.width);
+    d.depth = getNumberOr(j, "depth", where, d.depth);
+    d.pitch = getNumberOr(j, "pitch", where, d.pitch);
+    d.windowWidth = getNumberOr(j, "window_width", where, d.windowWidth);
+    d.windowHeight = getNumberOr(j, "window_height", where, d.windowHeight);
+    d.windowSill = getNumberOr(j, "window_sill", where, d.windowSill);
+    d.material = getOptionalString(j, "material", where);
+    d.roofMaterial = getOptionalString(j, "roof_material", where);
+    return d;
+}
+
+// Reads one light strip.
+LightStrip readLightStrip(const Json& j, const std::string& where)
+{
+    expectObject(j, where, {"id", "kind", "points", "z", "stair", "power"});
+    LightStrip l;
+    l.id = getString(j, "id", where);
+    const auto kind = lightStripKindFromName(getString(j, "kind", where));
+    if (!kind) refuse("The light strip kind must be \"cove\", \"soffit\", \"edge\" or \"step\".", child(where, "kind"));
+    l.kind = *kind;
+    l.points = readXYList(j, "points", where, false);
+    l.z = getNumberOr(j, "z", where, l.z);
+    l.stair = getOptionalString(j, "stair", where);
+    l.power = getNumberOr(j, "power", where, l.power);
+    return l;
+}
+
+// Reads one gate of a site boundary.
+Gate readGate(const Json& j, const std::string& where)
+{
+    expectObject(j, where, {"id", "offset", "width", "sliding", "material"});
+    Gate g;
+    g.id = getString(j, "id", where);
+    g.offset = getNumber(j, "offset", where);
+    g.width = getNumberOr(j, "width", where, g.width);
+    g.sliding = getBoolOr(j, "sliding", where, g.sliding);
+    g.material = getOptionalString(j, "material", where);
+    return g;
+}
+
+// Reads one fence or boundary wall.
+SiteBoundary readBoundary(const Json& j, const std::string& where)
+{
+    expectObject(j, where, {"id", "kind", "points", "closed", "height", "thickness", "style", "material", "gates"});
+    SiteBoundary b;
+    b.id = getString(j, "id", where);
+    if (j.contains("kind")) {
+        const auto kind = boundaryKindFromName(getString(j, "kind", where));
+        if (!kind) refuse("The boundary kind must be \"fence\" or \"wall\".", child(where, "kind"));
+        b.kind = *kind;
     }
-    return items;
+    b.points = readXYList(j, "points", where, true);
+    b.closed = getBoolOr(j, "closed", where, b.closed);
+    b.height = getNumberOr(j, "height", where, b.height);
+    b.thickness = getNumberOr(j, "thickness", where, b.thickness);
+    if (j.contains("style")) b.style = getString(j, "style", where);
+    b.material = getOptionalString(j, "material", where);
+    b.gates = readList<Gate>(j, "gates", where, readGate);
+    return b;
+}
+
+// Reads one flat site surface.
+SiteSurface readSiteSurface(const Json& j, const std::string& where)
+{
+    expectObject(j, where, {"id", "kind", "outline", "thickness", "material"});
+    SiteSurface s;
+    s.id = getString(j, "id", where);
+    if (j.contains("kind")) {
+        const auto kind = siteSurfaceKindFromName(getString(j, "kind", where));
+        if (!kind) refuse("The surface kind must be \"path\", \"driveway\", \"paving\" or \"lawn\".", child(where, "kind"));
+        s.kind = *kind;
+    }
+    s.outline = readXYList(j, "outline", where, true);
+    s.thickness = getNumberOr(j, "thickness", where, s.thickness);
+    s.material = getOptionalString(j, "material", where);
+    return s;
+}
+
+// Reads everything round the building.
+Site readSite(const Json& j, const std::string& where)
+{
+    expectObject(j, where, {"ground", "boundaries", "surfaces"});
+    Site site;
+    if (auto git = j.find("ground"); git != j.end()) {
+        const std::string at = child(where, "ground");
+        expectObject(*git, at, {"enabled", "margin", "material"});
+        site.ground.enabled = getBoolOr(*git, "enabled", at, site.ground.enabled);
+        site.ground.margin = getNumberOr(*git, "margin", at, site.ground.margin);
+        site.ground.material = getOptionalString(*git, "material", at);
+    }
+    site.boundaries = readList<SiteBoundary>(j, "boundaries", where, readBoundary);
+    site.surfaces = readList<SiteSurface>(j, "surfaces", where, readSiteSurface);
+    return site;
+}
+
+// Reads the foundation band.
+Foundation readFoundation(const Json& j, const std::string& where)
+{
+    expectObject(j, where, {"enabled", "height", "step_out", "material"});
+    Foundation f;
+    f.enabled = getBoolOr(j, "enabled", where, f.enabled);
+    f.height = getNumberOr(j, "height", where, f.height);
+    f.stepOut = getNumberOr(j, "step_out", where, f.stepOut);
+    f.material = getOptionalString(j, "material", where);
+    return f;
+}
+
+// Writes text that may be empty, as null when it is.
+Json optionalText(const std::optional<std::string>& v)
+{
+    return v ? Json(*v) : Json(nullptr);
+}
+
+// Writes a number that may be empty, as null when it is.
+Json optionalNumber(const std::optional<double>& v)
+{
+    return v ? Json(*v) : Json(nullptr);
+}
+
+// Writes a list of positions.
+Json xyListToJson(const std::vector<PlanXY>& points)
+{
+    Json out = Json::array();
+    for (const PlanXY& p : points) {
+        Json jp = Json::object();
+        jp["x"] = p.x;
+        jp["y"] = p.y;
+        out.push_back(std::move(jp));
+    }
+    return out;
+}
+
+// Writes the cladding zones of a wall.
+Json claddingToJson(const std::vector<CladdingZone>& zones)
+{
+    Json out = Json::array();
+    for (const CladdingZone& c : zones) {
+        Json jc = Json::object();
+        jc["id"] = c.id;
+        jc["side"] = std::string(wallSideName(c.side));
+        jc["start"] = c.start;
+        jc["end"] = c.end;
+        jc["bottom"] = c.bottom;
+        jc["top"] = c.top;
+        jc["depth"] = c.depth;
+        jc["material"] = c.material;
+        out.push_back(std::move(jc));
+    }
+    return out;
+}
+
+// Writes the decks of a floor.
+Json decksToJson(const std::vector<Deck>& decks)
+{
+    Json out = Json::array();
+    for (const Deck& d : decks) {
+        Json jd = Json::object();
+        jd["id"] = d.id;
+        jd["outline"] = xyListToJson(d.outline);
+        jd["top"] = d.top;
+        jd["thickness"] = d.thickness;
+        jd["material"] = optionalText(d.material);
+        jd["skirt"] = d.skirt;
+        jd["skirt_material"] = optionalText(d.skirtMaterial);
+        out.push_back(std::move(jd));
+    }
+    return out;
+}
+
+// Writes the railings of a floor.
+Json railingsToJson(const std::vector<Railing>& railings)
+{
+    Json out = Json::array();
+    for (const Railing& r : railings) {
+        Json jr = Json::object();
+        jr["id"] = r.id;
+        jr["points"] = xyListToJson(r.points);
+        jr["closed"] = r.closed;
+        jr["host"] = optionalText(r.host);
+        jr["base"] = r.base;
+        jr["height"] = r.height;
+        jr["style"] = r.style;
+        jr["material"] = optionalText(r.material);
+        jr["glass_material"] = optionalText(r.glassMaterial);
+        out.push_back(std::move(jr));
+    }
+    return out;
+}
+
+// Writes the canopies of a floor.
+Json canopiesToJson(const std::vector<Canopy>& canopies)
+{
+    Json out = Json::array();
+    for (const Canopy& c : canopies) {
+        Json jc = Json::object();
+        jc["id"] = c.id;
+        jc["outline"] = xyListToJson(c.outline);
+        jc["height"] = c.height;
+        jc["thickness"] = c.thickness;
+        jc["roof"] = roofSettingsToJson(c.roof);
+        jc["material"] = optionalText(c.material);
+        jc["underside_material"] = optionalText(c.undersideMaterial);
+        jc["fascia_material"] = optionalText(c.fasciaMaterial);
+        out.push_back(std::move(jc));
+    }
+    return out;
+}
+
+// Writes the dormers of a floor.
+Json dormersToJson(const std::vector<Dormer>& dormers)
+{
+    Json out = Json::array();
+    for (const Dormer& d : dormers) {
+        Json jd = Json::object();
+        jd["id"] = d.id;
+        jd["x"] = d.x;
+        jd["y"] = d.y;
+        jd["type"] = d.type;
+        jd["width"] = d.width;
+        jd["depth"] = d.depth;
+        jd["pitch"] = d.pitch;
+        jd["window_width"] = d.windowWidth;
+        jd["window_height"] = d.windowHeight;
+        jd["window_sill"] = d.windowSill;
+        jd["material"] = optionalText(d.material);
+        jd["roof_material"] = optionalText(d.roofMaterial);
+        out.push_back(std::move(jd));
+    }
+    return out;
+}
+
+// Writes the light strips of a floor.
+Json lightStripsToJson(const std::vector<LightStrip>& strips)
+{
+    Json out = Json::array();
+    for (const LightStrip& l : strips) {
+        Json jl = Json::object();
+        jl["id"] = l.id;
+        jl["kind"] = std::string(lightStripKindName(l.kind));
+        jl["points"] = xyListToJson(l.points);
+        jl["z"] = l.z;
+        jl["stair"] = optionalText(l.stair);
+        jl["power"] = l.power;
+        out.push_back(std::move(jl));
+    }
+    return out;
+}
+
+// Writes everything round the building.
+Json siteToJson(const Site& site)
+{
+    Json out = Json::object();
+    Json ground = Json::object();
+    ground["enabled"] = site.ground.enabled;
+    ground["margin"] = site.ground.margin;
+    ground["material"] = optionalText(site.ground.material);
+    out["ground"] = std::move(ground);
+    Json boundaries = Json::array();
+    for (const SiteBoundary& b : site.boundaries) {
+        Json jb = Json::object();
+        jb["id"] = b.id;
+        jb["kind"] = std::string(boundaryKindName(b.kind));
+        jb["points"] = xyListToJson(b.points);
+        jb["closed"] = b.closed;
+        jb["height"] = b.height;
+        jb["thickness"] = b.thickness;
+        jb["style"] = b.style;
+        jb["material"] = optionalText(b.material);
+        Json gates = Json::array();
+        for (const Gate& g : b.gates) {
+            Json jg = Json::object();
+            jg["id"] = g.id;
+            jg["offset"] = g.offset;
+            jg["width"] = g.width;
+            jg["sliding"] = g.sliding;
+            jg["material"] = optionalText(g.material);
+            gates.push_back(std::move(jg));
+        }
+        jb["gates"] = std::move(gates);
+        boundaries.push_back(std::move(jb));
+    }
+    out["boundaries"] = std::move(boundaries);
+    Json surfaces = Json::array();
+    for (const SiteSurface& s : site.surfaces) {
+        Json js = Json::object();
+        js["id"] = s.id;
+        js["kind"] = std::string(siteSurfaceKindName(s.kind));
+        js["outline"] = xyListToJson(s.outline);
+        js["thickness"] = s.thickness;
+        js["material"] = optionalText(s.material);
+        surfaces.push_back(std::move(js));
+    }
+    out["surfaces"] = std::move(surfaces);
+    return out;
+}
+
+// Writes the foundation band.
+Json foundationToJson(const Foundation& f)
+{
+    Json out = Json::object();
+    out["enabled"] = f.enabled;
+    out["height"] = f.height;
+    out["step_out"] = f.stepOut;
+    out["material"] = optionalText(f.material);
+    return out;
 }
 
 // Reads one floor.
 Floor readFloor(const Json& j, const std::string& where)
 {
     expectObject(j, where, {"id", "name", "image", "ceiling_height", "points", "walls", "rooms", "openings", "items",
-                         "slab_thickness", "image_offset", "stairs", "lights"});
+                         "slab_thickness", "image_offset", "stairs", "lights", "decks", "railings", "canopies", "dormers",
+                         "light_strips"});
     Floor f;
     f.id = getString(j, "id", where);
     f.name = j.contains("name") ? getString(j, "name", where) : f.id;
@@ -365,6 +779,11 @@ Floor readFloor(const Json& j, const std::string& where)
     }
     f.stairs = readList<Stair>(j, "stairs", where, readStair);
     f.lights = readList<LightMarker>(j, "lights", where, readLight);
+    f.decks = readList<Deck>(j, "decks", where, readDeck);
+    f.railings = readList<Railing>(j, "railings", where, readRailing);
+    f.canopies = readList<Canopy>(j, "canopies", where, readCanopy);
+    f.dormers = readList<Dormer>(j, "dormers", where, readDormer);
+    f.lightStrips = readList<LightStrip>(j, "light_strips", where, readLightStrip);
     return f;
 }
 
@@ -382,7 +801,13 @@ void prepare(Json& json, std::string_view format, int currentVersion, std::span<
     auto vit = json.find("version");
     if (vit != json.end() && vit->is_number_integer()) found = vit->get<int>();
 
-    if (auto s = migrateJson(json, currentVersion, steps); !s.ok()) throw ReadError{s};
+    if (auto s = migrateJson(json, currentVersion, steps); !s.ok()) {
+        if (s.code == ErrorCode::UnsupportedVersion) {
+            const std::string_view file = format == kPlanFormatName ? kPlanFileName : kProjectFileName;
+            s.message = newerFileMessage(file, json.at("version").get<long long>());
+        }
+        throw ReadError{s};
+    }
     migrated = found != currentVersion;
 }
 
@@ -420,8 +845,8 @@ Json planToJson(const Plan& plan)
     scale["pixels_per_metre"] = plan.scale.pixelsPerMetre ? Json(*plan.scale.pixelsPerMetre) : Json(nullptr);
     out["scale"] = std::move(scale);
 
-    const auto optString = [](const std::optional<std::string>& v) { return v ? Json(*v) : Json(nullptr); };
-    const auto optNumber = [](const std::optional<double>& v) { return v ? Json(*v) : Json(nullptr); };
+    const auto optString = optionalText;
+    const auto optNumber = optionalNumber;
 
     Json floors = Json::array();
     for (const Floor& f : plan.floors) {
@@ -453,6 +878,7 @@ Json planToJson(const Plan& plan)
             jw["bulge"] = w.bulge;
             jw["material_inside"] = optString(w.materialInside);
             jw["material_outside"] = optString(w.materialOutside);
+            jw["cladding"] = claddingToJson(w.cladding);
             walls.push_back(std::move(jw));
         }
         jf["walls"] = std::move(walls);
@@ -488,6 +914,7 @@ Json planToJson(const Plan& plan)
             jo["swing"] = std::string(wallSideName(o.swing));
             jo["frame"] = optString(o.frame);
             jo["auto_frame"] = o.autoFrame;
+            jo["fill"] = optString(o.fill);
             openings.push_back(std::move(jo));
         }
         jf["openings"] = std::move(openings);
@@ -509,6 +936,7 @@ Json planToJson(const Plan& plan)
             size["height"] = it.size.height;
             ji["size"] = std::move(size);
             ji["generator"] = it.generator ? generatorUseToJson(*it.generator) : Json(nullptr);
+            ji["on"] = optString(it.on);
             items.push_back(std::move(ji));
         }
         jf["items"] = std::move(items);
@@ -530,6 +958,9 @@ Json planToJson(const Plan& plan)
             js["width"] = st.width;
             js["turn"] = std::string(stairTurnName(st.turn));
             js["material"] = optString(st.material);
+            js["rise"] = optNumber(st.rise);
+            js["cheeks"] = st.cheeks;
+            js["railing"] = st.railing;
             stairs.push_back(std::move(js));
         }
         jf["stairs"] = std::move(stairs);
@@ -546,6 +977,11 @@ Json planToJson(const Plan& plan)
             lights.push_back(std::move(jl));
         }
         jf["lights"] = std::move(lights);
+        jf["decks"] = decksToJson(f.decks);
+        jf["railings"] = railingsToJson(f.railings);
+        jf["canopies"] = canopiesToJson(f.canopies);
+        jf["dormers"] = dormersToJson(f.dormers);
+        jf["light_strips"] = lightStripsToJson(f.lightStrips);
         floors.push_back(std::move(jf));
     }
     out["floors"] = std::move(floors);
@@ -562,6 +998,9 @@ Json planToJson(const Plan& plan)
         sections.push_back(std::move(jr));
     }
     out["roof_sections"] = std::move(sections);
+    out["ground_floor"] = optString(plan.groundFloor);
+    out["site"] = siteToJson(plan.site);
+    out["foundation"] = foundationToJson(plan.foundation);
     return out;
 }
 
@@ -572,7 +1011,7 @@ PlanRead planFromJson(const Json& json)
     try {
         Json copy = json;
         prepare(copy, kPlanFormatName, kPlanFormatVersion, planMigrations(), result.fileVersion, result.migrated);
-        expectObject(copy, "", {"format", "version", "scale", "floors", "roof", "roof_sections"});
+        expectObject(copy, "", {"format", "version", "scale", "floors", "roof", "roof_sections", "ground_floor", "site", "foundation"});
 
         Plan plan;
         auto sit = copy.find("scale");
@@ -590,6 +1029,9 @@ PlanRead planFromJson(const Json& json)
                 plan.roofSections.push_back(readRoofSection((*sections)[i], "/roof_sections/" + std::to_string(i)));
             }
         }
+        plan.groundFloor = getOptionalString(copy, "ground_floor", "");
+        if (auto siteIt = copy.find("site"); siteIt != copy.end()) plan.site = readSite(*siteIt, "/site");
+        if (auto fit = copy.find("foundation"); fit != copy.end()) plan.foundation = readFoundation(*fit, "/foundation");
         if (Status s = checkPlan(plan); !s.ok()) {
             refuse(s.message, s.where);
         }
@@ -711,7 +1153,8 @@ SettingsRead settingsFromJson(const Json& json)
         }
         if (auto mit = copy.find("materials"); mit != copy.end()) {
             expectObject(*mit, "/materials", {"wall_inside", "wall_outside", "wall_top", "floor", "ceiling", "door", "frame", "glass", "handle",
-                          "roof", "flat_roof", "stair", "trim", "railing"});
+                          "roof", "flat_roof", "stair", "trim", "railing", "deck", "foundation", "ground", "paving", "fence",
+                          "boundary_wall"});
             for (const Surface surface : allSurfaces()) {
                 const std::string key(surfaceName(surface));
                 if (!mit->contains(key)) continue;
@@ -952,13 +1395,93 @@ Status migrateProject5To6(Json& json)
     return {};
 }
 
+// Adds a key to an object unless it is already there.
+void addMissing(Json& object, const char* key, Json value)
+{
+    if (object.is_object() && !object.contains(key)) object[key] = std::move(value);
+}
+
+// Adds the plan format 8 fields to one set of roof settings.
+void addRoofFields8(Json& settings)
+{
+    const RoofSettings defaults;
+    addMissing(settings, "second_pitch", defaults.secondPitch);
+    addMissing(settings, "break_ratio", defaults.breakRatio);
+    addMissing(settings, "ridge_offset", defaults.ridgeOffset);
+    addMissing(settings, "rise", defaults.rise);
+}
+
+// Adds an empty list to every object of a list that lacks it.
+void addEmptyListToEach(Json& owner, const char* list, const char* key)
+{
+    auto it = owner.find(list);
+    if (it == owner.end() || !it->is_array()) return;
+    for (Json& entry : *it) addMissing(entry, key, Json::array());
+}
+
+// Version 7 to 8: walls get cladding, openings a fill, items what they stand on, stairs their outside step fields,
+// roof settings the two pitch and curved fields, floors the new lists and the plan the ground floor, site and
+// foundation.
+Status migratePlan7To8(Json& json)
+{
+    if (!json.is_object()) return {};
+    if (auto floors = json.find("floors"); floors != json.end() && floors->is_array()) {
+        for (Json& floor : *floors) {
+            if (!floor.is_object()) continue;
+            addEmptyListToEach(floor, "walls", "cladding");
+            if (auto openings = floor.find("openings"); openings != floor.end() && openings->is_array()) {
+                for (Json& opening : *openings) addMissing(opening, "fill", nullptr);
+            }
+            if (auto items = floor.find("items"); items != floor.end() && items->is_array()) {
+                for (Json& item : *items) addMissing(item, "on", nullptr);
+            }
+            if (auto stairs = floor.find("stairs"); stairs != floor.end() && stairs->is_array()) {
+                for (Json& stair : *stairs) {
+                    addMissing(stair, "rise", nullptr);
+                    addMissing(stair, "cheeks", false);
+                    addMissing(stair, "railing", true);
+                }
+            }
+            for (const char* list : {"decks", "railings", "canopies", "dormers", "light_strips"}) addMissing(floor, list, Json::array());
+        }
+    }
+    if (auto roof = json.find("roof"); roof != json.end() && roof->is_object()) addRoofFields8(*roof);
+    if (auto sections = json.find("roof_sections"); sections != json.end() && sections->is_array()) {
+        for (Json& section : *sections) {
+            if (!section.is_object()) continue;
+            if (auto settings = section.find("settings"); settings != section.end() && settings->is_object()) addRoofFields8(*settings);
+        }
+    }
+    addMissing(json, "ground_floor", nullptr);
+    addMissing(json, "site", siteToJson(Site{}));
+    addMissing(json, "foundation", foundationToJson(Foundation{}));
+    return {};
+}
+
+// Version 6 to 7: the materials get the deck, foundation, ground, paving, fence and boundary wall defaults.
+Status migrateProject6To7(Json& json)
+{
+    if (!json.is_object()) return {};
+    auto materials = json.find("materials");
+    if (materials == json.end() || !materials->is_object()) return {};
+    const MaterialDefaults defaults;
+    for (const Surface surface : {Surface::Deck, Surface::Foundation, Surface::Ground, Surface::Paving, Surface::Fence,
+                                  Surface::BoundaryWall}) {
+        const std::string key(surfaceName(surface));
+        if (materials->contains(key)) continue;
+        const auto& value = materialDefault(defaults, surface);
+        (*materials)[key] = value ? Json(*value) : Json(nullptr);
+    }
+    return {};
+}
+
 }
 
 // The upgrade steps for plan.json.
 std::span<const Migration> planMigrations()
 {
     static const std::vector<Migration> steps = {{1, migratePlan1To2}, {2, migratePlan2To3}, {3, migratePlan3To4}, {4, migratePlan4To5}, {5, migratePlan5To6},
-                                                  {6, migratePlan6To7}};
+                                                  {6, migratePlan6To7}, {7, migratePlan7To8}};
     return steps;
 }
 
@@ -966,7 +1489,7 @@ std::span<const Migration> planMigrations()
 std::span<const Migration> projectMigrations()
 {
     static const std::vector<Migration> steps = {{1, migrateProject1To2}, {2, migrateProject2To3}, {3, migrateProject3To4}, {4, migrateProject4To5},
-                                                  {5, migrateProject5To6}};
+                                                  {5, migrateProject5To6}, {6, migrateProject6To7}};
     return steps;
 }
 

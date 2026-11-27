@@ -1,0 +1,35 @@
+{
+  "format": "plynth-export-options",
+  "version": 3,
+  "groups": {
+    "added": [
+      {
+        "id": "group_1",
+        "name": "Garden"
+      }
+    ],
+    "renames": [
+      {
+        "group": "structure",
+        "name": "Shell"
+      }
+    ],
+    "merges": [],
+    "moves": [
+      {
+        "kind": "item",
+        "id": "i1",
+        "to": "group_1"
+      }
+    ]
+  },
+  "kit": {
+    "enabled": true
+  },
+  "gameplay": {
+    "enabled": true
+  },
+  "licenses": {
+    "enabled": true
+  }
+}

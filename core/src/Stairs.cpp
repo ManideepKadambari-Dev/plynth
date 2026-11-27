@@ -195,7 +195,7 @@ Status checkStair(const Stair& stair)
                     "The stair type \"" + stair.type + "\" is not known. Known types: " + knownTypeIds() + ".");
     }
     if (!(std::isfinite(stair.width) && stair.width >= kMinStairWidth && stair.width <= kMaxStairWidth)) {
-        return fail(ErrorCode::InvalidValue, "The stair width must be from 0.6 to 3.0 metres.");
+        return fail(ErrorCode::InvalidValue, "The stair width must be from 0.6 to 6 metres.");
     }
     if (!(std::isfinite(stair.x) && std::isfinite(stair.y))) {
         return fail(ErrorCode::InvalidValue, "The stair position must be finite numbers.");
@@ -230,7 +230,7 @@ StairLayout previewStairLayout(const Plan& plan, const Floor& floor, const Stair
         return layout;
     }
     if (!(std::isfinite(stair.width) && stair.width >= kMinStairWidth && stair.width <= kMaxStairWidth)) {
-        layout.status = fail(ErrorCode::InvalidValue, "The stair width must be from 0.6 to 3.0 metres.");
+        layout.status = fail(ErrorCode::InvalidValue, "The stair width must be from 0.6 to 6 metres.");
         return layout;
     }
 

@@ -68,6 +68,42 @@ void addSaveWarnings(Answer& answer, const SaveReport& report) {
     for (const std::string& image : report.missingImages) {
         answer.warnings.push_back({"image_missing", "The plan image " + image + " is missing. Its path was kept."});
     }
+    addBackup(answer, report.backup.files);
+}
+
+void addBackup(Answer& answer, const std::vector<std::filesystem::path>& files) {
+    if (files.empty() || !answer.result.is_object()) {
+        return;
+    }
+    Json list = Json::array();
+    for (const std::filesystem::path& file : files) {
+        list.push_back(pathToUtf8(file));
+    }
+    answer.result["backup"] = std::move(list);
+}
+
+std::vector<std::filesystem::path> backupFiles(const std::filesystem::path& folder) {
+    std::vector<std::filesystem::path> files;
+    std::error_code ec;
+    for (std::filesystem::directory_iterator it(folder / pathFromUtf8(kBackupFolderName), ec), end; !ec && it != end;
+         it.increment(ec)) {
+        std::error_code kind;
+        if (it->is_regular_file(kind)) {
+            files.push_back(it->path());
+        }
+    }
+    std::sort(files.begin(), files.end());
+    return files;
+}
+
+void addNewBackups(Answer& answer, const std::filesystem::path& folder, const std::vector<std::filesystem::path>& before) {
+    std::vector<std::filesystem::path> added;
+    for (const std::filesystem::path& file : backupFiles(folder)) {
+        if (!std::binary_search(before.begin(), before.end(), file)) {
+            added.push_back(file);
+        }
+    }
+    addBackup(answer, added);
 }
 
 namespace {

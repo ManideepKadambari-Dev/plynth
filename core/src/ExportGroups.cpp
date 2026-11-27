@@ -3,6 +3,7 @@
 #include "BuiltPlan.h"
 #include "FileIo.h"
 #include "IdSource.h"
+#include "NewerFile.h"
 
 #include "plynth/core/Kit.h"
 #include "plynth/core/MaterialSlots.h"
@@ -582,7 +583,7 @@ ExportOptionsRead exportOptionsFromJson(const Json& json)
     }
     const long long fileVersion = version->get<long long>();
     if (fileVersion > kExportOptionsVersion) {
-        return bad(fail(ErrorCode::UnsupportedVersion, "The export options were written by a newer Plynth.", "/version"));
+        return bad(fail(ErrorCode::UnsupportedVersion, newerFileMessage(kExportOptionsFileName, fileVersion), "/version"));
     }
     if (fileVersion < 1) return bad(fail(ErrorCode::BadFile, "The export options version is not valid.", "/version"));
     // Version 1 had no gameplay switch and versions 1 and 2 no license switch, so they may not carry one.
@@ -698,7 +699,10 @@ ExportOptionsRead readExportOptions(const fs::path& projectFolder)
     }
     result = exportOptionsFromJson(json);
     if (!result.status.ok()) {
-        result.status.message = std::string(kExportOptionsFileName) + ": " + result.status.message;
+        // The sentence for a newer file already names the file.
+        if (result.status.code != ErrorCode::UnsupportedVersion) {
+            result.status.message = std::string(kExportOptionsFileName) + ": " + result.status.message;
+        }
         return result;
     }
     result.found = true;
@@ -709,6 +713,7 @@ ExportOptionsRead readExportOptions(const fs::path& projectFolder)
 Status writeExportOptions(const fs::path& projectFolder, const ExportOptions& options)
 {
     const fs::path file = projectFolder / pathFromUtf8(kExportOptionsFileName);
+    if (Status s = backUpOlderFiles(projectFolder); !s.ok()) return s;
     if (options == ExportOptions{}) {
         std::error_code ec;
         fs::remove(file, ec);

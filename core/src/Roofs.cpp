@@ -752,6 +752,7 @@ std::vector<const RoofType*> allRoofTypes()
     return out;
 }
 
+// Checks roof settings a command would set.
 Status checkRoofSettings(const RoofSettings& settings)
 {
     const RoofType* type = findRoofType(settings.type);
@@ -775,6 +776,18 @@ Status checkRoofSettings(const RoofSettings& settings)
     if (settings.direction &&
         !(std::isfinite(*settings.direction) && *settings.direction >= 0.0 && *settings.direction < 360.0)) {
         return fail(ErrorCode::InvalidValue, "The roof direction must be from 0 up to 360 degrees.");
+    }
+    if (!(std::isfinite(settings.secondPitch) && settings.secondPitch >= 0.0 && settings.secondPitch <= kMaxRoofPitch)) {
+        return fail(ErrorCode::InvalidValue, "The second roof pitch must be from 0 to 75 degrees.");
+    }
+    if (!(std::isfinite(settings.breakRatio) && settings.breakRatio >= 0.1 - 1e-9 && settings.breakRatio <= 0.9 + 1e-9)) {
+        return fail(ErrorCode::InvalidValue, "The break ratio must be from 0.1 to 0.9.");
+    }
+    if (!(std::isfinite(settings.ridgeOffset) && settings.ridgeOffset >= -0.45 - 1e-9 && settings.ridgeOffset <= 0.45 + 1e-9)) {
+        return fail(ErrorCode::InvalidValue, "The ridge offset must be from -0.45 to 0.45.");
+    }
+    if (!(std::isfinite(settings.rise) && settings.rise >= 0.1 - 1e-9 && settings.rise <= 10.0 + 1e-9)) {
+        return fail(ErrorCode::InvalidValue, "The roof rise must be from 0.1 to 10 metres.");
     }
     return {};
 }

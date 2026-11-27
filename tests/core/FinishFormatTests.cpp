@@ -1,3 +1,4 @@
+#include "OlderFormats.h"
 #include "SchemaSupport.h"
 #include "SquareFixtures.h"
 
@@ -80,7 +81,7 @@ TEST_CASE("plan 7 keeps lights, dressing and automatic frames", "[core][json][fi
     const Plan plan = litPlan();
     test::requirePlanValid(plan);
     const Json json = planToJson(plan);
-    CHECK(json["version"] == 7);
+    CHECK(json["version"] == 8);
     CHECK(json["floors"][0]["lights"].size() == 2);
     CHECK(json["floors"][0]["lights"][1]["kind"] == "standing");
     CHECK(json["floors"][0]["lights"][1]["room"].is_null());
@@ -97,6 +98,7 @@ TEST_CASE("plan 7 keeps lights, dressing and automatic frames", "[core][json][fi
 TEST_CASE("a version 6 plan opens at 7 with the finishing defaults", "[core][json][finish][migrate]")
 {
     Json json = planToJson(litPlan());
+    test::planBackTo7(json);
     json["version"] = 6;
     Json& floor = json["floors"][0];
     floor.erase("lights");
@@ -110,10 +112,10 @@ TEST_CASE("a version 6 plan opens at 7 with the finishing defaults", "[core][jso
     CHECK(read.plan.floors[0].lights.empty());
     CHECK(read.plan.floors[0].rooms[0].dressing);
     CHECK(read.plan.floors[0].openings[0].autoFrame);
-    CHECK(planToJson(read.plan)["version"] == 7);
+    CHECK(planToJson(read.plan)["version"] == 8);
 
     Json newer = planToJson(litPlan());
-    newer["version"] = 8;
+    newer["version"] = 9;
     CHECK(planFromJson(newer).status.code == ErrorCode::UnsupportedVersion);
 }
 
@@ -160,7 +162,7 @@ TEST_CASE("project 6 keeps trim, variation and the trim and railing materials", 
 {
     const ProjectSettings s = finishSettings();
     const Json json = settingsToJson(s);
-    CHECK(json["version"] == 6);
+    CHECK(json["version"] == 7);
     CHECK(json["trim"]["casing"]["enabled"] == false);
     CHECK(json["trim"]["railing_height"] == 1.0);
     CHECK(json["variation"]["seed"] == 4294967295u);
@@ -186,6 +188,7 @@ TEST_CASE("project 6 keeps trim, variation and the trim and railing materials", 
 TEST_CASE("a version 5 project opens at 6 with the finishing defaults", "[core][json][finish][migrate]")
 {
     Json json = settingsToJson(ProjectSettings{});
+    test::projectBackTo6(json);
     json["version"] = 5;
     json.erase("trim");
     json.erase("variation");
@@ -201,6 +204,6 @@ TEST_CASE("a version 5 project opens at 6 with the finishing defaults", "[core][
     CHECK(read.settings.materials.railing == std::optional<std::string>("brushed_steel"));
 
     Json newer = settingsToJson(ProjectSettings{});
-    newer["version"] = 7;
+    newer["version"] = 8;
     CHECK(settingsFromJson(newer).status.code == ErrorCode::UnsupportedVersion);
 }

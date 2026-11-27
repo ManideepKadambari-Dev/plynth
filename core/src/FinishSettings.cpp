@@ -109,6 +109,27 @@ std::optional<LightKind> lightKindFromName(std::string_view name)
     return std::nullopt;
 }
 
+// The file name of a light strip kind.
+std::string_view lightStripKindName(LightStripKind kind)
+{
+    switch (kind) {
+    case LightStripKind::Cove: return "cove";
+    case LightStripKind::Soffit: return "soffit";
+    case LightStripKind::Edge: return "edge";
+    case LightStripKind::Step: return "step";
+    }
+    return "cove";
+}
+
+// The light strip kind for a file name.
+std::optional<LightStripKind> lightStripKindFromName(std::string_view name)
+{
+    for (LightStripKind kind : {LightStripKind::Cove, LightStripKind::Soffit, LightStripKind::Edge, LightStripKind::Step}) {
+        if (lightStripKindName(kind) == name) return kind;
+    }
+    return std::nullopt;
+}
+
 // The height a new light marker starts at.
 double defaultLightHeight(LightKind kind, double ceilingHeight)
 {

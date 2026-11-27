@@ -205,7 +205,7 @@ TEST_CASE("material list gives resolved materials with origins and the ones used
     const auto& result = listed.answer.at("result");
     CHECK(result.at("defaults").at("floor") == "grey_tile");
     CHECK(result.at("defaults").at("wall_inside") == "white_paint");
-    CHECK(result.at("defaults").size() == 14);
+    CHECK(result.at("defaults").size() == 20);
     CHECK(result.at("defaults").contains("trim"));
     CHECK(result.at("defaults").contains("railing"));
     CHECK(result.at("missing").empty());

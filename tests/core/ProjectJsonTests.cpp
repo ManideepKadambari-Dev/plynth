@@ -46,7 +46,7 @@ TEST_CASE("plan JSON round trip", "[core][json]") {
     const PlanRead r = planFromJson(planToJson(plan));
     plynth::test::requireOk(r.status);
     REQUIRE(r.plan == plan);
-    REQUIRE(r.fileVersion == 7);
+    REQUIRE(r.fileVersion == 8);
     REQUIRE_FALSE(r.migrated);
 }
 
@@ -74,21 +74,24 @@ TEST_CASE("plan keys are written in schema order", "[core][json]") {
     const Json j = planToJson(fullPlan());
     std::vector<std::string> top;
     for (auto it = j.begin(); it != j.end(); ++it) top.push_back(it.key());
-    REQUIRE(top == std::vector<std::string>{"format", "version", "scale", "floors", "roof", "roof_sections"});
+    REQUIRE(top == std::vector<std::string>{"format", "version", "scale", "floors", "roof", "roof_sections", "ground_floor",
+                                                 "site", "foundation"});
 
     std::vector<std::string> floorKeys;
     for (auto it = j["floors"][0].begin(); it != j["floors"][0].end(); ++it) floorKeys.push_back(it.key());
     REQUIRE(floorKeys == std::vector<std::string>{"id", "name", "image", "ceiling_height", "points", "walls", "rooms", "openings", "items",
-                                                    "slab_thickness", "image_offset", "stairs", "lights"});
+                                                    "slab_thickness", "image_offset", "stairs", "lights", "decks", "railings",
+                                                    "canopies", "dormers", "light_strips"});
 
     std::vector<std::string> openingKeys;
     for (auto it = j["floors"][0]["openings"][0].begin(); it != j["floors"][0]["openings"][0].end(); ++it) openingKeys.push_back(it.key());
     REQUIRE(openingKeys == std::vector<std::string>{"id", "wall", "offset", "type", "shape", "width", "height", "sill", "hinge", "swing", "frame",
-                                                      "auto_frame"});
+                                                      "auto_frame", "fill"});
 
     std::vector<std::string> wallKeys;
     for (auto it = j["floors"][0]["walls"][0].begin(); it != j["floors"][0]["walls"][0].end(); ++it) wallKeys.push_back(it.key());
-    REQUIRE(wallKeys == std::vector<std::string>{"id", "from", "to", "thickness", "height", "bulge", "material_inside", "material_outside"});
+    REQUIRE(wallKeys == std::vector<std::string>{"id", "from", "to", "thickness", "height", "bulge", "material_inside", "material_outside",
+                                                 "cladding"});
 }
 
 TEST_CASE("missing optional fields take their defaults", "[core][json]") {
@@ -195,10 +198,10 @@ TEST_CASE("the reader refuses what breaks the format", "[core][json]") {
     }
     SECTION("a newer version") {
         Json j = minimalPlanJson();
-        j["version"] = 8;
+        j["version"] = 9;
         const PlanRead r = planFromJson(j);
         REQUIRE(r.status.code == ErrorCode::UnsupportedVersion);
-        REQUIRE(r.fileVersion == 8);
+        REQUIRE(r.fileVersion == 9);
     }
     SECTION("a bad opening type, hinge or swing") {
         Json j = planToJson(fullPlan());
@@ -241,7 +244,7 @@ TEST_CASE("settings keys are in schema order and defaults apply", "[core][json]"
     REQUIRE(keys == std::vector<std::string>{"format", "version", "name", "export_mode", "grid_size", "defaults", "materials",
                                              "trim", "variation"});
 
-    const SettingsRead r = settingsFromJson(Json::parse(R"({"format":"plynth-project","version":6,"name":"A"})"));
+    const SettingsRead r = settingsFromJson(Json::parse(R"({"format":"plynth-project","version":7,"name":"A"})"));
     plynth::test::requireOk(r.status);
     REQUIRE(r.settings.exportMode == ExportMode::Single);
     REQUIRE(r.settings.gridSize == kDefaultGridSize);
@@ -265,7 +268,7 @@ TEST_CASE("settings refuse bad values", "[core][json]") {
     refused(R"({"format":"plynth-project","version":5,"name":"A","extra":1})", ErrorCode::BadFile, "/extra");
     refused(R"({"format":"plynth-plan","version":5,"name":"A"})", ErrorCode::BadFile, "/format");
     refused(R"({"format":"plynth-project","name":"A"})", ErrorCode::BadFile, "/version");
-    refused(R"({"format":"plynth-project","version":7,"name":"A"})", ErrorCode::UnsupportedVersion, "/version");
+    refused(R"({"format":"plynth-project","version":8,"name":"A"})", ErrorCode::UnsupportedVersion, "/version");
     refused(R"({"format":"plynth-project","version":5,"name":"A","defaults":{"extra":1}})", ErrorCode::BadFile, "/defaults/extra");
     refused(R"({"format":"plynth-project","version":5,"name":"A","defaults":{"door_width":0}})", ErrorCode::BadFile, "/defaults");
     refused(R"({"format":"plynth-project","version":5,"name":"A","defaults":{"door_width":"wide"}})", ErrorCode::BadFile,
@@ -296,14 +299,15 @@ TEST_CASE("settings write every surface and read them back", "[core][json][mater
     setMaterialDefault(s.materials, Surface::Ceiling, std::nullopt);
     setMaterialDefault(s.materials, Surface::Floor, "grey_tile");
     const Json j = settingsToJson(s);
-    REQUIRE(j["version"] == 6);
-    REQUIRE(j["materials"].size() == 14);
+    REQUIRE(j["version"] == 7);
+    REQUIRE(j["materials"].size() == 20);
     REQUIRE(j["materials"]["ceiling"].is_null());
     REQUIRE(j["materials"]["floor"] == "grey_tile");
     std::vector<std::string> keys;
     for (auto it = j["materials"].begin(); it != j["materials"].end(); ++it) keys.push_back(it.key());
     REQUIRE(keys == std::vector<std::string>{"wall_inside", "wall_outside", "wall_top", "floor", "ceiling", "door", "frame", "glass", "handle",
-                                                    "roof", "flat_roof", "stair", "trim", "railing"});
+                                                    "roof", "flat_roof", "stair", "trim", "railing", "deck", "foundation", "ground",
+                                                    "paving", "fence", "boundary_wall"});
     const SettingsRead r = settingsFromJson(j);
     plynth::test::requireOk(r.status);
     REQUIRE(r.settings == s);
@@ -413,22 +417,24 @@ TEST_CASE("migrateJson stops at a failing step and reports a missing step", "[co
     REQUIRE(migrateJson(text, 3, steps).code == ErrorCode::BadFile);
 }
 
-TEST_CASE("the current format versions are 7 and 6", "[core][json][migrate]") {
-    REQUIRE(kPlanFormatVersion == 7);
-    REQUIRE(kProjectFormatVersion == 6);
-    REQUIRE(planMigrations().size() == 6);
+TEST_CASE("the current format versions are 8 and 7", "[core][json][migrate]") {
+    REQUIRE(kPlanFormatVersion == 8);
+    REQUIRE(kProjectFormatVersion == 7);
+    REQUIRE(planMigrations().size() == 7);
     REQUIRE(planMigrations()[0].fromVersion == 1);
     REQUIRE(planMigrations()[1].fromVersion == 2);
     REQUIRE(planMigrations()[2].fromVersion == 3);
     REQUIRE(planMigrations()[3].fromVersion == 4);
     REQUIRE(planMigrations()[4].fromVersion == 5);
     REQUIRE(planMigrations()[5].fromVersion == 6);
-    REQUIRE(projectMigrations().size() == 5);
+    REQUIRE(planMigrations()[6].fromVersion == 7);
+    REQUIRE(projectMigrations().size() == 6);
     REQUIRE(projectMigrations()[0].fromVersion == 1);
     REQUIRE(projectMigrations()[1].fromVersion == 2);
     REQUIRE(projectMigrations()[2].fromVersion == 3);
     REQUIRE(projectMigrations()[3].fromVersion == 4);
     REQUIRE(projectMigrations()[4].fromVersion == 5);
+    REQUIRE(projectMigrations()[5].fromVersion == 6);
 }
 
 TEST_CASE("a version 4 plan reads with the new fields at their defaults", "[core][json][migrate]") {
@@ -446,7 +452,7 @@ TEST_CASE("a version 4 plan reads with the new fields at their defaults", "[core
     REQUIRE(r.plan.roof == RoofSettings{});
     REQUIRE(r.plan.roofSections.empty());
     const Json written = planToJson(r.plan);
-    REQUIRE(written["version"] == 7);
+    REQUIRE(written["version"] == 8);
     REQUIRE(written["floors"][1]["slab_thickness"] == 0.2);
     REQUIRE(written["roof"]["type"] == "flat");
     REQUIRE(written["roof"]["direction"].is_null());
@@ -464,7 +470,7 @@ TEST_CASE("a version 4 project gets the roof, flat roof and stair defaults", "[c
     REQUIRE(r.settings.materials.flatRoof == "concrete");
     REQUIRE(r.settings.materials.stair == "oak_planks");
     const Json written = settingsToJson(r.settings);
-    REQUIRE(written["version"] == 6);
+    REQUIRE(written["version"] == 7);
     REQUIRE(written["materials"]["stair"] == "oak_planks");
 
     const SettingsRead minimal = settingsFromJson(Json::parse(
@@ -504,7 +510,7 @@ TEST_CASE("floors with stairs and a plan with roof entries keep every field", "[
     const Json j = planToJson(plan);
     std::vector<std::string> keys;
     for (auto it = j["floors"][0]["stairs"][0].begin(); it != j["floors"][0]["stairs"][0].end(); ++it) keys.push_back(it.key());
-    REQUIRE(keys == std::vector<std::string>{"id", "type", "x", "y", "rotation", "width", "turn", "material"});
+    REQUIRE(keys == std::vector<std::string>{"id", "type", "x", "y", "rotation", "width", "turn", "material", "rise", "cheeks", "railing"});
 }
 
 TEST_CASE("a version 2 plan upgrades with empty item lists", "[core][json][migrate]") {
@@ -515,7 +521,7 @@ TEST_CASE("a version 2 plan upgrades with empty item lists", "[core][json][migra
     REQUIRE(r.migrated);
     for (const Floor& f : r.plan.floors) REQUIRE(f.items.empty());
     const Json written = planToJson(r.plan);
-    REQUIRE(written["version"] == 7);
+    REQUIRE(written["version"] == 8);
     REQUIRE(written["floors"][0]["items"].is_array());
     REQUIRE(written["floors"][0]["items"].empty());
     REQUIRE(written["floors"][1]["items"].empty());
@@ -530,7 +536,7 @@ TEST_CASE("a version 2 project gets the wall item centre", "[core][json][migrate
     REQUIRE(r.settings.defaults.ceilingHeight == 2.6);
     REQUIRE(r.settings.defaults.wallItemCentre == 1.2);
     const Json written = settingsToJson(r.settings);
-    REQUIRE(written["version"] == 6);
+    REQUIRE(written["version"] == 7);
     REQUIRE(written["defaults"]["wall_item_centre"] == 1.2);
 }
 
@@ -540,7 +546,7 @@ TEST_CASE("items round trip and are written in schema order", "[core][json]") {
     const Json j = planToJson(plan);
     std::vector<std::string> keys;
     for (auto it = j["floors"][0]["items"][0].begin(); it != j["floors"][0]["items"][0].end(); ++it) keys.push_back(it.key());
-    REQUIRE(keys == std::vector<std::string>{"id", "asset", "room", "x", "y", "z", "rotation", "wall", "size", "generator"});
+    REQUIRE(keys == std::vector<std::string>{"id", "asset", "room", "x", "y", "z", "rotation", "wall", "size", "generator", "on"});
     REQUIRE(j["floors"][0]["items"][0]["wall"].is_null());
     REQUIRE(j["floors"][0]["items"][1]["wall"] == "w3");
     const PlanRead r = planFromJson(Json::parse(j.dump()));
@@ -589,7 +595,7 @@ TEST_CASE("a version 1 plan upgrades with hinge start and swing right", "[core][
         REQUIRE(o.swing == WallSide::Right);
     }
     const Json written = planToJson(r.plan);
-    REQUIRE(written["version"] == 7);
+    REQUIRE(written["version"] == 8);
     REQUIRE(written["floors"][0]["openings"][0]["hinge"] == "start");
     REQUIRE(written["floors"][0]["openings"][0]["swing"] == "right");
 }
@@ -624,7 +630,7 @@ TEST_CASE("a version 1 project gets the built-in defaults", "[core][json][migrat
     REQUIRE(r.settings.name == "Old flat");
     REQUIRE(r.settings.gridSize == 0.25);
     REQUIRE(r.settings.defaults == DefaultSizes{});
-    REQUIRE(settingsToJson(r.settings)["version"] == 6);
+    REQUIRE(settingsToJson(r.settings)["version"] == 7);
 }
 
 TEST_CASE("project defaults round trip", "[core][json]") {
@@ -778,7 +784,7 @@ TEST_CASE("a version 4 plan upgrades to 6 with no generators", "[core][json][mig
         for (const Floor& f : r.plan.floors) {
             for (const Item& it : f.items) REQUIRE_FALSE(it.generator.has_value());
         }
-        REQUIRE(planToJson(r.plan)["version"] == 7);
+        REQUIRE(planToJson(r.plan)["version"] == 8);
     }
 }
 

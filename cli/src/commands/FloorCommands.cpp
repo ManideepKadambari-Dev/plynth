@@ -77,6 +77,7 @@ bool checkImage(const std::string& command, const RunContext& context, const std
 }
 
 // After a save that copied an image into the project, the entry shows the stored path, so it is read again.
+// The backup list of the save stays in the answer.
 Answer withSavedEntry(Answer answer, const RunContext& context, const std::string& project, const Id& id) {
     if (!answer.ok) {
         return answer;
@@ -87,7 +88,11 @@ Answer withSavedEntry(Answer answer, const RunContext& context, const std::strin
         return answer;
     }
     if (const Floor* floor = findFloor(document.plan(), id)) {
-        answer.result = floorEntry(document.plan(), *floor);
+        Json entry = floorEntry(document.plan(), *floor);
+        if (answer.result.is_object() && answer.result.contains("backup")) {
+            entry["backup"] = answer.result.at("backup");
+        }
+        answer.result = std::move(entry);
     }
     return answer;
 }

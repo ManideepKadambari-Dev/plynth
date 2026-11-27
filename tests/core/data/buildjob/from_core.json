@@ -19,7 +19,7 @@
     "preview_texture_size": 1024,
     "plan": {
       "format": "plynth-plan",
-      "version": 7,
+      "version": 8,
       "scale": {
         "pixels_per_metre": null
       },
@@ -76,7 +76,8 @@
               "height": null,
               "bulge": 0.0,
               "material_inside": null,
-              "material_outside": null
+              "material_outside": null,
+              "cladding": []
             },
             {
               "id": "w2",
@@ -86,7 +87,8 @@
               "height": null,
               "bulge": 0.0,
               "material_inside": null,
-              "material_outside": null
+              "material_outside": null,
+              "cladding": []
             },
             {
               "id": "w3",
@@ -96,7 +98,8 @@
               "height": null,
               "bulge": -0.5,
               "material_inside": null,
-              "material_outside": null
+              "material_outside": null,
+              "cladding": []
             },
             {
               "id": "w4",
@@ -106,7 +109,8 @@
               "height": null,
               "bulge": 0.0,
               "material_inside": null,
-              "material_outside": null
+              "material_outside": null,
+              "cladding": []
             },
             {
               "id": "w5",
@@ -116,7 +120,8 @@
               "height": null,
               "bulge": 0.0,
               "material_inside": null,
-              "material_outside": null
+              "material_outside": null,
+              "cladding": []
             },
             {
               "id": "w6",
@@ -126,7 +131,8 @@
               "height": null,
               "bulge": 0.0,
               "material_inside": null,
-              "material_outside": null
+              "material_outside": null,
+              "cladding": []
             },
             {
               "id": "w7",
@@ -136,7 +142,8 @@
               "height": null,
               "bulge": 0.0,
               "material_inside": null,
-              "material_outside": null
+              "material_outside": null,
+              "cladding": []
             }
           ],
           "rooms": [
@@ -182,7 +189,8 @@
               "hinge": "start",
               "swing": "right",
               "frame": null,
-              "auto_frame": true
+              "auto_frame": true,
+              "fill": null
             },
             {
               "id": "o2",
@@ -196,7 +204,8 @@
               "hinge": "start",
               "swing": "right",
               "frame": null,
-              "auto_frame": true
+              "auto_frame": true,
+              "fill": null
             },
             {
               "id": "o3",
@@ -210,7 +219,8 @@
               "hinge": "start",
               "swing": "right",
               "frame": null,
-              "auto_frame": true
+              "auto_frame": true,
+              "fill": null
             },
             {
               "id": "o4",
@@ -224,7 +234,8 @@
               "hinge": "start",
               "swing": "right",
               "frame": null,
-              "auto_frame": true
+              "auto_frame": true,
+              "fill": null
             },
             {
               "id": "o5",
@@ -238,7 +249,8 @@
               "hinge": "start",
               "swing": "right",
               "frame": null,
-              "auto_frame": true
+              "auto_frame": true,
+              "fill": null
             },
             {
               "id": "o6",
@@ -252,7 +264,8 @@
               "hinge": "start",
               "swing": "right",
               "frame": null,
-              "auto_frame": true
+              "auto_frame": true,
+              "fill": null
             },
             {
               "id": "o7",
@@ -266,7 +279,8 @@
               "hinge": "start",
               "swing": "right",
               "frame": null,
-              "auto_frame": true
+              "auto_frame": true,
+              "fill": null
             }
           ],
           "items": [],
@@ -276,7 +290,12 @@
             "y": 0.0
           },
           "stairs": [],
-          "lights": []
+          "lights": [],
+          "decks": [],
+          "railings": [],
+          "canopies": [],
+          "dormers": [],
+          "light_strips": []
         }
       ],
       "roof": {
@@ -284,9 +303,29 @@
         "pitch": 30.0,
         "overhang": 0.3,
         "parapet": 0.6,
-        "direction": null
+        "direction": null,
+        "second_pitch": 15.0,
+        "break_ratio": 0.5,
+        "ridge_offset": 0.0,
+        "rise": 1.0
       },
-      "roof_sections": []
+      "roof_sections": [],
+      "ground_floor": null,
+      "site": {
+        "ground": {
+          "enabled": false,
+          "margin": 10.0,
+          "material": null
+        },
+        "boundaries": [],
+        "surfaces": []
+      },
+      "foundation": {
+        "enabled": false,
+        "height": 0.45,
+        "step_out": 0.03,
+        "material": null
+      }
     },
     "settings": {
       "bevel_width": 0.01,

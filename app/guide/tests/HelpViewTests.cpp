@@ -138,7 +138,7 @@ TEST_CASE("Help view: every page in the help list opens", "[help-view]")
         CHECK(browser->document()->characterCount() > 200);
         CHECK(layOutAll(browser) > 0);
     }
-    CHECK(files == 6);
+    CHECK(files == 7);
 }
 
 TEST_CASE("Help view: the CLI guide opens in time and is built only once", "[help-view]")

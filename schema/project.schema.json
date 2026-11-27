@@ -1,14 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "urn:plynth:schema:project:6",
-  "title": "Plynth project settings, version 6",
-  "description": "The project.json file in a project folder. Lengths are in metres. Older files are upgraded when read: version 1 (project.v1.schema.json) gets defaults with the built-in sizes, version 2 (project.v2.schema.json) gets wall_item_centre 1.2, version 3 (project.v3.schema.json) gets materials with the built-in defaults, version 4 (project.v4.schema.json) gets the roof, flat_roof and stair materials, version 5 (project.v5.schema.json) gets the trim and railing materials and trim and variation with their defaults.",
+  "$id": "urn:plynth:schema:project:7",
+  "title": "Plynth project settings, version 7",
+  "description": "The project.json file in a project folder. Lengths are in metres. Older files are upgraded when read: version 1 (project.v1.schema.json) gets defaults with the built-in sizes, version 2 (project.v2.schema.json) gets wall_item_centre 1.2, version 3 (project.v3.schema.json) gets materials with the built-in defaults, version 4 (project.v4.schema.json) gets the roof, flat_roof and stair materials, version 5 (project.v5.schema.json) gets the trim and railing materials and trim and variation with their defaults, version 6 (project.v6.schema.json) gets the deck, foundation, ground, paving, fence and boundary_wall materials. Every Plynth release opens every older version.",
   "type": "object",
   "required": ["format", "version", "name"],
   "additionalProperties": false,
   "properties": {
     "format": { "const": "plynth-project" },
-    "version": { "const": 6 },
+    "version": { "const": 7 },
     "name": { "type": "string", "minLength": 1 },
     "export_mode": {
       "description": "single gives one FBX for the whole building, grouped gives one FBX per group.",
@@ -69,7 +69,13 @@
         "flat_roof": { "description": "The covering of flat roofs.", "$ref": "#/definitions/optionalName", "default": "concrete" },
         "stair": { "description": "Steps, landings and the column of a spiral stair.", "$ref": "#/definitions/optionalName", "default": "oak_planks" },
         "trim": { "description": "Skirting boards, cornices, casings and sills.", "$ref": "#/definitions/optionalName", "default": "painted_wood" },
-        "railing": { "description": "Stair railings and guards.", "$ref": "#/definitions/optionalName", "default": "brushed_steel" }
+        "railing": { "description": "Stair railings and guards, and the railings drawn on the plan.", "$ref": "#/definitions/optionalName", "default": "brushed_steel" },
+        "deck": { "description": "Deck floors and skirts.", "$ref": "#/definitions/optionalName", "default": "oak_planks" },
+        "foundation": { "description": "The foundation band.", "$ref": "#/definitions/optionalName", "default": "concrete" },
+        "ground": { "description": "The ground plane and lawns.", "$ref": "#/definitions/optionalName", "default": "grass" },
+        "paving": { "description": "Paths, driveways and paving.", "$ref": "#/definitions/optionalName", "default": "concrete" },
+        "fence": { "description": "Fences and gates.", "$ref": "#/definitions/optionalName", "default": "painted_wood" },
+        "boundary_wall": { "description": "Site boundary walls.", "$ref": "#/definitions/optionalName", "default": "red_brick" }
       },
       "default": {}
     },

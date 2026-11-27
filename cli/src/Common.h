@@ -35,8 +35,18 @@ bool checkLock(const std::string& command, const std::filesystem::path& folder, 
 // not be found are listed in report when it is given.
 Status saveInPlace(const Document& document, SaveReport* report = nullptr);
 
-// Adds an image_missing warning to the answer for each plan image the save could not find.
+// Adds an image_missing warning to the answer for each plan image the save could not find, and the
+// "backup" list of the older files the save kept (addBackup).
 void addSaveWarnings(Answer& answer, const SaveReport& report);
+
+// Adds "backup": [paths] to the answer's result for the older files kept in backup/. Nothing when there are none.
+void addBackup(Answer& answer, const std::vector<std::filesystem::path>& files);
+
+// The files in the project's backup/ folder now, so a later addNewBackups can tell which ones a write added.
+std::vector<std::filesystem::path> backupFiles(const std::filesystem::path& folder);
+
+// Adds to the answer, as addBackup does, the files that appeared in backup/ since before was taken.
+void addNewBackups(Answer& answer, const std::filesystem::path& folder, const std::vector<std::filesystem::path>& before);
 
 // Describes a project for project info and project new.
 Json projectInfoJson(const std::filesystem::path& folder, const Project& project);

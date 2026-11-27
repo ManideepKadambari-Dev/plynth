@@ -49,7 +49,7 @@ inline constexpr double kUStairGap = 0.1;           // between the two flights o
 inline constexpr double kSpiralColumnRadius = 0.1;
 inline constexpr double kSpiralTreadThickness = 0.05;
 inline constexpr double kMinStairWidth = 0.6;
-inline constexpr double kMaxStairWidth = 3.0;
+inline constexpr double kMaxStairWidth = 6.0; // plan format 8, for wide outside steps; 3.0 before
 
 // What a step is, for its material, its collision and how the plan draws it.
 enum class StairPart {
