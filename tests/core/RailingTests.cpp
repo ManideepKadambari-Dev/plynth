@@ -741,3 +741,34 @@ TEST_CASE("a drawn railing's materials count as used", "[railings][materials]")
     CHECK(std::find(used.begin(), used.end(), "teak") != used.end());
     CHECK(std::find(used.begin(), used.end(), "frosted_glass") != used.end());
 }
+
+TEST_CASE("railingProblems warns about an unknown style and a missing deck, and nothing else", "[railings]")
+{
+    Floor floor = squareFloorWithWalls();
+    Deck deck;
+    deck.id = "dk1";
+    deck.outline = {{4.1, 0.0}, {7.0, 0.0}, {7.0, 2.0}, {4.1, 2.0}};
+    floor.decks.push_back(deck);
+
+    Railing fine = railingOf({{4.1, 0.0}, {7.0, 0.0}}, "glass");
+    fine.host = "dk1";
+    CHECK(railingProblems(floor, fine).empty());
+
+    Railing both = railingOf({{4.1, 0.0}, {7.0, 0.0}}, "rope_bridge");
+    both.host = "dk9";
+    const std::vector<BuildProblem> found = railingProblems(floor, both);
+    REQUIRE(found.size() == 2);
+    CHECK(found[0].code == "railing_style_unknown");
+    CHECK(found[1].code == "railing_host_missing");
+    for (const BuildProblem& problem : found) {
+        CHECK(problem.severity == BuildSeverity::Warning);
+        CHECK(problem.floor == "f1");
+        CHECK(problem.object == "rl1");
+        CHECK(problem.step == std::string(kCheckStep));
+        CHECK_FALSE(problem.message.empty());
+    }
+
+    // The maker reports the same warnings.
+    const Project p = railingProject({both});
+    CHECK(railingParts(p).problems == found);
+}

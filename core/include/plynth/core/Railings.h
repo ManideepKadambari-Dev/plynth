@@ -101,6 +101,11 @@ std::vector<const RailingStyle*> allRailingStyles();
 // InvalidValue with a plain sentence. Whether the host deck exists is the commands' check (NotFound).
 Status checkRailing(const Railing& railing);
 
+// The warnings the build gives a railing of this floor, in this order: railing_style_unknown when its style is
+// not registered (posts_rails is used), railing_host_missing when its host is no deck of the floor (it stands on
+// base). Each with the floor's id, the railing's id and step kCheckStep. The railing maker and the CLI use it.
+std::vector<BuildProblem> railingProblems(const Floor& floor, const Railing& railing);
+
 // The railing's line in world coordinates at its foot, for the plan and the parts: one entry per run. Points
 // closer than 1e-6 to the one before are dropped. Empty when no run is left.
 struct RailingRun {

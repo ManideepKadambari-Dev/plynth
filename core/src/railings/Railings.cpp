@@ -11,6 +11,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <utility>
 
 namespace plynth {
 
@@ -265,6 +266,24 @@ Status checkRailing(const Railing& railing)
                     "The railing style \"" + railing.style + "\" has glass with no posts or base shoe to hold it.");
     }
     return {};
+}
+
+// The warnings of one railing: an unknown style and a host deck that is gone.
+std::vector<BuildProblem> railingProblems(const Floor& floor, const Railing& railing)
+{
+    std::vector<BuildProblem> out;
+    const auto warn = [&](std::string code, std::string message) {
+        out.push_back({std::move(code), BuildSeverity::Warning, std::move(message), floor.id, railing.id, std::string(kCheckStep)});
+    };
+    if (!findRailingStyle(railing.style)) {
+        warn("railing_style_unknown", "Railing " + railing.id + " uses the railing style " + railing.style +
+                                          ", which is not installed, so it is built with posts and rails.");
+    }
+    if (railing.host && !findDeck(floor, *railing.host)) {
+        warn("railing_host_missing", "Railing " + railing.id + " stood on deck " + *railing.host +
+                                         ", which is gone, so it stands on its base height.");
+    }
+    return out;
 }
 
 // The runs of a railing at its foot: on its host deck's top, or base above the floor's level.

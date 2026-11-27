@@ -121,12 +121,6 @@ double halfWidthOf(const std::vector<RailingPiece>& pieces)
     return half;
 }
 
-// A problem of a railing found before the build starts.
-BuildProblem railingProblem(const Floor& floor, const Railing& railing, std::string code, std::string message)
-{
-    return {std::move(code), BuildSeverity::Warning, std::move(message), floor.id, railing.id, std::string(kCheckStep)};
-}
-
 // Makes one part per drawn railing: the pieces of its style along every run, and a collision box per run.
 class RailingMaker final : public PartMaker {
 public:
@@ -144,19 +138,10 @@ public:
         static const std::vector<double> noLevels;
         const std::vector<double>& levels = input.levels ? *input.levels : noLevels;
         for (const Railing& railing : floor.railings) {
+            for (BuildProblem& problem : railingProblems(floor, railing)) out.problems.push_back(std::move(problem));
             const RailingStyle* style = findRailingStyle(railing.style);
-            if (!style) {
-                out.problems.push_back(railingProblem(floor, railing, "railing_style_unknown",
-                                                      "Railing " + railing.id + " uses the railing style " + railing.style +
-                                                          ", which is not installed, so it is built with posts and rails."));
-                style = findRailingStyle("posts_rails");
-                if (!style) continue;
-            }
-            if (railing.host && !findDeck(floor, *railing.host)) {
-                out.problems.push_back(railingProblem(floor, railing, "railing_host_missing",
-                                                      "Railing " + railing.id + " stood on deck " + *railing.host +
-                                                          ", which is gone, so it stands on its base height."));
-            }
+            if (!style) style = findRailingStyle("posts_rails");
+            if (!style) continue;
             const std::vector<RailingRun> runs = railingRuns(input.project->plan, floor, railing, levels);
             BuildPart part = railingPart(*input.project, floor, railing, *style, runs);
             if (!part.prisms.empty() || !part.sweeps.empty()) out.parts.push_back(std::move(part));
