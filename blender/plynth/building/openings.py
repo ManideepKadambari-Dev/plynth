@@ -11,6 +11,7 @@ CUT_SIDE = 4
 MINIMUM_SHARE = 0.5
 MAXIMUM_SHARE = 2.0
 SOLVERS = ("MANIFOLD", "EXACT")
+OVERLAP = 1e-6
 
 
 # Cuts every opening out of its floor walls, one Boolean cutter at a time, and lays a threshold through every
@@ -72,10 +73,10 @@ def make_cutter(ctx, opening, walls):
     return cutter
 
 
-# Removes the cutter object and its mesh.
-def remove_cutter(cutter):
-    mesh = cutter.data
-    bpy.data.objects.remove(cutter, do_unlink=True)
+# Removes a temporary object (a cutter or a piece of the walls) and its mesh.
+def remove_object(obj):
+    mesh = obj.data
+    bpy.data.objects.remove(obj, do_unlink=True)
     bpy.data.meshes.remove(mesh)
 
 
@@ -119,37 +120,161 @@ def restore(walls, backup):
     walls.data.name = name
 
 
-# Cuts one opening. The Manifold solver goes first because it keeps merged wall solids closed; the Exact solver
-# is the fallback. A cut counts when the walls stay closed and lost at least half the volume the outline should
-# remove; otherwise the walls are put back as they were and cut_failed is reported. With partial true the walls
-# only hold part of the opening (a kit piece), so any volume up to the opening's own counts.
+# Cuts one opening. Only the connected solids of the walls the cutter reaches take part, each cut on its own,
+# so a low wall that touches a taller one never meets it inside one Boolean (the touching faces break the
+# result). The Manifold solver goes first because it keeps merged wall solids closed; the Exact solver is the
+# fallback. A cut counts when every solid stays closed and together they lost at least half the volume the
+# outline should remove; otherwise the walls are put back as they were and cut_failed is reported. With partial
+# true the walls only hold part of the opening (a kit piece), so any volume up to the opening's own counts.
 def cut(ctx, floor, walls, opening, partial=False):
-    backup = walls.data.copy()
-    before = meshes.volume(walls)
     expected = abs(meshes.polygon_area(opening["outline"])) * opening["thickness"]
     cutter = make_cutter(ctx, opening, walls)
-    ok = False
-    for solver in SOLVERS:
-        try:
-            closed = boolean_cut(walls, cutter, solver)
-            removed = before - meshes.volume(walls)
-            least = 0.0 if partial else expected * MINIMUM_SHARE
-            ok = closed and least <= removed <= expected * MAXIMUM_SHARE
-        except Exception:
-            ok = False
-            for modifier in list(walls.modifiers):
-                walls.modifiers.remove(modifier)
-        if ok:
-            break
-        restore(walls, backup)
-    remove_cutter(cutter)
-    bpy.data.meshes.remove(backup)
+    reached, total = reached_pieces(walls, cutter)
+    alone = total == 1 and len(reached) == 1
+    targets = [walls] if alone else [piece_object(walls, keep) for keep in reached]
+    least = 0.0 if partial else expected * MINIMUM_SHARE
+    ok = cut_targets(targets, cutter, least, expected * MAXIMUM_SHARE)
+    if ok and reached and not alone:
+        put_back(walls, set().union(*reached), targets)
+    if not alone:
+        for target in targets:
+            remove_object(target)
+    remove_object(cutter)
     if not ok:
         report(ctx, "cut_failed", "error", "The opening could not be cut into its wall.", floor["id"],
                opening["id"])
         return False
     count(ctx, "openings_cut")
     return True
+
+
+# Cuts the cutter out of every target with one solver, then the next solver when that fails. Returns true when
+# every target stayed closed and the volume they lost together lies between least and most; otherwise every
+# target is put back as it was.
+def cut_targets(targets, cutter, least, most):
+    before = sum(meshes.volume(target) for target in targets)
+    backups = [target.data.copy() for target in targets]
+    ok = False
+    for solver in SOLVERS:
+        try:
+            closed = [boolean_cut(target, cutter, solver) for target in targets]
+            removed = before - sum(meshes.volume(target) for target in targets)
+            ok = all(closed) and least <= removed <= most
+        except Exception:
+            ok = False
+            for target in targets:
+                for modifier in list(target.modifiers):
+                    target.modifiers.remove(modifier)
+        if ok:
+            break
+        for target, backup in zip(targets, backups):
+            restore(target, backup)
+    for backup in backups:
+        bpy.data.meshes.remove(backup)
+    return ok
+
+
+# Returns the index of the group a vertex belongs to, following the links of parent to the end.
+def root(parent, index):
+    while parent[index] != index:
+        parent[index] = parent[parent[index]]
+        index = parent[index]
+    return index
+
+
+# Returns the connected solids of a mesh, each as the set of its vertex indices.
+def mesh_pieces(mesh):
+    parent = list(range(len(mesh.vertices)))
+    for edge in mesh.edges:
+        a = root(parent, edge.vertices[0])
+        b = root(parent, edge.vertices[1])
+        if a != b:
+            parent[a] = b
+    groups = {}
+    for index in range(len(parent)):
+        groups.setdefault(root(parent, index), set()).add(index)
+    return list(groups.values())
+
+
+# Returns the lowest and the highest corner of the box around the points.
+def bounds(points):
+    low = [min(p[k] for p in points) for k in range(3)]
+    high = [max(p[k] for p in points) for k in range(3)]
+    return low, high
+
+
+# Returns true when two boxes share more than a hair of space along every axis.
+def boxes_overlap(a, b):
+    return all(a[0][k] < b[1][k] - OVERLAP and b[0][k] < a[1][k] - OVERLAP for k in range(3))
+
+
+# Returns the connected solids of the walls whose box the cutter's box reaches, as vertex index sets, and how
+# many solids the walls have in all.
+def reached_pieces(walls, cutter):
+    box = bounds([cutter.matrix_world @ vertex.co for vertex in cutter.data.vertices])
+    matrix = walls.matrix_world
+    vertices = walls.data.vertices
+    pieces = mesh_pieces(walls.data)
+    reached = [keep for keep in pieces if boxes_overlap(bounds([matrix @ vertices[i].co for i in keep]), box)]
+    return reached, len(pieces)
+
+
+# Makes a temporary object, placed like the walls, that holds only the given vertices of the walls and their
+# faces, with the same materials and face values.
+def piece_object(walls, keep):
+    mesh = walls.data.copy()
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bm.verts.index_update()
+    bmesh.ops.delete(bm, geom=[vert for vert in bm.verts if vert.index not in keep], context="VERTS")
+    bm.to_mesh(mesh)
+    bm.free()
+    piece = bpy.data.objects.new("plynth_piece", mesh)
+    piece.matrix_world = walls.matrix_world.copy()
+    bpy.context.scene.collection.objects.link(piece)
+    return piece
+
+
+# Replaces the given vertices of the walls, with their faces, by the meshes of the cut pieces. Each face keeps
+# its material: a material the walls do not have yet (the reveal) is added to them.
+def put_back(walls, removed, pieces):
+    bm = bmesh.new()
+    bm.from_mesh(walls.data)
+    bm.verts.index_update()
+    bmesh.ops.delete(bm, geom=[vert for vert in bm.verts if vert.index in removed], context="VERTS")
+    materials = walls.data.materials
+    for piece in pieces:
+        slots = []
+        for material in piece.data.materials:
+            found = [i for i, held in enumerate(materials) if held == material]
+            if not found:
+                materials.append(material)
+                found = [len(materials) - 1]
+            slots.append(found[0])
+        first = len(bm.faces)
+        bm.from_mesh(piece.data)
+        bm.faces.ensure_lookup_table()
+        copy_face_values(bm, bm.faces[first:], piece.data, slots)
+    bm.to_mesh(walls.data)
+    bm.free()
+
+
+# Gives the faces just added from a piece mesh their material, face values and UVs from that mesh, matched by
+# name. Adding a mesh to a bmesh pairs layers by their order, which may differ between the two meshes.
+def copy_face_values(bm, faces, mesh, slots):
+    values = [(layer, mesh.attributes[name]) for name, layer in bm.faces.layers.int.items()
+              if name in mesh.attributes and mesh.attributes[name].domain == "FACE"
+              and mesh.attributes[name].data_type == "INT"]
+    uvs = [(layer, mesh.uv_layers[name].data) for name, layer in bm.loops.layers.uv.items()
+           if name in mesh.uv_layers]
+    for face, polygon in zip(faces, mesh.polygons):
+        if polygon.material_index < len(slots):
+            face.material_index = slots[polygon.material_index]
+        for layer, attribute in values:
+            face[layer] = attribute.data[polygon.index].value
+        for layer, data in uvs:
+            for k, loop in enumerate(face.loops):
+                loop[layer].uv = data[polygon.loop_start + k].uv
 
 
 # Makes the floor level faces that carry the floor through the doorways, one object for the floor.
