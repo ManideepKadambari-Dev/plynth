@@ -94,14 +94,14 @@ Get the latest version from the [releases page](https://github.com/ManideepKadam
 Requirements:
 
 - Windows 10 or 11, 64-bit.
-- [Blender](https://www.blender.org/download/) 4.2 or newer, installed separately. Plynth uses it underneath to build, finds it on first run and never installs it for you.
+- [Blender](https://www.blender.org/download/) 4.2 or newer. Plynth uses an installed one when it finds it. If there is none, the installer can download the official portable Blender from blender.org for you (about 400 MB), or you can press **Get Blender for me** in the setup check later.
 - The Microsoft Visual C++ runtime (x64), if your PC does not have it yet. The installer links to Microsoft's page.
 
 The program is not code signed yet, so Windows SmartScreen may warn the first time: choose "More info", then "Run anyway". An installed copy can update itself from Help, Check for updates, and every update is checked against a signature before it runs.
 
 ## Quick start
 
-1. Install Blender, start Plynth and follow the setup check. Press **Create** for the library and projects folders.
+1. Start Plynth and follow the setup check. If Blender is missing, press **Get Blender for me**. Press **Create** for the library and projects folders.
 2. Open the **Catalog** menu and choose **Add the sample items** to get the sample furniture and materials.
 3. On the home screen, click **Apartment** under **Sample projects**.
 4. Press **Build**, or Ctrl+B. The 3D view opens when the building is ready.

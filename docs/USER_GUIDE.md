@@ -759,7 +759,7 @@ While the Graphics driver row says Missing, the Build button opens the setup che
 
 ## Setup check and the library
 
-Before you import models, Plynth needs Blender, a library folder and a projects folder. **Help > Setup check** shows what is ready and what is not, and it opens by itself on the first run. Plynth never installs anything: if Blender is missing, you install it from blender.org yourself. Every item is explained in [Setting up Plynth](SETUP.md). The Graphics driver item is checked by the app when it starts, and it decides whether Build is allowed.
+Before you import models, Plynth needs Blender, a library folder and a projects folder. **Help > Setup check** shows what is ready and what is not, and it opens by itself on the first run. If Blender is missing, press **Get Blender for me** to download the official portable Blender from blender.org (checked against its checksum and kept in the Plynth folder), or install Blender yourself. Every item is explained in [Setting up Plynth](SETUP.md). The Graphics driver item is checked by the app when it starts, and it decides whether Build is allowed.
 
 The **library** is one folder on your computer that holds your assets catalog. It is shared by all projects. Choose or create it in the setup check. **Catalog > Open library folder** opens it in Explorer.
 

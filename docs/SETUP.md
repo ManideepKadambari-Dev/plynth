@@ -2,7 +2,7 @@
 
 Plynth needs a few things on your computer before it can import models: Blender, a library folder and a projects folder. The setup check looks at all of them and tells you what is missing and what to do.
 
-The setup check only looks. **It never installs or downloads anything.** If Blender is missing, you install it yourself from blender.org and then press Check again.
+The setup check only looks, with one exception. It downloads Blender when you press **Get Blender for me** and answer Download. It never installs or downloads anything else.
 
 ## Where to find it
 
@@ -34,13 +34,13 @@ Plynth uses Blender in the background to clean up the models you import, to draw
 
 Plynth looks for Blender in the places Windows normally puts it: the Program Files folder, your local programs folder, the list of installed programs, the Microsoft Store, Steam, and your PATH. If it finds several, it picks the newest supported one and lists all of them in a drop-down so you can pick another.
 
-If Blender is missing:
+If Blender is missing, you have two ways to get one.
 
-1. Press **Get Blender**. It opens blender.org in your browser.
-2. Download and install Blender yourself.
-3. Come back and press **Check again**.
+**Let Plynth get it.** Press **Get Blender for me**. Plynth asks blender.org for the newest Blender in the series it was developed with and shows the version, the size (about 400 MB) and the server. Press **Download** to go on, or **Not now** to close the box. A progress bar shows the download and **Stop** cancels it. When the file is complete, Plynth checks it against the SHA-256 checksum that blender.org publishes. If it does not match, nothing is kept. Plynth then unpacks the official portable Blender into the `Blender` folder inside the Plynth folder, selects it and checks again. If a step fails, the box says which one and offers **Try again**. The installer has the same choice, a tick box named **Get Blender for me**, ticked by default and skipped when a usable Blender is already found. From a terminal, `plynth blender get` does the same, and `--yes` skips the question. See the [command line guide](CLI_GUIDE.md). Uninstalling Plynth removes this Blender with the Plynth folder.
 
-If Blender is installed somewhere unusual, press **Browse** and pick its `blender.exe`.
+**Choose your own.** Press **Get Blender** to open blender.org in your browser, install Blender yourself, then press **Check again**.
+
+If Blender is installed somewhere unusual, press **Browse** and pick its `blender.exe`. To use your own Blender instead of the downloaded one, open the drop-down or press **Browse** and pick it.
 
 When Plynth has to choose a Blender, it uses the first of these that is set: the `--blender` option of a command, the `PLYNTH_BLENDER` variable, the Blender saved in the settings, and then the search above. A Blender named by the option or the variable is the only one Plynth starts. If that one is missing or too old, the check says so. It does not quietly use another install.
 

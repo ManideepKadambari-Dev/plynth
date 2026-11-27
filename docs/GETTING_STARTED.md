@@ -6,7 +6,7 @@ This page gets you from a fresh install to your first building in about ten minu
 
 Plynth uses Blender in the background to clean up models, draw thumbnails and build your building. You never see its window.
 
-1. Download Blender 4.2 or newer from blender.org and install it. Plynth finds it by itself and never installs it for you.
+1. Plynth needs Blender 4.2 or newer. It uses one that is already installed. If you ticked **Get Blender for me** in the installer, it is already there. Otherwise the setup check shows a **Get Blender for me** button: press it, read the question, and press **Download**. You can also install Blender yourself from blender.org.
 2. The setup check opens the first time you start Plynth. Press **Create** next to the library folder and next to the projects folder, then **Check again**. When everything required says Found, press **Done**.
 
 You can open the setup check again from **Help > Setup check**. See [Setting up Plynth](SETUP.md) if something is not found.
