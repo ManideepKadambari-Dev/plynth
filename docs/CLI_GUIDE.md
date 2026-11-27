@@ -1854,6 +1854,7 @@ plynth build
 plynth build --project D:\Plans\MyApartment
 plynth build --check
 plynth build --quiet --library D:\Demo\Library
+plynth build --no-sync
 ```
 
 `build` never changes the plan or the project settings. It only writes into the project's `build` folder, so it runs while the app has the project open, with no edit session. It uses the plan as saved in the project folder.
@@ -1867,6 +1868,7 @@ The `build` word is a command, so a project folder named `build` has to be given
 | `--blender <exe>` | Use this Blender instead of the one the setup check chooses. |
 | `--quiet` | Write no progress lines to standard error. |
 | `--check` | List the problems without running Blender and without writing anything. |
+| `--no-sync` | Do not update the linked game engine editors after the build (see "Sync after the build"). |
 
 **Progress.** Unless you give `--quiet` or `--check`, `build` writes one JSON line to standard error for each stage and each Blender step, and then one answer on standard output as for every command. A script can read standard error line by line to show a progress bar, and read standard output once at the end.
 
@@ -1933,6 +1935,19 @@ plynth build --check
 
 Blender can find more problems while it builds (`cut_failed`, `fill_failed`, `asset_load_failed`, `bevel_failed`, `material_failed`, `slab_failed`, `stair_failed`, `roof_failed`, `preview_failed`), so a clean `--check` does not promise a clean build.
 
+**Sync after the build.** After a good build, every engine link that has a linked project (see "link unreal send") and `sync_after_build` on updates that project when its editor is open, the same as the app does after its Build button. `--no-sync` leaves it out. When no link has a linked project, nothing is looked for and the answer is the build report alone. Otherwise the result also has a `links` list with one link report for each link that was run, in the shape of `link unreal send`:
+
+```json
+{"ok":true,"command":"build","result":{"format":"plynth-build-report","version":1,"ok":true,"job_id":"build-3f9a07c1","links":[{"format":"plynth-link-report","version":1,"link":"unreal","job_id":"","status":{"code":"ok","message":""},"skipped":true,"skipped_reason":"Unreal Engine is not open, so the building was not updated.","target":{"project_name":"MyGame","project_root":"D:/Unreal/MyGame/","engine_version":"5.8.0"}}]},"warnings":[{"code":"link_skipped","message":"Unreal Engine is not open, so the building was not updated."}]}
+```
+
+The example is shortened and written by hand from the code and the tests. It was not run.
+
+- A sync never makes the build fail: the exit code stays 0. A link whose editor is not open, or is open with another project, is `skipped` and adds a `link_skipped` warning with the reason. A link that ran and failed, for example because a check blocked its export, adds a `link_failed` warning with the message, and its report has the error in `status`.
+- The sync waits 1.5 seconds for the editor to answer. It uses the build's Blender and library.
+- Unless you give `--quiet`, the sync writes progress lines after the build's own, with the stages `link_finding`, `link_preparing`, `link_delivering` and `link_done`.
+- `build.json` holds the build report only, without `links`. The link report of a sync that ran is in `build\links\unreal\link_report.json`.
+
 **Refusals.** All have exit code 1 and write nothing, except where said.
 
 | Code | When |
@@ -1983,7 +1998,7 @@ plynth export report
 | `--force` | Write the files even when a check failed. The report records it. |
 | `--quiet` | Write no progress lines to standard error. |
 
-`<Name>` is the project name with spaces and odd characters turned into `_`, for example `My_Flat_2`. The FBX holds only relative texture paths, so the `export` folder can be moved. `Textures` holds only the textures the FBX uses, named `<Material>_<Channel>`, for example `OakPlanks_BaseColor.jpg`. Materials are named by slot, for example `Living_Floor` and `Exterior_Wall`. Objects have plain names such as `f1_Walls`, `f1_r1_Floor` and `sofa_i1`. A plain export has no collision shapes, and the Unreal rules (`SM_` meshes, `UCX_` collision, `T_` textures) belong to the coming Unreal Engine link. See "Exporting" and "Material slot names" in the [User guide](USER_GUIDE.md).
+`<Name>` is the project name with spaces and odd characters turned into `_`, for example `My_Flat_2`. The FBX holds only relative texture paths, so the `export` folder can be moved. `Textures` holds only the textures the FBX uses, named `<Material>_<Channel>`, for example `OakPlanks_BaseColor.jpg`. Materials are named by slot, for example `Living_Floor` and `Exterior_Wall`. Objects have plain names such as `f1_Walls`, `f1_r1_Floor` and `sofa_i1`. A plain export has no collision shapes, and the Unreal rules (`SM_` meshes, `UCX_` collision, `T_` textures) belong to the Unreal Engine link (see "link unreal send"). See "Exporting" and "Material slot names" in the [User guide](USER_GUIDE.md).
 
 **Progress** is written to standard error as for `build`, with the stages `preparing`, `blender`, `finishing` and `done`. The Blender steps are `open_blend`, `prepare`, `name_objects`, `textures`, `checks`, `write_fbx` and `file_checks`.
 
@@ -2122,12 +2137,12 @@ plynth export kit off
 ```
 
 ```json
-{"ok":true,"command":"export kit on","result":{"enabled":true,"note":"The modular kit belongs to the Unreal Engine link. This switch is saved as links.unreal.kit in export-options.json, and plain export does not write it."}}
+{"ok":true,"command":"export kit on","result":{"enabled":true,"note":"The modular kit belongs to the Unreal Engine link. This switch is saved as links.unreal.kit in export-options.json, and plain export does not write it. 'link unreal set --kit' changes the same switch."}}
 ```
 
 `note` is in every answer of `export kit`.
 
-`export kit` only reads the switch and is never refused by the lock. `on` and `off` write it, with the rules of the other edit commands. `export kit maybe` is `bad_arguments`. When the switch is on, the Unreal Engine link sends the kit. The kit needs a library with a materials catalog: `export` takes `--library` or the library in the settings. Without one it carries on without the kit and says why in the answer (`kit.skipped`). A configured library that is broken still exports, and `kit.skipped` says "The library materials could not be opened, so the kit was left out." An explicit `--library` that is not a usable library is refused instead. The kit uses the custom opening shapes of its library. When an opening cannot be built, the kit is left out with a reason in `kit.skipped` (for example "The kit was left out because opening o3 cannot be built.") and the export still succeeds.
+`export kit` only reads the switch and is never refused by the lock. `on` and `off` write it, with the rules of the other edit commands. `export kit maybe` is `bad_arguments`. `link unreal set --kit on` and `off` change the same switch. When the switch is on, the Unreal Engine link sends the kit. The kit needs a library with a materials catalog: `link unreal send` takes `--library` or the library in the settings. Without one it carries on without the kit and says why in the answer (`kit.skipped`). A configured library that is broken still sends, and `kit.skipped` says "The library materials could not be opened, so the kit was left out." An explicit `--library` that is not a usable library is refused instead. The kit uses the custom opening shapes of its library. When an opening cannot be built, the kit is left out with a reason in `kit.skipped` (for example "The kit was left out because opening o3 cannot be built.") and the send still succeeds. These are under `export.kit` of the `link unreal send` answer.
 
 ### export gameplay
 
@@ -2140,7 +2155,7 @@ plynth export gameplay off
 ```
 
 ```json
-{"ok":true,"command":"export gameplay on","result":{"enabled":true,"note":"The gameplay data file belongs to the Unreal Engine link. This switch is saved as links.unreal.gameplay in export-options.json, and plain export does not write it."}}
+{"ok":true,"command":"export gameplay on","result":{"enabled":true,"note":"The gameplay data file belongs to the Unreal Engine link. This switch is saved as links.unreal.gameplay in export-options.json, and plain export does not write it. 'link unreal set --gameplay' changes the same switch."}}
 ```
 
 `note` is in every answer of `export gameplay`.
@@ -2185,6 +2200,141 @@ The file in the project folder that holds the group edits, the license report sw
 A version 1 file, written before the gameplay switch, reads with that switch off. A version 1 or 2 file, written before the license report, reads with it off. A version 3 file had the kit and gameplay switches at the top, and they read as `links.unreal.kit` and `links.unreal.gameplay`. Any of them is written as version 4 the next time it changes.
 
 The edits are applied to the automatic groups in this order: `added`, `merges`, `moves`, `renames`. An edit that names a group or a plan id that is gone is skipped, and the skip is listed under `notes`. You can edit the file by hand. An unreadable file is `bad_file`, and until `export groups reset` repairs it (the old file is kept as `export-options.json.bad`) every other group and kit command answers `bad_file`. A file with a newer `version` is `unsupported_version` and is never changed. Deleting the file goes back to the automatic groups with the Unreal link switches off.
+
+### link list
+
+Lists the game engine links. Each link is a registry entry, and the Unreal Engine link is the first. Run in a project folder, or with `--project`, each entry also has that project's settings for the link, in the shape `link unreal set` answers with. Elsewhere `settings` is `null`.
+
+```
+plynth link list
+plynth link list --project D:\Plans\MyApartment
+```
+
+```json
+{"ok":true,"command":"link list","result":{"links":[{"id":"unreal","name":"Unreal Engine","description":"Puts the building into the project open in Unreal Engine and updates it after every build.","profile":"unreal","settings":{"pack_materials":true,"grouped":null,"grouped_now":false,"kit":false,"gameplay":false,"sync_after_build":true,"target":null}}]}}
+```
+
+The commands of each link are `link <id> status`, `send`, `set`, `unlink` and `report`. Below they are shown for `unreal`.
+
+The Unreal Engine link talks to the Unreal editor you have open, through Unreal's own Python remote execution. Your Unreal project needs the Python Editor Script Plugin with "Enable Remote Execution" switched on. Nothing else is installed into Unreal, and only this computer is reached. See "Unreal Engine link" in the [User guide](USER_GUIDE.md).
+
+### link unreal status
+
+Shows which Unreal editors are open, the link's settings for the project, whether the linked project is open, and the last link report. It changes nothing and is never refused by the edit lock. It waits 3 seconds for the editors to answer.
+
+```
+plynth link unreal status
+```
+
+```json
+{"ok":true,"command":"link unreal status","result":{"link":"unreal","name":"Unreal Engine","settings":{"pack_materials":true,"grouped":null,"grouped_now":false,"kit":false,"gameplay":false,"sync_after_build":true,"target":{"project_name":"MyGame","project_root":"D:/Unreal/MyGame/","engine_version":"5.8.0"}},"editors":[{"id":"4f1c0a9e-1b7d-4c3e-9a51-0d6f2b8e7c11","project_name":"MyGame","project_root":"D:/Unreal/MyGame/","engine_version":"5.8.0","user":"me","machine":"MYPC","is_target":true}],"search_problem":null,"target_open":true,"last_report":null,"report_problem":null}}
+```
+
+The example is written by hand from the code and the tests. It was not run.
+
+- `editors` lists every editor that answered. `id` is the one to give to `send --editor`. `project_name` and `project_root` are empty for an editor with no project open. `is_target` is true for the editor that has the linked project open.
+- `settings.target` is the linked project, or `null` before the first send and after `unlink`.
+- `search_problem` is `null`, or the sentence that says why the editors could not be looked for.
+- `last_report` is the last link report (see `link unreal report`), or `null` when there is none. `report_problem` says why a report that is there could not be read.
+
+### link unreal send
+
+Sends the last build to the project open in Unreal Engine. It finds the editor, runs the export with the Unreal profile into `build\links\unreal\out\` (with `SM_` meshes, `UCX_` collision, `T_` textures, and the kit and gameplay data when they are on), then runs the Plynth script inside the editor, which imports everything under `Content/Plynth/<Name>/` and places the building in the open level. The first send links the building to that project, so later builds update it (see "Sync after the build" under `build`). A second send imports over the same assets, so actors you moved in Unreal stay where they are. It never builds and never changes the plan, the project settings or `building.blend`. It runs while the app has the project open, with no edit session.
+
+```
+plynth link unreal send
+plynth link unreal send --editor 4f1c0a9e-1b7d-4c3e-9a51-0d6f2b8e7c11
+plynth link unreal send --force --quiet
+plynth link unreal send --library D:\Demo\Library
+plynth link unreal send --self-check --screenshot D:\Shots\flat.png
+```
+
+| Option | Meaning |
+|---|---|
+| `--project <folder>` | The project. Default: the current folder. |
+| `--editor <id>` | The editor to send to, by the `id` that `link unreal status` lists. Default: the editor with the linked project open, or the only editor open. |
+| `--force` | Send even when a check of the link's export failed. |
+| `--self-check` | Let the editor check the import afterwards and add `checks` to the report. Made for tests. |
+| `--screenshot <file>` | With `--self-check`: the editor saves a picture of the level to this file. Without `--self-check` it is `bad_arguments`. |
+| `--blender <exe>` | Use this Blender for the export instead of the one the setup check chooses. |
+| `--library <folder>` | The library the kit takes its material slot names and custom opening shapes from. Default: the one in the settings. A folder you name here must be a library with a materials catalog, or the send is refused and nothing is sent. |
+| `--quiet` | Write no progress lines to standard error. |
+
+**Progress** is written to standard error as for `build`, with the stages `finding`, `preparing` (with one more line for each Blender step of the export), `delivering` and `done`.
+
+**The answer** is the link report, the same text that is saved as `build\links\unreal\link_report.json` (`schema/link-report.schema.json`). An example, shortened:
+
+```json
+{"ok":true,"command":"link unreal send","result":{"format":"plynth-link-report","version":1,"link":"unreal","job_id":"link-3f9a07c1","status":{"code":"ok","message":""},"started_at":"2026-11-27T10:42:07Z","elapsed_ms":14200,"skipped":false,"skipped_reason":"","target":{"project_name":"MyGame","project_root":"D:/Unreal/MyGame/","engine_version":"5.8.0"},"content_path":"/Game/Plynth/MyApartment","pack_materials":true,"grouped":false,"export":{"format":"plynth-export-report","profile":"unreal","exported":true},"assets":[{"path":"/Game/Plynth/MyApartment/Meshes/SM_MyApartment","kind":"static_mesh","action":"created"}],"actors":[{"label":"MyApartment","asset":"/Game/Plynth/MyApartment/Meshes/SM_MyApartment","action":"spawned"}],"screenshot":null,"report_file":"D:/Plans/MyApartment/build/links/unreal/link_report.json","log_file":"D:/Plans/MyApartment/build/links/unreal/editor.log"}}
+```
+
+The example is written by hand from the code and the tests. It was not run.
+
+- `export` is the report of the link's export, in the shape of `export` with `profile` `unreal`. Its `kit` and `gameplay` say what happened to the kit and the gameplay data, as described under `export`. A kit that was left out, for example with no library ("No library is set, so the kit was left out.") or with a broken one, does not stop the send, and `kit.skipped` says why. Switching the kit off removes the old kit files from `build\links\unreal\out\` at the next send.
+- `assets` lists each asset in the editor with its `kind` (`static_mesh`, `texture`, `material`, `material_instance` or `file`) and its `action` (`created`, `updated`, `unchanged` or `removed`). `actors` lists the actors in the level with `spawned`, `kept` or `removed`.
+- `checks` is there only after `--self-check`: one entry for each check, with `pass`, `warning` or `fail`. Each failed one also adds a `check_failed` warning. They do not make the command fail.
+- `log_file` holds what the editor printed while it ran the script.
+
+| Code | When |
+|---|---|
+| `not_a_project` | The folder has no `project.json`. |
+| `not_found` | There is no `build\building.blend` ("Build the project first."), or the Plynth scripts for Unreal are missing. |
+| `engine_not_found` | No Unreal editor with a project open answered, the editor named by `--editor` is not open, or several are open and none was chosen. The message names them with their ids. Nothing is sent and no report is written. |
+| `quality_failed` | A check of the link's export failed and `--force` was not given. Nothing is sent. The report is written. |
+| `engine_failed` | The editor ran the import and it failed. The message gives the editor's reason, for example that `Content/Plynth/<Name>` belongs to another Plynth project. |
+| `no_library` | `--library` names a folder that is not a library with a materials catalog. Nothing is sent. |
+| `in_use` | A build or an export of the project is running. |
+| `blender_not_found`, `blender_failed` | As for `export`. |
+| `bad_file` | `export-options.json` cannot be read. |
+| `cancelled` | The send was stopped. |
+| `bad_arguments` | `--screenshot` without `--self-check`, or an unknown option. Exit 2. |
+
+### link unreal set
+
+Changes the link's settings for the project. Only the options you give change. They are saved under `links.unreal` in `export-options.json` and never touch `plan.json` or `project.json`. The command follows the rules of the edit commands: it is refused with `locked` while the app has the project open without a session.
+
+```
+plynth link unreal set --pack-materials off
+plynth link unreal set --grouped on
+plynth link unreal set --grouped auto --kit on --gameplay on
+plynth link unreal set --sync off
+```
+
+| Option | Meaning |
+|---|---|
+| `--pack-materials on\|off` | On (the default): the materials and textures go to Unreal as ready material assets on the meshes. Off: meshes only, with their named material slots and no texture or material asset. |
+| `--grouped on\|off\|auto` | On: each export group arrives as its own asset and actor, so furniture and the other groups can be moved in Unreal. Off: one building asset. `auto` (the default) follows the project's export mode. |
+| `--kit on\|off` | Send the modular kit. The same switch as `export kit`. |
+| `--gameplay on\|off` | Send the gameplay data file. The same switch as `export gameplay`. |
+| `--sync on\|off` | On (the default): every good build updates the linked project when its editor is open. |
+
+```json
+{"ok":true,"command":"link unreal set","result":{"link":"unreal","settings":{"pack_materials":false,"grouped":true,"grouped_now":true,"kit":false,"gameplay":false,"sync_after_build":true,"target":null}}}
+```
+
+`grouped` is `true`, `false` or `null` for `auto`, and `grouped_now` is what the next send does. With no option it is `bad_arguments`, and so is a value other than the ones listed. Either way nothing changes.
+
+### link unreal unlink
+
+Forgets the Unreal project the building is linked to, so later builds no longer update it. The assets and actors already in Unreal stay as they are. The next send links the building again. It follows the rules of the edit commands.
+
+```
+plynth link unreal unlink
+```
+
+```json
+{"ok":true,"command":"link unreal unlink","result":{"link":"unreal","unlinked":true,"target":{"project_name":"MyGame","project_root":"D:/Unreal/MyGame/","engine_version":"5.8.0"},"settings":{"pack_materials":true,"grouped":null,"grouped_now":false,"kit":false,"gameplay":false,"sync_after_build":true,"target":null}}}
+```
+
+`unlinked` is false, and `target` is `null`, when the building was not linked.
+
+### link unreal report
+
+Answers with the last link report of the project, read from `build\links\unreal\link_report.json`, in the shape of `link unreal send`. Of the export it keeps the outcome, the job id, the profile, the files, the textures and the log, not the checks. It is `not_found` when nothing has been sent yet, and `bad_file` when the file cannot be read. A sync that was skipped writes no report, so the last real one stays. It takes only `--project`.
+
+```
+plynth link unreal report
+```
 
 ### render
 
@@ -3510,6 +3660,7 @@ Codes in use:
 - The material import codes listed under `materials import`: `ambiguous_map`, `unused_image`, `map_size_mismatch`, `visible_seams`, `low_resolution`, `picked_material`.
 - The build codes listed under `build`, including `missing_material`, `material_broken`, `material_failed`, the stair and roof codes. `build` puts one warning in the list for every problem it found, whether its severity is `error` or `warning`.
 - The furniture codes listed under "Furniture items": `no_room`, `outside_room`, `overlaps_item`, `overlaps_wall`, `overlaps_opening`, `off_wall`, `too_tall`, `missing_asset`, `size_changed`. `place` and the `item` commands that change an item give the problems of that item. With `--strict` they are refused instead.
+- The engine link codes: `link_skipped` and `link_failed` from the sync after `build`, and `check_failed` from `link unreal send --self-check`.
 
 A project whose plan image was deleted, after `scale set`:
 
@@ -3771,6 +3922,7 @@ Every action of the app that changes or checks a project or the library has a co
 | Save 3D picture | `render` |
 | Export, Check export, Export anyway, Cancel | `export`, `export --check`, `export --force`, `export cancel` |
 | Export window: groups, modular kit, gameplay data | `export groups ...`, `export kit on\|off`, `export gameplay on\|off` |
+| Unreal Engine section: status, Send, Unlink, Pack with materials, Grouped, last report | `link unreal status`, `link unreal send`, `link unreal unlink`, `link unreal set ...`, `link unreal report` |
 | Assets and materials catalogs, imports, inboxes, rescans, thumbnails | `assets ...`, `materials ...` |
 | Add to materials catalog | `materials from-asset` |
 | Add the sample materials, shapes and generators | `library add-sample-materials`, `library add-sample-shapes`, `library add-sample-generators` |

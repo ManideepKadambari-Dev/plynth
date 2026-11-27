@@ -1,5 +1,6 @@
 #include "../CatalogCommon.h"
 #include "../Common.h"
+#include "../LinkCommon.h"
 #include "../SessionKeeper.h"
 
 #include <plynth/core/Blender.h>
@@ -80,32 +81,6 @@ Answer exportReport(const std::string& command, const ExportArgs& options, const
     return success(command, exportReportToJson(read.report));
 }
 
-// Finds the library the export looks materials and licenses up in. An explicit --library must open its materials
-// catalog, or the export is refused. Without it the configured folder is passed on as it is. Gives false and
-// fills failed only for a refusal.
-bool kitLibrary(const std::string& command, const RunContext& context, const std::string& libraryOption,
-                std::optional<LibraryPaths>& library, Answer& failed) {
-    if (!libraryOption.empty()) {
-        OpenedMaterialCatalog opened;
-        if (!openMaterialCatalog(command, context, libraryOption, opened, failed)) {
-            return false;
-        }
-        library = opened.paths;
-        registerShapesOf(*library);
-        return true;
-    }
-    const SettingsLoad loaded = loadSettings();
-    if (!loaded.status.ok()) {
-        failed = failure(command, loaded.status);
-        return false;
-    }
-    if (loaded.settings.library) {
-        library = libraryPaths(*loaded.settings.library);
-        registerShapesOf(*library);
-    }
-    return true;
-}
-
 // Exports the last build, or only runs the checks with --check.
 Answer exportProject(const RunContext& context, const ExportArgs& options) {
     const std::string command = "export";
@@ -135,7 +110,7 @@ Answer exportProject(const RunContext& context, const ExportArgs& options) {
     request.projectFolder = folder;
     request.project = document.project();
     request.blender = choice.install;
-    if (!kitLibrary(command, context, options.library, request.library, failed)) {
+    if (!linkLibrary(command, context, options.library, request.library, failed)) {
         return failed;
     }
     request.settings.force = options.force;
@@ -372,7 +347,8 @@ bool& exportSwitch(ExportOptions& options, const std::string& name) {
 std::string linkSwitchNote(const std::string& name) {
     const std::string what = name == "kit" ? "The modular kit" : "The gameplay data file";
     return what + " belongs to the Unreal Engine link. This switch is saved as links.unreal." + name +
-           " in export-options.json, and plain export does not write it.";
+           " in export-options.json, and plain export does not write it. 'link unreal set --" + name +
+           "' changes the same switch.";
 }
 
 // The license report of the last build, looked up in the library when there is one, or null with the reason.

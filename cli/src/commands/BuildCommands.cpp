@@ -1,5 +1,6 @@
 #include "../CatalogCommon.h"
 #include "../Common.h"
+#include "../LinkCommon.h"
 #include "../SessionKeeper.h"
 
 #include <plynth/core/Build.h>
@@ -25,6 +26,7 @@ struct BuildOptions {
     BlenderOption blender;
     bool quiet = false;
     bool check = false;
+    bool noSync = false;
 };
 
 // Writes one progress line: {"progress": {"stage", "step", "index", "count", "message"}}.
@@ -209,6 +211,19 @@ Answer buildProject(const RunContext& context, const BuildOptions& options) {
     for (const BuildProblem& problem : report.problems) {
         answer.warnings.push_back({problem.code, problem.message});
     }
+    if (!options.noSync) {
+        EngineLinkRequest sync;
+        sync.projectFolder = folder;
+        sync.project = document.project();
+        sync.blender = choice.install;
+        if (haveLibrary) {
+            sync.library = opened.paths;
+        } else if (options.library.empty() && opened.settings.library) {
+            sync.library = libraryPaths(*opened.settings.library);
+            registerShapesOf(*sync.library);
+        }
+        addLinkSync(answer, sync, progress, stopToken(context));
+    }
     return answer;
 }
 
@@ -218,8 +233,9 @@ std::vector<CommandSpec> buildCommands() {
     CommandSpec build;
     build.words = {"build"};
     build.description = "Build the project in Blender: walls, openings, floors, ceilings, furniture and "
-                        "generators. With --check, only list the problems. 'build report' shows the last report and 'build cancel' "
-                        "stops a running build.";
+                        "generators. With --check, only list the problems. After a good build, every engine link with a linked "
+                        "project updates it when its editor is open, unless --no-sync is given. 'build report' shows the "
+                        "last report and 'build cancel' stops a running build.";
     build.setup = [](CLI::App& sub) -> Handler {
         auto options = std::make_shared<BuildOptions>();
         sub.add_option("what", options->what,
@@ -230,6 +246,8 @@ std::vector<CommandSpec> buildCommands() {
         addBlenderOption(sub, options->blender);
         sub.add_flag("--quiet", options->quiet, "Write no progress lines to standard error.");
         sub.add_flag("--check", options->check, "List the problems without running Blender or writing anything.");
+        sub.add_flag("--no-sync", options->noSync,
+                     "Do not update the linked game engine editors after the build.");
         return [options](const RunContext& context) { return buildProject(context, *options); };
     };
     return {build};

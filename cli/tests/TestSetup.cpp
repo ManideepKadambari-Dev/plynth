@@ -107,6 +107,8 @@ struct ScratchUser {
         setVariable(L"PLYNTH_BLENDER", root / "no-blender.exe");
         // A store fetch never uses the real %LOCALAPPDATA%: it gets a short folder of this run, made by core.
         setVariable(L"PLYNTH_FETCH_FOLDER", root / "fetch");
+        // The engine links talk to a group and port no Unreal editor uses, unless a test names its fake editor's.
+        setVariable(L"PLYNTH_UNREAL_MULTICAST", L"239.0.0.77:7099");
         plynth::cli::testing::requireSafeSettings("starting the test program");
     }
     ~ScratchUser() {

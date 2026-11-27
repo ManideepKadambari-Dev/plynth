@@ -54,6 +54,7 @@ std::vector<CommandSpec> importCommands();
 std::vector<CommandSpec> itemCommands();
 std::vector<CommandSpec> buildCommands();
 std::vector<CommandSpec> exportCommands();
+std::vector<CommandSpec> linkCommands();
 std::vector<CommandSpec> materialCommands();
 std::vector<CommandSpec> materialCatalogCommands();
 std::vector<CommandSpec> materialImportCommands();

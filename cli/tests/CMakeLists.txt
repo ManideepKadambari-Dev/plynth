@@ -54,6 +54,7 @@ add_executable(plynth_cli_tests
     FinishCliTests.cpp
     VariationCliTests.cpp
     GameplayCliTests.cpp
+    LinkCliTests.cpp
     IdTestListener.cpp
     TestSetup.cpp
     TestSupport.cpp
