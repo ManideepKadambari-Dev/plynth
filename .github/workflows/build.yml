@@ -64,7 +64,12 @@ jobs:
       || (format('{0}{1}{2}', inputs.tests, inputs.labels, inputs.write_fixture) != '' && 'Debug only, filtered' || 'Debug only') }}
     if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.license_texts) }}
     runs-on: windows-latest
-    timeout-minutes: 180
+    # A tag run may wait twice for the code signing approval.
+    timeout-minutes: ${{ github.ref_type == 'tag' && 300 || 180 }}
+    # SignPath downloads the files to sign from this run's artifacts with the run's token.
+    permissions:
+      contents: read
+      actions: read
     env:
       # A tag build restores and saves no cache, so nothing from another branch reaches a release.
       CACHES: ${{ github.ref_type != 'tag' && 'true' || 'false' }}
@@ -402,9 +407,105 @@ jobs:
           "ISCC=$iscc" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "Inno Setup $version at $iscc, SHA-256 of ISCC.exe $((Get-FileHash -Algorithm SHA256 $iscc).Hash)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
 
+      # A tag is code signed by SignPath once SIGNPATH_ORGANIZATION_ID is set: first the programs we build, so the
+      # stage, installer and zip hold signed copies, then the installer. Both come before the sums, the attestation
+      # and the draft. Every other run, and a tag without the variable, goes on unsigned.
+      - name: Decide on code signing
+        id: signing
+        if: ${{ !cancelled() && steps.inno.outcome == 'success' }}
+        timeout-minutes: 5
+        shell: pwsh
+        env:
+          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:SIGNPATH_ORGANIZATION_ID) {
+            'sign=true' | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            'Code signing with SignPath: the programs before staging, then the installer.' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+            exit 0
+          }
+          $why = if ($env:GITHUB_REF_TYPE -ne 'tag') { 'this run is not a tag' } else { 'the repository variable SIGNPATH_ORGANIZATION_ID is not set' }
+          Write-Host "not code signed: $why"
+          "not code signed: $why" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          'sign=false' | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Gather the programs to sign
+        id: sign-programs-gather
+        if: ${{ !cancelled() && steps.signing.outputs.sign == 'true' }}
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          . "$env:GITHUB_WORKSPACE/installer/PackageRules.ps1"
+          $programs = "$env:GITHUB_WORKSPACE/out/build/msvc/app/Release"
+          $unsigned = "$env:RUNNER_TEMP/plynth-unsigned-programs"
+          New-Item -ItemType Directory -Force $unsigned | Out-Null
+          # Our own libraries are the ones beside the programs that neither Qt nor vcpkg installed.
+          $bins = @(Join-Path $env:QT_ROOT_DIR 'bin') + @(Get-ChildItem -Directory "$env:GITHUB_WORKSPACE/out/build/msvc/vcpkg_installed" | ForEach-Object { Join-Path $_.FullName 'bin' })
+          $others = @{}
+          foreach ($bin in $bins | Where-Object { Test-Path $_ }) {
+            Get-ChildItem -File $bin -Filter *.dll | ForEach-Object { $others[$_.Name.ToLowerInvariant()] = $true }
+          }
+          $own = @(Get-ChildItem -File $programs -Filter *.dll | Where-Object {
+            $_.Name -notlike 'Qt6*' -and -not (Test-Never $_.Name) -and -not $others.ContainsKey($_.Name.ToLowerInvariant()) })
+          $names = @('plynth.exe', 'plynth.com') + @($own | ForEach-Object { $_.Name })
+          foreach ($name in $names) {
+            $file = Join-Path $programs $name
+            if (-not (Test-Path $file)) { throw "$name is missing in $programs" }
+            Copy-Item $file $unsigned
+          }
+          "names=$($names -join ',')" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "Programs sent for code signing: $($names -join ', ')" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - name: Upload the programs to sign
+        id: sign-programs-upload
+        if: ${{ !cancelled() && steps.sign-programs-gather.outcome == 'success' }}
+        timeout-minutes: 10
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: unsigned-programs
+          path: ${{ runner.temp }}/plynth-unsigned-programs/
+          if-no-files-found: error
+          retention-days: 1
+
+      # Waits for the approval in SignPath, which an approver gives by hand for every release.
+      - name: Sign the programs
+        id: sign-programs
+        if: ${{ !cancelled() && steps.sign-programs-upload.outcome == 'success' }}
+        timeout-minutes: 50
+        uses: signpath/github-action-submit-signing-request@a2c5b60d9c75f073142b653c354b632eedce097b # v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.sign-programs-upload.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 2700
+          output-artifact-directory: ${{ runner.temp }}/plynth-signed-programs
+
+      - name: Put the signed programs in place
+        id: place-programs
+        if: ${{ !cancelled() && steps.sign-programs.outcome == 'success' }}
+        timeout-minutes: 5
+        shell: pwsh
+        env:
+          SIGNED_NAMES: ${{ steps.sign-programs-gather.outputs.names }}
+        run: |
+          $programs = "$env:GITHUB_WORKSPACE/out/build/msvc/app/Release"
+          $signed = "$env:RUNNER_TEMP/plynth-signed-programs"
+          $bad = 0
+          foreach ($name in $env:SIGNED_NAMES -split ',') {
+            $file = Join-Path $signed $name
+            if (-not (Test-Path $file)) { Write-Host "::error::SignPath returned no $name"; $bad++; continue }
+            Copy-Item -Force $file $programs
+            $signature = Get-AuthenticodeSignature -LiteralPath (Join-Path $programs $name)
+            if ($signature.Status -ne 'Valid') { Write-Host "::error::$name has no valid signature: $($signature.Status). $($signature.StatusMessage)"; $bad++; continue }
+            "$name is signed by $($signature.SignerCertificate.Subject)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          }
+          if ($bad) { exit 1 }
+
       - name: Stage the package
         id: stage
-        if: ${{ !cancelled() && steps.inno.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.inno.outcome == 'success' && (steps.signing.outputs.sign != 'true' || steps.place-programs.outcome == 'success') }}
         shell: pwsh
         run: |
           $trial = $env:GITHUB_REF_TYPE -ne 'tag'
@@ -494,10 +595,51 @@ jobs:
           "PLYNTH_TEST_NEWER=$newer" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "PLYNTH_TEST_LOWER=$lower" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
+      # Only the installer that is released is signed. The test installers stay unsigned.
+      - name: Upload the installer to sign
+        id: sign-installer-upload
+        if: ${{ !cancelled() && steps.installer.outcome == 'success' && steps.signing.outputs.sign == 'true' }}
+        timeout-minutes: 10
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: unsigned-installer
+          path: ${{ runner.temp }}/plynth-setup/PlynthSetup.exe
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Sign the installer
+        id: sign-installer
+        if: ${{ !cancelled() && steps.sign-installer-upload.outcome == 'success' }}
+        timeout-minutes: 50
+        uses: signpath/github-action-submit-signing-request@a2c5b60d9c75f073142b653c354b632eedce097b # v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.sign-installer-upload.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 2700
+          output-artifact-directory: ${{ runner.temp }}/plynth-signed-setup
+
+      - name: Put the signed installer in place
+        id: place-installer
+        if: ${{ !cancelled() && steps.sign-installer.outcome == 'success' }}
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          $file = "$env:RUNNER_TEMP/plynth-signed-setup/PlynthSetup.exe"
+          if (-not (Test-Path $file)) { Write-Host '::error::SignPath returned no PlynthSetup.exe'; exit 1 }
+          $setup = "$env:RUNNER_TEMP/plynth-setup/PlynthSetup.exe"
+          Copy-Item -Force $file $setup
+          $signature = Get-AuthenticodeSignature -LiteralPath $setup
+          if ($signature.Status -ne 'Valid') { Write-Host "::error::PlynthSetup.exe has no valid signature: $($signature.Status). $($signature.StatusMessage)"; exit 1 }
+          "PlynthSetup.exe is signed by $($signature.SignerCertificate.Subject)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
       - name: Test the installer
         id: install-test
         timeout-minutes: 45
-        if: ${{ !cancelled() && steps.installer.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.installer.outcome == 'success' && (steps.signing.outputs.sign != 'true' || steps.place-installer.outcome == 'success') }}
         shell: pwsh
         run: |
           & "$env:GITHUB_WORKSPACE/installer/TestInstall.ps1" -Setup "$env:RUNNER_TEMP\plynth-setup\PlynthSetup.exe" -Stage "$env:RUNNER_TEMP\plynth-stage" `
