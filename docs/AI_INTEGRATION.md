@@ -26,6 +26,15 @@ Plynth never sends anything to the assistant or to anyone else. What the assista
 
 The full list of commands, options, answers and error codes, with worked examples for a flat, a house with two floors and a street of variations, is in the command line guide (`docs/CLI_GUIDE.md`, also in the app under Help). The assistant can also run `plynth help` at any time: it lists every command with its options, every error code and every exit code, always matching the installed version.
 
+## Installing the Plynth skill
+
+`AGENTS.md` helps once a project exists. To let your assistant start a new project from a plan image in an empty folder, install the Plynth skill once. It is a file named `SKILL.md` in the open Agent Skills format. It tells the assistant how to begin a project, the command order, the safety rules and the render check loop.
+
+- In a terminal: `plynth skill install --out <folder>`. After you update Plynth, run it again with `--force` to replace the old copy.
+- In the app: Settings, button "Set up my coding assistant". Choose the folder and the app does the same.
+
+Either way the skill lands in `<folder>/plynth/SKILL.md`. Pick the folder your assistant reads skills from. Its own documentation names it, and it is often a `skills` folder in your home folder or in a project. The installer also leaves a copy of `SKILL.md` in the Plynth folder. An existing file is never replaced without `--force`.
+
 ## Rules to give the assistant
 
 `plynth project new` writes these rules, with the command order and the check loop, into the project as `AGENTS.md`. Give `--no-agent-guide` to leave it out. For a project made without it, or after you update Plynth, `plynth agent-guide` writes the file or, with `--force`, replaces it. An `AGENTS.md` you changed is never overwritten without `--force`. You can edit the file to suit you.
