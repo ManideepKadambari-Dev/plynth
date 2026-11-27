@@ -2,7 +2,9 @@
 
 #include "BuiltPlan.h"
 
+#include "plynth/core/ExportGroups.h"
 #include "plynth/core/JobProgress.h"
+#include "plynth/core/Library.h"
 #include "plynth/core/ProjectFiles.h"
 #include "plynth/core/SetupCheck.h"
 
@@ -41,20 +43,42 @@ bool exportReportOutOfDate(const ExportReport& report, const fs::path& projectFo
 }
 
 // Lists what stops an export from starting now.
-std::vector<ExportBlocker> exportBlockers(const fs::path& projectFolder, const MachineSettings& settings)
+std::vector<ExportBlocker> exportBlockers(const fs::path& projectFolder, const MachineSettings& settings,
+                                          const ExportNeeds& needs)
 {
     std::vector<ExportBlocker> blockers;
     std::error_code ec;
     if (!fs::is_regular_file(buildFolder(projectFolder) / "building.blend", ec)) {
-        blockers.push_back({"no_build", "Build the project first."});
-    }
-    const SetupReport quick = quickSetupCheck(settings, true);
-    for (const SetupItem& item : quick.items) {
-        if (!item.blocks()) continue;
-        blockers.push_back({"setup", item.name + ": " + (item.action.empty() ? item.detail : item.action)});
+        blockers.push_back({"no_build", "Build the project first.", ErrorCode::NotFound});
     }
     if (jobRunning(projectFolder)) {
-        blockers.push_back({"in_use", "A build or an export of this project is running."});
+        blockers.push_back({"in_use", "A build or an export of this project is running.", ErrorCode::InUse});
+    }
+    if (needs.blender) {
+        if (needs.blender->empty() || !fs::is_regular_file(*needs.blender, ec)) {
+            blockers.push_back({"no_blender", "The Blender " + pathToUtf8(*needs.blender) + " does not exist.",
+                                ErrorCode::BlenderNotFound});
+        }
+    } else {
+        const SetupReport quick = quickSetupCheck(settings, true);
+        const SetupItem* blender = quick.find(kCheckBlender);
+        if (blender != nullptr && blender->blocks()) {
+            blockers.push_back({"no_blender", blender->detail + (blender->action.empty() ? "" : " " + blender->action),
+                                ErrorCode::BlenderNotFound});
+        }
+    }
+    const ExportOptionsRead options = readExportOptions(projectFolder);
+    const bool licenses = options.status.ok() && options.options.licenses.enabled;
+    if (licenses || needs.kit) {
+        const std::string what = "The export makes " + std::string(licenses ? "the license report" : "the modular kit") +
+                                 ", which needs a library, ";
+        const std::optional<fs::path> library = needs.library ? needs.library : settings.library;
+        if (!library) {
+            blockers.push_back({"no_library", what + "and no library folder is chosen.", ErrorCode::NoLibrary});
+        } else if (!isLibraryFolder(*library)) {
+            blockers.push_back({"no_library", what + "and " + pathToUtf8(*library) + " is not a Plynth library.",
+                                ErrorCode::NoLibrary});
+        }
     }
     return blockers;
 }

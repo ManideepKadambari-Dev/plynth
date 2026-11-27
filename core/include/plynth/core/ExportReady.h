@@ -7,6 +7,7 @@
 #include "Status.h"
 
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -22,16 +23,28 @@ namespace plynth {
 // export_report.json or build.json is missing or build.json cannot be read.
 bool exportReportOutOfDate(const ExportReport& report, const std::filesystem::path& projectFolder);
 
-// What stops an export from starting, each with one plain sentence, in this order: no build/building.blend
-// ("Build the project first."), then one for each required setup item that blocks (quickSetupCheck without the
-// graphics probe: Blender, library and projects folders; "<name>: <action>", or the detail when there is no
-// action, as the app's status line says it), then a live build/build.lock (jobRunning: "A build or an export of
-// this project is running."). Empty when it may start. The export itself still makes its own checks.
-struct ExportBlocker {
-    std::string code;    // "no_build", "setup", "in_use"
-    std::string message;
+// What an export is asked to use, for exportBlockers. The app leaves both paths empty.
+struct ExportNeeds {
+    std::optional<std::filesystem::path> blender; // the --blender option; empty: PLYNTH_BLENDER, the settings, a search
+    std::optional<std::filesystem::path> library; // the --library option; empty: the library of the settings
+    bool kit = false; // the Unreal link's kit switch; the plain export never makes the kit
 };
 
-std::vector<ExportBlocker> exportBlockers(const std::filesystem::path& projectFolder, const MachineSettings& settings);
+// One reason an export cannot start, with the error a front end refuses with.
+struct ExportBlocker {
+    std::string code;    // "no_build", "in_use", "no_blender", "no_library"
+    std::string message;
+    ErrorCode error = ErrorCode::InvalidValue; // NotFound, InUse, BlenderNotFound, NoLibrary in that order
+};
+
+// What stops an export from starting, only what an export really needs, in this order: no build/building.blend
+// ("Build the project first."); a live build/build.lock (jobRunning: "A build or an export of this project is
+// running."); no Blender to run it (the option when given must be a file, otherwise the Blender item of
+// quickSetupCheck, which starts no program: its detail and action); and, only when export-options.json switches
+// the license report on or needs.kit is set, a library (the option, else the settings) that is a Plynth library.
+// A missing library or projects folder blocks nothing else. Empty when it may start. The export itself still
+// makes its own checks, such as the Blender version.
+std::vector<ExportBlocker> exportBlockers(const std::filesystem::path& projectFolder, const MachineSettings& settings,
+                                          const ExportNeeds& needs = {});
 
 }

@@ -87,22 +87,22 @@ Answer exportReport(const std::string& command, const ExportArgs& options, const
     return answer;
 }
 
-// Refuses an export the app's Export window would not start: no build yet, or a build or export running. The
-// setup items of the blocker list are left out, because the command picks its own Blender (the --blender
-// option, PLYNTH_BLENDER, the settings, then the search) and an export needs no library or projects folder.
-bool refuseBlockedExport(const std::string& command, const std::filesystem::path& folder,
-                         const MachineSettings& settings, Answer& failed) {
-    for (const ExportBlocker& blocker : exportBlockers(folder, settings)) {
-        if (blocker.code == "no_build") {
-            failed = failure(command, fail(ErrorCode::NotFound, blocker.message));
-            return true;
-        }
-        if (blocker.code == "in_use") {
-            failed = failure(command, fail(ErrorCode::InUse, blocker.message));
-            return true;
-        }
+// Refuses an export the app's Export window would not start, with core's first blocker and its error: no build
+// yet, a build or export running, no Blender, or no library for an export that makes the license report. The
+// --blender and --library options are passed on, so they are judged as the export would use them.
+bool refuseBlockedExport(const std::string& command, const RunContext& context, const ExportArgs& options,
+                         const std::filesystem::path& folder, const MachineSettings& settings, Answer& failed) {
+    ExportNeeds needs;
+    needs.blender = blenderOptionPath(context, options.blender);
+    if (!options.library.empty()) {
+        needs.library = userPath(context, options.library);
     }
-    return false;
+    const std::vector<ExportBlocker> blockers = exportBlockers(folder, settings, needs);
+    if (blockers.empty()) {
+        return false;
+    }
+    failed = failure(command, fail(blockers.front().error, blockers.front().message));
+    return true;
 }
 
 // Finds the library the export looks materials and licenses up in. An explicit --library must open its materials
@@ -151,7 +151,7 @@ Answer exportProject(const RunContext& context, const ExportArgs& options) {
     if (!loaded.status.ok()) {
         return failure(command, loaded.status);
     }
-    if (refuseBlockedExport(command, folder, loaded.settings, failed)) {
+    if (refuseBlockedExport(command, context, options, folder, loaded.settings, failed)) {
         return failed;
     }
     const BlenderChoice choice = chooseBlender(blenderOptionPath(context, options.blender), loaded.settings);

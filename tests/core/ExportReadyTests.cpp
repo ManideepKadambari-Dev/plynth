@@ -6,6 +6,7 @@
 #include <plynth/core/Build.h>
 #include <plynth/core/EditSession.h>
 #include <plynth/core/Export.h>
+#include <plynth/core/ExportGroups.h>
 #include <plynth/core/ExportReady.h>
 #include <plynth/core/Library.h>
 #include <plynth/core/ProjectFiles.h>
@@ -186,11 +187,23 @@ TEST_CASE("an export report is never out of date when a file is missing or unrea
     }
 }
 
-TEST_CASE("an export may start with a build, a working setup and no job running", "[core][exportready]")
+TEST_CASE("an export may start with a build, a Blender and no job running", "[core][exportready]")
 {
     ReadyFixture f("ready-none");
     writeAt(f.blendFile(), 0);
     REQUIRE(exportBlockers(f.project, f.settings).empty());
+}
+
+TEST_CASE("an export needs no library or projects folder unless it makes library items", "[core][exportready]")
+{
+    ReadyFixture f("ready-nofolders");
+    writeAt(f.blendFile(), 0);
+    MachineSettings settings = f.settings;
+    settings.library.reset();
+    settings.projects = f.tmp.path() / "No projects";
+    REQUIRE(exportBlockers(f.project, settings).empty());
+    settings.projects.reset();
+    REQUIRE(exportBlockers(f.project, settings).empty());
 }
 
 TEST_CASE("an export without building.blend asks for a build first", "[core][exportready]")
@@ -199,31 +212,12 @@ TEST_CASE("an export without building.blend asks for a build first", "[core][exp
     const std::vector<ExportBlocker> blockers = exportBlockers(f.project, f.settings);
     REQUIRE(codes(blockers) == std::vector<std::string>{"no_build"});
     REQUIRE(blockers[0].message == "Build the project first.");
+    REQUIRE(blockers[0].error == ErrorCode::NotFound);
 
     SECTION("a folder named building.blend is not a build") {
         fs::create_directories(f.blendFile());
         REQUIRE(codes(exportBlockers(f.project, f.settings)) == std::vector<std::string>{"no_build"});
     }
-}
-
-TEST_CASE("an export is blocked by each required setup item that blocks", "[core][exportready]")
-{
-    ReadyFixture f("ready-setup");
-    writeAt(f.blendFile(), 0);
-    MachineSettings settings = f.settings;
-    settings.library.reset();
-    settings.projects = f.tmp.path() / "No projects";
-
-    const std::vector<ExportBlocker> blockers = exportBlockers(f.project, settings);
-    REQUIRE(codes(blockers) == std::vector<std::string>{"setup", "setup"});
-    const SetupReport quick = quickSetupCheck(settings, true);
-    std::vector<std::string> expected;
-    for (const SetupItem& item : quick.items) {
-        if (item.blocks()) expected.push_back(item.name + ": " + (item.action.empty() ? item.detail : item.action));
-    }
-    REQUIRE(blockers[0].message == expected[0]);
-    REQUIRE(blockers[1].message == expected[1]);
-    REQUIRE(blockers[0].message.rfind("Library folder: ", 0) == 0);
 }
 
 TEST_CASE("an export is blocked while a build or an export holds the lock", "[core][exportready]")
@@ -234,6 +228,7 @@ TEST_CASE("an export is blocked while a build or an export holds the lock", "[co
     const std::vector<ExportBlocker> blockers = exportBlockers(f.project, f.settings);
     REQUIRE(codes(blockers) == std::vector<std::string>{"in_use"});
     REQUIRE(blockers[0].message == "A build or an export of this project is running.");
+    REQUIRE(blockers[0].error == ErrorCode::InUse);
 
     SECTION("a lock left by a process that ended does not block") {
         std::ofstream(f.project / "build" / "build.lock", std::ios::binary | std::ios::trunc) << "0 0 0\n";
@@ -241,11 +236,96 @@ TEST_CASE("an export is blocked while a build or an export holds the lock", "[co
     }
 }
 
-TEST_CASE("the export blockers come in the order build, setup, lock", "[core][exportready]")
+TEST_CASE("an export needs a Blender, without starting one to find out", "[core][exportready]")
+{
+    ReadyFixture f("ready-blender");
+    writeAt(f.blendFile(), 0);
+
+    SECTION("a Blender option must be a file") {
+        ExportNeeds needs;
+        needs.blender = f.tmp.path() / "none" / "blender.exe";
+        const std::vector<ExportBlocker> blockers = exportBlockers(f.project, f.settings, needs);
+        REQUIRE(codes(blockers) == std::vector<std::string>{"no_blender"});
+        REQUIRE(blockers[0].message == "The Blender " + pathToUtf8(*needs.blender) + " does not exist.");
+        REQUIRE(blockers[0].error == ErrorCode::BlenderNotFound);
+        needs.blender = *f.settings.blender;
+        REQUIRE(exportBlockers(f.project, f.settings, needs).empty());
+    }
+    SECTION("an option wins over the settings") {
+        MachineSettings settings = f.settings;
+        settings.blender = f.tmp.path() / "gone" / "blender.exe";
+        ExportNeeds needs;
+        needs.blender = *f.settings.blender;
+        REQUIRE(exportBlockers(f.project, settings, needs).empty());
+    }
+    SECTION("without an option the quick setup check's Blender item decides") {
+        plynth::test::ScopedEnv missing("PLYNTH_BLENDER", pathToUtf8(f.tmp.path() / "missing" / "blender.exe"));
+        const std::vector<ExportBlocker> blockers = exportBlockers(f.project, f.settings);
+        REQUIRE(codes(blockers) == std::vector<std::string>{"no_blender"});
+        const SetupItem* item = quickSetupCheck(f.settings, true).find(kCheckBlender);
+        REQUIRE(item != nullptr);
+        REQUIRE(blockers[0].message == item->detail + " " + item->action);
+        REQUIRE(blockers[0].error == ErrorCode::BlenderNotFound);
+    }
+}
+
+TEST_CASE("an export that makes the license report or the kit needs a library", "[core][exportready]")
+{
+    ReadyFixture f("ready-library");
+    writeAt(f.blendFile(), 0);
+    MachineSettings settings = f.settings;
+    settings.library.reset();
+    REQUIRE(exportBlockers(f.project, settings).empty());
+
+    ExportOptions options;
+    options.licenses.enabled = true;
+    std::ofstream(f.project / "export-options.json", std::ios::binary) << exportOptionsToJson(options).dump(2);
+
+    const std::vector<ExportBlocker> none = exportBlockers(f.project, settings);
+    REQUIRE(codes(none) == std::vector<std::string>{"no_library"});
+    REQUIRE(none[0].message == "The export makes the license report, which needs a library, and no library folder is chosen.");
+    REQUIRE(none[0].error == ErrorCode::NoLibrary);
+
+    settings.library = f.tmp.path() / "Projects";
+    const std::vector<ExportBlocker> wrong = exportBlockers(f.project, settings);
+    REQUIRE(codes(wrong) == std::vector<std::string>{"no_library"});
+    REQUIRE(wrong[0].message == "The export makes the license report, which needs a library, and " +
+                                    pathToUtf8(*settings.library) + " is not a Plynth library.");
+
+    REQUIRE(exportBlockers(f.project, f.settings).empty());
+    ExportNeeds needs;
+    needs.library = *f.settings.library;
+    REQUIRE(exportBlockers(f.project, settings, needs).empty());
+    needs.library = f.tmp.path() / "Projects";
+    REQUIRE(codes(exportBlockers(f.project, f.settings, needs)) == std::vector<std::string>{"no_library"});
+
+    SECTION("the kit asks for a library the same way") {
+        fs::remove(f.project / "export-options.json");
+        ExportNeeds kit;
+        kit.kit = true;
+        MachineSettings bare = f.settings;
+        bare.library.reset();
+        const std::vector<ExportBlocker> blockers = exportBlockers(f.project, bare, kit);
+        REQUIRE(codes(blockers) == std::vector<std::string>{"no_library"});
+        REQUIRE(blockers[0].message.rfind("The export makes the modular kit, which needs a library, ", 0) == 0);
+    }
+    SECTION("an export options file that cannot be read is left to the export") {
+        plynth::test::writeBytes(f.project / "export-options.json", "not json");
+        REQUIRE(exportBlockers(f.project, settings).empty());
+    }
+}
+
+TEST_CASE("the export blockers come in the order build, lock, Blender, library", "[core][exportready]")
 {
     ReadyFixture f("ready-order");
     f.takeLock();
     MachineSettings settings = f.settings;
     settings.library.reset();
-    REQUIRE(codes(exportBlockers(f.project, settings)) == std::vector<std::string>{"no_build", "setup", "in_use"});
+    ExportOptions options;
+    options.licenses.enabled = true;
+    std::ofstream(f.project / "export-options.json", std::ios::binary) << exportOptionsToJson(options).dump(2);
+    ExportNeeds needs;
+    needs.blender = f.tmp.path() / "none" / "blender.exe";
+    REQUIRE(codes(exportBlockers(f.project, settings, needs)) ==
+            std::vector<std::string>{"no_build", "in_use", "no_blender", "no_library"});
 }

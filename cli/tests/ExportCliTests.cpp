@@ -251,6 +251,33 @@ TEST_CASE("export without a usable Blender is blender_not_found", "[cli][export]
     CHECK(errorCode(outcome) == "blender_not_found");
 }
 
+TEST_CASE("export needs no library or projects folder unless it makes the license report", "[cli][export]") {
+    ExportSample flat("export-library");
+    const auto plain = flat.exportWith();
+    CHECK(plain.exitCode == kExitOk);
+
+    REQUIRE(flat.sample.run({"export", "licenses", "on"}).exitCode == kExitOk);
+    const auto refused = flat.exportWith();
+    CHECK(refused.exitCode == kExitFailed);
+    CHECK(errorCode(refused) == "no_library");
+    CHECK(refused.answer.at("error").at("message").get<std::string>() ==
+          "The export makes the license report, which needs a library, and no library folder is chosen.");
+
+    const auto wrong = flat.exportWith({"--library", utf8(flat.sample.temp.path() / "fb")});
+    CHECK(wrong.exitCode == kExitFailed);
+    CHECK(errorCode(wrong) == "no_library");
+}
+
+TEST_CASE("export refuses with the first blocker, a build before a missing Blender", "[cli][export]") {
+    SettingsReset reset;
+    const Sample sample("export-blocker-order");
+    sample.drawRoomSquare();
+    const auto outcome = sample.run({"export", "--blender", utf8(sample.temp.path() / "none" / "blender.exe")});
+    CHECK(outcome.exitCode == kExitFailed);
+    CHECK(errorCode(outcome) == "not_found");
+    CHECK(outcome.answer.at("error").at("message").get<std::string>() == "Build the project first.");
+}
+
 TEST_CASE("export answers blender_failed when the worker fails", "[cli][export]") {
     ExportSample flat("export-fail");
     flat.setMode("fail");
