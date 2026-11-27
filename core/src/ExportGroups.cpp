@@ -241,6 +241,10 @@ std::string exportMemberLabel(const Plan& plan, const ExportMember& member)
         const char* what = member.kind == kKindWalls ? "Walls" : (member.kind == kKindTrim ? "Trim" : "Thresholds");
         return std::string(what) + ", " + floor->name;
     }
+    if (member.kind == kKindRailing) {
+        const Floor* floor = findFloorContaining(plan, member.id);
+        if (floor && findRailing(*floor, member.id)) return "Railing " + member.id;
+    }
     if (member.kind == kKindRailing || member.kind == kKindGuard) {
         return std::string(member.kind == kKindRailing ? "Railing of stair " : "Guard of stair ") + member.id;
     }

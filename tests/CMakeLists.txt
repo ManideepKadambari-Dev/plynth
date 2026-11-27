@@ -78,6 +78,8 @@ add_executable(plynth_core_tests
     core/StairCommandTests.cpp
     core/DeckTests.cpp
     core/DeckCommandTests.cpp
+    core/RailingTests.cpp
+    core/RailingCommandTests.cpp
     core/OutsideStepsTests.cpp
     core/FloorCommandTests.cpp
     core/StoreysTests.cpp

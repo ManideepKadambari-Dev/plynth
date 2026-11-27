@@ -40,7 +40,7 @@ inline constexpr std::string_view kKindGenerator = "generator";   // id: an item
 inline constexpr std::string_view kKindLight = "light";           // id: the light
 inline constexpr std::string_view kKindKit = "kit";               // kit pieces (Kit.h); never in a group
 inline constexpr std::string_view kKindTrim = "trim";             // id: the floor (Trim.h)
-inline constexpr std::string_view kKindRailing = "railing";       // id: the stair
+inline constexpr std::string_view kKindRailing = "railing";       // id: the stair, or a drawn railing (Railings.h)
 inline constexpr std::string_view kKindGuard = "guard";           // id: the stair
 inline constexpr std::string_view kKindDressing = "dressing";     // id: the room (Dressing.h)
 

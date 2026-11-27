@@ -4,6 +4,7 @@
 #include "plynth/core/Geometry.h"
 #include "plynth/core/Generators.h"
 #include "plynth/core/Openings.h"
+#include "plynth/core/Railings.h"
 #include "plynth/core/Rooms.h"
 #include "plynth/core/WallGeometry.h"
 
@@ -255,6 +256,24 @@ SlabMaterials slabMaterials(const Project& project)
     return out;
 }
 
+namespace {
+
+// Says whether a drawn railing's style puts glass in it, so its glass material is used.
+bool railingHoldsGlass(const Railing& railing)
+{
+    const RailingStyle* style = findRailingStyle(railing.style);
+    if (!style) return false;
+    RailingRunInput probe;
+    probe.length = 1.0;
+    probe.height = railing.height;
+    for (const RailingPiece& piece : style->run(probe)) {
+        if (piece.role == RailingPiece::Role::Glass && !piece.prisms.empty()) return true;
+    }
+    return false;
+}
+
+}
+
 // Every material id the build of this project would use.
 std::vector<std::string> materialsUsed(const Project& project)
 {
@@ -311,6 +330,11 @@ std::vector<std::string> materialsUsed(const Project& project)
             add(roomCeilingMaterial(project, room));
         }
         for (const Stair& stair : floor.stairs) add(stairMaterial(project, stair));
+        for (const Railing& railing : floor.railings) {
+            if (railing.material) used.insert(*railing.material);
+            else add(surfaceDefaultMaterial(project, Surface::Railing));
+            if (railing.glassMaterial && railingHoldsGlass(railing)) used.insert(*railing.glassMaterial);
+        }
         for (const Opening& opening : floor.openings) {
             const OpeningMaterials m = openingMaterials(project, floor, opening);
             add(m.reveal);

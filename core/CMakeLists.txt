@@ -58,6 +58,8 @@ add_library(plynth_core STATIC
     src/BuildPreview.cpp
     src/parts/PartMakers.cpp
     src/parts/RoofCuts.cpp
+    src/railings/Railings.cpp
+    src/railings/RailingSupport.cpp
     src/Collision.cpp
     src/MaterialSlots.cpp
     src/Exporter.cpp
@@ -87,6 +89,7 @@ add_library(plynth_core STATIC
     src/commands/MaterialCommands.cpp
     src/commands/StairCommands.cpp
     src/commands/DeckCommands.cpp
+    src/commands/RailingCommands.cpp
     src/commands/RoofCommands.cpp
     src/commands/DetectionCommands.cpp
     src/detection/Detection.cpp
@@ -259,6 +262,16 @@ if(PLYNTH_PART_MAKER_SOURCES)
     target_compile_features(plynth_part_makers PUBLIC cxx_std_20)
     target_link_libraries(plynth_part_makers PRIVATE nlohmann_json::nlohmann_json Clipper2::Clipper2)
     target_sources(plynth_core INTERFACE $<TARGET_OBJECTS:plynth_part_makers>)
+endif()
+
+# Railing styles (Railings.h) register themselves the same way: one file each in src/railings/styles/.
+file(GLOB PLYNTH_RAILING_STYLE_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/railings/styles/*.cpp)
+if(PLYNTH_RAILING_STYLE_SOURCES)
+    add_library(plynth_railing_styles OBJECT ${PLYNTH_RAILING_STYLE_SOURCES})
+    target_include_directories(plynth_railing_styles PRIVATE include src)
+    target_compile_features(plynth_railing_styles PUBLIC cxx_std_20)
+    target_link_libraries(plynth_railing_styles PRIVATE nlohmann_json::nlohmann_json)
+    target_sources(plynth_core INTERFACE $<TARGET_OBJECTS:plynth_railing_styles>)
 endif()
 
 # Exporters register themselves the same way, so they are built as an object library too.
