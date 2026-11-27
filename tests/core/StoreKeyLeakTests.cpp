@@ -1,5 +1,6 @@
 #include "CatalogSupport.h"
 #include "FakeBlender.h"
+#include "FetchScratch.h"
 #include "MaterialCatalogSupport.h"
 
 #include <plynth/core/Blender.h>
@@ -119,6 +120,7 @@ ErrorCode expectedCode(const std::string& mode)
 
 TEST_CASE("a store fetch stores and returns none of what Blender prints", "[core][fetch][store_key]")
 {
+    const plynth::test::ScratchFetch fetchFolder("kf");
     for (const std::string& mode : kModes) {
         for (const bool timeout : {false, true}) {
             if (timeout && mode != "hang") continue;
@@ -135,8 +137,8 @@ TEST_CASE("a store fetch stores and returns none of what Blender prints", "[core
             FetchRun run;
             {
                 const std::jthread guard = stopSoon(stop, timeout ? "" : mode);
-                run = runImportFetch(fetch, leakyBlender(tmp.path() / "b", mode), base, tmp.path() / "w",
-                                     [&](const BlenderProgress& p) { heard.add(p); }, stop.get_token());
+                run = fetchFolder.run(fetch, leakyBlender(tmp.path() / "b", mode), base, tmp.path() / "w",
+                                      [&](const BlenderProgress& p) { heard.add(p); }, stop.get_token());
             }
             CHECK(run.status.code == (timeout ? ErrorCode::BlenderFailed : expectedCode(mode)));
             CHECK(leakingFiles(tmp.path() / "w") == std::vector<std::string>{});
@@ -154,6 +156,7 @@ TEST_CASE("a store fetch stores and returns none of what Blender prints", "[core
 
 TEST_CASE("an asset import from a store keeps and shows none of what the fetch prints", "[store_import][store_key]")
 {
+    const plynth::test::ScratchFetch fetchFolder("ka");
     for (const std::string& mode : kModes) {
         INFO(mode);
         plynth::test::IsolatedUser user("ka");
@@ -180,6 +183,7 @@ TEST_CASE("an asset import from a store keeps and shows none of what the fetch p
 
 TEST_CASE("a material import from a store keeps and shows none of what the fetch prints", "[store_import][store_key]")
 {
+    const plynth::test::ScratchFetch fetchFolder("km");
     for (const std::string& mode : kModes) {
         INFO(mode);
         plynth::test::IsolatedUser user("km");
@@ -206,14 +210,15 @@ TEST_CASE("a material import from a store keeps and shows none of what the fetch
 
 TEST_CASE("a forged progress line keeps only the sentence that belongs to its step", "[core][fetch][store_key]")
 {
+    const plynth::test::ScratchFetch fetchFolder("kp");
     plynth::test::IsolatedUser user("kp");
     plynth::test::TempDir tmp("kp");
     BlenderRunOptions base;
     base.scriptsFolder = plynth::test::makeFakeScripts(tmp.path() / "s");
     std::vector<BlenderProgress> lines;
-    const FetchRun run = runImportFetch(makeBlenderKitFetch(kItem, kFetchKindModel, BlenderKitOptions{}),
-                                        leakyBlender(tmp.path() / "b", "forged"), base, tmp.path() / "w",
-                                        [&](const BlenderProgress& p) { lines.push_back(p); });
+    const FetchRun run = fetchFolder.run(makeBlenderKitFetch(kItem, kFetchKindModel, BlenderKitOptions{}),
+                                         leakyBlender(tmp.path() / "b", "forged"), base, tmp.path() / "w",
+                                         [&](const BlenderProgress& p) { lines.push_back(p); });
     plynth::test::requireOk(run.status);
     REQUIRE_FALSE(lines.empty());
     for (const BlenderProgress& line : lines) {

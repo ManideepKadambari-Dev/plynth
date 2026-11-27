@@ -1,4 +1,5 @@
 #include "FakeBlender.h"
+#include "FetchScratch.h"
 #include "SchemaSupport.h"
 
 #include <plynth/core/catalog/BlenderKit.h>
@@ -12,6 +13,7 @@ using namespace plynth;
 
 TEST_CASE("a store fetch never lets a downloaded file run scripts", "[core][fetch][safety]")
 {
+    const plynth::test::ScratchFetch fetchFolder("fs");
     plynth::test::IsolatedUser user("fs");
     plynth::test::TempDir tmp("fs");
     BlenderRunOptions base;
@@ -22,7 +24,7 @@ TEST_CASE("a store fetch never lets a downloaded file run scripts", "[core][fetc
         // A fetch runs the fake at low integrity, so its records go to a folder labelled for it.
         const plynth::test::FakeRecords records(tmp.path() / ("r-" + std::string(kind)));
         plynth::test::requireOk(
-            runImportFetch(makeBlenderKitFetch("0c1d4a2e-1111-2222-3333-444455556666", kind, BlenderKitOptions{}), blender, base, work).status);
+            fetchFolder.run(makeBlenderKitFetch("0c1d4a2e-1111-2222-3333-444455556666", kind, BlenderKitOptions{}), blender, base, work).status);
         const std::string args = plynth::test::readTextFile(records.folder / "fake_args.txt");
         INFO(args);
         CHECK(args.find("--background") != std::string::npos);

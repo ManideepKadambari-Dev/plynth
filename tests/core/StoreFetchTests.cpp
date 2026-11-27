@@ -1,4 +1,5 @@
 #include "FakeBlender.h"
+#include "FetchScratch.h"
 #include "SchemaSupport.h"
 #include "TestSupport.h"
 
@@ -25,8 +26,9 @@ struct KitMode {
     ~KitMode() { _putenv_s("FAKE_BLENDERKIT", ""); }
 };
 
-// A fake Blender, its scripts folder and a work folder.
+// A short fetch folder of the test, a fake Blender, its scripts folder and a work folder.
 struct Setup {
+    plynth::test::ScratchFetch fetchFolder{"sf"};
     plynth::test::TempDir tmp{"store-fetch"};
     // A fetch runs the fake at low integrity, so its records go to a folder labelled for it.
     plynth::test::FakeRecords records{tmp.path() / "records"};
@@ -65,8 +67,8 @@ TEST_CASE("runImportFetch brings the file through the fake", "[core][fetch]") {
     KitMode mode("");
     Setup s;
     std::vector<std::string> steps;
-    const FetchRun run = runImportFetch(fetchOf(), s.blender, s.base, s.work,
-                                        [&](const BlenderProgress& p) { steps.push_back(p.step); });
+    const FetchRun run = s.fetchFolder.run(fetchOf(), s.blender, s.base, s.work,
+                                           [&](const BlenderProgress& p) { steps.push_back(p.step); });
     plynth::test::requireOk(run.status);
     REQUIRE(run.file == s.work / "fetched" / "fake_item.blend");
     REQUIRE(run.file.is_absolute());
@@ -89,7 +91,7 @@ TEST_CASE("runImportFetch brings the file through the fake", "[core][fetch]") {
 TEST_CASE("the fetch starts without factory startup and with --background", "[core][fetch]") {
     KitMode mode("");
     Setup s;
-    plynth::test::requireOk(runImportFetch(fetchOf(), s.blender, s.base, s.work).status);
+    plynth::test::requireOk(s.fetchFolder.run(fetchOf(), s.blender, s.base, s.work).status);
     const std::string args = plynth::test::readTextFile(s.records.folder / "fake_args.txt");
     REQUIRE(args.find("--factory-startup") == std::string::npos);
     REQUIRE(args.find("--background") != std::string::npos);
@@ -101,7 +103,7 @@ TEST_CASE("a failed fetch gives BlenderFailed with the worker's code", "[core][f
     for (const char* code : {"not_signed_in", "addon_missing", "download_failed", "download_timeout", "wrong_asset_kind"}) {
         const std::string name = std::string(code) == "download_timeout" ? "timeout" : std::string(code) == "wrong_asset_kind" ? "hdr" : code;
         KitMode mode(name.c_str());
-        const FetchRun run = runImportFetch(fetchOf(), s.blender, s.base, s.work / code);
+        const FetchRun run = s.fetchFolder.run(fetchOf(), s.blender, s.base, s.work / code);
         REQUIRE(run.status.code == ErrorCode::BlenderFailed);
         REQUIRE(run.errorCode == code);
         REQUIRE_FALSE(run.status.message.empty());
@@ -109,14 +111,14 @@ TEST_CASE("a failed fetch gives BlenderFailed with the worker's code", "[core][f
         REQUIRE(plynth::test::schemaProblem("blender-result.schema.json", written) == "");
     }
     KitMode mode("not_signed_in");
-    const FetchRun run = runImportFetch(fetchOf(), s.blender, s.base, s.work / "again");
+    const FetchRun run = s.fetchFolder.run(fetchOf(), s.blender, s.base, s.work / "again");
     REQUIRE(run.status.message.find("Sign in to BlenderKit inside Blender first") == 0);
 }
 
 TEST_CASE("a reported file that is missing is BlenderFailed", "[core][fetch]") {
     KitMode mode("missing_file");
     Setup s;
-    const FetchRun run = runImportFetch(fetchOf(), s.blender, s.base, s.work);
+    const FetchRun run = s.fetchFolder.run(fetchOf(), s.blender, s.base, s.work);
     REQUIRE(run.status.code == ErrorCode::BlenderFailed);
     REQUIRE(run.status.message.find("fake_item.blend") != std::string::npos);
 }
@@ -203,7 +205,7 @@ TEST_CASE("the fake material fetch fills a material plan", "[core][fetch]") {
     KitMode mode("material");
     Setup s;
     const ImportFetch fetch = fetchOf(kFetchKindMaterial);
-    const FetchRun run = runImportFetch(fetch, s.blender, s.base, s.work);
+    const FetchRun run = s.fetchFolder.run(fetch, s.blender, s.base, s.work);
     plynth::test::requireOk(run.status);
     MaterialImportPlan plan;
     plynth::test::requireOk(applyFetch(run, fetch, plan));
