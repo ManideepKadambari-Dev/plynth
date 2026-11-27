@@ -4,7 +4,7 @@ Plynth can be driven from a terminal, a script or another program. Every command
 
 This page covers every command: version and help; creating, reading, saving elsewhere and recovering a project; the scale, grid and default sizes; floors, stairs, roofs, points, walls (straight and curved), rounded corners, doors, windows and other openings, rooms and light markers; placing furniture with `place` and `item`; finding walls and openings in the plan image with `detect`; trim, set dressing and variations; building the project in Blender with `build`; saving pictures of the build with `render`; exporting with `export`, its groups, the modular kit and gameplay data; moving a project to another machine with `pack` and `unpack`; the edit session that keeps the app and the command line from overwriting each other; and the machine commands: `doctor`, `settings`, `library`, `assets`, `materials` and the integrations. The worked examples near the end show the right order for whole buildings.
 
-The plan file is now at format version 7 and the project file at version 6. Older projects open and upgrade by themselves. See "File format version 7" and the sections after it below.
+The plan file is now at format version 8 and the project file at version 7. Older projects open and upgrade by themselves. See "File format version 8" and the sections after it below.
 
 ## Running a command
 
@@ -108,6 +108,9 @@ The app itself, when you give it `--screenshot`, uses its own codes. 0 means the
 | `update_in_progress` | An update is being installed, so no command can run until it ends. |
 | `signature_invalid` | A downloaded installer or its signature did not verify. Nothing was started. |
 | `network_failed` | `update` could not reach GitHub, or the download failed. |
+| `engine_not_found` | No running game engine editor answered, or the one that answered is not the one asked for. |
+| `engine_failed` | The game engine editor ran the import and it failed. The message gives the editor's reason. |
+| `checksum_failed` | A download did not match its published checksum, so it was deleted and not used. |
 | `internal_error` | Something unexpected went wrong inside Plynth. Exit 1. The message says what. |
 
 `plynth help` lists the same codes under `error_codes`, each with `code`, `description` and `from` (`core` for codes the shared engine gives, `cli` for the three only the command line gives), and the exit codes under `exit_codes`. A script can read both lists instead of copying this table.
@@ -123,7 +126,7 @@ plynth version
 ```
 
 ```json
-{"ok":true,"command":"version","result":{"version":"0.1.0","plan_format":7,"project_format":6}}
+{"ok":true,"command":"version","result":{"version":"0.1.0","plan_format":8,"project_format":7}}
 ```
 
 `plan_format` and `project_format` are the versions this program writes. It reads these and older ones.
@@ -728,7 +731,7 @@ Adds a stair to a floor. It climbs to the next floor up in the plan, and its ste
 | `--x <metres>`, `--y <metres>` | Required. The middle of the front edge of the bottom step. |
 | `--rot <degrees>` | The direction of the climb, clockwise from down the plan. 0 climbs toward the bottom of the plan, 90 toward the left. Any number is accepted and turned into 0 up to 360. Default 0. |
 | `--type <id>` | `straight`, `l_shape`, `u_shape` or `spiral`. See `stair types`. Default `straight`. |
-| `--width <metres>` | From 0.6 to 3. Default 1. |
+| `--width <metres>` | From 0.6 to 6. Default 1. |
 | `--turn left\|right` | Which way an L, U or spiral stair turns, as you climb. Default `right`. Types without a turn ignore it. |
 | `--material <id>` | The material of the steps. Default: none, so the project default for stairs applies. |
 
@@ -751,7 +754,7 @@ plynth stair add --floor f1 --x 1 --y 1
 | `arrival` | Where the stair reaches the upper floor. |
 | `problems` | What the build would report for this stair. Each has `code`, `severity` and `message`. See below. |
 
-A stair that has a problem with severity `warning` is still added. Refusals, with nothing changed: `invalid_value` for a stair on the top floor ("Add a floor above before placing a stair."), for a width outside 0.6 to 3 and for an unknown type (the message lists the known ones). A rotation outside 0 to 360 is not refused. It is turned into that range, so `--rot 450` is stored as 90. `not_found` is returned for an unknown floor or an unknown material, and `bad_arguments` for a missing `--x` or `--y`.
+A stair that has a problem with severity `warning` is still added. Refusals, with nothing changed: `invalid_value` for a stair on the top floor ("Add a floor above before placing a stair."), for a width outside 0.6 to 6 and for an unknown type (the message lists the known ones). A rotation outside 0 to 360 is not refused. It is turned into that range, so `--rot 450` is stored as 90. `not_found` is returned for an unknown floor or an unknown material, and `bad_arguments` for a missing `--x` or `--y`.
 
 **Stair problem codes.** They appear in `problems` and in the build report.
 
@@ -1681,7 +1684,7 @@ The first argument is the **target**:
 | `r1.ceiling` | The ceiling of room `r1`. |
 | `s2` | The material of the steps of stair `s2`. |
 | `rf1` | The covering material of roof entry `rf1`. |
-| `default.<surface>` | A project default. The surfaces are `wall_inside`, `wall_outside`, `wall_top`, `floor`, `ceiling`, `door`, `frame`, `glass`, `handle`, `roof` (pitched roofs), `flat_roof`, `stair`, `trim` (skirting boards, cornices, casings and sills) and `railing` (stair railings and guards). |
+| `default.<surface>` | A project default. The surfaces are `wall_inside`, `wall_outside`, `wall_top`, `floor`, `ceiling`, `door`, `frame`, `glass`, `handle`, `roof` (pitched roofs), `flat_roof`, `stair`, `trim` (skirting boards, cornices, casings and sills), `railing` (stair railings and guards), `deck`, `foundation`, `ground`, `paving`, `fence` and `boundary_wall`. The last six are kept in the project for building parts the build does not make yet, so they are not in `used`. |
 
 For a room, the part before the dot may also be a room type when exactly one room has it, such as `hall.floor`. With two halls the command is refused and names both ids.
 
@@ -1718,7 +1721,7 @@ plynth material list
 {"ok":true,"command":"material list","result":{"defaults":{"wall_inside":"white_paint","wall_outside":"red_brick","wall_top":"white_paint","floor":"oak_planks","ceiling":null,"door":"painted_wood","frame":"white_paint","glass":"clear_glass","handle":"brushed_steel"},"walls":[{"id":"w3","floor":"f1","inside":[{"material":"grey_tile","origin":"room","from":"r2","room":"r2"}],"outside":{"material":"red_brick","origin":"default","from":null}}],"rooms":[{"id":"r2","floor":"f1","type":"bathroom","materials":{"floor":{"material":"grey_tile","origin":"room","from":"r2"},"wall":{"material":"grey_tile","origin":"room","from":"r2"},"ceiling":{"material":null,"origin":"none","from":null}}}],"used":["brushed_steel","clear_glass","grey_tile","oak_planks","painted_wood","red_brick","white_paint"],"missing":[],"library":"D:/Demo/Library"}}
 ```
 
-The lists are shortened. `walls` has one entry per wall with an `inside` entry for each room the wall belongs to, and `rooms` one entry per room. `stairs` has one entry per stair, `{"id", "floor", "material"}`, and `roofs` one per roof section, `{"floor", "index", "section", "material"}`, each material resolved as `{material, origin, from}`. `defaults` also has `roof`, `flat_roof`, `stair`, `trim` and `railing`. `used` is sorted and has no repeats. `missing` lists the used ids the library does not have. With no library, `library` is `null` and `missing` is empty. Both commands take `--project` and `--library`.
+The lists are shortened. `walls` has one entry per wall with an `inside` entry for each room the wall belongs to, and `rooms` one entry per room. `stairs` has one entry per stair, `{"id", "floor", "material"}`, and `roofs` one per roof section, `{"floor", "index", "section", "material"}`, each material resolved as `{material, origin, from}`. `defaults` also has `roof`, `flat_roof`, `stair`, `trim`, `railing`, `deck`, `foundation`, `ground`, `paving`, `fence` and `boundary_wall`, 20 surfaces in all. `used` is sorted and has no repeats. `missing` lists the used ids the library does not have. With no library, `library` is `null` and `missing` is empty. Both commands take `--project` and `--library`.
 
 ### Trim
 
@@ -3523,9 +3526,24 @@ For a script on a new machine:
 5. `plynth assets search <words>` to find the ids you need.
 6. `plynth materials import samples\materials\*` to add the nine sample materials, which new projects use by default. Add `--skip-existing` to run it again safely. Then `plynth materials search <words>` finds material ids.
 
+## File format version 8
+
+`plan.json` is now at format version 8 and `project.json` at version 7. The new fields hold building parts that later commands fill in. What changed:
+
+- Every wall has `cladding`, a list of cladding zones. Every opening has `fill`, the kind of fill Plynth builds when no catalog door or window is fitted, `null` for the type's own fill. Every item has `on`, the item it stands on, `null` when it stands on the floor or hangs on its wall.
+- Every stair has `rise`, `cheeks` and `railing`. `rise` `null` climbs to the next floor as before; a number makes outside steps that climb that many metres. `cheeks` adds solid side walls and `railing` builds the railings. A stair may now be up to 6 m wide.
+- The roof settings, of the default roof and of every roof section, have `second_pitch`, `break_ratio`, `ridge_offset` and `rise`.
+- Every floor has `decks`, `railings`, `canopies`, `dormers` and `light_strips`, each a list.
+- The plan has `ground_floor`, the floor at ground level (`null` for the lowest floor), `site` and `foundation`.
+- The `materials` defaults of `project.json` also have `deck`, `foundation`, `ground`, `paving`, `fence` and `boundary_wall`.
+
+**Older files upgrade by themselves.** A version 7 plan gets empty lists, `fill`, `on`, `rise` and `ground_floor` as `null`, `cheeks` false, `railing` true, `second_pitch` 15, `break_ratio` 0.5, `ridge_offset` 0 and `rise` 1 in its roof settings, and a site and a foundation that are both off. A version 6 project gets `oak_planks`, `concrete`, `grass`, `concrete`, `painted_wood` and `red_brick` as the six new defaults. Nothing is written when you only read. The next command that edits and saves writes the new versions, as the app does.
+
+**Older programs refuse the new files** with `unsupported_version`, and this one refuses a plan newer than 8 or a project newer than 7 the same way. The shapes are in `schema/plan.schema.json` and `schema/project.schema.json`, and `schema/plan.v7.schema.json` and `schema/project.v6.schema.json` keep the old ones.
+
 ## File format version 7
 
-`plan.json` is now at format version 7 and `project.json` at version 6. What changed:
+`plan.json` was at format version 7 and `project.json` at version 6 before the building parts. What changed:
 
 - Every floor has `lights`, a list of light markers `{"id", "kind", "room", "x", "y", "z"}` (see "Light markers").
 - Every room has `dressing`, true when the build may add props to it.
@@ -3534,7 +3552,7 @@ For a script on a new machine:
 
 **Older files upgrade by themselves.** A version 6 plan gets no lights, `dressing` true on every room and `auto_frame` true on every opening. A version 5 project gets the default trim and seed 0. Nothing is written when you only read. The next command that edits and saves writes the new versions, as the app does.
 
-**Older programs refuse the new files** with `unsupported_version`, and this one refuses a plan newer than 7 or a project newer than 6 the same way. The shapes are in `schema/plan.schema.json` and `schema/project.schema.json`, and `schema/plan.v6.schema.json` and `schema/project.v5.schema.json` keep the old ones.
+**Older programs refuse the new files** with `unsupported_version`. `schema/plan.v7.schema.json` and `schema/project.v6.schema.json` keep the shapes of this version, and `schema/plan.v6.schema.json` and `schema/project.v5.schema.json` the ones before it.
 
 ## File format version 6
 
