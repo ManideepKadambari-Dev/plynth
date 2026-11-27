@@ -214,7 +214,9 @@ struct BuildSettings {
 // follows the plan's default),
 // preview_failed (warning: a preview part could not be written; the 3D view then loads building.fbx).
 // Build parts (BuildParts.h): found by core part_invalid (error, see makeBuildPlan); found by the worker
-// part_failed (error: the part's mesh could not be made and is left out; object the part's plynth_id).
+// part_failed (error: the part's mesh could not be made and is left out; object the part's plynth_id). The
+// makers' own codes are in their headers, for example canopy_outline_invalid, canopy_type_fallback,
+// canopy_unsupported and floor_overhang (Canopies.h).
 // Generator items (GeneratorBuild.h): found by core missing_generator, generator_broken (errors),
 // generator_unavailable, generator_changed (warnings); found by the worker generator_failed (error),
 // generator_unavailable, generator_size (warnings). object is the item. generator_unavailable from runBuild,

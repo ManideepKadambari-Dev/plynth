@@ -54,6 +54,7 @@ add_library(plynth_core STATIC
     src/Stairs.cpp
     src/Storeys.cpp
     src/Roofs.cpp
+    src/Canopies.cpp
     src/BuildPreview.cpp
     src/parts/PartMakers.cpp
     src/parts/RoofCuts.cpp
@@ -109,6 +110,7 @@ add_library(plynth_core STATIC
     src/Variation.cpp
     src/BuildFinish.cpp
     src/commands/LightCommands.cpp
+    src/commands/CanopyCommands.cpp
     src/commands/FinishCommands.cpp
     src/trim/StairRailings.cpp
     src/BuildResolve.cpp

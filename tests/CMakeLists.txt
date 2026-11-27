@@ -124,6 +124,8 @@ add_executable(plynth_core_tests
     core/FormatFixtureTests.cpp
     core/BuildFinishTests.cpp
     core/LightCommandTests.cpp
+    core/CanopyTests.cpp
+    core/CanopyCommandTests.cpp
     core/GameplayExportTests.cpp
     core/LicenseExportTests.cpp
     core/SampleItemsTests.cpp

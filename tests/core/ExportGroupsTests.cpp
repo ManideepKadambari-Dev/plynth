@@ -156,7 +156,7 @@ TEST_CASE("the automatic groups of a project", "[core][exportgroups]") {
     CHECK(surfaces.name == "Floors");
     CHECK(surfaces.members == std::vector<ExportMember>{{"floor", "r1"}, {"ceiling", "r1"}, {"floor", "r2"}, {"ceiling", "r2"},
                                                         {"thresholds", "f1"}, {"slab", ""}, {"stair", ""}, {"roof", ""}, {"light", ""},
-                                                        {"railing", ""}, {"guard", ""}});
+                                                        {"railing", ""}, {"guard", ""}, {"canopy", ""}, {"overhang", ""}});
 
     CHECK(groups[2].name == "Furniture Living");
     CHECK(groups[2].members == std::vector<ExportMember>{{"item", "i1"}, {"dressing", "r1"}});
