@@ -67,7 +67,7 @@ You are working on a Plynth project. Plynth is driven only through the plynth co
 A plan is built in this order, because each step needs the one before it. The command line guide explains each step under "The script order".
 
 1. `plynth session begin --tool assistant`
-2. The project and the scale: `plynth project new --image plan.png`, then `plynth scale set` or `plynth scale from-points`.
+2. The project and the scale: `plynth project new --project <new or empty folder> --image <path to plan.png>`, then `plynth scale set` or `plynth scale from-points`.
 3. Walls: `plynth detect --apply` to find them in the plan image, then `plynth wall list` and the `wall`, `point` and `opening` commands to fix what detection missed.
    After detect, compare `plynth render --plan` with the plan image (see below), and do so again after each round of fixes.
 4. Rooms and their types: `plynth room find`, `plynth room add`, `plynth room set r3 --type bedroom`.

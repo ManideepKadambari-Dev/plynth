@@ -9,11 +9,11 @@ Plynth turns a floor plan image into a 3D house. You drive it only through the `
 
 ## Start a new project from a plan image
 
-Use this when the folder has no `project.json`.
+Use this when there is no Plynth project yet. Plynth makes a project only in a new or empty folder.
 
 1. Run `plynth version`. The answer must start with `{"ok":true`. If the command is not found, tell the user to install Plynth and stop.
 2. Run `plynth doctor`. If Blender or the library is not ready, tell the user what it says and stop.
-3. Make the project in the empty folder: `plynth project new --image plan.png`, with `--project <folder>` when you are not working inside it. This copies the image into `plans/` and writes `AGENTS.md`.
+3. Make the project in a new folder, with the plan image given by its path: `plynth project new --project <new folder> --image <path to the plan image>`. The folder must not exist yet or must be empty, so keep the plan image outside it. This copies the image into `plans/` and writes `AGENTS.md`.
 4. Set the scale. Ask the user for one real length on the drawing, such as a wall in metres, then run `plynth scale from-points --x1 .. --y1 .. --x2 .. --y2 .. --distance <metres>`. If the user gives pixels per metre, run `plynth scale set --pixels-per-metre <n>`.
 5. Read `AGENTS.md` in the project folder. From here it takes over: follow it for the rest of the work.
 
