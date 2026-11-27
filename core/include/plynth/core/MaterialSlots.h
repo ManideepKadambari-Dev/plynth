@@ -32,6 +32,11 @@ namespace plynth {
 //   sawtooth glazing                                                   Glass
 //   a generator's material parameter                                   <Generator>_<Param> (look Generated)
 //   a generator without a material parameter                           Generated
+//   build parts (BuildParts.h, partSlot)    the plain name of the surface they show: Room_Wall, Exterior_Wall,
+//                              Wall_Top, Room_Floor, Room_Ceiling, Door, Frame, Glass, Handle, Roof, Flat_Roof,
+//                              Stair, Trim, Railing, Deck, Foundation, Ground, Paving, Fence, Boundary_Wall,
+//                              or a plain name the maker gives (Soffit, Fascia, Light_Strip); shared with every
+//                              other surface of that name
 // <Generator> and <Param> are the ids in PascalCase, each then cut to 24 characters: Column_Material. Items of
 // one generator share their slots across the whole building. When <Generator> is Door, Frame, Glass, Handle,
 // Threshold, Stair, Roof, Soffit, Fascia, Wall, Exterior, Flat or Generated, or <Param> is Wall, Floor or

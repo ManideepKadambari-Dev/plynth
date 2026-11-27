@@ -1,0 +1,101 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:plynth:schema:blender-job-parts:1",
+  "title": "Plynth build job parts",
+  "description": "The generic parts of a build job (core/include/plynth/core/BuildParts.h): each floor's parts and strip_lights, and the job's site_parts. The worker's parts step makes one object per part from its prisms, faces and sweeps, gives every face the material of its slot, and makes its collision as convex meshes named <object>_Collision_<NN>. World coordinates in metres, Z up from the ground floor's level.",
+  "type": "object",
+  "properties": {
+    "parts": { "type": "array", "items": { "$ref": "#/definitions/part" } },
+    "strip_lights": { "type": "array", "items": { "$ref": "#/definitions/stripLight" } },
+    "site_parts": { "type": "array", "items": { "$ref": "#/definitions/part" } }
+  },
+  "definitions": {
+    "xy": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
+    "xyz": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
+    "ring2": { "type": "array", "minItems": 3, "items": { "$ref": "#/definitions/xy" } },
+    "ring3": { "type": "array", "minItems": 3, "items": { "$ref": "#/definitions/xyz" } },
+    "slot": { "type": "string", "minLength": 1 },
+    "part": {
+      "type": "object",
+      "required": ["object", "plynth_kind", "plynth_id", "bevel", "uv", "prisms", "faces", "sweeps", "collision", "hulls"],
+      "additionalProperties": false,
+      "properties": {
+        "object": { "type": "string", "pattern": "^[A-Za-z0-9_]+$", "maxLength": 128 },
+        "plynth_kind": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "plynth_id": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]*$" },
+        "bevel": { "type": "boolean" },
+        "uv": { "enum": ["world", "along"] },
+        "prisms": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["outline", "holes", "bottom", "top", "slot", "side_slot"],
+            "additionalProperties": false,
+            "properties": {
+              "outline": { "$ref": "#/definitions/ring2" },
+              "holes": { "type": "array", "items": { "$ref": "#/definitions/ring2" } },
+              "bottom": { "type": "number" },
+              "top": { "type": "number" },
+              "slot": { "$ref": "#/definitions/slot" },
+              "side_slot": { "oneOf": [ { "$ref": "#/definitions/slot" }, { "type": "null" } ] }
+            }
+          }
+        },
+        "faces": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["outline", "holes", "slot"],
+            "additionalProperties": false,
+            "properties": {
+              "outline": { "$ref": "#/definitions/ring3" },
+              "holes": { "type": "array", "items": { "$ref": "#/definitions/ring3" } },
+              "slot": { "$ref": "#/definitions/slot" }
+            }
+          }
+        },
+        "sweeps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["closed", "sections", "slot"],
+            "additionalProperties": false,
+            "properties": {
+              "closed": { "type": "boolean" },
+              "sections": { "type": "array", "minItems": 2, "items": { "$ref": "#/definitions/ring3" } },
+              "slot": { "$ref": "#/definitions/slot" }
+            }
+          }
+        },
+        "collision": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["outline", "bottom", "top"],
+            "additionalProperties": false,
+            "properties": {
+              "outline": { "$ref": "#/definitions/ring2" },
+              "bottom": { "type": "number" },
+              "top": { "type": "number" }
+            }
+          }
+        },
+        "hulls": { "type": "array", "items": { "type": "array", "minItems": 4, "items": { "$ref": "#/definitions/xyz" } } }
+      }
+    },
+    "stripLight": {
+      "type": "object",
+      "required": ["id", "start", "end", "facing", "width", "power", "colour"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]*$" },
+        "start": { "$ref": "#/definitions/xyz" },
+        "end": { "$ref": "#/definitions/xyz" },
+        "facing": { "$ref": "#/definitions/xyz" },
+        "width": { "type": "number", "exclusiveMinimum": 0 },
+        "power": { "type": "number", "minimum": 0 },
+        "colour": { "$ref": "#/definitions/xyz" }
+      }
+    }
+  }
+}

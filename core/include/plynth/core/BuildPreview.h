@@ -10,7 +10,8 @@
 
 namespace plynth {
 
-// The preview parts of a build: one FBX per floor, one for the slab above it and one for its roofs, written by
+// The preview parts of a build: one FBX per floor, one for the slab above it and one for its roofs, and one for
+// the site when the build has site parts (BuildParts.h), written by
 // the build step preview_parts into build/preview/ beside building.fbx, with the same materials and images (so
 // build/materials.json applies to them too). The app's 3D view loads them to hide roofs, or to cut the building
 // at the shown floor, and the plan overlay loads only the shown floor's storey part. Without parts.json (an
@@ -19,8 +20,10 @@ namespace plynth {
 // build/preview/parts.json, schema/build-preview.schema.json:
 //   {"format": "plynth-build-preview", "version": 1,
 //    "parts": [{"floor": "f1", "kind": "storey", "file": "f1.fbx"}, {"floor": "f1", "kind": "slab",
-//               "file": "f1_slab.fbx"}, {"floor": "f1", "kind": "roof", "file": "f1_roof.fbx"}, ...]}
-// Parts are in floor order, then storey, slab, roof. A floor without roof sections has no roof part and one
+//               "file": "f1_slab.fbx"}, {"floor": "f1", "kind": "roof", "file": "f1_roof.fbx"}, ...,
+//              {"floor": "f1", "kind": "site", "file": "site.fbx"}]}
+// Parts are in floor order, then storey, slab, roof; the site part comes last, listed under the first floor. It
+// holds the Site collection, and every cut and roof hiding keeps it shown. A floor without roof sections has no roof part and one
 // without a slab no slab part. File names are inside build/preview/. The slab part is the floor's slab object:
 // its side faces, undersides and ledge tops. The roof part is its roofs. Collision is in no part. Everything
 // else of the floor's collection goes into its storey part: walls, thresholds, fills, floors, ceilings, items
@@ -32,11 +35,13 @@ inline constexpr std::string_view kBuildPreviewFolder = "preview";
 inline constexpr std::string_view kPreviewPartsFileName = "parts.json";
 inline constexpr std::string_view kPreviewPartsFormat = "plynth-build-preview";
 inline constexpr int kPreviewPartsVersion = 1;
+inline constexpr std::string_view kPreviewSiteFileName = "site.fbx";
 
 enum class PreviewPartKind {
     Storey, // "storey"
     Roof,   // "roof"
     Slab,   // "slab": the slab above the floor
+    Site,   // "site": the site parts, listed under the first floor
 };
 
 std::string_view previewPartKindName(PreviewPartKind kind);

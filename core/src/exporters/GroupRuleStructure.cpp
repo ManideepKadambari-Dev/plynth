@@ -1,16 +1,20 @@
+#include "plynth/core/BuildParts.h"
 #include "plynth/core/ExportGroups.h"
+
+#include <algorithm>
 
 namespace plynth {
 
 namespace {
 
-// The walls of every floor and every door and window fill, in one group that also takes anything left over.
+// The walls of every floor, every door and window fill and every build part whose maker names this group, in one
+// group that also takes anything left over.
 class StructureRule final : public ExportGroupRule {
 public:
     std::string_view id() const override { return "structure"; }
     int order() const override { return 10; }
 
-    // Walls per floor with walls, then doors and windows in plan order.
+    // Walls per floor with walls, then doors and windows in plan order, then the kinds of the part makers.
     void addGroups(const Project& project, std::vector<ExportGroup>& out) const override
     {
         ExportGroup group;
@@ -29,6 +33,15 @@ public:
             for (const Opening& opening : floor.openings) {
                 if (opening.type == OpeningType::Door) group.members.push_back({std::string(kKindDoor), opening.id});
                 if (opening.type == OpeningType::Window) group.members.push_back({std::string(kKindWindow), opening.id});
+            }
+        }
+        for (const PartMaker* maker : allPartMakers()) {
+            if (maker->exportGroup() != "structure") continue;
+            for (const std::string& kind : maker->kinds()) {
+                const ExportMember member{kind, Id()};
+                if (std::find(group.members.begin(), group.members.end(), member) == group.members.end()) {
+                    group.members.push_back(member);
+                }
             }
         }
         out.push_back(std::move(group));

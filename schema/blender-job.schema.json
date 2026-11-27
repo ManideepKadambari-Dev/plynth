@@ -219,6 +219,7 @@
                 }
               },
               "floors": { "type": "array", "items": { "$ref": "#/definitions/buildFloor" } },
+              "site_parts": { "description": "The build parts of the site, in a collection named Site. Missing when there is none.", "type": "array", "items": { "$ref": "#/definitions/buildPart" } },
               "generators": {
                 "description": "Each generator file a built generator item uses, once, sorted by id (core/include/plynth/core/GeneratorBuild.h). Empty when there are none.",
                 "type": "array",
@@ -690,7 +691,7 @@
     },
     "surfaceName": {
       "description": "The neutral surface whose look a slot gets when it has no material.",
-      "enum": ["Wall_Inside", "Wall_Outside", "Wall_Top", "Reveal", "Threshold", "Floor", "Ceiling", "Door", "Frame", "Glass", "Handle", "Stair", "Roof", "Flat_Roof", "Soffit", "Fascia", "Generated", "Trim", "Railing"]
+      "enum": ["Wall_Inside", "Wall_Outside", "Wall_Top", "Reveal", "Threshold", "Floor", "Ceiling", "Door", "Frame", "Glass", "Handle", "Stair", "Roof", "Flat_Roof", "Soffit", "Fascia", "Generated", "Trim", "Railing", "Deck", "Foundation", "Ground", "Paving", "Fence", "Boundary_Wall", "Light_Strip"]
     },
     "collisionShape": {
       "description": "Convex pieces and hulls for one built object (core/include/plynth/core/Collision.h). Each becomes a closed convex mesh UCX_<object name>_<NN>, numbered from 00 over the pieces and then the hulls.",
@@ -837,6 +838,219 @@
           }
         }
       }
+    },
+    "partRing3": {"type": "array", "minItems": 3, "items": {"$ref": "#/definitions/xyz"}},
+    "buildPart": {
+      "type": "object",
+      "required": [
+        "object",
+        "plynth_kind",
+        "plynth_id",
+        "bevel",
+        "uv",
+        "prisms",
+        "faces",
+        "sweeps",
+        "collision",
+        "hulls"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "object": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_]+$",
+          "maxLength": 128
+        },
+        "plynth_kind": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "plynth_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+        },
+        "bevel": {
+          "type": "boolean"
+        },
+        "uv": {
+          "enum": [
+            "world",
+            "along"
+          ]
+        },
+        "prisms": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "outline",
+              "holes",
+              "bottom",
+              "top",
+              "slot",
+              "side_slot"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "outline": {
+                "$ref": "#/definitions/points"
+              },
+              "holes": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/points"
+                }
+              },
+              "bottom": {
+                "type": "number"
+              },
+              "top": {
+                "type": "number"
+              },
+              "slot": {
+                "$ref": "#/definitions/slotRef"
+              },
+              "side_slot": {
+                "oneOf": [
+                  {
+                    "$ref": "#/definitions/slotRef"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "faces": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "outline",
+              "holes",
+              "slot"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "outline": {
+                "$ref": "#/definitions/partRing3"
+              },
+              "holes": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/partRing3"
+                }
+              },
+              "slot": {
+                "$ref": "#/definitions/slotRef"
+              }
+            }
+          }
+        },
+        "sweeps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "closed",
+              "sections",
+              "slot"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "closed": {
+                "type": "boolean"
+              },
+              "sections": {
+                "type": "array",
+                "minItems": 2,
+                "items": {
+                  "$ref": "#/definitions/partRing3"
+                }
+              },
+              "slot": {
+                "$ref": "#/definitions/slotRef"
+              }
+            }
+          }
+        },
+        "collision": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "outline",
+              "bottom",
+              "top"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "outline": {
+                "$ref": "#/definitions/points"
+              },
+              "bottom": {
+                "type": "number"
+              },
+              "top": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        "hulls": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "minItems": 4,
+            "items": {
+              "$ref": "#/definitions/xyz"
+            }
+          }
+        }
+      },
+      "description": "A build part (core/include/plynth/core/BuildParts.h, schema/blender-job-parts.schema.json): one object made from its prisms, faces and sweeps, each face in the material of its slot, with collision meshes <object>_Collision_<NN> from its pieces and hulls."
+    },
+    "stripLight": {
+      "type": "object",
+      "required": [
+        "id",
+        "start",
+        "end",
+        "facing",
+        "width",
+        "power",
+        "colour"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"
+        },
+        "start": {
+          "$ref": "#/definitions/xyz"
+        },
+        "end": {
+          "$ref": "#/definitions/xyz"
+        },
+        "facing": {
+          "$ref": "#/definitions/xyz"
+        },
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "power": {
+          "type": "number",
+          "minimum": 0
+        },
+        "colour": {
+          "$ref": "#/definitions/xyz"
+        }
+      },
+      "description": "A strip of light (core/include/plynth/core/LightStrips.h): an area light Light_<id>_<NN> along start to end, facing one way, plynth_kind light."
     },
     "buildFloor": {
       "type": "object",
@@ -1043,6 +1257,8 @@
         "trim": { "description": "Skirting boards, cornices, casings, sills, railings and guards, as sweeps. Missing when there is none.", "type": "array", "items": { "$ref": "#/definitions/finishTrim" } },
         "dressing": { "description": "Set dressing props, instances of assets of the assets list. Missing when there is none.", "type": "array", "items": { "$ref": "#/definitions/finishDressing" } },
         "lights": { "description": "Point lights at the light markers. Missing when there is none.", "type": "array", "items": { "$ref": "#/definitions/finishLight" } },
+        "parts": { "description": "The floor's build parts. Missing when there is none.", "type": "array", "items": { "$ref": "#/definitions/buildPart" } },
+        "strip_lights": { "description": "The floor's strip lights. Missing when there is none.", "type": "array", "items": { "$ref": "#/definitions/stripLight" } },
         "generator_items": {
           "description": "Items that run a generator of the job's generators list, in the floor's item order. Empty when there are none.",
           "type": "array",

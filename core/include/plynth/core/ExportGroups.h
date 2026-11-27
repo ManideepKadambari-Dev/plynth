@@ -48,10 +48,11 @@ inline constexpr std::string_view kKindDressing = "dressing";     // id: the roo
 // GroupRule<Name>.cpp, so the existing exporters glob picks them up):
 //   structure  order 10  group "structure", name "Walls", rest set: walls of every floor, every door and
 //                        window fill (DESIGN.md: "walls, windows and doors"), and the trim of every floor with
-//                        walls and rooms while a trim kind is on
+//                        walls and rooms while a trim kind is on, then every kind of the part makers whose
+//                        exportGroup is "structure" (BuildParts.h, members with an empty id)
 //   surfaces   order 20  group "surfaces", name "Floors": every room's floor and ceiling, the thresholds of
 //                        every floor, and every slab, stair, roof, light, railing and guard (members with an
-//                        empty id)
+//                        empty id), then every kind of the part makers whose exportGroup is "surfaces"
 //                        (DESIGN.md: "floors, roof and lights")
 //   furniture  order 30  per room that holds items, in plan order: group "furniture_<room id>" (lower case,
 //                        characters other than a to z, 0 to 9 and "_" as "_"), name "Furniture <Label>" where

@@ -11,8 +11,10 @@
 #include "plynth/core/catalog/AssetInfo.h"
 
 #include "PlanRingClean.h"
+#include "parts/RoofCuts.h"
 
 #include <algorithm>
+#include <cmath>
 #include <map>
 #include <set>
 #include <variant>
@@ -488,7 +490,8 @@ Json finishLightsJson(const FloorFinish& finish)
 
 // One floor as the worker reads it.
 Json floorJson(const FloorBuild& f, const FloorMaterials* materials, const std::vector<CollisionShape>* collision,
-               const GeneratorFloorBuild* generators, const MaterialUsable& usable, const FloorFinish* finish)
+               const GeneratorFloorBuild* generators, const MaterialUsable& usable, const FloorFinish* finish,
+               const std::vector<BuildPart>* parts, const std::vector<StripLight>* lights)
 {
     Json solids = Json::array();
     for (const WallSolid& s : f.wallSolids) {
@@ -551,6 +554,16 @@ Json floorJson(const FloorBuild& f, const FloorMaterials* materials, const std::
     if (finish && (!finish->trim.empty() || !finish->railings.empty())) json["trim"] = finishTrimJson(*finish);
     if (finish && !finish->dressing.empty()) json["dressing"] = finishDressingJson(*finish, f.elevation);
     if (finish && !finish->lights.empty()) json["lights"] = finishLightsJson(*finish);
+    if (parts && !parts->empty()) {
+        Json list = Json::array();
+        for (const BuildPart& part : *parts) list.push_back(buildPartToJson(part));
+        json["parts"] = std::move(list);
+    }
+    if (lights && !lights->empty()) {
+        Json list = Json::array();
+        for (const StripLight& light : *lights) list.push_back(stripLightToJson(light));
+        json["strip_lights"] = std::move(list);
+    }
     return json;
 }
 
@@ -590,6 +603,14 @@ public:
     {
         if (id.empty()) return {};
         return check(id, item, floor, "Item " + item);
+    }
+
+    // The id to put in the job for a material a build part names, or empty for the neutral look. object and floor
+    // are empty for a project default.
+    std::string usePart(const std::string& id, const Id& object, const Id& floor, const std::string& who)
+    {
+        if (id.empty()) return {};
+        return check(id, object, floor, who);
     }
 
     // Puts the usable materials and the material problems into the plan.
@@ -981,6 +1002,230 @@ void finishSlots(BuildPlan& plan, const SlotNamer& namer)
     plan.materialSlots = std::move(table);
 }
 
+// The longest an object name of a build part may be.
+constexpr std::size_t kMaxPartObjectName = 128;
+
+// Says whether a name is plain: 1 to 128 letters, digits and "_".
+bool isPlainObjectName(std::string_view name)
+{
+    if (name.empty() || name.size() > kMaxPartObjectName) return false;
+    return std::all_of(name.begin(), name.end(), [](char c) {
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+    });
+}
+
+// Says whether a kind is a lower case name: a letter, then letters, digits or "_".
+bool isKindName(std::string_view kind)
+{
+    if (kind.empty() || !(kind[0] >= 'a' && kind[0] <= 'z')) return false;
+    return std::all_of(kind.begin(), kind.end(),
+                       [](char c) { return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_'; });
+}
+
+// Says whether every number of the points is a real number.
+bool finite(const std::vector<Vec2>& ring)
+{
+    return std::all_of(ring.begin(), ring.end(), [](const Vec2& p) { return std::isfinite(p.x) && std::isfinite(p.y); });
+}
+
+// The same for points in space.
+bool finite(const std::vector<Vec3>& ring)
+{
+    return std::all_of(ring.begin(), ring.end(),
+                       [](const Vec3& p) { return std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z); });
+}
+
+// Why a ring of a part cannot be built, or empty when it can.
+template <typename Point>
+std::string ringFault(const std::vector<Point>& ring, const char* what)
+{
+    if (ring.size() < 3) return std::string(what) + " has fewer than 3 points";
+    if (!finite(ring)) return std::string(what) + " has a point that is not a number";
+    return {};
+}
+
+// Why a part breaks the rules of the job, or empty when it keeps them.
+std::string partFault(const BuildPart& part, const std::vector<std::string>& kinds)
+{
+    if (!isPlainObjectName(part.object)) return "its object name is not plain letters, digits and _";
+    if (!isKindName(part.kind)) return "its kind " + part.kind + " is not a lower case name";
+    if (std::find(kinds.begin(), kinds.end(), part.kind) == kinds.end()) return "its maker does not list the kind " + part.kind;
+    if (!isValidId(part.id)) return "its plan id is not a valid id";
+    if (part.prisms.empty() && part.faces.empty() && part.sweeps.empty()) return "it has nothing to make";
+    for (const PartPrism& prism : part.prisms) {
+        if (std::string fault = ringFault(prism.outline, "a prism outline"); !fault.empty()) return fault;
+        for (const auto& hole : prism.holes) {
+            if (std::string fault = ringFault(hole, "a prism hole"); !fault.empty()) return fault;
+        }
+        if (!std::isfinite(prism.bottom) || !std::isfinite(prism.top) || prism.top <= prism.bottom) {
+            return "a prism's top is not above its bottom";
+        }
+        if (prism.slot.empty()) return "a prism has no slot";
+    }
+    for (const PartFace& face : part.faces) {
+        if (std::string fault = ringFault(face.outline, "a face outline"); !fault.empty()) return fault;
+        for (const auto& hole : face.holes) {
+            if (std::string fault = ringFault(hole, "a face hole"); !fault.empty()) return fault;
+        }
+        if (face.slot.empty()) return "a face has no slot";
+    }
+    for (const PartSweep& sweep : part.sweeps) {
+        if (sweep.sweep.sections.size() < 2) return "a sweep has fewer than 2 sections";
+        for (const auto& section : sweep.sweep.sections) {
+            if (std::string fault = ringFault(section, "a sweep section"); !fault.empty()) return fault;
+        }
+        if (sweep.slot.empty()) return "a sweep has no slot";
+    }
+    for (const CollisionPiece& piece : part.collision) {
+        if (std::string fault = ringFault(piece.outline, "a collision outline"); !fault.empty()) return fault;
+        if (!std::isfinite(piece.bottom) || !std::isfinite(piece.top) || piece.top <= piece.bottom) {
+            return "a collision piece's top is not above its bottom";
+        }
+    }
+    for (const auto& hull : part.hulls) {
+        if (hull.size() < 4) return "a collision hull has fewer than 4 points";
+        if (!finite(hull)) return "a collision hull has a point that is not a number";
+    }
+    return {};
+}
+
+// Why a strip light cannot be built, or empty when it can. Its facing is made one metre long.
+std::string lightFault(StripLight& light)
+{
+    if (!isValidId(light.id)) return "its id is not a valid id";
+    if (!finite(std::vector<Vec3>{light.start, light.end, light.facing, light.colour})) return "a value is not a number";
+    if (!std::isfinite(light.width) || light.width <= 0.0) return "its width is not above 0";
+    if (!std::isfinite(light.power) || light.power < 0.0) return "its power is below 0";
+    const double length = std::sqrt(light.facing.x * light.facing.x + light.facing.y * light.facing.y +
+                                    light.facing.z * light.facing.z);
+    if (length < 1e-9) return "it faces no way";
+    light.facing = {light.facing.x / length, light.facing.y / length, light.facing.z / length};
+    return {};
+}
+
+// Where the build parts of a floor or the site go while the plan is made.
+struct PartSink {
+    std::vector<BuildPart>* parts = nullptr;
+    std::vector<StripLight>* lights = nullptr; // null when there is no floor to take them
+    Id floor;                                  // empty for the site
+};
+
+// Keeps the parts and lights of one maker call that keep the job's rules, puts the others and the maker's own
+// problems into problems, and returns the roof cuts it asks for.
+std::vector<RoofCut> takeMakerOutput(PartOutput made, const PartMaker& maker, const PartSink& sink,
+                                     std::set<std::string>& objects, std::vector<BuildProblem>& problems)
+{
+    const std::vector<std::string> kinds = maker.kinds();
+    const std::string from(maker.id());
+    for (BuildProblem& problem : made.problems) {
+        if (problem.step.empty()) problem.step = std::string(kCheckStep);
+        if (problem.floor.empty()) problem.floor = sink.floor;
+        problems.push_back(std::move(problem));
+    }
+    for (BuildPart& part : made.parts) {
+        std::string fault = partFault(part, kinds);
+        if (fault.empty() && objects.count(part.object) != 0) fault = "its object name is taken";
+        if (!fault.empty()) {
+            problems.push_back(checkProblem("part_invalid", BuildSeverity::Error,
+                                            "The part " + part.object + " from " + from + " is left out: " + fault + ".",
+                                            sink.floor, isValidId(part.id) ? part.id : Id()));
+            continue;
+        }
+        objects.insert(part.object);
+        sink.parts->push_back(std::move(part));
+    }
+    for (StripLight& light : made.lights) {
+        const std::string fault = lightFault(light);
+        if (!fault.empty()) {
+            problems.push_back(checkProblem("part_invalid", BuildSeverity::Error,
+                                            "A strip light from " + from + " is left out: " + fault + ".", sink.floor,
+                                            isValidId(light.id) ? light.id : Id()));
+            continue;
+        }
+        if (sink.lights) sink.lights->push_back(std::move(light));
+    }
+    return std::move(made.roofCuts);
+}
+
+// Makes the roof cuts of a floor's sections in its roof faces. Says whether any face changed.
+bool applyRoofCuts(FloorBuild& build, const std::vector<RoofCut>& cuts)
+{
+    bool changed = false;
+    for (const RoofCut& cut : cuts) {
+        if (cut.floor != build.id) continue;
+        for (RoofBuild& roof : build.roofs) {
+            if (roof.index != cut.index) continue;
+            const std::vector<RoofFace> before = roof.faces;
+            cutRoofFaces(roof.faces, cut.cutter);
+            changed = changed || roof.faces != before;
+        }
+    }
+    return changed;
+}
+
+// A slot field of a build part whose final name is known once every surface has its slot.
+struct PartSlotUse {
+    std::string* field = nullptr;
+    std::string name;
+    std::string material;
+};
+
+// Reads a part slot key (BuildParts.h, partSlot) into its plain name, neutral surface and material. A field
+// that is no key is a plain name with no material, and its own neutral surface.
+void readPartSlotKey(const std::string& key, std::string& name, std::string& look, std::string& material)
+{
+    const std::size_t first = key.find('|');
+    const std::size_t second = first == std::string::npos ? std::string::npos : key.find('|', first + 1);
+    if (second == std::string::npos) {
+        name = key;
+        look = key;
+        material.clear();
+        return;
+    }
+    name = key.substr(0, first);
+    look = key.substr(first + 1, second - first - 1);
+    material = key.substr(second + 1);
+}
+
+// The project surface whose look a neutral surface name is, such as Deck for "deck". Empty for one that is no
+// project surface (Soffit, Light_Strip).
+std::optional<Surface> surfaceOfLook(const std::string& look)
+{
+    std::string name;
+    for (const char c : look) name.push_back(c >= 'A' && c <= 'Z' ? static_cast<char>(c - 'A' + 'a') : c);
+    return surfaceFromName(name);
+}
+
+// Checks the material of every slot field of the parts and registers its slot, so the field can be named once
+// every surface has its slot.
+void registerPartSlots(const Project& project, std::vector<BuildPart>& parts, const Id& floor, MaterialChecker& checker,
+                       SlotNamer& namer, std::vector<PartSlotUse>& uses)
+{
+    for (BuildPart& part : parts) {
+        const auto take = [&](std::string& field) {
+            if (field.empty()) return;
+            std::string name;
+            std::string look;
+            std::string material;
+            readPartSlotKey(field, name, look, material);
+            const std::optional<Surface> surface = surfaceOfLook(look);
+            const bool isDefault = surface && surfaceDefaultMaterial(project, *surface).material == material;
+            const std::string who = isDefault ? "The project default for " + std::string(surfaceName(*surface))
+                                              : "Part " + part.object;
+            const std::string checked =
+                checker.usePart(material, isDefault ? Id() : part.id, isDefault ? Id() : floor, who);
+            namer.use(name, checked, look);
+            uses.push_back({&field, name, checked});
+        };
+        for (PartPrism& prism : part.prisms) {
+            take(prism.slot);
+            take(prism.sideSlot);
+        }
+        for (PartFace& face : part.faces) take(face.slot);
+        for (PartSweep& sweep : part.sweeps) take(sweep.slot);
+    }
+}
+
 // Reads one problem of a result.
 BuildProblem readProblem(const Json& json, const std::string& where)
 {
@@ -1030,6 +1275,8 @@ BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, 
     MaterialChecker checker(materials);
     SlotNamer namer;
     const std::vector<double> levels = floorElevations(project.plan);
+    const std::vector<const PartMaker*> makers = allPartMakers();
+    std::set<std::string> partObjects;
 
     // Without an assets source there is no library at all; a null library of generators is an empty one.
     const GeneratorLibrary none{};
@@ -1179,12 +1426,37 @@ BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, 
         for (const RoofProblem& problem : roofs.problems) {
             plan.problems.push_back(checkProblem(problem.code, BuildSeverity::Warning, problem.message, floor.id, problem.object));
         }
+        // The floor goes into the plan here, so the part makers see it with its roofs.
+        plan.floors.push_back(std::move(build));
+        FloorBuild& current = plan.floors.back();
+        plan.floorParts.emplace_back();
+        plan.stripLights.emplace_back();
+        applyRoofCuts(current, plan.roofCuts);
+        {
+            std::vector<std::size_t> recut;
+            for (const PartMaker* maker : makers) {
+                PartInput input;
+                input.project = &project;
+                input.floor = &floor;
+                input.floorIndex = index;
+                input.levels = &levels;
+                input.floors = &plan.floors;
+                const PartSink sink{&plan.floorParts.back(), &plan.stripLights.back(), floor.id};
+                for (RoofCut& cut : takeMakerOutput(maker->floorParts(input), *maker, sink, partObjects, plan.problems)) {
+                    for (std::size_t k = 0; k < plan.floors.size(); ++k) {
+                        if (plan.floors[k].id == cut.floor && applyRoofCuts(plan.floors[k], {cut}) && k < index) recut.push_back(k);
+                    }
+                    plan.roofCuts.push_back(std::move(cut));
+                }
+            }
+            for (const std::size_t k : recut) plan.collision[k] = floorCollision(project.plan.floors[k], plan.floors[k]);
+        }
         FloorFinish finish;
         finish.floor = floor.id;
         {
             std::vector<WorldPolygon> atFloor = floorHoles;
             atFloor.insert(atFloor.end(), ceilingHoles.begin(), ceilingHoles.end());
-            finish.trim = trimBuild(floor, build, project.settings.trim, atFloor, ceilingHoles);
+            finish.trim = trimBuild(floor, current, project.settings.trim, atFloor, ceilingHoles);
             for (const TrimBuild& t : finish.trim) {
                 if (!t.profileMissing) continue;
                 const std::string kind(trimKindName(t.kind));
@@ -1198,7 +1470,7 @@ BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, 
                 finish.trimSlot = namer.use(std::string(kTrimSlot), finish.trimMaterial, "Trim");
             }
         }
-        for (const OpeningBuild& built : build.openings) {
+        for (const OpeningBuild& built : current.openings) {
             const Opening* opening = findOpening(floor, built.id);
             if (!opening || !assets) continue;
             const std::vector<AssetChoice>& offered = choices ? choices->assets : noChoices;
@@ -1234,7 +1506,7 @@ BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, 
             used.emplace(*chosen, BuildAsset{*chosen, state->blendFile, state->materials});
         }
         if (choices && assets) {
-            for (const RoomBuild& built : build.rooms) {
+            for (const RoomBuild& built : current.rooms) {
                 const Room* room = findRoom(floor, built.id);
                 if (!room || !room->dressing) continue;
                 for (DressingPlacement& prop : dressRoom(floor, *room, choices->assets, seed)) {
@@ -1247,17 +1519,33 @@ BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, 
         }
         finish.lights = floorLights(floor, level);
         plan.finish.push_back(std::move(finish));
-        plan.floorMaterials.push_back(floorMaterials(project, floor, build, checker, namer));
-        plan.collision.push_back(floorCollision(floor, build));
+        plan.floorMaterials.push_back(floorMaterials(project, floor, current, checker, namer));
+        plan.collision.push_back(floorCollision(floor, current));
         if (ringFaults.any()) {
             plan.problems.push_back(checkProblem("outline_failed", BuildSeverity::Error,
                                                  "An outline of floor " + floor.id +
                                                      " could not be worked out, so its slab or roof would be wrong. Report this plan.",
                                                  floor.id, {}));
         }
-        plan.floors.push_back(std::move(build));
     }
     while (nextProblem < made.problems.size()) plan.problems.push_back(made.problems[nextProblem++]);
+
+    // The site's parts come once every floor is made.
+    for (const PartMaker* maker : makers) {
+        PartInput input;
+        input.project = &project;
+        input.levels = &levels;
+        input.floors = &plan.floors;
+        const PartSink sink{&plan.siteParts, plan.stripLights.empty() ? nullptr : &plan.stripLights.front(), Id()};
+        for (RoofCut& cut : takeMakerOutput(maker->siteParts(input), *maker, sink, partObjects, plan.problems)) {
+            for (std::size_t k = 0; k < plan.floors.size(); ++k) {
+                if (plan.floors[k].id == cut.floor && applyRoofCuts(plan.floors[k], {cut})) {
+                    plan.collision[k] = floorCollision(project.plan.floors[k], plan.floors[k]);
+                }
+            }
+            plan.roofCuts.push_back(std::move(cut));
+        }
+    }
 
     // Railings and guards need every floor, so they come once all floors are worked out.
     for (StairRailing& railing : stairRailings(project.plan, project.settings.trim, levels)) {
@@ -1285,9 +1573,15 @@ BuildPlan makeBuildPlan(const Project& project, const BuildAssetSource& assets, 
     for (auto& [id, asset] : used) plan.assets.push_back(std::move(asset));
     const bool noLibrary = std::any_of(plan.problems.begin(), plan.problems.end(),
                                        [](const BuildProblem& p) { return p.code == "no_library"; });
+    std::vector<PartSlotUse> partSlotUses;
+    for (std::size_t i = 0; i < plan.floorParts.size() && i < plan.floors.size(); ++i) {
+        registerPartSlots(project, plan.floorParts[i], plan.floors[i].id, checker, namer, partSlotUses);
+    }
+    registerPartSlots(project, plan.siteParts, Id(), checker, namer, partSlotUses);
     // A caller that gives an assets source has a library; the materials source then speaks for itself.
     checker.finish(plan, noLibrary || static_cast<bool>(assets));
     finishSlots(plan, namer);
+    for (const PartSlotUse& use : partSlotUses) *use.field = namer.name(use.name, use.material);
     nameGeneratorSlots(plan, namer);
     return plan;
 }
@@ -1401,9 +1695,16 @@ Json makeBuildJob(const Project& project, const BuildPlan& plan, const BuildSett
         const auto finish = std::find_if(plan.finish.begin(), plan.finish.end(), [&f](const FloorFinish& x) { return x.floor == f.id; });
         floors.push_back(floorJson(f, it == plan.floorMaterials.end() ? nullptr : &*it, collision,
                                    generators == plan.generators.floors.end() ? nullptr : &*generators, usable,
-                                   finish == plan.finish.end() ? nullptr : &*finish));
+                                   finish == plan.finish.end() ? nullptr : &*finish,
+                                   index < plan.floorParts.size() ? &plan.floorParts[index] : nullptr,
+                                   index < plan.stripLights.size() ? &plan.stripLights[index] : nullptr));
     }
     params["floors"] = std::move(floors);
+    if (!plan.siteParts.empty()) {
+        Json site = Json::array();
+        for (const BuildPart& part : plan.siteParts) site.push_back(buildPartToJson(part));
+        params["site_parts"] = std::move(site);
+    }
     return makeBlenderJob(kBuildTask, jobId, resultFile, std::move(params));
 }
 

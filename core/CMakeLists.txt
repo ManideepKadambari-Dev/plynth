@@ -55,6 +55,8 @@ add_library(plynth_core STATIC
     src/Storeys.cpp
     src/Roofs.cpp
     src/BuildPreview.cpp
+    src/parts/PartMakers.cpp
+    src/parts/RoofCuts.cpp
     src/Collision.cpp
     src/MaterialSlots.cpp
     src/Exporter.cpp
@@ -245,6 +247,16 @@ if(PLYNTH_ROOF_SOURCES)
     target_compile_features(plynth_roof_types PUBLIC cxx_std_20)
     target_link_libraries(plynth_roof_types PRIVATE nlohmann_json::nlohmann_json Clipper2::Clipper2)
     target_sources(plynth_core INTERFACE $<TARGET_OBJECTS:plynth_roof_types>)
+endif()
+
+# Part makers (BuildParts.h) register themselves the same way: one file each in src/parts/makers/.
+file(GLOB PLYNTH_PART_MAKER_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/parts/makers/*.cpp)
+if(PLYNTH_PART_MAKER_SOURCES)
+    add_library(plynth_part_makers OBJECT ${PLYNTH_PART_MAKER_SOURCES})
+    target_include_directories(plynth_part_makers PRIVATE include src)
+    target_compile_features(plynth_part_makers PUBLIC cxx_std_20)
+    target_link_libraries(plynth_part_makers PRIVATE nlohmann_json::nlohmann_json Clipper2::Clipper2)
+    target_sources(plynth_core INTERFACE $<TARGET_OBJECTS:plynth_part_makers>)
 endif()
 
 # Exporters register themselves the same way, so they are built as an object library too.

@@ -1,4 +1,7 @@
+#include "plynth/core/BuildParts.h"
 #include "plynth/core/ExportGroups.h"
+
+#include <algorithm>
 
 namespace plynth {
 
@@ -13,13 +16,15 @@ bool hasThreshold(const Floor& floor)
     return false;
 }
 
-// Floors, ceilings and thresholds, plus every slab, stair, roof and light.
+// Floors, ceilings and thresholds, plus every slab, stair, roof, light, railing and guard, and every build part
+// whose maker names this group.
 class SurfacesRule final : public ExportGroupRule {
 public:
     std::string_view id() const override { return "surfaces"; }
     int order() const override { return 20; }
 
-    // Floor and ceiling of each room, thresholds of each floor that has them, then whole kinds.
+    // Floor and ceiling of each room, thresholds of each floor that has them, then whole kinds, the part makers'
+    // kinds last.
     void addGroups(const Project& project, std::vector<ExportGroup>& out) const override
     {
         ExportGroup group;
@@ -36,6 +41,15 @@ public:
         }
         for (const std::string_view kind : {kKindSlab, kKindStair, kKindRoof, kKindLight, kKindRailing, kKindGuard}) {
             group.members.push_back({std::string(kind), Id()});
+        }
+        for (const PartMaker* maker : allPartMakers()) {
+            if (maker->exportGroup() != "surfaces") continue;
+            for (const std::string& kind : maker->kinds()) {
+                const ExportMember member{kind, Id()};
+                if (std::find(group.members.begin(), group.members.end(), member) == group.members.end()) {
+                    group.members.push_back(member);
+                }
+            }
         }
         out.push_back(std::move(group));
     }

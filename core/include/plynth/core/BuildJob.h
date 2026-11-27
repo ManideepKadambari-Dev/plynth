@@ -3,6 +3,7 @@
 #include "BlenderJob.h"
 #include "BuildFinish.h"
 #include "BuildGeometry.h"
+#include "BuildParts.h"
 #include "BuildProblem.h"
 #include "Choices.h"
 #include "Collision.h"
@@ -56,8 +57,11 @@ using Json = nlohmann::ordered_json;
 //                "collision": [{"target": {"kind": "walls", "id": "f1"},
 //                               "pieces": [{"outline": [[x, y], ...], "bottom": 0.0, "top": 3.0}]}, ...],
 //                "generator_items": [generator item, ...],
-//                "trim": [trim, ...], "dressing": [prop, ...], "lights": [light, ...]}]}
-//   The last three are left out when empty, and an opening carries "asset" only when a catalog door or window is
+//                "trim": [trim, ...], "dressing": [prop, ...], "lights": [light, ...],
+//                "parts": [part, ...], "strip_lights": [strip light, ...]}],
+//    "site_parts": [part, ...]}
+//   parts, strip_lights and site_parts are the build parts (BuildParts.h, schema/blender-job-parts.schema.json),
+//   each left out when empty. trim, dressing and lights are left out when empty, and an opening carries "asset" only when a catalog door or window is
 //   fitted (schema/blender-job-finish.schema.json):
 //   trim: {"kind", "plan_id", "object": "<floor>_Skirting", "plynth_kind": "trim", "slot", "material",
 //          "sweeps": [{"closed", "sections": [[[x, y, z], ...], ...]}]}
@@ -106,9 +110,10 @@ using Json = nlohmann::ordered_json;
 // Wall_Inside, undersides Soffit; stairs Stair; roof covering Roof (pitched) or Flat_Roof (flat), underside
 // Soffit, edge Fascia, gable and parapet Wall_Outside, glazing Glass.
 // preview_folder (null when fbx_file is null): after export_fbx, the step preview_parts writes one FBX per
-// floor, one for the slab above it and one for its roofs into build/preview/, with the same profile, materials
-// and images as building.fbx, and parts.json listing them (BuildPreview.h), so the 3D view can hide roofs, cut
-// the building at a floor and the plan overlay shows one floor.
+// floor, one for the slab above it and one for its roofs into build/preview/, and one for the site collection
+// when the job has site_parts, with the same profile, materials and images as building.fbx, and parts.json
+// listing them (BuildPreview.h), so the 3D view can hide roofs, cut the building at a floor and the plan overlay
+// shows one floor.
 // The fields mean what the structs in BuildGeometry.h and Collision.h say; positions are world coordinates.
 // Every material field is the id of an entry of "materials", or null: the surface then gets its neutral look
 // (the material is unset, missing from the library or broken, and core has reported it). Materials follow
@@ -208,6 +213,8 @@ struct BuildSettings {
 // floor for a slab, the stair for a stair, and for a roof its section entry, or the floor when the section
 // follows the plan's default),
 // preview_failed (warning: a preview part could not be written; the 3D view then loads building.fbx).
+// Build parts (BuildParts.h): found by core part_invalid (error, see makeBuildPlan); found by the worker
+// part_failed (error: the part's mesh could not be made and is left out; object the part's plynth_id).
 // Generator items (GeneratorBuild.h): found by core missing_generator, generator_broken (errors),
 // generator_unavailable, generator_changed (warnings); found by the worker generator_failed (error),
 // generator_unavailable, generator_size (warnings). object is the item. generator_unavailable from runBuild,
@@ -402,6 +409,13 @@ struct BuildPlan {
     GeneratorBuildPlan generators;
     // Trim, catalog doors and windows, set dressing and lights, one entry per entry of floors (BuildFinish.h).
     std::vector<FloorFinish> finish;
+    // What the part makers gave (BuildParts.h), with every slot field holding its final slot name: the parts of
+    // each entry of floors (same order), the site's parts, the roof cuts (already made in floors[].roofs and in
+    // collision), and the strip lights of each entry of floors (the site's go with the first floor).
+    std::vector<std::vector<BuildPart>> floorParts;
+    std::vector<BuildPart> siteParts;
+    std::vector<RoofCut> roofCuts;
+    std::vector<std::vector<StripLight>> stripLights;
 
     bool operator==(const BuildPlan&) const = default;
 };
@@ -413,7 +427,17 @@ struct BuildPlan {
 // Each floor also gets its stairs (stairLayout; stairProblems, a stair with an error is left out and cuts no
 // hole), its slab (slabBuild) and its roofs (floorRoofs), and room floors and ceilings get the stair holes.
 // FloorBuild::slabBelow is set on every floor but the lowest, before floorCollision runs.
-// Problems of a floor are in the order walls, openings, rooms, items, stairs, roofs.
+// Right after its roofs each floor runs every part maker (BuildParts.h) in order, with every floor made so far
+// and this one; once every floor is made the makers run once more for the site. A roof cut is made in the roof
+// faces of its floor as soon as that floor's roofs exist (a cut of a floor made earlier also works its collision
+// out again); a cut that names no built roof section does nothing. A part that breaks the rules of
+// schema/blender-job-parts.schema.json (an object name that is taken or not plain, a kind its maker does not
+// list, a plan id that is not one, a ring of fewer than 3 points, a prism with top not above bottom, a sweep of
+// fewer than 2 sections, a hull of fewer than 4 points, an empty slot, nothing to make) is left out with
+// part_invalid (error, object the part's plan id); a strip light with a bad id, a width not above 0, a power
+// below 0 or no facing is left out the same way.
+// Problems of a floor are in the order walls, openings, rooms, items, stairs, roofs, parts; the site's parts
+// follow the last floor's.
 // Then the materials of every built surface by Materials.h, each checked with the materials source
 // (missing_material, material_broken; such a surface gets the neutral look). An empty materials source means
 // there is no library: every surface gets the neutral look, and no_library is reported once in all when the
