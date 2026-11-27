@@ -116,7 +116,8 @@ add_library(plynth_core STATIC
 if(WIN32)
     target_sources(plynth_core PRIVATE src/Process_win.cpp)
     target_sources(plynth_core PRIVATE src/BlenderDiscovery_win.cpp)
-    target_link_libraries(plynth_core PUBLIC shell32 ole32 advapi32)
+    target_sources(plynth_core PRIVATE src/links/unreal/UnrealRemote_win.cpp)
+    target_link_libraries(plynth_core PUBLIC shell32 ole32 advapi32 ws2_32)
 endif()
 add_library(plynth::core ALIAS plynth_core)
 
