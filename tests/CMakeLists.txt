@@ -70,6 +70,7 @@ add_executable(plynth_core_tests
     core/OpeningTests.cpp
     core/OpeningCommandTests.cpp
     core/BuildGeometryTests.cpp
+    core/LowWallJoinTests.cpp
     core/BuildJobTests.cpp
     core/BuildTests.cpp
     core/BuildPreviewTests.cpp

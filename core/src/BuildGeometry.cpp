@@ -183,12 +183,12 @@ WallEdge tagEdge(Vec2 a, Vec2 b, const std::vector<const WallInfo*>& group, cons
     return edge;
 }
 
-// Makes a tagged ring from points that already have the right direction.
+// Makes a tagged ring from finished points: in the right direction, with every split point in place.
 WallRing makeRing(const std::vector<Vec2>& points, const std::vector<const WallInfo*>& group,
-                  const std::vector<Vec2>& vertices, const std::vector<RoomArea>& rooms)
+                  const std::vector<RoomArea>& rooms)
 {
     WallRing ring;
-    ring.points = splitAtVertices(points, vertices);
+    ring.points = points;
     for (std::size_t i = 0; i < ring.points.size(); ++i) {
         ring.edges.push_back(tagEdge(ring.points[i], ring.points[(i + 1) % ring.points.size()], group, rooms));
     }
@@ -224,6 +224,80 @@ struct AreaRing {
     std::vector<Vec2> points;
     double area = 0.0;
 };
+
+// A wall solid before its edges are tagged: the walls of its height and its rings in world X and Y.
+struct SolidRings {
+    double height = 0.0;
+    const std::vector<const WallInfo*>* group = nullptr;
+    std::vector<Vec2> outline;
+    std::vector<std::vector<Vec2>> holes;
+};
+
+// Every point of the rings of a solid.
+std::vector<Vec2> pointsOf(const SolidRings& solid)
+{
+    std::vector<Vec2> points = solid.outline;
+    for (const std::vector<Vec2>& hole : solid.holes) points.insert(points.end(), hole.begin(), hole.end());
+    return points;
+}
+
+// Moves each point of the ring onto the nearest given point closer than kClose, and says whether any moved.
+// Rounding in the cut of a lower solid leaves its corners a hair beside the taller solid's.
+bool snapRing(std::vector<Vec2>& ring, const std::vector<Vec2>& targets)
+{
+    bool moved = false;
+    for (Vec2& p : ring) {
+        double best = kClose;
+        const Vec2* nearest = nullptr;
+        for (const Vec2& q : targets) {
+            const double d = distance(p, q);
+            if (d < best) {
+                best = d;
+                nearest = &q;
+            }
+        }
+        if (nearest && !(*nearest == p)) {
+            p = *nearest;
+            moved = true;
+        }
+    }
+    return moved;
+}
+
+// Makes touching solids of different heights meet corner to corner, so no corner of one sits in the middle of
+// an edge of another (that breaks the Boolean cuts of the openings). Lower corners a hair beside a taller
+// corner become it, then every edge gets a point where a corner of another height lies on it. Solids come
+// tallest first; solids of one height are not changed.
+void conformTouchingSolids(std::vector<SolidRings>& solids)
+{
+    for (std::size_t i = 0; i < solids.size(); ++i) {
+        std::vector<Vec2> taller;
+        for (std::size_t j = 0; j < i; ++j) {
+            if (solids[j].height <= solids[i].height) continue;
+            const std::vector<Vec2> points = pointsOf(solids[j]);
+            taller.insert(taller.end(), points.begin(), points.end());
+        }
+        if (taller.empty()) continue;
+        const auto settle = [&](std::vector<Vec2>& ring) {
+            if (snapRing(ring, taller)) ring = detail::cleanedWallRing(withoutRepeats(ring));
+        };
+        settle(solids[i].outline);
+        for (std::vector<Vec2>& hole : solids[i].holes) settle(hole);
+    }
+
+    std::vector<std::vector<Vec2>> corners;
+    for (const SolidRings& solid : solids) corners.push_back(pointsOf(solid));
+    for (std::size_t i = 0; i < solids.size(); ++i) {
+        std::vector<Vec2> others;
+        for (std::size_t j = 0; j < solids.size(); ++j) {
+            if (solids[j].height == solids[i].height) continue;
+            others.insert(others.end(), corners[j].begin(), corners[j].end());
+        }
+        if (others.empty()) continue;
+        solids[i].outline = splitAtVertices(solids[i].outline, others);
+        for (std::vector<Vec2>& hole : solids[i].holes) hole = splitAtVertices(hole, others);
+    }
+}
 
 // Rotates a ring to start at the lowest point and runs it in the wanted direction.
 std::vector<Vec2> canonical(const std::vector<Vec2>& ring, bool anticlockwise)
@@ -391,7 +465,7 @@ std::vector<WallSolid> wallSolids(const Floor& floor)
     std::map<double, std::vector<const WallInfo*>, std::greater<double>> byHeight;
     for (const WallInfo& info : infos) byHeight[info.height].push_back(&info);
 
-    std::vector<WallSolid> solids;
+    std::vector<SolidRings> pieces;
     for (const auto& [height, group] : byHeight) {
         Clipper2Lib::PathsD subject;
         std::vector<Vec2> vertices;
@@ -432,17 +506,32 @@ std::vector<WallSolid> wallSolids(const Floor& floor)
         }
 
         for (std::size_t i = 0; i < outers.size(); ++i) {
-            WallSolid solid;
-            solid.height = height;
-            solid.outline = makeRing(canonical(outers[i].points, true), group, vertices, rooms);
+            SolidRings piece;
+            piece.height = height;
+            piece.group = &group;
+            piece.outline = splitAtVertices(canonical(outers[i].points, true), vertices);
             std::vector<std::vector<Vec2>> rings;
             for (const AreaRing& h : holesOf[i]) rings.push_back(canonical(h.points, false));
             std::sort(rings.begin(), rings.end(), [](const auto& a, const auto& b) {
                 return a.front().x != b.front().x ? a.front().x < b.front().x : a.front().y < b.front().y;
             });
-            for (const std::vector<Vec2>& ring : rings) solid.holes.push_back(makeRing(ring, group, vertices, rooms));
-            solids.push_back(std::move(solid));
+            for (const std::vector<Vec2>& ring : rings) piece.holes.push_back(splitAtVertices(ring, vertices));
+            pieces.push_back(std::move(piece));
         }
+    }
+
+    conformTouchingSolids(pieces);
+
+    std::vector<WallSolid> solids;
+    for (const SolidRings& piece : pieces) {
+        if (piece.outline.size() < 3) continue;
+        WallSolid solid;
+        solid.height = piece.height;
+        solid.outline = makeRing(piece.outline, *piece.group, rooms);
+        for (const std::vector<Vec2>& ring : piece.holes) {
+            if (ring.size() >= 3) solid.holes.push_back(makeRing(ring, *piece.group, rooms));
+        }
+        solids.push_back(std::move(solid));
     }
 
     std::stable_sort(solids.begin(), solids.end(), [](const WallSolid& a, const WallSolid& b) {
