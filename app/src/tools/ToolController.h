@@ -39,6 +39,10 @@ struct OpeningToolSettings {
     plynth::WallSide swing = plynth::WallSide::Right;
 };
 
+// The answers to the question asked when an item lands on another item: stand it on top of that item, keep it
+// on the floor and stand the other item on it, or keep both on the floor.
+enum class StackChoice { OnTop, Under, Floor };
+
 // Owns the tools, says which one is active, and gives them the document, the selection and the canvas.
 class ToolController : public QObject {
     Q_OBJECT
@@ -106,6 +110,18 @@ public:
     bool placeLight(plynth::Vec2 wanted, plynth::LightKind kind, bool free);
     // Turns the selected floor item by degrees (positive is clockwise). Refusals show as messages.
     bool turnSelectedItem(double degrees);
+    // The name shown for an item: the name of its asset or generator, or its asset id when the library does not
+    // know it.
+    QString itemName(const plynth::Item& item) const;
+    // Asks where a dropped item goes when it lands on another item. Closing the question keeps both on the floor.
+    StackChoice askStack(const plynth::Item& dropped, const plynth::Item& other);
+    // Applies a stack choice between an item and another item of the shown floor as one undo step. other may be
+    // empty for the Floor choice. Refusals show as messages.
+    bool stackItem(const plynth::Id& item, const plynth::Id& other, StackChoice choice);
+    // Called when a drag of an item ends: an item over a rug or another underlay goes on it by itself, and one
+    // over another item asks with askStack. moved says the drag ran moves; the drag and the choice then become
+    // one undo step.
+    void settleDroppedItem(const plynth::Id& item, bool moved);
     // For checks: switches to the Furniture tool and opens its picker at a place in metres, then hovers an
     // asset when an id is given. False when the tool is not available.
     bool showFurniturePicker(double x, double y, const QString& hoverAsset);
@@ -166,6 +182,14 @@ signals:
 private:
     Tool* tool(ToolId id) const;
     void floorChanged();
+    // Places a new floor item on the shown floor and selects it. Stands it on an underlay under its centre by
+    // itself, or asks first when it lands on another item.
+    bool placeFloorItem(plynth::Item item);
+    // Runs the place command for a new item after a stack choice with the item it landed on, and selects it.
+    bool placeStacked(const plynth::Id& floorId, plynth::Item item, const plynth::Id& other, StackChoice choice);
+    // The command for a stack choice between two items of the shown floor, or null when nothing would change.
+    std::unique_ptr<plynth::Command> stackCommand(const plynth::Id& item, const plynth::Id& other,
+                                                  StackChoice choice) const;
     // Runs SetFloorImageOffsetCommand to the floor's start offset plus a distance in metres.
     void moveImageTo(double dx, double dy);
     void nudgeImage(const QPoint& direction, bool big);

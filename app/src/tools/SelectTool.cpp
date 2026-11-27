@@ -9,6 +9,7 @@
 #include <plynth/core/Items.h>
 #include <plynth/core/Openings.h>
 #include <plynth/core/Snapping.h>
+#include <plynth/core/Stacking.h>
 #include <plynth/core/WallGeometry.h>
 #include <plynth/core/commands/ItemCommands.h>
 #include <plynth/core/commands/OpeningCommands.h>
@@ -34,7 +35,7 @@ constexpr double kBendRound = 0.01;
 // The status bar hint for this tool.
 QString SelectTool::hint() const
 {
-    return QObject::tr("Click to select. Drag a point, opening or item to move it; drop a point on a point or wall to join it. Drag the round handle of an item to turn it, or the middle handle of a wall to bend it. Right click a wall to split it. Esc clears.");
+    return QObject::tr("Click to select. Drag a point, opening or item to move it; drop a point on a point or wall to join it. Drag the round handle of an item to turn it, or the middle handle of a wall to bend it. Right click a wall to split it, or an item to stack it on the item below. Esc clears.");
 }
 
 // Forgets a drag that was in progress.
@@ -44,6 +45,7 @@ void SelectTool::deactivate()
     dragSnap_.reset();
     dragOpening_.clear();
     dragItem_.clear();
+    itemMoved_ = false;
     rotateItem_.clear();
     bendWall_.clear();
     handleHover_ = false;
@@ -56,7 +58,8 @@ void SelectTool::deactivate()
 void SelectTool::mousePressed(const ToolMouse& mouse)
 {
     if (mouse.button == Qt::RightButton) {
-        showWallMenu(mouse);
+        if (!showItemMenu(mouse))
+            showWallMenu(mouse);
         return;
     }
     if (mouse.button != Qt::LeftButton)
@@ -65,6 +68,7 @@ void SelectTool::mousePressed(const ToolMouse& mouse)
     dragSnap_.reset();
     dragOpening_.clear();
     dragItem_.clear();
+    itemMoved_ = false;
     rotateItem_.clear();
     bendWall_.clear();
     dragging_ = false;
@@ -187,7 +191,8 @@ void SelectTool::mouseMoved(const ToolMouse& mouse)
 }
 
 // Ends the drag. A point dropped on another point or on a wall is joined to it. The merge key makes the drag and
-// the join one undo step.
+// the join one undo step. An item let go over a rug goes on it, and one let go over another item asks where it
+// goes.
 void SelectTool::mouseReleased(const ToolMouse& mouse)
 {
     if (mouse.button != Qt::LeftButton)
@@ -199,16 +204,20 @@ void SelectTool::mouseReleased(const ToolMouse& mouse)
         dragSnap_.reset();
         host_.run(std::make_unique<plynth::JoinPointCommand>(joined, target, dragKey_));
     }
+    const plynth::Id dropped = dragging_ && itemMoved_ ? dragItem_ : plynth::Id();
     dragSnap_.reset();
     dragPoint_.clear();
     dragOpening_.clear();
     dragItem_.clear();
+    itemMoved_ = false;
     rotateItem_.clear();
     bendWall_.clear();
     dragging_ = false;
     stairs_.released();
     lights_.released();
     host_.canvas().viewport()->update();
+    if (!dropped.empty())
+        host_.settleDroppedItem(dropped, true);
 }
 
 // Hides the hover state of the bend handle when the cursor leaves the plan.
@@ -307,7 +316,8 @@ void SelectTool::moveItemTo(const ToolMouse& mouse)
         wanted = host_.snapItem(*item, wanted, mouse.modifiers & Qt::ControlModifier);
     if (wanted.x == item->x && wanted.y == item->y)
         return;
-    host_.run(std::make_unique<plynth::MoveItemCommand>(dragItem_, wanted, dragKey_));
+    if (host_.run(std::make_unique<plynth::MoveItemCommand>(dragItem_, wanted, dragKey_)).ok())
+        itemMoved_ = true;
 }
 
 // Runs RotateItemCommand so the item's front points at the cursor, in 15 degree steps unless Shift is held.
@@ -459,6 +469,58 @@ void SelectTool::showWallMenu(const ToolMouse& mouse)
             host_.selection().set(SelectionKind::Point, QString::fromStdString(raw->newPointId()));
     });
     menu.exec(mouse.global);
+}
+
+// Shows the stacking menu for the floor item under a right click: put it on top of the item below it, put it
+// under that item, or keep both on the floor. Returns false when no item is under the click.
+bool SelectTool::showItemMenu(const ToolMouse& mouse)
+{
+    const plynth::Floor* floor = host_.floor();
+    const std::optional<double> ppm = host_.pixelsPerMetre();
+    if (floor == nullptr || !ppm.has_value() || host_.document().isReadOnly())
+        return false;
+    const plynth::Vec2 at{mouse.scene.x() / *ppm, mouse.scene.y() / *ppm};
+    const plynth::Pick pick = plynth::pickAt(*floor, at, host_.snapRadiusMetres());
+    if (pick.kind != plynth::PickKind::Item)
+        return false;
+    const plynth::Item* item = plynth::findItem(*floor, pick.id);
+    if (item == nullptr)
+        return false;
+    host_.selection().set(SelectionKind::Item, QString::fromStdString(pick.id));
+    if (item->wall.has_value())
+        return true;
+    const std::optional<plynth::Id> below = plynth::stackTargetAt(*floor, item->x, item->y, item->id);
+    const plynth::Item* lower = below.has_value() ? plynth::findItem(*floor, *below) : nullptr;
+    if (lower == nullptr && !item->on.has_value())
+        return true;
+    const plynth::Id itemId = item->id;
+    const plynth::Id otherId = lower != nullptr ? lower->id : plynth::Id();
+
+    QMenu menu(host_.dialogParent());
+    menu.setToolTipsVisible(true);
+    if (lower != nullptr) {
+        const QString name = host_.itemName(*lower);
+        const QString menuName = QString(name).replace(QLatin1Char('&'), QStringLiteral("&&"));
+        QAction* top = menu.addAction(QObject::tr("Put on top of %1").arg(menuName));
+        top->setToolTip(QObject::tr("Stand this item on top of %1. It moves with it").arg(name));
+        top->setEnabled(item->on != otherId);
+        QObject::connect(top, &QAction::triggered, &menu, [this, itemId, otherId]() {
+            host_.stackItem(itemId, otherId, StackChoice::OnTop);
+        });
+        QAction* under = menu.addAction(QObject::tr("Put under %1").arg(menuName));
+        under->setToolTip(QObject::tr("Keep this item on the floor and stand %1 on it").arg(name));
+        QObject::connect(under, &QAction::triggered, &menu, [this, itemId, otherId]() {
+            host_.stackItem(itemId, otherId, StackChoice::Under);
+        });
+    }
+    QAction* both = menu.addAction(lower != nullptr ? QObject::tr("Keep both on the floor") : QObject::tr("Put on the floor"));
+    both->setToolTip(QObject::tr("Stand this item on the floor, not on another item"));
+    both->setEnabled(item->on.has_value());
+    QObject::connect(both, &QAction::triggered, &menu, [this, itemId, otherId]() {
+        host_.stackItem(itemId, otherId, StackChoice::Floor);
+    });
+    menu.exec(mouse.global);
+    return true;
 }
 
 // Draws the bend handle of the selected wall: a blue ring, amber while hovered or dragged. While a point is

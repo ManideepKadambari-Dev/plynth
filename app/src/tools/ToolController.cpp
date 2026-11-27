@@ -27,6 +27,12 @@
 #include <plynth/core/commands/FloorCommands.h>
 #include <plynth/core/commands/ItemCommands.h>
 #include <plynth/core/commands/LightCommands.h>
+#include <plynth/core/commands/StackCommands.h>
+#include <plynth/core/Stacking.h>
+
+#include <QMessageBox>
+#include <QPushButton>
+#include <QTimer>
 
 #include <cmath>
 
@@ -39,6 +45,50 @@ QString fromCore(const std::string& text)
 {
     return QString::fromUtf8(text.data(), static_cast<qsizetype>(text.size()));
 }
+
+// Places a new item and stands the item it was dropped on onto it, as one undo step. The new item's id is only
+// known once it is placed, so the second command is made on the first apply and kept for redo.
+class PlaceUnderCommand : public plynth::Command {
+public:
+    PlaceUnderCommand(plynth::Id floorId, plynth::Item item, plynth::Id other)
+        : place_(std::move(floorId), std::move(item)), other_(std::move(other))
+    {
+    }
+
+    // The name in the Edit menu, the same as a plain placing.
+    std::string name() const override { return place_.name(); }
+
+    // Places the item, then puts the other item on it. Takes the placing back when the second step is refused.
+    plynth::Status apply(plynth::Project& project) override
+    {
+        const plynth::Status placed = place_.apply(project);
+        if (!placed.ok())
+            return placed;
+        if (under_ == nullptr)
+            under_ = std::make_unique<plynth::PutItemUnderCommand>(place_.itemId(), other_);
+        const plynth::Status under = under_->apply(project);
+        if (!under.ok())
+            place_.undo(project);
+        return under;
+    }
+
+    // Takes both steps back, the last one first.
+    void undo(plynth::Project& project) override
+    {
+        under_->undo(project);
+        place_.undo(project);
+    }
+
+    // Both steps change items only.
+    unsigned changes() const override { return place_.changes(); }
+    plynth::Id floorId() const override { return place_.floorId(); }
+    const plynth::Id& itemId() const { return place_.itemId(); }
+
+private:
+    plynth::PlaceItemCommand place_;
+    plynth::Id other_;
+    std::unique_ptr<plynth::PutItemUnderCommand> under_;
+};
 
 }
 
@@ -503,12 +553,7 @@ bool ToolController::placeAsset(const QString& assetId, plynth::Vec2 wanted, boo
     const plynth::Vec2 at = snapItem(item, wanted, free);
     item.x = at.x;
     item.y = at.y;
-    auto command = std::make_unique<plynth::PlaceItemCommand>(current->id, item);
-    const plynth::PlaceItemCommand* raw = command.get();
-    if (!run(std::move(command)).ok())
-        return false;
-    selection_->set(SelectionKind::Item, QString::fromStdString(raw->itemId()));
-    return true;
+    return placeFloorItem(std::move(item));
 }
 
 // Makes the item a generator item would be at the default values and the floor's ceiling height.
@@ -555,12 +600,7 @@ bool ToolController::placeGenerator(const QString& generatorId, plynth::Vec2 wan
     const plynth::Vec2 at = snapItem(item, wanted, free);
     item.x = at.x;
     item.y = at.y;
-    auto command = std::make_unique<plynth::PlaceItemCommand>(current->id, item);
-    const plynth::PlaceItemCommand* raw = command.get();
-    if (!run(std::move(command)).ok())
-        return false;
-    selection_->set(SelectionKind::Item, QString::fromStdString(raw->itemId()));
-    return true;
+    return placeFloorItem(std::move(item));
 }
 
 // Turns the selected floor item with RotateItemCommand. Each key press is its own undo step.
@@ -573,6 +613,171 @@ bool ToolController::turnSelectedItem(double degrees)
     if (item == nullptr)
         return false;
     return run(std::make_unique<plynth::RotateItemCommand>(item->id, plynth::normalizeRotation(item->rotation + degrees))).ok();
+}
+
+// Finds the name of an item's asset or generator in the library.
+QString ToolController::itemName(const plynth::Item& item) const
+{
+    if (plynth::isGeneratorItem(item)) {
+        const plynth::GeneratorInfo* info =
+            library_ != nullptr ? library_->generators().find(item.generator->name) : nullptr;
+        return fromCore(info != nullptr ? info->name : item.generator->name);
+    }
+    if (plynth::AssetCatalog* assets = catalog())
+        if (const std::optional<plynth::AssetRecord> record = assets->asset(item.asset))
+            return fromCore(record->name);
+    return fromCore(item.asset);
+}
+
+// Shows the stacking question with its three answers. A flat dropped item, such as a rug, offers Under it first.
+StackChoice ToolController::askStack(const plynth::Item& dropped, const plynth::Item& other)
+{
+    const QString droppedName = itemName(dropped);
+    const QString otherName = itemName(other);
+    QMessageBox box(dialogParent_.data());
+    box.setIcon(QMessageBox::NoIcon);
+    box.setWindowTitle(tr("Stack items"));
+    box.setTextFormat(Qt::PlainText);
+    box.setText(tr("%1 is over %2. Where should it go?").arg(droppedName, otherName));
+    QPushButton* top = box.addButton(tr("On top"), QMessageBox::AcceptRole);
+    QPushButton* under = box.addButton(tr("Under it"), QMessageBox::AcceptRole);
+    QPushButton* both = box.addButton(tr("Both on the floor"), QMessageBox::RejectRole);
+    top->setToolTip(tr("Stand %1 on top of %2").arg(droppedName, otherName));
+    under->setToolTip(tr("Keep %1 on the floor and stand %2 on it").arg(droppedName, otherName));
+    both->setToolTip(tr("Keep both items on the floor. Neither stands on the other"));
+    box.setDefaultButton(dropped.size.height < plynth::kUnderlayHeight ? under : top);
+    box.setEscapeButton(both);
+    box.exec();
+    if (box.clickedButton() == top)
+        return StackChoice::OnTop;
+    if (box.clickedButton() == under)
+        return StackChoice::Under;
+    return StackChoice::Floor;
+}
+
+// Picks the stacking command for a choice from how the two items stand now.
+std::unique_ptr<plynth::Command> ToolController::stackCommand(const plynth::Id& item, const plynth::Id& other,
+                                                              StackChoice choice) const
+{
+    const plynth::Floor* current = floor();
+    const plynth::Item* moving = current != nullptr ? plynth::findItem(*current, item) : nullptr;
+    if (moving == nullptr)
+        return nullptr;
+    const plynth::Item* lower = other.empty() ? nullptr : plynth::findItem(*current, other);
+    switch (choice) {
+    case StackChoice::OnTop:
+        if (lower == nullptr || moving->on == other)
+            return nullptr;
+        return std::make_unique<plynth::SetItemOnCommand>(item, other);
+    case StackChoice::Under:
+        if (lower == nullptr || lower->on == item)
+            return nullptr;
+        return std::make_unique<plynth::PutItemUnderCommand>(item, other);
+    case StackChoice::Floor:
+        if (!moving->on.has_value())
+            return nullptr;
+        return std::make_unique<plynth::SetItemOnCommand>(item, std::nullopt);
+    }
+    return nullptr;
+}
+
+// Runs the command for a stack choice. Nothing runs when the items already stand that way.
+bool ToolController::stackItem(const plynth::Id& item, const plynth::Id& other, StackChoice choice)
+{
+    if (document_.isReadOnly())
+        return false;
+    std::unique_ptr<plynth::Command> command = stackCommand(item, other, choice);
+    if (command == nullptr)
+        return false;
+    return run(std::move(command)).ok();
+}
+
+// Looks at what is under a dragged item's centre once it is let go, and stacks it or asks.
+void ToolController::settleDroppedItem(const plynth::Id& itemId, bool moved)
+{
+    const plynth::Floor* current = floor();
+    const plynth::Item* found = current != nullptr ? plynth::findItem(*current, itemId) : nullptr;
+    if (found == nullptr || found->wall.has_value() || document_.isReadOnly())
+        return;
+    const plynth::Item item = *found;
+    std::unique_ptr<plynth::Command> stack;
+    if (const std::optional<plynth::Id> underlay = plynth::automaticStackTarget(*current, item.x, item.y, item.id)) {
+        if (item.on != *underlay)
+            stack = std::make_unique<plynth::SetItemOnCommand>(item.id, *underlay);
+    } else if (const std::optional<plynth::Id> other = plynth::stackTargetAt(*current, item.x, item.y, item.id)) {
+        const plynth::Item* lower = plynth::findItem(*current, *other);
+        if (lower == nullptr || item.on == *other)
+            return;
+        const plynth::Item below = *lower;
+        stack = stackCommand(item.id, below.id, askStack(item, below));
+    }
+    if (stack == nullptr)
+        return;
+    const plynth::Vec2 at{item.x, item.y};
+    if (moved && document_.canUndo() && document_.undoName() == plynth::MoveItemCommand(item.id, at).name()) {
+        // The drag is already one undo step. It runs again in one group with the choice, so one undo takes both
+        // back.
+        document_.undo();
+        auto group = std::make_unique<plynth::CommandGroup>(stack->name());
+        group->add(std::make_unique<plynth::MoveItemCommand>(item.id, at));
+        group->add(std::move(stack));
+        if (!run(std::move(group)).ok())
+            run(std::make_unique<plynth::MoveItemCommand>(item.id, at));
+        return;
+    }
+    run(std::move(stack));
+}
+
+// Stands a new item on the underlay under its centre, or asks once the drop has finished when it lands on
+// another item, so the question never opens inside a drag and drop.
+bool ToolController::placeFloorItem(plynth::Item item)
+{
+    const plynth::Floor* current = floor();
+    if (current == nullptr)
+        return false;
+    if (const std::optional<plynth::Id> underlay = plynth::automaticStackTarget(*current, item.x, item.y, {})) {
+        item.on = *underlay;
+    } else if (const std::optional<plynth::Id> other = plynth::stackTargetAt(*current, item.x, item.y, {})) {
+        const plynth::Id floorId = current->id;
+        const plynth::Id otherId = *other;
+        QTimer::singleShot(0, this, [this, floorId, item, otherId]() {
+            const plynth::Floor* shown = floor();
+            const plynth::Item* lower =
+                shown != nullptr && shown->id == floorId ? plynth::findItem(*shown, otherId) : nullptr;
+            if (lower == nullptr) {
+                placeStacked(floorId, item, {}, StackChoice::Floor);
+                return;
+            }
+            const plynth::Item below = *lower;
+            placeStacked(floorId, item, otherId, askStack(item, below));
+        });
+        return true;
+    }
+    return placeStacked(current->id, std::move(item), {}, StackChoice::Floor);
+}
+
+// Places the new item on top of the other one, under it, or on the floor beside it, as one undo step.
+bool ToolController::placeStacked(const plynth::Id& floorId, plynth::Item item, const plynth::Id& other,
+                                  StackChoice choice)
+{
+    plynth::Id placed;
+    if (choice == StackChoice::Under && !other.empty()) {
+        auto command = std::make_unique<PlaceUnderCommand>(floorId, std::move(item), other);
+        const PlaceUnderCommand* raw = command.get();
+        if (!run(std::move(command)).ok())
+            return false;
+        placed = raw->itemId();
+    } else {
+        if (choice == StackChoice::OnTop && !other.empty())
+            item.on = other;
+        auto command = std::make_unique<plynth::PlaceItemCommand>(floorId, std::move(item));
+        const plynth::PlaceItemCommand* raw = command.get();
+        if (!run(std::move(command)).ok())
+            return false;
+        placed = raw->itemId();
+    }
+    selection_->set(SelectionKind::Item, QString::fromStdString(placed));
+    return true;
 }
 
 // True when the picker is not open or its preview has no model waiting.

@@ -34,6 +34,7 @@ public:
 private:
     void dragTo(const ToolMouse& mouse);
     void showWallMenu(const ToolMouse& mouse);
+    bool showItemMenu(const ToolMouse& mouse);
     void bendTo(const ToolMouse& mouse);
     void moveOpeningTo(const ToolMouse& mouse);
     void moveItemTo(const ToolMouse& mouse);
@@ -57,6 +58,7 @@ private:
     plynth::Id dragItem_;
     plynth::Id rotateItem_;
     QPointF itemGrab_;
+    bool itemMoved_ = false; // a move of the dragged item ran in this drag
     bool handleHover_ = false;
     StairEditor stairs_;
     LightEditor lights_;

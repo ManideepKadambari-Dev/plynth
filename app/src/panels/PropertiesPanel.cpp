@@ -39,6 +39,7 @@
 #include <plynth/core/commands/PointCommands.h>
 #include <plynth/core/commands/RoofCommands.h>
 #include <plynth/core/commands/RoomCommands.h>
+#include <plynth/core/commands/StackCommands.h>
 #include <plynth/core/commands/StairCommands.h>
 #include <plynth/core/commands/SettingsCommands.h>
 #include <plynth/core/commands/WallCommands.h>
@@ -2219,6 +2220,12 @@ void PropertiesPanel::buildItemPage()
     itemRoom_->setToolTip(tr("The room the item stands in"));
     itemWall_ = addLabelRow(grid, tr("Wall"));
     itemWall_->setToolTip(tr("The wall the item hangs on"));
+    itemOn_ = addLabelRow(grid, tr("Stands on"), false);
+    itemOn_->setToolTip(tr("The item this one stands on. It moves with that item. Right click the item on the plan to change it"));
+    itemToFloor_ = new QPushButton(tr("Put on floor"), page);
+    itemToFloor_->setToolTip(tr("Stand the item on the floor instead of on the item below it"));
+    grid->addWidget(itemToFloor_, grid->rowCount(), 0, 1, 2);
+    editors_.push_back(itemToFloor_);
 
     auto* wallButtons = new QWidget(page);
     auto* wallBox = new QHBoxLayout(wallButtons);
@@ -2308,6 +2315,12 @@ void PropertiesPanel::buildItemPage()
     });
     connect(itemTurnLeft_, &QPushButton::clicked, this, [this]() { controller_.turnSelectedItem(-plynth::kItemQuarterTurn); });
     connect(itemTurnRight_, &QPushButton::clicked, this, [this]() { controller_.turnSelectedItem(plynth::kItemQuarterTurn); });
+    connect(itemToFloor_, &QPushButton::clicked, this, [this, currentItem]() {
+        const plynth::Item* item = currentItem();
+        if (item == nullptr || !item->on.has_value())
+            return;
+        runItemCommand(std::make_unique<plynth::SetItemOnCommand>(item->id, std::nullopt));
+    });
     connect(itemTakeOff_, &QPushButton::clicked, this, &PropertiesPanel::takeOffItem);
     connect(itemMount_, &QPushButton::clicked, this, &PropertiesPanel::mountItem);
     connect(itemSwap_, &QPushButton::clicked, this, &PropertiesPanel::swapItemAsset);
@@ -2506,13 +2519,23 @@ void PropertiesPanel::refreshItem()
     itemRoom_->setText(roomText);
     const bool onWall = item->wall.has_value();
     itemWall_->setText(onWall ? fromCore(*item->wall) : QString());
+    QString onText = tr("Floor");
+    if (item->on.has_value()) {
+        onText = fromCore(*item->on);
+        if (const plynth::Item* lower = plynth::findItem(*floor, *item->on))
+            onText = controller_.itemName(*lower) + QStringLiteral(" ") + fromCore(lower->id);
+    }
+    itemOn_->setText(onText);
     for (QWidget* widget : floorOnly_)
         widget->setVisible(!onWall);
     for (QWidget* widget : wallOnly_)
         widget->setVisible(onWall);
     itemMount_->setVisible(!onWall);
+    itemOn_->setVisible(!onWall);
+    itemToFloor_->setVisible(!onWall && item->on.has_value());
     // The rows of a wall item and the labels of the hidden rows follow their editors.
-    for (QWidget* widget : {static_cast<QWidget*>(itemX_), static_cast<QWidget*>(itemY_), static_cast<QWidget*>(itemRotation_)})
+    for (QWidget* widget : {static_cast<QWidget*>(itemX_), static_cast<QWidget*>(itemY_), static_cast<QWidget*>(itemRotation_),
+                            static_cast<QWidget*>(itemOn_)})
         if (auto* grid = qobject_cast<QGridLayout*>(widget->parentWidget()->layout())) {
             const int index = grid->indexOf(widget);
             int row = 0, column = 0, rowSpan = 0, columnSpan = 0;

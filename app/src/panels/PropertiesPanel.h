@@ -235,6 +235,8 @@ private:
     QLabel* itemSize_ = nullptr;
     QLabel* itemRoom_ = nullptr;
     QLabel* itemWall_ = nullptr;
+    QLabel* itemOn_ = nullptr;
+    QPushButton* itemToFloor_ = nullptr;
     QLabel* itemState_ = nullptr;
     QLabel* itemProblems_ = nullptr;
     QPushButton* itemUpdate_ = nullptr;
