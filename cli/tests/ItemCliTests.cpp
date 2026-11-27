@@ -1,6 +1,8 @@
+#include "../src/ItemStacking.h"
 #include "SampleProject.h"
 #include "SettingsGuard.h"
 
+#include <plynth/core/Document.h>
 #include <plynth/core/EditSession.h>
 #include <plynth/core/Library.h>
 #include <plynth/core/Settings.h>
@@ -13,7 +15,9 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 using Catch::Matchers::WithinAbs;
@@ -479,4 +483,238 @@ TEST_CASE("item edits are refused with locked while the app has the project open
     }
     CHECK(readFile(sample.folder / "plan.json") == before);
     CHECK(sample.run({"item", "list"}).exitCode == kExitOk);
+    CHECK(sample.run({"item", "show", "i1"}).exitCode == kExitOk);
+}
+
+namespace {
+
+// Adds a rug 2 by 1.4 m and 1 cm high, and a lamp 0.3 by 0.3 by 0.5 m, to the library of a prepared flat.
+void addStackAssets(const Sample& sample) {
+    const auto library = sample.temp.path() / "Library";
+    makeAsset(library, "rug", "Rug", "carpet", {2.0, 1.4, 0.01});
+    makeAsset(library, "lamp", "Lamp", "lamp", {0.3, 0.3, 0.5});
+}
+
+// The item entry of an answer.
+const nlohmann::json& itemOf(const plynth::cli::testing::Outcome& outcome) {
+    return outcome.answer.at("result").at("item");
+}
+
+}
+
+TEST_CASE("place over a rug stands on it by itself, unless --on none or a height is given", "[cli][item][stack]") {
+    SettingsReset reset;
+    const Sample sample("item-rug");
+    prepare(sample);
+    addStackAssets(sample);
+
+    const auto rug = sample.run({"place", "rug", "--x", "3", "--y", "3"});
+    REQUIRE(rug.exitCode == kExitOk);
+    CHECK(itemOf(rug).at("on").is_null());
+
+    const auto sofa = sample.run({"place", "sofa", "--x", "3", "--y", "3"});
+    REQUIRE(sofa.exitCode == kExitOk);
+    CHECK(itemOf(sofa).at("on") == "i1");
+    CHECK_THAT(itemOf(sofa).at("z").get<double>(), WithinAbs(0.01, 1e-9));
+    CHECK_FALSE(hasWarning(sofa, "overlaps_item"));
+
+    const auto table = sample.run({"place", "table", "--x", "3", "--y", "3.6", "--on", "none"});
+    REQUIRE(table.exitCode == kExitOk);
+    CHECK(itemOf(table).at("on").is_null());
+    CHECK(itemOf(table).at("z") == 0.0);
+
+    const auto lamp = sample.run({"place", "lamp", "--x", "3.8", "--y", "3.6", "--z", "0.2"});
+    REQUIRE(lamp.exitCode == kExitOk);
+    CHECK(itemOf(lamp).at("on").is_null());
+    CHECK_THAT(itemOf(lamp).at("z").get<double>(), WithinAbs(0.2, 1e-9));
+
+    const auto list = sample.run({"item", "list"});
+    REQUIRE(list.exitCode == kExitOk);
+    const auto& items = list.answer.at("result").at("items");
+    REQUIRE(items.size() == 4);
+    CHECK(items.at(0).at("on").is_null());
+    CHECK(items.at(1).at("on") == "i1");
+    CHECK(items.at(2).at("on").is_null());
+    CHECK(items.at(3).at("on").is_null());
+}
+
+TEST_CASE("place --on puts a lamp on a table, in its middle when no place is given", "[cli][item][stack]") {
+    SettingsReset reset;
+    const Sample sample("item-on");
+    prepare(sample);
+    addStackAssets(sample);
+    REQUIRE(sample.run({"place", "table", "--x", "9", "--y", "3"}).exitCode == kExitOk);
+
+    const auto lamp = sample.run({"place", "lamp", "--on", "i1"});
+    REQUIRE(lamp.exitCode == kExitOk);
+    const auto& entry = itemOf(lamp);
+    CHECK(entry.at("id") == "i2");
+    CHECK(entry.at("on") == "i1");
+    CHECK(entry.at("room") == "r2");
+    CHECK_THAT(entry.at("x").get<double>(), WithinAbs(9.0, 1e-9));
+    CHECK_THAT(entry.at("y").get<double>(), WithinAbs(3.0, 1e-9));
+    CHECK_THAT(entry.at("z").get<double>(), WithinAbs(0.75, 1e-9));
+    CHECK_FALSE(hasWarning(lamp, "overlaps_item"));
+
+    const auto shown = sample.run({"item", "show", "i2"});
+    REQUIRE(shown.exitCode == kExitOk);
+    CHECK(shown.answer.at("command") == "item show");
+    CHECK(itemOf(shown).at("on") == "i1");
+    CHECK(errorCode(sample.run({"item", "show", "i9"})) == "not_found");
+
+    REQUIRE(sample.run({"floor", "add", "--name", "Upper"}).exitCode == kExitOk);
+    REQUIRE(sample.run({"place", "table", "--floor", "f2", "--x", "3", "--y", "3"}).exitCode == kExitOk);
+    const std::string before = readFile(sample.folder / "plan.json");
+
+    const auto outside = sample.run({"place", "lamp", "--x", "10.5", "--y", "3", "--on", "i1"});
+    CHECK(outside.exitCode == kExitFailed);
+    CHECK(errorCode(outside) == "invalid_value");
+    const auto missing = sample.run({"place", "lamp", "--on", "i9"});
+    CHECK(errorCode(missing) == "not_found");
+    CHECK(missing.answer.at("error").at("message") == "There is no item i9.");
+    const auto otherFloor = sample.run({"place", "lamp", "--x", "3", "--y", "3", "--on", "i3"});
+    CHECK(errorCode(otherFloor) == "invalid_value");
+    CHECK(otherFloor.answer.at("error").at("message") == "The item i3 is on floor f2, not on floor f1.");
+    CHECK(sample.run({"place", "lamp", "--on", "i1", "--z", "1"}).exitCode == kExitBadArguments);
+    CHECK(sample.run({"place", "lamp", "--wall", "w3", "--on", "i1"}).exitCode == kExitBadArguments);
+    CHECK(sample.run({"place", "lamp", "--on", ""}).exitCode == kExitBadArguments);
+    CHECK(readFile(sample.folder / "plan.json") == before);
+}
+
+TEST_CASE("item move --on stacks and unstacks, and refuses loops and missing items without a change",
+          "[cli][item][stack]") {
+    SettingsReset reset;
+    const Sample sample("item-move-on");
+    prepare(sample);
+    addStackAssets(sample);
+    REQUIRE(sample.run({"place", "table", "--x", "9", "--y", "3"}).exitCode == kExitOk);
+    REQUIRE(sample.run({"place", "lamp", "--x", "8", "--y", "2"}).exitCode == kExitOk);
+
+    const auto onTable = sample.run({"item", "move", "i2", "--x", "9", "--y", "3", "--on", "i1"});
+    REQUIRE(onTable.exitCode == kExitOk);
+    CHECK(itemOf(onTable).at("on") == "i1");
+    CHECK_THAT(itemOf(onTable).at("z").get<double>(), WithinAbs(0.75, 1e-9));
+
+    REQUIRE(sample.run({"item", "move", "i1", "--x", "9.5", "--y", "3.5"}).exitCode == kExitOk);
+    const auto carried = sample.run({"item", "show", "i2"});
+    REQUIRE(carried.exitCode == kExitOk);
+    CHECK(itemOf(carried).at("on") == "i1");
+    CHECK_THAT(itemOf(carried).at("x").get<double>(), WithinAbs(9.5, 1e-9));
+    CHECK_THAT(itemOf(carried).at("y").get<double>(), WithinAbs(3.5, 1e-9));
+
+    const std::string before = readFile(sample.folder / "plan.json");
+    const auto loop = sample.run({"item", "move", "i1", "--on", "i2"});
+    CHECK(loop.exitCode == kExitFailed);
+    CHECK(errorCode(loop) == "invalid_value");
+    CHECK(loop.answer.at("error").at("message") == "The item i2 stands on i1, so i1 cannot stand on it.");
+    const auto loopMoved = sample.run({"item", "move", "i1", "--x", "9", "--y", "3", "--on", "i2"});
+    CHECK(errorCode(loopMoved) == "invalid_value");
+    const auto itself = sample.run({"item", "move", "i2", "--on", "i2"});
+    CHECK(errorCode(itself) == "invalid_value");
+    const auto missing = sample.run({"item", "move", "i2", "--on", "i9"});
+    CHECK(errorCode(missing) == "not_found");
+    CHECK(missing.answer.at("error").at("message") == "There is no item i9.");
+    CHECK(errorCode(sample.run({"item", "move", "i9", "--on", "i1"})) == "not_found");
+    const auto off = sample.run({"item", "move", "i2", "--x", "7.5", "--y", "2", "--on", "i1"});
+    CHECK(errorCode(off) == "invalid_value");
+    CHECK(sample.run({"item", "move", "i2", "--on", "i1", "--z", "1"}).exitCode == kExitBadArguments);
+    CHECK(sample.run({"item", "move", "i2", "--on", ""}).exitCode == kExitBadArguments);
+    CHECK(readFile(sample.folder / "plan.json") == before);
+
+    const auto down = sample.run({"item", "move", "i2", "--on", "none"});
+    REQUIRE(down.exitCode == kExitOk);
+    CHECK(itemOf(down).at("on").is_null());
+    CHECK(itemOf(down).at("z") == 0.0);
+    CHECK_THAT(itemOf(down).at("x").get<double>(), WithinAbs(9.5, 1e-9));
+}
+
+TEST_CASE("item move over a rug stands on it by itself and leaves it when moved off", "[cli][item][stack]") {
+    SettingsReset reset;
+    const Sample sample("item-move-rug");
+    prepare(sample);
+    addStackAssets(sample);
+    REQUIRE(sample.run({"place", "rug", "--x", "3", "--y", "3"}).exitCode == kExitOk);
+    REQUIRE(sample.run({"place", "sofa", "--x", "9", "--y", "3"}).exitCode == kExitOk);
+
+    const auto onRug = sample.run({"item", "move", "i2", "--x", "3", "--y", "3"});
+    REQUIRE(onRug.exitCode == kExitOk);
+    CHECK(itemOf(onRug).at("on") == "i1");
+    CHECK_THAT(itemOf(onRug).at("z").get<double>(), WithinAbs(0.01, 1e-9));
+    CHECK_FALSE(hasWarning(onRug, "overlaps_item"));
+
+    REQUIRE(sample.run({"item", "move", "i1", "--x", "3.2", "--y", "3"}).exitCode == kExitOk);
+    const auto carried = sample.run({"item", "show", "i2"});
+    REQUIRE(carried.exitCode == kExitOk);
+    CHECK_THAT(itemOf(carried).at("x").get<double>(), WithinAbs(3.2, 1e-9));
+    CHECK(itemOf(carried).at("on") == "i1");
+
+    const auto offRug = sample.run({"item", "move", "i2", "--x", "9", "--y", "3"});
+    REQUIRE(offRug.exitCode == kExitOk);
+    CHECK(itemOf(offRug).at("on").is_null());
+    CHECK(itemOf(offRug).at("z") == 0.0);
+
+    const auto kept = sample.run({"item", "move", "i2", "--x", "3.2", "--y", "3", "--on", "none"});
+    REQUIRE(kept.exitCode == kExitOk);
+    CHECK(itemOf(kept).at("on").is_null());
+}
+
+TEST_CASE("an item move with its stacking is one undo step", "[cli][item][stack]") {
+    SettingsReset reset;
+    const Sample sample("item-move-undo");
+    prepare(sample);
+    addStackAssets(sample);
+    REQUIRE(sample.run({"place", "rug", "--x", "3", "--y", "3"}).exitCode == kExitOk);
+    REQUIRE(sample.run({"place", "table", "--x", "9", "--y", "3"}).exitCode == kExitOk);
+    REQUIRE(sample.run({"place", "lamp", "--x", "8", "--y", "2"}).exitCode == kExitOk);
+
+    plynth::Document document;
+    REQUIRE(document.open(sample.folder).ok());
+    const plynth::Plan before = document.plan();
+
+    SECTION("onto the item named by --on") {
+        plynth::cli::ItemMoveRequest request;
+        request.position = plynth::Vec2{9.0, 3.0};
+        request.on = plynth::cli::onChoiceFrom(std::string("i2"));
+        plynth::cli::ItemMoveBuild move = plynth::cli::buildItemMove(document.plan(), "i3", request);
+        REQUIRE(move.status.ok());
+        REQUIRE(document.execute(std::move(move.command)).ok());
+        const plynth::Item* lamp = plynth::findItem(document.plan().floors.front(), "i3");
+        REQUIRE(lamp != nullptr);
+        CHECK(lamp->on == std::optional<plynth::Id>("i2"));
+        CHECK_THAT(lamp->z, WithinAbs(0.75, 1e-9));
+    }
+    SECTION("onto the rug by itself") {
+        plynth::cli::ItemMoveRequest request;
+        request.position = plynth::Vec2{3.0, 3.0};
+        plynth::cli::ItemMoveBuild move = plynth::cli::buildItemMove(document.plan(), "i3", request);
+        REQUIRE(move.status.ok());
+        REQUIRE(document.execute(std::move(move.command)).ok());
+        const plynth::Item* lamp = plynth::findItem(document.plan().floors.front(), "i3");
+        REQUIRE(lamp != nullptr);
+        CHECK(lamp->on == std::optional<plynth::Id>("i1"));
+    }
+
+    CHECK(document.canUndo());
+    document.undo();
+    CHECK_FALSE(document.canUndo());
+    CHECK(document.plan() == before);
+}
+
+TEST_CASE("a refused stack builds no move", "[cli][item][stack]") {
+    SettingsReset reset;
+    const Sample sample("item-move-refused");
+    prepare(sample);
+    addStackAssets(sample);
+    REQUIRE(sample.run({"place", "table", "--x", "9", "--y", "3"}).exitCode == kExitOk);
+    REQUIRE(sample.run({"place", "lamp", "--on", "i1"}).exitCode == kExitOk);
+
+    plynth::Document document;
+    REQUIRE(document.open(sample.folder).ok());
+    plynth::cli::ItemMoveRequest request;
+    request.position = plynth::Vec2{9.2, 3.0};
+    request.on = plynth::cli::onChoiceFrom(std::string("i2"));
+    const plynth::cli::ItemMoveBuild move = plynth::cli::buildItemMove(document.plan(), "i1", request);
+    CHECK(move.status.code == plynth::ErrorCode::InvalidValue);
+    CHECK(move.command == nullptr);
+    CHECK_FALSE(document.canUndo());
 }

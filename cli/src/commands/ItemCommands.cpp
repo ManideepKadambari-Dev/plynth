@@ -1,6 +1,7 @@
 #include "../CatalogCommon.h"
 #include "../Common.h"
 #include "../GeneratorCommon.h"
+#include "../ItemStacking.h"
 
 #include <plynth/core/Generators.h>
 #include <plynth/core/Geometry.h>
@@ -39,6 +40,7 @@ struct PlaceOptions {
     std::optional<double> centre;
     std::optional<double> offset;
     std::optional<double> snap;
+    std::optional<std::string> on;
     bool strict = false;
 };
 
@@ -60,7 +62,14 @@ struct MoveOptions {
     std::optional<double> z;
     std::optional<double> centre;
     std::optional<double> snap;
+    std::optional<std::string> on;
     bool strict = false;
+};
+
+struct ShowOptions {
+    std::string project;
+    std::string library;
+    std::string id;
 };
 
 struct RotateOptions {
@@ -123,6 +132,15 @@ bool checkFinite(const std::string& command, const std::vector<std::pair<const c
             failed = failure(command, fail(ErrorCode::InvalidValue, std::string(name) + " must be a finite number."));
             return false;
         }
+    }
+    return true;
+}
+
+// Refuses an empty --on. Returns false and fills failed when it is.
+bool checkOnText(const std::string& command, const std::optional<std::string>& on, Answer& failed) {
+    if (on && on->empty()) {
+        failed = badArguments(command, "bad_arguments", "--on needs an item id, or none for the floor.");
+        return false;
     }
     return true;
 }
@@ -261,6 +279,11 @@ Json itemEntry(const Floor& floor, const Item& item, const ItemLibrary& lib) {
     entry["x"] = item.x;
     entry["y"] = item.y;
     entry["z"] = item.z;
+    if (item.on) {
+        entry["on"] = *item.on;
+    } else {
+        entry["on"] = nullptr;
+    }
     entry["rotation"] = item.rotation;
     if (item.wall) {
         entry["wall"] = *item.wall;
@@ -444,8 +467,9 @@ Answer itemPlace(const RunContext& context, const PlaceOptions& options) {
     if (byXY && !(options.x && options.y)) {
         return badArguments(command, "bad_arguments", "Give both --x and --y.");
     }
-    if (!byXY && options.room.empty() && options.wall.empty()) {
-        return badArguments(command, "bad_arguments", "Give a place: --x and --y, --room, or --wall.");
+    const OnChoice on = onChoiceFrom(options.on);
+    if (!byXY && options.room.empty() && options.wall.empty() && !on.lower) {
+        return badArguments(command, "bad_arguments", "Give a place: --x and --y, --room, --wall or --on.");
     }
     if (options.rot && !options.wall.empty()) {
         return badArguments(command, "bad_arguments", "--rot cannot be used with --wall. A wall item faces away from its wall.");
@@ -459,7 +483,17 @@ Answer itemPlace(const RunContext& context, const PlaceOptions& options) {
     if (!options.wall.empty() && options.snap) {
         return badArguments(command, "bad_arguments", "--snap is for items on the floor.");
     }
+    if (!options.wall.empty() && on.given) {
+        return badArguments(command, "bad_arguments", "--on is for items on the floor. A wall item hangs on its wall.");
+    }
+    if (on.lower && (options.z || options.centre)) {
+        return badArguments(command, "bad_arguments",
+                            "--on sets the height to the top of the other item. Leave out --z and --centre.");
+    }
     Answer invalid;
+    if (!checkOnText(command, options.on, invalid)) {
+        return invalid;
+    }
     if (!checkFinite(command, {{"--x", options.x}, {"--y", options.y}, {"--rot", options.rot}, {"--z", options.z},
                                {"--centre", options.centre}, {"--offset", options.offset}, {"--snap", options.snap}},
                      invalid)) {
@@ -534,6 +568,16 @@ Answer itemPlace(const RunContext& context, const PlaceOptions& options) {
             Vec2 position;
             if (byXY) {
                 position = {*options.x, *options.y};
+            } else if (on.lower) {
+                const Item* below = findItem(*floor, *on.lower);
+                if (below == nullptr) {
+                    return failure(command, checkStandOn(document.plan(), *floor, Id(), *on.lower, {}));
+                }
+                position = {below->x, below->y};
+                if (room != nullptr && roomAt(*floor, position) != room->id) {
+                    return failure(command, fail(ErrorCode::InvalidValue, "The item " + below->id +
+                                                                              " is not inside room " + room->id + "."));
+                }
             } else {
                 const RoomShape shape = roomShape(*floor, *room);
                 if (!shape.closed) {
@@ -551,6 +595,11 @@ Answer itemPlace(const RunContext& context, const PlaceOptions& options) {
             }
             item.x = position.x;
             item.y = position.y;
+            const Status stacked =
+                chooseStackForPlace(document.plan(), *floor, on, options.z.has_value() || options.centre.has_value(), item);
+            if (!stacked.ok()) {
+                return failure(command, stacked);
+            }
         }
 
         auto placed = std::make_unique<PlaceItemCommand>(floor->id, item);
@@ -610,8 +659,10 @@ Answer itemMove(const RunContext& context, const MoveOptions& options) {
     if (byXY && !(options.x && options.y)) {
         return badArguments(command, "bad_arguments", "Give both --x and --y.");
     }
-    if (!byXY && !options.offset && !options.z && !options.centre) {
-        return badArguments(command, "bad_arguments", "Give at least one of --x and --y, --offset, --z and --centre.");
+    const OnChoice on = onChoiceFrom(options.on);
+    if (!byXY && !options.offset && !options.z && !options.centre && !on.given) {
+        return badArguments(command, "bad_arguments",
+                            "Give at least one of --x and --y, --offset, --z, --centre and --on.");
     }
     if (byXY && options.offset) {
         return badArguments(command, "bad_arguments", "Give --x and --y, or --offset, not both.");
@@ -622,7 +673,17 @@ Answer itemMove(const RunContext& context, const MoveOptions& options) {
     if (options.snap && !byXY) {
         return badArguments(command, "bad_arguments", "--snap needs --x and --y.");
     }
+    if (options.offset && on.given) {
+        return badArguments(command, "bad_arguments", "--on is for items on the floor. --offset is for wall items.");
+    }
+    if (on.lower && (options.z || options.centre)) {
+        return badArguments(command, "bad_arguments",
+                            "--on sets the height to the top of the other item. Leave out --z and --centre.");
+    }
     Answer invalid;
+    if (!checkOnText(command, options.on, invalid)) {
+        return invalid;
+    }
     if (!checkFinite(command, {{"--x", options.x}, {"--y", options.y}, {"--offset", options.offset},
                                {"--z", options.z}, {"--centre", options.centre}, {"--snap", options.snap}},
                      invalid)) {
@@ -646,38 +707,58 @@ Answer itemMove(const RunContext& context, const MoveOptions& options) {
         if (options.snap && item->wall) {
             return badArguments(command, "bad_arguments", "--snap is for items on the floor.");
         }
-        std::optional<double> z = options.z;
+        ItemMoveRequest request;
+        request.offset = options.offset;
+        request.z = options.z;
+        request.on = on;
         if (options.centre) {
-            z = *options.centre - item->size.height / 2.0;
+            request.z = *options.centre - item->size.height / 2.0;
         }
-
-        auto group = std::make_unique<CommandGroup>("Move item");
-        if (options.offset) {
-            group->add(std::make_unique<MoveItemOnWallCommand>(options.id, *options.offset, z.value_or(item->z)));
-        } else {
-            if (byXY) {
-                Vec2 position = {*options.x, *options.y};
-                if (options.snap && *options.snap > 0.0) {
-                    ItemSnapOptions snap;
-                    snap.gridSize = document.project().settings.gridSize;
-                    snap.radius = *options.snap;
-                    position = snapItemPosition(*floor, *item, position, snap).position;
-                }
-                group->add(std::make_unique<MoveItemCommand>(options.id, position));
+        if (byXY) {
+            Vec2 position = {*options.x, *options.y};
+            if (options.snap && *options.snap > 0.0) {
+                ItemSnapOptions snap;
+                snap.gridSize = document.project().settings.gridSize;
+                snap.radius = *options.snap;
+                position = snapItemPosition(*floor, *item, position, snap).position;
             }
-            if (z) {
-                group->add(std::make_unique<SetItemHeightCommand>(options.id, *z));
-            }
+            request.position = position;
+        }
+        ItemMoveBuild move = buildItemMove(document.plan(), options.id, request);
+        if (!move.status.ok()) {
+            return failure(command, move.status);
         }
         ItemLibrary lib;
         if (!openItemLibrary(command, context, options.library, lib, failed)) {
             return failed;
         }
-        if (!runCommand(command, document, std::move(group), failed)) {
+        if (!runCommand(command, document, std::move(move.command), failed)) {
             return failed;
         }
         return itemAnswer(command, document, options.id, lib, options.strict);
     });
+}
+
+// Shows one item with what it stands on and its problems.
+Answer itemShow(const RunContext& context, const ShowOptions& options) {
+    const std::string command = "item show";
+    Document document;
+    Answer failed;
+    if (!openProject(command, resolveProjectFolder(context, options.project), document, failed, true)) {
+        return failed;
+    }
+    const Item* item = resolveItem(command, document.plan(), options.id, failed);
+    if (item == nullptr) {
+        return failed;
+    }
+    ItemLibrary lib;
+    if (!openItemLibrary(command, context, options.library, lib, failed)) {
+        return failed;
+    }
+    const Floor* floor = findFloorContaining(document.plan(), options.id);
+    Json result = Json::object();
+    result["item"] = itemEntry(*floor, *item, lib);
+    return success(command, std::move(result));
 }
 
 // Turns a floor item to a rotation or by an angle.
@@ -887,6 +968,9 @@ std::vector<CommandSpec> itemCommands() {
         sub.add_option("--snap", options->snap,
                        "Snap to the grid and to wall faces within this distance, in metres. Floor items only.")
             ->type_name("metres");
+        sub.add_option("--on", options->on,
+                       "Floor items: stand on this item, or none for the floor. Default: on a rug under the centre.")
+            ->type_name("id|none");
         sub.add_option("--floor", options->floor, "Floor id. Default: the first floor.")->type_name("id");
         addStrictOption(sub, options->strict);
         return [options](const RunContext& context) { return itemPlace(context, *options); };
@@ -926,8 +1010,22 @@ std::vector<CommandSpec> itemCommands() {
         sub.add_option("--snap", options->snap,
                        "With --x and --y: snap to the grid and to wall faces within this distance, in metres.")
             ->type_name("metres");
+        sub.add_option("--on", options->on,
+                       "Stand on this item, or none for the floor. Default: on a rug under the new centre.")
+            ->type_name("id|none");
         addStrictOption(sub, options->strict);
         return [options](const RunContext& context) { return itemMove(context, *options); };
+    };
+
+    CommandSpec show;
+    show.words = {"item", "show"};
+    show.description = "Show one item with what it stands on and its problems.";
+    show.setup = [](CLI::App& sub) -> Handler {
+        auto options = std::make_shared<ShowOptions>();
+        addProjectOption(sub, options->project);
+        addLibraryOption(sub, options->library);
+        sub.add_option("id", options->id, "Id of the item.")->type_name("id")->required();
+        return [options](const RunContext& context) { return itemShow(context, *options); };
     };
 
     CommandSpec rotate;
@@ -1010,7 +1108,7 @@ std::vector<CommandSpec> itemCommands() {
         return [options](const RunContext& context) { return itemRemove(context, *options); };
     };
 
-    return {place, list, move, rotate, swap, params, attach, detach, remove};
+    return {place, list, show, move, rotate, swap, params, attach, detach, remove};
 }
 
 }

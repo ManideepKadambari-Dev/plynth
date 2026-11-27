@@ -1328,22 +1328,35 @@ An item has:
 - `size`: width (the asset's own x), depth (its own y) and height. It is copied from the library when you `place` or `item swap`. The footprint, the fit and the overlap checks then work with no library, so a project opened on another machine, or a script run without `--library`, still gets the same answers.
 - `room`: the room the item's position is in, worked out on every change. It is empty when the position is in no room.
 - `wall`: the wall a wall item hangs on, otherwise empty. A wall item is always put flat on the face of its wall, facing away from it.
+- `on`: the item this one stands on, such as a sofa on a rug or a lamp on a table. Empty for an item on the floor or on a wall. See "Items on items" below.
 
 Only `place` and `item swap` need a library, because they read the asset's size. Every other item command works without one. An item whose asset is gone from the library is kept exactly as it is, and you can still move, turn, swap and remove it.
 
 Place and swap refuse an asset that is not in the library (`not_found`), is broken, or is not measured (`invalid_value`). Check `measured` in the asset entry.
 
+#### Items on items
+
+An item can stand on another item of its floor. Its `z` is then the top of the item below (that item's `z` plus its height), and its `on` names that item.
+
+- A floor item lower than 3 cm, such as a rug, a carpet or a mat, is an underlay. An item placed or moved with its centre over an underlay goes on it by itself, as in the app. This only happens when `--on`, `--z` and `--centre` are all left out.
+- `--on <id>` on `place` and `item move` puts the item on any other floor item. Its centre must be over that item's footprint. `--on none` keeps it on the floor, or takes it down to the floor.
+- Moving or turning an item moves or turns what stands on it. Changing its height, its size or its asset lifts what stands on it to its new top. Removing it, or hanging it on a wall, lets what stood on it down to where it stood.
+- An item moved so that its centre leaves the item it stands on goes back on the floor. An item given another height with `--z` or `--centre` no longer stands on anything.
+- Each of these is one change, the items carried along included, so one undo in the app takes it all back.
+
+Refused with `invalid_value`: an item on itself, an item on one that stands on it (at any depth), an item on another floor, and a wall item above or below. An unknown item is `not_found`. Nothing is changed.
+
 #### Warnings and refusals
 
 A command refuses a change that cannot be right: a number that is not finite, a size that is not above zero, `z` below zero, an unknown floor, room or wall, a wall item whose top is above its wall or that is wider than its wall, and turning a wall item. The plan is then not changed.
 
-Problems with fit and overlap never refuse. The command works and the answer has them under `warnings` and in the item's `problems`. A rug under a table, or a sofa against a radiator, is normal in a real room, so these are for you to look at.
+Problems with fit and overlap never refuse. The command works and the answer has them under `warnings` and in the item's `problems`. A sofa against a radiator is normal in a real room, so these are for you to look at.
 
 | Code | Meaning |
 |---|---|
 | `no_room` | The centre of the item is in no room. |
 | `outside_room` | Part of the footprint is outside its room. |
-| `overlaps_item` | Its box overlaps another item's box. Footprints must share more than 1 cm by 1 cm, and the heights must overlap too, so a TV above a cabinet is fine. `other` is the item. |
+| `overlaps_item` | Its box overlaps another item's box. Footprints must share more than 1 cm by 1 cm, and the heights must overlap too, so a TV above a cabinet is fine. An item and the item it stands on never overlap, and neither do a rug and a floor item over it. `other` is the item. |
 | `overlaps_wall` | The footprint overlaps a wall. A wall item's own wall is not counted. `other` is the wall. |
 | `overlaps_opening` | A wall item overlaps a door or window on its wall. `other` is the opening. |
 | `off_wall` | A wall item is more than 1 cm from the face of its wall, for example after you moved a wall point. Move it along the wall, or attach it again, to put it flat again. |
@@ -1364,6 +1377,7 @@ Every command that shows an item uses this entry:
 | `asset_state` | `ok`, `missing`, `size_changed`, or `unknown` when there is no library to ask. |
 | `room` | The room id, or `null`. |
 | `x`, `y`, `z`, `rotation` | As above. |
+| `on` | The item it stands on, or `null`. |
 | `wall`, `wall_side`, `wall_offset` | For a wall item: the wall, the face it hangs on (`left` or `right`, see "Left and right") and the distance along the wall to its centre. `null` for a floor item. |
 | `centre_height` | The height of the middle of the item above the floor: `z` plus half its height. |
 | `size` | `width`, `depth`, `height`. |
@@ -1385,18 +1399,19 @@ Puts an asset on the floor or on a wall.
 | `--offset <metres>` | With `--wall`: the distance along the wall to the centre. Default: the middle of the wall. |
 | `--side left\|right` | With `--wall`: the face to hang on. Default: the side facing `--room` when given, else the side `--x` and `--y` are on, else right. |
 | `--snap <metres>` | Floor items only. Snap the centre to the grid, and slide the footprint flush against walls within this distance, as the app does. Default: no snapping. |
+| `--on <id>` or `--on none` | Floor items only. Stand on this item, at its top. Without `--x` and `--y` the item goes to the middle of that item. `none` keeps it on the floor, even over a rug. Default: on the rug under its centre, if there is one. `--on <id>` not with `--z` or `--centre`. |
 | `--floor <id>` | Default: the first floor. |
 | `--strict` | Refuse when the item would have any problem. |
 | `--library <folder>` | Default: the library in the settings. |
 
-One place is needed: `--x` with `--y`, `--room` or `--wall`.
+One place is needed: `--x` with `--y`, `--room`, `--wall` or `--on`.
 
 ```
 plynth place sofa --room living --rot 180
 ```
 
 ```json
-{"ok":true,"command":"place","result":{"item":{"id":"i1","floor":"f1","asset":"sofa","asset_name":"Sofa","asset_state":"ok","room":"r5","x":14.41,"y":9.88,"z":0.0,"rotation":180.0,"wall":null,"wall_side":null,"wall_offset":null,"centre_height":0.425,"size":{"width":2.0,"depth":0.9,"height":0.85},"footprint":[{"x":15.41,"y":10.33},{"x":13.41,"y":10.33},{"x":13.41,"y":9.43},{"x":15.41,"y":9.43}],"problems":[]}}}
+{"ok":true,"command":"place","result":{"item":{"id":"i1","floor":"f1","asset":"sofa","asset_name":"Sofa","asset_state":"ok","room":"r5","x":14.41,"y":9.88,"z":0.0,"on":null,"rotation":180.0,"wall":null,"wall_side":null,"wall_offset":null,"centre_height":0.425,"size":{"width":2.0,"depth":0.9,"height":0.85},"footprint":[{"x":15.41,"y":10.33},{"x":13.41,"y":10.33},{"x":13.41,"y":9.43},{"x":15.41,"y":9.43}],"problems":[]}}}
 ```
 
 The values are shortened here. `living` was the type of room `r5`, and with no position the sofa went to the room's label point.
@@ -1408,7 +1423,7 @@ plynth place table --room living --snap 0.3
 ```
 
 ```json
-{"ok":true,"command":"place","result":{"item":{"id":"i2","floor":"f1","asset":"table","asset_name":"Table","asset_state":"ok","room":"r5","x":14.5,"y":10.0,"z":0.0,"rotation":0.0,"wall":null,"wall_side":null,"wall_offset":null,"centre_height":0.375,"size":{"width":1.2,"depth":0.8,"height":0.75},"footprint":[{"x":13.9,"y":9.6},{"x":15.1,"y":9.6},{"x":15.1,"y":10.4},{"x":13.9,"y":10.4}],"problems":[{"code":"overlaps_item","message":"Table i2 overlaps Sofa i1.","other":"i1"}]}},"warnings":[{"code":"overlaps_item","message":"Table i2 overlaps Sofa i1."}]}
+{"ok":true,"command":"place","result":{"item":{"id":"i2","floor":"f1","asset":"table","asset_name":"Table","asset_state":"ok","room":"r5","x":14.5,"y":10.0,"z":0.0,"on":null,"rotation":0.0,"wall":null,"wall_side":null,"wall_offset":null,"centre_height":0.375,"size":{"width":1.2,"depth":0.8,"height":0.75},"footprint":[{"x":13.9,"y":9.6},{"x":15.1,"y":9.6},{"x":15.1,"y":10.4},{"x":13.9,"y":10.4}],"problems":[{"code":"overlaps_item","message":"Table i2 overlaps Sofa i1.","other":"i1"}]}},"warnings":[{"code":"overlaps_item","message":"Table i2 overlaps Sofa i1."}]}
 ```
 
 With `--strict` the same command is refused and the plan is not changed:
@@ -1428,7 +1443,7 @@ plynth place tv --wall w6 --room living
 ```
 
 ```json
-{"ok":true,"command":"place","result":{"item":{"id":"i4","floor":"f1","asset":"tv","asset_name":"Tv","asset_state":"ok","room":"r5","x":14.455,"y":12.67,"z":0.845,"rotation":180.0,"wall":"w6","wall_side":"left","wall_offset":4.395,"centre_height":1.2,"size":{"width":1.23,"depth":0.06,"height":0.71},"footprint":[{"x":15.07,"y":12.7},{"x":13.84,"y":12.7},{"x":13.84,"y":12.64},{"x":15.07,"y":12.64}],"problems":[]}}}
+{"ok":true,"command":"place","result":{"item":{"id":"i4","floor":"f1","asset":"tv","asset_name":"Tv","asset_state":"ok","room":"r5","x":14.455,"y":12.67,"z":0.845,"on":null,"rotation":180.0,"wall":"w6","wall_side":"left","wall_offset":4.395,"centre_height":1.2,"size":{"width":1.23,"depth":0.06,"height":0.71},"footprint":[{"x":15.07,"y":12.7},{"x":13.84,"y":12.7},{"x":13.84,"y":12.64},{"x":15.07,"y":12.64}],"problems":[]}}}
 ```
 
 Refusals:
@@ -1440,7 +1455,24 @@ Refusals:
 {"ok":false,"command":"place","error":{"code":"invalid_value","message":"The item would reach 3.25 m, but the wall is 3.00 m high."}}
 ```
 
-`bad_arguments` (exit 2) also covers `--x` without `--y`, `--z` with `--centre`, `--offset` or `--side` without `--wall`, `--snap` with `--wall`, and no place at all. `--room hall` when two rooms are halls is `invalid_value` and the message lists their ids, so name one by its id.
+A lamp on a table. With no position it goes to the middle of the table, and its `z` is the table's top:
+
+```
+plynth place lamp --on i2
+```
+
+```json
+{"ok":true,"command":"place","result":{"item":{"id":"i6","floor":"f1","asset":"lamp","asset_name":"Lamp","asset_state":"ok","room":"r5","x":14.5,"y":10.0,"z":0.75,"on":"i2","rotation":0.0,"wall":null,"wall_side":null,"wall_offset":null,"centre_height":1.0,"size":{"width":0.3,"depth":0.3,"height":0.5},"footprint":[{"x":14.35,"y":9.85},{"x":14.65,"y":9.85},{"x":14.65,"y":10.15},{"x":14.35,"y":10.15}],"problems":[{"code":"overlaps_item","message":"Lamp i6 overlaps Sofa i1.","other":"i1"}]}},"warnings":[{"code":"overlaps_item","message":"Lamp i6 overlaps Sofa i1."}]}
+```
+
+The lamp stands on the table, so it does not overlap it, but it does reach into the box of the sofa beside it. A sofa put down over a rug goes on the rug by itself: its `on` is the rug's id and its `z` the rug's top. Add `--on none` to leave it on the floor.
+
+```json
+{"ok":false,"command":"place","error":{"code":"not_found","message":"There is no item i9."}}
+{"ok":false,"command":"place","error":{"code":"invalid_value","message":"The centre (12, 10) is not over the item i2. Give --x and --y inside its footprint."}}
+```
+
+`bad_arguments` (exit 2) also covers `--x` without `--y`, `--z` with `--centre`, `--offset` or `--side` without `--wall`, `--snap` with `--wall`, `--on` with `--wall`, `--on <id>` with `--z` or `--centre`, and no place at all. `--room hall` when two rooms are halls is `invalid_value` and the message lists their ids, so name one by its id.
 
 ### item list
 
@@ -1458,10 +1490,29 @@ plynth item list --room r1
 ```
 
 ```json
-{"ok":true,"command":"item list","result":{"items":[{"id":"i3","floor":"f1","asset":"bed","asset_name":null,"asset_state":"missing","room":"r1","x":7.8,"y":5.6,"z":0.0,"rotation":0.0,"wall":null,"wall_side":null,"wall_offset":null,"centre_height":0.5,"size":{"width":1.6,"depth":2.1,"height":1.0},"footprint":[{"x":7.0,"y":4.55},{"x":8.6,"y":4.55},{"x":8.6,"y":6.65},{"x":7.0,"y":6.65}],"problems":[{"code":"missing_asset","message":"Bed i3 uses asset bed, which is not in the library.","other":null}]}],"count":1}}
+{"ok":true,"command":"item list","result":{"items":[{"id":"i3","floor":"f1","asset":"bed","asset_name":null,"asset_state":"missing","room":"r1","x":7.8,"y":5.6,"z":0.0,"on":null,"rotation":0.0,"wall":null,"wall_side":null,"wall_offset":null,"centre_height":0.5,"size":{"width":1.6,"depth":2.1,"height":1.0},"footprint":[{"x":7.0,"y":4.55},{"x":8.6,"y":4.55},{"x":8.6,"y":6.65},{"x":7.0,"y":6.65}],"problems":[{"code":"missing_asset","message":"Bed i3 uses asset bed, which is not in the library.","other":null}]}],"count":1}}
 ```
 
 The bed's asset folder had been taken out of the library. The item is still listed with its stored size.
+
+### item show
+
+Shows one item: its entry, with `on` and its problems, as `item list` gives it.
+
+| Option | Meaning |
+|---|---|
+| `<id>` | Required. The item. |
+| `--library <folder>` | As for `item list`. |
+
+```
+plynth item show i6
+```
+
+```json
+{"ok":true,"command":"item show","result":{"item":{"id":"i6","floor":"f1","asset":"lamp","asset_name":"Lamp","asset_state":"ok","room":"r5","x":14.5,"y":10.0,"z":0.75,"on":"i2","rotation":0.0,"wall":null,"wall_side":null,"wall_offset":null,"centre_height":1.0,"size":{"width":0.3,"depth":0.3,"height":0.5},"footprint":[{"x":14.35,"y":9.85},{"x":14.65,"y":9.85},{"x":14.65,"y":10.15},{"x":14.35,"y":10.15}],"problems":[{"code":"overlaps_item","message":"Lamp i6 overlaps Sofa i1.","other":"i1"}]}}}
+```
+
+The lamp stands on the table i2. An unknown id is `not_found`.
 
 ### item move
 
@@ -1474,9 +1525,10 @@ Moves an item. What you leave out stays as it was.
 | `--offset <metres>` | Wall items only: the new distance along the wall to the centre. |
 | `--z <metres>` or `--centre <metres>` | The new height of the bottom, or of the centre. Not both. |
 | `--snap <metres>` | With `--x` and `--y`, floor items only: snap as `place --snap` does. |
+| `--on <id>` or `--on none` | Floor items only. Stand on this item, at its top, or come down to the floor. The centre, new or as it is, must be over that item. Default: on the rug under the new centre, if there is one. Not with `--offset`, and `--on <id>` not with `--z` or `--centre`. |
 | `--strict`, `--library` | As for `place`. |
 
-Give at least one of `--x` and `--y`, `--offset`, `--z` and `--centre`. `--x` and `--y` cannot be combined with `--offset`.
+Give at least one of `--x` and `--y`, `--offset`, `--z`, `--centre` and `--on`. `--x` and `--y` cannot be combined with `--offset`. The move and the change of what the item stands on are one change.
 
 ```
 plynth item move i2 --x 11 --y 10 --snap 0.3
@@ -1489,6 +1541,25 @@ plynth item move i4 --offset 2 --centre 1.5
 ```
 
 This answer's `problems` holds `overlaps_opening`, because the opening o3 is on the same wall at that place, and `warnings` repeats it.
+
+Putting the lamp on the sofa, taking it down again, and moving the table:
+
+```
+plynth item move i6 --x 14.41 --y 9.88 --on i1
+plynth item move i6 --on none
+plynth item move i2 --x 15 --y 10
+```
+
+The first answer has `"on":"i1"` and `z` 0.85, the top of the sofa. The second has `"on":null` and `z` 0. In the third, anything standing on the table moves along with it by the same amount.
+
+Refusals. The second is a loop: the lamp i6 stands on the table i2, so the table cannot go on the lamp.
+
+```json
+{"ok":false,"command":"item move","error":{"code":"not_found","message":"There is no item i9."}}
+{"ok":false,"command":"item move","error":{"code":"invalid_value","message":"The item i6 stands on i2, so i2 cannot stand on it."}}
+{"ok":false,"command":"item move","error":{"code":"invalid_value","message":"The item i6 cannot stand on itself."}}
+{"ok":false,"command":"item move","error":{"code":"invalid_value","message":"The item i7 is on floor f2, not on floor f1."}}
+```
 
 ### item rotate
 
@@ -1574,7 +1645,7 @@ The answer is the item entry, as `item list` gives it, with its new `size`.
 
 ### item remove
 
-Removes an item. The answer is the extended `removed` shape described under `point remove`.
+Removes an item. What stood on it goes down to where it stood: onto the item it stood on, or onto the floor. The answer is the extended `removed` shape described under `point remove`.
 
 ```
 plynth item remove i2

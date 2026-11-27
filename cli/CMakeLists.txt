@@ -13,6 +13,7 @@ add_library(plynth_cli STATIC
     src/Cli.cpp
     src/Common.cpp
     src/ErrorList.cpp
+    src/ItemStacking.cpp
     src/Registry.cpp
     src/commands/AgentGuideCommands.cpp
     src/commands/AssetCommands.cpp
