@@ -314,7 +314,7 @@ TEST_CASE("a width outside the range is refused by the layout", "[stairs]")
     Stair s = stairOf("straight");
     s.width = 0.3;
     CHECK(layoutOf(s).status.code == ErrorCode::InvalidValue);
-    s.width = 3.5;
+    s.width = 6.5;
     CHECK(layoutOf(s).status.code == ErrorCode::InvalidValue);
 }
 
@@ -366,7 +366,7 @@ TEST_CASE("checkStair accepts a good stair and refuses bad values", "[stairs]")
     s = stairOf("straight");
     s.width = 0.5;
     CHECK(checkStair(s).code == ErrorCode::InvalidValue);
-    s.width = 3.1;
+    s.width = 6.1;
     CHECK(checkStair(s).code == ErrorCode::InvalidValue);
 
     s = stairOf("straight");

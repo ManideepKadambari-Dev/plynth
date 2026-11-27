@@ -320,7 +320,7 @@ private:
     void openLibraryFolder();
     void openGeneratorsFolder();
     void roomTypesChanged();
-    void reportMissingImages(const plynth::SaveReport& report);
+    void reportSave(const plynth::SaveReport& report);
     void buildMenus();
     void newProject();
     bool askNewProject(const QString& baseName, QString* name, QString* folder);

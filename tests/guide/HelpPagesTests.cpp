@@ -58,21 +58,22 @@ struct Docs {
 TEST_CASE("The Help rows come in the agreed order", "[help]")
 {
     const auto pages = helpPages();
-    REQUIRE(pages.size() == 9);
+    REQUIRE(pages.size() == 10);
     const char* ids[] = {"getting-started", "user-guide", "shortcuts", "cli-guide", "ai-guide",
-                         "generators", "about", "setup-check", "setup"};
+                         "generators", "compatibility", "about", "setup-check", "setup"};
     const char* titles[] = {"Getting started", "User guide", "Keyboard shortcuts", "CLI developer guide",
-                            "AI integration guide", "Writing generators", "About and licenses", "Setup check", "Setup"};
+                            "AI integration guide", "Writing generators", "Opening old projects", "About and licenses", "Setup check", "Setup"};
     for (std::size_t i = 0; i < pages.size(); ++i) {
         CHECK(pages[i].id == ids[i]);
         CHECK(pages[i].title == titles[i]);
-        CHECK(pages[i].listed == (i != 8));
+        CHECK(pages[i].listed == (i != 9));
     }
     CHECK(pages[0].file == "GETTING_STARTED.md");
     CHECK(pages[4].file == "AI_INTEGRATION.md");
-    CHECK(pages[6].kind == HelpPageKind::About);
-    CHECK(pages[7].kind == HelpPageKind::SetupCheck);
-    CHECK(pages[8].file == "SETUP.md");
+    CHECK(pages[6].file == "COMPATIBILITY.md");
+    CHECK(pages[7].kind == HelpPageKind::About);
+    CHECK(pages[8].kind == HelpPageKind::SetupCheck);
+    CHECK(pages[9].file == "SETUP.md");
     CHECK(helpPage("user-guide") == &pages[1]);
     CHECK(helpPage("nope") == nullptr);
 }

@@ -18,6 +18,8 @@ namespace plynth {
 //   autosave/           project.json and plan.json with unsaved changes, removed after a save
 //   session.lock        the CLI edit session, see EditSession.h
 //   app-state.json      written by the app while it has the project open, see EditSession.h
+//   backup/             the files of an older format kept when the project was first saved after an upgrade
+//   AGENTS.md           instructions for a coding assistant started in the folder (AgentFiles.h)
 
 // How often the app writes an autosave while there are unsaved changes.
 inline constexpr int kAutosaveIntervalSeconds = 30;
@@ -47,11 +49,27 @@ struct ProjectLoad {
 // the file name at the start of the message. Never writes anything, even after an upgrade.
 ProjectLoad loadProject(const std::filesystem::path& folder);
 
+// When a project saved by an older Plynth is saved again, the files it had before the upgrade are kept in
+// folder/backup/ under their format version: plan.v7.json, project.v6.json, export-options.v3.json. Each is
+// copied once, before anything is written, from the files on disk whose version is older than the current one;
+// a backup already there is never overwritten. A failed copy stops the save with CannotWrite and changes nothing.
+inline constexpr std::string_view kBackupFolderName = "backup";
+
+// What the upgrade backup kept, for the message the app and the CLI show once.
+struct UpgradeBackup {
+    std::vector<std::filesystem::path> files; // absolute; empty when nothing was older
+};
+
+// Copies the older files of a project folder into folder/backup/ as the rule above says. saveProject calls it,
+// and the export options writer too. Ok with no files when nothing is older or folder holds no project yet.
+Status backUpOlderFiles(const std::filesystem::path& folder, UpgradeBackup* backup = nullptr);
+
 // What a save noticed without refusing it.
 struct SaveReport {
     // Image paths, as written in plan.json, of floors whose image file could not be found. They were not
     // copied and their paths were kept as they were, so the image shows again once the file is put back.
     std::vector<std::string> missingImages;
+    UpgradeBackup backup; // the older files kept in backup/ by this save
 };
 
 // Saves a project into a folder, creating the folder and plans/ when needed.
@@ -62,6 +80,7 @@ struct SaveReport {
 // the old one, so a failed save never leaves half a file. Images are copied before any JSON is written:
 // a failed copy returns CannotWrite and leaves both JSON files as they were. An image that cannot be found
 // does not stop the save: it is skipped, its path is kept unchanged and it is listed in report, when given.
+// Before any of that, backUpOlderFiles(folder); report->backup lists what it kept.
 Status saveProject(Project& project, const std::filesystem::path& folder,
                    const std::filesystem::path& sourceFolder, SaveReport* report = nullptr);
 

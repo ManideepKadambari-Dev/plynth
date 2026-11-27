@@ -1,0 +1,19 @@
+{
+  "format": "plynth-export-options",
+  "version": 3,
+  "groups": {
+    "added": [],
+    "renames": [],
+    "merges": [],
+    "moves": []
+  },
+  "kit": {
+    "enabled": false
+  },
+  "gameplay": {
+    "enabled": false
+  },
+  "licenses": {
+    "enabled": true
+  }
+}

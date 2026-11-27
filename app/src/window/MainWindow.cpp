@@ -2767,7 +2767,7 @@ bool MainWindow::saveDocument()
         return false;
     }
     watcher_->acknowledge();
-    reportMissingImages(report);
+    reportSave(report);
     recordRecent();
     return true;
 }
@@ -2787,16 +2787,22 @@ bool MainWindow::saveDocumentAs()
         showError(tr("Cannot save"), fromCore(status.message));
         return false;
     }
-    reportMissingImages(report);
+    reportSave(report);
     recordRecent();
     return true;
 }
 
-// Says in the status bar when a save kept the path of a plan image that cannot be found.
-void MainWindow::reportMissingImages(const plynth::SaveReport& report)
+// Says in the status bar when a save upgraded older files and kept them in backup/, or kept the path of a
+// plan image that cannot be found.
+void MainWindow::reportSave(const plynth::SaveReport& report)
 {
+    QStringList lines;
+    if (!report.backup.files.empty())
+        lines << tr("This project was upgraded. The older files are in backup/.");
     if (!report.missingImages.empty())
-        statusBar_->showMessage(tr("The plan image %1 is missing. Its path was kept.").arg(fromCore(report.missingImages.front())));
+        lines << tr("The plan image %1 is missing. Its path was kept.").arg(fromCore(report.missingImages.front()));
+    if (!lines.isEmpty())
+        statusBar_->showMessage(lines.join(QLatin1Char(' ')), !report.missingImages.empty());
 }
 
 // Offers to bring back the unsaved changes that an earlier session left in the autosave.

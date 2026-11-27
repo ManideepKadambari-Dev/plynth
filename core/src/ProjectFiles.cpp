@@ -2,6 +2,7 @@
 
 #include "FileIo.h"
 
+#include "plynth/core/ExportGroups.h"
 #include "plynth/core/ProjectJson.h"
 
 #include <nlohmann/json.hpp>
@@ -49,11 +50,27 @@ Status readJsonFile(const fs::path& path, const std::string& name, Json& out)
     return {};
 }
 
-// Puts the file name in front of an error from a reader.
+// Puts the file name in front of an error from a reader. The sentence for a newer file names it already.
 Status withFileName(Status s, const std::string& name)
 {
-    if (!s.ok()) s.message = name + ": " + s.message;
+    if (!s.ok() && s.code != ErrorCode::UnsupportedVersion) s.message = name + ": " + s.message;
     return s;
+}
+
+// The version written in a JSON file of the given format, or 0 when the file is missing, is not JSON, is of
+// another format or has no whole number version.
+long long fileFormatVersion(const fs::path& path, std::string_view format, std::string& text)
+{
+    std::error_code ec;
+    if (!fs::is_regular_file(path, ec)) return 0;
+    if (!readText(path, text).ok()) return 0;
+    const Json json = Json::parse(text, nullptr, false);
+    if (json.is_discarded() || !json.is_object()) return 0;
+    const auto fit = json.find("format");
+    if (fit == json.end() || !fit->is_string() || fit->get<std::string>() != format) return 0;
+    const auto vit = json.find("version");
+    if (vit == json.end() || !vit->is_number_integer()) return 0;
+    return vit->get<long long>();
 }
 
 // Reads a project from a folder that holds project.json and plan.json. missingCode and missingText say
@@ -199,12 +216,70 @@ ProjectLoad loadProject(const fs::path& folder)
                     "The folder " + pathToUtf8(folder) + " is not a Plynth project: " + std::string(kProjectFileName) + " is missing.");
 }
 
+// Keeps the files of an older format in backup/, once, before they are replaced.
+Status backUpOlderFiles(const fs::path& folder, UpgradeBackup* backup)
+{
+    if (backup) backup->files.clear();
+    if (!isProjectFolder(folder)) return {};
+
+    struct Kind {
+        std::string_view fileName;
+        std::string_view format;
+        int currentVersion;
+    };
+    const Kind kinds[] = {{kPlanFileName, kPlanFormatName, kPlanFormatVersion},
+                          {kProjectFileName, kProjectFormatName, kProjectFormatVersion},
+                          {kExportOptionsFileName, kExportOptionsFormat, kExportOptionsVersion}};
+    struct Copy {
+        fs::path target;
+        std::string text;
+    };
+    std::vector<Copy> copies;
+    const fs::path backupDir = folder / pathFromUtf8(kBackupFolderName);
+    std::error_code ec;
+    for (const Kind& kind : kinds) {
+        std::string text;
+        const long long version = fileFormatVersion(folder / pathFromUtf8(kind.fileName), kind.format, text);
+        if (version < 1 || version >= kind.currentVersion) continue;
+        const fs::path name = pathFromUtf8(kind.fileName);
+        fs::path backupName = name.stem();
+        backupName += ".v" + std::to_string(version);
+        backupName += name.extension();
+        const fs::path target = backupDir / backupName;
+        if (fs::exists(target, ec)) continue;
+        copies.push_back({target, std::move(text)});
+    }
+    if (copies.empty()) return {};
+
+    const bool hadDir = fs::is_directory(backupDir, ec);
+    fs::create_directories(backupDir, ec);
+    if (ec || !fs::is_directory(backupDir, ec)) {
+        return fail(ErrorCode::CannotWrite, "The folder " + pathToUtf8(backupDir) + " could not be created.");
+    }
+    std::vector<fs::path> written;
+    for (const Copy& copy : copies) {
+        if (!fileio::writeAtomic(copy.target, copy.text).ok()) {
+            std::error_code ignore;
+            for (const fs::path& file : written) fs::remove(file, ignore);
+            if (!hadDir) fs::remove(backupDir, ignore);
+            return fail(ErrorCode::CannotWrite, "The older file could not be kept as " + pathToUtf8(copy.target) + ".");
+        }
+        written.push_back(copy.target);
+    }
+    if (backup) backup->files = std::move(written);
+    return {};
+}
+
 // Copies images into plans/, then writes both JSON files.
 Status saveProject(Project& project, const fs::path& folder, const fs::path& sourceFolder, SaveReport* report)
 {
-    if (report) report->missingImages.clear();
+    if (report) {
+        report->missingImages.clear();
+        report->backup.files.clear();
+    }
     if (Status s = checkPlan(project.plan); !s.ok()) return s;
     if (Status s = checkSettings(project.settings); !s.ok()) return s;
+    if (Status s = backUpOlderFiles(folder, report ? &report->backup : nullptr); !s.ok()) return s;
 
     struct Job {
         Floor* floor = nullptr;

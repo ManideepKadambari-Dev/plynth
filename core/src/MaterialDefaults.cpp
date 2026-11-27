@@ -8,10 +8,11 @@ namespace plynth {
 
 namespace {
 
-constexpr std::array<Surface, 14> kSurfaces = {Surface::WallInside, Surface::WallOutside, Surface::WallTop, Surface::Floor,
-                                               Surface::Ceiling,    Surface::Door,        Surface::Frame,   Surface::Glass,
-                                               Surface::Handle,     Surface::Roof,        Surface::FlatRoof, Surface::Stair,
-                                               Surface::Trim,       Surface::Railing};
+constexpr std::array<Surface, 20> kSurfaces = {Surface::WallInside, Surface::WallOutside, Surface::WallTop,    Surface::Floor,
+                                               Surface::Ceiling,    Surface::Door,        Surface::Frame,      Surface::Glass,
+                                               Surface::Handle,     Surface::Roof,        Surface::FlatRoof,   Surface::Stair,
+                                               Surface::Trim,       Surface::Railing,     Surface::Deck,       Surface::Foundation,
+                                               Surface::Ground,     Surface::Paving,      Surface::Fence,      Surface::BoundaryWall};
 
 }
 
@@ -39,6 +40,12 @@ std::string_view surfaceName(Surface surface)
     case Surface::Stair: return "stair";
     case Surface::Trim: return "trim";
     case Surface::Railing: return "railing";
+    case Surface::Deck: return "deck";
+    case Surface::Foundation: return "foundation";
+    case Surface::Ground: return "ground";
+    case Surface::Paving: return "paving";
+    case Surface::Fence: return "fence";
+    case Surface::BoundaryWall: return "boundary_wall";
     }
     return "wall_inside";
 }
@@ -72,6 +79,12 @@ std::optional<std::string> MaterialDefaults::*field(Surface surface)
     case Surface::Stair: return &MaterialDefaults::stair;
     case Surface::Trim: return &MaterialDefaults::trim;
     case Surface::Railing: return &MaterialDefaults::railing;
+    case Surface::Deck: return &MaterialDefaults::deck;
+    case Surface::Foundation: return &MaterialDefaults::foundation;
+    case Surface::Ground: return &MaterialDefaults::ground;
+    case Surface::Paving: return &MaterialDefaults::paving;
+    case Surface::Fence: return &MaterialDefaults::fence;
+    case Surface::BoundaryWall: return &MaterialDefaults::boundaryWall;
     }
     return &MaterialDefaults::wallInside;
 }

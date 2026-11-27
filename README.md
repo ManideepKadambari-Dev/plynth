@@ -149,7 +149,7 @@ The same pages open inside the app with F1.
 
 ## Status and roadmap
 
-Plynth is an early preview. It works from plan to export, but the plan file format may still change between releases (older projects are upgraded when you open them) and import into Unreal Engine is untested for this release. Keep a copy of projects you care about.
+Plynth is an early preview. It works from plan to export, but every release opens projects saved by older releases and keeps your old files in a backup folder (see [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)), and import into Unreal Engine is untested for this release. Keep a copy of projects you care about.
 
 - Planned work and known problems are in the [issues](https://github.com/ManideepKadambari-Dev/plynth/issues) and [milestones](https://github.com/ManideepKadambari-Dev/plynth/milestones).
 - To report a bug, [open an issue](https://github.com/ManideepKadambari-Dev/plynth/issues/new/choose) with the Plynth version (Help, About Plynth, or `plynth version`), the steps, what you expected and what happened. A project or plan image that shows the problem helps a lot.

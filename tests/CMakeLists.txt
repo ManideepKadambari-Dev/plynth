@@ -119,6 +119,8 @@ add_executable(plynth_core_tests
     core/TrimTests.cpp
     core/VariationTests.cpp
     core/FinishFormatTests.cpp
+    core/PlanFormat8Tests.cpp
+    core/FormatFixtureTests.cpp
     core/BuildFinishTests.cpp
     core/LightCommandTests.cpp
     core/GameplayExportTests.cpp
@@ -164,7 +166,8 @@ target_compile_definitions(plynth_core_tests PRIVATE
     PLYNTH_EXPECTED_VERSION="${PROJECT_VERSION}"
     PLYNTH_SCHEMA_DIR="${PROJECT_SOURCE_DIR}/schema"
     PLYNTH_SAMPLES_DIR="${PROJECT_SOURCE_DIR}/samples"
-    PLYNTH_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/core/data")
+    PLYNTH_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/core/data"
+    PLYNTH_FORMATS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data/formats")
 
 if(PLYNTH_DEV_SAMPLES STREQUAL "ON")
     set(PLYNTH_TEST_DEV_SAMPLES 1)

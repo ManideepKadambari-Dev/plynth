@@ -25,7 +25,13 @@ enum class Surface {
     FlatRoof,    // "flat_roof": the covering of flat roofs; project format 5
     Stair,       // "stair": steps, landings and the column of a spiral stair; project format 5
     Trim,        // "trim": skirting boards, cornices, casings and sills (Trim.h); project format 6
-    Railing,     // "railing": stair railings and guards; project format 6
+    Railing,     // "railing": stair railings and guards; project format 6, and drawn railings from format 7
+    Deck,         // "deck": deck floors and skirts; project format 7
+    Foundation,   // "foundation": the foundation band; project format 7
+    Ground,       // "ground": the ground plane and lawns; project format 7
+    Paving,       // "paving": paths, driveways and paving; project format 7
+    Fence,        // "fence": fences and gates; project format 7
+    BoundaryWall, // "boundary_wall": site boundary walls; project format 7
 };
 
 // Every surface, in the order above.
@@ -46,11 +52,13 @@ inline constexpr std::string_view kSampleClearGlass = "clear_glass";
 inline constexpr std::string_view kSampleBrushedSteel = "brushed_steel";
 inline constexpr std::string_view kSampleRoofTiles = "roof_tiles";
 inline constexpr std::string_view kSampleConcrete = "concrete";
+inline constexpr std::string_view kSampleGrass = "grass"; // a new sample material, drawn for the project
 
 // The material each surface gets when the plan names none. Empty means no material: the build gives that
 // surface its neutral look. A new project, and a project file from before version 4, starts with the
-// sample materials shown here; a version 4 file gets roof, flat_roof and stair when it is read, and a version 5
-// file gets trim and railing.
+// sample materials shown here; a version 4 file gets roof, flat_roof and stair when it is read, a version 5
+// file gets trim and railing, and a version 6 file gets deck, foundation, ground, paving, fence and
+// boundary_wall.
 struct MaterialDefaults {
     std::optional<std::string> wallInside = std::string(kSampleWhitePaint);
     std::optional<std::string> wallOutside = std::string(kSampleRedBrick);
@@ -66,6 +74,12 @@ struct MaterialDefaults {
     std::optional<std::string> stair = std::string(kSampleOakPlanks);
     std::optional<std::string> trim = std::string(kSamplePaintedWood);
     std::optional<std::string> railing = std::string(kSampleBrushedSteel);
+    std::optional<std::string> deck = std::string(kSampleOakPlanks);
+    std::optional<std::string> foundation = std::string(kSampleConcrete);
+    std::optional<std::string> ground = std::string(kSampleGrass);
+    std::optional<std::string> paving = std::string(kSampleConcrete);
+    std::optional<std::string> fence = std::string(kSamplePaintedWood);
+    std::optional<std::string> boundaryWall = std::string(kSampleRedBrick);
 
     bool operator==(const MaterialDefaults&) const = default;
 };

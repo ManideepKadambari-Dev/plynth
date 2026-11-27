@@ -1,0 +1,70 @@
+{
+  "format": "plynth-project",
+  "version": 6,
+  "name": "Apartment",
+  "export_mode": "single",
+  "grid_size": 0.5,
+  "defaults": {
+    "ceiling_height": 3.0,
+    "door_width": 0.9,
+    "door_height": 2.1,
+    "window_width": 1.2,
+    "window_height": 1.2,
+    "window_sill": 0.9,
+    "wall_item_centre": 1.2
+  },
+  "materials": {
+    "wall_inside": "white_paint",
+    "wall_outside": "red_brick",
+    "wall_top": "white_paint",
+    "floor": "oak_planks",
+    "ceiling": "white_paint",
+    "door": "painted_wood",
+    "frame": "white_paint",
+    "glass": "clear_glass",
+    "handle": "brushed_steel",
+    "roof": "roof_tiles",
+    "flat_roof": "concrete",
+    "stair": "oak_planks",
+    "trim": "painted_wood",
+    "railing": "brushed_steel"
+  },
+  "trim": {
+    "skirting": {
+      "enabled": true,
+      "profile": "classic",
+      "height": 0.1,
+      "depth": 0.015
+    },
+    "cornice": {
+      "enabled": true,
+      "profile": "cove",
+      "height": 0.08,
+      "depth": 0.08
+    },
+    "casing": {
+      "enabled": true,
+      "profile": "bevel",
+      "height": 0.07,
+      "depth": 0.018
+    },
+    "sill": {
+      "enabled": true,
+      "profile": "rounded",
+      "height": 0.03,
+      "depth": 0.04
+    },
+    "railing": {
+      "enabled": true,
+      "profile": "round",
+      "height": 0.05,
+      "depth": 0.05
+    },
+    "railing_height": 0.9
+  },
+  "variation": {
+    "seed": 0,
+    "furniture": true,
+    "materials": true
+  }
+}

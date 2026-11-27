@@ -16,13 +16,14 @@ namespace fs = std::filesystem;
 
 namespace {
 
-const std::array<HelpPageEntry, 9> kPages = {{
+const std::array<HelpPageEntry, 10> kPages = {{
     {"getting-started", "Getting started", "GETTING_STARTED.md", HelpPageKind::File, true},
     {"user-guide", "User guide", "USER_GUIDE.md", HelpPageKind::File, true},
     {"shortcuts", "Keyboard shortcuts", "SHORTCUTS.md", HelpPageKind::File, true},
     {"cli-guide", "CLI developer guide", "CLI_GUIDE.md", HelpPageKind::File, true},
     {"ai-guide", "AI integration guide", "AI_INTEGRATION.md", HelpPageKind::File, true},
     {"generators", "Writing generators", "GENERATORS.md", HelpPageKind::File, true},
+    {"compatibility", "Opening old projects", "COMPATIBILITY.md", HelpPageKind::File, true},
     {"about", "About and licenses", "", HelpPageKind::About, true},
     {"setup-check", "Setup check", "", HelpPageKind::SetupCheck, true},
     {"setup", "Setup", "SETUP.md", HelpPageKind::File, false},

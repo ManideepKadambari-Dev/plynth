@@ -292,6 +292,7 @@ Answer groupsEdit(const std::string& what, const std::string& target, const Expo
     if (!openProject(command, folder, document, failed, false)) {
         return failed;
     }
+    const std::vector<std::filesystem::path> kept = backupFiles(folder);
     std::optional<ExportOptionsRepair> repair;
     if (what == "reset") {
         repair = repairExportOptions(folder);
@@ -306,7 +307,9 @@ Answer groupsEdit(const std::string& what, const std::string& target, const Expo
     if (!review.reviewable && repair && repair->repaired) {
         Json result = groupsJson(review);
         result["repaired"] = {{"backup", pathToUtf8(folder / (std::string(kExportOptionsFileName) + ".bad"))}};
-        return success(command, std::move(result));
+        Answer answer = success(command, std::move(result));
+        addNewBackups(answer, folder, kept);
+        return answer;
     }
     if (!review.reviewable) {
         return failure(command, fail(ErrorCode::InvalidValue,
@@ -350,7 +353,9 @@ Answer groupsEdit(const std::string& what, const std::string& target, const Expo
         const std::filesystem::path backup = folder / (std::string(kExportOptionsFileName) + ".bad");
         result["repaired"] = {{"backup", pathToUtf8(backup)}};
     }
-    return success(command, std::move(result));
+    Answer answer = success(command, std::move(result));
+    addNewBackups(answer, folder, kept);
+    return answer;
 }
 
 // The switch of export-options.json that 'export kit', 'export gameplay' or 'export licenses' names.
@@ -403,6 +408,7 @@ Answer optionSwitch(const std::vector<std::string>& what, const ExportArgs& args
     if (!read.status.ok()) {
         return failure(command, read.status);
     }
+    const std::vector<std::filesystem::path> kept = backupFiles(folder);
     if (change) {
         exportSwitch(read.options, name) = what[1] == "on";
         if (const Status written = writeExportOptions(folder, read.options); !written.ok()) {
@@ -414,7 +420,9 @@ Answer optionSwitch(const std::vector<std::string>& what, const ExportArgs& args
     if (name == "licenses" && !change) {
         addLicenseReport(result, context, args.library, folder, document.project().settings.name);
     }
-    return success(command, std::move(result));
+    Answer answer = success(command, std::move(result));
+    addNewBackups(answer, folder, kept);
+    return answer;
 }
 
 // Sends the words after export to the report, the groups, the kit or gameplay switch or the export itself.
