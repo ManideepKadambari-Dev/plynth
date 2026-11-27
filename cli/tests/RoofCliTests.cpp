@@ -28,7 +28,7 @@ TEST_CASE("roof types lists the five types and what each uses", "[cli][roof]") {
         CHECK(type.at("uses").is_array());
     }
     std::sort(names.begin(), names.end());
-    CHECK(names == std::vector<std::string>{"dutch_gable", "flat", "gable", "hip", "jerkinhead", "pyramid", "sawtooth", "shed"});
+    CHECK(names == std::vector<std::string>{"a_frame", "barrel", "bonnet", "bow", "butterfly", "clerestory", "dome", "dutch_gable", "flat", "gable", "gambrel", "green", "hip", "jerkinhead", "m_shaped", "mansard", "pyramid", "saltbox", "sawtooth", "shed"});
 }
 
 TEST_CASE("roof list shows the default and the section over the walls", "[cli][roof]") {
