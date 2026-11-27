@@ -7,6 +7,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <filesystem>
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -46,22 +47,26 @@ struct GameplaySample {
 
 }
 
-TEST_CASE("export gameplay shows the switch and on and off change it in export-options.json", "[cli][gameplay]") {
+TEST_CASE("export gameplay shows the switch and on and off change it in links.unreal", "[cli][gameplay]") {
     Sample sample("gameplay-switch");
     const auto shown = sample.run({"export", "gameplay"});
     REQUIRE(shown.exitCode == kExitOk);
     CHECK(shown.answer.at("command") == "export gameplay");
     CHECK(shown.answer.at("result").at("enabled") == false);
+    CHECK(shown.answer.at("result").at("note").get<std::string>().find("links.unreal.gameplay") != std::string::npos);
     CHECK_FALSE(fs::exists(sample.folder / "export-options.json"));
 
     const auto on = sample.run({"export", "gameplay", "on"});
     REQUIRE(on.exitCode == kExitOk);
     CHECK(on.answer.at("command") == "export gameplay on");
     CHECK(on.answer.at("result").at("enabled") == true);
+    CHECK(on.answer.at("result").at("note").get<std::string>().find("Unreal Engine link") != std::string::npos);
     const auto options = nlohmann::json::parse(readFile(sample.folder / "export-options.json"));
-    CHECK(options.at("version") == 3);
-    CHECK(options.at("gameplay").at("enabled") == true);
-    CHECK(options.at("kit").at("enabled") == false);
+    CHECK(options.at("version") == 4);
+    CHECK_FALSE(options.contains("gameplay"));
+    CHECK_FALSE(options.contains("kit"));
+    CHECK(options.at("links").at("unreal").at("gameplay") == true);
+    CHECK(options.at("links").at("unreal").at("kit") == false);
     CHECK(sample.run({"export", "gameplay"}).answer.at("result").at("enabled") == true);
     CHECK(sample.run({"export", "kit"}).answer.at("result").at("enabled") == false);
 
@@ -78,6 +83,22 @@ TEST_CASE("the gameplay and kit switches are kept apart", "[cli][gameplay]") {
     REQUIRE(sample.run({"export", "kit", "off"}).exitCode == kExitOk);
     CHECK(sample.run({"export", "gameplay"}).answer.at("result").at("enabled") == true);
     CHECK(sample.run({"export", "kit"}).answer.at("result").at("enabled") == false);
+}
+
+TEST_CASE("a version 3 export-options.json keeps its switches under links.unreal", "[cli][gameplay]") {
+    Sample sample("gameplay-version-3");
+    std::ofstream(sample.folder / "export-options.json", std::ios::binary)
+        << R"({"format":"plynth-export-options","version":3,"kit":{"enabled":true},"gameplay":{"enabled":true}})";
+    CHECK(sample.run({"export", "kit"}).answer.at("result").at("enabled") == true);
+    CHECK(sample.run({"export", "gameplay"}).answer.at("result").at("enabled") == true);
+
+    REQUIRE(sample.run({"export", "kit", "off"}).exitCode == kExitOk);
+    const auto options = nlohmann::json::parse(readFile(sample.folder / "export-options.json"));
+    CHECK(options.at("version") == 4);
+    CHECK_FALSE(options.contains("kit"));
+    CHECK_FALSE(options.contains("gameplay"));
+    CHECK(options.at("links").at("unreal").at("kit") == false);
+    CHECK(options.at("links").at("unreal").at("gameplay") == true);
 }
 
 TEST_CASE("export gameplay refuses other words and options", "[cli][gameplay]") {
@@ -105,37 +126,23 @@ TEST_CASE("export gameplay on follows the lock rules and export gameplay never i
     CHECK(sample.run({"export", "gameplay"}).exitCode == kExitOk);
 }
 
-TEST_CASE("an export with gameplay data on writes the file and reports it, off removes it", "[cli][gameplay]") {
+TEST_CASE("plain export writes no gameplay data even with the switch on", "[cli][gameplay]") {
     GameplaySample flat("gameplay-export");
-    const auto plain = flat.exportNow();
-    REQUIRE(plain.exitCode == kExitOk);
-    CHECK(plain.answer.at("result").at("gameplay").at("enabled") == false);
-    CHECK(plain.answer.at("result").at("gameplay").at("file").is_null());
-
     REQUIRE(flat.sample.run({"export", "gameplay", "on"}).exitCode == kExitOk);
     const auto on = flat.exportNow();
     REQUIRE(on.exitCode == kExitOk);
+    CHECK(on.answer.at("result").at("profile") == "plain");
     const auto& gameplay = on.answer.at("result").at("gameplay");
-    CHECK(gameplay.at("enabled") == true);
-    REQUIRE(gameplay.at("file").is_string());
-    const fs::path file = plynth::pathFromUtf8(gameplay.at("file").get<std::string>());
-    CHECK(file.parent_path().filename() == "export");
-    CHECK(file.filename().string().ends_with("_gameplay.json"));
-    REQUIRE(fs::exists(file));
-    CHECK(nlohmann::json::parse(readFile(file)).is_object());
-    CHECK(gameplay.at("rooms") == 1);
-    CHECK(gameplay.at("doors") == 1);
-    CHECK(gameplay.at("lights") == 2);
+    CHECK(gameplay.at("enabled") == false);
+    CHECK(gameplay.at("file").is_null());
+    std::error_code ignored;
+    for (const auto& entry : fs::directory_iterator(flat.sample.folder / "export", ignored)) {
+        CHECK_FALSE(entry.path().filename().string().ends_with("_gameplay.json"));
+    }
 
     const auto report = flat.sample.run({"export", "report"});
     REQUIRE(report.exitCode == kExitOk);
-    CHECK(report.answer.at("result").at("gameplay").at("enabled") == true);
-
-    REQUIRE(flat.sample.run({"export", "gameplay", "off"}).exitCode == kExitOk);
-    const auto off = flat.exportNow();
-    REQUIRE(off.exitCode == kExitOk);
-    CHECK(off.answer.at("result").at("gameplay").at("enabled") == false);
-    CHECK_FALSE(fs::exists(file));
+    CHECK(report.answer.at("result").at("gameplay").at("enabled") == false);
 }
 
 TEST_CASE("help describes export gameplay", "[cli][gameplay]") {

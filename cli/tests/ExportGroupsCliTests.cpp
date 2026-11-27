@@ -204,7 +204,8 @@ TEST_CASE("reset keeps the kit switch", "[cli][export][groups]") {
     CHECK(reset.answer.at("result").at("kit").at("enabled") == true);
     REQUIRE(fs::exists(flat.optionsFile()));
     const auto file = nlohmann::json::parse(readFile(flat.optionsFile()));
-    CHECK(file.at("kit").at("enabled") == true);
+    CHECK_FALSE(file.contains("kit"));
+    CHECK(file.at("links").at("unreal").at("kit") == true);
 }
 
 TEST_CASE("group edits are refused with the codes the plan lists", "[cli][export][groups]") {
@@ -374,9 +375,14 @@ TEST_CASE("export kit shows and changes the switch", "[cli][export][kit]") {
     REQUIRE(on.exitCode == kExitOk);
     CHECK(on.answer.at("command") == "export kit on");
     CHECK(on.answer.at("result").at("enabled") == true);
+    CHECK(on.answer.at("result").at("note").get<std::string>().find("links.unreal.kit") != std::string::npos);
     shown = flat.run({"export", "kit"});
     CHECK(shown.answer.at("result").at("enabled") == true);
-    requireSchema("export-options.schema.json", nlohmann::json::parse(readFile(flat.optionsFile())));
+    CHECK(shown.answer.at("result").at("note").get<std::string>().find("Unreal Engine link") != std::string::npos);
+    const auto saved = nlohmann::json::parse(readFile(flat.optionsFile()));
+    requireSchema("export-options.schema.json", saved);
+    CHECK(saved.at("links").at("unreal").at("kit") == true);
+    CHECK(flat.run({"export", "groups"}).answer.at("result").at("kit").at("enabled") == true);
 
     const auto off = flat.run({"export", "kit", "off"});
     REQUIRE(off.exitCode == kExitOk);

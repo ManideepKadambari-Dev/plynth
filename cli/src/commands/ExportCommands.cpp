@@ -80,9 +80,9 @@ Answer exportReport(const std::string& command, const ExportArgs& options, const
     return success(command, exportReportToJson(read.report));
 }
 
-// Finds the library the kit uses. An explicit --library must open its materials catalog, or the export is
-// refused. Without it the configured folder is passed on as it is, so the export itself says why a broken
-// one cannot make the kit. Gives false and fills failed only for a refusal.
+// Finds the library the export looks materials and licenses up in. An explicit --library must open its materials
+// catalog, or the export is refused. Without it the configured folder is passed on as it is. Gives false and
+// fills failed only for a refusal.
 bool kitLibrary(const std::string& command, const RunContext& context, const std::string& libraryOption,
                 std::optional<LibraryPaths>& library, Answer& failed) {
     if (!libraryOption.empty()) {
@@ -174,7 +174,7 @@ Answer exportProject(const RunContext& context, const ExportArgs& options) {
 }
 
 // The groups answer: the exporter, whether its groups can be edited, where they came from, each group with
-// its members, the notes of skipped edits and the kit switch.
+// its members, the notes of skipped edits and the kit switch of the Unreal Engine link.
 Json groupsJson(const ExportGroupReview& review) {
     Json groups = Json::array();
     for (const ExportGroup& group : review.groups) {
@@ -201,7 +201,7 @@ Json groupsJson(const ExportGroupReview& review) {
         notes.push_back(note);
     }
     Json kit = Json::object();
-    kit["enabled"] = review.options.kit.enabled;
+    kit["enabled"] = engineLinkOptions(review.options, kUnrealLinkId).kit;
     Json result = Json::object();
     result["exporter"] = review.exporter;
     result["reviewable"] = review.reviewable;
@@ -353,12 +353,21 @@ Answer groupsEdit(const std::string& what, const std::string& target, const Expo
     return success(command, std::move(result));
 }
 
-// The switch of export-options.json that 'export kit', 'export gameplay' or 'export licenses' names.
+// The switch of export-options.json that 'export kit', 'export gameplay' or 'export licenses' names. The kit
+// and gameplay switches belong to the Unreal Engine link, so they live in links.unreal.
 bool& exportSwitch(ExportOptions& options, const std::string& name) {
-    if (name == "kit") {
-        return options.kit.enabled;
+    if (name == "licenses") {
+        return options.licenses.enabled;
     }
-    return name == "gameplay" ? options.gameplay.enabled : options.licenses.enabled;
+    EngineLinkOptions& unreal = options.links[std::string(kUnrealLinkId)];
+    return name == "kit" ? unreal.kit : unreal.gameplay;
+}
+
+// Says that the kit or gameplay switch now belongs to the Unreal Engine link and is left out of plain export.
+std::string linkSwitchNote(const std::string& name) {
+    const std::string what = name == "kit" ? "The modular kit" : "The gameplay data file";
+    return what + " belongs to the Unreal Engine link. This switch is saved as links.unreal." + name +
+           " in export-options.json, and plain export does not write it.";
 }
 
 // The license report of the last build, looked up in the library when there is one, or null with the reason.
@@ -414,6 +423,9 @@ Answer optionSwitch(const std::vector<std::string>& what, const ExportArgs& args
     if (name == "licenses" && !change) {
         addLicenseReport(result, context, args.library, folder, document.project().settings.name);
     }
+    if (name != "licenses") {
+        result["note"] = linkSwitchNote(name);
+    }
     return success(command, std::move(result));
 }
 
@@ -454,15 +466,16 @@ std::vector<CommandSpec> exportCommands() {
     CommandSpec spec;
     spec.words = {"export"};
     spec.description =
-        "Export the last build as FBX files for Unreal behind the quality checks. "
+        "Export the last build as plain FBX files for any tool behind the quality checks. "
         "With --check, only run the checks. With --force, export past failed checks. "
         "'export report' shows the last export report and 'export cancel' stops a running export. "
         "'export groups' lists the files a grouped export writes. "
         "'export groups rename <group> --name <text>', 'export groups merge <group> --into <group>', "
         "'export groups move <kind>:<id> --to <group>' (<kind>:* for every object of a kind), "
         "'export groups new --name <text>' and 'export groups reset' edit them. "
-        "'export kit' shows the modular kit switch; 'export kit on' and 'export kit off' change it. "
-        "'export gameplay' shows the gameplay data switch; 'export gameplay on' and 'export gameplay off' change it. "
+        "'export kit' shows the modular kit switch of the Unreal Engine link; 'export kit on' and 'export kit off' "
+        "change it. 'export gameplay' shows the gameplay data switch of the Unreal Engine link; 'export gameplay on' "
+        "and 'export gameplay off' change it. Plain export writes neither. "
         "'export licenses' shows the license report switch and the report of the last build; 'export licenses on' and "
         "'export licenses off' change the switch.";
     spec.setup = [](CLI::App& sub) -> Handler {

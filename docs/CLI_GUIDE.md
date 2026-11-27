@@ -1961,7 +1961,7 @@ Two builds of one project at the same time are not allowed: the second gets `in_
 
 ### export
 
-Exports the last build for Unreal: runs the quality checks, then writes the FBX files, `export\Textures\` and `export\export_report.json`. A single project writes `export\<Name>.fbx`. A grouped project writes one file for each group, `export\<Name>_<Group>.fbx` (see "export groups"). With the kit switched on, it also writes `export\<Name>_Kit.fbx` and `export\<Name>_Kit_layout.json` (see "export kit"). The app's Export window does the same thing, so both give the same result. `export` never builds. It uses `build\building.blend` as it is, hand edits included, and it never changes the plan, the project settings or `building.blend`. It runs while the app has the project open, with no edit session.
+Exports the last build as plain FBX files for any tool: runs the quality checks, then writes the FBX files, `export\Textures\` and `export\export_report.json`. A single project writes `export\<Name>.fbx`. A grouped project writes one file for each group, `export\<Name>_<Group>.fbx` (see "export groups"). It never writes the modular kit or the gameplay data, which belong to the Unreal Engine link (see "export kit"). The app's Export window does the same thing, so both give the same result. `export` never builds. It uses `build\building.blend` as it is, hand edits included, and it never changes the plan, the project settings or `building.blend`. It runs while the app has the project open, with no edit session.
 
 ```
 plynth export
@@ -1987,9 +1987,10 @@ plynth export report
 **The answer** is the export report, the same text that is saved as `export\export_report.json` (`schema/export-report.schema.json`). An example, shortened:
 
 ```json
-{"ok":true,"command":"export","result":{"format":"plynth-export-report","version":1,"ok":true,"error":null,"exported":true,"checked_only":false,"forced":false,"overridden":[],"job_id":"export-3f9a07c1","elapsed_ms":9100,"exporter":"single","objects":58,"triangles":21400,"collision_objects":31,"outputs":{"files":[{"group":"building","file":"MyApartment.fbx","objects":58,"triangles":21400}],"textures_folder":"D:/Plans/MyApartment/export/Textures","texture_count":14,"report_file":"D:/Plans/MyApartment/export/export_report.json","log_file":"D:/Plans/MyApartment/build/export_work/blender.log"},"quality":{"passed":true,"fail_count":0,"warning_count":0,"checks":[{"id":"naming","name":"Naming","phase":"scene","status":"pass","message":"All names are valid.","findings":[]}]}},"warnings":[]}
+{"ok":true,"command":"export","result":{"format":"plynth-export-report","version":1,"ok":true,"error":null,"exported":true,"checked_only":false,"forced":false,"overridden":[],"job_id":"export-3f9a07c1","elapsed_ms":9100,"exporter":"single","profile":"plain","objects":58,"triangles":21400,"collision_objects":31,"outputs":{"files":[{"group":"building","file":"MyApartment.fbx","objects":58,"triangles":21400}],"textures_folder":"D:/Plans/MyApartment/export/Textures","texture_count":14,"report_file":"D:/Plans/MyApartment/export/export_report.json","log_file":"D:/Plans/MyApartment/build/export_work/blender.log"},"quality":{"passed":true,"fail_count":0,"warning_count":0,"checks":[{"id":"naming","name":"Naming","phase":"scene","status":"pass","message":"All names are valid.","findings":[]}]}},"warnings":[]}
 ```
 
+- `profile` is the export profile, `plain` for `export` and the app's Export window. A report written before 0.2.0 reads as `unreal`.
 - `exported` is true when the files were written. `checked_only` is true for `--check`. `forced` is true when `--force` was used, and `overridden` lists the ids of the failed checks it went past.
 - `quality.checks` has one entry for each check, in the order they ran. `status` is `pass`, `warning`, `fail` or `skipped`. `findings` holds at most 50 entries, and each one may name a plan id in `plan_id`.
 - The thirteen checks are `build_current`, `build_complete`, `scale`, `transforms`, `naming`, `uvs`, `texel_density`, `triangles`, `materials`, `collision`, `groups`, `fbx_scale` and `kit_file`. They are explained in "The quality gate" in the [User guide](USER_GUIDE.md).
@@ -1997,8 +1998,8 @@ plynth export report
 - A blocked export replaces nothing. The files of the last good export stay, and the report says `exported` is false.
 - `outputs.files` has one entry for each FBX file, with the `group` id, the group's `name` as people see it, the `file`, and its `objects` and `triangles`. A single project has one entry, with the group `building`. The kit file is not in this list. It is under `kit`.
 - `groups` has two lists. `empty` holds the ids of groups that got no object, so no file was written for them. `notes` holds the group edits that no longer fit the plan and were skipped, the same sentences `export groups` shows.
-- `kit` says what happened to the modular kit. `asked` is true when the kit switch is on. `written` is true when the kit files are now in `export`. `skipped` is a sentence when the kit was asked for and not made, for example "No library is set, so the kit was left out." or "The plan has no walls, so there is no kit to make.", and `null` otherwise. `file` and `layout_file` are the two files, `pieces` and `placements` are counts, and `triangles` counts the kit file. A skipped kit does not fail the export: the exit code is still 0.
-- `gameplay` says what happened to the gameplay data file (see `export gameplay`): `enabled`, the `file` (or `null`), and how many `rooms`, `doors` and `lights` it lists.
+- `kit` says what happened to the modular kit. The kit belongs to the Unreal Engine link, so a plain export always has `asked` and `written` false. `asked` is true when the kit was asked for. `written` is true when the kit files are now in `export`. `skipped` is a sentence when the kit was asked for and not made, for example "No library is set, so the kit was left out." or "The plan has no walls, so there is no kit to make.", and `null` otherwise. `file` and `layout_file` are the two files, `pieces` and `placements` are counts, and `triangles` counts the kit file. A skipped kit does not fail the export: the exit code is still 0.
+- `gameplay` says what happened to the gameplay data file (see `export gameplay`): `enabled`, the `file` (or `null`), and how many `rooms`, `doors` and `lights` it lists. The gameplay data belongs to the Unreal Engine link, so a plain export always has `enabled` false.
 - The groups and the kit are worked out from the last build and from `export-options.json`. The previous report lists the files it wrote. A new export removes those first, so a renamed group leaves no old file behind, and switching the kit off removes the old kit files. A blocked export keeps all of them.
 
 | Code | When |
@@ -2036,7 +2037,7 @@ The example is shortened and written by hand from the code and the tests. It was
 - Each group has an `id`, a `name`, the `file` it would write, `rest` (it takes anything no other group takes), `automatic` (false for a group you made) and its `members`.
 - A member is a `kind` and an `id`: `walls` for a floor, `floor` and `ceiling` for a room, `door` and `window` for an opening, `item` for a furniture item that places an asset, `generator` for an item a generator makes (an item has one of the two, never both), and `thresholds`, `slab`, `stair`, `roof` and `light`. `id` is `null` for a member that takes every object of its kind. `label` is a plain sentence for people.
 - `notes` lists the edits that were skipped because they no longer fit the plan.
-- `kit.enabled` is the modular kit switch (see "export kit").
+- `kit.enabled` is the modular kit switch of the Unreal Engine link (see "export kit").
 
 The automatic groups are `structure` ("Walls"), `surfaces` ("Floors") and one `furniture_<room id>` for each room that holds items ("Furniture Living"), with `furniture` for items that are in no room. A group with no members is listed, but its file is not written by an export.
 
@@ -2109,7 +2110,7 @@ plynth export groups reset
 
 ### export kit
 
-Shows or changes the modular kit switch, which is saved in `export-options.json`.
+Shows or changes the modular kit switch. The kit belongs to the Unreal Engine link, so the switch is saved as `links.unreal.kit` in `export-options.json`, and plain export does not write the kit.
 
 ```
 plynth export kit
@@ -2118,14 +2119,16 @@ plynth export kit off
 ```
 
 ```json
-{"ok":true,"command":"export kit on","result":{"enabled":true}}
+{"ok":true,"command":"export kit on","result":{"enabled":true,"note":"The modular kit belongs to the Unreal Engine link. This switch is saved as links.unreal.kit in export-options.json, and plain export does not write it."}}
 ```
 
-`export kit` only reads the switch and is never refused by the lock. `on` and `off` write it, with the rules of the other edit commands. `export kit maybe` is `bad_arguments`. When the switch is on, `export` also writes the kit (see "export"). The kit needs a library with a materials catalog: `export` takes `--library` or the library in the settings. Without one it carries on without the kit and says why in the answer (`kit.skipped`). A configured library that is broken still exports, and `kit.skipped` says "The library materials could not be opened, so the kit was left out." An explicit `--library` that is not a usable library is refused instead. The kit uses the custom opening shapes of its library. When an opening cannot be built, the kit is left out with a reason in `kit.skipped` (for example "The kit was left out because opening o3 cannot be built.") and the export still succeeds.
+`note` is in every answer of `export kit`.
+
+`export kit` only reads the switch and is never refused by the lock. `on` and `off` write it, with the rules of the other edit commands. `export kit maybe` is `bad_arguments`. When the switch is on, the Unreal Engine link sends the kit. The kit needs a library with a materials catalog: `export` takes `--library` or the library in the settings. Without one it carries on without the kit and says why in the answer (`kit.skipped`). A configured library that is broken still exports, and `kit.skipped` says "The library materials could not be opened, so the kit was left out." An explicit `--library` that is not a usable library is refused instead. The kit uses the custom opening shapes of its library. When an opening cannot be built, the kit is left out with a reason in `kit.skipped` (for example "The kit was left out because opening o3 cannot be built.") and the export still succeeds.
 
 ### export gameplay
 
-Shows or changes the gameplay data switch, which is saved in `export-options.json`. With it on, `export` also writes `export\<Name>_gameplay.json` with the room volumes, the door positions and the light positions of the last build, for game logic in Unreal. Plynth writes it from the built plan, with no extra Blender step.
+Shows or changes the gameplay data switch. The gameplay data belongs to the Unreal Engine link, so the switch is saved as `links.unreal.gameplay` in `export-options.json`, and plain export does not write the file. With it on, the Unreal Engine link sends `<Name>_gameplay.json` with the room volumes, the door positions and the light positions of the last build, for game logic in Unreal. Plynth writes it from the built plan, with no extra Blender step.
 
 ```
 plynth export gameplay
@@ -2134,10 +2137,12 @@ plynth export gameplay off
 ```
 
 ```json
-{"ok":true,"command":"export gameplay on","result":{"enabled":true}}
+{"ok":true,"command":"export gameplay on","result":{"enabled":true,"note":"The gameplay data file belongs to the Unreal Engine link. This switch is saved as links.unreal.gameplay in export-options.json, and plain export does not write it."}}
 ```
 
-`export gameplay` only reads the switch and is never refused by the lock. `on` and `off` write it, with the rules of the other edit commands. `export gameplay maybe` is `bad_arguments`. An export with the switch off removes an old gameplay file, and a blocked export leaves it. The export report lists it under `gameplay`.
+`note` is in every answer of `export gameplay`.
+
+`export gameplay` only reads the switch and is never refused by the lock. `on` and `off` write it, with the rules of the other edit commands. `export gameplay maybe` is `bad_arguments`. A plain export removes an old gameplay file from `export`, and a blocked export leaves it. The export report lists it under `gameplay`.
 
 ### export licenses
 
