@@ -831,7 +831,7 @@ plynth roof list
 ```
 
 ```json
-{"ok":true,"command":"roof list","result":{"default":{"type":"flat","pitch":30.0,"overhang":0.3,"parapet":0.6,"direction":null},"sections":[{"floor":"f1","index":0,"area":24.0,"label":[3.0,2.0],"section":null,"settings":{"type":"flat","pitch":30.0,"overhang":0.3,"parapet":0.6,"direction":null},"type_built":"flat","material":{"material":"concrete","origin":"default","from":null},"outline":[[0.0,0.0],[6.0,0.0],[6.0,4.0],[0.0,4.0]]}],"unused":[]}}
+{"ok":true,"command":"roof list","result":{"default":{"type":"flat","pitch":30.0,"overhang":0.3,"parapet":0.6,"direction":null,"second_pitch":15.0,"break_ratio":0.5,"ridge_offset":0.0,"rise":1.0},"sections":[{"floor":"f1","index":0,"area":24.0,"label":[3.0,2.0],"section":null,"settings":{"type":"flat","pitch":30.0,"overhang":0.3,"parapet":0.6,"direction":null,"second_pitch":15.0,"break_ratio":0.5,"ridge_offset":0.0,"rise":1.0},"type_built":"flat","material":{"material":"concrete","origin":"default","from":null},"outline":[[0.0,0.0],[6.0,0.0],[6.0,4.0],[0.0,4.0]]}],"unused":[]}}
 ```
 
 | Field | Meaning |
@@ -841,15 +841,15 @@ plynth roof list
 | `area` | Square metres. |
 | `label` | A point well inside the section. `roof set --at` takes a point like it. |
 | `section` | The id of the roof entry (such as `rf1`) that governs this section, or `null` when the default does. |
-| `settings` | The settings that apply: `type`, `pitch`, `overhang`, `parapet`, `direction`. |
-| `type_built` | The type the build makes. It differs from `settings.type` when a hip roof falls back to gable. |
+| `settings` | The settings that apply: `type`, `pitch`, `overhang`, `parapet`, `direction`, `second_pitch`, `break_ratio`, `ridge_offset` and `rise`. All are always listed, also the ones the type does not use. |
+| `type_built` | The type the build makes. It differs from `settings.type` when the type does not fit the section and the build uses its fallback (see `roof types`). |
 | `material` | The covering material that applies, with its `origin` (`roof` for an entry's own material, otherwise `default`) and `from`. |
 | `outline` | The section's outline on the plan. A section can also have holes, which are not listed. |
 | `unused` | The ids of roof entries that govern no section. See below. |
 
 ### roof set
 
-Changes the roof default, one roof entry, or the section at a point. Give at least one setting option.
+Changes the roof default, one roof entry, or the section at a point. Give at least one setting option. Every option except `--type` and `--material` must be one the type uses: the type given with `--type`, or else the type the default or entry has now. `roof types` lists what each type uses.
 
 | Form | What it changes |
 |---|---|
@@ -864,16 +864,22 @@ Changes the roof default, one roof entry, or the section at a point. Give at lea
 | `--overhang <metres>` | How far the roof reaches past the outer walls, 0 to 2. |
 | `--parapet <metres>` | The height of the low wall round a flat roof, 0 to 3. 0 for none. |
 | `--direction <degrees or auto>` | From 0 up to 360, clockwise on the plan from +x. The ridge direction of a gable or sawtooth roof, the way a shed roof falls. `auto` stores nothing, so the type picks it from the shape of the section. |
+| `--second-pitch <degrees>` | 0 to 75. The upper slope of a gambrel or mansard roof, the flatter slope at the eaves of a bonnet roof. Default 15. |
+| `--break-ratio <ratio>` | 0.1 to 0.9. The share of the run the lower slope covers on a gambrel, mansard or bonnet roof, and how high the end walls of a jerkinhead or the cut of a dutch gable reach. Default 0.5. |
+| `--ridge-offset <share>` | -0.45 to 0.45. Moves the ridge of a saltbox, the valley of a butterfly or the step of a clerestory across the section, as a share of its width. Above 0 moves it to the left of the direction. 0 is the middle. A new saltbox or butterfly entry made with `--at` starts at 0.25 when this option is not given and the settings it starts from have 0. |
+| `--rise <metres>` | 0.1 to 10. The height of a barrel, dome or bow roof, or of the glazed band of a clerestory. Default 1. |
 | `--material <id or none>` | The covering material of an entry. Not for `default`. |
 
 ```
 plynth roof set default --type gable --pitch 35 --direction 90
 plynth roof set --floor f1 --at 3,2 --type hip
 plynth roof set rf1 --pitch 40 --material grey_tile
+plynth roof set rf1 --type gambrel --second-pitch 20 --break-ratio 0.4
+plynth roof set rf1 --type saltbox --ridge-offset 0.3
 ```
 
 ```json
-{"ok":true,"command":"roof set","result":{"type":"gable","pitch":35.0,"overhang":0.3,"parapet":0.6,"direction":90.0}}
+{"ok":true,"command":"roof set","result":{"type":"gable","pitch":35.0,"overhang":0.3,"parapet":0.6,"direction":90.0,"second_pitch":15.0,"break_ratio":0.5,"ridge_offset":0.0,"rise":1.0}}
 ```
 
 The answer of `roof set default` is the settings. The answer of the other two is the section entry as in `roof list`. When an entry's point is no longer inside any section, the answer has only `floor`, `index` (`null`), `section`, `settings` and `material`.
@@ -882,7 +888,7 @@ Refusals, with nothing changed:
 
 | Code | When |
 |---|---|
-| `invalid_value` | An unknown type, a number out of range, a pitched type with a pitch below 5, or `--at` with a point that is in no roof section. |
+| `invalid_value` | An unknown type, a number out of range, a pitched type with a pitch below 5, a setting the type does not use, or `--at` with a point that is in no roof section. The message of a setting the type does not use names the type and the options it uses, for example `The Dome roof (dome) does not use --pitch. It uses --overhang and --rise.` |
 | `not_found` | An unknown roof entry, floor or material. |
 | `bad_arguments` | No setting option; no target; both an id and `--at`; a `--direction` that is not a number or `auto`; `--at` that is not `x,y`; `--material`, `--floor` or `--at` with `default`. Exit code 2. |
 
@@ -909,10 +915,35 @@ plynth roof types
 ```
 
 ```json
-{"ok":true,"command":"roof types","result":{"types":[{"id":"flat","name":"Flat","uses":["overhang","parapet"]},{"id":"gable","name":"Gable","uses":["pitch","direction","overhang"]},{"id":"hip","name":"Hip","uses":["pitch","overhang"]},{"id":"shed","name":"Shed","uses":["pitch","direction","overhang"]},{"id":"sawtooth","name":"Sawtooth","uses":["pitch","direction","overhang"]}]}}
+{"ok":true,"command":"roof types","result":{"types":[{"id":"flat","name":"Flat","uses":["overhang","parapet"]},{"id":"green","name":"Green","uses":["overhang","parapet"]},{"id":"gable","name":"Gable","uses":["pitch","direction","overhang"]},{"id":"hip","name":"Hip","uses":["pitch","overhang"]},{"id":"pyramid","name":"Pyramid","uses":["pitch","overhang"]},{"id":"dutch_gable","name":"Dutch gable","uses":["pitch","overhang","break_ratio"]},{"id":"jerkinhead","name":"Jerkinhead","uses":["pitch","direction","overhang","break_ratio"]},{"id":"shed","name":"Shed","uses":["pitch","direction","overhang"]},{"id":"sawtooth","name":"Sawtooth","uses":["pitch","direction","overhang"]},{"id":"gambrel","name":"Gambrel","uses":["pitch","direction","overhang","second_pitch","break_ratio"]},{"id":"mansard","name":"Mansard","uses":["pitch","overhang","second_pitch","break_ratio"]},{"id":"saltbox","name":"Saltbox","uses":["pitch","direction","overhang","ridge_offset"]},{"id":"butterfly","name":"Butterfly","uses":["pitch","direction","overhang","ridge_offset"]},{"id":"bonnet","name":"Bonnet","uses":["pitch","overhang","second_pitch","break_ratio"]},{"id":"clerestory","name":"Clerestory","uses":["pitch","direction","overhang","ridge_offset","rise"]},{"id":"a_frame","name":"A-frame","uses":["pitch","direction","overhang"]},{"id":"m_shaped","name":"M-shaped","uses":["pitch","direction","overhang"]},{"id":"barrel","name":"Barrel","uses":["direction","overhang","rise"]},{"id":"dome","name":"Dome","uses":["overhang","rise"]},{"id":"bow","name":"Bow","uses":["direction","overhang","rise"]}]}}
 ```
 
-A setting a type does not use is kept but has no effect on it. A flat roof with a parapet above 0 has no overhang. A hip roof needs a convex section. On any other section the build makes a gable roof and reports `roof_type_fallback`.
+`roof set` refuses a setting the type does not use. A value stored earlier for another type is kept and has no effect. When a type does not fit a section, the build makes its fallback type instead and reports `roof_type_fallback`.
+
+| Type | Uses | What it builds | Fallback |
+|---|---|---|---|
+| `flat` | overhang, parapet | A flat layer, with a low wall round it when the parapet is above 0. With a parapet it has no overhang. | none |
+| `green` | overhang, parapet | A flat roof topped with a planting layer, edged by the parapet or by a low strip along the eaves. | none |
+| `gable` | pitch, direction, overhang | Two slopes falling away from a ridge along the direction, with gable walls at the ends. | none |
+| `hip` | pitch, overhang | A slope rising from every edge of the section, meeting in hips, valleys and ridges. Works for any outline. | `gable` |
+| `pyramid` | pitch, overhang | Every edge rises to one apex above the middle. Needs a section without holes or inward corners. | `hip` |
+| `dutch_gable` | pitch, overhang, break_ratio | A hip roof with a small gable at the top of each hip end, cut at the break ratio of its height. | as `hip` |
+| `jerkinhead` | pitch, direction, overhang, break_ratio | A gable whose ends are clipped by a small hip. The end walls reach the break ratio of the ridge height. | none |
+| `shed` | pitch, direction, overhang | One slope falling toward one side. | none |
+| `sawtooth` | pitch, direction, overhang | Bays 3 m wide, each a slope with a glazed upright face at its high side. | none |
+| `gambrel` | pitch, direction, overhang, second_pitch, break_ratio | A barn roof: a gable with two slopes on each side, the lower at the pitch and the upper at the second pitch. | none |
+| `mansard` | pitch, overhang, second_pitch, break_ratio | A hip roof with two slopes on every side: the lower at the pitch, the upper at the second pitch. | `gambrel` |
+| `saltbox` | pitch, direction, overhang, ridge_offset | A gable whose ridge is moved off the middle by the ridge offset, so one side is longer. | none |
+| `butterfly` | pitch, direction, overhang, ridge_offset | Two slopes falling inward to a valley along the direction, moved off the middle by the ridge offset. | none |
+| `bonnet` | pitch, overhang, second_pitch, break_ratio | A hip roof with a flatter kick at the eaves at the second pitch. | `gable` |
+| `clerestory` | pitch, direction, overhang, ridge_offset, rise | Two sheds at different heights with a band of glass as high as the rise between them. Needs a section without holes or inward corners. | `shed` |
+| `a_frame` | pitch, direction, overhang | A steep gable whose slopes come down past the walls nearly to the ground. Needs a pitch of at least 45 and a section without holes or inward corners. | `gable` |
+| `m_shaped` | pitch, direction, overhang | Two gables side by side along the direction, with a valley between them. | none |
+| `barrel` | direction, overhang, rise | A vault along the direction, its top an arc as high as the rise. | `flat` |
+| `dome` | overhang, rise | A dome as high as the rise over the section. Needs a section without holes or inward corners. | `flat` |
+| `bow` | direction, overhang, rise | A curved shed rising by the rise toward its high side. | `flat` |
+
+"none" means the type fits every section. A barrel, dome or bow whose rise would meet the walls steeper than 75 degrees is built flat.
 
 **Roof problem codes.**
 

@@ -6,10 +6,13 @@
 #include <plynth/core/Roofs.h>
 #include <plynth/core/commands/RoofCommands.h>
 
+#include <array>
 #include <cmath>
 #include <cstdlib>
 #include <memory>
 #include <optional>
+#include <string_view>
+#include <vector>
 
 namespace plynth::cli {
 
@@ -27,6 +30,10 @@ struct SetOptions {
     std::optional<double> parapet;
     std::string direction; // degrees or auto
     std::string material;  // an id, or none
+    std::optional<double> secondPitch;
+    std::optional<double> breakRatio;
+    std::optional<double> ridgeOffset;
+    std::optional<double> rise;
 };
 
 struct ClearOptions {
@@ -38,6 +45,44 @@ struct ListOptions {
     std::string project;
     std::string floor;
 };
+
+// One roof setting: its name in answers, its option, whether a type uses it and whether roof set was given it.
+struct RoofField {
+    std::string_view key;
+    std::string_view option;
+    bool (RoofType::*uses)() const;
+    bool (*given)(const SetOptions&);
+};
+
+const std::array<RoofField, 8> kRoofFields = {{
+    {"pitch", "--pitch", &RoofType::usesPitch, [](const SetOptions& o) { return o.pitch.has_value(); }},
+    {"direction", "--direction", &RoofType::usesDirection, [](const SetOptions& o) { return !o.direction.empty(); }},
+    {"overhang", "--overhang", &RoofType::usesOverhang, [](const SetOptions& o) { return o.overhang.has_value(); }},
+    {"parapet", "--parapet", &RoofType::usesParapet, [](const SetOptions& o) { return o.parapet.has_value(); }},
+    {"second_pitch", "--second-pitch", &RoofType::usesSecondPitch,
+     [](const SetOptions& o) { return o.secondPitch.has_value(); }},
+    {"break_ratio", "--break-ratio", &RoofType::usesBreakRatio,
+     [](const SetOptions& o) { return o.breakRatio.has_value(); }},
+    {"ridge_offset", "--ridge-offset", &RoofType::usesRidgeOffset,
+     [](const SetOptions& o) { return o.ridgeOffset.has_value(); }},
+    {"rise", "--rise", &RoofType::usesRise, [](const SetOptions& o) { return o.rise.has_value(); }},
+}};
+
+// The types whose new sections start with the ridge or valley off the middle, and by how much.
+constexpr std::array<std::string_view, 2> kOffsetTypes = {"saltbox", "butterfly"};
+constexpr double kNewSectionRidgeOffset = 0.25;
+
+// Joins words as "a, b and c".
+std::string joinWords(const std::vector<std::string_view>& words) {
+    std::string text;
+    for (std::size_t i = 0; i < words.size(); ++i) {
+        if (i > 0) {
+            text += i + 1 == words.size() ? " and " : ", ";
+        }
+        text += words[i];
+    }
+    return text;
+}
 
 // Rounds to a tenth of a millimetre so answers do not carry floating point noise.
 double rounded(double value) {
@@ -52,7 +97,8 @@ Json pointJson(const Vec2& point) {
     return json;
 }
 
-// Roof settings as {type, pitch, overhang, parapet, direction}; direction is null for automatic.
+// Roof settings as {type, pitch, overhang, parapet, direction, second_pitch, break_ratio, ridge_offset, rise};
+// direction is null for automatic.
 Json settingsJson(const RoofSettings& settings) {
     Json json = Json::object();
     json["type"] = settings.type;
@@ -64,6 +110,10 @@ Json settingsJson(const RoofSettings& settings) {
     } else {
         json["direction"] = nullptr;
     }
+    json["second_pitch"] = settings.secondPitch;
+    json["break_ratio"] = settings.breakRatio;
+    json["ridge_offset"] = settings.ridgeOffset;
+    json["rise"] = settings.rise;
     return json;
 }
 
@@ -169,8 +219,35 @@ bool checkMaterial(const std::string& command, const RunContext& context, const 
     return true;
 }
 
+// Refuses settings given for a roof type that does not use them, naming the type and what it does use. An unknown
+// type passes here, so the core check can refuse it with the list of known types.
+bool checkFieldsUsed(const std::string& command, const SetOptions& options, const RoofSettings& settings,
+                     Answer& failed) {
+    const RoofType* type = findRoofType(settings.type);
+    if (type == nullptr) {
+        return true;
+    }
+    std::vector<std::string_view> unused;
+    std::vector<std::string_view> used;
+    for (const RoofField& field : kRoofFields) {
+        if ((type->*field.uses)()) {
+            used.push_back(field.option);
+        } else if (field.given(options)) {
+            unused.push_back(field.option);
+        }
+    }
+    if (unused.empty()) {
+        return true;
+    }
+    std::string message = "The " + std::string(type->name()) + " roof (" + std::string(type->id()) +
+                          ") does not use " + joinWords(unused) + ".";
+    message += used.empty() ? " It uses none of the roof settings." : " It uses " + joinWords(used) + ".";
+    failed = failure(command, fail(ErrorCode::InvalidValue, message));
+    return false;
+}
+
 // Puts the options that were given into roof settings. False, with failed filled, for a direction that is
-// neither a number nor auto.
+// neither a number nor auto, or for a setting the resulting type does not use.
 bool applySettings(const std::string& command, const SetOptions& options, RoofSettings& settings, Answer& failed) {
     if (!options.type.empty()) {
         settings.type = options.type;
@@ -184,6 +261,18 @@ bool applySettings(const std::string& command, const SetOptions& options, RoofSe
     if (options.parapet) {
         settings.parapet = *options.parapet;
     }
+    if (options.secondPitch) {
+        settings.secondPitch = *options.secondPitch;
+    }
+    if (options.breakRatio) {
+        settings.breakRatio = *options.breakRatio;
+    }
+    if (options.ridgeOffset) {
+        settings.ridgeOffset = *options.ridgeOffset;
+    }
+    if (options.rise) {
+        settings.rise = *options.rise;
+    }
     if (options.direction == "auto") {
         settings.direction.reset();
     } else if (!options.direction.empty()) {
@@ -195,7 +284,19 @@ bool applySettings(const std::string& command, const SetOptions& options, RoofSe
         }
         settings.direction = value;
     }
-    return true;
+    return checkFieldsUsed(command, options, settings, failed);
+}
+
+// Gives a new saltbox or butterfly section its ridge off the middle when no --ridge-offset was given.
+void offsetNewSection(const SetOptions& options, RoofSettings& settings) {
+    if (options.ridgeOffset || settings.ridgeOffset != 0.0) {
+        return;
+    }
+    for (const std::string_view type : kOffsetTypes) {
+        if (settings.type == type) {
+            settings.ridgeOffset = kNewSectionRidgeOffset;
+        }
+    }
 }
 
 // The material an edit leaves: the one given (none clears it), or the current one.
@@ -214,10 +315,12 @@ Answer roofSet(const RunContext& context, const SetOptions& options) {
     const std::string command = "roof set";
     const bool isDefault = options.target == "default";
     const bool anyValue = !options.type.empty() || options.pitch || options.overhang || options.parapet ||
-                          !options.direction.empty() || !options.material.empty();
+                          !options.direction.empty() || !options.material.empty() || options.secondPitch ||
+                          options.breakRatio || options.ridgeOffset || options.rise;
     if (!anyValue) {
         return badArguments(command, "bad_arguments",
-                            "Give at least one of --type, --pitch, --overhang, --parapet, --direction and --material.");
+                            "Give at least one of --type, --pitch, --overhang, --parapet, --direction, "
+                            "--second-pitch, --break-ratio, --ridge-offset, --rise and --material.");
     }
     if (isDefault && (!options.material.empty() || !options.floor.empty() || !options.at.empty())) {
         return badArguments(command, "bad_arguments", "The roof default takes no --material, --floor or --at.");
@@ -260,6 +363,7 @@ Answer roofSet(const RunContext& context, const SetOptions& options) {
                 if (!applySettings(command, options, settings, failed)) {
                     return failed;
                 }
+                offsetNewSection(options, settings);
                 auto add = std::make_unique<AddRoofSectionCommand>(floor->id, atX, atY, settings,
                                                                    materialAfter(options, std::nullopt));
                 const AddRoofSectionCommand* raw = add.get();
@@ -336,17 +440,10 @@ Answer roofTypes() {
     Json types = Json::array();
     for (const RoofType* type : allRoofTypes()) {
         Json uses = Json::array();
-        if (type->usesPitch()) {
-            uses.push_back("pitch");
-        }
-        if (type->usesDirection()) {
-            uses.push_back("direction");
-        }
-        if (type->usesOverhang()) {
-            uses.push_back("overhang");
-        }
-        if (type->usesParapet()) {
-            uses.push_back("parapet");
+        for (const RoofField& field : kRoofFields) {
+            if ((type->*field.uses)()) {
+                uses.push_back(std::string(field.key));
+            }
         }
         Json item = Json::object();
         item["id"] = std::string(type->id());
@@ -382,6 +479,17 @@ std::vector<CommandSpec> roofCommands() {
             ->type_name("metres");
         sub.add_option("--direction", options->direction, "Ridge or fall direction in degrees, or auto.")
             ->type_name("degrees|auto");
+        sub.add_option("--second-pitch", options->secondPitch,
+                       "Upper slope of a gambrel or mansard, or eaves slope of a bonnet, in degrees.")
+            ->type_name("degrees");
+        sub.add_option("--break-ratio", options->breakRatio, "Share of the run the lower slope covers, 0.1 to 0.9.")
+            ->type_name("ratio");
+        sub.add_option("--ridge-offset", options->ridgeOffset,
+                       "Moves the ridge or valley across the section as a share of its width, -0.45 to 0.45.")
+            ->type_name("share");
+        sub.add_option("--rise", options->rise,
+                       "Height of a barrel, dome or bow roof, or of a clerestory's glazed band, metres.")
+            ->type_name("metres");
         sub.add_option("--material", options->material, "Material id for the covering, or none. Not for default.")
             ->type_name("id");
         return [options](const RunContext& context) { return roofSet(context, *options); };
