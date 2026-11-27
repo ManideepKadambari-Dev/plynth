@@ -50,6 +50,7 @@ std::vector<CommandSpec> settingsCommands();
 std::vector<CommandSpec> libraryCommands();
 std::vector<CommandSpec> assetCommands();
 std::vector<CommandSpec> doctorCommands();
+std::vector<CommandSpec> blenderCommands();
 std::vector<CommandSpec> importCommands();
 std::vector<CommandSpec> itemCommands();
 std::vector<CommandSpec> buildCommands();

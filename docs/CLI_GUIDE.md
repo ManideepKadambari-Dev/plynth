@@ -19,15 +19,15 @@ Typing `plynth` in a terminal finds `plynth.com` first. The terminal inside Plyn
 
 The first word decides what happens:
 
-- A command word (`version`, `help`, `project`, `scale`, `point`, `wall`, `opening`, `floor`, `room`, `place`, `item`, `detect`, `build`, `session`, `doctor`, `settings`, `library`, `assets`, `light`, `trim`, `variation`, `update`) runs the command and prints the answer. No window opens.
+- A command word (`version`, `help`, `project`, `scale`, `point`, `wall`, `opening`, `floor`, `room`, `place`, `item`, `detect`, `build`, `session`, `doctor`, `settings`, `library`, `assets`, `light`, `trim`, `variation`, `update`, `blender`) runs the command and prints the answer. No window opens.
 - A project folder or an app option (`--image`, `--screenshot`, `--size`, `--terminal`), or no argument at all, opens the window. `plynth.com` starts the window and returns at once.
 - Anything else prints an `unknown_command` answer and exits with code 2. For example `plynth bogus`.
 
-To open a folder that is literally named after a command word, such as `project`, `room`, `opening`, `floor`, `place`, `item`, `detect` or `build`, write `.\project`, `.\room`, `.\opening`, `.\floor`, `.\place`, `.\item`, `.\detect` or `.\build`. Without the `.\` Plynth runs the command instead. `doctor`, `settings`, `library` and `assets` are new command words, so a project folder with one of those names that worked before now needs the `.\` too. The same goes for `--project`: write `--project .\opening`.
+To open a folder that is literally named after a command word, such as `project`, `room`, `opening`, `floor`, `place`, `item`, `detect` or `build`, write `.\project`, `.\room`, `.\opening`, `.\floor`, `.\place`, `.\item`, `.\detect` or `.\build`. Without the `.\` Plynth runs the command instead. `doctor`, `settings`, `library` and `assets` are new command words, and `blender` is one since 0.2.0, so a project folder with one of those names that worked before now needs the `.\` too. The same goes for `--project`: write `--project .\opening`.
 
 ### Which project a command works on
 
-Like git, a command works on the project in the current folder. Add `--project <folder>` to use another one. It works on every command except `version`, `help`, `doctor`, `settings`, `update`, `library`, `assets`, `project recent` and `trim profiles`, which are about the machine and never open a project.
+Like git, a command works on the project in the current folder. Add `--project <folder>` to use another one. It works on every command except `version`, `help`, `doctor`, `blender get`, `settings`, `update`, `library`, `assets`, `project recent` and `trim profiles`, which are about the machine and never open a project.
 
 ```
 cd D:\Plans\MyApartment
@@ -72,7 +72,7 @@ Help text from the command parser is never printed. `--help` or `-h` on any comm
 
 The app itself, when you give it `--screenshot`, uses its own codes. 0 means the picture was saved. 1 means the picture could not be saved. 2 means bad options. 3 means the picture was saved but the project or the image could not be loaded. 4 means the terminal shell could not start.
 
-**Stopping a command.** Ctrl+C or Ctrl+Break in the terminal asks the running command to stop. A long command (`build`, `export`, `render`, `pack`, `unpack`, the material imports) then answers `cancelled` with exit code 1, and keeps nothing it was making. `plynth` waits for that answer, so the terminal never loses it. A script that started a build in another terminal can stop it with `plynth build cancel`.
+**Stopping a command.** Ctrl+C or Ctrl+Break in the terminal asks the running command to stop. A long command (`build`, `export`, `render`, `pack`, `unpack`, `blender get`, the material imports) then answers `cancelled` with exit code 1, and keeps nothing it was making. `plynth` waits for that answer, so the terminal never loses it. A script that started a build in another terminal can stop it with `plynth build cancel`.
 
 **Long commands and sessions.** While `build`, `export`, `pack` or `unpack` runs, it keeps an active edit session alive, so the session does not expire in the middle of a long build.
 
@@ -95,7 +95,7 @@ The app itself, when you give it `--screenshot`, uses its own codes. 0 means the
 | `locked` | The project is open in the app and no edit session is active, or the session ended. See "Working while the app is open". |
 | `unsaved_changes` | The app has unsaved changes, so an edit session cannot begin. |
 | `no_library` | No library folder is set, or the folder given is not a library. The message names `plynth library init`. |
-| `blender_not_found` | No usable Blender: none is installed, the one asked for is missing, or it is older than 4.2. Install Blender from blender.org yourself and run `plynth doctor`. |
+| `blender_not_found` | No usable Blender: none is installed, the one asked for is missing, or it is older than 4.2. Install Blender from blender.org yourself, or run `plynth blender get --yes`, and then run `plynth doctor`. |
 | `blender_failed` | Blender ran but the job failed, crashed or gave no result. The message says why, with the end of Blender's log when there is one. |
 | `quality_failed` | `export` found a failed quality check and `--force` was not given. Exit 1. The report is still written. |
 | `cancelled` | The job was stopped before it finished. Nothing is kept. |
@@ -107,7 +107,7 @@ The app itself, when you give it `--screenshot`, uses its own codes. 0 means the
 | `update_blocked` | `update` cannot install now. The message says what to close or finish. |
 | `update_in_progress` | An update is being installed, so no command can run until it ends. |
 | `signature_invalid` | A downloaded installer or its signature did not verify. Nothing was started. |
-| `network_failed` | `update` could not reach GitHub, or the download failed. |
+| `network_failed` | `update` could not reach GitHub, `blender get` could not reach blender.org, or the download failed. |
 | `engine_not_found` | No running game engine editor answered, or the one that answered is not the one asked for. |
 | `engine_failed` | The game engine editor ran the import and it failed. The message gives the editor's reason. |
 | `checksum_failed` | A download did not match its published checksum, so it was deleted and not used. |
@@ -2577,8 +2577,58 @@ Each item has:
 | `action` | One sentence on what to do. Empty when nothing is needed. |
 | `link` | An official page, or an empty string. |
 | `affects` | For add-ons, what stays switched off without it. |
+| `offer_download` | Only on the `blender` item, and only when no usable Blender was found: `plynth blender get` can fetch the official portable Blender. Left out otherwise. |
 
 `first_run` is true when no settings file exists yet. `updated` is true when the last passing setup check was made by another Plynth version. `blender_installs` lists every Blender found, newest first, with `support` (`supported`, `too_old` or `untested`) and where it was found. The shape is in `schema/setup-report.schema.json`.
+
+### blender get
+
+Gets the official portable Blender, the Windows zip from blender.org, for a computer that has no usable Blender. Without `--yes` it only says what it would download. It then downloads nothing and changes no setting.
+
+```
+plynth blender get
+plynth blender get --yes
+plynth blender get --yes --if-missing
+```
+
+Options:
+
+- `--yes`: download it, check it, unpack it and choose it in the settings. Asking with `--yes` is the consent, so nothing more is asked.
+- `--if-missing`: do nothing when a usable Blender is already found, the same way a build picks one (`PLYNTH_BLENDER`, the settings, then the search). The answer then has `state` `skipped`, and nothing is sent to blender.org.
+- `--quiet`: write no progress lines.
+
+The command reads blender.org's release folder for the Blender series Plynth is tested with and takes the newest Windows zip, with the SHA-256 checksum blender.org publishes beside it. Requests go only to `download.blender.org` over HTTPS. With `--yes` it downloads the zip, checks it against that checksum, unpacks it and runs the new Blender once to read its version. Then it saves it as the Blender in the settings, the same as `settings set --blender`. Each version gets its own folder in `Blender` inside the Plynth install folder, or in `%LOCALAPPDATA%\Plynth\Blender` for a copy that was not installed. A failed or stopped download keeps nothing. A version that was downloaded before is used as it is. Blender is never inside the Plynth installer. The installer's tick box runs `plynth blender get --yes --if-missing` after the install.
+
+Progress lines go to standard error as `{"progress":{"stage","done","total","message"}}` with the stages `look` (only with `--if-missing`), `find`, `downloading`, `checking`, `unpacking`, `inspecting` and `select`. While downloading, `done` and `total` are bytes, and `total` is 0 when the size is not known.
+
+```json
+{"ok":true,"command":"blender get","result":{"state":"offer","version":"5.2.3","size":381234567,"source":"https://download.blender.org/release/Blender5.2/blender-5.2.3-windows-x64.zip","sha256":"a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90","target":"<LocalAppData>/Plynth/Blender/blender-5.2.3-windows-x64","next":"plynth blender get --yes","note":"Nothing was downloaded. The command in next downloads this Blender from blender.org, checks it against blender.org's SHA-256 checksum, unpacks it into target and chooses it in the settings."}}
+```
+
+Without `--yes` the answer is the offer. `size` is the size of the zip in bytes, or `null` when blender.org does not list it. `target` is the folder it would be unpacked into. `next` is the command that goes on.
+
+```json
+{"ok":true,"command":"blender get","result":{"state":"installed","version":"5.2.3","path":"<LocalAppData>/Plynth/Blender/blender-5.2.3-windows-x64/blender.exe","folder":"<LocalAppData>/Plynth/Blender/blender-5.2.3-windows-x64","source":"https://download.blender.org/release/Blender5.2/blender-5.2.3-windows-x64.zip","sha256":"a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90","reused":false,"selected":true}}
+```
+
+With `--yes` the answer says where the new Blender is. `reused` is true when that version was already downloaded, so nothing was sent for the zip. `selected` is true: it is now the Blender in the settings. When `PLYNTH_BLENDER` is set, the top level `warnings` has `blender_variable_set`, because commands use the Blender it names first. Clear the variable to use the new one.
+
+```json
+{"ok":true,"command":"blender get","result":{"state":"skipped","reason":"A usable Blender is already on this computer, so nothing was downloaded.","blender":{"path":"C:/Program Files/Blender Foundation/Blender 5.2/blender.exe","version":"5.2.0"}}}
+```
+
+With `--if-missing` and a usable Blender found, the answer names it and nothing else happens.
+
+Refusals:
+
+| Code | When |
+|---|---|
+| `network_failed` | blender.org could not be reached or gave a bad answer, its listing has no Windows zip or no checksum for it, or the download broke off. Nothing is kept. |
+| `checksum_failed` | The zip did not match blender.org's SHA-256 checksum. It was deleted and not used. |
+| `cancelled` | Ctrl+C stopped it. Nothing is kept. |
+| `bad_file` | The zip holds a name that is not safe to unpack, or no `blender.exe`. Nothing is kept. |
+| `cannot_write` | The folder could not be written, or the disk has too little free space. Plynth wants about four times the size of the zip free: the zip and the unpacked Blender. |
+| `blender_failed` | The new Blender did not run, so it was removed. |
 
 ### settings show
 

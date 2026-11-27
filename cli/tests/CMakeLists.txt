@@ -34,6 +34,7 @@ add_executable(plynth_cli_tests
     StoreFailureCliTests.cpp
     StoreSourceCliTests.cpp
     BlenderOptionCliTests.cpp
+    BlenderGetCliTests.cpp
     RecentCliTests.cpp
     EnvironmentCliTests.cpp
     ErrorListTests.cpp
@@ -69,6 +70,7 @@ target_compile_definitions(plynth_cli_tests PRIVATE
     PLYNTH_RENDER_FIXTURES="${PROJECT_SOURCE_DIR}/tests/data/render"
     PLYNTH_FORMATS_DIR="${PROJECT_SOURCE_DIR}/tests/data/formats"
     PLYNTH_DOCS_DIR="${PROJECT_SOURCE_DIR}/docs"
+    PLYNTH_BLENDER_DOWNLOAD_DATA="${PROJECT_SOURCE_DIR}/tests/core/data/blender-download"
     PLYNTH_FAKE_BLENDER="$<TARGET_FILE:plynth_fake_blender>"
     PLYNTH_LEAKY_BLENDER="$<TARGET_FILE:plynth_leaky_blender>")
 add_dependencies(plynth_cli_tests plynth_fake_blender plynth_leaky_blender)
