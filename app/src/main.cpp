@@ -2,6 +2,7 @@
 #include "theme/Theme.h"
 #include "catalog/LibraryHost.h"
 #include "window/MainWindow.h"
+#include "setup/SetupCheckDialog.h"
 #include "guide/GuideHost.h"
 #include "preview/RenderHost.h"
 #include "update/UpdateController.h"
@@ -409,6 +410,13 @@ int main(int argc, char* argv[])
                                              QStringLiteral(". Nothing is sent, downloaded or installed. For checks only."),
                                          QStringLiteral("name"));
     parser.addOption(updateStateOption);
+    QCommandLineOption blenderOfferOption(QStringLiteral("blender-offer"),
+                                          QStringLiteral("With --setup or --setup-item, pretend no Blender was found and show "
+                                                         "Get Blender for me in a made up state: ") +
+                                              plynth::app::SetupCheckDialog::cannedDownloadNames().join(QStringLiteral(", ")) +
+                                              QStringLiteral(". The offer is made up. Nothing is sent or downloaded. For checks only."),
+                                          QStringLiteral("name"));
+    parser.addOption(blenderOfferOption);
     QCommandLineOption windowSizeOption(QStringLiteral("window-size"),
                                         QStringLiteral("With --screenshot-window, the size of that window in pixels instead of its "
                                                        "default size, for example 1600x900."),
@@ -497,6 +505,13 @@ int main(int argc, char* argv[])
     if (parser.isSet(updateStateOption) &&
         (!wantsScreenshot || !plynth::app::UpdateController::cannedNames().contains(updateState)))
         return kExitBadArguments;
+    const QString blenderOffer = parser.value(blenderOfferOption).toLower();
+    if (parser.isSet(blenderOfferOption) &&
+        ((!parser.isSet(setupOption) && !parser.isSet(setupItemOption)) ||
+         !plynth::app::SetupCheckDialog::cannedDownloadNames().contains(blenderOffer)))
+        return kExitBadArguments;
+    if (!blenderOffer.isEmpty())
+        plynth::app::SetupCheckDialog::useCannedDownload(blenderOffer);
     // Any option at all is a check or a screenshot. Only a plain start, with at most a project, checks for updates.
     const bool checkMode = !parser.optionNames().isEmpty();
 
