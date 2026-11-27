@@ -80,6 +80,9 @@ add_executable(plynth_core_tests
     core/StoreysTests.cpp
     core/RoofsTests.cpp
     core/RoofCommandTests.cpp
+    core/RoofSkeletonTests.cpp
+    core/RoofValleyTests.cpp
+    core/RoofClipTests.cpp
     core/CollisionTests.cpp
     core/MaterialSlotsTests.cpp
     core/ExportTests.cpp

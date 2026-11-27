@@ -3,6 +3,7 @@
 #include "ClipperInclude.h"
 #include "PlanRingClean.h"
 #include "roofs/RoofParts.h"
+#include "roofs/Valleys.h"
 
 #include <algorithm>
 #include <cmath>
@@ -802,6 +803,7 @@ FloorRoofs floorRoofs(const Plan& plan, std::size_t floorIndex, const std::vecto
     std::vector<WorldPolygon> above;
     if (floorIndex + 1 < plan.floors.size()) above = worldPolygons(floorFootprint(plan.floors[floorIndex + 1]));
 
+    std::vector<roofparts::JoinSection> sections;
     for (const RoofArea& area : areasOfFloor(plan, floorIndex)) {
         const RoofType* type = findRoofType(area.settings.type);
         if (!type) {
@@ -822,13 +824,23 @@ FloorRoofs floorRoofs(const Plan& plan, std::size_t floorIndex, const std::vecto
         build.floor = floor.id;
         build.index = area.index;
         build.section = area.section;
+        roofparts::JoinSection section;
         if (type) {
             build.type = std::string(type->id());
-            for (const RoofFace& face : type->build(makeInput(area, *type, base, above))) {
-                for (RoofFace& piece : tidyRoofFace(face)) build.faces.push_back(std::move(piece));
-            }
+            section.pitched = type->usesPitch();
+            section.input = makeInput(area, *type, base, above);
+            section.faces = type->build(section.input);
         }
+        sections.push_back(std::move(section));
         out.roofs.push_back(std::move(build));
+    }
+
+    // Pitched sections that meet are joined before any face is tidied, so each face is tidied once.
+    roofparts::joinSections(sections, above);
+    for (std::size_t i = 0; i < sections.size(); ++i) {
+        for (const RoofFace& face : sections[i].faces) {
+            for (RoofFace& piece : tidyRoofFace(face)) out.roofs[i].faces.push_back(std::move(piece));
+        }
     }
 
     for (const Id& id : unusedRoofSections(plan)) {
