@@ -285,7 +285,7 @@ ExportEditResult ExportEditGuard::edit(ExportEditTicket ticket, SessionTime now,
     return d.finished({});
 }
 
-// Writes the kit switch and keeps everything else in the file.
+// Writes the kit switch of the Unreal link and keeps everything else in the file.
 ExportEditResult ExportEditGuard::setKit(SessionTime now, bool enabled)
 {
     State& d = *d_;
@@ -295,13 +295,15 @@ ExportEditResult ExportEditGuard::setKit(SessionTime now, bool enabled)
 
     ExportOptionsRead read = readExportOptions(d.folder);
     if (!read.status.ok()) return {ExportEditDecision::Allowed, read.status};
-    if (read.options.kit.enabled == enabled) return {};
-    read.options.kit.enabled = enabled;
+    EngineLinkOptions link = engineLinkOptions(read.options, kUnrealLinkId);
+    if (link.kit == enabled) return {};
+    link.kit = enabled;
+    read.options.links[std::string(kUnrealLinkId)] = link;
     if (d.lookForSession(now)) return d.refuseLocked();
     return {ExportEditDecision::Allowed, writeExportOptions(d.folder, read.options)};
 }
 
-// Writes the gameplay data switch into the fresh options, refused only by a session.
+// Writes the gameplay data switch of the Unreal link into the fresh options, refused only by a session.
 ExportEditResult ExportEditGuard::setGameplay(SessionTime now, bool enabled)
 {
     State& d = *d_;
@@ -311,8 +313,10 @@ ExportEditResult ExportEditGuard::setGameplay(SessionTime now, bool enabled)
 
     ExportOptionsRead read = readExportOptions(d.folder);
     if (!read.status.ok()) return {ExportEditDecision::Allowed, read.status};
-    if (read.options.gameplay.enabled == enabled) return {};
-    read.options.gameplay.enabled = enabled;
+    EngineLinkOptions link = engineLinkOptions(read.options, kUnrealLinkId);
+    if (link.gameplay == enabled) return {};
+    link.gameplay = enabled;
+    read.options.links[std::string(kUnrealLinkId)] = link;
     if (d.lookForSession(now)) return d.refuseLocked();
     return {ExportEditDecision::Allowed, writeExportOptions(d.folder, read.options)};
 }

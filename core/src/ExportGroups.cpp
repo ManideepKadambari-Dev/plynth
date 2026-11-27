@@ -521,6 +521,113 @@ Status readGroupName(const Json& item, const std::string& where, std::string& ou
     return {};
 }
 
+// Reads an optional true or false field into out; a missing field leaves out as it is.
+Status readFlag(const Json& object, const char* key, const std::string& where, bool& out)
+{
+    const auto it = object.find(key);
+    if (it == object.end()) return {};
+    if (!it->is_boolean()) return fail(ErrorCode::BadFile, std::string("\"") + key + "\" must be true or false.", where + "/" + key);
+    out = it->get<bool>();
+    return {};
+}
+
+// Reads an old style switch, {"enabled": true}, into out.
+Status readSwitch(const Json& json, const char* key, bool& out)
+{
+    const auto it = json.find(key);
+    if (it == json.end()) return {};
+    const std::string where = std::string("/") + key;
+    if (!it->is_object()) return fail(ErrorCode::BadFile, std::string("\"") + key + "\" must be an object.", where);
+    if (Status s = checkFields(*it, {"enabled"}, where); !s.ok()) return s;
+    return readFlag(*it, "enabled", where, out);
+}
+
+// Reads the options of one engine link.
+Status readEngineLink(const Json& json, const std::string& where, EngineLinkOptions& out)
+{
+    if (!json.is_object()) return fail(ErrorCode::BadFile, "The options of a link must be an object.", where);
+    if (Status s = checkFields(json, {"pack_materials", "grouped", "kit", "gameplay", "sync_after_build", "target"}, where); !s.ok()) {
+        return s;
+    }
+    EngineLinkOptions link;
+    if (Status s = readFlag(json, "pack_materials", where, link.packMaterials); !s.ok()) return s;
+    if (const auto grouped = json.find("grouped"); grouped != json.end() && !grouped->is_null()) {
+        if (!grouped->is_boolean()) return fail(ErrorCode::BadFile, "\"grouped\" must be true, false or null.", where + "/grouped");
+        link.grouped = grouped->get<bool>();
+    }
+    if (Status s = readFlag(json, "kit", where, link.kit); !s.ok()) return s;
+    if (Status s = readFlag(json, "gameplay", where, link.gameplay); !s.ok()) return s;
+    if (Status s = readFlag(json, "sync_after_build", where, link.syncAfterBuild); !s.ok()) return s;
+    if (const auto target = json.find("target"); target != json.end() && !target->is_null()) {
+        const std::string at = where + "/target";
+        if (!target->is_object()) return fail(ErrorCode::BadFile, "\"target\" must be an object or null.", at);
+        if (Status s = checkFields(*target, {"project_name", "project_root", "engine_version"}, at); !s.ok()) return s;
+        EngineTarget found;
+        std::string root;
+        if (!readText(*target, "project_name", found.projectName) || found.projectName.empty()) {
+            return fail(ErrorCode::BadFile, "\"project_name\" must be text that is not empty.", at + "/project_name");
+        }
+        if (!readText(*target, "project_root", root) || root.empty()) {
+            return fail(ErrorCode::BadFile, "\"project_root\" must be text that is not empty.", at + "/project_root");
+        }
+        if (!readText(*target, "engine_version", found.engineVersion)) {
+            return fail(ErrorCode::BadFile, "\"engine_version\" must be text.", at + "/engine_version");
+        }
+        found.projectRoot = pathFromUtf8(root);
+        link.target = std::move(found);
+    }
+    out = std::move(link);
+    return {};
+}
+
+// The options of one engine link in their file form.
+Json engineLinkToJson(const EngineLinkOptions& link)
+{
+    Json json = Json::object();
+    json["pack_materials"] = link.packMaterials;
+    json["grouped"] = link.grouped ? Json(*link.grouped) : Json(nullptr);
+    json["kit"] = link.kit;
+    json["gameplay"] = link.gameplay;
+    json["sync_after_build"] = link.syncAfterBuild;
+    if (link.target) {
+        Json target = Json::object();
+        target["project_name"] = link.target->projectName;
+        target["project_root"] = pathToUtf8(link.target->projectRoot);
+        target["engine_version"] = link.target->engineVersion;
+        json["target"] = std::move(target);
+    } else {
+        json["target"] = nullptr;
+    }
+    return json;
+}
+
+// The options as the file keeps them: links with only default settings left out, and the old kit and gameplay
+// fields, which are never written, at their defaults.
+ExportOptions storedOptions(const ExportOptions& options)
+{
+    ExportOptions stored;
+    stored.groups = options.groups;
+    stored.licenses = options.licenses;
+    for (const auto& [id, link] : options.links) {
+        if (link != EngineLinkOptions{}) stored.links.emplace(id, link);
+    }
+    return stored;
+}
+
+}
+
+// The options of one link, or the defaults.
+EngineLinkOptions engineLinkOptions(const ExportOptions& options, std::string_view linkId)
+{
+    const auto it = options.links.find(std::string(linkId));
+    return it == options.links.end() ? EngineLinkOptions{} : it->second;
+}
+
+// Whether a link sends the grouped export.
+bool linkGrouped(const EngineLinkOptions& options, const Project& project)
+{
+    if (options.grouped) return *options.grouped;
+    return project.settings.exportMode == ExportMode::Grouped;
 }
 
 // Writes the options in their file form, every list always present.
@@ -550,15 +657,14 @@ Json exportOptionsToJson(const ExportOptions& options)
     groups["merges"] = std::move(merges);
     groups["moves"] = std::move(moves);
     json["groups"] = std::move(groups);
-    Json kit = Json::object();
-    kit["enabled"] = options.kit.enabled;
-    json["kit"] = std::move(kit);
-    Json gameplay = Json::object();
-    gameplay["enabled"] = options.gameplay.enabled;
-    json["gameplay"] = std::move(gameplay);
     Json licenses = Json::object();
     licenses["enabled"] = options.licenses.enabled;
     json["licenses"] = std::move(licenses);
+    Json links = Json::object();
+    for (const auto& [id, link] : options.links) {
+        if (link != EngineLinkOptions{}) links[id] = engineLinkToJson(link);
+    }
+    json["links"] = std::move(links);
     return json;
 }
 
@@ -586,11 +692,14 @@ ExportOptionsRead exportOptionsFromJson(const Json& json)
     }
     if (fileVersion < 1) return bad(fail(ErrorCode::BadFile, "The export options version is not valid.", "/version"));
     // Version 1 had no gameplay switch and versions 1 and 2 no license switch, so they may not carry one.
+    // Version 4 moved the kit and gameplay switches into links.unreal.
     if (fileVersion == 1) {
         if (Status s = checkFields(json, {"format", "version", "groups", "kit"}, ""); !s.ok()) return bad(s);
     } else if (fileVersion == 2) {
         if (Status s = checkFields(json, {"format", "version", "groups", "kit", "gameplay"}, ""); !s.ok()) return bad(s);
-    } else if (Status s = checkFields(json, {"format", "version", "groups", "kit", "gameplay", "licenses"}, ""); !s.ok()) {
+    } else if (fileVersion == 3) {
+        if (Status s = checkFields(json, {"format", "version", "groups", "kit", "gameplay", "licenses"}, ""); !s.ok()) return bad(s);
+    } else if (Status s = checkFields(json, {"format", "version", "groups", "licenses", "links"}, ""); !s.ok()) {
         return bad(s);
     }
 
@@ -647,24 +756,11 @@ ExportOptionsRead exportOptionsFromJson(const Json& json)
         });
         if (!s.ok()) return bad(s);
     }
-    if (const auto kit = json.find("kit"); kit != json.end()) {
-        if (!kit->is_object()) return bad(fail(ErrorCode::BadFile, "\"kit\" must be an object.", "/kit"));
-        if (Status s = checkFields(*kit, {"enabled"}, "/kit"); !s.ok()) return bad(s);
-        if (const auto enabled = kit->find("enabled"); enabled != kit->end()) {
-            if (!enabled->is_boolean()) return bad(fail(ErrorCode::BadFile, "\"enabled\" must be true or false.", "/kit/enabled"));
-            options.kit.enabled = enabled->get<bool>();
-        }
-    }
-    if (const auto gameplay = json.find("gameplay"); gameplay != json.end()) {
-        if (!gameplay->is_object()) return bad(fail(ErrorCode::BadFile, "\"gameplay\" must be an object.", "/gameplay"));
-        if (Status s = checkFields(*gameplay, {"enabled"}, "/gameplay"); !s.ok()) return bad(s);
-        if (const auto enabled = gameplay->find("enabled"); enabled != gameplay->end()) {
-            if (!enabled->is_boolean()) {
-                return bad(fail(ErrorCode::BadFile, "\"enabled\" must be true or false.", "/gameplay/enabled"));
-            }
-            options.gameplay.enabled = enabled->get<bool>();
-        }
-    }
+    // The kit and gameplay switches of a version 3 or older file belong to the Unreal link now.
+    EngineLinkOptions unreal;
+    if (Status s = readSwitch(json, "kit", unreal.kit); !s.ok()) return bad(s);
+    if (Status s = readSwitch(json, "gameplay", unreal.gameplay); !s.ok()) return bad(s);
+    if (unreal != EngineLinkOptions{}) options.links[std::string(kUnrealLinkId)] = unreal;
     if (const auto licenses = json.find("licenses"); licenses != json.end()) {
         if (!licenses->is_object()) return bad(fail(ErrorCode::BadFile, "\"licenses\" must be an object.", "/licenses"));
         if (Status s = checkFields(*licenses, {"enabled"}, "/licenses"); !s.ok()) return bad(s);
@@ -673,6 +769,15 @@ ExportOptionsRead exportOptionsFromJson(const Json& json)
                 return bad(fail(ErrorCode::BadFile, "\"enabled\" must be true or false.", "/licenses/enabled"));
             }
             options.licenses.enabled = enabled->get<bool>();
+        }
+    }
+    if (const auto links = json.find("links"); links != json.end()) {
+        if (!links->is_object()) return bad(fail(ErrorCode::BadFile, "\"links\" must be an object.", "/links"));
+        if (Status s = checkFields(*links, {"unreal"}, "/links"); !s.ok()) return bad(s);
+        for (const auto& item : links->items()) {
+            EngineLinkOptions link;
+            if (Status s = readEngineLink(item.value(), "/links/" + item.key(), link); !s.ok()) return bad(s);
+            if (link != EngineLinkOptions{}) options.links[item.key()] = std::move(link);
         }
     }
     result.options = std::move(options);
@@ -709,7 +814,7 @@ ExportOptionsRead readExportOptions(const fs::path& projectFolder)
 Status writeExportOptions(const fs::path& projectFolder, const ExportOptions& options)
 {
     const fs::path file = projectFolder / pathFromUtf8(kExportOptionsFileName);
-    if (options == ExportOptions{}) {
+    if (storedOptions(options) == ExportOptions{}) {
         std::error_code ec;
         fs::remove(file, ec);
         if (ec && fs::exists(file)) {
@@ -740,16 +845,25 @@ ExportOptionsRepair repairExportOptions(const fs::path& projectFolder)
     in.close();
     const Json json = Json::parse(text.str(), nullptr, false);
     if (json.is_object()) {
+        // The kit and gameplay switches at the top (version 3 and older), then the Unreal link of version 4.
+        EngineLinkOptions unreal;
         const auto kit = json.find("kit");
         if (kit != json.end() && kit->is_object()) {
             const auto enabled = kit->find("enabled");
-            if (enabled != kit->end() && enabled->is_boolean()) fresh.kit.enabled = enabled->get<bool>();
+            if (enabled != kit->end() && enabled->is_boolean()) unreal.kit = enabled->get<bool>();
         }
         const auto gameplay = json.find("gameplay");
         if (gameplay != json.end() && gameplay->is_object()) {
             const auto enabled = gameplay->find("enabled");
-            if (enabled != gameplay->end() && enabled->is_boolean()) fresh.gameplay.enabled = enabled->get<bool>();
+            if (enabled != gameplay->end() && enabled->is_boolean()) unreal.gameplay = enabled->get<bool>();
         }
+        const auto links = json.find("links");
+        if (links != json.end() && links->is_object()) {
+            const auto saved = links->find(std::string(kUnrealLinkId));
+            EngineLinkOptions link;
+            if (saved != links->end() && readEngineLink(*saved, "/links/unreal", link).ok()) unreal = link;
+        }
+        if (unreal != EngineLinkOptions{}) fresh.links[std::string(kUnrealLinkId)] = unreal;
         const auto licenses = json.find("licenses");
         if (licenses != json.end() && licenses->is_object()) {
             const auto enabled = licenses->find("enabled");

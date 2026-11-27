@@ -59,6 +59,58 @@ std::vector<BuiltMaterial> fixtureMaterials(const TempDir& tmp)
 
 }
 
+TEST_CASE("export profile names round trip", "[core][export][profile]") {
+    for (const ExportProfile profile : {ExportProfile::Plain, ExportProfile::Unreal}) {
+        REQUIRE(exportProfileFromName(exportProfileName(profile)) == profile);
+    }
+    REQUIRE(exportProfileName(ExportProfile::Plain) == "plain");
+    REQUIRE(exportProfileName(ExportProfile::Unreal) == "unreal");
+    REQUIRE_FALSE(exportProfileFromName("Unreal"));
+    REQUIRE_FALSE(exportProfileFromName(""));
+    REQUIRE(ExportSettings{}.profile == ExportProfile::Plain);
+}
+
+TEST_CASE("a plain job has kit null and an unreal job carries the kit", "[core][export][schema][profile]") {
+    TempDir tmp("exportjob-profile");
+    Project project = squareProjectWithWalls();
+    project.settings.name = "Flat";
+    const ModularKit kit = modularKit(project, makeBuildPlan(project, BuildAssetSource{}));
+    REQUIRE_FALSE(kit.pieces.empty());
+    ExportGroup group;
+    group.id = "building";
+    group.file = "Flat.fbx";
+
+    ExportSettings settings;
+    const Json plainJob = makeExportJob(project, {group}, {}, ExportBuildState{}, settings, tmp.path(), tmp.path() / "s", "export-1a2b3c4d",
+                                        tmp.path() / "r.json", &kit);
+    INFO(jobProblem(plainJob));
+    REQUIRE(jobProblem(plainJob).empty());
+    REQUIRE(plainJob["params"]["profile"] == "plain");
+    REQUIRE(plainJob["params"]["kit"].is_null());
+
+    settings.profile = ExportProfile::Unreal;
+    const Json unrealJob = makeExportJob(project, {group}, {}, ExportBuildState{}, settings, tmp.path(), tmp.path() / "s", "export-1a2b3c4d",
+                                         tmp.path() / "r.json", &kit);
+    INFO(jobProblem(unrealJob));
+    REQUIRE(jobProblem(unrealJob).empty());
+    REQUIRE(unrealJob["params"]["profile"] == "unreal");
+    REQUIRE(unrealJob["params"]["kit"].is_object());
+    REQUIRE(unrealJob["params"]["kit"]["file"] == "Flat_Kit.fbx");
+    REQUIRE(unrealJob["params"]["kit"]["pieces"].size() == kit.pieces.size());
+
+    // An unreal job without a kit has kit null too.
+    const Json noKit = makeExportJob(project, {group}, {}, ExportBuildState{}, settings, tmp.path(), tmp.path() / "s", "export-1a2b3c4d",
+                                     tmp.path() / "r.json");
+    REQUIRE(noKit["params"]["kit"].is_null());
+
+    // The job schema wants the profile.
+    nlohmann::json missing = nlohmann::json::parse(plainJob.dump());
+    missing["params"].erase("profile");
+    REQUIRE_FALSE(plynth::test::schemaProblem("blender-job.schema.json", missing).empty());
+    missing["params"]["profile"] = "unity";
+    REQUIRE_FALSE(plynth::test::schemaProblem("blender-job.schema.json", missing).empty());
+}
+
 TEST_CASE("quality status and phase names round trip", "[core][export]") {
     for (const QualityStatus s : {QualityStatus::Pass, QualityStatus::Warning, QualityStatus::Fail, QualityStatus::Skipped}) {
         REQUIRE(qualityStatusFromName(qualityStatusName(s)) == s);
@@ -135,6 +187,7 @@ TEST_CASE("makeExportJob validates against the job schema", "[core][export][sche
     REQUIRE(job["task"] == "export");
     REQUIRE(job["job_id"] == "export-1a2b3c4d");
     const Json& params = job["params"];
+    REQUIRE(params["profile"] == "plain");
     REQUIRE(params["project"]["name"] == "Flat");
     REQUIRE(params["project"]["folder"] == pathToUtf8(tmp.path()));
     REQUIRE(params["blend_file"] == pathToUtf8(tmp.path() / "build" / "building.blend"));

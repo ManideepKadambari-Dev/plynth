@@ -93,7 +93,7 @@ TEST_CASE("the build plan carries the trim of every floor with its slot", "[buil
     const Json job = checkedJob(p, plan);
     const Json& floor = job["params"]["floors"][0];
     REQUIRE(floor["trim"].size() == 3);
-    CHECK(floor["trim"][0]["object"] == "SM_f1_Skirting");
+    CHECK(floor["trim"][0]["object"] == "f1_Skirting");
     CHECK(floor["trim"][0]["plynth_kind"] == "trim");
     CHECK(floor["trim"][2]["kind"] == "casing");
     CHECK(floor["trim"][0]["slot"] == "Trim");

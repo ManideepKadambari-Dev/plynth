@@ -1,14 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "urn:plynth:schema:export-options:3",
-  "title": "Plynth export options, version 3",
-  "description": "The export-options.json file in a project folder (core/include/plynth/core/ExportGroups.h): the user's edits to the automatic export groups and the modular kit, gameplay data and license report switches. Version 1 files (export-options.v1.schema.json) had no gameplay switch and read with it off. Version 2 files (export-options.v2.schema.json) had no license switch and read with it off. It is only there once something was changed. Edits refer to group ids and plan ids; one that no longer applies is skipped with a note at export time.",
+  "$id": "urn:plynth:schema:export-options:4",
+  "title": "Plynth export options, version 4",
+  "description": "The export-options.json file in a project folder (core/include/plynth/core/ExportGroups.h): the user's edits to the automatic export groups, the license report switch and the settings of each engine link. Version 1 files (export-options.v1.schema.json) had no gameplay switch and read with it off. Version 2 files (export-options.v2.schema.json) had no license switch and read with it off. Version 3 files (export-options.v3.schema.json) had the kit and gameplay switches at the top; they read as links.unreal.kit and links.unreal.gameplay. It is only there once something was changed. Edits refer to group ids and plan ids; one that no longer applies is skipped with a note at export time.",
   "type": "object",
   "required": ["format", "version"],
   "additionalProperties": false,
   "properties": {
     "format": { "const": "plynth-export-options" },
-    "version": { "const": 3 },
+    "version": { "const": 4 },
     "groups": {
       "description": "Applied in this order: added, merges, moves, renames.",
       "type": "object",
@@ -72,32 +72,53 @@
       },
       "default": {}
     },
-    "kit": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "enabled": { "description": "Also write the modular kit with every export.", "type": "boolean", "default": false }
-      },
-      "default": {}
-    },
-    "gameplay": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "enabled": { "description": "Also write the gameplay data file (rooms, doors and lights) with every export.", "type": "boolean", "default": false }
-      },
-      "default": {}
-    },
     "licenses": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "enabled": { "description": "Also write the license report of the last build with every export.", "type": "boolean", "default": false }
+        "enabled": { "description": "Also write the license report of the last build with every export and every link delivery.", "type": "boolean", "default": false }
+      },
+      "default": {}
+    },
+    "links": {
+      "description": "The settings of each engine link, by link id. A link that is not listed has the defaults.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "unreal": { "$ref": "#/definitions/engineLink" }
       },
       "default": {}
     }
   },
   "definitions": {
+    "engineLink": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "pack_materials": { "description": "Send the materials and textures as ready material assets on the meshes. false: meshes only.", "type": "boolean", "default": true },
+        "grouped": { "description": "Send the groups of the grouped export as separate assets placed in the level. false: one building asset. null: follow the project's export mode.", "oneOf": [ { "type": "boolean" }, { "type": "null" } ], "default": null },
+        "kit": { "description": "Also send the modular kit.", "type": "boolean", "default": false },
+        "gameplay": { "description": "Also send the gameplay data file (rooms, doors and lights).", "type": "boolean", "default": false },
+        "sync_after_build": { "description": "Update the building in the target editor after every successful build while that editor is open.", "type": "boolean", "default": true },
+        "target": {
+          "description": "The editor project the building was last delivered into. null before the first delivery.",
+          "oneOf": [
+            {
+              "type": "object",
+              "required": ["project_name", "project_root", "engine_version"],
+              "additionalProperties": false,
+              "properties": {
+                "project_name": { "type": "string", "minLength": 1 },
+                "project_root": { "type": "string", "minLength": 1 },
+                "engine_version": { "type": "string" }
+              }
+            },
+            { "type": "null" }
+          ],
+          "default": null
+        }
+      }
+    },
     "groupId": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 80 },
     "groupName": { "description": "English only: A to Z, a to z, 0 to 9, spaces, hyphens and underscores, with at least one letter or digit.", "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9 _-]*[A-Za-z0-9][A-Za-z0-9 _-]*$" }
   }

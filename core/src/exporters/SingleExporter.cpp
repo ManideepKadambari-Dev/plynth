@@ -9,7 +9,7 @@ class SingleExporter final : public Exporter {
 public:
     std::string_view id() const override { return kSingleExporterId; }
     std::string_view name() const override { return "Single FBX"; }
-    std::string_view description() const override { return "One FBX file with the whole building and its collision meshes."; }
+    std::string_view description() const override { return "One FBX file with the whole building."; }
 
     // One group that takes everything, named after the project.
     Status groups(const Project& project, std::vector<ExportGroup>& out) const override

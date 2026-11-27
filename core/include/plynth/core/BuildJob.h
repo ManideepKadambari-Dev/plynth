@@ -59,7 +59,7 @@ using Json = nlohmann::ordered_json;
 //                "trim": [trim, ...], "dressing": [prop, ...], "lights": [light, ...]}]}
 //   The last three are left out when empty, and an opening carries "asset" only when a catalog door or window is
 //   fitted (schema/blender-job-finish.schema.json):
-//   trim: {"kind", "plan_id", "object": "SM_<floor>_Skirting", "plynth_kind": "trim", "slot", "material",
+//   trim: {"kind", "plan_id", "object": "<floor>_Skirting", "plynth_kind": "trim", "slot", "material",
 //          "sweeps": [{"closed", "sections": [[[x, y, z], ...], ...]}]}
 //   prop: {"id": "<room>_d01", "room", "rule", "host", "asset", "location": [x, y, z], "rotation_z", "size"}
 //   light: {"id", "kind", "location": [x, y, z], "power", "color": [r, g, b]}
@@ -95,8 +95,10 @@ using Json = nlohmann::ordered_json;
 //                     "hulls": [[[x, y, z], ...], ...]}
 //         index is the roof's, 0 for other kinds; hulls are point sets, [] for all but roofs.
 //   polygon: {"outline": [[x, y], ...], "holes": [[[x, y], ...], ...]}
-// Slab, stair and roof objects: SM_<floor>_Slab (plynth_kind "slab", plynth_id the floor),
-// SM_<floor>_<stair>_Stair ("stair", the stair id), SM_<floor>_Roof_<NN> ("roof", the floor id, NN the index
+// Object names are plain, with no engine prefix (ExportJob.h, Name rules): <floor>_Walls, <asset>_<item>,
+// <generator>_<item>, <floor>_Skirting and the other trim, <floor>_<stair>_Railing and _Guard.
+// Slab, stair and roof objects: <floor>_Slab (plynth_kind "slab", plynth_id the floor),
+// <floor>_<stair>_Stair ("stair", the stair id), <floor>_Roof_<NN> ("roof", the floor id, NN the index
 // from 00, custom properties plynth_roof_index and plynth_roof_section, the entry id or ""), each in its floor's
 // collection. Their neutral surfaces, when the material is null: slab edges and tops Wall_Outside, well sides
 // Wall_Inside, undersides Soffit; stairs Stair; roof covering Roof (pitched) or Flat_Roof (flat), underside
@@ -116,8 +118,9 @@ using Json = nlohmann::ordered_json;
 // Wall_Outside, Wall_Top, Reveal, Threshold, Floor, Ceiling, Door, Frame, Glass, Handle, Stair, Roof, Flat_Roof,
 // Soffit, Fascia, Generated). Generated is the look of a generator's material left empty.
 // "collision" lists the pieces and hulls of floorCollision; the build turns each into a convex mesh
-// UCX_<target object name>_<NN> (the pieces, then the hulls), and adds one convex hull per item and per
-// generator item (UCX_<item object name>_00, so UCX_SM_<generator>_<item>_00 for a generator's). The target is
+// <target object name>_Collision_<NN> (the pieces, then the hulls), and adds one convex hull per item and per
+// generator item (<item object name>_Collision_00, so <generator>_<item>_Collision_00 for a generator's). The
+// unreal export profile renames them UCX_<mesh>_<NN> (ExportJob.h). The target is
 // the object with that plynth_kind and plynth_id, and for a roof with that plynth_roof_index.
 //
 // Output in the result, schema/blender-result.schema.json "buildOutput":
@@ -146,7 +149,7 @@ using Json = nlohmann::ordered_json;
 // Collision (step "collision", order 110): one closed convex mesh per piece, hull, item and generator item, plynth_kind
 // "collision", custom property plynth_collision_for holding the target object's name, in a collection named
 // "Collision". building.blend keeps them; building.fbx and materials.json leave them out, so the 3D preview
-// never shows them; the export (ExportJob.h) writes them.
+// never shows them; the unreal export profile writes them and the plain profile leaves them out (ExportJob.h).
 //
 // Surfaces and UVs (the "materials" step and the steps that make meshes):
 // - a built face's Blender material is named after its slot (MaterialSlots.h); slots that show the same
@@ -461,7 +464,7 @@ struct BuildCounts {
     int slabs = 0;     // slab meshes made
     int stairs = 0;    // stair meshes made
     int roofs = 0;     // roof section meshes made
-    int collision = 0;  // UCX_ collision meshes made: pieces, hulls, item and generator item hulls
+    int collision = 0;  // collision meshes made: pieces, hulls, item and generator item hulls
     int generators = 0; // items built by generators; 0 when the result or report has no count
 
     bool operator==(const BuildCounts&) const = default;

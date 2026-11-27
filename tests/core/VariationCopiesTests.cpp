@@ -46,7 +46,7 @@ struct SavedProject {
         project.plan.floors[0].image = pathToUtf8(image);
         requireOk(saveProject(project, folder, {}));
         ExportOptions options;
-        options.kit.enabled = true;
+        options.links[std::string(kUnrealLinkId)].kit = true;
         requireOk(writeExportOptions(folder, options));
         out = tmp.path() / "street";
     }
@@ -81,7 +81,7 @@ TEST_CASE("variation copies get their seed, name, images and export options", "[
         }());
         REQUIRE(load.project.plan.floors[0].image.has_value());
         CHECK(fs::is_regular_file(resolveImagePath(made.folders[i], *load.project.plan.floors[0].image)));
-        CHECK(readExportOptions(made.folders[i]).options.kit.enabled);
+        CHECK(engineLinkOptions(readExportOptions(made.folders[i]).options, kUnrealLinkId).kit);
         CHECK_FALSE(fs::exists(made.folders[i] / "assets"));
     }
     CHECK(filesOf(s.folder) == before);

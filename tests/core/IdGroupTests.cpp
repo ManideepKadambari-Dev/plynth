@@ -57,8 +57,8 @@ bool newGroupShape(const std::string& id)
 // An export options file with one added group of this id.
 Json optionsWithGroup(const std::string& id)
 {
-    return Json::parse(R"({"format":"plynth-export-options","version":3,"groups":{"added":[{"id":")" + id +
-                       R"(","name":"Hero"}],"renames":[],"merges":[],"moves":[]},"kit":{"enabled":false}})");
+    return Json::parse(R"({"format":"plynth-export-options","version":4,"groups":{"added":[{"id":")" + id +
+                       R"(","name":"Hero"}],"renames":[],"merges":[],"moves":[]},"links":{}})");
 }
 
 }

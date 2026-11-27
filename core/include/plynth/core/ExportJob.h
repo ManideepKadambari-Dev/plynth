@@ -24,12 +24,35 @@ using Json = nlohmann::ordered_json;
 
 // The export job core sends to the Blender worker, and the result it reads back (task kExportTask, see
 // BlenderJob.h for the envelope). The worker opens build/building.blend (never saving it), so hand edits the
-// user made there are exported too (DESIGN.md section 7.13), makes the objects ready for Unreal, runs the
-// quality checks (DESIGN.md section 7.17) and writes the FBX files and Textures/ into an empty staging folder.
-// Core moves them into export/ afterwards (Export.h).
+// user made there are exported too (DESIGN.md section 7.13), makes the objects ready for the job's profile, runs
+// the quality checks of that profile (DESIGN.md section 7.17) and writes the FBX files and Textures/ into an
+// empty staging folder. Core moves them into place afterwards (Export.h).
+//
+// Profiles (owner, 2026-11-27): the build is the same for every use, and the export profile decides what the
+// worker makes of it. Profiles are registry entries on the Blender side too (blender/plynth/exporting/profiles/,
+// one file each); core names one by id in "profile".
+//   plain   the Export button and "plynth export": an FBX for any use. Objects keep the build's plain names
+//           (Name rules below), no collision mesh is written, materials keep their slot names, textures are
+//           <Material>_<Channel>.<ext>. No kit and no gameplay data. Checks: build_current, build_complete,
+//           scale, transforms, naming (plain rules), uvs, texel_density, triangles, materials, groups, fbx_scale.
+//   unreal  what the Unreal Engine link sends (EngineLink.h, UnrealLink.h): every group's objects joined into
+//           one mesh, SM_<Stem> for a single export or SM_<Stem>_<Group name> for a grouped one (characters other
+//           than letters, digits and "_" as "_"), with every collision piece of its objects as
+//           UCX_<mesh>_<NN>; textures T_<Material>_<Channel>.<ext>; the kit when asked (kit pieces SM_Kit_<id>
+//           stay one mesh each). Every check, the naming check with the SM_ and UCX_ rules, collision and
+//           kit_file included.
+// Both write with the one FBX profile of blender/plynth/exporters/fbx.py (metres, Y up, applied transforms),
+// so every group shares the building origin.
+//
+// Name rules. The build names every object plainly, with no engine prefix: <floor>_Walls, <floor>_Slab,
+// <floor>_<stair>_Stair, <floor>_Roof_<NN>, <asset>_<item>, <generator>_<item>, <floor>_Skirting and so on
+// (BuildJob.h), and its collision meshes <object>_Collision_<NN>, plynth_kind "collision", in the collection
+// "Collision". A building.blend made before this rule (names starting with SM_, collision UCX_) exports the
+// same: the prepare step drops a leading "SM_" and finds collision by plynth_kind, never by name.
 //
 // Params, schema/blender-job.schema.json "export":
 //   {"project": {"name": "Flat", "folder": "D:/Projects/Flat"},
+//    "profile": "plain" or "unreal",
 //    "blend_file": "D:/Projects/Flat/build/building.blend",
 //    "output_folder": "D:/Projects/Flat/export/.staging", "textures_folder": "Textures",
 //    "groups": [{"id": "building", "file": "Flat.fbx", "kinds": [], "ids": [],
@@ -207,16 +230,23 @@ struct ExportBounds {
 // height). Empty when the plan has no walls.
 std::optional<ExportBounds> expectedWallBounds(const Project& project);
 
+// The export profiles above. Names in files: "plain", "unreal".
+enum class ExportProfile { Plain, Unreal };
+
+std::string_view exportProfileName(ExportProfile profile);
+std::optional<ExportProfile> exportProfileFromName(std::string_view name);
+
 struct ExportSettings {
     bool force = false; // write even when checks fail (DESIGN.md section 7.17: "unless the user overrides them")
     bool write = true;  // false runs the checks only and writes nothing
+    ExportProfile profile = ExportProfile::Plain;
 
     bool operator==(const ExportSettings&) const = default;
 };
 
 // Makes the export job: the envelope of makeBlenderJob with task kExportTask and the params above. blend_file is
-// projectFolder/build/building.blend, output_folder is stagingFolder. Paths are absolute, UTF-8, forward
-// slashes. kit null writes "kit": null; otherwise kit.file is exportFileStem(project name) + kKitFileSuffix,
+// projectFolder/build/building.blend, output_folder is stagingFolder, profile is settings.profile. Paths are
+// absolute, UTF-8, forward slashes. The plain profile always writes "kit": null. kit null writes "kit": null; otherwise kit.file is exportFileStem(project name) + kKitFileSuffix,
 // fill_openings and bevel are the build's defaults (BuildSettings). A materials entry's "tile_size", for the kit
 // UVs, is its BuiltMaterial::tileSize, the size it was built with, which always wins. tileSizes (catalog material
 // id to tile size in metres, from the library) is only used for an entry that has none.
