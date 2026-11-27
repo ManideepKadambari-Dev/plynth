@@ -1,4 +1,4 @@
-from . import PLAIN, UNREAL, QualityCheck, finding, result
+from . import QualityCheck, finding, result
 from ._common import NAME_PATTERN, plan_id
 from ..registry import QUALITY_CHECKS
 
@@ -64,4 +64,4 @@ def run(ctx):
     return result("pass", "Every object, slot and texture name follows the naming rules.")
 
 
-QUALITY_CHECKS.register("naming", QualityCheck(ORDER, "scene", "Naming", run, (PLAIN, UNREAL)))
+QUALITY_CHECKS.register("naming", QualityCheck(ORDER, "scene", "Naming", run))

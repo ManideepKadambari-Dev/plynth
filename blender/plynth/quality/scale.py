@@ -1,6 +1,6 @@
 import bpy
 
-from . import PLAIN, UNREAL, QualityCheck, finding, result
+from . import QualityCheck, finding, result
 from ._common import plan_id
 from .. import scene
 from ..registry import QUALITY_CHECKS
@@ -51,4 +51,4 @@ def run(ctx):
     return result("pass", "The scene is metric at scale 1 and the walls match the plan.")
 
 
-QUALITY_CHECKS.register("scale", QualityCheck(ORDER, "scene", "Scale and units", run, (PLAIN, UNREAL)))
+QUALITY_CHECKS.register("scale", QualityCheck(ORDER, "scene", "Scale and units", run))

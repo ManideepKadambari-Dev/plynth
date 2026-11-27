@@ -62,7 +62,7 @@ def run_check(ctx, check_id, check):
 def checks_of(phase, profile_id):
     from ..registry import QUALITY_CHECKS
     found = [(check_id, check) for check_id, check in QUALITY_CHECKS.all()
-             if check.phase == phase and profile_id in check.profiles]
+             if check.phase == phase and quality.applies(check, profile_id)]
     return sorted(found, key=lambda pair: pair[1].order)
 
 

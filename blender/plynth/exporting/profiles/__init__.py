@@ -6,5 +6,5 @@ from collections import namedtuple
 # and collision_prefix the one of every collision mesh (None when the profile has none); refused_prefixes are
 # starts no mesh name may have. name_objects(ctx) names every mesh and material before the scene checks, and
 # finish_objects(ctx) makes the objects ready for the files after them.
-Profile = namedtuple("Profile", "name collision kit texture_prefix mesh_prefix collision_prefix refused_prefixes "
-                                "name_objects finish_objects")
+Profile = namedtuple("Profile", "name collision lights kit texture_prefix mesh_prefix collision_prefix "
+                                "refused_prefixes name_objects finish_objects")

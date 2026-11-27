@@ -48,8 +48,7 @@ class QualityTests(ExportTest):
             return quality.result("pass", "Fault made.")
 
         registry.QUALITY_CHECKS._entries.pop("fault", None)
-        registry.QUALITY_CHECKS.register("fault", quality.QualityCheck(0, "scene", "Fault", run,
-                                                                        (quality.PLAIN, quality.UNREAL)))
+        registry.QUALITY_CHECKS.register("fault", quality.QualityCheck(0, "scene", "Fault", run))
         self.addCleanup(registry.QUALITY_CHECKS._entries.pop, "fault", None)
 
     # Exports with an optional fault and returns the checks by id, after checking the result against the schema.
@@ -121,15 +120,20 @@ class QualityTests(ExportTest):
         self.assertIn("starts with UCX_", checks["naming"]["findings"][0]["message"])
         self.assertIn("plain FBX", checks["naming"]["message"])
 
-    # Every check names the profiles it runs for, and only collision and kit_file are left out of plain.
+    # Only the engine checks, collision and kit_file, name the profiles they are limited to, and only unreal.
+    # Every other check names none, so it runs for every profile, a new one included.
     def test_profiles_declared(self):
         registry.discover(quality)
         for check_id, entry in registry.QUALITY_CHECKS.all():
             if check_id == "fault":
                 continue
-            self.assertTrue(entry.profiles, check_id)
-            self.assertIn("unreal", entry.profiles, check_id)
-            self.assertEqual("plain" in entry.profiles, check_id in PLAIN_CHECK_IDS, check_id)
+            if check_id in PLAIN_CHECK_IDS:
+                self.assertIsNone(entry.profiles, check_id)
+            else:
+                self.assertEqual(entry.profiles, ("unreal",), check_id)
+            for profile_id in ("plain", "unreal", "another_engine"):
+                expected = check_id in PLAIN_CHECK_IDS or profile_id == "unreal"
+                self.assertEqual(quality.applies(entry, profile_id), expected, (check_id, profile_id))
 
     # The default fixture has slots without a material, so the materials check names them and nothing is written.
     def test_neutral_slots(self):

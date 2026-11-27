@@ -27,6 +27,6 @@ def finish_objects(ctx):
 
 
 EXPORT_PROFILES.register("plain", Profile(
-    name="the plain FBX", collision=False, kit=False, texture_prefix="", mesh_prefix="", collision_prefix=None,
+    name="the plain FBX", collision=False, lights=False, kit=False, texture_prefix="", mesh_prefix="", collision_prefix=None,
     refused_prefixes=(ENGINE_MESH_PREFIX, ENGINE_COLLISION_PREFIX), name_objects=name_objects,
     finish_objects=finish_objects))

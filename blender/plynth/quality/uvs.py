@@ -1,6 +1,6 @@
 import numpy as np
 
-from . import PLAIN, UNREAL, QualityCheck, finding, result
+from . import QualityCheck, finding, result
 from ._common import base_color_source, plan_id, polygon_areas
 from ..registry import QUALITY_CHECKS
 
@@ -95,4 +95,4 @@ def run(ctx):
     return result("pass", "Every textured mesh has usable UVs.")
 
 
-QUALITY_CHECKS.register("uvs", QualityCheck(ORDER, "scene", "UVs", run, (PLAIN, UNREAL)))
+QUALITY_CHECKS.register("uvs", QualityCheck(ORDER, "scene", "UVs", run))

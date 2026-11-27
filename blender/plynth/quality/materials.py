@@ -2,7 +2,7 @@ import os
 
 import bpy
 
-from . import PLAIN, UNREAL, QualityCheck, finding, result
+from . import QualityCheck, finding, result
 from ._common import base_color_source, image_nodes, plan_id, polygon_materials
 from ..materials import file_is_magenta
 from ..registry import QUALITY_CHECKS
@@ -79,4 +79,4 @@ def run(ctx):
     return result("pass", "Every mesh has real materials with their image files.")
 
 
-QUALITY_CHECKS.register("materials", QualityCheck(ORDER, "scene", "Materials and textures", run, (PLAIN, UNREAL)))
+QUALITY_CHECKS.register("materials", QualityCheck(ORDER, "scene", "Materials and textures", run))

@@ -2,7 +2,7 @@ import re
 
 import bpy
 
-from . import PLAIN, UNREAL, QualityCheck, finding, result
+from . import QualityCheck, finding, result
 from .scale import bound_differences
 from .. import scene
 from ..registry import QUALITY_CHECKS
@@ -129,4 +129,4 @@ def run(ctx):
     return result("pass", "The written files read back with the right size and object count.")
 
 
-QUALITY_CHECKS.register("fbx_scale", QualityCheck(ORDER, "file", "Written files match", run, (PLAIN, UNREAL)))
+QUALITY_CHECKS.register("fbx_scale", QualityCheck(ORDER, "file", "Written files match", run))

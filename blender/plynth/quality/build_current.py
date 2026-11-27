@@ -1,4 +1,4 @@
-from . import PLAIN, UNREAL, QualityCheck, finding, result
+from . import QualityCheck, finding, result
 from ..registry import QUALITY_CHECKS
 
 ORDER = 10
@@ -16,4 +16,4 @@ def run(ctx):
     return result("pass", "The build is up to date.")
 
 
-QUALITY_CHECKS.register("build_current", QualityCheck(ORDER, "scene", "Build is up to date", run, (PLAIN, UNREAL)))
+QUALITY_CHECKS.register("build_current", QualityCheck(ORDER, "scene", "Build is up to date", run))

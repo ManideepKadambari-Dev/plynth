@@ -1172,7 +1172,7 @@ The export runs in the background with a progress bar and a **Cancel** button. I
 
 Everything goes into the project's `export` folder:
 
-- A single project: `<Name>.fbx`, named after the project. A project called "My Flat 2" gives `My_Flat_2.fbx`. Walls, floors, ceilings, slabs, stairs, roofs, doors, windows and furniture are all in it. It has no collision shapes.
+- A single project: `<Name>.fbx`, named after the project. A project called "My Flat 2" gives `My_Flat_2.fbx`. Walls, floors, ceilings, slabs, stairs, roofs, doors, windows and furniture are all in it. It has no collision shapes. Light markers are not in the plain FBX; they go to game engines through the engine link.
 - A grouped project: one FBX for each group, named `<Name>_<Group>.fbx`, for example `My_Flat_2_Walls.fbx`. See "Grouped export".
 - `Textures`, the images the FBX uses and no others. The names are `<Material>_<Channel>`, for example `OakPlanks_BaseColor.jpg` and `OakPlanks_Normal.png`. A surface with no material gets a plain image named after its slot.
 - `export_report.json`, the report of the last export. It lists the checks, the files and the time.
@@ -1209,7 +1209,7 @@ A grouped export writes several FBX files instead of one. Every file uses the bu
 | Group | File ends with | What is in it |
 |---|---|---|
 | Walls | `_Walls.fbx` | The walls of every floor, and the door and window parts. It also takes anything Plynth cannot place, such as an object you added by hand in `building.blend`. |
-| Floors | `_Floors.fbx` | Every room's floor and ceiling, the door thresholds, and every slab, stair and roof. Lights go here too once the plan has them. |
+| Floors | `_Floors.fbx` | Every room's floor and ceiling, the door thresholds, and every slab, stair and roof. |
 | Furniture, one for each room | `_Furniture_Living.fbx` | The furniture of one room, named by the room type. Two rooms of one type get the room id added to the name, so their files stay apart. |
 | Furniture | `_Furniture.fbx` | Furniture that is not in any room. Only made when there is some. |
 

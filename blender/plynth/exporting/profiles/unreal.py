@@ -110,6 +110,6 @@ def finish_objects(ctx):
 
 
 EXPORT_PROFILES.register("unreal", Profile(
-    name="Unreal Engine", collision=True, kit=True, texture_prefix="T_", mesh_prefix=ENGINE_MESH_PREFIX,
+    name="Unreal Engine", collision=True, lights=True, kit=True, texture_prefix="T_", mesh_prefix=ENGINE_MESH_PREFIX,
     collision_prefix=ENGINE_COLLISION_PREFIX, refused_prefixes=(), name_objects=name_objects,
     finish_objects=finish_objects))

@@ -94,6 +94,17 @@ def drop_old_prefix(meshes, collision):
             obj["plynth_collision_for"] = new_of[target]
 
 
+# Takes the light markers out of the scene and the export when the job's profile leaves them out of its files.
+# The plain FBX has none, because Blender's own FBX importer cannot read a light and would refuse the whole file.
+def drop_lights(ctx):
+    profile = ctx.state.get("profile")
+    if profile is None or profile.lights:
+        return
+    for obj in ctx.state["lights"]:
+        bpy.data.objects.remove(obj, do_unlink=True)
+    ctx.state["lights"] = []
+
+
 # Makes the scene ready: instances become real and one mesh per item, curves become meshes, modifiers are
 # applied, empties and parents go, every mesh has its own data and an identity transform. Everything then sits
 # at the building origin (DESIGN.md section 7.16). Collision meshes are told apart by their kind, never by name,
@@ -116,8 +127,10 @@ def run(ctx):
     ctx.state["meshes"] = [o for o in meshes if o.get("plynth_kind") != COLLISION_KIND]
     ctx.state["collision"] = [o for o in meshes if o.get("plynth_kind") == COLLISION_KIND]
     drop_old_prefix(ctx.state["meshes"], ctx.state["collision"])
-    # Lights are the one object that is not a mesh: they keep their place and go into the FBX of their group.
+    # Lights are the one object that is not a mesh: they keep their place and go into the FBX of their group
+    # when the profile takes them.
     ctx.state["lights"] = [o for o in scene.scene_objects() if o.type == "LIGHT" and o.get("plynth_kind") == "light"]
+    drop_lights(ctx)
     if not ctx.state["meshes"]:
         raise WorkerError("no_geometry", "Nothing is left to export.")
 

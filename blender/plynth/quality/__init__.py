@@ -5,11 +5,16 @@ STATUSES = ("pass", "warning", "fail", "skipped")
 
 # What each quality check module registers: where it runs in the order, the phase ("scene" or "file"), the
 # name shown to the user, a function run(ctx) that returns the dictionary made by result(), and the ids of the
-# export profiles it runs for (exporting/profiles/). A check runs only for the profiles it names.
-QualityCheck = namedtuple("QualityCheck", "order phase name run profiles")
+# export profiles (exporting/profiles/) it is limited to. A check that names none runs for every profile, so a
+# new profile needs no change to the checks.
+QualityCheck = namedtuple("QualityCheck", "order phase name run profiles", defaults=(None,))
 
-PLAIN = "plain"
 UNREAL = "unreal"
+
+
+# Says whether a check runs for the export profile: every profile when it names none, else only those it names.
+def applies(check, profile_id):
+    return not check.profiles or profile_id in check.profiles
 
 
 # Makes one finding. The object is the exported object or slot it is about, the plan id is what the app can
